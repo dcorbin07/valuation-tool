@@ -32,9 +32,13 @@ def features(tier: str) -> dict:
 
 
 def _active(user) -> str:
-    """Effective tier — falls back to free if the subscription isn't active."""
+    """Effective tier — falls back to free if the subscription isn't active.
+    Owner emails (config OWNER_EMAILS) always get Premium, free forever."""
     if not user:
         return "anon"
+    from ..config import CONFIG
+    if user.get("email", "").strip().lower() in CONFIG.owner_email_set:
+        return "premium"
     if user.get("tier") in ("pro", "premium") and user.get("subscription_status") in ("active", "trialing", "comped"):
         return user["tier"]
     return "free"

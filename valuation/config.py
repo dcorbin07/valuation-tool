@@ -83,6 +83,12 @@ class Config:
     email_from: str = field(default_factory=lambda: _get("EMAIL_FROM", "alerts@example.com"))
     public_base_url: str = field(default_factory=lambda: _get("PUBLIC_BASE_URL", "http://127.0.0.1:5000"))
     admin_token: str = field(default_factory=lambda: _get("ADMIN_TOKEN"))
+    # Owner accounts get permanent free Premium (comma-separated emails).
+    owner_emails: str = field(default_factory=lambda: _get("OWNER_EMAILS", "donniecorbin6@gmail.com"))
+
+    @property
+    def owner_email_set(self) -> set:
+        return {e.strip().lower() for e in self.owner_emails.split(",") if e.strip()}
 
     @property
     def billing_enabled(self) -> bool:
