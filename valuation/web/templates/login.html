@@ -1,0 +1,19 @@
+{% extends "_saas_base.html" %}
+{% block title %}Log in{% endblock %}
+{% block body %}
+<div class="wrap" style="padding:50px 22px;max-width:420px">
+  <div class="card">
+    <h2 style="margin-top:0;color:var(--navy)">Log in</h2>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    <form method="POST" action="/login{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}">
+      <label class="muted" style="font-size:13px">Email</label>
+      <input type="email" name="email" required autofocus>
+      <label class="muted" style="font-size:13px">Password</label>
+      <input type="password" name="password" required>
+      <button class="btn" style="width:100%">Log in</button>
+    </form>
+    <p class="muted" style="font-size:14px;margin-top:16px">No account? <a href="/register">Create one free</a>
+      &nbsp;·&nbsp; <a href="/forgot">Forgot password?</a></p>
+  </div>
+</div>
+{% endblock %}

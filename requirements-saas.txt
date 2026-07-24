@@ -1,0 +1,7 @@
+# Hosted SaaS deployment = base tool + billing + a production server.
+-r requirements.txt
+
+stripe>=9.0        # subscription billing
+gunicorn>=21.0     # production WSGI server (Linux hosts)
+# werkzeug ships with Flask and provides password hashing — no extra dep.
+# For Postgres in production also add:  psycopg2-binary>=2.9  (and set DATABASE_URL)

@@ -1,0 +1,25 @@
+{% extends "_saas_base.html" %}
+{% block title %}Create account{% endblock %}
+{% block body %}
+<div class="wrap" style="padding:50px 22px;max-width:420px">
+  <div class="card">
+    <h2 style="margin-top:0;color:var(--navy)">Create your free account</h2>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    <form method="POST" action="/register">
+      <label class="muted" style="font-size:13px">Email</label>
+      <input type="email" name="email" required autofocus>
+      <label class="muted" style="font-size:13px">Password (min 8 characters)</label>
+      <input type="password" name="password" required minlength="8">
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--muted);margin:2px 0 14px">
+        <input type="checkbox" name="agree" required style="width:auto;margin-top:3px">
+        <span>I agree to the <a href="/terms" target="_blank">Terms</a> and
+        <a href="/privacy" target="_blank">Privacy Policy</a>, and understand this is an educational tool, not investment advice.</span>
+      </label>
+      <button class="btn" style="width:100%">Create account</button>
+    </form>
+    <p class="muted" style="font-size:12px;margin-top:14px">By creating an account you acknowledge this is an
+      educational tool and not investment advice.</p>
+    <p class="muted" style="font-size:14px">Already have one? <a href="/login">Log in</a></p>
+  </div>
+</div>
+{% endblock %}

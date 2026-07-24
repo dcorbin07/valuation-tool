@@ -1,0 +1,4 @@
+# local screener database + generated reports
+*.db
+*.sqlite
+snapshots/

@@ -1,0 +1,19 @@
+# Local/container run of the hosted SaaS app.
+#   docker compose up --build      → http://localhost:8000
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data        # persist the SQLite DBs + snapshots
+    restart: unless-stopped
+
+  # Weekly scan + email digest. Run on a schedule via your host's cron, or
+  # uncomment and drive with a cron sidecar. Example (manual):
+  #   docker compose run --rm web python -m valuation.saas.scan_worker
+  #
+  # For production Postgres instead of SQLite, add a db service and set
+  # DATABASE_URL=postgresql://user:pass@db:5432/app in .env (needs psycopg2-binary).

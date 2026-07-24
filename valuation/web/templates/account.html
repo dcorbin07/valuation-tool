@@ -1,0 +1,32 @@
+{% extends "_saas_base.html" %}
+{% block title %}Account{% endblock %}
+{% block body %}
+<div class="wrap" style="padding:44px 22px;max-width:640px">
+  {% if request.args.get('welcome') %}<div class="card" style="background:var(--bsoft);margin-bottom:16px">🎉 Welcome aboard — your subscription is active.</div>{% endif %}
+  <div class="card">
+    <h2 style="margin-top:0;color:var(--navy)">Your account</h2>
+    <p><b>Email:</b> {{ user.email }}</p>
+    <p><b>Plan:</b> <span style="font-weight:700;text-transform:capitalize">{{ eff_tier }}</span>
+       {% if user.subscription_status and user.subscription_status not in ('none',) %}
+       <span class="muted">({{ user.subscription_status }})</span>{% endif %}</p>
+    <div style="margin:16px 0">
+      {% if eff_tier == 'free' %}
+        <a href="/pricing" class="btn">Upgrade</a>
+      {% else %}
+        <form method="POST" action="/billing/portal" style="display:inline">
+          <button class="btn alt">Manage subscription</button></form>
+      {% endif %}
+      <a href="/app" class="btn alt">Open dashboard</a>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h3 style="margin-top:0;color:var(--navy)">Watchlist</h3>
+    {% if watchlist %}
+      <p>{{ watchlist | join(', ') }}</p>
+    {% else %}
+      <p class="muted">No saved tickers yet. Add them from the dashboard.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

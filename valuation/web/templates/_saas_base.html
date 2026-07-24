@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Valuation Tool{% endblock %}</title>
+<style>
+  :root{--navy:#1f3864;--blue:#2e5fa3;--bg:#eef1f6;--ink:#1a2233;--muted:#6b7688;--green:#1b7f4b;
+    --amber:#c77c11;--red:#b3261e;--border:#e2e8f2;--bsoft:#eaf0fb;--card:#fff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.55}
+  a{color:var(--blue);text-decoration:none}
+  .nav{background:#fff;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10}
+  .nav .in{max-width:1080px;margin:auto;display:flex;align-items:center;gap:18px;padding:13px 22px}
+  .nav .logo{font-weight:800;color:var(--navy);font-size:17px}
+  .nav .sp{flex:1}
+  .nav a{font-size:14px;font-weight:600;color:var(--muted)}
+  .nav a.cta{background:var(--navy);color:#fff;padding:8px 16px;border-radius:9px}
+  .wrap{max-width:1080px;margin:auto;padding:0 22px}
+  .btn{display:inline-block;background:var(--navy);color:#fff;border:none;padding:12px 22px;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer}
+  .btn.alt{background:var(--bsoft);color:var(--navy)}
+  .card{background:var(--card);border-radius:14px;box-shadow:0 1px 3px rgba(20,30,60,.08),0 6px 24px rgba(20,30,60,.05);padding:26px}
+  .muted{color:var(--muted)}
+  .err{background:#fbeae9;color:var(--red);border:1px solid #f0c9c6;padding:11px 15px;border-radius:10px;margin-bottom:14px;font-weight:600;font-size:14px}
+  input[type=email],input[type=password],input[type=text]{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:15px;margin:6px 0 14px;outline:none}
+  input:focus{border-color:var(--blue)}
+  .disclaimer{font-size:11.5px;color:#9aa4b5;text-align:center;padding:30px 22px;max-width:820px;margin:auto;line-height:1.6}
+  footer{border-top:1px solid var(--border);margin-top:40px}
+</style>
+</head><body>
+<div class="nav"><div class="in">
+  <a href="/" class="logo">◆ Valuation Tool</a>
+  <a href="/pricing">Pricing</a>
+  <div class="sp"></div>
+  {% if user %}<a href="/app">Dashboard</a><a href="/account">Account</a><a href="/logout">Log out</a>
+  {% else %}<a href="/login">Log in</a><a href="/register" class="cta">Get started</a>{% endif %}
+</div></div>
+{% block body %}{% endblock %}
+<footer><div class="disclaimer">
+  <div style="margin-bottom:10px"><a href="/terms">Terms</a> &nbsp;·&nbsp; <a href="/privacy">Privacy</a> &nbsp;·&nbsp; <a href="/pricing">Pricing</a></div>
+  <b>Not investment advice.</b> This is an educational research tool. Fair values and scores are model outputs and
+  heuristics, not recommendations or price targets, and may be wrong. Nothing here is personalized advice. Markets involve
+  risk of loss. Do your own research and consider consulting a licensed financial professional before investing.
+</div></footer>
+</body></html>

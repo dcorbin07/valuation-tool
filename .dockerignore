@@ -1,0 +1,15 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+data/*.db
+data/*.sqlite
+*_DCF_Model.xlsx
+*_Valuation_Report.pdf
+.env
+.DS_Store
+tests
+*.md
+!README.md

@@ -1,0 +1,32 @@
+{% extends "_saas_base.html" %}
+{% block title %}Adaptive DCF & Hot-Stocks Screener{% endblock %}
+{% block body %}
+<div style="background:linear-gradient(120deg,#1f3864,#2e5fa3);color:#fff">
+  <div class="wrap" style="padding:64px 22px 70px;text-align:center">
+    <h1 style="font-size:40px;margin:0 0 14px;font-weight:800;letter-spacing:-.5px">Value any stock. Find the hot ones. Prove the edge.</h1>
+    <p style="font-size:18px;color:#d6e0f3;max-width:720px;margin:0 auto 26px">
+      A live-data DCF for any ticker with bull/base/bear cases and a 1–100 score, a whole-market
+      screener that ranks the market for you, and an honest backtest that checks whether the ranking
+      actually beats the market.</p>
+    <a href="/register" class="btn" style="background:#fff;color:#1f3864;font-size:16px">Start free</a>
+    <a href="/pricing" class="btn alt" style="background:rgba(255,255,255,.15);color:#fff;margin-left:8px">See plans</a>
+    <div style="color:#a9bbe0;font-size:13px;margin-top:16px">No card for the free plan · educational tool, not advice</div>
+  </div>
+</div>
+<div class="wrap" style="padding:52px 22px">
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+    <div class="card"><h3 style="margin-top:0;color:var(--navy)">📈 Adaptive DCF</h3>
+      <p class="muted">Live financials → fair value with bull/base/bear, Monte Carlo, reverse DCF, comps, and a
+      transparent 1–100 score. It adapts to mature, growth, and cash-burning companies.</p></div>
+    <div class="card"><h3 style="margin-top:0;color:var(--navy)">🔥 Hot-stocks screener</h3>
+      <p class="muted">Scans the whole US market and ranks every name on a self-calibrating value · quality · growth ·
+      momentum composite, with sector heat and a one-click portfolio.</p></div>
+    <div class="card"><h3 style="margin-top:0;color:var(--navy)">📊 Honest backtest</h3>
+      <p class="muted">Information Coefficient, quantile spread after costs, equity curve vs benchmark, out-of-sample —
+      it won't call a lucky curve an edge. Survivorship caveats included.</p></div>
+  </div>
+  <div style="text-align:center;margin-top:40px">
+    <a href="/register" class="btn">Create your free account</a>
+  </div>
+</div>
+{% endblock %}

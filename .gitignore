@@ -1,0 +1,20 @@
+# Environment / secrets
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Generated exports
+*_DCF_Model.xlsx
+*_Valuation_Report.pdf
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp

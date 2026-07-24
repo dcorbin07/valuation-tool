@@ -1,0 +1,68 @@
+# Render Blueprint — one-click deploy of the SaaS app.
+# In Render: New → Blueprint → point at your repo. It reads this file.
+# Fill the "sync: false" secrets in the Render dashboard after the first deploy.
+services:
+  - type: web
+    name: valuation-tool
+    runtime: docker
+    plan: starter                     # $7/mo; use "free" to trial (spins down when idle)
+    healthCheckPath: /api/health
+    autoDeploy: true
+    disk:
+      name: data                      # persists the SQLite DBs + snapshots
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true           # Render generates a strong secret
+      - key: DATABASE_URL
+        value: sqlite:///data/app.db
+      - key: PUBLIC_BASE_URL
+        sync: false                   # set to https://your-render-url or custom domain
+      - key: ADMIN_TOKEN
+        generateValue: true           # used by the weekly cron below
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: FMP_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_PRO
+        sync: false
+      - key: STRIPE_PRICE_PREMIUM
+        sync: false
+      - key: SEC_USER_AGENT
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+
+  # Weekly scan. With SQLite, a separate service can't share the web disk, so the
+  # cron just calls the web app's token-protected endpoint, which runs the scan
+  # in-process (same disk). Set X-Admin-Token to the ADMIN_TOKEN value above.
+  - type: cron
+    name: weekly-scan-trigger
+    runtime: image
+    image:
+      url: curlimages/curl:latest
+    schedule: "0 6 * * 1"             # Mondays 6:00 AM UTC
+    dockerCommand: >
+      curl -fsS -X POST "$PUBLIC_BASE_URL/admin/run-scan" -H "X-Admin-Token: $ADMIN_TOKEN"
+    envVars:
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+
+# At scale, switch to Render Managed Postgres (set DATABASE_URL to its Internal URL,
+# add psycopg2-binary, and port UserStore/screener Store to Postgres) so a real
+# worker service can share the database. See SAAS_RUNBOOK.md.

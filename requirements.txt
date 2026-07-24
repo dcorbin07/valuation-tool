@@ -1,0 +1,19 @@
+# Core valuation engine
+yfinance>=0.2.40      # live market data + financial statements (no API key)
+pandas>=2.0
+numpy>=1.24
+requests>=2.31        # SEC EDGAR + macro data
+scipy>=1.10           # solvers for reverse DCF / distributions
+
+# Web dashboard
+Flask>=3.0
+
+# Exports
+openpyxl>=3.1         # Excel model export (mirrors the Nike workbook)
+reportlab>=4.0        # PDF valuation report
+
+# Optional AI qualitative layer (only needed if you set ANTHROPIC_API_KEY)
+anthropic>=0.34       # pip install anthropic  — safe to skip if you won't use AI
+
+# Optional: load keys from a .env file
+python-dotenv>=1.0

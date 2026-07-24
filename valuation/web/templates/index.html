@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adaptive DCF Valuation Tool</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <div class="logo">V</div>
+      <div>
+        <h1>Adaptive DCF Valuation Tool</h1>
+        <div class="tagline">Live-data DCF · bull / base / bear · 1–100 opportunity score · AI analysis</div>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-tab="single" onclick="switchTab('single')">Single valuation</button>
+      <button class="tab" data-tab="hot" onclick="switchTab('hot')">🔥 Hot stocks</button>
+      <button class="tab" data-tab="backtest" onclick="switchTab('backtest')">📊 Backtest</button>
+      <button class="tab" data-tab="rank" onclick="switchTab('rank')">Watchlist</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- SINGLE -->
+  <div id="tab-single">
+    <div class="search-card">
+      <div class="search-row">
+        <input id="ticker" type="text" placeholder="Enter a ticker (e.g. AAPL, NVDA, KO)"
+               autocomplete="off" onkeydown="if(event.key==='Enter')runValue()">
+        <button class="btn" id="go" onclick="runValue()">Analyze</button>
+      </div>
+      <div class="chips" id="chips"></div>
+      <div class="opt">
+        <label><input type="checkbox" id="runai" {{ 'checked' if ai_enabled else '' }}>
+          Run AI analysis
+          <span class="muted">({% if ai_enabled %}{{ ai_provider }} key detected{% else %}rule-based — no key set{% endif %})</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="loader" id="loader"><div class="spinner"></div><div id="loadmsg">Fetching live data &amp; valuing…</div></div>
+    <div class="err" id="err"></div>
+
+    <div class="results" id="results">
+      <!-- Hero -->
+      <div class="card">
+        <div class="hero">
+          <div>
+            <div class="name" id="coName"></div>
+            <div class="sub" id="coSub"></div>
+            <div class="badges" id="coBadges"></div>
+            <div class="metricline" id="heroMetrics"></div>
+          </div>
+          <div class="gauge" id="gauge"></div>
+        </div>
+      </div>
+
+      <!-- Scenarios -->
+      <div class="card">
+        <h3>Fair value &amp; scenarios</h3>
+        <div class="rangebar" id="rangebar"></div>
+        <div class="grid3" id="scenarioCards" style="margin-top:14px"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="card">
+          <h3>Free cash flow projection</h3>
+          <canvas id="fcfChart" height="200"></canvas>
+        </div>
+        <div class="card">
+          <h3>Monte Carlo — fair value distribution</h3>
+          <canvas id="mcChart" height="200"></canvas>
+          <div class="note" id="mcNote"></div>
+        </div>
+      </div>
+
+      <!-- Score breakdown -->
+      <div class="card">
+        <h3>Opportunity score breakdown</h3>
+        <div class="section-hint" id="scoreHint"></div>
+        <div id="scoreBars"></div>
+      </div>
+
+      <div class="grid2">
+        <!-- Reverse DCF -->
+        <div class="card">
+          <h3>What the market is pricing in</h3>
+          <div id="reverseBox"></div>
+        </div>
+        <!-- Comps -->
+        <div class="card">
+          <h3>Comps cross-check</h3>
+          <div id="compsBox"></div>
+        </div>
+      </div>
+
+      <!-- Assumptions editor -->
+      <div class="card">
+        <h3>Assumptions — tweak &amp; re-run</h3>
+        <div class="section-hint">These are the model's auto-derived base-case drivers. Edit any and re-run to see the impact.</div>
+        <div class="assum" id="assumEditor"></div>
+        <div class="actions" style="margin-top:16px">
+          <button class="btn secondary" onclick="rerun()">Re-run with these assumptions</button>
+          <button class="btn ghost" onclick="resetAssum()">Reset to auto</button>
+        </div>
+        <div class="note" id="assumNotes"></div>
+      </div>
+
+      <!-- Sensitivity -->
+      <div class="card">
+        <h3>Sensitivity — value per share (WACC × terminal growth)</h3>
+        <div id="sensBox" style="overflow-x:auto"></div>
+      </div>
+
+      <!-- AI -->
+      <div class="card ai" id="aiCard" style="display:none">
+        <h3>Qualitative analysis <span class="ai-src" id="aiSrc"></span></h3>
+        <div id="aiBox"></div>
+      </div>
+
+      <!-- Downloads + sources -->
+      <div class="card">
+        <h3>Export &amp; sources</h3>
+        <div class="actions">
+          <button class="btn" id="dlExcel">⬇ Excel model (.xlsx)</button>
+          <button class="btn secondary" id="dlPdf">⬇ PDF report</button>
+        </div>
+        <div id="warnBox"></div>
+        <div class="sources" id="sourcesBox"></div>
+      </div>
+
+      <div class="disclaimer">
+        Educational tool, not investment advice. Automated assumptions are estimates — verify against primary
+        filings before making decisions. Fair value is a model output, not a price target.
+      </div>
+    </div>
+  </div>
+
+  <!-- RANK -->
+  <div id="tab-rank" style="display:none">
+    <div class="search-card">
+      <div class="search-row">
+        <input id="rankTickers" type="text" placeholder="Comma-separated tickers (e.g. AAPL, MSFT, NVDA, KO, DIS)"
+               onkeydown="if(event.key==='Enter')runRank()">
+        <button class="btn" id="goRank" onclick="runRank()">Rank</button>
+      </div>
+      <div class="note">Scores and ranks each ticker 1–100 so you can compare opportunities side by side.</div>
+    </div>
+    <div class="loader" id="rankLoader"><div class="spinner"></div><div>Scoring your watchlist…</div></div>
+    <div class="err" id="rankErr"></div>
+    <div class="card" id="rankResults" style="display:none">
+      <h3>Ranked opportunities</h3>
+      <div id="rankTable" style="overflow-x:auto"></div>
+    </div>
+  </div>
+
+  <!-- HOT STOCKS -->
+  <div id="tab-hot" style="display:none">
+    <div class="search-card">
+      <div class="search-row" style="align-items:center">
+        <button class="btn" onclick="loadHotStocks()">↻ Load latest scan</button>
+        <select id="scanScope" class="selin">
+          <option value="bundled">Bundled universe (~180 liquid names, fast)</option>
+          <option value="whole_market">Whole US market (slow on free feed)</option>
+        </select>
+        <input id="scanLimit" type="number" placeholder="limit (opt)" style="width:120px">
+        <button class="btn secondary" onclick="runScan()">Run scan now</button>
+      </div>
+      <div class="note">Reads the latest saved scan instantly. A full whole-market scan on the free feed is slow —
+        run <code>python -m valuation.screener.scan --whole-market</code> (or the weekly job), then <b>Load latest</b>.
+        Set an <code>FMP_API_KEY</code> to make whole-market fast.</div>
+    </div>
+    <div class="loader" id="hotLoader"><div class="spinner"></div><div id="hotLoadMsg">Scanning…</div></div>
+    <div class="err" id="hotErr"></div>
+    <div id="hotResults" style="display:none">
+      <div class="card">
+        <h3>🔥 Hot stocks that screen as buys <span class="ai-src" id="hotMeta"></span></h3>
+        <div class="section-hint">Ranked 1–100 by a cross-sectional value · quality · growth · momentum composite (two buckets, self-calibrating z-scores).</div>
+        <div id="hotTable" style="overflow-x:auto"></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><h3>Sector attractiveness</h3><div id="sectorBox"></div></div>
+        <div class="card">
+          <h3>Portfolio builder</h3>
+          <div class="opt" style="gap:12px">
+            <label>Names <input id="pfN" type="number" value="15" style="width:60px"></label>
+            <label>Weighting
+              <select id="pfWeight" class="selin"><option value="score">Score-weighted</option><option value="equal">Equal</option></select>
+            </label>
+            <label>Max sector <input id="pfCap" type="number" value="35" style="width:56px">%</label>
+            <button class="btn secondary" onclick="buildPortfolio()">Build</button>
+          </div>
+          <div id="portfolioBox"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BACKTEST -->
+  <div id="tab-backtest" style="display:none">
+    <div class="search-card">
+      <div class="section-hint" style="margin-top:0">Does the ranking actually predict forward returns? Information Coefficient, quantile spread after costs, equity curve vs benchmark, and an out-of-sample check — in the honest spirit of your screener.</div>
+      <div class="opt" style="gap:14px">
+        <label>Source
+          <select id="btSource" class="selin"><option value="snapshot">Latest hot list</option><option value="custom">Custom tickers</option></select>
+        </label>
+        <label>Horizon (days) <input id="btHorizon" type="number" value="21" style="width:60px"></label>
+        <label>Rebalance (days) <input id="btRebal" type="number" value="21" style="width:60px"></label>
+        <label>Cost (bps) <input id="btCost" type="number" value="5" style="width:56px"></label>
+        <label>Benchmark <input id="btBench" type="text" value="SPY" style="width:70px"></label>
+      </div>
+      <div class="search-row" style="margin-top:10px">
+        <input id="btTickers" type="text" placeholder="Custom tickers (comma-separated) — used when Source = Custom">
+        <button class="btn" onclick="runBacktest()">Run backtest</button>
+      </div>
+      <div class="note">Network-heavy (downloads price history). The free feed only carries names still listed today, so results
+        carry <b>survivorship bias</b> — treat a positive result as "worth confirming on survivorship-free data," not proof.</div>
+    </div>
+    <div class="loader" id="btLoader"><div class="spinner"></div><div>Building the point-in-time panel &amp; testing…</div></div>
+    <div class="err" id="btErr"></div>
+    <div id="btResults" style="display:none">
+      <div class="card"><h3>Verdict</h3><div id="btVerdict"></div></div>
+      <div class="grid2">
+        <div class="card"><h3>Equity curve vs benchmark</h3><canvas id="eqChart" height="200"></canvas></div>
+        <div class="card"><h3>Return by score quintile</h3><canvas id="qChart" height="200"></canvas></div>
+      </div>
+      <div class="card"><h3>Statistics</h3><div id="btStats"></div></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
