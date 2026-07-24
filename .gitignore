@@ -13,6 +13,9 @@ __pycache__/
 *_DCF_Model.xlsx
 *_Valuation_Report.pdf
 
+# Logs (e.g. github_connect.log)
+*.log
+
 # OS / editor
 .DS_Store
 .idea/
