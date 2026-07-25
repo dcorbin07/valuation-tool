@@ -51,6 +51,10 @@ class Config:
     # Tradier (intraday signals watcher): real-time quotes + option chains.
     tradier_token: str = field(default_factory=lambda: _get("TRADIER_TOKEN"))
     tradier_env: str = field(default_factory=lambda: _get("TRADIER_ENV", "sandbox"))  # sandbox | live
+    # Edge Lab historical data source: free (default) | sharadar | wrds.
+    edge_data_provider: str = field(default_factory=lambda: _get("EDGE_DATA_PROVIDER", "free"))
+    sharadar_api_key: str = field(default_factory=lambda: _get("SHARADAR_API_KEY"))   # Nasdaq Data Link key
+    wrds_data_dir: str = field(default_factory=lambda: _get("WRDS_DATA_DIR"))          # local CRSP/Compustat exports
 
     # SEC requires a descriptive User-Agent with contact info. Yours is nicer
     # to them but the default works.

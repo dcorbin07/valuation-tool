@@ -26,6 +26,9 @@ each item when you actually need the feature it unlocks.
 | `FMP_API_KEY` | you want fast whole-market scans | financialmodelingprep.com (~$22/mo) |
 | `TRADIER_TOKEN` | you want real-time intraday **Signals** | your Tradier account → API access token |
 | `TRADIER_ENV` | with Tradier | `sandbox` (delayed) or `live` (real-time) |
+| `EDGE_DATA_PROVIDER` | research data source | `free` (default), `sharadar`, or `wrds` |
+| `SHARADAR_API_KEY` | you switch Edge Lab to Sharadar | Nasdaq Data Link account key |
+| `WRDS_DATA_DIR` | you switch Edge Lab to WRDS | folder of CRSP/Compustat exports (free via W&M) |
 | `STRIPE_SECRET_KEY` | you're ready to charge money | Stripe → Developers → API keys |
 | `STRIPE_PUBLISHABLE_KEY` | " | Stripe → Developers → API keys |
 | `STRIPE_WEBHOOK_SECRET` | " | Stripe → Developers → Webhooks |

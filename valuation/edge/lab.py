@@ -28,6 +28,13 @@ from ..screener.universe import sp500_tickers
 def run_backtest(strategy="momentum", tickers=None, cfg=CONFIG, hold_top=15,
                  rebalance_days=21, years=(1, 5, 10), price_fn=None, limit=None) -> dict:
     from .portfolio_backtest import run, momentum_score, technical_score_fn
+    from .data_providers import get_historical_provider
+    prov = get_historical_provider(cfg)
+    ok, msg = prov.ready()
+    if not ok:
+        return {"error": msg}
+    if price_fn is None:
+        price_fn = prov.price_history
     tickers = tickers or sp500_tickers(cfg)
     if limit:
         tickers = tickers[:limit]
@@ -36,6 +43,10 @@ def run_backtest(strategy="momentum", tickers=None, cfg=CONFIG, hold_top=15,
               rebalance_days=rebalance_days, years=years, price_fn=price_fn)
     res["strategy"] = strategy
     res["n_universe"] = len(tickers)
+    res["data_provider"] = prov.name
+    res["survivorship_free"] = prov.survivorship_free
+    if prov.survivorship_free:
+        res["survivorship_caveat"] = "Survivorship-free data source — this backtest includes delisted names."
     return res
 
 
@@ -61,6 +72,13 @@ def run_optimize(tickers=None, cfg=CONFIG, price_fn=None, limit=None) -> dict:
     from .advisor import propose_and_validate
     from .statistics import sharpe as _sharpe, deflated_sharpe_ratio
     from ..backtest.optimize import _weight_grid, _standardize_per_date
+    from .data_providers import get_historical_provider
+    prov = get_historical_provider(cfg)
+    ok, msg = prov.ready()
+    if not ok:
+        return {"error": msg}
+    if price_fn is None:
+        price_fn = prov.price_history
     tickers = tickers or sp500_tickers(cfg)
     if limit:
         tickers = tickers[:limit]
@@ -92,7 +110,8 @@ def run_optimize(tickers=None, cfg=CONFIG, price_fn=None, limit=None) -> dict:
     return {"walk_forward": wf, "advisor": {k: adv.get(k) for k in
             ("factor_ic_discovery", "baseline_holdout_ic", "adopted", "note")},
             "deflated_sharpe": dsr, "n_rows": int(len(panel)),
-            "n_dates": int(panel["date"].nunique()), "factors": FACTORS}
+            "n_dates": int(panel["date"].nunique()), "factors": FACTORS,
+            "data_provider": prov.name, "survivorship_free": prov.survivorship_free}
 
 
 def run_track(source="hot", cfg=CONFIG, store=None, price_fn=None, top=15) -> dict:
