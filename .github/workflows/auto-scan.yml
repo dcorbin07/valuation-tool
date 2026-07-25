@@ -1,0 +1,75 @@
+name: Auto scans (free-tier bridge)
+
+# Runs the heavy scans on GitHub's runners (real RAM + internet) and pushes the
+# finished results to the live site's token-protected ingest endpoints, so the
+# free 512 MB web box just serves a ready snapshot. When you move to the paid
+# Render blueprint, its own cron jobs do this — disable this workflow then.
+#
+# One-time setup (repo → Settings → Secrets and variables → Actions):
+#   SITE_BASE_URL      https://valuation-tool-h2hr.onrender.com
+#   ADMIN_TOKEN        same value you set on Render
+#   ANTHROPIC_API_KEY  (optional) enables AI notes on the top names
+#   TRADIER_TOKEN      (optional) real-time Signals; else free/delayed data
+
+on:
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: Which scan to run now
+        type: choice
+        options: [hot, intraday, both]
+        default: hot
+  schedule:
+    - cron: "0 11 * * 1-5"          # hot list — 11:00 UTC weekdays (~6-7am ET, pre-market)
+    - cron: "*/30 13-20 * * 1-5"    # intraday — every 30 min, ~9am-4pm ET, weekdays
+
+concurrency:
+  group: auto-scan-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  hot:
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '0 11 * * 1-5') || (github.event_name == 'workflow_dispatch' && (github.event.inputs.kind == 'hot' || github.event.inputs.kind == 'both')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Scan the market and push the daily hot list
+        env:
+          BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SEC_USER_AGENT: "Donovan Corbin donniecorbin6@gmail.com"
+          KIND: hot
+          SCAN_SCOPE: whole_market
+          SCAN_LIMIT: "1500"
+          SCAN_DCF_TOP: "12"
+        run: python scripts/ci_scan.py
+
+  intraday:
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '*/30 13-20 * * 1-5') || (github.event_name == 'workflow_dispatch' && (github.event.inputs.kind == 'intraday' || github.event.inputs.kind == 'both')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Scan intraday signals and push the feed
+        env:
+          BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          TRADIER_ENV: live
+          KIND: intraday
+          INTRADAY_LIMIT: "150"
+          INTRADAY_AI_TOP: "10"
+        run: python scripts/ci_scan.py

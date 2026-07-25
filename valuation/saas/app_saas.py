@@ -75,6 +75,44 @@ def create_saas_app(cfg=CONFIG):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    @app.route("/admin/ingest-snapshot", methods=["POST"])
+    def admin_ingest_snapshot():
+        # Free-tier bridge: a CI runner (GitHub Actions) does the heavy whole-market
+        # scan where there's real RAM + internet, then POSTs the finished rows here.
+        # The 512 MB web box only does a light DB write — it never runs the scan.
+        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+            return jsonify({"error": "unauthorized"}), 401
+        data = request.get_json(silent=True) or {}
+        rows = data.get("rows") or []
+        if not rows:
+            return jsonify({"error": "no rows"}), 400
+        import datetime as _dt
+        from ..screener.store import Store
+        scan_date = data.get("scan_date") or _dt.date.today().isoformat()
+        try:
+            Store().save_snapshot(scan_date, rows, data.get("provider", "ci"), data.get("params") or {})
+            return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows)})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/admin/ingest-intraday", methods=["POST"])
+    def admin_ingest_intraday():
+        # Same pattern for the Premium Signals feed (technical + options + AI).
+        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+            return jsonify({"error": "unauthorized"}), 401
+        data = request.get_json(silent=True) or {}
+        rows = data.get("rows") or []
+        if not rows:
+            return jsonify({"error": "no rows"}), 400
+        import datetime as _dt
+        from ..screener.store import Store
+        run_time = data.get("run_time") or _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+        try:
+            Store().save_intraday(run_time, rows, data.get("provider", "ci"))
+            return jsonify({"ok": True, "run_time": run_time, "rows": len(rows)})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     @app.route("/app")
     def dashboard():
         u = auth.current_user(store)

@@ -129,6 +129,29 @@ def test_master_link_route_and_banner():
     CONFIG.demo_access_token = "preview"              # restore default
 
 
+def test_ci_ingest_snapshot_roundtrip():
+    # The free-tier bridge: a CI runner POSTs a finished snapshot; the site serves it.
+    CONFIG.admin_token = "test-admin-xyz"
+    from valuation.saas.app_saas import create_saas_app
+    app = create_saas_app(CONFIG); app.config.update(TESTING=True)
+    c = app.test_client()
+    rows = [{"ticker": "TESTX", "name": "Test Co", "sector": "Technology",
+             "rank": 1, "hot_score": 91.0, "composite": 1.2, "price": 10.0}]
+    # wrong/absent token is rejected
+    assert c.post("/admin/ingest-snapshot", json={"rows": rows},
+                  headers={"X-Admin-Token": "nope"}).status_code == 401
+    assert c.post("/admin/ingest-snapshot", json={"rows": rows}).status_code == 401
+    # correct token stores it
+    ok = c.post("/admin/ingest-snapshot", json={"scan_date": "2099-01-01", "rows": rows},
+                headers={"X-Admin-Token": "test-admin-xyz"})
+    assert ok.status_code == 200 and ok.get_json()["rows"] == 1
+    # and every visitor now sees it instantly at the public hot-list endpoint
+    d = c.get("/api/hotstocks").get_json()
+    assert d.get("scan_date") == "2099-01-01"
+    assert any(x["ticker"] == "TESTX" for x in d.get("rows", []))
+    CONFIG.admin_token = ""   # restore
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
