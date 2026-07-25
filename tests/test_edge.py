@@ -67,6 +67,16 @@ def test_advisor_sample_aware_and_noise():
     assert noise["adopted"] is None
 
 
+def test_deflated_sharpe_and_hlz():
+    from valuation.edge.statistics import deflated_sharpe_ratio, expected_max_sharpe, hlz_significant
+    r = np.random.default_rng(0).normal(0.010, 0.04, 300)
+    few = deflated_sharpe_ratio(r, n_trials=1, var_trials=0.01)["deflated_sharpe"]
+    many = deflated_sharpe_ratio(r, n_trials=2000, var_trials=0.01)["deflated_sharpe"]
+    assert few > many                                   # more trials -> harder to be "real"
+    assert expected_max_sharpe(5000, 0.01) > expected_max_sharpe(50, 0.01) > 0
+    assert hlz_significant(3.4) and not hlz_significant(2.1)
+
+
 def test_edge_routes_owner_only():
     owner = {"email": "donniecorbin6@gmail.com"}
     other = {"email": "someone@else.com"}

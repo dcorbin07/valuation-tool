@@ -588,7 +588,12 @@ async function edgeOptimize() {
   h += `<div class="note" style="margin-top:8px">Recommended weights: ${Object.entries(wf.final_weights).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(" · ")}</div>`;
   h += `<div style="margin-top:10px"><b>Advisor:</b> ${adv.note}`;
   if (adv.adopted) h += `<div class="note">Proposal (${adv.adopted.source}): ${Object.entries(adv.adopted.weights).map(([k, v]) => `${k} ${(+v).toFixed(2)}`).join(" · ")} — holdout IC ${adv.adopted.holdout_ic.toFixed(3)}. ${adv.adopted.rationale}</div>`;
-  h += `</div><div class="note" style="margin-top:8px">Per-factor IC (discovery half): ${Object.entries(adv.factor_ic_discovery || {}).map(([k, v]) => `${k} ${(v >= 0 ? '+' : '') + v.toFixed(3)}`).join(" · ")}</div></div>`;
+  h += `</div>`;
+  const ds = d.deflated_sharpe;
+  if (ds && ds.deflated_sharpe != null) {
+    h += `<div class="verdict ${ds.deflated_sharpe > 0.95 ? 'good' : 'bad'}" style="margin-top:10px">Deflated Sharpe: <b>${pct(ds.deflated_sharpe, 0)}</b> probability the best of ${ds.n_trials} searched weightings is a <i>real</i> edge (not luck from multiple testing) — ${ds.note}</div>`;
+  }
+  h += `<div class="note" style="margin-top:8px">Per-factor IC (discovery half): ${Object.entries(adv.factor_ic_discovery || {}).map(([k, v]) => `${k} ${(v >= 0 ? '+' : '') + v.toFixed(3)}`).join(" · ")}</div>`;
   document.getElementById("edgeResults").innerHTML = h;
 }
 async function edgeTrack() {

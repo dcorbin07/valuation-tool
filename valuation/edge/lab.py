@@ -39,10 +39,28 @@ def run_backtest(strategy="momentum", tickers=None, cfg=CONFIG, hold_top=15,
     return res
 
 
+def _quantile_return_series(std, weights, factor_cols, ret_col="fwd_ret", date_col="date", q=5):
+    import pandas as pd
+    from ..backtest.optimize import _composite_col
+    d = std.copy()
+    d["__c"] = _composite_col(d, weights, factor_cols)
+    rets = []
+    for _, g in d.groupby(date_col):
+        gg = g.dropna(subset=["__c", ret_col])
+        if len(gg) < q:
+            continue
+        gg = gg.copy()
+        gg["qb"] = pd.qcut(gg["__c"].rank(method="first"), q, labels=False)
+        rets.append(float(gg[gg["qb"] == q - 1][ret_col].mean()))
+    return rets
+
+
 def run_optimize(tickers=None, cfg=CONFIG, price_fn=None, limit=None) -> dict:
     from .panel import build_factor_panel, FACTORS
     from .walkforward import walk_forward
     from .advisor import propose_and_validate
+    from .statistics import sharpe as _sharpe, deflated_sharpe_ratio
+    from ..backtest.optimize import _weight_grid, _standardize_per_date
     tickers = tickers or sp500_tickers(cfg)
     if limit:
         tickers = tickers[:limit]
@@ -51,10 +69,30 @@ def run_optimize(tickers=None, cfg=CONFIG, price_fn=None, limit=None) -> dict:
         return {"error": "Empty panel — no price data (check network/tickers)."}
     wf = walk_forward(panel, FACTORS, n_folds=5, step_grid=0.25)
     adv = propose_and_validate(panel, FACTORS, cfg)
+
+    # Deflated Sharpe: how many weightings did we search, and is the BEST one real?
+    dsr = None
+    try:
+        std = _standardize_per_date(panel, FACTORS)
+        grid = _weight_grid(FACTORS, 0.25)
+        trials = []
+        for w in grid:
+            rs = _quantile_return_series(std, w, FACTORS)
+            s = _sharpe(rs)
+            if s is not None:
+                trials.append((s, rs))
+        if trials:
+            trials.sort(key=lambda x: x[0], reverse=True)
+            best_rs = trials[0][1]
+            dsr = deflated_sharpe_ratio(best_rs, n_trials=len(grid),
+                                        trial_sharpes=[t[0] for t in trials])
+    except Exception:
+        pass
+
     return {"walk_forward": wf, "advisor": {k: adv.get(k) for k in
             ("factor_ic_discovery", "baseline_holdout_ic", "adopted", "note")},
-            "n_rows": int(len(panel)), "n_dates": int(panel["date"].nunique()),
-            "factors": FACTORS}
+            "deflated_sharpe": dsr, "n_rows": int(len(panel)),
+            "n_dates": int(panel["date"].nunique()), "factors": FACTORS}
 
 
 def run_track(source="hot", cfg=CONFIG, store=None, price_fn=None, top=15) -> dict:
@@ -97,6 +135,10 @@ def _p_optimize(res):
     if adv.get("adopted"):
         print("  proposal:", {k: round(v, 2) for k, v in adv["adopted"]["weights"].items()},
               "| holdout IC", round(adv["adopted"]["holdout_ic"], 3))
+    dsr = res.get("deflated_sharpe")
+    if dsr and dsr.get("deflated_sharpe") is not None:
+        print(f"DEFLATED SHARPE (searched {dsr['n_trials']} weightings): "
+              f"{dsr['deflated_sharpe']:.0%} probability the best strategy's edge is real — {dsr['note']}")
 
 
 def _p_track(res):
