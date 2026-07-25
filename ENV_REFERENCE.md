@@ -46,7 +46,9 @@ each item when you actually need the feature it unlocks.
 | `STRIPE_PRICE_PREMIUM` | " | Stripe → Products → Premium **monthly** price |
 | `STRIPE_PRICE_PRO_ANNUAL` | you offer annual billing | Stripe → Pro product → add a **yearly** price ($99/yr) |
 | `STRIPE_PRICE_PREMIUM_ANNUAL` | " | Stripe → Premium product → add a **yearly** price ($299/yr) |
-| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASSWORD` / `EMAIL_FROM` | you want to send emails (receipts, weekly digest) | your email provider — Zoho works, like On The Steps |
+| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASSWORD` / `EMAIL_FROM` | you want to send emails (receipts, weekly digest, alerts) | your email provider — Zoho works, like On The Steps |
+| `DISCORD_WEBHOOK_URL` | you want screaming-buy alerts posted to a Discord channel | Discord → channel → Integrations → Webhooks → New Webhook → Copy URL |
+| `ALERT_MIN_SCORE` | you want to tune how strict the alerts are (default 80) | a number 0–100 — higher = fewer, higher-conviction alerts |
 
 ## The cron job section (weekly-scan-trigger)
 | Variable | What to put |

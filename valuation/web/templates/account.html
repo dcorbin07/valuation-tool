@@ -28,5 +28,19 @@
       <p class="muted">No saved tickers yet. Add them from the dashboard.</p>
     {% endif %}
   </div>
+
+  {% if feats.intraday %}
+  <div class="card" style="margin-top:16px">
+    <h3 style="margin-top:0;color:var(--navy)">🚨 Screaming-buy alerts</h3>
+    <p class="muted" style="font-size:14px">Get pinged when a name flashes a high-conviction bullish options
+       setup during market hours — de-duped to at most once per ticker per day.</p>
+    <form method="POST" action="/account/alerts" id="alertsForm">
+      <label class="opt"><input type="checkbox" name="alerts" {{ 'checked' if alerts_on else '' }}
+        onchange="document.getElementById('alertsForm').submit()"> Email me screaming-buy alerts</label>
+    </form>
+    <p class="muted" style="font-size:12.5px;margin-top:8px">Off by default. Every alert email has a one-click
+       unsubscribe. Educational only, not investment advice.</p>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

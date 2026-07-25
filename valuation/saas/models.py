@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS users (
     stripe_customer_id TEXT,
     stripe_subscription_id TEXT,
     created_at TEXT NOT NULL,
-    email_opt_in INTEGER NOT NULL DEFAULT 1
+    email_opt_in INTEGER NOT NULL DEFAULT 1,
+    alerts_email_opt_in INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS watchlist (
     user_id INTEGER, ticker TEXT, added_at TEXT,
@@ -55,6 +56,10 @@ class UserStore:
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         with self._conn() as c:
             c.executescript(_SCHEMA)
+            # Lightweight migration for existing databases.
+            cols = [r[1] for r in c.execute("PRAGMA table_info(users)").fetchall()]
+            if "alerts_email_opt_in" not in cols:
+                c.execute("ALTER TABLE users ADD COLUMN alerts_email_opt_in INTEGER NOT NULL DEFAULT 0")
 
     @contextmanager
     def _conn(self):
@@ -138,6 +143,16 @@ class UserStore:
         with self._conn() as c:
             return [dict(r) for r in c.execute(
                 "SELECT * FROM users WHERE email_opt_in=1 AND tier IN ('pro','premium')").fetchall()]
+
+    # ---- alert opt-in (default OFF — users must opt in, can opt out anytime) ----
+    def set_alerts_opt_in(self, user_id, on: bool):
+        with self._conn() as c:
+            c.execute("UPDATE users SET alerts_email_opt_in=? WHERE id=?", (1 if on else 0, user_id))
+
+    def alert_subscribers(self):
+        with self._conn() as c:
+            return [dict(r) for r in c.execute(
+                "SELECT * FROM users WHERE alerts_email_opt_in=1").fetchall()]
 
     # ---- usage metering (free-tier daily limits) ----
     def bump_usage(self, user_id, action):

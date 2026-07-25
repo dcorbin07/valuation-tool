@@ -170,6 +170,36 @@ def test_ci_ingest_snapshot_roundtrip():
     CONFIG.admin_token = ""   # restore
 
 
+def test_screaming_buys_filter():
+    from valuation.saas.notify import screaming_buys
+    rows = [
+        {"ticker": "A", "score": 85, "labels": ["Call-heavy flow (P/C 0.40)", "Uptrend (>50 & >200 DMA)"]},
+        {"ticker": "B", "score": 85, "labels": ["Overbought (RSI 82)"]},   # high score, not bullish → excluded
+        {"ticker": "C", "score": 60, "labels": ["Call-heavy flow"]},        # bullish, low score → excluded
+    ]
+    assert [r["ticker"] for r in screaming_buys(rows, 80)] == ["A"]
+
+
+def test_alert_dedup_and_optin():
+    import tempfile, uuid
+    from valuation.screener.store import Store
+    # de-dupe: one alert per ticker per day
+    fd, p = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(p)
+    st = Store(p)
+    assert st.alerted_today("NVDA") is False
+    st.mark_alerted("NVDA", "2026-07-27 10:00")
+    assert st.alerted_today("NVDA") is True
+    # email opt-in defaults OFF; toggles on and off
+    s = _store()
+    u = s.create_user("al_" + uuid.uuid4().hex[:6] + "@ex.com", "password123")
+    assert not s.get_by_id(u["id"]).get("alerts_email_opt_in")
+    assert s.alert_subscribers() == []
+    s.set_alerts_opt_in(u["id"], True)
+    assert [x["id"] for x in s.alert_subscribers()] == [u["id"]]
+    s.set_alerts_opt_in(u["id"], False)
+    assert s.alert_subscribers() == []
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

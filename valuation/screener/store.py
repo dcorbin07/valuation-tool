@@ -77,6 +77,9 @@ class Store:
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         with self._conn() as c:
             c.executescript(_SCHEMA)
+            # De-dupe alerts to at most one per ticker per day.
+            c.execute("""CREATE TABLE IF NOT EXISTS alerts_sent (
+                ticker TEXT, alert_date TEXT, run_time TEXT, PRIMARY KEY(ticker, alert_date))""")
 
     @contextmanager
     def _conn(self):
@@ -202,6 +205,20 @@ class Store:
         with self._conn() as c:
             c.execute("UPDATE intraday SET ai=? WHERE run_time=? AND ticker=?",
                       (json.dumps(ai_text), run_time, ticker))
+
+    # ---- alert de-dupe (one per ticker per day) ----
+    def alerted_today(self, ticker, day=None) -> bool:
+        day = day or _dt.date.today().isoformat()
+        with self._conn() as c:
+            r = c.execute("SELECT 1 FROM alerts_sent WHERE ticker=? AND alert_date=?",
+                          (ticker.upper(), day)).fetchone()
+        return bool(r)
+
+    def mark_alerted(self, ticker, run_time, day=None):
+        day = day or _dt.date.today().isoformat()
+        with self._conn() as c:
+            c.execute("INSERT OR IGNORE INTO alerts_sent VALUES (?,?,?)",
+                      (ticker.upper(), day, run_time))
 
     # ---- live track record ----
     def save_track_picks(self, source, run_date, rows):

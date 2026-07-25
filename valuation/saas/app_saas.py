@@ -31,6 +31,14 @@ def create_saas_app(cfg=CONFIG):
     app.secret_key = cfg.secret_key
     store = UserStore(cfg.database_url)
 
+    def _fire_alerts(intraday_store):
+        """Send screaming-buy alerts after an intraday refresh (never blocks it)."""
+        try:
+            from . import notify
+            return notify.run_alerts(cfg, intraday_store, store)
+        except Exception:
+            return {"new": 0}
+
     auth.register(app, store, cfg)
     billing.register(app, store, cfg)
 
@@ -71,7 +79,8 @@ def create_saas_app(cfg=CONFIG):
             ai = explain_top(res["rows"], cfg, n=10)
             for tkr, txt in ai.items():
                 st.update_intraday_ai(res["run_time"], tkr, txt)
-            return jsonify({"ok": True, "run_time": res["run_time"], "scored": res["scored"]})
+            alerts = _fire_alerts(st)
+            return jsonify({"ok": True, "run_time": res["run_time"], "scored": res["scored"], "alerts": alerts})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -108,8 +117,10 @@ def create_saas_app(cfg=CONFIG):
         from ..screener.store import Store
         run_time = data.get("run_time") or _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
         try:
-            Store().save_intraday(run_time, rows, data.get("provider", "ci"))
-            return jsonify({"ok": True, "run_time": run_time, "rows": len(rows)})
+            st = Store()
+            st.save_intraday(run_time, rows, data.get("provider", "ci"))
+            alerts = _fire_alerts(st)
+            return jsonify({"ok": True, "run_time": run_time, "rows": len(rows), "alerts": alerts})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -139,7 +150,29 @@ def create_saas_app(cfg=CONFIG):
         u = auth.current_user(store)
         if not u:
             return redirect("/login?next=/account")
-        return render_template("account.html", watchlist=store.watchlist(u["id"]))
+        return render_template("account.html", watchlist=store.watchlist(u["id"]),
+                               alerts_on=bool(u.get("alerts_email_opt_in")))
+
+    @app.route("/account/alerts", methods=["POST"])
+    def account_alerts():
+        u = auth.current_user(store)
+        if not u:
+            return redirect("/login?next=/account")
+        store.set_alerts_opt_in(u["id"], bool(request.form.get("alerts")))
+        return redirect("/account")
+
+    @app.route("/alerts/unsubscribe/<token>")
+    def alerts_unsub(token):
+        from . import notify
+        uid = notify.unsub_user_id(cfg, token)
+        if uid is not None:
+            store.set_alerts_opt_in(uid, False)
+            return ("<div style='font-family:sans-serif;max-width:520px;margin:60px auto;text-align:center'>"
+                    "<h2 style='color:#1f3864'>Unsubscribed</h2><p>You won't receive screaming-buy emails "
+                    "anymore. You can re-enable them anytime in your account.</p>"
+                    "<a href='/'>Back to the app</a></div>")
+        return ("<div style='font-family:sans-serif;max-width:520px;margin:60px auto;text-align:center'>"
+                "<h2>Invalid or expired link</h2></div>", 400)
 
     @app.before_request
     def _guard():
