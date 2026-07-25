@@ -36,6 +36,19 @@ def test_absurd_fair_value_capped_not_strong_buy():
     assert 1 <= ok.score <= 100
 
 
+def test_financial_pb_roe_value():
+    from valuation.data.models import CompanyData
+    from valuation.engine.financials import financial_fair_value
+    cd = CompanyData(ticker="BANKX")
+    cd.total_equity, cd.shares_diluted, cd.net_income = 60000.0, 6585.0, 6030.0  # ROE ~10%
+    bvps = 60000.0 / 6585.0
+    # ROE 10% > Ke 8% (g 3%) -> justified P/B (0.07/0.05)=1.4 -> premium to book
+    fv = financial_fair_value(cd, ke=0.08, g=0.03)
+    assert fv is not None and abs(fv - bvps * 1.4) < 0.5
+    # ROE below cost of equity -> trades below book
+    assert financial_fair_value(cd, ke=0.13, g=0.03) < bvps
+
+
 def test_wacc_matches_nike():
     cd = build_nike()
     w = compute_wacc(cd, CONFIG)

@@ -99,6 +99,19 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
     base = apply_overrides(base, cls, overrides)
 
     scenarios = build_scenarios(cd, cls, base, wacc_value)
+
+    # Banks / insurers: the FCFF DCF doesn't fit them, so replace the headline
+    # per-share values with a justified P/B–ROE model (book value × (ROE−g)/(Ke−g)).
+    if cls.regime == "financial":
+        from .financials import financial_scenarios
+        fin = financial_scenarios(cd, wacc.cost_of_equity, base.terminal_growth)
+        if fin:
+            scenarios.bear.per_share, scenarios.base.per_share, scenarios.bull.per_share = fin
+            scenarios.base.label = "base · P/B–ROE"
+            cd.quality_notes.append(
+                "Financial regime: fair value uses a justified P/B–ROE model "
+                "(book value × (ROE−g)/(Ke−g)), not an unlevered FCF DCF.")
+
     trials = mc_trials if mc_trials is not None else cfg.montecarlo_trials
     mc = run_monte_carlo(cd, cls, base, wacc_value, trials=trials)
     rev = reverse_dcf(cd, base, wacc_value)
