@@ -33,6 +33,7 @@ class CompanyData:
     industry: str = ""
     currency: str = "USD"
     as_of: str = ""
+    quote_type: str = ""     # EQUITY / ETF / MUTUALFUND / ... (from the data source)
 
     # --- Market data (per share values in currency; caps/values in millions) ---
     price: Optional[float] = None

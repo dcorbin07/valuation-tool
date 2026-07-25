@@ -61,6 +61,9 @@ def company_to_metrics(cd, quote: Optional[dict] = None) -> dict:
         "ret_12_1": (quote or {}).get("ret_12_1") if quote else cd.ret_6m,
         "avg_dollar_volume": (quote or {}).get("avg_dollar_volume") if quote else None,
         "beta": cd.beta,
+        "quote_type": (getattr(cd, "quote_type", "") or ""),
+        "is_fund": (getattr(cd, "quote_type", "") or "").upper() in
+                   {"ETF", "MUTUALFUND", "MONEYMARKET", "CURRENCY", "INDEX", "FUND"},
     }
     return m
 
@@ -202,6 +205,8 @@ def _fmp_to_metrics(ticker, km, ratios, profile) -> dict:
         "revenue_growth_prior": None,
         "operating_income": None, "fcf": None, "revenue": None, "net_income": None,
         "ret_12_1": None, "avg_dollar_volume": g(profile, "volAvg"), "beta": g(profile, "beta"),
+        "is_fund": bool(g(profile, "isEtf") or g(profile, "isFund")),
+        "quote_type": "ETF" if (g(profile, "isEtf") or g(profile, "isFund")) else "EQUITY",
     }
 
 

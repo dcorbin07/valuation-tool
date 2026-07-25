@@ -363,8 +363,10 @@ async function runScan() {
   } catch (e) { eshow("hotErr", e.message); toggle("hotLoader", false); }
 }
 function renderHot(d) {
-  document.getElementById("hotMeta").textContent =
-    `scan ${d.scan_date} · ${d.scored}/${d.universe_size || "?"} scored · ${d.provider || ""}`;
+  const f = d.filtered;
+  let meta = `scan ${d.scan_date} · ${d.scored}/${d.universe_size || "?"} scored · ${d.provider || ""}`;
+  if (f && f.total_removed) meta += ` · ${f.total_removed} junk filtered`;
+  document.getElementById("hotMeta").textContent = meta;
   let html = '<table><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th><th>Bucket</th>' +
     '<th class="num">Price</th><th class="num">Hot</th><th class="num">Value</th><th class="num">Qual</th>' +
     '<th class="num">Grow</th><th class="num">Mom</th><th class="num">Fair val</th></tr>';
@@ -380,6 +382,11 @@ function renderHot(d) {
       <td class="num">${r.fair_value == null ? '—' : money(r.fair_value) + (up != null ? ` <span class="${up >= 0 ? 'pos' : 'neg'}">(${up >= 0 ? '+' : ''}${pct(up, 0)})</span>` : '')}</td></tr>`;
   });
   html += "</table>";
+  if (f && f.total_removed) {
+    const parts = Object.entries(f.by_reason || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k}`).join(" · ");
+    html += `<div class="note">Pre-filtered <b>${f.total_removed}</b> non-investable names before scoring (${parts}). ` +
+      `Only tradeable common stocks are ranked — quality is judged by the score, not the filter, so nothing real is dropped.</div>`;
+  }
   document.getElementById("hotTable").innerHTML = html;
   renderSectors(d.sectors);
   buildPortfolio();

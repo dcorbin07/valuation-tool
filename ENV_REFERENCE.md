@@ -27,8 +27,10 @@ each item when you actually need the feature it unlocks.
 | `STRIPE_SECRET_KEY` | you're ready to charge money | Stripe → Developers → API keys |
 | `STRIPE_PUBLISHABLE_KEY` | " | Stripe → Developers → API keys |
 | `STRIPE_WEBHOOK_SECRET` | " | Stripe → Developers → Webhooks |
-| `STRIPE_PRICE_PRO` | " | Stripe → Products → your Pro price (`price_…`) |
-| `STRIPE_PRICE_PREMIUM` | " | Stripe → Products → your Premium price |
+| `STRIPE_PRICE_PRO` | " | Stripe → Products → Pro **monthly** price (`price_…`) |
+| `STRIPE_PRICE_PREMIUM` | " | Stripe → Products → Premium **monthly** price |
+| `STRIPE_PRICE_PRO_ANNUAL` | you offer annual billing | Stripe → Pro product → add a **yearly** price ($99/yr) |
+| `STRIPE_PRICE_PREMIUM_ANNUAL` | " | Stripe → Premium product → add a **yearly** price ($299/yr) |
 | `SMTP_HOST` / `SMTP_USER` / `SMTP_PASSWORD` / `EMAIL_FROM` | you want to send emails (receipts, weekly digest) | your email provider — Zoho works, like On The Steps |
 
 ## The cron job section (weekly-scan-trigger)

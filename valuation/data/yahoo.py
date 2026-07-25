@@ -118,6 +118,7 @@ def fetch(ticker: str) -> Optional[CompanyData]:
     cd.sector = info.get("sector") or ""
     cd.industry = info.get("industry") or ""
     cd.currency = info.get("currency") or fast.get("currency") or "USD"
+    cd.quote_type = (info.get("quoteType") or "").upper()
 
     # ---- price / shares / market cap / beta ----
     cd.price = _safe(info.get("currentPrice") or info.get("regularMarketPrice") or fast.get("lastPrice"))

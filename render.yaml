@@ -35,6 +35,10 @@ services:
         sync: false
       - key: STRIPE_PRICE_PREMIUM
         sync: false
+      - key: STRIPE_PRICE_PRO_ANNUAL
+        sync: false
+      - key: STRIPE_PRICE_PREMIUM_ANNUAL
+        sync: false
       - key: SEC_USER_AGENT
         sync: false
       - key: SMTP_HOST
@@ -46,22 +50,30 @@ services:
       - key: EMAIL_FROM
         sync: false
 
-  # Weekly scan. With SQLite, a separate service can't share the web disk, so the
-  # cron just calls the web app's token-protected endpoint, which runs the scan
-  # in-process (same disk). Set X-Admin-Token to the ADMIN_TOKEN value above.
+  # Weekly auto-scan — runs at a fixed time every week with ZERO manual setup.
+  # It calls the web app's token-protected endpoint, which runs the scan in-process
+  # and refreshes the snapshot the whole site reads. The host + token are pulled
+  # automatically from the web service (fromService), so nothing to type and the
+  # token always matches. Change the day/time by editing the schedule below.
   - type: cron
     name: weekly-scan-trigger
     runtime: image
     image:
       url: curlimages/curl:latest
-    schedule: "0 6 * * 1"             # Mondays 6:00 AM UTC
+    schedule: "0 11 * * 1"            # every Monday 11:00 UTC (~6-7am US Eastern)
     dockerCommand: >
-      curl -fsS -X POST "$PUBLIC_BASE_URL/admin/run-scan" -H "X-Admin-Token: $ADMIN_TOKEN"
+      curl -fsS -X POST "https://$TARGET_HOST/admin/run-scan" -H "X-Admin-Token: $ADMIN_TOKEN"
     envVars:
-      - key: PUBLIC_BASE_URL
-        sync: false
+      - key: TARGET_HOST
+        fromService:
+          type: web
+          name: valuation-tool
+          property: host             # auto-filled with your site's hostname
       - key: ADMIN_TOKEN
-        sync: false
+        fromService:
+          type: web
+          name: valuation-tool
+          envVarKey: ADMIN_TOKEN      # same token Render generated for the web app
 
 # At scale, switch to Render Managed Postgres (set DATABASE_URL to its Internal URL,
 # add psycopg2-binary, and port UserStore/screener Store to Postgres) so a real

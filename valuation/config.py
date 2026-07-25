@@ -76,6 +76,8 @@ class Config:
     stripe_webhook_secret: str = field(default_factory=lambda: _get("STRIPE_WEBHOOK_SECRET"))
     stripe_price_pro: str = field(default_factory=lambda: _get("STRIPE_PRICE_PRO"))
     stripe_price_premium: str = field(default_factory=lambda: _get("STRIPE_PRICE_PREMIUM"))
+    stripe_price_pro_annual: str = field(default_factory=lambda: _get("STRIPE_PRICE_PRO_ANNUAL"))
+    stripe_price_premium_annual: str = field(default_factory=lambda: _get("STRIPE_PRICE_PREMIUM_ANNUAL"))
     smtp_host: str = field(default_factory=lambda: _get("SMTP_HOST"))
     smtp_port: int = field(default_factory=lambda: int(_get_float("SMTP_PORT", 587)))
     smtp_user: str = field(default_factory=lambda: _get("SMTP_USER"))

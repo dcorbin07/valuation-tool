@@ -20,16 +20,38 @@ from .cross_sectional import zscore
 JUNK_SUFFIXES = ("W", "WS", "WT", "U", "UN", "RT", "R")
 
 
-def passes_gates(m: dict) -> bool:
+def prefilter(m: dict):
+    """Decide whether a name is investable enough to score. Returns (keep, reason).
+
+    Uses ONLY security-type and tradeability tests — never quality or fundamentals —
+    so a genuine top pick (which by definition trades well and is a real company) is
+    never dropped. A pre-revenue growth name passes; an ETF, warrant, penny, nano-cap
+    or untradeable name does not. Every rejection carries a reason for the audit.
+    """
     tkr = (m.get("ticker") or "").upper()
     if any(tkr.endswith("-" + s) or tkr.endswith("." + s) for s in JUNK_SUFFIXES):
-        return False
-    if (m.get("price") or 0) < S.PRICE_FLOOR:
-        return False
-    adv = m.get("avg_dollar_volume")
+        return False, "warrant/unit/right"
+    if S.EXCLUDE_FUNDS and m.get("is_fund"):
+        return False, "ETF/fund"
+    price = m.get("price")
+    if price is None:
+        return False, "no price/quote"
+    if price < S.PRICE_FLOOR:
+        return False, f"penny (<${S.PRICE_FLOOR:.0f})"
+    mc = m.get("market_cap")               # in $ millions
+    if not mc or mc <= 0:
+        return False, "no market cap"
+    if mc < S.MIN_MARKET_CAP_MM:
+        return False, f"nano-cap (<${S.MIN_MARKET_CAP_MM:.0f}M)"
+    adv = m.get("avg_dollar_volume")       # in $
     if adv is not None and adv < S.MIN_AVG_DOLLAR_VOLUME:
-        return False
-    return True
+        return False, "illiquid"
+    return True, "ok"
+
+
+def passes_gates(m: dict) -> bool:
+    """Backward-compatible boolean wrapper around prefilter()."""
+    return prefilter(m)[0]
 
 
 def classify_bucket(m: dict) -> str:

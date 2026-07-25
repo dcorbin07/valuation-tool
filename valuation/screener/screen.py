@@ -20,7 +20,7 @@ import pandas as pd
 
 from ..config import CONFIG
 from . import settings as S
-from .factors import build_frame, passes_gates
+from .factors import build_frame, prefilter
 from .cross_sectional import composite_score
 from .providers import get_provider
 from .store import Store
@@ -78,22 +78,34 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     sector_hint = {u["ticker"]: u.get("sector") for u in uni}
 
     metrics = []
+    filtered = {}          # reason -> count
+    filtered_examples = {}  # reason -> sample tickers
     total = len(uni)
     for i, u in enumerate(uni):
         m = provider.get_metrics(u["ticker"])
         if not m:
+            filtered["no data"] = filtered.get("no data", 0) + 1
             continue
         if not m.get("sector") and sector_hint.get(u["ticker"]):
             m["sector"] = sector_hint[u["ticker"]]
         m.setdefault("ticker", u["ticker"])
-        if not passes_gates(m):
+        keep, reason = prefilter(m)
+        if not keep:
+            filtered[reason] = filtered.get(reason, 0) + 1
+            ex = filtered_examples.setdefault(reason, [])
+            if len(ex) < 8:
+                ex.append(m["ticker"])
             continue
         metrics.append(m)
         if progress and i % 25 == 0:
             progress(i, total)
 
+    audit = {"total_removed": sum(filtered.values()), "by_reason": filtered,
+             "examples": filtered_examples}
+
     if not metrics:
-        return {"scan_date": _today(), "rows": [], "universe_size": total, "scored": 0}
+        return {"scan_date": _today(), "rows": [], "universe_size": total,
+                "scored": 0, "filtered": audit}
 
     df = build_frame(metrics)
     df["composite"] = _composites(df)
@@ -113,9 +125,9 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     scan_date = _today()
     if save:
         store.save_snapshot(scan_date, rows, provider.name,
-                            {"universe_size": total, "scope": scope})
+                            {"universe_size": total, "scope": scope, "filtered": audit})
     return {"scan_date": scan_date, "rows": rows, "universe_size": total,
-            "scored": len(rows), "provider": provider.name}
+            "scored": len(rows), "provider": provider.name, "filtered": audit}
 
 
 def _enrich_with_dcf(rows, cfg):

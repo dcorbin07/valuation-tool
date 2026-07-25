@@ -173,14 +173,20 @@ def api_hotstocks():
                         "message": "No scan yet. Run one from here (small universe) or, for the whole "
                                    "market, run `python -m valuation.screener.scan --whole-market` "
                                    "and/or schedule it weekly."})
+    import json as _json
     rows = st.load_snapshot(scan_date, top=top)
     all_rows = st.load_snapshot(scan_date)
     scans = st.list_scans()
     meta = next((s for s in scans if s["scan_date"] == scan_date), {})
+    try:
+        params = _json.loads(meta.get("params") or "{}")
+    except Exception:
+        params = {}
     return jsonify({"scan_date": scan_date, "rows": rows,
                     "sectors": sector_attractiveness(all_rows),
                     "universe_size": meta.get("universe_size"), "scored": meta.get("scored"),
-                    "provider": meta.get("provider"), "history": [s["scan_date"] for s in scans][:12]})
+                    "provider": meta.get("provider"), "filtered": params.get("filtered"),
+                    "history": [s["scan_date"] for s in scans][:12]})
 
 
 @app.route("/api/scan/run", methods=["POST"])

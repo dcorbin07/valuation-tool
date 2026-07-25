@@ -47,6 +47,10 @@ def main():
         print("Fetching insider (Form 4) signals for the top names…")
         enrich_insider(rows, CONFIG, top=args.top)
 
+    f = res.get("filtered")
+    if f and f.get("total_removed"):
+        parts = ", ".join(f"{v} {k}" for k, v in sorted(f["by_reason"].items(), key=lambda x: -x[1]))
+        print(f"Pre-filtered {f['total_removed']} non-investable names: {parts}")
     print(f"\nScan {res['scan_date']}: {res['scored']}/{res['universe_size']} scored "
           f"via {res.get('provider')}\n")
     print(f"{'#':>3} {'TICKER':<8}{'SECTOR':<22}{'BUCKET':<12}{'HOT':>4}{'FAIRVAL':>10}{'UPSIDE':>8}")

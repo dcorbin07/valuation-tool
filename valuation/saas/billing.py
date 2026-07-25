@@ -11,9 +11,9 @@ from .auth import current_user
 
 
 def _price_to_tier(cfg, price_id):
-    if price_id and price_id == cfg.stripe_price_premium:
+    if price_id and price_id in (cfg.stripe_price_premium, cfg.stripe_price_premium_annual):
         return "premium"
-    if price_id and price_id == cfg.stripe_price_pro:
+    if price_id and price_id in (cfg.stripe_price_pro, cfg.stripe_price_pro_annual):
         return "pro"
     return "free"
 
@@ -27,9 +27,13 @@ def register(app, store, cfg):
         if not cfg.billing_enabled:
             return jsonify({"error": "Billing isn't configured (set STRIPE_SECRET_KEY)."}), 400
         plan = request.form.get("plan", "pro")
-        price = cfg.stripe_price_premium if plan == "premium" else cfg.stripe_price_pro
+        cycle = request.form.get("cycle", "monthly")
+        if plan == "premium":
+            price = cfg.stripe_price_premium_annual if cycle == "annual" else cfg.stripe_price_premium
+        else:
+            price = cfg.stripe_price_pro_annual if cycle == "annual" else cfg.stripe_price_pro
         if not price:
-            return jsonify({"error": f"No Stripe price configured for {plan}."}), 400
+            return jsonify({"error": f"No Stripe price configured for {plan} ({cycle})."}), 400
         try:
             import stripe
             stripe.api_key = cfg.stripe_secret_key
