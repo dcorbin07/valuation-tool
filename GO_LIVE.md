@@ -16,6 +16,12 @@ with no signup — that's the link for your résumé. When you're ready to charg
 `BETA_ALL_PREMIUM=false` (and set a hard `DEMO_ACCESS_TOKEN`); the master-link keeps
 working for recruiters. See **ENV_REFERENCE.md → Beta / launch switches**.
 
+**You are LIVE on the free tier** at `https://valuation-tool-h2hr.onrender.com`
+(master-link: `/demo/preview`). The daily hot list + Signals are populated by the
+**free-tier bridge** — GitHub Actions runs the heavy scans and pushes the results to
+the site (see **FREE_BRIDGE.md**). This page's Phases 1–2 below are the *free* track
+you're on now; Phases 3–8 are the *paid launch* you flip to later.
+
 ---
 
 ## Phase 0 — Legal & entity (the gate) · do first · ~1–2 wks, ~$100–500
@@ -30,17 +36,42 @@ working for recruiters. See **ENV_REFERENCE.md → Beta / launch switches**.
       paying users (SEC EDGAR is public; for a paid product use FMP/paid tiers).
 > Details: **LAUNCH_CHECKLIST.md** (Phase 0) and **SAAS_RUNBOOK.md** (Compliance).
 
-## Phase 1 — See it yourself now · 5 min · $0
-- [ ] Double-click **`run_saas.bat`** → the real site opens at `127.0.0.1:5000`.
-- [ ] Register **donniecorbin6@gmail.com** → you're auto-Premium; click through
-      Hot stocks, ⚡ Signals, 📊 Backtest, and your private 🔬 Edge Lab tab.
+## Phase 1 — See it yourself · $0 · ✅ deployed
+- [x] Deployed free on Render → `https://valuation-tool-h2hr.onrender.com`.
+- [ ] Open **`/demo/preview`** → lands on the dashboard (`/app`) with full Premium and
+      no signup. (The address bar showing `/app` after the redirect is normal.)
+- [ ] To run it locally too: double-click **`run_saas.bat`** → `127.0.0.1:5000`.
+- Tip: the free box **sleeps after 15 min idle**, so the first visit takes ~30–60s to
+  wake. Kill that with the keep-warm ping in Phase 2.5 so recruiters never see a spinner.
 
-## Phase 2 — Product config (`.env`) · 15 min · $0
-- [ ] `SECRET_KEY` = long random (`python -c "import secrets;print(secrets.token_hex(32))"`)
-- [ ] `ADMIN_TOKEN` = long random (used by the auto-scan crons)
-- [ ] `SEC_USER_AGENT` = your name + email  ·  `ANTHROPIC_API_KEY` = ✅ already set
-- [ ] (owner Premium is defaulted to your email — nothing to do)
-> Reference: **ENV_REFERENCE.md** (what every setting is; fill only what you use).
+## Phase 2 — Env vars on the free Render (make it presentable) · 15 min · $0
+Render → your web service → **Environment**. **Everything here is free** — none of it
+requires buying anything. Set them, then Manual Deploy.
+
+| Variable | Value | What it unlocks (presentability) |
+|---|---|---|
+| `SECRET_KEY` | long random (`python -c "import secrets;print(secrets.token_hex(32))"`) | Secure logins — drops the "insecure dev key" default. |
+| `ADMIN_TOKEN` | long random | **Lets the daily scans post to the site.** Without it, Hot Stocks + Signals stay empty. Must match the GitHub secret (Phase 2.5). |
+| `SEC_USER_AGENT` | `Donovan Corbin donniecorbin6@gmail.com` | Reliable SEC EDGAR scans (a generic agent gets throttled). |
+| `ANTHROPIC_API_KEY` | your key (you have it) | AI moat/risk/thesis notes + Signals reasoning. Pay-per-use, ~cents; not a subscription. |
+| `TRADIER_TOKEN` + `TRADIER_ENV=live` | your Tradier token | **Real-time** quotes + option chains for Signals. Free with your brokerage account. No account number needed. |
+| `PUBLIC_BASE_URL` | `https://valuation-tool-h2hr.onrender.com` | Correct links in emails/redirects. |
+| `DEMO_ACCESS_TOKEN` | keep `preview` for now | Your résumé master-link (`/demo/<token>`). |
+| `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD` + `EMAIL_FROM` | your Zoho (optional) | Real password-reset + daily digest emails → feels like a finished product. |
+
+*(`OWNER_EMAILS`, `BETA_MODE`, `BETA_ALL_PREMIUM` already default correctly — nothing to set.)*
+> Reference: **ENV_REFERENCE.md** (every setting explained).
+
+## Phase 2.5 — Turn on the daily scans (free bridge) · 10 min · $0
+So the hot list + Signals are pre-computed and already showing for everyone.
+- [ ] GitHub repo → **Settings → Secrets → Actions**: add `SITE_BASE_URL`,
+      `ADMIN_TOKEN` (same as above), and optionally `ANTHROPIC_API_KEY`, `TRADIER_TOKEN`.
+- [ ] **Actions → "Auto scans" → Run workflow → hot** to populate immediately; after
+      that it runs itself (hot list pre-market, Signals every 30 min in market hours).
+- [ ] **Keep-warm (recommended):** [cron-job.org](https://cron-job.org) → GET
+      `https://valuation-tool-h2hr.onrender.com/api/health` every 10 min, so the list
+      survives between scans and there's no cold-start spinner.
+> Full walkthrough: **FREE_BRIDGE.md**.
 
 ## Phase 3 — Brand · domain · email · ~1 hr · ~$20–40/yr
 - [ ] Pick a name + buy a domain (Namecheap, like `onthesteps.co`).
@@ -54,13 +85,16 @@ working for recruiters. See **ENV_REFERENCE.md → Beta / launch switches**.
       `STRIPE_PRICE_PRO`, `STRIPE_PRICE_PREMIUM`, `STRIPE_PRICE_PRO_ANNUAL`,
       `STRIPE_PRICE_PREMIUM_ANNUAL` in `.env`. Start in **test mode**.
 
-## Phase 5 — Deploy · ~30 min · ~$7/mo (Render Starter)
-- [ ] Push to GitHub (double-click **`connect_github.bat`** once — already set up).
-- [ ] Render → **New → Blueprint** → pick the repo. `render.yaml` provisions the web
-      service + disk + generated secrets + the **daily hot-scan** and **15-min intraday
-      Signals** crons (auto-authenticated — nothing to wire).
-- [ ] Set `PUBLIC_BASE_URL` to your domain; attach the custom domain + HTTPS.
-> Details: **SAAS_RUNBOOK.md**.
+## Phase 5 — Flip to the paid deploy (when you want it "real") · ~30 min · ~$8/mo
+You're on the free single-service deploy now. The paid flip removes cold starts,
+persists data, and runs the scans server-side (no GitHub Actions/keep-warm).
+- [ ] Make sure **Auto-Deploy is ON** (Render → Settings) so pushes deploy themselves.
+- [ ] Render → **New → Blueprint** → pick the repo. `render.yaml` provisions the
+      **Starter** web service + **1 GB disk** + generated secrets + the **daily hot-scan**
+      and **15-min intraday Signals** crons (auto-authenticated — nothing to wire).
+- [ ] Re-add your env vars (Phase 2), set `PUBLIC_BASE_URL`, attach a custom domain + HTTPS.
+- [ ] **Disable the "Auto scans" GitHub Action** so you're not scanning twice.
+> Details: **SAAS_RUNBOOK.md** and **FREE_BRIDGE.md** (the flip section).
 
 ## Phase 6 — Data upgrades (optional, as you grow)
 - [ ] **Real-time Signals:** add `TRADIER_TOKEN` (+ `TRADIER_ENV=live`). Free delayed otherwise.
@@ -86,9 +120,20 @@ working for recruiters. See **ENV_REFERENCE.md → Beta / launch switches**.
 
 ---
 
-## All-in monthly cost
-Render **$7** + domain **~$2** + (optional) FMP **$22**, Tradier (your account), Anthropic
-(a few $), Sharadar (tens, only if not using free WRDS). **≈ $10–35/mo to start.**
+## Cost — what's free vs what you'd buy
+**Right now (free beta): $0.** Render free + the GitHub-Actions scan bridge + your
+existing Anthropic key (pay-per-use, ~cents) + your Tradier account (free real-time).
+**Nothing needs to be purchased to make the site fully presentable.**
+
+Optional buys, in order of impact:
+- **Custom domain** (~$12/yr) — replaces `valuation-tool-h2hr.onrender.com`; the biggest
+  presentability upgrade. Point it at Render.
+- **Render Starter + disk** (~$8/mo) — no cold starts, persistent data, server-side crons.
+- **FMP** (~$22/mo) — faster/broader scans; *not needed* (free EDGAR/yfinance works, and
+  scans run in Actions on free anyway).
+- **Sharadar** (tens/mo) — survivorship-free data for the *private* Edge Lab only; chase
+  free **WRDS via William & Mary** first.
+- **Stripe** — free to set up; only when you start charging (2.9%+30¢/charge).
 
 ## The doc map
 | Doc | What |
@@ -97,6 +142,7 @@ Render **$7** + domain **~$2** + (optional) FMP **$22**, Tradier (your account),
 | LAUNCH_CHECKLIST.md | detailed launch + On-The-Steps reuse cheat sheet |
 | SAAS_RUNBOOK.md | Stripe/hosting/email + compliance deep dive |
 | ENV_REFERENCE.md | every setting explained |
+| FREE_BRIDGE.md | free-tier auto-scan (GitHub Actions → site) + keep-warm |
 | RUNBOOK.md | the core tool (single valuations, scans) |
 | EDGE_LAB.md | private research bench (backtest, track record, no-overfit optimize) |
 | DATA_AND_METHODS.md | how to prove an edge: data + reputable methods |
