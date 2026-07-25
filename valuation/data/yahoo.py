@@ -90,6 +90,36 @@ def _mm(x):
     return None if v is None else v / 1e6
 
 
+_FX_CACHE: dict = {}
+
+
+def _fx_rate(base: str, quote: str) -> Optional[float]:
+    """Units of `quote` per 1 unit of `base` (e.g. base=JPY, quote=USD -> ~0.0067),
+    from Yahoo's FX tickers. Cached per process so a whole-market scan fetches each
+    currency pair only once. Returns None if it can't be resolved."""
+    if base == quote:
+        return 1.0
+    key = (base, quote)
+    if key in _FX_CACHE:
+        return _FX_CACHE[key]
+    rate = None
+    try:
+        import yfinance as yf
+        for sym, invert in ((f"{base}{quote}=X", False), (f"{quote}{base}=X", True)):
+            try:
+                fi = dict(yf.Ticker(sym).fast_info)
+                p = _safe(fi.get("lastPrice") or fi.get("last_price"))
+                if p and p > 0:
+                    rate = (1.0 / p) if invert else p
+                    break
+            except Exception:
+                continue
+    except Exception:
+        rate = None
+    _FX_CACHE[key] = rate
+    return rate
+
+
 def fetch(ticker: str) -> Optional[CompanyData]:
     """Fetch and normalize a company from Yahoo Finance. Returns None on hard failure."""
     try:
@@ -118,6 +148,7 @@ def fetch(ticker: str) -> Optional[CompanyData]:
     cd.sector = info.get("sector") or ""
     cd.industry = info.get("industry") or ""
     cd.currency = info.get("currency") or fast.get("currency") or "USD"
+    cd.financial_currency = (info.get("financialCurrency") or "").upper() or cd.currency
     cd.quote_type = (info.get("quoteType") or "").upper()
 
     # ---- price / shares / market cap / beta ----
@@ -281,6 +312,28 @@ def fetch(ticker: str) -> Optional[CompanyData]:
                     cd.ret_1m = last / float(closes.iloc[-21]) - 1.0
     except Exception:
         pass
+
+    # ---- currency normalization (ADRs / foreign listings) ----
+    # Statements come in the reporting currency (financialCurrency), but price and
+    # market cap trade in `currency`. Mixing them — e.g. JPY earnings against a USD
+    # ADR price — makes the DCF and the value factors explode (Mizuho valued at
+    # $6,320 vs a $10 price). Convert the statements into the price currency and use
+    # a price-consistent share count so per-share value lines up with the quote.
+    px_ccy = (cd.currency or "USD").upper()
+    fin_ccy = (cd.financial_currency or px_ccy).upper()
+    if fin_ccy and px_ccy and fin_ccy != px_ccy:
+        rate = _fx_rate(fin_ccy, px_ccy)
+        if rate:
+            cd.apply_fx(rate)
+            if cd.market_cap and cd.price:      # ADR price is per-ADR — match the share basis
+                cd.shares_diluted = cd.market_cap / cd.price
+            cd.quality_notes.append(
+                f"Statements converted {fin_ccy}→{px_ccy} @ {rate:.5g} to match the {px_ccy} price.")
+        else:
+            cd.fx_unresolved = True
+            cd.quality_notes.append(
+                f"Statements are in {fin_ccy} but the price is in {px_ccy}, and the FX rate couldn't be "
+                f"fetched — treat this valuation as unreliable.")
 
     # ---- final sanity flags ----
     if cd.price is None:

@@ -121,6 +121,8 @@ class FreeProvider(ScreenerProvider):
         try:
             from ..data import fetcher
             cd = fetcher.get_company(ticker, self.cfg)
+            if getattr(cd, "fx_unresolved", False):
+                return None   # statement/price currency mismatch we couldn't resolve — skip vs. rank garbage
             quote = P.get_quote(ticker)
             m = company_to_metrics(cd, quote)
         except Exception:

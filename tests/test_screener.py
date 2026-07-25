@@ -13,6 +13,8 @@ from valuation.screener.portfolio import build_portfolio
 from valuation.screener.store import Store
 from valuation.backtest.panel import build_synthetic_panel
 from valuation.backtest.engine import summarize
+from valuation.data.models import CompanyData
+from valuation.screener.providers import company_to_metrics
 from tests.screener_fixtures import SyntheticProvider
 
 
@@ -77,6 +79,32 @@ def test_backtest_detects_signal_rejects_noise():
     assert sig["has_edge"] is True
     assert noise["has_edge"] is False
     assert sig["ic"]["mean_ic"] > noise["ic"]["mean_ic"]
+
+
+def test_currency_conversion_fixes_adr():
+    # Mizuho-style ADR: statements in JPY (millions of yen), price/cap in USD.
+    # This is the bug that valued MFG at $6,320 vs a $10.63 price and flooded the
+    # hot list with foreign ADRs.
+    cd = CompanyData(ticker="MFG", currency="USD", financial_currency="JPY")
+    cd.price = 10.63
+    cd.market_cap = 70000.0        # USD millions
+    cd.shares_diluted = 2530.0     # ordinary-share basis (wrong for a per-ADR price)
+    cd.net_income = 900000.0       # ¥900B
+    cd.revenue = 4000000.0         # ¥4T
+    cd.total_equity = 9000000.0    # ¥9T
+
+    # BEFORE: mixing JPY statements with a USD cap => nonsense (P/E ~0.08, EY ~1290%)
+    pre = company_to_metrics(cd)
+    assert pre["earnings_yield"] > 5
+    assert pre["pe"] is not None and pre["pe"] < 0.2
+
+    # Apply what the fetch now does for an ADR (JPY->USD ≈ 0.0067) + price-consistent shares.
+    cd.apply_fx(0.0067)
+    cd.shares_diluted = cd.market_cap / cd.price
+    post = company_to_metrics(cd)
+    assert 0.02 < post["earnings_yield"] < 0.25    # ~8.6% — sane
+    assert 5 < post["pe"] < 25                      # ~11.6x — sane
+    assert 3000 < cd.net_income < 9000             # ~$6.0B USD net income
 
 
 def _run_all():

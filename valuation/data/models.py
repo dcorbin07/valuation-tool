@@ -25,13 +25,24 @@ def _safe(x) -> Optional[float]:
     return v
 
 
+# Statement-derived monetary fields (in millions of the reporting currency).
+# apply_fx() scales these; margins/ratios recompute from them so they're untouched.
+_MONETARY_FIELDS = ("revenue", "ebit", "gross_profit", "net_income", "da", "capex",
+                    "total_debt", "cash_sti", "interest_expense", "invested_capital",
+                    "fcf", "total_equity")
+_MONETARY_HISTORIES = ("revenue_history", "ebit_history", "fcf_history", "net_income_history")
+
+
 @dataclass
 class CompanyData:
     ticker: str
     name: str = ""
     sector: str = ""
     industry: str = ""
-    currency: str = "USD"
+    currency: str = "USD"                # currency the PRICE / market cap trade in
+    financial_currency: str = ""         # currency the STATEMENTS are reported in
+    fx_rate: Optional[float] = None      # reporting->price FX rate that was applied, if any
+    fx_unresolved: bool = False          # currencies differ but the FX rate couldn't be fetched
     as_of: str = ""
     quote_type: str = ""     # EQUITY / ETF / MUTUALFUND / ... (from the data source)
 
@@ -174,6 +185,24 @@ class CompanyData:
         if not self.cash_sti or self.cash_sti <= 0:
             return 0.0
         return self.cash_sti / abs(self.fcf)
+
+    def apply_fx(self, rate: float) -> None:
+        """Scale all statement-derived monetary values by `rate` (units of the
+        PRICE currency per 1 unit of the reporting currency). Used for ADRs /
+        foreign listings whose statements are in a different currency than the
+        price. Market data (price, market cap, shares) is left untouched, and
+        margins/ratios recompute from the scaled fields, so only the raw
+        currency amounts change."""
+        if not rate or rate <= 0:
+            return
+        for f in _MONETARY_FIELDS:
+            v = getattr(self, f)
+            if v is not None:
+                setattr(self, f, v * rate)
+        for f in _MONETARY_HISTORIES:
+            seq = getattr(self, f) or []
+            setattr(self, f, [(x * rate if x is not None else None) for x in seq])
+        self.fx_rate = rate
 
     def to_dict(self) -> dict:
         d = asdict(self)
