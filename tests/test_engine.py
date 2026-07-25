@@ -18,8 +18,22 @@ from valuation.engine.classify import classify
 from valuation.engine.assumptions import build_base_assumptions, apply_overrides
 from valuation.engine.wacc import compute_wacc
 from valuation.engine.dcf import run_dcf
+from valuation.engine.scoring import compute_score
 from valuation.engine.pipeline import value_from_company
 from tests.fixtures import build_nike, build_growth
+
+
+def test_absurd_fair_value_capped_not_strong_buy():
+    # A wildly implausible fair value (data glitch) must never present as a strong buy.
+    cd = build_nike()
+    cls = classify(cd)
+    w = compute_wacc(cd, CONFIG).wacc
+    bad = compute_score(cd, cls, w, base_fv=cd.price * 50, mc=None, comps=None)
+    assert bad.score <= 50 and bad.confidence == "low"
+    assert any("implausible" in d.lower() for d in bad.drivers)
+    # A sane fair value is scored on its merits, not force-capped.
+    ok = compute_score(cd, cls, w, base_fv=cd.price * 1.2, mc=None, comps=None)
+    assert 1 <= ok.score <= 100
 
 
 def test_wacc_matches_nike():

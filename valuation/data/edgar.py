@@ -145,6 +145,11 @@ def fetch(ticker: str, cfg) -> Optional[CompanyData]:
 
 def enrich(cd: CompanyData, cfg) -> CompanyData:
     """Fill missing fields on an existing (Yahoo) CompanyData using EDGAR."""
+    # EDGAR is US-GAAP in USD. If this company reports in another currency (an ADR
+    # whose statements we've already FX-converted), gap-filling raw USD EDGAR values
+    # would remix currencies — so skip the gap-fill for non-USD reporters.
+    if (getattr(cd, "financial_currency", "") or "USD") not in ("", "USD"):
+        return cd
     ed = fetch(cd.ticker, cfg)
     if ed is None:
         return cd

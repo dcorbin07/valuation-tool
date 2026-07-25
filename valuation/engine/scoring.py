@@ -203,6 +203,19 @@ def compute_score(cd: CompanyData, cls: Classification, wacc: float,
         confidence = "high"
 
     drivers = d_val + d_qual + d_grow + d_health + d_mom
+
+    # Data-sanity guard: a fair value >5x or <0.2x the price is almost always a
+    # data problem (currency, share count, a one-off item) rather than a real
+    # opportunity — never surface that as a strong buy.
+    if base_fv and cd.price and cd.price > 0:
+        ratio = base_fv / cd.price
+        if ratio > 5 or ratio < 0.2:
+            composite = min(composite, 50)
+            confidence = "low"
+            drivers.insert(0, f"⚠ Model fair value is {ratio:.1f}× the price — implausible; likely a data "
+                              f"issue (currency, share count, or a one-off). Capped and flagged unreliable, "
+                              f"not a recommendation.")
+
     return ScoreResult(
         score=composite, recommendation=_recommendation(composite), confidence=confidence,
         subscores={k: (round(v, 1) if v is not None else None) for k, v in subs.items()},

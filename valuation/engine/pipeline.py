@@ -113,6 +113,14 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
         warnings=list(cd.quality_notes),
     )
 
+    # Loud, top-of-list warning when the model output is implausible vs the price —
+    # this is the tell for a data problem (e.g. an ADR's currency/share mismatch).
+    fv, px = result.base_fair_value, cd.price
+    if fv and px and px > 0 and (fv / px > 5 or fv / px < 0.2):
+        result.warnings.insert(0, f"Fair value ${fv:,.0f} is {fv/px:.0f}× the ${px:,.2f} price — almost "
+                                  f"certainly a data problem (currency or share count), not a real "
+                                  f"opportunity. Verify the figures before trusting this valuation.")
+
     if run_ai:
         try:
             from ..ai.analyst import analyze
