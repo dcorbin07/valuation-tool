@@ -4,7 +4,8 @@ rem ============================================================
 rem  Saves your changes and pushes them to GitHub. Run anytime
 rem  after you've connected once. Works with Git for Windows OR
 rem  GitHub Desktop's built-in git. Secrets (.env, *.db) are
-rem  never pushed.
+rem  never pushed. Always pushes commits that aren't on GitHub
+rem  yet, even if there are no new file edits this run.
 rem ============================================================
 cd /d "%~dp0"
 
@@ -21,15 +22,20 @@ if not defined GIT ( echo Git not found. Use GitHub Desktop, or run connect_gith
 "%GIT%" remote get-url origin >nul 2>nul || ( echo No GitHub remote yet - run connect_github.bat first. & goto :done )
 
 "%GIT%" add -A
-"%GIT%" diff --cached --quiet && ( echo Nothing has changed since the last push. & goto :done )
+"%GIT%" diff --cached --quiet
+if errorlevel 1 (
+  "%GIT%" commit -q -m "Update %DATE% %TIME%"
+  echo Committed your latest changes.
+) else (
+  echo No new file edits - checking for commits not yet on GitHub...
+)
 
-"%GIT%" commit -q -m "Update %DATE% %TIME%"
 echo Pushing to GitHub...
 "%GIT%" push
 if errorlevel 1 (
   echo  [!] Push failed. Run connect_github.bat once so Windows saves your GitHub login.
 ) else (
-  echo  [OK] Pushed to GitHub.
+  echo  [OK] GitHub is up to date.
 )
 
 :done
