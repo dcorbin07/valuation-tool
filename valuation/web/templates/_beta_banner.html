@@ -1,16 +1,19 @@
 {# Site-wide beta notice. Shown whenever beta_mode is on (see Config.beta_mode).
-   Text switches for recruiter/demo preview sessions. Dismissible per browser
-   session so it doesn't nag on every page, but returns on the next visit. #}
+   Demo/preview sessions get a warmer message + a sign-up call to action.
+   Dismissible per browser session so it doesn't nag on every page. #}
 {% if beta_mode %}
 <div id="betaBar" style="background:linear-gradient(90deg,#fff6e6,#ffedcc);border-bottom:1px solid #f0d9a8;color:#8a5a00">
   <div style="max-width:1080px;margin:auto;padding:8px 22px;display:flex;align-items:center;gap:12px;font-size:13.5px;font-weight:600;line-height:1.4">
     <span style="flex:1">
       {% if is_demo %}
-        👋 <b>Recruiter preview</b> — you have full Premium access, no signup needed. This tool is in active beta and still being developed. <span style="font-weight:500">Educational only, not investment advice.</span>
+        👋 <b>You're exploring the full app</b> — Premium unlocked, no sign-up needed. Want to keep it? Create a free account to save your work and <b>get ahead of the beta</b>. <span style="font-weight:500">Educational only, not investment advice.</span>
       {% else %}
         🚧 <b>Beta — in active development.</b> Everything is unlocked free while we build. <span style="font-weight:500">Educational only, not investment advice.</span>
       {% endif %}
     </span>
+    {% if is_demo %}
+    <a href="/register" style="background:var(--navy);color:#fff;padding:6px 13px;border-radius:8px;font-size:13px;font-weight:700;white-space:nowrap;text-decoration:none">Create free account →</a>
+    {% endif %}
     <button type="button" aria-label="Dismiss"
       onclick="this.closest('#betaBar').style.display='none';try{sessionStorage.setItem('betaHidden','1')}catch(e){}"
       style="background:none;border:none;color:#8a5a00;font-size:18px;line-height:1;cursor:pointer;padding:0 2px;opacity:.7">&times;</button>

@@ -43,6 +43,7 @@ def register(app, store, cfg):
                 return render_template("register.html", error="Please accept the Terms and Privacy Policy."), 400
             try:
                 u = store.create_user(request.form.get("email", ""), request.form.get("password", ""))
+                session.pop("demo", None)   # signing up from the preview takes over as a real account
                 session["uid"] = u["id"]
                 return redirect("/app")
             except ValueError as e:
@@ -54,6 +55,7 @@ def register(app, store, cfg):
         if request.method == "POST":
             u = store.verify(request.form.get("email", ""), request.form.get("password", ""))
             if u:
+                session.pop("demo", None)   # a real login supersedes a preview session
                 session["uid"] = u["id"]
                 return redirect(request.args.get("next") or "/app")
             return render_template("login.html", error="Incorrect email or password."), 401

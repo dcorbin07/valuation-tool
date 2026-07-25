@@ -125,8 +125,26 @@ def test_master_link_route_and_banner():
     assert c.get("/demo/sekret-xyz").headers["Location"].endswith("/app")     # → dashboard
     page = c.get("/app")
     assert page.status_code == 200
-    assert b"Recruiter preview" in page.data          # demo-variant beta banner rendered
+    assert b"get ahead of the beta" in page.data      # inclusive demo banner copy
+    assert b'href="/register"' in page.data           # + a sign-up call to action
     CONFIG.demo_access_token = "preview"              # restore default
+
+
+def test_demo_signup_converts_to_real_account():
+    # Signing up from the preview should drop the demo flag and take over as a real account.
+    import uuid
+    CONFIG.demo_access_token = "sekret-xyz"
+    from valuation.saas.app_saas import create_saas_app
+    app = create_saas_app(CONFIG); app.config.update(TESTING=True)
+    c = app.test_client()
+    c.get("/demo/sekret-xyz")                          # enter the preview
+    assert b"get ahead of the beta" in c.get("/app").data
+    email = "conv_" + uuid.uuid4().hex[:8] + "@ex.com"
+    r = c.post("/register", data={"email": email, "password": "password123", "agree": "on"})
+    assert r.status_code in (301, 302)                 # redirected to /app as the new user
+    after = c.get("/app").data
+    assert b"get ahead of the beta" not in after       # demo flag cleared → generic banner
+    CONFIG.demo_access_token = "preview"
 
 
 def test_ci_ingest_snapshot_roundtrip():
