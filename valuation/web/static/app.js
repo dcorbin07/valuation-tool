@@ -91,7 +91,7 @@ function render(d) {
   mcChart(d.montecarlo);
   scoreBars(score);
   reverseBox(d.reverse);
-  compsBox(d.comps, c.price);
+  compsBox(d.comps, c.price, (d.reverse && d.reverse.base_avg_growth != null) ? d.reverse.base_avg_growth : (d.assumptions ? d.assumptions.start_growth : null));
   assumEditor(d.assumptions);
   document.getElementById("assumNotes").innerHTML = (d.assumptions.notes || []).map(n => "• " + n).join("<br>");
   sensBox(d.sensitivity, c.price);
@@ -213,7 +213,7 @@ function reverseBox(rv) {
         ${metric("Market-implied growth", pct(rv.implied_avg_growth))}
         ${metric("Our base growth", pct(rv.base_avg_growth))}</div>` : "");
 }
-function compsBox(cp, price) {
+function compsBox(cp, price, growth) {
   const m = cp.subject || {}, imp = cp.implied || {};
   const rows = [["P/E", m.pe, imp.pe], ["EV/EBITDA", m.ev_ebitda, imp.ev_ebitda], ["P/S", m.ps, imp.ps], ["EV/Sales", m.ev_sales, imp.ev_sales]];
   let html = `<div class="note" style="margin-top:0">${cp.benchmark_source}</div><table><tr><th>Multiple</th><th class="num">Current</th><th class="num">Implied value</th></tr>`;
@@ -222,6 +222,17 @@ function compsBox(cp, price) {
   if (cp.comps_fair_value != null) {
     const u = price ? cp.comps_fair_value / price - 1 : null;
     html += `<div style="margin-top:12px;font-size:14px">Comps fair value <b>${money(cp.comps_fair_value)}</b> ${u == null ? '' : `<span class="${u >= 0 ? 'pos' : 'neg'}">(${u >= 0 ? '+' : ''}${pct(u, 0)})</span>`}</div>`;
+  }
+  // PEG = P/E ÷ expected growth% (uses the model's base growth). Only meaningful with a positive P/E and growth.
+  const gpc = (growth != null && !isNaN(growth)) ? growth * 100 : null;
+  const peg = (m.pe != null && m.pe > 0 && gpc != null && gpc > 0) ? m.pe / gpc : null;
+  if (peg != null) {
+    const col = peg < 1 ? "var(--green)" : (peg <= 2 ? "var(--amber)" : "var(--red)");
+    const read = peg < 1 ? "growth looks under-priced" : (peg <= 2 ? "growth roughly in line with price" : "growth looks more than priced in");
+    html += `<div style="margin-top:8px;font-size:14px">PEG ratio <b style="color:${col}">${peg.toFixed(2)}</b>
+      <span class="muted" style="font-size:12.5px">(P/E ${m.pe.toFixed(1)} ÷ ${gpc.toFixed(0)}% base growth — ${read})</span></div>`;
+  } else {
+    html += `<div style="margin-top:8px;font-size:12.5px" class="muted">PEG n/m (needs a positive P/E and growth).</div>`;
   }
   document.getElementById("compsBox").innerHTML = html;
 }

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Adaptive DCF Valuation Tool</title>
+<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
@@ -12,7 +13,24 @@
 <header>
   <div class="wrap">
     <div class="brand">
-      <div class="logo">V</div>
+      <div class="logo" aria-label="Valuation Tool logo">
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="vbg" x1="0" y1="0" x2="0" y2="36" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#ffffff"/><stop offset="1" stop-color="#d8e4fb"/>
+            </linearGradient>
+            <linearGradient id="vln" x1="7" y1="26" x2="29" y2="9" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#2e5fa3"/><stop offset="1" stop-color="#1f3864"/>
+            </linearGradient>
+          </defs>
+          <rect x="1" y="1" width="34" height="34" rx="10" fill="url(#vbg)"/>
+          <path d="M7 25 L15 18 L21 21 L29 10" stroke="url(#vln)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M24.4 10 L29 10 L29 14.6" stroke="url(#vln)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="7" cy="25" r="2" fill="#1f3864"/>
+          <circle cx="15" cy="18" r="2" fill="#2e5fa3"/>
+          <circle cx="21" cy="21" r="2" fill="#2e5fa3"/>
+        </svg>
+      </div>
       <div>
         <h1>Adaptive DCF Valuation Tool</h1>
         <div class="tagline">Live-data DCF · bull / base / bear · 1–100 opportunity score · AI analysis</div>
@@ -52,7 +70,7 @@
     <div class="err" id="err"></div>
 
     <div class="results" id="results">
-      <!-- Hero -->
+      <!-- 1. Score (hero) -->
       <div class="card">
         <div class="hero">
           <div>
@@ -65,13 +83,39 @@
         </div>
       </div>
 
-      <!-- Scenarios -->
+      <!-- 2. Fair value & scenarios -->
       <div class="card">
         <h3>Fair value &amp; scenarios</h3>
         <div class="rangebar" id="rangebar"></div>
         <div class="grid3" id="scenarioCards" style="margin-top:14px"></div>
       </div>
 
+      <!-- 3. Opportunity score breakdown -->
+      <div class="card">
+        <h3>Opportunity score breakdown</h3>
+        <div class="section-hint" id="scoreHint"></div>
+        <div id="scoreBars"></div>
+      </div>
+
+      <!-- 4. AI analysis (shown only when AI is run) -->
+      <div class="card ai" id="aiCard" style="display:none">
+        <h3>AI analysis <span class="ai-src" id="aiSrc"></span></h3>
+        <div id="aiBox"></div>
+      </div>
+
+      <!-- 5 & 6. What the market is pricing in + Comps cross-check -->
+      <div class="grid2">
+        <div class="card">
+          <h3>What the market is pricing in</h3>
+          <div id="reverseBox"></div>
+        </div>
+        <div class="card">
+          <h3>Comps cross-check</h3>
+          <div id="compsBox"></div>
+        </div>
+      </div>
+
+      <!-- 7 & 8. Free cash flow + Monte Carlo -->
       <div class="grid2">
         <div class="card">
           <h3>Free cash flow projection</h3>
@@ -84,27 +128,13 @@
         </div>
       </div>
 
-      <!-- Score breakdown -->
+      <!-- 9. Sensitivity -->
       <div class="card">
-        <h3>Opportunity score breakdown</h3>
-        <div class="section-hint" id="scoreHint"></div>
-        <div id="scoreBars"></div>
+        <h3>Sensitivity — value per share (WACC × terminal growth)</h3>
+        <div id="sensBox" style="overflow-x:auto"></div>
       </div>
 
-      <div class="grid2">
-        <!-- Reverse DCF -->
-        <div class="card">
-          <h3>What the market is pricing in</h3>
-          <div id="reverseBox"></div>
-        </div>
-        <!-- Comps -->
-        <div class="card">
-          <h3>Comps cross-check</h3>
-          <div id="compsBox"></div>
-        </div>
-      </div>
-
-      <!-- Assumptions editor -->
+      <!-- 10. Assumptions editor -->
       <div class="card">
         <h3>Assumptions — tweak &amp; re-run</h3>
         <div class="section-hint">These are the model's auto-derived base-case drivers. Edit any and re-run to see the impact.</div>
@@ -116,19 +146,7 @@
         <div class="note" id="assumNotes"></div>
       </div>
 
-      <!-- Sensitivity -->
-      <div class="card">
-        <h3>Sensitivity — value per share (WACC × terminal growth)</h3>
-        <div id="sensBox" style="overflow-x:auto"></div>
-      </div>
-
-      <!-- AI -->
-      <div class="card ai" id="aiCard" style="display:none">
-        <h3>Qualitative analysis <span class="ai-src" id="aiSrc"></span></h3>
-        <div id="aiBox"></div>
-      </div>
-
-      <!-- Downloads + sources -->
+      <!-- 11. Downloads + sources -->
       <div class="card">
         <h3>Export &amp; sources</h3>
         <div class="actions">
