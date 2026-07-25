@@ -13,8 +13,14 @@ from .options import options_signals
 W_TECH = 0.70
 W_OPT = 0.30
 
+# Horizon reweights the technical/options blend and adds a small tilt:
+#   short    — leans on options flow + fresh breakouts (faster setups)
+#   swing    — the balanced default
+#   position — leans on durable trend (200-DMA), fades overbought chasing
+_HORIZON_WEIGHTS = {"short": (0.60, 0.40), "swing": (0.70, 0.30), "position": (0.82, 0.18)}
 
-def evaluate(bars: dict, option_summary: dict | None = None) -> dict:
+
+def evaluate(bars: dict, option_summary: dict | None = None, horizon: str = "swing") -> dict:
     tech = technical_signals(bars)
     opt = options_signals(option_summary)
 
@@ -22,10 +28,23 @@ def evaluate(bars: dict, option_summary: dict | None = None) -> dict:
         return {"score": None, "labels": [], "note": tech.get("note", "no data"),
                 "technical": tech, "options": opt}
 
+    w_tech, w_opt = _HORIZON_WEIGHTS.get(horizon, _HORIZON_WEIGHTS["swing"])
     if opt.get("available"):
-        score = W_TECH * tech["score"] + W_OPT * opt["score"]
+        score = w_tech * tech["score"] + w_opt * opt["score"]
     else:
         score = tech["score"]
+
+    # Horizon tilt.
+    d = tech.get("detail", {})
+    if horizon == "position":
+        if d.get("above_200dma"):
+            score += 3
+        if d.get("rsi") is not None and d["rsi"] > 75:
+            score -= 3          # don't chase an extended name for a longer hold
+    elif horizon == "short":
+        if any(("Breakout" in l or "Volume surge" in l) for l in tech.get("labels", [])):
+            score += 3
+    score = max(0.0, min(100.0, score))
 
     labels = list(tech["labels"]) + list(opt["labels"])
     return {

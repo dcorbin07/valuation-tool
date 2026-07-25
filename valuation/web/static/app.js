@@ -543,15 +543,28 @@ async function runSignals() {
   } catch (e) { eshow("sigErr", e.message); toggle("sigLoader", false); }
 }
 function renderSignals(d) {
+  if (!d) return;
   document.getElementById("sigMeta").textContent = "";
   document.getElementById("sigTime").textContent = d.run_time ? ("updated " + d.run_time) : "";
-  let html = '<table><tr><th>#</th><th>Ticker</th><th class="num">Score</th><th>Setup / signals</th><th>AI read</th></tr>';
-  d.rows.forEach(r => {
-    const badges = (r.labels || []).slice(0, 4).map(l => `<span class="pill est" style="margin:1px 2px">${l}</span>`).join(" ");
-    html += `<tr><td>${r.rank}</td><td><a href="#" onclick="gotoValue('${r.ticker}');return false"><b>${r.ticker}</b></a></td>
-      <td class="num" style="font-weight:800;color:${scoreColor(r.score)}">${r.score == null ? '' : r.score.toFixed(0)}</td>
-      <td style="max-width:300px">${badges}</td>
-      <td style="max-width:330px;font-size:12.5px" class="muted">${r.ai || r.summary || ''}</td></tr>`;
+  const hzEl = document.getElementById("sigHorizon");
+  const hz = (hzEl && hzEl.value) || "swing";
+  const scoreH = r => (r.detail && r.detail.scores && r.detail.scores[hz] != null) ? r.detail.scores[hz] : r.score;
+  // Re-rank by the chosen horizon's score.
+  const rows = (d.rows || []).slice().sort((a, b) => (scoreH(b) || 0) - (scoreH(a) || 0));
+  let html = '<table><tr><th>#</th><th>Ticker</th><th class="num">Score</th><th>Setup / signals</th>' +
+    `<th>Contract idea (${hz})</th><th>AI read</th></tr>`;
+  rows.forEach((r, i) => {
+    const s = scoreH(r);
+    const badges = (r.labels || []).slice(0, 3).map(l => `<span class="pill est" style="margin:1px 2px">${l}</span>`).join(" ");
+    const c = (r.detail && r.detail.contracts && r.detail.contracts[hz]) || null;
+    const cHtml = c
+      ? `<div style="font-size:12px"><b>${c.directional}</b><br><span class="muted">${c.defined_risk}</span></div>`
+      : '<span class="muted">—</span>';
+    html += `<tr><td>${i + 1}</td><td><a href="#" onclick="gotoValue('${r.ticker}');return false"><b>${r.ticker}</b></a></td>
+      <td class="num" style="font-weight:800;color:${scoreColor(s)}">${s == null ? '' : s.toFixed(0)}</td>
+      <td style="max-width:240px">${badges}</td>
+      <td style="max-width:270px">${cHtml}</td>
+      <td style="max-width:260px;font-size:12.5px" class="muted">${r.ai || r.summary || ''}</td></tr>`;
   });
   html += "</table>";
   document.getElementById("sigTable").innerHTML = html;

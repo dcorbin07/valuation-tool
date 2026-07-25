@@ -15,6 +15,7 @@ from ..config import CONFIG
 from ..screener.store import Store
 from .providers import get_provider
 from .signals import evaluate
+from .contracts import contract_idea, HORIZONS
 
 
 def run_intraday(cfg=CONFIG, store: Optional[Store] = None, provider=None,
@@ -32,14 +33,21 @@ def run_intraday(cfg=CONFIG, store: Optional[Store] = None, provider=None,
         if not bars:
             continue
         opt = provider.get_option_summary(t) if with_options else None
-        ev = evaluate(bars, opt)
+        per_h = {h: evaluate(bars, opt, horizon=h) for h in HORIZONS}
+        ev = per_h["swing"]
         if ev.get("score") is None:
             continue
+        detail = ev.get("detail", {})
+        price = detail.get("price")
+        iv = detail.get("opt_atm_iv")
+        # Per-horizon scores (for the UI toggle to re-rank) + matching contract ideas.
+        detail["scores"] = {h: per_h[h].get("score") for h in HORIZONS}
+        detail["contracts"] = {h: contract_idea(price, iv, h) for h in HORIZONS}
         rows.append({
             "ticker": t, "score": ev["score"], "labels": ev["labels"], "summary": ev["summary"],
-            "price": (ev.get("detail") or {}).get("price"),
+            "price": price,
             "technical_score": ev.get("technical_score"), "options_score": ev.get("options_score"),
-            "detail": ev.get("detail", {}),
+            "detail": detail,
         })
         if progress and i % 20 == 0:
             progress(i, len(uni))

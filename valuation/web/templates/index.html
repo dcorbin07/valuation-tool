@@ -264,6 +264,13 @@
         the day; Claude explains the top 10.</div>
       <div class="search-row" style="align-items:center">
         <button class="btn" onclick="runSignals()">↻ Refresh signals now</button>
+        <label class="opt" style="margin:0">Horizon
+          <select id="sigHorizon" class="selin" onchange="renderSignals(STATE.signals)">
+            <option value="short">Short (3–5 wk)</option>
+            <option value="swing" selected>Swing (6–11 wk)</option>
+            <option value="position">Position (3–6 mo)</option>
+          </select>
+        </label>
         <label class="opt" style="margin:0"><input type="checkbox" id="sigAuto" onchange="toggleSigAuto()"> Auto-refresh (60s)</label>
         <span class="note" id="sigMeta" style="margin:0"></span>
       </div>
