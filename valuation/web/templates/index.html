@@ -22,6 +22,7 @@
       <button class="tab" data-tab="hot" onclick="switchTab('hot')">🔥 Hot stocks</button>
       <button class="tab" data-tab="signals" onclick="switchTab('signals')">⚡ Signals</button>
       <button class="tab" data-tab="backtest" onclick="switchTab('backtest')">📊 Backtest</button>
+      {% if is_owner %}<button class="tab" data-tab="edge" onclick="switchTab('edge')">🔬 Edge Lab</button>{% endif %}
       <button class="tab" data-tab="rank" onclick="switchTab('rank')">Watchlist</button>
     </div>
   </div>
@@ -257,6 +258,28 @@
       <div id="sigTable" style="overflow-x:auto"></div>
     </div>
   </div>
+
+  {% if is_owner %}
+  <!-- EDGE LAB (owner-only, private) -->
+  <div id="tab-edge" style="display:none">
+    <div class="search-card">
+      <div class="section-hint" style="margin-top:0">Private research bench (owner-only). Does following the picks actually beat the S&amp;P?
+        And can the rules be re-tuned <b>without overfitting</b>? Honest by design — it reports no edge when there isn't one.</div>
+      <div class="search-row" style="align-items:center;flex-wrap:wrap">
+        <select id="edgeStrategy" class="selin"><option value="momentum">Momentum strategy</option><option value="technical">Signals (technical) strategy</option></select>
+        <input id="edgeLimit" type="number" value="100" style="width:88px" title="universe size">
+        <button class="btn" onclick="edgeBacktest()">Backtest vs SPY</button>
+        <button class="btn secondary" onclick="edgeOptimize()">Walk-forward optimize</button>
+        <button class="btn ghost" onclick="edgeTrack()">Update track record</button>
+      </div>
+      <div class="note">Network-heavy (downloads price history for the universe). Survivorship caveat applies to the historical backtest;
+        the track record accrues survivorship-free going forward.</div>
+    </div>
+    <div class="loader" id="edgeLoader"><div class="spinner"></div><div id="edgeMsg">Working…</div></div>
+    <div class="err" id="edgeErr"></div>
+    <div id="edgeResults"></div>
+  </div>
+  {% endif %}
 
 </div>
 

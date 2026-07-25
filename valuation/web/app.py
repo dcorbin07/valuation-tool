@@ -47,9 +47,10 @@ def _parse_overrides(src: dict) -> dict:
 
 @app.route("/")
 def index():
+    # Standalone/local use = owner (no auth layer). The SaaS /app route overrides this.
     return render_template("index.html",
                            ai_enabled=CONFIG.ai_enabled,
-                           ai_provider=CONFIG.resolved_ai_provider)
+                           ai_provider=CONFIG.resolved_ai_provider, is_owner=True)
 
 
 @app.route("/api/health")
@@ -278,6 +279,39 @@ def api_signals_run():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/edge/backtest", methods=["POST"])
+def api_edge_backtest():
+    from ..edge.lab import run_backtest
+    d = request.get_json(silent=True) or {}
+    try:
+        return jsonify(run_backtest(strategy=d.get("strategy", "momentum"),
+                                    hold_top=int(d.get("hold", 15)),
+                                    rebalance_days=int(d.get("rebalance", 21)),
+                                    limit=int(d.get("limit", 100))))
+    except Exception as e:
+        traceback.print_exc(); return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/edge/optimize", methods=["POST"])
+def api_edge_optimize():
+    from ..edge.lab import run_optimize
+    d = request.get_json(silent=True) or {}
+    try:
+        return jsonify(run_optimize(limit=int(d.get("limit", 100))))
+    except Exception as e:
+        traceback.print_exc(); return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/edge/track", methods=["POST"])
+def api_edge_track():
+    from ..edge.lab import run_track
+    d = request.get_json(silent=True) or {}
+    try:
+        return jsonify(run_track(source=d.get("source", "hot")))
+    except Exception as e:
+        traceback.print_exc(); return jsonify({"error": str(e)}), 500
 
 
 def create_app():

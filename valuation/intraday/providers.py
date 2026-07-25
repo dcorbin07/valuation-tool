@@ -19,14 +19,15 @@ from __future__ import annotations
 from typing import Optional
 
 from ..config import CONFIG
-from ..screener.universe import bundled_tickers
+from ..screener.universe import sp500_tickers
 
 
 class IntradayProvider:
     name = "base"
 
     def get_universe(self) -> list:
-        return bundled_tickers()
+        # Full S&P 500 (live, with offline fallback to the bundled liquid set).
+        return sp500_tickers(getattr(self, "cfg", None) or CONFIG)
 
     def get_bars(self, ticker: str) -> Optional[dict]:
         raise NotImplementedError

@@ -75,10 +75,12 @@ def create_saas_app(cfg=CONFIG):
 
     @app.route("/app")
     def dashboard():
-        if not auth.current_user(store):
+        u = auth.current_user(store)
+        if not u:
             return redirect("/login?next=/app")
+        is_owner = u.get("email", "").strip().lower() in cfg.owner_email_set
         return render_template("index.html", ai_enabled=cfg.ai_enabled,
-                               ai_provider=cfg.resolved_ai_provider)
+                               ai_provider=cfg.resolved_ai_provider, is_owner=is_owner)
 
     @app.route("/pricing")
     def pricing():

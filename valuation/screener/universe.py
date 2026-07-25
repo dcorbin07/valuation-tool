@@ -53,3 +53,38 @@ def bundled_sector_map() -> dict:
         for t in tickers:
             m[t] = sector
     return m
+
+
+_SP500_CACHE = []
+
+
+def sp500_tickers(cfg=None) -> list[str]:
+    """Current S&P 500 constituents, fetched live with graceful fallback:
+    FMP (if key) → Wikipedia table → the bundled liquid set (offline)."""
+    global _SP500_CACHE
+    if _SP500_CACHE:
+        return _SP500_CACHE
+    # 1) FMP constituent endpoint
+    if cfg and getattr(cfg, "fmp_api_key", ""):
+        try:
+            import requests
+            d = requests.get("https://financialmodelingprep.com/stable/sp500-constituent",
+                             params={"apikey": cfg.fmp_api_key}, timeout=20).json()
+            syms = [str(x["symbol"]).upper() for x in d if x.get("symbol")]
+            if len(syms) > 400:
+                _SP500_CACHE = syms
+                return syms
+        except Exception:
+            pass
+    # 2) Wikipedia (needs pandas + lxml + network; fine on a real machine)
+    try:
+        import pandas as pd
+        tables = pd.read_html("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies")
+        syms = [str(s).replace(".", "-").upper() for s in tables[0]["Symbol"].tolist()]
+        if len(syms) > 400:
+            _SP500_CACHE = syms
+            return syms
+    except Exception:
+        pass
+    # 3) offline fallback: the bundled liquid large-cap set
+    return bundled_tickers()

@@ -67,6 +67,12 @@ def check_request(path: str, method: str, body: dict, user, store) -> tuple | No
     if path.startswith("/api/") and not public and user is None:
         return ({"error": "Please sign in to use this.", "need_login": True}, 401)
 
+    # Edge Lab = private owner-only research tools.
+    if path.startswith("/api/edge/"):
+        from ..config import CONFIG
+        if not user or user.get("email", "").strip().lower() not in CONFIG.owner_email_set:
+            return ({"error": "Owner-only research tools.", "owner_only": True}, 403)
+
     # Feature-locked routes.
     feat = _FEATURE_ROUTES.get(path)
     if feat and not feats.get(feat):

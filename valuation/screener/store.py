@@ -57,6 +57,17 @@ CREATE TABLE IF NOT EXISTS intraday_runs (
     run_time TEXT PRIMARY KEY, universe INTEGER, provider TEXT, created_at TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_intraday ON intraday(run_time, rank);
+
+-- Live track record (the "paper account"): picks logged over time + realized returns.
+CREATE TABLE IF NOT EXISTS track_picks (
+    source TEXT, run_date TEXT, ticker TEXT, rank INTEGER,
+    PRIMARY KEY (source, run_date, ticker)
+);
+CREATE TABLE IF NOT EXISTS track_returns (
+    source TEXT, run_date TEXT, ticker TEXT, horizon INTEGER,
+    fwd_ret REAL, bench_ret REAL,
+    PRIMARY KEY (source, run_date, ticker, horizon)
+);
 """
 
 
@@ -191,3 +202,32 @@ class Store:
         with self._conn() as c:
             c.execute("UPDATE intraday SET ai=? WHERE run_time=? AND ticker=?",
                       (json.dumps(ai_text), run_time, ticker))
+
+    # ---- live track record ----
+    def save_track_picks(self, source, run_date, rows):
+        with self._conn() as c:
+            for r in rows:
+                c.execute("INSERT OR IGNORE INTO track_picks VALUES (?,?,?,?)",
+                          (source, run_date, r["ticker"].upper(), r.get("rank")))
+
+    def all_track_picks(self, source=None):
+        q = "SELECT * FROM track_picks" + ("" if source is None else " WHERE source=?")
+        with self._conn() as c:
+            rows = c.execute(q, () if source is None else (source,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def save_track_return(self, source, run_date, ticker, horizon, fwd_ret, bench_ret):
+        with self._conn() as c:
+            c.execute("INSERT OR REPLACE INTO track_returns VALUES (?,?,?,?,?,?)",
+                      (source, run_date, ticker.upper(), horizon, fwd_ret, bench_ret))
+
+    def has_track_return(self, source, run_date, ticker, horizon):
+        with self._conn() as c:
+            return c.execute("SELECT 1 FROM track_returns WHERE source=? AND run_date=? AND ticker=? AND horizon=?",
+                             (source, run_date, ticker.upper(), horizon)).fetchone() is not None
+
+    def track_returns(self, source, horizon=None):
+        q = "SELECT * FROM track_returns WHERE source=?" + ("" if horizon is None else " AND horizon=?")
+        args = (source,) if horizon is None else (source, horizon)
+        with self._conn() as c:
+            return [dict(r) for r in c.execute(q, args).fetchall()]

@@ -13,7 +13,7 @@ const scoreClass = (s) => s >= 66 ? "g" : (s >= 46 ? "a" : "r");
 /* ---------- tabs ---------- */
 function switchTab(t) {
   document.querySelectorAll(".tab").forEach(el => el.classList.toggle("active", el.dataset.tab === t));
-  ["single", "hot", "signals", "backtest", "rank"].forEach(name => {
+  ["single", "hot", "signals", "backtest", "rank", "edge"].forEach(name => {
     const el = document.getElementById("tab-" + name);
     if (el) el.style.display = (name === t) ? "block" : "none";
   });
@@ -549,6 +549,66 @@ let sigTimer = null;
 function toggleSigAuto() { document.getElementById("sigAuto").checked ? startSigAuto() : stopSigAuto(); }
 function startSigAuto() { stopSigAuto(); sigTimer = setInterval(loadSignals, 60000); }
 function stopSigAuto() { if (sigTimer) { clearInterval(sigTimer); sigTimer = null; } }
+
+/* ====================== EDGE LAB (owner-only) ====================== */
+async function _edgeCall(url, body, msg) {
+  toggle("edgeLoader", true); eshow("edgeErr", ""); document.getElementById("edgeMsg").textContent = msg;
+  try {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    const d = await res.json();
+    if (res.status === 403 || d.owner_only) { eshow("edgeErr", "Owner-only research tools."); return null; }
+    if (d.error) throw new Error(d.error);
+    return d;
+  } catch (e) { eshow("edgeErr", e.message); return null; }
+  finally { toggle("edgeLoader", false); }
+}
+async function edgeBacktest() {
+  const d = await _edgeCall("/api/edge/backtest",
+    { strategy: document.getElementById("edgeStrategy").value, limit: parseInt(document.getElementById("edgeLimit").value) || 100 },
+    "Backtesting the strategy vs SPY (downloading price history)…");
+  if (!d) return;
+  let h = `<div class="card"><h3>Backtest — ${d.strategy} strategy vs SPY (universe ${d.n_universe})</h3><table><tr><th>Horizon</th><th class="num">Strategy CAGR</th><th class="num">SPY CAGR</th><th class="num">Alpha</th><th class="num">Sharpe</th><th class="num">Max DD</th></tr>`;
+  ["1y", "5y", "10y", "full"].forEach(k => {
+    const s = d[k]; if (!s || !s.available) { h += `<tr><td>${k}</td><td colspan="5" class="muted">n/a</td></tr>`; return; }
+    const p = s.portfolio, b = s.benchmark, al = s.alpha_cagr;
+    h += `<tr><td><b>${k}</b></td><td class="num">${pct(p.cagr, 1)}</td><td class="num">${pct(b.cagr, 1)}</td>
+      <td class="num ${al >= 0 ? 'pos' : 'neg'}">${al >= 0 ? '+' : ''}${pct(al, 1)}</td>
+      <td class="num">${p.sharpe == null ? '—' : p.sharpe.toFixed(2)}</td><td class="num neg">${pct(p.max_drawdown, 0)}</td></tr>`;
+  });
+  h += `</table><div class="warn" style="margin-top:10px">⚠ ${d.survivorship_caveat || ''}</div></div>`;
+  document.getElementById("edgeResults").innerHTML = h;
+}
+async function edgeOptimize() {
+  const d = await _edgeCall("/api/edge/optimize", { limit: parseInt(document.getElementById("edgeLimit").value) || 100 },
+    "Building the panel & walk-forward optimizing (no-overfit)…");
+  if (!d) return;
+  const wf = d.walk_forward, adv = d.advisor;
+  let h = `<div class="card"><h3>Walk-forward optimize — ${d.n_rows} rows · ${d.n_dates} dates</h3>`;
+  h += `<div class="verdict ${wf.adopt ? 'good' : 'bad'}">${wf.adopt ? '✓ ' : '● '}${wf.verdict}</div>`;
+  h += `<div class="note" style="margin-top:8px">Recommended weights: ${Object.entries(wf.final_weights).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(" · ")}</div>`;
+  h += `<div style="margin-top:10px"><b>Advisor:</b> ${adv.note}`;
+  if (adv.adopted) h += `<div class="note">Proposal (${adv.adopted.source}): ${Object.entries(adv.adopted.weights).map(([k, v]) => `${k} ${(+v).toFixed(2)}`).join(" · ")} — holdout IC ${adv.adopted.holdout_ic.toFixed(3)}. ${adv.adopted.rationale}</div>`;
+  h += `</div><div class="note" style="margin-top:8px">Per-factor IC (discovery half): ${Object.entries(adv.factor_ic_discovery || {}).map(([k, v]) => `${k} ${(v >= 0 ? '+' : '') + v.toFixed(3)}`).join(" · ")}</div></div>`;
+  document.getElementById("edgeResults").innerHTML = h;
+}
+async function edgeTrack() {
+  const d = await _edgeCall("/api/edge/track", { source: "hot" }, "Updating the live paper track record…");
+  if (!d) return;
+  let h = `<div class="card"><h3>Live paper track record — hot-list picks vs SPY</h3>`;
+  const S = d.summary || {}; const has = Object.values(S).some(x => x);
+  if (!has) { h += `<div class="muted">No matured picks yet — the record accrues as your daily picks age (needs ~1+ month of history). Keep scanning daily.</div>`; }
+  else {
+    h += `<table><tr><th>Horizon</th><th class="num">Picks</th><th class="num">Avg return</th><th class="num">SPY</th><th class="num">Alpha</th><th class="num">Beat SPY</th></tr>`;
+    [["21", "1-month"], ["63", "3-month"], ["126", "6-month"], ["252", "1-year"]].forEach(([k, lab]) => {
+      const s = S[k]; if (!s) { h += `<tr><td>${lab}</td><td colspan="5" class="muted">accruing…</td></tr>`; return; }
+      h += `<tr><td><b>${lab}</b></td><td class="num">${s.n}</td><td class="num">${pct(s.avg_return, 1)}</td><td class="num">${pct(s.avg_bench, 1)}</td>
+        <td class="num ${s.avg_alpha >= 0 ? 'pos' : 'neg'}">${s.avg_alpha >= 0 ? '+' : ''}${pct(s.avg_alpha, 1)}</td><td class="num">${pct(s.hit_rate_vs_bench, 0)}</td></tr>`;
+    });
+    h += `</table>`;
+  }
+  h += `<div class="note" style="margin-top:8px">Seeded/updated: ${JSON.stringify(d.updated)}. This accrues survivorship-free going forward.</div></div>`;
+  document.getElementById("edgeResults").innerHTML = h;
+}
 
 /* small helpers */
 function toggle(id, on) { const e = document.getElementById(id); if (e) e.classList.toggle("on", on); }
