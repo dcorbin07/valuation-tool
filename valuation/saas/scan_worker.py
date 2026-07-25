@@ -28,7 +28,7 @@ def run_weekly(cfg=CONFIG, scope="whole_market", limit=1500, dcf_top=12) -> dict
     html = weekly_digest_html(res["scan_date"], rows, sectors)
     sent = 0
     for u in users.subscribers_opted_in():
-        if send_email(cfg, u["email"], "🔥 Hot Stocks of the Week", html):
+        if send_email(cfg, u["email"], "🔥 Hot Stocks of the Day", html):
             sent += 1
     return {"scan_date": res["scan_date"], "scored": res["scored"],
             "universe_size": res["universe_size"], "emails_sent": sent}

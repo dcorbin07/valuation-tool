@@ -50,7 +50,7 @@ services:
       - key: EMAIL_FROM
         sync: false
 
-  # Weekly auto-scan — runs at a fixed time every week with ZERO manual setup.
+  # Daily auto-scan — runs at a fixed time every weekday with ZERO manual setup.
   # It calls the web app's token-protected endpoint, which runs the scan in-process
   # and refreshes the snapshot the whole site reads. The host + token are pulled
   # automatically from the web service (fromService), so nothing to type and the
@@ -60,7 +60,7 @@ services:
     runtime: image
     image:
       url: curlimages/curl:latest
-    schedule: "0 11 * * 1"            # every Monday 11:00 UTC (~6-7am US Eastern)
+    schedule: "0 11 * * 1-5"            # every weekday 11:00 UTC (~6-7am ET), pre-market
     dockerCommand: >
       curl -fsS -X POST "https://$TARGET_HOST/admin/run-scan" -H "X-Admin-Token: $ADMIN_TOKEN"
     envVars:

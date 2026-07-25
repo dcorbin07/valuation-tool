@@ -12,7 +12,7 @@ A single before_request enforces "landing for anonymous" and per-tier API gating
 """
 from __future__ import annotations
 
-from flask import request, render_template, redirect, jsonify
+from flask import request, render_template, redirect, jsonify, g
 
 from ..config import CONFIG
 from ..web.app import app as tool_app
@@ -94,6 +94,8 @@ def create_saas_app(cfg=CONFIG):
         if path.startswith("/api/"):
             body = request.get_json(silent=True) or {}
             u = auth.current_user(store)
+            # How many hot-stocks rows this tier may see (free 10 / pro 100 / premium 500).
+            g.hotstocks_cap = gating.features(gating._active(u))["hotstocks_top"]
             blocked = gating.check_request(path, request.method, body, u, store)
             if blocked:
                 payload, status = blocked

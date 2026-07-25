@@ -164,8 +164,10 @@ def _store():
 @app.route("/api/hotstocks")
 def api_hotstocks():
     """Read the latest cached scan snapshot + sector attractiveness (instant)."""
+    from flask import g
     from ..screener.sectors import sector_attractiveness
-    top = int(request.args.get("top", 50))
+    cap = getattr(g, "hotstocks_cap", 500)          # per-tier cap (set by the SaaS layer)
+    top = min(int(request.args.get("top", 100)), cap)
     st = _store()
     scan_date = st.latest_scan_date()
     if not scan_date:

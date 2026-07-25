@@ -340,7 +340,7 @@ async function loadHotStocks() {
   eshow("hotErr", "");
   document.getElementById("hotLoadMsg").textContent = "Loading latest scan…";
   try {
-    const res = await fetch("/api/hotstocks?top=60");
+    const res = await fetch("/api/hotstocks?top=100");
     const d = await res.json();
     if (d.empty) { eshow("hotErr", d.message); return; }
     STATE.hot = d;
