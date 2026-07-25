@@ -1,0 +1,145 @@
+"""
+Intraday data providers.
+
+  * TradierProvider — real-time quotes, daily history, and option chains via your
+    Tradier token (best for an always-running scanner). Set TRADIER_TOKEN and
+    TRADIER_ENV (sandbox|live).
+  * FreeProvider — yfinance fallback (delayed): daily history + nearest-expiry
+    option chain. Works with no key.
+
+Both emit the same shapes the signal engine needs:
+  bars           -> {"close":[...], "high":[...], "low":[...], "volume":[...]}
+  option_summary -> {"put_volume","call_volume","put_oi","call_oi","atm_iv"} | None
+
+Universe defaults to the bundled liquid large-cap set (an S&P-500-style, highly
+liquid list); extend it to the full 500 by enlarging the bundled universe.
+"""
+from __future__ import annotations
+
+from typing import Optional
+
+from ..config import CONFIG
+from ..screener.universe import bundled_tickers
+
+
+class IntradayProvider:
+    name = "base"
+
+    def get_universe(self) -> list:
+        return bundled_tickers()
+
+    def get_bars(self, ticker: str) -> Optional[dict]:
+        raise NotImplementedError
+
+    def get_option_summary(self, ticker: str) -> Optional[dict]:
+        return None
+
+
+class TradierProvider(IntradayProvider):
+    name = "Tradier"
+
+    def __init__(self, cfg=CONFIG):
+        self.cfg = cfg
+        self.base = ("https://api.tradier.com/v1" if cfg.tradier_env == "live"
+                     else "https://sandbox.tradier.com/v1")
+
+    def _get(self, path, **params):
+        import requests
+        r = requests.get(f"{self.base}/{path}",
+                         params=params,
+                         headers={"Authorization": f"Bearer {self.cfg.tradier_token}",
+                                  "Accept": "application/json"}, timeout=20)
+        r.raise_for_status()
+        return r.json()
+
+    def get_bars(self, ticker: str) -> Optional[dict]:
+        try:
+            import datetime as dt
+            start = (dt.date.today() - dt.timedelta(days=400)).isoformat()
+            d = self._get("markets/history", symbol=ticker, interval="daily", start=start)
+            days = ((d or {}).get("history") or {}).get("day")
+            if not days:
+                return None
+            if isinstance(days, dict):
+                days = [days]
+            return {"close": [x["close"] for x in days], "high": [x["high"] for x in days],
+                    "low": [x["low"] for x in days], "volume": [x["volume"] for x in days]}
+        except Exception:
+            return None
+
+    def get_option_summary(self, ticker: str) -> Optional[dict]:
+        try:
+            exps = self._get("markets/options/expirations", symbol=ticker)
+            dates = ((exps or {}).get("expirations") or {}).get("date")
+            if not dates:
+                return None
+            expiry = dates[0] if isinstance(dates, list) else dates
+            ch = self._get("markets/options/chains", symbol=ticker, expiration=expiry, greeks="true")
+            opts = ((ch or {}).get("options") or {}).get("option")
+            if not opts:
+                return None
+            if isinstance(opts, dict):
+                opts = [opts]
+            und = None
+            for o in opts:
+                g = o.get("greeks") or {}
+                if g.get("smv_vol") or g.get("mid_iv"):
+                    und = o.get("underlying")
+                    break
+            cv = sum((o.get("volume") or 0) for o in opts if o.get("option_type") == "call")
+            pv = sum((o.get("volume") or 0) for o in opts if o.get("option_type") == "put")
+            coi = sum((o.get("open_interest") or 0) for o in opts if o.get("option_type") == "call")
+            poi = sum((o.get("open_interest") or 0) for o in opts if o.get("option_type") == "put")
+            # ATM IV: nearest-strike option's greeks
+            ivs = [( (o.get("greeks") or {}).get("mid_iv") or (o.get("greeks") or {}).get("smv_vol"),
+                     abs((o.get("strike") or 0) - (o.get("underlying_price") or 0)) )
+                   for o in opts if (o.get("greeks") or {}).get("mid_iv") or (o.get("greeks") or {}).get("smv_vol")]
+            atm_iv = None
+            if ivs:
+                atm_iv = sorted(ivs, key=lambda x: x[1])[0][0]
+            return {"call_volume": cv, "put_volume": pv, "call_oi": coi, "put_oi": poi, "atm_iv": atm_iv}
+        except Exception:
+            return None
+
+
+class FreeProvider(IntradayProvider):
+    name = "free (yfinance, delayed)"
+
+    def get_bars(self, ticker: str) -> Optional[dict]:
+        try:
+            import yfinance as yf
+            h = yf.Ticker(ticker).history(period="1y")
+            if h is None or h.empty:
+                return None
+            return {"close": [float(x) for x in h["Close"]], "high": [float(x) for x in h["High"]],
+                    "low": [float(x) for x in h["Low"]], "volume": [float(x) for x in h["Volume"]]}
+        except Exception:
+            return None
+
+    def get_option_summary(self, ticker: str) -> Optional[dict]:
+        try:
+            import yfinance as yf
+            t = yf.Ticker(ticker)
+            exps = t.options
+            if not exps:
+                return None
+            chain = t.option_chain(exps[0])
+            calls, puts = chain.calls, chain.puts
+            cv = float(calls["volume"].fillna(0).sum())
+            pv = float(puts["volume"].fillna(0).sum())
+            coi = float(calls["openInterest"].fillna(0).sum())
+            poi = float(puts["openInterest"].fillna(0).sum())
+            iv = None
+            try:
+                iv = float(calls["impliedVolatility"].median())
+            except Exception:
+                pass
+            return {"call_volume": cv, "put_volume": pv, "call_oi": coi, "put_oi": poi, "atm_iv": iv}
+        except Exception:
+            return None
+
+
+def get_provider(cfg=CONFIG) -> IntradayProvider:
+    if cfg.tradier_token:
+        return TradierProvider(cfg)
+    return FreeProvider()

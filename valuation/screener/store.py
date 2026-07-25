@@ -46,6 +46,17 @@ CREATE TABLE IF NOT EXISTS scans (
 
 CREATE INDEX IF NOT EXISTS ix_snap_date ON snapshot_rows(scan_date);
 CREATE INDEX IF NOT EXISTS ix_snap_rank ON snapshot_rows(scan_date, rank);
+
+-- Intraday signals watcher (timestamped runs).
+CREATE TABLE IF NOT EXISTS intraday (
+    run_time TEXT, ticker TEXT, score REAL, rank INTEGER, price REAL,
+    labels TEXT, summary TEXT, detail TEXT, ai TEXT,
+    PRIMARY KEY (run_time, ticker)
+);
+CREATE TABLE IF NOT EXISTS intraday_runs (
+    run_time TEXT PRIMARY KEY, universe INTEGER, provider TEXT, created_at TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_intraday ON intraday(run_time, rank);
 """
 
 
@@ -140,3 +151,43 @@ class Store:
         with self._conn() as c:
             return [dict(r) for r in c.execute(
                 "SELECT * FROM scans ORDER BY scan_date DESC").fetchall()]
+
+    # ---- intraday signals ----
+    def save_intraday(self, run_time, rows, provider=""):
+        with self._conn() as c:
+            for r in rows:
+                c.execute("""INSERT OR REPLACE INTO intraday
+                    (run_time,ticker,score,rank,price,labels,summary,detail,ai)
+                    VALUES (?,?,?,?,?,?,?,?,?)""",
+                    (run_time, r["ticker"], r.get("score"), r.get("rank"), r.get("price"),
+                     json.dumps(r.get("labels", [])), r.get("summary"),
+                     json.dumps(r.get("detail", {})), json.dumps(r.get("ai")) if r.get("ai") else None))
+            c.execute("INSERT OR REPLACE INTO intraday_runs VALUES (?,?,?,?)",
+                      (run_time, len(rows), provider, _dt.datetime.utcnow().isoformat()))
+
+    def latest_intraday_time(self):
+        with self._conn() as c:
+            r = c.execute("SELECT run_time FROM intraday_runs ORDER BY run_time DESC LIMIT 1").fetchone()
+        return r["run_time"] if r else None
+
+    def load_intraday(self, run_time=None, top=None):
+        run_time = run_time or self.latest_intraday_time()
+        if not run_time:
+            return []
+        q = "SELECT * FROM intraday WHERE run_time=? ORDER BY rank ASC"
+        if top:
+            q += f" LIMIT {int(top)}"
+        with self._conn() as c:
+            rows = [dict(r) for r in c.execute(q, (run_time,)).fetchall()]
+        for r in rows:
+            for k in ("labels", "detail", "ai"):
+                try:
+                    r[k] = json.loads(r[k]) if r.get(k) else ([] if k == "labels" else ({} if k == "detail" else None))
+                except Exception:
+                    r[k] = [] if k == "labels" else ({} if k == "detail" else None)
+        return rows
+
+    def update_intraday_ai(self, run_time, ticker, ai_text):
+        with self._conn() as c:
+            c.execute("UPDATE intraday SET ai=? WHERE run_time=? AND ticker=?",
+                      (json.dumps(ai_text), run_time, ticker))

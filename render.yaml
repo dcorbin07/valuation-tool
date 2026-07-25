@@ -25,6 +25,10 @@ services:
         sync: false
       - key: FMP_API_KEY
         sync: false
+      - key: TRADIER_TOKEN
+        sync: false
+      - key: TRADIER_ENV
+        value: sandbox
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_PUBLISHABLE_KEY
@@ -74,6 +78,28 @@ services:
           type: web
           name: valuation-tool
           envVarKey: ADMIN_TOKEN      # same token Render generated for the web app
+
+  # Intraday Signals watcher — refreshes every 15 min during US market hours so the
+  # Premium Signals feed is "always running". Same auto-linked host + token.
+  - type: cron
+    name: intraday-signals
+    runtime: image
+    image:
+      url: curlimages/curl:latest
+    schedule: "*/15 13-20 * * 1-5"    # every 15 min, ~9:30am-4pm ET, weekdays
+    dockerCommand: >
+      curl -fsS -X POST "https://$TARGET_HOST/admin/run-intraday" -H "X-Admin-Token: $ADMIN_TOKEN"
+    envVars:
+      - key: TARGET_HOST
+        fromService:
+          type: web
+          name: valuation-tool
+          property: host
+      - key: ADMIN_TOKEN
+        fromService:
+          type: web
+          name: valuation-tool
+          envVarKey: ADMIN_TOKEN
 
 # At scale, switch to Render Managed Postgres (set DATABASE_URL to its Internal URL,
 # add psycopg2-binary, and port UserStore/screener Store to Postgres) so a real

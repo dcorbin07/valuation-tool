@@ -54,6 +54,25 @@ def create_saas_app(cfg=CONFIG):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    @app.route("/admin/run-intraday", methods=["POST"])
+    def admin_run_intraday():
+        # Token-protected intraday refresh — an every-N-minutes cron hits this so
+        # the Signals feed is "always running" during market hours.
+        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+            return jsonify({"error": "unauthorized"}), 401
+        from ..intraday.scan import run_intraday
+        from ..intraday.ai import explain_top
+        from ..screener.store import Store
+        st = Store()
+        try:
+            res = run_intraday(cfg, store=st, save=True)
+            ai = explain_top(res["rows"], cfg, n=10)
+            for tkr, txt in ai.items():
+                st.update_intraday_ai(res["run_time"], tkr, txt)
+            return jsonify({"ok": True, "run_time": res["run_time"], "scored": res["scored"]})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
     @app.route("/app")
     def dashboard():
         if not auth.current_user(store):

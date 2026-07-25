@@ -20,6 +20,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="single" onclick="switchTab('single')">Single valuation</button>
       <button class="tab" data-tab="hot" onclick="switchTab('hot')">🔥 Hot stocks</button>
+      <button class="tab" data-tab="signals" onclick="switchTab('signals')">⚡ Signals</button>
       <button class="tab" data-tab="backtest" onclick="switchTab('backtest')">📊 Backtest</button>
       <button class="tab" data-tab="rank" onclick="switchTab('rank')">Watchlist</button>
     </div>
@@ -232,6 +233,28 @@
         <div class="card"><h3>Return by score quintile</h3><canvas id="qChart" height="200"></canvas></div>
       </div>
       <div class="card"><h3>Statistics</h3><div id="btStats"></div></div>
+    </div>
+  </div>
+
+  <!-- SIGNALS (Premium) -->
+  <div id="tab-signals" style="display:none">
+    <div class="search-card">
+      <div class="section-hint" style="margin-top:0">Intraday buy-setup scanner over liquid S&amp;P-500 names — blends reputable
+        technicals (RSI, MACD, 50/200 MA crosses, breakouts, volume) with options context (put/call, IV). Refreshes through
+        the day; Claude explains the top 10.</div>
+      <div class="search-row" style="align-items:center">
+        <button class="btn" onclick="runSignals()">↻ Refresh signals now</button>
+        <label class="opt" style="margin:0"><input type="checkbox" id="sigAuto" onchange="toggleSigAuto()"> Auto-refresh (60s)</label>
+        <span class="note" id="sigMeta" style="margin:0"></span>
+      </div>
+      <div class="note">Add a <code>TRADIER_TOKEN</code> for real-time; otherwise free delayed data. Educational scanner —
+        technical signals are widely used but <b>not a proven edge</b>, and this is <b>not an autotrader</b>. Validate with the Backtest tab.</div>
+    </div>
+    <div class="loader" id="sigLoader"><div class="spinner"></div><div>Scanning intraday setups…</div></div>
+    <div class="err" id="sigErr"></div>
+    <div class="card" id="sigResults" style="display:none">
+      <h3>⚡ Top intraday buy setups <span class="ai-src" id="sigTime"></span></h3>
+      <div id="sigTable" style="overflow-x:auto"></div>
     </div>
   </div>
 

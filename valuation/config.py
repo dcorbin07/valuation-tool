@@ -48,6 +48,9 @@ class Config:
     # ------------------------------------------------------------------ #
     fmp_api_key: str = field(default_factory=lambda: _get("FMP_API_KEY"))
     alphavantage_api_key: str = field(default_factory=lambda: _get("ALPHAVANTAGE_API_KEY"))
+    # Tradier (intraday signals watcher): real-time quotes + option chains.
+    tradier_token: str = field(default_factory=lambda: _get("TRADIER_TOKEN"))
+    tradier_env: str = field(default_factory=lambda: _get("TRADIER_ENV", "sandbox"))  # sandbox | live
 
     # SEC requires a descriptive User-Agent with contact info. Yours is nicer
     # to them but the default works.

@@ -13,11 +13,13 @@ const scoreClass = (s) => s >= 66 ? "g" : (s >= 46 ? "a" : "r");
 /* ---------- tabs ---------- */
 function switchTab(t) {
   document.querySelectorAll(".tab").forEach(el => el.classList.toggle("active", el.dataset.tab === t));
-  ["single", "hot", "backtest", "rank"].forEach(name => {
+  ["single", "hot", "signals", "backtest", "rank"].forEach(name => {
     const el = document.getElementById("tab-" + name);
     if (el) el.style.display = (name === t) ? "block" : "none";
   });
   if (t === "hot" && !STATE.hotLoaded) { STATE.hotLoaded = true; loadHotStocks(); }
+  if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); }
+  if (t !== "signals") stopSigAuto();
 }
 
 /* ---------- init ---------- */
@@ -504,6 +506,49 @@ function renderBtStats(d) {
   }
   document.getElementById("btStats").innerHTML = html;
 }
+
+/* ====================== INTRADAY SIGNALS (Premium) ====================== */
+async function loadSignals() {
+  toggle("sigLoader", true); document.getElementById("sigResults").style.display = "none"; eshow("sigErr", "");
+  try {
+    const res = await fetch("/api/signals?top=40");
+    const d = await res.json();
+    if (res.status === 401 || d.need_login) { eshow("sigErr", "Please sign in to use Signals."); return; }
+    if (res.status === 402 || d.upgrade) { eshow("sigErr", "⚡ Signals is a Premium feature — upgrade to unlock the intraday scanner."); return; }
+    if (d.empty) { eshow("sigErr", d.message); return; }
+    STATE.signals = d; renderSignals(d);
+    document.getElementById("sigResults").style.display = "block";
+  } catch (e) { eshow("sigErr", e.message); }
+  finally { toggle("sigLoader", false); }
+}
+async function runSignals() {
+  toggle("sigLoader", true); eshow("sigErr", "");
+  try {
+    const res = await fetch("/api/signals/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ limit: 60 }) });
+    const d = await res.json();
+    if (res.status === 402 || d.upgrade) { eshow("sigErr", "⚡ Signals is a Premium feature."); toggle("sigLoader", false); return; }
+    if (d.error) throw new Error(d.error);
+    await loadSignals();
+  } catch (e) { eshow("sigErr", e.message); toggle("sigLoader", false); }
+}
+function renderSignals(d) {
+  document.getElementById("sigMeta").textContent = "";
+  document.getElementById("sigTime").textContent = d.run_time ? ("updated " + d.run_time) : "";
+  let html = '<table><tr><th>#</th><th>Ticker</th><th class="num">Score</th><th>Setup / signals</th><th>AI read</th></tr>';
+  d.rows.forEach(r => {
+    const badges = (r.labels || []).slice(0, 4).map(l => `<span class="pill est" style="margin:1px 2px">${l}</span>`).join(" ");
+    html += `<tr><td>${r.rank}</td><td><a href="#" onclick="gotoValue('${r.ticker}');return false"><b>${r.ticker}</b></a></td>
+      <td class="num" style="font-weight:800;color:${scoreColor(r.score)}">${r.score == null ? '' : r.score.toFixed(0)}</td>
+      <td style="max-width:300px">${badges}</td>
+      <td style="max-width:330px;font-size:12.5px" class="muted">${r.ai || r.summary || ''}</td></tr>`;
+  });
+  html += "</table>";
+  document.getElementById("sigTable").innerHTML = html;
+}
+let sigTimer = null;
+function toggleSigAuto() { document.getElementById("sigAuto").checked ? startSigAuto() : stopSigAuto(); }
+function startSigAuto() { stopSigAuto(); sigTimer = setInterval(loadSignals, 60000); }
+function stopSigAuto() { if (sigTimer) { clearInterval(sigTimer); sigTimer = null; } }
 
 /* small helpers */
 function toggle(id, on) { const e = document.getElementById(id); if (e) e.classList.toggle("on", on); }

@@ -22,7 +22,8 @@ It grew out of, and generalizes, my hand-built [Nike DCF](../nike-dcf-valuation)
 - **Watchlist.** Score and rank a whole list of tickers 1–100 side by side.
 - **🔥 Whole-market hot-stocks screener.** Scans the market and ranks every name 1–100 on a cross-sectional value · quality · growth · momentum composite (two buckets, self-calibrating z-scores), with sector-attractiveness and a one-click portfolio builder.
 - **📊 Point-in-time backtest.** Tests whether the ranking actually predicts forward returns — Information Coefficient, quantile spread after costs, equity curve vs benchmark, out-of-sample split — with honest survivorship caveats.
-- **Insider signals (Form 4)** and a **weekly auto-scan** you can schedule.
+- **Insider signals (Form 4)** and a **daily auto-scan** you can schedule.
+- **⚡ Intraday Signals (Premium):** an always-running scanner over liquid S&P-500 names that blends reputable technicals (RSI, MACD, 50/200 MA crosses, breakouts, volume) with options context (put/call, IV) into a ranked buy-setup score, with Claude-written reasoning on the top 10. Real-time via Tradier, or free delayed data. Educational — not a proven edge, not an autotrader.
 
 ---
 

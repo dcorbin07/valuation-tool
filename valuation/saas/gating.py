@@ -12,17 +12,17 @@ TIER_FEATURES = {
     "free": {
         "label": "Free", "valuations_per_day": 5, "whole_market": False, "backtest": False,
         "portfolio": False, "exports": False, "weekly_email": False, "optimizer": False, "api": False,
-        "hotstocks_top": 10,
+        "intraday": False, "hotstocks_top": 10,
     },
     "pro": {
         "label": "Pro", "valuations_per_day": 100, "whole_market": True, "backtest": True,
         "portfolio": True, "exports": True, "weekly_email": True, "optimizer": False, "api": False,
-        "hotstocks_top": 100,
+        "intraday": False, "hotstocks_top": 100,
     },
     "premium": {
         "label": "Premium", "valuations_per_day": None, "whole_market": True, "backtest": True,
         "portfolio": True, "exports": True, "weekly_email": True, "optimizer": True, "api": True,
-        "hotstocks_top": 500,
+        "intraday": True, "hotstocks_top": 500,
     },
 }
 
@@ -52,6 +52,8 @@ _FEATURE_ROUTES = {
     "/api/export/excel": "exports",
     "/api/export/pdf": "exports",
     "/api/optimize/run": "optimizer",
+    "/api/signals": "intraday",
+    "/api/signals/run": "intraday",
 }
 
 

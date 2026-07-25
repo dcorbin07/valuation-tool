@@ -245,5 +245,40 @@ def api_backtest_run():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/signals")
+def api_signals():
+    """Latest intraday buy-setup snapshot (fast read; the dashboard polls this)."""
+    from ..screener.store import Store
+    st = Store()
+    rt = st.latest_intraday_time()
+    if not rt:
+        return jsonify({"empty": True, "message": "No intraday scan yet — hit Refresh. "
+                        "Add a TRADIER_TOKEN for real-time; otherwise it uses free delayed data."})
+    top = int(request.args.get("top", 40))
+    return jsonify({"run_time": rt, "rows": st.load_intraday(rt, top=top)})
+
+
+@app.route("/api/signals/run", methods=["POST"])
+def api_signals_run():
+    """Trigger an intraday scan + AI reasoning for the top 10 (bounded cost)."""
+    from ..intraday.scan import run_intraday
+    from ..intraday.ai import explain_top
+    from ..screener.store import Store
+    data = request.get_json(silent=True) or {}
+    st = Store()
+    try:
+        res = run_intraday(CONFIG, store=st, limit=int(data.get("limit", 60)),
+                           with_options=bool(data.get("with_options", True)), save=True)
+        ai = explain_top(res["rows"], CONFIG, n=10)
+        for r in res["rows"]:
+            if r["ticker"] in ai:
+                st.update_intraday_ai(res["run_time"], r["ticker"], ai[r["ticker"]])
+        return jsonify({"ok": True, "run_time": res["run_time"], "scored": res["scored"],
+                        "universe": res["universe"], "provider": res["provider"]})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
 def create_app():
     return app

@@ -24,6 +24,8 @@ each item when you actually need the feature it unlocks.
 |---|---|---|
 | `PUBLIC_BASE_URL` | after the first deploy — set it to your site URL (e.g. `https://valuation-tool.onrender.com`) | Render shows the URL after deploy |
 | `FMP_API_KEY` | you want fast whole-market scans | financialmodelingprep.com (~$22/mo) |
+| `TRADIER_TOKEN` | you want real-time intraday **Signals** | your Tradier account → API access token |
+| `TRADIER_ENV` | with Tradier | `sandbox` (delayed) or `live` (real-time) |
 | `STRIPE_SECRET_KEY` | you're ready to charge money | Stripe → Developers → API keys |
 | `STRIPE_PUBLISHABLE_KEY` | " | Stripe → Developers → API keys |
 | `STRIPE_WEBHOOK_SECRET` | " | Stripe → Developers → Webhooks |
