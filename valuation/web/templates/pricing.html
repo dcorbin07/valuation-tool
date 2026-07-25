@@ -4,7 +4,10 @@
 <div class="wrap" style="padding:44px 22px">
   <h1 style="text-align:center;color:var(--navy)">Simple plans</h1>
   <p class="muted" style="text-align:center;margin-bottom:18px">Start free. Upgrade when the screener and backtest earn their keep.</p>
-  {% if not billing_enabled %}
+  {% if beta_mode %}
+  <div style="max-width:660px;margin:0 auto 22px;background:#e9f7ef;border:1px solid #bfe6cf;color:#1b7f4b;padding:11px 15px;border-radius:10px;font-weight:600;font-size:14px;text-align:center">
+    🎉 Free beta — every plan is unlocked free while we build, no card needed. The prices below are a preview of what's coming as we roll out.</div>
+  {% elif not billing_enabled %}
   <div class="err" style="max-width:640px;margin:0 auto 22px">Billing isn't configured yet (owner: set your Stripe keys in <code>.env</code>). Buttons are inactive.</div>
   {% endif %}
 

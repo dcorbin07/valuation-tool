@@ -19,6 +19,16 @@ each item when you actually need the feature it unlocks.
 *(Render auto-generates `SECRET_KEY`, `DATABASE_URL`, and the web service's
 `ADMIN_TOKEN` — you don't touch those.)*
 
+## Beta / launch switches (on by default — nothing to set for the free beta)
+| Variable | Default | What it does |
+|---|---|---|
+| `BETA_MODE` | `true` | Shows the "in beta / in active development" banner site-wide. Set `false` when you no longer want the banner. |
+| `BETA_ALL_PREMIUM` | `true` | Treats **every signed-in account** as Premium, free — your open beta. Set `false` to end it and fall back to real tiers/Stripe. No DB change; it flips instantly. |
+| `DEMO_ACCESS_TOKEN` | `preview` | The **recruiter master-link**. Anyone visiting `/demo/<token>` gets an instant Premium preview with **no signup** — this is the URL you put on your résumé. It keeps working even after beta ends, so before you start charging, change it to something long and unguessable (e.g. `python -c "import secrets;print(secrets.token_urlsafe(12))"`). |
+
+> Master-link format: `https://YOUR-SITE/demo/preview` (swap in your token). Owner
+> (`donniecorbin6@gmail.com`) still gets Premium regardless of any of these.
+
 ## Leave blank until you need them
 | Variable | Fill it in when… | Where to get it |
 |---|---|---|

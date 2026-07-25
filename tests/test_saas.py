@@ -8,10 +8,17 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from valuation.config import CONFIG
 from valuation.saas.models import UserStore
 from valuation.saas import gating
+from valuation.saas.auth import _demo_user
 from valuation.backtest.panel import build_synthetic_panel
 from valuation.backtest.optimize import optimize_weights
+
+# Most tests below exercise the REAL per-tier gating. Beta mode (a launch-time
+# override that unlocks Premium for everyone) is turned off here so the tier
+# assertions mean something; the beta/demo tests re-enable it locally.
+CONFIG.beta_all_premium = False
 
 
 def _store():
@@ -78,6 +85,48 @@ def test_optimizer_accepts_signal_rejects_noise():
                              ["momentum", "value"], step=0.1, default_weights=d)
     assert sig["accepted"] is True
     assert noise["accepted"] is False and noise["recommended_weights"] == d
+
+
+def test_beta_all_premium_unlocks_everyone():
+    s = _store()
+    u = s.create_user("beta@b.com", "password123")   # a plain free signup
+    assert gating._active(u) == "free"               # beta off (module default)
+    CONFIG.beta_all_premium = True
+    try:
+        assert gating._active(u) == "premium"        # now everyone is Premium
+        assert gating.check_request("/api/backtest/run", "POST", {}, u, s) is None
+        assert gating.check_request("/api/optimize/run", "POST", {}, u, s) is None
+        # premium has no daily valuation cap — 6 in a row all allowed
+        codes = [gating.check_request("/api/value", "POST", {"ticker": "NKE"}, u, s) for _ in range(6)]
+        assert all(c is None for c in codes)
+    finally:
+        CONFIG.beta_all_premium = False
+
+
+def test_demo_preview_is_premium_but_not_owner():
+    s = _store()
+    d = _demo_user()
+    # Recruiter preview gets Premium even with beta OFF (link must outlive beta).
+    assert CONFIG.beta_all_premium is False
+    assert gating._active(d) == "premium"
+    assert gating.check_request("/api/optimize/run", "POST", {}, d, s) is None
+    # ...but the private Edge Lab stays owner-only — a demo visitor is blocked.
+    assert gating.check_request("/api/edge/backtest", "POST", {}, d, s)[1] == 403
+
+
+def test_master_link_route_and_banner():
+    # End-to-end through the real Flask app: token gate + demo session + banner.
+    CONFIG.demo_access_token = "sekret-xyz"
+    from valuation.saas.app_saas import create_saas_app
+    app = create_saas_app(CONFIG)
+    app.config.update(TESTING=True)
+    c = app.test_client()
+    assert c.get("/demo/wrong").headers["Location"].endswith("/")             # → landing "/"
+    assert c.get("/demo/sekret-xyz").headers["Location"].endswith("/app")     # → dashboard
+    page = c.get("/app")
+    assert page.status_code == 200
+    assert b"Recruiter preview" in page.data          # demo-variant beta banner rendered
+    CONFIG.demo_access_token = "preview"              # restore default
 
 
 def _run_all():

@@ -40,7 +40,9 @@ def create_saas_app(cfg=CONFIG):
         eff = gating._active(u) if u else "free"
         return {"user": u, "eff_tier": eff, "feats": gating.features(eff),
                 "billing_enabled": cfg.billing_enabled,
-                "stripe_pk": cfg.stripe_publishable_key}
+                "stripe_pk": cfg.stripe_publishable_key,
+                "beta_mode": cfg.beta_mode,
+                "is_demo": bool(u and u.get("is_demo"))}
 
     @app.route("/admin/run-scan", methods=["POST"])
     def admin_run_scan():

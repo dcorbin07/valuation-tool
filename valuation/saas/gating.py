@@ -33,12 +33,27 @@ def features(tier: str) -> dict:
 
 def _active(user) -> str:
     """Effective tier — falls back to free if the subscription isn't active.
-    Owner emails (config OWNER_EMAILS) always get Premium, free forever."""
+
+    Premium is granted, in priority order, to:
+      1. recruiter/demo preview sessions (is_demo) — always, even after beta ends;
+      2. owner emails (config OWNER_EMAILS) — permanent free Premium;
+      3. every signed-in account while BETA_ALL_PREMIUM is on (the free beta);
+      4. anyone with a genuinely active paid subscription.
+    Flip BETA_ALL_PREMIUM=false (env) to end the free beta with no code change."""
     if not user:
         return "anon"
     from ..config import CONFIG
+    # 1. Recruiter master-link preview — independent of the beta flag so the
+    #    link on the résumé keeps working forever.
+    if user.get("is_demo"):
+        return "premium"
+    # 2. Owner.
     if user.get("email", "").strip().lower() in CONFIG.owner_email_set:
         return "premium"
+    # 3. Free beta: everyone who signs up gets the full product.
+    if CONFIG.beta_all_premium:
+        return "premium"
+    # 4. Real paying subscribers.
     if user.get("tier") in ("pro", "premium") and user.get("subscription_status") in ("active", "trialing", "comped"):
         return user["tier"]
     return "free"

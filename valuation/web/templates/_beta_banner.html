@@ -1,0 +1,20 @@
+{# Site-wide beta notice. Shown whenever beta_mode is on (see Config.beta_mode).
+   Text switches for recruiter/demo preview sessions. Dismissible per browser
+   session so it doesn't nag on every page, but returns on the next visit. #}
+{% if beta_mode %}
+<div id="betaBar" style="background:linear-gradient(90deg,#fff6e6,#ffedcc);border-bottom:1px solid #f0d9a8;color:#8a5a00">
+  <div style="max-width:1080px;margin:auto;padding:8px 22px;display:flex;align-items:center;gap:12px;font-size:13.5px;font-weight:600;line-height:1.4">
+    <span style="flex:1">
+      {% if is_demo %}
+        👋 <b>Recruiter preview</b> — you have full Premium access, no signup needed. This tool is in active beta and still being developed. <span style="font-weight:500">Educational only, not investment advice.</span>
+      {% else %}
+        🚧 <b>Beta — in active development.</b> Everything is unlocked free while we build. <span style="font-weight:500">Educational only, not investment advice.</span>
+      {% endif %}
+    </span>
+    <button type="button" aria-label="Dismiss"
+      onclick="this.closest('#betaBar').style.display='none';try{sessionStorage.setItem('betaHidden','1')}catch(e){}"
+      style="background:none;border:none;color:#8a5a00;font-size:18px;line-height:1;cursor:pointer;padding:0 2px;opacity:.7">&times;</button>
+  </div>
+</div>
+<script>try{if(sessionStorage.getItem('betaHidden')){var b=document.getElementById('betaBar');if(b)b.style.display='none';}}catch(e){}</script>
+{% endif %}

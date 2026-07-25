@@ -9,6 +9,13 @@ accounts/billing, deploy config, backups, GitHub). Data runs **free today**; pai
 sources drop in with a one-line change. Your owner account (`donniecorbin6@gmail.com`)
 already gets **Premium free**.
 
+**Beta mode is ON.** Right now the site is in an open free beta: a banner says it's in
+development, **everyone who signs up gets full Premium free**, and a **recruiter
+master-link** (`/demo/<token>`, default `/demo/preview`) opens a full Premium preview
+with no signup — that's the link for your résumé. When you're ready to charge, flip
+`BETA_ALL_PREMIUM=false` (and set a hard `DEMO_ACCESS_TOKEN`); the master-link keeps
+working for recruiters. See **ENV_REFERENCE.md → Beta / launch switches**.
+
 ---
 
 ## Phase 0 — Legal & entity (the gate) · do first · ~1–2 wks, ~$100–500

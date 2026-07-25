@@ -95,6 +95,21 @@ class Config:
     # Owner accounts get permanent free Premium (comma-separated emails).
     owner_emails: str = field(default_factory=lambda: _get("OWNER_EMAILS", "donniecorbin6@gmail.com"))
 
+    # ------------------------------------------------------------------ #
+    # Beta launch switches. While True, the product is "everything unlocked,
+    # free" so early users and recruiters get the full thing. Flip these to
+    # false (env) when you're ready to start charging — no code change needed.
+    # ------------------------------------------------------------------ #
+    #   beta_mode          -> shows the "in beta / in development" banner site-wide.
+    #   beta_all_premium   -> every signed-in account is treated as Premium, free.
+    #   demo_access_token  -> the recruiter master-link. Anyone visiting
+    #                         /demo/<token> gets an instant Premium preview with
+    #                         NO signup. Keep it working forever (survives beta);
+    #                         set it to something unguessable before you charge.
+    beta_mode: bool = field(default_factory=lambda: _get("BETA_MODE", "true").lower() != "false")
+    beta_all_premium: bool = field(default_factory=lambda: _get("BETA_ALL_PREMIUM", "true").lower() != "false")
+    demo_access_token: str = field(default_factory=lambda: _get("DEMO_ACCESS_TOKEN", "preview"))
+
     @property
     def owner_email_set(self) -> set:
         return {e.strip().lower() for e in self.owner_emails.split(",") if e.strip()}

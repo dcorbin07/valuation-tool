@@ -11,7 +11,22 @@ _RESET_SALT = "pw-reset"
 _RESET_MAX_AGE = 3600  # 1 hour
 
 
+def _demo_user():
+    """Synthetic, no-database 'user' for the recruiter master-link preview.
+    Shaped like a real users-table row so every template/route works, plus an
+    is_demo flag that gating._active reads to grant Premium."""
+    return {
+        "id": 0, "email": "preview@valuation-tool.demo", "password_hash": "",
+        "tier": "premium", "subscription_status": "comped",
+        "stripe_customer_id": None, "stripe_subscription_id": None,
+        "created_at": "", "email_opt_in": 0, "is_demo": True,
+    }
+
+
 def current_user(store):
+    # A demo/preview session has no DB row — hand back the synthetic Premium user.
+    if session.get("demo"):
+        return _demo_user()
     uid = session.get("uid")
     return store.get_by_id(uid) if uid else None
 
@@ -43,6 +58,20 @@ def register(app, store, cfg):
                 return redirect(request.args.get("next") or "/app")
             return render_template("login.html", error="Incorrect email or password."), 401
         return render_template("login.html")
+
+    @app.route("/demo")
+    @app.route("/demo/<token>")
+    def demo_view(token=None):
+        """Recruiter master-link: /demo/<token> (or /demo?key=<token>) opens an
+        instant Premium preview with NO signup. Token must match DEMO_ACCESS_TOKEN.
+        Independent of the beta flag, so this keeps working after you start charging."""
+        supplied = (token or request.args.get("key", "")).strip()
+        want = (cfg.demo_access_token or "").strip()
+        if want and supplied == want:
+            session.clear()
+            session["demo"] = True
+            return redirect("/app")
+        return redirect("/")   # missing/incorrect token → marketing landing
 
     @app.route("/logout")
     def logout_view():
