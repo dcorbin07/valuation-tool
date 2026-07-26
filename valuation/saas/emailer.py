@@ -36,7 +36,7 @@ def weekly_digest_html(scan_date: str, rows: list, sectors: list) -> str:
     secs = ", ".join(f"{s['sector']}" for s in sectors[:4])
     return f"""
     <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto">
-      <h2 style="color:#1f3864">🔥 Hot Stocks of the Day</h2>
+      <h2 style="color:#1f3864">🔥 Valquo — Hot Stocks of the Day</h2>
       <p style="color:#555">Scan {scan_date}. Most attractive sectors: <b>{secs}</b>.</p>
       <table style="width:100%;border-collapse:collapse;font-size:14px">
         <tr style="color:#888;text-align:left"><th>#</th><th>Ticker</th><th>Sector</th><th style="text-align:right">Score</th></tr>

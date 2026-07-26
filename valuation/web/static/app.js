@@ -1,4 +1,4 @@
-/* Adaptive DCF Valuation Tool — dashboard front-end */
+/* Valquo — dashboard front-end */
 const STATE = { ticker: null, data: null, charts: {} };
 const EXAMPLES = ["AAPL", "NVDA", "MSFT", "AMZN", "KO", "TSLA", "DIS", "PLTR"];
 

@@ -16,7 +16,7 @@ def _demo_user():
     Shaped like a real users-table row so every template/route works, plus an
     is_demo flag that gating._active reads to grant Premium."""
     return {
-        "id": 0, "email": "preview@valuation-tool.demo", "password_hash": "",
+        "id": 0, "email": "preview@valquo.demo", "password_hash": "",
         "tier": "premium", "subscription_status": "comped",
         "stripe_customer_id": None, "stripe_subscription_id": None,
         "created_at": "", "email_opt_in": 0, "is_demo": True,

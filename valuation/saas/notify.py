@@ -61,7 +61,7 @@ def _idea(r) -> str:
 
 
 def alert_discord_text(run_time, rows) -> str:
-    lines = [f"🚨 **Screaming buys** — {run_time}"]
+    lines = [f"🚨 **Valquo — Screaming buys** — {run_time}"]
     for r in rows[:10]:
         labs = ", ".join((r.get("labels") or [])[:3])
         idea = _idea(r)
@@ -92,7 +92,7 @@ def alert_email_html(run_time, rows, unsub_url) -> str:
 def hot_digest_text(scan_date, rows, sectors=None) -> str:
     """A monospaced, at-a-glance top-10 for Discord."""
     top = rows[:10]
-    lines = [f"🔥 **Hot Stocks of the Day** — {scan_date}", "```",
+    lines = [f"🔥 **Valquo — Hot Stocks of the Day** — {scan_date}", "```",
              f"{'#':<3}{'Ticker':<8}{'Score':<7}{'Sector':<16}{'Price':>9}"]
     for r in top:
         price = r.get("price")
