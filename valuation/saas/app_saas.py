@@ -104,7 +104,7 @@ def create_saas_app(cfg=CONFIG):
             st = Store()
             st.save_snapshot(scan_date, rows, data.get("provider", "ci"), data.get("params") or {})
             from . import tracker
-            tracker.log_hot(st, scan_date, rows)   # log top-10 into the live track record
+            tracker.log_hot(st, scan_date, rows, cfg)   # log top-10 + update the paper account
             return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500

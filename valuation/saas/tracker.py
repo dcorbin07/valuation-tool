@@ -14,12 +14,22 @@ import datetime as _dt
 from ..edge import track
 
 
-def log_hot(store, scan_date, rows, top=10):
+def log_hot(store, scan_date, rows, cfg=None, top=10):
+    from ..config import CONFIG
+    cfg = cfg or CONFIG
     try:
         picks = sorted([r for r in rows if r.get("ticker")],
                        key=lambda r: r.get("rank") or 999)[:top]
         if picks:
             track.log_picks(store, "hot10", scan_date, [r["ticker"] for r in picks])
+    except Exception:
+        pass
+    # Update the paper account (entries/exits by the sell rules).
+    try:
+        from ..edge import positions
+        positions.update_positions(store, "hot10", scan_date, rows,
+                                   top_n=cfg.paper_top_n, min_hold_days=cfg.paper_min_hold_days,
+                                   max_hold_days=cfg.paper_max_hold_days)
     except Exception:
         pass
 

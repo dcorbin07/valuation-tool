@@ -219,6 +219,38 @@ def test_tracker_logs_and_summary():
     assert s["21"]["n"] == 1 and abs(s["21"]["avg_alpha"] - 0.03) < 1e-9
 
 
+def test_paper_account_sell_logic():
+    import tempfile
+    from valuation.screener.store import Store
+    from valuation.edge import positions
+    fd, p = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(p)
+    st = Store(p)
+
+    def rows(rankmap, price):
+        return [{"ticker": t, "rank": rk, "price": price} for t, rk in rankmap.items()]
+
+    kw = dict(top_n=1, min_hold_days=30, max_hold_days=180)
+    # day 0: A enters the top-1
+    positions.update_positions(st, "hot10", "2026-01-01", rows({"A": 1, "B": 2}, 100.0), **kw)
+    assert any(p["ticker"] == "A" for p in st.open_positions("hot10"))
+    # day 10: A drops off but < min-hold -> still held (no churn)
+    positions.update_positions(st, "hot10", "2026-01-11", rows({"B": 1, "A": 5}, 105.0), **kw)
+    assert any(p["ticker"] == "A" for p in st.open_positions("hot10"))
+    # day 40: A off the list AND past min-hold -> sold "cooled off" at that price
+    positions.update_positions(st, "hot10", "2026-02-10", rows({"B": 1, "A": 9}, 110.0), **kw)
+    assert not any(p["ticker"] == "A" for p in st.open_positions("hot10"))
+    ap = [p for p in st.all_positions("hot10") if p["ticker"] == "A"][0]
+    assert ap["exit_price"] == 110.0 and "cooled" in (ap["exit_reason"] or "")
+    # time stop: D stays hot but is forced out at max-hold
+    positions.update_positions(st, "hot10", "2026-03-01", rows({"D": 1}, 50.0), **kw)
+    positions.update_positions(st, "hot10", "2026-09-30", rows({"D": 1}, 60.0), **kw)   # ~213 days
+    dp = [p for p in st.all_positions("hot10") if p["ticker"] == "D"][0]
+    assert dp["exit_reason"] == "time stop"
+    # summary: A returned +10% realized
+    summ = positions.paper_summary(st, "hot10")["summary"]
+    assert summ["n_closed"] >= 2 and abs(summ["avg_return_closed"] - ((0.10 + 0.20) / 2)) < 1e-9
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

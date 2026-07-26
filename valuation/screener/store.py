@@ -80,6 +80,11 @@ class Store:
             # De-dupe alerts to at most one per ticker per day.
             c.execute("""CREATE TABLE IF NOT EXISTS alerts_sent (
                 ticker TEXT, alert_date TEXT, run_time TEXT, PRIMARY KEY(ticker, alert_date))""")
+            # Paper-account positions (Track Record sell logic).
+            c.execute("""CREATE TABLE IF NOT EXISTS positions (
+                source TEXT, ticker TEXT, entry_date TEXT, entry_price REAL,
+                exit_date TEXT, exit_price REAL, exit_reason TEXT,
+                PRIMARY KEY (source, ticker, entry_date))""")
 
     @contextmanager
     def _conn(self):
@@ -219,6 +224,28 @@ class Store:
         with self._conn() as c:
             c.execute("INSERT OR IGNORE INTO alerts_sent VALUES (?,?,?)",
                       (ticker.upper(), day, run_time))
+
+    # ---- paper-account positions ----
+    def open_position(self, source, ticker, entry_date, entry_price):
+        with self._conn() as c:
+            c.execute("""INSERT OR IGNORE INTO positions (source,ticker,entry_date,entry_price)
+                         VALUES (?,?,?,?)""", (source, ticker.upper(), entry_date, entry_price))
+
+    def close_position(self, source, ticker, entry_date, exit_date, exit_price, reason):
+        with self._conn() as c:
+            c.execute("""UPDATE positions SET exit_date=?, exit_price=?, exit_reason=?
+                         WHERE source=? AND ticker=? AND entry_date=? AND exit_date IS NULL""",
+                      (exit_date, exit_price, reason, source, ticker.upper(), entry_date))
+
+    def open_positions(self, source):
+        with self._conn() as c:
+            return [dict(r) for r in c.execute(
+                "SELECT * FROM positions WHERE source=? AND exit_date IS NULL", (source,)).fetchall()]
+
+    def all_positions(self, source):
+        with self._conn() as c:
+            return [dict(r) for r in c.execute(
+                "SELECT * FROM positions WHERE source=? ORDER BY entry_date DESC", (source,)).fetchall()]
 
     # ---- live track record ----
     def save_track_picks(self, source, run_date, rows):

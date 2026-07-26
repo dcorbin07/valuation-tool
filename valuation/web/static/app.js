@@ -462,7 +462,7 @@ async function loadTrack() {
 }
 function _trackCard(title, sub, s) {
   const sm = (s && s.summary) || {}, rec = (s && s.recent) || [];
-  const H = [["21", "1-month"], ["63", "3-month"], ["126", "6-month"], ["252", "1-year"]];
+  const H = [["21", "1-month"], ["63", "3-month"], ["126", "6-month"], ["252", "1-year"], ["all", "All-time"]];
   let inner;
   if (!H.some(([k]) => sm[k])) {
     inner = `<div class="muted">Accruing — picks need ~1 month to mature before they count (${rec.length} logged so far). Check back as the record builds.</div>`;
@@ -491,10 +491,39 @@ function _trackCard(title, sub, s) {
   }
   return `<div class="card"><h3>${title}</h3><div class="section-hint">${sub}</div>${inner}</div>`;
 }
+function _paperCard(paper) {
+  const s = (paper && paper.summary) || {}, pos = (paper && paper.positions) || [];
+  const sub = 'Buys on entry to the top-10, holds ≥1 month (no churn), then sells when it cools off (leaves the ' +
+    'list), hits its DCF fair value, or reaches a 6-month time stop. Equal-weight, per-pick returns.';
+  if (!s.n_total) {
+    return `<div class="card"><h3>💼 Paper account — top-10 hot stocks (sell logic)</h3>
+      <div class="section-hint">${sub}</div>
+      <div class="muted">No positions yet — they open as the daily scan runs (and need the persistent disk to accrue).</div></div>`;
+  }
+  const reasons = Object.entries(s.by_reason || {}).map(([k, v]) => `${v} ${k}`).join(" · ");
+  const head = `<div class="metricline" style="margin:6px 0 12px">
+    ${metric("Avg return / pick", s.avg_return == null ? '—' : pct(s.avg_return, 1))}
+    ${metric("Realized (closed)", s.avg_return_closed == null ? '—' : pct(s.avg_return_closed, 1))}
+    ${metric("Win rate", s.win_rate == null ? '—' : pct(s.win_rate, 0))}
+    ${metric("Avg hold", s.avg_hold_days == null ? '—' : Math.round(s.avg_hold_days) + 'd')}
+    ${metric("Open", s.n_open)} ${metric("Closed", s.n_closed)}</div>`;
+  let tbl = '<table><tr><th>Ticker</th><th>Entry</th><th class="num">Entry $</th><th>Status / exit</th><th class="num">Return</th><th class="num">Held</th></tr>';
+  pos.forEach(p => {
+    const status = p.exit_date ? `${p.reason} · ${p.exit_date}` : '<span class="pill est">open</span>';
+    tbl += `<tr><td><b>${p.ticker}</b></td><td>${p.entry_date}</td><td class="num">${money(p.entry_price)}</td>
+      <td style="font-size:12px">${status}</td>
+      <td class="num ${p.ret == null ? '' : (p.ret >= 0 ? 'pos' : 'neg')}">${p.ret == null ? '—' : pct(p.ret, 1)}</td>
+      <td class="num">${p.hold_days}d</td></tr>`;
+  });
+  tbl += '</table>';
+  return `<div class="card"><h3>💼 Paper account — top-10 hot stocks (sell logic)</h3>
+    <div class="section-hint">${sub}${reasons ? ' Exits so far: ' + reasons + '.' : ''}</div>${head}${tbl}</div>`;
+}
 function renderTrack(d) {
   const src = (d && d.sources) || {};
-  let html = _trackCard("📈 Top-10 Hot Stocks",
-    "Equal-weighted daily top-10 by hot score, measured forward vs the S&amp;P 500.", src.hot10);
+  let html = _paperCard(d && d.paper);
+  html += _trackCard("📈 Top-10 Hot Stocks — signal quality",
+    "Every daily top-10 pick's forward return vs the S&amp;P 500, regardless of when you'd sell.", src.hot10);
   html += _trackCard("⚡ Screaming-Buy Options (underlying)",
     "Forward return of the underlying for each screaming-buy signal — signal accuracy, not option P&amp;L.", src.options);
   html += `<div class="disclaimer">${(d && d.note) || ''}</div>`;

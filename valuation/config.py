@@ -96,6 +96,12 @@ class Config:
     # and opt-in email. alert_min_score is the score bar a signal must clear to alert.
     discord_webhook_url: str = field(default_factory=lambda: _get("DISCORD_WEBHOOK_URL"))
     alert_min_score: float = field(default_factory=lambda: _get_float("ALERT_MIN_SCORE", 80))
+    # Paper-account sell logic (the Track Record). Buy on entry to the top-N hot
+    # list; hold at least min-hold days (no churn); sell when it leaves the list,
+    # hits fair value, or reaches the max-hold time stop.
+    paper_top_n: int = field(default_factory=lambda: int(_get_float("PAPER_TOP_N", 10)))
+    paper_min_hold_days: int = field(default_factory=lambda: int(_get_float("PAPER_MIN_HOLD_DAYS", 30)))
+    paper_max_hold_days: int = field(default_factory=lambda: int(_get_float("PAPER_MAX_HOLD_DAYS", 180)))
     # Owner accounts get permanent free Premium (comma-separated emails).
     owner_emails: str = field(default_factory=lambda: _get("OWNER_EMAILS", "donniecorbin6@gmail.com"))
 

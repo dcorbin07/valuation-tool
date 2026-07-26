@@ -61,21 +61,28 @@ def update_returns(store, source: str, benchmark="SPY", horizons=HORIZONS,
                 store.save_track_return(source, p["run_date"], p["ticker"], h,
                                         float(p1 / p0 - 1), float(b1 / b0 - 1))
                 computed += 1
+        # All-time (entry -> latest close): recomputed every refresh since it moves daily.
+        if 0 <= si < len(s) and 0 <= bi < len(bench):
+            p0, b0 = s.iloc[si], bench.iloc[bi]
+            if p0 > 0 and b0 > 0:
+                store.save_track_return(source, p["run_date"], p["ticker"], 0,
+                                        float(s.iloc[-1] / p0 - 1), float(bench.iloc[-1] / b0 - 1))
     return {"computed": computed, "picks": len(picks)}
 
 
 def summary(store, source: str, horizons=HORIZONS) -> dict:
     out = {}
-    for h in horizons:
+    for h in list(horizons) + [0]:          # 0 = all-time (entry -> latest)
         rows = store.track_returns(source, h)
+        key = "all" if h == 0 else str(h)
         if not rows:
-            out[str(h)] = None
+            out[key] = None
             continue
         fr = np.array([r["fwd_ret"] for r in rows])
         br = np.array([r["bench_ret"] for r in rows])
         active = fr - br
-        out[str(h)] = {"n": len(rows), "avg_return": float(fr.mean()),
-                       "avg_bench": float(br.mean()), "avg_alpha": float(active.mean()),
-                       "hit_rate_vs_bench": float((active > 0).mean()),
-                       "win_rate": float((fr > 0).mean())}
+        out[key] = {"n": len(rows), "avg_return": float(fr.mean()),
+                    "avg_bench": float(br.mean()), "avg_alpha": float(active.mean()),
+                    "hit_rate_vs_bench": float((active > 0).mean()),
+                    "win_rate": float((fr > 0).mean())}
     return out

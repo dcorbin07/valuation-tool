@@ -230,15 +230,22 @@ def _maybe_refresh_track():
 
 @app.route("/api/track")
 def api_track():
-    """Live forward track record: the top-10 hot stocks + screaming-buy options vs the S&P."""
-    from ..edge import track
+    """Live forward track record: the top-10 hot stocks + screaming-buy options vs the S&P,
+    plus the paper account (sell-logic positions)."""
+    from ..edge import track, positions
     st = _store()
     _maybe_refresh_track()
     out = {}
     for source in ("hot10", "options"):
         out[source] = {"summary": track.summary(st, source),
                        "recent": _recent_track_picks(st, source)}
-    return jsonify({"sources": out,
+    try:
+        snap = st.load_snapshot() or []
+        pmap = {r.get("ticker"): r.get("price") for r in snap if r.get("price")}
+        paper = positions.paper_summary(st, "hot10", pmap)
+    except Exception:
+        paper = {"summary": {}, "positions": []}
+    return jsonify({"sources": out, "paper": paper,
                     "note": "Forward, survivorship-free record of real dated picks vs the S&P 500. Options "
                             "are tracked by the underlying's forward return (signal accuracy, not option "
                             "P&L). Educational only; past results don't predict future performance."})
