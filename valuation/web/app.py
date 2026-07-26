@@ -193,6 +193,57 @@ def api_hotstocks():
                     "history": [s["scan_date"] for s in scans][:12]})
 
 
+_LAST_TRACK_REFRESH = [0.0]
+
+
+def _recent_track_picks(st, source, n=15):
+    picks = sorted(st.all_track_picks(source), key=lambda p: p.get("run_date") or "", reverse=True)[:n]
+    rets = {(r["run_date"], r["ticker"]): r for r in st.track_returns(source, 21)}
+    out = []
+    for p in picks:
+        r = rets.get((p.get("run_date"), p.get("ticker")))
+        out.append({"date": p.get("run_date"), "ticker": p.get("ticker"),
+                    "ret_1m": (r["fwd_ret"] if r else None), "bench_1m": (r["bench_ret"] if r else None)})
+    return out
+
+
+def _maybe_refresh_track():
+    """Refresh matured forward returns in the background, at most every 12h, so the
+    page load stays instant while the record accrues."""
+    import time
+    import threading
+    now = time.time()
+    if now - _LAST_TRACK_REFRESH[0] < 12 * 3600:
+        return
+    _LAST_TRACK_REFRESH[0] = now
+
+    def _work():
+        from ..edge import track
+        st = _store()
+        for src in ("hot10", "options"):
+            try:
+                track.update_returns(st, src)
+            except Exception:
+                pass
+    threading.Thread(target=_work, daemon=True).start()
+
+
+@app.route("/api/track")
+def api_track():
+    """Live forward track record: the top-10 hot stocks + screaming-buy options vs the S&P."""
+    from ..edge import track
+    st = _store()
+    _maybe_refresh_track()
+    out = {}
+    for source in ("hot10", "options"):
+        out[source] = {"summary": track.summary(st, source),
+                       "recent": _recent_track_picks(st, source)}
+    return jsonify({"sources": out,
+                    "note": "Forward, survivorship-free record of real dated picks vs the S&P 500. Options "
+                            "are tracked by the underlying's forward return (signal accuracy, not option "
+                            "P&L). Educational only; past results don't predict future performance."})
+
+
 @app.route("/api/scan/run", methods=["POST"])
 def api_scan_run():
     """Trigger a scan. Network-heavy; keep the universe modest from the web —

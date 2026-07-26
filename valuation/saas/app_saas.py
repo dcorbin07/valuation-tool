@@ -80,6 +80,8 @@ def create_saas_app(cfg=CONFIG):
             for tkr, txt in ai.items():
                 st.update_intraday_ai(res["run_time"], tkr, txt)
             alerts = _fire_alerts(st)
+            from . import tracker
+            tracker.log_options(st, res["rows"], cfg.alert_min_score)
             return jsonify({"ok": True, "run_time": res["run_time"], "scored": res["scored"], "alerts": alerts})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -99,7 +101,10 @@ def create_saas_app(cfg=CONFIG):
         from ..screener.store import Store
         scan_date = data.get("scan_date") or _dt.date.today().isoformat()
         try:
-            Store().save_snapshot(scan_date, rows, data.get("provider", "ci"), data.get("params") or {})
+            st = Store()
+            st.save_snapshot(scan_date, rows, data.get("provider", "ci"), data.get("params") or {})
+            from . import tracker
+            tracker.log_hot(st, scan_date, rows)   # log top-10 into the live track record
             return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
@@ -120,6 +125,8 @@ def create_saas_app(cfg=CONFIG):
             st = Store()
             st.save_intraday(run_time, rows, data.get("provider", "ci"))
             alerts = _fire_alerts(st)
+            from . import tracker
+            tracker.log_options(st, rows, cfg.alert_min_score)   # log screaming buys into the tracker
             return jsonify({"ok": True, "run_time": run_time, "rows": len(rows), "alerts": alerts})
         except Exception as e:
             return jsonify({"error": str(e)}), 500

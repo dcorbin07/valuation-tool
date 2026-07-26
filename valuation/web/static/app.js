@@ -13,12 +13,13 @@ const scoreClass = (s) => s >= 66 ? "g" : (s >= 46 ? "a" : "r");
 /* ---------- tabs ---------- */
 function switchTab(t) {
   document.querySelectorAll(".tab").forEach(el => el.classList.toggle("active", el.dataset.tab === t));
-  ["single", "hot", "signals", "backtest", "rank", "edge"].forEach(name => {
+  ["single", "hot", "signals", "track", "rank", "edge"].forEach(name => {
     const el = document.getElementById("tab-" + name);
     if (el) el.style.display = (name === t) ? "block" : "none";
   });
   if (t === "hot" && !STATE.hotLoaded) { STATE.hotLoaded = true; loadHotStocks(); }
   if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); }
+  if (t === "track" && !STATE.trackLoaded) { STATE.trackLoaded = true; loadTrack(); }
   if (t !== "signals") stopSigAuto();
 }
 
@@ -449,7 +450,58 @@ function renderPortfolio(pf) {
   document.getElementById("portfolioBox").innerHTML = html;
 }
 
-/* ====================== BACKTEST ====================== */
+/* ====================== TRACK RECORD ====================== */
+async function loadTrack() {
+  toggle("trackLoader", true); eshow("trackErr", "");
+  document.getElementById("trackResults").innerHTML = "";
+  try {
+    const res = await fetch("/api/track");
+    renderTrack(await res.json());
+  } catch (e) { eshow("trackErr", e.message); }
+  finally { toggle("trackLoader", false); }
+}
+function _trackCard(title, sub, s) {
+  const sm = (s && s.summary) || {}, rec = (s && s.recent) || [];
+  const H = [["21", "1-month"], ["63", "3-month"], ["126", "6-month"], ["252", "1-year"]];
+  let inner;
+  if (!H.some(([k]) => sm[k])) {
+    inner = `<div class="muted">Accruing — picks need ~1 month to mature before they count (${rec.length} logged so far). Check back as the record builds.</div>`;
+  } else {
+    inner = '<table><tr><th>Horizon</th><th class="num">Picks</th><th class="num">Avg return</th><th class="num">S&amp;P</th><th class="num">Alpha</th><th class="num">Beat S&amp;P</th><th class="num">Win rate</th></tr>';
+    H.forEach(([k, lab]) => {
+      const x = sm[k];
+      if (!x) { inner += `<tr><td>${lab}</td><td colspan="6" class="muted">accruing…</td></tr>`; return; }
+      inner += `<tr><td><b>${lab}</b></td><td class="num">${x.n}</td><td class="num">${pct(x.avg_return, 1)}</td>
+        <td class="num">${pct(x.avg_bench, 1)}</td>
+        <td class="num ${x.avg_alpha >= 0 ? 'pos' : 'neg'}">${x.avg_alpha >= 0 ? '+' : ''}${pct(x.avg_alpha, 1)}</td>
+        <td class="num">${pct(x.hit_rate_vs_bench, 0)}</td><td class="num">${pct(x.win_rate, 0)}</td></tr>`;
+    });
+    inner += '</table>';
+  }
+  if (rec.length) {
+    inner += '<div class="note" style="margin-top:10px">Most recent picks (1-month return vs S&amp;P as they mature):</div>' +
+      '<table><tr><th>Date</th><th>Ticker</th><th class="num">1-mo</th><th class="num">S&amp;P</th></tr>';
+    rec.forEach(p => {
+      const r = p.ret_1m;
+      inner += `<tr><td>${p.date || ''}</td><td><b>${p.ticker}</b></td>
+        <td class="num ${r == null ? '' : (r >= 0 ? 'pos' : 'neg')}">${r == null ? '—' : pct(r, 1)}</td>
+        <td class="num">${p.bench_1m == null ? '—' : pct(p.bench_1m, 1)}</td></tr>`;
+    });
+    inner += '</table>';
+  }
+  return `<div class="card"><h3>${title}</h3><div class="section-hint">${sub}</div>${inner}</div>`;
+}
+function renderTrack(d) {
+  const src = (d && d.sources) || {};
+  let html = _trackCard("📈 Top-10 Hot Stocks",
+    "Equal-weighted daily top-10 by hot score, measured forward vs the S&amp;P 500.", src.hot10);
+  html += _trackCard("⚡ Screaming-Buy Options (underlying)",
+    "Forward return of the underlying for each screaming-buy signal — signal accuracy, not option P&amp;L.", src.options);
+  html += `<div class="disclaimer">${(d && d.note) || ''}</div>`;
+  document.getElementById("trackResults").innerHTML = html;
+}
+
+/* ====================== BACKTEST (custom; used by Edge Lab / API) ====================== */
 async function runBacktest() {
   toggle("btLoader", true); document.getElementById("btResults").style.display = "none"; eshow("btErr", "");
   const body = { source: document.getElementById("btSource").value,

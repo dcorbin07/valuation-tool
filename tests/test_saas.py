@@ -200,6 +200,25 @@ def test_alert_dedup_and_optin():
     assert s.alert_subscribers() == []
 
 
+def test_tracker_logs_and_summary():
+    import tempfile
+    from valuation.screener.store import Store
+    from valuation.saas import tracker
+    from valuation.edge import track
+    fd, p = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(p)
+    st = Store(p)
+    rows = [{"ticker": f"T{i}", "rank": i + 1, "score": 90 if i < 3 else 40,
+             "labels": ["Uptrend (>50 & >200 DMA)"] if i < 3 else []} for i in range(15)]
+    tracker.log_hot(st, "2026-07-01", rows)
+    assert len(st.all_track_picks("hot10")) == 10                 # top-10 only
+    tracker.log_options(st, rows, 80)                             # screaming = score≥80 + bullish tag
+    assert len(st.all_track_picks("options")) == 3
+    # a matured forward return flows into the horizon summary
+    st.save_track_return("hot10", "2026-07-01", "T0", 21, 0.05, 0.02)
+    s = track.summary(st, "hot10")
+    assert s["21"]["n"] == 1 and abs(s["21"]["avg_alpha"] - 0.03) < 1e-9
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

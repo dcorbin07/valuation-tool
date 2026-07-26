@@ -40,7 +40,7 @@
       <button class="tab active" data-tab="single" onclick="switchTab('single')">Single valuation</button>
       <button class="tab" data-tab="hot" onclick="switchTab('hot')">🔥 Hot stocks</button>
       <button class="tab" data-tab="signals" onclick="switchTab('signals')">⚡ Signals</button>
-      <button class="tab" data-tab="backtest" onclick="switchTab('backtest')">📊 Backtest</button>
+      <button class="tab" data-tab="track" onclick="switchTab('track')">📊 Track Record</button>
       {% if is_owner %}<button class="tab" data-tab="edge" onclick="switchTab('edge')">🔬 Edge Lab</button>{% endif %}
       <button class="tab" data-tab="rank" onclick="switchTab('rank')">Watchlist</button>
     </div>
@@ -224,36 +224,21 @@
     </div>
   </div>
 
-  <!-- BACKTEST -->
-  <div id="tab-backtest" style="display:none">
+  <!-- TRACK RECORD -->
+  <div id="tab-track" style="display:none">
     <div class="search-card">
-      <div class="section-hint" style="margin-top:0">Does the ranking actually predict forward returns? Information Coefficient, quantile spread after costs, equity curve vs benchmark, and an out-of-sample check — in the honest spirit of your screener.</div>
-      <div class="opt" style="gap:14px">
-        <label>Source
-          <select id="btSource" class="selin"><option value="snapshot">Latest hot list</option><option value="custom">Custom tickers</option></select>
-        </label>
-        <label>Horizon (days) <input id="btHorizon" type="number" value="21" style="width:60px"></label>
-        <label>Rebalance (days) <input id="btRebal" type="number" value="21" style="width:60px"></label>
-        <label>Cost (bps) <input id="btCost" type="number" value="5" style="width:56px"></label>
-        <label>Benchmark <input id="btBench" type="text" value="SPY" style="width:70px"></label>
+      <div class="section-hint" style="margin-top:0">A live, <b>forward</b> track record — how the tool's daily
+        <b>top-10 hot stocks</b> and <b>screaming-buy options signals</b> have actually performed since we started
+        logging them, versus the S&amp;P 500. It's <b>survivorship-free by construction</b> (real, dated picks, measured
+        forward). Educational only — past performance doesn't predict future results.</div>
+      <div class="search-row" style="align-items:center">
+        <button class="btn" onclick="loadTrack()">↻ Refresh</button>
+        <span class="note" id="trackNote" style="margin:0">Returns mature over time — 1-month picks need ~1 month before they count.</span>
       </div>
-      <div class="search-row" style="margin-top:10px">
-        <input id="btTickers" type="text" placeholder="Custom tickers (comma-separated) — used when Source = Custom">
-        <button class="btn" onclick="runBacktest()">Run backtest</button>
-      </div>
-      <div class="note">Network-heavy (downloads price history). The free feed only carries names still listed today, so results
-        carry <b>survivorship bias</b> — treat a positive result as "worth confirming on survivorship-free data," not proof.</div>
     </div>
-    <div class="loader" id="btLoader"><div class="spinner"></div><div>Building the point-in-time panel &amp; testing…</div></div>
-    <div class="err" id="btErr"></div>
-    <div id="btResults" style="display:none">
-      <div class="card"><h3>Verdict</h3><div id="btVerdict"></div></div>
-      <div class="grid2">
-        <div class="card"><h3>Equity curve vs benchmark</h3><canvas id="eqChart" height="200"></canvas></div>
-        <div class="card"><h3>Return by score quintile</h3><canvas id="qChart" height="200"></canvas></div>
-      </div>
-      <div class="card"><h3>Statistics</h3><div id="btStats"></div></div>
-    </div>
+    <div class="loader" id="trackLoader"><div class="spinner"></div><div>Loading track record…</div></div>
+    <div class="err" id="trackErr"></div>
+    <div id="trackResults"></div>
   </div>
 
   <!-- SIGNALS (Premium) -->

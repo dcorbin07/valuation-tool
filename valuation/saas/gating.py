@@ -78,7 +78,7 @@ def check_request(path: str, method: str, body: dict, user, store) -> tuple | No
     feats = features(tier if tier != "anon" else "free")
 
     # Login required for any /api that isn't public reads.
-    public = path in ("/api/health", "/api/hotstocks")
+    public = path in ("/api/health", "/api/hotstocks", "/api/track")
     if path.startswith("/api/") and not public and user is None:
         return ({"error": "Please sign in to use this.", "need_login": True}, 401)
 

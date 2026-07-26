@@ -22,6 +22,8 @@ def run_weekly(cfg=CONFIG, scope="whole_market", limit=1500, dcf_top=12) -> dict
     store = Store()
     res = run_scan(scope=scope, limit=limit, cfg=cfg, store=store, run_dcf_top=dcf_top, save=True)
     rows = store.load_snapshot()
+    from . import tracker
+    tracker.log_hot(store, res["scan_date"], rows)   # log top-10 into the live track record
     sectors = sector_attractiveness(rows)
 
     users = UserStore(cfg.database_url)
