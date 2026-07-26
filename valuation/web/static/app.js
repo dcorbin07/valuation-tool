@@ -492,9 +492,11 @@ function _trackCard(title, sub, s) {
   return `<div class="card"><h3>${title}</h3><div class="section-hint">${sub}</div>${inner}</div>`;
 }
 function _paperCard(paper) {
-  const s = (paper && paper.summary) || {}, pos = (paper && paper.positions) || [];
-  const sub = 'Buys on entry to the top-10, holds ≥1 month (no churn), then sells when it cools off (leaves the ' +
-    'list), hits its DCF fair value, or reaches a 6-month time stop. Equal-weight, per-pick returns.';
+  const s = (paper && paper.summary) || {}, watch = (paper && paper.watching) || [], closed = (paper && paper.closed) || [];
+  const sub = 'Buys when a name enters the top-10; holds ≥1 month (no churn) and keeps holding while it stays hot — ' +
+    'it is <b>not</b> sold just because another name got hotter. Sells only when it is genuinely no longer hot ' +
+    '(score below the floor) or reaches its DCF fair value. No time cap by default, so a gem can compound for years. ' +
+    'Suggested sizing is score-weighted (hotter = bigger), capped.';
   if (!s.n_total) {
     return `<div class="card"><h3>💼 Paper account — top-10 hot stocks (sell logic)</h3>
       <div class="section-hint">${sub}</div>
@@ -506,18 +508,35 @@ function _paperCard(paper) {
     ${metric("Realized (closed)", s.avg_return_closed == null ? '—' : pct(s.avg_return_closed, 1))}
     ${metric("Win rate", s.win_rate == null ? '—' : pct(s.win_rate, 0))}
     ${metric("Avg hold", s.avg_hold_days == null ? '—' : Math.round(s.avg_hold_days) + 'd')}
-    ${metric("Open", s.n_open)} ${metric("Closed", s.n_closed)}</div>`;
-  let tbl = '<table><tr><th>Ticker</th><th>Entry</th><th class="num">Entry $</th><th>Status / exit</th><th class="num">Return</th><th class="num">Held</th></tr>';
-  pos.forEach(p => {
-    const status = p.exit_date ? `${p.reason} · ${p.exit_date}` : '<span class="pill est">open</span>';
-    tbl += `<tr><td><b>${p.ticker}</b></td><td>${p.entry_date}</td><td class="num">${money(p.entry_price)}</td>
-      <td style="font-size:12px">${status}</td>
-      <td class="num ${p.ret == null ? '' : (p.ret >= 0 ? 'pos' : 'neg')}">${p.ret == null ? '—' : pct(p.ret, 1)}</td>
-      <td class="num">${p.hold_days}d</td></tr>`;
-  });
-  tbl += '</table>';
+    ${metric("Holding", s.n_open)} ${metric("Closed", s.n_closed)}</div>`;
+  let watchTbl = '';
+  if (watch.length) {
+    watchTbl = '<div class="note" style="margin-top:6px"><b>Currently held (watching)</b> — suggested size &amp; live return:</div>' +
+      '<table><tr><th>Ticker</th><th class="num">Size</th><th class="num">Score</th><th>Entry</th><th class="num">Entry $</th><th class="num">Return</th><th class="num">Held</th></tr>';
+    watch.forEach(p => {
+      watchTbl += `<tr><td><a href="#" onclick="gotoValue('${p.ticker}');return false"><b>${p.ticker}</b></a></td>
+        <td class="num">${p.weight == null ? '—' : pct(p.weight, 0)}</td>
+        <td class="num" style="color:${scoreColor(p.score || 0)}">${p.score == null ? '—' : p.score.toFixed(0)}</td>
+        <td>${p.entry_date}</td><td class="num">${money(p.entry_price)}</td>
+        <td class="num ${p.ret == null ? '' : (p.ret >= 0 ? 'pos' : 'neg')}">${p.ret == null ? '—' : pct(p.ret, 1)}</td>
+        <td class="num">${p.hold_days}d</td></tr>`;
+    });
+    watchTbl += '</table>';
+  }
+  let exitTbl = '';
+  if (closed.length) {
+    exitTbl = '<div class="note" style="margin-top:12px"><b>Recent exits:</b></div>' +
+      '<table><tr><th>Ticker</th><th>Entry</th><th>Exit</th><th>Reason</th><th class="num">Return</th><th class="num">Held</th></tr>';
+    closed.forEach(p => {
+      exitTbl += `<tr><td><b>${p.ticker}</b></td><td>${p.entry_date}</td><td>${p.exit_date || ''}</td>
+        <td style="font-size:12px">${p.reason || ''}</td>
+        <td class="num ${p.ret == null ? '' : (p.ret >= 0 ? 'pos' : 'neg')}">${p.ret == null ? '—' : pct(p.ret, 1)}</td>
+        <td class="num">${p.hold_days}d</td></tr>`;
+    });
+    exitTbl += '</table>';
+  }
   return `<div class="card"><h3>💼 Paper account — top-10 hot stocks (sell logic)</h3>
-    <div class="section-hint">${sub}${reasons ? ' Exits so far: ' + reasons + '.' : ''}</div>${head}${tbl}</div>`;
+    <div class="section-hint">${sub}${reasons ? ' Exits so far: ' + reasons + '.' : ''}</div>${head}${watchTbl}${exitTbl}</div>`;
 }
 function renderTrack(d) {
   const src = (d && d.sources) || {};

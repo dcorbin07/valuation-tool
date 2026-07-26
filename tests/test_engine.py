@@ -36,6 +36,17 @@ def test_absurd_fair_value_capped_not_strong_buy():
     assert 1 <= ok.score <= 100
 
 
+def test_quality_fallback_roe_net_margin():
+    from valuation.data.models import CompanyData
+    from valuation.engine.scoring import _quality_score
+    # A bank-like name: no ROIC / EBIT / gross profit, but net income, equity, revenue.
+    cd = CompanyData(ticker="BANKX")
+    cd.net_income, cd.total_equity, cd.revenue = 6000.0, 60000.0, 40000.0
+    q, drivers = _quality_score(cd, 0.09)
+    assert q is not None                                   # was n/a before the fallback
+    assert any("equity" in d.lower() for d in drivers)     # ROE fallback used
+
+
 def test_financial_pb_roe_value():
     from valuation.data.models import CompanyData
     from valuation.engine.financials import financial_fair_value

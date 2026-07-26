@@ -226,29 +226,29 @@ def test_paper_account_sell_logic():
     fd, p = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(p)
     st = Store(p)
 
-    def rows(rankmap, price):
-        return [{"ticker": t, "rank": rk, "price": price} for t, rk in rankmap.items()]
+    def rows(rs, price):   # rs: {ticker: (rank, hot_score)}
+        return [{"ticker": t, "rank": rk, "hot_score": sc, "price": price} for t, (rk, sc) in rs.items()]
 
-    kw = dict(top_n=1, min_hold_days=30, max_hold_days=180)
-    # day 0: A enters the top-1
-    positions.update_positions(st, "hot10", "2026-01-01", rows({"A": 1, "B": 2}, 100.0), **kw)
+    kw = dict(top_n=1, min_hold_days=30, max_hold_days=0, exit_score=55)
+    # A enters the top-1
+    positions.update_positions(st, "hot10", "2026-01-01", rows({"A": (1, 90)}, 100.0), **kw)
     assert any(p["ticker"] == "A" for p in st.open_positions("hot10"))
-    # day 10: A drops off but < min-hold -> still held (no churn)
-    positions.update_positions(st, "hot10", "2026-01-11", rows({"B": 1, "A": 5}, 105.0), **kw)
+    # day 10: A's score collapses to 40 but it's < min-hold -> still held (no early churn)
+    positions.update_positions(st, "hot10", "2026-01-11", rows({"A": (1, 40)}, 105.0), **kw)
     assert any(p["ticker"] == "A" for p in st.open_positions("hot10"))
-    # day 40: A off the list AND past min-hold -> sold "cooled off" at that price
-    positions.update_positions(st, "hot10", "2026-02-10", rows({"B": 1, "A": 9}, 110.0), **kw)
-    assert not any(p["ticker"] == "A" for p in st.open_positions("hot10"))
+    # day 40: still cold (40) and past min-hold -> sold "no longer hot"
+    positions.update_positions(st, "hot10", "2026-02-10", rows({"A": (1, 40)}, 110.0), **kw)
     ap = [p for p in st.all_positions("hot10") if p["ticker"] == "A"][0]
-    assert ap["exit_price"] == 110.0 and "cooled" in (ap["exit_reason"] or "")
-    # time stop: D stays hot but is forced out at max-hold
-    positions.update_positions(st, "hot10", "2026-03-01", rows({"D": 1}, 50.0), **kw)
-    positions.update_positions(st, "hot10", "2026-09-30", rows({"D": 1}, 60.0), **kw)   # ~213 days
-    dp = [p for p in st.all_positions("hot10") if p["ticker"] == "D"][0]
-    assert dp["exit_reason"] == "time stop"
-    # summary: A returned +10% realized
-    summ = positions.paper_summary(st, "hot10")["summary"]
-    assert summ["n_closed"] >= 2 and abs(summ["avg_return_closed"] - ((0.10 + 0.20) / 2)) < 1e-9
+    assert ap["exit_date"] and "no longer hot" in (ap["exit_reason"] or "") and ap["exit_price"] == 110.0
+    # A gem that stays hot but gets pushed out of the top and held for a year+ is NOT sold:
+    positions.update_positions(st, "hot10", "2026-03-01", rows({"C": (1, 92)}, 50.0), **kw)
+    positions.update_positions(st, "hot10", "2027-06-01", rows({"E": (1, 96), "C": (12, 85)}, 60.0), **kw)
+    assert any(p["ticker"] == "C" for p in st.open_positions("hot10"))   # rank slip alone doesn't sell
+    # sizing is score-weighted, capped, and normalizes to 1
+    summ = positions.paper_summary(st, "hot10", latest_price_map={"C": 60.0, "E": 100.0},
+                                   latest_score_map={"C": 85.0, "E": 96.0}, max_weight=0.20)
+    w = summ["watching"]
+    assert w and abs(sum(x["weight"] for x in w) - 1.0) < 1e-6
 
 
 def _run_all():

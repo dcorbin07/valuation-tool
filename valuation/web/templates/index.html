@@ -59,7 +59,7 @@
       </div>
       <div class="chips" id="chips"></div>
       <div class="opt">
-        <label><input type="checkbox" id="runai" {{ 'checked' if ai_enabled else '' }}>
+        <label><input type="checkbox" id="runai" checked>
           Run AI analysis
           <span class="muted">({% if ai_enabled %}{{ ai_provider }} key detected{% else %}rule-based — no key set{% endif %})</span>
         </label>
@@ -95,6 +95,14 @@
         <h3>Opportunity score breakdown</h3>
         <div class="section-hint" id="scoreHint"></div>
         <div id="scoreBars"></div>
+        <div class="note" style="margin-top:12px;line-height:1.7">
+          <b>Valuation</b> — margin of safety vs the model's fair value (plus Monte Carlo &amp; comps).
+          <b>Quality</b> — return on capital vs the cost of capital, and margins.
+          <b>Growth</b> — durable revenue growth (Rule of 40 for growth names).
+          <b>Health</b> — leverage, interest coverage, and cash runway.
+          <b>Momentum</b> — price trend (200-day average, 6-month return).
+          Weights shift by company type, so the DCF counts for less where it's less reliable.
+        </div>
       </div>
 
       <!-- 4. AI analysis (shown only when AI is run) -->

@@ -97,11 +97,16 @@ class Config:
     discord_webhook_url: str = field(default_factory=lambda: _get("DISCORD_WEBHOOK_URL"))
     alert_min_score: float = field(default_factory=lambda: _get_float("ALERT_MIN_SCORE", 80))
     # Paper-account sell logic (the Track Record). Buy on entry to the top-N hot
-    # list; hold at least min-hold days (no churn); sell when it leaves the list,
-    # hits fair value, or reaches the max-hold time stop.
+    # list; hold at least min-hold days (no churn); then SELL only when the name is
+    # genuinely no longer hot (its hot score falls below paper_exit_score) or it
+    # reaches its DCF fair value — NOT merely because it slipped out of the top-N
+    # while another name got hotter. No time cap by default, so a gem can compound
+    # for years (set PAPER_MAX_HOLD_DAYS>0 to force an eventual review).
     paper_top_n: int = field(default_factory=lambda: int(_get_float("PAPER_TOP_N", 10)))
     paper_min_hold_days: int = field(default_factory=lambda: int(_get_float("PAPER_MIN_HOLD_DAYS", 30)))
-    paper_max_hold_days: int = field(default_factory=lambda: int(_get_float("PAPER_MAX_HOLD_DAYS", 180)))
+    paper_max_hold_days: int = field(default_factory=lambda: int(_get_float("PAPER_MAX_HOLD_DAYS", 0)))
+    paper_exit_score: float = field(default_factory=lambda: _get_float("PAPER_EXIT_SCORE", 55))
+    paper_max_weight: float = field(default_factory=lambda: _get_float("PAPER_MAX_WEIGHT", 0.20))
     # Owner accounts get permanent free Premium (comma-separated emails).
     owner_emails: str = field(default_factory=lambda: _get("OWNER_EMAILS", "donniecorbin6@gmail.com"))
 

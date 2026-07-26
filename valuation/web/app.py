@@ -242,9 +242,10 @@ def api_track():
     try:
         snap = st.load_snapshot() or []
         pmap = {r.get("ticker"): r.get("price") for r in snap if r.get("price")}
-        paper = positions.paper_summary(st, "hot10", pmap)
+        smap = {r.get("ticker"): r.get("hot_score") for r in snap}
+        paper = positions.paper_summary(st, "hot10", pmap, smap, max_weight=CONFIG.paper_max_weight)
     except Exception:
-        paper = {"summary": {}, "positions": []}
+        paper = {"summary": {}, "watching": [], "closed": []}
     return jsonify({"sources": out, "paper": paper,
                     "note": "Forward, survivorship-free record of real dated picks vs the S&P 500. Options "
                             "are tracked by the underlying's forward return (signal accuracy, not option "

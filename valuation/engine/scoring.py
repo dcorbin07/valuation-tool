@@ -94,16 +94,29 @@ def _valuation_score(cd, base_fv, mc, comps) -> tuple[Optional[float], list]:
 def _quality_score(cd, wacc) -> tuple[Optional[float], list]:
     drivers = []
     parts = []
+    roe = None
+    if cd.net_income is not None and cd.total_equity not in (None, 0) and cd.total_equity > 0:
+        roe = cd.net_income / cd.total_equity
+    # Return on capital: prefer ROIC vs WACC; fall back to ROE (works for banks /
+    # names where invested capital or EBIT isn't reported) so quality isn't n/a.
     if cd.roic is not None and wacc is not None:
         spread = cd.roic - wacc
         s = _lerp(spread, [(-0.05, 5), (0.0, 45), (0.05, 65), (0.10, 82), (0.20, 100)])
         parts.append((s, 0.5))
         drivers.append(f"ROIC {cd.roic:.0%} vs WACC {wacc:.0%} → {spread:+.0%} value-creation spread.")
+    elif roe is not None:
+        s = _lerp(roe, [(-0.05, 5), (0.0, 40), (0.10, 60), (0.20, 82), (0.35, 100)])
+        parts.append((s, 0.5))
+        drivers.append(f"Return on equity {roe:.0%}.")
     if cd.gross_margin is not None:
         s = _lerp(cd.gross_margin, [(0.05, 15), (0.25, 45), (0.45, 68), (0.70, 90), (0.90, 100)])
         parts.append((s, 0.3))
+    # Profitability: operating margin, or net margin if EBIT isn't available.
     if cd.ebit_margin is not None:
         s = _lerp(cd.ebit_margin, [(-0.10, 5), (0.0, 35), (0.10, 60), (0.20, 82), (0.35, 100)])
+        parts.append((s, 0.2))
+    elif cd.net_margin is not None:
+        s = _lerp(cd.net_margin, [(-0.10, 5), (0.0, 35), (0.10, 60), (0.20, 82), (0.35, 100)])
         parts.append((s, 0.2))
     return _blend(parts), drivers
 
