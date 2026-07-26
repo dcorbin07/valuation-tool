@@ -194,6 +194,41 @@ def api_hotstocks():
 
 
 _LAST_TRACK_REFRESH = [0.0]
+_PAPER_BENCH = {}
+
+
+def _compute_paper_bench(st, source="hot10"):
+    """Paper account vs SPY over the same span (background; needs price history)."""
+    try:
+        import pandas as pd
+        from ..screener.prices import close_series
+        allp = st.all_positions(source)
+        if not allp:
+            return
+        d, c = close_series("SPY", 1500)
+        if not (d and c):
+            return
+        spy = pd.Series(c, index=pd.to_datetime(d))
+
+        def at(date):
+            i = spy.index.searchsorted(pd.to_datetime(date))
+            return spy.iloc[min(i, len(spy) - 1)] if len(spy) else None
+
+        alphas = []
+        for p in allp:
+            if not p.get("exit_date"):
+                continue
+            b0, b1 = at(p["entry_date"]), at(p["exit_date"])
+            e, x = p.get("entry_price"), p.get("exit_price")
+            if b0 and b1 and b0 > 0 and e and x and e > 0:
+                alphas.append((x / e - 1) - (b1 / b0 - 1))
+        first = min(p["entry_date"] for p in allp)
+        b_first = at(first)
+        spy_all = float(spy.iloc[-1] / b_first - 1) if (b_first and b_first > 0) else None
+        _PAPER_BENCH[source] = {"avg_alpha": (sum(alphas) / len(alphas)) if alphas else None,
+                                "n_alpha": len(alphas), "spy_all_time": spy_all, "since": first}
+    except Exception:
+        pass
 
 
 def _recent_track_picks(st, source, n=15):
@@ -225,6 +260,7 @@ def _maybe_refresh_track():
                 track.update_returns(st, src)
             except Exception:
                 pass
+        _compute_paper_bench(st, "hot10")
     threading.Thread(target=_work, daemon=True).start()
 
 
@@ -244,6 +280,7 @@ def api_track():
         pmap = {r.get("ticker"): r.get("price") for r in snap if r.get("price")}
         smap = {r.get("ticker"): r.get("hot_score") for r in snap}
         paper = positions.paper_summary(st, "hot10", pmap, smap, max_weight=CONFIG.paper_max_weight)
+        paper["bench"] = _PAPER_BENCH.get("hot10")
     except Exception:
         paper = {"summary": {}, "watching": [], "closed": []}
     return jsonify({"sources": out, "paper": paper,

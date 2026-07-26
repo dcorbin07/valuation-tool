@@ -75,7 +75,8 @@ function render(d) {
     `<span class="badge">${cls.regime}</span>` +
     `<span class="badge ${rc}">DCF reliability: ${cls.dcf_reliability}</span>` +
     (cls.rule_of_40 != null ? `<span class="badge ${cls.rule_of_40 >= 40 ? 'g' : 'a'}">Rule of 40: ${cls.rule_of_40.toFixed(0)}</span>` : "") +
-    (c.cash_runway_years != null ? `<span class="badge ${c.cash_runway_years >= 4 ? 'g' : 'r'}">Runway: ${c.cash_runway_years.toFixed(1)}y</span>` : "");
+    (c.cash_runway_years != null ? `<span class="badge ${c.cash_runway_years >= 4 ? 'g' : 'r'}">Runway: ${c.cash_runway_years.toFixed(1)}y</span>` : "") +
+    (c.next_earnings_date ? `<span class="badge a">📅 Earnings ${_earnLabel(c.next_earnings_date)}</span>` : "");
 
   // hero metrics
   const up = d.upside;
@@ -97,6 +98,7 @@ function render(d) {
   document.getElementById("assumNotes").innerHTML = (d.assumptions.notes || []).map(n => "• " + n).join("<br>");
   sensBox(d.sensitivity, c.price);
   aiBox(d.ai);
+  earningsBox(c);
   warnBox(d.warnings);
   document.getElementById("sourcesBox").innerHTML = "Sources: " + (d.sources || []).join(" · ");
 }
@@ -312,6 +314,33 @@ function warnBox(warnings) {
   const el = document.getElementById("warnBox");
   if (!warnings || !warnings.length) { el.innerHTML = ""; return; }
   el.innerHTML = warnings.map(w => `<div class="warn">⚠ ${w}</div>`).join("");
+}
+
+/* ---------- earnings awareness ---------- */
+function _earnDays(dateStr) {
+  return Math.round((new Date(dateStr + "T00:00:00") - new Date()) / 86400000);
+}
+function _earnLabel(dateStr) {
+  const n = _earnDays(dateStr);
+  return isNaN(n) ? "" : (n <= 0 ? "today" : "in " + n + "d");
+}
+function earningsBox(c) {
+  const card = document.getElementById("earnCard");
+  const ed = c.next_earnings_date, days = ed ? _earnDays(ed) : null;
+  if (ed == null || days == null || days < 0 || days > 45) { card.style.display = "none"; return; }
+  card.style.display = "block";
+  let em = "";
+  if (c.realized_vol && c.price) {
+    const move = c.price * c.realized_vol * Math.sqrt(Math.max(days, 1) / 365);
+    em = `Expected move by then ≈ <b>±${money(move, 2)} (${pct(move / c.price, 0)})</b> <span class="muted">(from recent volatility)</span>. `;
+  }
+  const play = `<div style="margin-top:8px;font-size:13.5px" class="muted">Common ways to play it: a
+    <b>long straddle/strangle</b> profits if the actual move beats that; <b>selling defined-risk premium</b>
+    (e.g. an iron condor) profits from the post-earnings IV crush if it stays inside; or a
+    <b>defined-risk directional</b> if the signal gives you a lean. Premium is elevated into the print and IV
+    collapses right after — earnings are binary and risky. Not investment advice.</div>`;
+  document.getElementById("earnBox").innerHTML =
+    `<div style="font-size:15px"><b>${days <= 0 ? 'Today' : days + ' day' + (days === 1 ? '' : 's')}</b> until earnings (${ed}). ${em}</div>${play}`;
 }
 
 /* ---------- watchlist ranking ---------- */
@@ -535,8 +564,14 @@ function _paperCard(paper) {
     });
     exitTbl += '</table>';
   }
+  const b = (paper && paper.bench) || {};
+  const benchLine = (b.avg_alpha != null || b.spy_all_time != null)
+    ? `<div class="note" style="margin:2px 0 8px">vs <b>S&amp;P 500</b>: ` +
+      (b.avg_alpha != null ? `avg <b class="${b.avg_alpha >= 0 ? 'pos' : 'neg'}">${b.avg_alpha >= 0 ? '+' : ''}${pct(b.avg_alpha, 1)}</b> alpha per closed pick` : '') +
+      (b.spy_all_time != null ? ` · S&amp;P returned ${pct(b.spy_all_time, 1)} over the same span` : '') + `</div>`
+    : '';
   return `<div class="card"><h3>💼 Paper account — top-10 hot stocks (sell logic)</h3>
-    <div class="section-hint">${sub}${reasons ? ' Exits so far: ' + reasons + '.' : ''}</div>${head}${watchTbl}${exitTbl}</div>`;
+    <div class="section-hint">${sub}${reasons ? ' Exits so far: ' + reasons + '.' : ''}</div>${head}${benchLine}${watchTbl}${exitTbl}</div>`;
 }
 function renderTrack(d) {
   const src = (d && d.sources) || {};

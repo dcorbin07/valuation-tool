@@ -103,8 +103,13 @@ def create_saas_app(cfg=CONFIG):
         try:
             st = Store()
             st.save_snapshot(scan_date, rows, data.get("provider", "ci"), data.get("params") or {})
-            from . import tracker
+            from . import tracker, notify
             tracker.log_hot(st, scan_date, rows, cfg)   # log top-10 + update the paper account
+            try:
+                from ..screener.sectors import sector_attractiveness
+                notify.post_hot_digest(cfg, st, scan_date, rows, sector_attractiveness(rows))
+            except Exception:
+                pass
             return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows)})
         except Exception as e:
             return jsonify({"error": str(e)}), 500

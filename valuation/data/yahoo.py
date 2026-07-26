@@ -159,6 +159,16 @@ def fetch(ticker: str) -> Optional[CompanyData]:
     cd.beta = _safe(info.get("beta"))
     cd.analyst_target_price = _safe(info.get("targetMeanPrice"))
 
+    # Next scheduled earnings (Yahoo timestamps), only if it's still in the future.
+    et = _safe(info.get("earningsTimestampStart") or info.get("earningsTimestamp"))
+    if et:
+        try:
+            ed = _dt.date.fromtimestamp(int(et))
+            if ed >= _dt.date.today():
+                cd.next_earnings_date = ed.isoformat()
+        except Exception:
+            pass
+
     # ---- statements ----
     inc = bal = cf = None
     try:
@@ -310,6 +320,12 @@ def fetch(ticker: str) -> Optional[CompanyData]:
                     cd.ret_6m = last / float(closes.iloc[-126]) - 1.0
                 if len(closes) >= 21:
                     cd.ret_1m = last / float(closes.iloc[-21]) - 1.0
+                try:
+                    rets = closes.pct_change().dropna()
+                    if len(rets) > 20:
+                        cd.realized_vol = float(rets.std() * (252 ** 0.5))
+                except Exception:
+                    pass
     except Exception:
         pass
 

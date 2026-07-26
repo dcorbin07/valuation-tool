@@ -89,6 +89,33 @@ def alert_email_html(run_time, rows, unsub_url) -> str:
     </div>"""
 
 
+def hot_digest_text(scan_date, rows, sectors=None) -> str:
+    """A monospaced, at-a-glance top-10 for Discord."""
+    top = rows[:10]
+    lines = [f"🔥 **Hot Stocks of the Day** — {scan_date}", "```",
+             f"{'#':<3}{'Ticker':<8}{'Score':<7}{'Sector':<16}{'Price':>9}"]
+    for r in top:
+        price = r.get("price")
+        lines.append(f"{str(r.get('rank', '')):<3}{(r.get('ticker') or ''):<8}"
+                     f"{(r.get('hot_score') or 0):<7.0f}{(r.get('sector') or '')[:15]:<16}"
+                     f"{('$' + format(price, ',.2f')) if price else '—':>9}")
+    lines.append("```")
+    if sectors:
+        lines.append("Hottest sectors: **" + ", ".join(s["sector"] for s in sectors[:4]) + "**")
+    lines.append("_Educational only, not investment advice._")
+    return "\n".join(lines)
+
+
+def post_hot_digest(cfg, store, scan_date, rows, sectors=None) -> bool:
+    """Post the daily top-10 to Discord, at most once per day."""
+    if not getattr(cfg, "discord_webhook_url", "") or store.alerted_today("__HOTDIGEST__"):
+        return False
+    if send_discord(cfg, hot_digest_text(scan_date, rows, sectors)):
+        store.mark_alerted("__HOTDIGEST__", scan_date)
+        return True
+    return False
+
+
 def run_alerts(cfg, store, users) -> dict:
     """New screaming buys from the latest intraday snapshot → Discord + opt-in email.
     De-dupes per ticker per day. Safe to call after every intraday scan."""

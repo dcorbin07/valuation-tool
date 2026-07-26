@@ -85,6 +85,8 @@ class CompanyData:
     ret_1m: Optional[float] = None
     price_52w_high: Optional[float] = None
     price_52w_low: Optional[float] = None
+    realized_vol: Optional[float] = None          # annualized daily-return volatility
+    next_earnings_date: Optional[str] = None      # ISO date of the next scheduled earnings
 
     # --- Macro (attached by the fetcher) ---
     risk_free_rate: Optional[float] = None

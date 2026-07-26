@@ -251,6 +251,16 @@ def test_paper_account_sell_logic():
     assert w and abs(sum(x["weight"] for x in w) - 1.0) < 1e-6
 
 
+def test_hot_digest_text():
+    from valuation.saas.notify import hot_digest_text
+    rows = [{"rank": i + 1, "ticker": f"T{i}", "hot_score": 90 - i, "sector": "Technology",
+             "price": 100.0 + i} for i in range(12)]
+    txt = hot_digest_text("2026-07-27", rows, [{"sector": "Technology"}, {"sector": "Energy"}])
+    assert "Hot Stocks of the Day" in txt and "2026-07-27" in txt
+    assert "T9" in txt and "T11" not in txt          # top-10 only (T0..T9)
+    assert "Technology" in txt
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

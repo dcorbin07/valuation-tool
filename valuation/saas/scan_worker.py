@@ -22,9 +22,13 @@ def run_weekly(cfg=CONFIG, scope="whole_market", limit=1500, dcf_top=12) -> dict
     store = Store()
     res = run_scan(scope=scope, limit=limit, cfg=cfg, store=store, run_dcf_top=dcf_top, save=True)
     rows = store.load_snapshot()
-    from . import tracker
+    from . import tracker, notify
     tracker.log_hot(store, res["scan_date"], rows, cfg)   # log top-10 + update the paper account
     sectors = sector_attractiveness(rows)
+    try:
+        notify.post_hot_digest(cfg, store, res["scan_date"], rows, sectors)   # Discord daily top-10
+    except Exception:
+        pass
 
     users = UserStore(cfg.database_url)
     html = weekly_digest_html(res["scan_date"], rows, sectors)

@@ -3,11 +3,15 @@
 Everything you need to take this live, in order. Deep dives are linked per step;
 this page is the map. Costs are approximate — verify before relying on them.
 
-**Where things stand:** the whole product is built and tested (valuation engine,
-daily hot-stocks screener, ⚡ Signals watcher, 📊 backtest, 🔬 Edge Lab, SaaS with
-accounts/billing, deploy config, backups, GitHub). Data runs **free today**; paid
-sources drop in with a one-line change. Your owner account (`donniecorbin6@gmail.com`)
-already gets **Premium free**.
+**Where things stand:** the whole product is built and tested — adaptive valuation
+engine (with a bank/financial P/B–ROE lens + earnings awareness), daily hot-stocks
+screener, ⚡ Signals (bull **and** bear, horizon selector, contract ideas),
+🚨 screaming-buy alerts (Discord + opt-in email) + a **Discord daily top-10 digest**,
+📊 **Track Record** (live forward returns vs S&P at 1/3/6/12-mo **and all-time**) with
+a **paper account** that trades the top-10 on real sell logic, 🔬 Edge Lab, and the SaaS
+layer (accounts/billing/beta). ~45 automated tests pass. Data runs **free today**; paid
+sources drop in with a one-line change. Owner account (`donniecorbin6@gmail.com`) is
+**Premium free**.
 
 **Beta mode is ON.** Right now the site is in an open free beta: a banner says it's in
 development, **everyone who signs up gets full Premium free**, and a **recruiter
@@ -16,11 +20,14 @@ with no signup — that's the link for your résumé. When you're ready to charg
 `BETA_ALL_PREMIUM=false` (and set a hard `DEMO_ACCESS_TOKEN`); the master-link keeps
 working for recruiters. See **ENV_REFERENCE.md → Beta / launch switches**.
 
-**You are LIVE on the free tier** at `https://valuation-tool-h2hr.onrender.com`
-(master-link: `/demo/preview`). The daily hot list + Signals are populated by the
-**free-tier bridge** — GitHub Actions runs the heavy scans and pushes the results to
-the site (see **FREE_BRIDGE.md**). This page's Phases 1–2 below are the *free* track
-you're on now; Phases 3–8 are the *paid launch* you flip to later.
+**You are LIVE** at `https://valuation-tool-h2hr.onrender.com` (master-link:
+`/demo/preview`), now on **Render Starter + a persistent disk** — so the hot list,
+Signals, alert de-dupe, and the Track Record / paper account **persist and accrue**
+(they no longer reset on restart). The daily scans still run on the **free-tier bridge**
+(GitHub Actions computes them and pushes to the site — see **FREE_BRIDGE.md**), which
+keeps the heavy work off the web box. Remaining work is mostly Phase 0 (legal, to
+charge), email/domain polish (Phase 3), and Stripe (Phase 4) — all optional during the
+free beta.
 
 ---
 
@@ -57,7 +64,8 @@ requires buying anything. Set them, then Manual Deploy.
 | `TRADIER_TOKEN` + `TRADIER_ENV=live` | your Tradier token | **Real-time** quotes + option chains for Signals. Free with your brokerage account. No account number needed. |
 | `PUBLIC_BASE_URL` | `https://valuation-tool-h2hr.onrender.com` | Correct links in emails/redirects. |
 | `DEMO_ACCESS_TOKEN` | keep `preview` for now | Your résumé master-link (`/demo/<token>`). |
-| `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD` + `EMAIL_FROM` | your Zoho (optional) | Real password-reset + daily digest emails → feels like a finished product. |
+| `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD` + `EMAIL_FROM` | your Zoho (optional) | Real password-reset + daily digest + opt-in alert emails → feels like a finished product. |
+| `DISCORD_WEBHOOK_URL` | ✅ set | Posts the **daily top-10 digest** + **screaming-buy** alerts to your Discord channel. |
 
 *(`OWNER_EMAILS`, `BETA_MODE`, `BETA_ALL_PREMIUM` already default correctly — nothing to set.)*
 > Reference: **ENV_REFERENCE.md** (every setting explained).
@@ -85,9 +93,9 @@ So the hot list + Signals are pre-computed and already showing for everyone.
       `STRIPE_PRICE_PRO`, `STRIPE_PRICE_PREMIUM`, `STRIPE_PRICE_PRO_ANNUAL`,
       `STRIPE_PRICE_PREMIUM_ANNUAL` in `.env`. Start in **test mode**.
 
-## Phase 5 — Flip to the paid deploy (when you want it "real") · ~30 min · ~$8/mo
-You're on the free single-service deploy now. The paid flip removes cold starts,
-persists data, and runs the scans server-side (no GitHub Actions/keep-warm).
+## Phase 5 — Paid deploy · ~$8/mo · ✅ Starter + disk added
+Persistence is on — the hot list, Signals, alerts, and Track Record now survive
+restarts. Remaining optional steps:
 - [ ] Make sure **Auto-Deploy is ON** (Render → Settings) so pushes deploy themselves.
 - [ ] Render → **New → Blueprint** → pick the repo. `render.yaml` provisions the
       **Starter** web service + **1 GB disk** + generated secrets + the **daily hot-scan**
