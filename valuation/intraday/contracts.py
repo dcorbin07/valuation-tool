@@ -18,7 +18,8 @@ _CALL_DELTA = {"short": 40, "swing": 35, "position": 30}
 _SHORT_PUT_DELTA = {"short": 30, "swing": 25, "position": 20}
 
 
-def contract_idea(price: Optional[float], iv: Optional[float], horizon: str = "swing") -> Optional[dict]:
+def contract_idea(price: Optional[float], iv: Optional[float], horizon: str = "swing",
+                  direction: str = "bull") -> Optional[dict]:
     if not price or price <= 0:
         return None
     lo, hi = _DTE.get(horizon, _DTE["swing"])
@@ -27,16 +28,28 @@ def contract_idea(price: Optional[float], iv: Optional[float], horizon: str = "s
     em = price * ivv * (mid / 365.0) ** 0.5               # ~1-sigma move over ~mid DTE
     em_pct = em / price
     width = max(1.0, round(price * 0.05))                 # ~5%-wide spread, min $1
-    short_put = round(price - em, 2)                      # ~1-sigma OTM short put
-    long_put = round(short_put - width, 2)
+    cdelta = _CALL_DELTA.get(horizon, 35)
+    sdelta = _SHORT_PUT_DELTA.get(horizon, 25)
+    if direction == "bear":
+        short_call = round(price + em, 2)                 # ~1-sigma OTM short call
+        long_call = round(short_call + width, 2)
+        directional = f"~{cdelta}Δ put, ~{mid} DTE"
+        defined_risk = (f"Call credit spread: sell ~${short_call} call / buy ~${long_call} "
+                        f"(~${int(width)} wide), ~{mid} DTE")
+    else:
+        short_put = round(price - em, 2)                  # ~1-sigma OTM short put
+        long_put = round(short_put - width, 2)
+        directional = f"~{cdelta}Δ call, ~{mid} DTE"
+        defined_risk = (f"Put credit spread: sell ~${short_put} put / buy ~${long_put} "
+                        f"(~${int(width)} wide), ~{mid} DTE")
     return {
         "horizon": horizon,
+        "direction": direction,
         "dte_range": [lo, hi],
         "expected_move_pct": round(em_pct, 4),
         "expected_move_abs": round(em, 2),
-        "directional": f"~{_CALL_DELTA.get(horizon, 35)}Δ call, ~{mid} DTE",
-        "defined_risk": (f"Put credit spread: sell ~${short_put} put / buy ~${long_put} "
-                         f"(~${int(width)} wide), ~{mid} DTE"),
-        "note": (f"~1σ move ±{em_pct:.0%} over ~{mid} days; ~{_SHORT_PUT_DELTA.get(horizon, 25)}Δ "
-                 f"short strike. Guides only — confirm on the live chain."),
+        "directional": directional,
+        "defined_risk": defined_risk,
+        "note": (f"~1σ move ±{em_pct:.0%} over ~{mid} days; ~{sdelta}Δ short strike. "
+                 f"Guides only — confirm on the live chain."),
     }

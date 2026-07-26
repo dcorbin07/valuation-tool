@@ -264,6 +264,12 @@
         the day; Claude explains the top 10.</div>
       <div class="search-row" style="align-items:center">
         <button class="btn" onclick="runSignals()">↻ Refresh signals now</button>
+        <label class="opt" style="margin:0">Direction
+          <select id="sigDir" class="selin" onchange="renderSignals(STATE.signals)">
+            <option value="bull" selected>Bullish</option>
+            <option value="bear">Bearish</option>
+          </select>
+        </label>
         <label class="opt" style="margin:0">Horizon
           <select id="sigHorizon" class="selin" onchange="renderSignals(STATE.signals)">
             <option value="short">Short (3–5 wk)</option>

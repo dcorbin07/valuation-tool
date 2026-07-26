@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .technical import technical_signals
 from .options import options_signals
+from .bearish import bearish_technical
 
 W_TECH = 0.70
 W_OPT = 0.30
@@ -62,3 +63,31 @@ def _summary(score, labels) -> str:
                                              ("neutral" if score >= 45 else "weak"))
     lead = labels[0] if labels else "no standout pattern"
     return f"{strength.capitalize()} setup — {lead}" + (f" (+{len(labels) - 1} more)" if len(labels) > 1 else "")
+
+
+def evaluate_bearish(bars: dict, option_summary: dict | None = None, horizon: str = "swing") -> dict:
+    """Short-side mirror of evaluate(): bearish technicals + a put-heavy options read."""
+    tech = bearish_technical(bars)
+    if tech.get("score") is None:
+        return {"score": None, "labels": [], "detail": {}}
+    opt = options_signals(option_summary)
+    w_tech, w_opt = _HORIZON_WEIGHTS.get(horizon, _HORIZON_WEIGHTS["swing"])
+    opt_labels = []
+    if opt.get("available"):
+        pcr = (opt.get("detail") or {}).get("put_call_ratio")
+        opt_score = 50.0
+        if pcr is not None:
+            if pcr > 1.4:
+                opt_score = 65.0
+                opt_labels.append(f"Put-heavy flow (P/C {pcr:.2f})")
+            elif pcr < 0.7:
+                opt_score = 38.0
+        score = w_tech * tech["score"] + w_opt * opt_score
+    else:
+        score = tech["score"]
+    if horizon == "position" and tech.get("detail", {}).get("below_200dma"):
+        score += 3          # weight the durable downtrend more for a longer hold
+    score = max(0.0, min(100.0, score))
+    labels = list(tech["labels"]) + opt_labels
+    return {"score": round(float(score), 1), "labels": labels,
+            "detail": tech.get("detail", {}), "summary": _summary(score, labels)}

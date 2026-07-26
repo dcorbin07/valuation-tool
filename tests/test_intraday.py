@@ -32,6 +32,27 @@ def test_contract_idea_scales_with_horizon():
     assert contract_idea(None, 0.3, "swing") is None                # no price -> no idea
 
 
+def test_bearish_scores_downtrend():
+    from valuation.intraday.signals import evaluate_bearish
+    n = 260
+    down = {"close": [100.0 * (1 - 0.001 * i) for i in range(n)]}
+    down["high"] = [c * 1.01 for c in down["close"]]
+    down["low"] = [c * 0.99 for c in down["close"]]
+    down["volume"] = [1e6] * n
+    sb_down = evaluate_bearish(down, None, "swing")["score"]
+    sb_up = evaluate_bearish(_uptrend_bars(), None, "swing")["score"]
+    assert sb_down is not None and sb_down > 55        # a downtrend reads bearish
+    assert sb_down > sb_up                              # ...and more bearish than an uptrend
+
+
+def test_contract_direction():
+    from valuation.intraday.contracts import contract_idea
+    bull = contract_idea(100.0, 0.3, "swing", "bull")
+    bear = contract_idea(100.0, 0.3, "swing", "bear")
+    assert "call" in bull["directional"] and "Put credit spread" in bull["defined_risk"]
+    assert "put" in bear["directional"] and "Call credit spread" in bear["defined_risk"]
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

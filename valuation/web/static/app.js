@@ -546,17 +546,27 @@ function renderSignals(d) {
   if (!d) return;
   document.getElementById("sigMeta").textContent = "";
   document.getElementById("sigTime").textContent = d.run_time ? ("updated " + d.run_time) : "";
-  const hzEl = document.getElementById("sigHorizon");
-  const hz = (hzEl && hzEl.value) || "swing";
-  const scoreH = r => (r.detail && r.detail.scores && r.detail.scores[hz] != null) ? r.detail.scores[hz] : r.score;
-  // Re-rank by the chosen horizon's score.
-  const rows = (d.rows || []).slice().sort((a, b) => (scoreH(b) || 0) - (scoreH(a) || 0));
+  const hz = (document.getElementById("sigHorizon") || {}).value || "swing";
+  const dir = (document.getElementById("sigDir") || {}).value || "bull";
+  const bear = dir === "bear";
+  const scoreKey = bear ? "scores_bear" : "scores";
+  const contractKey = bear ? "contracts_bear" : "contracts";
+  const scoreH = r => {
+    const m = r.detail && r.detail[scoreKey];
+    return (m && m[hz] != null) ? m[hz] : (bear ? null : r.score);
+  };
+  const labelsFor = r => bear ? ((r.detail && r.detail.labels_bear) || []) : (r.labels || []);
+  // Re-rank by the chosen direction + horizon's score.
+  const rows = (d.rows || []).slice()
+    .filter(r => scoreH(r) != null)
+    .sort((a, b) => (scoreH(b) || 0) - (scoreH(a) || 0));
+  const label = (bear ? "bearish · " : "") + hz;
   let html = '<table><tr><th>#</th><th>Ticker</th><th class="num">Score</th><th>Setup / signals</th>' +
-    `<th>Contract idea (${hz})</th><th>AI read</th></tr>`;
+    `<th>Contract idea (${label})</th><th>AI read</th></tr>`;
   rows.forEach((r, i) => {
     const s = scoreH(r);
-    const badges = (r.labels || []).slice(0, 3).map(l => `<span class="pill est" style="margin:1px 2px">${l}</span>`).join(" ");
-    const c = (r.detail && r.detail.contracts && r.detail.contracts[hz]) || null;
+    const badges = labelsFor(r).slice(0, 3).map(l => `<span class="pill ${bear ? 'spec' : 'est'}" style="margin:1px 2px">${l}</span>`).join(" ");
+    const c = (r.detail && r.detail[contractKey] && r.detail[contractKey][hz]) || null;
     const cHtml = c
       ? `<div style="font-size:12px"><b>${c.directional}</b><br><span class="muted">${c.defined_risk}</span></div>`
       : '<span class="muted">—</span>';
@@ -564,7 +574,7 @@ function renderSignals(d) {
       <td class="num" style="font-weight:800;color:${scoreColor(s)}">${s == null ? '' : s.toFixed(0)}</td>
       <td style="max-width:240px">${badges}</td>
       <td style="max-width:270px">${cHtml}</td>
-      <td style="max-width:260px;font-size:12.5px" class="muted">${r.ai || r.summary || ''}</td></tr>`;
+      <td style="max-width:260px;font-size:12.5px" class="muted">${bear ? '' : (r.ai || r.summary || '')}</td></tr>`;
   });
   html += "</table>";
   document.getElementById("sigTable").innerHTML = html;

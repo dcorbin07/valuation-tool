@@ -14,7 +14,7 @@ from typing import Optional, Callable
 from ..config import CONFIG
 from ..screener.store import Store
 from .providers import get_provider
-from .signals import evaluate
+from .signals import evaluate, evaluate_bearish
 from .contracts import contract_idea, HORIZONS
 
 
@@ -42,7 +42,12 @@ def run_intraday(cfg=CONFIG, store: Optional[Store] = None, provider=None,
         iv = detail.get("opt_atm_iv")
         # Per-horizon scores (for the UI toggle to re-rank) + matching contract ideas.
         detail["scores"] = {h: per_h[h].get("score") for h in HORIZONS}
-        detail["contracts"] = {h: contract_idea(price, iv, h) for h in HORIZONS}
+        detail["contracts"] = {h: contract_idea(price, iv, h, "bull") for h in HORIZONS}
+        # Bearish (short-side) mirror for the Bull/Bear toggle.
+        bear_h = {h: evaluate_bearish(bars, opt, horizon=h) for h in HORIZONS}
+        detail["scores_bear"] = {h: bear_h[h].get("score") for h in HORIZONS}
+        detail["labels_bear"] = bear_h["swing"].get("labels", [])
+        detail["contracts_bear"] = {h: contract_idea(price, iv, h, "bear") for h in HORIZONS}
         rows.append({
             "ticker": t, "score": ev["score"], "labels": ev["labels"], "summary": ev["summary"],
             "price": price,
