@@ -194,9 +194,9 @@
         <input id="scanLimit" type="number" placeholder="limit (opt)" style="width:120px">
         <button class="btn secondary" onclick="runScan()">Run scan now</button>
       </div>
-      <div class="note">Reads the latest saved scan instantly. A full whole-market scan on the free feed is slow —
-        run <code>python -m valuation.screener.scan --whole-market</code> (or the daily job), then <b>Load latest</b>.
-        Set an <code>FMP_API_KEY</code> to make whole-market fast.</div>
+      <div class="note">Shows the latest saved scan instantly — it's generated automatically each morning by the
+        background job, so you never wait on it. "Run scan now" triggers an on-demand scan of the selected universe
+        (slower, mainly for testing).</div>
     </div>
     <div class="loader" id="hotLoader"><div class="spinner"></div><div id="hotLoadMsg">Scanning…</div></div>
     <div class="err" id="hotErr"></div>

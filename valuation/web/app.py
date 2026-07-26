@@ -173,9 +173,10 @@ def api_hotstocks():
     scan_date = st.latest_scan_date()
     if not scan_date:
         return jsonify({"empty": True,
-                        "message": "No scan yet. Run one from here (small universe) or, for the whole "
-                                   "market, run `python -m valuation.screener.scan --whole-market` "
-                                   "and/or schedule it weekly."})
+                        "message": "The daily hot list hasn't loaded into this site yet — it's generated "
+                                   "automatically by the background scan and then shows here instantly. If it "
+                                   "stays empty after a scan has run, the site needs a persistent disk to keep "
+                                   "the results between restarts."})
     import json as _json
     rows = st.load_snapshot(scan_date, top=top)
     all_rows = st.load_snapshot(scan_date)
