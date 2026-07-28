@@ -7,6 +7,17 @@
 <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  /* Applied before first paint so a dark-mode user never sees a white flash.
+     Stored choice wins; with no stored choice we follow the OS preference. */
+  (function () {
+    try {
+      var t = localStorage.getItem("valquo-theme");
+      if (!t) t = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      document.documentElement.setAttribute("data-theme", t);
+    } catch (e) { }
+  })();
+</script>
 </head>
 <body>
 {% include "_beta_banner.html" %}
@@ -35,6 +46,12 @@
         <h1>Valquo</h1>
         <div class="tagline">Live-data DCF · bull / base / bear · 1–100 opportunity score · AI analysis</div>
       </div>
+    </div>
+    <div class="hdr-actions">
+      <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Switch between light and dark"
+              aria-label="Toggle dark mode">🌙</button>
+      <a class="hdr-link" href="{{ feedback_url }}">Send feedback</a>
+      {% if signed_in %}<a class="hdr-link" href="{{ logout_url }}">Sign out</a>{% endif %}
     </div>
     <div class="tabs">
       <button class="tab active" data-tab="single" onclick="switchTab('single')">Single valuation</button>
@@ -110,6 +127,7 @@
       <!-- 2. Fair value & scenarios -->
       <div class="card">
         <h3>Fair value &amp; scenarios</h3>
+        <div id="fvMethod"></div>
         <div class="rangebar" id="rangebar"></div>
         <div class="grid3" id="scenarioCards" style="margin-top:14px"></div>
       </div>
@@ -117,6 +135,10 @@
       <!-- 3. Opportunity score breakdown -->
       <div class="card">
         <h3>Opportunity score breakdown</h3>
+        <div class="note" style="margin-top:0">Two different lenses: this <b>1–100 opportunity score</b> is an
+          <b>absolute</b> read on this one company against its own fundamentals and fair value, while the
+          <b>Hot score</b> on the Hot stocks tab is a <b>relative rank</b> against every other name in that scan.
+          A stock can score well here and rank mid-pack there, or the reverse — they're answering different questions.</div>
         <div class="section-hint" id="scoreHint"></div>
         <div id="scoreBars"></div>
         <div class="note" style="margin-top:12px;line-height:1.7">
@@ -331,6 +353,20 @@
   {% endif %}
 
 </div>
+
+<footer class="site">
+  <div class="wrap">
+    <div>
+      <b>Valquo</b> — built by Donovan Corbin.
+      <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>
+    </div>
+    <div class="sp"></div>
+    <div><a href="{{ feedback_url }}">Send feedback</a></div>
+    <div><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></div>
+    <div class="muted" style="width:100%">Educational tool, not investment advice. Fair value is a model
+      output, not a price target — verify against primary filings before making decisions.</div>
+  </div>
+</footer>
 
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>

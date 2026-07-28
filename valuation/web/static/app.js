@@ -23,8 +23,28 @@ function switchTab(t) {
   if (t !== "signals") stopSigAuto();
 }
 
+/* ---------- theme ----------
+   The initial theme is applied by an inline script in <head> (before first paint, so
+   there's no white flash). This only handles toggling and persistence. */
+function currentTheme() {
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+}
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  try { localStorage.setItem("valquo-theme", t); } catch (e) { }
+  const b = document.getElementById("themeBtn");
+  if (b) {
+    b.textContent = t === "dark" ? "☀" : "🌙";
+    b.title = t === "dark" ? "Switch to light mode" : "Switch to dark mode";
+  }
+  // Charts bake their colours in at construction, so redraw with the new palette.
+  if (STATE.data) { try { render(STATE.data); } catch (e) { } }
+}
+function toggleTheme() { applyTheme(currentTheme() === "dark" ? "light" : "dark"); }
+
 /* ---------- init ---------- */
 window.addEventListener("load", () => {
+  applyTheme(currentTheme());        // sync the button icon with the applied theme
   const chips = document.getElementById("chips");
   chips.innerHTML = '<span class="muted" style="font-size:12px">Try:</span>';
   EXAMPLES.forEach(t => {
@@ -153,15 +173,23 @@ function render(d) {
     (c.cash_runway_years != null ? `<span class="badge ${c.cash_runway_years >= 4 ? 'g' : 'r'}">Runway: ${c.cash_runway_years.toFixed(1)}y</span>` : "") +
     (c.next_earnings_date ? `<span class="badge a">📅 Earnings ${_earnLabel(c.next_earnings_date)}</span>` : "");
 
-  // hero metrics
+  // hero metrics — a company the DCF can't value shows so explicitly, never a
+  // negative "fair value" (which reads as precision the model doesn't have).
   const up = d.upside;
+  const fvb = d.fair_value_blend || {};
+  const notValuable = (d.base_fair_value == null && fvb.valuable === false);
+  const fvCell = notValuable
+    ? `<span class="nv">Not DCF-valuable</span>`
+    : `<span style="color:var(--navy)">${money(d.base_fair_value)}</span>`;
   document.getElementById("heroMetrics").innerHTML =
     metric("Price", money(c.price)) +
-    metric("Base fair value", `<span style="color:var(--navy)">${money(d.base_fair_value)}</span>`) +
-    metric("Upside", `<span class="${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</span>`) +
+    metric(notValuable ? "Fair value" : "Base fair value", fvCell) +
+    metric("Upside", notValuable ? '<span class="muted">n/a</span>'
+      : `<span class="${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</span>`) +
     metric("WACC", pct(d.wacc.wacc));
 
   gauge(score.score, score.recommendation, score.confidence);
+  fairValueMethod(fvb, d);
   rangebar(sc.bear_price, sc.base_price, sc.bull_price, c.price);
   scenarioCards(sc, c.price);
   fcfChart(sc.base.rows);
@@ -197,6 +225,32 @@ function gauge(s, rec, conf) {
     </div>
     <div class="rec" style="color:${col};margin-top:44px">${rec}</div>
     <div class="conf">confidence: ${conf}</div>`;
+}
+
+/* ---------- how the fair value was reached ----------
+   Which lenses were used and in what mix, so the number is never a black box. */
+function fairValueMethod(fvb, d) {
+  const el = document.getElementById("fvMethod");
+  if (!el) return;
+  if (!fvb || fvb.method === undefined) { el.innerHTML = ""; return; }
+  let html = "";
+  if (fvb.valuable === false) {
+    html = `<div class="nv-box"><b>Not DCF-valuable.</b> ${fvb.reason || ""}</div>`;
+  } else {
+    const lens = Object.entries(fvb.lenses || {})
+      .map(([k, v]) => `${k === "dcf" ? "DCF" : (k === "pb_roe" ? "P/B–ROE" : "multiples")} ${money(v.value)}`)
+      .join(" · ");
+    html = `<div class="note" style="margin-top:0">Valued as <b>${fvb.method}</b>` +
+      (lens ? ` — ${lens}.` : ".") +
+      ` <span class="muted">The mix adapts to the company: cash-generative businesses lean on the
+        DCF, growth and pre-profit names on multiples, banks on book value and ROE.</span></div>`;
+    if (d && d.dcf_per_share != null && fvb.dcf_meaningful === false) {
+      html += `<div class="note">The raw DCF returns ${money(d.dcf_per_share)} here, which is why it's
+        excluded rather than averaged in.</div>`;
+    }
+  }
+  (fvb.notes || []).forEach(n => { html += `<div class="note">${n}</div>`; });
+  el.innerHTML = html;
 }
 
 /* ---------- scenario range bar ---------- */

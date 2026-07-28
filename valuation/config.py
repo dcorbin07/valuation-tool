@@ -143,6 +143,22 @@ class Config:
     # Owner accounts get permanent free Premium (comma-separated emails).
     owner_emails: str = field(default_factory=lambda: _get("OWNER_EMAILS", "donniecorbin6@gmail.com"))
 
+    # Public contact shown in the footer / about, and where "Send feedback" points.
+    # Both are env-overridable so the address can change without a code edit; the
+    # feedback link defaults to a mailto: on the contact address (no form to host).
+    contact_email: str = field(default_factory=lambda: _get("CONTACT_EMAIL", "donovan.corbin@valquo.co"))
+    feedback_url: str = field(default_factory=lambda: _get("FEEDBACK_URL", ""))
+
+    @property
+    def resolved_feedback_url(self) -> str:
+        """An explicit FEEDBACK_URL (e.g. a Google Form) wins; otherwise a prefilled
+        mailto: to the contact address, which needs nothing hosted."""
+        if self.feedback_url.strip():
+            return self.feedback_url.strip()
+        return (f"mailto:{self.contact_email}"
+                "?subject=Valquo%20feedback&body=What%20were%20you%20doing%3F%0A%0A"
+                "What%20did%20you%20expect%3F%0A%0AWhat%20happened%3F%0A")
+
     # ------------------------------------------------------------------ #
     # Beta launch switches. While True, the product is "everything unlocked,
     # free" so early users and recruiters get the full thing. Flip these to

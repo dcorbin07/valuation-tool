@@ -239,8 +239,13 @@ def create_saas_app(cfg=CONFIG):
         if not u:
             return redirect("/login?next=/app")
         is_owner = u.get("email", "").strip().lower() in cfg.owner_email_set
+        # signed_in drives the Sign out control — on the SaaS path a user is always
+        # authenticated here (unauthenticated requests were redirected above).
         return render_template("index.html", ai_enabled=cfg.ai_enabled,
-                               ai_provider=cfg.resolved_ai_provider, is_owner=is_owner)
+                               ai_provider=cfg.resolved_ai_provider, is_owner=is_owner,
+                               signed_in=True, logout_url="/logout",
+                               contact_email=cfg.contact_email,
+                               feedback_url=cfg.resolved_feedback_url)
 
     @app.route("/pricing")
     def pricing():

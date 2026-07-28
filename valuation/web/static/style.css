@@ -171,3 +171,75 @@ code{background:#f0f3f9;padding:1px 6px;border-radius:5px;font-size:12.5px;color
 /* ---- fair-value estimate marker (Hot stocks) ---- */
 .est-mark{display:inline-block;margin-left:2px;font-size:10px;font-weight:700;color:var(--muted);
   vertical-align:super;cursor:help}
+
+/* ======================= "not DCF-valuable" ======================= */
+/* A company the model genuinely can't value says so, rather than printing a
+   negative number that reads like precision the model doesn't have. */
+.nv{color:var(--muted);font-weight:700;font-size:15px}
+.nv-box{background:var(--amber-soft);border:1px solid var(--border);border-left:3px solid var(--amber);
+  color:var(--ink);padding:11px 14px;border-radius:10px;font-size:13.5px;line-height:1.6;margin-bottom:12px}
+
+/* ======================= Dark mode ======================= */
+/* Almost entirely a re-declaration of the custom properties above, plus targeted
+   overrides for the few components that hard-code a light colour. The toggle sets
+   data-theme on <html> and persists it; first visit follows the OS preference. */
+:root[data-theme="dark"]{
+  --bg:#0e131b; --card:#161d28; --ink:#e6ebf3; --muted:#98a4b6; --faint:#6d7a8c;
+  --navy:#9dc0f5; --blue:#7aa7ea; --blue-soft:#1b2636;
+  --green:#4cc281; --green-soft:#14301f; --amber:#e0a24a; --amber-soft:#33270f;
+  --red:#ec6f65; --red-soft:#331b19; --border:#26313f;
+  --shadow:0 1px 3px rgba(0,0,0,.40),0 6px 24px rgba(0,0,0,.30);
+}
+/* --navy doubles as heading text AND the primary button fill; on dark it has to be
+   light for text, so the button takes an explicit darker fill to keep white legible. */
+:root[data-theme="dark"] header{background:linear-gradient(120deg,#111a29,#1b2c48)}
+:root[data-theme="dark"] .btn{background:#2f5fa6;color:#fff}
+:root[data-theme="dark"] .btn.secondary{background:var(--blue-soft);color:var(--navy)}
+:root[data-theme="dark"] .selin,
+:root[data-theme="dark"] input,
+:root[data-theme="dark"] textarea{background:var(--card);color:var(--ink);border-color:var(--border)}
+:root[data-theme="dark"] .chip:hover{background:#243349}
+:root[data-theme="dark"] code{background:#1d2635;color:var(--navy)}
+:root[data-theme="dark"] .warn,
+:root[data-theme="dark"] .verdict.bad{background:var(--amber-soft);color:#f0c98a;border-color:#4a3818}
+:root[data-theme="dark"] .rangebar .pt .dot{border-color:var(--card);box-shadow:0 0 0 1px var(--border)}
+:root[data-theme="dark"] .hm td{background:transparent !important;color:var(--ink)}
+:root[data-theme="dark"] table th{color:var(--muted)}
+:root[data-theme="dark"] ::placeholder{color:var(--faint)}
+
+/* Theme toggle + header actions */
+.hdr-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.icon-btn{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.18);
+  width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:15px;line-height:1;
+  display:grid;place-items:center;transition:background .15s}
+.icon-btn:hover{background:rgba(255,255,255,.22)}
+.hdr-link{color:#cdd8ee;font-size:13px;font-weight:600;padding:7px 12px;border-radius:9px;
+  border:1px solid rgba(255,255,255,.18);cursor:pointer;background:transparent}
+.hdr-link:hover{background:rgba(255,255,255,.14);color:#fff}
+.brand{flex:1}
+header .wrap{display:flex;flex-wrap:wrap;align-items:flex-start}
+header .wrap > .tabs{width:100%}
+
+/* ======================= Footer ======================= */
+footer.site{border-top:1px solid var(--border);margin-top:48px;padding:26px 0 40px;color:var(--muted);font-size:13px}
+footer.site .wrap{padding-bottom:0;display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center}
+footer.site a{color:var(--blue);font-weight:600}
+footer.site .sp{flex:1}
+
+/* ======================= Visual polish ======================= */
+/* Softer elevation, calmer motion, and a consistent radius rhythm. */
+.card{transition:box-shadow .18s ease, transform .18s ease}
+.card:hover{box-shadow:0 1px 3px rgba(20,30,60,.10),0 10px 30px rgba(20,30,60,.10)}
+.btn{transition:filter .15s ease, transform .08s ease}
+.btn:active{transform:translateY(1px)}
+.tab{transition:background .15s ease, color .15s ease}
+.tab:hover:not(.active){background:rgba(255,255,255,.10);color:#fff}
+table{border-collapse:collapse}
+table tbody tr{transition:background .12s ease}
+table tbody tr:hover{background:var(--blue-soft)}
+.search-card,.card{border:1px solid var(--border)}
+@media (max-width:640px){
+  .hdr-actions{margin-left:0;width:100%;justify-content:flex-end;margin-top:8px}
+  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tab{white-space:nowrap}
+}

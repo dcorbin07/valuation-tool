@@ -145,6 +145,90 @@ def test_pipeline_serializable():
     assert r.ai is not None and "overall_take" in r.ai
 
 
+def _unprofitable(revenue=55.0, price=8.0, total_debt=10.0, cash=30.0):
+    """An RCAT-like name: real revenue, deeply negative EBIT/FCF -> the DCF goes negative.
+
+    Note the DCF still floors at net cash, so to exercise the genuinely-not-valuable
+    path a caller must ALSO make net debt positive (debt > cash) and strip revenue.
+    """
+    from valuation.data.models import CompanyData
+    return CompanyData(
+        ticker="RCAT", name="Unprofitable Co", sector="Industrials",
+        industry="Aerospace & Defense", currency="USD", price=price, shares_diluted=90.0,
+        market_cap=price * 90.0, beta=2.2, revenue=revenue, ebit=-40.0,
+        gross_profit=(11.0 if revenue else 0.0), net_income=-45.0, effective_tax_rate=0.0,
+        da=3.0, capex=5.0, total_debt=total_debt, cash_sti=cash, interest_expense=1.0,
+        invested_capital=60.0, fcf=-38.0, total_equity=70.0,
+        fiscal_years=[2025, 2024, 2023],
+        revenue_history=([revenue, 17.0, 9.0] if revenue else [0.0, 0.0, 0.0]),
+        ebit_history=[-40.0, -30.0, -20.0], ebit_margin_history=[-0.73, -1.76, -2.2],
+        ma_200=9.0, ret_6m=-0.2, ret_1m=-0.05, price_52w_high=15.0, price_52w_low=5.0,
+        risk_free_rate=0.043)
+
+
+def test_blend_favours_dcf_for_established_profitable():
+    """A mature, profitable name should lean on the DCF, not the multiples."""
+    r = value_from_company(build_nike(), CONFIG, mc_trials=300)
+    b = r.fair_value_blend
+    assert b.valuable and b.value > 0
+    assert b.p_established > 0.7, b.p_established
+    assert b.lenses["dcf"]["weight"] > b.lenses["multiples"]["weight"], b.lenses
+    # Headline sits between the two lenses it blended.
+    lo, hi = sorted([r.dcf_per_share, r.comps.comps_fair_value])
+    assert lo <= b.value <= hi
+
+
+def test_blend_favours_multiples_for_cash_burning_growth():
+    r = value_from_company(build_growth(), CONFIG, mc_trials=300)
+    b = r.fair_value_blend
+    assert b.valuable
+    assert b.p_established < 0.3, b.p_established
+    assert b.lenses["multiples"]["weight"] > 0.8, b.lenses
+
+
+def test_negative_dcf_is_dropped_not_averaged():
+    """The RCAT bug: a negative DCF must never reach the headline figure."""
+    r = value_from_company(_unprofitable(), CONFIG, mc_trials=300)
+    b = r.fair_value_blend
+    assert r.dcf_per_share < 0, "fixture should produce a negative DCF"
+    assert b.dcf_meaningful is False
+    assert "dcf" not in b.lenses, "a negative DCF must be dropped from the blend"
+    assert b.valuable and b.value > 0, "revenue is present, so multiples should carry it"
+    assert r.base_fair_value > 0, "headline must never be negative"
+
+
+def test_dcf_still_floors_at_net_cash_when_revenue_is_gone():
+    """Sanity boundary: no revenue but MORE cash than debt is genuinely worth its net
+    cash, so we should still publish that rather than refuse."""
+    r = value_from_company(_unprofitable(revenue=0.0), CONFIG, mc_trials=300)
+    assert r.base_fair_value is not None and r.base_fair_value > 0
+
+
+def test_not_valuable_when_no_lens_applies():
+    """No profit, no revenue AND net debt -> refuse to publish a number, and say why."""
+    r = value_from_company(_unprofitable(revenue=0.0, total_debt=200.0, cash=10.0),
+                           CONFIG, mc_trials=300)
+    b = r.fair_value_blend
+    assert b.valuable is False
+    assert b.value is None
+    assert r.base_fair_value is None, "must not fall back to the negative DCF"
+    assert r.upside is None
+    assert "not dcf-valuable" in b.reason.lower() or "not valuable" in b.reason.lower(), b.reason
+    assert b.reason in r.warnings, "the reason should surface as a warning"
+    # A score is still produced (valuation sub-score just drops out).
+    assert 1 <= r.score.score <= 100
+
+
+def test_blend_serializes_for_the_api():
+    r = value_from_company(build_nike(), CONFIG, mc_trials=200)
+    d = r.to_dict()
+    import json
+    json.loads(json.dumps(d))                       # must be JSON-clean
+    assert d["fair_value_blend"]["method"]
+    assert d["dcf_per_share"] is not None
+    assert d["base_fair_value"] == r.fair_value_blend.value
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

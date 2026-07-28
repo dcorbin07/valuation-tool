@@ -37,11 +37,23 @@ class ValuationResult:
     comps: CompsResult
     sensitivity: SensitivityResult
     score: ScoreResult
+    fair_value_blend: Optional[object] = None      # FairValueBlend (archetype-adaptive)
     ai: Optional[dict] = None
     warnings: list = field(default_factory=list)
 
     @property
     def base_fair_value(self) -> Optional[float]:
+        """The headline fair value: the archetype-adaptive blend when it applies, else
+        the raw DCF. None means genuinely not valuable — callers must not fall back to
+        the DCF's (negative) number, which is the bug this replaced."""
+        b = self.fair_value_blend
+        if b is not None:
+            return b.value if b.valuable else None
+        return self.scenarios.base.per_share
+
+    @property
+    def dcf_per_share(self) -> Optional[float]:
+        """The unblended DCF figure, kept for the scenario range and diagnostics."""
         return self.scenarios.base.per_share
 
     @property
@@ -65,7 +77,10 @@ class ValuationResult:
             "sensitivity": self.sensitivity.to_dict(),
             "score": self.score.to_dict(),
             "ai": self.ai,
+            "fair_value_blend": (self.fair_value_blend.to_dict()
+                                 if self.fair_value_blend is not None else None),
             "base_fair_value": self.base_fair_value,
+            "dcf_per_share": self.dcf_per_share,
             "upside": self.upside,
             "warnings": self.warnings,
             "sources": self.company.sources,
@@ -118,13 +133,26 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
     comps = compute_comps(cd, peers=peers,
                           fetch_fn=(lambda p: fetcher.get_company(p, cfg)) if peers else None)
     sens = build_sensitivity(cd, base, wacc_value)
-    score = compute_score(cd, cls, wacc_value, scenarios.base.per_share, mc, comps)
+
+    # Archetype-adaptive headline value: DCF for established/profitable names, multiples
+    # for growth/pre-profit ones, P/B-ROE for financials — and nothing at all rather than
+    # a negative DCF figure when no lens genuinely applies.
+    from .blend import blended_fair_value
+    blend = blended_fair_value(cd, cls, scenarios.base.per_share,
+                               comps.comps_fair_value, reverse=rev)
+
+    # Score against the SAME number the user is shown, so the valuation sub-score and the
+    # headline can't disagree. compute_score already tolerates None (it renormalizes).
+    score = compute_score(cd, cls, wacc_value,
+                          blend.value if blend.valuable else None, mc, comps)
 
     result = ValuationResult(
         company=cd, classification=cls, wacc=wacc, assumptions=base, scenarios=scenarios,
         montecarlo=mc, reverse=rev, comps=comps, sensitivity=sens, score=score,
-        warnings=list(cd.quality_notes),
+        fair_value_blend=blend, warnings=list(cd.quality_notes),
     )
+    if not blend.valuable and blend.reason:
+        result.warnings.insert(0, blend.reason)
 
     # Loud, top-of-list warning when the model output is implausible vs the price —
     # this is the tell for a data problem (e.g. an ADR's currency/share mismatch).
