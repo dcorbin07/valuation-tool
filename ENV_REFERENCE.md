@@ -34,6 +34,7 @@ each item when you actually need the feature it unlocks.
 |---|---|---|
 | `PUBLIC_BASE_URL` | after the first deploy — set it to your site URL (e.g. `https://valuation-tool.onrender.com`) | Render shows the URL after deploy |
 | `FMP_API_KEY` | you want fast whole-market scans | financialmodelingprep.com (~$22/mo) |
+| `FMP_BACKTEST_API_KEY` | optional — a *second* FMP key used only by the backtest exporters (`export_grades`). The live hot-list scan (22:23 UTC) and the grades export share `FMP_API_KEY`, so on the free tier a big export can eat the quota the scan needs. A second free account is enough to keep the two apart. Falls back to `FMP_API_KEY` when unset. | financialmodelingprep.com |
 | `TRADIER_TOKEN` | you want real-time intraday **Signals** | your Tradier account → API access token |
 | `TRADIER_ENV` | with Tradier | `sandbox` (delayed) or `live` (real-time) |
 | `EDGE_DATA_PROVIDER` | research data source | `free` (default), `sharadar`, or `wrds` |

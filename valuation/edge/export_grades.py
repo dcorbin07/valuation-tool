@@ -138,10 +138,17 @@ def main(argv=None):
     ap.add_argument("--sleep", type=float, default=0.0, help="seconds between calls")
     a = ap.parse_args(argv)
 
-    key = CONFIG.fmp_api_key
+    # Prefer a dedicated research key so a big export can't eat the daily allowance the
+    # live 22:23 UTC hot-list scan needs. Falls back to the main key when unset.
+    key = CONFIG.resolved_fmp_backtest_key
     if not key:
         print("No FMP_API_KEY set.")
         return 1
+    if CONFIG.fmp_backtest_api_key.strip():
+        print("Using the dedicated backtest FMP key (separate quota from the live scan).")
+    else:
+        print("Note: using the SAME FMP key as the live hot-list scan (22:23 UTC).\n"
+              "      Set FMP_BACKTEST_API_KEY to give the backtest its own quota.")
 
     if a.tickers.strip():
         tickers = [t.strip().upper() for t in a.tickers.split(",") if t.strip()]

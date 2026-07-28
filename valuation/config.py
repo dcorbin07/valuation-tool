@@ -143,6 +143,18 @@ class Config:
     # Owner accounts get permanent free Premium (comma-separated emails).
     owner_emails: str = field(default_factory=lambda: _get("OWNER_EMAILS", "donniecorbin6@gmail.com"))
 
+    # Optional SECOND FMP key used only by the backtest exporters.
+    #
+    # The live hot-list scan and the grades export both hit FMP, and on the free tier a
+    # big export can eat the daily allowance the 22:23 UTC scan needs. Setting
+    # FMP_BACKTEST_API_KEY (a second free account is enough) gives the research side its
+    # own quota so the two can never starve each other. Falls back to the main key.
+    fmp_backtest_api_key: str = field(default_factory=lambda: _get("FMP_BACKTEST_API_KEY", ""))
+
+    @property
+    def resolved_fmp_backtest_key(self) -> str:
+        return self.fmp_backtest_api_key.strip() or self.fmp_api_key
+
     # Public contact shown in the footer / about, and where "Send feedback" points.
     # Both are env-overridable so the address can change without a code edit; the
     # feedback link defaults to a mailto: on the contact address (no form to host).
