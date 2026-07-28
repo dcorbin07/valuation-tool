@@ -53,6 +53,79 @@ def test_contract_direction():
     assert "put" in bear["directional"] and "Call credit spread" in bear["defined_risk"]
 
 
+# ----------------------------- options exit rule -----------------------------
+def _flat_then(move_pct, n_pre=80, n_post=200, start=100.0):
+    """80 quiet bars (so realized vol is defined) then a decisive step to start*(1+move_pct).
+
+    The step is deliberately far beyond the ~12% 1-sigma band at iv=0.30/swing, so the
+    target or stop is unambiguously crossed and the test isn't sitting on a boundary.
+    """
+    pre = [start * (1 + 0.001 * ((i % 5) - 2)) for i in range(n_pre)]   # tiny wiggle
+    post = [start * (1 + move_pct)] * n_post
+    return pre + post
+
+
+def test_options_exit_take_profit_fires_first():
+    from valuation.edge.options_exit import simulate_exit
+    closes = _flat_then(+0.40)                      # strong rally after entry
+    e = simulate_exit(closes, entry_idx=79, horizon="swing", direction="bull", iv=0.30)
+    assert e["outcome"] == "take_profit", e["outcome"]
+    assert e["signal_return"] > 0
+    assert e["exit_idx"] > e["entry_idx"]
+    assert e["bars_held"] <= round(e["dte"] * 252 / 365) + 1
+
+
+def test_options_exit_stop_loss_fires_first():
+    from valuation.edge.options_exit import simulate_exit
+    closes = _flat_then(-0.40)                      # sharp decline after entry
+    e = simulate_exit(closes, entry_idx=79, horizon="swing", direction="bull", iv=0.30)
+    assert e["outcome"] == "stop_loss", e["outcome"]
+    assert e["signal_return"] < 0
+
+
+def test_options_exit_time_stop_when_nothing_triggers():
+    from valuation.edge.options_exit import simulate_exit
+    closes = [100.0] * 400                          # dead flat: never hits +/-1 sigma
+    e = simulate_exit(closes, entry_idx=79, horizon="swing", direction="bull", iv=0.30)
+    assert e["outcome"] == "time_stop", e["outcome"]
+    assert abs(e["signal_return"]) < 1e-9
+    assert e["bars_held"] == round(e["dte"] * 252 / 365)
+
+
+def test_options_exit_bearish_profits_on_a_fall():
+    from valuation.edge.options_exit import simulate_exit
+    closes = _flat_then(-0.40)
+    e = simulate_exit(closes, entry_idx=79, horizon="swing", direction="bear", iv=0.30)
+    assert e["outcome"] == "take_profit", e["outcome"]
+    assert e["signal_return"] > 0, "a bearish signal should profit when price falls"
+    assert e["underlying_return"] < 0
+
+
+def test_options_exit_vol_fallback_is_strictly_pre_entry():
+    """Direct no-look-ahead check: mutating bars AFTER the entry must not move the vol."""
+    from valuation.edge.options_exit import realized_vol
+    closes = _flat_then(+0.40)
+    v_before = realized_vol(closes, end_idx=79)
+    tampered = list(closes)
+    for i in range(79, len(tampered)):            # violent post-entry noise
+        tampered[i] = 100.0 * (3.0 if i % 2 else 0.4)
+    v_after = realized_vol(tampered, end_idx=79)
+    assert v_before is not None and v_before > 0
+    assert v_after == v_before, "realized_vol must ignore everything at/after entry_idx"
+
+
+def test_options_exit_summary_shapes():
+    from valuation.edge.options_exit import simulate_exit, summarize_exits
+    ex = [simulate_exit(_flat_then(+0.40), 79, iv=0.30),
+          simulate_exit(_flat_then(-0.40), 79, iv=0.30),
+          simulate_exit([100.0] * 400, 79, iv=0.30)]
+    s = summarize_exits(ex)
+    assert s["n"] == 3
+    assert set(s["by_outcome"]) == {"take_profit", "stop_loss", "time_stop"}
+    assert abs(s["take_profit_rate"] - 1 / 3) < 1e-9
+    assert summarize_exits([])["n"] == 0
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
@@ -69,3 +142,4 @@ def _run_all():
 
 if __name__ == "__main__":
     sys.exit(0 if _run_all() else 1)
+

@@ -405,6 +405,89 @@ def test_inst_lag_grid_crosses_quarter_boundary():
     assert min(INST_LAG_GRID) < 45, "need a sub-45d lag to test for look-ahead bias"
 
 
+def _index_rows(n=300, seed=4):
+    import random
+    rng = random.Random(seed)
+    caps = [2e9, 6e9, 15e9, 40e9, 200e9]
+    return [{"ticker": f"T{i:03d}", "name": f"Co {i}",
+             "sector": ["Tech", "Health", "Energy"][i % 3], "rank": i + 1,
+             "hot_score": rng.uniform(1, 100), "price": 50.0,
+             "market_cap": caps[i % len(caps)]} for i in range(n)]
+
+
+def test_valquo_index_is_top_decile_large_cap():
+    from valuation.edge.valquo_index import build_index, LARGE_CAP_MIN
+    ix = build_index(_index_rows())
+    assert ix["criteria"]["tilt"] == "large-cap only"
+    assert all(p["market_cap"] >= LARGE_CAP_MIN for p in ix["positions"]), "large-cap tilt must bind"
+    # ~a decile of the eligible cohort, and ranked by hot score.
+    assert abs(ix["n_positions"] - round(ix["n_eligible"] * 0.10)) <= 1
+    hs = [p["hot_score"] for p in ix["positions"]]
+    assert hs == sorted(hs, reverse=True)
+    # It must be the TOP decile, not any decile.
+    all_large = [r["hot_score"] for r in _index_rows() if r["market_cap"] >= LARGE_CAP_MIN]
+    assert min(hs) >= sorted(all_large, reverse=True)[len(hs) - 1] - 1e-9
+
+
+def test_valquo_index_weights_sum_and_cap():
+    from valuation.edge.valquo_index import build_index, MAX_WEIGHT
+    ix = build_index(_index_rows())
+    w = [p["weight"] for p in ix["positions"]]
+    assert abs(sum(w) - 1.0) < 1e-3, sum(w)
+    assert max(w) <= MAX_WEIGHT + 1e-9, max(w)
+    assert all(x > 0 for x in w)
+    eq = build_index(_index_rows(), weighting="equal")
+    ew = [p["weight"] for p in eq["positions"]]
+    assert max(ew) - min(ew) < 1e-9, "equal weighting should be flat"
+
+
+def test_valquo_index_cap_is_feasible_on_a_small_book():
+    """With few positions an 8% cap can't sum to 100%, so the effective cap must relax
+    to equal weight instead of the redistribution loop silently overshooting it."""
+    from valuation.edge.valquo_index import build_index
+    rows = [{"ticker": f"L{i}", "name": "x", "sector": "Tech", "rank": i + 1,
+             "hot_score": 100 - i * 2, "price": 10.0, "market_cap": 5e10} for i in range(43)]
+    ix = build_index(rows)
+    n = ix["n_positions"]
+    w = [p["weight"] for p in ix["positions"]]
+    cap = ix["criteria"]["effective_max_weight"]
+    assert n == 10, n
+    assert abs(sum(w) - 1.0) < 1e-3, sum(w)
+    assert max(w) <= cap + 1e-6, (max(w), cap)
+    assert cap >= 1.0 / n - 1e-9, "cap must be at least equal weight to be reachable"
+
+
+def test_valquo_index_degrades_without_market_caps():
+    """A scan with no market caps must say so rather than silently claim a large-cap book."""
+    from valuation.edge.valquo_index import build_index
+    rows = [{"ticker": f"S{i}", "name": "x", "sector": "Tech", "rank": i + 1,
+             "hot_score": 90 - i, "price": 10.0} for i in range(12)]
+    ix = build_index(rows)
+    assert ix["n_positions"] >= 10
+    assert "no market-cap data" in ix["criteria"]["tilt"]
+    assert abs(sum(p["weight"] for p in ix["positions"]) - 1.0) < 1e-3
+
+
+def test_valquo_index_export_writes_json(tmpdir=None):
+    import json
+    import tempfile
+    import os
+    from valuation.edge.valquo_index import export
+
+    class _St:
+        def latest_scan_date(self): return "2026-07-28"
+        def load_snapshot(self, d=None, top=None): return _index_rows()
+
+    path = os.path.join(tempfile.mkdtemp(), "valquo_index.json")
+    p = export(store=_St(), path=path)
+    assert os.path.exists(path)
+    on_disk = json.load(open(path, encoding="utf-8"))
+    assert on_disk["scan_date"] == "2026-07-28"
+    assert on_disk["n_positions"] == p["n_positions"] > 0
+    assert on_disk["generated_at"]
+    assert os.path.getsize(path) < 200_000, "index file should stay small"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

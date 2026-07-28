@@ -45,12 +45,29 @@ def _parse_overrides(src: dict) -> dict:
     return out
 
 
+@app.context_processor
+def _site_context():
+    """Site-wide template vars (footer contact, feedback link, theme).
+
+    Registered on the shared app object, so the SaaS blueprint inherits them too and a
+    render site that forgets to pass one still gets a working link rather than an empty
+    href. Explicit values passed to render_template() still take precedence.
+    """
+    return {"contact_email": CONFIG.contact_email,
+            "feedback_url": CONFIG.resolved_feedback_url,
+            "signed_in": False, "logout_url": "/logout"}
+
+
 @app.route("/")
 def index():
     # Standalone/local use = owner (no auth layer). The SaaS /app route overrides this.
+    # signed_in=False here because standalone has no auth, so there's nothing to sign out of.
     return render_template("index.html",
                            ai_enabled=CONFIG.ai_enabled,
-                           ai_provider=CONFIG.resolved_ai_provider, is_owner=True)
+                           ai_provider=CONFIG.resolved_ai_provider, is_owner=True,
+                           signed_in=False, logout_url="/logout",
+                           contact_email=CONFIG.contact_email,
+                           feedback_url=CONFIG.resolved_feedback_url)
 
 
 @app.route("/api/health")
