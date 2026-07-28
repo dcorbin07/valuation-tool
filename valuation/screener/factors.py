@@ -112,6 +112,8 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     df["neg_issuance"] = -_num("share_issuance")                        # capital discipline (hook)
     df["neg_asset_growth"] = -_num("asset_growth")                      # capital discipline (hook)
     df["earn_rev"] = _num("earnings_revision")                          # sentiment: estimate revisions (hook)
+    df["rating_rev"] = _num("rating_rev")                               # sentiment: net analyst upgrades-downgrades
+    df["neg_rating_disp"] = _num("neg_rating_disp")                     # sentiment: analyst agreement (already negated)
     df["neg_log_mktcap"] = -np.log(mc.where(mc > 0))                    # size: small-cap tilt
 
     # Sector-neutral: judge each number against its sector peers, not the whole market
@@ -157,7 +159,11 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
             df.loc[_mask, "momentum"] = _m[_mask] - _slope * _bc
     df["low_risk"] = df[["z_neg_beta", "z_neg_vol"]].mean(axis=1)
     df["capital_discipline"] = df[["z_neg_issuance", "z_neg_asset_growth"]].mean(axis=1)
-    df["sentiment"] = df["z_earn_rev"]
+    # Sentiment blends whichever inputs are present: estimate revisions (still a hook —
+    # no point-in-time source for them) and the analyst rating-action signals. .mean()
+    # skips NaNs, so a provider carrying only one of them still gets a usable theme, and
+    # a provider carrying none leaves it neutral exactly as before.
+    df["sentiment"] = df[["z_earn_rev", "z_rating_rev", "z_neg_rating_disp"]].mean(axis=1)
     df["size"] = df["z_neg_log_mktcap"]
     df["institutional"] = df["z_inst_accum"]        # 13F accumulation (backtest/hook; neutral live)
 

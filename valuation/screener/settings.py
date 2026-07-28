@@ -67,6 +67,10 @@ NUMBER_THEME = {
     "neg_beta": "low_risk", "neg_vol": "low_risk",
     "neg_issuance": "capital_discipline", "neg_asset_growth": "capital_discipline",
     "earn_rev": "sentiment", "neg_log_mktcap": "size", "inst_accum": "institutional",
+    # Analyst rating actions (FMP stable/grades) — dated, so point-in-time by construction.
+    # rating_rev = net upgrades-minus-downgrades over a trailing quarter; neg_rating_disp
+    # penalizes analysts being split (disagreement = uncertainty).
+    "rating_rev": "sentiment", "neg_rating_disp": "sentiment",
 }
 NUMBERS_ALL = list(NUMBER_THEME.keys())
 
