@@ -59,8 +59,18 @@ def company_to_metrics(cd, quote: Optional[dict] = None) -> dict:
         "net_debt_to_ebitda": cd.net_debt_to_ebitda,
         "revenue_growth": rg, "revenue_growth_prior": rg_prior,
         "ret_12_1": (quote or {}).get("ret_12_1") if quote else cd.ret_6m,
+        "ret_6_1": (quote or {}).get("ret_6_1") if quote else None,
+        "high_prox": (quote or {}).get("high_prox") if quote else None,
+        "realized_vol": (quote or {}).get("realized_vol") if quote else None,
         "avg_dollar_volume": (quote or {}).get("avg_dollar_volume") if quote else None,
         "beta": cd.beta,
+        # Raw inputs for the quality theme (profitability + safety).
+        "gross_profit": cd.gross_profit, "total_debt": cd.total_debt, "total_equity": cd.total_equity,
+        "interest_expense": cd.interest_expense,
+        # Hooks — populated when the data source supports them; None → neutral factor.
+        "earnings_revision": None,      # sentiment: estimate revisions (needs an estimates feed)
+        "share_issuance": None,         # capital discipline: YoY change in shares (needs share history)
+        "asset_growth": None,           # capital discipline: YoY change in total assets (needs balance-sheet history)
         "quote_type": (getattr(cd, "quote_type", "") or ""),
         "is_fund": (getattr(cd, "quote_type", "") or "").upper() in
                    {"ETF", "MUTUALFUND", "MONEYMARKET", "CURRENCY", "INDEX", "FUND"},
@@ -206,6 +216,9 @@ def _fmp_to_metrics(ticker, km, ratios, profile) -> dict:
         "revenue_growth": g(profile, "revenueGrowth"),
         "revenue_growth_prior": None,
         "operating_income": None, "fcf": None, "revenue": None, "net_income": None,
+        "gross_profit": g(km, "grossProfitTTM"), "total_debt": g(km, "totalDebtTTM"),
+        "total_equity": g(km, "totalStockholdersEquityTTM"),
+        "earnings_revision": None,
         "ret_12_1": None, "avg_dollar_volume": g(profile, "volAvg"), "beta": g(profile, "beta"),
         "is_fund": bool(g(profile, "isEtf") or g(profile, "isFund")),
         "quote_type": "ETF" if (g(profile, "isEtf") or g(profile, "isFund")) else "EQUITY",

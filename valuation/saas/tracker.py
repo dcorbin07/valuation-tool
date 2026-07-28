@@ -29,7 +29,8 @@ def log_hot(store, scan_date, rows, cfg=None, top=10):
         from ..edge import positions
         positions.update_positions(store, "hot10", scan_date, rows,
                                    top_n=cfg.paper_top_n, min_hold_days=cfg.paper_min_hold_days,
-                                   max_hold_days=cfg.paper_max_hold_days, exit_score=cfg.paper_exit_score)
+                                   max_hold_days=cfg.paper_max_hold_days, exit_score=cfg.paper_exit_score,
+                                   coverage_gap_days=cfg.paper_coverage_gap_days, exit_band=cfg.paper_exit_band)
     except Exception:
         pass
 

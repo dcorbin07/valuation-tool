@@ -146,3 +146,28 @@ code{background:#f0f3f9;padding:1px 6px;border-radius:5px;font-size:12.5px;color
 .sector-bar .nm{width:120px;color:var(--ink)}
 .sector-bar .track{flex:1;height:9px;background:var(--border);border-radius:5px;overflow:hidden}
 .sector-bar .track span{display:block;height:100%;border-radius:5px}
+
+/* ---- "what this tool does" intro (Single valuation) ---- */
+.intro{border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:18px}
+.intro h2{margin:0 0 8px;font-size:15px;color:var(--navy);text-transform:uppercase;
+  letter-spacing:.6px;font-weight:700}
+.intro p{margin:0 0 8px;font-size:14px;line-height:1.65;color:var(--ink)}
+.intro p:last-child{margin-bottom:0}
+.intro p.muted{color:var(--muted);font-size:13px}
+
+/* ---- ticker typeahead ---- */
+.typeahead{position:relative;flex:1;min-width:200px}
+.typeahead input[type=text]{width:100%;box-sizing:border-box}
+.ac{display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:40;
+  background:var(--card);border:1.5px solid var(--border);border-radius:11px;
+  box-shadow:var(--shadow);overflow:hidden;max-height:320px;overflow-y:auto}
+.ac.on{display:block}
+.ac-item{display:flex;align-items:baseline;gap:9px;padding:10px 14px;cursor:pointer;font-size:14px}
+.ac-item:hover,.ac-item.sel{background:var(--blue-soft)}
+.ac-item b{color:var(--navy);min-width:64px}
+.ac-name{flex:1;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ac-sec{color:var(--faint);font-size:12px;white-space:nowrap}
+
+/* ---- fair-value estimate marker (Hot stocks) ---- */
+.est-mark{display:inline-block;margin-left:2px;font-size:10px;font-weight:700;color:var(--muted);
+  vertical-align:super;cursor:help}

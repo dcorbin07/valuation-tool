@@ -107,6 +107,95 @@ def test_currency_conversion_fixes_adr():
     assert 3000 < cd.net_income < 9000             # ~$6.0B USD net income
 
 
+def _fv_row(ticker, price, sector, ey=None, fcfy=None, fair_value=None):
+    extra = {}
+    if ey is not None:
+        extra["earnings_yield"] = ey
+    if fcfy is not None:
+        extra["fcf_yield"] = fcfy
+    return {"ticker": ticker, "price": price, "sector": sector,
+            "fair_value": fair_value, "upside": None, "extra": extra}
+
+
+def test_fair_value_estimate_reprices_to_peer_median():
+    """A name yielding twice its sector's median should be worth ~2x its price."""
+    from valuation.screener.fairvalue import estimate_fair_values
+    # Six peers at a 5% earnings yield, plus one at 10% (twice as cheap).
+    rows = [_fv_row(f"P{i}", 100.0, "Tech", ey=0.05) for i in range(6)]
+    rows.append(_fv_row("CHEAP", 100.0, "Tech", ey=0.10))
+    n = estimate_fair_values(rows)
+    assert n == 7, f"expected all 7 estimated, got {n}"
+    cheap = rows[-1]
+    assert abs(cheap["fair_value"] - 200.0) < 1e-6, cheap["fair_value"]
+    assert abs(cheap["upside"] - 1.0) < 1e-6, cheap["upside"]
+    assert cheap["fair_value_method"] == "multiples"
+    # A peer trading exactly at the median is worth about its price.
+    assert abs(rows[0]["fair_value"] - 100.0) < 1e-6
+
+
+def test_fair_value_never_overwrites_a_dcf():
+    from valuation.screener.fairvalue import estimate_fair_values
+    rows = [_fv_row(f"P{i}", 100.0, "Tech", ey=0.05) for i in range(6)]
+    rows.append(_fv_row("DCF", 100.0, "Tech", ey=0.50, fair_value=123.0))
+    estimate_fair_values(rows)
+    dcf = rows[-1]
+    assert dcf["fair_value"] == 123.0, "a real DCF value must survive"
+    assert dcf["fair_value_method"] == "dcf"
+
+
+def test_fair_value_skips_unusable_inputs_and_clamps():
+    """Loss-makers (negative yield) get no estimate; extremes are clamped, not absurd."""
+    from valuation.screener.fairvalue import estimate_fair_values, MAX_RERATE
+    rows = [_fv_row(f"P{i}", 100.0, "Tech", ey=0.05) for i in range(6)]
+    rows.append(_fv_row("LOSS", 100.0, "Tech", ey=-0.08))     # loss-making
+    rows.append(_fv_row("NOPRICE", None, "Tech", ey=0.05))    # no price
+    rows.append(_fv_row("NODATA", 100.0, "Tech"))             # no yields at all
+    rows.append(_fv_row("WILD", 100.0, "Tech", ey=5.0))       # 100x the peer median
+    estimate_fair_values(rows)
+    assert rows[-4]["fair_value"] is None, "loss-maker must not get a fair value"
+    assert rows[-3]["fair_value"] is None, "no price -> no estimate"
+    assert rows[-2]["fair_value"] is None, "no inputs -> no estimate"
+    assert abs(rows[-1]["fair_value"] - 100.0 * MAX_RERATE) < 1e-6, "must clamp the re-rate"
+
+
+def test_fair_value_thin_sector_falls_back_to_universe():
+    """A sector with too few peers must borrow the universe median, not self-anchor."""
+    from valuation.screener.fairvalue import estimate_fair_values
+    rows = [_fv_row(f"P{i}", 100.0, "Tech", ey=0.05) for i in range(8)]
+    rows.append(_fv_row("LONE", 100.0, "Utilities", ey=0.10))   # only name in its sector
+    estimate_fair_values(rows)
+    lone = rows[-1]
+    # Universe median is ~0.05, so the lone name re-rates up rather than to itself (1.0x).
+    assert lone["fair_value"] > 150.0, lone["fair_value"]
+
+
+def test_fair_value_medians_come_from_peer_rows_not_the_slice():
+    """Passing a full population keeps the peer group stable when only a slice is shown."""
+    from valuation.screener.fairvalue import estimate_fair_values
+    everyone = [_fv_row(f"P{i}", 100.0, "Tech", ey=0.05) for i in range(10)]
+    shown = [_fv_row("CHEAP", 100.0, "Tech", ey=0.10)]
+    estimate_fair_values(shown, peer_rows=everyone + shown)
+    assert abs(shown[0]["fair_value"] - 200.0) < 1e-6, shown[0]["fair_value"]
+
+
+def test_ticker_search_endpoint_ranks_exact_first():
+    try:
+        from valuation.web.app import app
+    except ImportError as e:                    # web deps (Flask et al) aren't installed
+        print(f"         -> skipped, needs the web deps: {e}")
+        return
+    c = app.test_client()
+    r = c.get("/api/tickers?q=AAPL")
+    assert r.status_code == 200, r.status_code
+    res = r.get_json()["results"]
+    assert res and res[0]["ticker"] == "AAPL", res[:3]
+    # Empty query returns nothing rather than the whole universe.
+    assert c.get("/api/tickers?q=").get_json()["results"] == []
+    # Prefix search surfaces multiple candidates.
+    many = c.get("/api/tickers?q=A").get_json()["results"]
+    assert len(many) > 1 and all(m["ticker"].startswith("A") or "A" in m["ticker"] for m in many)
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

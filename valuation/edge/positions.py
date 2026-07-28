@@ -31,7 +31,8 @@ def _days(a: str, b: str) -> int:
 
 
 def update_positions(store, source, scan_date, ranked_rows, top_n=10, min_hold_days=30,
-                     max_hold_days=0, exit_score=55, target_key="fair_value") -> dict:
+                     max_hold_days=0, exit_score=55, target_key="fair_value",
+                     coverage_gap_days=21, exit_band=0) -> dict:
     rows = [r for r in ranked_rows if r.get("ticker")]
     price_map = {r["ticker"]: r.get("price") for r in rows if r.get("price")}
     score_map = {r["ticker"]: r.get("hot_score") for r in rows}
@@ -53,13 +54,24 @@ def update_positions(store, source, scan_date, ranked_rows, top_n=10, min_hold_d
     for p in open_pos:
         price = price_map.get(p["ticker"])
         if price is None:
-            continue                                  # not scored today — keep holding
+            # Not in today's scan. Keep holding for a grace window, but if it's been
+            # gone too long it likely delisted/was acquired — close it at its last
+            # known price (reason logged) so a dropped loser can't live forever and
+            # quietly inflate the record (survivorship bias).
+            last_seen = p.get("last_seen_date") or p.get("entry_date")
+            if _days(last_seen, scan_date) > coverage_gap_days:
+                mark = p.get("last_price") or p.get("entry_price")
+                if mark:
+                    store.close_position(source, p["ticker"], p["entry_date"], scan_date, mark, "left coverage")
+                    closed.append(p["ticker"])
+            continue
+        store.touch_position(source, p["ticker"], p["entry_date"], scan_date, price)   # still covered
         hold = _days(p["entry_date"], scan_date)
         score = score_map.get(p["ticker"])
         reason = None
         if max_hold_days and hold >= max_hold_days:
             reason = "time stop"
-        elif hold >= min_hold_days and score is not None and score < exit_score:
+        elif hold >= min_hold_days and score is not None and score < (exit_score - exit_band):
             reason = f"no longer hot (score {score:.0f})"
         elif hold >= min_hold_days and fair_map.get(p["ticker"]) and price >= fair_map[p["ticker"]]:
             reason = "hit fair value"
@@ -69,12 +81,19 @@ def update_positions(store, source, scan_date, ranked_rows, top_n=10, min_hold_d
     return {"entered": entered, "closed": closed, "open": len(store.open_positions(source))}
 
 
-def _size_weights(open_rows, score_map, max_weight=0.20):
-    """Score-weighted, capped, renormalized suggested sizing (fallback: equal)."""
+def _size_weights(open_rows, score_map, max_weight=0.20, vol_map=None):
+    """Suggested sizing: score-weighted AND inverse-volatility scaled (a hot-but-calm
+    name gets more than an equally-hot wild one), capped and renormalized."""
     n = len(open_rows)
     if not n:
         return
-    scores = {r["ticker"]: max(0.0, (score_map.get(r["ticker"]) or 0.0)) for r in open_rows}
+    vol_map = vol_map or {}
+
+    def raw(t):
+        s = max(0.0, (score_map.get(t) or 0.0))
+        v = vol_map.get(t)
+        return (s / v) if (v and v > 0) else s          # inverse-vol when we have it
+    scores = {r["ticker"]: raw(r["ticker"]) for r in open_rows}
     tot = sum(scores.values())
     if tot <= 0:
         for r in open_rows:
@@ -87,17 +106,19 @@ def _size_weights(open_rows, score_map, max_weight=0.20):
 
 
 def paper_summary(store, source, latest_price_map=None, latest_score_map=None,
-                  max_weight=0.20, recent=25) -> dict:
+                  max_weight=0.20, recent=25, cost_bps=0.0, vol_map=None) -> dict:
     latest_price_map = latest_price_map or {}
     latest_score_map = latest_score_map or {}
     allp = store.all_positions(source)
     closed = [p for p in allp if p.get("exit_date")]
     openp = [p for p in allp if not p.get("exit_date")]
 
+    rt_cost = 2.0 * (cost_bps or 0.0) / 1e4          # round-trip transaction cost
+
     def ret(p, mark=None):
         e = p.get("entry_price")
         x = p.get("exit_price") if p.get("exit_date") else mark
-        return (x / e - 1) if (e and x and e > 0) else None
+        return (x / e - 1 - rt_cost) if (e and x and e > 0) else None
 
     def avg(a):
         return (sum(a) / len(a)) if a else None
@@ -129,7 +150,7 @@ def paper_summary(store, source, latest_price_map=None, latest_score_map=None,
                          "score": latest_score_map.get(p["ticker"]),
                          "ret": ret(p, latest_price_map.get(p["ticker"])),
                          "hold_days": _days(p["entry_date"], today)})
-    _size_weights(watching, latest_score_map, max_weight)
+    _size_weights(watching, latest_score_map, max_weight, vol_map)
     watching.sort(key=lambda r: (r.get("weight") or 0), reverse=True)
 
     closed_rows = [{"ticker": p["ticker"], "entry_date": p["entry_date"], "entry_price": p.get("entry_price"),

@@ -36,6 +36,81 @@ window.addEventListener("load", () => {
   document.getElementById("dlPdf").onclick = () => { if (STATE.ticker) window.location = `/api/export/pdf?ticker=${STATE.ticker}`; };
 });
 
+/* ---------- ticker typeahead ----------
+   Hits a local endpoint (latest scan + bundled universe), so it's instant and safe to
+   fire per keystroke. `seq` guards against a slow response overwriting a newer one. */
+const AC = { items: [], idx: -1, seq: 0, timer: null };
+
+function acEl() { return document.getElementById("tickerAc"); }
+
+function acClose() {
+  const el = acEl();
+  if (el) { el.classList.remove("on"); el.innerHTML = ""; }
+  AC.items = []; AC.idx = -1;
+  const inp = document.getElementById("ticker");
+  if (inp) inp.setAttribute("aria-expanded", "false");
+}
+
+function acInput() {
+  clearTimeout(AC.timer);
+  const q = document.getElementById("ticker").value.trim();
+  if (!q) { acClose(); return; }
+  AC.timer = setTimeout(() => acFetch(q), 120);
+}
+
+async function acFetch(q) {
+  const seq = ++AC.seq;
+  try {
+    const res = await fetch(`/api/tickers?q=${encodeURIComponent(q)}`);
+    const d = await res.json();
+    if (seq !== AC.seq) return;                 // a newer keystroke already won
+    acRender(d.results || []);
+  } catch (e) { acClose(); }
+}
+
+function acRender(items) {
+  const el = acEl();
+  if (!el) return;
+  AC.items = items; AC.idx = -1;
+  if (!items.length) { acClose(); return; }
+  el.innerHTML = items.map((r, i) =>
+    `<div class="ac-item" role="option" data-i="${i}" onmousedown="acPick(${i})">
+       <b>${r.ticker}</b><span class="ac-name">${r.name || ""}</span>
+       <span class="ac-sec">${r.sector || ""}</span></div>`).join("");
+  el.classList.add("on");
+  document.getElementById("ticker").setAttribute("aria-expanded", "true");
+}
+
+function acHighlight(n) {
+  const el = acEl();
+  if (!el || !AC.items.length) return;
+  AC.idx = (n + AC.items.length) % AC.items.length;
+  el.querySelectorAll(".ac-item").forEach((d, i) => d.classList.toggle("sel", i === AC.idx));
+}
+
+function acPick(i) {
+  const r = AC.items[i];
+  if (!r) return;
+  document.getElementById("ticker").value = r.ticker;
+  acClose();
+  runValue();
+}
+
+function acKey(e) {
+  const open = AC.items.length > 0;
+  if (e.key === "ArrowDown" && open) { e.preventDefault(); acHighlight(AC.idx + 1); return; }
+  if (e.key === "ArrowUp" && open) { e.preventDefault(); acHighlight(AC.idx - 1); return; }
+  if (e.key === "Escape") { acClose(); return; }
+  if (e.key === "Enter") {
+    e.preventDefault();
+    if (open && AC.idx >= 0) { acPick(AC.idx); return; }
+    acClose();
+    runValue();
+  }
+}
+
+function acBlur() { setTimeout(acClose, 150); }   // let a click on an item land first
+
 /* ---------- run valuation ---------- */
 async function runValue(overrides) {
   const ticker = document.getElementById("ticker").value.trim().toUpperCase();
@@ -393,8 +468,11 @@ async function loadHotStocks() {
   finally { toggle("hotLoader", false); }
 }
 async function runScan() {
-  const scope = document.getElementById("scanScope").value;
-  const limit = document.getElementById("scanLimit").value;
+  // Owner-only controls — absent from the page for everyone else.
+  const scopeEl = document.getElementById("scanScope"), limitEl = document.getElementById("scanLimit");
+  if (!scopeEl) return;
+  const scope = scopeEl.value;
+  const limit = limitEl ? limitEl.value : null;
   toggle("hotLoader", true); document.getElementById("hotResults").style.display = "none"; eshow("hotErr", "");
   document.getElementById("hotLoadMsg").textContent = "Scanning the market (this can take a while on the free feed)…";
   try {
@@ -405,26 +483,59 @@ async function runScan() {
     await loadHotStocks();
   } catch (e) { eshow("hotErr", e.message); toggle("hotLoader", false); }
 }
+function _ageStr(dstr) {
+  try { const days = Math.round((Date.now() - new Date(dstr + "T00:00:00")) / 86400000);
+    return days <= 0 ? " (today)" : ` (${days}d ago)`; } catch (e) { return ""; }
+}
+function _whyChips(r) {
+  const w = (r.extra && r.extra.why) || [];
+  if (!w.length) return "";
+  return `<div class="muted" style="font-size:10px">` +
+    w.slice(0, 3).map(x => `<span class="${x.c >= 0 ? 'pos' : 'neg'}">${x.theme.replace(/_/g, ' ')}</span>`).join(" · ") + `</div>`;
+}
+async function loadRegime() {
+  try {
+    const g = await (await fetch("/api/regime")).json();
+    const el = document.getElementById("hotMeta");
+    if (el && g && g.regime) {
+      const c = g.regime === "risk-on" ? "pos" : (g.regime === "risk-off" ? "neg" : "");
+      el.innerHTML += ` &nbsp;·&nbsp; <b class="${c}">market: ${g.regime}</b>` +
+        (g.vix != null ? ` · VIX ${g.vix}` : "") + (g.ten_year != null ? ` · 10Y ${g.ten_year}%` : "") +
+        (g.sp_above_200dma_pct != null ? ` · S&P ${g.sp_above_200dma_pct >= 0 ? '+' : ''}${g.sp_above_200dma_pct}% vs 200d` : "");
+    }
+  } catch (e) { }
+}
 function renderHot(d) {
   const f = d.filtered;
-  let meta = `scan ${d.scan_date} · ${d.scored}/${d.universe_size || "?"} scored · ${d.provider || ""}`;
+  let meta = `scan ${d.scan_date}${_ageStr(d.scan_date)} · ${d.scored}/${d.universe_size || "?"} scored · ${d.provider || ""}`;
   if (f && f.total_removed) meta += ` · ${f.total_removed} junk filtered`;
   document.getElementById("hotMeta").textContent = meta;
+  loadRegime();
   let html = '<table><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th><th>Bucket</th>' +
     '<th class="num">Price</th><th class="num">Hot</th><th class="num">Value</th><th class="num">Qual</th>' +
     '<th class="num">Grow</th><th class="num">Mom</th><th class="num">Fair val</th></tr>';
   d.rows.forEach(r => {
     const up = r.upside;
     html += `<tr><td>${r.rank}</td><td><a href="#" onclick="gotoValue('${r.ticker}');return false"><b>${r.ticker}</b></a></td>
-      <td>${(r.name || "").slice(0, 22)}</td><td>${(r.sector || "").slice(0, 16)}</td>
+      <td>${(r.name || "").slice(0, 22)}${_whyChips(r)}</td><td>${(r.sector || "").slice(0, 16)}</td>
       <td><span class="pill ${r.bucket === 'established' ? 'est' : 'spec'}">${r.bucket || ''}</span></td>
       <td class="num">${money(r.price)}</td>
       <td class="num hotrow-score" style="color:${scoreColor(r.hot_score)}">${r.hot_score == null ? '' : r.hot_score.toFixed(0)}</td>
       <td class="num">${z(r.z_value)}</td><td class="num">${z(r.z_quality)}</td>
       <td class="num">${z(r.z_growth)}</td><td class="num">${z(r.z_momentum)}</td>
-      <td class="num">${r.fair_value == null ? '—' : money(r.fair_value) + (up != null ? ` <span class="${up >= 0 ? 'pos' : 'neg'}">(${up >= 0 ? '+' : ''}${pct(up, 0)})</span>` : '')}</td></tr>`;
+      <td class="num">${_fairValCell(r, up)}</td></tr>`;
   });
   html += "</table>";
+  html += `<div class="note"><b>Fair value.</b> Names marked <span class="est-mark" title="peer-relative estimate">e</span>
+    use a quick peer-relative estimate (what the stock would be worth on its sector's median earnings / free-cash-flow
+    yield) — the full discounted-cash-flow model is far too slow to run on every name, so only the top few carry one.
+    Unmarked values are the full DCF. The estimate says "cheap versus peers", which is a rougher claim than the DCF's
+    "worth this much" — open a name in Single valuation for the real model.</div>`;
+  const hz = (d.health && d.health.theme_coverage) ? Object.entries(d.health.theme_coverage).filter(([k, v]) => v < 0.5) : [];
+  if (hz.length) {
+    html += `<div class="note">⚠ Low data coverage this scan: ${hz.map(([k, v]) => `${k.replace(/_/g, ' ')} ${Math.round(v * 100)}%`).join(" · ")}. ` +
+      `Scores still computed on the data present (missing inputs are neutralized), but worth a glance.</div>`;
+  }
   if (f && f.total_removed) {
     const parts = Object.entries(f.by_reason || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k}`).join(" · ");
     html += `<div class="note">Pre-filtered <b>${f.total_removed}</b> non-investable names before scoring (${parts}). ` +
@@ -435,7 +546,21 @@ function renderHot(d) {
   buildPortfolio();
 }
 function z(x) { return (x == null || isNaN(x)) ? "—" : (x >= 0 ? "+" : "") + x.toFixed(2); }
-function gotoValue(t) { switchTab("single"); document.querySelectorAll(".tab")[0].classList.add("active"); document.getElementById("ticker").value = t; runValue(); }
+function _fairValCell(r, up) {
+  if (r.fair_value == null) return "—";
+  const est = r.fair_value_method === "multiples";
+  const mark = est ? `<span class="est-mark" title="Peer-relative estimate, not the full DCF">e</span>` : "";
+  const upHtml = up == null ? "" :
+    ` <span class="${up >= 0 ? 'pos' : 'neg'}">(${up >= 0 ? '+' : ''}${pct(up, 0)})</span>`;
+  return money(r.fair_value) + mark + upHtml;
+}
+function gotoValue(t) {
+  switchTab("single");
+  document.querySelectorAll(".tab")[0].classList.add("active");
+  acClose();
+  document.getElementById("ticker").value = t;
+  runValue();
+}
 
 function renderSectors(sectors) {
   if (!sectors || !sectors.length) { document.getElementById("sectorBox").innerHTML = ""; return; }
@@ -565,10 +690,12 @@ function _paperCard(paper) {
     exitTbl += '</table>';
   }
   const b = (paper && paper.bench) || {};
+  const sig = b.t_stat == null ? '' :
+    ` · t-stat ${b.t_stat.toFixed(1)} <b class="${b.significant ? 'pos' : ''}">(${b.significant ? 'significant' : 'not significant yet'})</b>`;
   const benchLine = (b.avg_alpha != null || b.spy_all_time != null)
-    ? `<div class="note" style="margin:2px 0 8px">vs <b>S&amp;P 500</b>: ` +
+    ? `<div class="note" style="margin:2px 0 8px">vs <b>S&amp;P 500</b> (net of costs): ` +
       (b.avg_alpha != null ? `avg <b class="${b.avg_alpha >= 0 ? 'pos' : 'neg'}">${b.avg_alpha >= 0 ? '+' : ''}${pct(b.avg_alpha, 1)}</b> alpha per closed pick` : '') +
-      (b.spy_all_time != null ? ` · S&amp;P returned ${pct(b.spy_all_time, 1)} over the same span` : '') + `</div>`
+      (b.spy_all_time != null ? ` · S&amp;P returned ${pct(b.spy_all_time, 1)} over the same span` : '') + sig + `</div>`
     : '';
   return `<div class="card"><h3>💼 Paper account — top-10 hot stocks (sell logic)</h3>
     <div class="section-hint">${sub}${reasons ? ' Exits so far: ' + reasons + '.' : ''}</div>${head}${benchLine}${watchTbl}${exitTbl}</div>`;
@@ -677,41 +804,67 @@ async function runSignals() {
     await loadSignals();
   } catch (e) { eshow("sigErr", e.message); toggle("sigLoader", false); }
 }
+const SIG_HORIZONS = ["short", "swing", "position"];
+const SIG_HZ_LABEL = { short: "short (3–5 wk)", swing: "swing (6–11 wk)", position: "position (3–6 mo)" };
+
 function renderSignals(d) {
   if (!d) return;
   document.getElementById("sigMeta").textContent = "";
   document.getElementById("sigTime").textContent = d.run_time ? ("updated " + d.run_time) : "";
-  const hz = (document.getElementById("sigHorizon") || {}).value || "swing";
+  const hz = (document.getElementById("sigHorizon") || {}).value || "all";
   const dir = (document.getElementById("sigDir") || {}).value || "bull";
   const bear = dir === "bear";
+  const all = hz === "all";
   const scoreKey = bear ? "scores_bear" : "scores";
   const contractKey = bear ? "contracts_bear" : "contracts";
-  const scoreH = r => {
+
+  // Score for one specific horizon. Falls back to the row's headline score on the bull
+  // side (which is the swing read) when the per-horizon map is missing.
+  const scoreAt = (r, h) => {
     const m = r.detail && r.detail[scoreKey];
-    return (m && m[hz] != null) ? m[hz] : (bear ? null : r.score);
+    return (m && m[h] != null) ? m[h] : (bear ? null : (h === "swing" ? r.score : null));
   };
+  // "All" merges the horizons into one list: each name is ranked on its BEST setup, and
+  // we remember which horizon that was so the contract idea and label match it.
+  const best = r => {
+    if (!all) { const s = scoreAt(r, hz); return s == null ? null : { h: hz, s }; }
+    let b = null;
+    SIG_HORIZONS.forEach(h => {
+      const s = scoreAt(r, h);
+      if (s != null && (b == null || s > b.s)) b = { h, s };
+    });
+    return b;
+  };
+
   const labelsFor = r => bear ? ((r.detail && r.detail.labels_bear) || []) : (r.labels || []);
-  // Re-rank by the chosen direction + horizon's score.
   const rows = (d.rows || []).slice()
-    .filter(r => scoreH(r) != null)
-    .sort((a, b) => (scoreH(b) || 0) - (scoreH(a) || 0));
-  const label = (bear ? "bearish · " : "") + hz;
-  let html = '<table><tr><th>#</th><th>Ticker</th><th class="num">Score</th><th>Setup / signals</th>' +
-    `<th>Contract idea (${label})</th><th>AI read</th></tr>`;
-  rows.forEach((r, i) => {
-    const s = scoreH(r);
+    .map(r => ({ r, b: best(r) }))
+    .filter(x => x.b != null)
+    .sort((a, b) => b.b.s - a.b.s);
+
+  const head = (bear ? "bearish · " : "") + (all ? "best horizon" : SIG_HZ_LABEL[hz] || hz);
+  let html = '<table><tr><th>#</th><th>Ticker</th><th class="num">Score</th>' +
+    (all ? '<th>Horizon</th>' : '') +
+    `<th>Setup / signals</th><th>Contract idea (${head})</th><th>AI read</th></tr>`;
+  rows.forEach((x, i) => {
+    const r = x.r, s = x.b.s, h = x.b.h;
     const badges = labelsFor(r).slice(0, 3).map(l => `<span class="pill ${bear ? 'spec' : 'est'}" style="margin:1px 2px">${l}</span>`).join(" ");
-    const c = (r.detail && r.detail[contractKey] && r.detail[contractKey][hz]) || null;
+    const c = (r.detail && r.detail[contractKey] && r.detail[contractKey][h]) || null;
     const cHtml = c
       ? `<div style="font-size:12px"><b>${c.directional}</b><br><span class="muted">${c.defined_risk}</span></div>`
       : '<span class="muted">—</span>';
     html += `<tr><td>${i + 1}</td><td><a href="#" onclick="gotoValue('${r.ticker}');return false"><b>${r.ticker}</b></a></td>
-      <td class="num" style="font-weight:800;color:${scoreColor(s)}">${s == null ? '' : s.toFixed(0)}</td>
-      <td style="max-width:240px">${badges}</td>
+      <td class="num" style="font-weight:800;color:${scoreColor(s)}">${s == null ? '' : s.toFixed(0)}</td>` +
+      (all ? `<td style="font-size:12px">${SIG_HZ_LABEL[h] || h}</td>` : '') +
+      `<td style="max-width:240px">${badges}</td>
       <td style="max-width:270px">${cHtml}</td>
       <td style="max-width:260px;font-size:12.5px" class="muted">${bear ? '' : (r.ai || r.summary || '')}</td></tr>`;
   });
   html += "</table>";
+  if (all) {
+    html += `<div class="note">Every horizon merged into one list — each name is ranked on its strongest setup, and the
+      Horizon column shows which one that is. Pick a specific horizon above to see the list for just that timeframe.</div>`;
+  }
   document.getElementById("sigTable").innerHTML = html;
 }
 let sigTimer = null;
@@ -782,6 +935,116 @@ async function edgeTrack() {
   }
   h += `<div class="note" style="margin-top:8px">Seeded/updated: ${JSON.stringify(d.updated)}. This accrues survivorship-free going forward.</div></div>`;
   document.getElementById("edgeResults").innerHTML = h;
+}
+
+function _wstr(w) {
+  if (!w) return "—";
+  return Object.entries(w).map(([k, v]) => `${k[0].toUpperCase() + k.slice(1, 3)} ${(+v).toFixed(2)}`).join(" · ");
+}
+async function edgeLearning() {
+  toggle("edgeLoader", true); eshow("edgeErr", ""); document.getElementById("edgeMsg").textContent = "Loading self-learning log…";
+  try {
+    const res = await fetch("/api/edge/learning");
+    if (res.status === 403) { eshow("edgeErr", "Owner-only research tools."); return; }
+    renderLearning(await res.json());
+  } catch (e) { eshow("edgeErr", e.message); }
+  finally { toggle("edgeLoader", false); }
+}
+const THEME_INPUTS = {
+  value: "earnings yield · FCF yield · EBIT/EV · sales multiples · book-to-price",
+  quality: "ROIC · ROE · margins · low leverage · gross profitability · FCF margin · accruals · interest coverage",
+  growth: "revenue growth · growth acceleration",
+  momentum: "12-1 return · 6-1 return · 52-week-high proximity",
+  low_risk: "low beta · low realized volatility",
+  capital_discipline: "low share issuance · low asset growth (dormant — needs data)",
+  sentiment: "estimate revisions (dormant — needs data)",
+  size: "small-cap tilt",
+  insider: "cluster insider buying",
+  institutional: "13F institutional accumulation (dormant — needs data)",
+};
+function _themeBars(w) {
+  if (!w) return "<div class='muted'>—</div>";
+  const entries = Object.entries(w).sort((a, b) => b[1] - a[1]);
+  const max = Math.max(...entries.map(e => e[1]), 0.01);
+  return entries.map(([k, v]) => {
+    const pct = (v * 100).toFixed(0), wd = Math.round(v / max * 100);
+    return `<div style="margin:5px 0">
+      <div style="display:flex;justify-content:space-between;font-size:12px">
+        <span style="text-transform:capitalize"><b>${k.replace(/_/g, " ")}</b></span><span>${pct}%</span></div>
+      <div style="background:#eef;border-radius:4px;height:8px"><div style="width:${wd}%;background:#3454a4;height:8px;border-radius:4px"></div></div>
+      <div class="muted" style="font-size:11px">${THEME_INPUTS[k] || ""}</div></div>`;
+  }).join("");
+}
+function _numberICSection(nic) {
+  if (!nic) return `<div class="section-hint" style="margin-top:14px"><b>Number diagnostics:</b> computed on the monthly learning run — nothing yet.</div>`;
+  if (nic.status !== "ok") return `<div class="section-hint" style="margin-top:14px"><b>Number diagnostics:</b> not enough history yet (${nic.dates || 0} scan dates) to measure individual numbers.</div>`;
+  const nums = nic.numbers || [], byTheme = {};
+  nums.forEach(r => { (byTheme[r.theme] = byTheme[r.theme] || []).push(r); });
+  const maxAbs = Math.max(...nums.map(r => Math.abs(r.ic || 0)), 0.01);
+  let s = `<h4 style="margin:16px 0 4px">Which numbers are pulling weight</h4>
+    <div class="section-hint" style="margin-top:0">Each number's standalone predictive power (information coefficient) over
+    ${nic.dates} scan dates, ~${nic.horizon}-day forward returns. <b>Visibility only</b> — numbers stay equal-weighted inside a
+    theme; use this to retire a dead one or promote a strong one by hand. Green = predictive, red = inverted, grey = no data yet.</div>`;
+  Object.keys(byTheme).forEach(theme => {
+    s += `<div style="margin:8px 0 2px;text-transform:capitalize"><b>${theme.replace(/_/g, " ")}</b></div>`;
+    byTheme[theme].forEach(r => {
+      const has = r.ic != null, col = !has ? "#bbb" : (r.ic >= 0 ? "#1a7f37" : "#c0392b");
+      const wd = has ? Math.round(Math.abs(r.ic) / maxAbs * 100) : 0, cov = Math.round((r.coverage || 0) * 100);
+      s += `<div style="display:flex;align-items:center;gap:8px;margin:2px 0;font-size:12px">
+        <span style="width:130px">${r.number.replace(/_/g, " ")}</span>
+        <div style="flex:1;background:#eef;border-radius:4px;height:7px"><div style="width:${wd}%;background:${col};height:7px;border-radius:4px"></div></div>
+        <span style="width:60px;text-align:right;color:${col}">${has ? r.ic.toFixed(3) : "—"}</span>
+        <span style="width:42px;text-align:right" class="muted">${cov}%</span></div>`;
+    });
+  });
+  return s;
+}
+function _fundamentalBTSection(fb) {
+  if (!fb) return `<div class="section-hint" style="margin-top:14px"><b>Historical backtest:</b> connect a point-in-time data source (Sharadar/WRDS) and run it to see the full model vs the S&P over real history.</div>`;
+  if (fb.ready === false) return `<div class="section-hint" style="margin-top:14px"><b>Historical backtest:</b> ${fb.message || 'data source not configured.'}</div>`;
+  const hs = fb.horizons || {}, keys = Object.keys(hs).sort((a, b) => (+a) - (+b));
+  if (!keys.length) return `<div class="section-hint" style="margin-top:14px"><b>Historical backtest:</b> no results yet — run it once your data key is set.</div>`;
+  const row = (lab, b) => { b = b || {}; const a = (b.cagr || 0) - (b.bench_cagr || 0); return `<tr><td>${lab}</td><td class="num">${pct(b.cagr, 1)}</td><td class="num">${pct(b.bench_cagr, 1)}</td>
+    <td class="num ${a >= 0 ? 'pos' : 'neg'}">${a >= 0 ? '+' : ''}${pct(a, 1)}</td>
+    <td class="num">${pct(b.hit_rate, 0)}</td></tr>`; };
+  let s = `<h4 style="margin:16px 0 4px">Historical backtest vs S&P — ${fb.provider}${fb.survivorship_free ? ' · survivorship-free' : ''}</h4>
+    <div class="section-hint" style="margin-top:0">Recency half-life ${fb.recency_halflife_years || '?'}y · primary (adopted) horizon <b>${fb.primary_horizon || '—'}</b> trading days. Weights are adopted only where they beat the default out-of-sample.</div>`;
+  keys.forEach(H => {
+    const r = hs[H];
+    if (r.status) { s += `<div class="muted" style="font-size:12px">Horizon ${H}d: ${r.status}.</div>`; return; }
+    s += `<div style="margin-top:8px"><b>Horizon ${H} trading days</b> — ${r.names} names · ${r.dates} dates · optimized beats default OOS: <b class="${r.accepted ? 'pos' : ''}">${r.accepted ? 'yes' : 'no'}</b>${r.out_sample_ic != null ? ` (OOS IC ${(+r.out_sample_ic).toFixed(3)})` : ''}
+      <table><tr><th>Weights</th><th class="num">CAGR/yr</th><th class="num">S&amp;P/yr</th><th class="num">Alpha</th><th class="num">Hit</th></tr>${row('Default', r.backtest_default)}${row('Optimized', r.backtest_optimized)}</table>
+      <div class="muted" style="font-size:11px">Optimized: ${_wstr(r.optimized_weights)}</div></div>`;
+  });
+  s += `<div class="muted" style="font-size:11px;margin-top:6px">Lock the primary horizon's optimized weights into the live tuner: <code>POST /admin/adopt-backtest-weights</code> (only works when it beat default OOS).</div>`;
+  return s;
+}
+function renderLearning(d) {
+  const cur = d.current || {}, hist = d.history || [];
+  let h = `<div class="card"><h3>🧠 Self-learning — live theme weights</h3>
+    <div class="section-hint">A monthly, <b>out-of-sample-gated</b> re-tune, learned from the tool's own snapshots + realized
+      forward returns. A change is adopted <b>only</b> if it beats the current weights out-of-sample. <b>The theme weights below
+      are what gets tuned;</b> inside each theme the individual numbers are equal-weighted (a deliberately robust choice).</div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;margin-top:10px">
+      <div style="flex:1;min-width:260px"><span class="pill est">Established</span>${_themeBars(cur.established)}</div>
+      <div style="flex:1;min-width:260px"><span class="pill spec">Speculative</span>${_themeBars(cur.speculative)}</div></div>`;
+  h += _numberICSection(d.number_ic);
+  h += _fundamentalBTSection(d.fundamental_backtest);
+  if (!hist.length) {
+    h += `<div class="muted" style="margin-top:10px">No learning runs yet — it kicks off monthly once enough track-record history has
+      accrued (and correctly declines to change anything until then, so these stay at their starting values).</div>`;
+  } else {
+    h += '<h4 style="margin:14px 0 6px">Change log</h4><table><tr><th>When</th><th>Bucket</th><th>Adopted</th><th class="num">OOS IC</th><th>Note</th></tr>';
+    hist.forEach(r => {
+      const st = r.stats || {};
+      h += `<tr><td>${(r.created_at || '').slice(0, 10)}</td><td style="text-transform:capitalize">${r.bucket}</td>
+        <td>${r.adopted ? '<span class="pill est">adopted</span>' : '<span class="muted">held</span>'}</td>
+        <td class="num">${st.out_sample_ic == null ? '—' : (+st.out_sample_ic).toFixed(3)}</td>
+        <td style="font-size:12px;max-width:320px" class="muted">${r.note || ''}</td></tr>`;
+    });
+    h += '</table>';
+  }
+  document.getElementById("edgeResults").innerHTML = h + '</div>';
 }
 
 /* small helpers */

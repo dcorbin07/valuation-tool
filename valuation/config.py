@@ -107,6 +107,39 @@ class Config:
     paper_max_hold_days: int = field(default_factory=lambda: int(_get_float("PAPER_MAX_HOLD_DAYS", 0)))
     paper_exit_score: float = field(default_factory=lambda: _get_float("PAPER_EXIT_SCORE", 55))
     paper_max_weight: float = field(default_factory=lambda: _get_float("PAPER_MAX_WEIGHT", 0.20))
+    # Realism: per-side transaction cost (bps) charged on the paper account's returns,
+    # and a no-trade band so we don't churn on a name dipping a hair below exit_score.
+    paper_cost_bps: float = field(default_factory=lambda: _get_float("PAPER_COST_BPS", 5))
+    paper_exit_band: float = field(default_factory=lambda: _get_float("PAPER_EXIT_BAND", 3))
+    # If a held name drops out of coverage (delisted/acquired) for this many days,
+    # close it at its last price so dropped losers can't linger and bias the record.
+    paper_coverage_gap_days: int = field(default_factory=lambda: int(_get_float("PAPER_COVERAGE_GAP_DAYS", 21)))
+    # Whole-market scan: fetch this many names concurrently (big speedup; each fetch
+    # is I/O-bound). Set SCAN_WORKERS=1 to force the old sequential behavior.
+    scan_workers: int = field(default_factory=lambda: int(_get_float("SCAN_WORKERS", 8)))
+    # Score factors relative to sector peers (removes accidental sector bets). Toggle
+    # off (SCREENER_SECTOR_NEUTRAL=false) to A/B against whole-universe scoring.
+    sector_neutral: bool = field(default_factory=lambda: _get("SCREENER_SECTOR_NEUTRAL", "true").lower() != "false")
+    residual_momentum: bool = field(default_factory=lambda: _get("SCREENER_RESIDUAL_MOMENTUM", "true").lower() != "false")
+    soft_bucket: bool = field(default_factory=lambda: _get("SCREENER_SOFT_BUCKET", "true").lower() != "false")
+    # Historical backtest (Edge Lab) — ALL configured here, not on the data vendor's site.
+    # Long window across regimes, but the optimizer weights recent history more (half-life)
+    # and only adopts weights that also hold on the recent out-of-sample stretch.
+    backtest_universe_limit: int = field(default_factory=lambda: int(_get_float("BACKTEST_UNIVERSE_LIMIT", 3000)))
+    backtest_lookback_years: int = field(default_factory=lambda: int(_get_float("BACKTEST_LOOKBACK_YEARS", 18)))
+    backtest_horizons: str = field(default_factory=lambda: _get("BACKTEST_HORIZONS", "63,252,756"))  # ~3mo, 1yr, 3yr holds
+    backtest_rebalance_days: int = field(default_factory=lambda: int(_get_float("BACKTEST_REBALANCE_DAYS", 63)))
+    backtest_top_n: int = field(default_factory=lambda: int(_get_float("BACKTEST_TOP_N", 25)))
+    backtest_recency_halflife_years: float = field(default_factory=lambda: _get_float("BACKTEST_RECENCY_HALFLIFE_YEARS", 5))
+    # Self-learning: a monthly, out-of-sample-gated re-tune of the screener's factor
+    # weights from the tool's own accumulated snapshots + realized forward returns.
+    # Adopts a change ONLY if it beats the current weights out-of-sample (no overfit).
+    # Purely statistical — no LLM in the loop (the grid + hold-out test IS the decision).
+    # Needs enough accrued history first, so early runs correctly decline to change anything.
+    learn_enabled: bool = field(default_factory=lambda: _get("LEARN_ENABLED", "true").lower() != "false")
+    learn_min_dates: int = field(default_factory=lambda: int(_get_float("LEARN_MIN_DATES", 8)))
+    learn_horizon_days: int = field(default_factory=lambda: int(_get_float("LEARN_HORIZON_DAYS", 21)))
+    learn_top_per_date: int = field(default_factory=lambda: int(_get_float("LEARN_TOP_PER_DATE", 60)))
     # Owner accounts get permanent free Premium (comma-separated emails).
     owner_emails: str = field(default_factory=lambda: _get("OWNER_EMAILS", "donniecorbin6@gmail.com"))
 

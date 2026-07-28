@@ -27,6 +27,60 @@ def send_email(cfg, to_addr: str, subject: str, html: str) -> bool:
         return False
 
 
+def _fmt_weights(prev: dict, cur: dict) -> str:
+    """One line per factor: 'value 0.28 → 0.30' with changed ones bolded."""
+    keys = list(cur or prev or {})
+    parts = []
+    for k in keys:
+        pv, cv = (prev or {}).get(k), (cur or {}).get(k)
+        label = k.replace("_", " ")
+        if pv is not None and cv is not None and abs(float(pv) - float(cv)) >= 0.005:
+            parts.append(f"<b>{label} {float(pv):.2f} → {float(cv):.2f}</b>")
+        else:
+            parts.append(f"{label} {float(cv if cv is not None else pv):.2f}")
+    return " · ".join(parts)
+
+
+def learning_digest_html(report: dict) -> str:
+    """Owner-only monthly note: did the out-of-sample learner change anything?"""
+    import datetime as _dt
+    status = report.get("status", "")
+    buckets = report.get("buckets", {})
+    any_change = any(b.get("adopted") for b in buckets.values())
+    if status != "ok":
+        headline = f"No changes — not enough history yet ({report.get('dates', 0)} scan dates). Current weights held."
+    elif any_change:
+        changed = ", ".join(b for b, v in buckets.items() if v.get("adopted"))
+        headline = f"Updated the <b>{changed}</b> bucket weight(s) — the change beat the current weights out-of-sample."
+    else:
+        headline = "No changes this month — the current weights still won out-of-sample. Nothing was overfit into the model."
+
+    blocks = ""
+    for name, b in buckets.items():
+        adopted = b.get("adopted")
+        tag = ("✅ UPDATED" if adopted else "— held (no change)")
+        ic = b.get("out_sample_ic")
+        ic_line = f"<div style='color:#888;font-size:12px'>Out-of-sample IC: {ic:.3f}</div>" if isinstance(ic, (int, float)) else ""
+        weights = _fmt_weights(b.get("previous"), b.get("weights")) if adopted else _fmt_weights(None, b.get("weights"))
+        blocks += (
+            f"<div style='margin:12px 0;padding:12px;border:1px solid #eee;border-radius:8px'>"
+            f"<div><b style='text-transform:capitalize'>{name}</b> &nbsp; <span style='color:#666'>{tag}</span></div>"
+            f"<div style='font-size:13px;color:#333;margin:6px 0'>{weights}</div>"
+            f"{ic_line}"
+            f"<div style='color:#999;font-size:12px;margin-top:4px'>{b.get('note', '')}</div></div>")
+
+    return f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto">
+      <h2 style="color:#1f3864">🧠 Valquo — monthly self-learning update</h2>
+      <p style="color:#333">{headline}</p>
+      <p style="color:#888;font-size:12px">Learned from {report.get('panel_rows', 0)} data points across
+      {report.get('dates', 0)} scan dates. A change is adopted only if it beats the current weights on data it
+      wasn't fit to — otherwise the current weights are kept.</p>
+      {blocks}
+      <p style="color:#999;font-size:12px;margin-top:16px">Private owner note. Educational tool, not investment advice.</p>
+    </div>"""
+
+
 def weekly_digest_html(scan_date: str, rows: list, sectors: list) -> str:
     top = rows[:15]
     trs = "".join(

@@ -52,9 +52,27 @@
   <!-- SINGLE -->
   <div id="tab-single">
     <div class="search-card">
+      <div class="intro">
+        <h2>What this tool does</h2>
+        <p>Enter any ticker and it estimates what one share is actually <b>worth</b> — not what it's
+          trading at. It pulls the company's live financials, projects the cash it should generate,
+          and discounts that back to today (a <b>discounted-cash-flow</b> model), then sense-checks
+          the answer against what similar companies trade for.</p>
+        <p>You get a <b>fair value</b> under bear, base and bull cases, the <b>upside or downside</b>
+          versus today's price, and a <b>1&ndash;100 opportunity score</b> weighing valuation, quality,
+          growth, financial health and momentum. It also shows what growth the current price already
+          implies, so you can judge whether the market's expectations look reasonable. Every
+          assumption is visible at the bottom and you can change any of them and re-run.</p>
+        <p class="muted">A model, not advice — the output is only as good as its assumptions, so treat
+          it as a starting point for your own research rather than a verdict.</p>
+      </div>
       <div class="search-row">
-        <input id="ticker" type="text" placeholder="Enter a ticker (e.g. AAPL, NVDA, KO)"
-               autocomplete="off" onkeydown="if(event.key==='Enter')runValue()">
+        <div class="typeahead">
+          <input id="ticker" type="text" placeholder="Enter a ticker or company name (e.g. AAPL, Apple, KO)"
+                 autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false"
+                 aria-controls="tickerAc" oninput="acInput()" onkeydown="acKey(event)" onblur="acBlur()">
+          <div id="tickerAc" class="ac" role="listbox"></div>
+        </div>
         <button class="btn" id="go" onclick="runValue()">Analyze</button>
       </div>
       <div class="chips" id="chips"></div>
@@ -199,8 +217,10 @@
   <!-- HOT STOCKS -->
   <div id="tab-hot" style="display:none">
     <div class="search-card">
-      <div class="search-row" style="align-items:center">
-        <button class="btn" onclick="loadHotStocks()">↻ Load latest scan</button>
+      <div class="note" style="margin-top:0">The list is rebuilt automatically after each market close and stays the
+        same through the trading day, so it's always the latest — there's nothing to refresh.</div>
+      {% if is_owner %}
+      <div class="search-row" style="align-items:center;margin-top:10px">
         <select id="scanScope" class="selin">
           <option value="bundled">Bundled universe (~180 liquid names, fast)</option>
           <option value="whole_market">Whole US market (slow on free feed)</option>
@@ -208,9 +228,8 @@
         <input id="scanLimit" type="number" placeholder="limit (opt)" style="width:120px">
         <button class="btn secondary" onclick="runScan()">Run scan now</button>
       </div>
-      <div class="note">Shows the latest saved scan instantly — it's generated automatically each morning by the
-        background job, so you never wait on it. "Run scan now" triggers an on-demand scan of the selected universe
-        (slower, mainly for testing).</div>
+      <div class="note">Owner-only: triggers an on-demand scan of the selected universe (slow, mainly for testing).</div>
+      {% endif %}
     </div>
     <div class="loader" id="hotLoader"><div class="spinner"></div><div id="hotLoadMsg">Scanning…</div></div>
     <div class="err" id="hotErr"></div>
@@ -245,10 +264,7 @@
         <b>top-10 hot stocks</b> and <b>screaming-buy options signals</b> have actually performed since we started
         logging them, versus the S&amp;P 500. It's <b>survivorship-free by construction</b> (real, dated picks, measured
         forward). Educational only — past performance doesn't predict future results.</div>
-      <div class="search-row" style="align-items:center">
-        <button class="btn" onclick="loadTrack()">↻ Refresh</button>
-        <span class="note" id="trackNote" style="margin:0">Returns mature over time — 1-month picks need ~1 month before they count.</span>
-      </div>
+      <div class="note" id="trackNote">Returns mature over time — 1-month picks need ~1 month before they count.</div>
     </div>
     <div class="loader" id="trackLoader"><div class="spinner"></div><div>Loading track record…</div></div>
     <div class="err" id="trackErr"></div>
@@ -271,16 +287,17 @@
         </label>
         <label class="opt" style="margin:0">Horizon
           <select id="sigHorizon" class="selin" onchange="renderSignals(STATE.signals)">
+            <option value="all" selected>All horizons (best setup)</option>
             <option value="short">Short (3–5 wk)</option>
-            <option value="swing" selected>Swing (6–11 wk)</option>
+            <option value="swing">Swing (6–11 wk)</option>
             <option value="position">Position (3–6 mo)</option>
           </select>
         </label>
         <label class="opt" style="margin:0"><input type="checkbox" id="sigAuto" onchange="toggleSigAuto()"> Auto-refresh (60s)</label>
         <span class="note" id="sigMeta" style="margin:0"></span>
       </div>
-      <div class="note">Add a <code>TRADIER_TOKEN</code> for real-time; otherwise free delayed data. Educational scanner —
-        technical signals are widely used but <b>not a proven edge</b>, and this is <b>not an autotrader</b>. Validate with the Backtest tab.</div>
+      <div class="note">Educational scanner — technical signals are widely used but <b>not a proven edge</b>, and this is
+        <b>not an autotrader</b>.{% if is_owner %} Validate with the Edge Lab tab.{% endif %}</div>
     </div>
     <div class="loader" id="sigLoader"><div class="spinner"></div><div>Scanning intraday setups…</div></div>
     <div class="err" id="sigErr"></div>
@@ -302,6 +319,7 @@
         <button class="btn" onclick="edgeBacktest()">Backtest vs SPY</button>
         <button class="btn secondary" onclick="edgeOptimize()">Walk-forward optimize</button>
         <button class="btn ghost" onclick="edgeTrack()">Update track record</button>
+        <button class="btn ghost" onclick="edgeLearning()">🧠 Self-learning log</button>
       </div>
       <div class="note">Network-heavy (downloads price history for the universe). Survivorship caveat applies to the historical backtest;
         the track record accrues survivorship-free going forward.</div>

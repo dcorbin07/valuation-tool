@@ -52,6 +52,96 @@ def create_saas_app(cfg=CONFIG):
                 "beta_mode": cfg.beta_mode,
                 "is_demo": bool(u and u.get("is_demo"))}
 
+    @app.route("/admin/run-learning", methods=["POST"])
+    def admin_run_learning():
+        # Monthly self-learning: OOS-gated re-tune of the screener weights.
+        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+            return jsonify({"error": "unauthorized"}), 401
+        if not cfg.learn_enabled:
+            return jsonify({"ok": False, "status": "learning disabled"})
+        from ..edge.autolearn import run_learning
+        from ..screener.store import Store
+        try:
+            store = Store()
+            report = run_learning(cfg, store)
+            try:                                    # per-number IC visibility (never tunes)
+                from ..edge.diagnostics import run_number_diagnostics
+                run_number_diagnostics(cfg, store)
+            except Exception:
+                pass
+            _email_owner_learning(cfg, report)
+            return jsonify(report)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    def _email_owner_learning(cfg, report):
+        """Private monthly note to the owner(s) only — what the learner changed, if anything."""
+        try:
+            from .emailer import send_email, learning_digest_html
+            owners = sorted(cfg.owner_email_set)
+            if not owners:
+                return
+            changed = any(b.get("adopted") for b in (report.get("buckets") or {}).values())
+            subject = ("🧠 Valquo self-learning — weights updated" if changed
+                       else "🧠 Valquo self-learning — monthly check (no change)")
+            html = learning_digest_html(report)
+            for addr in owners:
+                send_email(cfg, addr, subject, html)
+        except Exception:
+            pass          # email must never break the learning run
+
+    @app.route("/admin/run-fundamental-backtest", methods=["POST"])
+    def admin_run_fundamental_backtest():
+        # Heavy: builds a point-in-time panel from the historical provider (Sharadar/WRDS)
+        # and backtests + optimizes vs the S&P. Token-protected; result stored for the owner view.
+        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..edge.data_providers import get_historical_provider
+            from ..edge.fundamental_panel import run_backtests
+            from ..screener import universe as U
+            from ..screener.store import Store
+            prov = get_historical_provider(cfg)
+            limit = int(request.args.get("limit", cfg.backtest_universe_limit))
+            # Prefer the provider's own survivorship-free universe (incl. delisted); else bundled.
+            tickers = prov.universe(limit=limit) or list(U.bundled_tickers())[:limit]
+            horizons = [int(x) for x in str(cfg.backtest_horizons).split(",") if x.strip()]
+            hl = int(cfg.backtest_recency_halflife_years * 252)
+            res = run_backtests(prov, tickers, horizons=horizons, rebalance_days=cfg.backtest_rebalance_days,
+                                top_n=cfg.backtest_top_n, lookback_years=cfg.backtest_lookback_years,
+                                recency_halflife_days=hl)
+            try:
+                import datetime as _dt
+                res["computed_at"] = _dt.datetime.utcnow().isoformat()
+                Store().set_meta("fundamental_backtest", res)
+            except Exception:
+                pass
+            return jsonify(res)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @app.route("/admin/adopt-backtest-weights", methods=["POST"])
+    def admin_adopt_backtest_weights():
+        # Promote the backtest's optimized weights into the LIVE tuner — but only a
+        # weighting that beat the default out-of-sample (the same anti-overfit gate).
+        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+            return jsonify({"error": "unauthorized"}), 401
+        from ..screener.store import Store
+        st = Store()
+        res = st.get_meta("fundamental_backtest") or {}
+        horizons = res.get("horizons") or {}
+        H = request.args.get("horizon") or res.get("primary_horizon")
+        h = horizons.get(str(H)) if H else None
+        if not h or not h.get("accepted") or not h.get("optimized_weights"):
+            return jsonify({"ok": False, "error": "No out-of-sample-accepted weighting to adopt for that horizon. "
+                                                  "Run the backtest first; adopt only when it beat the default OOS."})
+        weights = h["optimized_weights"]
+        st.save_learned("established", weights,
+                        {"source": "historical_backtest", "horizon": H, "out_sample_ic": h.get("out_sample_ic")},
+                        True, f"Adopted from historical backtest (horizon {H}, OOS IC {h.get('out_sample_ic')}).")
+        return jsonify({"ok": True, "adopted": weights, "horizon": H,
+                        "note": "Live scorer now uses these as the starting weights; the monthly learner refines from here."})
+
     @app.route("/admin/run-scan", methods=["POST"])
     def admin_run_scan():
         # Token-protected so an external cron (cron-job.org / Render Cron) can
@@ -102,15 +192,22 @@ def create_saas_app(cfg=CONFIG):
         scan_date = data.get("scan_date") or _dt.date.today().isoformat()
         try:
             st = Store()
+            done_key = f"hot_processed_{scan_date}"
+            already = bool(st.get_meta(done_key))       # idempotency: a backup run for a day already done
             st.save_snapshot(scan_date, rows, data.get("provider", "ci"), data.get("params") or {})
-            from . import tracker, notify
-            tracker.log_hot(st, scan_date, rows, cfg)   # log top-10 + update the paper account
-            try:
-                from ..screener.sectors import sector_attractiveness
-                notify.post_hot_digest(cfg, st, scan_date, rows, sector_attractiveness(rows))
-            except Exception:
-                pass
-            return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows)})
+            if not already:                             # fire side-effects ONCE per scan_date only
+                from . import tracker, notify
+                tracker.log_hot(st, scan_date, rows, cfg)   # log top-10 + update the paper account
+                try:
+                    from ..screener.sectors import sector_attractiveness
+                    notify.post_hot_digest(cfg, st, scan_date, rows, sector_attractiveness(rows))
+                except Exception:
+                    pass
+                try:
+                    st.set_meta(done_key, {"at": _dt.datetime.utcnow().isoformat(), "rows": len(rows)})
+                except Exception:
+                    pass
+            return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows), "reprocessed": already})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 

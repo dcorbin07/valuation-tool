@@ -85,11 +85,28 @@ class Store:
                 source TEXT, ticker TEXT, entry_date TEXT, entry_price REAL,
                 exit_date TEXT, exit_price REAL, exit_reason TEXT,
                 PRIMARY KEY (source, ticker, entry_date))""")
+            # Migration: track last-seen so a name that drops out of coverage gets
+            # closed (else delisted losers live forever → survivorship bias).
+            _pcols = {r[1] for r in c.execute("PRAGMA table_info(positions)").fetchall()}
+            for _col, _decl in (("last_seen_date", "TEXT"), ("last_price", "REAL")):
+                if _col not in _pcols:
+                    c.execute(f"ALTER TABLE positions ADD COLUMN {_col} {_decl}")
+            # Self-learning audit log + adopted factor weights.
+            c.execute("""CREATE TABLE IF NOT EXISTS learned_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT, bucket TEXT,
+                weights TEXT, stats TEXT, adopted INTEGER, note TEXT)""")
 
     @contextmanager
     def _conn(self):
-        conn = sqlite3.connect(self.path)
+        # timeout so concurrent writers (background track-refresh + a request) wait
+        # for the lock instead of erroring with "database is locked".
+        conn = sqlite3.connect(self.path, timeout=30)
         conn.row_factory = sqlite3.Row
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=30000")
+        except Exception:
+            pass
         try:
             yield conn
             conn.commit()
@@ -228,8 +245,17 @@ class Store:
     # ---- paper-account positions ----
     def open_position(self, source, ticker, entry_date, entry_price):
         with self._conn() as c:
-            c.execute("""INSERT OR IGNORE INTO positions (source,ticker,entry_date,entry_price)
-                         VALUES (?,?,?,?)""", (source, ticker.upper(), entry_date, entry_price))
+            c.execute("""INSERT OR IGNORE INTO positions
+                         (source,ticker,entry_date,entry_price,last_seen_date,last_price)
+                         VALUES (?,?,?,?,?,?)""",
+                      (source, ticker.upper(), entry_date, entry_price, entry_date, entry_price))
+
+    def touch_position(self, source, ticker, entry_date, seen_date, price):
+        """Record that an open position was still in coverage today (+ its price)."""
+        with self._conn() as c:
+            c.execute("""UPDATE positions SET last_seen_date=?, last_price=?
+                         WHERE source=? AND ticker=? AND entry_date=? AND exit_date IS NULL""",
+                      (seen_date, price, source, ticker.upper(), entry_date))
 
     def close_position(self, source, ticker, entry_date, exit_date, exit_price, reason):
         with self._conn() as c:
@@ -246,6 +272,36 @@ class Store:
         with self._conn() as c:
             return [dict(r) for r in c.execute(
                 "SELECT * FROM positions WHERE source=? ORDER BY entry_date DESC", (source,)).fetchall()]
+
+    # ---- self-learning (adopted factor weights + audit log) ----
+    def save_learned(self, bucket, weights, stats, adopted, note):
+        with self._conn() as c:
+            c.execute("INSERT INTO learned_config (created_at,bucket,weights,stats,adopted,note) VALUES (?,?,?,?,?,?)",
+                      (_dt.datetime.utcnow().isoformat(), bucket, json.dumps(weights),
+                       json.dumps(stats or {}), 1 if adopted else 0, note or ""))
+
+    def latest_learned_weights(self, bucket):
+        with self._conn() as c:
+            r = c.execute("""SELECT weights FROM learned_config WHERE bucket=? AND adopted=1
+                             ORDER BY id DESC LIMIT 1""", (bucket,)).fetchone()
+        if not r:
+            return None
+        try:
+            return json.loads(r["weights"])
+        except Exception:
+            return None
+
+    def learning_history(self, limit=24):
+        with self._conn() as c:
+            rows = [dict(r) for r in c.execute(
+                "SELECT * FROM learned_config ORDER BY id DESC LIMIT ?", (int(limit),)).fetchall()]
+        for r in rows:
+            for k in ("weights", "stats"):
+                try:
+                    r[k] = json.loads(r[k]) if r.get(k) else {}
+                except Exception:
+                    r[k] = {}
+        return rows
 
     # ---- live track record ----
     def save_track_picks(self, source, run_date, rows):

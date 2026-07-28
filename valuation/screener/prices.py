@@ -18,14 +18,23 @@ def _stooq_symbol(ticker: str) -> str:
 def get_history_df(ticker: str, days: int = 400):
     """Daily OHLCV DataFrame (oldest→newest) or None."""
     try:
+        import time
         import pandas as pd
         import requests
-        r = requests.get(STOOQ_URL.format(sym=_stooq_symbol(ticker)), timeout=_TIMEOUT)
-        r.raise_for_status()
-        df = pd.read_csv(io.StringIO(r.text))
-        if df.empty or "Close" not in df.columns:
-            raise ValueError("empty")
-        return df.tail(days).reset_index(drop=True)
+        last = None
+        for attempt in range(3):                       # brief retry/backoff on transient blips
+            try:
+                r = requests.get(STOOQ_URL.format(sym=_stooq_symbol(ticker)), timeout=_TIMEOUT)
+                r.raise_for_status()
+                df = pd.read_csv(io.StringIO(r.text))
+                if df.empty or "Close" not in df.columns:
+                    raise ValueError("empty")
+                return df.tail(days).reset_index(drop=True)
+            except Exception as e:
+                last = e
+                if attempt < 2:
+                    time.sleep(0.4 * (attempt + 1))
+        raise last
     except Exception:
         return _yf_history(ticker, days)
 
@@ -48,7 +57,8 @@ def _yf_history(ticker: str, days: int):
 
 
 def get_quote(ticker: str) -> dict | None:
-    """Return price, avg_dollar_volume, ret_12_1 (12m-1m momentum) or None."""
+    """Price + volume-derived signals: avg dollar volume, 12-1 and 6-1 momentum,
+    52-week-high proximity, and realized volatility (annualized). None if no data."""
     df = get_history_df(ticker, days=400)
     if df is None or len(df) < 30:
         return None
@@ -69,7 +79,26 @@ def get_quote(ticker: str) -> dict | None:
         p_then, p_recent = close[0], close[-21]
         if p_then > 0:
             ret_12_1 = p_recent / p_then - 1.0
-    return {"price": price, "avg_dollar_volume": adv, "ret_12_1": ret_12_1}
+    # 6-1 month momentum: return from ~126d ago to ~21d ago
+    ret_6_1 = None
+    if n >= 126:
+        p6 = close[-126]
+        if p6 > 0:
+            ret_6_1 = close[-21] / p6 - 1.0
+    # 52-week-high proximity: price / trailing max (0..1, higher = nearer the high)
+    win = close[-min(252, n):]
+    hi = max(win) if win else None
+    high_prox = (price / hi) if (hi and hi > 0) else None
+    # realized volatility: annualized stdev of daily returns over ~120 sessions
+    vlook = close[-min(120, n):]
+    rets = [vlook[i] / vlook[i - 1] - 1.0 for i in range(1, len(vlook)) if vlook[i - 1] > 0]
+    realized_vol = None
+    if len(rets) >= 20:
+        mu = sum(rets) / len(rets)
+        var = sum((x - mu) ** 2 for x in rets) / (len(rets) - 1)
+        realized_vol = (var ** 0.5) * (252 ** 0.5)
+    return {"price": price, "avg_dollar_volume": adv, "ret_12_1": ret_12_1,
+            "ret_6_1": ret_6_1, "high_prox": high_prox, "realized_vol": realized_vol}
 
 
 def close_series(ticker: str, days: int = 1500):

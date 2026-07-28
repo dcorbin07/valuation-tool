@@ -180,6 +180,12 @@ def api_hotstocks():
     import json as _json
     rows = st.load_snapshot(scan_date, top=top)
     all_rows = st.load_snapshot(scan_date)
+    # Every listed name gets a fair value. Only the top few carry a full DCF (too slow to
+    # run on the whole list), so the rest get a peer-relative multiples estimate — computed
+    # here rather than in the scan so it also fills in snapshots that were saved earlier.
+    # Medians come from the FULL scan, not the displayed slice, so the peer group is stable.
+    from ..screener.fairvalue import estimate_fair_values
+    estimate_fair_values(rows, peer_rows=all_rows)
     scans = st.list_scans()
     meta = next((s for s in scans if s["scan_date"] == scan_date), {})
     try:
@@ -190,11 +196,106 @@ def api_hotstocks():
                     "sectors": sector_attractiveness(all_rows),
                     "universe_size": meta.get("universe_size"), "scored": meta.get("scored"),
                     "provider": meta.get("provider"), "filtered": params.get("filtered"),
+                    "health": params.get("health"),
                     "history": [s["scan_date"] for s in scans][:12]})
+
+
+@app.route("/api/tickers")
+def api_tickers():
+    """Ticker typeahead for the Single-valuation box.
+
+    Local-only and instant: matches against the latest scan snapshot (which carries real
+    company names) and falls back to the bundled universe so it still works before any
+    scan has run. No network call — this fires on every keystroke.
+    """
+    q = (request.args.get("q") or "").strip().upper()
+    if not q:
+        return jsonify({"results": []})
+    limit = min(int(request.args.get("limit", 8) or 8), 25)
+
+    seen, cands = set(), []
+    try:
+        for r in _store().load_snapshot() or []:
+            t = (r.get("ticker") or "").upper()
+            if t and t not in seen:
+                seen.add(t)
+                cands.append((t, r.get("name") or "", r.get("sector") or ""))
+    except Exception:
+        pass                                   # no snapshot yet — bundled list still works
+    try:
+        from ..screener.universe import bundled_sector_map
+        for t, sector in bundled_sector_map().items():
+            if t not in seen:
+                seen.add(t)
+                cands.append((t, "", sector))
+    except Exception:
+        pass
+
+    # Rank: exact ticker, then ticker prefix, then name prefix, then anything containing q.
+    def rank(c):
+        t, name, _ = c
+        n = name.upper()
+        if t == q:
+            return 0
+        if t.startswith(q):
+            return 1
+        if n.startswith(q):
+            return 2
+        return 3
+
+    hits = [c for c in cands if q in c[0] or q in c[1].upper()]
+    hits.sort(key=lambda c: (rank(c), len(c[0]), c[0]))
+    return jsonify({"results": [{"ticker": t, "name": n, "sector": s}
+                                for t, n, s in hits[:limit]]})
 
 
 _LAST_TRACK_REFRESH = [0.0]
 _PAPER_BENCH = {}
+_REGIME = {"data": None, "ts": 0.0}
+
+
+@app.route("/api/regime")
+def api_regime():
+    """Market-context readout (NOT a stock factor): 10Y yield, VIX, S&P vs its 200-day.
+    Cached ~1h. This is the honest use of a 'Buffett-indicator'-style gauge — it describes
+    the whole market's weather; it can't rank one stock above another."""
+    import time
+    import datetime as _dt
+    now = time.time()
+    if _REGIME["data"] and now - _REGIME["ts"] < 3600:
+        return jsonify(_REGIME["data"])
+    out = {"as_of": _dt.date.today().isoformat()}
+    try:
+        from ..data import macro
+        out["ten_year"] = round(macro.risk_free_rate(CONFIG)[0] * 100, 2)
+    except Exception:
+        out["ten_year"] = None
+    try:
+        import yfinance as yf
+        v = yf.Ticker("^VIX").fast_info.get("lastPrice")
+        out["vix"] = round(float(v), 1) if v else None
+    except Exception:
+        out["vix"] = None
+    trend = None
+    try:
+        from ..screener.prices import get_history_df
+        df = get_history_df("SPY", 260)
+        if df is not None and len(df) > 200:
+            closes = [float(x) for x in df["Close"].tolist()]
+            ma200 = sum(closes[-200:]) / 200.0
+            out["sp_above_200dma_pct"] = round((closes[-1] / ma200 - 1) * 100, 1)
+            trend = closes[-1] > ma200
+    except Exception:
+        pass
+    out["sp_uptrend"] = trend
+    score = 0
+    if out.get("vix") is not None:
+        score += 1 if out["vix"] < 20 else (-1 if out["vix"] > 28 else 0)
+    if trend is not None:
+        score += 1 if trend else -1
+    out["regime"] = "risk-on" if score > 0 else ("risk-off" if score < 0 else "neutral")
+    _REGIME.update(data=out, ts=now)
+    return jsonify(out)
 
 
 def _compute_paper_bench(st, source="hot10"):
@@ -214,6 +315,7 @@ def _compute_paper_bench(st, source="hot10"):
             i = spy.index.searchsorted(pd.to_datetime(date))
             return spy.iloc[min(i, len(spy) - 1)] if len(spy) else None
 
+        rt = 2.0 * CONFIG.paper_cost_bps / 1e4          # charge the strategy leg realistic cost
         alphas = []
         for p in allp:
             if not p.get("exit_date"):
@@ -221,12 +323,22 @@ def _compute_paper_bench(st, source="hot10"):
             b0, b1 = at(p["entry_date"]), at(p["exit_date"])
             e, x = p.get("entry_price"), p.get("exit_price")
             if b0 and b1 and b0 > 0 and e and x and e > 0:
-                alphas.append((x / e - 1) - (b1 / b0 - 1))
+                alphas.append((x / e - 1 - rt) - (b1 / b0 - 1))
         first = min(p["entry_date"] for p in allp)
         b_first = at(first)
         spy_all = float(spy.iloc[-1] / b_first - 1) if (b_first and b_first > 0) else None
+        # Is the average alpha real, or noise? A simple t-stat on per-trade alpha vs 0.
+        t_stat = None
+        if len(alphas) >= 3:
+            import statistics as _stats
+            m = sum(alphas) / len(alphas)
+            sd = _stats.stdev(alphas)
+            if sd > 0:
+                t_stat = m / (sd / (len(alphas) ** 0.5))
         _PAPER_BENCH[source] = {"avg_alpha": (sum(alphas) / len(alphas)) if alphas else None,
-                                "n_alpha": len(alphas), "spy_all_time": spy_all, "since": first}
+                                "n_alpha": len(alphas), "spy_all_time": spy_all, "since": first,
+                                "t_stat": t_stat, "significant": (abs(t_stat) > 2.0) if t_stat is not None else None,
+                                "net_of_costs": True}
     except Exception:
         pass
 
@@ -279,7 +391,9 @@ def api_track():
         snap = st.load_snapshot() or []
         pmap = {r.get("ticker"): r.get("price") for r in snap if r.get("price")}
         smap = {r.get("ticker"): r.get("hot_score") for r in snap}
-        paper = positions.paper_summary(st, "hot10", pmap, smap, max_weight=CONFIG.paper_max_weight)
+        vmap = {r.get("ticker"): (r.get("extra") or {}).get("vol") for r in snap}
+        paper = positions.paper_summary(st, "hot10", pmap, smap, max_weight=CONFIG.paper_max_weight,
+                                        cost_bps=CONFIG.paper_cost_bps, vol_map=vmap)
         paper["bench"] = _PAPER_BENCH.get("hot10")
     except Exception:
         paper = {"summary": {}, "watching": [], "closed": []}
@@ -287,6 +401,19 @@ def api_track():
                     "note": "Forward, survivorship-free record of real dated picks vs the S&P 500. Options "
                             "are tracked by the underlying's forward return (signal accuracy, not option "
                             "P&L). Educational only; past results don't predict future performance."})
+
+
+@app.route("/api/edge/learning")
+def api_edge_learning():
+    """Owner-only (gated by the SaaS layer): current adopted weights + learning audit log."""
+    from ..screener.store import Store
+    from ..screener.screen import _effective_weights
+    st = Store()
+    est, spec = _effective_weights(st)
+    return jsonify({"current": {"established": est, "speculative": spec},
+                    "history": st.learning_history(24),
+                    "number_ic": st.get_meta("number_ic"),
+                    "fundamental_backtest": st.get_meta("fundamental_backtest")})
 
 
 @app.route("/api/scan/run", methods=["POST"])

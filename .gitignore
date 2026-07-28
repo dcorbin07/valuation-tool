@@ -21,3 +21,7 @@ __pycache__/
 .idea/
 .vscode/
 *.swp
+
+# Backtest exports + local DBs — never commit (huge, and licensed data must not be redistributed)
+data/
+*.db

@@ -37,13 +37,22 @@ def _composite_col(df, weights, factor_cols):
     return contrib / denom
 
 
+def _compositions(n, total):
+    """Non-negative integer tuples of length n summing to total (weights that sum to 1
+    in `step` units). Enumerates only valid combos — vastly fewer than the full product,
+    which matters once there are many factors (5**9 ≈ 2M vs ~500)."""
+    if n == 1:
+        yield (total,)
+        return
+    for i in range(total + 1):
+        for rest in _compositions(n - 1, total - i):
+            yield (i,) + rest
+
+
 def _weight_grid(factor_cols, step=0.25):
-    vals = [round(i * step, 4) for i in range(int(round(1 / step)) + 1)]
-    grid = []
-    for combo in itertools.product(vals, repeat=len(factor_cols)):
-        if abs(sum(combo) - 1.0) < 1e-9:
-            grid.append(dict(zip(factor_cols, combo)))
-    return grid
+    units = int(round(1 / step))
+    return [dict(zip(factor_cols, [round(u * step, 4) for u in combo]))
+            for combo in _compositions(len(factor_cols), units)]
 
 
 def _ic_for(df, weights, factor_cols, ret_col, date_col):
@@ -77,8 +86,17 @@ def optimize_weights(panel, factor_cols, ret_col="fwd_ret", date_col="date",
     eq = {c: 1.0 / len(factor_cols) for c in factor_cols}
     eq_oos = _ic_for(oos_p, eq, factor_cols, ret_col, date_col)
 
+    # Significance floor (multiple-testing guard): the OOS IC wasn't used to pick the
+    # weights, so under the null it's ~N(0, 1/sqrt((names-1)*oos_dates)). Requiring it to
+    # clear ~1.64 sigma rejects noise regardless of how many grid points we searched —
+    # which matters now that more factors mean a much bigger grid.
+    _oos_dates = int(oos_p[date_col].nunique())
+    _avg_names = float(oos_p.groupby(date_col).size().mean()) if _oos_dates else 0.0
+    _std_null = (1.0 / ((max(1.0, _avg_names - 1.0) * max(1, _oos_dates)) ** 0.5)) if _oos_dates else 1.0
+    _sig_floor = 1.64 * _std_null
+
     accepted = bool(is_ic > 0 and oos_ic == oos_ic and oos_ic > 0
-                    and oos_ic >= min_oos_fraction * is_ic)
+                    and oos_ic >= min_oos_fraction * is_ic and oos_ic >= _sig_floor)
     if accepted:
         verdict = (f"Tuned weights hold out-of-sample (IS IC {is_ic:.3f} → OOS IC {oos_ic:.3f}). "
                    f"Recommended over equal-weight (OOS {eq_oos:.3f}).")

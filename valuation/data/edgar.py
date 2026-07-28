@@ -88,11 +88,17 @@ def fetch(ticker: str, cfg) -> Optional[CompanyData]:
     cik = resolve_cik(ticker, cfg)
     if cik is None:
         return None
-    try:
-        r = requests.get(_FACTS_URL.format(cik=cik), headers=_headers(cfg), timeout=25)
-        r.raise_for_status()
-        facts = r.json()
-    except Exception:
+    facts = None
+    for attempt in range(3):                       # SEC rate-limits; retry transient failures
+        try:
+            r = requests.get(_FACTS_URL.format(cik=cik), headers=_headers(cfg), timeout=25)
+            r.raise_for_status()
+            facts = r.json()
+            break
+        except Exception:
+            import time
+            time.sleep(0.5 * (attempt + 1))
+    if facts is None:
         return None
 
     cd = CompanyData(ticker=ticker.upper())

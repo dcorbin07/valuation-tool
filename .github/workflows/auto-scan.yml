@@ -20,9 +20,15 @@ on:
         options: [hot, intraday, both]
         default: hot
   schedule:
-    - cron: "0 11 * * 1-5"          # hot list — 11:00 UTC weekdays (~6-7am ET, pre-market)
+    # Hot list runs just AFTER the close so it uses complete end-of-day data and is ready before
+    # the next open. Two attempts at ODD minutes because GitHub's free scheduler routinely DROPS
+    # top-of-the-hour runs — a single :00 daily job is why the list silently went stale. The ingest
+    # endpoint is idempotent per day, so the backup is a no-op if the primary already landed.
+    - cron: "23 22 * * 1-5"         # hot list — 22:23 UTC (~5:23pm ET after close), primary
+    - cron: "41 23 * * 1-5"         # hot list — 23:41 UTC backup, if GitHub dropped the primary
     - cron: "*/30 13-20 * * 1-5"    # intraday — every 30 min on free (fits Actions minutes);
                                     # the paid Render cron (render.yaml) runs this every 15 min
+    - cron: "0 12 1 * *"            # self-learning — monthly (1st, 12:00 UTC), OOS-gated re-tune
 
 concurrency:
   group: auto-scan-${{ github.workflow }}
@@ -30,7 +36,7 @@ concurrency:
 
 jobs:
   hot:
-    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '0 11 * * 1-5') || (github.event_name == 'workflow_dispatch' && (github.event.inputs.kind == 'hot' || github.event.inputs.kind == 'both')) }}
+    if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '23 22 * * 1-5' || github.event.schedule == '41 23 * * 1-5')) || (github.event_name == 'workflow_dispatch' && (github.event.inputs.kind == 'hot' || github.event.inputs.kind == 'both')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -74,3 +80,16 @@ jobs:
           INTRADAY_LIMIT: "150"
           INTRADAY_AI_TOP: "10"
         run: python scripts/ci_scan.py
+
+  learn:
+    # Monthly self-learning: tells the site to re-tune its screener weights out-of-sample
+    # (server-side; it has the accrued track record). Purely statistical. Just a trigger.
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '0 12 1 * *') || (github.event_name == 'workflow_dispatch' && github.event.inputs.kind == 'both') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger monthly out-of-sample-gated re-tune
+        env:
+          BASE: ${{ secrets.SITE_BASE_URL }}
+          TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          curl -fsS -X POST "$BASE/admin/run-learning" -H "X-Admin-Token: $TOKEN" || true
