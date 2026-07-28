@@ -57,6 +57,15 @@ class HistoricalDataProvider:
         """Per-quarter 13F institutional-holdings totals for a ticker (each with calendardate)."""
         return []
 
+    def grades_history(self, ticker: str) -> list:
+        """Dated analyst rating actions (upgrade / downgrade / maintain) for a ticker.
+
+        Each row carries a `date`, an `action`, and the previous/new grade. These are
+        published same-day, so unlike 13F there's no filing lag to model — the action IS
+        the news. Point-in-time by construction: every row is stamped with when it happened.
+        """
+        return []
+
 
 class FreeProvider(HistoricalDataProvider):
     name = "free (Stooq/yfinance)"
@@ -232,6 +241,7 @@ class WRDSProvider(HistoricalDataProvider):
                      "transactionpricepershare", "transactionvalue"],
         "institutional": ["ticker", "calendardate", "date", "totalvalue", "value",
                           "sharesheld", "shares"],
+        "grades": ["ticker", "date", "action", "gradingCompany", "previousGrade", "newGrade"],
         "fundamentals": ["ticker", "datekey", "dimension", "revenue", "netinc", "ebit", "ebitda",
                          "gp", "fcf", "equity", "debt", "cashneq", "ev", "intexp", "roic", "roe",
                          "ebitmargin", "grossmargin", "sharesbas", "shareswa", "shareswadil",
@@ -320,6 +330,9 @@ class WRDSProvider(HistoricalDataProvider):
 
     def institutional_history(self, ticker):
         return self._indexed("institutional").get(ticker.upper(), [])
+
+    def grades_history(self, ticker):
+        return self._indexed("grades").get(ticker.upper(), [])
 
     def _combined(self, base):
         if base in self._df_cache:

@@ -218,6 +218,75 @@ def _prep_inst(rows):
     return dd[order], vv[order]
 
 
+def _prep_grades(rows):
+    """Sorted (dates[datetime64], direction[int]) for a ticker's analyst rating actions.
+
+    direction: +1 upgrade, -1 downgrade, 0 maintain/initiate. Unlike 13F there is no
+    filing lag to model — a rating action is published the day it happens, so the row's
+    own date IS the moment it became public.
+    """
+    recs = []
+    for r in rows:
+        d = r.get("date")
+        a = str(r.get("action") or "").strip().lower()
+        if not d:
+            continue
+        if a in ("upgrade", "up"):
+            v = 1
+        elif a in ("downgrade", "down"):
+            v = -1
+        else:
+            v = 0                      # maintain / initiate / reiterate
+        recs.append((str(d)[:10], v))
+    if not recs:
+        return None
+    dts = pd.to_datetime([x[0] for x in recs], errors="coerce")
+    ok = ~pd.isna(dts)
+    dd = dts[ok].values.astype("datetime64[D]")
+    vv = np.array([recs[i][1] for i in range(len(recs)) if bool(ok[i])], dtype=float)
+    if len(dd) == 0:
+        return None
+    order = np.argsort(dd)
+    return dd[order], vv[order]
+
+
+# Trailing window for the rating-revision signal. A quarter is long enough to accumulate
+# a few actions on a typical large cap, short enough to still be "recent sentiment".
+GRADES_WINDOW_DAYS = 90
+
+
+def _grades_at(prep, as_of, window_days=GRADES_WINDOW_DAYS):
+    """Point-in-time (net_revision, disagreement) from actions in (as_of-window, as_of].
+
+    net_revision  = (upgrades - downgrades) / total actions   in [-1, 1]
+    disagreement  = share of directional actions that go AGAINST the majority, in [0, 0.5]
+                    — 0 when every move agrees, 0.5 when analysts are evenly split.
+
+    Only rows dated on or before `as_of` are considered, so there is no look-ahead.
+    Returns None when the window is empty (no opinion to read).
+    """
+    if prep is None:
+        return None
+    dts, vals = prep
+    hi = np.datetime64(as_of[:10], "D")
+    lo = hi - np.timedelta64(int(window_days), "D")
+    a = int(np.searchsorted(dts, lo, side="right"))
+    b = int(np.searchsorted(dts, hi, side="right"))
+    if b <= a:
+        return None
+    w = vals[a:b]
+    n = len(w)
+    ups = int((w > 0).sum())
+    downs = int((w < 0).sum())
+    net = (ups - downs) / float(n)
+    directional = ups + downs
+    if directional == 0:
+        disagree = 0.0                     # only maintains: no disagreement expressed
+    else:
+        disagree = min(ups, downs) / float(directional)
+    return net, disagree
+
+
 def _inst_accum_at(prep, as_of, lag_days=45):
     if prep is None:
         return None
@@ -255,7 +324,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
               f"data source or free prices — cannot build the panel.", file=sys.stderr)
         return pd.DataFrame()
 
-    px, hist, insh, inst = {}, {}, {}, {}
+    px, hist, insh, inst, grd = {}, {}, {}, {}, {}
     for t in tickers:
         s = series(t)
         if s is not None and len(s) > TD + horizon:
@@ -264,6 +333,10 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                              key=lambda r: (r.get("datekey") or r.get("date") or ""))
             insh[t] = _prep_insider(provider.insider_history(t) or [])       # pre-indexed once
             inst[t] = _prep_inst(provider.institutional_history(t) or [])    # pre-indexed once
+            # Analyst rating actions -> the sentiment theme. Absent from providers that
+            # don't carry them, in which case the theme simply stays neutral as before.
+            grd[t] = _prep_grades(provider.grades_history(t) or []) \
+                if hasattr(provider, "grades_history") else None
     if not px:
         import sys
         print("[panel] no usable price series for any ticker in the export.", file=sys.stderr)
@@ -301,6 +374,10 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             ia = _inst_accum_at(inst.get(t), as_of, lag_days=inst_lag_days)
             if ia is not None:
                 m["inst_accum"] = ia                              # → institutional theme
+            gr = _grades_at(grd.get(t), as_of)
+            if gr is not None:
+                m["rating_rev"] = gr[0]                           # → sentiment theme
+                m["neg_rating_disp"] = -gr[1]                     # dispersion: less is better
             metrics.append(m)
             mktcap[t] = float(mc)                                  # for the market-cap regime split
             fwd[t] = (closes[i + horizon] / closes[i] - 1.0) if closes[i] > 0 else None

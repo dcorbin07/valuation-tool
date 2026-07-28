@@ -267,9 +267,30 @@ class _SynthPIT:
         q = self.q.get(ticker)
         if q is None:
             return None, None
-        rng = np.random.default_rng(abs(hash(ticker)) % (2 ** 32))
+        # zlib.crc32, NOT hash(): Python randomizes string hashing per process
+        # (PYTHONHASHSEED), which made every run generate different price series and left
+        # test_fundamental_backtest_synthetic intermittently failing. crc32 is stable.
+        import zlib
+        rng = np.random.default_rng(zlib.crc32(ticker.encode()) % (2 ** 32))
         closes = list(100 * np.cumprod(1 + rng.normal(0.0002 + 0.0006 * q, 0.012, len(self.dates))))
         return self.dates, closes
+
+    def grades_history(self, ticker):
+        """Analyst actions that agree with the embedded quality signal: good names get
+        net upgrades, bad names net downgrades, on a fixed monthly cadence."""
+        q = self.q.get(ticker)
+        if q is None:
+            return []
+        import zlib
+        rng = np.random.default_rng(zlib.crc32((ticker + "g").encode()) % (2 ** 32))
+        rows = []
+        for k in range(0, len(self.dates), 21):          # ~monthly
+            p_up = 0.5 + 0.4 * q                          # q>0 -> mostly upgrades
+            action = "upgrade" if rng.random() < p_up else "downgrade"
+            rows.append({"ticker": ticker, "date": self.dates[k], "action": action,
+                         "gradingCompany": "TestBank", "previousGrade": "Hold",
+                         "newGrade": "Buy" if action == "upgrade" else "Sell"})
+        return rows
 
     def fundamentals_history(self, ticker):
         q = self.q.get(ticker)
@@ -486,6 +507,94 @@ def test_valquo_index_export_writes_json(tmpdir=None):
     assert on_disk["n_positions"] == p["n_positions"] > 0
     assert on_disk["generated_at"]
     assert os.path.getsize(path) < 200_000, "index file should stay small"
+
+
+def test_grades_signal_is_point_in_time():
+    """The rating signal must only ever see actions dated on or before as_of."""
+    from valuation.edge.fundamental_panel import _prep_grades, _grades_at
+    rows = [{"date": "2024-01-10", "action": "upgrade"},
+            {"date": "2024-02-10", "action": "upgrade"},
+            {"date": "2024-03-10", "action": "downgrade"},
+            {"date": "2024-09-01", "action": "upgrade"}]
+    prep = _prep_grades(rows)
+    net, disp = _grades_at(prep, "2024-03-15")
+    assert abs(net - 1 / 3) < 1e-9, net              # (2 up - 1 down) / 3
+    assert abs(disp - 1 / 3) < 1e-9, disp            # min(2,1)/3 split
+    # Nothing before the first action, and the September action is invisible in March.
+    assert _grades_at(prep, "2024-01-01") is None
+    # A window with no actions in it reads as "no opinion", not as zero.
+    assert _grades_at(prep, "2024-06-30") is None
+
+
+def test_grades_net_revision_direction_and_bounds():
+    from valuation.edge.fundamental_panel import _prep_grades, _grades_at
+    ups = _prep_grades([{"date": f"2024-02-{d:02d}", "action": "upgrade"} for d in (1, 5, 9)])
+    downs = _prep_grades([{"date": f"2024-02-{d:02d}", "action": "downgrade"} for d in (1, 5, 9)])
+    mixed = _prep_grades([{"date": "2024-02-01", "action": "upgrade"},
+                          {"date": "2024-02-05", "action": "downgrade"}])
+    maint = _prep_grades([{"date": "2024-02-01", "action": "maintain"},
+                          {"date": "2024-02-05", "action": "maintain"}])
+    assert _grades_at(ups, "2024-02-20")[0] == 1.0
+    assert _grades_at(downs, "2024-02-20")[0] == -1.0
+    assert _grades_at(mixed, "2024-02-20")[0] == 0.0
+    assert _grades_at(mixed, "2024-02-20")[1] == 0.5      # evenly split = max disagreement
+    assert _grades_at(ups, "2024-02-20")[1] == 0.0        # unanimous = no disagreement
+    # Maintains count toward the denominator but express no direction or disagreement.
+    assert _grades_at(maint, "2024-02-20") == (0.0, 0.0)
+
+
+def test_grades_feed_the_sentiment_theme():
+    """End-to-end: a provider carrying grades should light up the sentiment column,
+    which was empty before, without disturbing the other themes."""
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+    prov = _SynthPIT(30, seed=7)
+    panel = build_fundamental_panel(prov, list(prov.q.keys()), rebalance_days=63,
+                                    horizon=21, lookback_years=4)
+    assert panel["sentiment"].notna().any(), "sentiment must populate from grades"
+    assert float(panel["sentiment"].std()) > 0.05, "sentiment must vary across names"
+    assert panel["quality"].notna().any() and panel["momentum"].notna().any()
+
+
+def test_grades_absent_provider_leaves_sentiment_neutral():
+    """A provider with no grades_history must behave exactly as before (no crash)."""
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+
+    class _NoGrades(_SynthPIT):
+        def grades_history(self, ticker):
+            return []
+
+    prov = _NoGrades(20, seed=3)
+    panel = build_fundamental_panel(prov, list(prov.q.keys()), rebalance_days=63,
+                                    horizon=21, lookback_years=4)
+    assert not panel.empty
+    assert not panel["sentiment"].notna().any(), "no grades -> sentiment stays neutral"
+
+
+def test_synthetic_provider_is_deterministic_across_processes():
+    """Guards the flaky-test fix: prices must not depend on PYTHONHASHSEED.
+
+    _SynthPIT used abs(hash(ticker)), and Python randomizes string hashing per process,
+    so every run produced different series and the backtest assertion failed ~1 run in 4.
+    """
+    prov = _SynthPIT(5, seed=7)
+    _, a = prov.price_history("T01")
+    _, b = prov.price_history("T01")
+    assert a == b, "same process must be repeatable"
+
+    # The real check: two interpreters with DIFFERENT hash seeds must agree. With the
+    # old abs(hash(ticker)) these diverge; with crc32 they match.
+    import subprocess
+    import os
+    snippet = ("import sys; sys.path.insert(0, %r);"
+               "from tests.test_edge import _SynthPIT;"
+               "print(round(_SynthPIT(5, seed=7).price_history('T01')[1][50], 10))"
+               % os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    outs = []
+    for seed in ("0", "12345"):
+        env = dict(os.environ, PYTHONHASHSEED=seed)
+        outs.append(subprocess.run([sys.executable, "-c", snippet], capture_output=True,
+                                   text=True, env=env).stdout.strip())
+    assert outs[0] and outs[0] == outs[1], f"price series varies with PYTHONHASHSEED: {outs}"
 
 
 def _run_all():
