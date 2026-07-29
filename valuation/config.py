@@ -184,6 +184,13 @@ class Config:
     #                         set it to something unguessable before you charge.
     beta_mode: bool = field(default_factory=lambda: _get("BETA_MODE", "true").lower() != "false")
     beta_all_premium: bool = field(default_factory=lambda: _get("BETA_ALL_PREMIUM", "true").lower() != "false")
+
+    # OPEN_ACCESS — Valquo is free and open: every feature available to everyone, no
+    # account required, no checkout. This is a FLAG, not a deletion: all the tier,
+    # gating and Stripe code is untouched, so OPEN_ACCESS=false restores the paid,
+    # signup-required product exactly as it was. It goes further than
+    # BETA_ALL_PREMIUM, which still required an account to sign in to.
+    open_access: bool = field(default_factory=lambda: _get("OPEN_ACCESS", "true").lower() != "false")
     demo_access_token: str = field(default_factory=lambda: _get("DEMO_ACCESS_TOKEN", "preview"))
 
     @property
@@ -192,6 +199,11 @@ class Config:
 
     @property
     def billing_enabled(self) -> bool:
+        # While the product is open, there is nothing to sell: this hides the Stripe
+        # checkout everywhere it's referenced without deleting any billing code, so
+        # OPEN_ACCESS=false restores the paid flow exactly as it was.
+        if self.open_access:
+            return False
         return bool(self.stripe_secret_key)
 
     @property

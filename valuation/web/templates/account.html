@@ -13,8 +13,8 @@
       {% if eff_tier == 'free' %}
         <a href="/pricing" class="btn">Upgrade</a>
       {% else %}
-        <form method="POST" action="/billing/portal" style="display:inline">
-          <button class="btn alt">Manage subscription</button></form>
+        {% if billing_enabled %}<form method="POST" action="/billing/portal" style="display:inline">
+          <button class="btn alt">Manage subscription</button></form>{% endif %}
       {% endif %}
       <a href="/app" class="btn alt">Open dashboard</a>
     </div>

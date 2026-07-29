@@ -126,6 +126,61 @@ def test_options_exit_summary_shapes():
     assert summarize_exits([])["n"] == 0
 
 
+# ----------------------------- live data archive -----------------------------
+def _arch_root():
+    import tempfile, os
+    return os.path.join(tempfile.mkdtemp(), "arch")
+
+
+def test_archive_captures_iv_and_contracts():
+    """The whole point is preserving IV/skew + the contract we'd have traded, since that's
+    what a real options-exit backtest needs and no vendor sells us cheaply."""
+    import gzip, json, os
+    from valuation.edge.archive import archive_intraday
+    root = _arch_root()
+    rows = [{"ticker": "AAPL", "score": 88, "rank": 1, "price": 210.0,
+             "detail": {"price": 210.0, "opt_atm_iv": 0.29, "opt_put_call": 0.7,
+                        "realized_vol": 0.24,
+                        "contracts": {"swing": {"directional": "~35d call, ~60 DTE"}}}}]
+    path = archive_intraday(rows, "2026-07-29 13:45", "tradier", root=root)
+    assert path and os.path.exists(path)
+    assert path.endswith(os.path.join("2026-07-29", "1345.json.gz")), path
+    d = json.load(gzip.open(path, "rt", encoding="utf-8"))
+    assert d["rows"][0]["detail"]["opt_atm_iv"] == 0.29
+    assert "contracts" in d["rows"][0]
+    # Two runs on the same day must not overwrite each other.
+    p2 = archive_intraday(rows, "2026-07-29 15:30", "tradier", root=root)
+    assert p2 != path and os.path.exists(p2)
+
+
+def test_archive_scan_and_stats():
+    import os
+    from valuation.edge.archive import archive_scan, stats
+    root = _arch_root()
+    rows = [{"ticker": "KO", "rank": 1, "hot_score": 91.0, "price": 60.0,
+             "sector": "Consumer Defensive", "extra": {"factors": {"value": 0.4}}}]
+    p = archive_scan(rows, "2026-07-29", "fmp", root=root)
+    assert p and os.path.exists(p)
+    st = stats(root)
+    assert st["scans"]["files"] == 1 and st["scans"]["days"] == 1
+
+
+def test_archive_never_raises_and_skips_empty():
+    """Archiving is a side benefit — it must never be able to take a scan down."""
+    from valuation.edge.archive import archive_intraday, archive_scan
+    root = _arch_root()
+    assert archive_intraday([], "2026-07-29 13:45", root=root) is None
+    assert archive_scan([], "2026-07-29", root=root) is None
+    # A malformed run_time still archives (it just lands under an odd folder name).
+    assert archive_intraday([{"ticker": "X"}], "bad-run-time", root=root) is not None
+    # An unwritable root (a FILE where a directory must go) returns None, not an
+    # exception - archiving must never be able to take a scan down.
+    import tempfile, os
+    fd, blocker = tempfile.mkstemp()
+    os.close(fd)
+    assert archive_scan([{"ticker": "X"}], "2026-07-29", root=blocker) is None
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

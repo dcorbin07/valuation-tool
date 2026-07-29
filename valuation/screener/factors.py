@@ -115,6 +115,14 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     df["rating_rev"] = _num("rating_rev")                               # sentiment: net analyst upgrades-downgrades
     df["neg_rating_disp"] = _num("neg_rating_disp")                     # sentiment: analyst agreement (already negated)
     df["neg_log_mktcap"] = -np.log(mc.where(mc > 0))                    # size: small-cap tilt
+    # Sharadar-only additions. These arrive pre-signed from the panel (already negated
+    # where "less is better"), so they need no further orientation here.
+    df["f_score"] = _num("f_score")                                     # quality: Piotroski 0-9
+    df["cash_op_prof"] = _num("cash_op_prof")                           # quality: cash-based op profitability
+    df["neg_ret_1m"] = _num("neg_ret_1m")                               # low-risk: short-term reversal
+    df["neg_max_ret"] = _num("neg_max_ret")                             # low-risk: MAX / lottery effect
+    df["neg_idio_vol"] = _num("neg_idio_vol")                           # low-risk: idiosyncratic vol
+    df["inst_breadth"] = _num("inst_breadth")                           # institutional: holder breadth
 
     # Sector-neutral: judge each number against its sector peers, not the whole market
     # (a 20% margin means different things in software vs utilities). Subtract the sector
@@ -142,7 +150,8 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     df["value_spec"] = df[["z_neg_ev_sales", "z_neg_ps", "z_book_to_price"]].mean(axis=1)
     df["value"] = np.where(df["bucket"].eq("established"), df["value_est"], df["value_spec"])
     df["quality"] = df[["z_roic", "z_roe", "z_op_margin", "z_gross_margin", "z_neg_leverage",
-                        "z_gp_on_capital", "z_fcf_margin", "z_accruals_q", "z_interest_cov"]].mean(axis=1)
+                        "z_gp_on_capital", "z_fcf_margin", "z_accruals_q", "z_interest_cov",
+                        "z_f_score"]].mean(axis=1)
     df["growth"] = df[["z_revenue_growth", "z_growth_accel"]].mean(axis=1)
     df["momentum"] = df[["z_ret_12_1", "z_ret_6_1", "z_high_prox"]].mean(axis=1)
 
@@ -157,6 +166,10 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
             _bc = _b[_mask] - _b[_mask].mean()
             _slope = float((_bc * (_m[_mask] - _m[_mask].mean())).sum() / (_bc ** 2).sum())
             df.loc[_mask, "momentum"] = _m[_mask] - _slope * _bc
+    # The short-horizon anomalies (short-term reversal, MAX, idiosyncratic vol) were built,
+    # measured on the Sharadar panel, and REJECTED - every one carried the wrong sign
+    # (median IC -0.014 / -0.072 / -0.025, none significant). They are still computed in
+    # _price_extras so re-testing is one line, but they do not feed the theme.
     df["low_risk"] = df[["z_neg_beta", "z_neg_vol"]].mean(axis=1)
     df["capital_discipline"] = df[["z_neg_issuance", "z_neg_asset_growth"]].mean(axis=1)
     # Sentiment blends whichever inputs are present: estimate revisions (still a hook —
@@ -165,7 +178,10 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     # a provider carrying none leaves it neutral exactly as before.
     df["sentiment"] = df[["z_earn_rev", "z_rating_rev", "z_neg_rating_disp"]].mean(axis=1)
     df["size"] = df["z_neg_log_mktcap"]
-    df["institutional"] = df["z_inst_accum"]        # 13F accumulation (backtest/hook; neutral live)
+    # 13F: dollar accumulation plus holder-count breadth. The per-manager SF3 detail
+    # isn't in the bundle, so breadth (how many institutions hold it) is the closest
+    # available stand-in for "how many funds are buying".
+    df["institutional"] = df[["z_inst_accum", "z_inst_breadth"]].mean(axis=1)
 
     # Insider factor: metrics may carry an insider_score (0-100, 50 neutral).
     if "insider_score" in df:

@@ -71,6 +71,14 @@ NUMBER_THEME = {
     # rating_rev = net upgrades-minus-downgrades over a trailing quarter; neg_rating_disp
     # penalizes analysts being split (disagreement = uncertainty).
     "rating_rev": "sentiment", "neg_rating_disp": "sentiment",
+    # Sharadar-only additions, measured on the panel (400 names, 12y, 110 rebalances).
+    # Kept: f_score
+    # (median IC +0.061, IC t +5.66 - the strongest single number in the panel),
+    # accruals_q (+0.026, t +3.08, newly populated) and inst_breadth (+0.024, t +2.71).
+    # Rejected and deliberately NOT listed: cash_op_prof (t +0.22, no signal) and the
+    # short-horizon price anomalies neg_ret_1m / neg_max_ret / neg_idio_vol (all wrong-
+    # signed here). Adding a name back here is all it takes to re-test one.
+    "f_score": "quality", "inst_breadth": "institutional",
 }
 NUMBERS_ALL = list(NUMBER_THEME.keys())
 

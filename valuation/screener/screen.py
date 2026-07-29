@@ -213,6 +213,13 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     if save:
         store.save_snapshot(scan_date, rows, provider.name,
                             {"universe_size": total, "scope": scope, "filtered": audit, "health": health})
+        # Dated, append-only archive of what we picked and when — a survivorship-free
+        # record independent of the DB (which a Render restart can lose without a disk).
+        try:
+            from ..edge.archive import archive_scan
+            archive_scan(rows, scan_date, provider.name)
+        except Exception:
+            pass
     return {"scan_date": scan_date, "rows": rows, "universe_size": total,
             "scored": len(rows), "provider": provider.name, "filtered": audit, "health": health}
 

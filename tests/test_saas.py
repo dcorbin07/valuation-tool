@@ -15,10 +15,13 @@ from valuation.saas.auth import _demo_user
 from valuation.backtest.panel import build_synthetic_panel
 from valuation.backtest.optimize import optimize_weights
 
-# Most tests below exercise the REAL per-tier gating. Beta mode (a launch-time
-# override that unlocks Premium for everyone) is turned off here so the tier
-# assertions mean something; the beta/demo tests re-enable it locally.
+# Most tests below exercise the REAL per-tier gating. Two launch-time overrides that
+# unlock everything are turned off here so the tier assertions mean something; the
+# beta/demo/open-access tests re-enable them locally.
+#   beta_all_premium -> Premium for every signed-in account
+#   open_access      -> the whole product free, no account at all (current default)
 CONFIG.beta_all_premium = False
+CONFIG.open_access = False
 
 
 def _store():
@@ -259,6 +262,45 @@ def test_hot_digest_text():
     assert "Hot Stocks of the Day" in txt and "2026-07-27" in txt
     assert "T9" in txt and "T11" not in txt          # top-10 only (T0..T9)
     assert "Technology" in txt
+
+
+def test_open_access_makes_everything_free_and_anonymous():
+    """OPEN_ACCESS: the whole product, for everyone, with no account and no checkout.
+
+    Restores the flag afterwards so the per-tier tests around it keep meaning something.
+    """
+    s = _store()
+    CONFIG.open_access = True
+    try:
+        # An anonymous visitor is treated as the top tier.
+        assert gating._active(None) == "premium"
+        assert gating.features(gating._active(None))["hotstocks_top"] == 500
+        # Every previously gated or login-walled route is open, with no user at all.
+        for path, body in (("/api/value", {"ticker": "NKE"}),
+                           ("/api/signals", {}), ("/api/signals/run", {}),
+                           ("/api/backtest/run", {}), ("/api/portfolio", {}),
+                           ("/api/export/excel", {}), ("/api/export/pdf", {}),
+                           ("/api/optimize/run", {}),
+                           ("/api/scan/run", {"scope": "whole_market"})):
+            assert gating.check_request(path, "POST", body, None, s) is None, path
+        # No daily cap: well past the old free limit of 5.
+        u = s.create_user("open@b.com", "password123")
+        for _ in range(12):
+            assert gating.check_request("/api/value", "POST", {"ticker": "NKE"}, u, s) is None
+        # Nothing to sell while it's free.
+        assert CONFIG.billing_enabled is False
+        # The owner research bench is still NOT public - it's not a withheld feature.
+        assert gating.check_request("/api/edge/backtest", "POST", {}, None, s)[1] == 403
+    finally:
+        CONFIG.open_access = False
+
+
+def test_open_access_off_restores_the_paywall():
+    """The flag must be a genuine switch, not a one-way door."""
+    s = _store()
+    assert CONFIG.open_access is False           # module default for these tests
+    assert gating._active(None) == "anon"
+    assert gating.check_request("/api/backtest/run", "POST", {}, None, s)[1] == 401
 
 
 def _run_all():

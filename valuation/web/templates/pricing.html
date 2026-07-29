@@ -2,8 +2,8 @@
 {% block title %}Pricing{% endblock %}
 {% block body %}
 <div class="wrap" style="padding:44px 22px">
-  <h1 style="text-align:center;color:var(--navy)">Simple plans</h1>
-  <p class="muted" style="text-align:center;margin-bottom:18px">Start free. Upgrade when the screener and backtest earn their keep.</p>
+  <h1 style="text-align:center;color:var(--navy)">{% if open_access %}Free and open{% else %}Simple plans{% endif %}</h1>
+  <p class="muted" style="text-align:center;margin-bottom:18px">{% if open_access %}Everything, for everyone, at no cost.{% else %}Start free. Upgrade when the screener and backtest earn their keep.{% endif %}</p>
   {% if beta_mode %}
   <div style="max-width:660px;margin:0 auto 22px;background:#e9f7ef;border:1px solid #bfe6cf;color:#1b7f4b;padding:11px 15px;border-radius:10px;font-weight:600;font-size:14px;text-align:center">
     🎉 Free beta — every plan is unlocked free while we build, no card needed. The prices below are a preview of what's coming as we roll out.</div>
@@ -11,6 +11,22 @@
   <div class="err" style="max-width:640px;margin:0 auto 22px">Billing isn't configured yet (owner: set your Stripe keys in <code>.env</code>). Buttons are inactive.</div>
   {% endif %}
 
+  {% if open_access %}
+  <div style="max-width:660px;margin:0 auto;background:var(--green-soft);border:1px solid var(--border);
+              border-left:4px solid var(--green);padding:20px 24px;border-radius:12px">
+    <div style="font-weight:800;font-size:20px;color:var(--navy);margin-bottom:8px">Valquo is free.</div>
+    <p style="font-size:15px;line-height:1.7;margin:0 0 10px">Every feature is available to everyone —
+      the full valuation model, the whole-market hot list, intraday signals, the portfolio builder,
+      exports, all of it. There is no paid tier and nothing is held back.</p>
+    <p style="font-size:15px;line-height:1.7;margin:0 0 10px"><b>You don't need an account.</b> Just open
+      the app and use it. Signing up is optional — it only saves a watchlist and lets you turn on email
+      alerts.</p>
+    <div style="margin-top:16px">
+      <a href="/app" class="btn" style="text-decoration:none">Open the app</a>
+      <a href="/register" class="btn alt" style="text-decoration:none;margin-left:8px">Create an optional account</a>
+    </div>
+  </div>
+  {% else %}
   <!-- monthly / annual toggle -->
   <div style="text-align:center;margin-bottom:22px">
     <span style="display:inline-flex;border:1.5px solid var(--border);border-radius:10px;overflow:hidden">
@@ -38,7 +54,7 @@
         <li>Everything in Free, 100 valuations/day</li><li><b>Whole-market</b> hot-stocks scan</li>
         <li><b>Backtest</b> + portfolio builder</li><li>Excel + PDF exports</li><li>Daily email digest</li>
       </ul>
-      <form method="POST" action="/billing/checkout"><input type="hidden" name="plan" value="pro"><input type="hidden" name="cycle" value="monthly">
+      <form method="POST" action="/billing/checkout"{% if not billing_enabled %} onsubmit="return false"{% endif %}><input type="hidden" name="plan" value="pro"><input type="hidden" name="cycle" value="monthly">
         <button class="btn" style="width:100%">Choose Pro</button></form>
     </div>
 
@@ -49,11 +65,12 @@
         <li>Everything in Pro</li><li>Full hot list (top 500)</li>
         <li><b>Factor-weight optimizer</b> (OOS-guarded)</li><li>API access</li><li>Priority data refresh</li>
       </ul>
-      <form method="POST" action="/billing/checkout"><input type="hidden" name="plan" value="premium"><input type="hidden" name="cycle" value="monthly">
+      <form method="POST" action="/billing/checkout"{% if not billing_enabled %} onsubmit="return false"{% endif %}><input type="hidden" name="plan" value="premium"><input type="hidden" name="cycle" value="monthly">
         <button class="btn alt" style="width:100%">Choose Premium</button></form>
     </div>
   </div>
   <p class="muted" style="text-align:center;font-size:12.5px;margin-top:22px">Prices illustrative — edit them in <code>pricing.html</code> and your Stripe dashboard. Cancel anytime.</p>
+  {% endif %}
 </div>
 
 <style>

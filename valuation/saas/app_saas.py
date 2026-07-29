@@ -47,6 +47,7 @@ def create_saas_app(cfg=CONFIG):
         u = auth.current_user(store)
         eff = gating._active(u) if u else "free"
         return {"user": u, "eff_tier": eff, "feats": gating.features(eff),
+                "open_access": cfg.open_access,
                 "billing_enabled": cfg.billing_enabled,
                 "stripe_pk": cfg.stripe_publishable_key,
                 "beta_mode": cfg.beta_mode,
@@ -236,14 +237,15 @@ def create_saas_app(cfg=CONFIG):
     @app.route("/app")
     def dashboard():
         u = auth.current_user(store)
-        if not u:
+        if not u and not cfg.open_access:
             return redirect("/login?next=/app")
+        u = u or {}                       # open access: anonymous visitors get the app
         is_owner = u.get("email", "").strip().lower() in cfg.owner_email_set
-        # signed_in drives the Sign out control — on the SaaS path a user is always
-        # authenticated here (unauthenticated requests were redirected above).
+        # signed_in drives the Sign out control. Under open access `u` may be empty
+        # (anonymous), and showing "Sign out" to someone who never signed in is wrong.
         return render_template("index.html", ai_enabled=cfg.ai_enabled,
                                ai_provider=cfg.resolved_ai_provider, is_owner=is_owner,
-                               signed_in=True, logout_url="/logout",
+                               signed_in=bool(u), logout_url="/logout",
                                contact_email=cfg.contact_email,
                                feedback_url=cfg.resolved_feedback_url)
 
@@ -293,7 +295,9 @@ def create_saas_app(cfg=CONFIG):
         path = request.path
         if path.startswith("/static/"):
             return None
-        # Marketing landing for anonymous visitors at "/".
+        # Marketing landing for anonymous visitors at "/". Under open access the landing
+        # page still shows (it explains what the tool is), but nothing behind it is
+        # locked — /app renders for anonymous visitors too.
         if path == "/":
             if auth.current_user(store):
                 return redirect("/app")

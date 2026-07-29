@@ -64,5 +64,13 @@ def run_intraday(cfg=CONFIG, store: Optional[Store] = None, provider=None,
     run_time = _dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     if save:
         store.save_intraday(run_time, rows, provider.name)
+        # Archive the options/IV context to a dated file. Free (the data is already
+        # fetched) and append-only, building the point-in-time options history that a
+        # real options-exit backtest needs. Never allowed to break a scan.
+        try:
+            from ..edge.archive import archive_intraday
+            archive_intraday(rows, run_time, provider.name)
+        except Exception:
+            pass
     return {"run_time": run_time, "rows": rows, "universe": len(uni),
             "scored": len(rows), "provider": provider.name}

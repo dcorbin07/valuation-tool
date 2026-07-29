@@ -62,6 +62,12 @@ On the fair 3,000-name universe (~18y, gross of costs):
 4. **Gated auto-apply** — `/admin/adopt-backtest-weights` should consume `recommended_weights_full` (only set when CPCV/walk-forward adopt). Hold the first live flip until #2 checks out (#1 is done and did NOT clear the bar).
 5. **Tracked "Valquo Index" vs SPY** (Cowork side) — broad top-decile, large-cap-tilted paper book; keep the user hot list short.
 
+## END OF EVERY SESSION: update `HANDOFF_STATUS.md`
+Overwrite `HANDOFF_STATUS.md` in the repo root before you finish — what you did, concrete
+numbers (test counts, PBO / Deflated Sharpe / IC / t-stats / alpha, row counts, adopt-or-reject
+verdicts), what's blocked and why, and the recommended next step. Plain markdown, no colour
+codes, factual. The Cowork agent reads that file directly instead of screenshots.
+
 ## Working with Don
 Concise, direct, honest. He is non-technical but sharp and rightly skeptical — show reasoning and caveats, don't inflate. Unlike the Cowork agent, you (Claude Code) can run commands yourself, so run the backtest/tests directly rather than handing him `.bat` files.
 

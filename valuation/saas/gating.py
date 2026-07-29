@@ -39,10 +39,16 @@ def _active(user) -> str:
       2. owner emails (config OWNER_EMAILS) — permanent free Premium;
       3. every signed-in account while BETA_ALL_PREMIUM is on (the free beta);
       4. anyone with a genuinely active paid subscription.
-    Flip BETA_ALL_PREMIUM=false (env) to end the free beta with no code change."""
+    Flip BETA_ALL_PREMIUM=false (env) to end the free beta with no code change.
+
+    OPEN_ACCESS overrides all of it: the full product for everyone, account or not."""
+    from ..config import CONFIG
+    # 0. Open access — deliberately ahead of the `not user` check, because that IS the
+    #    point: an anonymous visitor gets the whole product, not the "anon" stub tier.
+    if CONFIG.open_access:
+        return "premium"
     if not user:
         return "anon"
-    from ..config import CONFIG
     # 1. Recruiter master-link preview — independent of the beta flag so the
     #    link on the résumé keeps working forever.
     if user.get("is_demo"):
@@ -74,19 +80,25 @@ _FEATURE_ROUTES = {
 
 def check_request(path: str, method: str, body: dict, user, store) -> tuple | None:
     """Return None to allow, or (payload_dict, status_code) to block."""
+    from ..config import CONFIG
     tier = _active(user)
     feats = features(tier if tier != "anon" else "free")
+
+    # Edge Lab stays private even under open access: it's the owner's research bench,
+    # not a withheld product feature. Nothing a *user* would want is behind this.
+    if path.startswith("/api/edge/"):
+        if not user or user.get("email", "").strip().lower() not in CONFIG.owner_email_set:
+            return ({"error": "Owner-only research tools.", "owner_only": True}, 403)
+
+    # Open access: no login wall, no feature locks, no usage caps. Everything below this
+    # line exists only for the paid product, and is skipped wholesale.
+    if CONFIG.open_access:
+        return None
 
     # Login required for any /api that isn't public reads.
     public = path in ("/api/health", "/api/hotstocks", "/api/track")
     if path.startswith("/api/") and not public and user is None:
         return ({"error": "Please sign in to use this.", "need_login": True}, 401)
-
-    # Edge Lab = private owner-only research tools.
-    if path.startswith("/api/edge/"):
-        from ..config import CONFIG
-        if not user or user.get("email", "").strip().lower() not in CONFIG.owner_email_set:
-            return ({"error": "Owner-only research tools.", "owner_only": True}, 403)
 
     # Feature-locked routes.
     feat = _FEATURE_ROUTES.get(path)

@@ -18,6 +18,8 @@ here; they're additive later.
 """
 from __future__ import annotations
 
+from typing import Optional
+
 import numpy as np
 import pandas as pd
 
@@ -77,6 +79,179 @@ def _price_factors(closes, i) -> dict:
         var = sum((x - mu) ** 2 for x in rets) / (len(rets) - 1)
         out["realized_vol"] = (var ** 0.5) * (252 ** 0.5)
     return out
+
+
+def _price_extras(closes, i, bench=None) -> dict:
+    """Short-horizon price anomalies, all strictly from data up to index i.
+
+    Deliberately chosen to be orthogonal to the 12-1 momentum already in the panel —
+    which skips the most recent month precisely because that month behaves the OPPOSITE
+    way:
+
+      neg_ret_1m   short-term reversal: last month's losers tend to bounce, so the signal
+                   is the NEGATED 1-month return.
+      neg_max_ret  the MAX / lottery effect: stocks with one huge up-day attract
+                   speculative buying and subsequently underperform, so the largest daily
+                   return of the past month is negated.
+      neg_idio_vol idiosyncratic volatility: residual vol after regressing the stock's
+                   daily returns on the benchmark's. Low idio-vol has historically
+                   outperformed, hence negated. Being the stock-SPECIFIC part is what
+                   makes it distinct from the total realized_vol already present.
+    """
+    out = {}
+    if i >= 21 and closes[i - 21] > 0:
+        out["neg_ret_1m"] = -(closes[i] / closes[i - 21] - 1.0)
+
+    win = closes[max(0, i - 21):i + 1]
+    drets = [win[k] / win[k - 1] - 1.0 for k in range(1, len(win)) if win[k - 1] > 0]
+    if drets:
+        out["neg_max_ret"] = -max(drets)
+
+    if bench is not None and i >= 120:
+        s = closes[max(0, i - 120):i + 1]
+        b = bench[max(0, i - 120):i + 1]
+        n = min(len(s), len(b))
+        sr, br = [], []
+        for k in range(1, n):
+            if s[k - 1] > 0 and b[k - 1] > 0 and s[k] > 0 and b[k] > 0:
+                sr.append(s[k] / s[k - 1] - 1.0)
+                br.append(b[k] / b[k - 1] - 1.0)
+        if len(sr) >= 40:
+            mb, ms = sum(br) / len(br), sum(sr) / len(sr)
+            varb = sum((x - mb) ** 2 for x in br)
+            if varb > 0:
+                beta = sum((br[k] - mb) * (sr[k] - ms) for k in range(len(br))) / varb
+                resid = [sr[k] - (ms + beta * (br[k] - mb)) for k in range(len(sr))]
+                mr = sum(resid) / len(resid)
+                var = sum((x - mr) ** 2 for x in resid) / (len(resid) - 1)
+                out["neg_idio_vol"] = -((var ** 0.5) * (252 ** 0.5))
+    return out
+
+
+def _f_score(cur, prior) -> Optional[int]:
+    """Piotroski F-Score (0-9) from two point-in-time SF1 rows.
+
+    Nine binary accounting-health tests: profitability (4), leverage/liquidity (3),
+    operating efficiency (2). Returns None unless at least six could be evaluated, so a
+    thin row can't masquerade as a genuinely low score.
+    """
+    if not cur or not prior:
+        return None
+    assets, assets_p = _f(cur, "assets"), _f(prior, "assets")
+    if not assets or not assets_p or assets <= 0 or assets_p <= 0:
+        return None
+
+    ni, ni_p = _f(cur, "netinc"), _f(prior, "netinc")
+    cfo = _f(cur, "ncfo")
+    roa = (ni / assets) if ni is not None else None
+    roa_p = (ni_p / assets_p) if ni_p is not None else None
+
+    tests = [
+        roa > 0 if roa is not None else None,                                  # 1 profitable
+        cfo > 0 if cfo is not None else None,                                  # 2 cash-generative
+        roa > roa_p if (roa is not None and roa_p is not None) else None,      # 3 improving
+        (cfo / assets) > roa if (cfo is not None and roa is not None) else None,  # 4 earnings quality
+    ]
+    ltd, ltd_p = _f(cur, "debtnc"), _f(prior, "debtnc")
+    tests.append((ltd / assets) < (ltd_p / assets_p)
+                 if (ltd is not None and ltd_p is not None) else None)          # 5 deleveraging
+    cr, cr_p = _f(cur, "currentratio"), _f(prior, "currentratio")
+    tests.append(cr > cr_p if (cr is not None and cr_p is not None) else None)  # 6 liquidity up
+    sh, sh_p = _f(cur, "sharesbas", "shareswa"), _f(prior, "sharesbas", "shareswa")
+    tests.append(sh <= sh_p * 1.001 if (sh and sh_p) else None)                 # 7 no dilution
+    gm, gm_p = _f(cur, "grossmargin"), _f(prior, "grossmargin")
+    tests.append(gm > gm_p if (gm is not None and gm_p is not None) else None)  # 8 margin up
+    at, at_p = _f(cur, "assetturnover"), _f(prior, "assetturnover")
+    tests.append(at > at_p if (at is not None and at_p is not None) else None)  # 9 turnover up
+
+    usable = [t for t in tests if t is not None]
+    if len(usable) < 6:
+        return None
+    return int(sum(1 for t in usable if t))
+
+
+def _sf1_extras(m, sf1, rows, as_of) -> None:
+    """F-Score, accruals quality, and cash-based operating profitability.
+
+    All need a prior-year point-in-time row for the year-over-year changes, fetched the
+    same way _yoy does it, so nothing is used that wasn't public by `as_of`.
+
+    accruals_q   — the existing (previously never populated) hook: NEGATED total accruals,
+                   (net income - operating cash flow) / assets, so earnings backed by real
+                   cash score higher.
+    cash_op_prof — Novy-Marx cash-based operating profitability: gross profit less SG&A and
+                   R&D, adjusted for working-capital accruals, over assets. It beats plain
+                   gross profitability in the literature precisely because it strips the
+                   accrual component out.
+    """
+    prior = _pit(rows, str((pd.to_datetime(as_of) - pd.Timedelta(days=365)).date()))
+    assets = _f(sf1, "assets")
+
+    fs = _f_score(sf1, prior)
+    if fs is not None:
+        m["f_score"] = float(fs)
+
+    ni, cfo = _f(sf1, "netinc"), _f(sf1, "ncfo")
+    if assets and assets > 0 and ni is not None and cfo is not None:
+        m["accruals_q"] = -((ni - cfo) / assets)
+
+    if assets and assets > 0 and prior:
+        rev, cor = _f(sf1, "revenue"), _f(sf1, "cor")
+        sgna, rnd = _f(sf1, "sgna") or 0.0, _f(sf1, "rnd") or 0.0
+        if rev is not None and cor is not None:
+            op = rev - cor - sgna - rnd
+            # Working-capital accruals: rising receivables/inventory and falling payables
+            # all mean reported profit that hasn't become cash yet.
+            d = 0.0
+            for key, sign in (("receivables", -1.0), ("inventory", -1.0), ("payables", 1.0)):
+                a, b = _f(sf1, key), _f(prior, key)
+                if a is not None and b is not None:
+                    d += sign * (a - b)
+            m["cash_op_prof"] = (op + d) / assets
+
+
+def _prep_holders(rows):
+    """Sorted (dates, holder_count) from the 13F aggregate file.
+
+    The bundled Sharadar institutional file is the AGGREGATE (one row per ticker-quarter);
+    the per-manager SF3 detail is NOT in it, so true per-fund conviction can't be built
+    from what's on disk. What it does carry and we've been ignoring is `shrholders` — how
+    many institutions hold the shares — a breadth-of-ownership signal distinct from the
+    dollar total that inst_accum already uses.
+    """
+    recs = []
+    for r in rows:
+        d = r.get("calendardate") or r.get("date")
+        v = _f(r, "shrholders")
+        if d and v is not None:
+            recs.append((d, float(v)))
+    if len(recs) < 2:
+        return None
+    dts = pd.to_datetime([x[0] for x in recs], errors="coerce")
+    ok = ~pd.isna(dts)
+    dd = dts[ok].values.astype("datetime64[D]")
+    vv = np.array([recs[i][1] for i in range(len(recs)) if bool(ok[i])], dtype=float)
+    if len(dd) < 2:
+        return None
+    order = np.argsort(dd)
+    return dd[order], vv[order]
+
+
+def _inst_breadth_at(prep, as_of, lag_days=45):
+    """Quarter-over-quarter growth in the NUMBER of institutional holders as of `as_of`.
+
+    Same filing-lag treatment as inst_accum: 13F data only becomes public well after the
+    quarter it describes, so the cutoff is shifted back by `lag_days`.
+    """
+    if prep is None:
+        return None
+    dts, vals = prep
+    cutoff = np.datetime64(as_of[:10], "D") - np.timedelta64(lag_days, "D")
+    b = int(np.searchsorted(dts, cutoff, side="right"))
+    if b < 2:
+        return None
+    cur, prev = float(vals[b - 1]), float(vals[b - 2])
+    return (cur / prev - 1.0) if prev > 0 else None
 
 
 def _pit(rows, as_of):
@@ -300,7 +475,14 @@ def _inst_accum_at(prep, as_of, lag_days=45):
 
 
 def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
-                            lookback_years=6, horizon=63, inst_lag_days=45) -> pd.DataFrame:
+                            lookback_years=6, horizon=63, inst_lag_days=45,
+                            keep_numbers=False) -> pd.DataFrame:
+    """Point-in-time panel of the theme columns per (date, ticker).
+
+    keep_numbers=True additionally persists each individual standardized number (z_*), so
+    a diagnostic can measure one signal's standalone predictive power instead of only the
+    theme it was folded into. Off by default — it widens the frame considerably.
+    """
     TD = 252
 
     def series(t):
@@ -324,7 +506,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
               f"data source or free prices — cannot build the panel.", file=sys.stderr)
         return pd.DataFrame()
 
-    px, hist, insh, inst, grd = {}, {}, {}, {}, {}
+    px, hist, insh, inst, grd, hold = {}, {}, {}, {}, {}, {}
     for t in tickers:
         s = series(t)
         if s is not None and len(s) > TD + horizon:
@@ -332,7 +514,9 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             hist[t] = sorted(provider.fundamentals_history(t) or [],
                              key=lambda r: (r.get("datekey") or r.get("date") or ""))
             insh[t] = _prep_insider(provider.insider_history(t) or [])       # pre-indexed once
-            inst[t] = _prep_inst(provider.institutional_history(t) or [])    # pre-indexed once
+            _ih = provider.institutional_history(t) or []
+            inst[t] = _prep_inst(_ih)                                        # pre-indexed once
+            hold[t] = _prep_holders(_ih)                                     # holder-count breadth
             # Analyst rating actions -> the sentiment theme. Absent from providers that
             # don't carry them, in which case the theme simply stays neutral as before.
             grd[t] = _prep_grades(provider.grades_history(t) or []) \
@@ -345,6 +529,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     frame = pd.DataFrame(px).sort_index().ffill()
     cal = frame.index
     benchf = bench.reindex(cal).ffill()
+    benchv = benchf.values.tolist()        # for the idiosyncratic-vol regression, computed once
 
     rows = []
     for i in range(TD, len(cal) - horizon, rebalance_days):
@@ -366,14 +551,20 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             if mc < S.MIN_MARKET_CAP_MM * 1e6:                # point-in-time floor: match the live
                 continue                                       # screener's investable universe ($50M+)
             m = _sf1_to_metrics(t, sf1, float(closes[i]), mc)
-            m.update(_price_factors(closes.tolist(), i))
+            cl = closes.tolist()
+            m.update(_price_factors(cl, i))
+            m.update(_price_extras(cl, i, bench=benchv))       # reversal / MAX / idio-vol
             _yoy(m, hist.get(t, []), as_of, shares, _f(sf1, "revenue"), _f(sf1, "assets"))  # growth + investment
+            _sf1_extras(m, sf1, hist.get(t, []), as_of)        # F-Score / accruals / cash-based OP
             isc = _insider_score_at(insh.get(t), as_of)
             if isc is not None:
                 m["insider_score"] = isc                          # → insider theme (now backtestable)
             ia = _inst_accum_at(inst.get(t), as_of, lag_days=inst_lag_days)
             if ia is not None:
                 m["inst_accum"] = ia                              # → institutional theme
+            ib = _inst_breadth_at(hold.get(t), as_of, lag_days=inst_lag_days)
+            if ib is not None:
+                m["inst_breadth"] = ib                            # → institutional (holder breadth)
             gr = _grades_at(grd.get(t), as_of)
             if gr is not None:
                 m["rating_rev"] = gr[0]                           # → sentiment theme
@@ -395,6 +586,11 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             for theme in S.FACTORS_ALL:
                 v = r.get(theme) if theme in fr.columns else None
                 row[theme] = None if (v is None or pd.isna(v)) else float(v)
+            if keep_numbers:
+                for num in S.NUMBERS_ALL:
+                    zc = "z_" + num
+                    v = r.get(zc) if zc in fr.columns else None
+                    row[zc] = None if (v is None or pd.isna(v)) else float(v)
             rows.append(row)
     return pd.DataFrame(rows)
 

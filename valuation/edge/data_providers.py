@@ -239,13 +239,22 @@ class WRDSProvider(HistoricalDataProvider):
     _KEEP = {
         "insiders": ["ticker", "filingdate", "date", "transactionshares",
                      "transactionpricepershare", "transactionvalue"],
+        # shrholders = how many institutions hold the shares (breadth), distinct from the
+        # dollar total. It was missing here, which silently zeroed the breadth signal.
         "institutional": ["ticker", "calendardate", "date", "totalvalue", "value",
-                          "sharesheld", "shares"],
+                          "sharesheld", "shares", "shrholders"],
         "grades": ["ticker", "date", "action", "gradingCompany", "previousGrade", "newGrade"],
+        # NOTE: this allowlist is load-bearing — a column missing here is silently absent
+        # downstream, and the factor that needs it reads as "no data" rather than erroring.
+        # `assets` was missing, which meant asset_growth (capital discipline) was empty in
+        # every backtest despite being wired up. The block after `price` is what the
+        # F-Score / accruals / cash-based-profitability signals need.
         "fundamentals": ["ticker", "datekey", "dimension", "revenue", "netinc", "ebit", "ebitda",
                          "gp", "fcf", "equity", "debt", "cashneq", "ev", "intexp", "roic", "roe",
                          "ebitmargin", "grossmargin", "sharesbas", "shareswa", "shareswadil",
-                         "sharefactor", "marketcap", "price"],
+                         "sharefactor", "marketcap", "price",
+                         "assets", "ncfo", "debtnc", "currentratio", "assetturnover",
+                         "cor", "sgna", "rnd", "receivables", "inventory", "payables"],
     }
 
     def __init__(self, cfg=CONFIG):
