@@ -506,8 +506,22 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
               f"data source or free prices — cannot build the panel.", file=sys.stderr)
         return pd.DataFrame()
 
+    # Progress logging. The full-universe run previously printed NOTHING for 90+ minutes,
+    # which made a slow run indistinguishable from a hung one and got it killed. Every
+    # phase now reports, so the next long run is diagnosable while it happens.
+    import sys as _sys
+    import time as _time
+    _t0 = _time.time()
+
+    def _prog(msg):
+        print(f"[panel] {_time.time()-_t0:6.0f}s  {msg}", file=_sys.stderr, flush=True)
+
+    _prog(f"loading per-ticker history for {len(tickers)} tickers "
+          f"(price + fundamentals + insider + 13F)")
     px, hist, insh, inst, grd, hold = {}, {}, {}, {}, {}, {}
-    for t in tickers:
+    for _i, t in enumerate(tickers):
+        if _i and _i % 250 == 0:
+            _prog(f"  loaded {_i}/{len(tickers)} tickers, {len(px)} usable")
         s = series(t)
         if s is not None and len(s) > TD + horizon:
             px[t] = s
@@ -531,9 +545,15 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     benchf = bench.reindex(cal).ffill()
     benchv = benchf.values.tolist()        # for the idiosyncratic-vol regression, computed once
 
+    _n_dates = len(range(TD, len(cal) - horizon, rebalance_days))
+    _prog(f"history loaded: {len(px)} usable tickers, {len(cal)} calendar days "
+          f"-> scoring {_n_dates} rebalance dates")
+
     rows = []
-    for i in range(TD, len(cal) - horizon, rebalance_days):
+    for _di, i in enumerate(range(TD, len(cal) - horizon, rebalance_days)):
         as_of = str(cal[i].date())
+        if _di and _di % 10 == 0:
+            _prog(f"  rebalance {_di}/{_n_dates} ({as_of}), {len(rows):,} panel rows so far")
         b0, b1 = benchf.iloc[i], benchf.iloc[i + horizon]
         bret = (b1 / b0 - 1.0) if (b0 and b0 > 0) else np.nan
         metrics, fwd, mktcap = [], {}, {}

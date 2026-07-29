@@ -25,3 +25,9 @@ __pycache__/
 # Backtest exports + local DBs — never commit (huge, and licensed data must not be redistributed)
 data/
 *.db
+# Raw vendor bulk downloads. data/ already covers data/raw/, but these are multi-hundred-MB
+# licensed archives, so this is a second, path-independent guard: a zip anywhere in the tree
+# is never committable, however it got there.
+*.zip
+*.csv.gz
+*.parquet
