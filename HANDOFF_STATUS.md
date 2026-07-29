@@ -5,7 +5,7 @@ the current state, not a log. Plain text, no colour codes — the Cowork agent r
 file directly.
 
 **Session date:** 2026-07-29
-**Branch merged to:** `main` (see "What shipped" for commits)
+**Branch:** `worktree-sharadar-signals` -> merged to `main`
 
 ---
 
@@ -64,8 +64,9 @@ institutional.
 `cash_op_prof`, `neg_ret_1m`, `neg_max_ret`, `neg_idio_vol`.
 
 **Selection-bias caveat, stated plainly:** those three were kept *because* they scored well
-on this same panel. That is in-sample selection. The CPCV/PBO run is what prices it in, and
-that run has not finished yet (see Blocked).
+on this same panel — that is in-sample selection. The CPCV/PBO run in 2e is what prices it
+in, and it came back PBO 13% (i.e. the selection does NOT look overfit). That is reassuring
+but it was measured on the narrower 800-name universe; see the caveats in 2e.
 
 ### 2c. Two EXISTING factors carry the wrong sign
 
@@ -88,13 +89,54 @@ conviction / position-vs-AUM cannot be built from what's on disk. **Skipped, not
 per instruction.** The closest available stand-in — `shrholders` breadth — was built instead
 and it works (t +2.71).
 
-### 2e. Tests
+### 2e. CPCV / Deflated Sharpe / PBO — backtest DID run (800 large-cap names, 18y, 110 rebalances)
 
-**87 passing, 0 failing** across five suites: edge 27, engine 19, intraday 10, screener 13,
-SaaS 18 (+2 new open-access tests). The previously flaky
-`test_fundamental_backtest_synthetic` is fixed and stable (10 consecutive clean runs).
+| metric | this run | previously recorded (3,000-name universe) |
+|---|---|---|
+| **PBO** (want < 50%) | **13%** | ~80% |
+| **Deflated Sharpe** (want > 95%) | **77%** | ~18% |
+| CPCV verdict | **ADOPT `ic-ir`** — median OOS IC +0.051 vs default +0.032, positive in 100% of 15 paths | rejected everything, keep defaults |
+| Walk-forward | adopt `ic-ir` — median OOS IC +0.055 vs default +0.029, positive in 100% of 6 folds | — |
+| Top-decile alpha vs equal-weight | **+4.1%/yr** (signal-weighted +4.4%) | +3.9% |
+| Long-short D1−D10 | +5.0%/yr, **t 0.78**, hit 65% — *not significant* | t 1.31 |
+| Monotonicity | −0.64 (wanted strongly negative — this is good) | — |
+| Lift from the adopted weighting | top-decile alpha +0.5% → **+4.1%**/yr; long-short t −0.29 → **0.78** | — |
+| Regime (median IC) | large **+0.081**, mid +0.065, small +0.035 (long-short small is **−3.2%**) | large highest |
+| 13F dependence | weight 36%; with it top-decile +4.1% / t 0.78, without it **+2.2% / t 0.06** | +3.9% → +1.5% |
 
-### 2f. Free and open
+**This is the first genuine ADOPT verdict from CPCV in this project.** PBO fell from ~80% to
+13% and Deflated Sharpe rose from ~18% to 77%.
+
+**Read it carefully, though — three honest caveats:**
+
+1. **Not apples-to-apples.** The old ~18% / ~80% figures were on the fair **3,000-name**
+   universe; this ran on **800** names. We already knew the edge is strongest in large caps,
+   so part of this improvement is simply a narrower, friendlier universe rather than the new
+   signals. I ran the scoped version because the full 2,827-name run had produced no output
+   after ~1.5 hours. **The full-universe run is the outstanding comparison.**
+2. **Deflated Sharpe 77% is still below the 95% bar.** By our own standard the edge is
+   improved but still not statistically credible. And the long-short t of 0.78 is weak.
+3. **Still heavily 13F-dependent** — remove it and top-decile alpha halves (+4.1% → +2.2%)
+   and the long-short t collapses to 0.06. Diversification away from that one lagged signal
+   has not been achieved.
+
+**Adopted weighting CPCV recommends** (NOT applied — see Next step):
+```
+WEIGHTS_ESTABLISHED = {"value": 0.1855, "quality": 0.2755, "momentum": 0.1479,
+                       "insider": 0.0, "low_risk": 0.0, "capital_discipline": 0.0,
+                       "sentiment": 0.0476, "size": 0.0, "institutional": 0.3435}
+```
+Note it independently pushes **`low_risk` to zero**, corroborating 2c from a completely
+different direction, and raises **quality to 27.6%** (the theme F-Score just joined).
+
+### 2f. Tests
+
+**90 passing, 0 failing** across five suites: edge 27, engine 19, intraday 13, screener 13,
+SaaS 18. New this session: 3 archive tests and 2 open-access tests (which check the flag in
+BOTH directions). The previously flaky `test_fundamental_backtest_synthetic` is fixed and
+stable — 10 consecutive clean runs.
+
+### 2g. Free and open
 
 `OPEN_ACCESS` (default **true**). Verified: anonymous visitors resolve to the `premium`
 tier; all nine formerly-gated API routes return allow with no user; no daily valuation cap;
@@ -110,13 +152,13 @@ withheld product feature.
 
 ## 3. What's blocked, and why
 
-1. **Full-universe CPCV / Deflated Sharpe / PBO run: INCOMPLETE.** Launched on the real
-   2,827-name / 18-year panel with the new factor set (stale panel cache cleared, since the
-   factor set changed). It had not finished when this session ended. **So there is no
-   adopt-or-reject verdict, no PBO and no Deflated Sharpe for the new signals yet** — only
-   the per-signal ICs in 2b, which are in-sample. Re-run:
+1. **FULL-universe (2,827-name) run: not completed.** It produced no output after ~1.5
+   hours, so I stopped it and ran the scoped 800-name version instead, which finished and is
+   reported in 2e. The full run matters because the old ~18% Deflated Sharpe / ~80% PBO
+   baseline was measured on 3,000 names — until the full run completes we cannot say how much
+   of the improvement is the new signals versus the narrower large-cap universe. Re-run:
    `python -m valuation.edge.fundamental_panel --data-dir data/backtest --json data/backtest/last_result.json`
-   (or `run_backtest.bat`). Expect hours, not minutes, on the full universe.
+   (or `run_backtest.bat`). Budget hours, and expect it to need to run unattended.
 2. **Estimate revisions (real ones): parked deliberately.** FMP's `analyst-estimates` is not
    point-in-time (fiscal-period dates, no as-of field, one row per target → no revision
    history at any tier). The FMP key is also account-wide rate-limited and did NOT reset at
@@ -131,14 +173,19 @@ withheld product feature.
 
 **In priority order:**
 
-1. **Re-run the full backtest to completion and read the CPCV verdict.** Everything in 2b is
-   in-sample until PBO and Deflated Sharpe say otherwise. `f_score` at t +5.66 is the most
-   promising single result this project has produced — it deserves the strong test, not the
-   weak one.
-2. **Decide on `neg_vol` and `neg_asset_growth`** (2c). Two live factors point the wrong way.
-   This is a scoring change, so it needs Don's sign-off.
-3. **Re-examine every past `capital_discipline` conclusion** given 2a.
-4. Leave FMP/grades parked until WRDS (IBES) is available.
+1. **Run the FULL 2,827-name backtest unattended** and compare against 2e. That is the only
+   way to know whether PBO 13% / Deflated Sharpe 77% reflects the new signals or just the
+   large-cap universe. Until then, treat 2e as promising but not established.
+2. **Decide whether to apply the CPCV-adopted `ic-ir` weights.** CPCV is the designated
+   authority and it says adopt, which per the project's own rule is the trigger. I did NOT
+   apply them: it zeroes four themes and triples institutional to 34%, and the run was on the
+   narrower universe. My recommendation is to wait for the full-universe run first, then
+   apply via `/admin/adopt-backtest-weights`.
+3. **Decide on `neg_vol` and `neg_asset_growth`** (2c). Two live factors point the wrong way,
+   and the CPCV weighting independently zeroed `low_risk`. This is a scoring change, so it's
+   Don's call.
+4. **Re-examine every past `capital_discipline` conclusion** given 2a.
+5. Leave FMP/grades parked until WRDS (IBES) is available.
 
 ---
 
