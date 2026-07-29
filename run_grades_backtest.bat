@@ -11,13 +11,20 @@ REM    2. Re-run the full backtest, which now scores the `sentiment` theme from
 REM       that data, and reports Deflated Sharpe / CPCV / PBO.
 REM
 REM  WHEN TO RUN THIS - it matters:
-REM    The FMP free tier has a daily request cap AND THE LIVE HOT-LIST SCAN USES
-REM    THE SAME KEY. That scan runs at 22:23 UTC (23:41 UTC backup), Mon-Fri.
-REM    The quota resets at 00:00 UTC. So the safe window is roughly
-REM       00:00 - 20:00 UTC  =  8pm - 4pm US Eastern
-REM    and the ideal time is just after 00:00 UTC (~8pm ET), when the quota is
-REM    fresh and the next scan is ~22 hours away. Running this in the couple of
-REM    hours BEFORE 22:23 UTC risks starving the daily scan.
+REM    The FMP free allowance is shared with THE LIVE HOT-LIST SCAN, which runs
+REM    at 22:23 UTC (23:41 UTC backup), Mon-Fri. When the allowance is spent, FMP
+REM    returns 429 on EVERY endpoint for the whole account - so a big export can
+REM    stop the daily scan from getting data.
+REM
+REM    Measured, not assumed: the allowance did NOT come back at 00:00 UTC after
+REM    being spent, and was still refusing calls ~19 hours later. So do not count
+REM    on a midnight reset. This file now PRE-CHECKS the key with a single call
+REM    and stops immediately if it's blocked, instead of collecting 429s.
+REM
+REM    The fix that actually removes the conflict is FMP_BACKTEST_API_KEY - a
+REM    second (free) FMP account used only by this export, so research work can
+REM    never eat the live scan's allowance. See ENV_REFERENCE.md. Strongly
+REM    recommended before running a full export.
 REM    (The intraday scans use Tradier, not FMP, so they don't compete.)
 REM
 REM  SAFE TO RE-RUN: the export appends and skips tickers it already has, so if
@@ -46,7 +53,28 @@ if not exist "%DATADIR%\fundamentals.csv" (
     exit /b 1
 )
 
-REM ---- current UTC hour, to warn if this is a bad time to run -------------
+REM ---- preflight: is there any allowance left on the key right now? -------
+echo Checking the FMP key before starting...
+%PY% -m valuation.edge.export_grades --check
+if errorlevel 3 (
+    echo(
+    echo ---------------------------------------------------------------------
+    echo  FMP is refusing calls on this key right now, so there is nothing to
+    echo  download. Note this ALSO affects the live hot-list scan until it
+    echo  clears - the allowance is per-account, not per-endpoint.
+    echo(
+    echo  What to do:
+    echo    * Wait and try again later. It does NOT reliably reset at midnight.
+    echo    * Better: set FMP_BACKTEST_API_KEY in .env to a second free FMP key,
+    echo      so this export has its own allowance and can never block the scan.
+    echo      See ENV_REFERENCE.md.
+    echo ---------------------------------------------------------------------
+    echo(
+    pause
+    exit /b 1
+)
+
+REM ---- warn if we're close to the daily scan's slot ------------------------
 for /f %%H in ('%PY% -c "import datetime;print(datetime.datetime.now(datetime.timezone.utc).hour)"') do set "UTCH=%%H"
 if "%UTCH%"=="22" goto :badtime
 if "%UTCH%"=="23" goto :badtime
@@ -54,10 +82,11 @@ if "%UTCH%"=="21" goto :badtime
 goto :goodtime
 
 :badtime
+echo(
 echo  *** WARNING: it is currently %UTCH%:xx UTC. ***
 echo  The daily hot-list scan runs at 22:23 UTC and shares this FMP key, so
-echo  running the export now could use up the quota the scan needs.
-echo  Better to run this just after 00:00 UTC (about 8pm US Eastern).
+echo  exporting now could leave the scan without data.
+echo  Safer: run this earlier in the day, or set FMP_BACKTEST_API_KEY.
 echo(
 choice /C YN /M "Run anyway"
 if errorlevel 2 exit /b 0

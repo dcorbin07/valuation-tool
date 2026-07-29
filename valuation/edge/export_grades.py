@@ -70,6 +70,27 @@ def fetch_grades(ticker: str, key: str, timeout: int = 25) -> list:
     return out
 
 
+def quota_ok(key: str) -> tuple:
+    """One cheap call to see whether the key can talk to FMP at all.
+
+    Worth doing before a long export: a spent allowance returns 429 on EVERY endpoint
+    (it's account-wide, not per-endpoint), so without this the exporter walks the whole
+    ticker list getting nothing. Returns (ok, message).
+    """
+    try:
+        with urllib.request.urlopen(f"{BASE}/quote?symbol=AAPL&apikey={key}", timeout=20) as r:
+            json.loads(r.read().decode("utf-8", "replace"))
+        return True, "FMP key is responding."
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            return False, ("FMP is refusing calls on this key (HTTP 429, 'Limit Reach'). "
+                           "The allowance is account-wide, so this also affects the live "
+                           "hot-list scan until it clears.")
+        return False, f"FMP returned HTTP {e.code}."
+    except Exception as e:
+        return False, f"Could not reach FMP ({type(e).__name__})."
+
+
 def _existing(path: str) -> set:
     """Tickers already exported, so a resumed run doesn't re-spend quota on them."""
     if not os.path.exists(path):
@@ -136,6 +157,9 @@ def main(argv=None):
                          "and the live screener shares the key)")
     ap.add_argument("--tickers", default="", help="explicit comma-separated list")
     ap.add_argument("--sleep", type=float, default=0.0, help="seconds between calls")
+    ap.add_argument("--check", action="store_true",
+                    help="only test whether the key has allowance left, then exit "
+                         "(exit 0 = usable, 3 = blocked)")
     a = ap.parse_args(argv)
 
     # Prefer a dedicated research key so a big export can't eat the daily allowance the
@@ -149,6 +173,15 @@ def main(argv=None):
     else:
         print("Note: using the SAME FMP key as the live hot-list scan (22:23 UTC).\n"
               "      Set FMP_BACKTEST_API_KEY to give the backtest its own quota.")
+
+    ok, msg = quota_ok(key)
+    print(f"  preflight: {msg}")
+    if a.check:
+        return 0 if ok else 3
+    if not ok:
+        print("\n  Nothing to do until the allowance frees up — not walking the ticker\n"
+              "  list to collect 429s. Re-run this when the key is responding again.")
+        return 3
 
     if a.tickers.strip():
         tickers = [t.strip().upper() for t in a.tickers.split(",") if t.strip()]
