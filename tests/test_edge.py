@@ -890,6 +890,135 @@ def test_theme_ic_measures_each_theme_and_reaches_the_results_file():
     assert "Per-theme" in render_md(p)
 
 
+def _q(dk, **over):
+    row = {"datekey": dk, "netinc": 25.0, "ebit": 40.0, "taxexp": 8.0, "ebt": 40.0,
+           "equity": 800.0, "invcap": 1000.0}
+    row.update(over)
+    return row
+
+
+def test_ttm_sums_four_quarters_and_refuses_gaps():
+    """Summing 'the last four rows' is only a TTM if those rows really are four consecutive
+    quarters. With a missing quarter it silently adds up two or three YEARS of earnings and
+    reports a spectacular ROE — the same class of silent-garbage bug as the P5 empties."""
+    from valuation.edge.fundamental_panel import _ttm, TTM_MAX_SPAN_DAYS
+    rows = [_q("2023-05-15"), _q("2023-08-15"), _q("2023-11-15"), _q("2024-02-15"),
+            _q("2024-05-15")]
+    t = _ttm(rows, "2024-06-01", ("netinc", "ebit"))
+    assert t["netinc"] == 100.0 and t["ebit"] == 160.0        # last four, not all five
+    # Point-in-time: a row dated after as_of must never be included.
+    assert _ttm(rows, "2024-02-20", ("netinc",))["netinc"] == 100.0
+    # Fewer than four quarters available -> None, not a partial sum.
+    assert _ttm(rows[:3], "2024-06-01", ("netinc",)) is None
+    # A reporting GAP -> None. These four rows span >2 years.
+    gappy = [_q("2021-05-15"), _q("2022-05-15"), _q("2023-05-15"), _q("2024-05-15")]
+    assert _ttm(gappy, "2024-06-01", ("netinc",)) is None
+    assert TTM_MAX_SPAN_DAYS < 730
+    # A missing key -> None rather than a sum over the rows that happen to have it.
+    assert _ttm([_q("2023-05-15"), _q("2023-08-15"), _q("2023-11-15"),
+                 _q("2024-02-15", netinc=None)], "2024-06-01", ("netinc",)) is None
+
+
+def test_ttm_quality_differs_from_quarterly_and_is_seasonality_free():
+    """The TTM variant must actually be the annual figure, and must NOT move when the same
+    year's earnings are shuffled between quarters — that invariance IS the point."""
+    from valuation.edge.fundamental_panel import _ttm_quality, _sf1_to_metrics
+    smooth = [_q("2023-05-15"), _q("2023-08-15"), _q("2023-11-15"), _q("2024-02-15")]
+    # Same 100 of annual earnings, wildly seasonal (a retailer's Q4).
+    lumpy = [_q("2023-05-15", netinc=5.0), _q("2023-08-15", netinc=5.0),
+             _q("2023-11-15", netinc=5.0), _q("2024-02-15", netinc=85.0)]
+    a, b = {}, {}
+    _ttm_quality(a, smooth, "2024-03-01")
+    _ttm_quality(b, lumpy, "2024-03-01")
+    assert a["roe_ttm"] == b["roe_ttm"] == 100.0 / 800.0, (a, b)
+    # The QUARTERLY version does move with the seasonality — the problem TTM fixes.
+    qa = _sf1_to_metrics("T", smooth[-1], 10.0, 1e9)["roe"]
+    qb = _sf1_to_metrics("T", lumpy[-1], 10.0, 1e9)["roe"]
+    assert qa != qb and abs(qb - qa) > 0.05, (qa, qb)
+    # roic_ttm uses the TTM effective rate: ebit 160 x (1 - 32/160) / invcap 1000.
+    assert abs(a["roic_ttm"] - (160.0 * 0.80 / 1000.0)) < 1e-12
+    # Negative book value must not invert the sign, same guard as the quarterly version.
+    neg = [_q(r["datekey"], equity=-500.0, invcap=-100.0) for r in smooth]
+    c = {}
+    _ttm_quality(c, neg, "2024-03-01")
+    assert "roe_ttm" not in c and "roic_ttm" not in c
+
+
+def test_cost_model_and_breakeven():
+    """Every other performance number in this project is gross of costs. Pins the cost
+    curve's direction, that turnover counts weight DRIFT (not just entries/exits), and that
+    the breakeven is where net alpha crosses zero."""
+    from valuation.edge.fundamental_panel import (one_way_cost_bps, turnover_and_costs,
+                                                  cost_breakeven_bps, COST_BPS_MICRO)
+    # Cost falls monotonically with size, and unknown/zero caps are charged the worst rate.
+    caps = [500e9, 100e9, 20e9, 5e9, 1e9, 200e6, 50e6]
+    bps = [one_way_cost_bps(c) for c in caps]
+    assert bps == sorted(bps), bps
+    assert one_way_cost_bps(None) == COST_BPS_MICRO
+    assert one_way_cost_bps(float("nan")) == COST_BPS_MICRO
+    assert one_way_cost_bps(-1) == COST_BPS_MICRO
+
+    rng = np.random.default_rng(9)
+    rows = []
+    for d in range(20):
+        for i in range(80):
+            sig = rng.normal()
+            rows.append({"date": f"2024-{d+1:02d}-01", "ticker": f"T{i}",
+                         "fwd_ret": 0.02 * sig + rng.normal(0, 0.05),
+                         "bench_ret": 0.01, "market_cap": 1e9, "good": sig})
+    panel = pd.DataFrame(rows)
+    free = turnover_and_costs(panel, ["good"], {"good": 1.0}, top_frac=0.1, flat_bps=0.0)
+    dear = turnover_and_costs(panel, ["good"], {"good": 1.0}, top_frac=0.1, flat_bps=100.0)
+    assert free["annual_turnover"] > 0, "a rotating book must show turnover"
+    assert abs(free["cost_drag_ann"]) < 1e-9, "zero bps must cost nothing"
+    assert dear["net_ann" ] < free["net_ann"], "cost must reduce the net return"
+    assert dear["gross_ann"] == free["gross_ann"], "cost must not change the GROSS return"
+    assert dear["net_alpha"] < dear["gross_alpha"]
+
+    be = cost_breakeven_bps(panel, ["good"], {"good": 1.0}, top_frac=0.1,
+                            grid=(0, 25, 50, 100, 200, 400, 800, 1600))
+    b = be["breakeven_one_way_bps"]
+    assert b is not None
+    if b not in (float("inf"),):
+        # Net alpha must be >=0 below the breakeven and <0 above it.
+        lo = [c for c in be["curve"] if c["bps"] < b]
+        hi = [c for c in be["curve"] if c["bps"] > b]
+        assert all(c["net_alpha"] >= 0 for c in lo), lo
+        assert hi and hi[-1]["net_alpha"] < 0
+
+    from valuation.edge.results_file import build_payload, render_md
+    p = build_payload({"costs": {"top_decile": {**free, **be}}, "horizons": {}, "cpcv": {},
+                       "construction": {}})
+    assert p["costs"]["top_decile"]["annual_turnover"] == free["annual_turnover"]
+    assert "Tradeability" in render_md(p)
+
+
+def test_holdout_minimum_margin_is_prespecified():
+    """The verdict rule must require a MAGNITUDE, not just the right sign — the sign-only
+    version called a +0.01 t-stat move a confirmation."""
+    from valuation.edge import fundamental_panel as F
+    assert F.MIN_HOLDOUT_ALPHA_GAIN >= 0.01
+    assert F.MIN_HOLDOUT_TSTAT_GAIN >= 0.25
+    rng = np.random.default_rng(4)
+    rows = []
+    for d in range(24):
+        for i in range(60):
+            fwd = float(rng.normal(0, 0.08))
+            rows.append({"date": f"20{20 + d // 12:02d}-{d % 12 + 1:02d}-01", "ticker": f"T{i}",
+                         "fwd_ret": fwd, "bench_ret": 0.01,
+                         "good": fwd + rng.normal(0, 0.03), "junk": float(rng.normal())})
+    panel = pd.DataFrame(rows)
+    r = F.holdout_theme_validate(panel, ["good", "junk"], horizon=63)
+    assert r["min_alpha_gain"] == F.MIN_HOLDOUT_ALPHA_GAIN
+    assert r["min_tstat_gain"] == F.MIN_HOLDOUT_TSTAT_GAIN
+    # A hair-thin gain must NOT read as an improvement.
+    for split in r["splits"].values():
+        for th in split["themes"].values():
+            if th["improves"]:
+                assert th["delta_long_short_tstat"] >= F.MIN_HOLDOUT_TSTAT_GAIN
+                assert th["delta_top_decile_alpha"] >= F.MIN_HOLDOUT_ALPHA_GAIN
+
+
 def test_holdout_theme_validate_protocol():
     """The held-out split is the only check covering a theme chosen AFTER seeing its IC.
 

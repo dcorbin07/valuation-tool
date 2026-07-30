@@ -116,6 +116,20 @@ NUMBER_THEME = {
     # counts actual managers rather than a vendor holder tally, so it replaces it in the
     # theme mean. The rejected three stay computed in the panel, so re-testing is one line.
     "sm_breadth": "institutional",
+    # P6.2 — trailing-twelve-month ROE/ROIC. TESTED AND REJECTED; kept here so they stay
+    # MEASURED (z-scored, in the per-signal IC table) but they are deliberately NOT in the
+    # quality mean in factors.py, so they do not score. Head-to-head on identical rows,
+    # full universe:
+    #     roe      +0.0439  t +2.84  cov 93.4%   <- KEPT (quarterly)
+    #     roe_ttm  +0.0279  t +2.01  cov 91.0%
+    #     roic     +0.0420  t +3.38  cov 96.7%   <- KEPT (quarterly)
+    #     roic_ttm +0.0354  t +2.57  cov 94.2%
+    # Smoothing over four quarters LOSES signal on both. The likely reason is recency: last
+    # quarter's profitability predicts the next quarter better than a smoothed year does, and
+    # that outweighs the fiscal-quarter seasonality TTM removes. So the ARQ quarterly figure
+    # is an advantage here, not the wart it was previously recorded as. Swapping them in is
+    # one edit to the quality list in factors.py if this is ever revisited.
+    "roe_ttm": "quality", "roic_ttm": "quality",
 }
 NUMBERS_ALL = list(NUMBER_THEME.keys())
 

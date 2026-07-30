@@ -92,6 +92,78 @@ def _asset_turnover(row) -> Optional[float]:
     return (rev / a) if (rev is not None and a and a > 0) else None
 
 
+# A trailing-twelve-month window must not silently span a reporting gap. Four consecutive
+# quarters cover ~365 days; 450 allows for late filings and 52/53-week fiscal calendars but
+# rejects a company with a missing quarter, where summing "the last four rows" would quietly
+# add up two or three years of earnings.
+TTM_MAX_SPAN_DAYS = 450
+
+
+def _ttm(rows, as_of, keys, n=4):
+    """Sum the last `n` point-in-time quarterly rows for each key in `keys`.
+
+    Returns None unless all n rows exist, are distinct quarters, and span a plausible year —
+    a partial sum would silently understate a flow and read as a low-quality company.
+
+    Motivation: the ARQ export gives one QUARTER's flow, so `roe = netinc/equity` is a
+    quarterly rate whose level depends on which fiscal quarter a name happens to be in on a
+    given rebalance date. Names sit at different fiscal quarters, so that seasonality enters
+    the cross-section as noise. Summing four quarters removes it.
+    """
+    if not rows:
+        return None
+    picked = []
+    for r in rows:                      # rows are pre-sorted by datekey
+        dk = r.get("datekey") or r.get("date")
+        if dk and dk <= as_of:
+            picked.append((dk, r))
+        elif dk and dk > as_of:
+            break
+    if len(picked) < n:
+        return None
+    picked = picked[-n:]
+    seen = {dk for dk, _ in picked}
+    if len(seen) < n:                   # duplicate datekeys -> not n distinct quarters
+        return None
+    try:
+        span = (pd.to_datetime(picked[-1][0]) - pd.to_datetime(picked[0][0])).days
+    except (ValueError, TypeError):
+        return None
+    if span > TTM_MAX_SPAN_DAYS:
+        return None
+    out = {}
+    for k in keys:
+        vals = [_f(r, k) for _, r in picked]
+        if any(v is None for v in vals):
+            return None
+        out[k] = float(sum(vals))
+    return out
+
+
+def _ttm_quality(m, rows, as_of) -> None:
+    """TTM variants of the two strongest derived signals, measured alongside the quarterly
+    ones so the comparison is head-to-head on identical rows rather than across runs.
+
+    Denominators stay at the period-end stock (equity / invested capital), matching the
+    quarterly versions — the ONLY difference is the flow window, so any IC difference is
+    attributable to seasonality and nothing else. Averaging the denominator over the year is
+    a further refinement, deliberately not bundled in here.
+    """
+    t = _ttm(rows, as_of, ("netinc", "ebit", "taxexp", "ebt"))
+    if not t:
+        return
+    sf1 = _pit(rows, as_of) or {}
+    equity, invcap = _f(sf1, "equity"), _f(sf1, "invcap")
+    if equity and equity > 0:
+        m["roe_ttm"] = t["netinc"] / equity
+    if invcap and invcap > 0:
+        # Effective rate from TTM tax over TTM pre-tax income — steadier than one quarter's,
+        # which is where most one-off tax distortions live.
+        ebt, tax = t["ebt"], t["taxexp"]
+        rate = min(0.60, max(0.0, tax / ebt)) if ebt > 0 else _eff_tax_rate(sf1)
+        m["roic_ttm"] = t["ebit"] * (1.0 - rate) / invcap
+
+
 def _sf1_to_metrics(ticker, sf1, price, market_cap) -> dict:
     """Map a Sharadar SF1 (ARQ) row → our metrics dict, valued at the as-of price."""
     rev, ni, ebit = _f(sf1, "revenue"), _f(sf1, "netinc"), _f(sf1, "ebit")
@@ -754,6 +826,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             _yoy(m, hist.get(t, []), as_of, shares, _f(sf1, "revenue"), _f(sf1, "assets"),
                  cut1=_cut1, cut2=_cut2)                       # growth + investment
             _sf1_extras(m, sf1, hist.get(t, []), as_of, cut1=_cut1)   # F-Score / accruals / cash OP
+            _ttm_quality(m, hist.get(t, []), as_of)            # roe_ttm / roic_ttm (P6.2)
             isc = _insider_score_at(insh.get(t), as_of)
             if isc is not None:
                 m["insider_score"] = isc                          # → insider theme (now backtestable)
@@ -1803,6 +1876,153 @@ MIN_HOLDOUT_ALPHA_GAIN = 0.01      # +100 bps/yr top-decile alpha
 MIN_HOLDOUT_TSTAT_GAIN = 0.25      # +0.25 long-short t
 
 
+# One-way transaction cost (half-spread + market impact) in basis points, by point-in-time
+# market cap. Every headline number in this project is GROSS of costs, and P5 tilted the book
+# smaller-cap by zeroing low_risk — which is exactly where costs bite hardest — so the gross
+# figures cannot be read as achievable without this.
+#
+# Deliberately round, conservative-side numbers rather than a fitted microstructure model:
+# the honest output of this analysis is the BREAKEVEN cost (see cost_breakeven_bps), which
+# needs no calibration to interpret. Treat the table as one plausible point on that curve.
+COST_BPS_BY_MKTCAP = (
+    (200e9, 4.0),        # mega cap
+    (50e9, 6.0),
+    (10e9, 10.0),
+    (2e9, 20.0),
+    (500e6, 40.0),
+    (100e6, 80.0),
+)
+COST_BPS_MICRO = 150.0   # below $100M — often untradeable in size at all
+
+
+def one_way_cost_bps(mktcap) -> float:
+    """Cost in bps of buying OR selling $1 of a name with this market cap."""
+    if mktcap is None or mktcap != mktcap or mktcap <= 0:
+        return COST_BPS_MICRO
+    for floor, bps in COST_BPS_BY_MKTCAP:
+        if mktcap >= floor:
+            return bps
+    return COST_BPS_MICRO
+
+
+def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
+                       flat_bps=None) -> dict:
+    """Turnover and NET-of-cost performance of the long book, vs the equal-weight universe.
+
+    Weights drift with returns between rebalances, so the trade at each date is the full
+    |target - drifted| vector, not just entries and exits. Counting only names entering and
+    leaving would understate turnover and flatter the net return.
+
+    `flat_bps` overrides the market-cap cost table with a single number, which is what
+    cost_breakeven_bps sweeps — the breakeven is the robust answer here, because it does not
+    depend on believing any particular cost calibration.
+
+    Only the strategy is charged; the equal-weight benchmark is left gross. That is
+    deliberately unfavourable to the strategy rather than the reverse.
+
+    NOTE ON ANNUALIZATION — these figures will not tie exactly to `construction.*`.
+    quantile_backtest annualizes ARITHMETICALLY (mean x periods-per-year); this function
+    COMPOUNDS, because a net-of-cost figure is meant to describe what an account actually
+    ends up with. On the current panel that is a gross top-decile alpha of +13.7% here vs
+    +11.8% there — same data, different convention, neither wrong. Compare cost numbers to
+    cost numbers.
+    """
+    from ..screener.cross_sectional import zscore
+    dates = sorted(panel["date"].unique())
+    prev_w, prev_cost = {}, {}
+    gross, net, ew, traded_hist = [], [], [], []
+    for d in dates:
+        sub = panel[panel["date"] == d]
+        if len(sub) < 20:
+            continue
+        comp = np.zeros(len(sub))
+        for c in cols:
+            z = zscore(sub[c]).values
+            comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
+        k = int(top_n) if top_n else max(1, int(len(sub) * top_frac))
+        order = np.argsort(-comp)[:k]
+        tick = sub["ticker"].values[order]
+        rets = sub["fwd_ret"].values[order]
+        mcap = (sub["market_cap"].values[order] if "market_cap" in sub.columns
+                else np.full(len(order), np.nan))
+        ok = np.isfinite(rets)
+        if not ok.any():
+            continue
+        tick, rets, mcap = tick[ok], rets[ok], mcap[ok]
+        w = 1.0 / len(tick)
+        cur_w = {t: w for t in tick}
+        cur_cost = {t: (flat_bps if flat_bps is not None else one_way_cost_bps(m))
+                    for t, m in zip(tick, mcap)}
+
+        # Trade = |target - drifted-from-last-period|, over the union of both books.
+        turn = cost = 0.0
+        for t in set(prev_w) | set(cur_w):
+            dw = abs(cur_w.get(t, 0.0) - prev_w.get(t, 0.0))
+            if dw <= 0:
+                continue
+            bps = cur_cost.get(t, prev_cost.get(t, COST_BPS_MICRO))
+            turn += dw
+            cost += dw * bps * 1e-4
+        g = float(np.mean(rets))
+        gross.append(g)
+        net.append(g - cost)
+        traded_hist.append(turn)
+        allr = sub["fwd_ret"].values
+        ew.append(float(np.nanmean(allr)) if np.isfinite(allr).any() else np.nan)
+
+        # Carry DRIFTED weights into the next rebalance.
+        grown = {t: w * (1.0 + r) for t, r in zip(tick, rets)}
+        tot = sum(grown.values()) or 1.0
+        prev_w = {t: v / tot for t, v in grown.items()}
+        prev_cost = cur_cost
+
+    if not gross:
+        return {"status": "no periods"}
+    per_year = 252.0 / float(horizon)
+    ann = lambda xs: float(np.prod([1 + x for x in xs]) ** (per_year / len(xs)) - 1)
+    ew_ok = [x for x in ew if x == x]
+    ann_ew = ann(ew_ok) if ew_ok else None
+    g_ann, n_ann = ann(gross), ann(net)
+    # Sum|dw| counts both sides of each trade; one-way turnover is half of it.
+    ann_turn = float(np.mean(traded_hist)) / 2.0 * per_year
+    return {"n_periods": len(gross), "n_names": (int(top_n) if top_n else None),
+            "top_frac": (None if top_n else top_frac),
+            "annual_turnover": ann_turn,
+            "gross_ann": g_ann, "net_ann": n_ann,
+            "cost_drag_ann": g_ann - n_ann,
+            "equal_weight_ann": ann_ew,
+            "gross_alpha": (None if ann_ew is None else g_ann - ann_ew),
+            "net_alpha": (None if ann_ew is None else n_ann - ann_ew),
+            "flat_bps": flat_bps}
+
+
+def cost_breakeven_bps(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
+                       grid=(0, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 150, 200)) -> dict:
+    """The one-way cost (bps) at which net alpha vs equal-weight reaches zero.
+
+    This is the number to quote. It converts "is the edge tradeable?" from an argument about
+    cost assumptions into a single figure you can compare against what execution actually
+    costs: if breakeven is 80bps and the book is large caps, it is comfortable; if breakeven
+    is 12bps on a small-cap book, it is not.
+    """
+    curve = []
+    for bps in grid:
+        r = turnover_and_costs(panel, cols, weights, top_frac=top_frac, top_n=top_n,
+                               horizon=horizon, flat_bps=float(bps))
+        if r.get("net_alpha") is None:
+            continue
+        curve.append({"bps": float(bps), "net_alpha": r["net_alpha"], "net_ann": r["net_ann"]})
+    be = None
+    for a, b in zip(curve, curve[1:]):
+        if a["net_alpha"] >= 0 > b["net_alpha"]:
+            span = a["net_alpha"] - b["net_alpha"]
+            be = a["bps"] + (b["bps"] - a["bps"]) * (a["net_alpha"] / span if span else 0.0)
+            break
+    if be is None and curve and curve[-1]["net_alpha"] >= 0:
+        be = float("inf")                      # survives the whole grid
+    return {"breakeven_one_way_bps": be, "curve": curve}
+
+
 def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,
                            min_dates=16, min_alpha_gain=MIN_HOLDOUT_ALPHA_GAIN,
                            min_tstat_gain=MIN_HOLDOUT_TSTAT_GAIN) -> dict:
@@ -2301,6 +2521,17 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             # Held-out time split: does zeroing a theme still help on data that did NOT
             # inform the decision? The one check CPCV/DSR cannot provide.
             out["holdout_validation"] = holdout_theme_validate(panel, cols, horizon=63)
+            # Tradeability. Every other number in this file is gross of costs; this is the
+            # only block that says whether the edge survives being implemented.
+            _cg = (0, 10, 25, 50, 100, 150, 200, 300, 500)
+            out["costs"] = {
+                "cost_model": "one-way bps by point-in-time market cap; see COST_BPS_BY_MKTCAP",
+                "top_decile": {**(turnover_and_costs(panel, cols, rec, top_frac=0.1, horizon=63) or {}),
+                               **cost_breakeven_bps(panel, cols, rec, top_frac=0.1,
+                                                    horizon=63, grid=_cg)},
+                "top_25": {**(turnover_and_costs(panel, cols, rec, top_n=top_n, horizon=63) or {}),
+                           **cost_breakeven_bps(panel, cols, rec, top_n=top_n,
+                                                horizon=63, grid=_cg)}}
             if adopted_w:
                 out["construction_default"] = quantile_backtest(panel, cols, base, n_q=10, horizon=63)
                 out["recommended_weights_full"] = _full_weights(rec, bucket)                # paste-ready weights

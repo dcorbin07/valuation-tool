@@ -91,6 +91,7 @@ def build_payload(res: dict, universe_label: str | None = None,
     cov = res.get("signal_coverage") or {}
     pt = res.get("per_theme") or {}
     hv = res.get("holdout_validation") or {}
+    cst = res.get("costs") or {}
     if per_signal is None:
         per_signal = res.get("per_signal") or None
     wf = (res.get("walk_forward") or {}).get("weights") or {}
@@ -205,6 +206,13 @@ def build_payload(res: dict, universe_label: str | None = None,
         # theme after seeing its IC — so this is the only block that speaks to that.
         # verdicts: confirmed = helped in both split directions; not_replicated = one only.
         "holdout_validation": hv or {"status": "not computed"},
+
+        # Tradeability. EVERY other performance number in this file is gross of costs, and
+        # the book tilted smaller-cap when low_risk was zeroed — which is where costs bite.
+        # `breakeven_one_way_bps` is the figure to quote: the cost level at which net alpha
+        # vs equal-weight hits zero, so it can be compared against real execution costs
+        # without having to believe any particular cost calibration.
+        "costs": cst or {"status": "not computed"},
 
         # {signal: coverage} for every wired number and theme — the fraction of panel rows
         # where it actually reached the composite. `below_floor` is the load-bearing part:
@@ -357,6 +365,24 @@ def render_md(p: dict) -> str:
             v = th.get(t) or {}
             A(f"| {t} | {_f2(v.get('median_ic'), 4)} | {_f2(v.get('ic_tstat'))} | "
               f"{_rate(_cov.get(t, v.get('coverage')), 1)} |")
+    cs = p.get("costs") or {}
+    if cs.get("top_decile"):
+        A("")
+        A("## Tradeability — net of transaction costs\n")
+        A("Every other performance figure in this file is **gross**. `breakeven` is the")
+        A("one-way cost at which net alpha vs equal-weight reaches zero — compare it against")
+        A("what execution actually costs. (Annualized by COMPOUNDING here, vs arithmetically")
+        A("in the construction table above, so the gross figures differ slightly by")
+        A("convention.)\n")
+        A("| book | annual turnover | gross alpha | net alpha | cost drag | breakeven one-way |")
+        A("|---|---|---|---|---|---|")
+        for key, name in (("top_decile", "top decile"), ("top_25", "top 25")):
+            b = cs.get(key) or {}
+            be = b.get("breakeven_one_way_bps")
+            be_s = ("n/a" if be is None else
+                    (">grid" if be == float("inf") else f"{be:.0f} bps"))
+            A(f"| {name} | {_rate(b.get('annual_turnover'), 0)} | {_pct(b.get('gross_alpha'))} "
+              f"| {_pct(b.get('net_alpha'))} | {_pct(b.get('cost_drag_ann'))} | **{be_s}** |")
     hvp = p.get("holdout_validation") or {}
     if hvp.get("splits"):
         A("")
