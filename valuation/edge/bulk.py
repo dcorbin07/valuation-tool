@@ -69,6 +69,19 @@ def _save_cache(name: str, cache_dir: str, obj) -> None:
         pickle.dump(obj, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
+def _header(reader):
+    """First row, or None for an empty/truncated file.
+
+    A zero-byte or header-less bulk CSV (a download that died part-way, say) must degrade
+    to "no data" like a missing file does, not raise StopIteration out of the loader and
+    take a panel build down with it.
+    """
+    try:
+        return next(reader)
+    except StopIteration:
+        return None
+
+
 def _f(x):
     try:
         v = float(x)
@@ -103,7 +116,9 @@ def prepare_sf3(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
     aum: dict = {}
     with open(csv_path, newline="", encoding="utf-8", errors="replace") as f:
         r = csv.reader(f)
-        h = next(r)
+        h = _header(r)
+        if h is None:
+            return {}
         iM, iS, iD, iV = h.index("investorname"), h.index("securitytype"), h.index("calendardate"), h.index("value")
         n = 0
         for row in r:
@@ -124,7 +139,9 @@ def prepare_sf3(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
     out: dict = {}
     with open(csv_path, newline="", encoding="utf-8", errors="replace") as f:
         r = csv.reader(f)
-        h = next(r)
+        h = _header(r)
+        if h is None:
+            return {}
         iT, iM, iS, iD, iV = (h.index("ticker"), h.index("investorname"), h.index("securitytype"),
                               h.index("calendardate"), h.index("value"))
         n = 0
@@ -181,7 +198,9 @@ def prepare_daily(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
     latest: dict = {}          # (ticker, YYYY-MM) -> tuple
     with open(csv_path, newline="", encoding="utf-8", errors="replace") as f:
         r = csv.reader(f)
-        h = next(r)
+        h = _header(r)
+        if h is None:
+            return {}
         iT, iD = h.index("ticker"), h.index("date")
         iMC, iPE, iPB, iPS = h.index("marketcap"), h.index("pe"), h.index("pb"), h.index("ps")
         iEE = h.index("evebitda")
@@ -240,7 +259,9 @@ def prepare_events(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
     out: dict = {}
     with open(csv_path, newline="", encoding="utf-8", errors="replace") as f:
         r = csv.reader(f)
-        h = next(r)
+        h = _header(r)
+        if h is None:
+            return {}
         iT, iD, iC = h.index("ticker"), h.index("date"), h.index("eventcodes")
         for row in r:
             codes = row[iC].replace("|", " ").split()
@@ -283,7 +304,9 @@ def prepare_actions(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
     out: dict = {}
     with open(csv_path, newline="", encoding="utf-8", errors="replace") as f:
         r = csv.reader(f)
-        h = next(r)
+        h = _header(r)
+        if h is None:
+            return {}
         iD, iA, iT, iV = h.index("date"), h.index("action"), h.index("ticker"), h.index("value")
         for row in r:
             t, a = row[iT], (row[iA] or "").lower()
@@ -327,7 +350,9 @@ def prepare_insiders(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
     out: dict = {}
     with open(csv_path, newline="", encoding="utf-8", errors="replace") as f:
         r = csv.reader(f)
-        h = next(r)
+        h = _header(r)
+        if h is None:
+            return {}
         iT = h.index("ticker")
         iFD = h.index("filingdate") if "filingdate" in h else h.index("date")
         iV = h.index("transactionvalue") if "transactionvalue" in h else None
