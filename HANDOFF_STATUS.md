@@ -4,12 +4,88 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-07-29 (third session that day)
-**Branch:** `worktree-wire-bulk` -> merged to `main`
+**Session date:** 2026-07-29 (fourth session that day)
+**Branch:** `worktree-bulk-tests` -> merged to `main`
 
-> **Scope warning:** this session wired the bulk caches into the panel (new P1) and left
-> **P2-P7 not started** — including the full-universe run, which is still the key outstanding
-> validation. See section 3.
+> **Scope:** P2 (bulk.py tests) and P3 (speedup + **the full-universe run, which COMPLETED
+> for the first time**) are done. P4-P7 not started.
+
+---
+
+## 0. THIS SESSION — the full 2,827-name run finally completed, and it deflates the 800-name result
+
+The load phase and the scoring loop are both fixed, so the run that had never finished now
+finishes. **The headline: PBO went from 13% to 53%.** The friendlier large-cap universe was
+doing most of the work.
+
+| metric | **FULL 2,710 names, 110 dates** | 800-name (prev session) | read |
+|---|---|---|---|
+| **PBO** (want <50%) | **53%** | 13% | **the 13% did NOT hold up** — at 53% the weight selection is likely overfit by the metric's own threshold |
+| **Deflated Sharpe** (want >95%) | **73%** | 77% | broadly unchanged, still short of the bar |
+| Top-decile alpha vs equal-weight | **+5.1%/yr** (sig-wtd +5.6%) | +4.1% | *better* on the full universe |
+| Long-short D1-D10 | **+7.7%/yr, t 1.12**, hit 61% | +5.0%, t 0.78 | better, still not significant |
+| Monotonicity | **-0.85** | -0.64 | notably better — deciles are well ordered |
+| Walk-forward verdict | **KEEP DEFAULTS** (`ic-proportional` +0.051 vs +0.044 failed the haircut) | adopt `ic-ir` | reversed |
+| CPCV verdict | adopt **`equal-weight`** (+0.058 vs +0.045, 100% of 15 paths) | adopt `ic-ir` | see below |
+| 13F dependence | +5.1% -> **+3.9%**, t 1.12 -> 0.71 | +4.1% -> +2.2%, t 0.78 -> 0.06 | **much less dependent** |
+| Regime (median IC) | large +0.039, small +0.038, mid +0.028 | large +0.081 | edge is flatter across caps than we thought |
+
+**How to read this honestly — the raw edge and the tuning are two different things.**
+
+The *portfolio* numbers all got BETTER on the full universe: higher top-decile alpha, higher
+long-short t, much cleaner monotonicity (-0.85), and far less 13F dependence. What got worse is
+the *weight selection*: PBO 53% says picking a weighting from this search is likely overfit,
+and walk-forward now refuses to adopt anything at all.
+
+**The two validators disagree, and the disagreement is informative.** Walk-forward says keep
+defaults; CPCV adopts `equal-weight` — not a tuned scheme, but the least-tuned one available.
+Taken together they are saying *don't tune the weights*, which is the opposite of the previous
+session's "adopt ic-ir" and consistent with the project's long-standing finding that
+weight-tuning is mostly noise-chasing.
+
+**So the previous session's PBO 13% / "first genuine ADOPT verdict" should be treated as an
+artifact of the 800-name large-cap subset.** The caveat flagged there turned out to be the
+whole story. Deflated Sharpe ~73-77% is the stable number across both universes, and it is
+still below 95%.
+
+The weighting CPCV would adopt is essentially flat — every theme at 0.119 except sentiment
+(0.048, which is empty anyway since grades are parked):
+```
+WEIGHTS_ESTABLISHED = {"value": 0.119, "quality": 0.119, "momentum": 0.119, "insider": 0.119,
+                       "low_risk": 0.119, "capital_discipline": 0.119, "sentiment": 0.0476,
+                       "size": 0.119, "institutional": 0.119}
+```
+That is equal-weight by another name. **NOT applied** — with PBO at 53% and walk-forward
+refusing to adopt, applying anything from this search is exactly what PBO is warning against.
+It also drops `institutional` from 34% (the 800-name recommendation) to 11.9%, so the two runs
+disagree sharply about the one theme we know carries weight.
+
+**Also worth noting:** the survivorship fix and PIT market cap from P1 are in these numbers, so
+this is the cleanest run to date — 19,207 delisting dates masked, no fake flat post-delisting
+returns, and market cap from Sharadar's own point-in-time field rather than shares x price.
+
+### P3 speedup — the premise was wrong, and profiling paid for itself
+
+`_price_extras`' regression was NOT the bottleneck. `pd.to_datetime` was: 18,968 calls, 10.9s
+of a 31.4s build (35%), because `_yoy` and `_sf1_extras` re-derived the same as_of-365d/-730d
+cutoff for *every ticker at every date*. Hoisting those to once per rebalance date gave
+**31.4s -> 11.2s (2.8x) with byte-identical output** (4,512 rows before and after). No numpy
+rewrite needed; vectorizing the regression would have bought far less.
+
+Full-run load time: **75s for 2,710 usable tickers** (was ~6 minutes of loading alone before).
+
+### P2 — bulk.py now has 8 unit tests
+
+Including `test_sf3_keyword_binding_regression`, which calls `prepare_sf3` by keyword and with
+`rebuild` third-positional and asserts both agree — the exact check that would have caught the
+zero-rows bug. SF3 conviction arithmetic is verified by hand (a small fund's whole-book
+position must outweigh a giant's token stake), DAILY's tuple order is pinned because
+`_daily_at()` unpacks positionally, and `earnings_dates()` staying inert is now enforced by a
+test rather than a comment. **They found a real bug:** an empty/header-less CSV raised
+StopIteration out of the loader; it now degrades to "no data".
+
+**Tests: 98 passing across six suites** (bulk 8, edge 27, engine 19, intraday 13, screener 13,
+SaaS 18).
 
 ---
 
@@ -145,14 +221,10 @@ been caught instantly by one.
 
 ## 3. What's blocked / not done
 
-1. **The full 2,827-name backtest still has not completed.** The load phase is fixed
-   (~6 min → seconds on re-runs) but the scoring loop is untouched, so the run time is still
-   unknown. This remains the key outstanding validation.
-2. **DAILY / SF3 / ACTIONS are prepared but NOT yet consumed by the panel.** The caches exist
-   and are correct; `build_fundamental_panel` does not read them yet. So market cap is still
-   derived from shares x price, returns are still not split/delisting-adjusted, and the SF3
-   conviction figures are not in any factor. **Wiring the caches into the panel is the next
-   concrete step.**
+1. ~~Full 2,827-name run~~ **DONE — see section 0.** It completes in minutes now, not never.
+2. ~~Caches not consumed by the panel~~ **DONE last session** (PIT market cap, survivorship
+   mask, SF3 inputs). SF3 conviction is exposed as inputs but deliberately not yet in
+   NUMBER_THEME — that's P4's decision to make under CPCV.
 3. **P3 (SF3 smart-money conviction signal): not started.** Inputs are ready.
 4. **P4 (re-check `low_risk` / `neg_asset_growth` / `capital_discipline`): not started.**
    Previous session's numbers stand: `neg_vol` median IC −0.078, `neg_asset_growth` −0.029,
@@ -165,15 +237,20 @@ been caught instantly by one.
 
 ## 4. Recommended next step
 
-1. **Wire the prepared caches into `build_fundamental_panel`** (item 3.2). Highest value: it
-   replaces the hand-computed market cap that hid the `assets` bug, and it's the prerequisite
-   for P3.
-2. **Add unit tests for `bulk.py`** before building on it (2e) — one test would have caught the
-   `security_type` misbinding.
-3. **Re-profile the panel scoring loop, then run the full universe unattended** with the new
-   progress logging to see where the remaining time actually goes.
-4. Then P3 (conviction signal), P4 (the two problem factors), P5 (robustness).
-5. Fill in `bulk.EARNINGS_CODES` from Sharadar's EVENTS docs to activate earnings dates.
+1. **P4 — SF3 smart-money conviction.** Now the most valuable open item: the full run shows
+   13F dependence is *lower* than feared (+5.1% -> +3.9% without it, vs a halving on the
+   800-name run), and the SF3 inputs (`sm_conviction`, `sm_breadth`, `sm_holders`,
+   `sm_avg_position`) are already computed point-in-time and waiting. Test on large caps, then
+   validate under CPCV before registering anything in NUMBER_THEME.
+2. **P5 — the hurting factors.** `low_risk` (negative pooled IC, zeroed by the 800-name CPCV),
+   `neg_asset_growth` (wrong sign), and re-check `capital_discipline` now `assets` is
+   populated. Report ICs; don't change live scoring without sign-off.
+3. **P6 — robustness** (winsorize/clip, median-MAD z-scores, industry-relative ranking). Given
+   PBO 53%, robustness work is now more valuable than any further weight search.
+4. **Do NOT apply any weighting from the full run.** PBO 53% and a walk-forward refusal are the
+   signal to stop tuning, not to pick the least-bad candidate.
+5. **P7 — social preview** (og:image etc). Independent, still untouched.
+6. Fill in `bulk.EARNINGS_CODES` from Sharadar's EVENTS docs to activate earnings dates.
 
 ---
 
