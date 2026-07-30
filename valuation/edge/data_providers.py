@@ -343,6 +343,57 @@ class WRDSProvider(HistoricalDataProvider):
     def grades_history(self, ticker):
         return self._indexed("grades").get(ticker.upper(), [])
 
+    # ---- Sharadar BULK caches (built by valuation.edge.bulk) --------------------
+    # These are prepared once from the multi-GB bulk exports and cached as small
+    # pickles; see bulk.py. Loaded lazily and shared, so a panel build pays for each
+    # at most once. Absent caches degrade to empty -> every consumer falls back to its
+    # previous behaviour rather than failing.
+    @property
+    def bulk_dir(self):
+        d = getattr(self, "_bulk_dir", None)
+        if d:
+            return d
+        # data/backtest -> data/bulk/prepared
+        return os.path.join(os.path.dirname(os.path.normpath(self.dir or ".")),
+                            "bulk", "prepared")
+
+    def _bulk(self, name):
+        cache = getattr(self, "_bulk_cache", None)
+        if cache is None:
+            cache = self._bulk_cache = {}
+        if name not in cache:
+            try:
+                from .bulk import _load_cache
+                cache[name] = _load_cache(name, self.bulk_dir) or {}
+            except Exception:
+                cache[name] = {}
+        return cache[name]
+
+    def daily_history(self, ticker):
+        """[(date, marketcap, pe, pb, ps, evebitda), ...] month-end, ascending."""
+        return self._bulk("daily").get(ticker.upper(), [])
+
+    def actions_for(self, ticker):
+        """{"splits": [...], "delisted": date|None, "dividends": [...]}"""
+        return self._bulk("actions").get(ticker.upper(), {})
+
+    def sf3_for(self, ticker):
+        """{quarter: {"holders": n, "value": v, "conviction": c}} — per-manager 13F detail."""
+        return self._bulk("sf3").get(ticker.upper(), {})
+
+    def delisted_map(self):
+        """{TICKER: delisting_date} for every name that stopped trading.
+
+        Needed because the panel forward-fills prices onto a shared calendar: without
+        this, a delisted name's last close is carried forward forever and contributes
+        fake flat 0% forward returns to every later rebalance date.
+        """
+        m = getattr(self, "_delisted", None)
+        if m is None:
+            m = self._delisted = {t: v["delisted"] for t, v in self._bulk("actions").items()
+                                  if isinstance(v, dict) and v.get("delisted")}
+        return m
+
     def _combined(self, base):
         if base in self._df_cache:
             return self._df_cache[base]

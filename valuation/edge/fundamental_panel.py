@@ -254,6 +254,45 @@ def _inst_breadth_at(prep, as_of, lag_days=45):
     return (cur / prev - 1.0) if prev > 0 else None
 
 
+def _daily_at(rows, as_of):
+    """Latest DAILY month-end row on/before as_of -> (marketcap, pe, pb, ps, evebitda).
+
+    Sharadar's own point-in-time values. Preferred over deriving market cap from
+    shares x price: that derived path is what silently produced nothing when the `assets`
+    column was missing from the loader allowlist, and it depends on getting sharefactor
+    right for every split and share-class quirk.
+
+    Rows are (date, mc, pe, pb, ps, evebitda) ascending, so a reverse walk finds the most
+    recent qualifying row and can never see the future.
+    """
+    if not rows:
+        return None
+    for rec in reversed(rows):
+        if rec[0] <= as_of:
+            return rec[1], rec[2], rec[3], rec[4], rec[5]
+    return None
+
+
+def _sf3_at(qs, as_of, lag_days=45):
+    """Point-in-time SF3 aggregates: (holders, value, conviction, holders_prev).
+
+    Lagged like the other 13F data — a quarter's filings arrive over the following weeks,
+    and the most recent quarter in the file is always partially reported (AAPL shows 2,551
+    holders for 2026-06-30 against 6,060 for 2026-03-31), so using it unlagged would read a
+    filing-completeness artifact as a collapse in ownership.
+    """
+    if not qs:
+        return None
+    cutoff = str((pd.to_datetime(as_of[:10]) - pd.Timedelta(days=int(lag_days))).date())
+    keys = sorted(k for k in qs if k <= cutoff)
+    if not keys:
+        return None
+    cur = qs[keys[-1]]
+    prev = qs[keys[-2]] if len(keys) >= 2 else None
+    return (cur.get("holders"), cur.get("value"), cur.get("conviction"),
+            (prev or {}).get("holders"))
+
+
 def _pit(rows, as_of):
     """Latest fundamentals row whose datekey is on/before as_of (no look-ahead)."""
     chosen = None
@@ -519,6 +558,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     _prog(f"loading per-ticker history for {len(tickers)} tickers "
           f"(price + fundamentals + insider + 13F)")
     px, hist, insh, inst, grd, hold = {}, {}, {}, {}, {}, {}
+    dly, sf3 = {}, {}          # BULK: DAILY month-end ratios, SF3 per-manager 13F
     for _i, t in enumerate(tickers):
         if _i and _i % 250 == 0:
             _prog(f"  loaded {_i}/{len(tickers)} tickers, {len(px)} usable")
@@ -535,12 +575,39 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # don't carry them, in which case the theme simply stays neutral as before.
             grd[t] = _prep_grades(provider.grades_history(t) or []) \
                 if hasattr(provider, "grades_history") else None
+            # Sharadar BULK: point-in-time market cap / ratios, and per-manager 13F detail.
+            dly[t] = provider.daily_history(t) if hasattr(provider, "daily_history") else []
+            sf3[t] = provider.sf3_for(t) if hasattr(provider, "sf3_for") else {}
     if not px:
         import sys
         print("[panel] no usable price series for any ticker in the export.", file=sys.stderr)
         return pd.DataFrame()
 
     frame = pd.DataFrame(px).sort_index().ffill()
+    # Survivorship correction. The ffill() above carries each name's last close to the END
+    # of the shared calendar, so a delisted company keeps "trading" flat forever — Merrill
+    # Lynch, delisted 2008-12-31 at $11.64, otherwise contributes a fake 0% forward return
+    # to every rebalance date for the next 18 years. Blank everything after the delisting so
+    # the name simply isn't investable then.
+    #
+    # NOTE: we deliberately do NOT apply the ACTIONS split ratios. Sharadar's SEP closes are
+    # ALREADY split-adjusted (AAPL is $0.098 in 1997 and shows no discontinuity across the
+    # 2020 4:1 split), so re-applying them would double-correct every split in the history.
+    _delisted = {}
+    try:
+        if hasattr(provider, "delisted_map"):
+            _delisted = provider.delisted_map() or {}
+    except Exception:
+        _delisted = {}
+    _masked = 0
+    if _delisted:
+        for t in frame.columns:
+            dd = _delisted.get(str(t).upper())
+            if dd:
+                m = frame.index > pd.to_datetime(dd)
+                if m.any():
+                    frame.loc[m, t] = np.nan
+                    _masked += 1
     cal = frame.index
     benchf = bench.reindex(cal).ffill()
     benchv = benchf.values.tolist()        # for the idiosyncratic-vol regression, computed once
@@ -567,7 +634,15 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             shares = _f(sf1, "sharesbas", "shareswa", "shareswadil")
             if not shares:
                 continue
-            mc = float(closes[i]) * shares * (_f(sf1, "sharefactor") or 1.0)
+            # Market cap: prefer Sharadar's own point-in-time figure from DAILY; fall back
+            # to shares x price only when the bulk cache has no row for this date.
+            _d = _daily_at(dly.get(t), as_of)
+            if _d and _d[0]:
+                mc = float(_d[0]) * 1e6                       # DAILY marketcap is in $mm
+                mc_src = "daily"
+            else:
+                mc = float(closes[i]) * shares * (_f(sf1, "sharefactor") or 1.0)
+                mc_src = "derived"
             if mc < S.MIN_MARKET_CAP_MM * 1e6:                # point-in-time floor: match the live
                 continue                                       # screener's investable universe ($50M+)
             m = _sf1_to_metrics(t, sf1, float(closes[i]), mc)
@@ -585,13 +660,45 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             ib = _inst_breadth_at(hold.get(t), as_of, lag_days=inst_lag_days)
             if ib is not None:
                 m["inst_breadth"] = ib                            # → institutional (holder breadth)
+            # SF3 per-manager detail. Exposed as factor INPUTS here; whether any of them
+            # earns a place in the composite is for CPCV to decide (P4), so they are not
+            # yet registered in NUMBER_THEME.
+            s3 = _sf3_at(sf3.get(t), as_of, lag_days=inst_lag_days)
+            if s3 is not None:
+                holders, val, conv, holders_prev = s3
+                if conv is not None:
+                    m["sm_conviction"] = conv                     # sum of position/manager AUM
+                if holders:
+                    m["sm_holders"] = float(holders)
+                    if holders_prev:
+                        # Breadth of buying: growth in the number of managers holding it.
+                        m["sm_breadth"] = holders / float(holders_prev) - 1.0
+                    if val:
+                        # Average commitment per holder — a few big believers vs many
+                        # index-tracking token positions.
+                        m["sm_avg_position"] = float(val) / float(holders)
+            # Diagnostic only: which market-cap source this row used.
+            m["_mc_src"] = mc_src
             gr = _grades_at(grd.get(t), as_of)
             if gr is not None:
                 m["rating_rev"] = gr[0]                           # → sentiment theme
                 m["neg_rating_disp"] = -gr[1]                     # dispersion: less is better
             metrics.append(m)
             mktcap[t] = float(mc)                                  # for the market-cap regime split
-            fwd[t] = (closes[i + horizon] / closes[i] - 1.0) if closes[i] > 0 else None
+            # Forward return, delisting-aware. If the name stops trading inside the holding
+            # window the horizon-end price is now NaN (masked above), so use the LAST price it
+            # actually traded at. That realizes the delisting outcome instead of discarding
+            # the name — dropping it would quietly re-introduce the survivorship bias the
+            # mask exists to remove.
+            if closes[i] > 0:
+                end = closes[i + horizon]
+                if end != end:                                  # NaN -> delisted mid-window
+                    seg = closes[i + 1:i + horizon + 1]
+                    valid = seg[~np.isnan(seg)] if len(seg) else seg
+                    end = float(valid[-1]) if len(valid) else np.nan
+                fwd[t] = (end / closes[i] - 1.0) if end == end else None
+            else:
+                fwd[t] = None
         if len(metrics) < 10:
             continue
         from ..screener.factors import build_frame

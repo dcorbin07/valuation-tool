@@ -4,11 +4,48 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-07-29 (second session that day)
-**Branch:** `worktree-bulk-data` -> merged to `main`
+**Session date:** 2026-07-29 (third session that day)
+**Branch:** `worktree-wire-bulk` -> merged to `main`
 
-> **Scope warning:** this session covered **P1 and most of P2**. **P3, P4 and P5 were NOT
-> started.** See section 3. Don't read the earlier sections as if the whole list shipped.
+> **Scope warning:** this session wired the bulk caches into the panel (new P1) and left
+> **P2-P7 not started** — including the full-universe run, which is still the key outstanding
+> validation. See section 3.
+
+---
+
+## 0. THIS SESSION (bulk caches wired into the panel)
+
+The caches are now actually consumed by `build_fundamental_panel`, which they were not before.
+
+**Market cap + ratios from DAILY.** `_daily_at()` walks the month-end rows backwards to the
+last one on/before `as_of`, so it cannot see the future. Market cap now comes from Sharadar's
+own point-in-time figure, with shares x price kept only as a fallback (each row records which
+was used in `_mc_src`). Spot-check: AAPL at 2015-06-30 -> market cap **$722.6B, PE 15.1,
+PB 5.6, PS 3.4, EV/EBITDA 10.1** — historically accurate. A 1990 lookup correctly returns None.
+
+**Survivorship fix from ACTIONS — and a trap avoided.** The panel forward-fills prices onto a
+shared calendar, so a delisted name's last close was being carried forward *forever*: Merrill
+Lynch, delisted 2008-12-31 at $11.64, contributed a fake flat 0% forward return to every
+rebalance date for the following 18 years. All 19,207 delisting dates are now applied as a
+mask, and a name that delists mid-window realizes its **last actual traded price** rather than
+being dropped (dropping it would re-introduce the very bias the mask removes).
+
+The trap: **Sharadar SEP closes are ALREADY split-adjusted** — AAPL is $0.098 in 1997 and shows
+no discontinuity across the 2020 4:1 split. So the ACTIONS split ratios are deliberately NOT
+applied; doing so would double-correct every split in the history. This is commented in the
+code so it doesn't get "fixed" later.
+
+**SF3 conviction exposed as factor inputs:** `sm_conviction` (sum of position / that manager's
+own AUM), `sm_holders`, `sm_breadth` (growth in number of holders), `sm_avg_position`. Lagged
+45 days like the other 13F data — necessary because the most recent quarter is always
+partially filed (AAPL: 2,551 holders at 2026-06-30 vs 6,060 at 2026-03-31). They are
+**inputs only, not yet in NUMBER_THEME** — whether any earns a place is P4's job for CPCV.
+Spot-check: AAPL at 2015-06-30 -> 2,325 holders (2,284 prior), conviction 84.7.
+
+**Effect on coverage:** `institutional` rose **70.5% -> 81.7%**. On a 232-name / 110-date panel
+the build is now 32s to load + ~20s to score, with per-phase progress visible throughout.
+
+**Tests: 90 passing, 0 failing** (edge 27, engine 19, intraday 13, screener 13, SaaS 18).
 
 ---
 
