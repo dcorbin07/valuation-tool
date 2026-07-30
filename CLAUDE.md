@@ -29,23 +29,54 @@ purely-statistical, out-of-sample-gated self-learning loop re-tunes weights.
 - `quantile_backtest` (decile / long-short), `regime_split` (edge by market-cap tier), `institutional_dependence`, `validate_institutional`.
 
 ## CURRENT STATE — the honest findings (do not oversell)
-On the fair 3,000-name universe (~18y, gross of costs):
-- **The edge is NOT statistically credible yet: Deflated Sharpe ~18% (want >95%), PBO ~80%** (weight-tuning is mostly overfitting).
-- **On CPCV, no weighting beats the defaults** — the earlier `max-ir-decorr` "win" was an artifact of the weaker single-split test.
-- **The entire edge is the institutional (13F) theme.** Remove it and the long-short t-stat goes 1.31 -> -0.01, top-decile alpha +3.9% -> +1.5%. ~40% weight sits on one lagged quarterly signal.
-- Edge is strongest in **large caps** (regime IC highest there). Concentrated top-25 loses; broad top-decile is the only thing that beats equal-weight.
-- **13F is NOT a look-ahead artifact (settled July 2026, 800 names).** Feeding it *fresher, not-yet-filed*
-  data at a 15d lag makes it WEAKER, not stronger (t 1.49 -> 0.66, Deflated Sharpe 84% -> 44%) — the
-  opposite of the artifact signature. The panel's effective lag is already ~111 days (an April rebalance
-  uses the December quarter, public since mid-February), i.e. more conservative than the 45d deadline.
-- **But 13F is still not tradeable standalone:** best case t=1.49 (want >2), Deflated Sharpe 84% (want >95%),
-  and **monotonicity is negative at every lag** (-0.68 at best) — the deciles aren't cleanly ordered.
-  Decay curve is real and sensible though: peaks at Q-1, alive at Q-2 (t 1.36), dead by Q-3 (t -0.04).
-- **Coverage gap:** the institutional theme is **empty before 2014** (13F data starts 2013-06-30) — non-null
-  in only ~55% of panel rows. "The whole edge is 13F" rests on a factor absent from the first ~14 of 18 years.
-  Worth a separate look: re-check the no-13F comparison on the 2014+ window only.
-- Conclusion: more tuning = chasing noise (proven). The levers are **new orthogonal data** — not more
-  optimization, and not more 13F work; that signal has now been fairly tested and is real but too weak alone.
+Rewritten 2026-07-30 after P5. Everything below is measured on the **full 2,710-name × 110-date
+universe** (~18y, gross of costs). Several long-standing claims here were WRONG, not merely
+stale — they are corrected in place and the corrections are called out, because this file is
+the project's memory and the old versions had been repeated for months.
+
+- **The edge now clears both statistical bars for the first time: PBO 13.3% (want <50%),
+  Deflated Sharpe >99.9% (want >95%), long-short t 3.485 (want >2), top-decile alpha +11.77%.**
+  The single biggest driver was zeroing `low_risk` — **and that has since been CONFIRMED on a
+  held-out time split** (decide on one half, measure on the other, both directions): long-short
+  t +1.59 and +2.02, top-decile alpha +3.21pp and +7.86pp on data that did not inform the
+  decision. Do not treat the edge as settled anyway — see the caveats at the end.
+- **CORRECTED — "the entire edge is the institutional (13F) theme" is OBSOLETE.** Strip the
+  institutional theme now and top-decile alpha is still **+10.6%** with long-short t **2.86**
+  (it used to collapse to 0.71). That finding was an artifact of `quality` and `low_risk`
+  running on half their inputs. 13F is a contributor, not the whole edge.
+- **CORRECTED — `monotonicity`'s SIGN WAS BEING READ BACKWARDS everywhere.** Deciles are
+  ordered best-composite-first, so **−1.0 = perfectly ordered (ideal) and +1.0 = backwards.**
+  The old bullet "monotonicity is negative at every lag (−0.68 at best) — the deciles aren't
+  cleanly ordered" said the opposite of the truth: −0.68 meant they *were* well ordered.
+  Current value −0.939. Pinned by `test_monotonicity_sign_convention`.
+- **CORRECTED — `low_risk` does NOT have pooled IC −0.048.** With both its inputs finally
+  populated it is **−0.0014 (t +0.71)** on the full universe: indistinguishable from zero.
+  It was dead weight, not actively harmful. It is **−0.352 correlated with `size`** — the
+  strongest anticorrelation in the theme matrix — so it was cancelling the small-cap tilt,
+  which is why removing it helped so much despite having no signal of its own.
+- **CORRECTED — `institutional` coverage is 61.4%**, not the 81.7% previously recorded (that
+  came from a smaller universe). It is still empty before 2013-06-30, so any early-period
+  comparison involving it is uninformative rather than negative.
+- **Theme ICs (full universe):** quality +3.39, momentum +2.62, capital_discipline +2.25,
+  institutional +1.81, size +1.68, growth +1.45, value +1.34, low_risk +0.71, **insider −0.34**,
+  sentiment empty. `insider` is the only negative theme and still carries 12.5% weight — but
+  zeroing it **did NOT replicate** out-of-sample, so it was deliberately left alone.
+- **Theme ICs are NOT stable across time.** `low_risk` flips −0.031 → +0.041 between halves and
+  `size` flips t +3.17 → −0.67 (the small-cap premium worked pre-2012, not after). Treat any
+  single-period theme IC as weak evidence; the held-out split is what settles a decision.
+- **13F is NOT a look-ahead artifact (settled July 2026, 800 names).** Feeding it *fresher,
+  not-yet-filed* data at a 15d lag makes it WEAKER, not stronger (t 1.49 -> 0.66, Deflated
+  Sharpe 84% -> 44%) — the opposite of the artifact signature. The panel's effective lag is
+  already ~111 days (an April rebalance uses the December quarter, public since mid-February),
+  i.e. more conservative than the 45d deadline. Its decay curve is sensible: peaks at Q-1,
+  alive at Q-2 (t 1.36), dead by Q-3 (t -0.04).
+- Edge is strongest in **large caps** (regime IC highest there).
+- **Standing caveats, do not drop them:** Deflated Sharpe is a *saturated* 0.9999991, not a
+  proof. Both halves of the held-out test come from the same 18-year panel and universe, and
+  the size-cancellation mechanism was hypothesised on the full sample — so the *decision* is
+  confirmed out-of-sample, the *hypothesis generation* is not. The concentrated top-25 book is
+  the noisiest number in the file. Weight-tuning itself remains noise-chasing: CPCV still
+  adopts no weighting over the defaults.
 
 **LATEST (2026-07-30) — SUPERSEDES much of CURRENT STATE above. Read this first.**
 - **Five wired factors were SILENTLY EMPTY in every run this project has ever done.** The
@@ -118,10 +149,12 @@ score), so there is no performance excuse to judge on a subset. If you must scre
 4. ~~**P3 — SF3 smart-money conviction**~~ **DONE (P4 commit)** — `sm_breadth` kept, the rest rejected.
 5. ~~**Fix hurting factors**~~ **DONE (2026-07-30)** — but only after discovering the factors were EMPTY;
    see LATEST. `neg_asset_growth` dropped (t −0.70), `low_risk` zeroed (IC −0.0014, −0.352 corr with size).
-6. **CONFIRM THE `low_risk` REMOVAL OUT-OF-SAMPLE** — the top priority now. It is the single biggest
-   driver of the current headline numbers and it was chosen by looking at the same panel it was tested
-   on. Hold out the last ~3 years, or decide on 2008–2018 and test on 2019–2026.
-7. **Test zeroing `insider`** — now the only negative theme (t −0.34), still carrying 12.5% weight.
+6. ~~**Confirm the `low_risk` removal out-of-sample**~~ **DONE (2026-07-30) — CONFIRMED.** Held-out
+   time split, both directions: long-short t +1.59 / +2.02, top-decile alpha +3.21pp / +7.86pp on
+   data that did not inform the decision. Now a PERMANENT check: `holdout_theme_validate()` runs on
+   every backtest and ships a `holdout_validation` block in BACKTEST_RESULTS.json.
+7. ~~**Test zeroing `insider`**~~ **DONE — REJECTED, left at 0.125.** Helped one split direction by
+   a hair (Δt +0.08) and hurt the other (Δt −0.09). Its −0.34 full-sample t is not stable.
 8. **TTM ROE/ROIC.** The derived versions are quarterly flows over a period-end stock, so
    fiscal-quarter seasonality enters the cross-section. Fine for ranking, but a real refinement.
 9. **Re-read every past "monotonicity" conclusion with the sign flipped** (see LATEST).

@@ -890,6 +890,47 @@ def test_theme_ic_measures_each_theme_and_reaches_the_results_file():
     assert "Per-theme" in render_md(p)
 
 
+def test_holdout_theme_validate_protocol():
+    """The held-out split is the only check covering a theme chosen AFTER seeing its IC.
+
+    Pins the three things that make it honest: the halves are disjoint and split by time, the
+    boundary date is embargoed, and a theme only reads `confirmed` if zeroing it helped in
+    BOTH directions — one-directional wins (the usual fate of noise) must read
+    `not_replicated`.
+    """
+    from valuation.edge.fundamental_panel import holdout_theme_validate
+    rng = np.random.default_rng(3)
+    rows = []
+    for d in range(24):
+        for i in range(60):
+            fwd = float(rng.normal(0, 0.08))
+            rows.append({"date": f"20{20 + d // 12:02d}-{d % 12 + 1:02d}-01", "ticker": f"T{i}",
+                         "fwd_ret": fwd, "bench_ret": 0.01,
+                         "good": fwd + rng.normal(0, 0.03),      # genuinely predictive
+                         "junk": float(rng.normal())})           # pure noise
+    panel = pd.DataFrame(rows)
+    r = holdout_theme_validate(panel, ["good", "junk"], horizon=63)
+
+    a = r["splits"]["decide_early_measure_late"]
+    b = r["splits"]["decide_late_measure_early"]
+    # Disjoint halves, and one date dropped to the embargo.
+    assert a["decide_dates"] == b["measure_dates"] and a["measure_dates"] == b["decide_dates"]
+    assert a["decide_dates"] + a["measure_dates"] == panel["date"].nunique() - 1
+    assert r["boundary_date_embargoed"] not in (None, "")
+    # Zeroing the genuinely predictive theme must never be "confirmed".
+    assert r["verdicts"]["good"] != "confirmed", r["verdicts"]
+    assert set(r["verdicts"]) == {"good", "junk"}
+    assert all(v in ("confirmed", "not_replicated", "rejected") for v in r["verdicts"].values())
+    # Too little history -> says so rather than inventing a verdict.
+    thin = panel[panel["date"] < "2020-06-01"]
+    assert "status" in holdout_theme_validate(thin, ["good"], min_dates=99)
+
+    from valuation.edge.results_file import build_payload, render_md
+    p = build_payload({"holdout_validation": r, "horizons": {}, "cpcv": {}, "construction": {}})
+    assert p["holdout_validation"]["verdicts"] == r["verdicts"]
+    assert "Held-out confirmation" in render_md(p)
+
+
 def test_monotonicity_sign_convention():
     """Pins the sign of `monotonicity`, which this project has repeatedly read backwards.
 

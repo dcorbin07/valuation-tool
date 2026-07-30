@@ -90,6 +90,7 @@ def build_payload(res: dict, universe_label: str | None = None,
     cp = res.get("cpcv") or {}
     cov = res.get("signal_coverage") or {}
     pt = res.get("per_theme") or {}
+    hv = res.get("holdout_validation") or {}
     if per_signal is None:
         per_signal = res.get("per_signal") or None
     wf = (res.get("walk_forward") or {}).get("weights") or {}
@@ -198,6 +199,12 @@ def build_payload(res: dict, universe_label: str | None = None,
         # worthless while the theme it feeds is worth carrying, or the reverse, so the
         # keep/drop decisions need both.
         "per_theme": {"available": bool(pt), "themes": pt or {}},
+
+        # Held-out time split: does zeroing a theme still help on data that did NOT inform
+        # the decision? CPCV/DSR correct for the weight search, NOT for a human dropping a
+        # theme after seeing its IC — so this is the only block that speaks to that.
+        # verdicts: confirmed = helped in both split directions; not_replicated = one only.
+        "holdout_validation": hv or {"status": "not computed"},
 
         # {signal: coverage} for every wired number and theme — the fraction of panel rows
         # where it actually reached the composite. `below_floor` is the load-bearing part:
@@ -350,6 +357,26 @@ def render_md(p: dict) -> str:
             v = th.get(t) or {}
             A(f"| {t} | {_f2(v.get('median_ic'), 4)} | {_f2(v.get('ic_tstat'))} | "
               f"{_rate(_cov.get(t, v.get('coverage')), 1)} |")
+    hvp = p.get("holdout_validation") or {}
+    if hvp.get("splits"):
+        A("")
+        A("## Held-out confirmation — does zeroing a theme still help out-of-sample?\n")
+        A("Dates split in half by time; the theme is judged on one half and the effect")
+        A("measured on the other, both directions. **confirmed** = zeroing it improved BOTH")
+        A("long-short t and top-decile alpha in BOTH directions. This is the only check here")
+        A("that covers choosing a theme *after* seeing its IC — CPCV does not.\n")
+        A("| theme | verdict | ΔLS t (early→late) | Δtop-dec (early→late) | ΔLS t (late→early) "
+          "| Δtop-dec (late→early) |")
+        A("|---|---|---|---|---|---|")
+        a_s = (hvp["splits"].get("decide_early_measure_late") or {}).get("themes") or {}
+        b_s = (hvp["splits"].get("decide_late_measure_early") or {}).get("themes") or {}
+        for t, v in sorted((hvp.get("verdicts") or {}).items(),
+                           key=lambda kv: {"confirmed": 0, "not_replicated": 1}.get(kv[1], 2)):
+            a, b = a_s.get(t) or {}, b_s.get(t) or {}
+            A(f"| {t} | **{v}** | {_f2(a.get('delta_long_short_tstat'))} | "
+              f"{_pct(a.get('delta_top_decile_alpha'))} | "
+              f"{_f2(b.get('delta_long_short_tstat'))} | "
+              f"{_pct(b.get('delta_top_decile_alpha'))} |")
     if cp.get("recommended_weights"):
         A("")
         A("## Weights CPCV would adopt\n")

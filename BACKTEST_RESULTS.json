@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-07-30T02:06:44",
-  "generated_at_utc": "2026-07-30T06:06:44+00:00",
+  "generated_at": "2026-07-30T08:10:10",
+  "generated_at_utc": "2026-07-30T12:10:10+00:00",
   "git": {
-    "commit": "c033fba7d8637d481df8845a5880923cb62637e4",
-    "short": "c033fba",
+    "commit": "ca48f5bbf3aa55c86000206887843b5eb8ba7745",
+    "short": "ca48f5b",
     "branch": "worktree-p5-coverage-and-derived-inputs",
     "dirty": true
   },
@@ -596,6 +596,239 @@
         "n_dates": 50
       }
     }
+  },
+  "holdout_validation": {
+    "rule": "median IC <= 0 on the decide half",
+    "metric": "long_short_tstat and top_decile_alpha, measured on the held-out half",
+    "splits": {
+      "decide_early_measure_late": {
+        "decide_dates": 55,
+        "measure_dates": 54,
+        "baseline": {
+          "long_short_tstat": 0.9664073079682824,
+          "top_decile_alpha": 0.06087184570965287,
+          "long_short_ann": 0.06478835275793465,
+          "monotonicity": -0.7818181818181819
+        },
+        "themes": {
+          "value": {
+            "decide_median_ic": 0.03219032066226726,
+            "decide_ic_tstat": 1.1215225574000893,
+            "measure_median_ic": 0.008915612023266488,
+            "measure_ic_tstat": 0.6347766089684095,
+            "rule_fired": false,
+            "zeroed_long_short_tstat": 1.0163228934123378,
+            "zeroed_top_decile_alpha": 0.05149533089327146,
+            "delta_long_short_tstat": 0.04991558544405539,
+            "delta_top_decile_alpha": -0.00937651481638141,
+            "improves": false
+          },
+          "quality": {
+            "decide_median_ic": 0.012037573229088269,
+            "decide_ic_tstat": 1.55237360936228,
+            "measure_median_ic": 0.05389639245179405,
+            "measure_ic_tstat": 3.5922884838095364,
+            "rule_fired": false,
+            "zeroed_long_short_tstat": 1.3532178841808977,
+            "zeroed_top_decile_alpha": 0.07292652436481706,
+            "delta_long_short_tstat": 0.3868105762126153,
+            "delta_top_decile_alpha": 0.012054678655164186,
+            "improves": true
+          },
+          "momentum": {
+            "decide_median_ic": 0.05407033597626519,
+            "decide_ic_tstat": 1.6956795136369602,
+            "measure_median_ic": 0.0463724709420775,
+            "measure_ic_tstat": 2.1666663744991674,
+            "rule_fired": false,
+            "zeroed_long_short_tstat": 0.35752499491373946,
+            "zeroed_top_decile_alpha": 0.04626064659601345,
+            "delta_long_short_tstat": -0.608882313054543,
+            "delta_top_decile_alpha": -0.014611199113639423,
+            "improves": false
+          },
+          "insider": {
+            "decide_median_ic": -5.17658009548671e-05,
+            "decide_ic_tstat": 0.21148119301104706,
+            "measure_median_ic": -0.007104717598600915,
+            "measure_ic_tstat": -0.771695805194099,
+            "rule_fired": true,
+            "zeroed_long_short_tstat": 1.0440620382153545,
+            "zeroed_top_decile_alpha": 0.06866182669137222,
+            "delta_long_short_tstat": 0.07765473024707203,
+            "delta_top_decile_alpha": 0.007789980981719347,
+            "improves": true
+          },
+          "low_risk": {
+            "decide_median_ic": -0.030840699072006858,
+            "decide_ic_tstat": 0.36192693565813155,
+            "measure_median_ic": 0.04106255866953161,
+            "measure_ic_tstat": 0.8137140748591678,
+            "rule_fired": true,
+            "zeroed_long_short_tstat": 2.557137066288805,
+            "zeroed_top_decile_alpha": 0.09295794761012474,
+            "delta_long_short_tstat": 1.5907297583205227,
+            "delta_top_decile_alpha": 0.03208610190047187,
+            "improves": true
+          },
+          "capital_discipline": {
+            "decide_median_ic": 0.010119119595876839,
+            "decide_ic_tstat": 0.679225454208411,
+            "measure_median_ic": 0.035536773342244844,
+            "measure_ic_tstat": 2.740372193103986,
+            "rule_fired": false,
+            "zeroed_long_short_tstat": 1.3932266856558027,
+            "zeroed_top_decile_alpha": 0.07305812130061151,
+            "delta_long_short_tstat": 0.4268193776875202,
+            "delta_top_decile_alpha": 0.01218627559095864,
+            "improves": true
+          },
+          "size": {
+            "decide_median_ic": 0.05258509458070045,
+            "decide_ic_tstat": 3.173807604831904,
+            "measure_median_ic": -0.018718954618198835,
+            "measure_ic_tstat": -0.673167640795175,
+            "rule_fired": false,
+            "zeroed_long_short_tstat": 0.1251319357021637,
+            "zeroed_top_decile_alpha": 0.026772241984938883,
+            "delta_long_short_tstat": -0.8412753722661188,
+            "delta_top_decile_alpha": -0.03409960372471399,
+            "improves": false
+          },
+          "institutional": {
+            "decide_median_ic": null,
+            "decide_ic_tstat": null,
+            "measure_median_ic": 0.029714006174156024,
+            "measure_ic_tstat": 1.808894913814208,
+            "rule_fired": false,
+            "zeroed_long_short_tstat": -0.1350224694034724,
+            "zeroed_top_decile_alpha": 0.024212061255251438,
+            "delta_long_short_tstat": -1.101429777371755,
+            "delta_top_decile_alpha": -0.036659784454401434,
+            "improves": false
+          }
+        }
+      },
+      "decide_late_measure_early": {
+        "decide_dates": 54,
+        "measure_dates": 55,
+        "baseline": {
+          "long_short_tstat": 0.5463083631393981,
+          "top_decile_alpha": 0.06631443618178257,
+          "long_short_ann": 0.07086793559048396,
+          "monotonicity": -0.6242424242424243
+        },
+        "themes": {
+          "value": {
+            "decide_median_ic": 0.008915612023266488,
+            "decide_ic_tstat": 0.6347766089684095,
+            "measure_median_ic": 0.03219032066226726,
+            "measure_ic_tstat": 1.1215225574000893,
+            "rule_fired": false,
+            "zeroed_long_short_tstat": 0.6604494620798638,
+            "zeroed_top_decile_alpha": 0.06522915706684754,
+            "delta_long_short_tstat": 0.11414109894046565,
+            "delta_top_decile_alpha": -0.0010852791149350283,
+            "improves": false
+          },
+          "quality": {
+            "decide_median_ic": 0.05389639245179405,
+            "decide_ic_tstat": 3.5922884838095364,
+            "measure_median_ic": 0.012037573229088269,
+            "measure_ic_tstat": 1.55237360936228,
+            "rule_fired": false,
+            "zeroed_long_short_tstat": 0.7115834548894869,
+            "zeroed_top_decile_alpha": 0.055728114294344544,
+            "delta_long_short_tstat": 0.1652750917500888,
+            "delta_top_decile_alpha": -0.010586321887438022,
+            "improves": false
+          },
+          "momentum": {
+            "decide_median_ic": 0.0463724709420775,
+            "decide_ic_tstat": 2.1666663744991674,
+            "measure_median_ic": 0.05407033597626519,
+            "measure_ic_tstat": 1.6956795136369602,
+            "rule_fired": false,
+            "zeroed_long_short_tstat": 0.6594058537670638,
+            "zeroed_top_decile_alpha": 0.05866990205701303,
+            "delta_long_short_tstat": 0.11309749062766572,
+            "delta_top_decile_alpha": -0.007644534124769536,
+            "improves": false
+          },
+          "insider": {
+            "decide_median_ic": -0.007104717598600915,
+            "decide_ic_tstat": -0.771695805194099,
+            "measure_median_ic": -5.17658009548671e-05,
+            "measure_ic_tstat": 0.21148119301104706,
+            "rule_fired": true,
+            "zeroed_long_short_tstat": 0.460938297345889,
+            "zeroed_top_decile_alpha": 0.061576519966703686,
+            "delta_long_short_tstat": -0.08537006579350914,
+            "delta_top_decile_alpha": -0.00473791621507888,
+            "improves": false
+          },
+          "low_risk": {
+            "decide_median_ic": 0.04106255866953161,
+            "decide_ic_tstat": 0.8137140748591678,
+            "measure_median_ic": -0.030840699072006858,
+            "measure_ic_tstat": 0.36192693565813155,
+            "rule_fired": false,
+            "zeroed_long_short_tstat": 2.5683930618952178,
+            "zeroed_top_decile_alpha": 0.14493123884635753,
+            "delta_long_short_tstat": 2.02208469875582,
+            "delta_top_decile_alpha": 0.07861680266457496,
+            "improves": true
+          },
+          "capital_discipline": {
+            "decide_median_ic": 0.035536773342244844,
+            "decide_ic_tstat": 2.740372193103986,
+            "measure_median_ic": 0.010119119595876839,
+            "measure_ic_tstat": 0.679225454208411,
+            "rule_fired": false,
+            "zeroed_long_short_tstat": 0.554157681571877,
+            "zeroed_top_decile_alpha": 0.07674133389039589,
+            "delta_long_short_tstat": 0.007849318432478825,
+            "delta_top_decile_alpha": 0.010426897708613325,
+            "improves": true
+          },
+          "size": {
+            "decide_median_ic": -0.018718954618198835,
+            "decide_ic_tstat": -0.673167640795175,
+            "measure_median_ic": 0.05258509458070045,
+            "measure_ic_tstat": 3.173807604831904,
+            "rule_fired": true,
+            "zeroed_long_short_tstat": -0.37761179151738977,
+            "zeroed_top_decile_alpha": 0.010442926099436922,
+            "delta_long_short_tstat": -0.9239201546567879,
+            "delta_top_decile_alpha": -0.05587151008234564,
+            "improves": false
+          },
+          "institutional": {
+            "decide_median_ic": 0.029714006174156024,
+            "decide_ic_tstat": 1.808894913814208,
+            "measure_median_ic": null,
+            "measure_ic_tstat": null,
+            "rule_fired": false,
+            "zeroed_long_short_tstat": 0.5463083631393981,
+            "zeroed_top_decile_alpha": 0.06631443618178257,
+            "delta_long_short_tstat": 0.0,
+            "delta_top_decile_alpha": 0.0,
+            "improves": false
+          }
+        }
+      }
+    },
+    "verdicts": {
+      "value": "rejected",
+      "quality": "not_replicated",
+      "momentum": "rejected",
+      "insider": "not_replicated",
+      "low_risk": "confirmed",
+      "capital_discipline": "confirmed",
+      "size": "rejected",
+      "institutional": "rejected"
+    },
+    "boundary_date_embargoed": "2012-10-08"
   },
   "signal_coverage": {
     "available": true,

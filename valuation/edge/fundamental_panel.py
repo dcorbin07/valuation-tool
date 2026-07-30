@@ -1783,6 +1783,82 @@ def theme_ic(panel, horizon_col="fwd_ret", min_names=20, min_dates=8) -> dict:
     return out
 
 
+def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,
+                           min_dates=16) -> dict:
+    """Time-split confirmation that ZEROING a theme helps on data not used to decide it.
+
+    CPCV and the Deflated Sharpe correct for the trials inside the *weight search*. Neither
+    corrects for a human looking at a theme's IC on the whole panel, deciding to drop it, and
+    then measuring the improvement on that same panel — which is how `low_risk` was zeroed.
+    This is the missing test, and it is permanent rather than a one-off script so the claim
+    keeps being re-checked on every run.
+
+    Protocol, fixed in advance:
+      1. Split the rebalance dates in half BY TIME, and EMBARGO the boundary date — with
+         rebalance == horizon, its forward window is the only one that can straddle the split.
+      2. DECIDE on one half with a pre-specified rule: a theme is flagged if its MEDIAN IC on
+         the decide half is <= 0. Stated as a rule so it can't be reverse-engineered per theme.
+      3. MEASURE on the other half ONLY: the composite's long-short t and top-decile alpha
+         with that theme at `base_weight` vs at 0. The measure half never informs the decision.
+      4. Run BOTH directions, so no result rests on one arbitrary split.
+
+    A theme is `confirmed` only if zeroing it improves BOTH metrics in BOTH directions.
+    `not_replicated` means it worked one way and not the other — the usual fate of noise.
+
+    Weights are equal across `cols` rather than read from settings, so the comparison is
+    "this theme in vs out", not "current live config vs something else".
+    """
+    out = {"rule": "median IC <= 0 on the decide half",
+           "metric": "long_short_tstat and top_decile_alpha, measured on the held-out half",
+           "splits": {}, "verdicts": {}}
+    if panel is None or panel.empty or not cols:
+        return {**out, "status": "no panel"}
+    dates = sorted(panel["date"].unique())
+    if len(dates) < min_dates:
+        return {**out, "status": f"only {len(dates)} dates, need {min_dates}"}
+    mid = len(dates) // 2
+    halves = {"decide_early_measure_late": (dates[:mid], dates[mid + 1:]),
+              "decide_late_measure_early": (dates[mid + 1:], dates[:mid])}
+    out["boundary_date_embargoed"] = str(dates[mid])
+
+    def _w(zeroed):
+        return {c: (0.0 if c == zeroed else base_weight) for c in cols}
+
+    for name, (dec, mea) in halves.items():
+        p_dec, p_mea = panel[panel["date"].isin(dec)], panel[panel["date"].isin(mea)]
+        ic_d, ic_m = theme_ic(p_dec), theme_ic(p_mea)
+        base = quantile_backtest(p_mea, cols, _w(None), n_q=n_q, horizon=horizon) or {}
+        blk = {"decide_dates": len(dec), "measure_dates": len(mea),
+               "baseline": {"long_short_tstat": base.get("long_short_tstat"),
+                            "top_decile_alpha": base.get("top_decile_alpha"),
+                            "long_short_ann": base.get("long_short_ann"),
+                            "monotonicity": base.get("monotonicity")},
+               "themes": {}}
+        for c in cols:
+            d, m = ic_d.get(c) or {}, ic_m.get(c) or {}
+            d_ic = d.get("median_ic")
+            r = quantile_backtest(p_mea, cols, _w(c), n_q=n_q, horizon=horizon) or {}
+            dt = (None if r.get("long_short_tstat") is None or base.get("long_short_tstat") is None
+                  else r["long_short_tstat"] - base["long_short_tstat"])
+            da = (None if r.get("top_decile_alpha") is None or base.get("top_decile_alpha") is None
+                  else r["top_decile_alpha"] - base["top_decile_alpha"])
+            blk["themes"][c] = {
+                "decide_median_ic": d_ic, "decide_ic_tstat": d.get("ic_tstat"),
+                "measure_median_ic": m.get("median_ic"), "measure_ic_tstat": m.get("ic_tstat"),
+                "rule_fired": (d_ic is not None and d_ic <= 0),
+                "zeroed_long_short_tstat": r.get("long_short_tstat"),
+                "zeroed_top_decile_alpha": r.get("top_decile_alpha"),
+                "delta_long_short_tstat": dt, "delta_top_decile_alpha": da,
+                "improves": bool(dt is not None and da is not None and dt > 0 and da > 0)}
+        out["splits"][name] = blk
+
+    for c in cols:
+        got = [out["splits"][s]["themes"][c]["improves"] for s in out["splits"]]
+        out["verdicts"][c] = ("confirmed" if all(got)
+                              else "rejected" if not any(got) else "not_replicated")
+    return out
+
+
 # A wired signal present in fewer than this fraction of panel rows is almost certainly a
 # PLUMBING bug, not a thin signal. Every data bug this project has hit looked identical from
 # the outside — the factor was wired, the run completed, no error was raised, and the column
@@ -2196,6 +2272,9 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             out["regime"] = regime_split(panel, cols, rec, n_tiers=3, horizon=63)           # where the edge lives
             out["institutional_dependence"] = institutional_dependence(panel, cols, rec, horizon=63)
             out["factors_used"] = cols                                                       # which themes had data
+            # Held-out time split: does zeroing a theme still help on data that did NOT
+            # inform the decision? The one check CPCV/DSR cannot provide.
+            out["holdout_validation"] = holdout_theme_validate(panel, cols, horizon=63)
             if adopted_w:
                 out["construction_default"] = quantile_backtest(panel, cols, base, n_q=10, horizon=63)
                 out["recommended_weights_full"] = _full_weights(rec, bucket)                # paste-ready weights

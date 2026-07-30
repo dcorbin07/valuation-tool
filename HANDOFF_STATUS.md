@@ -4,7 +4,7 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-07-30
+**Session date:** 2026-07-30 (updated: held-out confirmation)
 **Branch:** `worktree-p5-coverage-and-derived-inputs`
 
 > **Scope:** the coverage guard, the four silently-empty inputs, and the hurting-factor
@@ -36,8 +36,9 @@ horizon, same 16.55%/yr equal-weight bar):
 | Alpha vs equal-weight | +1.49% | +13.95% | — |
 
 **This is the first time the project has cleared both statistical bars** (PBO < 50%,
-Deflated Sharpe > 95%, long-short t > 2). **Read §5 before believing it** — the biggest
-single contributor rests on a decision informed by the same data it was tested on.
+Deflated Sharpe > 95%, long-short t > 2) — **and the biggest single contributor, zeroing
+`low_risk`, has since been CONFIRMED on a held-out time split in both directions (§4b).**
+Read §5 for what that does and does not establish.
 
 Also: **the edge no longer collapses without 13F.** Strip the institutional theme and
 top-decile alpha goes +11.77% → +10.64% with long-short t 3.48 → 2.86. At baseline the same
@@ -51,7 +52,7 @@ configuration and does pass (§3c). The derived inputs (§3a) are a **correctnes
 optimization**: they cost 0.22 of long-short t while improving PBO, DSR and top-decile alpha,
 and the alternative is knowingly scoring on 8 of 10 quality inputs.
 
-**Tests: 101 passing** (edge 44, bulk 12, engine 19, intraday 13, screener 13). `test_saas`
+**Tests: 102 passing** (edge 45, bulk 12, engine 19, intraday 13, screener 13). `test_saas`
 (18) cannot run here — no `flask`/`werkzeug` installed in this environment, unrelated to
 these changes and true before them.
 
@@ -238,18 +239,72 @@ Now documented in the `quantile_backtest` docstring, shipped as
 
 ---
 
+## 4b. HELD-OUT CONFIRMATION — `low_risk` survives, `insider` does not
+
+The one check CPCV and the Deflated Sharpe cannot provide: they correct for the trials inside
+the *weight search*, not for a human looking at a theme's IC on the whole panel and then
+dropping it. Now a permanent part of the backtest (`holdout_theme_validate()`, shipped as
+`holdout_validation` in the results file), not a one-off script.
+
+**Protocol, fixed before looking at any result.** Split the 110 dates in half by time
+(early 1998-12-31..2012-07-10, late 2013-01-10..2026-04-22); **embargo the boundary date**
+(2012-10-08), whose 63-day forward window is the only one that can straddle the split. Decide
+on one half using a pre-specified rule — *flag a theme whose median IC on the decide half is
+≤ 0* — then measure on the other half only. Run both directions.
+
+| theme | verdict | ΔLS t (E→L) | Δtop-dec (E→L) | ΔLS t (L→E) | Δtop-dec (L→E) |
+|---|---|---|---|---|---|
+| **low_risk** | **confirmed** | **+1.59** | **+3.21%** | **+2.02** | **+7.86%** |
+| capital_discipline | confirmed | +0.43 | +1.22% | +0.01 | +1.04% |
+| quality | not_replicated | +0.39 | +1.21% | +0.17 | −1.06% |
+| **insider** | **not_replicated** | +0.08 | +0.78% | −0.09 | −0.47% |
+| value | rejected | +0.05 | −0.94% | +0.11 | −0.11% |
+| momentum | rejected | −0.61 | −1.46% | +0.11 | −0.76% |
+| size | rejected | −0.84 | −3.41% | −0.92 | −5.59% |
+| institutional | rejected | −1.10 | −3.67% | 0.00 | 0.00% |
+
+**`low_risk` = 0 is CONFIRMED.** On the pre-registered direction (decide early → measure late)
+the rule fires on the early half (median IC −0.0308) *and* the effect holds on untouched data:
+long-short t 0.97 → 2.56, top-decile alpha +6.09% → +9.30%. The reverse direction agrees more
+strongly still. This is the largest effect in the table by a wide margin.
+
+**`insider` = 0 is REJECTED — left at 0.125.** It helped one direction by a hair and hurt the
+other. Its −0.34 full-sample t is not a stable property. This is precisely why it was tested
+rather than dropped on the strength of one number.
+
+### Two things this table reveals that are more important than the verdicts
+
+1. **A theme's own IC does not replicate, but the benefit of removing `low_risk` does.**
+   `low_risk` measures −0.0308 on the early half and **+0.0411** on the late half — it flips
+   sign. So "low_risk has ~zero IC" is really "its IC is noise that averages to zero", and the
+   §3d framing was too confident. The benefit survives anyway **because it never came from the
+   theme's own predictive power** — it came from removing the −0.352 cancellation of `size`.
+2. **That mechanism is now independently corroborated.** `size` also flips (t **+3.17** early,
+   **−0.67** late: the small-cap premium worked pre-2012 and not after), and the gain from
+   removing `low_risk` **tracks it** — +7.86pp in the early half where `size` is strong, only
+   +3.21pp in the late half where it is dead. The effect is largest exactly where the
+   mechanism predicts. That is a prediction the data could have falsified and did not.
+   `size` is also the theme most damaged by zeroing (−0.84 / −0.92 t), confirming it is
+   carrying real weight rather than being redundant.
+
+**Do NOT act on the `capital_discipline` "confirmed" row.** It passes on a knife edge
+(ΔLS t **+0.01** in one direction — noise), and the verdict rule only requires the sign to be
+right in both directions, not the magnitude to be meaningful. That is a genuine weakness of
+the rule, left un-retrofitted on purpose: changing the threshold after seeing results is the
+exact sin this whole section exists to prevent. Read `confirmed` as "the sign held up twice",
+not "this is worth doing". `capital_discipline` also has a healthy theme IC (+0.0232, t +2.25),
+which makes the row look more like decile-metric noise than a real finding.
+
+---
+
 ## 5. WHAT I DO NOT TRUST — read before acting on §0
 
-1. **The `low_risk` removal is an in-sample-informed decision.** I measured its IC on this
-   panel, decided to drop it, then measured the improvement **on the same panel.** PBO and
-   Deflated Sharpe correct for the trials inside the CPCV *weight search* — they do **not**
-   correct for a human dropping a theme after looking at its IC. This is exactly the
-   specification-search overfitting this project has been careful about elsewhere.
-   Mitigating (not eliminating) factors: the mechanism is structural and was
-   predicted-then-confirmed (−0.352 vs size), CPCV independently preferred the
-   low_risk-free default over equal-weight-including-low_risk on out-of-sample IC
-   (+0.060 vs +0.059), and only the four tests that were asked for were run — this was not
-   a wide search. **It still needs confirmation on data not used to make the choice.**
+1. **The held-out test confirms the DECISION, not the hypothesis generation.** Both halves come
+   from the same 18-year panel, the same universe and the same data vendor, and the
+   size-cancellation mechanism was hypothesised on the full sample before being checked on the
+   splits. A truly clean test needs data this project has never touched. What §4b does rule out
+   is the specific failure I was worried about — that zeroing `low_risk` was fitted to noise in
+   the very periods it was then scored on. It was not.
 2. **Deflated Sharpe "100%" is a saturated probability**, not a proof. Report it as
    ">99.9%" and do not treat the bar as permanently cleared.
 3. **CPCV vs long-short disagree on magnitude.** Removing `low_risk` moved median OOS IC
@@ -291,10 +346,11 @@ With the per-theme table finally available:
 | sentiment | n/a | n/a | 0.0% |
 
 **`insider` is the only theme with a negative t-stat, and it still carries 12.5% weight.**
-Nobody has been looking at it — the project's attention was on `low_risk`. It is the obvious
-next candidate, by exactly the argument that justified zeroing `low_risk`. **I did not change
-it** — that is one test beyond what was asked, and after §5 the right move is to test it
-deliberately rather than keep pulling levers on the same data.
+It has since been tested properly on the held-out split (§4b) and **zeroing it did NOT
+replicate** — +0.08 long-short t one direction, −0.09 the other. **Left at 0.125.** Its
+negative full-sample t is not a stable property, and this is the clearest illustration in the
+session of why a single number is not a decision: by the same reasoning that justified zeroing
+`low_risk`, `insider` looked like the obvious next cut, and it did not survive the test.
 
 `growth_accel`, now measurable for the first time: +0.0062, **t +0.50** — no real signal.
 
@@ -320,15 +376,20 @@ deliberately rather than keep pulling levers on the same data.
 
 ## 8. Recommended next step, in order
 
-1. **Confirm the `low_risk` removal out-of-sample.** Hold out the last ~3 years, or re-derive
-   the decision on 2008–2018 and test on 2019–2026. Until then §0 is promising, not proven.
-2. **Test zeroing `insider`** (§6) — same argument, negative t-stat, 12.5% weight.
-3. **TTM ROE/ROIC** (§5.6) to remove fiscal-quarter seasonality from the two strongest new
+1. ~~Confirm the `low_risk` removal out-of-sample~~ **DONE — confirmed (§4b).**
+2. ~~Test zeroing `insider`~~ **DONE — rejected, left at 0.125 (§4b).**
+3. **Get data this project has never touched.** §4b confirms the decision but both halves come
+   from the same panel. A forward paper-track from today, or a different vendor/universe, is
+   the only thing that upgrades "confirmed on a held-out split" to "confirmed".
+4. **TTM ROE/ROIC** (§5.6) to remove fiscal-quarter seasonality from the two strongest new
    signals.
-4. **Re-read every past "monotonicity" conclusion with the sign flipped** (§4).
-5. `momentum` / `institutional` are +0.50 correlated — consider consolidating rather than
+5. **Re-read every past "monotonicity" conclusion with the sign flipped** (§4).
+6. `momentum` / `institutional` are +0.50 correlated — consider consolidating rather than
    paying two theme weights for one signal.
-6. Then the untouched robustness item (median/MAD z-scores, industry-relative ranking).
+7. Then the untouched robustness item (median/MAD z-scores, industry-relative ranking).
+8. Consider whether `holdout_theme_validate`'s verdict rule should require a minimum
+   *magnitude*, not just the right sign (see the `capital_discipline` knife-edge in §4b).
+   Decide that on principle and write it down BEFORE the next run, not after seeing results.
 
 ---
 
