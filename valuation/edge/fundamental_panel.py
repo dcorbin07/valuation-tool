@@ -170,7 +170,7 @@ def _f_score(cur, prior) -> Optional[int]:
     return int(sum(1 for t in usable if t))
 
 
-def _sf1_extras(m, sf1, rows, as_of) -> None:
+def _sf1_extras(m, sf1, rows, as_of, cut1=None) -> None:
     """F-Score, accruals quality, and cash-based operating profitability.
 
     All need a prior-year point-in-time row for the year-over-year changes, fetched the
@@ -184,7 +184,9 @@ def _sf1_extras(m, sf1, rows, as_of) -> None:
                    gross profitability in the literature precisely because it strips the
                    accrual component out.
     """
-    prior = _pit(rows, str((pd.to_datetime(as_of) - pd.Timedelta(days=365)).date()))
+    if cut1 is None:
+        cut1 = str((pd.to_datetime(as_of) - pd.Timedelta(days=365)).date())
+    prior = _pit(rows, cut1)          # cut1 hoisted by the caller — see _yoy
     assets = _f(sf1, "assets")
 
     fs = _f_score(sf1, prior)
@@ -273,7 +275,7 @@ def _daily_at(rows, as_of):
     return None
 
 
-def _sf3_at(qs, as_of, lag_days=45):
+def _sf3_at(qs, as_of, lag_days=45, cut=None):
     """Point-in-time SF3 aggregates: (holders, value, conviction, holders_prev).
 
     Lagged like the other 13F data — a quarter's filings arrive over the following weeks,
@@ -283,7 +285,7 @@ def _sf3_at(qs, as_of, lag_days=45):
     """
     if not qs:
         return None
-    cutoff = str((pd.to_datetime(as_of[:10]) - pd.Timedelta(days=int(lag_days))).date())
+    cutoff = cut if cut is not None else         str((pd.to_datetime(as_of[:10]) - pd.Timedelta(days=int(lag_days))).date())
     keys = sorted(k for k in qs if k <= cutoff)
     if not keys:
         return None
@@ -305,14 +307,19 @@ def _pit(rows, as_of):
     return chosen
 
 
-def _yoy(m, rows, as_of, shares_now, rev_now, assets_now):
+def _yoy(m, rows, as_of, shares_now, rev_now, assets_now, cut1=None, cut2=None):
     """Populate revenue_growth / asset_growth / share_issuance / growth_accel from prior-year
     point-in-time SF1 rows. These turn the GROWTH and CAPITAL-DISCIPLINE (investment) themes —
     currently empty 'hooks' in the backtest — into real, low-correlation signals, computed only
     from data public by `as_of` (no look-ahead)."""
-    def prior(days):
-        return _pit(rows, str((pd.to_datetime(as_of) - pd.Timedelta(days=days)).date()))
-    p1 = prior(365)
+    # cut1/cut2 are the as_of-365d and as_of-730d cutoffs. They depend only on as_of, not
+    # on the ticker, so the caller computes them ONCE per rebalance date and passes them in.
+    # Deriving them here cost 19k pd.to_datetime calls and 35% of total panel-build time.
+    if cut1 is None:
+        cut1 = str((pd.to_datetime(as_of) - pd.Timedelta(days=365)).date())
+    if cut2 is None:
+        cut2 = str((pd.to_datetime(as_of) - pd.Timedelta(days=730)).date())
+    p1 = _pit(rows, cut1)
     if not p1:
         return
     rev0, a0 = _f(p1, "revenue"), _f(p1, "assets")
@@ -323,7 +330,7 @@ def _yoy(m, rows, as_of, shares_now, rev_now, assets_now):
         m["asset_growth"] = assets_now / a0 - 1.0                # investment factor (low = good)
     if shares_now and s0 and s0 != 0:
         m["share_issuance"] = shares_now / s0 - 1.0              # net issuance (low/negative = good)
-    p2 = prior(730)                                              # 2-yr-ago → growth acceleration
+    p2 = _pit(rows, cut2)                                        # 2-yr-ago → growth acceleration
     if p2 is not None and "revenue_growth" in m:
         rev2 = _f(p2, "revenue")
         if rev2 and rev0 and rev2 != 0:
@@ -619,6 +626,10 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     rows = []
     for _di, i in enumerate(range(TD, len(cal) - horizon, rebalance_days)):
         as_of = str(cal[i].date())
+        _asof_ts = cal[i]
+        _cut1 = str((_asof_ts - pd.Timedelta(days=365)).date())
+        _cut2 = str((_asof_ts - pd.Timedelta(days=730)).date())
+        _cut3 = str((_asof_ts - pd.Timedelta(days=int(inst_lag_days))).date())
         if _di and _di % 10 == 0:
             _prog(f"  rebalance {_di}/{_n_dates} ({as_of}), {len(rows):,} panel rows so far")
         b0, b1 = benchf.iloc[i], benchf.iloc[i + horizon]
@@ -649,8 +660,9 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             cl = closes.tolist()
             m.update(_price_factors(cl, i))
             m.update(_price_extras(cl, i, bench=benchv))       # reversal / MAX / idio-vol
-            _yoy(m, hist.get(t, []), as_of, shares, _f(sf1, "revenue"), _f(sf1, "assets"))  # growth + investment
-            _sf1_extras(m, sf1, hist.get(t, []), as_of)        # F-Score / accruals / cash-based OP
+            _yoy(m, hist.get(t, []), as_of, shares, _f(sf1, "revenue"), _f(sf1, "assets"),
+                 cut1=_cut1, cut2=_cut2)                       # growth + investment
+            _sf1_extras(m, sf1, hist.get(t, []), as_of, cut1=_cut1)   # F-Score / accruals / cash OP
             isc = _insider_score_at(insh.get(t), as_of)
             if isc is not None:
                 m["insider_score"] = isc                          # → insider theme (now backtestable)
@@ -663,7 +675,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # SF3 per-manager detail. Exposed as factor INPUTS here; whether any of them
             # earns a place in the composite is for CPCV to decide (P4), so they are not
             # yet registered in NUMBER_THEME.
-            s3 = _sf3_at(sf3.get(t), as_of, lag_days=inst_lag_days)
+            s3 = _sf3_at(sf3.get(t), as_of, lag_days=inst_lag_days, cut=_cut3)
             if s3 is not None:
                 holders, val, conv, holders_prev = s3
                 if conv is not None:
