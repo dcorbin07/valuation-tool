@@ -44,6 +44,13 @@ top-decile alpha goes +11.77% → +10.64% with long-short t 3.48 → 2.86. At ba
 test collapsed the t to 0.71. The "the entire edge is 13F" finding in CLAUDE.md is now
 **obsolete** — that was an artifact of quality and low_risk running on half their inputs.
 
+**Every change was kept only after confirming it improves the full-universe combined edge**
+(long-short t / Deflated Sharpe / PBO / top-decile alpha). The one change that did not pass
+on first measurement — dropping `neg_asset_growth` — was re-tested head-to-head in the final
+configuration and does pass (§3c). The derived inputs (§3a) are a **correctness fix, not an
+optimization**: they cost 0.22 of long-short t while improving PBO, DSR and top-decile alpha,
+and the alternative is knowingly scoring on 8 of 10 quality inputs.
+
 **Tests: 101 passing** (edge 44, bulk 12, engine 19, intraday 13, screener 13). `test_saas`
 (18) cannot run here — no `flask`/`werkzeug` installed in this environment, unrelated to
 these changes and true before them.
@@ -149,9 +156,29 @@ issuance alone and measures **+0.0232 / t +2.25** as a theme.
 It stays computed and listed in `NUMBER_THEME` so it keeps being measured — re-adding it is
 one column in `factors.py`.
 
-Effect: PBO 26.7% → 20.0%, DSR 92.9% → 94.95%. But long-short t fell 1.065 → 0.916 and the
-concentrated book gave back ~2pp. Mixed, and I would not have adopted this one on its own
-evidence.
+Measured *sequentially* (i.e. while `low_risk` was still at 0.125) the drop looked **mixed**:
+PBO 26.7% → 20.0% and DSR 92.9% → 94.95%, but long-short t fell 1.065 → 0.916 and the
+concentrated book gave back ~2pp.
+
+**Re-tested in the FINAL configuration (`low_risk` = 0) and the ambiguity disappears.** Both
+runs below are the full universe and differ *only* in whether `neg_asset_growth` is in the
+theme:
+
+| metric | dropped (shipped) | restored |
+|---|---|---|
+| PBO | 0.1333 | 0.1333 (tie) |
+| Deflated Sharpe | 1.0000 | 0.9999 |
+| **long-short t** | **3.485** | 3.298 |
+| **top-decile alpha** | **+11.77%** | +11.52% |
+| long-short ann | +17.58% | +17.39% |
+| portfolio CAGR | +27.91% | +25.25% |
+| monotonicity | −0.939 | **−0.976** |
+| **`capital_discipline` theme IC** | **+0.0232 (t +2.25)** | +0.0062 (t +0.77) |
+
+Dropping it wins on every criterion except monotonicity, and restoring it cuts the theme's own
+IC by roughly 4×. **The earlier "mixed" verdict was an artifact of measuring the change while
+`low_risk` was still scrambling the ranking** — a reminder that sequential attribution can
+mislead when the factors interact. Confirmed keep.
 
 ### 3d. `low_risk` — set to ZERO weight. The single biggest change.
 
@@ -231,8 +258,10 @@ Now documented in the `quantile_backtest` docstring, shipped as
    this change is far weaker than the decile evidence.
 4. **The concentrated top-25 hold book (CAGR +27.9%, alpha vs EW +13.95%) is the noisiest
    number in the file.** CLAUDE.md records top-25 as previously *losing*. Do not quote it.
-5. **`neg_asset_growth`'s removal was mixed** (§3c) — it improved PBO/DSR but hurt
-   long-short t.
+5. **Sequential attribution misled me once already** (§3c): `neg_asset_growth`'s drop looked
+   mixed when measured with `low_risk` still weighted, and clearly correct once re-tested in
+   the final configuration. Every "stage N vs stage N−1" comparison in this document carries
+   that caveat — the factors interact, so only the final head-to-head is authoritative.
 6. **Derived ROE/ROIC are quarterly rates, not annualized.** Harmless for ranking
    (everything is z-scored cross-sectionally) and consistent with how `earnings_yield` /
    `op_margin` already work here, but it lets **fiscal-quarter seasonality into the
