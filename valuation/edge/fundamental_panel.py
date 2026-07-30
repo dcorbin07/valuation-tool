@@ -27,14 +27,69 @@ from ..screener import settings as S
 
 
 def _f(d: dict, *keys):
+    """First of `keys` present as a real number, else None.
+
+    NaN counts as ABSENT. pandas reads a blank CSV cell as float('nan'), and returning that
+    broke every `if x is not None` guard in this module in a way that raised no error:
+      - `_f_score` treated a missing currentratio/debtnc (~18% of rows) as a test the company
+        FAILED rather than one that couldn't be evaluated, both deflating the score and
+        pushing the row past the ">=6 tests usable" guard on tests that weren't usable;
+      - the roe/roic fallbacks below never fired, because a blank Sharadar column came back
+        as NaN rather than None, so `if roe is None` was False.
+    """
     for k in keys:
         v = d.get(k)
-        if v is not None:
-            try:
-                return float(v)
-            except (TypeError, ValueError):
-                pass
+        if v is None:
+            continue
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if f == f:                       # NaN != NaN -> a blank cell is missing, not a value
+            return f
     return None
+
+
+# Which of the derived inputs below to populate. This exists so a change in the validation
+# numbers can be attributed to ONE new signal rather than a bundle: flip an entry off and
+# re-run to isolate it. All four ship on.
+DERIVE = {"roe": True, "roic": True, "assetturnover": True, "beta": True}
+
+# Statutory US federal rate, used only when a name's own effective rate can't be computed
+# (pre-tax income <= 0, so taxexp/ebt is meaningless). Date-aware because a single constant
+# across an 18-year window would be wrong for most of it: the TCJA cut 35% -> 21% for fiscal
+# years beginning 2018.
+_TCJA = "2018-01-01"
+
+
+def _eff_tax_rate(sf1) -> float:
+    """Effective tax rate from the row itself, else the statutory rate for that date.
+
+    Clipped to [0, 0.60]: one-off items produce effective rates of -400% or +900% on small
+    pre-tax numbers, and an unclipped rate turns a profitable name's NOPAT negative for
+    accounting reasons that say nothing about its return on capital.
+    """
+    ebt, taxexp = _f(sf1, "ebt"), _f(sf1, "taxexp")
+    if ebt is not None and ebt > 0 and taxexp is not None:
+        return min(0.60, max(0.0, taxexp / ebt))
+    dk = str(sf1.get("datekey") or sf1.get("date") or "")
+    return 0.21 if dk >= _TCJA else 0.35
+
+
+def _asset_turnover(row) -> Optional[float]:
+    """revenue / assets — Sharadar's own `assetturnover` when present, else derived.
+
+    Blank in 100% of ARQ rows, which is why F-Score test 9 (rising asset turnover) has
+    never been evaluable in this project: it was one of only three tests that could be
+    missing, and the >=6-usable guard was absorbing its absence silently.
+    """
+    if row is None:
+        return None
+    v = _f(row, "assetturnover")
+    if v is not None:
+        return v
+    rev, a = _f(row, "revenue"), _f(row, "assets")
+    return (rev / a) if (rev is not None and a and a > 0) else None
 
 
 def _sf1_to_metrics(ticker, sf1, price, market_cap) -> dict:
@@ -45,6 +100,25 @@ def _sf1_to_metrics(ticker, sf1, price, market_cap) -> dict:
     ev, intexp = _f(sf1, "ev"), _f(sf1, "intexp")
     mc = market_cap
     ndte = ((debt or 0.0) - (cash or 0.0)) / ebitda if ebitda not in (None, 0) else None
+
+    # ROE / ROIC. Sharadar populates these only in its averaged dimensions (ART/ARY); the
+    # ARQ export this panel reads leaves them blank in EVERY row, so z_roe and z_roic have
+    # been all-NaN in every backtest this project has run and `quality` was silently the mean
+    # of 8 inputs rather than 10. Derived here from the raw line items, which ARE present.
+    #
+    # These are quarterly flows over a period-end stock, so the LEVEL is a quarterly rate,
+    # not annualized. That is deliberate and harmless: every number here is z-scored
+    # cross-sectionally before use, so only the ranking matters, and it matches how the
+    # panel already treats earnings_yield / fcf_yield / op_margin. It does mean fiscal-quarter
+    # seasonality enters the cross-section — a TTM version is the obvious follow-up.
+    roe = _f(sf1, "roe")
+    if roe is None and DERIVE["roe"] and ni is not None and equity and equity > 0:
+        roe = ni / equity          # equity>0 only: a negative book value inverts the sign
+    roic = _f(sf1, "roic")
+    if roic is None and DERIVE["roic"] and ebit is not None:
+        invcap = _f(sf1, "invcap")
+        if invcap and invcap > 0:
+            roic = ebit * (1.0 - _eff_tax_rate(sf1)) / invcap
     return {
         "ticker": ticker, "sector": "", "price": price, "market_cap": mc,
         "revenue": rev, "net_income": ni, "operating_income": ebit, "fcf": fcf,
@@ -56,7 +130,9 @@ def _sf1_to_metrics(ticker, sf1, price, market_cap) -> dict:
         "ps": (mc / rev) if (mc and rev) else None,
         "op_margin": (ebit / rev) if (ebit is not None and rev) else _f(sf1, "ebitmargin"),
         "gross_margin": (gp / rev) if (gp is not None and rev) else _f(sf1, "grossmargin"),
-        "roic": _f(sf1, "roic"), "roe": _f(sf1, "roe"), "net_debt_to_ebitda": ndte,
+        "roic": roic, "roe": roe, "net_debt_to_ebitda": ndte,
+        # beta is filled in by _price_extras (regression vs the benchmark); None here so a
+        # row whose window is too short simply has no beta rather than a stale one.
         "revenue_growth": None, "beta": None,
     }
 
@@ -97,6 +173,12 @@ def _price_extras(closes, i, bench=None) -> dict:
                    daily returns on the benchmark's. Low idio-vol has historically
                    outperformed, hence negated. Being the stock-SPECIFIC part is what
                    makes it distinct from the total realized_vol already present.
+
+    Also returns `beta` — the SLOPE of that same regression. It was already being computed
+    and thrown away, while `low_risk = mean(z_neg_beta, z_neg_vol)` had no beta to work with
+    (the panel hard-coded beta=None, so z_neg_beta was all-NaN and low_risk was purely
+    realized volatility). Reported un-negated; factors.py negates it into neg_beta, so the
+    orientation stays in one place.
     """
     out = {}
     if i >= 21 and closes[i - 21] > 0:
@@ -121,6 +203,8 @@ def _price_extras(closes, i, bench=None) -> dict:
             varb = sum((x - mb) ** 2 for x in br)
             if varb > 0:
                 beta = sum((br[k] - mb) * (sr[k] - ms) for k in range(len(br))) / varb
+                if DERIVE["beta"]:
+                    out["beta"] = beta          # -> neg_beta, the missing half of low_risk
                 resid = [sr[k] - (ms + beta * (br[k] - mb)) for k in range(len(sr))]
                 mr = sum(resid) / len(resid)
                 var = sum((x - mr) ** 2 for x in resid) / (len(resid) - 1)
@@ -161,8 +245,12 @@ def _f_score(cur, prior) -> Optional[int]:
     tests.append(sh <= sh_p * 1.001 if (sh and sh_p) else None)                 # 7 no dilution
     gm, gm_p = _f(cur, "grossmargin"), _f(prior, "grossmargin")
     tests.append(gm > gm_p if (gm is not None and gm_p is not None) else None)  # 8 margin up
-    at, at_p = _f(cur, "assetturnover"), _f(prior, "assetturnover")
-    tests.append(at > at_p if (at is not None and at_p is not None) else None)  # 9 turnover up
+    # 9 turnover up. `prior` is the point-in-time row from ~365 days earlier, i.e. roughly
+    # the same fiscal quarter a year back, so comparing quarterly revenue/assets is
+    # seasonally aligned rather than comparing a Q4 to a Q2.
+    at = _asset_turnover(cur) if DERIVE["assetturnover"] else _f(cur, "assetturnover")
+    at_p = _asset_turnover(prior) if DERIVE["assetturnover"] else _f(prior, "assetturnover")
+    tests.append(at > at_p if (at is not None and at_p is not None) else None)
 
     usable = [t for t in tests if t is not None]
     if len(usable) < 6:
@@ -331,7 +419,10 @@ def _yoy(m, rows, as_of, shares_now, rev_now, assets_now, cut1=None, cut2=None):
     if shares_now and s0 and s0 != 0:
         m["share_issuance"] = shares_now / s0 - 1.0              # net issuance (low/negative = good)
     p2 = _pit(rows, cut2)                                        # 2-yr-ago → growth acceleration
-    if p2 is not None and "revenue_growth" in m:
+    # Test the VALUE, not the key: _sf1_to_metrics pre-seeds revenue_growth=None, so
+    # `"revenue_growth" in m` is always True and this reached `None - float` whenever the
+    # prior-year revenue was missing.
+    if p2 is not None and m.get("revenue_growth") is not None:
         rev2 = _f(p2, "revenue")
         if rev2 and rev0 and rev2 != 0:
             m["growth_accel"] = m["revenue_growth"] - (rev0 / rev2 - 1.0)
@@ -1224,7 +1315,21 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
     (a) higher-composite buckets earning more (monotonic), and (b) a positive, statistically
     significant LONG-SHORT spread (top bucket − bottom bucket) — a market-neutral edge that
     doesn't depend on beating a bull market. Also reports a signal-weighted top-decile long book
-    vs the equal-weight universe: the practical way to monetize a positive IC without a short."""
+    vs the equal-weight universe: the practical way to monetize a positive IC without a short.
+
+    SIGN OF `monotonicity` — read this before interpreting it. Buckets are ordered by
+    argsort(-comp), so bucket 0 is the HIGHEST composite, and `monotonicity` is the Spearman
+    correlation between bucket INDEX and bucket return. A working signal therefore makes it
+    NEGATIVE:
+
+        -1.0 = returns fall perfectly from D1 to D10  → perfectly ordered, the best case
+         0.0 = no ordering at all
+        +1.0 = returns RISE from D1 to D10            → the composite is exactly backwards
+
+    This project's notes repeatedly read it the other way round ("monotonicity is negative at
+    every lag - the deciles aren't cleanly ordered", and a -0.782 -> -0.855 move logged as
+    "slightly worse"). Both are inverted: those were well-ordered results getting better.
+    Guarded by test_monotonicity_sign_convention."""
     from ..screener.cross_sectional import zscore
     dates = sorted(panel["date"].unique())
     q_rets = [[] for _ in range(n_q)]
@@ -1641,6 +1746,108 @@ def per_signal_ic(panel, horizon_col="fwd_ret", min_names=20, min_dates=8) -> di
     return out
 
 
+def theme_ic(panel, horizon_col="fwd_ret", min_names=20, min_dates=8) -> dict:
+    """{theme: {median_ic, ic_tstat, coverage, n_dates}} for each composite THEME column.
+
+    per_signal_ic measures individual numbers; this measures the blend each one feeds, which
+    is the level the keep/drop decisions actually operate at. A theme can be worth carrying
+    while an input is worthless (or the reverse), and without this the only evidence for
+    "theme X is hurting" was a pooled figure from a small universe.
+
+    Works on any panel — theme columns are always persisted, keep_numbers or not.
+    """
+    out = {}
+    if panel is None or panel.empty:
+        return out
+    n = float(len(panel))
+    for theme in S.FACTORS_ALL:
+        if theme not in panel.columns:
+            continue
+        ics = []
+        for _d, sub in panel.groupby("date"):
+            ss = sub.dropna(subset=[theme, horizon_col])
+            if len(ss) >= min_names:
+                ic = _spearman(ss[theme].values, ss[horizon_col].values)
+                if ic == ic:
+                    ics.append(ic)
+        cov = float(panel[theme].notna().sum() / n)
+        if len(ics) >= min_dates:
+            a = np.asarray(ics, dtype=float)
+            sd = float(a.std(ddof=1))
+            t = float(a.mean() / (sd / (len(a) ** 0.5))) if sd > 0 else 0.0
+            out[theme] = {"median_ic": float(np.median(a)), "ic_tstat": t,
+                          "coverage": cov, "n_dates": len(a)}
+        else:
+            out[theme] = {"median_ic": None, "ic_tstat": None, "coverage": cov,
+                          "n_dates": len(ics)}
+    return out
+
+
+# A wired signal present in fewer than this fraction of panel rows is almost certainly a
+# PLUMBING bug, not a thin signal. Every data bug this project has hit looked identical from
+# the outside — the factor was wired, the run completed, no error was raised, and the column
+# was silently empty (`assets` missing from the loader allowlist emptied capital_discipline;
+# Sharadar leaves roe/roic/assetturnover blank in the ARQ dimension, so quality ran on 8 of
+# its 10 inputs and low_risk on 1 of its 2, for every run in this project's history).
+# 5% is deliberately far below any plausible real coverage: even the institutional theme,
+# whose source data does not start until 2013, sits above 80%.
+COVERAGE_FLOOR = 0.05
+
+# Themes exempt from the coverage warning because they are DECLARED hooks: wired in advance
+# of a data source that does not exist yet, so empty is their correct state and warning about
+# them would train the reader to ignore this block.
+#
+# Deliberately an explicit list rather than "any theme with zero weight". A theme can be
+# zero-weighted because it was MEASURED and found not to earn its place (low_risk), and that
+# is completely different from having no data: its inputs still exist, the weight is
+# reversible, and a plumbing bug in one must still be reported. Only add a theme here when
+# there is genuinely no point-in-time source for it.
+COVERAGE_EXEMPT_THEMES = frozenset({"sentiment"})   # no point-in-time estimates feed (parked)
+
+
+def signal_coverage(panel, floor=COVERAGE_FLOOR, warn=True) -> dict:
+    """{signal: coverage} for every wired number and theme, plus who is under `floor`.
+
+    Coverage is measured on the STANDARDIZED column (`z_<num>`), not the raw input, because
+    that is what actually reaches the composite: `zscore()` returns all-NaN for a column with
+    zero cross-sectional variation, so a constant column is correctly reported as unusable
+    rather than fully covered.
+
+    Needs a panel built with keep_numbers=True for the per-number figures; theme coverage
+    works on any panel. Warns to stderr for anything under the floor — the whole point is
+    that a silently-empty factor becomes impossible to miss.
+    """
+    out = {"floor": float(floor), "numbers": {}, "themes": {}, "below_floor": []}
+    if panel is None or panel.empty:
+        return out
+    n = float(len(panel))
+    for num in S.NUMBERS_ALL:
+        zc = "z_" + num
+        if zc in panel.columns:
+            out["numbers"][num] = float(panel[zc].notna().sum() / n)
+    for theme in S.FACTORS_ALL:
+        if theme in panel.columns:
+            out["themes"][theme] = float(panel[theme].notna().sum() / n)
+    _dead = set(COVERAGE_EXEMPT_THEMES)
+    out["exempt_themes"] = sorted(_dead)
+    for kind, vals in (("number", out["numbers"]), ("theme", out["themes"])):
+        for name, cov in vals.items():
+            theme = name if kind == "theme" else S.NUMBER_THEME.get(name)
+            if cov < floor and theme not in _dead:
+                out["below_floor"].append({"kind": kind, "name": name, "coverage": cov,
+                                           "theme": theme})
+    out["below_floor"].sort(key=lambda r: r["coverage"])
+    if warn and out["below_floor"]:
+        import sys as _s
+        print(f"[coverage] WARNING: {len(out['below_floor'])} wired signal(s) below "
+              f"{floor:.0%} coverage on {int(n):,} panel rows — these contribute nothing and "
+              f"are probably a data/plumbing bug, not a weak signal:", file=_s.stderr, flush=True)
+        for r in out["below_floor"]:
+            print(f"[coverage]   {r['kind']:6s} {r['name']:20s} {r['coverage']:7.2%}",
+                  file=_s.stderr, flush=True)
+    return out
+
+
 def run_backtest(provider, tickers, top_n=25, rebalance_days=63, horizon=63, lookback_years=18,
                  recency_halflife_days=1260, bucket="established") -> dict:
     ok, msg = provider.ready()
@@ -1903,16 +2110,19 @@ def main(argv=None):
         }
         # Per-signal IC for EVERY wired number, measured on the validated horizon so the
         # results file reports the same numbers the keep/reject decisions were made on.
-        _psig = None
-        try:
-            _h = str((res.get("construction") or {}).get("horizon") or res.get("primary_horizon") or "")
-            _hz = int(_h) if _h else 63
-            _pan = build_fundamental_panel(prov, tickers, rebalance_days=63,
-                                           lookback_years=CONFIG.backtest_lookback_years,
-                                           horizon=_hz, keep_numbers=True)
-            _psig = per_signal_ic(_pan)
-        except Exception as _pe:
-            print(f"[results] per-signal IC unavailable: {_pe}")
+        # run_backtests now measures it on the panel it already built, so there is nothing
+        # to rebuild here; the fallback covers a caller that predates that.
+        _psig = res.get("per_signal")
+        if not _psig:
+            try:
+                _h = str((res.get("construction") or {}).get("horizon") or res.get("primary_horizon") or "")
+                _hz = int(_h) if _h else 63
+                _pan = build_fundamental_panel(prov, tickers, rebalance_days=63,
+                                               lookback_years=CONFIG.backtest_lookback_years,
+                                               horizon=_hz, keep_numbers=True)
+                _psig = per_signal_ic(_pan)
+            except Exception as _pe:
+                print(f"[results] per-signal IC unavailable: {_pe}")
         _w = _write_results(res, universe_label=("full" if (args.limit or 0) >= 2000 else "subset"),
                             cleanups=_cleanups, per_signal=_psig)
         print(f"Canonical results  -> {_os.path.basename(_w['json'])} + "
@@ -1948,8 +2158,18 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
     # Realistic 'hold until it drops out of favor' simulation (mirrors the live sell logic),
     # rather than fixed-calendar churn — winners compound, losers get sold when they fade.
     try:
+        # keep_numbers=True: the per-signal IC and coverage diagnostics both need the
+        # standardized per-number columns, and this is the SAME panel (63d, validated
+        # horizon) they used to be rebuilt from — building it once instead of twice removes
+        # a full duplicate panel build from every run.
         panel = build_fundamental_panel(provider, tickers, rebalance_days=63,
-                                        lookback_years=lookback_years, horizon=63)
+                                        lookback_years=lookback_years, horizon=63,
+                                        keep_numbers=True)
+        # Coverage guard runs BEFORE any validation, so an empty factor is reported even if
+        # something downstream fails.
+        out["signal_coverage"] = signal_coverage(panel)
+        out["per_signal"] = per_signal_ic(panel)
+        out["per_theme"] = theme_ic(panel)      # the level keep/drop decisions operate at
         if not panel.empty and panel["date"].nunique() >= 6:
             cols = [c for c in S.BUCKET_FACTORS[bucket] if c in panel.columns and panel[c].notna().any()]
             base = _base_weights(cols, bucket)

@@ -246,10 +246,13 @@ def test_results_payload_is_json_clean_and_self_describing():
     # Every required top-level section present.
     for k in ("schema_version", "generated_at", "git", "universe", "cleanups", "signals_wired",
               "per_horizon", "portfolio", "cpcv", "walk_forward", "construction",
-              "institutional_dependence", "regime", "per_signal"):
+              "institutional_dependence", "regime", "per_signal", "signal_coverage"):
         assert k in p, k
     # per_signal is explicit about absence rather than looking like "no signal".
     assert p["per_signal"] == {"available": False, "signals": {}}
+    # Same for coverage: "not measured" must not read as "everything is covered".
+    assert p["signal_coverage"]["available"] is False
+    assert p["signal_coverage"]["below_floor"] == []
 
 
 def test_results_writes_both_files_at_root_and_overwrites():

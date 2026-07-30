@@ -47,20 +47,103 @@ On the fair 3,000-name universe (~18y, gross of costs):
 - Conclusion: more tuning = chasing noise (proven). The levers are **new orthogonal data** — not more
   optimization, and not more 13F work; that signal has now been fairly tested and is real but too weak alone.
 
-## IMMEDIATE NEXT TASKS (in order)
-1. ~~**Re-run `validate_13f.bat`, then interpret it.**~~ **DONE (July 2026)** — see CURRENT STATE above.
-   Verdict: 13F is real-but-weak, **not** a look-ahead artifact. Two bugs found and fixed en route:
-   (a) the old `(45, 60, 90)` lag grid was **structurally inert** — rebalance dates land 11-21 days past a
-   quarter start and 13F rows are stamped quarter-END, so all three lags resolved to the SAME filed quarter
-   and always printed three identical rows (>111d is needed to cross a boundary). Now `INST_LAG_GRID =
-   (15, 45, 135, 225)`, guarded by `test_inst_lag_grid_crosses_quarter_boundary`. The earlier "500-name
-   check shows the edge FADING HARD" note was wrong — that difference cannot exist on this grid; disregard it.
-   (b) printing to a **redirected** stdout crashed with `UnicodeEncodeError` (cp1252 vs the `→`/`—` chars),
-   so the `.bat` wrappers reported "failed" on successful runs; `main()` now reconfigures stdout to UTF-8.
-2. **Estimate-revisions signal** (Don chose this) — integrate analyst estimate revisions/dispersion (FMP or Intrinio; needs Don's API key) to fill the empty `sentiment` theme. Point-in-time history required.
-3. **ML tree combiner** — a regularized gradient-boosted-tree scheme (scikit-learn, make the import OPTIONAL so it never breaks Don's run), validated under CPCV/Deflated Sharpe; adopt only if it honestly wins.
-4. **Gated auto-apply** — `/admin/adopt-backtest-weights` should consume `recommended_weights_full` (only set when CPCV/walk-forward adopt). Hold the first live flip until #2 checks out (#1 is done and did NOT clear the bar).
-5. **Tracked "Valquo Index" vs SPY** (Cowork side) — broad top-decile, large-cap-tilted paper book; keep the user hot list short.
+**LATEST (2026-07-30) — SUPERSEDES much of CURRENT STATE above. Read this first.**
+- **Five wired factors were SILENTLY EMPTY in every run this project has ever done.** The
+  Sharadar export is ARQ-only and Sharadar fills its ratio/averaged columns only in ART/ARY:
+  `roe`, `roic`, `assetturnover` are non-null in **0 of 197,265 rows**. `beta` was hard-coded
+  `None`. `growth_accel` was overwritten with all-NaN by `build_frame`. So `quality` averaged
+  **8 of its 10** inputs, `low_risk` **1 of 2**, `growth` **1 of 2** — with no error, ever.
+  All four are now derived from line items that were present all along. `_f()` also returned
+  NaN instead of None, which made `_f_score` count MISSING tests as FAILED ones.
+- **A coverage guard now exists and would have caught every one of them**: `signal_coverage()`
+  warns on any wired signal under 5% coverage and ships a `signal_coverage` block in
+  BACKTEST_RESULTS.json. **Never trust a factor's IC without checking its coverage first.**
+- **roic (t +3.38) and roe (t +2.84) are the 4th and 6th strongest signals in the panel** and
+  were contributing nothing. `quality` is now the strongest theme (t +3.39).
+- **`monotonicity`'s SIGN HAS BEEN READ BACKWARDS throughout these notes.** Buckets are
+  ordered best-composite-first, so **−1.0 = perfectly ordered (ideal), +1.0 = backwards.**
+  The "monotonicity is negative ... the deciles aren't cleanly ordered" line above is WRONG,
+  and P4's "−0.782 → −0.855, slightly worse" was an improvement. Now pinned by a test.
+- **`low_risk` zeroed (live, reversible).** Its real full-universe IC is −0.0014 (t +0.71),
+  NOT the −0.048 claimed below — dead weight, not harmful. It is **−0.352 correlated with
+  `size`**, the strongest anticorrelation in the theme matrix: low-beta/low-vol names ARE
+  large caps, so it was cancelling the small-cap tilt. `neg_asset_growth` also dropped
+  (t −0.70, wrong sign).
+- **The full-universe verdict CLEARS both bars for the first time: PBO 13.3%, Deflated Sharpe
+  ~100% (saturated), long-short t 3.485, top-decile alpha +11.77%.** BUT the biggest
+  contributor (zeroing low_risk) was chosen by looking at this same panel, so it is
+  **in-sample-informed and needs out-of-sample confirmation** — HANDOFF_STATUS.md §5.
+- **"The entire edge is 13F" is now OBSOLETE.** Without the institutional theme, top-decile
+  alpha is still +10.6% and long-short t 2.86 (was 0.71). That finding was an artifact of
+  quality/low_risk running on half their inputs.
+- **`insider` is now the only negative theme (t −0.34) and still carries 12.5% weight** — the
+  obvious next candidate, deliberately NOT changed.
+- Real full-universe coverage: `institutional` **61.4%** (not the 81.7% below), `insider`
+  85.0%. F-Score is **t +2.74** on the full universe, not +5.66.
+
+**PREVIOUS (2026-07-29) — several claims below are corrected above:**
+- **800-name large-cap run:** PBO 13%, Deflated Sharpe 77%, first CPCV "adopt" (`ic-ir`), top-decile
+  +4.1%/yr vs equal-weight. BUT it's the friendlier large-cap universe (not the fair 3,000), still
+  <95%, still ~1/3 13F-dependent. **The full 2,827-name run has STILL never completed** (scoring loop slow).
+- **F-Score is the strongest new signal** (IC t +5.66), wired into quality; accruals + 13F-holder-breadth
+  also kept. Classic anomalies (reversal, idio-vol, MAX, low-vol) did NOT replicate here.
+- **`low_risk` theme has NEGATIVE pooled IC (-0.048)** and CPCV zeroed it — a live factor that's hurting;
+  not yet changed (Don's call).
+- **`assets` was silently dropped by the loader**, so `capital_discipline` was half-empty in every prior
+  run — fixed; treat past capital_discipline conclusions as unreliable.
+- **Bulk data loaded fast+safe** via `valuation/edge/bulk.py` (raw zips in `data/raw/`, extracts in
+  `data/bulk/`, caches in `data/bulk/prepared/`): SF3 per-manager conviction, DAILY point-in-time
+  marketcap+ratios, ACTIONS splits/delistings, EVENTS raw codes.
+- **Now CONSUMED by the panel (2026-07-29 s3):** point-in-time market cap from DAILY (replaces the buggy
+  shares×price path; AAPL 2015Q2 $722.6B verified), survivorship-free returns via the ACTIONS delisting
+  mask (SEP is ALREADY split-adjusted, so split ratios deliberately NOT re-applied — don't "fix" that),
+  SF3 conviction exposed as inputs (`sm_conviction/holders/breadth`, not yet in a theme). `institutional`
+  coverage 70.5%→81.7%. STILL PENDING: scoring loop unvectorized; **full 2,827-name run has never completed.**
+
+## METHODOLOGY RULE (hard — do not violate)
+**Report verdicts ONLY from the full ~2,710-name universe.** 400/800-name subsets systematically
+flatter results (PBO 13% on 800 → 53% on full; `sm_breadth` t 2.37 on 800 is unverified on full).
+Small samples are dev smoke-tests only ("does it compute / not crash") and MUST be labeled as such —
+never the number a keep/reject/adopt decision rests on. The full run is now fast (~75s load + ~11s
+score), so there is no performance excuse to judge on a subset. If you must screen small first, say
+"smoke test" explicitly and re-run the survivor on the full universe before reporting a verdict.
+
+## IMMEDIATE NEXT TASKS (in order) — updated 2026-07-30
+1. ~~Wire the bulk caches into `build_fundamental_panel`~~ **DONE (2026-07-29 s3)** — PIT market cap from
+   DAILY, ACTIONS delisting mask (splits NOT re-applied; SEP already adjusted), SF3 conviction exposed as
+   inputs. (Coverage figure in that note was wrong: `institutional` is **61.4%** on the full universe.)
+2. ~~**Add unit tests for `bulk.py`**~~ **DONE** — 12 tests.
+3. ~~**Speed up scoring + complete the full 2,827-name run**~~ **DONE** — the full run now takes ~12 min
+   end to end, and one duplicate full panel build was removed from it (2026-07-30).
+4. ~~**P3 — SF3 smart-money conviction**~~ **DONE (P4 commit)** — `sm_breadth` kept, the rest rejected.
+5. ~~**Fix hurting factors**~~ **DONE (2026-07-30)** — but only after discovering the factors were EMPTY;
+   see LATEST. `neg_asset_growth` dropped (t −0.70), `low_risk` zeroed (IC −0.0014, −0.352 corr with size).
+6. **CONFIRM THE `low_risk` REMOVAL OUT-OF-SAMPLE** — the top priority now. It is the single biggest
+   driver of the current headline numbers and it was chosen by looking at the same panel it was tested
+   on. Hold out the last ~3 years, or decide on 2008–2018 and test on 2019–2026.
+7. **Test zeroing `insider`** — now the only negative theme (t −0.34), still carrying 12.5% weight.
+8. **TTM ROE/ROIC.** The derived versions are quarterly flows over a period-end stock, so
+   fiscal-quarter seasonality enters the cross-section. Fine for ranking, but a real refinement.
+9. **Re-read every past "monotonicity" conclusion with the sign flipped** (see LATEST).
+10. **P5 — robustness (STILL NOT DONE):** winsorize/clip already exists (`zscore` clips at 2%);
+    **median/MAD robust z-scores and industry-relative ranking remain untouched.**
+11. **Social preview:** add Open Graph + Twitter Card meta tags (esp. a 1200×630 `og:image`) so pasted
+    valquo.co links auto-generate a rich card (LinkedIn etc.); re-scrape via LinkedIn Post Inspector after deploy.
+12. **Later:** `momentum`/`institutional` are +0.50 correlated — consider consolidating instead of paying
+    two theme weights for one signal; PEAD from EVENTS (needs `bulk.EARNINGS_CODES` from Sharadar's EVENTS
+    legend first); ML tree combiner (now clearly worthwhile — several real signals exist);
+    turnover/cost-aware construction; gated auto-apply; tracked "Valquo Index vs SPY" (Cowork side).
+13. **Estimate-revisions sentiment: PARKED** until WRDS/IBES (FMP has no point-in-time revisions at any tier;
+    the free `stable/grades` workaround is real but weak and quota-starved). Don't fight the FMP free quota.
+
+## COVERAGE RULE (hard — learned the expensive way 2026-07-30)
+**Before reporting or acting on any factor's IC, check its coverage.** Five wired factors were empty
+for this project's entire history and nothing surfaced it: an empty column contributes nothing to a
+theme mean, raises no error, and the run completes normally. `signal_coverage()` now warns under 5%
+and writes `signal_coverage.below_floor` into BACKTEST_RESULTS.json — **read that block first.**
+The same class of bug has now bitten four times (`assets` in the loader allowlist, the SF3
+positional-arg bug, these five, and `invcap`/`taxexp`/`ebt` missing from `_KEEP`). When adding any
+signal, add its source columns to `WRDSProvider._KEEP` and confirm coverage in the next run.
 
 ## END OF EVERY SESSION: update `HANDOFF_STATUS.md`
 Overwrite `HANDOFF_STATUS.md` in the repo root before you finish — what you did, concrete

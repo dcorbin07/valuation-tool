@@ -86,9 +86,17 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     df["neg_leverage"] = -pd.to_numeric(df.get("net_debt_to_ebitda"), errors="coerce")
     df["neg_ev_sales"] = -pd.to_numeric(df.get("ev_sales"), errors="coerce")
     df["neg_ps"] = -pd.to_numeric(df.get("ps"), errors="coerce")
-    rg = pd.to_numeric(df.get("revenue_growth"), errors="coerce")
-    rgp = pd.to_numeric(df.get("revenue_growth_prior"), errors="coerce")
-    df["growth_accel"] = rg - rgp
+    # Growth acceleration. Derive it from this-year-vs-last-year revenue growth ONLY when a
+    # provider supplies revenue_growth_prior; otherwise leave whatever the caller already
+    # computed. The unconditional version silently emptied the column for the backtest panel,
+    # which computes growth_accel itself in _yoy (from two prior-year point-in-time rows) and
+    # never supplies revenue_growth_prior — so `growth` was effectively revenue_growth alone.
+    rgp = pd.to_numeric(df.get("revenue_growth_prior"), errors="coerce") \
+        if "revenue_growth_prior" in df.columns else None
+    if rgp is not None and rgp.notna().any():
+        df["growth_accel"] = pd.to_numeric(df.get("revenue_growth"), errors="coerce") - rgp
+    elif "growth_accel" not in df.columns:
+        df["growth_accel"] = np.nan
 
     # --- individual theme inputs (each oriented higher = better) ---
     def _num(c):   # always a Series aligned to df.index, even if the column is absent
@@ -175,7 +183,13 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     # (median IC -0.014 / -0.072 / -0.025, none significant). They are still computed in
     # _price_extras so re-testing is one line, but they do not feed the theme.
     df["low_risk"] = df[["z_neg_beta", "z_neg_vol"]].mean(axis=1)
-    df["capital_discipline"] = df[["z_neg_issuance", "z_neg_asset_growth"]].mean(axis=1)
+    # Capital discipline is now share issuance ALONE. neg_asset_growth was DROPPED: on the
+    # full 2,710-name / 110-date panel it measures median IC -0.0141 with t -0.70 — the wrong
+    # sign. The investment factor says low asset growth should predict high returns; here
+    # high asset growth did, so averaging it in was cancelling out neg_issuance (+0.0232,
+    # t +2.25), the one input in this theme that works. It stays computed in _yoy and listed
+    # in NUMBER_THEME so it keeps being measured — re-adding it is one column here.
+    df["capital_discipline"] = df[["z_neg_issuance"]].mean(axis=1)
     # Sentiment blends whichever inputs are present: estimate revisions (still a hook —
     # no point-in-time source for them) and the analyst rating-action signals. .mean()
     # skips NaNs, so a provider carrying only one of them still gets a usable theme, and

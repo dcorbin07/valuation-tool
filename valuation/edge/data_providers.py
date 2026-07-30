@@ -254,7 +254,13 @@ class WRDSProvider(HistoricalDataProvider):
                          "ebitmargin", "grossmargin", "sharesbas", "shareswa", "shareswadil",
                          "sharefactor", "marketcap", "price",
                          "assets", "ncfo", "debtnc", "currentratio", "assetturnover",
-                         "cor", "sgna", "rnd", "receivables", "inventory", "payables"],
+                         "cor", "sgna", "rnd", "receivables", "inventory", "payables",
+                         # Sharadar computes roe / roic / assetturnover ONLY for its averaged
+                         # dimensions (ART/ARY); in the ARQ export they are blank in 100% of
+                         # rows. These three are what the panel needs to derive them itself:
+                         # roe = netinc/equity, roic = ebit x (1-effective tax)/invcap, and
+                         # the effective rate = taxexp/ebt. See _sf1_to_metrics.
+                         "invcap", "taxexp", "ebt"],
     }
 
     def __init__(self, cfg=CONFIG):

@@ -597,6 +597,342 @@ def test_synthetic_provider_is_deterministic_across_processes():
     assert outs[0] and outs[0] == outs[1], f"price series varies with PYTHONHASHSEED: {outs}"
 
 
+# ---------------------------------------------------------------------------------------- #
+# P5 — the coverage guard and the four inputs that were silently empty.
+#
+# Every one of these covers a bug that produced NO error: the factor was wired, the run
+# completed, and the column was blank. Sharadar populates roe / roic / assetturnover only in
+# its averaged dimensions, so in the ARQ export this panel reads they are blank in 100% of
+# 197,265 rows; `beta` was hard-coded None; and build_frame overwrote the panel's own
+# growth_accel with an all-NaN derivation. Result: `quality` averaged 8 of its 10 inputs,
+# `low_risk` 1 of its 2, and `growth` 1 of its 2, in every backtest this project has run.
+# ---------------------------------------------------------------------------------------- #
+
+def test_all_derived_inputs_ship_enabled():
+    """DERIVE exists so a validation change can be attributed to ONE new signal: flip an
+    entry off, re-run, diff. This asserts none of those staging toggles was left off — the
+    exact mistake that would silently re-empty a factor after all this work."""
+    from valuation.edge.fundamental_panel import DERIVE
+    off = sorted(k for k, v in DERIVE.items() if not v)
+    assert not off, f"derived inputs left disabled: {off}"
+
+
+def test_f_treats_nan_as_missing():
+    """A blank CSV cell reads as float('nan'), which must count as ABSENT, not as a value.
+
+    Returning NaN silently broke every `if x is not None` guard in the panel — including
+    the roe/roic fallbacks (which never fired) and _f_score (which scored missing tests as
+    failures).
+    """
+    from valuation.edge.fundamental_panel import _f
+    assert _f({"roe": float("nan")}, "roe") is None
+    assert _f({}, "roe") is None
+    assert _f({"roe": float("nan"), "roa": 0.2}, "roe", "roa") == 0.2   # falls through
+    assert _f({"roe": 0.15}, "roe") == 0.15
+    assert _f({"roe": ""}, "roe") is None                              # unparseable
+    assert _f({"roe": 0.0}, "roe") == 0.0                              # 0 is a real value
+
+
+def _arq_row(**over):
+    """A Sharadar ARQ row as the real export delivers it: ratios blank, line items present."""
+    row = {"datekey": "2024-05-15", "revenue": 500.0, "netinc": 100.0, "ebit": 150.0,
+           "equity": 800.0, "invcap": 1000.0, "taxexp": 30.0, "ebt": 150.0,
+           "assets": 2000.0, "ebitda": 200.0, "gp": 250.0, "fcf": 90.0, "debt": 200.0,
+           "cashneq": 50.0, "ev": 5000.0, "intexp": 10.0, "sharesbas": 1e8,
+           "roe": float("nan"), "roic": float("nan"), "assetturnover": float("nan")}
+    row.update(over)
+    return row
+
+
+def test_roe_and_roic_derived_when_the_export_leaves_them_blank():
+    from valuation.edge.fundamental_panel import _sf1_to_metrics
+    m = _sf1_to_metrics("T", _arq_row(), price=50.0, market_cap=5e9)
+    assert m["roe"] == 100.0 / 800.0                       # netinc / equity
+    # roic = ebit x (1 - effective tax) / invcap; effective rate = taxexp/ebt = 30/150 = 0.20
+    assert abs(m["roic"] - (150.0 * 0.80 / 1000.0)) < 1e-12
+    # Sharadar's own value wins when it IS present (e.g. an ART-dimension export).
+    m2 = _sf1_to_metrics("T", _arq_row(roe=0.42, roic=0.31), price=50.0, market_cap=5e9)
+    assert m2["roe"] == 0.42 and m2["roic"] == 0.31
+
+
+def test_roe_and_roic_refuse_negative_denominators():
+    """Negative book value / invested capital would INVERT the sign, ranking a loss-making
+    name with wiped-out equity as the highest-quality in the universe."""
+    from valuation.edge.fundamental_panel import _sf1_to_metrics
+    m = _sf1_to_metrics("T", _arq_row(equity=-500.0, invcap=-100.0), price=50.0, market_cap=5e9)
+    assert m["roe"] is None and m["roic"] is None
+    m0 = _sf1_to_metrics("T", _arq_row(equity=0.0, invcap=0.0), price=50.0, market_cap=5e9)
+    assert m0["roe"] is None and m0["roic"] is None
+
+
+def test_effective_tax_rate_clipped_and_statutory_fallback():
+    """One-off tax items produce effective rates of -400%/+900% on small pre-tax numbers;
+    unclipped, those flip a profitable name's NOPAT negative for accounting reasons that say
+    nothing about its return on capital."""
+    from valuation.edge.fundamental_panel import _eff_tax_rate
+    assert abs(_eff_tax_rate(_arq_row(taxexp=30.0, ebt=150.0)) - 0.20) < 1e-12
+    assert _eff_tax_rate(_arq_row(taxexp=900.0, ebt=100.0)) == 0.60      # clipped high
+    assert _eff_tax_rate(_arq_row(taxexp=-50.0, ebt=100.0)) == 0.0       # clipped low
+    # Pre-tax loss -> the effective rate is meaningless; fall back to the statutory rate for
+    # that DATE (the TCJA cut 35% -> 21%), not one constant across an 18-year window.
+    assert _eff_tax_rate(_arq_row(ebt=-10.0, datekey="2012-05-15")) == 0.35
+    assert _eff_tax_rate(_arq_row(ebt=-10.0, datekey="2024-05-15")) == 0.21
+    assert _eff_tax_rate(_arq_row(taxexp=float("nan"), datekey="2024-05-15")) == 0.21
+
+
+def test_fscore_test9_asset_turnover_is_evaluable():
+    """F-Score test 9 (rising asset turnover) needs `assetturnover`, blank in every ARQ row,
+    so it has never been evaluated. Derived from revenue/assets it must move the score."""
+    from valuation.edge.fundamental_panel import _f_score, _asset_turnover
+    assert _asset_turnover(_arq_row()) == 500.0 / 2000.0                # derived
+    assert _asset_turnover(_arq_row(assetturnover=0.9)) == 0.9          # vendor value wins
+    prior = _arq_row(datekey="2023-05-15", revenue=480.0, netinc=90.0, ncfo=140.0,
+                     debtnc=210.0, currentratio=1.9, grossmargin=0.38)
+    base = dict(ncfo=150.0, debtnc=200.0, currentratio=2.0, grossmargin=0.40)
+    rising = _f_score(_arq_row(revenue=500.0, **base), prior)     # turnover 0.250 > 0.240
+    falling = _f_score(_arq_row(revenue=450.0, **base), prior)    # turnover 0.225 < 0.240
+    assert rising == 9, f"a company passing all nine tests should score 9, got {rising}"
+    assert falling == 8, f"only test 9 should differ, got {falling}"
+
+
+def test_fscore_refuses_to_score_when_too_many_tests_are_unevaluable():
+    """The real damage from NaN-as-a-value: a missing input was scored as a test the company
+    FAILED, and still counted toward the '>=6 usable' guard. A thin row therefore came back
+    as a confident low score instead of None."""
+    from valuation.edge.fundamental_panel import _f_score
+    prior = _arq_row(datekey="2023-05-15", revenue=480.0, netinc=90.0, grossmargin=0.38)
+    # Blank ncfo (kills tests 2 and 4), debtnc (5) and currentratio (6) -> only 5 usable.
+    thin = _arq_row(ncfo=float("nan"), debtnc=float("nan"), currentratio=float("nan"),
+                    grossmargin=0.40)
+    assert _f_score(thin, prior) is None
+    # Omitting the keys entirely must behave identically to blank cells.
+    for k in ("ncfo", "debtnc", "currentratio"):
+        thin.pop(k, None)
+    assert _f_score(thin, prior) is None
+
+
+def test_price_extras_exposes_beta():
+    """low_risk = mean(z_neg_beta, z_neg_vol), but the panel hard-coded beta=None, so
+    z_neg_beta was all-NaN and the theme was purely realized volatility. The regression that
+    produces beta was already running for neg_idio_vol — its slope was just discarded."""
+    from valuation.edge.fundamental_panel import _price_extras
+    n = 200
+    # The benchmark must genuinely VARY: a constant-return series has zero cross-sectional
+    # variance, so the regression divides noise by noise and the slope is meaningless.
+    rng = np.random.default_rng(11)
+    rb = rng.normal(0.0004, 0.010, n - 1)
+    bench, twice = [100.0], [100.0]
+    for r in rb:
+        bench.append(bench[-1] * (1.0 + r))
+        twice.append(twice[-1] * (1.0 + 2.0 * r))         # exactly 2x the benchmark's moves
+    out = _price_extras(twice, n - 1, bench=bench)
+    assert "beta" in out, "beta must be reported for the low_risk theme"
+    assert abs(out["beta"] - 2.0) < 0.02, out["beta"]
+    assert abs(out["neg_idio_vol"]) < 1e-6, "a perfectly explained stock has no idio vol"
+    # A stock that just tracks the benchmark has beta 1.
+    one = _price_extras(bench, n - 1, bench=bench)
+    assert abs(one["beta"] - 1.0) < 1e-9, one["beta"]
+    # No benchmark -> no beta rather than a fabricated one.
+    assert "beta" not in _price_extras(twice, n - 1, bench=None)
+
+
+def test_beta_reaches_the_low_risk_theme_end_to_end():
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+    prov = _SynthPIT(30, seed=7)
+    panel = build_fundamental_panel(prov, list(prov.q.keys()), rebalance_days=63,
+                                    horizon=21, lookback_years=4, keep_numbers=True)
+    assert not panel.empty
+    assert panel["z_neg_beta"].notna().any(), "neg_beta must populate the low_risk theme"
+    assert float(panel["z_neg_beta"].std()) > 0.05, "neg_beta must vary across names"
+
+
+def test_growth_accel_survives_build_frame():
+    """build_frame recomputed growth_accel as revenue_growth - revenue_growth_prior
+    unconditionally. The panel supplies growth_accel itself (from two prior-year
+    point-in-time rows) and never supplies revenue_growth_prior, so the column was
+    overwritten with all-NaN and `growth` collapsed to revenue_growth alone."""
+    from valuation.screener.factors import build_frame
+    metrics = [{"ticker": f"T{i}", "price": 10.0 + i, "market_cap": 1e9 * (i + 1),
+                "revenue": 100.0, "net_income": 10.0 + i, "operating_income": 12.0 + i,
+                "revenue_growth": 0.10 + 0.01 * i, "growth_accel": 0.05 - 0.004 * i}
+               for i in range(20)]
+    fr = build_frame(metrics, sector_neutral=False, residual_momentum=False)
+    assert fr["z_growth_accel"].notna().any(), "panel-supplied growth_accel must survive"
+    assert float(fr["z_growth_accel"].std()) > 0.05
+    assert fr["growth"].notna().any()
+    # When a provider DOES supply revenue_growth_prior, the derived version still wins.
+    for i, m in enumerate(metrics):
+        m["revenue_growth_prior"] = 0.02 * i
+    fr2 = build_frame(metrics, sector_neutral=False, residual_momentum=False)
+    got = float(fr2["growth_accel"].iloc[5])
+    assert abs(got - ((0.10 + 0.01 * 5) - 0.02 * 5)) < 1e-12, got
+
+
+def test_yoy_survives_a_prior_row_with_no_revenue():
+    """Regression: the growth_accel branch tested `"revenue_growth" in m`, but the metrics
+    dict is pre-seeded with revenue_growth=None, so the key is ALWAYS present and the branch
+    reached `None - float`. NaN arithmetic hid it until blank cells stopped becoming NaN."""
+    from valuation.edge.fundamental_panel import _yoy
+    rows = [{"datekey": "2022-05-15", "revenue": 400.0, "assets": 1000.0, "sharesbas": 1e8},
+            {"datekey": "2023-05-15", "revenue": float("nan"), "assets": 1100.0, "sharesbas": 1e8},
+            {"datekey": "2024-05-15", "revenue": 500.0, "assets": 1200.0, "sharesbas": 1e8}]
+    m = {"revenue_growth": None}
+    _yoy(m, rows, "2024-05-20", 1e8, 500.0, 1200.0)      # must not raise
+    assert m["revenue_growth"] is None                    # prior-year revenue was blank
+    assert "growth_accel" not in m
+
+
+def _cov_panel(**cols):
+    """Minimal panel shaped like build_fundamental_panel(keep_numbers=True) output."""
+    from valuation.screener import settings as S
+    n = 50
+    df = pd.DataFrame({"date": ["2024-01-02"] * n, "ticker": [f"T{i}" for i in range(n)],
+                       "fwd_ret": np.linspace(-0.1, 0.1, n)})
+    for num in S.NUMBERS_ALL:
+        df["z_" + num] = np.linspace(-2, 2, n)
+    for theme in S.FACTORS_ALL:
+        df[theme] = np.linspace(-1, 1, n)
+    for k, v in cols.items():
+        df[k] = v
+    return df
+
+
+def test_signal_coverage_flags_a_wired_but_empty_signal():
+    """The cheapest possible guard against the whole class of bug above: a wired factor at
+    ~0% coverage raises no error anywhere else, because an empty column simply contributes
+    nothing to the mean."""
+    from valuation.edge.fundamental_panel import signal_coverage, COVERAGE_FLOOR
+    df = _cov_panel(z_roic=np.nan, z_roe=np.nan, quality=np.nan)
+    cov = signal_coverage(df, warn=False)
+    assert cov["numbers"]["z_roic".replace("z_", "")] == 0.0
+    assert cov["numbers"]["f_score"] == 1.0
+    flagged = {r["name"] for r in cov["below_floor"]}
+    assert {"roic", "roe", "quality"} <= flagged, flagged
+    assert cov["floor"] == COVERAGE_FLOOR
+    # Ordered worst-first so the warning leads with the worst offender.
+    covs = [r["coverage"] for r in cov["below_floor"]]
+    assert covs == sorted(covs)
+    # A healthy panel must be silent — a guard that always fires trains you to ignore it.
+    assert signal_coverage(_cov_panel(), warn=False)["below_floor"] == []
+
+
+def test_signal_coverage_exempts_only_declared_hook_themes():
+    """`sentiment` has no point-in-time feed, so empty is its correct state and warning about
+    its three inputs would train the reader to ignore the block.
+
+    But the exemption must be an EXPLICIT list, not "any theme with zero weight". low_risk is
+    zero-weighted because it was measured and found not to earn its place — its inputs still
+    exist and a plumbing bug in them must still be reported. Inferring the exemption from the
+    weight silently disabled the guard for low_risk the moment that weight went to 0.
+    """
+    from valuation.edge.fundamental_panel import signal_coverage, COVERAGE_EXEMPT_THEMES
+    from valuation.screener import settings as S
+    assert COVERAGE_EXEMPT_THEMES == {"sentiment"}, COVERAGE_EXEMPT_THEMES
+    df = _cov_panel(z_earn_rev=np.nan, z_rating_rev=np.nan, z_neg_rating_disp=np.nan,
+                    sentiment=np.nan)
+    cov = signal_coverage(df, warn=False)
+    assert cov["below_floor"] == [], cov["below_floor"]
+    assert cov["exempt_themes"] == ["sentiment"]
+    # A zero-coverage signal in a non-hook theme is still reported, with its theme named —
+    # INCLUDING low_risk, which currently carries zero weight.
+    assert not S.WEIGHTS_ESTABLISHED.get("low_risk"), "test is only meaningful while it is 0"
+    cov2 = signal_coverage(_cov_panel(z_neg_beta=np.nan), warn=False)
+    assert [(r["name"], r["theme"]) for r in cov2["below_floor"]] == [("neg_beta", "low_risk")]
+
+
+def test_coverage_reaches_the_results_file():
+    """The guard is worthless if it stays on stderr — the Cowork agent reads the JSON."""
+    from valuation.edge.results_file import build_payload, render_md
+    res = {"signal_coverage": {"floor": 0.05, "numbers": {"roic": 0.0, "f_score": 0.97},
+                               "themes": {"quality": 0.98},
+                               "below_floor": [{"kind": "number", "name": "roic",
+                                                "theme": "quality", "coverage": 0.0}],
+                               "exempt_themes": ["sentiment"]},
+           "horizons": {}, "cpcv": {}, "construction": {}}
+    p = build_payload(res)
+    sc = p["signal_coverage"]
+    assert sc["available"] and sc["numbers"]["roic"] == 0.0
+    assert sc["below_floor"][0]["name"] == "roic"
+    md = render_md(p)
+    assert "EMPTY SIGNALS" in md and "roic" in md
+    # per_signal falls back to the result dict when the caller doesn't pass one explicitly.
+    res["per_signal"] = {"f_score": {"median_ic": 0.02, "ic_tstat": 2.8, "coverage": 0.97}}
+    assert build_payload(res)["per_signal"]["available"] is True
+
+
+def test_theme_ic_measures_each_theme_and_reaches_the_results_file():
+    """Per-SIGNAL IC alone can't answer 'is this theme worth carrying' — an input can be
+    worthless while its theme earns its weight, or the reverse. The low_risk and insider
+    keep/drop calls rest on this number, so it has to be in the canonical file."""
+    from valuation.edge.fundamental_panel import theme_ic
+    from valuation.edge.results_file import build_payload, render_md
+    from valuation.screener import settings as S
+    rng = np.random.default_rng(5)
+    rows = []
+    for d in range(12):                                  # 12 dates x 40 names
+        for i in range(40):
+            fwd = float(rng.normal(0, 0.1))
+            rows.append({"date": f"2024-{d+1:02d}-01", "ticker": f"T{i}", "fwd_ret": fwd,
+                         # quality tracks the forward return; low_risk is pure noise
+                         "quality": fwd + rng.normal(0, 0.02), "low_risk": rng.normal(),
+                         "value": np.nan})
+    ti = theme_ic(pd.DataFrame(rows))
+    assert ti["quality"]["ic_tstat"] > 5, ti["quality"]
+    assert abs(ti["low_risk"]["ic_tstat"]) < 3, ti["low_risk"]
+    assert ti["value"]["median_ic"] is None and ti["value"]["coverage"] == 0.0
+    assert ti["quality"]["n_dates"] == 12
+    # An all-NaN theme reports coverage 0 rather than being silently omitted.
+    assert set(ti) <= set(S.FACTORS_ALL)
+
+    p = build_payload({"per_theme": ti, "horizons": {}, "cpcv": {}, "construction": {}})
+    assert p["per_theme"]["available"] is True
+    assert p["per_theme"]["themes"]["quality"]["ic_tstat"] == ti["quality"]["ic_tstat"]
+    assert "Per-theme" in render_md(p)
+
+
+def test_monotonicity_sign_convention():
+    """Pins the sign of `monotonicity`, which this project has repeatedly read backwards.
+
+    quantile_backtest orders buckets by argsort(-comp), so bucket 0 is the BEST composite and
+    monotonicity is Spearman(bucket index, bucket return). A working signal makes it NEGATIVE.
+    Notes claiming "-0.68 ... the deciles aren't cleanly ordered", and a -0.782 -> -0.855 move
+    logged as "slightly worse", both had it inverted.
+    """
+    from valuation.edge.fundamental_panel import _spearman
+    idx = np.arange(10, dtype=float)
+    ordered = np.array([0.30 - 0.03 * k for k in range(10)])    # D1 best -> D10 worst
+    assert _spearman(idx, ordered) == -1.0, "perfectly ordered deciles must be -1.0"
+    assert _spearman(idx, ordered[::-1].copy()) == +1.0, "a backwards composite must be +1.0"
+    # And the real measured values are well-ordered, not badly ordered.
+    measured = np.array([0.283, 0.205, 0.172, 0.178, 0.150, 0.155, 0.158, 0.132, 0.113, 0.107])
+    assert _spearman(idx, measured) < -0.9
+
+    # The threshold ships next to the metric so the file can't be misread without the hint.
+    from valuation.edge.results_file import build_payload
+    p = build_payload({"construction": {"monotonicity": -0.94}, "horizons": {}, "cpcv": {}})
+    assert "negative" in p["construction"]["monotonicity_want"]
+
+
+def test_capital_discipline_drops_the_wrong_signed_input():
+    """neg_asset_growth measured median IC -0.0141 / t -0.70 on the full universe — the wrong
+    sign — so it was cancelling neg_issuance (+0.0232 / t +2.25), the input that works.
+    capital_discipline must now be issuance alone, while neg_asset_growth keeps being
+    MEASURED so the decision can be revisited."""
+    from valuation.screener.factors import build_frame
+    from valuation.screener import settings as S
+    assert S.NUMBER_THEME.get("neg_asset_growth") == "capital_discipline", \
+        "must stay wired for measurement even though it no longer feeds the theme"
+    metrics = [{"ticker": f"T{i}", "price": 10.0, "market_cap": 1e9 * (i + 1),
+                "net_income": 5.0, "operating_income": 6.0,
+                "share_issuance": 0.01 * i, "asset_growth": 0.30 - 0.02 * i}
+               for i in range(20)]
+    fr = build_frame(metrics, sector_neutral=False, residual_momentum=False)
+    assert fr["z_neg_asset_growth"].notna().any(), "still measured"
+    # The theme must equal issuance alone, NOT the mean of the two.
+    pd.testing.assert_series_equal(fr["capital_discipline"], fr["z_neg_issuance"],
+                                   check_names=False)
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

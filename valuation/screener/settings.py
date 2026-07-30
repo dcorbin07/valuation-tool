@@ -56,11 +56,17 @@ FUND_TYPES = {"ETF", "MUTUALFUND", "MONEYMARKET", "CURRENCY", "INDEX", "FUND"}
 #                            "size": 0.05, "institutional": 0.06}
 # sentiment stays at 0 in both: it has no point-in-time source (grades parked), so giving it
 # weight would just dilute the live themes.
+# P5 EXPERIMENT (2026-07-30): low_risk set to 0. Measured on the full 2,710-name panel with
+# BOTH its inputs finally populated (neg_beta was empty in every prior run), the theme has
+# median IC -0.0014 / t +0.71 — indistinguishable from zero, so its 12.5% weight was diluting
+# the themes that do work. Restore by setting it back to 0.125 and rescaling.
+# The weights need not sum to 1: the backtest ranks on a weighted sum (scale-invariant) and
+# the live scorer renormalizes per name over whichever factors are present.
 WEIGHTS_ESTABLISHED = {"value": 0.125, "quality": 0.125, "momentum": 0.125, "insider": 0.125,
-                       "low_risk": 0.125, "capital_discipline": 0.125, "sentiment": 0.0,
+                       "low_risk": 0.0, "capital_discipline": 0.125, "sentiment": 0.0,
                        "size": 0.125, "institutional": 0.125}
 WEIGHTS_SPECULATIVE = {"value": 0.125, "growth": 0.125, "momentum": 0.125, "insider": 0.125,
-                       "low_risk": 0.125, "capital_discipline": 0.125, "sentiment": 0.0,
+                       "low_risk": 0.0, "capital_discipline": 0.125, "sentiment": 0.0,
                        "size": 0.125, "institutional": 0.125}
 
 # Which theme columns each bucket scores on (keys of the weight dicts above).
