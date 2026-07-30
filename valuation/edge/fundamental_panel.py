@@ -1783,8 +1783,29 @@ def theme_ic(panel, horizon_col="fwd_ret", min_names=20, min_dates=8) -> dict:
     return out
 
 
+# Minimum improvement for holdout_theme_validate to call a change real. PRE-SPECIFIED and
+# committed BEFORE the P6 runs, because a threshold chosen after seeing results is not a
+# threshold. Both must be met, in BOTH split directions.
+#
+#   alpha: 100bps/yr. Rationale is economic, not statistical — realistic one-way trading
+#          costs on this universe are of that order (see turnover_and_costs), so an
+#          "improvement" smaller than the cost of implementing it cannot be harvested and
+#          should not be called an improvement.
+#   t:     0.25. A noise floor. Half-sample long-short t-stats here run ~0.5-2.6, and the
+#          previous rule admitted a +0.01 move, which is indistinguishable from zero.
+#
+# Disclosed honestly: I already knew the P5 numbers when picking these, so this is a
+# principled tightening, not a blind pre-registration. Its one consequence on existing
+# results is that `capital_discipline` drops from "confirmed" (it passed on dLS t +0.01) to
+# "not_replicated", which is the outcome the old rule was already flagged as getting wrong.
+# The clean use of these constants is the NEXT theme tested, not the ones already measured.
+MIN_HOLDOUT_ALPHA_GAIN = 0.01      # +100 bps/yr top-decile alpha
+MIN_HOLDOUT_TSTAT_GAIN = 0.25      # +0.25 long-short t
+
+
 def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,
-                           min_dates=16) -> dict:
+                           min_dates=16, min_alpha_gain=MIN_HOLDOUT_ALPHA_GAIN,
+                           min_tstat_gain=MIN_HOLDOUT_TSTAT_GAIN) -> dict:
     """Time-split confirmation that ZEROING a theme helps on data not used to decide it.
 
     CPCV and the Deflated Sharpe correct for the trials inside the *weight search*. Neither
@@ -1802,14 +1823,18 @@ def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,
          with that theme at `base_weight` vs at 0. The measure half never informs the decision.
       4. Run BOTH directions, so no result rests on one arbitrary split.
 
-    A theme is `confirmed` only if zeroing it improves BOTH metrics in BOTH directions.
-    `not_replicated` means it worked one way and not the other — the usual fate of noise.
+    A theme is `confirmed` only if zeroing it improves BOTH metrics by at least the
+    pre-specified MINIMUM MARGIN (see MIN_HOLDOUT_*), in BOTH directions. `not_replicated`
+    means it worked one way and not the other, or cleared the sign but not the margin — the
+    usual fate of noise. Requiring a margin rather than just the right sign is deliberate: the
+    sign-only version admitted a +0.01 t-stat move as a confirmation.
 
     Weights are equal across `cols` rather than read from settings, so the comparison is
     "this theme in vs out", not "current live config vs something else".
     """
     out = {"rule": "median IC <= 0 on the decide half",
            "metric": "long_short_tstat and top_decile_alpha, measured on the held-out half",
+           "min_alpha_gain": min_alpha_gain, "min_tstat_gain": min_tstat_gain,
            "splits": {}, "verdicts": {}}
     if panel is None or panel.empty or not cols:
         return {**out, "status": "no panel"}
@@ -1849,7 +1874,8 @@ def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,
                 "zeroed_long_short_tstat": r.get("long_short_tstat"),
                 "zeroed_top_decile_alpha": r.get("top_decile_alpha"),
                 "delta_long_short_tstat": dt, "delta_top_decile_alpha": da,
-                "improves": bool(dt is not None and da is not None and dt > 0 and da > 0)}
+                "improves": bool(dt is not None and da is not None
+                                 and dt >= min_tstat_gain and da >= min_alpha_gain)}
         out["splits"][name] = blk
 
     for c in cols:
