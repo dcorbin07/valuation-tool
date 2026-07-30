@@ -1854,6 +1854,26 @@ def main(argv=None):
         print("WEIGHTS_ESTABLISHED = " + json.dumps(h["optimized_weights"]))
     else:
         print("\nNo weighting beat the defaults out-of-sample (walk-forward or single-split) — keep the current weights.")
+    # Canonical results files at the repo root, written on EVERY run and git-tracked, so the
+    # current numbers travel out of a worktree to main for another agent to read. Derived
+    # metrics only, never raw licensed rows. Never allowed to fail a completed backtest.
+    try:
+        import os as _os
+        from .results_file import write as _write_results
+        _cleanups = {
+            "survivorship_mask": bool(getattr(prov, "delisted_map", None) and prov.delisted_map()),
+            "pit_market_cap_from_daily": bool(getattr(prov, "daily_history", None)
+                                              and prov.daily_history("AAPL")),
+            "sf3_per_manager_inputs": bool(getattr(prov, "sf3_for", None) and prov.sf3_for("AAPL")),
+        }
+        _w = _write_results(res, universe_label=("full" if (args.limit or 0) >= 2000 else "subset"),
+                            cleanups=_cleanups)
+        print(f"Canonical results  -> {_os.path.basename(_w['json'])} + "
+              f"{_os.path.basename(_w['md'])} (repo root, tracked)")
+    except Exception as _e:
+        print(f"[results] could not write the canonical results files: {_e}")
+
+
     if args.json:
         with open(args.json, "w") as f:
             json.dump(res, f, indent=2)

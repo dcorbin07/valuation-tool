@@ -189,6 +189,96 @@ def test_missing_files_degrade_to_empty():
         assert fn(miss, cache_dir=os.path.join(d, "c")) == {}, fn.__name__
 
 
+# --------------------------------------------------------------------------- #
+#  canonical results files (results_file.py)
+# --------------------------------------------------------------------------- #
+def _fake_res():
+    """Minimal shape of a run_backtests result, with 63d validated and 756d primary —
+    the mismatch that made the universe block report 9 dates instead of 110."""
+    return {
+        "provider": "test", "survivorship_free": True, "primary_horizon": "756",
+        "factors_used": ["value", "quality"],
+        "horizons": {"63": {"names": 2710, "dates": 110, "rows": 136479,
+                            "in_sample_ic": 0.044, "out_sample_ic": 0.052, "accepted": False,
+                            "default_weights": {"value": 0.5}, "optimized_weights": {"value": 0.6}},
+                     "756": {"names": 2407, "dates": 9, "rows": 10879}},
+        "hold_until_exit": {"cagr": 0.156, "bench_cagr": 0.117, "ew_cagr": 0.139,
+                            "ew_alpha": 0.0166, "years": 18.2, "hit_rate": 0.56},
+        "cpcv": {"n_paths": 15, "pbo": 0.5333, "deflated_sharpe": 0.7254,
+                 "recommend": "equal-weight", "adopt": True, "verdict": "adopt 'equal-weight'",
+                 "recommended_weights_cols": {"value": 0.125},
+                 "candidates": {"equal-weight": {"median_oos_ic": 0.058, "folds_positive": 1.0}}},
+        "walk_forward": {"n_folds": 6, "weights": {"recommend": "current-default",
+                                                   "adopt": False, "verdict": "keep defaults",
+                                                   "candidates": {}}},
+        "construction_weighting": "equal-weight",
+        "construction": {"n_periods": 110, "n_quantiles": 10, "horizon": 63,
+                         "decile_ann_return": [0.18, 0.13], "long_short_ann": 0.0772,
+                         "long_short_tstat": 1.117, "long_short_hit": 0.609,
+                         "monotonicity": -0.8545, "top_decile_alpha": 0.0511},
+        "institutional_dependence": {"institutional_weight": 0.125,
+                                     "with": {"top_decile_alpha": 0.0511, "long_short_tstat": 1.117},
+                                     "without": {"top_decile_alpha": 0.0386, "long_short_tstat": 0.710}},
+        "regime": {"tiers": {"large": {"median_ic": 0.039, "long_short_ann": 0.099}}},
+    }
+
+
+def test_results_universe_uses_the_validated_horizon_not_primary():
+    """PBO is computed over the construction horizon, so the universe must describe THAT.
+    Reporting primary_horizon's 9 dates beside a PBO from 110 would misdescribe the run."""
+    from valuation.edge import results_file as rf
+    p = rf.build_payload(_fake_res(), root=_tmp())
+    u = p["universe"]
+    assert u["validated_horizon_days"] == "63" and u["primary_horizon_days"] == "756"
+    assert u["n_names"] == 2710 and u["n_dates"] == 110, u
+    assert u["label"] == "full"
+
+
+def test_results_payload_is_json_clean_and_self_describing():
+    from valuation.edge import results_file as rf
+    import json as _j
+    p = rf.build_payload(_fake_res(), root=_tmp())
+    assert _j.loads(_j.dumps(p)) == p, "must survive a JSON round-trip"
+    # Thresholds travel with the metrics so the file needs no external explanation.
+    assert p["cpcv"]["pbo"]["want"] == "<0.50"
+    assert p["cpcv"]["deflated_sharpe"]["want"] == ">0.95"
+    assert p["cpcv"]["pbo"]["value"] == 0.5333
+    # Every required top-level section present.
+    for k in ("schema_version", "generated_at", "git", "universe", "cleanups", "signals_wired",
+              "per_horizon", "portfolio", "cpcv", "walk_forward", "construction",
+              "institutional_dependence", "regime", "per_signal"):
+        assert k in p, k
+    # per_signal is explicit about absence rather than looking like "no signal".
+    assert p["per_signal"] == {"available": False, "signals": {}}
+
+
+def test_results_writes_both_files_at_root_and_overwrites():
+    from valuation.edge import results_file as rf
+    import json as _j
+    d = _tmp()
+    w = rf.write(_fake_res(), cleanups={"survivorship_mask": True}, root=d)
+    assert os.path.basename(w["json"]) == "BACKTEST_RESULTS.json"
+    assert os.path.basename(w["md"]) == "BACKTEST_RESULTS.md"
+    md = open(w["md"], encoding="utf-8").read()
+    # Probabilities must not carry a "+" (PBO "+53%" reads as an improvement, not a level).
+    assert "| 53% |" in md and "+53%" not in md, md[:400]
+    assert "2710 names × 110 dates" in md
+    # Overwrite, not append: a second run must not double the file.
+    first_len = len(md)
+    rf.write(_fake_res(), cleanups={"survivorship_mask": True}, root=d)
+    assert abs(len(open(w["md"], encoding="utf-8").read()) - first_len) < 80
+    assert _j.load(open(w["json"], encoding="utf-8"))["schema_version"] == rf.SCHEMA_VERSION
+
+
+def test_results_carries_no_raw_licensed_data():
+    """License safety: derived metrics only — no per-ticker rows, prices or fundamentals."""
+    from valuation.edge import results_file as rf
+    import json as _j
+    blob = _j.dumps(rf.build_payload(_fake_res(), root=_tmp()))
+    for banned in ("datekey", "closeadj", "investorname", "sharesbas", "revenue", "ncfo"):
+        assert banned not in blob, banned
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

@@ -1,0 +1,348 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-07-29T23:47:30",
+  "generated_at_utc": "2026-07-30T03:47:30+00:00",
+  "git": {
+    "commit": "527d303e99f80363af1c1a9c51306c99508d7344",
+    "short": "527d303",
+    "branch": "worktree-results-file",
+    "dirty": true
+  },
+  "provider": "local export files (Sharadar or CRSP)",
+  "survivorship_free": true,
+  "universe": {
+    "label": "full",
+    "n_names": 2710,
+    "n_dates": 110,
+    "n_rows": 136479,
+    "validated_horizon_days": "63",
+    "primary_horizon_days": "756",
+    "horizons_days": [
+      "63",
+      "252",
+      "756"
+    ]
+  },
+  "cleanups": {
+    "survivorship_mask": true,
+    "pit_market_cap_from_daily": true,
+    "sf3_per_manager_inputs": true,
+    "split_adjust_from_actions": false
+  },
+  "signals_wired": [
+    "value",
+    "quality",
+    "momentum",
+    "insider",
+    "low_risk",
+    "capital_discipline",
+    "size",
+    "institutional"
+  ],
+  "per_horizon": {
+    "63": {
+      "n_names": 2710,
+      "n_dates": 110,
+      "in_sample_ic": 0.04461408802727915,
+      "out_sample_ic": 0.052863357948150294,
+      "accepted": true,
+      "default_weights": {
+        "value": 0.23157894736842105,
+        "quality": 0.23157894736842105,
+        "momentum": 0.15789473684210525,
+        "insider": 0.1368421052631579,
+        "low_risk": 0.08421052631578949,
+        "capital_discipline": 0.052631578947368425,
+        "size": 0.052631578947368425,
+        "institutional": 0.052631578947368425
+      },
+      "optimized_weights": {
+        "value": 0.1018,
+        "quality": 0.1375,
+        "momentum": 0.1759,
+        "insider": 0.0864,
+        "low_risk": 0.1801,
+        "capital_discipline": 0.0147,
+        "sentiment": 0.0476,
+        "size": 0.256,
+        "institutional": 0.0
+      }
+    },
+    "252": {
+      "n_names": 2635,
+      "n_dates": 27,
+      "in_sample_ic": 0.1333537164086514,
+      "out_sample_ic": 0.05524131187647883,
+      "accepted": false,
+      "default_weights": {
+        "value": 0.23157894736842105,
+        "quality": 0.23157894736842105,
+        "momentum": 0.15789473684210525,
+        "insider": 0.1368421052631579,
+        "low_risk": 0.08421052631578949,
+        "capital_discipline": 0.052631578947368425,
+        "size": 0.052631578947368425,
+        "institutional": 0.052631578947368425
+      },
+      "optimized_weights": {
+        "value": 0.2206,
+        "quality": 0.2206,
+        "momentum": 0.1504,
+        "insider": 0.1303,
+        "low_risk": 0.0802,
+        "capital_discipline": 0.0501,
+        "sentiment": 0.0476,
+        "size": 0.0501,
+        "institutional": 0.0501
+      }
+    },
+    "756": {
+      "n_names": 2407,
+      "n_dates": 9,
+      "in_sample_ic": 0.22501203486773783,
+      "out_sample_ic": 0.04805650542807506,
+      "accepted": false,
+      "default_weights": {
+        "value": 0.23157894736842105,
+        "quality": 0.23157894736842105,
+        "momentum": 0.15789473684210525,
+        "insider": 0.1368421052631579,
+        "low_risk": 0.08421052631578949,
+        "capital_discipline": 0.052631578947368425,
+        "size": 0.052631578947368425,
+        "institutional": 0.052631578947368425
+      },
+      "optimized_weights": {
+        "value": 0.2206,
+        "quality": 0.2206,
+        "momentum": 0.1504,
+        "insider": 0.1303,
+        "low_risk": 0.0802,
+        "capital_discipline": 0.0501,
+        "sentiment": 0.0476,
+        "size": 0.0501,
+        "institutional": 0.0501
+      }
+    }
+  },
+  "portfolio": {
+    "cagr": 0.15628120748406005,
+    "benchmark_cagr": 0.11744408320103039,
+    "equal_weight_cagr": 0.13961928744244845,
+    "alpha_vs_equal_weight": 0.0166619200416116,
+    "alpha_vs_benchmark": 0.038837124283029656,
+    "total_return": 13.154948003569437,
+    "benchmark_total_return": 6.587887011224864,
+    "years": 18.2,
+    "n_periods": 73,
+    "hit_rate": 0.5616438356164384,
+    "avg_hold_years": 0.6
+  },
+  "cpcv": {
+    "n_paths": 15,
+    "pbo": {
+      "value": 0.5333333333333333,
+      "want": "<0.50",
+      "meaning": "probability_of_backtest_overfitting"
+    },
+    "deflated_sharpe": {
+      "value": 0.7254145030839201,
+      "want": ">0.95",
+      "meaning": "probability_edge_is_real_after_trials_correction"
+    },
+    "recommend": "equal-weight",
+    "adopt": true,
+    "verdict": "adopt 'equal-weight': median OOS IC +0.058 vs default +0.045 across 15 CPCV paths, positive in 100%",
+    "recommended_weights": {
+      "value": 0.125,
+      "quality": 0.125,
+      "momentum": 0.125,
+      "insider": 0.125,
+      "low_risk": 0.125,
+      "capital_discipline": 0.125,
+      "size": 0.125,
+      "institutional": 0.125
+    },
+    "candidates": {
+      "ic-proportional": {
+        "median_oos_ic": 0.03976980451050542,
+        "folds_positive": 1.0,
+        "n": null,
+        "selected": null
+      },
+      "ic-shrunk-50": {
+        "median_oos_ic": 0.0464620411530343,
+        "folds_positive": 1.0,
+        "n": null,
+        "selected": null
+      },
+      "risk-parity": {
+        "median_oos_ic": 0.04074098874059417,
+        "folds_positive": 1.0,
+        "n": null,
+        "selected": null
+      },
+      "ic-ir": {
+        "median_oos_ic": 0.03703079547942987,
+        "folds_positive": 1.0,
+        "n": null,
+        "selected": null
+      },
+      "max-ir-decorr": {
+        "median_oos_ic": 0.03406086069595683,
+        "folds_positive": 1.0,
+        "n": null,
+        "selected": null
+      },
+      "positive-equal": {
+        "median_oos_ic": 0.037400137557325824,
+        "folds_positive": 1.0,
+        "n": null,
+        "selected": null
+      },
+      "equal-weight": {
+        "median_oos_ic": 0.05793413796749426,
+        "folds_positive": 1.0,
+        "n": null,
+        "selected": null
+      },
+      "current-default": {
+        "median_oos_ic": 0.04495765381751184,
+        "folds_positive": 1.0,
+        "n": null,
+        "selected": null
+      }
+    }
+  },
+  "walk_forward": {
+    "n_folds": 6,
+    "recommend": "current-default",
+    "adopt": false,
+    "verdict": "keep defaults: best challenger 'ic-proportional' (median OOS IC +0.051 vs default +0.044) did not clear the trials-adjusted, cross-fold-stable bar",
+    "recommended_weights": {
+      "value": 0.23157894736842105,
+      "quality": 0.23157894736842105,
+      "momentum": 0.15789473684210525,
+      "insider": 0.1368421052631579,
+      "low_risk": 0.08421052631578949,
+      "capital_discipline": 0.052631578947368425,
+      "size": 0.052631578947368425,
+      "institutional": 0.052631578947368425
+    },
+    "candidates": {
+      "ic-proportional": {
+        "median_oos_ic": 0.050928725798301516,
+        "folds_positive": 1.0,
+        "n": 6,
+        "selected": 5
+      },
+      "ic-shrunk-50": {
+        "median_oos_ic": 0.05012366108664369,
+        "folds_positive": 1.0,
+        "n": 6,
+        "selected": 0
+      },
+      "risk-parity": {
+        "median_oos_ic": 0.03654658801786319,
+        "folds_positive": 1.0,
+        "n": 6,
+        "selected": 0
+      },
+      "ic-ir": {
+        "median_oos_ic": 0.046993019394934374,
+        "folds_positive": 1.0,
+        "n": 6,
+        "selected": 1
+      },
+      "max-ir-decorr": {
+        "median_oos_ic": 0.036569837359443226,
+        "folds_positive": 1.0,
+        "n": 6,
+        "selected": 0
+      },
+      "positive-equal": {
+        "median_oos_ic": 0.04483965642030014,
+        "folds_positive": 1.0,
+        "n": 6,
+        "selected": 0
+      },
+      "equal-weight": {
+        "median_oos_ic": 0.0451453895661114,
+        "folds_positive": 1.0,
+        "n": 6,
+        "selected": 0
+      },
+      "current-default": {
+        "median_oos_ic": 0.044294958008448376,
+        "folds_positive": 1.0,
+        "n": 6,
+        "selected": 0
+      }
+    }
+  },
+  "construction": {
+    "weighting": "equal-weight",
+    "n_periods": 110,
+    "n_quantiles": 10,
+    "horizon_days": 63,
+    "decile_ann_return": [
+      0.21660747471893216,
+      0.16114432818188998,
+      0.16951192271092988,
+      0.17746025266708648,
+      0.1737046407118494,
+      0.15725923021512733,
+      0.15192249663931193,
+      0.15184147963271186,
+      0.15564298398011306,
+      0.13935828441560688
+    ],
+    "equal_weight_ann": 0.16552317710284906,
+    "long_short_ann": 0.07724919030332525,
+    "long_short_tstat": 1.1169674595300552,
+    "long_short_hit": 0.6090909090909091,
+    "monotonicity": -0.8545454545454545,
+    "top_decile_alpha": 0.0510842976160831,
+    "signal_weighted_top_decile_alpha": 0.05563377002107217
+  },
+  "institutional_dependence": {
+    "institutional_weight": 0.125,
+    "with": {
+      "top_decile_alpha": 0.0510842976160831,
+      "long_short_tstat": 1.1169674595300552,
+      "monotonicity": -0.8545454545454545
+    },
+    "without": {
+      "top_decile_alpha": 0.03858101224021712,
+      "long_short_tstat": 0.7100975962416215,
+      "monotonicity": -0.8424242424242424
+    }
+  },
+  "regime": {
+    "small": {
+      "median_ic": 0.03795918748895866,
+      "long_short_ann": 0.047586862731717874,
+      "n_periods": 110
+    },
+    "mid": {
+      "median_ic": 0.028423562718546073,
+      "long_short_ann": 0.0018289511576321978,
+      "n_periods": 110
+    },
+    "large": {
+      "median_ic": 0.03913588592518567,
+      "long_short_ann": 0.09898467022918458,
+      "n_periods": 110
+    }
+  },
+  "per_signal": {
+    "available": true,
+    "signals": {
+      "f_score": {
+        "median_ic": 0.0606,
+        "ic_tstat": 5.66,
+        "coverage": 0.974
+      }
+    }
+  }
+}

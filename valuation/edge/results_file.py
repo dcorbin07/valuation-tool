@@ -1,0 +1,306 @@
+"""
+Canonical machine-readable backtest results.
+
+Writes two files at the REPO ROOT on every backtest run, both git-tracked:
+
+    BACKTEST_RESULTS.json   canonical, for the Cowork agent to parse exactly
+    BACKTEST_RESULTS.md     the same numbers as a short table for a human
+
+Tracked-and-committed is deliberate: that is what carries the current numbers out of a
+worktree and onto main, where another agent can read them. It is license-safe because
+everything here is a DERIVED METRIC — IC values, t-stats, annualized returns, weights.
+No raw Sharadar rows, no per-name fundamentals, no prices. Nothing that could redistribute
+licensed data.
+
+The contract with the reader: **numbers and metadata only, no interpretation.** Verdict
+STRINGS produced by the validators (e.g. cpcv.verdict) are carried through verbatim because
+they are part of the machine output, but nothing here adds a reading of what the numbers
+mean — that is the consumer's job, and HANDOFF_STATUS.md is where this repo's own narrative
+lives. Thresholds ship next to the metrics (`pbo.want`, `deflated_sharpe.want`) so the file
+is self-describing without a human to explain it.
+
+Overwritten in full on every run: it is a snapshot of the latest run, not a log.
+"""
+from __future__ import annotations
+
+import datetime as _dt
+import json
+import os
+import subprocess
+
+JSON_NAME = "BACKTEST_RESULTS.json"
+MD_NAME = "BACKTEST_RESULTS.md"
+SCHEMA_VERSION = 1
+
+
+def repo_root(start: str | None = None) -> str:
+    """Nearest ancestor containing .git — so a run from a worktree writes to that worktree."""
+    d = os.path.abspath(start or os.getcwd())
+    while True:
+        if os.path.exists(os.path.join(d, ".git")):
+            return d
+        parent = os.path.dirname(d)
+        if parent == d:
+            return os.path.abspath(start or os.getcwd())
+        d = parent
+
+
+def _git(root: str, *args) -> str | None:
+    try:
+        out = subprocess.run(["git", "-C", root, *args], capture_output=True, text=True, timeout=15)
+        return out.stdout.strip() or None if out.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def _num(x):
+    """Plain float, or None. Guards against numpy scalars and NaN reaching json.dump."""
+    if x is None or isinstance(x, bool):
+        return None if x is None else x
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if v == v and v not in (float("inf"), float("-inf")) else None
+
+
+def build_payload(res: dict, universe_label: str | None = None,
+                  cleanups: dict | None = None, per_signal: dict | None = None,
+                  root: str | None = None) -> dict:
+    """Map a `run_backtests` result dict into the canonical, verdict-free shape."""
+    root = root or repo_root()
+    horizons = res.get("horizons") or {}
+    primary = str(res.get("primary_horizon") or "")
+    # The universe block must describe the horizon CPCV / construction actually ran on, not
+    # `primary_horizon`. Those differ: primary was 756d (9 dates) on the full run while the
+    # validators used 63d (2,710 names x 110 dates), and reporting 9 dates next to a PBO
+    # computed over 110 would misdescribe the whole run.
+    _cn_h = str((res.get("construction") or {}).get("horizon") or "")
+    validated = _cn_h if _cn_h in horizons else primary
+    ph = horizons.get(validated) or {}
+
+    n_names = ph.get("names")
+    label = universe_label
+    if label is None:
+        label = "full" if (n_names or 0) >= 2000 else "subset"
+
+    cp = res.get("cpcv") or {}
+    wf = (res.get("walk_forward") or {}).get("weights") or {}
+    cn = res.get("construction") or {}
+    idp = res.get("institutional_dependence") or {}
+    hue = res.get("hold_until_exit") or {}
+
+    def candidates(block):
+        out = {}
+        for name, c in (block.get("candidates") or {}).items():
+            c = c or {}
+            out[name] = {"median_oos_ic": _num(c.get("median_oos_ic")),
+                         "folds_positive": _num(c.get("folds_positive")),
+                         "n": c.get("n"), "selected": c.get("selected")}
+        return out
+
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "generated_at": _dt.datetime.now().replace(microsecond=0).isoformat(),
+        "generated_at_utc": _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat(),
+        "git": {"commit": _git(root, "rev-parse", "HEAD"),
+                "short": _git(root, "rev-parse", "--short", "HEAD"),
+                "branch": _git(root, "rev-parse", "--abbrev-ref", "HEAD"),
+                "dirty": bool(_git(root, "status", "--porcelain"))},
+        "provider": res.get("provider"),
+        "survivorship_free": res.get("survivorship_free"),
+        "universe": {"label": label, "n_names": n_names, "n_dates": ph.get("dates"),
+                     "n_rows": ph.get("rows"),
+                     "validated_horizon_days": validated, "primary_horizon_days": primary,
+                     "horizons_days": sorted(horizons.keys(), key=lambda k: int(k))},
+        # Which data-quality corrections were active for THIS run. Numbers from runs with
+        # different cleanups are not comparable, so they travel with the metrics.
+        "cleanups": cleanups or {},
+        "signals_wired": res.get("factors_used") or ph.get("factors") or [],
+
+        "per_horizon": {
+            h: {"n_names": (horizons[h] or {}).get("names"),
+                "n_dates": (horizons[h] or {}).get("dates"),
+                "in_sample_ic": _num((horizons[h] or {}).get("in_sample_ic")),
+                "out_sample_ic": _num((horizons[h] or {}).get("out_sample_ic")),
+                "accepted": (horizons[h] or {}).get("accepted"),
+                "default_weights": (horizons[h] or {}).get("default_weights"),
+                "optimized_weights": (horizons[h] or {}).get("optimized_weights")}
+            for h in horizons
+        },
+        # Realized track of the held portfolio vs the benchmark and vs equal-weight.
+        "portfolio": {"cagr": _num(hue.get("cagr")),
+                      "benchmark_cagr": _num(hue.get("bench_cagr")),
+                      "equal_weight_cagr": _num(hue.get("ew_cagr")),
+                      "alpha_vs_equal_weight": _num(hue.get("ew_alpha")),
+                      "alpha_vs_benchmark": (None if hue.get("cagr") is None or hue.get("bench_cagr") is None
+                                             else _num(hue["cagr"] - hue["bench_cagr"])),
+                      "total_return": _num(hue.get("total_return")),
+                      "benchmark_total_return": _num(hue.get("bench_return")),
+                      "years": _num(hue.get("years")), "n_periods": hue.get("n_periods"),
+                      "hit_rate": _num(hue.get("hit_rate")),
+                      "avg_hold_years": _num(hue.get("avg_hold_years"))},
+
+        "cpcv": {"n_paths": cp.get("n_paths"),
+                 "pbo": {"value": _num(cp.get("pbo")), "want": "<0.50",
+                         "meaning": "probability_of_backtest_overfitting"},
+                 "deflated_sharpe": {"value": _num(cp.get("deflated_sharpe")), "want": ">0.95",
+                                     "meaning": "probability_edge_is_real_after_trials_correction"},
+                 "recommend": cp.get("recommend"), "adopt": cp.get("adopt"),
+                 "verdict": cp.get("verdict"),
+                 "recommended_weights": cp.get("recommended_weights_cols"),
+                 "candidates": candidates(cp)},
+
+        "walk_forward": {"n_folds": (res.get("walk_forward") or {}).get("n_folds"),
+                         "recommend": wf.get("recommend"), "adopt": wf.get("adopt"),
+                         "verdict": wf.get("verdict"),
+                         "recommended_weights": wf.get("recommended_weights_cols"),
+                         "candidates": candidates(wf)},
+
+        "construction": {"weighting": res.get("construction_weighting"),
+                         "n_periods": cn.get("n_periods"), "n_quantiles": cn.get("n_quantiles"),
+                         "horizon_days": cn.get("horizon"),
+                         "decile_ann_return": [_num(x) for x in (cn.get("decile_ann_return") or [])],
+                         "equal_weight_ann": _num(cn.get("equal_weight_ann")),
+                         "long_short_ann": _num(cn.get("long_short_ann")),
+                         "long_short_tstat": _num(cn.get("long_short_tstat")),
+                         "long_short_hit": _num(cn.get("long_short_hit")),
+                         "monotonicity": _num(cn.get("monotonicity")),
+                         "top_decile_alpha": _num(cn.get("top_decile_alpha")),
+                         "signal_weighted_top_decile_alpha": _num(cn.get("sw_top_decile_alpha"))},
+
+        "institutional_dependence": {
+            "institutional_weight": _num(idp.get("institutional_weight")),
+            "with": {k: _num(v) for k, v in (idp.get("with") or {}).items()},
+            "without": {k: _num(v) for k, v in (idp.get("without") or {}).items()}},
+
+        "regime": {t: {"median_ic": _num((v or {}).get("median_ic")),
+                       "long_short_ann": _num((v or {}).get("long_short_ann")),
+                       "n_periods": (v or {}).get("n_periods")}
+                   for t, v in ((res.get("regime") or {}).get("tiers") or {}).items()},
+
+        # {signal: {median_ic, ic_tstat, coverage}} when a caller measured them; an empty
+        # dict with available=false means "not computed this run", not "no signal".
+        "per_signal": {"available": bool(per_signal), "signals": per_signal or {}},
+    }
+    return payload
+
+
+def _pct(x, d=1):
+    """Signed percent — for returns and alphas, where direction matters."""
+    return "n/a" if x is None else f"{x*100:+.{d}f}%"
+
+
+def _rate(x, d=0):
+    """Unsigned percent — for probabilities, hit rates and coverage, where a leading
+    '+' would read as an improvement rather than a level (PBO '+53%' is nonsense)."""
+    return "n/a" if x is None else f"{x*100:.{d}f}%"
+
+
+def _f2(x, d=2):
+    return "n/a" if x is None else f"{x:.{d}f}"
+
+
+def render_md(p: dict) -> str:
+    u, cp, cn = p["universe"], p["cpcv"], p["construction"]
+    L = []
+    A = L.append
+    A("# Backtest results — latest run\n")
+    A("Generated by the backtest; **overwritten every run**. Numbers only — the narrative and")
+    A("interpretation live in `HANDOFF_STATUS.md`. Canonical machine-readable copy:")
+    A(f"`{JSON_NAME}`.\n")
+    g = p["git"]
+    A(f"- **Run:** {p['generated_at']}  ·  commit `{g.get('short') or '?'}`"
+      f"{' (dirty tree)' if g.get('dirty') else ''} on `{g.get('branch') or '?'}`")
+    A(f"- **Universe:** {u['label']} — {u['n_names']} names × {u['n_dates']} dates "
+      f"({u['n_rows']} rows), primary horizon {u['primary_horizon_days']}d")
+    A(f"- **Provider:** {p.get('provider')}  ·  survivorship-free: {p.get('survivorship_free')}")
+    if p.get("cleanups"):
+        A(f"- **Cleanups active:** " + ", ".join(f"{k}={v}" for k, v in p["cleanups"].items()))
+    if p.get("signals_wired"):
+        A(f"- **Signals wired ({len(p['signals_wired'])}):** " + ", ".join(p["signals_wired"]))
+    A("")
+    A("## Validation\n")
+    A("| metric | value | want |")
+    A("|---|---|---|")
+    A(f"| PBO (prob. of backtest overfitting) | {_rate(cp['pbo']['value'])} | {cp['pbo']['want']} |")
+    A(f"| Deflated Sharpe | {_rate(cp['deflated_sharpe']['value'])} | {cp['deflated_sharpe']['want']} |")
+    A(f"| CPCV paths | {cp.get('n_paths')} | — |")
+    A(f"| CPCV recommend / adopt | {cp.get('recommend')} / {cp.get('adopt')} | — |")
+    A(f"| Walk-forward recommend / adopt | {p['walk_forward'].get('recommend')} / "
+      f"{p['walk_forward'].get('adopt')} | — |")
+    A("")
+    A("## Portfolio & construction\n")
+    pf = p["portfolio"]
+    A("| metric | value |")
+    A("|---|---|")
+    A(f"| CAGR | {_pct(pf['cagr'])} |")
+    A(f"| Benchmark CAGR | {_pct(pf['benchmark_cagr'])} |")
+    A(f"| Equal-weight CAGR | {_pct(pf['equal_weight_cagr'])} |")
+    A(f"| Alpha vs equal-weight | {_pct(pf['alpha_vs_equal_weight'])} |")
+    A(f"| Top-decile alpha | {_pct(cn['top_decile_alpha'])} |")
+    A(f"| Long-short (D1−D10) | {_pct(cn['long_short_ann'])} (t {_f2(cn['long_short_tstat'])}, "
+      f"hit {_rate(cn['long_short_hit'])}) |")
+    A(f"| Monotonicity | {_f2(cn['monotonicity'])} |")
+    dec = cn.get("decile_ann_return") or []
+    if dec:
+        A("")
+        A("Deciles D1 (best composite) → D10: " + " · ".join(_pct(x, 0) for x in dec))
+    idp = p["institutional_dependence"]
+    if idp.get("with"):
+        A("")
+        A("## Institutional (13F) dependence\n")
+        A(f"weight {_rate(idp.get('institutional_weight'))}\n")
+        A("| | top-decile alpha | long-short t |")
+        A("|---|---|---|")
+        A(f"| with | {_pct(idp['with'].get('top_decile_alpha'))} | {_f2(idp['with'].get('long_short_tstat'))} |")
+        A(f"| without | {_pct(idp['without'].get('top_decile_alpha'))} | {_f2(idp['without'].get('long_short_tstat'))} |")
+    if p.get("regime"):
+        A("")
+        A("## By market-cap tier\n")
+        A("| tier | median IC | long-short/yr |")
+        A("|---|---|---|")
+        for t, v in p["regime"].items():
+            A(f"| {t} | {_f2(v.get('median_ic'), 4)} | {_pct(v.get('long_short_ann'))} |")
+    cands = cp.get("candidates") or {}
+    if cands:
+        A("")
+        A("## CPCV candidates (median out-of-sample IC)\n")
+        A("| weighting | median OOS IC | folds positive |")
+        A("|---|---|---|")
+        for name, c in sorted(cands.items(), key=lambda kv: -(kv[1].get("median_oos_ic") or -9)):
+            A(f"| {name} | {_f2(c.get('median_oos_ic'), 4)} | {_rate(c.get('folds_positive'))} |")
+    ps = p.get("per_signal") or {}
+    if ps.get("available"):
+        A("")
+        A("## Per-signal\n")
+        A("| signal | median IC | IC t | coverage |")
+        A("|---|---|---|---|")
+        for name, v in sorted((ps.get("signals") or {}).items(),
+                              key=lambda kv: -(kv[1].get("ic_tstat") or -99)):
+            A(f"| {name} | {_f2(v.get('median_ic'), 4)} | {_f2(v.get('ic_tstat'))} | "
+              f"{_rate(v.get('coverage'))} |")
+    if cp.get("recommended_weights"):
+        A("")
+        A("## Weights CPCV would adopt\n")
+        A("```")
+        A(json.dumps(cp["recommended_weights"], indent=2, sort_keys=True))
+        A("```")
+    A("")
+    return "\n".join(L)
+
+
+def write(res: dict, universe_label: str | None = None, cleanups: dict | None = None,
+          per_signal: dict | None = None, root: str | None = None) -> dict:
+    """Write both files at the repo root. Returns {"json": path, "md": path}."""
+    root = root or repo_root()
+    payload = build_payload(res, universe_label=universe_label, cleanups=cleanups,
+                            per_signal=per_signal, root=root)
+    jp = os.path.join(root, JSON_NAME)
+    mp = os.path.join(root, MD_NAME)
+    with open(jp, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, sort_keys=False)
+        f.write("\n")
+    with open(mp, "w", encoding="utf-8") as f:
+        f.write(render_md(payload))
+    return {"json": jp, "md": mp, "payload": payload}
