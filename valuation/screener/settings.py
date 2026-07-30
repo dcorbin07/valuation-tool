@@ -35,12 +35,33 @@ FUND_TYPES = {"ETF", "MUTUALFUND", "MONEYMARKET", "CURRENCY", "INDEX", "FUND"}
 # Nothing is trusted just because it's a "known" factor — the hold-out test judges.
 #   institutional — "smart money": quarter-over-quarter change in 13F institutional
 #                    holdings (lagged ~45 days; a hook until an institutional feed is wired)
-WEIGHTS_ESTABLISHED = {"value": 0.22, "quality": 0.22, "momentum": 0.15, "insider": 0.13,
-                       "low_risk": 0.08, "capital_discipline": 0.05, "sentiment": 0.05,
-                       "size": 0.05, "institutional": 0.05}
-WEIGHTS_SPECULATIVE = {"value": 0.16, "growth": 0.22, "momentum": 0.16, "insider": 0.16,
-                       "low_risk": 0.07, "capital_discipline": 0.06, "sentiment": 0.06,
-                       "size": 0.05, "institutional": 0.06}
+# ADOPTED 2026-07-30 from CPCV on the full 2,710-name / 110-date universe: 'equal-weight'
+# won with median OOS IC +0.0579 (100% of 15 paths) against the prior default's +0.0450, and
+# PBO fell to 40% — under the <50% bar for the first time. CPCV is this project's designated
+# authority on weights, and its pick being the LEAST-tuned candidate is consistent with the
+# long-standing finding that weight-tuning here is mostly noise-chasing.
+#
+# Caveat kept in view: walk-forward did NOT adopt (it recommends holding the old defaults),
+# and Deflated Sharpe is 72% — still under the 95% bar. So this is adopted because it is the
+# better-validated weighting, not because the edge is proven.
+#
+# REVERSIBLE: the previous hand-set defaults are preserved immediately below. Swap the two
+# blocks to restore them; nothing else depends on the values.
+#   PREVIOUS (hand-set):
+#     WEIGHTS_ESTABLISHED = {"value": 0.22, "quality": 0.22, "momentum": 0.15, "insider": 0.13,
+#                            "low_risk": 0.08, "capital_discipline": 0.05, "sentiment": 0.05,
+#                            "size": 0.05, "institutional": 0.05}
+#     WEIGHTS_SPECULATIVE = {"value": 0.16, "growth": 0.22, "momentum": 0.16, "insider": 0.16,
+#                            "low_risk": 0.07, "capital_discipline": 0.06, "sentiment": 0.06,
+#                            "size": 0.05, "institutional": 0.06}
+# sentiment stays at 0 in both: it has no point-in-time source (grades parked), so giving it
+# weight would just dilute the live themes.
+WEIGHTS_ESTABLISHED = {"value": 0.125, "quality": 0.125, "momentum": 0.125, "insider": 0.125,
+                       "low_risk": 0.125, "capital_discipline": 0.125, "sentiment": 0.0,
+                       "size": 0.125, "institutional": 0.125}
+WEIGHTS_SPECULATIVE = {"value": 0.125, "growth": 0.125, "momentum": 0.125, "insider": 0.125,
+                       "low_risk": 0.125, "capital_discipline": 0.125, "sentiment": 0.0,
+                       "size": 0.125, "institutional": 0.125}
 
 # Which theme columns each bucket scores on (keys of the weight dicts above).
 # autolearn + the live scorer both read this, so there's one source of truth.
@@ -79,6 +100,16 @@ NUMBER_THEME = {
     # short-horizon price anomalies neg_ret_1m / neg_max_ret / neg_idio_vol (all wrong-
     # signed here). Adding a name back here is all it takes to re-test one.
     "f_score": "quality", "inst_breadth": "institutional",
+    # SF3 per-manager 13F detail (smart money), 45-day filing lag like the rest of the 13F
+    # data. Measured on 800 large caps / 110 rebalances / 63d forward:
+    #     sm_breadth       +0.0293  t +2.37   KEPT
+    #     sm_avg_position  +0.0203  t +1.26   rejected
+    #     sm_holders       +0.0175  t +1.57   rejected
+    #     sm_conviction    +0.0040  t +1.25   rejected (position-vs-AUM carries little signal)
+    # sm_breadth also beats the aggregate inst_breadth (t +1.48) — same quantity, but SF3
+    # counts actual managers rather than a vendor holder tally, so it replaces it in the
+    # theme mean. The rejected three stay computed in the panel, so re-testing is one line.
+    "sm_breadth": "institutional",
 }
 NUMBERS_ALL = list(NUMBER_THEME.keys())
 

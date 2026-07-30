@@ -1606,6 +1606,41 @@ def validate_institutional(provider, tickers, lags=INST_LAG_GRID, lookback_years
     return out
 
 
+def per_signal_ic(panel, horizon_col="fwd_ret", min_names=20, min_dates=8) -> dict:
+    """{signal: {median_ic, ic_tstat, coverage, n_dates}} for EVERY wired number.
+
+    Needs a panel built with keep_numbers=True. Per-date Spearman IC of each standardized
+    number against the forward return, then the median across dates and a t-stat on the IC
+    series — the same measurement used to accept or reject a signal, so the results file
+    reports exactly what the decisions were made on rather than a hand-curated subset.
+    """
+    out = {}
+    if panel is None or panel.empty:
+        return out
+    for num in S.NUMBERS_ALL:
+        zc = "z_" + num
+        if zc not in panel.columns:
+            continue
+        ics = []
+        for _d, sub in panel.groupby("date"):
+            ss = sub.dropna(subset=[zc, horizon_col])
+            if len(ss) >= min_names:
+                ic = _spearman(ss[zc].values, ss[horizon_col].values)
+                if ic == ic:
+                    ics.append(ic)
+        cov = float(panel[zc].notna().mean())
+        if len(ics) >= min_dates:
+            a = np.asarray(ics, dtype=float)
+            sd = float(a.std(ddof=1))
+            t = float(a.mean() / (sd / (len(a) ** 0.5))) if sd > 0 else 0.0
+            out[num] = {"median_ic": float(np.median(a)), "ic_tstat": t,
+                        "coverage": cov, "n_dates": len(a)}
+        else:
+            out[num] = {"median_ic": None, "ic_tstat": None, "coverage": cov,
+                        "n_dates": len(ics)}
+    return out
+
+
 def run_backtest(provider, tickers, top_n=25, rebalance_days=63, horizon=63, lookback_years=18,
                  recency_halflife_days=1260, bucket="established") -> dict:
     ok, msg = provider.ready()
@@ -1866,8 +1901,20 @@ def main(argv=None):
                                               and prov.daily_history("AAPL")),
             "sf3_per_manager_inputs": bool(getattr(prov, "sf3_for", None) and prov.sf3_for("AAPL")),
         }
+        # Per-signal IC for EVERY wired number, measured on the validated horizon so the
+        # results file reports the same numbers the keep/reject decisions were made on.
+        _psig = None
+        try:
+            _h = str((res.get("construction") or {}).get("horizon") or res.get("primary_horizon") or "")
+            _hz = int(_h) if _h else 63
+            _pan = build_fundamental_panel(prov, tickers, rebalance_days=63,
+                                           lookback_years=CONFIG.backtest_lookback_years,
+                                           horizon=_hz, keep_numbers=True)
+            _psig = per_signal_ic(_pan)
+        except Exception as _pe:
+            print(f"[results] per-signal IC unavailable: {_pe}")
         _w = _write_results(res, universe_label=("full" if (args.limit or 0) >= 2000 else "subset"),
-                            cleanups=_cleanups)
+                            cleanups=_cleanups, per_signal=_psig)
         print(f"Canonical results  -> {_os.path.basename(_w['json'])} + "
               f"{_os.path.basename(_w['md'])} (repo root, tracked)")
     except Exception as _e:
