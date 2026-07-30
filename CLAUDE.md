@@ -37,9 +37,15 @@ the project's memory and the old versions had been repeated for months.
 - **The edge now clears both statistical bars for the first time: PBO 13.3% (want <50%),
   Deflated Sharpe >99.9% (want >95%), long-short t 3.485 (want >2), top-decile alpha +11.77%.**
   The single biggest driver was zeroing `low_risk` — **and that has since been CONFIRMED on a
-  held-out time split** (decide on one half, measure on the other, both directions): long-short
-  t +1.59 and +2.02, top-decile alpha +3.21pp and +7.86pp on data that did not inform the
-  decision. Do not treat the edge as settled anyway — see the caveats at the end.
+  held-out time split** (decide on one half, measure on the other, both directions). On the
+  pre-registered direction the rule fires on the early half (median IC −0.0308) and, measured
+  on the later half that did NOT inform the decision, **long-short t goes 0.97 → 2.56 and
+  top-decile alpha +6.09% → +9.30%**; the reverse direction agrees more strongly (t 0.55 →
+  2.57, alpha +6.63% → +14.49%). Do not treat the edge as settled anyway — caveats at the end.
+- **Zeroing `insider` was tested the same way and REJECTED — it stays at 0.125.** It helped one
+  split direction by a hair (Δt +0.08) and hurt the other (Δt −0.09). Its −0.34 full-sample
+  t-stat is not a stable property. Same reasoning as `low_risk`, opposite outcome — which is
+  why every theme change now has to clear `holdout_theme_validate()` before it ships.
 - **CORRECTED — "the entire edge is the institutional (13F) theme" is OBSOLETE.** Strip the
   institutional theme now and top-decile alpha is still **+10.6%** with long-short t **2.86**
   (it used to collapse to 0.71). That finding was an artifact of `quality` and `low_risk`
