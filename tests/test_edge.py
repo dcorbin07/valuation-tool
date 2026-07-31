@@ -1056,6 +1056,76 @@ def test_sanity_check_degrades_safely():
     assert r["available"] is True and r["flags"] == []
 
 
+def test_holdout_compare_panels_requires_the_committed_margin_both_ways():
+    """Sector-neutral scoring rebuilds every z-score, so it is not a weight change and
+    holdout_theme_validate cannot express it. Same discipline, different shape: split by time,
+    embargo the boundary, require the SAME pre-committed margin in BOTH directions."""
+    from valuation.edge import fundamental_panel as F
+    rng = np.random.default_rng(21)
+    def mk(edge):
+        rows = []
+        for d in range(24):
+            for i in range(60):
+                fwd = float(rng.normal(0, 0.08))
+                rows.append({"date": f"20{20 + d // 12:02d}-{d % 12 + 1:02d}-01",
+                             "ticker": f"T{i}", "fwd_ret": fwd, "bench_ret": 0.01,
+                             "good": fwd * edge + rng.normal(0, 0.05)})
+        return pd.DataFrame(rows)
+    a = mk(1.0)
+    r = F.holdout_compare_panels(a, a.copy(), ["good"], label_a="A", label_b="B")
+    # Identical panels cannot clear a positive margin.
+    assert r["verdict"] == "reject", r["verdict"]
+    assert r["min_tstat_gain"] == F.MIN_HOLDOUT_TSTAT_GAIN
+    assert r["min_alpha_gain"] == F.MIN_HOLDOUT_ALPHA_GAIN
+    assert set(r["splits"]) == {"early_half", "late_half"}
+    assert r.get("boundary_date_embargoed")
+    # Halves are disjoint and the boundary date is dropped.
+    assert (r["splits"]["early_half"]["n_dates"] + r["splits"]["late_half"]["n_dates"]
+            == a["date"].nunique() - 1)
+    assert "only" in F.holdout_compare_panels(a.head(50), a.head(50), ["good"],
+                                              min_dates=999)["verdict"]
+
+
+def test_ticker_meta_degrades_without_the_cache():
+    """Sector data is an optional overlay: no TICKERS cache must mean 'no sector', never a
+    crash — the panel ran for years with no sector column at all."""
+    from valuation.edge.data_providers import WRDSProvider
+
+    class _Cfg:
+        wrds_data_dir = _tmpdir()
+
+    p = WRDSProvider(_Cfg())
+    assert p.ticker_meta("AAPL") == {}
+    from valuation.screener.factors import build_frame
+    metrics = [{"ticker": f"T{i}", "sector": "", "price": 10.0, "market_cap": 1e10,
+                "net_income": 5.0, "operating_income": 6.0, "revenue": 100.0,
+                "book_to_price": 0.3 + 0.01 * i} for i in range(20)]
+    # sector_neutral with an all-blank sector must not blow up (it groups on a constant).
+    fr = build_frame(metrics, sector_neutral=True, residual_momentum=False)
+    assert fr["value"].notna().any()
+
+
+def test_index_full_universe_flag_is_wired():
+    """P9b: the CLI must be able to build the book headless from the Sharadar export instead
+    of the live-scan store, whose 'top decile' collapses to the 10-name floor."""
+    import inspect
+    from valuation.edge import valquo_index as VI
+    assert "data_dir" in inspect.signature(VI.export).parameters
+    src = inspect.getsource(VI.main)
+    assert "--full-universe" in src and "score_universe_now" in inspect.getsource(VI)
+    # Unreadable export dir -> a clear error, not a silent empty book.
+    try:
+        VI._full_universe_rows(_tmpdir())
+        raise AssertionError("should have raised on an empty export dir")
+    except RuntimeError as e:
+        assert "not readable" in str(e) or "no rows" in str(e).lower()
+
+
+def _tmpdir():
+    import tempfile
+    return tempfile.mkdtemp(prefix="valquo_nodata_")
+
+
 def test_index_reports_missing_sector_data_honestly():
     """The Sharadar export carries no sector column, so every position's sector is "". The
     old code emitted {"": 1.0}, which reads downstream as "one real sector holds the whole

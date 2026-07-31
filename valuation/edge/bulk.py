@@ -381,6 +381,69 @@ def prepare_insiders(csv_path: str, cache_dir: str = DEFAULT_CACHE_DIR,
     return out
 
 
+def prepare_tickers(cache_dir: str = DEFAULT_CACHE_DIR, api_key: str = "",
+                    rebuild: bool = False) -> dict:
+    """Ticker -> {sector, industry, country, exchange, category, scale}, from Sharadar TICKERS.
+
+    The ONLY table here fetched from the API rather than a bulk CSV — it is small (~21k rows,
+    one paged call) and is not part of the bulk download. Everything else in this module
+    streams a local file.
+
+    This is what finally makes `sector_neutral` mean something: the panel had no sector column
+    at all and hard-coded `"sector": ""`, so grouping by sector grouped on a constant and the
+    whole sector-neutral path has been INERT in every backtest ever run.
+
+    LOOK-AHEAD CAVEAT, state it wherever these are used: TICKERS carries TODAY's classification,
+    so applying it to a 1998 row assumes the company was in the same sector then. Sector
+    reclassification is rare and is not return-predictive, so this is normally considered
+    benign — but it is not point-in-time, and it is the one non-PIT input in an otherwise
+    strictly point-in-time panel.
+    """
+    cached = None if rebuild else _load_cache("tickers", cache_dir)
+    if cached:
+        return cached
+    if not api_key:
+        _log("tickers: no SHARADAR_API_KEY — skipping (sector data stays unavailable)")
+        return {}
+    from .data_providers import SharadarProvider
+
+    class _Cfg:
+        sharadar_api_key = api_key
+
+    prov = SharadarProvider(_Cfg())
+    cols, data = prov._get_paged("TICKERS")
+    if not cols or not data:
+        _log("tickers: empty response")
+        return {}
+    idx = {c: i for i, c in enumerate(cols)}
+    ti, tbl = idx.get("ticker"), idx.get("table")
+    if ti is None:
+        return {}
+
+    def g(row, name):
+        i = idx.get(name)
+        v = row[i] if (i is not None and i < len(row)) else None
+        return str(v).strip() if v not in (None, "") else ""
+
+    out = {}
+    for r in data:
+        t = r[ti]
+        if not t:
+            continue
+        # Prefer the SF1-covered row when a ticker appears more than once (SF1/SFP/etc).
+        is_sf1 = (tbl is not None and str(r[tbl]).upper() == "SF1")
+        if t in out and not is_sf1:
+            continue
+        out[str(t).upper()] = {"sector": g(r, "sector"), "industry": g(r, "industry"),
+                               "country": g(r, "location") or g(r, "country"),
+                               "exchange": g(r, "exchange"), "category": g(r, "category"),
+                               "scale": g(r, "scalemarketcap")}
+    _log(f"tickers: {len(out):,} tickers with metadata "
+         f"({sum(1 for v in out.values() if v['sector']):,} have a sector)")
+    _save_cache("tickers", cache_dir, out)
+    return out
+
+
 def prepare_all(bulk_dir: str = DEFAULT_BULK_DIR, cache_dir: str = DEFAULT_CACHE_DIR,
                 rebuild: bool = False) -> dict:
     """Prepare every bulk table that's present. Safe to re-run — caches are reused."""

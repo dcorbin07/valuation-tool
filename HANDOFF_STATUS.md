@@ -4,11 +4,74 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-07-31 (P7 currency + P8 sanity layer)
-**Branch:** `worktree-p7-currency` (P6 is merged to `main` at fbf95cf)
+**Session date:** 2026-07-31 (P7 currency, P8 sanity, P9b headless book, P10 sectors)
+**Branch:** `worktree-p10-sectors` (P7/P8 merged to `main` at 2f0110e)
 
-> **Scope:** P7 + P8 per CODE_AUDIT.md, below. Earlier sessions (P5, held-out
-> confirmation, P6) follow further down. Canonical numbers in `BACKTEST_RESULTS.json`.
+> **Scope:** P9b + P10 first, then P7/P8, then earlier sessions. Canonical numbers in
+> `BACKTEST_RESULTS.json`; per-finding status in `CODE_AUDIT.md`.
+
+---
+
+## P9b — headless book generation (`--full-universe`)
+
+`python -m valuation.edge.valquo_index --full-universe [DATA_DIR]` now builds the book by
+scoring the **whole Sharadar universe point-in-time** instead of the last live-scan snapshot.
+The store path is what produced the degraded book: a few hundred scanned names means a "top
+decile" collapses to the 10-name `MIN_NAMES` floor — ten mega-caps wearing a decile's label.
+
+Verified end-to-end: **86 positions from 861 eligible large caps, 1,809 scored, as of
+2026-07-24**, no live API needed, so the Cowork quarterly rebalance can run unattended. The CLI
+also warns when `n_scored < 200` and prints any names excluded for unverifiable market cap
+(this run: FFAI 5x, IQMX 0x, LESL 8x).
+
+---
+
+## P10 — sector data unblocked, and industry-relative ranking REJECTED on its merits
+
+**The download worked.** Sharadar TICKERS, one paged API call, cached like the bulk tables:
+**48,925 tickers**, 11 sectors, plus country/exchange/category. **Sector coverage is 100.0%
+(2,826 of 2,827) of the panel universe**, so `sector_neutral` — which had been grouping on a
+constant `""` and was therefore INERT in every backtest ever run — is now functional.
+
+**Then it failed the test.** Sector-neutral scoring rebuilds every z-score, so it is not a
+weight change and `holdout_theme_validate` cannot express it; `holdout_compare_panels()` applies
+the same discipline in the right shape (split by time, embargo the boundary, require the
+**already-committed** `MIN_HOLDOUT_*` margin in BOTH directions):
+
+| split | long-short t | top-decile alpha | |
+|---|---|---|---|
+| early half | 0.56 → **0.97** (+0.41) | +6.69% → +6.53% (**−0.16%**) | fail |
+| late half | 0.83 → **0.61** (−0.22) | +5.06% → +4.44% (**−0.62%**) | fail |
+
+**Verdict: REJECT.** It never clears the margin, and in the later half it is worse on both
+metrics. `sector_neutral` stays **off**. The capability is now real and re-testable — a future
+change (e.g. sector-relative applied to only the value theme) can be tried without re-doing the
+data work.
+
+**Look-ahead caveat, stated not hidden:** TICKERS carries *today's* classification, so applying
+it to a 1998 row assumes the company was in the same sector then. Reclassification is rare and
+not return-predictive, so this is normally considered benign — but it is **the one non-PIT input
+in an otherwise strictly point-in-time panel**, and that is a reason to be *more* sceptical of a
+positive sector result, not less. It rejected anyway, so nothing rests on it.
+
+### The remaining ADRs in the book are genuinely cheap — not residual artifacts
+
+With country/exchange/category finally available: ADRs are **270 of 2,827 (9.6%) of the universe
+and 9 of 86 book positions (12.4% of weight)** — 1.3x representation, against 28.3% before the
+currency fix. Measured against the 1,164-name large-cap cohort:
+
+| name | book_to_price | earnings_yield | ps |
+|---|---|---|---|
+| WDS (Woodside) | 0.98 (97th pct) | — | — |
+| SKM (SK Telecom) | 0.71 (91st) | 0.017 (80th) | 4.29 (12th) |
+| TTE (TotalEnergies) | 0.75 (92nd) | 0.032 (96th) | 2.98 (8th) |
+| VOD (Vodafone) | 1.85 (99th) | — | — |
+| IX (Orix) | 0.66 (88th) | 0.008 (48th) | 7.42 (25th) |
+| ZTO | 0.53 (81st) | 0.018 (82nd) | 8.89 (31st) |
+
+Cheap on book, earnings AND sales simultaneously — real value names. **One exception: TSEM is
+expensive on all three** (24th / 18th / 95th percentile) and is in the book on other themes, not
+value. Worth an eye, but it is a single ~1% position.
 
 ---
 
@@ -136,7 +199,7 @@ Hardened rather than merely fixed: an **`errors` block** in the JSON and a **DEG
 banner** in the markdown whenever a validation block throws. Plus a test exercising the WARN
 path — my tests all called `warn=False` and never touched the branch that raised.
 
-**Tests: 117 passing** (edge 60, bulk 12, engine 19, intraday 13, screener 13).
+**Tests: 121 passing** (edge 63, bulk 13, engine 19, intraday 13, screener 13).
 
 ---
 

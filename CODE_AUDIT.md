@@ -1,5 +1,18 @@
 # CODE_AUDIT.md — end-to-end foundation audit (2026-07-31)
 
+> ## STATUS (updated 2026-07-31, after P7/P8/P9b/P10)
+> | finding | status |
+> |---|---|
+> | **C1** currency mismatch | **FIXED & re-validated.** PBO 13.3%→6.7%, value theme t +1.34→+1.46 (all six inputs improved), foreign top-decile over-representation 1.35x→0.56x. **The audit missed `neg_ps`** (it computes `market_cap/revenue` in the panel, not Sharadar's column) — also fixed. **And `fxusd` is a DIVISOR, not a multiplier**; the suggested `fcf × fx` would have squared the error. |
+> | **H1** no correctness layer | **SHIPPED** as `sanity_check` (range / subgroup-pegging / market-cap divergence). Verified it *would* have caught C1: foreign names sat at the 86th percentile of book_to_price and earnings_yield pre-fix. |
+> | **M2** SanDisk/WDC market cap | **DOES NOT REPRODUCE — unresolved, not fixed.** DAILY cap and shares×price agree to 1.6x, the 148M share count is plausible, and the price ran 29.6x over 17 months with ZERO discontinuities (WDC 10.3x, MU 8.5x — the whole storage complex). If wrong, the error is upstream in the PRICE, which both estimates share and no cross-check between them can detect. The divergence check *does* catch genuine cases (AIV 71x, EQC 53x). |
+> | **M3** `sector_neutral` inert | **UNBLOCKED, then REJECTED on merit.** TICKERS downloaded (48,925 tickers, sector coverage **100.0%** of the panel universe), `sector_neutral` now functional — and industry-relative ranking **fails the pre-committed held-out margin in both directions** (early +0.41 t but −0.16% alpha; late −0.22 t, −0.62% alpha). Kept off. |
+> | **L1** two "gross alpha" conventions | documented in both places; unchanged. |
+> | **L2** autolearn unreviewed | unchanged; still inactive. |
+>
+> **P9b** (headless book) shipped: `python -m valuation.edge.valquo_index --full-universe`.
+
+
 Static audit of the quant foundation (panel → factors → data path) prompted by finding the
 second currency bug. Goal: account for every bug / mistake / skipped improvement before building
 further, and re-order the roadmap around what's real. Read `HANDOFF_STATUS.md` for prior context.

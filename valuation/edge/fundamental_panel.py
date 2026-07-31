@@ -747,7 +747,7 @@ def _inst_accum_at(prep, as_of, lag_days=45):
 
 def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                             lookback_years=6, horizon=63, inst_lag_days=45,
-                            keep_numbers=False) -> pd.DataFrame:
+                            keep_numbers=False, sector_neutral=False) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -791,6 +791,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
           f"(price + fundamentals + insider + 13F)")
     px, hist, insh, inst, grd, hold = {}, {}, {}, {}, {}, {}
     dly, sf3 = {}, {}          # BULK: DAILY month-end ratios, SF3 per-manager 13F
+    meta = {}                  # TICKERS: sector / country / exchange (NOT point-in-time)
     for _i, t in enumerate(tickers):
         if _i and _i % 250 == 0:
             _prog(f"  loaded {_i}/{len(tickers)} tickers, {len(px)} usable")
@@ -810,6 +811,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # Sharadar BULK: point-in-time market cap / ratios, and per-manager 13F detail.
             dly[t] = provider.daily_history(t) if hasattr(provider, "daily_history") else []
             sf3[t] = provider.sf3_for(t) if hasattr(provider, "sf3_for") else {}
+            meta[t] = provider.ticker_meta(t) if hasattr(provider, "ticker_meta") else {}
     if not px:
         import sys
         print("[panel] no usable price series for any ticker in the export.", file=sys.stderr)
@@ -882,6 +884,10 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             if mc < S.MIN_MARKET_CAP_MM * 1e6:                # point-in-time floor: match the live
                 continue                                       # screener's investable universe ($50M+)
             m = _sf1_to_metrics(t, sf1, float(closes[i]), mc)
+            _md = meta.get(t) or {}
+            m["sector"] = _md.get("sector") or ""
+            m["_country"] = _md.get("country") or ""
+            m["_category"] = _md.get("category") or ""
             cl = closes.tolist()
             m.update(_price_factors(cl, i))
             m.update(_price_extras(cl, i, bench=benchv))       # reversal / MAX / idio-vol
@@ -947,7 +953,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             continue
         from ..screener.factors import build_frame
         _by_ticker = {m["ticker"]: m for m in metrics}
-        fr = build_frame(metrics, sector_neutral=False, residual_momentum=False)
+        fr = build_frame(metrics, sector_neutral=sector_neutral, residual_momentum=False)
         for t, r in fr.iterrows():
             fr_ret = fwd.get(t)
             if fr_ret is None or fr_ret != fr_ret:
@@ -2294,6 +2300,55 @@ def cost_breakeven_bps(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
     if be is None and curve and curve[-1]["net_alpha"] >= 0:
         be = float("inf")                      # survives the whole grid
     return {"breakeven_one_way_bps": be, "curve": curve}
+
+
+def holdout_compare_panels(panel_a, panel_b, cols, label_a="A", label_b="B", n_q=10,
+                           horizon=63, base_weight=0.125, min_dates=16,
+                           min_alpha_gain=MIN_HOLDOUT_ALPHA_GAIN,
+                           min_tstat_gain=MIN_HOLDOUT_TSTAT_GAIN) -> dict:
+    """Held-out comparison of two PANEL CONSTRUCTIONS (not two weightings).
+
+    holdout_theme_validate answers "should this theme carry weight". Some changes are not a
+    weight at all — sector-neutral scoring rebuilds every z-score — so they need the same
+    discipline in a different shape: split by time, embargo the boundary, and require B to
+    beat A by the SAME pre-committed margin (MIN_HOLDOUT_*) in BOTH split directions.
+
+    Both panels must cover the same dates; only the construction differs.
+    """
+    out = {"label_a": label_a, "label_b": label_b, "splits": {},
+           "min_alpha_gain": min_alpha_gain, "min_tstat_gain": min_tstat_gain}
+    if panel_a is None or panel_b is None or panel_a.empty or panel_b.empty:
+        return {**out, "verdict": "no panel"}
+    dates = sorted(set(panel_a["date"].unique()) & set(panel_b["date"].unique()))
+    if len(dates) < min_dates:
+        return {**out, "verdict": f"only {len(dates)} shared dates"}
+    mid = len(dates) // 2
+    out["boundary_date_embargoed"] = str(dates[mid])
+    w = {c: base_weight for c in cols}
+    halves = {"early_half": dates[:mid], "late_half": dates[mid + 1:]}
+    improves = []
+    for name, ds in halves.items():
+        ra = quantile_backtest(panel_a[panel_a["date"].isin(ds)], cols, w,
+                               n_q=n_q, horizon=horizon) or {}
+        rb = quantile_backtest(panel_b[panel_b["date"].isin(ds)], cols, w,
+                               n_q=n_q, horizon=horizon) or {}
+        dt = (None if ra.get("long_short_tstat") is None or rb.get("long_short_tstat") is None
+              else rb["long_short_tstat"] - ra["long_short_tstat"])
+        da = (None if ra.get("top_decile_alpha") is None or rb.get("top_decile_alpha") is None
+              else rb["top_decile_alpha"] - ra["top_decile_alpha"])
+        ok = bool(dt is not None and da is not None
+                  and dt >= min_tstat_gain and da >= min_alpha_gain)
+        improves.append(ok)
+        out["splits"][name] = {
+            "n_dates": len(ds),
+            "a_long_short_tstat": ra.get("long_short_tstat"),
+            "b_long_short_tstat": rb.get("long_short_tstat"),
+            "a_top_decile_alpha": ra.get("top_decile_alpha"),
+            "b_top_decile_alpha": rb.get("top_decile_alpha"),
+            "delta_long_short_tstat": dt, "delta_top_decile_alpha": da, "improves": ok}
+    out["verdict"] = ("adopt" if all(improves)
+                      else "reject" if not any(improves) else "not_replicated")
+    return out
 
 
 def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,

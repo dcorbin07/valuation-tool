@@ -390,6 +390,15 @@ class WRDSProvider(HistoricalDataProvider):
         """{"splits": [...], "delisted": date|None, "dividends": [...]}"""
         return self._bulk("actions").get(ticker.upper(), {})
 
+    def ticker_meta(self, ticker):
+        """{sector, industry, country, exchange, category, scale} from the TICKERS cache.
+
+        NOT point-in-time — it is today's classification (see bulk.prepare_tickers). Empty
+        dict when the cache has not been built, so callers degrade to no sector rather than
+        crashing.
+        """
+        return self._bulk("tickers").get(ticker.upper(), {})
+
     def sf3_for(self, ticker):
         """{quarter: {"holders": n, "value": v, "conviction": c}} — per-manager 13F detail."""
         return self._bulk("sf3").get(ticker.upper(), {})

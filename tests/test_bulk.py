@@ -255,6 +255,20 @@ def test_results_payload_is_json_clean_and_self_describing():
     assert p["signal_coverage"]["below_floor"] == []
 
 
+def test_prepare_tickers_without_a_key_is_a_no_op():
+    """Sector data is an optional overlay fetched from the API, not part of the bulk export.
+    With no key it must return {} and leave no cache — never crash a backtest that never
+    needed sector data in the first place."""
+    from valuation.edge import bulk
+    d = _tmp()
+    assert bulk.prepare_tickers(cache_dir=d, api_key="") == {}
+    # A prepared cache is returned without touching the network.
+    bulk._save_cache("tickers", d, {"AAPL": {"sector": "Technology", "country": "U.S.A",
+                                             "category": "Domestic Common Stock"}})
+    got = bulk.prepare_tickers(cache_dir=d, api_key="")
+    assert got["AAPL"]["sector"] == "Technology"
+
+
 def test_results_writes_both_files_at_root_and_overwrites():
     from valuation.edge import results_file as rf
     import json as _j

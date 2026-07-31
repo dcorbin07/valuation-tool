@@ -130,15 +130,61 @@ def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
     }
 
 
-def export(store=None, path: str = DEFAULT_PATH, **kw) -> dict:
-    """Build from the latest saved scan and write the JSON. Returns the payload."""
-    if store is None:
-        from ..screener.store import Store
-        store = Store()
-    scan_date = store.latest_scan_date()
-    rows = store.load_snapshot(scan_date) if scan_date else []
+def _full_universe_rows(data_dir: str, limit: int = 3000):
+    """Score the WHOLE Sharadar universe as of its latest date -> (rows, as_of, dropped).
+
+    The live-scan store is whatever the last FMP scan happened to cover, which is a few
+    hundred names at best — and a "top decile" of that collapses to the 10-name MIN_NAMES
+    floor, i.e. ten mega-caps wearing a decile's label. Scoring the full point-in-time
+    universe instead gives a real decile (86 of 861 eligible large caps at last run) and needs
+    no live API, so a quarterly rebalance can run headless.
+    """
+    from .data_providers import WRDSProvider
+    from .fundamental_panel import score_universe_now
+    from ..screener import universe as U
+
+    class _Cfg:
+        wrds_data_dir = data_dir
+
+    prov = WRDSProvider(_Cfg())
+    ok, msg = prov.ready()
+    if not ok:
+        raise RuntimeError(f"Sharadar export not readable at {data_dir!r}: {msg}")
+    tickers = prov.universe(limit=limit) or list(U.bundled_tickers())
+    res = score_universe_now(prov, tickers)
+    if not res or not res.get("rows"):
+        raise RuntimeError("scored no rows from the full universe")
+    return res["rows"], res.get("as_of"), (res.get("dropped_mc_divergence") or [])
+
+
+def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
+           limit: int = 3000, **kw) -> dict:
+    """Build the book and write the JSON. Returns the payload.
+
+    `data_dir` -> score the full Sharadar universe point-in-time (the headless path, and the
+    one that produces a genuine top decile). Otherwise fall back to the latest saved live scan.
+    """
+    dropped, scan_date = [], None
+    if data_dir:
+        rows, scan_date, dropped = _full_universe_rows(data_dir, limit=limit)
+        source = ("Sharadar SF1+SEP export via WRDSProvider (point-in-time), "
+                  "shipped settings.py weights")
+    else:
+        if store is None:
+            from ..screener.store import Store
+            store = Store()
+        scan_date = store.latest_scan_date()
+        rows = store.load_snapshot(scan_date) if scan_date else []
+        source = "latest saved live scan snapshot"
     payload = build_index(rows, **kw)
     payload["scan_date"] = scan_date
+    payload["data_as_of"] = scan_date
+    payload["source"] = source
+    # Names whose market cap could not be established (DAILY vs shares x price disagree) are
+    # excluded from a tradeable book; recorded so the omission is auditable, not silent.
+    payload["excluded_market_cap_divergence"] = [
+        {"ticker": d["ticker"], "daily_mc": d["daily_mc"], "derived_mc": d["derived_mc"],
+         "ratio": round(d["ratio"], 2)} for d in dropped]
     payload["generated_at"] = _dt.datetime.now().replace(microsecond=0).isoformat()
 
     d = os.path.dirname(path)
@@ -157,15 +203,33 @@ def main(argv=None):
     ap.add_argument("--large-cap-min", type=float, default=LARGE_CAP_MIN)
     ap.add_argument("--top-decile", type=float, default=TOP_DECILE)
     ap.add_argument("--weighting", choices=("score", "equal"), default="score")
+    ap.add_argument("--full-universe", nargs="?", const="data/backtest", default=None,
+                    metavar="DATA_DIR",
+                    help="score the whole Sharadar universe point-in-time instead of the last "
+                         "live scan (headless; the only path that yields a real top decile). "
+                         "Optionally takes the export dir, default data/backtest.")
+    ap.add_argument("--limit", type=int, default=3000, help="universe size for --full-universe")
     a = ap.parse_args(argv)
-    p = export(path=a.out, large_cap_min=a.large_cap_min,
-               top_decile=a.top_decile, weighting=a.weighting)
-    if not p["positions"]:
-        print("No positions — no scan snapshot yet (run a scan first).")
+    try:
+        p = export(path=a.out, large_cap_min=a.large_cap_min, top_decile=a.top_decile,
+                   weighting=a.weighting, data_dir=a.full_universe, limit=a.limit)
+    except RuntimeError as e:
+        print(f"Could not build the book: {e}")
         return 1
-    print(f"Valquo Index -> {p['path']}   scan {p.get('scan_date')}   "
+    if not p["positions"]:
+        print("No positions — no scan snapshot yet (run a scan first), or try --full-universe.")
+        return 1
+    print(f"Valquo Index -> {p['path']}   as of {p.get('data_as_of')}   "
           f"{p['n_positions']} of {p['n_eligible']} eligible ({p['n_scored']} scored)")
+    print(f"  source: {p.get('source')}")
     print(f"  tilt: {p['criteria']['tilt']}")
+    if p["n_scored"] < 200:
+        print(f"  WARNING: only {p['n_scored']} names scored — a 'top decile' of that is not a "
+              f"decile. Use --full-universe for a real book.")
+    if p.get("excluded_market_cap_divergence"):
+        print("  excluded (market cap unverifiable): "
+              + ", ".join(f"{d['ticker']} ({d['ratio']:.0f}x)"
+                          for d in p["excluded_market_cap_divergence"][:6]))
     for x in p["positions"][:15]:
         print(f"   {x['ticker']:6} {x['weight']*100:5.2f}%  hot {x['hot_score']:5.1f}  {x['sector'][:22]}")
     if len(p["positions"]) > 15:
