@@ -18,7 +18,13 @@ from valuation.screener.providers import company_to_metrics
 from tests.screener_fixtures import SyntheticProvider
 
 
-def _scan(tmp="/tmp/_test_screener.db"):
+def _scan(tmp=None):
+    # A FIXED db path persisted across runs (snapshots are keyed by scan date, so re-running
+    # on the same day layered rows onto the previous run's). Each call now gets its own file,
+    # so these tests cannot influence each other or a previous invocation.
+    if tmp is None:
+        import tempfile
+        tmp = os.path.join(tempfile.mkdtemp(prefix="valquo_test_"), "screener.db")
     store = Store(tmp)
     res = run_scan(scope="synthetic", cfg=None, store=store,
                    provider=SyntheticProvider(14), run_dcf_top=0, save=True)
@@ -59,7 +65,10 @@ def test_portfolio_sector_cap_and_weights():
     res, _ = _scan()
     pf = build_portfolio(res["rows"], n=15, weighting="score", max_sector_weight=0.30)
     tot = sum(p["weight"] for p in pf["positions"])
-    assert abs(tot - 1.0) < 1e-6
+    # build_portfolio rounds each weight to 4dp, so the sum can legitimately drift by up to
+    # n * 5e-5. The old 1e-6 bound was ~750x tighter than the rounding allows and passed only
+    # when the weights happened to round favourably — an intermittent failure, observed once.
+    assert abs(tot - 1.0) < len(pf["positions"]) * 5e-5, tot
     assert pf["stats"]["max_sector_weight"] <= 0.301
     assert pf["stats"]["n_names"] == 15
 

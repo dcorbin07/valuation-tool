@@ -33,7 +33,9 @@ MD_NAME = "BACKTEST_RESULTS.md"
 # 2 adds the `signal_coverage` block: {signal: coverage} for every wired number and theme,
 # plus `below_floor` — the signals that are wired but effectively empty. Purely additive, so
 # a v1 reader still works; the bump is the signal that new fields exist.
-SCHEMA_VERSION = 2
+# 3 adds `sanity_check` (correctness: range / subgroup-pegging / market-cap divergence),
+# `per_theme`, `holdout_validation` and `costs`. All additive; a v2 reader still works.
+SCHEMA_VERSION = 3
 
 
 def repo_root(start: str | None = None) -> str:
@@ -92,6 +94,7 @@ def build_payload(res: dict, universe_label: str | None = None,
     pt = res.get("per_theme") or {}
     hv = res.get("holdout_validation") or {}
     cst = res.get("costs") or {}
+    san = res.get("sanity_check") or {}
     if per_signal is None:
         per_signal = res.get("per_signal") or None
     wf = (res.get("walk_forward") or {}).get("weights") or {}
@@ -108,8 +111,21 @@ def build_payload(res: dict, universe_label: str | None = None,
                          "n": c.get("n"), "selected": c.get("selected")}
         return out
 
+    # A run where a validation block threw still writes this file, with every metric null —
+    # which reads as "the backtest ran and found nothing" rather than "the backtest broke".
+    # That is the exact silently-wrong pattern this project keeps hitting, so surface it.
+    _errors = []
+    for _k in ("hold_until_exit", "construction", "walk_forward", "cpcv", "regime",
+               "institutional_dependence"):
+        _st = (res.get(_k) or {}).get("status")
+        if isinstance(_st, str) and _st.lower().startswith("error"):
+            _errors.append({"block": _k, "status": _st})
+
     payload = {
         "schema_version": SCHEMA_VERSION,
+        # Non-empty means the run is DEGRADED: some validation block raised and its metrics
+        # below are null for that reason, not because the edge is absent.
+        "errors": _errors,
         "generated_at": _dt.datetime.now().replace(microsecond=0).isoformat(),
         "generated_at_utc": _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat(),
         "git": {"commit": _git(root, "rev-parse", "HEAD"),
@@ -214,6 +230,11 @@ def build_payload(res: dict, universe_label: str | None = None,
         # without having to believe any particular cost calibration.
         "costs": cst or {"status": "not computed"},
 
+        # CORRECTNESS, as distinct from coverage. signal_coverage says a factor is present;
+        # this says its VALUES are believable. `flags` is the load-bearing part: an empty list
+        # means the range / subgroup-pegging / market-cap-divergence checks all passed.
+        "sanity_check": san or {"available": False, "flags": []},
+
         # {signal: coverage} for every wired number and theme — the fraction of panel rows
         # where it actually reached the composite. `below_floor` is the load-bearing part:
         # a wired factor at ~0% is a plumbing bug that no other metric in this file exposes,
@@ -276,6 +297,14 @@ def render_md(p: dict) -> str:
     A(f"- **Universe:** {u['label']} — {u['n_names']} names × {u['n_dates']} dates "
       f"({u['n_rows']} rows), primary horizon {u['primary_horizon_days']}d")
     A(f"- **Provider:** {p.get('provider')}  ·  survivorship-free: {p.get('survivorship_free')}")
+    if p.get("errors"):
+        A("")
+        A(f"> ⚠️ **DEGRADED RUN — {len(p['errors'])} validation block(s) FAILED.** The null "
+          f"metrics below mean the code raised, NOT that the edge is absent. Do not read this "
+          f"as a result:")
+        for e in p["errors"]:
+            A(f">   - `{e['block']}`: {e['status']}")
+        A("")
     if p.get("cleanups"):
         A(f"- **Cleanups active:** " + ", ".join(f"{k}={v}" for k, v in p["cleanups"].items()))
     if p.get("signals_wired"):
@@ -365,6 +394,31 @@ def render_md(p: dict) -> str:
             v = th.get(t) or {}
             A(f"| {t} | {_f2(v.get('median_ic'), 4)} | {_f2(v.get('ic_tstat'))} | "
               f"{_rate(_cov.get(t, v.get('coverage')), 1)} |")
+    sn = p.get("sanity_check") or {}
+    if sn.get("available"):
+        A("")
+        A("## Correctness (sanity) — are the factor VALUES believable?\n")
+        A("Distinct from coverage: coverage says a factor is *present*, this says it is")
+        A("*sane*. The currency bug filled every column and was simply wrong, so coverage was")
+        A("blind to it.\n")
+        fl = sn.get("flags") or []
+        if not fl:
+            A("**No flags** — range, subgroup-pegging and market-cap-divergence checks all passed.")
+        else:
+            A(f"**{len(fl)} FLAG(S):**\n")
+            A("| check | factor | detail |")
+            A("|---|---|---|")
+            for f in fl[:20]:
+                A(f"| {f.get('check')} | `{f.get('factor','-')}` | {f.get('detail','')} |")
+        _fp = ((sn.get("checks") or {}).get("subgroup") or {}).get("foreign_median_percentile") or {}
+        if _fp:
+            A("")
+            A("Foreign reporters' median percentile per factor "
+              "(0.50 = no tilt; near 0 or 1 = pegged):\n")
+            A("| factor | median pctile |")
+            A("|---|---|")
+            for k, v in list(_fp.items())[:8]:
+                A(f"| {k} | {v:.2f} |")
     cs = p.get("costs") or {}
     if cs.get("top_decile"):
         A("")
