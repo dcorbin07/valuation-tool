@@ -1,0 +1,162 @@
+# CODE_AUDIT.md — end-to-end foundation audit (2026-07-31)
+
+Static audit of the quant foundation (panel → factors → data path) prompted by finding the
+second currency bug. Goal: account for every bug / mistake / skipped improvement before building
+further, and re-order the roadmap around what's real. Read `HANDOFF_STATUS.md` for prior context.
+
+Scope of this pass: the code the EDGE rests on — `fundamental_panel.py`, `factors.py`,
+`data_providers.py`, `cross_sectional.py`, `valquo_index.py`, `settings.py`, and the Sharadar
+export itself. The peripheral systems (intraday/options engine, SaaS/web app) were NOT deeply
+audited — they are downstream products, not the foundation; a lighter pass on them is listed as a
+later item.
+
+---
+
+## THE META-FINDING — one bug class has now shipped FOUR times
+
+Every foundation bug this project has hit shares a signature: **the run completes, raises no
+error, and the numbers look plausible — but a factor is silently wrong.**
+
+1. `assets` dropped from the loader allowlist → `capital_discipline` half-empty for months.
+2. `roic`/`roe`/`assetturnover`/`beta`/`growth_accel` blank in the ARQ export → `quality` scored
+   on 8 of 10 inputs, `low_risk` on 1 of 2 (P5).
+3. `_f()` returned NaN instead of None → F-Score counted MISSING tests as FAILED (P5).
+4. **Currency mismatch → the entire `value` theme is garbage for foreign names (this audit).**
+
+The `signal_coverage()` guard added in P5 catches class (1)/(2) — EMPTY columns. It does **not**
+catch (3) or (4), because those columns are fully populated and just **wrong**. The single
+highest-leverage fix coming out of this audit is a **correctness/sanity layer** (H1 below) that
+checks values are *sane*, not merely *present*. That turns "we find these one at a time, after
+they bite" into "the pipeline flags them on the first run."
+
+---
+
+## FINDINGS
+
+### CRITICAL
+
+**C1 — Currency mismatch corrupts the entire `value` theme for foreign names.**
+Every value input that divides a fundamental against a USD market cap or EV uses the **raw
+(local-currency)** fundamental:
+
+| factor | formula | file:line | currency | verdict |
+|---|---|---|---|---|
+| `book_to_price` | `total_equity / market_cap` | factors.py:111 | local ÷ USD | BROKEN |
+| `earnings_yield` | `netinc / market_cap` | fundamental_panel.py:198 | local ÷ USD | BROKEN |
+| `fcf_yield` | `fcf / market_cap` | fundamental_panel.py:199 | local ÷ USD | BROKEN |
+| `ebit_ev` | `ebit / ev` | fundamental_panel.py:200 | local ÷ USD (ev is USD) | BROKEN |
+| `ev_sales` | `ev / revenue` | fundamental_panel.py:201 | USD ÷ local | BROKEN |
+| `neg_ps` | `-ps` (Sharadar ratio) | factors.py:88 | consistent | ok |
+
+- Verified in the data: `equity`, `netinc`, `ebit`, `revenue`, `debt`, `cashneq` are in the
+  company's **reporting currency**; `marketcap` and `ev` are **USD** (TSM: `ev` 2030.84 =
+  marketcap 2097.15 + debtusd 29.63 − cashusd 95.94, exactly). Sharadar ships USD variants
+  (`equityusd`, `netincusd`, `revenueusd`, `ebitusd`) that the code does not use.
+- Magnitude: SK Telecom's book equity is 13.3 **trillion** won, so `book_to_price` computes to
+  **≈892** vs a correct **≈0.59** — a ~1,500× fake cheapness. On correct ratios these names are
+  *expensive* (TSM pe 34.8, SKM pe 61.5), yet they dominate the value-tilted book (top 6 of the
+  86-name inception book are all foreign ADRs).
+- Blast radius: **167 of 2,827 names (5.9%)** report in a foreign currency (`equity ≠ equityusd`).
+  All are pushed systematically toward "ultra-cheap," and the damage concentrates in the **top
+  decile**, exactly where portfolio selection happens.
+- **This was in the backtest too** — foreign names were mis-valued across all 18 years. The
+  validated edge (+11.77% top-decile) must be re-measured. It could move either way: if the
+  forced-cheap foreign names under-performed, fixing this *improves* the edge; `value` is also the
+  weakest theme (t +1.34), and part of that weakness may be this contamination.
+
+Fix (in `_sf1_to_metrics`, fundamental_panel.py ~156–204; root cause is the `_KEEP` allowlist in
+`data_providers.py:252` which never loads the `*usd` columns):
+- `book_to_price` → `equityusd / market_cap`
+- `earnings_yield` → `netincusd / market_cap`
+- `ebit_ev` → `ebitusd / ev`  (ev already USD)
+- `ev_sales` → `ev / revenueusd`
+- `fcf_yield` → `(fcf × fx) / market_cap`, where `fx = equityusd / equity` (no `fcfusd` column
+  exists — derive the FX factor from any local/usd pair)
+- Add `equityusd, netincusd, revenueusd, ebitusd` to `WRDSProvider._KEEP`.
+- **Do NOT touch** roe/roic/margins/growth/momentum/size/institutional — they use same-currency
+  ratios or price returns and are correct as-is.
+- Then re-run the full 2,710-name backtest and report: does top-decile alpha / long-short t / PBO /
+  DSR move, and what is the foreign-name share of the top decile before vs after.
+
+### HIGH
+
+**H1 — No correctness layer; the coverage guard checks presence, not validity.**
+See the meta-finding. Add a post-panel sanity pass that (a) asserts each ratio factor sits in a
+sane cross-sectional range, and (b) flags when an identifiable subgroup systematically pegs a
+factor — the foreign-currency reporters are detectable for free (`equity ≠ equityusd`), and
+"every foreign name is in the top 2% of book_to_price" is exactly the signature this would catch.
+Ship it as a `sanity_check` block in BACKTEST_RESULTS.json next to `signal_coverage`. Highest
+preventive value in this list; do it alongside C1 so the re-run is itself validated by it.
+
+### MEDIUM
+
+**M2 — DAILY market cap is wrong for recycled / spun-off tickers.** The inception book lists
+SanDisk (SNDK) at $337B and Western Digital (WDC) at $220B, both ~10× reality (SanDisk spun out of
+WDC in 2025). Pollutes the `size` theme and the market-cap-scaled cost model for those names, and
+undermines trust in the displayed book. Add a divergence check (DAILY marketcap vs shares×price)
+and/or a recycled-ticker guard. Low portfolio impact (few names, weak theme) but visible.
+
+**M3 — `sector_neutral` has been inert in every backtest.** No sector column exists on disk;
+the panel hard-codes `"sector": ""` (fundamental_panel.py:195), so the sector-neutral path groups
+on a constant. Known from P6.3b. Unblock with one Sharadar TICKERS download → ticker→sector map →
+populate `metrics["sector"]`. Bonus: the same download carries country/exchange, which
+independently settles the ADR question from C1. Caveat: TICKERS gives *today's* classification, a
+mild look-ahead on historical rows (usually benign; state it, don't hide it).
+
+### LOW / footguns (not bugs)
+
+**L1 — Two "gross alpha" numbers coexist** (+11.77% arithmetic from `quantile_backtest` vs +13.71%
+compounded from the cost model). Documented in P6, but a footgun — always label which convention,
+or standardize on one.
+
+**L2 — Self-learning autolearn loop not audited here.** It is OOS-gated and currently inactive
+(weights are hard-coded in `settings.py`), so it is low risk today, but review it before ever
+enabling gated auto-apply of weights.
+
+---
+
+## AUDITED AND CLEAN (no issue found)
+
+- **Point-in-time integrity.** `_pit` selects the latest row with `datekey ≤ as_of` (filing date,
+  not fiscal period — no look-ahead); `_daily_at(as_of)` for market cap; all fundamental/13F/YoY
+  cutoffs are `as_of − lag`; forward returns are delisting-aware (use last traded price when a name
+  delists mid-window); `ffill` only carries a *past* close forward, never a future value back.
+  This is the most carefully built part of the codebase.
+- **Z-score / winsorization** (`cross_sectional.py`). Winsorize at 2/98; both `zscore` and
+  `robust_zscore` guard `sd == 0` and all-NaN (return NaN, no div-by-zero); robust falls back to
+  classic when MAD == 0. Correct.
+- **Sign / orientation.** Every theme is oriented higher = better before z-scoring; `neg_*` inputs
+  negated once; monotonicity sign is fixed and pinned by `test_monotonicity_sign_convention`.
+- **Composite assembly** (`factors.py`). Only `value` is exposed to C1; growth, momentum (incl.
+  residual-momentum), low_risk, capital_discipline, size, institutional, insider all use
+  same-currency ratios or price returns.
+- **Live weights** (`settings.py`): value/quality/momentum/insider/capital_discipline/size/
+  institutional = 0.125 each; low_risk = 0 (P5); sentiment = 0 (grades empty). Matches intent.
+
+---
+
+## RE-ORDERED P# ROADMAP (new findings merged with what was outstanding)
+
+**P7 — Currency correctness fix + backtest re-validation (C1). CRITICAL, blocks everything.**
+Nothing downstream should be trusted until this is fixed and the edge re-measured. Includes
+regenerating a clean inception `valquo_index.json`.
+
+**P8 — Data-correctness / sanity layer (H1 + M2).** The subgroup/range guard and the recycled-
+ticker cap check. Do it with P7 so the re-run is validated by it. This is the fix that stops the
+recurring class.
+
+**P9 — Forward Valquo-vs-SPY tracker on the corrected book (Cowork).** Was in flight; correctly
+gated behind P7/P8. Once the book is clean and the edge re-confirmed, stand up the live track.
+
+**P10 — TICKERS download → sector data (M3).** Unblocks industry-relative ranking (test it through
+`holdout_theme_validate`) and independently verifies the ADR country/exchange from C1.
+
+**P11 — Social preview / og:image** (the long-deferred item).
+
+**P12 — PEAD from EVENTS** (needs the earnings-code legend first).
+
+**P13 — ML tree combiner** (worthwhile now that several real, currency-correct signals exist).
+
+**P14 — Gated auto-apply of weights** (after the L2 autolearn review).
+
+**Parked:** WRDS/IBES estimate-revisions sentiment (data-gated).
