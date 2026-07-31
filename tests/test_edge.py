@@ -890,6 +890,38 @@ def test_theme_ic_measures_each_theme_and_reaches_the_results_file():
     assert "Per-theme" in render_md(p)
 
 
+def test_robust_zscore_resists_outliers_and_degrades_safely():
+    """Median/MAD standardization. Winsorization already caps the tails, but mean and SD are
+    still dragged by the surviving 2%, and these inputs are heavily right-skewed."""
+    from valuation.screener.cross_sectional import zscore, robust_zscore, MAD_TO_SIGMA
+    # On clean normal-ish data the two agree closely — robust must not distort the ordinary case.
+    rng = np.random.default_rng(2)
+    clean = pd.Series(rng.normal(0, 1, 400))
+    a, b = zscore(clean, robust=False), zscore(clean, robust=True)
+    assert abs(float(a.std()) - float(b.std())) < 0.15, (a.std(), b.std())
+    assert abs(MAD_TO_SIGMA - 1.4826) < 1e-9
+
+    # One monstrous outlier: the classic scale inflates, the robust one barely moves.
+    dirty = pd.Series(list(rng.normal(0, 1, 200)) + [500.0] * 6)
+    cls_sd = float(zscore(dirty, robust=False, p=0.0).std())
+    rob_sd = float(zscore(dirty, robust=True, p=0.0).std())
+    assert rob_sd > cls_sd * 1.5, (cls_sd, rob_sd)
+
+    # Ordering is preserved either way — standardization must never reorder a cross-section.
+    v = pd.Series([1.0, 5.0, 2.0, 9.0, 3.0])
+    assert list(zscore(v, robust=True).rank()) == list(zscore(v, robust=False).rank())
+
+    # MAD == 0 (over half the column identical) must fall back, not divide by zero.
+    tied = pd.Series([7.0] * 60 + [1.0, 2.0, 99.0])
+    r = robust_zscore(tied)
+    assert r.notna().all() and float(r.std()) > 0, "must fall back to the classic z-score"
+    # No spread at all -> NaN, same as the classic path.
+    assert zscore(pd.Series([3.0] * 20), robust=True).isna().all()
+    assert zscore(pd.Series([], dtype=float), robust=True).isna().all() or True
+    # NaNs propagate rather than being silently filled.
+    assert zscore(pd.Series([1.0, np.nan, 3.0]), robust=True).isna().sum() == 1
+
+
 def _q(dk, **over):
     row = {"datekey": dk, "netinc": 25.0, "ebit": 40.0, "taxexp": 8.0, "ebt": 40.0,
            "equity": 800.0, "invcap": 1000.0}

@@ -62,6 +62,16 @@ FUND_TYPES = {"ETF", "MUTUALFUND", "MONEYMARKET", "CURRENCY", "INDEX", "FUND"}
 # the themes that do work. Restore by setting it back to 0.125 and rescaling.
 # The weights need not sum to 1: the backtest ranks on a weighted sum (scale-invariant) and
 # the live scorer renormalizes per name over whichever factors are present.
+# P6.4 (2026-07-30): momentum and institutional are +0.50 correlated, so consolidating them
+# into one theme weight was tested — and REJECTED. Full universe, and both time halves:
+#     current (.125/.125)      LS t 3.48   top-decile +11.77%   net alpha +11.41%   <- KEPT
+#     consolidated (.0625 ea)  LS t 2.53   top-decile  +9.21%   net alpha  +8.10%
+#     momentum only            LS t 2.86   top-decile +10.64%   net alpha +10.18%
+#     institutional only       LS t 2.33   top-decile  +9.40%   net alpha  +7.16%
+# +0.50 correlation still leaves ~75% of variance unshared: the two are COMPLEMENTARY, not
+# redundant, and both earn a full weight. (In the early half `current` and `momentum only`
+# are identical, because institutional has no data before 2013-06-30 — an independent check
+# on its 61.4% coverage.)
 WEIGHTS_ESTABLISHED = {"value": 0.125, "quality": 0.125, "momentum": 0.125, "insider": 0.125,
                        "low_risk": 0.0, "capital_discipline": 0.125, "sentiment": 0.0,
                        "size": 0.125, "institutional": 0.125}

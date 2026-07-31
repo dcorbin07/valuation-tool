@@ -77,6 +77,30 @@ the project's memory and the old versions had been repeated for months.
   i.e. more conservative than the 45d deadline. Its decay curve is sensible: peaks at Q-1,
   alive at Q-2 (t 1.36), dead by Q-3 (t -0.04).
 - Edge is strongest in **large caps** (regime IC highest there).
+- **P6: THE EDGE SURVIVES TRADING COSTS.** Top-decile breakeven is **236 bps one-way** against
+  a **37 bps** actual cost profile (~6.4x margin); net alpha **+11.41%/yr** after costs on 249%
+  annual turnover. The short side does not break it either — the BOTTOM decile is *larger*-cap
+  than the top ($4.50B vs $1.95B median, 29.8 vs 37 bps), so the long-short t does not rest on
+  unborrowable micro-caps. Borrow cost is not modelled (affects the long-short statistic, not
+  the long-only book). Quote the BREAKEVEN, not the net alpha — it needs no belief in any
+  particular cost calibration. Measured on every run now (`costs` block).
+- **P6: three plausible refinements were tested and ALL THREE REJECTED.** Do not re-open them
+  without a new reason: **(a) TTM ROE/ROIC is WORSE than quarterly** (roe t +2.84 vs +2.01,
+  roic +3.38 vs +2.57) — recency beats smoothing, and the earlier note calling quarterly a
+  "wart" was wrong; **(b) median/MAD robust z-scores HALVE the long-short t** (3.485 -> 1.721);
+  **(c) consolidating momentum+institutional loses** (LS t 3.48 -> 2.53) — +0.50 correlated but
+  complementary, both earn a full weight.
+- **P6 lesson worth keeping: a signal's IC can be flat while the composite built from it moves
+  a lot.** Robust z-scores left every theme IC essentially unchanged (quality +3.39 -> +3.35)
+  while halving the long-short t. Rank-IC is INVARIANT to a monotone rescaling; the composite
+  is a weighted SUM of z-scores and is very much scale-sensitive. **Never judge a
+  standardization or scaling change by per-signal IC.**
+- **`sector_neutral` HAS BEEN SILENTLY INERT IN EVERY BACKTEST.** There is no sector/industry
+  column anywhere on disk and the panel hard-codes `"sector": ""`, so `build_frame` groups on a
+  constant. Industry-relative ranking is BLOCKED until Sharadar's TICKERS table is downloaded
+  (API-only, not one of the four bulk tables). Note when doing it: TICKERS gives TODAY's
+  classification, so applying it to 1998 rows is a mild look-ahead — usually considered benign
+  (reclassification is rare and not return-predictive) but say so rather than hide it.
 - **Standing caveats, do not drop them:** Deflated Sharpe is a *saturated* 0.9999991, not a
   proof. Both halves of the held-out test come from the same 18-year panel and universe, and
   the size-cancellation mechanism was hypothesised on the full sample — so the *decision* is
@@ -161,18 +185,34 @@ score), so there is no performance excuse to judge on a subset. If you must scre
    every backtest and ships a `holdout_validation` block in BACKTEST_RESULTS.json.
 7. ~~**Test zeroing `insider`**~~ **DONE — REJECTED, left at 0.125.** Helped one split direction by
    a hair (Δt +0.08) and hurt the other (Δt −0.09). Its −0.34 full-sample t is not stable.
-8. **TTM ROE/ROIC.** The derived versions are quarterly flows over a period-end stock, so
-   fiscal-quarter seasonality enters the cross-section. Fine for ranking, but a real refinement.
-9. **Re-read every past "monotonicity" conclusion with the sign flipped** (see LATEST).
-10. **P5 — robustness (STILL NOT DONE):** winsorize/clip already exists (`zscore` clips at 2%);
-    **median/MAD robust z-scores and industry-relative ranking remain untouched.**
-11. **Social preview:** add Open Graph + Twitter Card meta tags (esp. a 1200×630 `og:image`) so pasted
+8. ~~**TTM ROE/ROIC**~~ **DONE — REJECTED (P6.2).** Quarterly is BETTER (roe t +2.84 vs +2.01,
+   roic +3.38 vs +2.57). Recency beats smoothing. Don't re-open without a new reason.
+9. ~~**turnover/cost-aware construction**~~ **DONE (P6.1) — THE EDGE SURVIVES COSTS.** Breakeven
+   236bps one-way vs ~37bps actual; net top-decile alpha +11.41%/yr. Measured on every run.
+10. ~~**median/MAD robust z-scores**~~ **DONE — REJECTED (P6.3).** Halves the long-short t.
+11. ~~**Consolidate momentum/institutional**~~ **DONE — REJECTED (P6.4).** Both earn full weight.
+
+**OPEN, in priority order:**
+
+12. **Forward paper-track vs SPY — the top priority.** The edge clears every internal bar and
+    survives costs, but has still only ever seen this ONE 18-year Sharadar panel. A live track
+    starting today is the only thing that tests it on data nobody has looked at.
+    → **Cowork's lane** (tracked "Valquo Index vs SPY"). Tell Don to take it there.
+13. **Industry-relative ranking — BLOCKED, and it's also a latent bug.** `sector_neutral` has
+    been silently inert in every backtest (no sector column on disk; panel hard-codes
+    `"sector": ""`). Needs one Sharadar TICKERS download → ticker→sector map → populate
+    `metrics["sector"]`. Mind the today's-classification look-ahead caveat (see LATEST).
+14. **Watch live behaviour after the P5 deploy.** `low_risk` 12.5% → 0 tilts the hot list
+    smaller-cap. Intended, but eyeball the first scans; revert is one line in `settings.py`.
+15. **PEAD from EVENTS** — now the most promising NEW signal, since the cheap refinements are
+    exhausted. Still needs `bulk.EARNINGS_CODES` from Sharadar's EVENTS legend first.
+16. **ML tree combiner** — clearly worthwhile now: several genuinely real signals exist, and P6
+    showed the linear composite is sensitive to how inputs are scaled.
+17. **Re-read every past "monotonicity" conclusion with the sign flipped** (see LATEST).
+18. **Social preview:** add Open Graph + Twitter Card meta tags (esp. a 1200×630 `og:image`) so pasted
     valquo.co links auto-generate a rich card (LinkedIn etc.); re-scrape via LinkedIn Post Inspector after deploy.
-12. **Later:** `momentum`/`institutional` are +0.50 correlated — consider consolidating instead of paying
-    two theme weights for one signal; PEAD from EVENTS (needs `bulk.EARNINGS_CODES` from Sharadar's EVENTS
-    legend first); ML tree combiner (now clearly worthwhile — several real signals exist);
-    turnover/cost-aware construction; gated auto-apply; tracked "Valquo Index vs SPY" (Cowork side).
-13. **Estimate-revisions sentiment: PARKED** until WRDS/IBES (FMP has no point-in-time revisions at any tier;
+19. **Later:** gated auto-apply of adopted weights.
+20. **Estimate-revisions sentiment: PARKED** until WRDS/IBES (FMP has no point-in-time revisions at any tier;
     the free `stable/grades` workaround is real but weak and quota-starved). Don't fight the FMP free quota.
 
 ## COVERAGE RULE (hard — learned the expensive way 2026-07-30)

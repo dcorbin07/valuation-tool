@@ -1,10 +1,10 @@
 {
   "schema_version": 2,
-  "generated_at": "2026-07-30T19:24:09",
-  "generated_at_utc": "2026-07-30T23:24:09+00:00",
+  "generated_at": "2026-07-30T20:06:42",
+  "generated_at_utc": "2026-07-31T00:06:42+00:00",
   "git": {
-    "commit": "4de6e71685cde19c3de0c1e69e5b61ca8037f50d",
-    "short": "4de6e71",
+    "commit": "1dc1106c7d4b71d57941c13db4b818fa704565e0",
+    "short": "1dc1106",
     "branch": "worktree-p6-costs-and-robustness",
     "dirty": true
   },
