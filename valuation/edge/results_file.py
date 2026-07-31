@@ -96,6 +96,7 @@ def build_payload(res: dict, universe_label: str | None = None,
     cst = res.get("costs") or {}
     san = res.get("sanity_check") or {}
     atx = res.get("after_tax") or {}
+    ntb = res.get("no_trade_band") or {}
     if per_signal is None:
         per_signal = res.get("per_signal") or None
     wf = (res.get("walk_forward") or {}).get("weights") or {}
@@ -236,6 +237,10 @@ def build_payload(res: dict, universe_label: str | None = None,
         # larger than trading costs. A tax-advantaged account pays none of it and
         # earns the `costs` net figure instead.
         "after_tax": atx or {"status": "not computed"},
+
+        # Turnover/alpha tradeoff of a no-trade band (hysteresis). `none` is the
+        # shipped behaviour: sell the moment a name leaves the book.
+        "no_trade_band": ntb or {"status": "not computed"},
 
         # CORRECTNESS, as distinct from coverage. signal_coverage says a factor is present;
         # this says its VALUES are believable. `flags` is the load-bearing part: an empty list

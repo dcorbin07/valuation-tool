@@ -2184,8 +2184,37 @@ def one_way_cost_bps(mktcap) -> float:
     return COST_BPS_MICRO
 
 
+def _band_select(comp, tickers, held, n_target, exit_rank):
+    """Which names to hold, given a NO-TRADE BAND (hysteresis).
+
+    Enter on the top `n_target`; keep an existing holding until it falls past `exit_rank`.
+    Without a band a name is sold the instant it slips one place out of the book, and the
+    round-trip costs and — far more expensively — realizes a short-term gain. The band lets a
+    still-good name drift instead of churning.
+
+    Book SIZE is held at `n_target` so the comparison across widths is like-for-like: survivors
+    are kept best-first, then the remaining slots go to the highest-ranked names not held. With
+    `exit_rank == n_target` this reduces exactly to plain top-N, which is what makes the
+    no-band case a true baseline rather than a different code path.
+    """
+    order = np.argsort(-comp)
+    rank = {tickers[order[r]]: r for r in range(len(order))}
+    keep = sorted((t for t in held if rank.get(t, 1 << 30) < exit_rank), key=lambda t: rank[t])
+    out = keep[:n_target]
+    if len(out) < n_target:
+        chosen = set(out)
+        for r in range(len(order)):
+            t = tickers[order[r]]
+            if t not in chosen:
+                out.append(t)
+                chosen.add(t)
+                if len(out) >= n_target:
+                    break
+    return out
+
+
 def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
-                       flat_bps=None) -> dict:
+                       flat_bps=None, exit_frac=None) -> dict:
     """Turnover and NET-of-cost performance of the long book, vs the equal-weight universe.
 
     Weights drift with returns between rebalances, so the trade at each date is the full
@@ -2219,7 +2248,11 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
             z = zscore(sub[c]).values
             comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
         k = int(top_n) if top_n else max(1, int(len(sub) * top_frac))
-        order = np.argsort(-comp)[:k]
+        _all_t = sub["ticker"].values
+        _xr = k if exit_frac is None else max(k, int(len(sub) * exit_frac))
+        _sel = _band_select(comp, _all_t, set(prev_w), k, _xr)
+        _pos = {t: i for i, t in enumerate(_all_t)}
+        order = np.array([_pos[t] for t in _sel], dtype=int)
         tick = sub["ticker"].values[order]
         rets = sub["fwd_ret"].values[order]
         mcap = (sub["market_cap"].values[order] if "market_cap" in sub.columns
@@ -2287,7 +2320,7 @@ LONG_TERM_DAYS = 366        # a US holding period must EXCEED one year
 
 def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
                        short_rate=TAX_SHORT_TERM, long_rate=TAX_LONG_TERM,
-                       flat_bps=None, lot_method="fifo") -> dict:
+                       flat_bps=None, lot_method="fifo", exit_frac=None) -> dict:
     """Net-of-COST and net-of-TAX performance of the long book, with real lot accounting.
 
     The book turns over ~250%/yr on a ~quarterly rebalance, so in a TAXABLE account almost
@@ -2338,7 +2371,11 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
             z = zscore(sub[c]).values
             comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
         k = int(top_n) if top_n else max(1, int(len(sub) * top_frac))
-        order = np.argsort(-comp)[:k]
+        _all_t = sub["ticker"].values
+        _xr = k if exit_frac is None else max(k, int(len(sub) * exit_frac))
+        _sel = _band_select(comp, _all_t, set(lots), k, _xr)
+        _pos = {t: i for i, t in enumerate(_all_t)}
+        order = np.array([_pos[t] for t in _sel], dtype=int)
         tick = sub["ticker"].values[order]
         rets = sub["fwd_ret"].values[order]
         mcap = (sub["market_cap"].values[order] if "market_cap" in sub.columns
@@ -3215,6 +3252,22 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
                 "top_25": {**(turnover_and_costs(panel, cols, rec, top_n=top_n, horizon=63) or {}),
                            **cost_breakeven_bps(panel, cols, rec, top_n=top_n,
                                                 horizon=63, grid=_cg)}}
+            # No-trade band sweep. Reported every run so the turnover/alpha tradeoff is a
+            # standing number rather than a one-off study. exit_frac=None is the shipped
+            # behaviour (sell the moment a name leaves the book).
+            out["no_trade_band"] = {"enter_frac": 0.10, "widths": {}}
+            for _xf in (None, 0.12, 0.15, 0.20, 0.25, 0.30):
+                _c = turnover_and_costs(panel, cols, rec, top_frac=0.10, horizon=63,
+                                        exit_frac=_xf) or {}
+                _t = after_tax_backtest(panel, cols, rec, top_frac=0.10, horizon=63,
+                                        exit_frac=_xf) or {}
+                out["no_trade_band"]["widths"]["none" if _xf is None else f"{_xf:.2f}"] = {
+                    "annual_turnover": _c.get("annual_turnover"),
+                    "gross_alpha": _c.get("gross_alpha"),
+                    "net_alpha": _c.get("net_alpha"),
+                    "after_tax_alpha": _t.get("after_tax_alpha"),
+                    "cost_drag_ann": _c.get("cost_drag_ann")}
+
             # After-tax. ~250%/yr turnover means almost every gain is short-term in a TAXABLE
             # account, and that drag is several times the trading cost.
             out["after_tax"] = {

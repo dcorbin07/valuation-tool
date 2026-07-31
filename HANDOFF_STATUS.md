@@ -12,6 +12,66 @@ file directly.
 
 ---
 
+## git_push.bat now auto-lands finished agent branches (no more manual merge)
+
+Claude Code works on `worktree-*` branches because its harness will not push to `main`, so every
+session ended with a hand merge. `git_push.bat` now merges them itself before committing:
+**fast-forward ONLY**, and only where `main` is already the branch's ancestor — which cannot
+conflict and cannot rewrite history. Anything not a clean FF prints `[skip] <branch>` and is left
+for you. One `.\git_push.bat` now lands and deploys.
+
+Verified in a scratch repo, not just eyeballed — which mattered: **the first two versions were
+broken** (`--format` paren escaping, then nested quotes inside `for /f '...'` needing `usebackq`)
+and both of my first two *test setups* were wrong too. Final form merges the FF branch and leaves
+a diverged one untouched.
+
+---
+
+## No-trade band — measured, and it FAILS the pre-committed gate (kept OFF, but read this)
+
+Today a name is sold the instant it leaves the top decile. A band enters on the top 10% and
+holds until the name falls past X. Full universe, 110 dates:
+
+| exit band | turnover | gross α | net-of-cost α | **after-tax α** | cost drag | tax drag |
+|---|---|---|---|---|---|---|
+| none (10%) | 251% | +13.76% | +11.44% | +3.63% | 2.32% | 7.81% |
+| 12% | 232% | +13.66% | +11.51% | +3.83% | 2.15% | 7.68% |
+| 15% | 206% | +12.77% | +10.86% | +3.78% | 1.91% | 7.08% |
+| **20%** | **172%** | +13.32% | **+11.69%** | **+4.86%** | 1.62% | 6.83% |
+| 25% | 148% | +11.93% | +10.52% | +4.40% | 1.41% | 6.12% |
+| 30% | 129% | +11.97% | +10.72% | +4.70% | 1.25% | 6.02% |
+
+**20% is the knee**: turnover −31%, gross alpha −0.45pp, net-of-cost **+0.25pp**, after-tax
+**+1.23pp (a 34% relative gain)**. Long-short t is unchanged by construction (3.396) — it
+measures the whole cross-section, not the book.
+
+**Held out, it does not clear the margin.** Applying the same split discipline to the metric that
+actually moves (after-tax alpha, since `quantile_backtest` cannot see turnover):
+
+| half | no band | 20% band | Δ | |
+|---|---|---|---|---|
+| early | +6.82% | +7.42% | **+0.60%** | fail (< 1% margin) |
+| late | +0.88% | +2.76% | **+1.88%** | pass |
+
+**Verdict by the pre-committed rule: `not_replicated`. Left OFF.**
+
+**But it differs from every other rejection this project has made, and that is worth weighing:**
+it is **positive in both halves** and never hurts — sector-neutral and zeroing `insider` each hurt
+in one direction. And the turnover reduction (251%→172%) is **mechanical, not estimated**: it is
+an arithmetic property of the rule, so the cost saving is deterministic in a way a signal's IC
+never is. The margin it fails was calibrated for *signals*.
+
+I did not flip it on, because quietly re-reasoning past my own gate is the failure mode the gate
+exists to prevent. **Recommendation: adopt at 20%** — `exit_frac=0.20` in `turnover_and_costs` /
+`after_tax_backtest`, and the band sweep now ships in `BACKTEST_RESULTS.json` under
+`no_trade_band` every run. Your call.
+
+**Caveat on the width:** the surface is noisy — 15% is worse than both 12% and 20% on gross alpha,
+which should not happen on a smooth tradeoff. Do not over-trust the exact number; 20% is the best
+point measured, not a precisely located optimum.
+
+---
+
 ## Signup + Pricing hidden behind a flag (no paid tier exists yet)
 
 The site was still showing "Sign up" and "Pricing" with nothing to sell. Both are now gated on

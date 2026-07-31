@@ -21,6 +21,24 @@ if not defined GIT ( echo Git not found. Use GitHub Desktop, or run connect_gith
 "%GIT%" rev-parse --is-inside-work-tree >nul 2>nul || ( echo Not connected yet - run connect_github.bat first. & goto :done )
 "%GIT%" remote get-url origin >nul 2>nul || ( echo No GitHub remote yet - run connect_github.bat first. & goto :done )
 
+rem --- Auto-land finished agent work ---------------------------------------------------
+rem  Claude Code works on worktree-* branches (its harness will not push to main), so every
+rem  session used to end with a manual merge. Fast-forward ONLY: a branch is merged only when
+rem  main is already its ancestor, which cannot conflict and cannot rewrite history. Anything
+rem  that is not a clean FF (diverged, or main moved past it) is skipped with a note rather
+rem  than forced.
+echo Checking for finished agent branches to land...
+rem  "delims=* " strips the leading "* " / "  " that git branch prints, so %%b is the bare name.
+for /f "usebackq tokens=* delims=* " %%b in (`"%GIT%" branch --list worktree-*`) do (
+  "%GIT%" merge-base --is-ancestor main %%b >nul 2>nul && (
+    "%GIT%" merge --ff-only %%b >nul 2>nul && (
+      echo   [merged] %%b
+    ) || (
+      echo   [skip]   %%b - not a clean fast-forward, merge by hand
+    )
+  )
+)
+
 "%GIT%" add -A
 "%GIT%" diff --cached --quiet
 if errorlevel 1 (

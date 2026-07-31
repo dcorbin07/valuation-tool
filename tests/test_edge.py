@@ -1316,6 +1316,38 @@ def _tax_panel(n_dates=24, n=60, drift=0.03, seed=31):
     return pd.DataFrame(rows)
 
 
+def test_no_trade_band_reduces_turnover_and_reduces_to_top_n():
+    """Hysteresis: enter on the top 10%, hold until a name falls past the exit band. The
+    no-band case must be EXACTLY plain top-N, otherwise the baseline is a different code path
+    and the whole comparison is meaningless."""
+    from valuation.edge.fundamental_panel import _band_select, turnover_and_costs
+    comp = np.array([10.0, 9.0, 8.0, 7.0, 6.0, 5.0])
+    tick = np.array(["A", "B", "C", "D", "E", "F"])
+    # No band (exit_rank == n_target) -> plain top-N regardless of what is held.
+    assert _band_select(comp, tick, set(), 3, 3) == ["A", "B", "C"]
+    assert sorted(_band_select(comp, tick, {"E", "F"}, 3, 3)) == ["A", "B", "C"]
+    # With a band, a held name that slipped to rank 3 is KEPT and displaces the newcomer.
+    kept = _band_select(comp, tick, {"D"}, 3, 5)
+    assert "D" in kept and len(kept) == 3, kept
+    # A held name outside the band is dropped even with a band.
+    assert "F" not in _band_select(comp, tick, {"F"}, 3, 4)
+    # Book size is constant so widths are compared like-for-like.
+    for xr in (3, 4, 5, 6):
+        assert len(_band_select(comp, tick, {"D", "E"}, 3, xr)) == 3
+
+    panel = _tax_panel(n_dates=16, n=60)
+    base = turnover_and_costs(panel, ["good"], {"good": 1.0}, top_frac=0.2, flat_bps=10.0)
+    band = turnover_and_costs(panel, ["good"], {"good": 1.0}, top_frac=0.2, flat_bps=10.0,
+                              exit_frac=0.4)
+    assert band["annual_turnover"] < base["annual_turnover"], "a band must cut turnover"
+    assert band["cost_drag_ann"] < base["cost_drag_ann"], "less trading must cost less"
+    # exit_frac equal to top_frac must reproduce the no-band numbers exactly.
+    same = turnover_and_costs(panel, ["good"], {"good": 1.0}, top_frac=0.2, flat_bps=10.0,
+                              exit_frac=0.2)
+    assert abs(same["annual_turnover"] - base["annual_turnover"]) < 1e-9
+    assert abs(same["net_ann"] - base["net_ann"]) < 1e-12
+
+
 def test_after_tax_backtest_lot_accounting():
     """~250%/yr turnover means nearly every gain is short-term in a taxable account, and that
     drag is several times the trading cost. Tax depends on WHEN each lot was bought, so this
