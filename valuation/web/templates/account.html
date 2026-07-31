@@ -10,7 +10,7 @@
        {% if user.subscription_status and user.subscription_status not in ('none',) %}
        <span class="muted">({{ user.subscription_status }})</span>{% endif %}</p>
     <div style="margin:16px 0">
-      {% if eff_tier == 'free' %}
+      {% if eff_tier == 'free' and signup_enabled %}
         <a href="/pricing" class="btn">Upgrade</a>
       {% else %}
         {% if billing_enabled %}<form method="POST" action="/billing/portal" style="display:inline">

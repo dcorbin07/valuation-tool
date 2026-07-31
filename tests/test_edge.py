@@ -1056,6 +1056,51 @@ def test_sanity_check_degrades_safely():
     assert r["available"] is True and r["flags"] == []
 
 
+def test_signup_surfaces_follow_the_open_access_flag():
+    """Signup + pricing are hidden while the product is open and free, and re-enabled by a
+    flag rather than a code change. Login must NOT be gated — existing accounts still sign in.
+    """
+    from valuation.config import Config
+    open_free = Config(open_access=True, feature_billing="")
+    assert open_free.signup_enabled is False
+    assert open_free.billing_enabled is False
+    paid = Config(open_access=False, feature_billing="")
+    assert paid.signup_enabled is True, "turning open access off restores the paid product"
+    # FEATURE_BILLING is an explicit override in both directions.
+    assert Config(open_access=True, feature_billing="on").signup_enabled is True
+    assert Config(open_access=False, feature_billing="off").signup_enabled is False
+    for v in ("On", "TRUE", "1", "yes"):
+        assert Config(open_access=True, feature_billing=v).signup_enabled is True, v
+    for v in ("off", "False", "0", "no"):
+        assert Config(open_access=False, feature_billing=v).signup_enabled is False, v
+
+
+def test_no_ungated_signup_or_pricing_links_in_templates():
+    """Every /register and /pricing link must sit behind the flag. A missed one is a dead-end
+    for a visitor: the routes redirect, so an ungated button silently bounces them."""
+    import glob
+    tpl = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "valuation", "web", "templates")
+    offenders = []
+    for path in glob.glob(os.path.join(tpl, "*.html")):
+        name = os.path.basename(path)
+        if name == "pricing.html":
+            continue          # only reachable when the /pricing route already allows it
+        with open(path, encoding="utf-8") as fh:
+            src = fh.read()
+        if ('href="/register"' in src or 'href="/pricing"' in src) and "signup_enabled" not in src:
+            offenders.append(name)
+    assert not offenders, f"ungated signup/pricing links in: {offenders}"
+    # And the route guards themselves must exist, not just the template gating.
+    root = os.path.dirname(tpl.rsplit(os.sep + "web", 1)[0])
+    with open(os.path.join(root, "valuation", "saas", "auth.py"), encoding="utf-8") as fh:
+        auth_src = fh.read()
+    with open(os.path.join(root, "valuation", "saas", "app_saas.py"), encoding="utf-8") as fh:
+        app_src = fh.read()
+    assert "signup_enabled" in auth_src, "/register must be guarded at the route"
+    assert "signup_enabled" in app_src, "/pricing must be guarded at the route"
+
+
 def test_holdout_compare_panels_requires_the_committed_margin_both_ways():
     """Sector-neutral scoring rebuilds every z-score, so it is not a weight change and
     holdout_theme_validate cannot express it. Same discipline, different shape: split by time,

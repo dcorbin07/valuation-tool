@@ -193,9 +193,36 @@ class Config:
     open_access: bool = field(default_factory=lambda: _get("OPEN_ACCESS", "true").lower() != "false")
     demo_access_token: str = field(default_factory=lambda: _get("DEMO_ACCESS_TOKEN", "preview"))
 
+    # FEATURE_BILLING — explicit override for the signup/pricing SURFACES (the nav "Pricing"
+    # link, the "Get started" CTA, the /register and /pricing routes). Unset by default, in
+    # which case it follows OPEN_ACCESS: while the product is open and free there is no paid
+    # tier to advertise and no reason to push an account nobody needs.
+    #   unset (default) -> surfaces follow OPEN_ACCESS
+    #   "on"            -> force them visible (e.g. to test the paid flow while still open)
+    #   "off"           -> force them hidden
+    # Nothing is deleted: every route, template and Stripe path stays intact, so flipping
+    # OPEN_ACCESS=false (or FEATURE_BILLING=on) restores the paid, signup-required product
+    # exactly as it was.
+    feature_billing: str = field(default_factory=lambda: _get("FEATURE_BILLING", ""))
+
     @property
     def owner_email_set(self) -> set:
         return {e.strip().lower() for e in self.owner_emails.split(",") if e.strip()}
+
+    @property
+    def signup_enabled(self) -> bool:
+        """Show the signup + pricing surfaces at all?
+
+        One named concept so templates never test `not open_access` directly and re-enabling
+        is a single flag. LOGIN is deliberately NOT gated by this — existing accounts must
+        still be able to sign in when new signups are hidden.
+        """
+        v = (self.feature_billing or "").strip().lower()
+        if v in ("on", "true", "1", "yes"):
+            return True
+        if v in ("off", "false", "0", "no"):
+            return False
+        return not self.open_access
 
     @property
     def billing_enabled(self) -> bool:

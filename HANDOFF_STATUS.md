@@ -12,6 +12,43 @@ file directly.
 
 ---
 
+## Signup + Pricing hidden behind a flag (no paid tier exists yet)
+
+The site was still showing "Sign up" and "Pricing" with nothing to sell. Both are now gated on
+**`CONFIG.signup_enabled`** — a flag, not a deletion. Every route, template and Stripe path is
+intact.
+
+It **reuses the existing free-mode flag** rather than inventing a parallel one:
+`signup_enabled` defaults to `not OPEN_ACCESS` (open/free product → nothing to sign up for),
+with **`FEATURE_BILLING`** as an explicit override in either direction.
+
+| config | signup/pricing visible | Stripe checkout |
+|---|---|---|
+| `OPEN_ACCESS=true` (today) | **no** | no |
+| `OPEN_ACCESS=true`, `FEATURE_BILLING=on` | yes | no |
+| `OPEN_ACCESS=false` | yes | needs a Stripe key |
+
+**To re-enable later: set `OPEN_ACCESS=false` (or `FEATURE_BILLING=on`) in the environment.
+No code change.**
+
+Gated at the **route** as well as in the templates — `/register` redirects to `/app` and
+`/pricing` to `/`. Hiding a button leaves the URL reachable from a bookmark, a stale link or a
+search result, and a half-gated signup would create accounts the product no longer expects.
+
+Surfaces changed: nav Pricing link and "Get started" CTA, footer Pricing link, both landing
+CTAs, the beta banner's "Create free account", the login page's "No account?" line, and the
+account page's "Upgrade" button.
+
+**Deliberately NOT gated: login.** Existing accounts (including Don's) must still be able to
+sign in when new signups are hidden. Anonymous visitors get **"Open the app"** instead, which is
+accurate — `OPEN_ACCESS` already means no account is required for anything.
+
+Two tests pin it: the flag truth table, and a sweep asserting no template carries an ungated
+`/register` or `/pricing` link (an ungated button would now silently bounce a visitor, since the
+routes redirect).
+
+---
+
 ## P9b — headless book generation (`--full-universe`)
 
 `python -m valuation.edge.valquo_index --full-universe [DATA_DIR]` now builds the book by

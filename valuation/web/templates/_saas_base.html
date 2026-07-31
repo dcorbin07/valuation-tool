@@ -64,14 +64,19 @@
 {% include "_beta_banner.html" %}
 <div class="nav"><div class="in">
   <a href="/" class="logo">◆ Valquo</a>
-  <a href="/pricing">Pricing</a>
+  {# Pricing / signup are hidden while the product is open and free (signup_enabled — see
+   # config.py). Flag, not deletion: OPEN_ACCESS=false or FEATURE_BILLING=on brings them back. #}
+  {% if signup_enabled %}<a href="/pricing">Pricing</a>{% endif %}
   <div class="sp"></div>
   {% if user %}<a href="/app">Dashboard</a><a href="/account">Account</a><a href="/logout">Log out</a>
-  {% else %}<a href="/login">Log in</a><a href="/register" class="cta">Get started</a>{% endif %}
+  {% elif signup_enabled %}<a href="/login">Log in</a><a href="/register" class="cta">Get started</a>
+  {# No account needed: send anonymous visitors straight into the product. Log in stays for
+   # existing accounts, just without the signup push. #}
+  {% else %}<a href="/login">Log in</a><a href="/app" class="cta">Open the app</a>{% endif %}
 </div></div>
 {% block body %}{% endblock %}
 <footer><div class="disclaimer">
-  <div style="margin-bottom:10px"><a href="/terms">Terms</a> &nbsp;·&nbsp; <a href="/privacy">Privacy</a> &nbsp;·&nbsp; <a href="/pricing">Pricing</a></div>
+  <div style="margin-bottom:10px"><a href="/terms">Terms</a> &nbsp;·&nbsp; <a href="/privacy">Privacy</a>{% if signup_enabled %} &nbsp;·&nbsp; <a href="/pricing">Pricing</a>{% endif %}</div>
   <b>Not investment advice.</b> This is an educational research tool. Fair values and scores are model outputs and
   heuristics, not recommendations or price targets, and may be wrong. Nothing here is personalized advice. Markets involve
   risk of loss. Do your own research and consider consulting a licensed financial professional before investing.

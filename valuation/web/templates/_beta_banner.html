@@ -6,12 +6,13 @@
   <div style="max-width:1080px;margin:auto;padding:8px 22px;display:flex;align-items:center;gap:12px;font-size:13.5px;font-weight:600;line-height:1.4">
     <span style="flex:1">
       {% if is_demo %}
-        👋 <b>You're exploring the full app</b> — Premium unlocked, no sign-up needed. Want to keep it? Create a free account to save your work and <b>get ahead of the beta</b>. <span style="font-weight:500">Educational only, not investment advice.</span>
+        👋 <b>You're exploring the full app</b> — everything unlocked, no sign-up needed.{% if signup_enabled %} Want to keep it? Create a free account to save your work and <b>get ahead of the beta</b>.{% endif %} <span style="font-weight:500">Educational only, not investment advice.</span>
       {% else %}
         🚧 <b>Beta — in active development.</b> Everything is unlocked free while we build. <span style="font-weight:500">Educational only, not investment advice.</span>
       {% endif %}
     </span>
-    {% if is_demo %}
+    {# Signup CTA only when signups are actually open (config.signup_enabled). #}
+    {% if is_demo and signup_enabled %}
     <a href="/register" style="background:var(--navy);color:#fff;padding:6px 13px;border-radius:8px;font-size:13px;font-weight:700;white-space:nowrap;text-decoration:none">Create free account →</a>
     {% endif %}
     <button type="button" aria-label="Dismiss"

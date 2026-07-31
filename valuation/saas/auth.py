@@ -38,6 +38,13 @@ def _serializer(cfg):
 def register(app, store, cfg):
     @app.route("/register", methods=["GET", "POST"])
     def register_view():
+        # Signup is hidden while the product is open and free (CONFIG.signup_enabled — see
+        # config.py). Guarded at the ROUTE, not just in the templates: hiding a button leaves
+        # the endpoint reachable to anyone with the URL, a bookmark or a stale link, and a
+        # half-gated signup would create accounts the product no longer expects. Nothing is
+        # deleted — flip OPEN_ACCESS=false (or FEATURE_BILLING=on) and this returns as-is.
+        if not cfg.signup_enabled:
+            return redirect("/app")
         if request.method == "POST":
             if not request.form.get("agree"):
                 return render_template("register.html", error="Please accept the Terms and Privacy Policy."), 400

@@ -49,6 +49,9 @@ def create_saas_app(cfg=CONFIG):
         return {"user": u, "eff_tier": eff, "feats": gating.features(eff),
                 "open_access": cfg.open_access,
                 "billing_enabled": cfg.billing_enabled,
+                # Whether to show signup / pricing surfaces at all. Login is NOT gated by
+                # this — existing accounts must still be able to sign in.
+                "signup_enabled": cfg.signup_enabled,
                 "stripe_pk": cfg.stripe_publishable_key,
                 "beta_mode": cfg.beta_mode,
                 "is_demo": bool(u and u.get("is_demo"))}
@@ -251,6 +254,13 @@ def create_saas_app(cfg=CONFIG):
 
     @app.route("/pricing")
     def pricing():
+        # No paid tier exists while the product is open and free, so the pricing page is
+        # hidden too — a stale link or search result should not land on a plan comparison for
+        # plans nobody can buy. Route-level for the same reason as /register: hiding the nav
+        # link does not make the URL unreachable. Re-enable with OPEN_ACCESS=false or
+        # FEATURE_BILLING=on; the template and Stripe wiring are untouched.
+        if not cfg.signup_enabled:
+            return redirect("/")
         return render_template("pricing.html", tiers=gating.TIER_FEATURES)
 
     @app.route("/terms")
