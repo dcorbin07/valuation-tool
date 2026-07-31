@@ -62,6 +62,16 @@ FUND_TYPES = {"ETF", "MUTUALFUND", "MONEYMARKET", "CURRENCY", "INDEX", "FUND"}
 # the themes that do work. Restore by setting it back to 0.125 and rescaling.
 # The weights need not sum to 1: the backtest ranks on a weighted sum (scale-invariant) and
 # the live scorer renormalizes per name over whichever factors are present.
+# P6.4 (2026-07-30): momentum and institutional are +0.50 correlated, so consolidating them
+# into one theme weight was tested — and REJECTED. Full universe, and both time halves:
+#     current (.125/.125)      LS t 3.48   top-decile +11.77%   net alpha +11.41%   <- KEPT
+#     consolidated (.0625 ea)  LS t 2.53   top-decile  +9.21%   net alpha  +8.10%
+#     momentum only            LS t 2.86   top-decile +10.64%   net alpha +10.18%
+#     institutional only       LS t 2.33   top-decile  +9.40%   net alpha  +7.16%
+# +0.50 correlation still leaves ~75% of variance unshared: the two are COMPLEMENTARY, not
+# redundant, and both earn a full weight. (In the early half `current` and `momentum only`
+# are identical, because institutional has no data before 2013-06-30 — an independent check
+# on its 61.4% coverage.)
 WEIGHTS_ESTABLISHED = {"value": 0.125, "quality": 0.125, "momentum": 0.125, "insider": 0.125,
                        "low_risk": 0.0, "capital_discipline": 0.125, "sentiment": 0.0,
                        "size": 0.125, "institutional": 0.125}
@@ -116,6 +126,20 @@ NUMBER_THEME = {
     # counts actual managers rather than a vendor holder tally, so it replaces it in the
     # theme mean. The rejected three stay computed in the panel, so re-testing is one line.
     "sm_breadth": "institutional",
+    # P6.2 — trailing-twelve-month ROE/ROIC. TESTED AND REJECTED; kept here so they stay
+    # MEASURED (z-scored, in the per-signal IC table) but they are deliberately NOT in the
+    # quality mean in factors.py, so they do not score. Head-to-head on identical rows,
+    # full universe:
+    #     roe      +0.0439  t +2.84  cov 93.4%   <- KEPT (quarterly)
+    #     roe_ttm  +0.0279  t +2.01  cov 91.0%
+    #     roic     +0.0420  t +3.38  cov 96.7%   <- KEPT (quarterly)
+    #     roic_ttm +0.0354  t +2.57  cov 94.2%
+    # Smoothing over four quarters LOSES signal on both. The likely reason is recency: last
+    # quarter's profitability predicts the next quarter better than a smoothed year does, and
+    # that outweighs the fiscal-quarter seasonality TTM removes. So the ARQ quarterly figure
+    # is an advantage here, not the wart it was previously recorded as. Swapping them in is
+    # one edit to the quality list in factors.py if this is ever revisited.
+    "roe_ttm": "quality", "roic_ttm": "quality",
 }
 NUMBERS_ALL = list(NUMBER_THEME.keys())
 

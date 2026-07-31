@@ -130,6 +130,8 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     df["neg_ret_1m"] = _num("neg_ret_1m")                               # low-risk: short-term reversal
     df["neg_max_ret"] = _num("neg_max_ret")                             # low-risk: MAX / lottery effect
     df["neg_idio_vol"] = _num("neg_idio_vol")                           # low-risk: idiosyncratic vol
+    df["roe_ttm"] = _num("roe_ttm")                                     # quality: TTM ROE (measured only)
+    df["roic_ttm"] = _num("roic_ttm")                                   # quality: TTM ROIC (measured only)
     df["inst_breadth"] = _num("inst_breadth")                           # institutional: holder breadth
     df["sm_conviction"] = _num("sm_conviction")                         # SF3: sum(position / manager AUM)
     df["sm_breadth"] = _num("sm_breadth")                               # SF3: growth in holder count
