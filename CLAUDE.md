@@ -202,6 +202,14 @@ Don runs TWO agents on this project. They do not talk live; they sync through th
 - **Cowork** owns: the Robinhood connector (read-only account data + producing rebalance lists — NEVER
   execute trades), the tracked "Valquo Index vs SPY", scheduled scans/tasks, and phone/mobile sessions.
 
+**Git handoff — do NOT strand work on an unmerged branch (learned the hard way, July 2026).** Commit
+directly to `main` in the primary checkout. If your harness forces a git worktree, you MUST land the work
+on `main` before ending the session (`git checkout main && git merge --ff-only <branch>`) or hand Don the
+exact commands — twice the entire P5 + held-out-confirmation work sat unmerged on a worktree branch while
+`main` stayed on P4, and Don had to run the merge by hand to ship it. Don deploys from `main` with
+`git_push.bat`. On Windows PowerShell that means: paste commands on SEPARATE lines (not joined with `&&`,
+which its old shell rejects) and run the script as `.\git_push.bat`.
+
 When a task needs Cowork, say so plainly, e.g.: **"→ Take this to the Cowork chat — it needs the Robinhood
 connector, which I don't have here."** Cowork will likewise send Don back here for heavy backtests/code.
 After you commit changes, the Cowork agent sees them in the same folder next time Don opens it.
