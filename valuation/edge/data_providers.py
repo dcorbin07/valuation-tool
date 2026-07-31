@@ -260,7 +260,14 @@ class WRDSProvider(HistoricalDataProvider):
                          # rows. These three are what the panel needs to derive them itself:
                          # roe = netinc/equity, roic = ebit x (1-effective tax)/invcap, and
                          # the effective rate = taxexp/ebt. See _sf1_to_metrics.
-                         "invcap", "taxexp", "ebt"],
+                         "invcap", "taxexp", "ebt",
+                         # USD variants. `marketcap` and `ev` are USD but the raw line items
+                         # are in the company's REPORTING currency, so every value ratio
+                         # measured against them needs these (P7). `fxusd` is LOCAL UNITS PER
+                         # USD — divide by it, never multiply. There is no `netincusd`;
+                         # `netinccmnusd` is net income to common and is the right numerator
+                         # against market cap.
+                         "equityusd", "revenueusd", "ebitusd", "netinccmnusd", "fxusd"],
     }
 
     def __init__(self, cfg=CONFIG):

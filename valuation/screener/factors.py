@@ -108,7 +108,15 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     beta, rvol = _num("beta"), _num("realized_vol")
     cap_emp = td.fillna(0.0) + te                        # capital employed ≈ debt + book equity
 
-    df["book_to_price"] = np.where(mc > 0, te / mc, np.nan)             # value: cheapness on book
+    # Value: cheapness on book. Prefer a book_to_price the caller already computed — the
+    # backtest panel supplies it in USD (equityusd / market_cap), because `total_equity` is in
+    # the company's REPORTING currency while market cap is USD, and dividing one by the other
+    # handed foreign reporters a fake cheapness of up to ~1,500x. `total_equity` itself stays
+    # local on purpose: gp_on_capital below divides local gross profit by it, and that ratio is
+    # only correct while BOTH sides stay in the same currency.
+    _b2p = _num("book_to_price")
+    df["book_to_price"] = np.where(_b2p.notna(), _b2p,
+                                   np.where(mc > 0, te / mc, np.nan))
     df["gp_on_capital"] = np.where(cap_emp > 0, gp / cap_emp, np.nan)   # quality: Novy-Marx gross profitability
     df["fcf_margin"] = np.where(rev > 0, fcf / rev, np.nan)             # quality: cash profitability
     df["accruals_q"] = np.where(ni > 0, fcf / ni, np.nan)              # quality: earnings backed by cash (Sloan)

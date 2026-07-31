@@ -101,6 +101,27 @@ the project's memory and the old versions had been repeated for months.
   (API-only, not one of the four bulk tables). Note when doing it: TICKERS gives TODAY's
   classification, so applying it to 1998 rows is a mild look-ahead — usually considered benign
   (reclassification is rare and not return-predictive) but say so rather than hide it.
+- **P7: THE VALUE THEME WAS CURRENCY-CORRUPTED and is now fixed.** `marketcap`/`ev` are USD but
+  the raw line items are in the REPORTING currency, so every value ratio was wrong for the 4.1%
+  of rows that report abroad — SK Telecom's `book_to_price` computed to **892 vs a true 0.589**.
+  All six value inputs improved after the fix (**value theme t +1.34 → +1.46**), **PBO halved
+  13.3% → 6.7%**, monotonicity −0.939 → −0.952, top-decile alpha +11.77% → +11.82%. Foreign
+  over-representation in the top decile went **1.35x → 0.56x**; in the live book, foreign names
+  fell from 21 of 86 positions (28.3% of weight) to 11 (10.7%).
+- **`fxusd` IS A DIVISOR, NOT A MULTIPLIER** — local units per USD (SKM 1514.2 won/USD). Using
+  it as a multiplier squares the error. There is **no `netincusd`** column; use `netinccmnusd`.
+  `total_equity` must stay LOCAL — `gp_on_capital` divides local gross profit by it.
+- **P8: a SANITY layer now runs every backtest** (`sanity_check` block): range / subgroup-pegging
+  / market-cap divergence. Coverage says a factor is PRESENT, this says it is SANE — the
+  currency bug filled every column and coverage was blind to it. Verified it WOULD have caught
+  P7 (foreign names sat at the 86th percentile of book_to_price and earnings_yield pre-fix).
+  It legitimately fires twice on corrected data (foreign names really are large caps; 1.45% of
+  rows have a >3x market-cap divergence, AIV 71x / EQC 53x). **Do not silence a flag to make the
+  run green** — investigate it or record why it is expected.
+- **CODE_AUDIT.md's M2 (SanDisk/WDC ~10x) does NOT reproduce.** DAILY cap and shares x price
+  agree to 1.6x, the share count is plausible, and the price ran 29.6x over 17 months with zero
+  discontinuities (WDC 10.3x, MU 8.5x — the whole storage complex). If it is wrong the error is
+  upstream in the PRICE, which both estimates share. Unresolved, not fixed.
 - **Standing caveats, do not drop them:** Deflated Sharpe is a *saturated* 0.9999991, not a
   proof. Both halves of the held-out test come from the same 18-year panel and universe, and
   the size-cancellation mechanism was hypothesised on the full sample — so the *decision* is

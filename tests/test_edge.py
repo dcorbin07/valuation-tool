@@ -890,6 +890,172 @@ def test_theme_ic_measures_each_theme_and_reaches_the_results_file():
     assert "Per-theme" in render_md(p)
 
 
+def _fx_row(fx=1.0, **over):
+    """A Sharadar row for a company reporting in a currency `fx` units per USD."""
+    row = {"datekey": "2024-05-15", "fxusd": fx,
+           "equity": 800.0 * fx, "equityusd": 800.0,
+           "revenue": 500.0 * fx, "revenueusd": 500.0,
+           "ebit": 150.0 * fx, "ebitusd": 150.0,
+           "netinc": 100.0 * fx, "netinccmnusd": 100.0,
+           "fcf": 90.0 * fx, "ev": 5000.0, "invcap": 1000.0 * fx,
+           "taxexp": 30.0 * fx, "ebt": 150.0 * fx, "assets": 2000.0 * fx,
+           "gp": 250.0 * fx, "ebitda": 200.0 * fx, "debt": 200.0 * fx,
+           "cashneq": 50.0 * fx, "intexp": 10.0 * fx, "sharesbas": 1e8}
+    row.update(over)
+    return row
+
+
+def test_fxusd_is_a_divisor_not_a_multiplier():
+    """The single most dangerous detail in P7. Sharadar's `fxusd` is LOCAL UNITS PER USD
+    (SKM 1514.2 won/USD), so USD = local / fxusd. Using it as a multiplier would SQUARE the
+    currency error instead of fixing it — ~2.3 million x for SK Telecom."""
+    from valuation.edge.fundamental_panel import _usd_divisor
+    assert _usd_divisor(_fx_row(fx=1514.2)) == 1514.2
+    assert _usd_divisor(_fx_row(fx=1.0)) == 1.0
+    # Derived from any local/USD pair when fxusd is absent...
+    no_fx = _fx_row(fx=160.0)
+    no_fx.pop("fxusd")
+    assert abs(_usd_divisor(no_fx) - 160.0) < 1e-9
+    # ...and 1.0 (a USD reporter) when nothing identifies the currency.
+    assert _usd_divisor({"datekey": "2024-05-15", "equity": 800.0}) == 1.0
+    assert _usd_divisor({"fxusd": 0}) == 1.0        # never divide by zero
+
+
+def test_value_ratios_are_currency_invariant():
+    """The P7 fix, stated as the property that matters: two IDENTICAL companies whose only
+    difference is reporting currency must receive IDENTICAL value ratios. Before the fix, the
+    won-reporting one got a book_to_price ~1,500x higher and swept the top decile."""
+    from valuation.edge.fundamental_panel import _sf1_to_metrics
+    usd = _sf1_to_metrics("US", _fx_row(fx=1.0), price=50.0, market_cap=10_000.0)
+    won = _sf1_to_metrics("KR", _fx_row(fx=1514.2), price=50.0, market_cap=10_000.0)
+    for k in ("book_to_price", "earnings_yield", "fcf_yield", "ebit_ev", "ev_sales", "ps"):
+        assert usd[k] is not None, k
+        assert abs(usd[k] - won[k]) < 1e-9, f"{k}: {usd[k]} vs {won[k]} — currency leaked in"
+    # And the actual values are right, not merely equal.
+    assert abs(usd["book_to_price"] - 800.0 / 10_000.0) < 1e-12
+    assert abs(usd["earnings_yield"] - 100.0 / 10_000.0) < 1e-12
+    assert abs(usd["ebit_ev"] - 150.0 / 5000.0) < 1e-12
+    assert abs(usd["ev_sales"] - 5000.0 / 500.0) < 1e-12
+    assert abs(usd["ps"] - 10_000.0 / 500.0) < 1e-12
+    assert won["_is_foreign"] is True and usd["_is_foreign"] is False
+    # SAME-CURRENCY ratios must be untouched by the fix (local/local was always correct) —
+    # and they too must be currency-invariant, for the opposite reason.
+    for k in ("roe", "roic", "op_margin", "gross_margin", "net_debt_to_ebitda"):
+        assert abs(usd[k] - won[k]) < 1e-9, f"{k} changed: {usd[k]} vs {won[k]}"
+    assert abs(usd["op_margin"] - 150.0 / 500.0) < 1e-12
+    assert abs(usd["roe"] - 100.0 / 800.0) < 1e-12
+
+
+def test_book_to_price_uses_the_panel_value_not_local_equity():
+    """build_frame must not recompute book_to_price from `total_equity`, which stays in the
+    LOCAL currency on purpose (gp_on_capital divides local gross profit by it)."""
+    from valuation.screener.factors import build_frame
+    metrics = [{"ticker": f"T{i}", "price": 10.0, "market_cap": 1e10,
+                "net_income": 5.0, "operating_income": 6.0,
+                "total_equity": 8e12,          # local currency — must NOT drive book_to_price
+                "gross_profit": 2e12,
+                "book_to_price": 0.5 + 0.01 * i}  # USD, supplied by the panel
+               for i in range(20)]
+    fr = build_frame(metrics, sector_neutral=False, residual_momentum=False)
+    assert abs(float(fr["book_to_price"].iloc[3]) - 0.53) < 1e-9, fr["book_to_price"].iloc[3]
+    # gp_on_capital still uses LOCAL equity, so it must stay a same-currency ratio.
+    assert fr["gp_on_capital"].notna().all()
+    # A provider that supplies no book_to_price still falls back to equity/market cap.
+    for m in metrics:
+        m.pop("book_to_price")
+        m["total_equity"] = 2e9
+    fr2 = build_frame(metrics, sector_neutral=False, residual_momentum=False)
+    assert abs(float(fr2["book_to_price"].iloc[0]) - 0.2) < 1e-9
+
+
+def _sanity_panel(n_dates=6, n=60, foreign_frac=0.1, corrupt=False):
+    rng = np.random.default_rng(12)
+    rows = []
+    for d in range(n_dates):
+        for i in range(n):
+            foreign = i < int(n * foreign_frac)
+            div = 1000.0 if foreign else 1.0
+            b2p = float(abs(rng.normal(0.5, 0.2)))
+            rows.append({"date": f"2024-{d+1:02d}-01", "ticker": f"T{i}",
+                         "fwd_ret": float(rng.normal(0, 0.05)), "bench_ret": 0.01,
+                         "is_foreign": foreign, "fx_divisor": div, "mc_ratio": 1.0,
+                         "raw_book_to_price": b2p * (div if corrupt else 1.0),
+                         "raw_earnings_yield": 0.02, "raw_fcf_yield": 0.02,
+                         "raw_ebit_ev": 0.03, "raw_ev_sales": 3.0, "raw_ps": 2.0,
+                         "z_book_to_price": float(rng.normal())})
+    return pd.DataFrame(rows)
+
+
+def test_sanity_check_catches_the_currency_bug_and_is_quiet_when_clean():
+    """P8's reason to exist: signal_coverage sees a factor is PRESENT; this sees it is SANE.
+    The currency bug filled every column and was simply wrong, so coverage was blind to it."""
+    from valuation.edge.fundamental_panel import sanity_check
+    clean = sanity_check(_sanity_panel(corrupt=False), warn=False)
+    assert clean["available"] is True
+    assert clean["flags"] == [], clean["flags"]          # must not cry wolf on good data
+
+    bad = sanity_check(_sanity_panel(corrupt=True), warn=False)
+    kinds = {f["check"] for f in bad["flags"]}
+    assert bad["flags"], "the currency signature must be flagged"
+    assert "subgroup" in kinds or "range" in kinds, kinds
+    hit = [f for f in bad["flags"] if f.get("factor") == "book_to_price"]
+    assert hit, bad["flags"]
+    # The foreign subgroup must be reported as pegged near the top of book_to_price.
+    peg = (bad["checks"]["subgroup"] or {}).get("foreign_median_percentile") or {}
+    assert peg.get("book_to_price", 0) > 0.9, peg
+
+
+def test_sanity_check_flags_market_cap_divergence():
+    """Recycled / spun-off tickers inherit a parent's DAILY history — SanDisk showed $337B,
+    ~10x reality, polluting `size` and the cost model."""
+    from valuation.edge.fundamental_panel import sanity_check
+    p = _sanity_panel()
+    p.loc[p.index[:60], "mc_ratio"] = 10.0          # a chunk of rows 10x off
+    r = sanity_check(p, warn=False)
+    mcf = [f for f in r["flags"] if f["check"] == "market_cap"]
+    assert mcf, r["flags"]
+    assert r["checks"]["market_cap"]["share_diverging"] > 0.01
+    assert r["checks"]["market_cap"]["worst"], "must name the worst offenders"
+    # Ratios near 1.0 must not flag.
+    assert not [f for f in sanity_check(_sanity_panel(), warn=False)["flags"]
+                if f["check"] == "market_cap"]
+
+
+def test_sanity_check_warn_path_does_not_raise():
+    """Regression: the warn branch wrote to the `sys` MODULE instead of `sys.stderr`, raising
+    AttributeError. run_backtests catches everything, so the whole validation block was
+    skipped and a canonical results file was written with every metric null — a full run
+    silently lost. The warning path has to be exercised, not just the quiet one."""
+    from valuation.edge.fundamental_panel import sanity_check
+    r = sanity_check(_sanity_panel(corrupt=True), warn=True)     # must not raise
+    assert r["flags"]
+    assert sanity_check(_sanity_panel(corrupt=False), warn=True)["flags"] == []
+
+
+def test_results_file_surfaces_a_degraded_run():
+    """A block that threw leaves every metric null, which reads as 'ran, found nothing'
+    rather than 'broke'. The file must say which is which."""
+    from valuation.edge.results_file import build_payload, render_md
+    ok = build_payload({"horizons": {}, "cpcv": {}, "construction": {}})
+    assert ok["errors"] == []
+    bad = build_payload({"horizons": {}, "cpcv": {"status": "error: boom"},
+                         "construction": {"status": "error: boom"}})
+    assert {e["block"] for e in bad["errors"]} == {"cpcv", "construction"}
+    md = render_md(bad)
+    assert "DEGRADED RUN" in md and "boom" in md
+    assert "DEGRADED RUN" not in render_md(ok)
+
+
+def test_sanity_check_degrades_safely():
+    from valuation.edge.fundamental_panel import sanity_check
+    assert sanity_check(pd.DataFrame(), warn=False)["available"] is False
+    # A panel with no diagnostic columns (keep_numbers=False) must not raise.
+    bare = pd.DataFrame({"date": ["2024-01-01"] * 30, "ticker": [f"T{i}" for i in range(30)],
+                         "fwd_ret": np.linspace(-0.1, 0.1, 30)})
+    r = sanity_check(bare, warn=False)
+    assert r["available"] is True and r["flags"] == []
+
+
 def test_index_reports_missing_sector_data_honestly():
     """The Sharadar export carries no sector column, so every position's sector is "". The
     old code emitted {"": 1.0}, which reads downstream as "one real sector holds the whole

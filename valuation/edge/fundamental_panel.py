@@ -164,8 +164,54 @@ def _ttm_quality(m, rows, as_of) -> None:
         m["roic_ttm"] = t["ebit"] * (1.0 - rate) / invcap
 
 
+def _usd_divisor(sf1) -> float:
+    """Local-currency units per USD, so `usd = local / divisor`.
+
+    CAREFUL — Sharadar's `fxusd` is units of LOCAL currency per USD, not the multiplier:
+    SKM 1514.2 (won/USD), TSM 31.64 (TWD/USD), IX 160 (JPY/USD), AAPL 1.0. Verified against
+    the shipped USD columns: `equityusd/equity == revenueusd/revenue == ebitusd/ebit ==
+    1/fxusd` exactly, for every foreign name checked. Using fxusd as a MULTIPLIER would square
+    the currency error rather than fix it (~2.3 million x for SKM).
+
+    Falls back to deriving the ratio from any local/USD pair, then to 1.0 (a USD reporter).
+    """
+    f = _f(sf1, "fxusd")
+    if f is not None and f > 0:
+        return f
+    for u_key, l_key in (("equityusd", "equity"), ("revenueusd", "revenue"),
+                         ("ebitusd", "ebit")):
+        u, l = _f(sf1, u_key), _f(sf1, l_key)
+        if u is not None and l is not None and u != 0 and l != 0:
+            r = l / u
+            if r > 0:
+                return r
+    return 1.0
+
+
+def _to_usd(sf1, usd_key, local_value, divisor):
+    """Sharadar's own USD column when present, else the local value converted."""
+    v = _f(sf1, usd_key) if usd_key else None
+    if v is not None:
+        return v
+    if local_value is None:
+        return None
+    return local_value / divisor if divisor else local_value
+
+
 def _sf1_to_metrics(ticker, sf1, price, market_cap) -> dict:
-    """Map a Sharadar SF1 (ARQ) row → our metrics dict, valued at the as-of price."""
+    """Map a Sharadar SF1 (ARQ) row → our metrics dict, valued at the as-of price.
+
+    CURRENCY (P7): `marketcap` and `ev` are USD, but the raw line items are in the company's
+    REPORTING currency. Every value ratio that divides a fundamental against market cap or EV
+    therefore has to use the USD figure, or foreign reporters are handed a fake cheapness of
+    up to ~1,500x (SK Telecom's book_to_price computed to 892 against a true 0.59) and sweep
+    the top decile. 4.1% of panel rows report in a foreign currency and ALL of them were
+    pushed the same direction.
+
+    Same-currency ratios are deliberately left on the raw fields — roe, roic, op_margin,
+    gross_margin, net_debt_to_ebitda all divide local by local and are already correct.
+    Converting them would be a no-op at best and a new bug at worst.
+    """
     rev, ni, ebit = _f(sf1, "revenue"), _f(sf1, "netinc"), _f(sf1, "ebit")
     ebitda, gp, fcf = _f(sf1, "ebitda"), _f(sf1, "gp"), _f(sf1, "fcf")
     equity, debt, cash = _f(sf1, "equity"), _f(sf1, "debt"), _f(sf1, "cashneq")
@@ -191,21 +237,37 @@ def _sf1_to_metrics(ticker, sf1, price, market_cap) -> dict:
         invcap = _f(sf1, "invcap")
         if invcap and invcap > 0:
             roic = ebit * (1.0 - _eff_tax_rate(sf1)) / invcap
+    # --- USD figures for every ratio measured against market cap or EV (both USD) ---
+    div = _usd_divisor(sf1)
+    eq_usd = _to_usd(sf1, "equityusd", equity, div)
+    rev_usd = _to_usd(sf1, "revenueusd", rev, div)
+    ebit_usd = _to_usd(sf1, "ebitusd", ebit, div)
+    # No `netincusd` column exists in this export; `netinccmnusd` (net income to COMMON, USD)
+    # is the better numerator against market cap anyway, since market cap is common equity.
+    ni_usd = _to_usd(sf1, "netinccmnusd", ni, div)
+    fcf_usd = _to_usd(sf1, None, fcf, div)        # no fcfusd column — convert
+    is_foreign = abs(div - 1.0) > 1e-9
+
     return {
         "ticker": ticker, "sector": "", "price": price, "market_cap": mc,
         "revenue": rev, "net_income": ni, "operating_income": ebit, "fcf": fcf,
         "gross_profit": gp, "total_debt": debt, "total_equity": equity, "interest_expense": intexp,
-        "earnings_yield": (ni / mc) if (ni is not None and mc) else None,
-        "fcf_yield": (fcf / mc) if (fcf is not None and mc) else None,
-        "ebit_ev": (ebit / ev) if (ebit is not None and ev) else None,
-        "ev_sales": (ev / rev) if (ev and rev) else None,
-        "ps": (mc / rev) if (mc and rev) else None,
+        # VALUE ratios — USD numerator/denominator on both sides (P7).
+        "book_to_price": (eq_usd / mc) if (eq_usd is not None and mc) else None,
+        "earnings_yield": (ni_usd / mc) if (ni_usd is not None and mc) else None,
+        "fcf_yield": (fcf_usd / mc) if (fcf_usd is not None and mc) else None,
+        "ebit_ev": (ebit_usd / ev) if (ebit_usd is not None and ev) else None,
+        "ev_sales": (ev / rev_usd) if (ev and rev_usd) else None,
+        "ps": (mc / rev_usd) if (mc and rev_usd) else None,
+        # SAME-CURRENCY ratios — local/local, already correct, deliberately untouched.
         "op_margin": (ebit / rev) if (ebit is not None and rev) else _f(sf1, "ebitmargin"),
         "gross_margin": (gp / rev) if (gp is not None and rev) else _f(sf1, "grossmargin"),
         "roic": roic, "roe": roe, "net_debt_to_ebitda": ndte,
         # beta is filled in by _price_extras (regression vs the benchmark); None here so a
         # row whose window is too short simply has no beta rather than a stale one.
         "revenue_growth": None, "beta": None,
+        # Diagnostics for the P8 sanity layer — not scored.
+        "_is_foreign": is_foreign, "_fx_divisor": div,
     }
 
 
@@ -853,8 +915,14 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                         # Average commitment per holder — a few big believers vs many
                         # index-tracking token positions.
                         m["sm_avg_position"] = float(val) / float(holders)
-            # Diagnostic only: which market-cap source this row used.
+            # Diagnostic only: which market-cap source this row used, and how far the DAILY
+            # market cap sits from shares x price. A recycled/spun-off ticker (SanDisk out of
+            # Western Digital in 2025) inherits the parent's DAILY history and shows ~10x its
+            # true cap, which pollutes `size` and the cost model. Ratio, not a hard reject —
+            # a legitimate multi-share-class name diverges too, so this is a flag for P8.
             m["_mc_src"] = mc_src
+            _derived_mc = float(closes[i]) * shares * (_f(sf1, "sharefactor") or 1.0)
+            m["_mc_ratio"] = (mc / _derived_mc) if _derived_mc > 0 else None
             gr = _grades_at(grd.get(t), as_of)
             if gr is not None:
                 m["rating_rev"] = gr[0]                           # → sentiment theme
@@ -878,6 +946,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         if len(metrics) < 10:
             continue
         from ..screener.factors import build_frame
+        _by_ticker = {m["ticker"]: m for m in metrics}
         fr = build_frame(metrics, sector_neutral=False, residual_momentum=False)
         for t, r in fr.iterrows():
             fr_ret = fwd.get(t)
@@ -894,6 +963,16 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                     zc = "z_" + num
                     v = r.get(zc) if zc in fr.columns else None
                     row[zc] = None if (v is None or pd.isna(v)) else float(v)
+                # Diagnostics for sanity_check: the subgroup label, the market-cap divergence,
+                # and the RAW value ratios (the z-scores alone can't reveal an implausible
+                # LEVEL, which is exactly what the currency bug produced).
+                _src = _by_ticker.get(t) or {}
+                row["is_foreign"] = bool(_src.get("_is_foreign"))
+                row["fx_divisor"] = _src.get("_fx_divisor")
+                row["mc_ratio"] = _src.get("_mc_ratio")
+                for _rr in tuple(SANE_RANGES) + SANE_RANGE_EXEMPT:
+                    v = _src.get(_rr)
+                    row["raw_" + _rr] = None if v is None else float(v)
             rows.append(row)
     return pd.DataFrame(rows)
 
@@ -984,7 +1063,7 @@ def score_universe_now(provider, tickers, benchmark="SPY", lookback_years=3,
     _cut1 = str((cal[i] - pd.Timedelta(days=365)).date())
     _cut2 = str((cal[i] - pd.Timedelta(days=730)).date())
     _cut3 = str((cal[i] - pd.Timedelta(days=45)).date())
-    metrics = []
+    metrics, dropped_mc = [], []
     for t in px:
         if t not in fresh or t == benchmark:
             continue
@@ -998,10 +1077,33 @@ def score_universe_now(provider, tickers, benchmark="SPY", lookback_years=3,
         if not shares:
             continue
         _d = _daily_at(dly.get(t), asof)
-        mc = (float(_d[0]) * 1e6 if (_d and _d[0])
-              else float(closes[i]) * shares * (_f(sf1, "sharefactor") or 1.0))
+        _derived_mc = float(closes[i]) * shares * (_f(sf1, "sharefactor") or 1.0)
+        mc = (float(_d[0]) * 1e6 if (_d and _d[0]) else _derived_mc)
         if mc < S.MIN_MARKET_CAP_MM * 1e6:
             continue
+        # Recycled / spun-off tickers can inherit a parent's DAILY history, so DAILY market cap
+        # and shares x price disagree wildly (AIV 71x, EQC 53x on the panel). A book is meant to
+        # be traded, and a name whose SIZE cannot be established has no business in it — market
+        # cap drives large-cap eligibility, position sizing and the cost model. When the two
+        # independent estimates disagree by more than MC_DIVERGENCE_FACTOR we cannot tell which
+        # is right, so the name is dropped rather than shown at a number nobody should trust.
+        #
+        # NOTE — this does NOT catch the SanDisk/WDC case the code audit attributed to it, and
+        # investigation says that case is not this bug: SNDK's DAILY cap ($336.7B) and its
+        # shares x price ($212.7B) agree to 1.6x, its 148M share count is plausible, and its
+        # price ran 48.60 -> 1436.56 over 17 months with ZERO day-over-day discontinuities
+        # (WDC 10.3x, MU 8.5x — the whole storage complex moved together). The figure is
+        # internally consistent; if it is still wrong, the error is upstream in the PRICE, which
+        # both estimates share and no cross-check between them can see.
+        #
+        # The BACKTEST deliberately keeps these rows and only flags them (sanity_check), so the
+        # validated history is never silently re-cut by a guard added later.
+        if _derived_mc > 0:
+            _ratio = mc / _derived_mc
+            if _ratio > MC_DIVERGENCE_FACTOR or _ratio < 1.0 / MC_DIVERGENCE_FACTOR:
+                dropped_mc.append({"ticker": t, "daily_mc": mc, "derived_mc": _derived_mc,
+                                   "ratio": _ratio})
+                continue
         m = _sf1_to_metrics(t, sf1, float(closes[i]), mc)
         cl = closes.tolist()
         m.update(_price_factors(cl, i))
@@ -1063,7 +1165,10 @@ def score_universe_now(provider, tickers, benchmark="SPY", lookback_years=3,
                      "hot_score": float(r["hot_score"]), "composite": float(r["composite"]),
                      "rank": int(r["rank"])})
     rows.sort(key=lambda x: x["rank"])
-    return {"as_of": asof, "rows": rows}
+    if dropped_mc:
+        _prog(f"dropped {len(dropped_mc)} name(s) on market-cap divergence: "
+              + ", ".join(f"{d['ticker']} ({d['ratio']:.0f}x)" for d in dropped_mc[:6]))
+    return {"as_of": asof, "rows": rows, "dropped_mc_divergence": dropped_mc}
 
 
 def _backtest(panel, cols, weights, top_n=20, horizon=252):
@@ -2281,6 +2386,163 @@ def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,
 # its 10 inputs and low_risk on 1 of its 2, for every run in this project's history).
 # 5% is deliberately far below any plausible real coverage: even the institutional theme,
 # whose source data does not start until 2013, sits above 80%.
+# --------------------------------------------------------------------------------------- #
+# P8 — CORRECTNESS layer. signal_coverage() checks a factor is PRESENT; this checks it is
+# SANE. Four foundation bugs have now shipped with the same signature — the run completes,
+# raises nothing, and a factor is silently wrong — and coverage caught only the two that left
+# a column EMPTY. The currency bug (P7) filled every column and was simply incorrect.
+#
+# Plausible cross-sectional bounds for each ratio factor. Generous on purpose: the job is to
+# catch a 1,500x error, not to police a fat tail. A quarterly earnings yield of 5 means the
+# company earned five times its market cap in three months.
+# CALIBRATED against the known-broken (pre-P7) and known-good (post-P7) values on the same
+# rows, so each band demonstrably separates them instead of being a guess. Bands are two-sided
+# and generous: NEGATIVE book equity and negative EV (net cash above market cap) are both
+# legitimate, and an early band of [0, 25] on book_to_price flagged 6.1% of perfectly good
+# rows. A guard that always fires trains you to ignore it.
+#
+#   factor           band          flagged on FIXED   on BROKEN
+#   book_to_price    [-50, 50]           0.005%         0.285%    <- separates well
+#   fcf_yield        [-10, 10]           0.022%         0.028%
+#   ebit_ev          [-25, 25]           0.033%         0.039%
+#   earnings_yield   [-10, 10]           ~0%            ~0%       <- range can't see it
+#
+# `ev_sales` and `ps` are deliberately NOT range-checked: their tails are driven by
+# near-zero-revenue companies (a real |max| of 2.9M on good data), negative EV is legitimate,
+# and the band flagged identical shares before and after the fix — a pure no-op. The SUBGROUP
+# check below is what covers them.
+SANE_RANGES = {
+    "book_to_price": (-50.0, 50.0),
+    "earnings_yield": (-10.0, 10.0),   # quarterly earnings / market cap
+    "fcf_yield": (-10.0, 10.0),
+    "ebit_ev": (-25.0, 25.0),
+}
+# Ratios measured but intentionally exempt from the range check (see above).
+SANE_RANGE_EXEMPT = ("ev_sales", "ps")
+SANE_VIOLATION_SHARE = 0.01        # >1% of rows outside the band = systematic, not a fat tail
+# A subgroup whose MEDIAN percentile sits this high/low is pegged. 0.70 verified against the
+# pre-P7 values: it catches 4 of the 6 corrupted value ratios (book_to_price and
+# earnings_yield reached 0.86 alone) with ZERO false positives on the corrected data, where
+# every factor lands in 0.49-0.61. This is a detector threshold tuned on known-bad vs
+# known-good data — it affects no return and no weight, so it is not the kind of
+# after-the-fact tuning holdout_theme_validate exists to prevent.
+SUBGROUP_PEG_PCTILE = 0.70
+MC_DIVERGENCE_FACTOR = 3.0         # DAILY market cap vs shares x price
+MC_DIVERGENCE_SHARE = 0.01
+
+
+def sanity_check(panel, ranges=None, warn=True) -> dict:
+    """Post-panel correctness pass: are the factor VALUES believable?
+
+    Three checks, each aimed at a bug class that has actually shipped here:
+
+      range      — every ratio factor inside a plausible cross-sectional band. Catches the
+                   currency bug directly (SKM's book_to_price was 892).
+      subgroup   — does an identifiable subgroup systematically PEG a factor? Foreign
+                   reporters are free to identify (fxusd != 1), and "every foreign name is in
+                   the top 2% of book_to_price" is precisely the currency signature. This is
+                   the check that would have caught P7 on its first run.
+      market_cap — DAILY market cap vs shares x price. Catches recycled/spun-off tickers
+                   inheriting a parent's history (SanDisk showing $337B, ~10x reality).
+
+    Needs a panel built with keep_numbers=True. Returns flags, never raises: a backtest that
+    dies on a data quirk gets the check deleted, one that reports loudly gets it fixed.
+    """
+    ranges = ranges or SANE_RANGES
+    out = {"available": False, "checks": {}, "flags": []}
+    if panel is None or panel.empty:
+        return out
+    n = float(len(panel))
+    out["available"] = True
+
+    # ---- 1. sane ranges on the raw ratio levels ----
+    rng = {}
+    for name, (lo, hi) in ranges.items():
+        col = "raw_" + name
+        if col not in panel.columns:
+            continue
+        s = pd.to_numeric(panel[col], errors="coerce").dropna()
+        if s.empty:
+            continue
+        bad = int(((s < lo) | (s > hi)).sum())
+        share = bad / float(len(s))
+        rng[name] = {"n": int(len(s)), "outside": bad, "share": share,
+                     "lo": lo, "hi": hi,
+                     "p01": float(s.quantile(0.01)), "median": float(s.median()),
+                     "p99": float(s.quantile(0.99)), "max_abs": float(s.abs().max())}
+        if share > SANE_VIOLATION_SHARE:
+            out["flags"].append({
+                "check": "range", "factor": name, "share_outside": share,
+                "band": [lo, hi], "p99": rng[name]["p99"], "max_abs": rng[name]["max_abs"],
+                "detail": f"{share:.2%} of rows outside [{lo}, {hi}] — systematic, not a fat tail"})
+    out["checks"]["range"] = rng
+
+    # ---- 2. subgroup pegging ----
+    sub = {}
+    if "is_foreign" in panel.columns:
+        flag = panel["is_foreign"].fillna(False).astype(bool)
+        n_for = int(flag.sum())
+        sub["foreign"] = {"n_rows": n_for, "share_of_rows": n_for / n}
+        if n_for and n_for < len(panel):
+            per_factor = {}
+            for name in (list(ranges) + list(SANE_RANGE_EXEMPT)
+                         + [c[2:] for c in panel.columns if c.startswith("z_")]):
+                col = "raw_" + name if "raw_" + name in panel.columns else "z_" + name
+                if col not in panel.columns:
+                    continue
+                s = pd.to_numeric(panel[col], errors="coerce")
+                if s.notna().sum() < 100:
+                    continue
+                # Percentile rank WITHIN each date, so a subgroup tilt can't be a time effect.
+                pct = s.groupby(panel["date"]).rank(pct=True)
+                med = float(pct[flag].median()) if pct[flag].notna().any() else float("nan")
+                if med != med:
+                    continue
+                per_factor[name] = med
+                if med >= SUBGROUP_PEG_PCTILE or med <= (1.0 - SUBGROUP_PEG_PCTILE):
+                    out["flags"].append({
+                        "check": "subgroup", "factor": name, "subgroup": "foreign_reporters",
+                        "median_percentile": med, "n_rows": n_for,
+                        "detail": (f"foreign reporters sit at the {med:.0%} percentile of "
+                                   f"{name} — a subgroup should not systematically peg a factor")})
+            sub["foreign_median_percentile"] = dict(
+                sorted(per_factor.items(), key=lambda kv: -abs(kv[1] - 0.5)))
+    out["checks"]["subgroup"] = sub
+
+    # ---- 3. market-cap divergence ----
+    mc = {}
+    if "mc_ratio" in panel.columns:
+        s = pd.to_numeric(panel["mc_ratio"], errors="coerce").dropna()
+        s = s[s > 0]
+        if not s.empty:
+            bad = ((s > MC_DIVERGENCE_FACTOR) | (s < 1.0 / MC_DIVERGENCE_FACTOR))
+            share = float(bad.mean())
+            worst = panel.loc[s[bad].sort_values(ascending=False).index[:10], ["ticker", "mc_ratio"]] \
+                if bad.any() else None
+            mc = {"n": int(len(s)), "median_ratio": float(s.median()),
+                  "share_diverging": share, "factor": MC_DIVERGENCE_FACTOR,
+                  "worst": ([{"ticker": str(t), "ratio": float(r)}
+                             for t, r in worst.drop_duplicates("ticker").values[:10]]
+                            if worst is not None else [])}
+            if share > MC_DIVERGENCE_SHARE:
+                out["flags"].append({
+                    "check": "market_cap", "share_diverging": share,
+                    "detail": (f"{share:.2%} of rows have DAILY market cap more than "
+                               f"{MC_DIVERGENCE_FACTOR}x from shares x price — recycled or "
+                               f"spun-off tickers inheriting a parent's history")})
+    out["checks"]["market_cap"] = mc
+
+    if warn and out["flags"]:
+        import sys as _s
+        print(f"[sanity] WARNING: {len(out['flags'])} correctness flag(s) — a factor is "
+              f"POPULATED but implausible. Coverage cannot see this class of bug:",
+              file=_s.stderr, flush=True)
+        for f in out["flags"][:20]:
+            print(f"[sanity]   {f['check']:10s} {f.get('factor', ''):18s} {f['detail']}",
+                  file=_s.stderr, flush=True)
+    return out
+
+
 COVERAGE_FLOOR = 0.05
 
 # Themes exempt from the coverage warning because they are DECLARED hooks: wired in advance
@@ -2658,6 +2920,9 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
         # Coverage guard runs BEFORE any validation, so an empty factor is reported even if
         # something downstream fails.
         out["signal_coverage"] = signal_coverage(panel)
+        # Coverage says a factor is PRESENT; this says it is SANE. The currency bug filled
+        # every column and was simply wrong, so coverage was blind to it.
+        out["sanity_check"] = sanity_check(panel)
         out["per_signal"] = per_signal_ic(panel)
         out["per_theme"] = theme_ic(panel)      # the level keep/drop decisions operate at
         if not panel.empty and panel["date"].nunique() >= 6:
