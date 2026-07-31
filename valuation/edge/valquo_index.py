@@ -1,9 +1,12 @@
 """
 Valquo Index export — the tracked paper book, as a plain JSON file.
 
-The backtest's one honest conclusion about *construction* is that a broad top-decile,
-large-cap-tilted book is the only version that beat equal-weight; the concentrated
-top-25 lost. So that's exactly what this exports:
+A broad top-decile, large-cap-tilted book: the construction the backtest supports, and the
+one whose result is least dependent on a handful of names. (The older note here said the
+concentrated top-25 "lost" — that was true of the pre-P5 model and is no longer: post-P5 the
+top-25 book scores HIGHER gross. It is also the noisiest statistic in the study, so breadth
+is still the right choice for a tracked book — for robustness, not because concentration
+underperforms.) What this exports:
 
   1. take the latest scan,
   2. keep the large caps (the market-cap tier where the measured IC was strongest),
@@ -99,19 +102,29 @@ def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
         "weight": round(weights.get(r["ticker"], 0.0), 5),
     } for r in picks]
 
+    # Sector breakdown. A source with no sector column (the Sharadar export has none) would
+    # otherwise emit {"": 1.0} — which reads to a downstream consumer as "one real sector
+    # holds the entire book" rather than "this data is missing". Say missing explicitly.
     sectors = {}
     for p in positions:
-        sectors[p["sector"]] = round(sectors.get(p["sector"], 0.0) + p["weight"], 5)
+        key = p["sector"] or "unknown"
+        sectors[key] = round(sectors.get(key, 0.0) + p["weight"], 5)
+    sector_data = any(p["sector"] for p in positions)
 
     return {
         "name": "Valquo Index",
         "method": ("Broad top-decile of the large-cap tier by hot score, score-weighted and "
-                   "capped — the only construction that beat equal-weight in the backtest "
-                   "(the concentrated top-25 lost)."),
+                   "capped at 8%. On the full 2,710-name / 110-date backtest the top decile "
+                   "returns +11.8%/yr over equal-weight gross, +11.4% net of modelled "
+                   "transaction costs (breakeven 236bps one-way vs ~37bps actual). Breadth is "
+                   "chosen for robustness, not because concentration underperforms: the "
+                   "top-25 book actually scores higher (+20.7% gross alpha) but is the "
+                   "noisiest number in the study, so the decile is the honest book to track."),
         "criteria": {"large_cap_min": large_cap_min, "top_decile": top_decile,
                      "tilt": tilt, "weighting": weighting,
                      "max_weight": MAX_WEIGHT, "effective_max_weight": round(cap, 5)},
         "n_scored": len(scored), "n_eligible": len(large), "n_positions": len(positions),
+        "sector_data_available": sector_data,
         "sector_weights": dict(sorted(sectors.items(), key=lambda kv: -kv[1])),
         "positions": positions,
     }

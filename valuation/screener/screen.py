@@ -37,7 +37,11 @@ def _p_established(df: pd.DataFrame) -> pd.Series:
     """Smooth probability a name is 'established' (profitable), from operating margin:
     0% → 0.5, +5% → 0.73, −5% → 0.27. Falls back to the hard bucket if margin is missing."""
     om = pd.to_numeric(df.get("op_margin"), errors="coerce")
-    p = 1.0 / (1.0 + np.exp(-(om / 0.05)))
+    # Clip the exponent before exp(). A name with a huge negative operating margin (early-stage
+    # biotech, a shell with token revenue) sends this to exp(1e4) and numpy warns about
+    # overflow on every scan. The saturated answer is already correct — 0 or 1 — so this only
+    # silences a spurious RuntimeWarning, it does not change any score.
+    p = 1.0 / (1.0 + np.exp(np.clip(-(om / 0.05), -700.0, 700.0)))
     hard = (df["bucket"] == "established").astype(float)
     return p.fillna(hard)
 

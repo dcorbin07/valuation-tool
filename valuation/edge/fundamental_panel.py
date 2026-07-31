@@ -898,6 +898,174 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     return pd.DataFrame(rows)
 
 
+STALE_PRICE_MAX_DAYS = 10          # trading days a name may be quiet before it's not investable
+
+
+def score_universe_now(provider, tickers, benchmark="SPY", lookback_years=3,
+                       as_of=None, stale_days=STALE_PRICE_MAX_DAYS):
+    """Score the WHOLE universe as of the latest available date -> live scan-style rows.
+
+    build_fundamental_panel deliberately drops the final `horizon` days, because every row it
+    emits needs a forward return to score against. A live book is exactly the rows it throws
+    away: the most recent cross-section, with no future to measure. This reproduces the panel's
+    metric construction for that one date and scores it with the LIVE weights, so the tracked
+    book is built by the same code path the backtest validated.
+
+    Returns rows shaped like a screener scan (ticker / price / market_cap / hot_score /
+    composite / rank / bucket), consumable directly by valquo_index.build_index.
+
+    `sector` is empty: the Sharadar export carries no sector column (see CLAUDE.md). That is a
+    known gap, not an oversight — it means the exported book has no sector breakdown.
+    """
+    import sys as _sys
+    import time as _time
+    TD = 252
+    _t0 = _time.time()
+
+    def _prog(msg):
+        print(f"[book] {_time.time()-_t0:5.0f}s  {msg}", file=_sys.stderr, flush=True)
+
+    def series(t):
+        d, c = provider.price_history(t, days=TD * lookback_years + 60)
+        return pd.Series(c, index=pd.to_datetime(d)) if (d and c and len(c) > TD) else None
+
+    _prog(f"loading {len(tickers)} tickers")
+    px, hist, insh, inst, grd, hold, dly, sf3 = {}, {}, {}, {}, {}, {}, {}, {}
+    last_seen = {}
+    for _i, t in enumerate(tickers):
+        if _i and _i % 500 == 0:
+            _prog(f"  {_i}/{len(tickers)}, {len(px)} usable")
+        s = series(t)
+        if s is None or len(s) <= TD:
+            continue
+        px[t] = s
+        last_seen[t] = s.index[-1]
+        hist[t] = sorted(provider.fundamentals_history(t) or [],
+                         key=lambda r: (r.get("datekey") or r.get("date") or ""))
+        insh[t] = _prep_insider(provider.insider_history(t) or [])
+        _ih = provider.institutional_history(t) or []
+        inst[t] = _prep_inst(_ih)
+        hold[t] = _prep_holders(_ih)
+        grd[t] = _prep_grades(provider.grades_history(t) or []) \
+            if hasattr(provider, "grades_history") else None
+        dly[t] = provider.daily_history(t) if hasattr(provider, "daily_history") else []
+        sf3[t] = provider.sf3_for(t) if hasattr(provider, "sf3_for") else {}
+    if not px:
+        return []
+
+    frame = pd.DataFrame(px).sort_index().ffill()
+    _delisted = {}
+    try:
+        if hasattr(provider, "delisted_map"):
+            _delisted = provider.delisted_map() or {}
+    except Exception:
+        _delisted = {}
+    for t in frame.columns:
+        dd = _delisted.get(str(t).upper())
+        if dd:
+            m = frame.index > pd.to_datetime(dd)
+            if m.any():
+                frame.loc[m, t] = np.nan
+    cal = frame.index
+    i = len(cal) - 1 if as_of is None else int(np.searchsorted(cal.values,
+                                                              np.datetime64(str(as_of)[:10]), "right") - 1)
+    if i < TD:
+        return []
+    asof = str(cal[i].date())
+    # ffill carries a dead name's last print forward forever, which would put stale quotes in
+    # a live book. Require a real recent observation, not a carried-forward one.
+    cutoff = cal[max(0, i - stale_days)]
+    fresh = {t for t, d in last_seen.items() if d >= cutoff}
+    _prog(f"scoring {len(px)} names as of {asof} ({len(fresh)} with fresh prices)")
+
+    bench = series(benchmark)
+    benchv = (bench.reindex(cal).ffill().values.tolist() if bench is not None else None)
+
+    _cut1 = str((cal[i] - pd.Timedelta(days=365)).date())
+    _cut2 = str((cal[i] - pd.Timedelta(days=730)).date())
+    _cut3 = str((cal[i] - pd.Timedelta(days=45)).date())
+    metrics = []
+    for t in px:
+        if t not in fresh or t == benchmark:
+            continue
+        closes = frame[t].values
+        if np.isnan(closes[i]) or closes[i] <= 0:
+            continue
+        sf1 = _pit(hist.get(t, []), asof)
+        if not sf1:
+            continue
+        shares = _f(sf1, "sharesbas", "shareswa", "shareswadil")
+        if not shares:
+            continue
+        _d = _daily_at(dly.get(t), asof)
+        mc = (float(_d[0]) * 1e6 if (_d and _d[0])
+              else float(closes[i]) * shares * (_f(sf1, "sharefactor") or 1.0))
+        if mc < S.MIN_MARKET_CAP_MM * 1e6:
+            continue
+        m = _sf1_to_metrics(t, sf1, float(closes[i]), mc)
+        cl = closes.tolist()
+        m.update(_price_factors(cl, i))
+        m.update(_price_extras(cl, i, bench=benchv))
+        _yoy(m, hist.get(t, []), asof, shares, _f(sf1, "revenue"), _f(sf1, "assets"),
+             cut1=_cut1, cut2=_cut2)
+        _sf1_extras(m, sf1, hist.get(t, []), asof, cut1=_cut1)
+        _ttm_quality(m, hist.get(t, []), asof)
+        isc = _insider_score_at(insh.get(t), asof)
+        if isc is not None:
+            m["insider_score"] = isc
+        ia = _inst_accum_at(inst.get(t), asof, lag_days=45)
+        if ia is not None:
+            m["inst_accum"] = ia
+        ib = _inst_breadth_at(hold.get(t), asof, lag_days=45)
+        if ib is not None:
+            m["inst_breadth"] = ib
+        s3 = _sf3_at(sf3.get(t), asof, lag_days=45, cut=_cut3)
+        if s3 is not None:
+            holders, val, conv, holders_prev = s3
+            if conv is not None:
+                m["sm_conviction"] = conv
+            if holders:
+                m["sm_holders"] = float(holders)
+                if holders_prev:
+                    m["sm_breadth"] = holders / float(holders_prev) - 1.0
+                if val:
+                    m["sm_avg_position"] = float(val) / float(holders)
+        gr = _grades_at(grd.get(t), asof)
+        if gr is not None:
+            m["rating_rev"], m["neg_rating_disp"] = gr[0], -gr[1]
+        metrics.append(m)
+
+    if not metrics:
+        return []
+    # Same prefilter the live scan applies (warrants/units/penny/nano-cap).
+    from ..screener.factors import build_frame, prefilter
+    kept = [m for m in metrics if prefilter(m)[0]]
+    _prog(f"{len(kept)} names pass the live prefilter (from {len(metrics)} scored)")
+    if not kept:
+        return []
+
+    from ..screener.screen import _composites
+    fr = build_frame(kept, sector_neutral=False, residual_momentum=False)
+    fr["composite"] = _composites(fr, S.WEIGHTS_ESTABLISHED, S.WEIGHTS_SPECULATIVE)
+    fr = fr[fr["composite"].notna()].copy()
+    if fr.empty:
+        return []
+    fr["hot_score"] = fr["composite"].rank(pct=True) * 99 + 1
+    fr = fr.sort_values("composite", ascending=False)
+    fr["rank"] = range(1, len(fr) + 1)
+    by_ticker = {m["ticker"]: m for m in kept}
+    rows = []
+    for tkr, r in fr.iterrows():
+        src = by_ticker.get(tkr, {})
+        rows.append({"ticker": tkr, "name": "", "sector": "",
+                     "bucket": r.get("bucket"),
+                     "price": src.get("price"), "market_cap": src.get("market_cap"),
+                     "hot_score": float(r["hot_score"]), "composite": float(r["composite"]),
+                     "rank": int(r["rank"])})
+    rows.sort(key=lambda x: x["rank"])
+    return {"as_of": asof, "rows": rows}
+
+
 def _backtest(panel, cols, weights, top_n=20, horizon=252):
     """Top-N-by-composite portfolio vs the benchmark. The panel dates are non-overlapping
     holding periods (rebalance == horizon), so compounding is valid; we report an annualized

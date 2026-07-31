@@ -890,6 +890,51 @@ def test_theme_ic_measures_each_theme_and_reaches_the_results_file():
     assert "Per-theme" in render_md(p)
 
 
+def test_index_reports_missing_sector_data_honestly():
+    """The Sharadar export carries no sector column, so every position's sector is "". The
+    old code emitted {"": 1.0}, which reads downstream as "one real sector holds the whole
+    book" rather than "this data is missing" — and the Cowork agent consumes this file."""
+    from valuation.edge.valquo_index import build_index
+    rows = [{"ticker": f"T{i}", "hot_score": 50.0 + i, "price": 10.0,
+             "market_cap": 2e10 + i} for i in range(40)]
+    p = build_index(rows)
+    assert p["sector_data_available"] is False
+    assert set(p["sector_weights"]) == {"unknown"}, p["sector_weights"]
+    assert "" not in p["sector_weights"]
+    # With real sectors it reports them and flips the flag.
+    for i, r in enumerate(rows):
+        r["sector"] = "Tech" if i % 2 else "Energy"
+    p2 = build_index(rows)
+    assert p2["sector_data_available"] is True
+    assert set(p2["sector_weights"]) == {"Tech", "Energy"}
+    assert abs(sum(p2["sector_weights"].values()) - 1.0) < 1e-3
+    # The retired claim must not come back: post-P6 the top-25 does NOT lose.
+    assert "top-25 lost" not in p["method"]
+
+
+def test_index_weights_are_capped_and_sum_to_one():
+    """A tracked book must be actually investable: weights sum to 1, nothing breaches the cap,
+    and a big enough universe yields a real decile rather than the 10-name floor."""
+    from valuation.edge.valquo_index import build_index, MAX_WEIGHT
+    # 900 large caps with a wide score spread -> the cap should bind on the leaders.
+    rows = [{"ticker": f"T{i}", "hot_score": float(i), "price": 20.0, "market_cap": 5e10}
+            for i in range(900)]
+    p = build_index(rows)
+    w = [x["weight"] for x in p["positions"]]
+    assert p["n_positions"] == 90, p["n_positions"]          # a real decile, not the floor
+    # Exported weights are rounded to 5dp per position, so the sum can drift by up to
+    # n * 5e-6 from exactly 1. Tolerance tracks that rather than hiding it.
+    assert abs(sum(w) - 1.0) < len(w) * 5e-6, sum(w)
+    assert max(w) <= MAX_WEIGHT + 1e-6, max(w)
+    assert len({x["ticker"] for x in p["positions"]}) == len(w)
+    assert p["criteria"]["tilt"] == "large-cap only"
+    # A tiny universe must fall back rather than silently label 10 mega-caps a "decile".
+    small = build_index(rows[:12])
+    sw = [x["weight"] for x in small["positions"]]
+    assert small["n_positions"] >= 10
+    assert abs(sum(sw) - 1.0) < len(sw) * 5e-6
+
+
 def test_robust_zscore_resists_outliers_and_degrades_safely():
     """Median/MAD standardization. Winsorization already caps the tails, but mean and SD are
     still dragged by the surviving 2%, and these inputs are heavily right-skewed."""
