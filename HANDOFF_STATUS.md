@@ -12,6 +12,63 @@ file directly.
 
 ---
 
+## TWO SHIPPED BOOK CONFIGS — concentration chosen on Sharpe, not return
+
+`settings.BOOK_CONFIGS` now carries two tuned constructions, and the run measures both
+(`book_configs` in BACKTEST_RESULTS.json).
+
+### Why risk-adjusted, in one table
+
+| width | net α | net Sharpe (full / early / late) | max DD | turnover |
+|---|---|---|---|---|
+| top 5 | +7.20% | 0.68 / 0.92 / 0.54 | −50.2% | 336% |
+| top 10 | **+20.19%** | 1.12 / 1.35 / 0.93 | −24.5% | 322% |
+| **top 25** | +14.99% | **1.12 / 1.17 / 1.06** | −38.6% | 300% |
+| top 40 | +12.85% | 1.10 / 1.14 / 1.05 | −37.0% | 286% |
+| decile | +11.44% | 1.11 / 1.19 / 1.02 | −41.7% | 251% |
+
+Ranking on raw alpha would have picked **top 10 (+20.19%)** by a mile — its Sharpe is a dead
+tie with top 25. And **top 5 is the clean lesson**: worst return *and* worst risk.
+
+**top 25 chosen over top 10** on stability: top 10 swings 1.35 → 0.93 across halves (gap 0.42)
+vs top 25's 1.17 → 1.06 (gap 0.11), and top 25 **wins the recent half outright**. top 10's
+better max drawdown is real in both halves and is the tighter alternative if wanted — but a
+10-name book over 110 periods is a thin basis for a drawdown claim.
+
+### `roth` — tax-free, Sharpe-optimal, full rotation
+**top 25, 6-week rebalance, no band.** Net alpha **+17.37%**, net Sharpe **1.17**, turnover 379%.
+
+Frequency swept (top 25, net of cost): monthly **1.09** (1.19/1.01) · 6-week **1.17**
+(1.12/**1.20**) · quarterly **1.12** (1.17/1.06). Faster *does* pay — but only to a point:
+monthly's 6.03% cost drag overwhelms the benefit. 6-week is best on the full sample **and** in
+the recent half, with the smallest early/late gap.
+
+Note: **fundamentals only update quarterly**, so a 6-week rebalance re-ranks on fresh prices
+(momentum, market cap) over stale fundamentals. That it still wins says the price-based
+components carry real short-horizon information.
+
+**Correction worth carrying: max drawdown is NOT comparable across frequencies.** A quarterly
+grid observes the equity curve 110 times vs monthly's 330, so a coarser grid systematically
+UNDERSTATES drawdown. Quarterly's −38.6% vs 6-week's −56.8% is substantially a sampling
+artifact — do not read it as lower risk.
+
+### `taxable` — after-tax-optimal, decile + 20% band
+**decile, quarterly, 20% no-trade band.** After-tax alpha **+4.86%**, after-tax Sharpe **0.89**
+(vs 0.84 unbanded), turnover 172%.
+
+Tax drag (7.8%/yr) is over 3× the trading cost, so this optimizes after-tax Sharpe, which
+favours breadth plus the band. **The band failed the pre-committed held-out margin in one half
+(see below), so it is enabled HERE — for the account where it actually matters — rather than
+made the global default.**
+
+**Method bug I caught mid-sweep:** my first band sweep silently applied the band *only* to the
+decile row — `exit_frac` is a fraction of the UNIVERSE and is meaningless for a fixed-N book, so
+every fixed-N "with band" row was a duplicate of its no-band row. Added `exit_mult` (band as a
+multiple of book size) so fixed-N books can be banded too. With it: decile+2.5× **0.89**,
+decile+20% **0.89**, top-25+2.5× 0.88.
+
+---
+
 ## git_push.bat now auto-lands finished agent branches (no more manual merge)
 
 Claude Code works on `worktree-*` branches because its harness will not push to `main`, so every

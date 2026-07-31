@@ -2184,6 +2184,30 @@ def one_way_cost_bps(mktcap) -> float:
     return COST_BPS_MICRO
 
 
+def risk_stats(rets, per_year, rf=0.0):
+    """Sharpe and max drawdown from a period-return series.
+
+    Raw return is the wrong yardstick for choosing CONCENTRATION: a tighter book almost always
+    shows a higher mean and a much higher variance, so ranking widths on alpha alone reliably
+    picks the noisiest one. These are the per-unit-risk numbers that make the choice honest.
+
+    Sharpe is annualized from the period returns (mean/sd * sqrt(periods per year)); max
+    drawdown is the worst peak-to-trough on the compounded equity curve, which is what a human
+    actually has to sit through.
+    """
+    a = np.asarray([r for r in rets if r == r], dtype=float)
+    if len(a) < 3:
+        return {"sharpe": None, "max_drawdown": None, "vol_ann": None, "n": int(len(a))}
+    sd = float(a.std(ddof=1))
+    mu = float(a.mean()) - rf / per_year
+    sharpe = (mu / sd) * (per_year ** 0.5) if sd > 0 else None
+    eq = np.cumprod(1.0 + a)
+    peak = np.maximum.accumulate(eq)
+    dd = float((eq / peak - 1.0).min())
+    return {"sharpe": sharpe, "max_drawdown": dd,
+            "vol_ann": sd * (per_year ** 0.5), "n": int(len(a))}
+
+
 def _band_select(comp, tickers, held, n_target, exit_rank):
     """Which names to hold, given a NO-TRADE BAND (hysteresis).
 
@@ -2214,7 +2238,7 @@ def _band_select(comp, tickers, held, n_target, exit_rank):
 
 
 def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
-                       flat_bps=None, exit_frac=None) -> dict:
+                       flat_bps=None, exit_frac=None, exit_mult=None) -> dict:
     """Turnover and NET-of-cost performance of the long book, vs the equal-weight universe.
 
     Weights drift with returns between rebalances, so the trade at each date is the full
@@ -2249,7 +2273,13 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
             comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
         k = int(top_n) if top_n else max(1, int(len(sub) * top_frac))
         _all_t = sub["ticker"].values
-        _xr = k if exit_frac is None else max(k, int(len(sub) * exit_frac))
+        # Band as a universe FRACTION (exit_frac) or as a multiple of the book size
+        # (exit_mult) — the latter is the only one meaningful for a fixed-N book.
+        _xr = k
+        if exit_mult is not None:
+            _xr = max(k, int(round(k * exit_mult)))
+        elif exit_frac is not None:
+            _xr = max(k, int(len(sub) * exit_frac))
         _sel = _band_select(comp, _all_t, set(prev_w), k, _xr)
         _pos = {t: i for i, t in enumerate(_all_t)}
         order = np.array([_pos[t] for t in _sel], dtype=int)
@@ -2297,8 +2327,13 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
     g_ann, n_ann = ann(gross), ann(net)
     # Sum|dw| counts both sides of each trade; one-way turnover is half of it.
     ann_turn = float(np.mean(traded_hist)) / 2.0 * per_year
+    _rg, _rn = risk_stats(gross, per_year), risk_stats(net, per_year)
+    _re = risk_stats(ew_ok, per_year) if ew_ok else {}
     return {"n_periods": len(gross), "n_names": (int(top_n) if top_n else None),
             "top_frac": (None if top_n else top_frac),
+            "gross_sharpe": _rg["sharpe"], "net_sharpe": _rn["sharpe"],
+            "net_max_drawdown": _rn["max_drawdown"], "net_vol_ann": _rn["vol_ann"],
+            "equal_weight_sharpe": _re.get("sharpe"),
             "annual_turnover": ann_turn,
             "gross_ann": g_ann, "net_ann": n_ann,
             "cost_drag_ann": g_ann - n_ann,
@@ -2320,7 +2355,8 @@ LONG_TERM_DAYS = 366        # a US holding period must EXCEED one year
 
 def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
                        short_rate=TAX_SHORT_TERM, long_rate=TAX_LONG_TERM,
-                       flat_bps=None, lot_method="fifo", exit_frac=None) -> dict:
+                       flat_bps=None, lot_method="fifo", exit_frac=None,
+                       exit_mult=None) -> dict:
     """Net-of-COST and net-of-TAX performance of the long book, with real lot accounting.
 
     The book turns over ~250%/yr on a ~quarterly rebalance, so in a TAXABLE account almost
@@ -2372,7 +2408,13 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
             comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
         k = int(top_n) if top_n else max(1, int(len(sub) * top_frac))
         _all_t = sub["ticker"].values
-        _xr = k if exit_frac is None else max(k, int(len(sub) * exit_frac))
+        # Band as a universe FRACTION (exit_frac) or as a multiple of the book size
+        # (exit_mult) — the latter is the only one meaningful for a fixed-N book.
+        _xr = k
+        if exit_mult is not None:
+            _xr = max(k, int(round(k * exit_mult)))
+        elif exit_frac is not None:
+            _xr = max(k, int(len(sub) * exit_frac))
         _sel = _band_select(comp, _all_t, set(lots), k, _xr)
         _pos = {t: i for i, t in enumerate(_all_t)}
         order = np.array([_pos[t] for t in _sel], dtype=int)
@@ -2489,9 +2531,12 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
     at_ann = float(value ** (per_year / n) - 1)
     basis_end = sum(l[1] for ls in lots.values() for l in ls)
     value_end = sum(l[2] for ls in lots.values() for l in ls)
+    _rt = risk_stats(net_r, per_year)
     return {
         "n_periods": n, "years": round(n / per_year, 1),
         "short_rate": short_rate, "long_rate": long_rate, "lot_method": lot_method,
+        "after_tax_sharpe": _rt["sharpe"], "after_tax_max_drawdown": _rt["max_drawdown"],
+        "after_tax_vol_ann": _rt["vol_ann"],
         "gross_ann": g_ann, "after_tax_ann": at_ann,
         "equal_weight_ann": ann_ew,
         "gross_alpha": (None if ann_ew is None else g_ann - ann_ew),
@@ -3252,6 +3297,29 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
                 "top_25": {**(turnover_and_costs(panel, cols, rec, top_n=top_n, horizon=63) or {}),
                            **cost_breakeven_bps(panel, cols, rec, top_n=top_n,
                                                 horizon=63, grid=_cg)}}
+            # The two shipped book configs, measured on this run so settings.py's numbers
+            # are never stale relative to the data.
+            out["book_configs"] = {}
+            for _nm, _cfg in (S.BOOK_CONFIGS or {}).items():
+                _kw = {k: v for k, v in (("top_n", _cfg.get("top_n")),
+                                         ("top_frac", _cfg.get("top_frac")),
+                                         ("exit_frac", _cfg.get("exit_frac")),
+                                         ("exit_mult", _cfg.get("exit_mult"))) if v}
+                # Both are scored on THIS panel's horizon; the roth config's own 42d cadence
+                # needs its own panel, so its numbers here are the 63d approximation and the
+                # authoritative figures live in settings.BOOK_CONFIGS["roth"]["measured"].
+                _c = turnover_and_costs(panel, cols, rec, horizon=63, **_kw) or {}
+                _t = after_tax_backtest(panel, cols, rec, horizon=63, **_kw) or {}
+                out["book_configs"][_nm] = {
+                    "label": _cfg.get("label"),
+                    "rebalance_days": _cfg.get("rebalance_days"),
+                    "scored_at_horizon": 63,
+                    "net_alpha": _c.get("net_alpha"), "net_sharpe": _c.get("net_sharpe"),
+                    "net_max_drawdown": _c.get("net_max_drawdown"),
+                    "annual_turnover": _c.get("annual_turnover"),
+                    "after_tax_alpha": _t.get("after_tax_alpha"),
+                    "after_tax_sharpe": _t.get("after_tax_sharpe")}
+
             # No-trade band sweep. Reported every run so the turnover/alpha tradeoff is a
             # standing number rather than a one-off study. exit_frac=None is the shipped
             # behaviour (sell the moment a name leaves the book).

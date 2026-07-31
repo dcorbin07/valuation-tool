@@ -79,6 +79,63 @@ WEIGHTS_SPECULATIVE = {"value": 0.125, "growth": 0.125, "momentum": 0.125, "insi
                        "low_risk": 0.0, "capital_discipline": 0.125, "sentiment": 0.0,
                        "size": 0.125, "institutional": 0.125}
 
+# -------------------------------------------------------------------------- #
+# BOOK CONFIGS — two tuned constructions, chosen on RISK-ADJUSTED return.
+#
+# Raw alpha is the wrong yardstick for concentration: a tighter book almost always shows a
+# higher mean AND a much higher variance, so ranking widths on return reliably picks the
+# noisiest one. Measured on the full 2,710-name / 18-year panel, net of modelled costs:
+#
+#   width     net alpha   net Sharpe (full/early/late)   maxDD    turnover
+#   top 5       +7.20%      0.68 / 0.92 / 0.54          -50.2%      336%
+#   top 10     +20.19%      1.12 / 1.35 / 0.93          -24.5%      322%
+#   top 25     +14.99%      1.12 / 1.17 / 1.06          -38.6%      300%
+#   top 40     +12.85%      1.10 / 1.14 / 1.05          -37.0%      286%
+#   decile     +11.44%      1.11 / 1.19 / 1.02          -41.7%      251%
+#
+# top 5 is the clearest result: worst return AND worst risk. top 10 and top 25 TIE on
+# full-sample Sharpe (1.12) — top 25 is chosen because top 10's edge does not hold up
+# (1.35 -> 0.93 across halves, vs 1.17 -> 1.06) and top 25 wins the recent half outright.
+# top 10 has a genuinely better max drawdown in both halves and is the tighter alternative
+# if you want it, but a 10-name book over 110 periods is a thin basis for a drawdown claim.
+#
+# ROTH (tax-free): no tax drag, so optimize NET-OF-COST Sharpe and rotate freely.
+#   Rebalance frequency swept on the same panel (top 25, net of costs):
+#     monthly    Sharpe 1.09 (1.19/1.01)  turnover 523%  cost drag 6.03%
+#     6-week     Sharpe 1.17 (1.12/1.20)  turnover 379%  cost drag 4.40%   <- best, and best
+#     quarterly  Sharpe 1.12 (1.17/1.06)  turnover 300%  cost drag 3.35%      in the LATE half
+#   So faster DOES pay, but only to a point: monthly's cost drag overwhelms the benefit.
+#   NOTE: fundamentals only update QUARTERLY, so a 6-week rebalance is re-ranking on fresh
+#   prices (momentum, market cap) over stale fundamentals — that it still wins says the
+#   price-based components carry real short-horizon information.
+#   CAVEAT: max drawdown is NOT comparable across frequencies — a coarser grid observes the
+#   equity curve fewer times and understates the true drawdown. Do not read quarterly's
+#   shallower figure as lower risk.
+#
+# TAXABLE: ~250%/yr turnover means ~87% of gains are short-term, and tax drag (7.8%/yr) is
+#   over 3x the trading cost. Optimize AFTER-TAX Sharpe instead, which favours breadth plus a
+#   no-trade band: decile + 20% band scores 0.89 after-tax Sharpe vs 0.84 unbanded, and lifts
+#   after-tax alpha +3.63% -> +4.86%. (The band failed the pre-committed held-out margin in
+#   one half — see HANDOFF — so it is enabled HERE, for the account where it matters, rather
+#   than made the global default.)
+BOOK_CONFIGS = {
+    "roth": {
+        "label": "Tax-free (Roth/IRA): Sharpe-optimal, full rotation",
+        "top_n": 25, "top_frac": None, "rebalance_days": 42, "horizon": 42,
+        "exit_frac": None, "exit_mult": None,          # no band: no tax cost to churning
+        "measured": {"net_alpha": 0.1737, "net_sharpe": 1.17, "annual_turnover": 3.79,
+                     "cost_drag_ann": 0.0440},
+    },
+    "taxable": {
+        "label": "Taxable: after-tax-optimal, decile + 20% no-trade band",
+        "top_n": None, "top_frac": 0.10, "rebalance_days": 63, "horizon": 63,
+        "exit_frac": 0.20, "exit_mult": None,
+        "measured": {"after_tax_alpha": 0.0486, "after_tax_sharpe": 0.89,
+                     "net_alpha": 0.1169, "annual_turnover": 1.72},
+    },
+}
+DEFAULT_BOOK_CONFIG = "taxable"     # the safer assumption for an unknown account
+
 # Which theme columns each bucket scores on (keys of the weight dicts above).
 # autolearn + the live scorer both read this, so there's one source of truth.
 BUCKET_FACTORS = {

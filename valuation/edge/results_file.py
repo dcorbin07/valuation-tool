@@ -97,6 +97,7 @@ def build_payload(res: dict, universe_label: str | None = None,
     san = res.get("sanity_check") or {}
     atx = res.get("after_tax") or {}
     ntb = res.get("no_trade_band") or {}
+    bkc = res.get("book_configs") or {}
     if per_signal is None:
         per_signal = res.get("per_signal") or None
     wf = (res.get("walk_forward") or {}).get("weights") or {}
@@ -241,6 +242,11 @@ def build_payload(res: dict, universe_label: str | None = None,
         # Turnover/alpha tradeoff of a no-trade band (hysteresis). `none` is the
         # shipped behaviour: sell the moment a name leaves the book.
         "no_trade_band": ntb or {"status": "not computed"},
+
+        # The two shipped book constructions (settings.BOOK_CONFIGS), scored on this
+        # run. `roth` optimizes net-of-cost Sharpe with free rotation; `taxable`
+        # optimizes AFTER-TAX Sharpe with a no-trade band.
+        "book_configs": bkc or {"status": "not computed"},
 
         # CORRECTNESS, as distinct from coverage. signal_coverage says a factor is present;
         # this says its VALUES are believable. `flags` is the load-bearing part: an empty list

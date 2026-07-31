@@ -1316,6 +1316,44 @@ def _tax_panel(n_dates=24, n=60, drift=0.03, seed=31):
     return pd.DataFrame(rows)
 
 
+def test_risk_stats_sharpe_and_drawdown():
+    """Concentration must be chosen on risk-adjusted return: a tighter book almost always has
+    a higher mean AND a much higher variance, so ranking on alpha alone picks the noisiest."""
+    from valuation.edge.fundamental_panel import risk_stats
+    steady = [0.02] * 40
+    r = risk_stats(steady, per_year=4)
+    assert r["max_drawdown"] == 0.0, "a monotonically rising curve has no drawdown"
+    assert r["sharpe"] is None or r["sharpe"] > 100  # zero vol -> None or enormous
+    rng = np.random.default_rng(5)
+    calm = list(rng.normal(0.02, 0.01, 200))
+    wild = list(rng.normal(0.02, 0.08, 200))
+    assert risk_stats(calm, 4)["sharpe"] > risk_stats(wild, 4)["sharpe"], "same mean, more vol"
+    assert risk_stats(wild, 4)["max_drawdown"] < risk_stats(calm, 4)["max_drawdown"]
+    assert risk_stats(calm, 4)["vol_ann"] < risk_stats(wild, 4)["vol_ann"]
+    # A real drawdown is measured peak-to-trough on the compounded curve.
+    dd = risk_stats([0.5, -0.5, 0.0, 0.0], 4)["max_drawdown"]
+    assert abs(dd - (-0.5)) < 1e-9, dd
+    assert risk_stats([0.01], 4)["sharpe"] is None      # too few points -> no fake precision
+
+
+def test_book_configs_are_defined_and_coherent():
+    """Two named constructions ship: roth (tax-free, Sharpe-optimal, full rotation) and
+    taxable (after-tax-optimal, decile + band)."""
+    from valuation.screener import settings as S
+    assert set(S.BOOK_CONFIGS) == {"roth", "taxable"}
+    assert S.DEFAULT_BOOK_CONFIG in S.BOOK_CONFIGS
+    roth, tax = S.BOOK_CONFIGS["roth"], S.BOOK_CONFIGS["taxable"]
+    # roth rotates freely (no band); taxable uses one — that is the whole distinction.
+    assert roth["exit_frac"] is None and roth["exit_mult"] is None
+    assert tax["exit_frac"] == 0.20
+    # roth is the tighter, faster book; taxable is the broader, slower one.
+    assert roth["top_n"] == 25 and tax["top_frac"] == 0.10
+    assert roth["rebalance_days"] < tax["rebalance_days"]
+    for name, c in S.BOOK_CONFIGS.items():
+        assert (c["top_n"] is None) != (c["top_frac"] is None), f"{name}: exactly one width"
+        assert c["label"] and c["measured"], name
+
+
 def test_no_trade_band_reduces_turnover_and_reduces_to_top_n():
     """Hysteresis: enter on the top 10%, hold until a name falls past the exit band. The
     no-band case must be EXACTLY plain top-N, otherwise the baseline is a different code path
