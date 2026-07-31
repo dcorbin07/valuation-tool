@@ -95,6 +95,7 @@ def build_payload(res: dict, universe_label: str | None = None,
     hv = res.get("holdout_validation") or {}
     cst = res.get("costs") or {}
     san = res.get("sanity_check") or {}
+    atx = res.get("after_tax") or {}
     if per_signal is None:
         per_signal = res.get("per_signal") or None
     wf = (res.get("walk_forward") or {}).get("weights") or {}
@@ -229,6 +230,12 @@ def build_payload(res: dict, universe_label: str | None = None,
         # vs equal-weight hits zero, so it can be compared against real execution costs
         # without having to believe any particular cost calibration.
         "costs": cst or {"status": "not computed"},
+
+        # After-TAX, for a taxable account. The book turns over ~250%/yr, so most
+        # gains are short-term and taxed as ordinary income — a drag several times
+        # larger than trading costs. A tax-advantaged account pays none of it and
+        # earns the `costs` net figure instead.
+        "after_tax": atx or {"status": "not computed"},
 
         # CORRECTNESS, as distinct from coverage. signal_coverage says a factor is present;
         # this says its VALUES are believable. `flags` is the load-bearing part: an empty list
@@ -437,6 +444,28 @@ def render_md(p: dict) -> str:
                     (">grid" if be == float("inf") else f"{be:.0f} bps"))
             A(f"| {name} | {_rate(b.get('annual_turnover'), 0)} | {_pct(b.get('gross_alpha'))} "
               f"| {_pct(b.get('net_alpha'))} | {_pct(b.get('cost_drag_ann'))} | **{be_s}** |")
+    at = p.get("after_tax") or {}
+    if (at.get("top_decile") or {}).get("after_tax_alpha") is not None:
+        A("")
+        A("## After tax — what a TAXABLE account actually keeps\n")
+        A("The book turns over ~250%/yr on a quarterly rebalance, so almost every gain is")
+        A("realized inside a year and taxed as ordinary income. Lot-level FIFO accounting,")
+        A("tax paid from the portfolio so the compounding is genuinely after-tax.\n")
+        A("| book | gross alpha | after-tax alpha | tax drag | short-term share of gains |")
+        A("|---|---|---|---|---|")
+        for key, name in (("top_decile", "top decile"), ("top_25", "top 25")):
+            b = at.get(key) or {}
+            if b.get("after_tax_alpha") is None:
+                continue
+            A(f"| {name} | {_pct(b.get('gross_alpha'))} | **{_pct(b.get('after_tax_alpha'))}** "
+              f"| {_pct(b.get('total_drag_ann'))} | {_rate(b.get('short_term_share_of_gains'))} |")
+        b = at.get("top_decile") or {}
+        A("")
+        A(f"Rates: short-term {_rate(b.get('short_rate'))} / long-term "
+          f"{_rate(b.get('long_rate'))} (US federal top bracket incl. NIIT; **state tax NOT "
+          f"included** — CA would add ~13.3%).")
+        A(f"**A tax-advantaged account (IRA/401k) pays none of this** and earns the net-of-cost "
+          f"figure in the Tradeability table instead.")
     hvp = p.get("holdout_validation") or {}
     if hvp.get("splits"):
         A("")

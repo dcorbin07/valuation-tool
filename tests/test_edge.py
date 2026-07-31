@@ -1257,6 +1257,65 @@ def test_ttm_quality_differs_from_quarterly_and_is_seasonality_free():
     assert "roe_ttm" not in c and "roic_ttm" not in c
 
 
+def _tax_panel(n_dates=24, n=60, drift=0.03, seed=31):
+    rng = np.random.default_rng(seed)
+    rows = []
+    for d in range(n_dates):
+        # ~quarterly dates, so four rebalances really do cross the one-year line.
+        y, m = 2020 + d // 4, (d % 4) * 3 + 1
+        for i in range(n):
+            sig = rng.normal()
+            rows.append({"date": f"{y}-{m:02d}-01", "ticker": f"T{i}",
+                         "fwd_ret": drift + 0.02 * sig, "bench_ret": 0.01,
+                         "market_cap": 5e10, "good": sig})
+    return pd.DataFrame(rows)
+
+
+def test_after_tax_backtest_lot_accounting():
+    """~250%/yr turnover means nearly every gain is short-term in a taxable account, and that
+    drag is several times the trading cost. Tax depends on WHEN each lot was bought, so this
+    has to be lot-level, not an average rate applied to a return."""
+    from valuation.edge.fundamental_panel import (after_tax_backtest, turnover_and_costs,
+                                                  TAX_SHORT_TERM, TAX_LONG_TERM)
+    panel = _tax_panel()
+    cols, w = ["good"], {"good": 1.0}
+
+    # Zero rates must reconcile with the pure cost model (small residual: this pays drag
+    # BEFORE the period return, so the remainder compounds).
+    free = after_tax_backtest(panel, cols, w, top_frac=0.2, short_rate=0.0, long_rate=0.0,
+                              flat_bps=0.0)
+    costs = turnover_and_costs(panel, cols, w, top_frac=0.2, flat_bps=0.0)
+    assert abs(free["after_tax_ann"] - costs["net_ann"]) < 0.02, (free["after_tax_ann"],
+                                                                  costs["net_ann"])
+    assert free["tax_paid_short"] == 0 and free["tax_paid_long"] == 0
+
+    taxed = after_tax_backtest(panel, cols, w, top_frac=0.2, flat_bps=0.0)
+    assert taxed["after_tax_ann"] < free["after_tax_ann"], "tax must reduce the return"
+    assert taxed["total_drag_ann"] > 0
+    assert taxed["short_rate"] == TAX_SHORT_TERM and taxed["long_rate"] == TAX_LONG_TERM
+    # A quarterly-rebalanced book realizes mostly SHORT-term gains.
+    assert taxed["short_term_share_of_gains"] > 0.5, taxed["short_term_share_of_gains"]
+    # Higher rates must cost more; the ordering has to be monotone.
+    hi = after_tax_backtest(panel, cols, w, top_frac=0.2, short_rate=0.60, long_rate=0.40,
+                            flat_bps=0.0)
+    assert hi["after_tax_ann"] < taxed["after_tax_ann"] < free["after_tax_ann"]
+    # Deferred (unrealized) liability is reported, not silently treated as free money.
+    assert "unrealized_gain_end" in taxed
+
+
+def test_after_tax_losses_offset_gains_and_carry_forward():
+    """A book that only loses money must pay NO tax — and losses must not create a phantom
+    credit that flatters the return."""
+    from valuation.edge.fundamental_panel import after_tax_backtest
+    losing = _tax_panel(drift=-0.04, seed=7)
+    r = after_tax_backtest(losing, ["good"], {"good": 1.0}, top_frac=0.2, flat_bps=0.0)
+    assert r["tax_paid_short"] == 0 and r["tax_paid_long"] == 0, "no tax on a net loss"
+    free = after_tax_backtest(losing, ["good"], {"good": 1.0}, top_frac=0.2,
+                              short_rate=0.0, long_rate=0.0, flat_bps=0.0)
+    assert abs(r["after_tax_ann"] - free["after_tax_ann"]) < 1e-9, "losses must not add return"
+    assert after_tax_backtest(_tax_panel(n_dates=2), ["good"], {"good": 1.0}).get("status")
+
+
 def test_cost_model_and_breakeven():
     """Every other performance number in this project is gross of costs. Pins the cost
     curve's direction, that turnover counts weight DRIFT (not just entries/exits), and that

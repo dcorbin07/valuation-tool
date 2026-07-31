@@ -2275,6 +2275,201 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
             "flat_bps": flat_bps}
 
 
+# Top-bracket US taxable account, federal only. Short-term gains are ordinary income
+# (37% top bracket + 3.8% NIIT); long-term is 20% + 3.8% NIIT. STATE tax is NOT included and
+# is far from negligible — CA adds ~13.3% on both, NY ~10.9% — so a California investor should
+# read the short-term figure as ~54%, not 40.8%. Defaults are federal so the number is not
+# quietly tied to one state.
+TAX_SHORT_TERM = 0.408
+TAX_LONG_TERM = 0.238
+LONG_TERM_DAYS = 366        # a US holding period must EXCEED one year
+
+
+def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
+                       short_rate=TAX_SHORT_TERM, long_rate=TAX_LONG_TERM,
+                       flat_bps=None, lot_method="fifo") -> dict:
+    """Net-of-COST and net-of-TAX performance of the long book, with real lot accounting.
+
+    The book turns over ~250%/yr on a ~quarterly rebalance, so in a TAXABLE account almost
+    every gain is realized inside a year and taxed as ordinary income. That is not a haircut
+    you can wave at with an average rate: tax depends on WHEN each lot was bought, so this
+    tracks individual lots, ages them against the actual calendar, and taxes each realized
+    slice at the rate its own holding period earns.
+
+    Method and its limits, stated because they move the answer:
+      * FIFO lot selection (the US default absent a specific-lot election). A taxable
+        investor electing HIFO/specific-lot would realize LESS gain, so this is the
+        conservative end. `lot_method` is here to make that explicit, not to hide it.
+      * Tax is paid FROM the portfolio at each rebalance, which is what makes the compounding
+        after-tax rather than a cosmetic subtraction.
+      * Unrealized gains at the end are NOT taxed — the book is not liquidated. That deferred
+        liability is reported separately (`unrealized_gain_end`) so it is not mistaken for
+        free money.
+      * NO dividends anywhere. The panel's forward returns are price-only, so dividend income
+        is absent from the gross figure and dividend tax is absent from this one. Consistent,
+        but it means a high-yield book's real after-tax drag is understated.
+      * No wash-sale disallowance and no loss carry-forward beyond the book itself: realized
+        losses offset realized gains within the same rebalance and any excess carries forward,
+        which is the ordinary treatment for an investor with other gains.
+    """
+    from ..screener.cross_sectional import zscore
+    dates = sorted(panel["date"].unique())
+    if len(dates) < 3:
+        return {"status": "not enough dates"}
+    dts = {d: pd.to_datetime(d) for d in dates}
+
+    lots = {}                       # ticker -> [[entry_date, basis, value], ...] FIFO order
+    # Last-known cost for every ticker ever held. An EXIT is by definition not in the new
+    # book, so looking its cost up in this period's table alone would miss and fall back to
+    # the micro-cap rate — charging ~150bps to sell a mega-cap and inventing a drag that is
+    # not there.
+    cost_hist = {}
+    value = 1.0                     # portfolio value, after tax and costs
+    gross_v = 1.0                   # same book, no costs, no tax
+    ew, gross_r, net_r, tax_r = [], [], [], []
+    tax_short, tax_long, gain_short, gain_long, carry_loss = 0.0, 0.0, 0.0, 0.0, 0.0
+
+    for di, d in enumerate(dates):
+        sub = panel[panel["date"] == d]
+        if len(sub) < 20:
+            continue
+        comp = np.zeros(len(sub))
+        for c in cols:
+            z = zscore(sub[c]).values
+            comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
+        k = int(top_n) if top_n else max(1, int(len(sub) * top_frac))
+        order = np.argsort(-comp)[:k]
+        tick = sub["ticker"].values[order]
+        rets = sub["fwd_ret"].values[order]
+        mcap = (sub["market_cap"].values[order] if "market_cap" in sub.columns
+                else np.full(len(order), np.nan))
+        ok = np.isfinite(rets)
+        if not ok.any():
+            continue
+        tick, rets, mcap = tick[ok], rets[ok], mcap[ok]
+        cost_of = {t: (flat_bps if flat_bps is not None else one_way_cost_bps(m))
+                   for t, m in zip(tick, mcap)}
+        cost_hist.update(cost_of)
+
+        total = sum(l[2] for ls in lots.values() for l in ls) or value
+        target = {t: total / len(tick) for t in tick}
+        traded_cost, realized_s, realized_l = 0.0, 0.0, 0.0
+
+        # ---- SELL: trim anything above target (and exit anything not in the new book) ----
+        for t in list(lots):
+            held = sum(l[2] for l in lots[t])
+            want = target.get(t, 0.0)
+            if held <= want + 1e-12:
+                continue
+            to_sell = held - want
+            traded_cost += to_sell * cost_hist.get(t, COST_BPS_MICRO) * 1e-4
+            remaining = to_sell
+            keep = []
+            for lot in lots[t]:                      # FIFO: oldest lot first
+                if remaining <= 1e-15:
+                    keep.append(lot)
+                    continue
+                entry, basis, val = lot
+                take = min(val, remaining)
+                frac = take / val if val > 0 else 0.0
+                gain = take - basis * frac
+                # The holding period is measured on the real calendar, so a lot that survives
+                # four ~quarterly rebalances correctly becomes long-term.
+                if (dts[d] - dts[entry]).days > LONG_TERM_DAYS:
+                    realized_l += gain
+                else:
+                    realized_s += gain
+                remaining -= take
+                if val - take > 1e-15:
+                    keep.append([entry, basis * (1 - frac), val - take])
+            lots[t] = keep
+            if not lots[t]:
+                del lots[t]
+
+        # ---- BUY: top up to target, each purchase its own lot with its own clock ----
+        for t in tick:
+            held = sum(l[2] for l in lots.get(t, []))
+            want = target[t]
+            if want > held + 1e-12:
+                buy = want - held
+                traded_cost += buy * cost_hist.get(t, COST_BPS_MICRO) * 1e-4
+                lots.setdefault(t, []).append([d, buy, buy])
+
+        # ---- tax on what was realized this rebalance ----
+        net_short = realized_s
+        net_long = realized_l
+        pool = net_short + net_long + carry_loss
+        carry_loss = 0.0
+        if pool < 0:                                  # net loss -> no tax, carry it forward
+            carry_loss = pool
+            tax_due = 0.0
+        else:
+            # Losses offset the highest-taxed gains first, which is what a taxable investor
+            # would do and keeps this from overstating the drag.
+            s = max(0.0, net_short + min(0.0, net_long))
+            l = max(0.0, pool - s)
+            tax_due = s * short_rate + l * long_rate
+            tax_short += s * short_rate
+            tax_long += l * long_rate
+            gain_short += s
+            gain_long += l
+
+        drag = traded_cost + tax_due
+        # Paying costs and tax out of the book is what makes the compounding after-tax.
+        scale = (total - drag) / total if total > 0 else 1.0
+        for t in lots:
+            for lot in lots[t]:
+                lot[2] *= scale
+
+        # ---- hold the period ----
+        r_by_t = {t: r for t, r in zip(tick, rets)}
+        start = sum(l[2] for ls in lots.values() for l in ls)
+        for t in list(lots):
+            r = r_by_t.get(t)
+            if r is None or r != r:
+                continue
+            for lot in lots[t]:
+                lot[2] *= (1.0 + r)
+        end = sum(l[2] for ls in lots.values() for l in ls)
+
+        g = float(np.mean(rets))
+        gross_v *= (1.0 + g)
+        gross_r.append(g)
+        net_r.append((end - value) / value if value > 0 else 0.0)
+        tax_r.append(tax_due / total if total > 0 else 0.0)
+        value = end
+        allr = sub["fwd_ret"].values
+        ew.append(float(np.nanmean(allr)) if np.isfinite(allr).any() else np.nan)
+
+    if not gross_r:
+        return {"status": "no periods"}
+    per_year = 252.0 / float(horizon)
+    n = len(gross_r)
+    ann = lambda xs: float(np.prod([1 + x for x in xs]) ** (per_year / len(xs)) - 1)
+    ew_ok = [x for x in ew if x == x]
+    ann_ew = ann(ew_ok) if ew_ok else None
+    g_ann = ann(gross_r)
+    at_ann = float(value ** (per_year / n) - 1)
+    basis_end = sum(l[1] for ls in lots.values() for l in ls)
+    value_end = sum(l[2] for ls in lots.values() for l in ls)
+    return {
+        "n_periods": n, "years": round(n / per_year, 1),
+        "short_rate": short_rate, "long_rate": long_rate, "lot_method": lot_method,
+        "gross_ann": g_ann, "after_tax_ann": at_ann,
+        "equal_weight_ann": ann_ew,
+        "gross_alpha": (None if ann_ew is None else g_ann - ann_ew),
+        "after_tax_alpha": (None if ann_ew is None else at_ann - ann_ew),
+        "total_drag_ann": g_ann - at_ann,
+        "tax_paid_short": tax_short, "tax_paid_long": tax_long,
+        "gains_short": gain_short, "gains_long": gain_long,
+        "short_term_share_of_gains": (gain_short / (gain_short + gain_long)
+                                      if (gain_short + gain_long) > 0 else None),
+        "unrealized_gain_end": value_end - basis_end,
+        "note": ("after_tax_alpha is for a TAXABLE account; a tax-advantaged account (IRA/401k) "
+                 "pays no drag and earns the net-of-cost figure instead"),
+    }
+
+
 def cost_breakeven_bps(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
                        grid=(0, 5, 10, 15, 20, 25, 30, 40, 50, 75, 100, 150, 200)) -> dict:
     """The one-way cost (bps) at which net alpha vs equal-weight reaches zero.
@@ -3020,6 +3215,13 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
                 "top_25": {**(turnover_and_costs(panel, cols, rec, top_n=top_n, horizon=63) or {}),
                            **cost_breakeven_bps(panel, cols, rec, top_n=top_n,
                                                 horizon=63, grid=_cg)}}
+            # After-tax. ~250%/yr turnover means almost every gain is short-term in a TAXABLE
+            # account, and that drag is several times the trading cost.
+            out["after_tax"] = {
+                "top_decile": after_tax_backtest(panel, cols, rec, top_frac=0.1, horizon=63),
+                "top_25": after_tax_backtest(panel, cols, rec, top_n=top_n, horizon=63),
+                "tax_advantaged_note": ("an IRA/401k pays NO drag and earns the net-of-cost "
+                                        "figure in `costs` instead")}
             if adopted_w:
                 out["construction_default"] = quantile_backtest(panel, cols, base, n_q=10, horizon=63)
                 out["recommended_weights_full"] = _full_weights(rec, bucket)                # paste-ready weights

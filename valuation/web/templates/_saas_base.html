@@ -2,6 +2,41 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Valquo{% endblock %}</title>
+
+{# --- Social preview (Open Graph + Twitter Card) -------------------------------------- #
+ # Put on the SHARED base rather than the landing page alone, so any pasted valquo.co URL
+ # renders a card, not just the home page. Pages override the blocks below where they have a
+ # better title/description.
+ #
+ # og:image MUST be an ABSOLUTE https URL — LinkedIn, Slack and X will all silently skip a
+ # relative one, which is the single most common reason a card renders blank. request.url_root
+ # gives the real host at request time, so this works on valquo.co and on a Render preview URL
+ # without hard-coding either. #}
+{% set _base = (request.url_root.rstrip('/') if request else 'https://valquo.co') %}
+{% set _og_url = _base ~ request.path if request else 'https://valquo.co/' %}
+{% set _og_image = _base ~ url_for('static', filename='og-image.png') %}
+{# Each block is DECLARED inside the first tag that needs it — declaring it on its own line
+ # would render its text loose in <head> — then reused elsewhere via self.<block>(). #}
+<meta name="description" content="{% block og_description %}A live-data DCF for any ticker with bull/base/bear cases and a 1-100 score, a whole-market screener that ranks every name, and an honest point-in-time backtest that checks whether the ranking actually beats the market. Educational tool, not investment advice.{% endblock %}">
+<link rel="canonical" href="{{ _og_url }}">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Valquo">
+<meta property="og:title" content="{% block og_title %}Valquo — Value any stock. Find the hot ones. Prove the edge.{% endblock %}">
+<meta property="og:description" content="{{ self.og_description() }}">
+<meta property="og:url" content="{{ _og_url }}">
+<meta property="og:image" content="{{ _og_image }}">
+<meta property="og:image:secure_url" content="{{ _og_image }}">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Valquo — value any stock, find the hot ones, prove the edge">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{{ self.og_title() }}">
+<meta name="twitter:description" content="{{ self.og_description() }}">
+<meta name="twitter:image" content="{{ _og_image }}">
+<meta name="twitter:image:alt" content="Valquo — value any stock, find the hot ones, prove the edge">
 <style>
   :root{--navy:#1f3864;--blue:#2e5fa3;--bg:#eef1f6;--ink:#1a2233;--muted:#6b7688;--green:#1b7f4b;
     --amber:#c77c11;--red:#b3261e;--border:#e2e8f2;--bsoft:#eaf0fb;--card:#fff}
