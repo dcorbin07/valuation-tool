@@ -153,6 +153,12 @@ DEFAULT_BOOK_CONFIG = "roth"
 # of the time. Set to 0.5 (or 0.0) to enable at that risk-off exposure.
 REGIME_OVERLAY = None          # None = off. 0.0 = to cash, 0.5 = half exposure when below MA.
 
+# Valuation-regime overlay (valuation/edge/valuation_regime.py). TESTED AND REJECTED harder
+# than the trend filter: max drawdown does not move AT ALL (-57.0% in every config), Sharpe is
+# worse in both halves, and while risk-off the book returned +10%/period — it sat out the BEST
+# periods, not the worst. "Expensive" is not "about to fall".
+VALUATION_REGIME_OVERLAY = None    # None = off. 0.0 / 0.5 = risk-off exposure if ever enabled.
+
 # Which theme columns each bucket scores on (keys of the weight dicts above).
 # autolearn + the live scorer both read this, so there's one source of truth.
 BUCKET_FACTORS = {

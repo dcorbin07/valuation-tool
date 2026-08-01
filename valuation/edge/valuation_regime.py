@@ -55,6 +55,38 @@ ADOPTION BAR — stricter than regime.py's, and also pre-committed:
        cash through an expensive market that keeps rising for years.
 
 Rejecting is the expected outcome.
+
+================================ RESULT (run after the above was committed) =================
+REJECTED on every criterion, and more decisively than the trend filter.
+
+    config                      net ann   Sharpe    maxDD   flips   invested
+    no overlay                  +30.69%     1.13   -57.0%       -          -
+    valuation overlay off=0%    +26.58%     1.05   -57.0%       8        94%
+    valuation overlay off=50%   +28.75%     1.11   -57.0%       8        94%
+
+MAX DRAWDOWN DOES NOT MOVE AT ALL -- identical to three decimals in every configuration. The
+rule fires on only 10 of 165 rebalances and never during the actual crash.
+
+    half    base DD / Sharpe    off=0%            off=50%
+    early   -57.0% / 1.09       DD +0.0% Sh -0.07  DD +0.0% Sh -0.01
+    late    -34.8% / 1.16       DD +0.0% Sh -0.10  DD +0.0% Sh -0.04
+
+Worse Sharpe in BOTH halves. And the mechanism is exactly the failure this file pre-specified:
+WHILE RISK-OFF THE BOOK RETURNED +10.02% PER PERIOD (+77.3% annualized). It sat out the BEST
+periods, not the worst. "Expensive" and "about to fall" are different things, and an aggregate
+valuation percentile picks up the former with no information about the latter.
+
+Kept as a toggle (settings.VALUATION_REGIME_OVERLAY), OFF by default. Unlike the trend filter
+there is not even a tempting full-sample story here to argue about.
+
+TWO CAVEATS ON THE REPORTED LEVELS (they do not affect the rule, which is a percentile of a
+quantity against its own history, so any constant basis cancels):
+  * The aggregate earnings yield is computed from the panel's QUARTERLY (ARQ) net income, so
+    the implied "P/E ~96x" is a quarterly-flow artifact. Multiply the yield by ~4 for an
+    annualized figure: ~24x, which is a plausible market P/E. The printed multiple should not
+    be quoted as a market P/E.
+  * The aggregate PEG came back NaN because revenue growth is not persisted on panel rows
+    (only the value-ratio raws are). It is reported as unavailable rather than approximated.
 """
 from __future__ import annotations
 

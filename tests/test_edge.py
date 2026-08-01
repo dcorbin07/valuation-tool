@@ -1632,6 +1632,61 @@ def test_regime_overlay_scales_exposure_and_counts_whipsaw():
     assert same == rets and f2 == 0 and sh2 == 1.0
 
 
+def test_valuation_regime_is_point_in_time_and_off_by_default():
+    """The percentile must be computed over PRIOR dates only — a date that included itself in
+    its own reference distribution would be look-ahead."""
+    from valuation.edge import valuation_regime as VR
+    from valuation.screener import settings as S
+    assert S.VALUATION_REGIME_OVERLAY is None, "tested and rejected; must default off"
+    assert VR.VALUATION_PCTILE == 20 and VR.MIN_HISTORY == 20
+
+    # Falling yield (= richening market): only the late, expensive dates go risk-off.
+    n = 60
+    frame = pd.DataFrame({"date": [f"d{i:03d}" for i in range(n)],
+                          "agg_ey": np.linspace(0.06, 0.01, n)})
+    sig = VR.valuation_signal(frame)
+    assert all(sig[f"d{i:03d}"] for i in range(VR.MIN_HISTORY)), "no firing without history"
+    assert sig["d059"] is False, "cheapest yield in its own history -> risk-off"
+    # Truncating the frame after date k cannot change date k's answer.
+    k = 50
+    part = VR.valuation_signal(frame.iloc[:k + 1])
+    assert part[f"d{k:03d}"] == sig[f"d{k:03d}"], "future dates leaked into the percentile"
+    # A RISING yield (cheapening market) never goes risk-off.
+    rising = pd.DataFrame({"date": [f"r{i:03d}" for i in range(n)],
+                           "agg_ey": np.linspace(0.01, 0.06, n)})
+    assert all(VR.valuation_signal(rising).values())
+
+
+def test_aggregate_valuation_sums_rather_than_averages():
+    """sum(NI)/sum(mktcap), not the mean of per-name yields — otherwise one micro-cap with a
+    freak ratio moves the market aggregate, and loss-makers produce undefined P/Es."""
+    from valuation.edge import valuation_regime as VR
+    panel = pd.DataFrame({
+        "date": ["d1"] * 3,
+        "market_cap": [1e12, 1e9, 1e9],
+        # mega cap yields 5%; two tiny names at +200% and -200% cancel in the aggregate
+        "raw_earnings_yield": [0.05, 2.0, -2.0],
+    })
+    v = VR.aggregate_valuation(panel)
+    agg = float(v["agg_ey"].iloc[0])
+    # 5e10 / 1.002e12 — the two tiny caps sit in the DENOMINATOR, so the exact answer is
+    # 0.0499002, not 0.05. Their +200%/-200% yields cancel in the numerator.
+    assert abs(agg - (5e10 / 1.002e12)) < 1e-9, agg
+    # Loss-makers NET OFF in the numerator rather than producing an undefined P/E.
+    assert v["median_pe"].notna().iloc[0]
+
+    # Separate case for "not the naive mean": two tiny names with LOPSIDED yields, where the
+    # naive average is wildly different from the cap-weighted truth. (In the case above the
+    # +200/-200 cancel, so the naive mean lands near the right answer by coincidence.)
+    lop = pd.DataFrame({"date": ["d1"] * 3, "market_cap": [1e12, 1e9, 1e9],
+                        "raw_earnings_yield": [0.05, 2.0, 3.0]})
+    a2 = float(VR.aggregate_valuation(lop)["agg_ey"].iloc[0])
+    assert abs(a2 - (5.5e10 / 1.002e12)) < 1e-9, a2
+    assert abs(np.mean([0.05, 2.0, 3.0]) - a2) > 1.5, "must not be the naive per-name mean"
+    # An empty / column-less panel returns an empty frame rather than raising.
+    assert VR.aggregate_valuation(pd.DataFrame()).empty
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

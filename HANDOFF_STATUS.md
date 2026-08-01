@@ -12,6 +12,43 @@ file directly.
 
 ---
 
+## Valuation-regime overlay — REJECTED, harder than the trend filter
+
+Rule + bar committed results-free in `f567d01` before running. Primary rule (**one** rule, not
+three): market-cap-weighted earnings yield `sum(NI)/sum(mktcap)` per rebalance — summed, not
+averaged, so one freak micro-cap cannot move it and loss-makers net off — risk-off when it sits
+at or below its **20th percentile over all PRIOR dates** (expanding window, min 20 dates). An
+absolute multiple would be hindsight: "over 20x is expensive" is a fact about the last 20 years
+nobody knew in 1998. Median P/E and PEG were computed as **diagnostics only, explicitly not
+alternative rules** — three rules would be three chances to get lucky on one episode.
+
+| config | net ann | Sharpe | max DD | flips | invested |
+|---|---|---|---|---|---|
+| no overlay | +30.69% | 1.13 | −57.0% | — | — |
+| off = 0% | +26.58% | 1.05 | **−57.0%** | 8 | 94% |
+| off = 50% | +28.75% | 1.11 | **−57.0%** | 8 | 94% |
+
+**Max drawdown does not move at all** — identical to three decimals in every configuration. The
+rule fires on only 10 of 165 rebalances and never during the actual crash. Sharpe is worse in
+**both** halves (early −0.07/−0.01, late −0.10/−0.04), and drawdown improves in neither.
+
+**The mechanism is the failure the spec predicted:** while risk-off, the book returned
+**+10.02% per period (+77.3% annualized)**. It sat out the *best* periods, not the worst.
+*Expensive* and *about to fall* are different things, and an aggregate valuation percentile
+picks up the former with no information about the latter. Unlike the trend filter there is not
+even a tempting full-sample story to argue about.
+
+**NOT ADOPTED.** `settings.VALUATION_REGIME_OVERLAY`, default off.
+
+Two caveats on the reported levels (they do not affect the rule — a percentile against its own
+history is invariant to a constant basis): the aggregate yield uses the panel's **quarterly**
+ARQ net income, so the implied "P/E ~96x" is a quarterly-flow artifact (×4 ⇒ ~24x annualized,
+which is plausible) and should not be quoted as a market P/E; and aggregate **PEG came back NaN**
+because revenue growth is not persisted on panel rows — reported as unavailable rather than
+approximated.
+
+---
+
 ## Regime risk-off overlay — REJECTED, and the best argument yet for pre-commitment
 
 The rule and its adoption bar were written and **committed in isolation (`bfbde7e`) before it
