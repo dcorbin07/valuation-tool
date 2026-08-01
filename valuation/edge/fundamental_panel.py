@@ -960,7 +960,11 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                 continue
             row = {"date": as_of, "ticker": t, "fwd_ret": float(fr_ret),
                    "bench_ret": (float(bret) if bret == bret else np.nan),
-                   "market_cap": mktcap.get(t)}
+                   "market_cap": mktcap.get(t),
+                   # Sector (TICKERS overlay, not point-in-time) — needed for the
+                   # concentration RISK cap, which is a different thing from the
+                   # sector-NEUTRAL ranking rejected in P10.
+                   "sector": (_by_ticker.get(t) or {}).get("sector") or ""}
             for theme in S.FACTORS_ALL:
                 v = r.get(theme) if theme in fr.columns else None
                 row[theme] = None if (v is None or pd.isna(v)) else float(v)
@@ -2208,6 +2212,42 @@ def risk_stats(rets, per_year, rf=0.0):
             "vol_ann": sd * (per_year ** 0.5), "n": int(len(a))}
 
 
+def _sector_capped(order, tickers, sectors, n_target, max_sector_w):
+    """Pick n_target names best-first, but never let one sector exceed `max_sector_w`.
+
+    A CONCENTRATION RISK control, not a ranking change: names keep their exact composite order
+    and nothing is re-scored. The only thing that happens is that once a sector has filled its
+    allowance, the next name from it is skipped and the slot goes to the best name outside it.
+    (P10 rejected sector-NEUTRAL ranking, which is a different intervention entirely — that
+    re-scored every name against its sector peers.)
+
+    Unknown sector ("" / None) is exempt: with no sector data the cap would otherwise silently
+    bind on one giant bucket and quietly reshape the book.
+    """
+    cap_n = max(1, int(n_target * max_sector_w))
+    picked, per = [], {}
+    for i in order:
+        t = tickers[i]
+        sec = (sectors.get(t) or "").strip()
+        if sec:
+            if per.get(sec, 0) >= cap_n:
+                continue
+            per[sec] = per.get(sec, 0) + 1
+        picked.append(i)
+        if len(picked) >= n_target:
+            break
+    # If the cap is so tight the book cannot be filled, top up in rank order rather than
+    # returning a short book — a smaller book is a different experiment, not a capped one.
+    if len(picked) < n_target:
+        have = set(picked)
+        for i in order:
+            if i not in have:
+                picked.append(i)
+                if len(picked) >= n_target:
+                    break
+    return picked
+
+
 def _band_select(comp, tickers, held, n_target, exit_rank):
     """Which names to hold, given a NO-TRADE BAND (hysteresis).
 
@@ -2238,7 +2278,8 @@ def _band_select(comp, tickers, held, n_target, exit_rank):
 
 
 def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
-                       flat_bps=None, exit_frac=None, exit_mult=None) -> dict:
+                       flat_bps=None, exit_frac=None, exit_mult=None,
+                       max_sector_w=None) -> dict:
     """Turnover and NET-of-cost performance of the long book, vs the equal-weight universe.
 
     Weights drift with returns between rebalances, so the trade at each date is the full
@@ -2281,6 +2322,12 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         elif exit_frac is not None:
             _xr = max(k, int(len(sub) * exit_frac))
         _sel = _band_select(comp, _all_t, set(prev_w), k, _xr)
+        if max_sector_w:
+            _secmap = dict(zip(_all_t, sub["sector"].values)) if "sector" in sub.columns else {}
+            _byname = {t: j for j, t in enumerate(_all_t)}
+            _ord = [_byname[t] for t in _sel] + [j for j in np.argsort(-comp)
+                                                 if _all_t[j] not in set(_sel)]
+            _sel = [_all_t[j] for j in _sector_capped(_ord, _all_t, _secmap, k, max_sector_w)]
         _pos = {t: i for i, t in enumerate(_all_t)}
         order = np.array([_pos[t] for t in _sel], dtype=int)
         tick = sub["ticker"].values[order]
@@ -2356,7 +2403,7 @@ LONG_TERM_DAYS = 366        # a US holding period must EXCEED one year
 def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
                        short_rate=TAX_SHORT_TERM, long_rate=TAX_LONG_TERM,
                        flat_bps=None, lot_method="fifo", exit_frac=None,
-                       exit_mult=None) -> dict:
+                       exit_mult=None, max_sector_w=None) -> dict:
     """Net-of-COST and net-of-TAX performance of the long book, with real lot accounting.
 
     The book turns over ~250%/yr on a ~quarterly rebalance, so in a TAXABLE account almost
@@ -2416,6 +2463,12 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         elif exit_frac is not None:
             _xr = max(k, int(len(sub) * exit_frac))
         _sel = _band_select(comp, _all_t, set(lots), k, _xr)
+        if max_sector_w:
+            _secmap = dict(zip(_all_t, sub["sector"].values)) if "sector" in sub.columns else {}
+            _byname = {t: j for j, t in enumerate(_all_t)}
+            _ord = [_byname[t] for t in _sel] + [j for j in np.argsort(-comp)
+                                                 if _all_t[j] not in set(_sel)]
+            _sel = [_all_t[j] for j in _sector_capped(_ord, _all_t, _secmap, k, max_sector_w)]
         _pos = {t: i for i, t in enumerate(_all_t)}
         order = np.array([_pos[t] for t in _sel], dtype=int)
         tick = sub["ticker"].values[order]

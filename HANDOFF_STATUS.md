@@ -12,6 +12,54 @@ file directly.
 
 ---
 
+## Sector concentration cap — TESTED and REJECTED
+
+A max-per-sector weight on the Roth top-25 (a concentration RISK control — **not** the
+sector-NEUTRAL *ranking* rejected in P10, which re-scored every name against its sector peers;
+this only skips a name once its sector is full and keeps composite order otherwise).
+
+| cap | net α | Sharpe | max DD | Δ Sharpe | Δ maxDD | Δ α |
+|---|---|---|---|---|---|---|
+| none | +17.37% | 1.17 | −56.8% | — | — | — |
+| 35% | +16.64% | 1.15 | −56.6% | −0.02 | +0.2pp | **−0.73pp** |
+| 25% | +16.45% | 1.15 | −56.4% | −0.01 | +0.4pp | **−0.92pp** |
+
+**REJECTED** — it costs 0.73–0.92pp of return and buys 0.2–0.4pp of drawdown and *negative*
+Sharpe. No help in either half (none 1.12/1.20 · 35% 1.13/1.15 · 25% 1.11/1.18).
+
+Two reasons *why*, which are more useful than the null: **the book is already diversified**
+(mean max single-sector weight 27%, median 24%, above 35% on only 12% of dates, so the cap
+rarely binds), and **the −56.8% drawdown is a market event** (2008–09), not a sector-
+concentration event — capping sectors cannot help when everything falls together. If drawdown
+is the worry, the lever is market exposure, not sector mix.
+
+Sector is now persisted on panel rows and `max_sector_w` is a live parameter on both
+backtests, so this is re-testable in one line if the book ever gets more concentrated.
+
+---
+
+## Options outcome API — the Cowork filler is unblocked
+
+Two token-guarded endpoints (`X-Admin-Token`, same as the learning hook — the caller is a
+scheduled process, not a browser):
+
+- `GET /api/option-alerts/open?limit=N` → the work list of alerts awaiting outcomes.
+- `POST /api/option-alerts/outcome` → one object or a list of
+  `{alert_id | (ticker, alert_ts) | (occ_symbol, alert_ts), exit_premium, exit_ts, exit_reason,
+  contracts}`. Returns `{written, failed, failures}` — an unmatched or already-closed alert is
+  **reported, not silently dropped**, so the filler knows a write did not land.
+
+**P&L is recomputed from the STORED entry premium**, never taken from the caller, so the
+scorecard can never disagree with the prices the alert was logged against.
+
+**Bug caught while writing it:** `store` inside `create_saas_app` is the **UserStore**
+(accounts DB); `option_alerts` lives in the **screener** Store. My first version queried the
+wrong database entirely. Both endpoints now construct the screener `Store()` explicitly, and a
+test pins that source-level fact (flask is not installed here, so the routes cannot be
+exercised at runtime — the endpoints are **runtime-unverified**, worth one curl after deploy).
+
+---
+
 ## `roth` ADOPTED as the default book — and a cadence LABEL correction
 
 `DEFAULT_BOOK_CONFIG = "roth"` (Don trades in a Roth, so no tax drag). The headless CLI takes

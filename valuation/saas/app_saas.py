@@ -56,6 +56,64 @@ def create_saas_app(cfg=CONFIG):
                 "beta_mode": cfg.beta_mode,
                 "is_demo": bool(u and u.get("is_demo"))}
 
+    # ---- Options outcome API (the Cowork/Robinhood filler) ------------------------------
+    # Real fills and contract marks live behind the broker connector, which this web app
+    # cannot reach. So the app LOGS alerts and exposes two endpoints for an external job to
+    # read the work list and write outcomes back. Guarded by the same X-Admin-Token as the
+    # learning hook rather than a session: the caller is a scheduled process, not a browser,
+    # and these write to the record the scorecard is computed from.
+    def _admin_ok():
+        return bool(cfg.admin_token) and request.headers.get("X-Admin-Token") == cfg.admin_token
+
+    @app.route("/api/option-alerts/open")
+    def api_option_alerts_open():
+        """Alerts still awaiting an outcome — the filler's work list."""
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        from ..edge.options_tracker import open_alerts
+        from ..screener.store import Store
+        try:
+            limit = min(int(request.args.get("limit", 500)), 2000)
+        except (TypeError, ValueError):
+            limit = 500
+        # NOTE: `store` in this factory is the UserStore (accounts). option_alerts lives in
+        # the SCREENER store — a different database entirely.
+        rows = open_alerts(Store(), limit=limit)
+        return jsonify({"n": len(rows), "alerts": rows})
+
+    @app.route("/api/option-alerts/outcome", methods=["POST"])
+    def api_option_alerts_outcome():
+        """Write a realized contract outcome back. Accepts one object or a list.
+
+        P&L is NOT taken from the caller — record_outcome recomputes it from the stored entry
+        premium, so the scorecard can never disagree with the prices it was logged against.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        from ..edge.options_tracker import record_outcome
+        from ..screener.store import Store
+        scr = Store()                     # screener DB, not the accounts UserStore
+        body = request.get_json(silent=True)
+        items = body if isinstance(body, list) else [body or {}]
+        if len(items) > 500:
+            return jsonify({"error": "too many outcomes in one call (max 500)"}), 400
+        written, failed = 0, []
+        for it in items:
+            it = it or {}
+            ok = record_outcome(
+                scr, alert_id=it.get("alert_id"), occ=it.get("occ_symbol"),
+                alert_ts=it.get("alert_ts"), ticker=it.get("ticker"),
+                exit_premium=it.get("exit_premium"), exit_ts=it.get("exit_ts"),
+                exit_reason=it.get("exit_reason"), contracts=it.get("contracts", 1))
+            if ok:
+                written += 1
+            else:
+                # An unmatched or already-closed alert is reported, not silently dropped —
+                # the filler needs to know its write did not land.
+                failed.append({k: it.get(k) for k in ("alert_id", "ticker", "alert_ts",
+                                                      "occ_symbol")})
+        return jsonify({"written": written, "failed": len(failed), "failures": failed[:20]})
+
     @app.route("/admin/run-learning", methods=["POST"])
     def admin_run_learning():
         # Monthly self-learning: OOS-gated re-tune of the screener weights.

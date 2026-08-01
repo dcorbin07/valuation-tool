@@ -313,6 +313,39 @@ def test_options_profit_factor_undefined_reads_as_no_evidence():
     assert empty["n_closed"] == 0 and empty["expectancy_pct"] is None
 
 
+def test_options_outcome_api_contract_shape():
+    """The Cowork filler talks to two endpoints. flask is not installed here so the routes
+    cannot be exercised, but the contract they depend on can be: the work list, the write, and
+    the fact that P&L is recomputed from the STORED entry premium rather than trusted."""
+    # Read the SOURCE rather than importing: app_saas needs flask, which is not installed in
+    # this environment, and the contract is a source-level fact.
+    import os as _os
+    _p = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                       "valuation", "saas", "app_saas.py")
+    with open(_p, encoding="utf-8") as _fh:
+        src = _fh.read()
+    assert '/api/option-alerts/open' in src and '/api/option-alerts/outcome' in src
+    assert "X-Admin-Token" in src, "must be token-guarded, not session-guarded"
+    # The endpoints must use the SCREENER store; `store` in that factory is the UserStore.
+    assert "open_alerts(Store(), limit=limit)" in src
+    assert "scr, alert_id=" in src
+
+    from valuation.edge import options_tracker as OT
+    st = _opt_store()
+    ts = "2026-07-31T15:00:00"
+    OT.log_alert(st, _alert(ticker="NVDA", ts=ts, entry_premium=4.0))
+    work = OT.open_alerts(st)
+    assert len(work) == 1 and work[0]["ticker"] == "NVDA"
+    # A caller-supplied P&L is ignored: it is recomputed from the stored entry premium.
+    assert OT.record_outcome(st, ticker="NVDA", alert_ts=ts, exit_premium=6.0,
+                             exit_ts="2026-08-15T15:00:00", exit_reason="target")
+    sc = OT.scorecard(st)["overall"]
+    assert abs(sc["expectancy_pct"] - 0.5) < 1e-9, "6.00 vs 4.00 entry = +50%"
+    assert abs(sc["cum_pnl_dollars"] - 200.0) < 1e-6
+    # An unmatched write must fail loudly rather than silently no-op.
+    assert OT.record_outcome(st, ticker="NOPE", alert_ts=ts, exit_premium=1.0) is False
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
