@@ -138,6 +138,8 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     df["neg_ret_1m"] = _num("neg_ret_1m")                               # low-risk: short-term reversal
     df["neg_max_ret"] = _num("neg_max_ret")                             # low-risk: MAX / lottery effect
     df["neg_idio_vol"] = _num("neg_idio_vol")                           # low-risk: idiosyncratic vol
+    df["activist_13d"] = _num("activist_13d")                           # SEC (measured only)
+    df["passive_13g"] = _num("passive_13g")                             # SEC placebo
     df["neg_days_to_cover"] = _num("neg_days_to_cover")                 # FINRA (measured only)
     df["neg_short_interest_chg"] = _num("neg_short_interest_chg")       # FINRA (measured only)
     df["sm_elite_conviction"] = _num("sm_elite_conviction")             # 13F: quality-weighted (measured only)

@@ -12,6 +12,45 @@ file directly.
 
 ---
 
+## P24.2 - SEC EDGAR 13D/13G: TESTED AND REJECTED (2026-08-01)
+
+352,332 filings -> 6,632 tickers from EDGAR quarterly form indexes (112s for 2007-2026).
+
+    signal                  median IC    IC t   nonzero   coverage
+    activist_13d              -0.0055   -0.69     4.56%      58.5%
+    passive_13g (PLACEBO)     +0.0159   +1.66    18.59%      58.5%
+    inst_accum (in the book)  +0.0314   +1.88        --      61.4%
+
+    gate: standalone t >= 2.0              FAIL (-0.69)
+          13D beats 13G placebo by >= 1.0  FAIL (-2.35)
+
+**The activist signal came out NEGATIVE** - opposite to the direction fixed in advance - and the
+PASSIVE placebo (the box index funds tick mechanically) outscored it by 2.35 t. Measuring 13D
+alone would have given a bland "weak, rejected"; the pre-committed placebo gives a sharper
+verdict: whatever these filings carry at a quarterly horizon, it is not activism creating value.
+It also forecloses chasing passive_13g's +1.66, very likely a coarser echo of inst_accum (+1.88)
+that the institutional theme already owns.
+
+**Two silent-failure bugs caught, both now pinned by tests:**
+1. The SEC RENAMED the forms during 2024 ("SC 13D" -> "SCHEDULE 13D"). The old spelling returns
+   ~30 filings/quarter for 2025-2026 vs ~15,000 - the most recent panel dates would have carried
+   a structurally-zero signal while looking perfectly healthy.
+2. form.idx is nominally fixed-width but the column offsets have MOVED over EDGAR's history; a
+   fixed-width parse scored 0/200 rows on 2015. Parsed by structure instead (98.6-99.5% across
+   1998/2015/2024).
+
+Honest deviation: the docstring specifies absence -> 0.0, but the panel wiring skips tickers with
+no filing history at all, so coverage is 58.5% not ~100%. That made the test EASIER (the
+never-filed mass is excluded) and activist_13d still went negative, so the verdict stands.
+
+Point-in-time: only `Date Filed` is read - the public disclosure date. The event date (crossing
+5%, up to 10 days earlier) is never parsed. Tests 79/79.
+
+**Next - P24 items 3 and 4 are UNTOUCHED:**
+- USAspending.gov contract awards (use the award ACTION/entry date)
+- Congressional trades (use the PTR DISCLOSURE date, NEVER the transaction date - it lags up to
+  45 days, and using the trade date would be look-ahead)
+
 ## P24.1 — FINRA short interest: TESTED AND REJECTED (2026-08-01)
 
 Downloaded FINRA's consolidated short interest: **3,866,270 rows -> 48,539 tickers** (1,294s,

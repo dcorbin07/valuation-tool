@@ -244,6 +244,8 @@ NUMBER_THEME = {
     # t +3.53. Genuinely orthogonal (+0.048 vs ret_6_1) but simply not predictive.
     # Measured, not scored.
     "neg_days_to_cover": "low_risk", "neg_short_interest_chg": "low_risk",
+    # SEC 13D/13G. passive_13g is a deliberate PLACEBO, not a candidate.
+    "activist_13d": "institutional", "passive_13g": "institutional",
 }
 NUMBERS_ALL = list(NUMBER_THEME.keys())
 

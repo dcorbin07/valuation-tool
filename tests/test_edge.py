@@ -5,6 +5,7 @@ Validates the backtest math, the no-overfit walk-forward + advisor, the factor
 panel, and owner-only gating.
 """
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1822,6 +1823,42 @@ def test_short_interest_uses_publication_date_not_settlement():
     without = build_frame([{**m, "neg_days_to_cover": None} for m in metrics],
                           sector_neutral=False, residual_momentum=False)
     pd.testing.assert_series_equal(fr["low_risk"], without["low_risk"], check_names=False)
+
+
+def test_edgar13d_dating_and_form_rename():
+    """Two silent-failure guards, both of which actually bit during P24.2.
+
+    1. The SEC RENAMED these forms during 2024 ("SC 13D" -> "SCHEDULE 13D"). Matching only the
+       old spelling returned ~30 filings/quarter for 2025-2026 instead of ~15,000, so the most
+       recent panel dates would have carried a structurally-zero signal while looking healthy.
+    2. Only the FILING date may be used. The event date (crossing 5%, up to 10 days earlier) is
+       never parsed, so a filing must be invisible until the day it is filed.
+    """
+    from valuation.edge import edgar13d as E
+    from valuation.screener import settings as S
+    for f in ("SC 13D", "SC 13D/A", "SCHEDULE 13D", "SCHEDULE 13D/A"):
+        assert f in E.FORMS_13D, f
+    for f in ("SC 13G", "SCHEDULE 13G/A"):
+        assert f in E.FORMS_13G, f
+    rx = re.compile(E.ROW_RX)
+    for line, want in (
+            ("SC 13D           Acme Corp                    1591890     2015-05-21  edgar/x.txt", "SC 13D"),
+            ("SCHEDULE 13G/A   Acme Corp                    1591890     2025-05-21  edgar/y.txt", "SCHEDULE 13G/A")):
+        m = rx.match(line)
+        assert m and m.group(1) == want and m.group(3) == "1591890"
+    rows = [("2026-01-05", "SC 13D"), ("2026-06-01", "SCHEDULE 13G"),
+            ("2026-07-20", "SCHEDULE 13D")]
+    # Nothing is visible the day before it is filed.
+    assert E.signals_at(rows, "2026-07-19")["activist_13d"] == 0.0
+    assert E.signals_at(rows, "2026-07-20")["activist_13d"] == 1.0
+    # Old spelling still counts, and the window is trailing, not cumulative.
+    assert E.signals_at(rows, "2026-01-05")["activist_13d"] == 1.0
+    got = E.signals_at(rows, "2026-07-30")
+    assert got["activist_13d"] == 1.0 and got["passive_13g"] == 1.0   # Jan 13D aged out
+    # Absence is zero for a name with history; both rejected, so neither is scored.
+    assert E.signals_at([], "2026-07-30") == {"activist_13d": 0.0, "passive_13g": 0.0}
+    assert S.NUMBER_THEME.get("activist_13d") == "institutional"
+    assert "activist_13d" not in S.WEIGHTS_ESTABLISHED
 
 
 def _run_all():

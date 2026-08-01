@@ -73,6 +73,20 @@ therefore push this test toward a false REJECTION but cannot manufacture a false
 which is the safe direction. Measured and reported after the run rather than assumed away.
 
 --------------------------------------------------------------------------------------------
+A RULE CHANGE MAKES THE RAW COUNTS NON-STATIONARY — and why that is survivable here.
+
+The SEC's 2024 amendments shortened 13G amendment deadlines from annual to quarterly, so 13G/A
+volume steps up sharply in 2025 (2024Q2: 1,746 13G/A; 2025Q2: 8,898) for a purely regulatory
+reason with no market meaning. A signal defined as a RAW COUNT is therefore not comparable
+across the panel's history.
+
+This is survivable only because every signal here is z-scored WITHIN each rebalance date. A
+uniform level shift affecting all stocks on a date is normalized away by construction, so the
+cross-section still asks the right question: "who has unusually many filings TODAY". It would
+NOT be survivable for a time-series signal, and it is the reason the counts are never compared
+across dates.
+
+--------------------------------------------------------------------------------------------
 ADOPTION BAR — pre-committed, the same shape every other signal here has faced:
 
   1. Standalone median IC t-stat >= MIN_IC_TSTAT for activist_13d, on the full universe.
@@ -88,6 +102,49 @@ Rejecting is the expected outcome. The 13D announcement effect is well documente
 few-day event around the filing, while this book rebalances every 42-63 days and holds for a
 quarter — the drift has to survive at that horizon to be usable here, and the event is rare
 enough that it may simply not move a broad book.
+
+
+================================ RESULT (run after the above was committed) =================
+REJECTED, and the pre-committed placebo is the reason the rejection means something.
+352,332 filings -> 6,632 tickers. Full universe, 136,478 rows / 110 dates.
+
+    signal                  median IC    IC t   nonzero   coverage
+    activist_13d              -0.0055   -0.69     4.56%      58.5%
+    passive_13g (PLACEBO)     +0.0159   +1.66    18.59%      58.5%
+    inst_accum (in the book)  +0.0314   +1.88        --      61.4%
+    ret_6_1    (in the book)  +0.0580   +3.40        --     100.0%
+
+    gate: standalone t >= 2.0                 FAIL (-0.69)
+          13D beats 13G placebo by >= 1.0     FAIL (-2.35)
+          nonzero >= 1%                       PASS (4.56%)
+
+THE ACTIVIST SIGNAL IS NEGATIVE — not weak, but pointed the OTHER WAY from the direction fixed
+in advance. And the PASSIVE placebo, the box index funds tick mechanically, outscores it by
+2.35 t. Measuring 13D alone would have produced a bland "weak, rejected". The placebo produces
+a sharper and more useful statement: whatever these filings carry at a quarterly horizon, it is
+NOT activism creating value, because the non-activist control does better.
+
+The placebo also forecloses an obvious trap. passive_13g at t +1.66 is the kind of number that
+invites a second look, but it was declared a control BEFORE the run, and it is very likely just
+a slower, coarser echo of inst_accum (t +1.88), which the institutional theme already owns.
+Promoting it now would be exactly the overfitting this project has spent two dozen sessions
+avoiding.
+
+HONEST DEVIATION FROM THE DESIGN ABOVE, found while reading the output. The docstring specifies
+"absence is 0.0, not NaN", but the panel wiring skips tickers with NO filing history entirely,
+so those rows are NaN. Hence coverage 58.5% rather than the ~100% predicted. The test therefore
+ran on the SUBSET of names that have ever been the subject of a 13D/13G — friendlier ground for
+the signal, since the never-filed mass is excluded. Within that subset, names with history but
+no RECENT filing correctly score 0.0. The deviation makes the test easier, not harder, and
+activist_13d still came out negative, so it cannot explain the rejection and the verdict stands
+without a re-run.
+
+Contamination and mapping caveats above are moot for a rejection: both add noise or favour
+survivors, and neither can turn a real positive into a negative t-stat.
+
+Both signals stay MEASURED (NUMBER_THEME, per-signal IC table) and score in NO theme. The
+downloader is kept — it is correct, fast (112s for 20 years) and the form-rename guard below is
+worth preserving.
 """
 from __future__ import annotations
 
@@ -102,8 +159,13 @@ MIN_13D_OVER_13G_T = 1.0           # activist must beat the passive placebo by t
 
 # Signal construction, fixed in advance.
 RECENT_DAYS = 126                  # ~2 quarters; matches the book's hold, not the 3-day event
-FORMS_13D = ("SC 13D", "SC 13D/A")
-FORMS_13G = ("SC 13G", "SC 13G/A")
+# BOTH spellings are required. The SEC RENAMED these form types during 2024 as part of the
+# structured-XML modernization: "SC 13D" became "SCHEDULE 13D". In 2025Q2 there are 15,054
+# filings under the new labels and THREE under the old. Matching only the historical spelling
+# returned ~30 filings per quarter for 2025-2026 — the panel's most recent dates would have
+# carried a structurally-zero signal while looking perfectly healthy.
+FORMS_13D = ("SC 13D", "SC 13D/A", "SCHEDULE 13D", "SCHEDULE 13D/A")
+FORMS_13G = ("SC 13G", "SC 13G/A", "SCHEDULE 13G", "SCHEDULE 13G/A")
 
 # SEC requires a descriptive User-Agent with a contact address; 10 req/sec ceiling.
 USER_AGENT = "Valquo research donniecorbin6@gmail.com"
@@ -112,7 +174,7 @@ INDEX = "https://www.sec.gov/Archives/edgar/full-index/{year}/QTR{qtr}/form.idx"
 # a fixed-width parse tested against 2015 returned 0/200 rows and would have silently yielded
 # nothing for entire eras. Parse by structure instead: this matches 98.6-99.5% of SC 13* lines
 # in 1998, 2015 and 2024 alike.
-ROW_RX = r"^(SC 13[DG](?:/A)?)\s+(.*?)\s+(\d{1,10})\s+(\d{4}-\d{2}-\d{2})\s+(\S+)\s*$"
+ROW_RX = r"^((?:SC|SCHEDULE) 13[DG](?:/A)?)\s+(.*?)\s+(\d{1,10})\s+(\d{4}-\d{2}-\d{2})\s+(\S+)\s*$"
 TICKER_MAP = "https://www.sec.gov/files/company_tickers.json"
 REQ_PAUSE = 0.15                   # deliberately under SEC's 10/sec limit
 
@@ -180,7 +242,7 @@ def fetch_13d_filings(start_year: int, end_year: int, cik_to_ticker: dict,
                 continue
             # Form Type | Company Name | CIK | Date Filed | File Name — parsed by structure.
             for line in r.text.splitlines():
-                if not line.startswith("SC 13"):
+                if not (line.startswith("SC 13") or line.startswith("SCHEDULE 13")):
                     continue
                 m = rx.match(line)
                 if not m:

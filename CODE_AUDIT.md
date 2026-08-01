@@ -209,3 +209,16 @@ never returns the settlement date, so a future caller cannot reintroduce the loo
 Pinned by `test_short_interest_uses_publication_date_not_settlement`.
 
 Cache: `data/bulk/prepared/short_interest.pkl` (167MB, gitignored with the rest of data/).
+
+## SEC EDGAR 13D/13G (P24.2, 2026-08-01)
+`valuation/edge/edgar13d.py` - committed results-free, verdict appended. REJECTED: activist_13d
+t -0.69 (wrong sign), and the pre-committed passive 13G placebo beat it by 2.35 t.
+
+Two things not to re-break, both pinned by `test_edgar13d_dating_and_form_rename`:
+- BOTH form spellings are required. The SEC renamed "SC 13D" -> "SCHEDULE 13D" during 2024;
+  matching only the old one silently empties 2025 onward (~30 vs ~15,000 filings/quarter).
+- form.idx must be parsed by STRUCTURE, not fixed width - the column offsets moved over EDGAR's
+  history and a fixed-width parse returns nothing for whole eras.
+
+Only `Date Filed` is ever read (the public disclosure date); the 5%-crossing event date is not
+parsed at all. Caches: `data/bulk/prepared/edgar13d.pkl`, `cik_ticker.json` (gitignored).

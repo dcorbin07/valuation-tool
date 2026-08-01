@@ -399,6 +399,10 @@ class WRDSProvider(HistoricalDataProvider):
         from .bulk import earnings_dates as _ed
         return _ed(self._bulk("events"), ticker)
 
+    def edgar_13d_for(self, ticker):
+        """SEC 13D/13G filings as (FILING date, form). Filing date == public disclosure date."""
+        return self._bulk("edgar13d").get(ticker.upper(), [])
+
     def short_interest_for(self, ticker):
         """FINRA short-interest observations, already stamped with the PUBLICATION date.
 
