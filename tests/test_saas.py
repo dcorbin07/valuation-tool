@@ -303,6 +303,51 @@ def test_open_access_off_restores_the_paywall():
     assert gating.check_request("/api/backtest/run", "POST", {}, None, s)[1] == 401
 
 
+def test_valquo_index_is_a_slice_of_the_hot_stocks_ranking():
+    """One ranking, two views: the Index must be built from the SAME snapshot the Hot Stocks
+    tab reads, so there is never a second competing screen. The account toggle switches which
+    validated construction is applied."""
+    from valuation.screener import settings as S
+    from valuation.edge.valquo_index import build_index
+    # A realistic ranked snapshot: 400 large caps, descending hot score.
+    rows = [{"ticker": f"T{i:03d}", "hot_score": 100.0 - i * 0.2, "price": 50.0,
+             "market_cap": 5e10, "rank": i + 1} for i in range(400)]
+    roth = build_index(rows, top_n=S.BOOK_CONFIGS["roth"]["top_n"])
+    tax = build_index(rows, top_decile=S.BOOK_CONFIGS["taxable"]["top_frac"])
+    assert roth["n_positions"] == 25, roth["n_positions"]
+    assert tax["n_positions"] == 40, tax["n_positions"]        # decile of 400 eligible
+    # Both must be TOP slices of the same order — the Index never reorders the ranking.
+    assert [p["ticker"] for p in roth["positions"]] == [f"T{i:03d}" for i in range(25)]
+    assert [p["ticker"] for p in tax["positions"][:25]] == [p["ticker"] for p in roth["positions"]]
+    # ...so roth is strictly contained in taxable: one ranking, two cuts of it.
+    assert set(p["ticker"] for p in roth["positions"]) <= set(p["ticker"] for p in tax["positions"])
+
+
+def test_valquo_index_api_config_toggle():
+    from valuation.saas.app_saas import create_saas_app
+    c = create_saas_app().test_client()
+    bad = c.get("/api/valquo-index?config=nonsense")
+    assert bad.status_code == 400 and "known" in bad.get_json()
+    for name in ("roth", "taxable"):
+        r = c.get(f"/api/valquo-index?config={name}")
+        assert r.status_code == 200
+        j = r.get_json()
+        if not j.get("empty"):
+            assert j["config"]["name"] == name
+            assert j["config"]["rebalance_months"]
+            assert "same scan snapshot" in j.get("source_note", "")
+    # The Hot Stocks page carries both blurbs and the toggle. Asserted on the TEMPLATE rather
+    # than a rendered /app, because whether /app renders depends on CONFIG.open_access, which
+    # sibling tests in this module flip — that is auth state, not what this test is about.
+    import os as _os
+    _tpl = _os.path.join(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
+                         "valuation", "web", "templates", "index.html")
+    with open(_tpl, encoding="utf-8") as _fh:
+        h = _fh.read()
+    assert 'id="bookConfig"' in h, "account-type toggle missing"
+    assert "discovery" in h and "disciplined, backtested book" in h, "blurbs missing"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

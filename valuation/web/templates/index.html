@@ -239,8 +239,28 @@
   <!-- HOT STOCKS -->
   <div id="tab-hot" style="display:none">
     <div class="search-card">
-      <div class="note" style="margin-top:0">The list is rebuilt automatically after each market close and stays the
-        same through the trading day, so it's always the latest — there's nothing to refresh.</div>
+      <!-- One ranking, two views. Hot Stocks IS the ranking; the Valquo Index is its
+           disciplined top-slice. Deliberately not a second competing screen. -->
+      <div class="note" style="margin-top:0"><b>Hot Stocks is the full ranked screen — this is
+        discovery.</b> Every name the model scores, in order. The <b>Valquo Index</b> below is
+        the disciplined, backtested book you would actually hold and track: the same ranking,
+        cut to a validated construction. The list is rebuilt automatically after each market
+        close and stays the same through the trading day, so it's always the latest — there's
+        nothing to refresh.</div>
+      <div class="search-row" style="align-items:center;margin-top:10px">
+        <label class="opt" style="margin:0">Account type
+          <select id="bookConfig" class="selin" onchange="loadValquoIndex()">
+            <option value="roth" selected>Roth / IRA — top 25, ~2-month rebalance</option>
+            <option value="taxable">Taxable — decile, quarterly, 20% no-trade band</option>
+          </select>
+        </label>
+        <span class="note" id="bookConfigNote" style="margin:0"></span>
+      </div>
+      <div id="valquoIndexBox" class="card" style="margin-top:12px;display:none">
+        <h3 style="margin:0 0 6px">◆ Valquo Index — the book to hold</h3>
+        <div class="note" id="valquoIndexNote" style="margin-bottom:8px"></div>
+        <div id="valquoIndexBody"></div>
+      </div>
       {% if is_owner %}
       <div class="search-row" style="align-items:center;margin-top:10px">
         <select id="scanScope" class="selin">

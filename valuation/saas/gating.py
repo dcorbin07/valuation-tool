@@ -96,7 +96,11 @@ def check_request(path: str, method: str, body: dict, user, store) -> tuple | No
         return None
 
     # Login required for any /api that isn't public reads.
-    public = path in ("/api/health", "/api/hotstocks", "/api/track")
+    # /api/valquo-index is the constructed top-slice of the SAME ranking
+    # /api/hotstocks serves, so it is a public read for exactly the same reason —
+    # login-walling one view of a ranking while the other is open makes no sense.
+    public = path in ("/api/health", "/api/hotstocks", "/api/track",
+                      "/api/valquo-index")
     if path.startswith("/api/") and not public and user is None:
         return ({"error": "Please sign in to use this.", "need_login": True}, 401)
 

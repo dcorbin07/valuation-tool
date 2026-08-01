@@ -179,6 +179,54 @@ def _store():
     return Store()
 
 
+@app.route("/api/valquo-index")
+def api_valquo_index():
+    """The Valquo Index — the CONSTRUCTED TOP-SLICE of the same ranking Hot Stocks shows.
+
+    Deliberately built from the SAME snapshot the Hot Stocks tab reads, so there is exactly one
+    ranking in the product and the Index is a disciplined selection from it, not a second
+    competing screen. `config` picks the validated construction:
+
+        roth     top-25, ~2-month rebalance, no no-trade band   (tax-free: Sharpe-optimal)
+        taxable  decile, quarterly, 20% band                    (after-tax-optimal)
+    """
+    from ..edge.valquo_index import build_index
+    from ..screener import settings as S
+    name = (request.args.get("config") or S.DEFAULT_BOOK_CONFIG or "roth").lower()
+    cfg = (S.BOOK_CONFIGS or {}).get(name)
+    if not cfg:
+        return jsonify({"error": f"unknown config {name!r}",
+                        "known": sorted(S.BOOK_CONFIGS or {})}), 400
+    st = _store()
+    scan_date = st.latest_scan_date()
+    if not scan_date:
+        return jsonify({"empty": True, "config": name,
+                        "message": "No scan snapshot yet — the Index is built from the same "
+                                   "ranking the Hot Stocks tab shows, so it appears once a "
+                                   "scan has run."})
+    rows = st.load_snapshot(scan_date)
+    kw = {}
+    if cfg.get("top_n"):
+        kw["top_n"] = cfg["top_n"]
+    if cfg.get("top_frac"):
+        kw["top_decile"] = cfg["top_frac"]
+    payload = build_index(rows, **kw)
+    payload["config"] = {
+        "name": name, "label": cfg.get("label"),
+        "rebalance_days": cfg.get("rebalance_days"),
+        "rebalance_months": (round(cfg["rebalance_days"] / 21.0, 1)
+                             if cfg.get("rebalance_days") else None),
+        "exit_frac": cfg.get("exit_frac"),
+        "band_note": ("hold a position until it falls past this fraction; applied at rebalance "
+                      "against the previous book, not in this snapshot"),
+        "measured": cfg.get("measured")}
+    payload["scan_date"] = scan_date
+    payload["available_configs"] = sorted(S.BOOK_CONFIGS or {})
+    payload["source_note"] = ("built from the same scan snapshot as the Hot Stocks ranking — "
+                              "the Index is its disciplined top-slice, not a separate screen")
+    return jsonify(payload)
+
+
 @app.route("/api/options-scorecard")
 def api_options_scorecard():
     """Expectancy of the scream-buy options alerts, from REAL closed contract outcomes.

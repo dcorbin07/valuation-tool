@@ -17,7 +17,7 @@ function switchTab(t) {
     const el = document.getElementById("tab-" + name);
     if (el) el.style.display = (name === t) ? "block" : "none";
   });
-  if (t === "hot" && !STATE.hotLoaded) { STATE.hotLoaded = true; loadHotStocks(); }
+  if (t === "hot" && !STATE.hotLoaded) { STATE.hotLoaded = true; loadHotStocks(); loadValquoIndex(); }
   if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); loadOptionsScorecard(); }
   if (t === "track" && !STATE.trackLoaded) { STATE.trackLoaded = true; loadTrack(); }
   if (t !== "signals") stopSigAuto();
@@ -1171,4 +1171,48 @@ async function loadOptionsScorecard() {
       + `criterion yet (need ${d.min_closed_per_bucket || 30} per bucket).</div>`;
   }
   document.getElementById("optScoreBody").innerHTML = html;
+}
+
+
+// ---------------------------------------------------------------------------------------- //
+// Valquo Index — the constructed top-slice of the SAME ranking Hot Stocks shows. One ranking,
+// two views: Hot Stocks is discovery, the Index is the book you would hold. The account-type
+// toggle switches which validated construction is applied (roth vs taxable).
+// ---------------------------------------------------------------------------------------- //
+async function loadValquoIndex() {
+  const box = document.getElementById("valquoIndexBox");
+  if (!box) return;
+  const cfg = (document.getElementById("bookConfig") || {}).value || "roth";
+  let d;
+  try {
+    d = await (await fetch("/api/valquo-index?config=" + encodeURIComponent(cfg))).json();
+  } catch (e) { return; }
+  box.style.display = "";
+  const note = document.getElementById("valquoIndexNote");
+  const body = document.getElementById("valquoIndexBody");
+  if (d.empty || d.error) {
+    note.textContent = d.message || d.error || "Unavailable.";
+    body.innerHTML = "";
+    return;
+  }
+  const c = d.config || {};
+  const m = c.measured || {};
+  const meas = (m.net_sharpe != null)
+    ? `backtested net Sharpe <b>${m.net_sharpe.toFixed(2)}</b>, net alpha <b>${(m.net_alpha * 100).toFixed(1)}%</b>`
+    : (m.after_tax_sharpe != null
+        ? `backtested after-tax Sharpe <b>${m.after_tax_sharpe.toFixed(2)}</b>, after-tax alpha <b>${(m.after_tax_alpha * 100).toFixed(1)}%</b>`
+        : "");
+  note.innerHTML = `<b>${c.label || cfg}</b> — ${d.n_positions} of ${d.n_eligible} eligible `
+    + `(${d.n_scored} scored). Rebalance every ~${c.rebalance_months} months`
+    + (c.exit_frac ? `, hold until a name falls past the top ${(c.exit_frac * 100).toFixed(0)}%` : ", full rotation")
+    + `. ${meas}<br><span class="muted">${d.source_note || ""}</span>`;
+  const rows = (d.positions || []).slice(0, 30);
+  body.innerHTML = '<table class="tbl"><thead><tr><th>#</th><th>Ticker</th><th>Weight</th>'
+    + '<th>Hot score</th><th>Market cap</th></tr></thead><tbody>'
+    + rows.map((p, i) => `<tr><td>${i + 1}</td><td><b>${p.ticker}</b></td>`
+        + `<td>${(p.weight * 100).toFixed(2)}%</td><td>${p.hot_score}</td>`
+        + `<td>${p.market_cap ? "$" + (p.market_cap / 1e9).toFixed(1) + "B" : "—"}</td></tr>`).join("")
+    + "</tbody></table>"
+    + ((d.positions || []).length > rows.length
+        ? `<div class="note">… and ${d.positions.length - rows.length} more</div>` : "");
 }

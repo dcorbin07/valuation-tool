@@ -12,6 +12,53 @@ file directly.
 
 ---
 
+## Hot Stocks ⇄ Valquo Index unified, with a Roth/Taxable toggle — AND the UI is finally VERIFIED
+
+**The blocker is gone.** `pip install flask werkzeug jinja2 openpyxl reportlab` (all already in
+`requirements.txt` — it was purely a missing local env) means the app now imports, renders and
+serves in tests. Everything shipped blind in earlier sessions is confirmed working:
+
+| previously unverified | now |
+|---|---|
+| OG/Twitter meta tags | `GET /` → **200**, `og:image` present and **absolute** |
+| signup/pricing gating | `/register` → 302, `/pricing` → 302, no signup CTA in the HTML |
+| options endpoints | `/api/option-alerts/open` without a token → **401** |
+| **`test_saas` suite** | **20/20 passing** — unrunnable for this entire project until now |
+
+### One ranking, two views (no second index)
+
+`/api/valquo-index?config=roth|taxable` builds the book from **the same snapshot the Hot Stocks
+tab reads**, so the Index is a disciplined *slice* of the ranking rather than a competing
+screen. A test pins that: the roth 25-name book is exactly the first 25 of the taxable decile,
+and the Index never reorders the ranking.
+
+The Hot Stocks tab now carries an **account-type toggle** (roth = top-25 / ~2-month / no band;
+taxable = decile / quarterly / 20% band) and both blurbs — *Hot Stocks is the full ranked screen
+(discovery)*, *Valquo Index is the disciplined, backtested book you would hold and track*.
+
+**Gating fix found by a failing test:** `/api/valquo-index` was login-walled while
+`/api/hotstocks` is a public read. Login-walling one view of a ranking while the other is open
+makes no sense, so it is now public too — the endpoint, not the test, was wrong.
+
+### What is NOT done, and the decision it needs
+
+The scan still **sources Hot Stocks from the FMP snapshot**, not `score_universe_now`. Both
+views now share one ranking, but that ranking is still the live-scan one. Pointing the scan at
+the Sharadar full universe is a one-function change — the blocker is a real trade-off only Don
+can settle:
+
+* **Sharadar** is point-in-time and full-universe (2,827 names, the thing that was validated),
+  but the export is a **static file, currently as-of 2026-07-24** — Hot Stocks would go stale
+  between manual re-exports.
+* **FMP** is live and daily, but is a smaller universe and is not point-in-time.
+
+Recommendation: keep Hot Stocks on the live FMP scan for **discovery** (users expect current
+data) and drive the **Index** off a periodic Sharadar scoring, since a book rebalanced every
+~2 months does not care about a week of staleness. That keeps both honest without pretending a
+weekly-stale screen is live.
+
+---
+
 ## Valuation-regime overlay — REJECTED, harder than the trend filter
 
 Rule + bar committed results-free in `f567d01` before running. Primary rule (**one** rule, not
