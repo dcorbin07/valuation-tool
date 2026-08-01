@@ -794,6 +794,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     meta = {}                  # TICKERS: sector / country / exchange (NOT point-in-time)
     earn = {}                  # EVENTS: earnings announcement dates (code 22)
     elite = {}                 # SF3: manager-quality-weighted conviction
+    shorts = {}                # FINRA short interest (publication-dated)
     for _i, t in enumerate(tickers):
         if _i and _i % 250 == 0:
             _prog(f"  loaded {_i}/{len(tickers)} tickers, {len(px)} usable")
@@ -813,6 +814,8 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # Sharadar BULK: point-in-time market cap / ratios, and per-manager 13F detail.
             dly[t] = provider.daily_history(t) if hasattr(provider, "daily_history") else []
             sf3[t] = provider.sf3_for(t) if hasattr(provider, "sf3_for") else {}
+            shorts[t] = (provider.short_interest_for(t)
+                         if hasattr(provider, "short_interest_for") else [])
             elite[t] = (provider.elite_conviction_for(t)
                         if hasattr(provider, "elite_conviction_for") else {})
             meta[t] = provider.ticker_meta(t) if hasattr(provider, "ticker_meta") else {}
@@ -918,6 +921,10 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # SF3 per-manager detail. Exposed as factor INPUTS here; whether any of them
             # earns a place in the composite is for CPCV to decide (P4), so they are not
             # yet registered in NUMBER_THEME.
+            _si = shorts.get(t)
+            if _si:
+                from .short_interest import signals_at
+                m.update(signals_at(_si, as_of))
             # Elite-manager conviction, lagged exactly like every other 13F input.
             _eq = elite.get(t) or {}
             if _eq:

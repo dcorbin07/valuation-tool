@@ -1790,6 +1790,40 @@ def test_elite13f_skill_is_point_in_time():
                                    check_names=False)
 
 
+def test_short_interest_uses_publication_date_not_settlement():
+    """The trap this dataset sets: FINRA exposes only settlementDate, but the figure is not
+    public until ~8 business days later. Using settlement as the as-of would inject ~2 weeks of
+    look-ahead into every observation."""
+    from valuation.edge import short_interest as SI
+    from valuation.screener import settings as S
+    assert SI.PUBLICATION_LAG_DAYS >= 12, "must clear the ~8 business day dissemination schedule"
+    # Rows are stamped with the AVAILABLE date; a settlement-dated caller cannot reach them.
+    rows = [("2026-01-30", 3.0, 100.0, 80.0), ("2026-02-14", 5.0, 150.0, 100.0)]
+    # As of a date before the first publication -> nothing, even though settlement has passed.
+    assert SI.signals_at(rows, "2026-01-29") == {}
+    got = SI.signals_at(rows, "2026-01-30")
+    assert got["neg_days_to_cover"] == -3.0
+    assert abs(got["neg_short_interest_chg"] - (-(100.0 / 80.0 - 1.0))) < 1e-12
+    # A later observation supersedes, but only once IT is published.
+    assert SI.signals_at(rows, "2026-02-13")["neg_days_to_cover"] == -3.0
+    assert SI.signals_at(rows, "2026-02-14")["neg_days_to_cover"] == -5.0
+    assert SI.signals_at([], "2026-02-14") == {}
+    # Orientation is negated: MORE days-to-cover must score WORSE.
+    heavy = SI.signals_at([("2026-01-30", 9.0, 100.0, 80.0)], "2026-02-01")
+    light = SI.signals_at([("2026-01-30", 1.0, 100.0, 80.0)], "2026-02-01")
+    assert heavy["neg_days_to_cover"] < light["neg_days_to_cover"]
+    # Rejected: measured but scoring in no theme.
+    assert S.NUMBER_THEME.get("neg_days_to_cover") == "low_risk"
+    from valuation.screener.factors import build_frame
+    metrics = [{"ticker": f"T{i}", "price": 10.0, "market_cap": 1e10, "net_income": 5.0,
+                "operating_income": 6.0, "realized_vol": 0.2 + 0.01 * i, "beta": 1.0,
+                "neg_days_to_cover": -99.0} for i in range(20)]
+    fr = build_frame(metrics, sector_neutral=False, residual_momentum=False)
+    without = build_frame([{**m, "neg_days_to_cover": None} for m in metrics],
+                          sector_neutral=False, residual_momentum=False)
+    pd.testing.assert_series_equal(fr["low_risk"], without["low_risk"], check_names=False)
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

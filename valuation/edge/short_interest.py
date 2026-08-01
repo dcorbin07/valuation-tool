@@ -64,6 +64,40 @@ ADOPTION BAR — pre-committed, same shape as every other signal here:
 
 Rejecting is the expected outcome, and the honest prior is worse than usual: short interest is
 one of the most widely watched free datasets in the market, so any edge is heavily competed.
+
+================================ RESULT (run after the above was committed) =================
+REJECTED. 3,866,270 rows -> 48,539 tickers downloaded; panel window 2018+ = 60,305 rows / 34
+rebalance dates.
+
+    signal                    median IC    IC t   n_dates   gate (t >= 2.0)
+    neg_days_to_cover           +0.0147   +1.04        33   FAIL
+    neg_short_interest_chg      +0.0133   +0.42        33   FAIL
+    -- controls on the SAME window --
+    ret_6_1                     +0.0643   +3.53        34
+    inst_accum                  +0.0669   +3.27        34
+
+THE CONTROLS ARE THE IMPORTANT PART. The pre-committed caveat was that 34 dates might be too
+few to detect anything. They are not: on this exact window ret_6_1 shows at t +3.53 and
+inst_accum at +3.27. The window has ample power to see an effect of that size, so short
+interest at t +1.04 is a genuine absence of signal rather than an absence of evidence. That
+distinction is the whole reason the controls were measured.
+
+BOTH SIGNS CAME OUT AS PRE-COMMITTED (both median ICs positive, i.e. less-shorted and
+falling-short-interest are the better side) — the orientation was right, the magnitude is not
+there.
+
+THE ORTHOGONALITY PREMISE WAS CORRECT and did not rescue it. Average within-date correlation of
+neg_days_to_cover: +0.048 with ret_6_1, +0.034 with inst_accum, +0.109 with neg_vol — genuinely
+new information, just not predictive here. It IS -0.311 correlated with size, so days-to-cover
+partly embeds a size effect the book already carries.
+
+Coverage is 90.4% WITHIN the 2018+ window (the plumbing works) and 40.0% of the full 110-date
+panel — a data-availability ceiling, since FINRA's API has nothing before 2018.
+
+Standalone gate not cleared, so the held-out comparison was not run. Both signals stay MEASURED
+(NUMBER_THEME, per-signal IC table) but score in NO theme. The downloader and the
+publication-lag machinery are kept: they are correct, reusable, and the only thing that would
+change the verdict is more history, which FINRA does not publish.
 """
 from __future__ import annotations
 

@@ -12,6 +12,42 @@ file directly.
 
 ---
 
+## P24.1 — FINRA short interest: TESTED AND REJECTED (2026-08-01)
+
+Downloaded FINRA's consolidated short interest: **3,866,270 rows -> 48,539 tickers** (1,294s,
+cached to `data/bulk/prepared/short_interest.pkl`). Two signals wired, measured, rejected.
+
+    signal                    median IC    IC t   n_dates   gate (t >= 2.0)
+    neg_days_to_cover           +0.0147   +1.04        33   FAIL
+    neg_short_interest_chg      +0.0133   +0.42        33   FAIL
+    -- controls, SAME 34-date window --
+    ret_6_1                     +0.0643   +3.53        34
+    inst_accum                  +0.0669   +3.27        34
+
+**The controls are the point.** The pre-committed caveat was that 34 dates might be too few to
+detect anything. They are not — on this exact window ret_6_1 shows at t +3.53. The window has
+ample power to see an effect of that size, so t +1.04 is an absence of SIGNAL, not an absence of
+EVIDENCE. That is a real verdict, not an inconclusive one.
+
+Both signs came out as pre-committed (both median ICs positive). The orthogonality premise was
+also correct and did not save it: neg_days_to_cover correlates only +0.048 with ret_6_1 and
++0.034 with inst_accum — genuinely new information, simply not predictive. It is -0.311
+correlated with size, so days-to-cover partly re-expresses a size effect the book already has.
+
+POINT-IN-TIME: FINRA exposes `settlementDate` and no dissemination field, so using it directly
+would inject ~2 weeks of look-ahead. Every observation is stamped `settlementDate + 15 days` and
+the raw settlement date is never returned to callers. Pinned by a test.
+
+Coverage 90.4% within the 2018+ window (plumbing works); 40.0% of the full 110-date panel — a
+data-availability ceiling, as FINRA publishes nothing before 2018. Standalone gate not cleared,
+so the held-out comparison was not run. Both signals stay MEASURED, scoring in no theme.
+
+Tests 78/78. Downloader and publication-lag machinery kept — correct and reusable; only more
+history would change the verdict, and FINRA does not publish it.
+
+**Next:** P24 items 2-4 untouched — SEC EDGAR 13D/13G (use FILING date), USAspending (award
+action date), congressional trades (PTR DISCLOSURE date, never transaction date).
+
 ## Hot Stocks ⇄ Valquo Index unified, with a Roth/Taxable toggle — AND the UI is finally VERIFIED
 
 **The blocker is gone.** `pip install flask werkzeug jinja2 openpyxl reportlab` (all already in

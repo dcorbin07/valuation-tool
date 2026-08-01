@@ -399,6 +399,14 @@ class WRDSProvider(HistoricalDataProvider):
         from .bulk import earnings_dates as _ed
         return _ed(self._bulk("events"), ticker)
 
+    def short_interest_for(self, ticker):
+        """FINRA short-interest observations, already stamped with the PUBLICATION date.
+
+        The cache stores settlementDate + publication lag, never the settlement date itself,
+        so a caller cannot accidentally use the un-lagged figure.
+        """
+        return self._bulk("short_interest").get(ticker.upper(), [])
+
     def elite_conviction_for(self, ticker):
         """{quarter: elite conviction} from the elite13f cache, or {} when not built."""
         return self._bulk("elite_conv").get(ticker.upper(), {})

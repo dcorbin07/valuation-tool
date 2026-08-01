@@ -196,3 +196,16 @@ gated behind P7/P8. Once the book is clean and the edge re-confirmed, stand up t
 **P14 — Gated auto-apply of weights** (after the L2 autolearn review).
 
 **Parked:** WRDS/IBES estimate-revisions sentiment (data-gated).
+
+## FINRA short interest (P24.1, 2026-08-01)
+`valuation/edge/short_interest.py` — committed results-free, then the verdict appended.
+REJECTED: t +1.04 / +0.42 vs a 2.0 bar. Not low power — controls on the same 34-date window
+score +3.53 (ret_6_1) and +3.27 (inst_accum). Genuinely orthogonal (+0.048 vs ret_6_1), just not
+predictive; -0.311 vs size.
+
+The one thing to not break: FINRA gives only `settlementDate`, which is ~2 weeks BEFORE the data
+is public. `fetch_short_interest` stamps every row with settlement + 15 days and deliberately
+never returns the settlement date, so a future caller cannot reintroduce the look-ahead.
+Pinned by `test_short_interest_uses_publication_date_not_settlement`.
+
+Cache: `data/bulk/prepared/short_interest.pkl` (167MB, gitignored with the rest of data/).

@@ -236,6 +236,14 @@ NUMBER_THEME = {
     # already in the theme (sm_breadth +1.73, inst_accum +1.88). Weighting by manager
     # track record moved conviction from ~1.26 to 1.32 — noise. Measured, not scored.
     "sm_elite_conviction": "institutional",
+    # FINRA short interest — orthogonal to everything else here. Measured; theme
+    # membership is the gate's decision. Data starts 2018, so full-panel coverage is
+    # capped ~30% by availability.
+    # TESTED AND REJECTED (2026-08-01): t +1.04 and +0.42 vs a 2.0 bar on the 2018+
+    # window where the data exists. Not low power — the same window shows ret_6_1 at
+    # t +3.53. Genuinely orthogonal (+0.048 vs ret_6_1) but simply not predictive.
+    # Measured, not scored.
+    "neg_days_to_cover": "low_risk", "neg_short_interest_chg": "low_risk",
 }
 NUMBERS_ALL = list(NUMBER_THEME.keys())
 
