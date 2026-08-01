@@ -4,6 +4,8 @@ Edge Lab tests (offline, deterministic). Run:
 Validates the backtest math, the no-overfit walk-forward + advisor, the factor
 panel, and owner-only gating.
 """
+import datetime as dt
+import math
 import os
 import re
 import sys
@@ -1919,6 +1921,143 @@ def test_usaspending_publication_lag_and_seasonality():
     assert U.signals_at(grow, "2020-07-31") == {}
     assert S.NUMBER_THEME.get("govt_award_momentum") == "growth"
     assert "govt_award_momentum" not in S.WEIGHTS_ESTABLISHED
+
+
+def test_options_fill_engine_charges_the_spread_both_ways():
+    """The default must be the HONEST fill, not the flattering one.
+
+    An options backtest that fills at the mid is not optimistic, it measures a strategy nobody
+    can trade: a 2.40/2.60 quote is an 8% round-trip haircut before the underlying moves.
+    """
+    from valuation.edge import options_fill as F
+
+    assert F.DEFAULT_AGGRESSION == 1.0, "default must be buy-the-ask / sell-the-bid"
+    q = F.Quote(bid=2.40, ask=2.60, oi=500, volume=100)
+    assert q.mid == 2.50
+    assert abs(q.spread_pct - 0.08) < 1e-9
+    assert F.fill_price(q, "buy") == 2.60          # pays the ask
+    assert F.fill_price(q, "sell") == 2.40         # hits the bid
+    assert F.fill_price(q, "buy", aggression=0.0) == 2.50   # mid: diagnostic only
+    # A flat round trip must LOSE the spread plus commission, never break even.
+    t = F.round_trip(q, q, right="C", strike=100.0)
+    assert t["ok"]
+    assert t["net_pnl"] < 0, t
+    assert abs(t["net_pnl"] - ((2.40 - 2.60) * 100 - 1.30)) < 1e-9
+    assert t["gross_pnl"] == 0.0                   # mid-to-mid is flat; the cost is explicit
+    assert abs(t["cost"] - 21.30) < 1e-9
+
+
+def test_options_fill_rejects_bad_quotes_and_never_repairs_them():
+    """Every rejection is a named reason. Silently skipping unfillable contracts would be
+    survivorship bias: hard-to-fill contracts are disproportionately the ones that moved."""
+    from valuation.edge import options_fill as F
+
+    good = dict(oi=500, volume=100)
+    cases = {
+        "no_quote":     F.Quote(bid=None, ask=None, **good),
+        "non_positive": F.Quote(bid=0.0, ask=0.5, **good),
+        "crossed":      F.Quote(bid=2.60, ask=2.40, **good),
+        "locked":       F.Quote(bid=2.50, ask=2.50, **good),
+        "thin_premium": F.Quote(bid=0.01, ask=0.05, **good),
+        "wide_spread":  F.Quote(bid=1.00, ask=2.00, **good),
+        "low_oi":       F.Quote(bid=2.40, ask=2.60, oi=1, volume=100),
+        "low_volume":   F.Quote(bid=2.40, ask=2.60, oi=500, volume=0),
+    }
+    for want, q in cases.items():
+        assert F.quote_reject_reason(q) == want, (want, F.quote_reject_reason(q))
+        assert F.round_trip(q, q, right="C", strike=100.0)["ok"] is False
+    ok = F.Quote(bid=2.40, ask=2.60, **good)
+    assert F.quote_reject_reason(ok) is None
+    # Liquidity is an ENTRY filter only - you must be able to exit what you own.
+    illiquid_exit = F.Quote(bid=4.00, ask=4.40, oi=0, volume=0)
+    assert F.quote_reject_reason(illiquid_exit, check_liquidity=False) is None
+    t = F.round_trip(ok, illiquid_exit, right="C", strike=100.0)
+    assert t["ok"] and t["net_pnl"] > 0
+
+
+def test_options_expired_worthless_is_recorded_not_dropped():
+    """A contract that expired worthless must post -100%, not vanish from the sample."""
+    from valuation.edge import options_fill as F
+
+    entry = F.Quote(bid=2.40, ask=2.60, oi=500, volume=100)
+    t = F.round_trip(entry, None, right="C", strike=150.0, exit_underlying=120.0, expired=True)
+    assert t["ok"] and t["settled_at_intrinsic"]
+    assert t["exit_fill"] == 0.0
+    assert abs(t["net_pnl"] - (-2.60 * 100 - 1.30)) < 1e-9
+    assert t["return_pct"] == -1.0
+    # In the money at expiry settles at intrinsic.
+    t2 = F.round_trip(entry, None, right="C", strike=150.0, exit_underlying=160.0, expired=True)
+    assert t2["exit_fill"] == 10.0
+    # Without expired=True a missing exit quote is an error, not a free zero.
+    assert F.round_trip(entry, None, right="C", strike=150.0)["ok"] is False
+
+
+def test_options_breakeven_is_the_quotable_number():
+    from valuation.edge import options_fill as F
+
+    q = F.Quote(bid=2.40, ask=2.60, oi=500, volume=100)
+    up = F.Quote(bid=5.40, ask=5.60, oi=500, volume=100)
+    trades = [F.round_trip(q, up, right="C", strike=100.0) for _ in range(3)]
+    be = F.breakeven_cost_per_contract(trades)
+    assert abs(be - 300.0) < 1e-9        # $3.00 mid-to-mid move x 100
+    cs = F.cost_summary(trades + [{"ok": False, "reason": "low_oi"}])
+    assert cs["n_filled"] == 3 and cs["n_rejected"] == 1
+    assert cs["reject_reasons"] == {"low_oi": 1}
+    assert cs["avg_cost_per_contract"] > 0
+
+
+def test_blackscholes_matches_reference_and_refuses_bad_prices():
+    """Validated against ThetaData's own greeks on AAPL 2023-03-01: delta agreed 98.96% of the
+    time (median error 0.0016), and in the tradable band |delta| 0.20-0.80 IV agreed 100%
+    (median error 0.0018). The disagreements sat at median |delta| 0.94 - deep ITM, vega ~ 0."""
+    from valuation.edge import blackscholes as BS
+
+    S, K, T, r, sig = 100.0, 100.0, 1.0, 0.05, 0.20
+    call = BS.bs_price(S, K, T, r, sig, "C")
+    put = BS.bs_price(S, K, T, r, sig, "P")
+    assert abs(call - 10.4506) < 1e-3
+    assert abs(put - 5.5735) < 1e-3
+    # Put-call parity.
+    assert abs((call - put) - (S - K * math.exp(-r * T))) < 1e-9
+    # IV round-trips.
+    assert abs(BS.implied_vol(call, S, K, T, r, "C") - sig) < 1e-3
+    g = BS.greeks(S, K, T, r, sig, "C")
+    assert abs(g["delta"] - 0.6368) < 1e-3
+    assert g["gamma"] > 0 and g["vega"] > 0 and g["theta"] < 0
+    assert BS.greeks(S, K, T, r, sig, "P")["delta"] < 0
+    # A price below intrinsic has no implied vol - must be None, never a fabricated number.
+    assert BS.implied_vol(0.5, 150.0, 100.0, 1.0, r, "C") is None
+    assert BS.implied_vol(-1, S, K, T, r, "C") is None
+    assert BS.implied_vol(call, S, K, 0.0, r, "C") is None
+    # The rate must never silently be zero.
+    assert BS.risk_free_rate(dt.date(2023, 3, 1)) > 0.001
+
+
+def test_thetadata_provider_is_optional_and_dedupes():
+    """No key must degrade to a no-op, and the feed's duplicate rows must collapse to one
+    closing snapshot per contract - otherwise every trade is counted more than once."""
+    import pandas as pd
+    from valuation.edge.thetadata_provider import ThetaProvider
+
+    p = ThetaProvider(api_key="")
+    st = p.status()
+    assert st["available"] is False and "THETADATA_API_KEY" in (st["reason"] or "")
+    assert len(p.chain_on("AAPL", dt.date(2023, 3, 1))) == 0     # no raise
+    assert p.cached_dates("NOSUCHTICKER") == []
+
+    raw = pd.DataFrame({
+        "created": ["2023-03-01 17:16:02", "2023-03-01 18:38:46",
+                    "2023-03-01 17:16:02", "2023-03-02 18:38:46"],
+        "expiration": ["2023-04-21"] * 4,
+        "strike": [150.0, 150.0, 155.0, 150.0],
+        "right": ["CALL"] * 4,
+        "bid": [2.40, 2.55, 1.10, 2.70],
+        "ask": [2.60, 2.75, 1.30, 2.90],
+    })
+    d = ThetaProvider._dedupe(raw)
+    assert len(d) == 3, d          # 2 contracts on day 1, 1 on day 2
+    day1 = d[(d["strike"] == 150.0) & (d["date"].astype(str) == "2023-03-01")]
+    assert float(day1["bid"].iloc[0]) == 2.55, "must keep the LAST (closing) snapshot"
 
 
 def _run_all():
