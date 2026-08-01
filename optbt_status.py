@@ -15,7 +15,7 @@ import sys
 BANK = r"C:\Users\donni\.claude\jobs\7819c8eb\tmp\optbt_trades.pkl"
 LOG = (r"C:\Users\donni\AppData\Local\Temp\claude"
        r"\C--Users-donni-Downloads-valuation-tool--claude-worktrees-fix-13f-lag-test"
-       r"\7819c8eb-b85f-49ad-a6ec-03b4cf384f37\tasks\bd4vtgj4n.output")
+       r"\7819c8eb-b85f-49ad-a6ec-03b4cf384f37\tasks\blz4ak6wg.output")
 SNAPSHOT = r"C:\Users\donni\Downloads\valuation-tool\data\options\optbt_partial.json"
 TOTAL = 55
 
