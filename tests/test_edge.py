@@ -1590,6 +1590,48 @@ def test_capital_discipline_drops_the_wrong_signed_input():
                                    check_names=False)
 
 
+def test_regime_overlay_is_point_in_time_and_off_by_default():
+    """The trend filter must never see a close after the decision date, and the overlay must
+    ship OFF — it was tested and NOT adopted (its whole benefit is the 2008 half)."""
+    from valuation.edge import regime as R
+    from valuation.screener import settings as S
+    assert S.REGIME_OVERLAY is None, "tested and not adopted; must default off"
+    assert R.TREND_MA_DAYS == 200 and R.RISK_OFF_EXPOSURE == (0.0, 0.5)
+
+    # A clean up-then-down series: invested while above the MA, out after it breaks.
+    dates = pd.bdate_range("2020-01-01", periods=600)
+    up = np.linspace(100, 200, 300)
+    down = np.linspace(200, 90, 300)
+    closes = list(up) + list(down)
+    ds = [str(d.date()) for d in dates]
+    sig = R.trend_signal(ds, closes, ds[::20])
+    assert sig[ds[280]] is True, "still above a rising MA near the peak"
+    assert sig[ds[560]] is False, "well below the MA after a sustained fall"
+    # Before there is enough history the rule stays INVESTED — never a free hindsight exit.
+    assert sig[ds[0]] is True
+
+    # Point-in-time: truncating the series after the decision date cannot change the answer.
+    cut = 400
+    trunc = R.trend_signal(ds[:cut], closes[:cut], [ds[cut - 1]])
+    full = R.trend_signal(ds, closes, [ds[cut - 1]])
+    assert trunc[ds[cut - 1]] == full[ds[cut - 1]], "future closes leaked into the signal"
+
+
+def test_regime_overlay_scales_exposure_and_counts_whipsaw():
+    from valuation.edge import regime as R
+    rets = [0.10, -0.10, 0.10, -0.10]
+    dates = ["a", "b", "c", "d"]
+    inv = {"a": True, "b": False, "c": True, "d": False}
+    out, flips, share = R.apply_overlay(rets, dates, inv, 0.0, periods_per_year=6.0)
+    assert out == [0.10, 0.0, 0.10, 0.0], out          # cash at 0% -> risk-off periods are flat
+    assert flips == 3 and abs(share - 0.5) < 1e-9
+    half, _, _ = R.apply_overlay(rets, dates, inv, 0.5, periods_per_year=6.0)
+    assert abs(half[1] - (-0.05)) < 1e-12, "50% exposure halves the loss"
+    # Always-invested -> unchanged returns and no flips.
+    same, f2, sh2 = R.apply_overlay(rets, dates, {d: True for d in dates}, 0.0)
+    assert same == rets and f2 == 0 and sh2 == 1.0
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

@@ -145,6 +145,14 @@ BOOK_CONFIGS = {
 # default for anyone whose account type is unknown.
 DEFAULT_BOOK_CONFIG = "roth"
 
+# Market-regime risk-off overlay (valuation/edge/regime.py). TESTED AND NOT ADOPTED: it cuts
+# max drawdown 20pp on the full sample for only 2.7pp of return and even improves Sharpe, but
+# the ENTIRE benefit comes from the half containing 2008-09 — in the recent half it does
+# nothing for drawdown and costs Sharpe. A rule fitted to one episode.
+# Left as a toggle for anyone who wants the crash insurance and accepts paying for it the rest
+# of the time. Set to 0.5 (or 0.0) to enable at that risk-off exposure.
+REGIME_OVERLAY = None          # None = off. 0.0 = to cash, 0.5 = half exposure when below MA.
+
 # Which theme columns each bucket scores on (keys of the weight dicts above).
 # autolearn + the live scorer both read this, so there's one source of truth.
 BUCKET_FACTORS = {

@@ -44,6 +44,37 @@ ADOPTION BAR — also pre-committed:
 
 Failing any of these is a REJECT, and rejecting is the expected outcome — trend overlays are
 among the most data-mined ideas in finance.
+
+================================ RESULT (run after the above was committed) =================
+REJECTED — and it is the clearest vindication of pre-commitment this project has produced.
+
+On the FULL sample the overlay looks like an obvious adopt (top-25 book, 42d cadence, 165
+rebalances, cash at 0%):
+
+    config                    net ann   Sharpe    maxDD   flips   invested
+    no overlay                +30.69%     1.13   -57.0%       -          -
+    overlay off_exposure=0%   +24.48%     1.08   -36.9%      24        77%
+    overlay off_exposure=50%  +27.98%     1.17   -37.0%      24        77%
+
+At 50% risk-off it cuts drawdown 20pp, costs 2.70pp of return, and IMPROVES Sharpe. Both
+numeric criteria pass. Criterion 3 is what fails:
+
+    half    base maxDD   off=50% maxDD   improvement   Sharpe change
+    early      -57.0%         -37.0%        +20.0pp        +0.18
+    late       -34.8%         -34.8%         +0.0pp        -0.08
+
+The ENTIRE benefit comes from the half containing 2008-09. In the recent half the overlay does
+nothing for drawdown and costs Sharpe. That is a rule fitted to one episode, which is precisely
+what criterion 3 was written to detect — and it was written before any of this was run.
+
+Kept as a TOGGLEABLE overlay, OFF by default (settings.REGIME_OVERLAY). Available for anyone
+who wants the crash insurance and accepts paying for it in the other 90% of the time; not
+adopted, because one crash is not evidence.
+
+Whipsaw for the record: 24 exposure flips over 165 rebalances (~15%), out of the market 23% of
+the time. And cash at 0% understates the overlay — real bills would have paid something — so
+the honest read is that the return give-up is somewhat SMALLER than shown and the drawdown
+finding is still one episode.
 """
 from __future__ import annotations
 

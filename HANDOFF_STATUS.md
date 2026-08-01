@@ -12,6 +12,49 @@ file directly.
 
 ---
 
+## Regime risk-off overlay — REJECTED, and the best argument yet for pre-commitment
+
+The rule and its adoption bar were written and **committed in isolation (`bfbde7e`) before it
+was run**, so the git history proves nothing was tuned to the outcome. Classic 200-day trend
+filter: at each rebalance, benchmark close vs its own trailing 200-trading-day SMA (strictly
+past closes); above → fully invested, at/below → risk-off exposure. Cash credited **0%**, which
+is deliberately harsh — real bills paid 2–5% over this window, so the return give-up shown is
+an overestimate.
+
+**On the full sample it looks like an obvious adopt** (top-25, 42d, 165 rebalances):
+
+| config | net ann | Sharpe | max DD | flips | invested |
+|---|---|---|---|---|---|
+| no overlay | +30.69% | 1.13 | −57.0% | — | — |
+| off = 0% | +24.48% | 1.08 | −36.9% | 24 | 77% |
+| **off = 50%** | +27.98% | **1.17** | **−37.0%** | 24 | 77% |
+
+At 50% risk-off: drawdown **−57.0% → −37.0%** (20pp better), return give-up only **2.70pp**,
+and Sharpe **improves** 1.13 → 1.17. **Both numeric criteria PASS.** I would have adopted it.
+
+**The held-out criterion kills it:**
+
+| half | base maxDD | off=50% | improvement | Sharpe Δ |
+|---|---|---|---|---|
+| early (has 2008) | −57.0% | −37.0% | **+20.0pp** | +0.18 |
+| late | −34.8% | −34.8% | **+0.0pp** | **−0.08** |
+
+**The entire benefit is one episode.** In the recent half it does nothing for drawdown and
+*costs* Sharpe. That is exactly what criterion 3 ("must improve in BOTH halves — a rule that
+only works in the half containing 2008 fits one episode") was written to catch, before any
+number existed.
+
+**Verdict: NOT ADOPTED.** Shipped as `settings.REGIME_OVERLAY`, **default `None` (off)** —
+available to anyone who wants crash insurance and accepts paying for it the other ~90% of the
+time. Whipsaw for the record: 24 flips over 165 rebalances (~15%), out of the market 23% of the
+time.
+
+**The transferable lesson:** a full-sample result that improves drawdown 20pp, costs almost no
+return, AND raises Sharpe is exactly the shape of thing that gets adopted on sight. It took a
+pre-committed out-of-sample rule to see that it was one crash wearing a strategy's clothes.
+
+---
+
 ## Sector concentration cap — TESTED and REJECTED
 
 A max-per-sector weight on the Roth top-25 (a concentration RISK control — **not** the
