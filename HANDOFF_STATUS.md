@@ -59,6 +59,52 @@ weekly-stale screen is live.
 
 ---
 
+## RESEARCH TRACK CLOSED — all three items tested, all three REJECTED
+
+Every item got a gate committed results-free BEFORE it ran, and every one failed honestly. The
+shipped model is unchanged: **nothing was adopted, and nothing needed to be un-adopted.**
+
+| item | gate commit | verdict | headline |
+|---|---|---|---|
+| ML tree combiner | `620e0a5` | REJECT | OOS IC +0.0531 linear vs **+0.0393** GBM; net alpha −8.2pp roth / −4.0pp taxable |
+| PEAD | `9323a08` | REJECT | `pead_car` t +2.21 standalone but fails the held-out margin **both** ways |
+| Elite-manager 13F | `5a3ccfb` | REJECT | t **+1.32** vs a 2.0 bar, and *below* both signals already in the theme |
+
+### Elite-manager 13F — the last swing
+
+Built from 282,487 manager-quarters of quality, 235,271 **point-in-time** skill scores (a
+manager's score at quarter *q* uses only quarters strictly before *q*), elite conviction for
+13,110 tickers, via two bounded streaming passes over the 2.9GB SF3 file.
+
+| signal | median IC | IC t | coverage |
+|---|---|---|---|
+| `sm_elite_conviction` | +0.0274 | **+1.32** | 58.5% |
+| `sm_breadth` (already in theme) | +0.0204 | +1.73 | 61.4% |
+| `inst_accum` (already in theme) | +0.0314 | +1.88 | 61.4% |
+
+Weighting by manager track record moved conviction from t ≈1.26 → **1.32**: noise. It still
+scores **below both signals already in the institutional theme**. The hypothesis that manager
+identity carries information the crowd average lacks is **not supported**.
+
+**This is not a plumbing failure** — the skill scores are real and point-in-time, and coverage
+(58.5%) is near the ~61% ceiling that 13F starting in 2013 imposes. If revisited, the lever is a
+better *definition* of elite (concentration, turnover, persistence of edge), **not** more careful
+weighting of trailing returns, which is what failed.
+
+### What this closes, and what it means
+
+The ML result said the only lever likely to help was **new orthogonal data**. Two new-data swings
+followed and both missed. Taken together the picture is consistent and worth stating plainly:
+**the signal set is saturated for this dataset.** Value/quality/momentum/size/institutional over
+18 years of quarterly Sharadar is what there is; more model capacity (ML), more of the same data
+re-cut (PEAD from prices, 13F re-weighted) does not add to it.
+
+The remaining levers are genuinely different data — the ones in VALQUO_NEXT_EDGE Tier 2 that were
+never started: FINRA short interest, SEC EDGAR 13D/8-K, congressional trades, and IBES estimate
+revisions (still parked, and the one thing that would make a *real* PEAD possible).
+
+---
+
 ## PEAD — built and REJECTED (the decode that unblocked it stands regardless)
 
 Gate committed results-free in `9323a08`. Signal = cumulative abnormal return over [t−1, t+1]

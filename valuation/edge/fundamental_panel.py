@@ -793,6 +793,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     dly, sf3 = {}, {}          # BULK: DAILY month-end ratios, SF3 per-manager 13F
     meta = {}                  # TICKERS: sector / country / exchange (NOT point-in-time)
     earn = {}                  # EVENTS: earnings announcement dates (code 22)
+    elite = {}                 # SF3: manager-quality-weighted conviction
     for _i, t in enumerate(tickers):
         if _i and _i % 250 == 0:
             _prog(f"  loaded {_i}/{len(tickers)} tickers, {len(px)} usable")
@@ -812,6 +813,8 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # Sharadar BULK: point-in-time market cap / ratios, and per-manager 13F detail.
             dly[t] = provider.daily_history(t) if hasattr(provider, "daily_history") else []
             sf3[t] = provider.sf3_for(t) if hasattr(provider, "sf3_for") else {}
+            elite[t] = (provider.elite_conviction_for(t)
+                        if hasattr(provider, "elite_conviction_for") else {})
             meta[t] = provider.ticker_meta(t) if hasattr(provider, "ticker_meta") else {}
             earn[t] = (provider.earnings_dates(t)
                        if hasattr(provider, "earnings_dates") else [])
@@ -915,6 +918,12 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # SF3 per-manager detail. Exposed as factor INPUTS here; whether any of them
             # earns a place in the composite is for CPCV to decide (P4), so they are not
             # yet registered in NUMBER_THEME.
+            # Elite-manager conviction, lagged exactly like every other 13F input.
+            _eq = elite.get(t) or {}
+            if _eq:
+                _ks = sorted(k for k in _eq if k <= _cut3)
+                if _ks:
+                    m["sm_elite_conviction"] = float(_eq[_ks[-1]])
             s3 = _sf3_at(sf3.get(t), as_of, lag_days=inst_lag_days, cut=_cut3)
             if s3 is not None:
                 holders, val, conv, holders_prev = s3

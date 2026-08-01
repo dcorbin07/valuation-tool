@@ -49,6 +49,32 @@ Rejecting is the expected outcome. 13F is quarterly, 45 days stale by rule and ~
 in practice, and the aggregate signal already in the book (sm_breadth) is the one that survived
 testing. The specific claim under test is narrow: that manager IDENTITY carries information the
 crowd average does not.
+
+================================ RESULT (run after the above was committed) =================
+REJECTED. Full universe, 136,478 rows / 110 dates. Built from 282,487 manager-quarters of
+quality, 235,271 point-in-time skill scores, elite conviction for 13,110 tickers.
+
+    signal                     median IC    IC t   coverage
+    sm_elite_conviction          +0.0274   +1.32      58.5%   <- the new signal
+    sm_breadth (in the theme)    +0.0204   +1.73      61.4%
+    inst_accum (in the theme)    +0.0314   +1.88      61.4%
+
+    gate: t >= 2.0        FAIL
+          coverage >= 30% PASS (58.5%)
+          beats plain conviction t 1.26   nominally (1.32), but that is noise
+
+THE HYPOTHESIS IS NOT SUPPORTED. Weighting 13F accumulation by the buying manager's
+point-in-time track record moved the conviction t-stat from ~1.26 to 1.32 — nothing — and the
+result still scores BELOW both signals already in the institutional theme. Manager identity, as
+measured by trailing portfolio performance, does not carry information the crowd average lacks.
+The standalone gate was not cleared, so the held-out comparison was not run.
+
+Worth stating because it constrains future attempts: this is not a failure of the plumbing. The
+skill scores are real and point-in-time (a manager's score at quarter q uses only quarters
+strictly before q), coverage is 58.5% against a ~61% ceiling imposed by 13F starting in 2013,
+and the machinery is kept because it is the only per-manager infrastructure in the codebase. If
+the idea is revisited, the lever is a better definition of "elite" — concentration, turnover,
+persistence of edge — not more careful weighting of trailing returns, which is what failed here.
 """
 from __future__ import annotations
 

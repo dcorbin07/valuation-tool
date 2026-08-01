@@ -229,6 +229,13 @@ NUMBER_THEME = {
     # pead_car is +0.286 correlated with ret_6_1, which already scores t +3.40. Measured but
     # NOT in any theme mean — re-adding is one line in factors.py.
     "pead_car": "momentum", "pead_drift": "momentum",
+    # Elite-manager 13F conviction: AUM-relative position weighted by the buying
+    # manager's POINT-IN-TIME track record. Measured; theme membership is the gate's
+    # decision, not an assumption.
+    # TESTED AND REJECTED (2026-08-01): t +1.32 vs a 2.0 bar, and BELOW both signals
+    # already in the theme (sm_breadth +1.73, inst_accum +1.88). Weighting by manager
+    # track record moved conviction from ~1.26 to 1.32 — noise. Measured, not scored.
+    "sm_elite_conviction": "institutional",
 }
 NUMBERS_ALL = list(NUMBER_THEME.keys())
 

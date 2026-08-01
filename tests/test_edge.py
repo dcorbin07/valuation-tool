@@ -1758,6 +1758,38 @@ def test_pead_is_point_in_time_and_scores_no_theme():
     assert P.pead_signals(closes, d64, bench, [], "2026-02-01") == {}
 
 
+def test_elite13f_skill_is_point_in_time():
+    """A manager's score at quarter q must use only quarters STRICTLY EARLIER than q. Using a
+    whole-sample record would be look-ahead of the worst kind — 'funds that did well over
+    2008-2026 bought this in 2009' is the answer key, not a signal."""
+    from valuation.edge import elite13f as E
+    from valuation.screener import settings as S
+    quality = {("M1", "2020-03-31"): 0.10, ("M1", "2020-06-30"): 0.20,
+               ("M1", "2020-09-30"): 0.30, ("M1", "2020-12-31"): 0.40,
+               ("M1", "2021-03-31"): 0.50, ("M1", "2021-06-30"): -0.90}
+    sk = E.skill_as_of(quality, min_quarters=4)
+    # Nothing before 4 quarters of history exist.
+    for q in ("2020-03-31", "2020-06-30", "2020-09-30", "2020-12-31"):
+        assert ("M1", q) not in sk, q
+    # The 5th quarter scores on the mean of the FIRST FOUR only.
+    assert abs(sk[("M1", "2021-03-31")] - 0.25) < 1e-12, sk[("M1", "2021-03-31")]
+    # The disastrous final quarter cannot retroactively lower an earlier score...
+    assert abs(sk[("M1", "2021-06-30")] - 0.30) < 1e-12
+    # ...and a manager's own quarter never contributes to its own score.
+    assert all(v > 0 for v in sk.values()), "a -0.90 quarter leaked into its own score"
+    # Rejected: measured but scoring in no theme.
+    assert S.NUMBER_THEME.get("sm_elite_conviction") == "institutional"
+    from valuation.screener.factors import build_frame
+    metrics = [{"ticker": f"T{i}", "price": 10.0, "market_cap": 1e10, "net_income": 5.0,
+                "operating_income": 6.0, "inst_accum": 0.05 * i, "sm_breadth": 0.01 * i,
+                "sm_elite_conviction": -9.0} for i in range(20)]
+    fr = build_frame(metrics, sector_neutral=False, residual_momentum=False)
+    without = build_frame([{**m, "sm_elite_conviction": None} for m in metrics],
+                          sector_neutral=False, residual_momentum=False)
+    pd.testing.assert_series_equal(fr["institutional"], without["institutional"],
+                                   check_names=False)
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

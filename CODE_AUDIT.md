@@ -25,7 +25,15 @@
 > itself was then BUILT AND REJECTED (pead_car t +2.21 standalone but fails the held-out
 > margin both ways; the drift variant has NO signal at t -0.47, which is backwards for PEAD,
 > and pead_car is +0.286 correlated with ret_6_1 which already scores t +3.40). P12 is
-> CLOSED. Elite-manager 13F remains the last open research item.
+> CLOSED. Elite-manager 13F was then also BUILT AND REJECTED (t +1.32 vs a 2.0 bar, below
+> both sm_breadth +1.73 and inst_accum +1.88 already in the theme; weighting by manager
+> track record moved conviction ~1.26 -> 1.32, noise).
+>
+> **THE RESEARCH BACKLOG IS NOW EMPTY AND ALL THREE ITEMS REJECTED.** The shipped model is
+> unchanged. The consistent reading: the signal set is SATURATED for this dataset — more
+> model capacity and more re-cuts of the same data do not add. The remaining levers are
+> genuinely different data (VALQUO_NEXT_EDGE Tier 2: FINRA short interest, EDGAR 13D/8-K,
+> congressional trades, IBES estimate revisions).
 
 
 Static audit of the quant foundation (panel → factors → data path) prompted by finding the

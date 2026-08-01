@@ -399,6 +399,10 @@ class WRDSProvider(HistoricalDataProvider):
         from .bulk import earnings_dates as _ed
         return _ed(self._bulk("events"), ticker)
 
+    def elite_conviction_for(self, ticker):
+        """{quarter: elite conviction} from the elite13f cache, or {} when not built."""
+        return self._bulk("elite_conv").get(ticker.upper(), {})
+
     def ticker_meta(self, ticker):
         """{sector, industry, country, exchange, category, scale} from the TICKERS cache.
 
