@@ -74,6 +74,7 @@ class ThetaProvider:
         self._key = api_key if api_key is not None else _api_key()
         self._client = None
         self._err = None
+        self._contract_cache = {}
         if not self._key:
             self._err = "no THETADATA_API_KEY"
 
@@ -124,6 +125,10 @@ class ThetaProvider:
             try:
                 return fn(**kw)
             except Exception as e:                                       # noqa: BLE001
+                # "No data" is an ANSWER (an expiry with no quotes), not a transient fault.
+                # Retrying it wasted seconds per call across tens of thousands of calls.
+                if type(e).__name__ == "NoDataFoundError" or "No data found" in str(e):
+                    return None
                 if i == RETRY - 1:
                     self._err = f"{type(e).__name__}: {str(e)[:160]}"
                     return None
@@ -166,23 +171,41 @@ class ThetaProvider:
             oi = oi.drop_duplicates(subset=keys, keep="last")
             eod = eod.merge(oi[keys + ["open_interest"]], on=keys, how="left")
 
-        greeks = self._call(self._client.option_history_greeks_first_order, start_date=date,
-                            end_date=date, symbol=symbol.upper(), expiration="*")
-        if greeks is not None and len(greeks):
-            g = greeks.copy()
-            keys = ["expiration", "strike", "right"]
-            keep = [c for c in ("delta", "implied_vol", "implied_volatility", "iv", "gamma",
-                                "theta", "vega") if c in g.columns]
-            if keep:
-                g = g.drop_duplicates(subset=keys, keep="last")
-                eod = eod.merge(g[keys + keep], on=keys, how="left")
-
-        # Normalise the IV column name across feed versions rather than guessing downstream.
-        for c in ("implied_vol", "implied_volatility"):
-            if c in eod.columns and "iv" not in eod.columns:
-                eod = eod.rename(columns={c: "iv"})
+        # NO greeks call here. The endpoint rejects expiration="*", so it could only ever
+        # fail - and each failure cost 3 retries with backoff on EVERY chain pull, which was
+        # the dominant cost of the whole backtest. Greeks come from blackscholes.enrich_chain.
         self._save(path, eod)
         return eod
+
+    def contract_history(self, symbol, expiration, strike, right, start, end):
+        """One contract's ENTIRE daily NBBO life in a single call.
+
+        The alternative - pulling the full chain on every holding day - costs ~30 calls per
+        trade instead of one, which is the difference between a backtest that finishes and one
+        that does not. Strike must be passed as a plain string ("150"); other encodings return
+        NOT_FOUND rather than an error you would notice.
+        """
+        import pandas as pd
+
+        key = (symbol.upper(), str(expiration), str(strike), str(right)[:1].upper(),
+               str(start), str(end))
+        if key in self._contract_cache:
+            return self._contract_cache[key]
+        if not self.available:
+            return pd.DataFrame()
+        st = f"{float(strike):g}"
+        df = self._call(self._client.option_history_eod, start_date=start, end_date=end,
+                        symbol=symbol.upper(), expiration=expiration, strike=st,
+                        right=str(right)[:1].upper())
+        if df is None or len(df) == 0:
+            out = pd.DataFrame()
+        else:
+            out = df.copy()
+            out["date"] = pd.to_datetime(out["created"]).dt.date
+            out = out.sort_values("created").drop_duplicates(subset=["date"], keep="last")
+        if len(self._contract_cache) < 20000:
+            self._contract_cache[key] = out
+        return out
 
     def _save(self, path, obj):
         try:

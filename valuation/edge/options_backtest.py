@@ -262,35 +262,30 @@ def simulate_trade(provider, ticker: str, entry_row, entry_date, bars: dict,
     dte0 = (expiry - entry_date).days
     time_stop_date = entry_date + dt.timedelta(days=int(round(dte0 * time_stop_frac)))
 
-    dates = [d for d in bars["date"] if entry_date.isoformat() < d <= expiry.isoformat()]
+    # ONE call for the contract's whole life, rather than a chain pull per holding day.
+    hist = provider.contract_history(ticker, expiry, strike, right, entry_date, expiry)
     last_q = None
-    for ds in dates:
-        day = dt.date.fromisoformat(ds)
-        ch = provider.chain_on(ticker, day)
-        if ch is None or len(ch) == 0:
-            continue
-        m = ch[(ch["strike"].astype(float) == strike)
-               & (ch["right"].astype(str).str.upper() == right.upper())
-               & (pd.to_datetime(ch["expiration"]).dt.date == expiry)]
-        if len(m) == 0:
-            continue
-        row = m.iloc[-1]
-        q = F.Quote(bid=row.get("bid"), ask=row.get("ask"))
-        if F.quote_reject_reason(q, check_liquidity=False) is not None:
-            continue
-        last_q = q
-        mark = F.fill_price(q, "sell", aggression)
-        ret = mark / entry_fill - 1.0
-        hit_target = ret >= target_pct
-        hit_stop = ret <= stop_pct
-        if hit_target or hit_stop or day >= time_stop_date:
-            t = F.round_trip(entry_q, q, right=right, strike=strike, aggression=aggression)
-            if not t.get("ok"):
+    if hist is not None and len(hist):
+        for _, row in hist.iterrows():
+            day = row["date"]
+            if day <= entry_date:
                 continue
-            t.update({"exit_date": ds, "held_days": (day - entry_date).days,
-                      "exit_reason": ("target" if hit_target else
-                                      "stop" if hit_stop else "time_stop")})
-            return t
+            q = F.Quote(bid=row.get("bid"), ask=row.get("ask"))
+            if F.quote_reject_reason(q, check_liquidity=False) is not None:
+                continue
+            last_q = q
+            mark = F.fill_price(q, "sell", aggression)
+            ret = mark / entry_fill - 1.0
+            hit_target = ret >= target_pct
+            hit_stop = ret <= stop_pct
+            if hit_target or hit_stop or day >= time_stop_date:
+                t = F.round_trip(entry_q, q, right=right, strike=strike, aggression=aggression)
+                if not t.get("ok"):
+                    continue
+                t.update({"exit_date": day.isoformat(), "held_days": (day - entry_date).days,
+                          "exit_reason": ("target" if hit_target else
+                                          "stop" if hit_stop else "time_stop")})
+                return t
     # Never triggered: hold to expiry and settle at intrinsic against the underlying.
     und = None
     for i, ds in enumerate(bars["date"]):
