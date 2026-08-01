@@ -28,6 +28,31 @@ RESUMABILITY. Each symbol-year is written atomically (temp file then replace) so
 cannot leave a half-file that later loads as truncated data. `ensure_year` skips anything already
 on disk, so a re-run costs nothing for work already done - the failure mode that lost the first
 run's progress entirely.
+
+--------------------------------------------------------------------------------------------
+WHY QUARTERLY CHUNKS, RETRY, AND AN EXPLICIT GAP RECORD (added after the first bulk run).
+
+The first bulk attempt requested a whole year per call and had NO retry. Measured on the real
+run, 11 of 30 year-pulls died with gRPC `_MultiThreadedRendezvous` errors - and because there
+was no retry and no record, those years were SILENTLY ABSENT. AAPL was missing 2021, 2022 and
+2023 while the run carried on as if the history were complete. A backtest that reports a
+confident verdict with a third of its data missing is precisely the silent-corruption failure
+this project has been bitten by four times.
+
+Three fixes, in order of importance:
+
+  1. GAPS ARE RECORDED, NOT SWALLOWED. A symbol-year that cannot be fetched writes a `.missing`
+     marker, and `coverage_report` returns exactly which symbol-years are absent. The backtest
+     REFUSES to score a symbol with an incomplete history rather than quietly under-sampling it.
+  2. QUARTERLY CHUNKS. The failures are size-related: a quarter of AAPL 2022 returns in 18s
+     where the full year fails outright. A year is assembled from four quarter calls, and a
+     quarter that fails is retried before the year is abandoned.
+  3. TIMEOUT + BACKOFF. Each call runs with a deadline so a hung stream cannot pin a worker,
+     and transient failures are retried with increasing backoff. "No data" is still treated as
+     an answer, not an error, so empty quarters cost nothing.
+
+`strike_range` was tested as a way to cut payload and REJECTED: it cut rows 38% but made the
+call 6x SLOWER (110s vs 18s), because the filtering happens server-side after the scan.
 """
 from __future__ import annotations
 
@@ -41,6 +66,9 @@ from typing import Optional
 CACHE_ROOT = os.path.join("data", "options")
 MAX_DTE = 90
 WORKERS = 4                    # ThetaData Standard allows 4 concurrent requests
+CALL_TIMEOUT = 180             # seconds; a hung gRPC stream must not stall a worker forever
+RETRIES = 3
+BACKOFF = 4.0                  # seconds, multiplied by attempt number
 KEEP = ["expiration", "strike", "right", "date", "bid", "ask", "volume", "open_interest"]
 
 _LOAD_LOCK = threading.Lock()
@@ -90,38 +118,51 @@ class ThetaBulk:
             return self._client
 
     # ---------------- fetching ----------------
-    def _fetch_year(self, symbol: str, year: int):
-        """One EOD call + one open-interest call for the whole year."""
+    def _call_with_timeout(self, fn, **kw):
+        """Run a feed call with a deadline and backoff. None means 'no data' or gave up."""
+        from concurrent.futures import ThreadPoolExecutor
+        from concurrent.futures import TimeoutError as FTimeout
+
+        for attempt in range(1, RETRIES + 1):
+            try:
+                with ThreadPoolExecutor(max_workers=1) as one:
+                    return one.submit(lambda: fn(**kw)).result(timeout=CALL_TIMEOUT)
+            except FTimeout:
+                _log(f"timeout after {CALL_TIMEOUT}s (attempt {attempt}/{RETRIES})")
+            except Exception as e:                                       # noqa: BLE001
+                # "No data" is an ANSWER (an empty quarter), not a fault worth retrying.
+                if type(e).__name__ == "NoDataFoundError" or "No data found" in str(e):
+                    return None
+                if attempt == RETRIES:
+                    _log(f"gave up after {RETRIES}: {type(e).__name__}")
+                    return "FAILED"
+            if attempt < RETRIES:
+                time.sleep(BACKOFF * attempt)
+        return "FAILED"
+
+    def _fetch_span(self, symbol: str, start: dt.date, end: dt.date):
+        """One EOD + one open-interest call for a span. Returns (frame_or_None, failed_bool)."""
         import pandas as pd
 
         cli = self._cli()
         if cli is None:
-            return None
-        start = dt.date(year, 1, 1)
-        end = min(dt.date(year, 12, 31), dt.date.today())
-        if start > end:
-            return None
-        try:
-            eod = cli.option_history_eod(start_date=start, end_date=end, symbol=symbol.upper(),
-                                         expiration="*", max_dte=self.max_dte)
-        except Exception as e:                                           # noqa: BLE001
-            if "No data" not in str(e):
-                _log(f"{symbol} {year} eod failed: {type(e).__name__}")
-            return None
+            return None, True
+        eod = self._call_with_timeout(cli.option_history_eod, start_date=start, end_date=end,
+                                      symbol=symbol.upper(), expiration="*",
+                                      max_dte=self.max_dte)
+        if isinstance(eod, str):            # "FAILED"
+            return None, True
         if eod is None or len(eod) == 0:
-            return None
+            return None, False              # genuinely empty span, not a failure
         eod = eod.copy()
         eod["date"] = pd.to_datetime(eod["created"]).dt.date
         eod = (eod.sort_values("created")
                   .drop_duplicates(subset=["date", "expiration", "strike", "right"],
                                    keep="last"))
-        try:
-            oi = cli.option_history_open_interest(start_date=start, end_date=end,
-                                                  symbol=symbol.upper(), expiration="*",
-                                                  max_dte=self.max_dte)
-        except Exception:                                                # noqa: BLE001
-            oi = None
-        if oi is not None and len(oi):
+        oi = self._call_with_timeout(cli.option_history_open_interest, start_date=start,
+                                     end_date=end, symbol=symbol.upper(), expiration="*",
+                                     max_dte=self.max_dte)
+        if oi is not None and not isinstance(oi, str) and len(oi):
             oi = oi.copy()
             oi["date"] = pd.to_datetime(oi["timestamp"]).dt.date
             oi = (oi.sort_values("timestamp")
@@ -138,16 +179,59 @@ class ThetaBulk:
         slim["volume"] = pd.to_numeric(slim["volume"], errors="coerce").fillna(0).astype("int32")
         slim["open_interest"] = (pd.to_numeric(slim["open_interest"], errors="coerce")
                                  .fillna(-1).astype("int32"))
-        slim["right"] = slim["right"].astype(str).str[0].str.upper().astype("category")
-        return slim.reset_index(drop=True)
+        slim["right"] = slim["right"].astype(str).str[0].str.upper()
+        return slim.reset_index(drop=True), False
+
+    def _fetch_year(self, symbol: str, year: int):
+        """A year assembled from QUARTERS. Returns (frame_or_None, any_quarter_failed)."""
+        import pandas as pd
+
+        today = dt.date.today()
+        parts, failed = [], False
+        for q in range(4):
+            start = dt.date(year, 1 + 3 * q, 1)
+            end = (dt.date(year + 1, 1, 1) if q == 3
+                   else dt.date(year, 4 + 3 * q, 1)) - dt.timedelta(days=1)
+            if start > today:
+                continue
+            end = min(end, today)
+            df, fail = self._fetch_span(symbol, start, end)
+            failed = failed or fail
+            if df is not None and len(df):
+                parts.append(df)
+        if not parts:
+            return None, failed
+        out = pd.concat(parts, ignore_index=True)
+        out["right"] = out["right"].astype("category")
+        return out, failed
 
     def ensure_year(self, symbol: str, year: int) -> bool:
         """Pull + cache one symbol-year unless already on disk. Atomic write; resumable."""
         path = year_path(symbol, year, self.root)
         if os.path.exists(path):
             return True
-        df = self._fetch_year(symbol, year)
+        if os.path.exists(path + ".missing"):
+            return False
+        df, failed = self._fetch_year(symbol, year)
         if df is None or len(df) == 0:
+            # Record the gap. A silently-absent year is how the first run nearly reported a
+            # verdict on a third of its data missing.
+            if failed:
+                try:
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    with open(path + ".missing", "w", encoding="utf-8") as f:
+                        f.write(f"fetch failed {dt.date.today().isoformat()}\n")
+                except OSError:
+                    pass
+            return False
+        if failed:
+            # Partial year: do NOT cache it as if complete.
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path + ".missing", "w", encoding="utf-8") as f:
+                    f.write(f"partial (a quarter failed) {dt.date.today().isoformat()}\n")
+            except OSError:
+                pass
             return False
         os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = path + f".tmp{os.getpid()}"
@@ -248,6 +332,20 @@ class ThetaBulk:
         if not frames:
             return pd.DataFrame()
         return pd.concat(frames).sort_values("date").reset_index(drop=True)
+
+    def coverage_report(self, symbols, years) -> dict:
+        """Exactly which symbol-years are present vs missing. The backtest must consult this
+        before scoring: a symbol with gaps is under-sampled, not merely smaller."""
+        complete, gaps = {}, {}
+        for s_ in symbols:
+            have = set(self.cached_years(s_))
+            miss = [y for y in years if y not in have]
+            complete[s_] = sorted(have & set(years))
+            if miss:
+                gaps[s_] = miss
+        return {"complete": complete, "gaps": gaps,
+                "fully_covered": [s_ for s_ in symbols if s_ not in gaps],
+                "n_fully_covered": len([s_ for s_ in symbols if s_ not in gaps])}
 
     def cached_years(self, symbol: str) -> list:
         d = os.path.join(self.root, symbol.upper())
