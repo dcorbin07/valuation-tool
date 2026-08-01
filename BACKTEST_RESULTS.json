@@ -1,12 +1,12 @@
 {
   "schema_version": 3,
   "errors": [],
-  "generated_at": "2026-07-31T02:33:24",
-  "generated_at_utc": "2026-07-31T06:33:24+00:00",
+  "generated_at": "2026-08-01T14:29:00",
+  "generated_at_utc": "2026-08-01T18:29:00+00:00",
   "git": {
-    "commit": "4f735d264cb9e346e14d32352c59fc23a94d2fb8",
-    "short": "4f735d2",
-    "branch": "worktree-p7-currency",
+    "commit": "f4cc47a5ae0103c9074c804ada14ee4a99ca6430",
+    "short": "f4cc47a",
+    "branch": "worktree-p24-shortinterest",
     "dirty": true
   },
   "provider": "local export files (Sharadar or CRSP)",
@@ -542,6 +542,72 @@
         "ic_tstat": 2.5724674275263597,
         "coverage": 0.9418807426838025,
         "n_dates": 110
+      },
+      "pead_car": {
+        "median_ic": 0.010035057774142552,
+        "ic_tstat": 2.2147540491239015,
+        "coverage": 0.8233195093714738,
+        "n_dates": 87
+      },
+      "pead_drift": {
+        "median_ic": -0.0020108584893585814,
+        "ic_tstat": -0.47289995689016756,
+        "coverage": 0.2506484561614326,
+        "n_dates": 87
+      },
+      "sm_elite_conviction": {
+        "median_ic": 0.027352746140902905,
+        "ic_tstat": 1.3160193931511608,
+        "coverage": 0.584870821670892,
+        "n_dates": 47
+      },
+      "neg_days_to_cover": {
+        "median_ic": 0.014692203748345107,
+        "ic_tstat": 1.041608922253119,
+        "coverage": 0.3996175207725787,
+        "n_dates": 33
+      },
+      "neg_short_interest_chg": {
+        "median_ic": 0.013321149554858327,
+        "ic_tstat": 0.4175144840506399,
+        "coverage": 0.39881153006345343,
+        "n_dates": 33
+      },
+      "activist_13d": {
+        "median_ic": -0.005543321131485355,
+        "ic_tstat": -0.6897660876519776,
+        "coverage": 0.5849587479300693,
+        "n_dates": 73
+      },
+      "passive_13g": {
+        "median_ic": 0.015946165515804547,
+        "ic_tstat": 1.6583771299933956,
+        "coverage": 0.585032019812717,
+        "n_dates": 73
+      },
+      "govt_award_momentum": {
+        "median_ic": 0.004402060376222157,
+        "ic_tstat": 0.6991195700730383,
+        "coverage": 0.04033617139758789,
+        "n_dates": 62
+      },
+      "govt_award_level": {
+        "median_ic": 0.0007207384547377289,
+        "ic_tstat": -0.5163411722421694,
+        "coverage": 0.04340626328052873,
+        "n_dates": 62
+      },
+      "congress_net_buy": {
+        "median_ic": 0.0019855642904127906,
+        "ic_tstat": 0.9682156303177399,
+        "coverage": 0.11267017394744941,
+        "n_dates": 49
+      },
+      "congress_activity": {
+        "median_ic": -0.003975187278717209,
+        "ic_tstat": 0.01958971040992292,
+        "coverage": 0.11267017394744941,
+        "n_dates": 49
       }
     }
   },
@@ -851,6 +917,11 @@
       "n_periods": 110,
       "n_names": null,
       "top_frac": 0.1,
+      "gross_sharpe": 1.1908086055957336,
+      "net_sharpe": 1.1125531268204139,
+      "net_max_drawdown": -0.4172466929690263,
+      "net_vol_ann": 0.23981295380762044,
+      "equal_weight_sharpe": 0.721929237756659,
       "annual_turnover": 2.5070100220651486,
       "gross_ann": 0.2853852572923101,
       "net_ann": 0.26220570054767656,
@@ -868,8 +939,8 @@
         },
         {
           "bps": 10.0,
-          "net_alpha": 0.13151665516779842,
-          "net_ann": 0.279291845923352
+          "net_alpha": 0.1315166551677982,
+          "net_ann": 0.27929184592335177
         },
         {
           "bps": 25.0,
@@ -912,7 +983,12 @@
       "n_periods": 110,
       "n_names": 25,
       "top_frac": null,
-      "annual_turnover": 3.0032817003094254,
+      "gross_sharpe": 1.2158312944873206,
+      "net_sharpe": 1.1172673764956602,
+      "net_max_drawdown": -0.3864681326246192,
+      "net_vol_ann": 0.2712106621424965,
+      "equal_weight_sharpe": 0.721929237756659,
+      "annual_turnover": 3.003281700309426,
       "gross_ann": 0.33117498571412507,
       "net_ann": 0.2977156451965459,
       "cost_drag_ann": 0.03345934051757915,
@@ -964,10 +1040,130 @@
         },
         {
           "bps": 500.0,
-          "net_alpha": -0.15488686207443425,
-          "net_ann": -0.007111671318880686
+          "net_alpha": -0.15488686207443436,
+          "net_ann": -0.007111671318880797
         }
       ]
+    }
+  },
+  "after_tax": {
+    "top_decile": {
+      "n_periods": 110,
+      "years": 27.5,
+      "short_rate": 0.408,
+      "long_rate": 0.238,
+      "lot_method": "fifo",
+      "after_tax_sharpe": 0.8365273360613932,
+      "after_tax_max_drawdown": -0.4302716298838982,
+      "after_tax_vol_ann": 0.2387549620345969,
+      "gross_ann": 0.2853852572923101,
+      "after_tax_ann": 0.18409397987035203,
+      "equal_weight_ann": 0.14777519075555356,
+      "gross_alpha": 0.13761006653675656,
+      "after_tax_alpha": 0.036318789114798466,
+      "total_drag_ann": 0.10129127742195809,
+      "tax_paid_short": 39.417958793501825,
+      "tax_paid_long": 3.29267886109972,
+      "gains_short": 96.61264410172015,
+      "gains_long": 13.834785130671094,
+      "short_term_share_of_gains": 0.8747387311155838,
+      "unrealized_gain_end": 7.255192594833744,
+      "note": "after_tax_alpha is for a TAXABLE account; a tax-advantaged account (IRA/401k) pays no drag and earns the net-of-cost figure instead"
+    },
+    "top_25": {
+      "n_periods": 110,
+      "years": 27.5,
+      "short_rate": 0.408,
+      "long_rate": 0.238,
+      "lot_method": "fifo",
+      "after_tax_sharpe": 0.8188596497544233,
+      "after_tax_max_drawdown": -0.3877248698451349,
+      "after_tax_vol_ann": 0.2721314011732614,
+      "gross_ann": 0.33117498571412507,
+      "after_tax_ann": 0.20193265872665656,
+      "equal_weight_ann": 0.14777519075555356,
+      "gross_alpha": 0.1833997949585715,
+      "after_tax_alpha": 0.05415746797110299,
+      "total_drag_ann": 0.12924232698746851,
+      "tax_paid_short": 73.97493269585426,
+      "tax_paid_long": 2.0600146720190167,
+      "gains_short": 181.31110954866244,
+      "gains_long": 8.655523832012676,
+      "short_term_share_of_gains": 0.9544366098510162,
+      "unrealized_gain_end": -6.270059295444156,
+      "note": "after_tax_alpha is for a TAXABLE account; a tax-advantaged account (IRA/401k) pays no drag and earns the net-of-cost figure instead"
+    },
+    "tax_advantaged_note": "an IRA/401k pays NO drag and earns the net-of-cost figure in `costs` instead"
+  },
+  "no_trade_band": {
+    "enter_frac": 0.1,
+    "widths": {
+      "none": {
+        "annual_turnover": 2.5070100220651486,
+        "gross_alpha": 0.13761006653675656,
+        "net_alpha": 0.11443050979212299,
+        "after_tax_alpha": 0.036318789114798466,
+        "cost_drag_ann": 0.023179556744633567
+      },
+      "0.12": {
+        "annual_turnover": 2.315565475389427,
+        "gross_alpha": 0.1366188583875172,
+        "net_alpha": 0.11511674102264258,
+        "after_tax_alpha": 0.03834832563082813,
+        "cost_drag_ann": 0.021502117364874618
+      },
+      "0.15": {
+        "annual_turnover": 2.05519900222656,
+        "gross_alpha": 0.1276520693407306,
+        "net_alpha": 0.10859196935493554,
+        "after_tax_alpha": 0.03781912276860733,
+        "cost_drag_ann": 0.019060099985795054
+      },
+      "0.20": {
+        "annual_turnover": 1.7221859648451663,
+        "gross_alpha": 0.1331504299319981,
+        "net_alpha": 0.11690911842419793,
+        "after_tax_alpha": 0.04861441346158957,
+        "cost_drag_ann": 0.01624131150780017
+      },
+      "0.25": {
+        "annual_turnover": 1.4793613726233297,
+        "gross_alpha": 0.1193263314993045,
+        "net_alpha": 0.10523369829820828,
+        "after_tax_alpha": 0.04404248358291207,
+        "cost_drag_ann": 0.014092633201096216
+      },
+      "0.30": {
+        "annual_turnover": 1.2945737455553128,
+        "gross_alpha": 0.11974089102531948,
+        "net_alpha": 0.10723788591828032,
+        "after_tax_alpha": 0.04702019585353012,
+        "cost_drag_ann": 0.012503005107039167
+      }
+    }
+  },
+  "book_configs": {
+    "roth": {
+      "label": "Tax-free (Roth/IRA): Sharpe-optimal, full rotation, ~2-month rebalance",
+      "rebalance_days": 42,
+      "scored_at_horizon": 63,
+      "net_alpha": 0.14994045444099235,
+      "net_sharpe": 1.1172673764956602,
+      "net_max_drawdown": -0.3864681326246192,
+      "annual_turnover": 3.003281700309426,
+      "after_tax_alpha": 0.05415746797110299,
+      "after_tax_sharpe": 0.8188596497544233
+    },
+    "taxable": {
+      "label": "Taxable: after-tax-optimal, decile + 20% no-trade band",
+      "rebalance_days": 63,
+      "scored_at_horizon": 63,
+      "net_alpha": 0.11690911842419793,
+      "net_sharpe": 1.1285526102643764,
+      "net_max_drawdown": -0.3919893276744292,
+      "annual_turnover": 1.7221859648451663,
+      "after_tax_alpha": 0.04861441346158957,
+      "after_tax_sharpe": 0.8886548614885331
     }
   },
   "sanity_check": {
@@ -1026,15 +1222,21 @@
         },
         "foreign_median_percentile": {
           "neg_log_mktcap": 0.20233463035019456,
+          "congress_activity": 0.3288590604026846,
           "neg_beta": 0.6279557629645993,
           "book_to_price": 0.6216500262743038,
           "gp_on_capital": 0.39052117765142946,
+          "passive_13g": 0.3916372202591284,
           "earnings_yield": 0.6002920377936238,
           "op_margin": 0.5998672859986729,
+          "govt_award_momentum": 0.5789473684210527,
+          "sm_elite_conviction": 0.4309895833333333,
           "ebit_ev": 0.5579749928004676,
           "neg_asset_growth": 0.4475389403276252,
+          "activist_13d": 0.44768133174791913,
           "accruals_q": 0.45534130893736807,
           "neg_vol": 0.5423740638150651,
+          "congress_net_buy": 0.4592877025156935,
           "neg_issuance": 0.539311241065627,
           "gross_margin": 0.5373725934314836,
           "revenue_growth": 0.5368281353682813,
@@ -1042,16 +1244,21 @@
           "neg_ev_sales": 0.46559772008559147,
           "roic_ttm": 0.466451833059537,
           "ret_12_1": 0.46768893756845564,
+          "pead_drift": 0.5319662243667069,
+          "pead_car": 0.5316855500589261,
           "roic": 0.4687792375672036,
           "fcf_yield": 0.5298880404941662,
           "ret_6_1": 0.472822527832351,
           "fcf_margin": 0.5255893300248139,
           "f_score": 0.47774650157478143,
           "neg_leverage": 0.4784075573549258,
+          "neg_days_to_cover": 0.519177320733741,
           "inst_accum": 0.4853610930383865,
           "growth_accel": 0.48624208304011257,
           "roe": 0.5133653187114462,
           "roe_ttm": 0.5128430049482681,
+          "neg_short_interest_chg": 0.5127710916605883,
+          "govt_award_level": 0.48989795918367346,
           "interest_cov": 0.510088781275222,
           "sm_breadth": 0.4917626002806058,
           "inst_breadth": 0.49391393294703617,
@@ -1130,7 +1337,18 @@
       "inst_breadth": 0.6149782382508536,
       "sm_breadth": 0.6137619249989009,
       "roe_ttm": 0.909978164978971,
-      "roic_ttm": 0.9418807426838025
+      "roic_ttm": 0.9418807426838025,
+      "pead_car": 0.8233195093714738,
+      "pead_drift": 0.2506484561614326,
+      "sm_elite_conviction": 0.584870821670892,
+      "neg_days_to_cover": 0.3996175207725787,
+      "neg_short_interest_chg": 0.39881153006345343,
+      "activist_13d": 0.5849587479300693,
+      "passive_13g": 0.585032019812717,
+      "govt_award_momentum": 0.04033617139758789,
+      "govt_award_level": 0.04340626328052873,
+      "congress_net_buy": 0.11267017394744941,
+      "congress_activity": 0.11267017394744941
     },
     "themes": {
       "value": 1.0,
@@ -1144,7 +1362,20 @@
       "size": 1.0,
       "institutional": 0.6140110493999033
     },
-    "below_floor": [],
+    "below_floor": [
+      {
+        "kind": "number",
+        "name": "govt_award_momentum",
+        "theme": "growth",
+        "coverage": 0.04033617139758789
+      },
+      {
+        "kind": "number",
+        "name": "govt_award_level",
+        "theme": "growth",
+        "coverage": 0.04340626328052873
+      }
+    ],
     "exempt_themes": [
       "sentiment"
     ]

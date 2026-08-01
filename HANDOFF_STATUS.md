@@ -12,6 +12,92 @@ file directly.
 
 ---
 
+## P24.3 / P24.4 - USAspending REJECTED, congressional trades INCONCLUSIVE (2026-08-01)
+
+This closes the alt-data question opened in P24: four external sources tested, four gates
+pre-committed to git before any number came back, nothing adopted.
+
+### USAspending federal contract awards - REJECTED
+
+    signal                     median IC    IC t   dates   avg names   coverage
+    govt_award_momentum          +0.0044   +0.70      62          89      4.03%
+    govt_award_level (PLACEBO)   +0.0007   -0.52      62          96      4.34%
+    -- POWER CONTROLS on the same restricted subset --
+    inst_accum                   +0.0412   +2.27      50          90
+    quality                      +0.0290   +1.61      62          88
+    ret_6_1                      +0.0114   +0.78      62          88
+
+**The power control earned its keep.** The FIRST run mapped only 89 tickers and produced a
+70-ticker subset on which ret_6_1 fell from t +3.40 (full panel) to +0.83, with no control
+clearing 2.0. By the pre-committed rule that was INCONCLUSIVE, and it was not written up as a
+rejection. Going deeper into the recipient list (top 2,000 -> top 6,000) lifted the mapping to
+137 tickers and the subset to 102, at which point inst_accum reached +2.27 and the null became
+interpretable. Without that rule the thin first run would have been reported as "federal award
+momentum does not work" on evidence that could not support the claim.
+
+Limits that survive the verdict: coverage is 4%, so even a real signal there could not move a
+broad book (it would have been a gov-exposure sleeve, not a composite change); and the
+subsidiary problem is unsolved - no parent-rollup endpoint exists (parent_recipient /
+recipient_parent / parent_duns all 404), so Electric Boat is still not credited to General
+Dynamics. That adds noise, which biases toward rejection, so it does not undermine this null.
+
+### Congressional trades - INCONCLUSIVE, explicitly NOT a rejection
+
+    signal                     median IC    IC t   dates   avg names   coverage
+    congress_net_buy             +0.0020   +0.97      49         314     11.27%
+    congress_activity (PLACEBO)  -0.0040   +0.02      49         314     11.27%
+    -- POWER CONTROLS on the same restricted subset --
+    ret_6_1                      +0.0484   +1.87      49         313
+    inst_accum                   +0.0230   +1.80      49         313
+
+The signal shows nothing (t +0.97, and it would have to more than double to clear the bar), but
+the subset cannot certify a null - the best known-real control reaches only +1.87 against a
+pre-committed 2.0. So no verdict is claimed.
+
+**The limit is TIME, not cross-section**, which says what would fix it. Coverage is healthy
+(1,157 tickers, ~314 names/date - wider than the USAspending test that DID reach power). The
+binding constraint is that the data starts 2014, giving 49 rebalance dates over a decade in
+which momentum itself was weak. More tickers cannot fix that; only more years, which do not
+exist.
+
+**Point-in-time, now quantified rather than asserted.** Of 47,455 transactions, 21.9% were filed
+late; days from trade to filing have a median of 29, a 90th PERCENTILE OF 210, and a max of
+4,049. Using transaction_date injects up to SEVEN MONTHS of look-ahead for a tenth of the
+sample, precisely during the window a member's presumed advantage would play out. The loader
+DISCARDS the transaction date entirely rather than merely declining to filter on it, so it
+cannot be reached later. Pinned by `test_congress_never_stores_transaction_date`.
+
+**Second finding worth keeping:** the originally intended source (House/Senate Stock Watcher) is
+defunct - S3 403, site dead - and its surviving GitHub mirror is Senate-only, stops in 2019, and
+carries `transaction_date` as its ONLY date field. A test built on the first free dataset to hand
+could not have been correct, and no field would have warned anyone. Source used instead:
+kadoa-org/congress-trading-monitor, built from the official House Clerk and Senate eFD feeds,
+which carries filing_date separately. The GATE (thresholds, orientation, placebo, power control)
+was unchanged by the source switch.
+
+### Where the alt-data question now stands
+
+    source                  verdict        why
+    FINRA short interest    REJECTED       t +1.04 vs 2.0; controls on the same window +3.53
+    SEC EDGAR 13D/13G       REJECTED       activist t -0.69; passive placebo beat it by 2.35
+    USAspending awards      REJECTED       t +0.70; subset had power (inst_accum +2.27)
+    Congressional trades    INCONCLUSIVE   t +0.97 but no control cleared 2.0 on 49 dates
+
+Nothing adopted. Three clean rejections and one honest inconclusive. Combined with the P6/P10
+rejections, the standing conclusion is unchanged and now better supported: **the signal set is
+saturated for this dataset, and free public alt-data did not add to it.** All eight signals stay
+MEASURED (per-signal IC table) and score in no theme, so re-testing any of them is one line in
+factors.py.
+
+Tests 81/81.
+
+### Recommended next step
+
+The internal-research avenue is exhausted for now. The top priority remains what it was before
+P24: **a forward paper-track vs SPY** - the edge has still only ever seen this one 18-year
+Sharadar panel, and a live track on data nobody has looked at is the only remaining honest test.
+That is Cowork's lane ("Valquo Index vs SPY").
+
 ## P24.2 - SEC EDGAR 13D/13G: TESTED AND REJECTED (2026-08-01)
 
 352,332 filings -> 6,632 tickers from EDGAR quarterly form indexes (112s for 2007-2026).
