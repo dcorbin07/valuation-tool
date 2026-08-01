@@ -399,6 +399,10 @@ class WRDSProvider(HistoricalDataProvider):
         from .bulk import earnings_dates as _ed
         return _ed(self._bulk("events"), ticker)
 
+    def usaspending_for(self, ticker):
+        """Federal award quarters as (available_date, obligations) — already publication-lagged."""
+        return self._bulk("usaspending").get(ticker.upper(), [])
+
     def edgar_13d_for(self, ticker):
         """SEC 13D/13G filings as (FILING date, form). Filing date == public disclosure date."""
         return self._bulk("edgar13d").get(ticker.upper(), [])

@@ -246,6 +246,8 @@ NUMBER_THEME = {
     "neg_days_to_cover": "low_risk", "neg_short_interest_chg": "low_risk",
     # SEC 13D/13G. passive_13g is a deliberate PLACEBO, not a candidate.
     "activist_13d": "institutional", "passive_13g": "institutional",
+    # USAspending. govt_award_level is a deliberate PLACEBO, not a candidate.
+    "govt_award_momentum": "growth", "govt_award_level": "growth",
 }
 NUMBERS_ALL = list(NUMBER_THEME.keys())
 
