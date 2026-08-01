@@ -18,7 +18,7 @@ function switchTab(t) {
     if (el) el.style.display = (name === t) ? "block" : "none";
   });
   if (t === "hot" && !STATE.hotLoaded) { STATE.hotLoaded = true; loadHotStocks(); }
-  if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); }
+  if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); loadOptionsScorecard(); }
   if (t === "track" && !STATE.trackLoaded) { STATE.trackLoaded = true; loadTrack(); }
   if (t !== "signals") stopSigAuto();
 }
@@ -1104,3 +1104,71 @@ function renderLearning(d) {
 /* small helpers */
 function toggle(id, on) { const e = document.getElementById(id); if (e) e.classList.toggle("on", on); }
 function eshow(id, msg) { const e = document.getElementById(id); if (e) { e.textContent = msg; e.classList.toggle("on", !!msg); } }
+
+// ---------------------------------------------------------------------------------------- //
+// Scream-buy options expectancy. EXPECTANCY, not "success rate": with a payoff this
+// asymmetric a hit rate on its own is uninformative — a 40%-hit setup whose winners triple
+// beats a 70%-hit one that gives it back. So win/loss size and profit factor sit next to it.
+// ---------------------------------------------------------------------------------------- //
+async function loadOptionsScorecard() {
+  const box = document.getElementById("optScorecard");
+  if (!box) return;
+  let d;
+  try {
+    d = await (await fetch("/api/options-scorecard")).json();
+  } catch (e) { return; }
+  const o = (d && d.overall) || {};
+  const n = o.n_closed || 0, open = d.n_open || 0;
+  box.style.display = "";
+  const note = document.getElementById("optScoreNote");
+  const pct = v => (v === null || v === undefined) ? "—" : (v * 100).toFixed(1) + "%";
+  const num = v => (v === null || v === undefined) ? "—" : v.toFixed(2);
+  if (!n) {
+    note.textContent = `No closed trades yet — ${open} alert${open === 1 ? "" : "s"} logged and `
+      + `awaiting outcomes. Contract results are written back by the Robinhood job; until then `
+      + `there is nothing to score.`;
+    document.getElementById("optScoreBody").innerHTML = "";
+    return;
+  }
+  note.innerHTML = `<b>${n}</b> closed · <b>${open}</b> open · expectancy is per trade on the `
+    + `premium, 1-contract basis. ${n < (d.min_closed_per_bucket || 30)
+      ? `<b>Below the ${d.min_closed_per_bucket || 30}-trade floor</b> — read as directional only; `
+        + `no criterion is tuned on this.` : ``}`;
+  const rows = [
+    ["Expectancy / trade", pct(o.expectancy_pct)],
+    ["Hit rate", pct(o.hit_rate)],
+    ["Avg win", pct(o.avg_win_pct)],
+    ["Avg loss", pct(o.avg_loss_pct)],
+    ["Profit factor", o.profit_factor == null ? "— (undefined)" : num(o.profit_factor)],
+    ["Cumulative P&L (1 contract)", o.cum_pnl_dollars == null ? "—"
+      : (o.cum_pnl_dollars >= 0 ? "+" : "") + "$" + o.cum_pnl_dollars.toFixed(0)],
+  ];
+  let html = '<table class="tbl"><tbody>' + rows.map(
+    r => `<tr><td class="muted">${r[0]}</td><td style="text-align:right"><b>${r[1]}</b></td></tr>`
+  ).join("") + "</tbody></table>";
+  const buckets = (d.buckets || {});
+  const dims = Object.keys(buckets);
+  if (dims.length) {
+    html += '<div class="note" style="margin-top:12px">By setup — a bucket under the trade '
+      + 'floor is shown but is <b>not</b> actionable:</div>';
+    html += '<table class="tbl"><thead><tr><th>setup</th><th>n</th><th>expectancy</th>'
+      + '<th>hit</th><th>profit factor</th></tr></thead><tbody>';
+    dims.forEach(dim => Object.keys(buckets[dim]).forEach(b => {
+      const s = buckets[dim][b];
+      const thin = !s.enough_to_tune;
+      html += `<tr style="${thin ? "opacity:.55" : ""}"><td>${dim}: ${b}${thin ? " ⚠" : ""}</td>`
+        + `<td>${s.n_closed}</td><td>${pct(s.expectancy_pct)}</td><td>${pct(s.hit_rate)}</td>`
+        + `<td>${s.profit_factor == null ? "—" : num(s.profit_factor)}</td></tr>`;
+    }));
+    html += "</tbody></table>";
+  }
+  const tune = d.tuning || {};
+  if (tune.ready && (tune.suggestions || []).length) {
+    html += '<div class="note" style="margin-top:12px"><b>Enough evidence to tune:</b><ul>'
+      + tune.suggestions.map(s => `<li>${s.note}</li>`).join("") + "</ul></div>";
+  } else {
+    html += `<div class="note" style="margin-top:12px">Not enough closed trades to tune any `
+      + `criterion yet (need ${d.min_closed_per_bucket || 30} per bucket).</div>`;
+  }
+  document.getElementById("optScoreBody").innerHTML = html;
+}

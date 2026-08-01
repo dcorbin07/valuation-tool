@@ -130,6 +130,51 @@ def run_alerts(cfg, store, users) -> dict:
         unsub = f"{cfg.public_base_url}/alerts/unsubscribe/{unsub_token(cfg, u['id'])}"
         if send_email(cfg, u["email"], "🚨 Screaming buys", alert_email_html(run_time, picks, unsub)):
             sent += 1
+    # Log every alert with its CONTRACT and fingerprint, so expectancy can be scored later.
+    # Never allowed to break the alert path: a logging failure must not stop a notification.
+    logged = 0
+    try:
+        logged = log_scream_buys(store, run_time, picks)
+    except Exception as e:                                  # pragma: no cover - defensive
+        import sys
+        print(f"[alerts] contract logging failed (alerts still sent): {e}", file=sys.stderr)
     for r in picks:
         store.mark_alerted(r["ticker"], run_time)
-    return {"new": len(picks), "emails": sent, "tickers": [r["ticker"] for r in picks]}
+    return {"new": len(picks), "emails": sent, "logged": logged,
+            "tickers": [r["ticker"] for r in picks]}
+
+
+def log_scream_buys(store, run_time, picks) -> int:
+    """Persist each scream-buy alert + the contract it implies, for the expectancy scorecard.
+
+    The live scan frames a trade as a DESCRIPTOR ("~35Δ call, ~60 DTE") rather than a specific
+    strike, because a real chain lives behind the broker. So strike/expiry/premium are recorded
+    when available and left NULL when not — the fingerprint is still worth storing, and it is
+    what the tuning loop actually learns from. The external (Cowork/Robinhood) job fills the
+    contract and outcome in.
+    """
+    from ..edge.options_tracker import log_alert
+    n = 0
+    for r in picks or []:
+        d = r.get("detail") or {}
+        cs = (d.get("contracts") or {})
+        horizon = "swing" if "swing" in cs else (sorted(cs)[0] if cs else None)
+        c = (cs.get(horizon) or {}) if horizon else {}
+        n += 1 if log_alert(store, {
+            "alert_ts": run_time, "ticker": r.get("ticker"),
+            "opt_right": ("put" if str(c.get("directional", "")).find("put") >= 0 else "call"),
+            "strike": c.get("strike"), "expiry": c.get("expiry"),
+            "entry_premium": c.get("mid") or c.get("premium"),
+            "underlying_price": r.get("price"),
+            "score": r.get("score"),
+            "momentum_score": d.get("momentum_score") or r.get("momentum_score"),
+            "technical_score": d.get("technical_score") or r.get("technical_score"),
+            "iv": c.get("iv") or d.get("iv"), "iv_rank": d.get("iv_rank"),
+            "horizon": horizon, "target_delta": c.get("delta"), "dte": c.get("dte"),
+            "flow_read": next((l for l in (r.get("labels") or [])
+                               if "call" in l.lower() or "put" in l.lower()), None),
+            "labels": r.get("labels") or [],
+            "features": {"exit_policy": {"target_pct": 1.00, "stop_pct": -0.50,
+                                         "time_stop_frac": 0.50}},
+        }) else 0
+    return n

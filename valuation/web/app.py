@@ -179,6 +179,26 @@ def _store():
     return Store()
 
 
+@app.route("/api/options-scorecard")
+def api_options_scorecard():
+    """Expectancy of the scream-buy options alerts, from REAL closed contract outcomes.
+
+    Deliberately not a "success rate": for a payoff this asymmetric, hit rate without win/loss
+    size is uninformative. Outcomes are written back by the external Robinhood job, so early on
+    this legitimately reports mostly-open alerts and near-empty statistics — which is the
+    honest state, not a bug.
+    """
+    from ..edge.options_tracker import scorecard, tuning_candidates
+    from ..screener.store import Store
+    try:
+        st = Store()
+        sc = scorecard(st)
+        sc["tuning"] = tuning_candidates(st)
+        return jsonify(sc)
+    except Exception as e:
+        return jsonify({"error": str(e), "overall": {"n_closed": 0}, "n_open": 0}), 200
+
+
 @app.route("/api/hotstocks")
 def api_hotstocks():
     """Read the latest cached scan snapshot + sector attractiveness (instant)."""

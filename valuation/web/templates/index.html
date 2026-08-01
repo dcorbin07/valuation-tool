@@ -315,6 +315,15 @@
             <option value="position">Position (3–6 mo)</option>
           </select>
         </label>
+      </div>
+      <!-- Live expectancy of past scream-buy alerts. Expectancy, not "success rate": with an
+           asymmetric payoff a hit rate on its own says nothing about whether the setup pays. -->
+      <div id="optScorecard" class="card" style="margin-top:14px;display:none">
+        <h3 style="margin:0 0 8px">Scream-buy options — live expectancy</h3>
+        <div class="note" id="optScoreNote" style="margin-bottom:10px"></div>
+        <div id="optScoreBody"></div>
+      </div>
+      <div class="search-row" style="align-items:center">
         <label class="opt" style="margin:0"><input type="checkbox" id="sigAuto" onchange="toggleSigAuto()"> Auto-refresh (60s)</label>
         <span class="note" id="sigMeta" style="margin:0"></span>
       </div>

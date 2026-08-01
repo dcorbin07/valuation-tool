@@ -12,6 +12,71 @@ file directly.
 
 ---
 
+## `roth` ADOPTED as the default book — and a cadence LABEL correction
+
+`DEFAULT_BOOK_CONFIG = "roth"` (Don trades in a Roth, so no tax drag). The headless CLI takes
+`--config roth` / `--config taxable`, which fixes width, cadence and band together so an
+emitted book cannot drift from the construction that was validated:
+
+```
+python -m valuation.edge.valquo_index --full-universe data/backtest --config roth
+  -> 25 of 861 eligible (1809 scored), rebalance every 42 trading days (~2.0 months), no band
+```
+
+**LABEL CORRECTION — the config is ~2 months, not 6 weeks.** `rebalance_days` is in TRADING
+days, so 42d is ~8.4 calendar weeks. I had called it "6-week" in the previous handoff. Having
+noticed, I measured the genuine 6-week point (30 trading days), which was never tested:
+
+| cadence | Sharpe (full/early/late) | net α | turnover | cost drag |
+|---|---|---|---|---|
+| monthly (21d) | 1.09 (1.19/1.01) | +13.70% | 523% | 6.03% |
+| 6-week (30d) | 1.11 (1.09/1.13) | +14.51% | 437% | 5.04% |
+| **2-month (42d)** | **1.17** (1.12/**1.20**) | **+17.37%** | 379% | 4.40% |
+| quarterly (63d) | 1.12 (1.17/1.06) | +14.99% | 300% | 3.35% |
+
+**The construction Don adopted is still the right one** — 42d has the best Sharpe overall and in
+the recent half. But a true 6-week cadence is *worse* than both its neighbours (1.11), so the
+name mattered: anyone implementing "6 weeks" from the old note would have traded a worse book.
+`taxable` is unchanged (decile / quarterly / 20% band).
+
+---
+
+## SCREAM-BUY OPTIONS: expectancy loop replacing the success-rate tracker
+
+`options_exit.py` measured the UNDERLYING's move under an exit discipline. That answers the
+wrong question twice: an option's P&L is not the stock's move (premium, theta and vega sit in
+between), and a bare **"success rate" is meaningless for an asymmetric payoff** — a 40%-hit
+setup whose winners triple beats a 70%-hit one that gives it all back on the losers.
+
+New `valuation/edge/options_tracker.py` + an `option_alerts` store table:
+
+1. **Log the CONTRACT and the fingerprint.** ticker, right, strike, expiry, entry premium,
+   timestamp, plus what fired it: score, momentum/technical scores, IV and IV rank, horizon,
+   target delta, DTE, options-flow read, labels, and a JSON `features` blob so a new feature
+   never needs a migration. Deduped on (ticker, alert_ts, OCC symbol). Missing chain detail is
+   allowed — the fingerprint is what the tuning loop learns from, so an alert with no strike is
+   still worth recording.
+2. **Score EXPECTANCY, never a bare hit rate:** hit rate *alongside* avg win, avg loss, profit
+   factor, expectancy per trade, and cumulative P&L on a fixed 1-contract (100-share) basis.
+   Profit factor with no losers reports **None, not infinity** — an undefined ratio must read as
+   "no evidence", never as a spectacular score.
+3. **Accrual-then-tune, hard-gated.** `MIN_CLOSED_PER_BUCKET = 30` on **both sides** of any
+   comparison before a criterion may change. `tuning_candidates()` returns suggestions and never
+   applies them, and lists what is `blocked` for want of trades. Options outcomes are
+   heavy-tailed: with ten trades one triple-up decides the sign of every statistic.
+4. **Surfaced on the Signals tab** (`/api/options-scorecard`), with thin buckets greyed and
+   flagged, and an explicit "not enough closed trades to tune" line when below the floor.
+
+**Cowork's half:** real fills and contract marks come from the Robinhood connector, which the
+web app cannot reach. This app writes the alert; an external scheduled job calls
+`record_outcome(...)` to fill `exit_ts / exit_premium / exit_reason`, and P&L is computed
+**here** from the stored premiums so the scorecard can never disagree with them. Everything is
+built to be useful while outcomes are still missing — an open alert is a complete record of the
+setup, and the scorecard reports honestly how few closed trades exist.
+→ **Take the outcome-filling job to the Cowork chat.**
+
+---
+
 ## TWO SHIPPED BOOK CONFIGS — concentration chosen on Sharpe, not return
 
 `settings.BOOK_CONFIGS` now carries two tuned constructions, and the run measures both

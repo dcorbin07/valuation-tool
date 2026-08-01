@@ -95,6 +95,33 @@ class Store:
             c.execute("""CREATE TABLE IF NOT EXISTS learned_config (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT, bucket TEXT,
                 weights TEXT, stats TEXT, adopted INTEGER, note TEXT)""")
+            # Scream-buy OPTIONS alerts: the specific contract plus the fingerprint that fired
+            # it, and a slot for the realized outcome.
+            #
+            # Two things this fixes about the old tracking. It records the CONTRACT, not just
+            # the underlying — an option's P&L is not the stock's move, because premium, theta
+            # and vega all sit in between. And it stores the FEATURES that fired the alert, so
+            # "which kinds of setups actually pay" is answerable later instead of being lost.
+            #
+            # Outcome columns are written by an EXTERNAL process: real fills and contract marks
+            # come from the Robinhood connector, which the web app cannot reach. This app logs
+            # the alert; Cowork's scheduled job writes exit_* back. `opt_right` rather than
+            # `right` because RIGHT is a reserved word in newer SQLite.
+            c.execute("""CREATE TABLE IF NOT EXISTS option_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alert_ts TEXT NOT NULL, ticker TEXT NOT NULL,
+                opt_right TEXT, strike REAL, expiry TEXT, occ_symbol TEXT,
+                entry_premium REAL, underlying_price REAL,
+                score REAL, momentum_score REAL, technical_score REAL,
+                iv REAL, iv_rank REAL, horizon TEXT, target_delta REAL, dte INTEGER,
+                flow_read TEXT, labels TEXT, features TEXT,
+                exit_ts TEXT, exit_premium REAL, exit_reason TEXT,
+                pnl_pct REAL, pnl_dollars REAL,
+                status TEXT NOT NULL DEFAULT 'open')""")
+            c.execute("""CREATE UNIQUE INDEX IF NOT EXISTS ix_option_alerts_uniq
+                ON option_alerts(ticker, alert_ts, IFNULL(occ_symbol,''))""")
+            c.execute("CREATE INDEX IF NOT EXISTS ix_option_alerts_status "
+                      "ON option_alerts(status)")
 
     @contextmanager
     def _conn(self):

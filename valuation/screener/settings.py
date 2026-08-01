@@ -100,11 +100,15 @@ WEIGHTS_SPECULATIVE = {"value": 0.125, "growth": 0.125, "momentum": 0.125, "insi
 # if you want it, but a 10-name book over 110 periods is a thin basis for a drawdown claim.
 #
 # ROTH (tax-free): no tax drag, so optimize NET-OF-COST Sharpe and rotate freely.
-#   Rebalance frequency swept on the same panel (top 25, net of costs):
-#     monthly    Sharpe 1.09 (1.19/1.01)  turnover 523%  cost drag 6.03%
-#     6-week     Sharpe 1.17 (1.12/1.20)  turnover 379%  cost drag 4.40%   <- best, and best
-#     quarterly  Sharpe 1.12 (1.17/1.06)  turnover 300%  cost drag 3.35%      in the LATE half
-#   So faster DOES pay, but only to a point: monthly's cost drag overwhelms the benefit.
+#   Rebalance frequency swept on the same panel (top 25, net of costs). NOTE THE UNITS:
+#   these are TRADING days, so 42d is ~8.4 calendar weeks (~2 months), NOT 6 weeks — an
+#   earlier version of this note mislabelled it and the true 6-week point was then measured:
+#     monthly   (21d)  Sharpe 1.09 (1.19/1.01)  turnover 523%  cost drag 6.03%
+#     6-week    (30d)  Sharpe 1.11 (1.09/1.13)  turnover 437%  cost drag 5.04%
+#     2-month   (42d)  Sharpe 1.17 (1.12/1.20)  turnover 379%  cost drag 4.40%  <- BEST, and
+#     quarterly (63d)  Sharpe 1.12 (1.17/1.06)  turnover 300%  cost drag 3.35%     best LATE
+#   Faster pays only to a point: monthly's 6.03% cost drag overwhelms the benefit, and the
+#   genuine 6-week cadence is WORSE than both its neighbours. The optimum is ~2 months.
 #   NOTE: fundamentals only update QUARTERLY, so a 6-week rebalance is re-ranking on fresh
 #   prices (momentum, market cap) over stale fundamentals — that it still wins says the
 #   price-based components carry real short-horizon information.
@@ -120,7 +124,8 @@ WEIGHTS_SPECULATIVE = {"value": 0.125, "growth": 0.125, "momentum": 0.125, "insi
 #   than made the global default.)
 BOOK_CONFIGS = {
     "roth": {
-        "label": "Tax-free (Roth/IRA): Sharpe-optimal, full rotation",
+        "label": "Tax-free (Roth/IRA): Sharpe-optimal, full rotation, ~2-month rebalance",
+        # 42 TRADING days ~= 2 calendar months. Best Sharpe of the cadences tested.
         "top_n": 25, "top_frac": None, "rebalance_days": 42, "horizon": 42,
         "exit_frac": None, "exit_mult": None,          # no band: no tax cost to churning
         "measured": {"net_alpha": 0.1737, "net_sharpe": 1.17, "annual_turnover": 3.79,
@@ -134,7 +139,11 @@ BOOK_CONFIGS = {
                      "net_alpha": 0.1169, "annual_turnover": 1.72},
     },
 }
-DEFAULT_BOOK_CONFIG = "taxable"     # the safer assumption for an unknown account
+# ADOPTED 2026-07-31 (Don's call): `roth`. Don trades in a Roth, where there is no tax drag,
+# so the book optimizes net-of-cost Sharpe (1.17) with free rotation rather than after-tax
+# Sharpe. `taxable` remains fully supported for the product's taxable users and is the right
+# default for anyone whose account type is unknown.
+DEFAULT_BOOK_CONFIG = "roth"
 
 # Which theme columns each bucket scores on (keys of the weight dicts above).
 # autolearn + the live scorer both read this, so there's one source of truth.

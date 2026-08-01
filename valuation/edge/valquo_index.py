@@ -39,7 +39,8 @@ def _f(x) -> Optional[float]:
 
 
 def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
-                top_decile: float = TOP_DECILE, weighting: str = "score") -> dict:
+                top_decile: float = TOP_DECILE, weighting: str = "score",
+                top_n: int | None = None) -> dict:
     """Top-decile, large-cap-tilted book from scan rows. Pure function — easy to test."""
     scored = [r for r in rows if _f(r.get("hot_score")) is not None and _f(r.get("price"))]
 
@@ -58,7 +59,10 @@ def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
             tilt = "no market-cap data — all scored names"
 
     large.sort(key=lambda r: -_f(r.get("hot_score")))
-    n = max(MIN_NAMES, int(round(len(large) * top_decile)))
+    # A FIXED book size (top_n) or a fraction of the eligible tier (top_decile). The roth
+    # config is a 25-name book; taxable is the decile.
+    n = int(top_n) if top_n else max(MIN_NAMES, int(round(len(large) * top_decile)))
+    n = max(MIN_NAMES, n)
     picks = large[:min(n, len(large))]
 
     if weighting == "equal" or not picks:
@@ -121,6 +125,7 @@ def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
                    "top-25 book actually scores higher (+20.7% gross alpha) but is the "
                    "noisiest number in the study, so the decile is the honest book to track."),
         "criteria": {"large_cap_min": large_cap_min, "top_decile": top_decile,
+                     "top_n": (int(top_n) if top_n else None),
                      "tilt": tilt, "weighting": weighting,
                      "max_weight": MAX_WEIGHT, "effective_max_weight": round(cap, 5)},
         "n_scored": len(scored), "n_eligible": len(large), "n_positions": len(positions),
@@ -158,12 +163,25 @@ def _full_universe_rows(data_dir: str, limit: int = 3000):
 
 
 def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
-           limit: int = 3000, **kw) -> dict:
+           limit: int = 3000, config: str | None = None, **kw) -> dict:
     """Build the book and write the JSON. Returns the payload.
 
     `data_dir` -> score the full Sharadar universe point-in-time (the headless path, and the
     one that produces a genuine top decile). Otherwise fall back to the latest saved live scan.
     """
+    # A named book config (settings.BOOK_CONFIGS) fixes width, cadence and band together, so
+    # the emitted book cannot drift from the construction that was actually validated.
+    cfg_meta = None
+    if config:
+        from ..screener import settings as S
+        cfg_meta = (S.BOOK_CONFIGS or {}).get(config)
+        if not cfg_meta:
+            raise RuntimeError(f"unknown book config {config!r}; "
+                               f"known: {sorted(S.BOOK_CONFIGS or {})}")
+        if cfg_meta.get("top_n"):
+            kw["top_n"] = cfg_meta["top_n"]
+        if cfg_meta.get("top_frac"):
+            kw["top_decile"] = cfg_meta["top_frac"]
     dropped, scan_date = [], None
     if data_dir:
         rows, scan_date, dropped = _full_universe_rows(data_dir, limit=limit)
@@ -185,6 +203,21 @@ def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
     payload["excluded_market_cap_divergence"] = [
         {"ticker": d["ticker"], "daily_mc": d["daily_mc"], "derived_mc": d["derived_mc"],
          "ratio": round(d["ratio"], 2)} for d in dropped]
+    if cfg_meta:
+        # The band is a REBALANCE rule (it compares against the previous book), so a one-shot
+        # export cannot apply it — it is emitted as instruction for whoever rebalances.
+        payload["config"] = {
+            "name": config, "label": cfg_meta.get("label"),
+            "rebalance_days": cfg_meta.get("rebalance_days"),
+            # TRADING days -> calendar months, which is what a human schedules on.
+            "rebalance_months": (round(cfg_meta["rebalance_days"] / 21.0, 1)
+                                 if cfg_meta.get("rebalance_days") else None),
+            "exit_frac": cfg_meta.get("exit_frac"),
+            "exit_mult": cfg_meta.get("exit_mult"),
+            "band_note": ("hold an existing position until it falls past this rank/fraction; "
+                          "requires the PREVIOUS book, so it is applied at rebalance time, not "
+                          "in this snapshot"),
+            "measured": cfg_meta.get("measured")}
     payload["generated_at"] = _dt.datetime.now().replace(microsecond=0).isoformat()
 
     d = os.path.dirname(path)
@@ -209,10 +242,14 @@ def main(argv=None):
                          "live scan (headless; the only path that yields a real top decile). "
                          "Optionally takes the export dir, default data/backtest.")
     ap.add_argument("--limit", type=int, default=3000, help="universe size for --full-universe")
+    ap.add_argument("--config", default=None,
+                    help="named book config: 'roth' (top-25, 6-week, no band) or 'taxable' "
+                         "(decile, quarterly, 20%% band). Sets width and emits the cadence.")
     a = ap.parse_args(argv)
     try:
         p = export(path=a.out, large_cap_min=a.large_cap_min, top_decile=a.top_decile,
-                   weighting=a.weighting, data_dir=a.full_universe, limit=a.limit)
+                   weighting=a.weighting, data_dir=a.full_universe, limit=a.limit,
+                   config=a.config)
     except RuntimeError as e:
         print(f"Could not build the book: {e}")
         return 1
@@ -222,6 +259,12 @@ def main(argv=None):
     print(f"Valquo Index -> {p['path']}   as of {p.get('data_as_of')}   "
           f"{p['n_positions']} of {p['n_eligible']} eligible ({p['n_scored']} scored)")
     print(f"  source: {p.get('source')}")
+    if p.get("config"):
+        _c = p["config"]
+        print(f"  config: {_c['name']} — {_c.get('label')}")
+        print(f"  rebalance every {_c.get('rebalance_days')} trading days "
+              f"(~{_c.get('rebalance_months')} months)"
+              + (f", no-trade band {_c['exit_frac']:.0%}" if _c.get("exit_frac") else ", no band"))
     print(f"  tilt: {p['criteria']['tilt']}")
     if p["n_scored"] < 200:
         print(f"  WARNING: only {p['n_scored']} names scored — a 'top decile' of that is not a "
