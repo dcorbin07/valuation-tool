@@ -138,6 +138,8 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     df["neg_ret_1m"] = _num("neg_ret_1m")                               # low-risk: short-term reversal
     df["neg_max_ret"] = _num("neg_max_ret")                             # low-risk: MAX / lottery effect
     df["neg_idio_vol"] = _num("neg_idio_vol")                           # low-risk: idiosyncratic vol
+    df["pead_car"] = _num("pead_car")                                   # PEAD: earnings CAR (measured only)
+    df["pead_drift"] = _num("pead_drift")                               # PEAD: recent-only CAR (measured only)
     df["roe_ttm"] = _num("roe_ttm")                                     # quality: TTM ROE (measured only)
     df["roic_ttm"] = _num("roic_ttm")                                   # quality: TTM ROIC (measured only)
     df["inst_breadth"] = _num("inst_breadth")                           # institutional: holder breadth

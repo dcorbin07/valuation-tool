@@ -41,6 +41,39 @@ ADOPTION BAR — pre-committed, and the same one every other signal has faced:
 
 Rejecting is a perfectly good outcome. PEAD is real in the literature but heavily arbitraged
 since the 1990s, and our earnings dates are partial — both push against finding it here.
+
+================================ RESULT (run after the above was committed) =================
+REJECTED. Full universe, 136,478 rows / 110 dates.
+
+    signal        median IC    IC t   coverage   standalone gate
+    pead_car        +0.0100   +2.21      82.3%   PASS
+    pead_drift      -0.0020   -0.47      25.1%   FAIL (t and coverage)
+
+pead_car clears the standalone bar but fails the held-out margin in BOTH directions:
+
+    early half   LS t 0.56 -> 0.59 (+0.03)   top-decile +6.69% -> +6.61% (-0.08%)
+    late  half   LS t 0.83 -> 0.74 (-0.09)   top-decile +5.06% -> +4.72% (-0.35%)
+
+TWO DIAGNOSTICS THAT MATTER MORE THAN THE VERDICT:
+
+1. THE DRIFT VARIANT HAS NO SIGNAL. PEAD theory says drift is STRONGEST immediately after the
+   announcement, yet the recent-only window (<=63 days) scores t -0.47 while the all-ages CAR
+   scores +2.21. That is backwards. Whatever pead_car measures, it is NOT post-earnings drift —
+   which means the standalone t +2.21 should not be read as evidence for PEAD.
+
+2. IT IS PARTLY MOMENTUM WE ALREADY OWN. Average within-date correlation: +0.286 with ret_6_1,
+   +0.241 with high_prox, +0.200 with ret_12_1. An earnings CAR from months ago is largely
+   "this stock has been going up", which ret_6_1 already captures at t +3.40 — nearly DOUBLE
+   pead_car's standalone t. Adding it to the momentum mean dilutes a stronger signal with a
+   weaker correlated one, which is exactly what the held-out numbers show.
+
+Both variants stay MEASURED (in NUMBER_THEME, in the per-signal IC table) but score in no theme,
+so the negative result is permanent and re-testing is one line in factors.py. The EVENTS decode
+that unblocked this is independently valuable and stands regardless.
+
+A cleaner PEAD would need an actual earnings SURPRISE (reported vs expected), which requires
+point-in-time analyst estimates — IBES, still parked. The price-reaction proxy used here cannot
+separate "beat expectations" from "went up recently".
 """
 from __future__ import annotations
 

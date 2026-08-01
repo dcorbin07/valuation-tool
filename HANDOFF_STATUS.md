@@ -59,6 +59,38 @@ weekly-stale screen is live.
 
 ---
 
+## PEAD — built and REJECTED (the decode that unblocked it stands regardless)
+
+Gate committed results-free in `9323a08`. Signal = cumulative abnormal return over [t−1, t+1]
+around the most recent announcement vs the benchmark (the surprise measured by the market's own
+reaction, since we have no point-in-time estimates), plus a recent-only "drift" variant.
+
+| signal | median IC | IC t | coverage | standalone gate |
+|---|---|---|---|---|
+| `pead_car` | +0.0100 | **+2.21** | 82.3% | PASS |
+| `pead_drift` | −0.0020 | −0.47 | 25.1% | FAIL |
+
+`pead_car` clears standalone but **fails the held-out margin in both directions** — early
++0.03 t / −0.08% alpha, late −0.09 t / −0.35% alpha. **REJECTED.**
+
+**Two diagnostics that matter more than the verdict:**
+
+1. **The drift variant has no signal.** PEAD theory says drift is *strongest* right after the
+   announcement, yet the ≤63-day window scores **t −0.47** while the all-ages CAR scores +2.21.
+   That is backwards — whatever `pead_car` measures, **it is not post-earnings drift**, so its
+   +2.21 must not be read as evidence for PEAD.
+2. **It is partly momentum we already own.** Within-date correlation **+0.286 with `ret_6_1`**,
+   +0.241 with `high_prox`, +0.200 with `ret_12_1`. An earnings CAR from months ago is largely
+   "this stock has been rising", which `ret_6_1` already captures at **t +3.40** — nearly double.
+   Adding it dilutes a stronger signal with a weaker correlated one, exactly as the held-out
+   numbers show.
+
+Both variants stay **measured but score in no theme**, so the negative result is permanent and
+re-testing is one line. A cleaner PEAD needs a real earnings *surprise* (reported vs expected),
+which requires point-in-time estimates — IBES, still parked.
+
+---
+
 ## EVENTS earnings-code legend DECODED — PEAD unblocked after being stuck since P2
 
 Sharadar ships no legend with the EVENTS download, and the earlier guess (codes 11-17) was

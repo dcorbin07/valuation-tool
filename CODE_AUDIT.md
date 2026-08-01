@@ -22,7 +22,10 @@
 > price move, 1.64x baseline vs 0.84-1.15x for all others). `bulk.EARNINGS_CODES` is
 > populated and `earnings_dates()` returns real dates. Coverage is PARTIAL (~2.83/ticker/yr
 > vs ~4 expected) — a missing date means unknown, not 'no announcement'. The PEAD SIGNAL
-> itself is still unbuilt; elite-manager 13F remains open.
+> itself was then BUILT AND REJECTED (pead_car t +2.21 standalone but fails the held-out
+> margin both ways; the drift variant has NO signal at t -0.47, which is backwards for PEAD,
+> and pead_car is +0.286 correlated with ret_6_1 which already scores t +3.40). P12 is
+> CLOSED. Elite-manager 13F remains the last open research item.
 
 
 Static audit of the quant foundation (panel → factors → data path) prompted by finding the

@@ -1723,6 +1723,41 @@ def test_ml_combiner_optional_import_and_per_fold_features():
     assert "status" in r or r.get("n_paths") == 0
 
 
+def test_pead_is_point_in_time_and_scores_no_theme():
+    """PEAD was tested and REJECTED, so it must stay measured-but-unscored. And the CAR window
+    must have CLOSED by as_of — otherwise the signal contains returns from the future."""
+    from valuation.edge import pead as P
+    from valuation.screener import settings as S
+    from valuation.screener.factors import build_frame
+    assert S.NUMBER_THEME.get("pead_car") == "momentum", "stays measured"
+    # ...but must NOT be inside the momentum mean.
+    metrics = [{"ticker": f"T{i}", "price": 10.0, "market_cap": 1e10, "net_income": 5.0,
+                "operating_income": 6.0, "ret_6_1": 0.1 * i, "high_prox": 0.9,
+                "pead_car": -5.0} for i in range(20)]
+    fr = build_frame(metrics, sector_neutral=False, residual_momentum=False)
+    no_pead = build_frame([{**m, "pead_car": None} for m in metrics],
+                          sector_neutral=False, residual_momentum=False)
+    pd.testing.assert_series_equal(fr["momentum"], no_pead["momentum"], check_names=False)
+
+    # Point-in-time: a CAR window that has not closed by as_of yields NO signal.
+    dates = pd.bdate_range("2026-01-01", periods=40)
+    d64 = dates.values.astype("datetime64[D]")
+    closes = list(np.linspace(100, 140, 40))
+    bench = list(np.linspace(100, 110, 40))
+    ann = [str(dates[10].date())]
+    got = P.pead_signals(closes, d64, bench, ann, str(dates[20].date()))
+    assert "pead_car" in got, got
+    # as_of ON the announcement day: t+1 has not happened yet -> nothing.
+    assert P.pead_signals(closes, d64, bench, ann, str(dates[10].date())) == {}
+    # An announcement AFTER as_of is invisible.
+    assert P.pead_signals(closes, d64, bench, [str(dates[30].date())],
+                          str(dates[20].date())) == {}
+    # Drift is absent once the announcement is stale, rather than decayed.
+    old = P.pead_signals(closes, d64, bench, ann, str(dates[39].date()), drift_days=5)
+    assert "pead_car" in old and "pead_drift" not in old
+    assert P.pead_signals(closes, d64, bench, [], "2026-02-01") == {}
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

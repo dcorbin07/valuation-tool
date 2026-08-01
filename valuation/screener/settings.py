@@ -220,6 +220,15 @@ NUMBER_THEME = {
     # is an advantage here, not the wart it was previously recorded as. Swapping them in is
     # one edit to the quality list in factors.py if this is ever revisited.
     "roe_ttm": "quality", "roic_ttm": "quality",
+    # PEAD (post-earnings announcement drift), testable since the EVENTS earnings code was
+    # decoded. Listed here so they are z-scored and MEASURED; whether either enters a theme
+    # mean in factors.py is the gate's decision, not an assumption.
+    # TESTED AND REJECTED (2026-08-01). pead_car clears the standalone bar (t +2.21, 82.3%
+    # coverage) but fails the held-out margin in BOTH directions, and two diagnostics say why:
+    # the recent-only drift variant has NO signal (t -0.47), which is backwards for PEAD; and
+    # pead_car is +0.286 correlated with ret_6_1, which already scores t +3.40. Measured but
+    # NOT in any theme mean — re-adding is one line in factors.py.
+    "pead_car": "momentum", "pead_drift": "momentum",
 }
 NUMBERS_ALL = list(NUMBER_THEME.keys())
 

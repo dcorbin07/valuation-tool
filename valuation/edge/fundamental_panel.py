@@ -792,6 +792,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     px, hist, insh, inst, grd, hold = {}, {}, {}, {}, {}, {}
     dly, sf3 = {}, {}          # BULK: DAILY month-end ratios, SF3 per-manager 13F
     meta = {}                  # TICKERS: sector / country / exchange (NOT point-in-time)
+    earn = {}                  # EVENTS: earnings announcement dates (code 22)
     for _i, t in enumerate(tickers):
         if _i and _i % 250 == 0:
             _prog(f"  loaded {_i}/{len(tickers)} tickers, {len(px)} usable")
@@ -812,6 +813,8 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             dly[t] = provider.daily_history(t) if hasattr(provider, "daily_history") else []
             sf3[t] = provider.sf3_for(t) if hasattr(provider, "sf3_for") else {}
             meta[t] = provider.ticker_meta(t) if hasattr(provider, "ticker_meta") else {}
+            earn[t] = (provider.earnings_dates(t)
+                       if hasattr(provider, "earnings_dates") else [])
     if not px:
         import sys
         print("[panel] no usable price series for any ticker in the export.", file=sys.stderr)
@@ -843,6 +846,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                     frame.loc[m, t] = np.nan
                     _masked += 1
     cal = frame.index
+    _cal64 = cal.values.astype("datetime64[D]")
     benchf = bench.reindex(cal).ffill()
     benchv = benchf.values.tolist()        # for the idiosyncratic-vol regression, computed once
 
@@ -895,6 +899,10 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                  cut1=_cut1, cut2=_cut2)                       # growth + investment
             _sf1_extras(m, sf1, hist.get(t, []), as_of, cut1=_cut1)   # F-Score / accruals / cash OP
             _ttm_quality(m, hist.get(t, []), as_of)            # roe_ttm / roic_ttm (P6.2)
+            _ed = earn.get(t)
+            if _ed:
+                from .pead import pead_signals
+                m.update(pead_signals(cl, _cal64, benchv, _ed, as_of))
             isc = _insider_score_at(insh.get(t), as_of)
             if isc is not None:
                 m["insider_score"] = isc                          # → insider theme (now backtestable)

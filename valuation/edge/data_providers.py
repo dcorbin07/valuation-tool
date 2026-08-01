@@ -390,6 +390,15 @@ class WRDSProvider(HistoricalDataProvider):
         """{"splits": [...], "delisted": date|None, "dividends": [...]}"""
         return self._bulk("actions").get(ticker.upper(), {})
 
+    def earnings_dates(self, ticker):
+        """Announcement dates from the EVENTS cache (code 22 — see bulk.EARNINGS_CODES).
+
+        Empty when the cache is absent, so the panel degrades to "no PEAD signal" rather than
+        raising. Coverage is PARTIAL by nature: a missing date means unknown, not "no news".
+        """
+        from .bulk import earnings_dates as _ed
+        return _ed(self._bulk("events"), ticker)
+
     def ticker_meta(self, ticker):
         """{sector, industry, country, exchange, category, scale} from the TICKERS cache.
 
