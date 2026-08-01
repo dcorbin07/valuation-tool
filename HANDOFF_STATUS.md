@@ -59,6 +59,40 @@ weekly-stale screen is live.
 
 ---
 
+## EVENTS earnings-code legend DECODED — PEAD unblocked after being stuck since P2
+
+Sharadar ships no legend with the EVENTS download, and the earlier guess (codes 11-17) was
+wrong, so `bulk.EARNINGS_CODES` sat deliberately empty and `earnings_dates()` returned `[]`.
+Rather than guess again, code **22** was identified by two INDEPENDENT signatures:
+
+**1. Timing against the SF1 filing date.** Code 22 sits a median of **3 days BEFORE** the
+filing with 46.4% of occurrences within ±3 days — the announce-then-file pattern a real
+earnings release has. No other code comes close.
+
+**2. Information content — the decisive test**, and the property PEAD actually needs. Median
+absolute return on the event day, 372 tickers:
+
+| code | events | \|ret\| on day | baseline | ratio |
+|---|---|---|---|---|
+| **22** | 17,996 | **2.121%** | 1.292% | **1.64×** |
+| 91 | 48,207 | 1.482% | 1.293% | 1.15× |
+| 71 | 14,258 | 1.459% | 1.288% | 1.13× |
+| 81 / 52 / 11 / 34 / 57 | — | — | — | 0.84–0.98× |
+
+Every other candidate is indistinguishable from a random day. `earnings_dates()` now returns
+real dates (AAPL: 93 of them, cleanly quarterly — 2025-07-31, 2025-10-30, 2026-01-29,
+2026-04-30).
+
+**Coverage caveat, stated not buried:** code 22 appears ~2.83×/ticker/year, not the ~4 a full
+quarterly calendar would give — EVENTS coverage of earnings is **partial**. Treat a missing
+earnings date as *unknown*, never as "no announcement".
+
+An existing test asserted `earnings_dates() == []` ("deliberately inert"). That behaviour was
+correct while the legend was unknown and is now obsolete; the test was updated to assert the
+new behaviour, and to check the OLD wrong guess (code 11) does *not* qualify.
+
+---
+
 ## ML tree combiner — TESTED AND REJECTED on every criterion
 
 Gate committed results-free in `620e0a5` before running. GBM over the 31 currency-correct

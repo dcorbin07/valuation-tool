@@ -15,7 +15,14 @@
 > **Research backlog status (2026-07-31):** ML tree combiner **TESTED AND REJECTED** (median OOS
 > IC +0.0531 linear vs +0.0393 GBM; net alpha −8.2pp roth / −4.0pp taxable; fails in both
 > halves). P13 in the roadmap below is therefore **closed, not pending** — re-open only with
-> materially more data, not a different model. PEAD (P12) and elite-manager 13F remain open.
+> materially more data, not a different model.
+>
+> **P12 PEAD data blocker CLEARED (2026-08-01):** the EVENTS earnings code is **22**,
+> decoded empirically (median 3 days before the SF1 filing; the only code with an abnormal
+> price move, 1.64x baseline vs 0.84-1.15x for all others). `bulk.EARNINGS_CODES` is
+> populated and `earnings_dates()` returns real dates. Coverage is PARTIAL (~2.83/ticker/yr
+> vs ~4 expected) — a missing date means unknown, not 'no announcement'. The PEAD SIGNAL
+> itself is still unbuilt; elite-manager 13F remains open.
 
 
 Static audit of the quant foundation (panel → factors → data path) prompted by finding the

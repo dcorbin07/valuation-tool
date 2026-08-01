@@ -149,12 +149,16 @@ def test_prepare_actions_split_parse():
     assert out["BAD"]["splits"] == []
 
 
-def test_prepare_events_keeps_raw_codes_and_earnings_is_inert():
+def test_prepare_events_keeps_raw_codes_and_resolves_earnings():
+    """Was `..._and_earnings_is_inert`: earnings_dates() deliberately returned [] while the code
+    legend was unknown. The legend is now DECODED (code 22, see EARNINGS_CODES), so the intended
+    behaviour has changed and this test changed with it — it is not a weakened assertion."""
     d = _tmp()
     out = bulk.prepare_events(_events_fixture(d), cache_dir=os.path.join(d, "c"))
     assert out["AAA"] == [("2024-01-01", ["11"]), ("2024-02-01", ["22", "91"])], out["AAA"]
-    # Deliberately inert until the code legend is confirmed — must NOT invent dates.
-    assert bulk.earnings_dates(out, "AAA") == []
+    # Code 22 present -> a real earnings date. Code 11 (the OLD wrong guess) must NOT qualify.
+    assert bulk.earnings_dates(out, "AAA") == ["2024-02-01"]
+    assert bulk.earnings_dates(out, "BBB") == []          # only code 57 -> not earnings
     # ...but works the moment a caller supplies codes.
     assert bulk.earnings_dates(out, "AAA", codes={"91"}) == ["2024-02-01"]
 
@@ -294,6 +298,22 @@ def test_results_carries_no_raw_licensed_data():
     blob = _j.dumps(rf.build_payload(_fake_res(), root=_tmp()))
     for banned in ("datekey", "closeadj", "investorname", "sharesbas", "revenue", "ncfo"):
         assert banned not in blob, banned
+
+
+def test_earnings_codes_decoded_and_wired():
+    """The EVENTS legend is not in the download and the earlier guess (11-17) was wrong. Code 22
+    was identified by two independent signatures: it sits ~3 days BEFORE the SF1 filing, and it
+    is the ONLY code whose event days show an abnormal price move (1.64x baseline vs 0.84-1.15x
+    for every other candidate)."""
+    from valuation.edge import bulk
+    assert bulk.EARNINGS_CODES == {"22"}, bulk.EARNINGS_CODES
+    ev = {"AAPL": [("2026-01-29", ["22", "91"]), ("2026-02-10", ["91"]),
+                   ("2026-04-30", ["22"]), ("2026-05-02", ["81"])]}
+    got = bulk.earnings_dates(ev, "AAPL")
+    assert got == ["2026-01-29", "2026-04-30"], got
+    assert bulk.earnings_dates(ev, "MSFT") == []          # unknown ticker -> empty, not error
+    # An explicit code set still overrides, so a future correction needs no code change.
+    assert bulk.earnings_dates(ev, "AAPL", codes={"81"}) == ["2026-05-02"]
 
 
 def _run_all():
