@@ -53,6 +53,30 @@ Three fixes, in order of importance:
 
 `strike_range` was tested as a way to cut payload and REJECTED: it cut rows 38% but made the
 call 6x SLOWER (110s vs 18s), because the filtering happens server-side after the scan.
+
+--------------------------------------------------------------------------------------------
+TWO FURTHER BUGS, both caught by running the status tool against the live job rather than
+waiting for the run to finish.
+
+  A. "MISSING" WAS STICKY. A failed year wrote a marker that blocked every future retry, so one
+     transient gRPC error removed that year permanently. AAPL 2026 was marked missing, yet
+     re-requesting 2026Q1 by hand returned 83,040 rows immediately - the failure was transient
+     and the marker was the real damage. Markers are now split:
+        `.empty`   - the feed genuinely has no data (NoDataFoundError). COVERED, never refetched.
+        `.missing` - the fetch FAILED. Counted as a gap and RETRIED on the next run.
+     The distinction matters because "this ticker did not trade yet" and "the request broke"
+     look identical downstream and have opposite correct responses.
+
+  B. TICKER RENAMES BREAK THE JOIN. Options are stored under the symbol as it was AT THE TIME.
+     META returns nothing before June 2022; FB returns 101,544 rows for 2019Q1 alone. Scoring
+     META on 2022+ only, while treating the earlier years as gaps, would silently drop six years
+     of a name we do have data for. `ALIASES` maps a current ticker to its historical symbols and
+     `_fetch_span` retries an empty span under the alias, which also handles the mid-year
+     boundary (FB until 2022-06-09, META after) without hard-coding the date.
+
+     This is the same class of problem as the today-snapshot caveats already recorded for the
+     P10 sector map and the P24.2 CIK map: an identifier that is correct now is not correct for
+     history.
 """
 from __future__ import annotations
 
@@ -70,6 +94,10 @@ CALL_TIMEOUT = 180             # seconds; a hung gRPC stream must not stall a wo
 RETRIES = 3
 BACKOFF = 4.0                  # seconds, multiplied by attempt number
 KEEP = ["expiration", "strike", "right", "date", "bid", "ask", "volume", "open_interest"]
+
+# Current ticker -> symbols it traded under earlier. Options history is stored under the
+# symbol of the day, so without this a renamed name silently loses its pre-rename history.
+ALIASES = {"META": ["FB"], "GOOGL": ["GOOG"], "RTX": ["UTX"], "WBD": ["T"]}
 
 _LOAD_LOCK = threading.Lock()
 
@@ -147,11 +175,18 @@ class ThetaBulk:
         cli = self._cli()
         if cli is None:
             return None, True
-        eod = self._call_with_timeout(cli.option_history_eod, start_date=start, end_date=end,
-                                      symbol=symbol.upper(), expiration="*",
-                                      max_dte=self.max_dte)
-        if isinstance(eod, str):            # "FAILED"
-            return None, True
+        tried = [symbol.upper()] + [a for a in ALIASES.get(symbol.upper(), [])]
+        eod = None
+        for sym in tried:
+            eod = self._call_with_timeout(cli.option_history_eod, start_date=start, end_date=end,
+                                          symbol=sym, expiration="*", max_dte=self.max_dte)
+            if isinstance(eod, str):        # "FAILED" - a fault, not an absence; stop here
+                return None, True
+            if eod is not None and len(eod):
+                symbol_used = sym
+                break
+        else:
+            symbol_used = None
         if eod is None or len(eod) == 0:
             return None, False              # genuinely empty span, not a failure
         eod = eod.copy()
@@ -160,8 +195,8 @@ class ThetaBulk:
                   .drop_duplicates(subset=["date", "expiration", "strike", "right"],
                                    keep="last"))
         oi = self._call_with_timeout(cli.option_history_open_interest, start_date=start,
-                                     end_date=end, symbol=symbol.upper(), expiration="*",
-                                     max_dte=self.max_dte)
+                                     end_date=end, symbol=symbol_used or symbol.upper(),
+                                     expiration="*", max_dte=self.max_dte)
         if oi is not None and not isinstance(oi, str) and len(oi):
             oi = oi.copy()
             oi["date"] = pd.to_datetime(oi["timestamp"]).dt.date
@@ -210,20 +245,21 @@ class ThetaBulk:
         path = year_path(symbol, year, self.root)
         if os.path.exists(path):
             return True
-        if os.path.exists(path + ".missing"):
-            return False
+        if os.path.exists(path + ".empty"):
+            return True          # genuinely no data (pre-IPO / pre-rename): covered, not a gap
         df, failed = self._fetch_year(symbol, year)
         if df is None or len(df) == 0:
-            # Record the gap. A silently-absent year is how the first run nearly reported a
-            # verdict on a third of its data missing.
-            if failed:
-                try:
-                    os.makedirs(os.path.dirname(path), exist_ok=True)
-                    with open(path + ".missing", "w", encoding="utf-8") as f:
-                        f.write(f"fetch failed {dt.date.today().isoformat()}\n")
-                except OSError:
-                    pass
-            return False
+            # Distinguish "the feed has nothing" from "the request broke". A silently-absent
+            # year is how the first run nearly reported a verdict on a third of its data gone.
+            marker = ".missing" if failed else ".empty"
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path + marker, "w", encoding="utf-8") as f:
+                    f.write(f"{'fetch failed' if failed else 'no data'} "
+                            f"{dt.date.today().isoformat()}\n")
+            except OSError:
+                pass
+            return not failed
         if failed:
             # Partial year: do NOT cache it as if complete.
             try:
@@ -339,6 +375,10 @@ class ThetaBulk:
         complete, gaps = {}, {}
         for s_ in symbols:
             have = set(self.cached_years(s_))
+            # A year the feed genuinely has no data for (pre-IPO, pre-rename) is COVERED.
+            for y in years:
+                if os.path.exists(year_path(s_, y, self.root) + ".empty"):
+                    have.add(y)
             miss = [y for y in years if y not in have]
             complete[s_] = sorted(have & set(years))
             if miss:
