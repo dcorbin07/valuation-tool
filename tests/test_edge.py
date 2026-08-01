@@ -1687,6 +1687,42 @@ def test_aggregate_valuation_sums_rather_than_averages():
     assert VR.aggregate_valuation(pd.DataFrame()).empty
 
 
+def test_ml_combiner_optional_import_and_per_fold_features():
+    """sklearn is an OPTIONAL dependency (not in requirements.txt) — a missing import must
+    return a status, never break a run. And features must be filtered PER FOLD: the 13F signals
+    are empty before 2013-06-30, so an early CPCV fold hands the binner an all-NaN column."""
+    from valuation.edge import ml_combiner as ML
+    assert ML.MIN_IC_GAIN == 0.005 and ML.MIN_ALPHA_GAIN == 0.01, "gate must stay pre-committed"
+    assert ML.GBM_PARAMS["max_depth"] == 3, "model must stay small"
+
+    rng = np.random.default_rng(3)
+    rows = []
+    for d in range(24):
+        for i in range(80):
+            # Year rolls over so SORTED date order matches d order — otherwise the
+            # "early" slice picks up late dates and the fixture tests nothing.
+            rows.append({"date": f"{2024 + d // 12}-{d % 12 + 1:02d}-01",
+                         "ticker": f"T{i}", "fwd_ret": float(rng.normal(0, 0.05)),
+                         "z_roic": float(rng.normal()), "z_roe": float(rng.normal()),
+                         "z_ret_12_1": float(rng.normal()),
+                         # empty in the early half, exactly like the 13F signals
+                         "z_inst_accum": (float(rng.normal()) if d >= 12 else np.nan)})
+    panel = pd.DataFrame(rows)
+    early = sorted(panel["date"].unique())[:6]
+    feats = ["z_roic", "z_roe", "z_ret_12_1", "z_inst_accum"]
+    usable = ML._usable_features(panel, early, feats)
+    assert "z_inst_accum" not in usable, "an all-NaN-in-fold feature must be dropped"
+    assert {"z_roic", "z_roe", "z_ret_12_1"} <= set(usable)
+    # Late fold has the data, so it comes back.
+    late = sorted(panel["date"].unique())[-6:]
+    assert "z_inst_accum" in ML._usable_features(panel, late, feats)
+    # Too few usable features -> None rather than a crash.
+    assert ML.fit_predict(panel, early, late, ["z_inst_accum"]) is None
+    # cpcv_compare degrades to a status dict rather than raising when sklearn is absent.
+    r = ML.cpcv_compare(panel.head(30), ["z_roic"], {"z_roic": 1.0})
+    assert "status" in r or r.get("n_paths") == 0
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

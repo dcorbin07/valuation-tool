@@ -11,6 +11,11 @@
 > | **L2** autolearn unreviewed | unchanged; still inactive. |
 >
 > **P9b** (headless book) shipped: `python -m valuation.edge.valquo_index --full-universe`.
+>
+> **Research backlog status (2026-07-31):** ML tree combiner **TESTED AND REJECTED** (median OOS
+> IC +0.0531 linear vs +0.0393 GBM; net alpha −8.2pp roth / −4.0pp taxable; fails in both
+> halves). P13 in the roadmap below is therefore **closed, not pending** — re-open only with
+> materially more data, not a different model. PEAD (P12) and elite-manager 13F remain open.
 
 
 Static audit of the quant foundation (panel → factors → data path) prompted by finding the

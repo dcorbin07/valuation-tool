@@ -45,6 +45,40 @@ implicit degrees of freedom that a weighted sum does not:
 Failing any of these is a reject. Rejecting is the expected outcome: the linear composite has
 survived CPCV repeatedly, and the honest prior is that 8 themes over 110 dates does not contain
 enough independent information to fit interactions reliably.
+
+================================ RESULT (run after the above was committed) =================
+REJECTED on every criterion. Full universe, 136,478 rows / 110 dates / 2,710 names, 31 features,
+15 purged CPCV paths.
+
+    metric                        linear      GBM      delta
+    median OOS IC                +0.0531   +0.0393   -0.0138
+    paths where GBM wins               -       33%          -
+    roth top-25   net alpha      +10.27%    +2.04%    -8.23pp
+    taxable decile net alpha      +6.70%    +2.66%    -4.04pp
+    roth net Sharpe                 0.99      0.68          -
+
+Both halves agree, and the late half is brutal:
+
+    roth top-25      early  lin  +4.62%  GBM  +8.49%  (+3.86pp)
+                     late   lin +16.31%  GBM  -4.48%  (-20.79pp)
+    taxable decile   early  lin  +4.70%  GBM  +3.83%  (-0.88pp)
+                     late   lin  +8.75%  GBM  +1.40%  (-7.35pp)
+
+The single cell where the GBM wins (roth, early half) is exactly the signature of a model
+finding structure in one regime that does not generalize to the next.
+
+THE INTERPRETATION, which is the useful part: trees can EXPRESS "value only pays when quality is
+high" — they cannot LEARN it reliably from 110 dates of 8 themes. The linear composite is not
+leaving money on the table; it is the right amount of structure for the evidence available.
+Adding capacity here buys overfitting, not signal. Do not re-open without materially more data
+(more history, higher rebalance frequency, or genuinely new orthogonal features) — not a
+different model.
+
+BUG FOUND EN ROUTE (a real one, kept): sklearn's binner raised "window shape cannot be larger
+than input array shape" because the 13F signals (inst_accum, sm_breadth, inst_breadth) are empty
+before 2013-06-30, so any early CPCV fold hands it an all-NaN column. The whole-panel coverage
+check passes precisely BECAUSE the later folds have data — the filter has to be per-FOLD. See
+_usable_features.
 """
 from __future__ import annotations
 
@@ -90,12 +124,37 @@ def _xy(panel, dates, feats):
     return X, y
 
 
+MIN_FOLD_COVERAGE = 0.02      # a feature needs >2% non-null IN THE TRAINING FOLD to be usable
+
+
+def _usable_features(panel, train_dates, feats):
+    """Features with actual data INSIDE this training fold.
+
+    A column that is entirely (or almost entirely) NaN in the fold cannot be learned from, and
+    sklearn's binner raises on it outright. This is not hypothetical here: the 13F signals
+    (inst_accum, sm_breadth, inst_breadth) are empty before 2013-06-30, so any early CPCV fold
+    hands the binner an all-NaN column. Filtering per FOLD rather than per panel is the
+    correct fix — the whole-panel check passes precisely because the later folds have data.
+    """
+    sub = panel[panel["date"].isin(train_dates)]
+    if sub.empty:
+        return []
+    keep = []
+    for c in feats:
+        col = pd.to_numeric(sub[c], errors="coerce")
+        if col.notna().mean() >= MIN_FOLD_COVERAGE and col.nunique(dropna=True) > 2:
+            keep.append(c)
+    return keep
+
+
 def fit_predict(panel, train_dates, test_dates, feats=None, params=None):
     """Train on train_dates, return {(date,ticker): score} for test_dates. None if no sklearn."""
     if not sklearn_available():
         return None
     from sklearn.ensemble import HistGradientBoostingRegressor
-    feats = feats or _feature_cols(panel)
+    feats = _usable_features(panel, train_dates, feats or _feature_cols(panel))
+    if len(feats) < 3:
+        return None
     Xtr, ytr = _xy(panel, train_dates, feats)
     if Xtr is None or len(Xtr) < 500:
         return None

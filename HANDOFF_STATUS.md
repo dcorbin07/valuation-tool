@@ -59,6 +59,38 @@ weekly-stale screen is live.
 
 ---
 
+## ML tree combiner — TESTED AND REJECTED on every criterion
+
+Gate committed results-free in `620e0a5` before running. GBM over the 31 currency-correct
+z-scored signals, target = cross-sectional rank of forward return, judged on the **same purged
+CPCV paths** the linear weights face.
+
+| metric | linear | GBM | delta |
+|---|---|---|---|
+| median OOS IC (15 paths) | **+0.0531** | +0.0393 | **−0.0138** |
+| paths where GBM wins | — | **33%** | worse 2 in 3 |
+| roth top-25 net alpha | **+10.27%** | +2.04% | **−8.23pp** |
+| taxable decile net alpha | **+6.70%** | +2.66% | **−4.04pp** |
+| roth net Sharpe | **0.99** | 0.68 | |
+
+Both halves agree; the late half is brutal (roth **+16.31% → −4.48%**, −20.79pp). The one cell
+where GBM wins — roth, early half, +3.86pp — is the classic signature of structure found in one
+regime that does not survive into the next.
+
+**The useful interpretation:** trees can *express* "value only pays when quality is high"; they
+cannot *learn* it reliably from 110 dates of 8 themes. The linear composite is not leaving money
+on the table — it is the right amount of structure for the evidence available. **Do not re-open
+with a different model.** Re-open only with materially more data: longer history, higher
+rebalance frequency, or genuinely new orthogonal features.
+
+**A real bug found en route (kept):** sklearn's binner raised `window shape cannot be larger
+than input array shape` because the 13F signals are empty before 2013-06-30, so an early CPCV
+fold hands it an all-NaN column. The whole-panel coverage check passes *precisely because* the
+later folds have data — the filter has to be **per-fold** (`_usable_features`). sklearn stays an
+optional import (it is not in `requirements.txt`); a missing import returns a status dict.
+
+---
+
 ## Valuation-regime overlay — REJECTED, harder than the trend filter
 
 Rule + bar committed results-free in `f567d01` before running. Primary rule (**one** rule, not
