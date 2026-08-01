@@ -248,6 +248,8 @@ NUMBER_THEME = {
     "activist_13d": "institutional", "passive_13g": "institutional",
     # USAspending. govt_award_level is a deliberate PLACEBO, not a candidate.
     "govt_award_momentum": "growth", "govt_award_level": "growth",
+    # Congressional trades. congress_activity is a deliberate PLACEBO.
+    "congress_net_buy": "sentiment", "congress_activity": "sentiment",
 }
 NUMBERS_ALL = list(NUMBER_THEME.keys())
 

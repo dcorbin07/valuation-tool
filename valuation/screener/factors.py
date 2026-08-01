@@ -138,6 +138,8 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     df["neg_ret_1m"] = _num("neg_ret_1m")                               # low-risk: short-term reversal
     df["neg_max_ret"] = _num("neg_max_ret")                             # low-risk: MAX / lottery effect
     df["neg_idio_vol"] = _num("neg_idio_vol")                           # low-risk: idiosyncratic vol
+    df["congress_net_buy"] = _num("congress_net_buy")                   # Congress (measured)
+    df["congress_activity"] = _num("congress_activity")                 # Congress placebo
     df["govt_award_momentum"] = _num("govt_award_momentum")             # USAspend (measured)
     df["govt_award_level"] = _num("govt_award_level")                   # USAspend placebo
     df["activist_13d"] = _num("activist_13d")                           # SEC (measured only)

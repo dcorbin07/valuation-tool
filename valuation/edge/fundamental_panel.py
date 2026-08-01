@@ -797,6 +797,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     shorts = {}                # FINRA short interest (publication-dated)
     e13d = {}                  # SEC 13D/13G activist stakes (filing-dated)
     usasp = {}                 # USAspending federal awards (quarter-end + lag)
+    cong = {}                  # Congressional trades (PTR filing-dated)
     for _i, t in enumerate(tickers):
         if _i and _i % 250 == 0:
             _prog(f"  loaded {_i}/{len(tickers)} tickers, {len(px)} usable")
@@ -822,6 +823,8 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                        if hasattr(provider, "edgar_13d_for") else [])
             usasp[t] = (provider.usaspending_for(t)
                         if hasattr(provider, "usaspending_for") else [])
+            cong[t] = (provider.congress_for(t)
+                       if hasattr(provider, "congress_for") else [])
             elite[t] = (provider.elite_conviction_for(t)
                         if hasattr(provider, "elite_conviction_for") else {})
             meta[t] = provider.ticker_meta(t) if hasattr(provider, "ticker_meta") else {}
@@ -927,6 +930,10 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # SF3 per-manager detail. Exposed as factor INPUTS here; whether any of them
             # earns a place in the composite is for CPCV to decide (P4), so they are not
             # yet registered in NUMBER_THEME.
+            _cg = cong.get(t)
+            if _cg:
+                from .congress import signals_at as _cg_at
+                m.update(_cg_at(_cg, as_of))
             _ua = usasp.get(t)
             if _ua:
                 from .usaspending import signals_at as _ua_at

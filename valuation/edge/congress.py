@@ -30,9 +30,17 @@ by mistake later.
 --------------------------------------------------------------------------------------------
 DATA RELIABILITY — flagged up front, because this is the least trustworthy source tested here.
 
-The source is a free, community-maintained parse of the PTR filings (House/Senate Stock Watcher).
-Unlike FINRA, EDGAR and USAspending, which are machine-readable feeds published by the issuing
-authority, this data is scraped and OCR'd from PDFs that members file in inconsistent formats.
+SOURCE CHANGED AFTER THIS GATE WAS COMMITTED, and the reason is worth recording. The originally
+intended source (House/Senate Stock Watcher) is DEFUNCT: its S3 buckets return 403, its website
+does not resolve, and the surviving GitHub mirror is Senate-only, stops in 2019, and - decisively
+- HAS NO DISCLOSURE DATE FIELD AT ALL. Every one of its 8,350 rows carries `transaction_date`
+only, so using it would have forced exactly the look-ahead this module exists to prevent. The
+source used instead is kadoa-org/congress-trading-monitor, which carries `filing_date` separately
+from `transaction_date` and is built from the official House Clerk and Senate eFD feeds. THE GATE
+ITSELF - thresholds, orientation, placebo, power control - is unchanged; only the source moved.
+
+The data is still a parse of PDFs that members file in inconsistent formats, rather than a
+machine-readable feed from the issuing authority as FINRA/EDGAR/USAspending are.
 Known consequences, none of which can be fully corrected here:
 
   * ticker fields are sometimes blank, malformed, or refer to non-equity assets;
@@ -40,8 +48,16 @@ Known consequences, none of which can be fully corrected here:
     approximation by construction — midpoints are used;
   * disclosure dates are as-filed, so a member who files late produces a genuinely late signal.
     That is correct behaviour rather than a bug: the market really did not know until then;
-  * coverage begins with the STOCK Act in 2012, so roughly half the panel's history is
-    structurally empty, exactly as with FINRA short interest.
+  * coverage begins in 2014 (the STOCK Act is 2012, but this dataset's filing dates start
+    2014-01-03), so roughly half the panel's history is structurally empty, as with FINRA;
+  * MEASURED, not assumed: 21.9% of the 47,455 transactions are flagged late, and days from
+    trade to filing have a median of 29 but a 90th PERCENTILE OF 210 DAYS and a max of 4,049.
+    That is the quantitative case for this entire module: using the transaction date would
+    inject up to SEVEN MONTHS of look-ahead for a tenth of the sample. It also means the signal
+    is genuinely late - which is correct, because so was the public.
+
+Executive-branch (OGE) filings in the same dataset are EXCLUDED: the premise under test is
+congressional trading, so only house_clerk and senate_efd rows are used.
 
 Because of the OCR/parsing risk, rows without a clean uppercase ticker are dropped rather than
 guessed at.
@@ -88,6 +104,54 @@ Rejecting is the expected outcome, and the prior is worse than for the other sou
 the most widely publicised "alternative data" story in retail investing, tracked by several free
 public dashboards and at least two ETFs. Whatever edge existed is the most competed-away of
 anything tested in this project. A clean null here is a useful thing to be able to say.
+
+================================ RESULT (run after the above was committed) =================
+INCONCLUSIVE - NOT a rejection. Reporting it that way is required by the rule committed above,
+and the rule is what stops a convenient null being claimed as a finding.
+
+42,912 transactions (8,146 late-filed) across 2,278 tickers, filing dates 2014-01-03 to
+2026-07-30. Full universe, 136,478 rows / 110 dates.
+
+    signal                     median IC    IC t   dates   avg names   coverage
+    congress_net_buy             +0.0020   +0.97      49         314     11.27%
+    congress_activity (PLACEBO)  -0.0040   +0.02      49         314     11.27%
+    -- POWER CONTROLS, same restricted subset --
+    ret_6_1                      +0.0484   +1.87      49         313
+    inst_accum                   +0.0230   +1.80      49         313
+    quality                      +0.0105   +1.09      49         309
+
+    gate: standalone t >= 2.0                     FAIL (+0.97)
+          net_buy beats activity placebo by >= 1  FAIL, barely (+0.95)
+          coverage >= 2%                          PASS (11.27%)
+          a control clears t 2.0 on the subset    FAIL (best +1.87) -> INCONCLUSIVE
+
+WHY THIS IS NOT A REJECTION, stated plainly. congress_net_buy shows nothing (t +0.97, and it
+would have to more than double to clear the bar). But the restricted subset cannot certify a
+null: the best known-real control reaches only +1.87. The verdict the evidence supports is
+"this test could not answer the question", and that is what is recorded.
+
+THE LIMIT IS TIME, NOT CROSS-SECTION - which is worth knowing because it says what would fix it.
+Coverage is healthy: 1,157 tickers and ~314 names per date, far wider than the USAspending test
+that DID reach power. The binding constraint is that the data starts in 2014, giving only 49
+rebalance dates, and over that particular decade momentum itself was weak (ret_6_1 is +3.40 over
+the full 110 dates but only +1.87 here). No amount of extra tickers fixes that; only more years
+would, and they do not exist - the STOCK Act is 2012 and this dataset begins in 2014.
+
+THE POINT-IN-TIME DISCIPLINE WAS THE MOST VALUABLE PART OF THIS EXERCISE, and it is now
+quantified rather than asserted. Of 47,455 transactions, 21.9% were filed late; days from trade
+to filing have a median of 29 but a 90th percentile of 210 and a maximum of 4,049. Using the
+transaction date - as any test built on the obvious field would - injects up to SEVEN MONTHS of
+look-ahead for a tenth of the sample, precisely during the window in which a member's presumed
+advantage would play out. A published "congressional trades beat the market" result that does
+not say which date it used should be assumed to have used the wrong one.
+
+A SECOND FINDING WORTH KEEPING: the originally intended source is defunct AND unusable. The
+surviving Stock Watcher mirror carries `transaction_date` and NOTHING ELSE - no disclosure date
+at all in any of its 8,350 rows. A test built on the first free dataset that comes to hand would
+therefore have had no way to be correct, and no field present to warn anyone.
+
+Both signals stay MEASURED and score in NO theme. Re-testing costs one line in factors.py if a
+longer history ever becomes available.
 """
 from __future__ import annotations
 
@@ -107,10 +171,9 @@ SUBSET_POWER_T = 2.0
 TRAILING_DAYS = 126                # ~2 quarters of disclosures; matches the book's hold
 START_DATE = "2012-01-01"          # STOCK Act; nothing usable earlier
 
-SOURCES = {
-    "house": "https://house-stock-watcher-data.s3-us-west-2.amazonaws.com/data/all_transactions.json",
-    "senate": "https://senate-stock-watcher-data.s3-us-west-2.amazonaws.com/aggregate/all_transactions.json",
-}
+REPO = "https://github.com/kadoa-org/congress-trading-monitor.git"
+TICKER_SUBDIR = "public/data/ticker"           # one JSON per ticker; clone beats 2,373 GETs
+KEEP_SOURCES = ("house_clerk", "senate_efd")   # not oge_executive: that is not Congress
 USER_AGENT = "Valquo research donniecorbin6@gmail.com"
 
 _AMT = re.compile(r"\$?([\d,]+)")
@@ -121,11 +184,21 @@ def _log(m):
     print(f"[congress] {m}", flush=True)
 
 
-def amount_midpoint(s) -> float:
-    """'$1,001 - $15,000' -> 8000.5. Ranges are all the filings give; midpoint is the honest read."""
-    if not s:
-        return 0.0
-    nums = [float(x.replace(",", "")) for x in _AMT.findall(str(s))]
+def amount_midpoint(low=None, high=None, label=None) -> float:
+    """Midpoint of a disclosed amount RANGE. Filings never give an exact value, so this is an
+    approximation by construction - numeric bounds when present, else parsed from the label."""
+    try:
+        lo, hi = float(low), float(high)
+        if lo > 0 and hi > 0:
+            return (lo + hi) / 2.0
+    except (TypeError, ValueError):
+        pass
+    try:
+        if low is not None and float(low) > 0:
+            return float(low)
+    except (TypeError, ValueError):
+        pass
+    nums = [float(x.replace(",", "")) for x in _AMT.findall(str(label or ""))]
     if not nums:
         return 0.0
     return (nums[0] + nums[1]) / 2.0 if len(nums) >= 2 else nums[0]
@@ -140,70 +213,65 @@ def _is_buy(t) -> Optional[bool]:
     return None                          # exchanges, receipts: no directional claim
 
 
-def fetch_congress_trades(cache_path: Optional[str] = None) -> dict:
-    """{ticker: [(disclosure_date, signed_dollars), ...]} ascending.
+def fetch_congress_trades(repo_dir=None, cache_path=None) -> dict:
+    """{ticker: [(filing_date, signed_dollars), ...]} ascending.
 
-    The TRANSACTION DATE IS DISCARDED HERE and never stored, so no downstream caller can use it
-    by accident. Only the disclosure date survives into the cache.
+    THE TRANSACTION DATE IS DISCARDED HERE and never stored, so no downstream caller can reach it
+    by accident. Only `filing_date` - the public disclosure date - survives into the cache.
+
+    `repo_dir` is a clone of REPO (2,373 per-ticker files make a shallow clone far cheaper than
+    fetching each over HTTP).
     """
+    import glob
     import pickle
-
-    import requests
 
     if cache_path and os.path.exists(cache_path):
         with open(cache_path, "rb") as f:
             got = pickle.load(f)
         _log(f"cache hit: {len(got):,} tickers")
         return got
+    if not repo_dir or not os.path.isdir(repo_dir):
+        _log(f"no repo_dir given; clone {REPO} first")
+        return {}
 
-    out: dict = {}
-    kept = dropped = 0
-    for src, url in SOURCES.items():
+    out = {}
+    kept = dropped = late = 0
+    pattern = os.path.join(repo_dir, TICKER_SUBDIR.replace("/", os.sep), "*.json")
+    for fp in glob.glob(pattern):
         try:
-            r = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=300)
-        except Exception as e:                                          # noqa: BLE001
-            _log(f"{src}: {e}")
+            with open(fp, encoding="utf-8") as f:
+                doc = json.load(f)
+        except (OSError, json.JSONDecodeError):
             continue
-        if r.status_code != 200:
-            _log(f"{src}: HTTP {r.status_code}")
-            continue
-        try:
-            rows = json.loads(r.text)
-        except json.JSONDecodeError as e:
-            _log(f"{src}: bad JSON ({e})")
-            continue
-        n0 = len(out)
+        rows = doc.get("trades") or doc.get("transactions") or []
         for row in rows:
+            if row.get("source_id") not in KEEP_SOURCES:
+                dropped += 1
+                continue
             tk = (row.get("ticker") or "").strip().upper()
-            # OCR'd PDFs produce junk tickers; drop rather than guess.
             if not tk or tk in ("--", "N/A", "NA") or not _TICKER_OK.match(tk):
                 dropped += 1
                 continue
-            dd = (row.get("disclosure_date") or "")[:10]
-            if len(dd) != 10:
+            fd = (row.get("filing_date") or "")[:10]          # NEVER transaction_date
+            if len(fd) != 10 or fd[4] != "-":
                 dropped += 1
                 continue
-            if "/" in dd:                       # some rows use MM/DD/YYYY
-                try:
-                    mm, dd_, yy = dd.split("/")
-                    dd = f"{yy}-{mm.zfill(2)}-{dd_.zfill(2)}"
-                except ValueError:
-                    dropped += 1
-                    continue
-            side = _is_buy(row.get("type"))
+            side = _is_buy(row.get("transaction_type") or row.get("type"))
             if side is None:
                 dropped += 1
                 continue
-            amt = amount_midpoint(row.get("amount"))
+            amt = amount_midpoint(row.get("amount_range_low"), row.get("amount_range_high"),
+                                  row.get("amount") or row.get("amount_range_label"))
             if amt <= 0:
                 dropped += 1
                 continue
-            out.setdefault(tk, []).append((dd, amt if side else -amt))
+            if row.get("is_late"):
+                late += 1
+            out.setdefault(tk, []).append((fd, amt if side else -amt))
             kept += 1
-        _log(f"{src}: {len(rows):,} rows -> {len(out)-n0:,} new tickers")
     for t in out:
         out[t].sort()
-    _log(f"kept {kept:,} transactions, dropped {dropped:,}, {len(out):,} tickers")
+    _log(f"kept {kept:,} ({late:,} late-filed), dropped {dropped:,}, {len(out):,} tickers")
     if cache_path and out:
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
         with open(cache_path, "wb") as f:

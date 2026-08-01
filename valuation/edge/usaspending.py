@@ -98,6 +98,45 @@ ADOPTION BAR — pre-committed, same shape as every other signal here:
 Rejecting is the expected outcome. Federal contract awards are public, unembargoed, and watched
 closely by every defense analyst; and a quarterly-resolution signal on a handful of large,
 heavily-covered names is not where undiscovered edge usually lives.
+
+================================ RESULT (run after the above was committed) =================
+REJECTED - and it is a real rejection only because the power control was satisfied on the
+second attempt. Full universe, 136,478 rows / 110 dates.
+
+    signal                     median IC    IC t   dates   avg names   coverage
+    govt_award_momentum          +0.0044   +0.70      62          89      4.03%
+    govt_award_level (PLACEBO)   +0.0007   -0.52      62          96      4.34%
+    -- POWER CONTROLS, same restricted subset --
+    inst_accum                   +0.0412   +2.27      50          90
+    quality                      +0.0290   +1.61      62          88
+    ret_6_1                      +0.0114   +0.78      62          88
+
+    gate: standalone t >= 2.0                    FAIL (+0.70)
+          momentum beats level placebo by >= 1.0 PASS (+1.22)
+          coverage >= 2%                         PASS (4.03%)
+          a control clears t 2.0 on the subset   PASS (inst_accum +2.27)
+
+THE POWER CONTROL EARNED ITS KEEP HERE. The FIRST run mapped only 89 tickers (top 2,000
+recipients) and produced a subset of 70 tickers on which ret_6_1 fell from t +3.40 (full panel)
+to +0.83 and NO control cleared 2.0. By the rule committed above that was INCONCLUSIVE, not a
+rejection, and it was not reported as one. Going deeper into the recipient list (top 6,000)
+lifted the mapping to 137 tickers and the subset to 102, at which point inst_accum reached +2.27
+and the null became interpretable. Without that rule the first, thinner run would have been
+written up as "federal contract momentum does not work" on evidence that could not support it.
+
+So the verdict is: on the names where federal award data can be mapped to a ticker, contract-
+award momentum carries no usable cross-sectional signal at a quarterly horizon, on a subset
+demonstrably able to detect a signal of ordinary size.
+
+Two honest limits that survive the verdict. (a) Coverage is 4%, and even a real signal on 4% of
+the universe could not move a broad book - adoption would have meant a gov-exposure sleeve, not
+a change to the composite. (b) The subsidiary problem was never solved: no parent-rollup endpoint
+exists (parent_recipient / recipient_parent / parent_duns all 404), so Electric Boat is still not
+credited to General Dynamics. That adds noise, which biases toward rejection - the safe
+direction - so it does not need fixing to trust this null, but it WOULD need fixing before
+anyone concluded federal awards are worthless in general.
+
+Both signals stay MEASURED and score in NO theme.
 """
 from __future__ import annotations
 

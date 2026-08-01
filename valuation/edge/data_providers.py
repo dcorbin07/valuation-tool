@@ -399,6 +399,10 @@ class WRDSProvider(HistoricalDataProvider):
         from .bulk import earnings_dates as _ed
         return _ed(self._bulk("events"), ticker)
 
+    def congress_for(self, ticker):
+        """Congressional trades as (FILING date, signed dollars). Never the transaction date."""
+        return self._bulk("congress").get(ticker.upper(), [])
+
     def usaspending_for(self, ticker):
         """Federal award quarters as (available_date, obligations) — already publication-lagged."""
         return self._bulk("usaspending").get(ticker.upper(), [])

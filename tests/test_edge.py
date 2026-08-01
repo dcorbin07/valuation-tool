@@ -1861,6 +1861,66 @@ def test_edgar13d_dating_and_form_rename():
     assert "activist_13d" not in S.WEIGHTS_ESTABLISHED
 
 
+def test_congress_never_stores_transaction_date():
+    """The single most dangerous field in this project.
+
+    The STOCK Act allows 45 days from trade to PTR filing and late filings are common: measured
+    on the real data, 21.9% are late, the 90th percentile delay is 210 days and the max is 4,049.
+    Using transaction_date would inject up to seven months of look-ahead exactly when a member's
+    presumed advantage plays out. So the loader must DISCARD it - not merely decline to filter on
+    it - and signals_at must key off the filing date.
+    """
+    import json as _json
+    import tempfile
+    from valuation.edge import congress as CG
+    from valuation.screener import settings as S
+
+    row = {"ticker": "ZZZ", "source_id": "house_clerk", "transaction_type": "Purchase",
+           "amount_range_low": 1001, "amount_range_high": 15000,
+           "transaction_date": "2020-01-02", "filing_date": "2020-06-30"}
+    with tempfile.TemporaryDirectory() as d:
+        sub = os.path.join(d, "public", "data", "ticker")
+        os.makedirs(sub)
+        with open(os.path.join(sub, "ZZZ.json"), "w", encoding="utf-8") as f:
+            _json.dump({"trades": [row, dict(row, source_id="oge_executive")]}, f)
+        got = CG.fetch_congress_trades(repo_dir=d)
+    assert list(got) == ["ZZZ"]
+    # Executive-branch row excluded; only one transaction survives.
+    assert len(got["ZZZ"]) == 1
+    stored_dates = [d for d, _ in got["ZZZ"]]
+    assert stored_dates == ["2020-06-30"], stored_dates
+    assert "2020-01-02" not in str(got), "transaction date must never reach the cache"
+    # Invisible until filed, even though the trade happened in January.
+    assert CG.signals_at(got["ZZZ"], "2020-06-29") == {}
+    assert CG.signals_at(got["ZZZ"], "2020-06-30")["congress_net_buy"] == 1.0
+    assert CG.amount_midpoint(1001, 15000) == 8000.5
+    assert S.NUMBER_THEME.get("congress_net_buy") == "sentiment"
+    assert "congress_net_buy" not in S.WEIGHTS_ESTABLISHED
+
+
+def test_usaspending_publication_lag_and_seasonality():
+    """Awards are stamped quarter_end + lag, and 4q-over-4q so the federal year-end spike cancels."""
+    from valuation.edge import usaspending as U
+    from valuation.screener import settings as S
+
+    assert U.PUBLICATION_LAG_DAYS >= 45           # FPDS reporting delay; DoD historically 90d
+    assert U._quarter_end(2010, 1) == "2009-12-31"   # federal FY starts Oct 1 of the prior year
+    assert U._quarter_end(2010, 4) == "2010-09-30"
+    assert U.normalize_name("THE BOEING COMPANY") == "BOEING"
+    assert U.normalize_name("Lockheed Martin Corporation") == "LOCKHEED MARTIN"
+    # Needs 2*trailing published quarters, else no half-formed number.
+    short = [(f"2020-{m:02d}-01", 100.0) for m in range(1, 8)]
+    assert U.signals_at(short, "2020-12-31") == {}
+    flat = [(f"2020-{m:02d}-01", 100.0) for m in range(1, 9)]
+    assert U.signals_at(flat, "2020-12-31")["govt_award_momentum"] == 0.0
+    grow = [(f"2020-{m:02d}-01", float(m)) for m in range(1, 9)]
+    assert abs(U.signals_at(grow, "2020-12-31")["govt_award_momentum"] - 1.6) < 1e-9
+    # Nothing is visible before its publication date.
+    assert U.signals_at(grow, "2020-07-31") == {}
+    assert S.NUMBER_THEME.get("govt_award_momentum") == "growth"
+    assert "govt_award_momentum" not in S.WEIGHTS_ESTABLISHED
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
