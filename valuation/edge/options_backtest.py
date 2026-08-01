@@ -95,6 +95,13 @@ PREFILTER_TECH = 80.0           # exact bound; see the prefilter note above
 
 # ---- Pre-committed adoption bars -----------------------------------------------------------
 MIN_EXPECTANCY_GAIN = 0.10      # +10 percentage points of expectancy per trade
+
+# ---- Section 4: matched vertical debit spread, defined BEFORE it was measured -------------
+# The long leg is IDENTICAL to the single-leg arm, so the comparison isolates one thing: the
+# effect of selling a further-OTM call against it. Anything else (different strike, different
+# expiry, different entry rule) would confound the construction question with a timing question.
+SHORT_LEG_DELTA = 0.20          # sell the ~20-delta call, same expiry
+MIN_SPREAD_STRIKE_GAP = 0.01    # short strike must be strictly above the long strike
 BARS_CACHE = os.path.join("data", "bulk", "prepared", "bars")
 
 
@@ -297,6 +304,104 @@ def simulate_trade(provider, ticker: str, entry_row, entry_date, bars: dict,
         t.update({"exit_date": expiry.isoformat(), "held_days": (expiry - entry_date).days,
                   "exit_reason": "expiry"})
     return t
+
+
+def simulate_spread(provider, ticker, entry_row, entry_date, bars, chain,
+                    underlying, aggression=F.DEFAULT_AGGRESSION,
+                    target_pct=TARGET_PCT, stop_pct=STOP_PCT,
+                    time_stop_frac=TIME_STOP_FRAC, short_delta=SHORT_LEG_DELTA):
+    """The matched vertical debit spread: same long leg, short a further-OTM call.
+
+    Both legs cross the spread in the punishing direction at BOTH ends - buy the long at the
+    ask and sell the short at the bid on entry, then sell the long at the bid and buy the short
+    back at the ask on exit. A spread backtest that nets legs at mid manufactures most of the
+    "risk-adjusted improvement" that spreads are supposed to deliver.
+    """
+    import pandas as pd
+
+    long_strike = float(entry_row["strike"])
+    right = str(entry_row["right"])
+    expiry = pd.Timestamp(entry_row["expiration"]).date()
+    enr = BS.enrich_chain(
+        chain[(pd.to_datetime(chain["expiration"]).dt.date == expiry)
+              & (chain["right"].astype(str).str.upper().str.startswith("C"))],
+        underlying, entry_date)
+    if enr is None or len(enr) == 0:
+        return {"ok": False, "reason": "no_short_leg"}
+    cand = enr.dropna(subset=["delta"])
+    cand = cand[cand["strike"].astype(float) > long_strike + MIN_SPREAD_STRIKE_GAP]
+    ok = []
+    for _, r in cand.iterrows():
+        q = F.Quote(bid=r.get("bid"), ask=r.get("ask"), oi=r.get("open_interest"),
+                    volume=r.get("volume"))
+        if F.quote_reject_reason(q) is None:
+            ok.append(r)
+    if not ok:
+        return {"ok": False, "reason": "no_short_leg"}
+    short_row = min(ok, key=lambda r: abs(abs(float(r["delta"])) - short_delta))
+    short_strike = float(short_row["strike"])
+
+    lq = F.Quote(bid=entry_row.get("bid"), ask=entry_row.get("ask"),
+                 oi=entry_row.get("open_interest"), volume=entry_row.get("volume"))
+    sq = F.Quote(bid=short_row.get("bid"), ask=short_row.get("ask"),
+                 oi=short_row.get("open_interest"), volume=short_row.get("volume"))
+    if F.quote_reject_reason(lq) or F.quote_reject_reason(sq):
+        return {"ok": False, "reason": "unfillable_leg"}
+    # Entry debit: pay the ask on the long, receive the bid on the short.
+    debit = F.fill_price(lq, "buy", aggression) - F.fill_price(sq, "sell", aggression)
+    if debit <= 0:
+        return {"ok": False, "reason": "non_positive_debit"}
+
+    lh = provider.contract_history(ticker, expiry, long_strike, right, entry_date, expiry)
+    sh = provider.contract_history(ticker, expiry, short_strike, right, entry_date, expiry)
+    if lh is None or len(lh) == 0 or sh is None or len(sh) == 0:
+        return {"ok": False, "reason": "no_leg_history"}
+    sh_by = {r["date"]: r for _, r in sh.iterrows()}
+    dte0 = (expiry - entry_date).days
+    time_stop_date = entry_date + dt.timedelta(days=int(round(dte0 * time_stop_frac)))
+    last = None
+    for _, lr in lh.iterrows():
+        day = lr["date"]
+        if day <= entry_date or day not in sh_by:
+            continue
+        srr = sh_by[day]
+        lq2 = F.Quote(bid=lr.get("bid"), ask=lr.get("ask"))
+        sq2 = F.Quote(bid=srr.get("bid"), ask=srr.get("ask"))
+        if (F.quote_reject_reason(lq2, check_liquidity=False)
+                or F.quote_reject_reason(sq2, check_liquidity=False)):
+            continue
+        # Exit credit: sell the long at the bid, buy the short back at the ask.
+        credit = F.fill_price(lq2, "sell", aggression) - F.fill_price(sq2, "buy", aggression)
+        last = credit
+        ret = credit / debit - 1.0
+        if ret >= target_pct or ret <= stop_pct or day >= time_stop_date:
+            return _spread_result(debit, credit, day, entry_date,
+                                  "target" if ret >= target_pct else
+                                  "stop" if ret <= stop_pct else "time_stop",
+                                  long_strike, short_strike)
+    # Held to expiry: the spread settles at its intrinsic width.
+    und = None
+    for i, ds in enumerate(bars["date"]):
+        if ds <= expiry.isoformat():
+            und = bars["close"][i]
+    if und is None:
+        return {"ok": False, "reason": "no_settle_price"}
+    credit = (F.intrinsic(right, long_strike, und) - F.intrinsic(right, short_strike, und))
+    return _spread_result(debit, credit, expiry, entry_date, "expiry",
+                          long_strike, short_strike)
+
+
+def _spread_result(debit, credit, exit_day, entry_date, reason, long_strike, short_strike):
+    mult = F.CONTRACT_MULTIPLIER
+    commission = F.COMMISSION_PER_CONTRACT * 4          # two legs, both ways
+    return {"ok": True, "entry_fill": debit, "exit_fill": credit,
+            "net_pnl": (credit - debit) * mult - commission,
+            "gross_pnl": (credit - debit) * mult,
+            "cost": commission, "contracts": 1,
+            "return_pct": (credit / debit - 1.0) if debit > 0 else None,
+            "exit_date": exit_day.isoformat(), "held_days": (exit_day - entry_date).days,
+            "exit_reason": reason, "long_strike": long_strike, "short_strike": short_strike,
+            "entry_spread_pct": None, "settled_at_intrinsic": reason == "expiry"}
 
 
 def to_alert_row(ticker, entry_date, entry_row, trade, score, labels, iv, iv_rank) -> dict:
