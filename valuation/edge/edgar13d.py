@@ -57,6 +57,22 @@ This biases toward SURVIVORS, which if anything flatters the result, so it canno
 rejection — only an adoption would need to be discounted for it.
 
 --------------------------------------------------------------------------------------------
+FILER-vs-SUBJECT CONTAMINATION — measured before running, mitigated by direction not by hope.
+
+form.idx indexes each filing exactly once (verified: 5,945 filings, 5,945 distinct accession
+files in 2015Q2), but the indexed name is sometimes the INVESTOR rather than the target: 8.8%
+of 2015Q2 SC 13* lines carry investor-styled names ("AB Value Management LLC", "Arch Venture
+Fund VII LP"). form.idx has no field distinguishing subject from filer, so this cannot be
+cleaned at parse time.
+
+Almost all such filers are private partnerships with no ticker, so the CIK->ticker map drops
+them silently. The residue is publicly-traded filers (Icahn Enterprises, Berkshire) which would
+credit themselves with an activist stake they took in someone ELSE. That is mislabelled data,
+and its effect is to add NOISE to the signal — it dilutes a real effect toward zero. It can
+therefore push this test toward a false REJECTION but cannot manufacture a false ADOPTION,
+which is the safe direction. Measured and reported after the run rather than assumed away.
+
+--------------------------------------------------------------------------------------------
 ADOPTION BAR — pre-committed, the same shape every other signal here has faced:
 
   1. Standalone median IC t-stat >= MIN_IC_TSTAT for activist_13d, on the full universe.
@@ -92,6 +108,11 @@ FORMS_13G = ("SC 13G", "SC 13G/A")
 # SEC requires a descriptive User-Agent with a contact address; 10 req/sec ceiling.
 USER_AGENT = "Valquo research donniecorbin6@gmail.com"
 INDEX = "https://www.sec.gov/Archives/edgar/full-index/{year}/QTR{qtr}/form.idx"
+# form.idx is nominally fixed-width, but the column offsets have MOVED over EDGAR's history —
+# a fixed-width parse tested against 2015 returned 0/200 rows and would have silently yielded
+# nothing for entire eras. Parse by structure instead: this matches 98.6-99.5% of SC 13* lines
+# in 1998, 2015 and 2024 alike.
+ROW_RX = r"^(SC 13[DG](?:/A)?)\s+(.*?)\s+(\d{1,10})\s+(\d{4}-\d{2}-\d{2})\s+(\S+)\s*$"
 TICKER_MAP = "https://www.sec.gov/files/company_tickers.json"
 REQ_PAUSE = 0.15                   # deliberately under SEC's 10/sec limit
 
@@ -131,8 +152,11 @@ def fetch_13d_filings(start_year: int, end_year: int, cik_to_ticker: dict,
     all, so it cannot leak in.
     """
     import pickle
+    import re
+
     import requests
 
+    rx = re.compile(ROW_RX)
     if cache_path and os.path.exists(cache_path):
         with open(cache_path, "rb") as f:
             got = pickle.load(f)
@@ -154,24 +178,20 @@ def fetch_13d_filings(start_year: int, end_year: int, cik_to_ticker: dict,
             time.sleep(REQ_PAUSE)
             if r.status_code != 200:
                 continue
-            # form.idx is fixed-width: Form Type | Company Name | CIK | Date Filed | File Name
+            # Form Type | Company Name | CIK | Date Filed | File Name — parsed by structure.
             for line in r.text.splitlines():
-                if len(line) < 98 or not line[:12].strip().startswith("SC 13"):
+                if not line.startswith("SC 13"):
                     continue
-                form = line[:12].strip()
+                m = rx.match(line)
+                if not m:
+                    continue
+                form = m.group(1)
                 if form not in wanted:
                     continue
-                try:
-                    cik = int(line[74:86].strip())
-                except ValueError:
-                    continue
-                tk = cik_to_ticker.get(cik)
+                tk = cik_to_ticker.get(int(m.group(3)))
                 if not tk:
                     continue
-                filed = line[86:98].strip()
-                if len(filed) != 10:
-                    continue
-                out.setdefault(tk, []).append((filed, form))
+                out.setdefault(tk, []).append((m.group(4), form))
                 n_rows += 1
         _log(f"{year}: {n_rows:,} filings, {len(out):,} tickers, {time.time()-t0:.0f}s")
     for t in out:
