@@ -12,6 +12,42 @@ file directly.
 
 ---
 
+## A2-A5 SESSION - item 0 attempted and NOT LANDED (2026-08-02)
+
+**Nothing shipped this session. `git_push.bat` is UNCHANGED and still the known-good version.**
+
+I wrote the upgrade (real `merge --no-edit` instead of FF-only so a diverged main stops
+mattering; abort + report on a genuine conflict; run tests and refuse to push when red) but
+**could not verify it**, and the prompt was explicit: "this script has broken twice on batch
+escaping; test it, don't eyeball it." The scratch-repo harness never managed to get cmd.exe to
+actually invoke the script - every scenario produced zero output - so not one of the three
+behaviours was ever exercised.
+
+The attempt DID find one real bug, which is exactly the argument for not shipping unverified:
+the file had been written with **LF-only line endings**, and a .bat with LF endings does not
+execute on Windows. Trusting the code review instead of the test would have silently broken
+Don's ONE deploy command.
+
+So the upgrade is parked as **`git_push_v2_UNVERIFIED.bat`** with a banner listing what to test,
+and `git_push.bat` was restored via `git checkout --`. Replacing a working deploy script with an
+unverified one risks leaving the repo mid-merge - worse than the manual merge it was meant to
+remove.
+
+**To finish item 0:** copy v2 into a throwaway repo containing a diverged `worktree-*` branch and
+confirm (a) the branch merges, (b) red tests block the push, (c) a conflicting branch aborts
+cleanly leaving no MERGE_HEAD. A three-scenario harness exists at `C:/Users/donni/.claude/jobs/7819c8eb/tmp/verify_push.ps1` - its `RunScript`
+function is the part that does not work.
+
+**A2-A5 NOT STARTED.** Item 0 was ordered first and consumed the session.
+
+**MERGE STILL OUTSTANDING** - phases 1-3b and phase 4 A1 are on `worktree-p24-shortinterest`,
+not on main. Verified conflict-free (zero overlapping files):
+
+    git checkout main
+    git merge worktree-p24-shortinterest
+    python tests/test_edge.py        (expect 89/89)
+    .\git_push.bat
+
 ## PHASE 4 - test fix + A1 term-structure filter WIRED LIVE (2026-08-02)
 
 **Close-out item done first, as instructed: the env-sensitive test is fixed.**
