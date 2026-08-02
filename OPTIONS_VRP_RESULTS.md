@@ -218,9 +218,33 @@ spread of a ~$65 mid credit is consumed by crossing two bid-ask spreads twice.
 options (SPY/QQQ), wider spreads with better credit-to-width ratios, or genuinely passive
 mid-ish fills are all untested here and none is refuted by this.
 
-**Untested and worth knowing:** the pre-registered fill-quality diagnostics are reported in the
-next section; they are the only thing that could change the picture, and they change what you
-would need to believe rather than the verdict at the committed bar.
+---
+
+## Fill-quality diagnostics — and why they close the question rather than open it
+
+Aggression 1.0 is the touch on both legs both ways, and it is the only headline. Lower values
+are the diagnostic `options_fill` already declares: "provided ONLY as a diagnostic to show how
+much of a result is spread assumption; it is never the headline number." Each row is a full
+independent 55-name run.
+
+    aggression      n       hit     expectancy   profit factor   book final   combined Sharpe
+    0.00 mid      2,609   73.7%     +0.13%          1.02         $104.1k         +0.77
+    0.50 half     2,522   65.0%     -4.37%          0.50          $32.9k         +0.22
+    1.00 touch    2,496   56.4%     -7.99%          0.28          $20.7k         -0.17
+
+Expectancy is close to linear in aggression, so break-even sits at roughly **1.5% of the way
+from the mid to the touch** — an essentially perfect mid fill on both legs, both ways, every
+time. The live bot's own 0.95x-mid resting order is more aggressive than that.
+
+**This is the finding that settles it.** The natural objection to the headline — "you charged it
+two full spreads on two legs, of course it lost" — is answered by the top row: at a fill nobody
+can achieve, the strategy is *break-even*, not good. PF 1.02 against a 1.20 bar, negative in the
+first half, and it still LOWERS the combined Sharpe (0.87 -> 0.77). There is no premium being
+lost to execution here, because there is no premium.
+
+The hit rate moving 73.7% -> 56.4% as fills worsen is the mechanism in one number: crossing the
+spread pushes the +50%-of-credit target out of reach and pulls the -2x stop closer, converting
+winners into stops.
 
 ---
 
