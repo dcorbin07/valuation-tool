@@ -68,7 +68,7 @@ import pandas as pd
 
 from . import blackscholes as BS
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 DERIVED_ROOT = os.path.join("data", "options_derived")
 
 # ---- Pre-registered inversion band ---------------------------------------------------------
@@ -312,20 +312,37 @@ def enrich_frame(df: pd.DataFrame, spots: dict, q: float = 0.0):
     bid = pd.to_numeric(df["bid"], errors="coerce").to_numpy(dtype="float64")
     ask = pd.to_numeric(df["ask"], errors="coerce").to_numpy(dtype="float64")
     volume = pd.to_numeric(df.get("volume"), errors="coerce").fillna(0).to_numpy(dtype="float64")
-    oi = pd.to_numeric(df.get("open_interest"),
-                       errors="coerce").fillna(0).to_numpy(dtype="float64")
+    # -1 IS A MISSING-DATA SENTINEL, NOT AN OPEN INTEREST. `theta_bulk` fills the OI merge miss
+    # with -1 (`.fillna(-1).astype("int32")`), and 11% of the cache — including EVERY row of
+    # AAPL 2020 — carries it. Treated as a number it silently flips the sign of that contract's
+    # gamma contribution and poisons the put/call ratio. It becomes NaN here, is counted, and
+    # every aggregate below is computed on known OI only.
+    oi_raw = pd.to_numeric(df.get("open_interest"),
+                           errors="coerce").fillna(-1).to_numpy(dtype="float64")
+    oi_missing = ~np.isfinite(oi_raw) | (oi_raw < 0)
+    oi = np.where(oi_missing, np.nan, oi_raw)
+    cov["oi_missing_rows"] = int(oi_missing.sum())
     is_put_all = _is_put(df["right"])
 
     # --- per-date aggregates that need no IV (computed on the FULL chain) -------------------
     n_u = len(date_u)
+    oi_known = np.where(oi_missing, 0.0, oi_raw)          # sums over KNOWN OI only
+    known = (~oi_missing).astype(float)
     raw_daily = pd.DataFrame({
         "date": date64_u,
-        "call_oi": np.bincount(inv_d, weights=np.where(is_put_all, 0.0, oi), minlength=n_u),
-        "put_oi": np.bincount(inv_d, weights=np.where(is_put_all, oi, 0.0), minlength=n_u),
+        "call_oi": np.bincount(inv_d, weights=np.where(is_put_all, 0.0, oi_known), minlength=n_u),
+        "put_oi": np.bincount(inv_d, weights=np.where(is_put_all, oi_known, 0.0), minlength=n_u),
         "call_vol": np.bincount(inv_d, weights=np.where(is_put_all, 0.0, volume), minlength=n_u),
         "put_vol": np.bincount(inv_d, weights=np.where(is_put_all, volume, 0.0), minlength=n_u),
         "chain_rows": np.bincount(inv_d, minlength=n_u).astype(float),
+        # how much of that date's chain had a real OI at all — a p/c ratio built on 5% of the
+        # chain is not the same statistic as one built on all of it, and must not look like it
+        "oi_known_rows": np.bincount(inv_d, weights=known, minlength=n_u),
     })
+    raw_daily["oi_coverage"] = raw_daily["oi_known_rows"] / raw_daily["chain_rows"]
+    # A date with no OI anywhere has no put/call OI ratio — not a ratio of zeros.
+    for c in ("call_oi", "put_oi"):
+        raw_daily[c] = raw_daily[c].where(raw_daily["oi_known_rows"] > 0)
 
     # --- band / quote filtering, one reason per row ------------------------------------------
     spot_u = np.array([float(spots.get(_to_pydate(x), np.nan)) if
@@ -413,7 +430,9 @@ def gex_by_strike(day: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame(columns=["strike", "gex", "call_gamma_oi", "put_gamma_oi"])
     is_call = day["right"].astype(str).str.startswith("C").values
     g = day["gamma"].values.astype(float)
-    oi = day["open_interest"].values.astype(float)
+    # Unknown OI (the -1 sentinel, stored as NaN) contributes NOTHING. It is not zero interest —
+    # it is an unmeasured contract, and `oi_coverage` on the daily frame says how many there were.
+    oi = np.nan_to_num(day["open_interest"].values.astype(float), nan=0.0)
     S = float(day["spot"].iloc[0])
     contrib = _dealer_sign(is_call) * g * oi * 100.0 * S
     prof = pd.DataFrame({
@@ -445,7 +464,9 @@ def zero_gamma(day: pd.DataFrame, lo: float = ZG_LO, hi: float = ZG_HI,
     r = day["risk_free"].values.astype(float)[:, None]
     sig = day["iv"].values.astype(float)[:, None]
     sign = _dealer_sign(day["right"].astype(str).str.startswith("C").values)[:, None]
-    oi = day["open_interest"].values.astype(float)[:, None]
+    oi = np.nan_to_num(day["open_interest"].values.astype(float), nan=0.0)[:, None]
+    if not np.any(oi > 0):
+        return None                      # no known open interest -> no gamma book to flip
 
     grid = np.linspace(lo * S, hi * S, n)[None, :]
     d1, _, sq = _d1d2(grid, K, T, r, sig)
@@ -495,6 +516,7 @@ def daily_features(derived: pd.DataFrame, raw_daily: pd.DataFrame) -> pd.DataFra
     rows = []
     for day_dt, day in derived.groupby("date", observed=True, sort=True):
         S = float(day["spot"].iloc[0])
+        oi_known = float(np.isfinite(day["open_interest"].astype(float)).mean())
         prof = gex_by_strike(day)
         tot_gex = float(prof["gex"].sum())
         abs_gex = float(prof["gex"].abs().sum())
@@ -529,14 +551,20 @@ def daily_features(derived: pd.DataFrame, raw_daily: pd.DataFrame) -> pd.DataFra
             if cs is not None and ps is not None:
                 sk = ps - cs
 
+        # With no known open interest there IS no gamma exposure to report. Emitting 0.0 would
+        # read as "the dealers are flat" instead of "we do not know", which is exactly the kind
+        # of quiet fiction the coverage rule exists to stop.
+        blind = oi_known <= 0.0
         rows.append({
             "date": day_dt, "spot": S,
             "n_iv": int(len(day)),
-            "total_gex": tot_gex,
-            "gex_per_1pct": tot_gex * S * 0.01,
-            "gex_top_strike": top_strike,
-            "gex_wall_conc": wall_conc,
-            "call_wall": cw, "put_wall": pw,
+            "oi_coverage_iv": oi_known,
+            "total_gex": np.nan if blind else tot_gex,
+            "gex_per_1pct": np.nan if blind else tot_gex * S * 0.01,
+            "gex_top_strike": np.nan if blind else top_strike,
+            "gex_wall_conc": np.nan if blind else wall_conc,
+            "call_wall": np.nan if blind else cw,
+            "put_wall": np.nan if blind else pw,
             "zero_gamma": zg,
             "zero_gamma_vs_spot": (zg / S - 1.0) if zg else np.nan,
             "atm_iv_front": front,
@@ -558,8 +586,10 @@ def daily_features(derived: pd.DataFrame, raw_daily: pd.DataFrame) -> pd.DataFra
 def add_iv_rank(daily: pd.DataFrame, window: int = 252, col: str = "atm_iv_30") -> pd.DataFrame:
     """Trailing IV rank and percentile of the 30-day ATM IV.
 
-    Both are strictly BACKWARD looking (`closed='left'` excludes today), so a row never sees its
-    own future — the same point-in-time discipline the fundamental panel uses.
+    The window is the trailing `window` sessions ENDING ON and INCLUDING today, which is the
+    conventional definition of IV rank (where today's vol sits in the past year's range). It
+    uses nothing after date t, so it is point-in-time safe; it is not, however, a "past only"
+    statistic, and a study that wants one should shift it by a day.
     """
     if daily is None or len(daily) == 0 or col not in daily.columns:
         return daily
@@ -591,6 +621,13 @@ def sanity_flags(daily: pd.DataFrame, cov: dict) -> list:
         flags.append(f"{cov['skipped']['no_spot']} rows had no underlying close")
     if cov.get("iv_at_bound", 0) > 0.01 * max(1, cov.get("rows_iv_ok", 1)):
         flags.append(f"{cov['iv_at_bound']} solved IVs sit on the 0.5%/500% bracket")
+    miss = cov.get("oi_missing_rows", 0)
+    if miss and miss > 0.02 * rows_in:
+        flags.append(f"open interest missing (-1 sentinel) on {miss / rows_in:.0%} of raw rows")
+    if daily is not None and len(daily) and "oi_coverage_iv" in daily:
+        blind = float(pd.to_numeric(daily["oi_coverage_iv"], errors="coerce").le(0).mean())
+        if blind > 0.02:
+            flags.append(f"no open interest at all on {blind:.0%} of dates — GEX is blank there")
     if daily is not None and len(daily) and "gex_wall_conc" in daily:
         peg = float(pd.to_numeric(daily["gex_wall_conc"], errors="coerce").gt(0.5).mean())
         if peg > 0.25:
@@ -653,7 +690,7 @@ def enrich_symbol(sym: str, spots: dict, options_root: str, out_root: str,
 
     cov_all = {"symbol": sym, "schema_version": SCHEMA_VERSION, "years": {},
                "source_signature": sig, "band": dict(BAND), "q_dividend_yield": q,
-               "rows_in": 0, "rows_iv_ok": 0,
+               "rows_in": 0, "rows_iv_ok": 0, "oi_missing_rows": 0,
                "skipped": {k: 0 for k in SKIP_REASONS}, "iv_at_bound": 0}
     dailies = []
     for yr in sorted(sig):
@@ -673,6 +710,7 @@ def enrich_symbol(sym: str, spots: dict, options_root: str, out_root: str,
         cov_all["rows_in"] += cov["rows_in"]
         cov_all["rows_iv_ok"] += cov["rows_iv_ok"]
         cov_all["iv_at_bound"] += cov.get("iv_at_bound", 0)
+        cov_all["oi_missing_rows"] += cov.get("oi_missing_rows", 0)
         for k in SKIP_REASONS:
             cov_all["skipped"][k] += cov["skipped"].get(k, 0)
 
