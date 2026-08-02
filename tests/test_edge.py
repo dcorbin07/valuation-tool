@@ -2178,15 +2178,19 @@ def test_live_term_structure_filter():
     Three properties matter more than the threshold itself:
       * it FAILS OPEN - unknown term structure is None, never False, so a quote-feed hiccup
         cannot masquerade as backwardation and silently halt alerting;
-      * the DEFAULT mode annotates rather than suppresses, because the filter removes ~60% of
-        signals and that is too large a product change to inherit silently from a backtest;
+      * the DEFAULT mode now SUPPRESSES (changed for roadmap #21). It used to annotate, on the
+        grounds that removing ~60% of signals was too large a change to inherit silently from a
+        backtest. That reasoning was about who decides, not about whether the filter works, and
+        the decision has now been taken deliberately: an unapplied filter leaves the live alerts
+        carrying the full fade it was adopted to arrest. The fail-open property below is what
+        makes suppression safe, and is the invariant that must never be traded away;
       * contango alerts carry a LARGER size multiple, so filtering 60% of signals does not
         quietly shrink the sleeve's exposure by 60% - capped, so a modest edge cannot become a
         concentrated bet.
     """
     from valuation.intraday import term_filter as TF
 
-    assert TF.DEFAULT_MODE == TF.MODE_FLAG, "default must annotate, not suppress"
+    assert TF.DEFAULT_MODE == TF.MODE_SUPPRESS, "the filter is now a gate, not a label"
     contango = {"atm_iv": 0.30, "atm_iv_60d": 0.35}
     backward = {"atm_iv": 0.40, "atm_iv_60d": 0.32}
     assert TF.classify(contango)["term_ok"] is True
@@ -2490,6 +2494,432 @@ def test_vrp_arm_correlation_uses_a_common_risk_footing():
                                lambda r: r["exit_date"], risk=1000.0)
     assert abs(m["2020-03"] - 250.0) < 1e-9
     assert P._exit_date_single_leg({"alert_ts": "2020-01-01", "held_days": 31}) == "2020-02-01"
+
+
+def _live_chain(spot, asof, dtes, sigma=0.30, mny=(0.90, 0.95, 1.00, 1.05, 1.10, 1.15)):
+    """A broker-shaped chain priced by Black-Scholes, so delta targets are actually reachable.
+
+    `sigma` may be a dict keyed by DTE, which is how a term structure is built for the
+    term_slope tests: one vol for the front expiry and a different one further out.
+    """
+    import datetime as _d
+
+    from valuation.edge import blackscholes as BS
+    r = BS.risk_free_rate(asof)
+    rows = []
+    for d in dtes:
+        vol = sigma[d] if isinstance(sigma, dict) else sigma
+        exp = (asof + _d.timedelta(days=d)).isoformat()
+        T = d / 365.0
+        for m in mny:
+            k = round(spot * m, 2)
+            for right, kind in (("C", "call"), ("P", "put")):
+                px = BS.bs_price(spot, k, T, r, vol, right)
+                if px is None or px < 0.20:
+                    continue
+                rows.append({"option_type": kind, "expiration_date": exp, "strike": k,
+                             "bid": round(px * 0.97, 2), "ask": round(px * 1.03, 2),
+                             "volume": 500, "open_interest": 1000,
+                             "greeks": {"delta": None, "mid_iv": vol}})
+    return rows
+
+
+def test_live_engine_reuses_the_backtested_selector_rather_than_copying_it():
+    """The live path must CALL the validated selector, not re-implement it.
+
+    This is the single most important property in the live wiring. A second implementation
+    starts identical and drifts one commit at a time, and the drift is invisible: both sides
+    keep producing plausible contracts. So two things are pinned - the constants are the SAME
+    OBJECTS as the backtest's (not equal copies), and `pick_live_contract` genuinely delegates
+    to `options_backtest.pick_contract` with the validated band.
+    """
+    from valuation.edge import options_backtest as OB
+    from valuation.edge import options_live as L
+
+    assert L.TARGET_DELTA is OB.TARGET_DELTA
+    assert L.DTE_RANGE is OB.DTE_RANGE
+    assert L.TARGET_PCT is OB.TARGET_PCT and L.STOP_PCT is OB.STOP_PCT
+    assert L.TIME_STOP_FRAC is OB.TIME_STOP_FRAC and L.HORIZON is OB.HORIZON
+
+    seen = {}
+    real = OB.pick_contract
+    try:
+        def spy(chain, underlying, as_of, right="C", target_delta=None, dte_range=None):
+            seen.update({"right": right, "target_delta": target_delta,
+                         "dte_range": dte_range, "underlying": underlying,
+                         "n_rows": len(chain)})
+            return None
+        OB.pick_contract = spy
+        asof = dt.date(2026, 8, 3)
+        out = L.pick_live_contract(_live_chain(100.0, asof, [60]), 100.0, asof)
+    finally:
+        OB.pick_contract = real
+    assert out is None, "a selector returning None must not be papered over"
+    assert seen["target_delta"] == 0.35 and tuple(seen["dte_range"]) == (45, 75)
+    assert seen["right"] == "C" and seen["n_rows"] > 0
+
+
+def test_live_contract_sits_in_the_validated_band_and_is_priced_at_the_ask():
+    """~35 delta, 45-75 DTE, long call - and the entry premium is the ASK, not the mid.
+
+    The premium basis matters as much as the strike: every validated number is net of the
+    punishing fill (buy the ask / sell the bid). Sizing off the mid would deploy more contracts
+    than the tested book ever held and quote an entry nobody gets.
+    """
+    from valuation.edge import options_live as L
+
+    asof = dt.date(2026, 8, 3)
+    chain = _live_chain(100.0, asof, [7, 60])
+    c = L.pick_live_contract(chain, 100.0, asof)
+    assert c is not None
+    assert c["right"] == "call"
+    assert 45 <= c["dte"] <= 75, c["dte"]
+    assert abs(abs(c["delta"]) - 0.35) < 0.12, c["delta"]
+    assert c["entry_premium"] == c["ask"], "entry must be the ask, not the mid"
+    assert c["ask"] > c["mid"] > c["bid"]
+    assert c["exit_policy"]["target_pct"] == 1.00 and c["exit_policy"]["stop_pct"] == -0.50
+
+
+def test_live_contract_refuses_rather_than_relaxing_the_band():
+    """No contract in 45-75 DTE -> None. Substituting a nearer or further one changes the
+    strategy while keeping its name, which is worse than showing no contract."""
+    from valuation.edge import options_live as L
+
+    asof = dt.date(2026, 8, 3)
+    assert L.pick_live_contract(_live_chain(100.0, asof, [7, 200]), 100.0, asof) is None
+    assert L.pick_live_contract(None, 100.0, asof) is None
+    assert L.pick_live_contract(_live_chain(100.0, asof, [60]), 0, asof) is None
+
+
+def test_live_term_read_prefers_the_fitted_iv_estimator_and_records_which():
+    """term_slope from the chain (IV solved from the mid, as fitted) beats the broker's surface.
+
+    The threshold is ~1 vol point, small enough that the IV ESTIMATOR can decide the answer, so
+    which series was used is reported rather than assumed. Missing data stays unknown.
+    """
+    from valuation.edge import options_live as L
+
+    asof = dt.date(2026, 8, 3)
+    contango = _live_chain(100.0, asof, [7, 60], sigma={7: 0.28, 60: 0.36})
+    r = L.term_read(chain_rows=contango, underlying=100.0, as_of=asof)
+    assert r["term_ok"] is True and r["term_slope"] > 0
+    assert "chain" in r["source"]
+
+    backward = _live_chain(100.0, asof, [7, 60], sigma={7: 0.45, 60: 0.30})
+    assert L.term_read(chain_rows=backward, underlying=100.0, as_of=asof)["term_ok"] is False
+
+    # No chain -> broker IV, and it says so.
+    b = L.term_read(summary={"atm_iv": 0.30, "atm_iv_60d": 0.35})
+    assert b["term_ok"] is True and "broker" in b["source"]
+    # Nothing at all -> unknown, never False.
+    assert L.term_read(summary={})["term_ok"] is None
+
+
+def test_term_gate_is_on_by_default_and_still_fails_open():
+    """Suppression is now the default, and unknown term structure survives it."""
+    from valuation.intraday import term_filter as TF
+
+    rows = [{"score": 90, "labels": ["Uptrend"],
+             "detail": {"opt_atm_iv": 0.30, "opt_atm_iv_60d": 0.35}},     # contango
+            {"score": 88, "labels": ["Breakout"],
+             "detail": {"opt_atm_iv": 0.40, "opt_atm_iv_60d": 0.32}},     # backwardation
+            {"score": 82, "labels": ["Uptrend"], "detail": {}}]           # unknown
+    out, stats = TF.apply_with_stats(rows)
+    assert stats["mode"] == TF.MODE_SUPPRESS
+    assert stats["kept"] == 1 and stats["discarded"] == 1 and stats["unknown"] == 1
+    assert stats["n_out"] == 2 and abs(stats["retention"] - 0.5) < 1e-9
+    assert all(r.get("term_ok") is not False for r in out)
+    assert any(r.get("term_ok") is None for r in out), "a quote outage must not halt alerting"
+    # The config default agrees with the module default, or the gate is off in production.
+    from valuation.config import CONFIG
+    assert getattr(CONFIG, "options_term_filter", None) == TF.MODE_SUPPRESS
+
+
+def test_term_retention_is_compared_against_the_backtest_not_just_counted():
+    """A threshold fitted on one IV estimator need not transfer to another. The live retention
+    rate is the only way to notice, so it is compared against the backtested 40.6% and says
+    plainly when it diverges - counting alone would look fine while the filter did nothing."""
+    from valuation.edge import options_live as L
+
+    thin = L.term_filter_stats([{"term_ok": True}] * 5)
+    assert "too thin" in thin["note"]
+
+    matched = L.term_filter_stats([{"term_ok": True}] * 40 + [{"term_ok": False}] * 60)
+    assert abs(matched["retention"] - 0.40) < 1e-9
+    assert "transferred" in matched["note"]
+
+    diverged = L.term_filter_stats([{"term_ok": True}] * 99 + [{"term_ok": False}])
+    assert "DIVERGES" in diverged["note"]
+    assert diverged["unknown"] == 0 and diverged["backtest_retention"] == 0.406
+
+
+def test_confidence_is_expectancy_confidence_and_never_a_win_probability():
+    """A 37% hit rate must never be rendered as a likely winner. The disclaimer ships on every
+    result, and the flag that says so is machine-readable so a UI cannot omit it by accident."""
+    from valuation.edge import options_confidence as C
+
+    r = C.confidence(atm_iv=0.15, dte=70, delta=0.35, term_ok=True)
+    assert r["is_win_probability"] is False
+    assert r["hit_rate_reference"] == C.HIT_RATE < 0.40
+    assert "NOT probability" in r["disclaimer"] and "37%" in r["disclaimer"]
+    assert r["level"] in ("high", "moderate", "low", "thin", "avoid")
+    # The best available fingerprint should still not be described as a likely win.
+    assert r["level"] == "high" and r["expectancy_estimate"] > 0.05
+
+
+def test_confidence_scale_actually_discriminates_among_the_alerts_users_see():
+    """A badge that reads "high" on every alert is decoration, not information.
+
+    With the term gate on, every displayed alert is contango, so the term bucket is effectively
+    constant and the estimate varies only over IV / DTE / delta - a narrow band that does NOT
+    start near zero (0.0511 .. 0.0812). The intuitive "high above +5%" cut would therefore fire
+    on all of them. This pins that the best and worst contango fingerprints land on different
+    levels, and that the cuts still sit inside the reachable span.
+    """
+    from valuation.edge import options_confidence as C
+
+    F = C.FADE_FACTOR
+    best = C.confidence(atm_iv=0.15, dte=70, delta=0.35, term_ok=True)     # best of each bucket
+    worst = C.confidence(atm_iv=0.25, dte=60, delta=0.20, term_ok=True)    # worst of each
+    assert best["level"] == "high" and worst["level"] == "low"
+    assert best["expectancy_estimate"] > worst["expectancy_estimate"]
+
+    lo = (min(v["exp"] for v in C.IV_BUCKETS.values()) * F
+          + min(v["exp"] for v in C.DTE_BUCKETS.values()) * F
+          + min(v["exp"] for v in C.DELTA_BUCKETS.values()) * F
+          + C.TERM_BUCKETS["contango"]["exp"]) / 4
+    hi = (max(v["exp"] for v in C.IV_BUCKETS.values()) * F
+          + max(v["exp"] for v in C.DTE_BUCKETS.values()) * F
+          + max(v["exp"] for v in C.DELTA_BUCKETS.values()) * F
+          + C.TERM_BUCKETS["contango"]["exp"]) / 4
+    assert abs(worst["expectancy_estimate"] - lo) < 1e-3
+    assert abs(best["expectancy_estimate"] - hi) < 1e-3
+    for cut, _name in C.LEVEL_CUTS[:2]:
+        assert lo < cut < hi, f"cut {cut} sits outside the reachable span {lo:.4f}..{hi:.4f}"
+
+
+def test_confidence_discounts_the_fade_and_exempts_the_late_half_bucket():
+    """Full-sample buckets are dominated by 2016-2020, so they are haircut to the recent regime.
+
+    The term-structure bucket was ALREADY measured on the late half; applying the discount to it
+    too would count the fade twice.
+    """
+    from valuation.edge import options_confidence as C
+
+    assert 0.40 < C.FADE_FACTOR < 0.45
+    r = C.confidence(atm_iv=0.15, dte=70, delta=0.35, term_ok=True)
+    by_dim = {c["dim"]: c for c in r["contributions"]}
+    for dim in ("iv_regime", "dte", "delta"):
+        c = by_dim[dim]
+        assert c["fade_applied"] is True
+        assert abs(c["estimate"] - c["full_sample_exp"] * C.FADE_FACTOR) < 1e-9
+        assert c["estimate"] < c["full_sample_exp"], "the haircut must reduce, not flatter"
+    t = by_dim["term_structure"]
+    assert t["fade_applied"] is False and t["estimate"] == C.TERM_BUCKETS["contango"]["exp"]
+    # Backwardation must drag the estimate down, not merely fail to help.
+    worse = C.confidence(atm_iv=0.15, dte=70, delta=0.35, term_ok=False)
+    assert worse["expectancy_estimate"] < r["expectancy_estimate"]
+
+
+def test_confidence_backwardation_bucket_is_the_arithmetic_complement():
+    """phase 3b never printed the backwardation number; it is pinned by the two it did print.
+
+    late all = retention * contango + (1 - retention) * backwardation, with
+    all = +4.76%, contango = +12.88% on 40.6% retention. It is flagged `derived` so nobody
+    later cites it as a measured figure.
+    """
+    from valuation.edge import options_confidence as C
+
+    all_late, contango, ret = 0.0476, 0.1288, 0.406
+    implied = (all_late - ret * contango) / (1 - ret)
+    assert abs(C.TERM_BUCKETS["backwardation"]["exp"] - implied) < 5e-4, implied
+    assert C.TERM_BUCKETS["backwardation"]["derived"] is True
+    assert C.TERM_BUCKETS["contango"]["derived"] is False
+    assert implied < 0, "the whole case for gating is that backwardation is not profitable"
+
+
+def test_confidence_is_capped_thin_on_weak_evidence():
+    """Two different caps, and the one that fires in production is the dimension count.
+
+    The dimension cap is really the question "did a contract resolve?": DTE and delta exist only
+    once one has. Without a chain the best case is IV regime + term structure, which is two
+    dimensions and must not produce a confident answer - the buckets were all measured on trades
+    that had a real 35-delta 45-75 DTE contract.
+
+    The narrow-bucket guard cannot fire with the committed tables (smallest bucket = 192), so it
+    is exercised directly rather than through a test that would silently never assert.
+    """
+    from valuation.edge import options_confidence as C
+
+    bare = C.confidence(term_ok=True)                    # nothing but the term read
+    assert bare["level"] == "thin" and "dimension" in bare["capped_reason"]
+    # IV + term with no contract: a good-looking estimate that must still not read as confident.
+    no_contract = C.confidence(atm_iv=0.15, term_ok=True)
+    assert no_contract["expectancy_estimate"] > 0.05
+    assert no_contract["level"] == "thin", "no contract must never be high confidence"
+
+    assert min(b["n"] for b in C.IV_BUCKETS.values()) >= C.MIN_BUCKET_N
+    lvl, why = C.cap_level("high", n_min=11, n_dims=4)
+    assert lvl == "thin" and "11 closed trades" in why
+    # A negative estimate is not rescued by having plenty of data behind it.
+    assert C.cap_level("avoid", n_min=11, n_dims=1) == ("avoid", None)
+    assert C.SIZE_SCALE["avoid"] == 0.0 and C.SIZE_SCALE["thin"] <= 0.5
+
+
+def test_live_sizing_skips_instead_of_rounding_up():
+    """You cannot buy a fraction of a contract, so an unaffordable alert is SKIPPED.
+
+    Taking one contract anyway is how a risk rule becomes decorative - it silently doubles or
+    triples the intended risk on exactly the expensive names where that hurts most.
+    """
+    from valuation.edge import options_live as L
+
+    tiny = L.suggest_position(2.00, risk_budget=1000.0)
+    assert tiny["skip"] is False and tiny["contracts"] == 5
+    assert tiny["dollar_risk"] == 1000.0 and tiny["max_loss"] == 1000.0
+
+    huge = L.suggest_position(25.00, risk_budget=1000.0)
+    assert huge["skip"] is True and huge["contracts"] == 0
+    assert "budget" in huge["reason"] and huge["cost_per_contract"] == 2500.0
+    assert L.suggest_position(None)["skip"] is True
+
+
+def test_live_sizing_affordability_uses_the_full_budget_not_the_confidence_scale():
+    """Confidence scales SIZE; it must not become a second affordability filter.
+
+    A $600 contract against a $1,000 budget is affordable. At a 0.5 confidence scale the scaled
+    budget is $500, which would floor to zero contracts - and dropping the alert there would be
+    rejecting it for cost, not for conviction. It takes one contract instead.
+    """
+    from valuation.edge import options_live as L
+
+    r = L.suggest_position(6.00, risk_budget=1000.0, size_scale=0.5)
+    assert r["skip"] is False and r["contracts"] == 1 and r["dollar_risk"] == 600.0
+    # Scaling still bites where it can: half the budget, half the contracts.
+    full = L.suggest_position(1.00, risk_budget=1000.0, size_scale=1.0)
+    half = L.suggest_position(1.00, risk_budget=1000.0, size_scale=0.5)
+    assert full["contracts"] == 10 and half["contracts"] == 5
+    # "avoid" means zero, and says so rather than silently sizing to one.
+    assert L.suggest_position(1.00, risk_budget=1000.0, size_scale=0.0)["skip"] is True
+
+
+def test_live_alert_degrades_honestly_when_the_chain_is_unavailable():
+    """No chain must not mean no alert - and must not mean a confident alert either."""
+    from valuation.edge import options_live as L
+
+    row = {"ticker": "AAA", "score": 91, "labels": ["Uptrend"], "price": 100.0,
+           "detail": {"opt_atm_iv": 0.30, "opt_atm_iv_60d": 0.35}}
+    a = L.build_alert(row)
+    assert a["contract"] is None
+    assert a["sizing"]["skip"] is True and a["actionable"] is False
+    assert a["term"]["term_ok"] is True                       # summary still gives a term read
+    assert a["confidence"]["level"] == "thin"
+
+    alerts, stats = L.build_alerts([row], provider=None)
+    assert stats["n"] == 1 and stats["with_contract"] == 0
+    assert stats["term_filter"]["kept"] == 1
+
+
+def test_live_alert_with_a_chain_is_whole_and_actionable():
+    from valuation.edge import options_live as L
+
+    asof = dt.date(2026, 8, 3)
+    chain = _live_chain(100.0, asof, [7, 60], sigma={7: 0.28, 60: 0.36})
+    row = {"ticker": "AAA", "score": 91, "labels": ["Uptrend"], "price": 100.0, "detail": {}}
+    a = L.build_alert(row, chain_rows=chain, as_of=asof, risk_budget=5000.0)
+    c = a["contract"]
+    assert c and c["ticker"] == "AAA" and c["occ_symbol"].startswith("AAA")
+    assert 45 <= c["dte"] <= 75
+    assert a["term"]["term_ok"] is True
+    assert a["sizing"]["contracts"] >= 1 and a["sizing"]["dollar_risk"] > 0
+    assert a["actionable"] is True
+    assert "never places" in a["not_advice"]
+
+
+def test_alert_rendering_shows_the_real_contract_and_never_sells_the_hit_rate():
+    """The alert a user receives must carry the resolved contract, its size, and the caveat.
+
+    Two failure modes are pinned. A chain outage must degrade to the vaguer descriptor rather
+    than silently render a different trade; and wherever a confidence level appears, the
+    "not a chance of profit" caveat appears with it - the backtested hit rate is 37%, so a
+    "high" badge alone would mislead in exactly the direction that costs money.
+    """
+    from valuation.saas.notify import alert_discord_text, alert_email_html
+
+    rows = [{"ticker": "AAA", "score": 91, "labels": ["Uptrend"],
+             "detail": {"contracts": {"swing": {"directional": "~35Δ call, ~60 DTE"}}}},
+            {"ticker": "BBB", "score": 88, "labels": ["Breakout"],
+             "detail": {"contracts": {"swing": {"directional": "~35Δ call, ~60 DTE"}}}}]
+    live = [{"ticker": "AAA",
+             "contract": {"strike": 110.0, "expiry": "2026-10-16", "dte": 60, "delta": 0.34,
+                          "entry_premium": 2.62},
+             "sizing": {"skip": False, "contracts": 9, "dollar_risk": 2358.0},
+             "confidence": {"level": "high"}}]
+
+    txt = alert_discord_text("2026-08-03 14:30", rows, live_alerts=live)
+    assert "$110 call 2026-10-16" in txt and "0.34" in txt
+    assert "9x = $2,358 at risk" in txt and "confidence high" in txt
+    assert "hit rate ~37%" in txt and "never places trades" in txt
+    # BBB had no live contract, so it keeps the descriptor rather than borrowing AAA's.
+    assert "~35Δ call, ~60 DTE" in txt and txt.count("$110 call") == 1
+
+    html = alert_email_html("2026-08-03 14:30", rows, "http://x/unsub", live_alerts=live)
+    assert "$110 call" in html and "hit rate ~37%" in html and "SUGGESTION" in html
+    # With no live alerts at all the old descriptor behaviour still works.
+    plain = alert_discord_text("2026-08-03 14:30", rows)
+    assert "~35Δ call" in plain and "confidence" not in plain
+
+
+def test_paper_book_keeps_the_backtested_headline_until_the_live_sample_is_thick():
+    """Same rule as the stock index: a live number is shown from day one but is not the headline
+    until it can carry one. Below the floor a single contract that triples decides the sign."""
+    import tempfile
+
+    from valuation.edge import options_paper as PB
+    from valuation.edge.options_tracker import log_alert, record_outcome
+    from valuation.screener.store import Store
+
+    with tempfile.TemporaryDirectory() as d:
+        st = Store(os.path.join(d, "t.db"))
+        empty = PB.paper_report(st)
+        assert empty["n_logged"] == 0 and empty["thin"] is True
+        assert empty["headline_source"].startswith("backtest")
+        assert empty["headline_expectancy"] == PB.GATED_LATE_HALF_EXPECTANCY
+
+        for i in range(3):
+            log_alert(st, {"alert_ts": f"2026-08-0{i + 1} 10:00", "ticker": f"T{i}",
+                           "opt_right": "call", "strike": 100.0 + i, "expiry": "2026-10-16",
+                           "entry_premium": 5.0})
+            record_outcome(st, ticker=f"T{i}", alert_ts=f"2026-08-0{i + 1} 10:00",
+                           exit_premium=10.0, exit_reason="target")
+        r = PB.paper_report(st)
+        assert r["n_closed"] == 3 and r["thin"] is True
+        assert r["live"]["expectancy_pct"] == 1.0            # every trade doubled
+        # A 100% live expectancy must NOT become the headline on three trades.
+        assert r["headline_source"].startswith("backtest")
+        assert r["headline_expectancy"] == PB.GATED_LATE_HALF_EXPECTANCY
+        assert r["expectancy_gap_vs_reference"] is None
+        assert "thin" in r["label"] and "live since 2026-08-01" in r["label"]
+
+
+def test_paper_book_compares_against_the_gated_reference_not_the_full_sample_headline():
+    """The live book runs BEHIND the term gate, so the fair reference is the gated late-half
+    (+12.88%), not the +10.4% full-sample headline dominated by 2016-2020. Quoting the wrong
+    one would flatter or damn the live book for a reason that has nothing to do with it."""
+    import tempfile
+
+    from valuation.edge import options_confidence as C
+    from valuation.edge import options_paper as PB
+    from valuation.screener.store import Store
+
+    with tempfile.TemporaryDirectory() as d:
+        r = PB.paper_report(Store(os.path.join(d, "t.db")))
+    assert r["primary_reference"]["value"] == PB.GATED_LATE_HALF_EXPECTANCY == 0.1288
+    others = {o["value"] for o in r["other_references"]}
+    assert C.FULL_SAMPLE_EXPECTANCY in others and C.LATE_HALF_EXPECTANCY in others
+    assert r["primary_reference"]["value"] not in others, "the primary must not be duplicated"
+    assert "gate" in r["primary_reference"]["what"]
+    assert r["hit_rate_reference"] == C.HIT_RATE
 
 
 def _run_all():

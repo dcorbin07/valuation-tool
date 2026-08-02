@@ -247,6 +247,61 @@ def api_options_scorecard():
         return jsonify({"error": str(e), "overall": {"n_closed": 0}, "n_open": 0}), 200
 
 
+@app.route("/api/options-alerts")
+def api_options_alerts():
+    """Live scream-buy alerts: the real contract, its confidence, and a contract count.
+
+    The contract comes from the broker chain via the SAME selector the backtest used, so what is
+    shown here is the trade that was validated rather than a description of it. `confidence` is
+    EXPECTANCY-confidence and carries its own disclaimer - the backtested hit rate is 37%, so a
+    high level must never be rendered as "likely to win". `sizing` is a suggestion; nothing here
+    is routed to a broker.
+
+    Chain fetches cost several calls per name, so this is capped and defaults to the top few.
+    """
+    from ..edge.options_live import build_alerts, DEFAULT_RISK_BUDGET
+    from ..intraday.providers import get_provider
+    from ..saas.notify import screaming_buys_with_stats
+    from ..screener.store import Store
+    try:
+        st = Store()
+        rt = st.latest_intraday_time()
+        if not rt:
+            return jsonify({"empty": True, "message": "No intraday scan yet — hit Refresh."})
+        picks, term_stats = screaming_buys_with_stats(st.load_intraday(rt),
+                                                      CONFIG.alert_min_score)
+        top = max(1, min(int(request.args.get("top", 5)), 15))
+        budget = float(request.args.get("risk_budget",
+                                        getattr(CONFIG, "options_risk_per_trade", None)
+                                        or DEFAULT_RISK_BUDGET))
+        with_chain = request.args.get("chain", "1") != "0"
+        alerts, stats = build_alerts(picks[:top],
+                                     provider=get_provider(CONFIG) if with_chain else None,
+                                     risk_budget=budget)
+        return jsonify({"run_time": rt, "alerts": alerts, "stats": stats,
+                        "term_filter": term_stats, "risk_budget": budget,
+                        "n_screaming": len(picks)})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e), "alerts": []}), 200
+
+
+@app.route("/api/options-paper")
+def api_options_paper():
+    """Forward paper book vs the backtest reference it is actually comparable to.
+
+    Reports the GATED late-half number (+12.88%) as the primary reference, not the +10.4%
+    full-sample headline: the live book runs behind the term filter and cannot be judged against
+    an unfiltered figure dominated by 2016-2020.
+    """
+    from ..edge.options_paper import paper_report
+    from ..screener.store import Store
+    try:
+        return jsonify(paper_report(Store()))
+    except Exception as e:
+        return jsonify({"error": str(e), "n_closed": 0, "thin": True}), 200
+
+
 @app.route("/api/hotstocks")
 def api_hotstocks():
     """Read the latest cached scan snapshot + sector attractiveness (instant)."""

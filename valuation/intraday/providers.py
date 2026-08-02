@@ -35,6 +35,15 @@ class IntradayProvider:
     def get_option_summary(self, ticker: str) -> Optional[dict]:
         return None
 
+    def get_option_chain(self, ticker: str, dte_range=(45, 75)) -> Optional[list]:
+        """Raw chain rows for the tradable band, for live contract selection.
+
+        Separate from `get_option_summary` on purpose. The summary is cheap and runs for every
+        name in the universe on every scan; this is expensive (several expiries of full quotes)
+        and runs ONLY for names that already cleared the alert bar - a handful per scan.
+        """
+        return None
+
 
 class TradierProvider(IntradayProvider):
     name = "Tradier"
@@ -140,6 +149,52 @@ class TradierProvider(IntradayProvider):
         except Exception:
             return None
 
+    def get_option_chain(self, ticker: str, dte_range=(45, 75)) -> Optional[list]:
+        """Full quotes for every expiry in the band, PLUS the front expiry.
+
+        The front expiry is fetched even though nothing in 45-75 DTE trades it, because
+        `term_slope` is (~60-DTE ATM IV - FRONT ATM IV) and the near leg cannot be inferred from
+        the band. Fetching the band alone would leave the term read permanently unknown, which
+        the filter reads as "do not act" - a silent loss of the one signal that arrests the fade.
+        """
+        try:
+            import datetime as _dt
+            exps = self._get("markets/options/expirations", symbol=ticker)
+            dates = ((exps or {}).get("expirations") or {}).get("date")
+            if not dates:
+                return None
+            dl = dates if isinstance(dates, list) else [dates]
+            today = _dt.date.today()
+            dated = []
+            for d in dl:
+                try:
+                    dated.append((_dt.date.fromisoformat(str(d)[:10]), str(d)[:10]))
+                except ValueError:
+                    continue
+            if not dated:
+                return None
+            dated.sort()
+            lo, hi = int(dte_range[0]), int(dte_range[1])
+            want = [s for dd, s in dated if lo <= (dd - today).days <= hi]
+            front = next((s for dd, s in dated if (dd - today).days > 0), None)
+            if front and front not in want:
+                want.append(front)
+            if not want:
+                return None
+            rows = []
+            for e in want:
+                ch = self._get("markets/options/chains", symbol=ticker, expiration=e,
+                               greeks="true")
+                opts = ((ch or {}).get("options") or {}).get("option")
+                if not opts:
+                    continue
+                if isinstance(opts, dict):
+                    opts = [opts]
+                rows.extend(opts)
+            return rows or None
+        except Exception:
+            return None
+
 
 class FreeProvider(IntradayProvider):
     name = "free (yfinance, delayed)"
@@ -174,6 +229,47 @@ class FreeProvider(IntradayProvider):
             except Exception:
                 pass
             return {"call_volume": cv, "put_volume": pv, "call_oi": coi, "put_oi": poi, "atm_iv": iv}
+        except Exception:
+            return None
+
+    def get_option_chain(self, ticker: str, dte_range=(45, 75)) -> Optional[list]:
+        """Same shape from yfinance. DELAYED quotes - fine for a paper book, not for a fill."""
+        try:
+            import datetime as _dt
+
+            import yfinance as yf
+            t = yf.Ticker(ticker)
+            exps = t.options or []
+            today = _dt.date.today()
+            dated = []
+            for d in exps:
+                try:
+                    dated.append((_dt.date.fromisoformat(str(d)[:10]), str(d)[:10]))
+                except ValueError:
+                    continue
+            if not dated:
+                return None
+            dated.sort()
+            lo, hi = int(dte_range[0]), int(dte_range[1])
+            want = [s for dd, s in dated if lo <= (dd - today).days <= hi]
+            front = next((s for dd, s in dated if (dd - today).days > 0), None)
+            if front and front not in want:
+                want.append(front)
+            rows = []
+            for e in want:
+                ch = t.option_chain(e)
+                for df, kind in ((ch.calls, "call"), (ch.puts, "put")):
+                    if df is None or df.empty:
+                        continue
+                    for _, r in df.iterrows():
+                        rows.append({
+                            "option_type": kind, "expiration_date": e,
+                            "strike": float(r.get("strike")),
+                            "bid": r.get("bid"), "ask": r.get("ask"),
+                            "volume": r.get("volume"), "open_interest": r.get("openInterest"),
+                            "greeks": {"mid_iv": r.get("impliedVolatility")},
+                        })
+            return rows or None
         except Exception:
             return None
 
