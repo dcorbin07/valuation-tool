@@ -189,11 +189,12 @@ def test_fair_value_medians_come_from_peer_rows_not_the_slice():
 
 def _growth_row(ticker, price, sector, revenue=None, net_debt=None, ev_sales=None,
                 op_margin=None, revenue_growth=None, gross_margin=None, market_cap=None,
-                ey=None, fcfy=None):
+                ey=None, fcfy=None, ev_ebitda=None):
     extra = {k: v for k, v in
              {"earnings_yield": ey, "fcf_yield": fcfy, "revenue": revenue,
-              "net_debt": net_debt, "ev_sales": ev_sales, "op_margin": op_margin,
-              "revenue_growth": revenue_growth, "gross_margin": gross_margin}.items()
+              "net_debt": net_debt, "ev_sales": ev_sales, "ev_ebitda": ev_ebitda,
+              "op_margin": op_margin, "revenue_growth": revenue_growth,
+              "gross_margin": gross_margin}.items()
              if v is not None}
     return {"ticker": ticker, "price": price, "sector": sector, "market_cap": market_cap,
             "fair_value": None, "upside": None, "extra": extra}
@@ -219,6 +220,34 @@ def test_fair_value_bridges_ev_multiples_with_net_debt():
     # Same implied EV, but the debt is subtracted: equity 300 on a 100 cap, then clamped.
     assert lev["fair_value"] is not None
     assert lev["upside"] > cash["upside"], "the levered name re-rates further off a smaller cap"
+
+
+def test_fair_value_uses_ev_ebitda_where_ebitda_is_positive():
+    """The EV/EBITDA half of the same bridge. EV/Sales alone can't tell a 40%-margin
+    business from a 4%-margin one at the same price; EBITDA can, so a name that is cheap
+    on EBITDA must re-rate on it even when it has no usable equity yield at all.
+
+    A NEGATIVE EBITDA (so the multiple is meaningless) must be dropped, not used — that
+    is the whole reason the multiple is filtered on positivity rather than presence."""
+    from valuation.screener.fairvalue import estimate_fair_values
+    peers = [_growth_row(f"P{i}", 100.0, "Industrials", revenue=100.0, net_debt=0.0,
+                         ev_ebitda=12.0, market_cap=400.0) for i in range(6)]
+    # Cheap on EBITDA (6x vs the 12x peer median) and carrying net debt, so the bridge
+    # matters: implied EV = 400 x (12/6) = 800, equity = 800 - 100 = 700 on a 300 cap.
+    sub = _growth_row("CHEAPEBIT", 100.0, "Industrials", revenue=100.0, net_debt=100.0,
+                      ev_ebitda=6.0, market_cap=300.0)
+    rows = peers + [sub]
+    estimate_fair_values(rows)
+    assert sub["fair_value"] is not None, "EV/EBITDA alone must produce a value"
+    assert abs(sub["fair_value"] - 100.0 * 700.0 / 300.0) < 1e-6, sub["fair_value"]
+
+    # Same name, EBITDA negative -> the multiple is not information and must be ignored.
+    neg = _growth_row("BURN", 100.0, "Industrials", revenue=100.0, net_debt=100.0,
+                      ev_ebitda=-6.0, market_cap=300.0)
+    rows2 = [_growth_row(f"Q{i}", 100.0, "Industrials", revenue=100.0, net_debt=0.0,
+                         ev_ebitda=12.0, market_cap=400.0) for i in range(6)] + [neg]
+    estimate_fair_values(rows2)
+    assert neg.get("fair_value") is None, neg.get("fair_value")
 
 
 def test_fair_value_uses_the_growth_lens_for_a_preprofit_grower():
