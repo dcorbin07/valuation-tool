@@ -12,6 +12,48 @@ file directly.
 
 ---
 
+## ITEM 0 SHIPPED + A2 COMPLETE (2026-08-02)
+
+**Item 0 - `git_push.bat` is now genuinely one command, and it is VERIFIED.**
+Real `git merge --no-edit` for any `worktree-*` branch ahead of main (divergence stops
+mattering), conflict -> abort + report + BLOCK the push, tests run and a red suite refuses the
+push, auto-land skipped unless HEAD is main.
+
+Verified, not eyeballed - it broke twice more during this work, exactly as the prompt warned:
+LF-only line endings (a .bat with LF does not execute on Windows) and `2^^>nul` double-caret
+inside the for-loop. Last session's failure was the HARNESS, not the script: the script does
+`cd /d "%~dp0"` itself, so invoking it by FULL PATH lands it in the scratch repo regardless of
+the caller's cwd. All three scenarios now pass:
+
+    diverged branch merges + pushes    PASS  (main 2 -> 5 commits, remote updated)
+    red tests block the push           PASS
+    conflict aborts, nothing pushed    PASS  (dirty=0, no MERGE_HEAD)
+
+The harness ships as `verify_git_push.ps1` so this stays re-testable. **`.\git_push.bat` will
+now land the outstanding options commits by itself.**
+
+**A2 - iv_rank made testable, then REJECTED on merit.**
+Built a daily ATM-IV series across ALL trading days from the cached chains: **137,418
+observations, 55 names, median 2,514 each**. iv_rank coverage went **0.0% -> 99.0%**. Through the
+same pre-committed gate it fails every arm: late gain -0.93pp (bar +5pp), worse than the random
+control (+3.83% vs +4.84%), early gain -1.25pp, retention 39.9% (bar 40%). By year it is
+erratic - helps 2024/2025, destroys 2021 (-19.45%) and 2023 (-22.25%). Buying when vol is
+already rich for the name is not a durable long-premium filter.
+
+Series cached at `data/options/atm_iv_series.pkl`, reusable for any vol-regime read.
+
+**A2 - tick flow INFEASIBLE at this scale, measured.** `option_history_trade` = 6,259 rows in
+5.0s for ONE expiry-day; across 55 names x 2,500 days x 8 expiries that is **1,537-1,957 HOURS**.
+`option_history_trade_quote` pairs trades with the prevailing quote (exactly what aggressor-side
+needs), so the signal is constructible but not affordable historically. **Feasible alternative:
+alert days only, ~1,841 x 6.4s ~ 3.3 hours** - the sensible way to test it if wanted.
+
+**Standing after A2:** the only adopted new signal remains `term_slope` (phase 3b, +8.12pp late).
+skew / VRP / GEX / iv_rank all rejected on evidence; tick flow untested by cost.
+
+**A3-A5 NOT STARTED** (VRP credit-spread arm + correlation; options-bot fold-in; live book with
+per-alert confidence + sizing).
+
 ## A2-A5 SESSION - item 0 attempted and NOT LANDED (2026-08-02)
 
 **Nothing shipped this session. `git_push.bat` is UNCHANGED and still the known-good version.**

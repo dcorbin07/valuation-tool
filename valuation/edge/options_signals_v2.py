@@ -120,6 +120,46 @@ compute pass. Calling it "rejected" would misrepresent an untested signal.
 
 TICK FLOW remains untested: it needs the tick trade feed, which is not in the cached EOD history.
 
+
+--------------------------------------------------------------------------------------------
+A2 FOLLOW-UP (2026-08-02): iv_rank MADE TESTABLE, THEN REJECTED ON ITS MERITS.
+
+Phase 3b could not test iv_rank at all: IV history was accumulated only from a name's own
+alerts (~28), so the 60-observation minimum was never met and coverage was 0%. That was
+reported as NOT TESTABLE rather than as a rejection, which was the right call - and this is the
+follow-through.
+
+A daily ATM-IV series was built across ALL trading days from the cached chains: 137,418
+observations over 55 names, median 2,514 per name. iv_rank is then the percentile of the day's
+ATM IV within that name's trailing 252 days, using STRICTLY PRIOR days - including the day's own
+value would leak the observation into its own percentile.
+
+    coverage   0.0%  ->  99.0%   (1,525 of 1,540 alerts)
+
+Through the same pre-committed gate, it fails every arm:
+
+    threshold (fit 2016-2020)   0.3968
+    late-half kept              302/756 (39.9%)      bar >=40%      FAIL
+    late expectancy             +4.76% -> +3.83%
+    gain                        -0.93pp              bar >=+5pp     FAIL
+    random control              +4.84%  (better than the filter)    FAIL
+    early-half gain             -1.25pp              bar >0         FAIL
+
+By year it is wildly inconsistent - it helps 2024 (+16.84% -> +22.48%) and 2025 (-0.05% ->
++5.50%) but destroys 2021 (+6.02% -> -19.45%) and 2023 (-4.61% -> -22.25%). Buying when vol is
+already rich for the name is not a durable filter for a long-premium strategy, which is the
+economically sensible reading.
+
+REJECTED, and now on evidence rather than absence of it. The ATM-IV series is cached at
+data/options/atm_iv_series.pkl and is reusable for anything else needing a vol-regime read.
+
+TICK FLOW IS INFEASIBLE AT THIS SCALE, measured rather than assumed. option_history_trade
+returns 6,259 rows in 5.0s for ONE expiry-day; across 55 names x ~2,500 days x ~8 expiries that
+is 1,537-1,957 HOURS. option_history_trade_quote pairs each trade with the prevailing quote,
+which is exactly what aggressor-side classification needs, so the signal is CONSTRUCTIBLE - just
+not affordable historically. A restricted version (alert days only, ~1,841 x 6.4s ~ 3.3 hours)
+would be feasible and is the sensible way to test it if anyone wants to.
+
 """
 from __future__ import annotations
 
