@@ -14,9 +14,13 @@ Re-weighting every trade to the same dollar risk:
 
                           total      top-15 share   profit ex-top-15   top-3 names
     1 contract each     $143,723         98.1%           $2,767            76%
-    fixed $1,000 risk   $160,461         42.0%          $92,998            34%
+    fixed dollar risk        varies      45-63%       $55k-$93k            34%
 
-Concentration collapses, breadth improves, and total profit RISES. This is not a tuning choice;
+(Phase 2 quoted 42.0%; that assumed fractional contracts. The tradeable range with whole
+contracts is 44-63% depending on the budget - see the RESULT section below.)
+
+Concentration falls by roughly half, breadth improves, and total profit RISES. This is not a
+tuning choice;
 it is the difference between measuring the strategy and measuring the price of the underlying.
 A real account sizing by contract count would accidentally take a 50x larger position in AMZN
 than in BAC for the same signal.

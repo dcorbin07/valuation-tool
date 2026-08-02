@@ -12,6 +12,47 @@ file directly.
 
 ---
 
+## OPTIONS PHASE 3 - sizing adopted, DTE rejected, §0 BLOCKED (2026-08-02)
+
+**§0 IS BLOCKED AND NEEDS DON.** `main` has DIVERGED from the options branch: main took in the
+whole `options-bot` tree (164 files, ~27k lines) plus the PROMPT files in two automated "Update"
+commits, while 28 phase-1/2/3 commits sit on `worktree-p24-shortinterest`. Because it is no
+longer a fast-forward, **`git_push.bat` will SKIP it** ("not a clean fast-forward, merge by
+hand"). The changes do not overlap - main added `options-bot/`, the branch touched `valuation/`,
+`tests/` and the docs - so the merge should be clean. My harness forbids merging or pushing to
+main, so this needs one manual step:
+
+    git checkout main
+    git merge worktree-p24-shortinterest
+    python tests/test_edge.py        (expect 88/88)
+    .\git_push.bat
+
+**§1 FIXED-DOLLAR SIZING ADOPTED - and a phase-2 number is CORRECTED.** Phase 2 said fixed-dollar
+sizing cuts the top-15 share to 42.0%; that deployed exactly $1,000 per trade, i.e. FRACTIONAL
+contracts, which do not exist. With whole contracts:
+
+    1 contract each (phase 1)          top-15 98.1%   ex-top-15  $2,767
+    idealised fractional (phase 2)            42.0%              $92,998
+    whole contracts, min 1                    62.9%              $83,986
+    whole contracts, skip too-costly          50.3%              $54,853  (drops 13% of signals)
+
+200 of 1,540 signals cost more than a $1,000 budget for one contract, so they can only be
+skipped or taken oversized. **The conclusion survives - 98.1% -> ~45-63%, ex-tail $2,767 ->
+$55k-$93k - but 42% is not reachable in any tradeable form.** Larger budgets are better on every
+axis ($5,000: 98.4% of signals, +10.16%, 44.5% concentration). Percentage expectancy is identical
+across sizing schemes (+10.42%), which is the check the re-weighting is correct.
+
+**§3 65-75 DTE REJECTED.** +11.55pp on the first half, **+1.19pp on the second** against a
+required +5pp. It inherits the very fade it was meant to arrest. Phase 2's +17.0% vs +7.8% was a
+full-sample figure dominated by the early period. Live band stays 45-75. 35-delta remains
+confirmed optimal and untouched.
+
+**NOT DONE:** §2 (new ThetaData signals judged on the 2021-2025 fade - the core remaining
+research), §4 (VRP/credit-spread arm + correlation with the long arm), §5 (options-bot fold-in -
+also blocked, the code is on main and not in this worktree), §6 (live engine + tracked book +
+annualized net-of-cost/after-tax returns). Roadmap 22b (small/mid-cap expansion) is explicitly
+the iteration after this and needs a fresh ThetaData pull.
+
 ## OPTIONS PHASE 2 - tail analysis + spread comparison (2026-08-02)
 
 **The phase-1 "too tail-dependent to size" verdict is CORRECTED.** The dollar concentration was
