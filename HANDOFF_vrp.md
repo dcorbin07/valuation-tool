@@ -97,6 +97,11 @@ no premium left after the market has priced it, and execution then makes it nega
 costless version fails the gate (PF 1.02 against a 1.20 bar, negative first half) and even the
 costless version LOWERS the combined Sharpe (0.87 -> 0.77).
 
+The pre-registered liquidity-gate sensitivity closes the last alternative explanation. Loosening
+the short-leg bid-ask gate from the bot's 10% to the project's own 25% quote-sanity bar admits
+**28% more trades and makes the arm worse** (n 2,496 -> 3,191, expectancy -7.99% -> -9.35%, PF
+0.28 -> 0.22). The tight gate was not starving the sample of good trades.
+
 ## What this does and does not say
 
 **Does:** the deployed options-bot put-credit-spread strategy, on 55 liquid large caps with real

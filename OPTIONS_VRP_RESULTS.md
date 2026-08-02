@@ -246,6 +246,20 @@ The hit rate moving 73.7% -> 56.4% as fills worsen is the mechanism in one numbe
 spread pushes the +50%-of-credit target out of reach and pulls the -2x stop closer, converting
 winners into stops.
 
+### The pre-registered liquidity-gate sensitivity: the tight gate was not the problem
+
+`options_vrp` committed the bot's 10% short-leg bid-ask gate as the headline and the project's
+own 25% quote-sanity bar (`options_fill.MAX_SPREAD_PCT`) as the one alternative worth measuring,
+so that "the tight gate starved the sample" would be a number rather than a suspicion.
+
+    short-leg gate     n       hit     expectancy   profit factor
+    10% (headline)   2,496   56.4%      -7.99%          0.28
+    25% (sensitivity) 3,191   50.0%      -9.35%          0.22
+
+Loosening it admits **28% more trades and makes the arm worse.** The 10% gate was not excluding
+good trades; it was correctly excluding worse ones. That disposes of the last way the sample
+could have been the explanation.
+
 ---
 
 ## Standing caveats
