@@ -2159,6 +2159,283 @@ def test_live_term_structure_filter():
     assert len(got) == 3 and all("term_ok" in r for r in got)
 
 
+def _vrp_quote_frame(strikes, bids, asks, expiry, oi=500, vol=50):
+    return pd.DataFrame({"strike": [float(s) for s in strikes],
+                         "bid": bids, "ask": asks,
+                         "right": ["P"] * len(strikes),
+                         "expiration": [expiry] * len(strikes),
+                         "open_interest": [oi] * len(strikes),
+                         "volume": [vol] * len(strikes)})
+
+
+def test_vrp_entry_rules_are_the_options_bot_rules():
+    """Screening/construction constants are the ported ones, and each gate actually bites."""
+    from valuation.edge import options_vrp as V
+
+    assert (V.MIN_DTE, V.MAX_DTE, V.TARGET_DTE) == (25, 50, 35)
+    assert V.TARGET_SHORT_DELTA == 0.20 and V.SPREAD_WIDTH == 5.0
+    assert V.PROFIT_TARGET_PCT == 0.50 and V.STOP_LOSS_MULTIPLE == 2.0
+    assert V.TIME_EXIT_DTE == 21
+
+    today = dt.date(2020, 1, 2)
+    exps = [today + dt.timedelta(days=n) for n in (7, 20, 30, 37, 45, 60, 80)]
+    got = V.pick_expiration(exps, today)
+    assert (got - today).days == 37          # inside [25,50], closest to 35
+    assert V.pick_expiration([today + dt.timedelta(days=n) for n in (5, 90)], today) is None
+
+    from valuation.edge import options_fill as F
+    ok = F.Quote(bid=1.00, ask=1.06, oi=500, volume=10)
+    assert V.short_leg_reject_reason(ok) is None
+    # 18% wide: passes the project's own quote-sanity bar (25%) and is then caught by the
+    # bot's tighter 10% screening gate, so the two gates are demonstrably both live.
+    assert V.short_leg_reject_reason(F.Quote(bid=1.00, ask=1.20, oi=500)) == "bid_ask_too_wide"
+    assert V.short_leg_reject_reason(F.Quote(bid=1.00, ask=1.60, oi=500)) == "wide_spread"
+    assert V.short_leg_reject_reason(F.Quote(bid=1.00, ask=1.06, oi=5)) == "low_open_interest"
+    assert V.short_leg_reject_reason(F.Quote(bid=1.10, ask=1.00, oi=500)) == "crossed"
+    # A missing open interest fails CLOSED — absent evidence is never a pass.
+    assert V.short_leg_reject_reason(F.Quote(bid=1.00, ask=1.06)) == "low_open_interest"
+
+
+def test_vrp_iv_rank_is_point_in_time_and_refuses_thin_history():
+    from valuation.edge import options_vrp as V
+
+    days = [f"2020-{m:02d}-{d:02d}" for m in range(1, 7) for d in range(1, 26)]
+    series = {d: 0.20 + 0.001 * i for i, d in enumerate(days)}     # monotonically rising IV
+    idx = V.build_iv_index(series)
+    # Fewer than MIN_OBS observations before the day: unknowable, never defaulted.
+    assert V.iv_rank_at(idx, V.IV_RANK_MIN_OBS - 1) is None
+    r = V.iv_rank_at(idx, V.IV_RANK_MIN_OBS + 5)
+    assert r == 1.0                     # a rising series always sits above its own history
+    # The dict path agrees with the indexed path, and excludes today from its own window.
+    d_at = idx[V.IV_RANK_MIN_OBS + 5][0]
+    assert V.iv_rank(series, d_at) == r
+    # A LATER observation must not influence an earlier rank (the PIT guard).
+    poisoned = dict(series)
+    for d in days[V.IV_RANK_MIN_OBS + 6:]:
+        poisoned[d] = 99.0
+    assert V.iv_rank(poisoned, d_at) == r
+    assert V.iv_rank(series, "1999-01-01") is None
+
+
+def test_vrp_fills_cross_the_spread_on_both_legs_both_ways():
+    """The credit received is worse than mid and the buy-back cost is worse than mid."""
+    from valuation.edge import options_vrp as V
+
+    short = {"bid": 2.00, "ask": 2.20}
+    wing = {"bid": 1.00, "ask": 1.20}
+    mid_credit = 2.10 - 1.10
+    credit = V.entry_credit(short, wing)
+    assert abs(credit - (2.00 - 1.20)) < 1e-12
+    assert credit < mid_credit                       # you receive LESS than the mid
+
+    cc = V.close_cost(short, wing, width=5.0)
+    assert abs(cc["cost"] - (2.20 - 1.00)) < 1e-12
+    assert cc["cost"] > mid_credit and not cc["clamped"]
+
+    # Crossed/stale quotes cannot produce a negative buy-back cost — clamp AND report it.
+    crossed = V.close_cost({"bid": 0.50, "ask": 0.60}, {"bid": 0.90, "ask": 1.00}, width=5.0)
+    assert crossed["cost"] == 0.0 and crossed["clamped"] is True
+    # Nor a cost beyond the width.
+    over = V.close_cost({"bid": 9.0, "ask": 9.5}, {"bid": 0.10, "ask": 0.20}, width=5.0)
+    assert over["cost"] == 5.0 and over["clamped"] is True
+    # The short leg is unpriceable without an ask; you cannot buy it back for nothing.
+    assert V.close_cost({"bid": 0, "ask": 0}, wing, width=5.0) is None
+    # But a WINNING spread's wing legitimately bids 0.00 and quotes wide — it must still mark,
+    # or the profit target and time exit would freeze on exactly the positions we want to close.
+    win = V.close_cost({"bid": 0.05, "ask": 0.15}, {"bid": 0.0, "ask": 0.05}, width=5.0)
+    assert win is not None and abs(win["cost"] - 0.15) < 1e-12
+    assert V.close_cost({"bid": 0.05, "ask": 0.15}, {"bid": 0.0, "ask": 0.0}, width=5.0) is None
+    # A wing with no ask cannot be BOUGHT, so the trade never opens (that would be a naked put).
+    assert V.entry_credit(short, {"bid": 1.00, "ask": 0.0}) is None
+
+    # Expiry settlement is bounded by [0, width] in every regime.
+    assert V.settle_at_expiry(100.0, 95.0, 120.0) == 0.0        # both worthless
+    assert V.settle_at_expiry(100.0, 95.0, 90.0) == 5.0         # both deep ITM: full width
+    assert V.settle_at_expiry(100.0, 95.0, 97.0) == 3.0         # short ITM only
+
+
+def test_vrp_exit_discipline_and_the_stop_gap_through():
+    """Profit / stop / time / expiry each fire, and the stop books the REAL gapped price."""
+    from valuation.edge import options_vrp as V
+
+    entry = dt.date(2020, 1, 2)
+    exp = dt.date(2020, 2, 21)
+    credit = 1.00
+
+    def legs(days_and_quotes):
+        """{day: (short_bid, short_ask, wing_bid, wing_ask)} -> two per-contract histories."""
+        sh = {d: {"bid": v[0], "ask": v[1]} for d, v in days_and_quotes.items()}
+        lh = {d: {"bid": v[2], "ask": v[3]} for d, v in days_and_quotes.items()}
+        return sh, lh
+
+    # Buy-back cost 0.45 vs 1.00 credit -> captured +55% -> PROFIT.
+    sh, lh = legs({entry + dt.timedelta(days=5): (0.50, 0.60, 0.10, 0.15)})
+    t = V.simulate_spread(sh, lh, entry, exp, 100.0, 95.0, credit, 110.0)
+    assert t["exit_reason"] == "profit" and t["pnl_pct"] > 0
+
+    # Cost 3.65 -> captured -265% -> STOP, and the FILL is the gapped 3.65, not the 3.00 that a
+    # 2x-credit stop would theoretically fill at. A backtest that booked 2x would understate it.
+    sh, lh = legs({entry + dt.timedelta(days=5): (3.70, 3.80, 0.10, 0.15)})
+    t = V.simulate_spread(sh, lh, entry, exp, 100.0, 95.0, credit, 90.0)
+    assert t["exit_reason"] == "stop"
+    assert abs(t["close_cost_ps"] - 3.70) < 1e-9        # 3.80 ask - 0.10 wing bid
+    theoretical_2x = (credit - 3.0 * credit) * 100 - V.COMMISSION * 4
+    assert t["pnl_dollars"] < theoretical_2x, "gap-through must be worse than the 2x stop"
+    assert t["pnl_pct"] >= -1.0, "a defined-risk spread cannot lose more than max risk"
+
+    # No trigger before 21 DTE -> TIME exit on the first day inside the window.
+    quiet = {entry + dt.timedelta(days=n): (0.90, 1.00, 0.20, 0.25) for n in range(1, 45)}
+    sh, lh = legs(quiet)
+    t = V.simulate_spread(sh, lh, entry, exp, 100.0, 95.0, credit, 110.0)
+    assert t["exit_reason"] == "time" and (exp - dt.date.fromisoformat(t["exit_date"])).days <= 21
+
+    # No usable marks at all -> settle at intrinsic rather than vanish from the sample. A spread
+    # that finishes fully through the wing loses EXACTLY max risk, which is the -1.0 floor.
+    t = V.simulate_spread({}, {}, entry, exp, 100.0, 95.0, credit, 80.0)
+    assert t["exit_reason"] == "expiration" and t["settled_at_intrinsic"]
+    assert abs(t["pnl_pct"] + 1.0) < 1e-12
+
+
+def test_vrp_return_is_measured_against_max_risk_not_credit():
+    from valuation.edge import options_vrp as V
+
+    t = V.trade_result(dt.date(2020, 1, 2), dt.date(2020, 1, 20),
+                       credit_ps=1.00, cost_ps=0.50, width=5.0, reason="profit")
+    # (5.00 - 1.00) x 100 of defined risk, plus the four-leg commission that is also at stake.
+    assert abs(t["max_risk_dollars"] - (400.0 + 4 * V.COMMISSION)) < 1e-9
+    assert abs(t["gross_pnl"] - 50.0) < 1e-9
+    assert abs(t["pnl_dollars"] - (50.0 - 4 * V.COMMISSION)) < 1e-9
+    assert abs(t["pnl_pct"] - t["pnl_dollars"] / t["max_risk_dollars"]) < 1e-9
+    assert abs(t["pnl_pct_of_credit"] - 0.50) < 1e-9
+    # Return-on-credit is ~4x the return-on-risk here; reporting it would flatter the arm.
+    assert t["pnl_pct_of_credit"] / t["pnl_pct"] > 4
+    # A worthless expiry costs no closing commission (nothing is closed).
+    z = V.trade_result(dt.date(2020, 1, 2), dt.date(2020, 2, 21), 1.00, 0.0, 5.0,
+                       "expiration", expired=True)
+    assert abs(z["commission"] - 2 * V.COMMISSION) < 1e-9
+
+
+def test_vrp_self_test_refuses_a_both_sides_profitable_engine():
+    """The gate's hard blocker: a fill model that pays on both sides is void, not impressive."""
+    from valuation.edge import options_vrp as V
+
+    real = [{"alert_ts": "2018-01-02", "pnl_pct": 0.05, "pnl_dollars": 20.0} for _ in range(50)]
+    losing_mirror = [{"alert_ts": "2018-01-02", "pnl_pct": -0.30, "pnl_dollars": -60.0}
+                     for _ in range(50)]
+    good = V.self_test_block(real, losing_mirror)
+    assert good["passes"] and not good["both_sides_profitable"]
+    bad = V.self_test_block(real, [{**r} for r in real])
+    assert bad["both_sides_profitable"] and not bad["passes"]
+
+    # And the mirror really is the other side of the same market: buying at the touch and
+    # selling back at the touch on unchanged quotes must LOSE the round-trip spread.
+    entry, exp = dt.date(2020, 1, 2), dt.date(2020, 2, 21)
+    flat = {d: {"bid": b, "ask": a} for d, (b, a) in
+            {entry: (2.00, 2.20), entry + dt.timedelta(days=30): (2.00, 2.20)}.items()}
+    wing = {d: {"bid": 1.00, "ask": 1.20} for d in flat}
+    m = V.simulate_mirror(flat, wing, entry, exp, 100.0, 95.0, 110.0)
+    assert m is not None and m["pnl_dollars"] < 0
+
+
+def test_vrp_sanity_block_catches_impossible_trades():
+    from valuation.edge import options_vrp as V
+
+    good = [{"alert_ts": "2018-01-02", "pnl_pct": 0.1, "credit_ps": 1.0, "width": 5.0,
+             "short_delta": -0.20, "dte": 35, "marks_seen": 10, "clamped_marks": 0,
+             "exit_reason": "profit"},
+            {"alert_ts": "2018-02-02", "pnl_pct": -0.5, "credit_ps": 1.2, "width": 5.0,
+             "short_delta": -0.22, "dte": 30, "marks_seen": 8, "clamped_marks": 0,
+             "exit_reason": "stop"}]
+    assert V.sanity_block(good)["clean"]
+    impossible = good + [{**good[0], "pnl_pct": -1.4}]
+    flags = V.sanity_block(impossible)["flags"]
+    assert any("MORE than max risk" in f for f in flags)
+    wide = good + [{**good[0], "credit_ps": 9.0}]
+    assert any("credit outside" in f for f in V.sanity_block(wide)["flags"])
+    off_delta = good + [{**good[0], "short_delta": -0.90}]
+    assert any("short delta outside" in f for f in V.sanity_block(off_delta)["flags"])
+
+
+def test_vrp_stress_and_gate_arithmetic():
+    from valuation.edge import options_vrp as V
+
+    rows = ([{"alert_ts": "2017-06-0%d" % (i % 9 + 1), "pnl_pct": 0.12, "pnl_dollars": 48.0}
+             for i in range(90)]
+            + [{"alert_ts": "2017-07-0%d" % (i % 9 + 1), "pnl_pct": -0.30, "pnl_dollars": -120.0}
+               for i in range(10)]
+            + [{"alert_ts": "2022-06-0%d" % (i % 9 + 1), "pnl_pct": 0.10, "pnl_dollars": 40.0}
+               for i in range(90)]
+            + [{"alert_ts": "2022-07-0%d" % (i % 9 + 1), "pnl_pct": -0.40, "pnl_dollars": -160.0}
+               for i in range(10)])
+    split = V.held_out_split(rows)
+    assert split["positive_in_both"]
+    st = V.stress_test(rows, multiplier=1.5)
+    assert st["stressed"]["expectancy_pct"] < V.held_out_split(rows)["first_half"]["expectancy_pct"]
+    # The stress cannot push a defined-risk loss beyond -100% of risk.
+    huge = V.stress_test([{"alert_ts": "2017-01-01", "pnl_pct": -0.9, "pnl_dollars": -360.0}], 3.0)
+    assert huge["stressed"]["expectancy_pct"] == -1.0
+    assert huge["n_losses_capped_at_max_risk"] == 1
+
+    tail = V.tail_report(rows)
+    assert tail["worst_trade_pct"] < 0 < tail["best_trade_pct"]
+    assert tail["cvar_05"] < 0
+    assert tail["worst_5pct"]["excluding_them"]["expectancy_pct"] > \
+        tail["overall"]["expectancy_pct"]
+
+    # The gate stays UNDECIDED while the portfolio/correlation arms are missing — it must never
+    # read "adopt" off the arms that happen to have been computed.
+    g = V.evaluate_gate(rows, [{"alert_ts": "2017-01-01", "pnl_pct": -0.5, "pnl_dollars": -200.0}])
+    assert g["adopt"] is False and set(g["undecided"]) == {"4b_drawdown", "6_second_arm"}
+    assert g["checks"]["5_self_test"] is True
+
+
+def test_vrp_shrinkage_is_the_ported_ledoit_wolf():
+    from valuation.edge import options_vrp_portfolio as P
+
+    assert abs(P.shrinkage_lambda(63, 60) - 0.4878) < 1e-3
+    assert P.shrinkage_lambda(252, 25) == 0.20        # floor
+    assert P.shrinkage_lambda(10, 200) == 0.90        # cap
+    corr = [[1.0, 0.9, 0.1], [0.9, 1.0, 0.1], [0.1, 0.1, 1.0]]
+    sh = P.shrink_correlation(corr, 1.0)
+    off = [sh[0][1], sh[0][2], sh[1][2]]
+    assert all(abs(x - sum([0.9, 0.1, 0.1]) / 3) < 1e-12 for x in off)
+    assert all(sh[i][i] == 1.0 for i in range(3))     # diagonal never drifts
+    half = P.shrink_correlation(corr, 0.5)
+    assert corr[0][2] < half[0][2] < sh[0][2]
+
+    # Diversification must REDUCE the estimate, and perfect correlation must reproduce the
+    # naive weighted average exactly — the invariant that says the two paths agree at the limit.
+    w, v = [0.5, 0.5], [0.20, 0.20]
+    assert P.portfolio_vol(w, v, [[1, 0], [0, 1]]) < P.naive_weighted_vol(w, v)
+    assert abs(P.portfolio_vol(w, v, [[1, 1], [1, 1]]) - P.naive_weighted_vol(w, v)) < 1e-12
+    # A hedge (opposite signs) reduces it further still.
+    assert P.portfolio_vol([0.5, -0.5], v, [[1, 1], [1, 1]]) < 1e-12
+
+
+def test_vrp_arm_correlation_uses_a_common_risk_footing():
+    from valuation.edge import options_vrp_portfolio as P
+
+    # Perfectly ANTI-correlated arms: the combined book must be smoother than either.
+    vrp, sgl = [], []
+    for i in range(24):
+        m = f"2019-{i % 12 + 1:02d}-15" if i < 12 else f"2020-{i % 12 + 1:02d}-15"
+        sign = 1.0 if i % 2 == 0 else -1.0
+        vrp.append({"alert_ts": m, "exit_date": m, "pnl_pct": 0.10 * sign})
+        sgl.append({"alert_ts": m, "held_days": 0, "pnl_pct": -0.10 * sign})
+    out = P.arm_correlation(vrp, sgl)
+    assert out["monthly_correlation"] < -0.9
+    assert abs(out["combined_total"]) < 1e-6
+    assert out["months"] == 24
+    # Months with no trades count as zero rather than being dropped from the window.
+    sparse = P.arm_correlation(vrp, sgl[:4])
+    assert sparse["months"] >= 4
+
+    m = P.monthly_pnl_per_risk([{"exit_date": "2020-03-05", "pnl_pct": 0.25}],
+                               lambda r: r["exit_date"], risk=1000.0)
+    assert abs(m["2020-03"] - 250.0) < 1e-9
+    assert P._exit_date_single_leg({"alert_ts": "2020-01-01", "held_days": 31}) == "2020-02-01"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
