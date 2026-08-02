@@ -123,6 +123,13 @@ class Config:
     # Whole-market scan: fetch this many names concurrently (big speedup; each fetch
     # is I/O-bound). Set SCAN_WORKERS=1 to force the old sequential behavior.
     scan_workers: int = field(default_factory=lambda: int(_get_float("SCAN_WORKERS", 8)))
+    # How many names the live universe keeps after ranking by dollar liquidity (broker
+    # source). 0 = the broker module's own default.
+    universe_limit: int = field(default_factory=lambda: int(_get_float("UNIVERSE_LIMIT", 0)))
+    # Hard ceiling on FMP requests in ONE scan. This subscription has no bulk endpoint, so
+    # every uncached name costs 3 requests; without a ceiling a big universe can spend the
+    # whole daily quota in a single run. 0 = unlimited.
+    fmp_max_calls: int = field(default_factory=lambda: int(_get_float("FMP_MAX_CALLS", 0)))
     # Score factors relative to sector peers (removes accidental sector bets). Toggle
     # off (SCREENER_SECTOR_NEUTRAL=false) to A/B against whole-universe scoring.
     sector_neutral: bool = field(default_factory=lambda: _get("SCREENER_SECTOR_NEUTRAL", "true").lower() != "false")

@@ -128,6 +128,13 @@ def _fill_from_universe(m: dict, u: Optional[dict]) -> dict:
     for k in ("sector", "industry"):
         if not (m.get(k) or "").strip() and (u.get(k) or "").strip():
             m[k] = u[k]
+    # Live quote fields the broker supplies for free with the universe (price, average
+    # dollar volume, nearness to the 52-week high). Only used where the fundamentals feed
+    # left a hole — which for `high_prox` is every FMP row, so momentum gains an input it
+    # never had rather than having one overwritten.
+    for k in ("price", "avg_dollar_volume", "high_prox"):
+        if m.get(k) is None and u.get(k) is not None:
+            m[k] = u[k]
     if not m.get("market_cap") and u.get("market_cap"):
         m["market_cap"] = u["market_cap"]
     return m
@@ -260,6 +267,9 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     note = getattr(provider, "universe_note", "")
     if note:
         health["universe_note"] = note
+    budget = getattr(provider, "budget", None)
+    if budget:
+        health["api_budget"] = budget
 
     scan_date = _today()
     if save:
