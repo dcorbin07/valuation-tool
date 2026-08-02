@@ -98,10 +98,16 @@ class Config:
     alert_min_score: float = field(default_factory=lambda: _get_float("ALERT_MIN_SCORE", 80))
     # Term-structure filter on scream-buy alerts (phase 3b: the only signal that survived the
     # fade gate). "flag" annotates every alert, "suppress" drops backwardation ones, "off"
-    # restores the previous behaviour. Defaults to flag because suppressing ~60% of alerts is a
-    # large product change that should be chosen deliberately, not inherited from a backtest.
+    # restores the pre-3b behaviour. DEFAULT CHANGED to "suppress" (roadmap #21): it used to be
+    # "flag" so that a ~60% cut in alert volume would be chosen rather than inherited, and it has
+    # now been chosen - an unapplied filter leaves the live alerts carrying the full fade.
+    # Missing term data is still never suppressed; see intraday/term_filter.py.
     options_term_filter: str = field(
-        default_factory=lambda: os.environ.get("OPTIONS_TERM_FILTER", "flag"))
+        default_factory=lambda: os.environ.get("OPTIONS_TERM_FILTER", "suppress"))
+    # Dollar risk per scream-buy options suggestion. Whole contracts only; an alert whose single
+    # contract exceeds this is skipped rather than taken oversized.
+    options_risk_per_trade: float = field(
+        default_factory=lambda: _get_float("OPTIONS_RISK_PER_TRADE", 1000))
     # Paper-account sell logic (the Track Record). Buy on entry to the top-N hot
     # list; hold at least min-hold days (no churn); then SELL only when the name is
     # genuinely no longer hot (its hot score falls below paper_exit_score) or it
