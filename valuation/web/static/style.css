@@ -242,4 +242,16 @@ table tbody tr:hover{background:var(--blue-soft)}
   .hdr-actions{margin-left:0;width:100%;justify-content:flex-end;margin-top:8px}
   .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch}
   .tab{white-space:nowrap}
+  /* The Index tab is the one people open on a phone — it is the "what do I hold" view.
+     Big stat numbers, wide holdings tables and the 120px sector labels all overflow a
+     narrow screen, and a page that scrolls sideways reads as broken. */
+  .metricline{gap:14px}
+  .metricline .m .v{font-size:20px}
+  .sector-bar{font-size:12px}
+  .sector-bar .nm{width:88px}
+  /* Any table wide enough to overflow scrolls inside its own box, never the page. */
+  #valquoIndexBody, #hotTable, #sigTable, #indexPerfBody{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  #valquoIndexBody table, #hotTable table{min-width:560px}
+  .search-row{flex-wrap:wrap}
+  .selin{max-width:100%}
 }

@@ -348,6 +348,43 @@ def test_valquo_index_api_config_toggle():
     assert "discovery" in h and "disciplined, backtested book" in h, "blurbs missing"
 
 
+def test_methodology_page_is_public_and_states_the_weaknesses():
+    """The methodology page is the trust moat — it is worthless if it only lists strengths,
+    and it must not sit behind a login."""
+    from valuation.saas.app_saas import create_saas_app
+    app = create_saas_app(CONFIG)
+    app.config.update(TESTING=True)
+    c = app.test_client()
+    r = c.get("/methodology")
+    assert r.status_code == 200
+    body = r.data.decode("utf-8", "ignore").lower()
+    for must in ("point-in-time", "survivorship", "breakeven", "not investment advice"):
+        assert must in body, f"methodology must cover {must!r}"
+    # The honest half. If these go missing the page has become marketing.
+    for weakness in ("one 18-year", "saturated", "dormant"):
+        assert weakness in body, f"methodology must keep the weakness: {weakness!r}"
+
+
+def test_index_track_ingest_requires_the_admin_token():
+    """The live-track ingest writes what the site publishes as its real performance record.
+    An open endpoint would let anyone post a track."""
+    from valuation.saas.app_saas import create_saas_app
+    CONFIG.admin_token = "tok-123"
+    app = create_saas_app(CONFIG)
+    app.config.update(TESTING=True)
+    c = app.test_client()
+    payload = {"inception_date": "2026-07-01", "benchmark": "SPY",
+               "series": [{"date": "2026-07-01", "valquo": 0.5, "spy": 0.3}]}
+    assert c.post("/admin/ingest-index-track", json=payload).status_code == 401
+    ok = c.post("/admin/ingest-index-track", json=payload, headers={"X-Admin-Token": "tok-123"})
+    assert ok.status_code == 200, ok.data
+    assert ok.get_json()["days"] == 1
+    # An empty series is a no-op, not a way to blank the published record.
+    bad = c.post("/admin/ingest-index-track", json={"series": []},
+                 headers={"X-Admin-Token": "tok-123"})
+    assert bad.status_code == 400
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

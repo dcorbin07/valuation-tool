@@ -552,6 +552,82 @@ def test_broker_universe_ranks_by_liquidity_and_drops_junk():
     assert big["market_cap"] is None                   # the broker doesn't publish it
 
 
+def test_freshness_counts_trading_days_not_calendar_days():
+    """A Friday scan read on Sunday is current. Flagging it as two days stale trains the
+    reader to ignore the badge, which is how staleness warnings stop working."""
+    import datetime as dt
+    from valuation.screener.freshness import status, trading_days_between
+
+    fri, sun, mon = dt.date(2026, 7, 31), dt.date(2026, 8, 2), dt.date(2026, 8, 3)
+    assert trading_days_between(fri, sun) == 0
+    assert trading_days_between(fri, mon) == 1
+    assert status(fri.isoformat(), today=sun)["level"] == "fresh"
+
+    # The real failure: the scan died on 07-29 and the site served it for days.
+    late = status("2026-07-29", today=dt.date(2026, 8, 6))
+    assert late["level"] == "stale" and late["stale"] is True
+    assert "2026-07-29" in late["message"]
+    # No date at all must read as "undated", never as fresh.
+    unknown = status(None)
+    assert unknown["level"] == "unknown" and unknown["stale"] is True
+
+
+def test_live_track_never_annualizes_a_stub_or_leads_with_it():
+    """The whole point of the live column: a short track is shown but cannot be the headline,
+    and a handful of days is never compounded into a yearly rate."""
+    from valuation.screener import index_track as T
+
+    def _series(n):
+        return {"inception_date": "2026-07-01", "benchmark": "SPY",
+                "series": [{"date": f"2026-{7 + d // 28:02d}-{(d % 28) + 1:02d}",
+                            "valquo": 0.30 * (d + 1) + (0.05 if d % 3 else -0.04),
+                            "spy": 0.20 * (d + 1)} for d in range(n)]}
+
+    class _St:
+        def __init__(self, d): self.d = d
+        def get_meta(self, k, default=None): return self.d
+
+    thin = T.summarize("roth", meta_path="/nope", history_path="/nope", store=_St(_series(5)))
+    assert thin["available"] is True and thin["days"] == 5
+    assert thin["thin"] is True
+    assert thin["headline"] == "backtested", "5 days must never lead"
+    assert thin["live"]["ann_alpha"] is None, "must not compound 5 days into a yearly rate"
+    assert thin["live"]["sharpe"] is None, "too few points for a meaningful stdev"
+    assert thin["live"]["cum_valquo_pct"] is not None, "cumulative IS honest to show"
+
+    long = T.summarize("roth", meta_path="/nope", history_path="/nope",
+                       store=_St(_series(T.MIN_LIVE_DAYS + 5)))
+    assert long["thin"] is False and long["headline"] == "live"
+    assert long["live"]["ann_alpha"] is not None
+
+    # Backtested figures always travel with the live ones, never merged into them.
+    assert thin["backtested"]["net_sharpe"] == 1.17
+    assert "live" not in (thin["backtested"].get("basis") or "")
+
+
+def test_live_track_suppresses_an_implausible_sharpe():
+    """A near-constant excess series drives the denominator to zero and the ratio to
+    infinity. 'Sharpe 444' on the page would discredit every other number on it."""
+    from valuation.screener import index_track as T
+
+    class _St:
+        def get_meta(self, k, default=None):
+            return {"inception_date": "2026-01-01", "benchmark": "SPY",
+                    "series": [{"date": f"2026-01-{d:02d}", "valquo": 0.3 * d, "spy": 0.2 * d}
+                               for d in range(1, 26)]}          # perfectly linear
+    out = T.summarize("roth", meta_path="/nope", history_path="/nope", store=_St())
+    assert out["days"] == 25
+    assert out["live"]["sharpe"] is None, out["live"]["sharpe"]
+
+
+def test_live_track_is_absent_not_invented_when_there_is_no_data():
+    from valuation.screener import index_track as T
+    out = T.summarize("roth", meta_path="/nope/a.json", history_path="/nope/b.csv")
+    assert out["available"] is False and out["live"] is None
+    assert out["headline"] == "backtested"
+    assert out["backtested"]["net_sharpe"] is not None, "the backtest still has something to say"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

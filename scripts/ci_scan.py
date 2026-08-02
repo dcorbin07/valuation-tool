@@ -127,7 +127,39 @@ def run_intraday() -> None:
         "run_time": res["run_time"], "provider": res.get("provider", "ci"), "rows": rows})
 
 
+def _alert(text: str) -> None:
+    """Ping Discord about a scan failure.
+
+    A scan that dies is invisible: the site keeps serving the previous snapshot and nothing
+    on the page changes. The July gap ran for four days before anyone noticed, so a failure
+    now has to announce itself. Never raises — an alerting problem must not mask the original
+    failure it is trying to report.
+    """
+    url = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
+    if not url:
+        print("  (no DISCORD_WEBHOOK_URL — failure alert not sent)")
+        return
+    try:
+        body = json.dumps({"content": text[:1900]}).encode()
+        req = urllib.request.Request(url, data=body, method="POST",
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=45) as r:
+            print(f"  discord: {r.status}")
+    except Exception as e:
+        print(f"  discord FAILED: {e}")
+
+
 if __name__ == "__main__":
     kind = os.environ.get("KIND", "hot").strip().lower()
-    (run_intraday if kind == "intraday" else run_hot)()
+    try:
+        (run_intraday if kind == "intraday" else run_hot)()
+    except SystemExit as e:
+        if e.code:
+            _alert(f"🔴 **Valquo {kind} scan failed** — it exited {e.code} without ingesting. "
+                   f"The site is still serving the previous snapshot.")
+        raise
+    except Exception as e:
+        _alert(f"🔴 **Valquo {kind} scan crashed** — `{type(e).__name__}: {str(e)[:300]}`. "
+               f"The site is still serving the previous snapshot.")
+        raise
     print("done.")

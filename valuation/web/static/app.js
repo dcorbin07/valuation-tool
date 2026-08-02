@@ -30,11 +30,12 @@ const scoreClass = (s) => s >= 66 ? "g" : (s >= 46 ? "a" : "r");
 /* ---------- tabs ---------- */
 function switchTab(t) {
   document.querySelectorAll(".tab").forEach(el => el.classList.toggle("active", el.dataset.tab === t));
-  ["single", "hot", "signals", "track", "rank", "edge"].forEach(name => {
+  ["single", "hot", "index", "signals", "track", "rank", "edge"].forEach(name => {
     const el = document.getElementById("tab-" + name);
     if (el) el.style.display = (name === t) ? "block" : "none";
   });
-  if (t === "hot" && !STATE.hotLoaded) { STATE.hotLoaded = true; loadHotStocks(); loadValquoIndex(); }
+  if (t === "hot" && !STATE.hotLoaded) { STATE.hotLoaded = true; loadHotStocks(); }
+  if (t === "index" && !STATE.indexLoaded) { STATE.indexLoaded = true; loadValquoIndex(); loadIndexTrack(); }
   if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); loadOptionsScorecard(); }
   if (t === "track" && !STATE.trackLoaded) { STATE.trackLoaded = true; loadTrack(); }
   if (t !== "signals") stopSigAuto();
@@ -617,6 +618,7 @@ function renderHot(d) {
   let meta = `scan ${d.scan_date}${_ageStr(d.scan_date)} · ${d.scored}/${d.universe_size || "?"} scored · ${d.provider || ""}`;
   if (f && f.total_removed) meta += ` · ${f.total_removed} junk filtered`;
   document.getElementById("hotMeta").textContent = meta;
+  setHtml("hotFreshness", freshnessBanner(d.freshness));
   loadRegime();
   let html = '<table><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th><th>Bucket</th>' +
     '<th class="num">Price</th><th class="num">Market cap</th><th class="num">Hot</th>' +
@@ -931,6 +933,8 @@ const SIG_HZ_LABEL = { short: "short (3–5 wk)", swing: "swing (6–11 wk)", po
 
 function renderSignals(d) {
   if (!d) return;
+  setHtml("sigFreshness", freshnessBanner(d.freshness));
+  setHtml("sigDisclaimer", d.disclaimer ? esc(d.disclaimer) : "");
   document.getElementById("sigMeta").textContent = "";
   document.getElementById("sigTime").textContent = d.run_time ? ("updated " + d.run_time) : "";
   const hz = (document.getElementById("sigHorizon") || {}).value || "all";
@@ -1240,20 +1244,38 @@ async function loadOptionsScorecard() {
 }
 
 
+/* ====================== FRESHNESS ======================
+   The scan stopped running on 2026-07-29 and the site served that snapshot as if it were
+   today's for four days. Nothing looked broken — the numbers had just stopped being about
+   now. Every scan-derived surface renders this, and a stale one says so loudly. */
+function setHtml(id, html) { const el = document.getElementById(id); if (el) el.innerHTML = html; }
+
+function freshnessBanner(f) {
+  if (!f) return "";
+  if (f.level === "fresh") {
+    return `<div class="muted" style="font-size:12px;margin-top:8px">🕒 ${esc(f.message)}</div>`;
+  }
+  const bad = f.level === "stale" || f.level === "unknown";
+  return `<div class="note" style="margin-top:8px;${bad
+    ? "background:#fdecec;border-color:#f3c2c2;color:#8a1c1c;font-weight:600" : ""}">`
+    + `${bad ? "⚠ " : "🕒 "}${esc(f.message)}</div>`;
+}
+
 // ---------------------------------------------------------------------------------------- //
 // Valquo Index — the constructed top-slice of the SAME ranking Hot Stocks shows. One ranking,
 // two views: Hot Stocks is discovery, the Index is the book you would hold. The account-type
 // toggle switches which validated construction is applied (roth vs taxable).
 // ---------------------------------------------------------------------------------------- //
 async function loadValquoIndex() {
-  const box = document.getElementById("valquoIndexBox");
-  if (!box) return;
+  const body0 = document.getElementById("valquoIndexBody");
+  if (!body0) return;
   const cfg = (document.getElementById("bookConfig") || {}).value || "roth";
   let d;
   try {
     d = await (await fetch("/api/valquo-index?config=" + encodeURIComponent(cfg))).json();
   } catch (e) { return; }
-  box.style.display = "";
+  setHtml("indexFreshness", freshnessBanner(d.freshness));
+  setHtml("indexDisclaimer", d.disclaimer ? esc(d.disclaimer) : "");
   const note = document.getElementById("valquoIndexNote");
   const body = document.getElementById("valquoIndexBody");
   if (d.empty || d.error) {
@@ -1313,4 +1335,128 @@ function _indexSectorBox(d) {
     + `<div class="note">Weight by sector across the whole book (not just the ${
         Math.min(30, (d.positions || []).length)} rows shown). "Eff. sectors" is the
         inverse Herfindahl — how many sectors this book is really spread across.</div></div>`;
+}
+
+
+/* ====================== INDEX: BACKTESTED vs LIVE ======================
+   The single most important honesty problem in the product. The backtest is 18 years of
+   point-in-time history that the model was ALSO tuned on; the live track is a handful of
+   days of real forward evidence. Showing one number for "performance" would either bury
+   the backtest's weakness or dress up a week of noise as a track record.
+
+   So: two columns, always both, always labelled, never blended. The server decides which
+   one may be the headline (`headline`) and flags the live one `thin` until it has enough
+   trading days — the UI never makes that call from a return figure it likes. */
+async function loadIndexTrack() {
+  const body = document.getElementById("indexPerfBody");
+  if (!body) return;
+  const cfg = (document.getElementById("bookConfig") || {}).value || "roth";
+  let d;
+  try {
+    d = await (await fetch("/api/index-track?config=" + encodeURIComponent(cfg))).json();
+  } catch (e) { body.innerHTML = `<div class="muted">Performance unavailable.</div>`; return; }
+
+  const bt = d.backtested || {}, live = d.live;
+  const liveLeads = d.headline === "live";
+  const btAlpha = bt.net_alpha != null ? bt.net_alpha : bt.after_tax_alpha;
+  const btSharpe = bt.net_sharpe != null ? bt.net_sharpe : bt.after_tax_sharpe;
+  const btKind = bt.net_alpha != null ? "net of costs" : "after tax";
+
+  const card = (title, badge, badgeClass, rows, lead) => `
+    <div class="card" style="margin:0;${lead ? "border:2px solid var(--navy)" : "opacity:.92"}">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <b>${title}</b><span class="pill ${badgeClass}">${badge}</span></div>
+      ${rows}
+    </div>`;
+
+  const btRows = `<div class="metricline" style="margin-top:8px">
+      ${metric("Alpha / yr", btAlpha == null ? "—" : spct(btAlpha))}
+      ${metric("Sharpe", btSharpe == null ? "—" : num(btSharpe, 2))}
+      ${metric("Turnover / yr", bt.annual_turnover == null ? "—" : num(bt.annual_turnover, 2) + "x")}
+    </div>
+    <div class="muted" style="font-size:11px;margin-top:6px">${esc(bt.basis || "")}. Hypothetical —
+      the model was tuned on this same history.</div>`;
+
+  let liveRows;
+  if (!d.available || !live) {
+    liveRows = `<div class="muted" style="margin-top:10px">${esc(d.note || "Not started yet.")}</div>`;
+  } else {
+    // Cumulative-since-inception is the ONLY honest headline for a short track. Annualised
+    // alpha and Sharpe are served as null until there is enough history, and render as "—"
+    // with the reason — never as a compounded stub.
+    liveRows = `<div class="metricline" style="margin-top:8px">
+        ${metric("Index", spct(live.cum_valquo_pct / 100))}
+        ${metric(esc(d.benchmark || "SPY"), spct(live.cum_spy_pct / 100))}
+        ${metric("Excess", live.excess_pp == null ? "—" : spct(live.excess_pp / 100))}
+      </div>
+      <div class="metricline" style="margin-top:6px">
+        ${metric("Alpha / yr", live.ann_alpha == null ? "—" : spct(live.ann_alpha))}
+        ${metric("Sharpe", live.sharpe == null ? "—" : num(live.sharpe, 2))}
+        ${metric("Days", live.days)}
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:6px">Real dated positions since
+        ${esc(d.inception || live.since)}, measured forward. ${d.thin
+          ? `Annualised figures are withheld until ${d.min_live_days} trading days — compounding
+             ${live.days} day${live.days === 1 ? "" : "s"} to a yearly rate would invent a number.`
+          : "Net of the same cost model as the backtest."}</div>`;
+  }
+
+  body.innerHTML = `<div class="grid2" style="margin-top:10px">`
+    + card("Backtested", liveLeads ? "reference" : "headline",
+           liveLeads ? "spec" : "est", btRows, !liveLeads)
+    + card("Live since inception",
+           d.available ? (d.thin ? `thin — ${live.days}d` : "headline") : "not started",
+           d.thin || !d.available ? "spec" : "est", liveRows, liveLeads)
+    + `</div>`
+    + (d.note ? `<div class="note" style="margin-top:10px">${esc(d.note)}</div>` : "");
+
+  indexChart(d);
+}
+
+function indexChart(d) {
+  const el = document.getElementById("indexChart");
+  const note = document.getElementById("indexChartNote");
+  if (!el) return;
+  killChart("idx");
+  const s = (d && d.series) || [];
+  // One point is not a line. Say why the chart is empty rather than drawing a dot and
+  // letting it read as a flat year.
+  if (s.length < 2) {
+    el.style.display = "none";
+    if (note) {
+      note.textContent = d && d.available
+        ? `The cumulative chart needs at least two days of live history — there ${
+            s.length === 1 ? "is 1 day" : "are 0 days"} so far. It appears automatically as the track accrues.`
+        : "The cumulative chart appears once the live forward track starts reporting.";
+    }
+    return;
+  }
+  el.style.display = "";
+  if (note) note.textContent = `Cumulative return since inception, Valquo Index vs ${d.benchmark || "SPY"}. Net of modelled costs.`;
+  STATE.charts.idx = new Chart(el, {
+    type: "line",
+    data: {
+      labels: s.map(r => r.date),
+      datasets: [
+        { label: "Valquo Index", data: s.map(r => r.valquo), borderColor: "#3454a4",
+          backgroundColor: "rgba(52,84,164,.10)", fill: true, tension: .2, pointRadius: 0, borderWidth: 2 },
+        { label: d.benchmark || "SPY", data: s.map(r => r.spy), borderColor: "#9aa4b8",
+          borderDash: [5, 4], fill: false, tension: .2, pointRadius: 0, borderWidth: 2 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { labels: { boxWidth: 12 } },
+        tooltip: { callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y >= 0 ? "+" : ""}${c.parsed.y.toFixed(2)}%` } },
+      },
+      scales: {
+        // One label per trading day is unreadable by the second month and only gets worse
+        // as the track grows — thin them and keep them horizontal.
+        x: { ticks: { maxTicksLimit: 8, maxRotation: 0, autoSkip: true } },
+        y: { ticks: { callback: v => v + "%" } },
+      },
+    },
+  });
 }

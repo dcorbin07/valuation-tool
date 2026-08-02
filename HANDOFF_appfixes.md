@@ -5,6 +5,91 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 3 — 2026-08-02 — Index tab, dynamic alpha, trust enablers (PROMPT_appfixes_index.md)
+
+## Shipped — all five items, including the "if time" one
+
+**1. The Valquo Index has its own tab.** Moved out of the bottom of Hot Stocks (Hot Stocks now
+links across to it). The tab carries: a cumulative Index-vs-SPY chart, the backtested-vs-live
+performance pair, the sector-diversification view, and the full holdings table with Company /
+Sector / Weight / Market cap / Hot score populated. Verified by actually running the app and
+driving it in a browser — screenshots of both the long-track and the real 1-day state.
+
+**2. Dynamic net alpha — backtested and live, side by side, never blended.** Two cards. The
+server decides which one may be the headline; the UI never picks based on which number looks
+better. Rules encoded in `valuation/screener/index_track.py`:
+- Live cannot be the headline until **60 trading days** (`MIN_LIVE_DAYS`). Before that the
+  card is badged `thin — Nd` and the backtest keeps the border.
+- **Annualised alpha and Sharpe are withheld** (served as `null`, rendered "—" with the
+  reason) until there is enough history. Compounding 1 day of drift into a yearly rate
+  manufactures a number nobody should believe. Cumulative-since-inception *is* shown from
+  day one, because that one is honest at any length.
+- Sharpe is also suppressed above **6.0**. A near-constant excess series drives the
+  denominator to zero; I hit exactly this in testing and got "Sharpe 444", which on a live
+  page would discredit every other number on it.
+- Right now the real state is **1 day (2026-07-31): Index +0.41% vs SPY +0.69%, −0.28pp**.
+  Thin, shown, not the headline. That is the correct display, not a bug.
+
+**3. Trust enablers.**
+- **Staleness stamp** (`valuation/screener/freshness.py`) on the Index, Hot Stocks and
+  Signals. Age is in **trading days**, so a Friday scan read on Sunday is correctly "fresh" —
+  crying wolf across a weekend is how staleness badges get ignored. 2 days warns, 3+ shows a
+  red "the scheduled update has not run. Do not treat it as current."
+- **Risk disclaimer** as one shared string (`RISK_DISCLAIMER` in `web/app.py`) served with
+  the Index and Signals payloads, so the wording cannot drift between surfaces.
+- **`/methodology`** — point-in-time, survivorship, the 236bps-breakeven cost framing, CPCV /
+  PBO / Deflated Sharpe, held-out confirmation, full-universe-only. Plus a "where it is weak"
+  section that keeps the uncomfortable parts: one 18-year dataset the model was tuned on, a
+  saturated Deflated Sharpe, dormant themes, and the degraded data feed. A test asserts those
+  weaknesses stay on the page, so it cannot quietly become marketing. Linked from both
+  footers and from the Index and Signals tabs.
+
+**4. Scan-failure alerting.** Two layers:
+- `scripts/ci_scan.py` posts to Discord if the scan crashes or exits non-zero.
+- `scripts/check_staleness.py` — a **separate** `watchdog` job on its own cron (13:15 UTC
+  weekdays, before the open). It runs separately on purpose: a check bolted onto the end of
+  the scan cannot fire when the scan is the thing that died, which is exactly the July
+  failure. It hits the public API from outside, and alerts on a stale scan **or a collapsed
+  universe**. Exits non-zero so the Actions run goes red too.
+  Run against the live site right now it already fires: *"the last scan only scored **154**
+  names — the universe has collapsed"*.
+
+**5. Mobile pass** (the "if time" item). Index tab verified at 390px: no horizontal page
+overflow, stat rows and sector labels scaled down, wide tables scroll inside their own box
+rather than the page.
+
+## What Don needs to do
+
+1. **Add `DISCORD_WEBHOOK_URL` as a GitHub Actions secret.** Everything in item 4 is wired and
+   inert without it — the alerts fall back to "red run in the Actions tab", which is precisely
+   what nobody noticed for four days in July.
+2. **Point the Cowork tracker at the new ingest endpoint.** `data/` is gitignored, so the
+   tracker's files never reach Render and the live column would be permanently empty in
+   production while working fine on your laptop. `POST /admin/ingest-index-track` with
+   `X-Admin-Token`, body `{"inception_date", "benchmark", "series": [{"date","valquo","spy"}]}`
+   — percentages cumulative-since-inception, exactly as `valquo_track_history.csv` holds them.
+   → **This is a Cowork-side task.**
+3. The 60-trading-day promotion threshold is a judgement call, not a measured one. It is one
+   constant (`index_track.MIN_LIVE_DAYS`) if you want it longer.
+
+## Nothing slipped
+
+All five items shipped. The prompt allowed item 5 to be dropped; it wasn't needed.
+
+## Tests
+
+Six suites green: **edge 119/119, screener 32/32 (+5), saas 22/22 (+2), intraday 18/18,
+engine 28/28, bulk 14/14.**
+
+New tests worth knowing: `test_live_track_never_annualizes_a_stub_or_leads_with_it` (5 days
+must never lead and must never be annualised; 65 days must),
+`test_live_track_suppresses_an_implausible_sharpe`,
+`test_freshness_counts_trading_days_not_calendar_days` (pins the weekend behaviour and the
+real 07-29 case), `test_methodology_page_is_public_and_states_the_weaknesses`,
+`test_index_track_ingest_requires_the_admin_token`.
+
+---
+
 # Session 2 — 2026-08-02 — the live universe (PROMPT_appfixes_universe.md)
 
 ## Headline

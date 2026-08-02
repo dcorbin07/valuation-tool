@@ -321,6 +321,39 @@ def create_saas_app(cfg=CONFIG):
             return redirect("/")
         return render_template("pricing.html", tiers=gating.TIER_FEATURES)
 
+    @app.route("/admin/ingest-index-track", methods=["POST"])
+    def admin_ingest_index_track():
+        """Accept the Valquo Index's live forward track from the external tracker.
+
+        The tracker runs on the Cowork side and writes to `data/`, which is gitignored — so
+        without this endpoint the live-vs-backtested comparison would work on a laptop and be
+        permanently empty in production. Body mirrors the tracker's own files:
+            {"inception_date": ..., "benchmark": "SPY",
+             "series": [{"date","valquo","spy","excess","n_priced"}, ...]}
+        Percentages are cumulative-since-inception, in percent, exactly as the CSV holds them.
+        """
+        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+            return jsonify({"error": "unauthorized"}), 401
+        data = request.get_json(silent=True) or {}
+        series = data.get("series") or []
+        if not isinstance(series, list) or not series:
+            return jsonify({"error": "no series"}), 400
+        from ..screener.store import Store
+        from ..screener import index_track
+        try:
+            Store().set_meta(index_track.STORE_KEY, {
+                "inception_date": data.get("inception_date"),
+                "benchmark": data.get("benchmark") or "SPY",
+                "scan_date": data.get("scan_date"),
+                "series": series[-2000:],          # bounded; this is a daily series
+            })
+            return jsonify({"ok": True, "days": len(series)})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    # /methodology is registered on the shared app object in web/app.py — the SaaS layer uses
+    # the SAME Flask app (`app = tool_app` above), so declaring it again is a duplicate
+    # endpoint and the process would refuse to start.
     @app.route("/terms")
     def terms():
         return render_template("terms.html")

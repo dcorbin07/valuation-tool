@@ -24,6 +24,16 @@ from ..report import pdf as pdf_report
 
 app = Flask(__name__)
 
+# Shown wherever the product outputs something that looks like a recommendation. Kept as one
+# string so the Index, the signals feed and the methodology page cannot drift apart on what
+# the product claims — the wording is the claim.
+RISK_DISCLAIMER = (
+    "Educational research tool — not investment advice, and not a recommendation to buy or "
+    "sell any security. Backtested results are hypothetical, come from one 18-year dataset "
+    "the model was also tuned on, and are not a promise about the future. The live forward "
+    "track is real but short. You can lose money. Do your own research."
+)
+
 # In-memory cache of the last full result per ticker (local single-user tool),
 # so exports match exactly what's on screen without re-fetching.
 _LAST: dict = {}
@@ -68,6 +78,12 @@ def index():
                            signed_in=False, logout_url="/logout",
                            contact_email=CONFIG.contact_email,
                            feedback_url=CONFIG.resolved_feedback_url)
+
+
+@app.route("/methodology")
+def methodology():
+    """How it works — point-in-time, survivorship, costs, and the weaknesses."""
+    return render_template("methodology.html", disclaimer=RISK_DISCLAIMER)
 
 
 @app.route("/api/health")
@@ -224,7 +240,33 @@ def api_valquo_index():
     payload["available_configs"] = sorted(S.BOOK_CONFIGS or {})
     payload["source_note"] = ("built from the same scan snapshot as the Hot Stocks ranking — "
                               "the Index is its disciplined top-slice, not a separate screen")
+    # The scan silently stopped running for four days in July and the site kept serving the
+    # last snapshot as if it were today's. Every scan-derived surface now dates itself.
+    from ..screener.freshness import status as _freshness
+    payload["freshness"] = _freshness(scan_date, label="book")
+    payload["disclaimer"] = RISK_DISCLAIMER
     return jsonify(payload)
+
+
+@app.route("/api/index-track")
+def api_index_track():
+    """The Valquo Index's LIVE forward track, beside the backtested figures.
+
+    Deliberately two separate blocks with a `headline` field naming which one may lead. The
+    live track is the only non-backtested evidence the product has, and it is also brand new
+    — so it is shown from day one for transparency but cannot become the headline until it
+    has enough history to mean anything.
+    """
+    from ..screener import index_track
+    from ..screener import settings as S
+    name = (request.args.get("config") or S.DEFAULT_BOOK_CONFIG or "roth").lower()
+    try:
+        out = index_track.summarize(name, store=_store())
+    except Exception as e:
+        return jsonify({"available": False, "error": str(e),
+                        "note": "Live track unavailable."}), 200
+    out["disclaimer"] = RISK_DISCLAIMER
+    return jsonify(out)
 
 
 @app.route("/api/options-scorecard")
@@ -332,11 +374,14 @@ def api_hotstocks():
         params = _json.loads(meta.get("params") or "{}")
     except Exception:
         params = {}
+    from ..screener.freshness import status as _freshness
     return jsonify({"scan_date": scan_date, "rows": rows,
                     "sectors": sector_attractiveness(all_rows),
                     "universe_size": meta.get("universe_size"), "scored": meta.get("scored"),
                     "provider": meta.get("provider"), "filtered": params.get("filtered"),
                     "health": params.get("health"),
+                    "freshness": _freshness(scan_date, label="ranking"),
+                    "disclaimer": RISK_DISCLAIMER,
                     "history": [s["scan_date"] for s in scans][:12]})
 
 
@@ -620,7 +665,12 @@ def api_signals():
         return jsonify({"empty": True, "message": "No intraday scan yet — hit Refresh. "
                         "Add a TRADIER_TOKEN for real-time; otherwise it uses free delayed data."})
     top = int(request.args.get("top", 40))
-    return jsonify({"run_time": rt, "rows": st.load_intraday(rt, top=top)})
+    # Intraday feed: a run_time is a timestamp, so freshness is measured off its DATE. An
+    # options signal from three days ago is not a signal, it is a historical note.
+    from ..screener.freshness import status as _freshness
+    return jsonify({"run_time": rt, "rows": st.load_intraday(rt, top=top),
+                    "freshness": _freshness(str(rt)[:10], label="signal feed"),
+                    "disclaimer": RISK_DISCLAIMER})
 
 
 @app.route("/api/signals/run", methods=["POST"])

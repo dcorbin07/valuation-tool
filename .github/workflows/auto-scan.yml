@@ -10,6 +10,10 @@ name: Auto scans (free-tier bridge)
 #   ADMIN_TOKEN        same value you set on Render
 #   ANTHROPIC_API_KEY  (optional) enables AI notes on the top names
 #   TRADIER_TOKEN      (optional) real-time Signals; else free/delayed data
+#   FMP_API_KEY        (optional) fundamentals; the free stack covers the rest
+#   DISCORD_WEBHOOK_URL (optional but RECOMMENDED) — where the watchdog and the scan-failure
+#                      alert post. Without it a dead pipeline is only visible as a red run in
+#                      the Actions tab, which is what let the July gap go unnoticed for 4 days.
 
 on:
   workflow_dispatch:
@@ -17,7 +21,7 @@ on:
       kind:
         description: Which scan to run now
         type: choice
-        options: [hot, intraday, both]
+        options: [hot, intraday, both, watchdog]
         default: hot
   schedule:
     # Hot list runs just AFTER the close so it uses complete end-of-day data and is ready before
@@ -29,6 +33,9 @@ on:
     - cron: "*/30 13-20 * * 1-5"    # intraday — every 30 min on free (fits Actions minutes);
                                     # the paid Render cron (render.yaml) runs this every 15 min
     - cron: "0 12 1 * *"            # self-learning — monthly (1st, 12:00 UTC), OOS-gated re-tune
+    - cron: "15 13 * * 1-5"         # watchdog — 13:15 UTC (~9:15am ET), BEFORE the open, so a
+                                    # dead pipeline is known about while there is still a day
+                                    # to fix it rather than after the next close
 
 concurrency:
   group: auto-scan-${{ github.workflow }}
@@ -65,6 +72,7 @@ jobs:
           BASE_URL: ${{ secrets.SITE_BASE_URL }}
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           # Without this the CI scan silently falls back to the ~190-name bundled list AND
           # loses the universe's company names / sectors / market caps. Empty is harmless
           # (the free EDGAR+Yahoo path still runs), so this is safe before the secret exists.
@@ -101,6 +109,25 @@ jobs:
           INTRADAY_LIMIT: "150"
           INTRADAY_AI_TOP: "10"
         run: python scripts/ci_scan.py
+
+  watchdog:
+    # Runs SEPARATELY from the scan on purpose: a check inside the scan job cannot fire when
+    # the scan job is what died, which is exactly the July failure. This asks the public API
+    # what a real visitor would receive, and goes red (plus pings Discord) if it is stale or
+    # if the universe has collapsed.
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '15 13 * * 1-5') || (github.event_name == 'workflow_dispatch' && github.event.inputs.kind == 'watchdog') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check the live site is still being fed
+        env:
+          BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python scripts/check_staleness.py
 
   learn:
     # Monthly self-learning: tells the site to re-tune its screener weights out-of-sample
