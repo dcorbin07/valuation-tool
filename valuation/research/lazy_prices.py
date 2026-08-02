@@ -920,7 +920,8 @@ def write_report_md(cov: dict, path: str, out_dir: str = DEFAULT_OUT_DIR) -> str
         "",
         "| | count | |",
         "|---|---:|---|",
-        f"| listed on EDGAR (10-K/10-Q, no amendments) | {listed:,} | |",
+        f"| 10-K/10-Q attempted (no amendments) | {listed:,} | every one EDGAR listed for these "
+        "tickers in the window |",
         f"| downloaded and parsed | {ok:,} | {pct(ok, listed)} of listed |",
         f"| **scored (paired with a prior-year filing)** | **{cov.get('filings_scored', 0):,}** "
         f"| {cov.get('pct_of_parsed_scored', 0)}% of parsed |",
