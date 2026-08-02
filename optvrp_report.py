@@ -22,9 +22,13 @@ from valuation.edge.options_tracker import _stats
 
 ROOT = r"C:\Users\donni\Downloads\valuation-tool"
 OPTROOT = os.path.join(ROOT, "data", "options")
-VRP_STATE = os.path.join(OPTROOT, "optvrp_state.pkl")
+# Optional argv[1] names a different trade bank (the pre-registered 25% bid-ask sensitivity
+# writes its own). The output JSON is named after it so a sensitivity run can never overwrite
+# the headline.
+_TAG = sys.argv[1] if len(sys.argv) > 1 else ""
+VRP_STATE = os.path.join(OPTROOT, "optvrp_state%s.pkl" % _TAG)
 SINGLE_STATE = os.path.join(OPTROOT, "optbt_state.pkl")
-OUT_JSON = os.path.join(OPTROOT, "VRP_RESULTS.json")
+OUT_JSON = os.path.join(OPTROOT, "VRP_RESULTS%s.json" % _TAG)
 
 
 def load(path):
@@ -48,6 +52,19 @@ def main():
     bars_by = {t: b for t, b in bars_by.items() if b}
     panel = P.build_returns_panel(bars_by)
 
+    # Cross-sectional average ATM IV per day — the exogenous marker the regime split uses.
+    iv_by_date = {}
+    iv_path = os.path.join(OPTROOT, "atm_iv_series.pkl")
+    if os.path.exists(iv_path):
+        acc = {}
+        for t, ser in load(iv_path).items():
+            for d, v in (ser or {}).items():
+                if v is not None and v == v:
+                    a = acc.setdefault(d, [0.0, 0])
+                    a[0] += v
+                    a[1] += 1
+        iv_by_date = {d: s / n for d, (s, n) in acc.items() if n >= 10}
+
     book = P.simulate_book(rows, panel, vol_target=False)
     book_vt = P.simulate_book(rows, panel, vol_target=True)
     corr = P.arm_correlation(rows, single) if single else None
@@ -64,13 +81,14 @@ def main():
         "by_iv_rank": V.by_iv_rank(rows),
         "tail": V.tail_report(rows),
         "stress": V.stress_test(rows),
+        "gap_through_counterfactual": V.gap_through_counterfactual(rows),
         "costs": V.costs_block(rows),
         "signal_coverage": V.coverage_block(rows, st.get("funnel", {})),
         "sanity_check": V.sanity_block(rows),
         "self_test": V.self_test_block(rows, mirror),
         "portfolio": book,
         "portfolio_vol_targeted": book_vt,
-        "stress_correlation": P.stress_correlation(panel, tickers),
+        "stress_correlation": P.stress_correlation(panel, tickers, iv_by_date=iv_by_date),
         "arm_correlation": corr,
         "gate": gate,
     }
@@ -99,6 +117,10 @@ def main():
               f"(down-months {corr['correlation_in_single_leg_down_months']})")
         print(f"  sharpe          single={corr['single_leg_sharpe']} "
               f"vrp={corr['vrp_sharpe']} combined={corr['combined_sharpe']}")
+    g = out["gap_through_counterfactual"]
+    print(f"  gap model       honest {g['honest_expectancy_pct']} vs naive-2x-stop "
+          f"{g['naive_expectancy_pct']} (median gap {g['median_gap_multiple']}x) "
+          f"| verdict rests on it: {g['verdict_rests_on_the_gap_model']}")
     print(f"  sanity          {out['sanity_check']['flags'] or 'clean'}")
     print(f"  GATE            adopt={gate['adopt']} checks={gate['checks']}")
 

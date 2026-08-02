@@ -699,6 +699,50 @@ def stress_test(rows, multiplier: float = STRESS_LOSS_MULTIPLIER) -> dict:
             "stressed": s, "passes": bool((s["expectancy_pct"] or 0) > 0)}
 
 
+def gap_through_counterfactual(rows) -> dict:
+    """How much of the verdict is the GAP MODEL? Re-book every stop at exactly 2x the credit.
+
+    This is the naive backtest — the one that caps the loss at the theoretical stop and thereby
+    lies about the tail. Running it alongside the honest version answers the only question that
+    matters if the arm rejects: is it rejected BECAUSE of the gap assumption, or regardless of
+    it? If the counterfactual is also negative the reject does not rest on the gap model at all,
+    and no amount of arguing about fill realism recovers the strategy.
+
+    The trigger DAY is unchanged — a trade stops when the mark first crossed 3x the credit — so
+    this alters only the fill, which is exactly the one assumption under test.
+    """
+    from .options_tracker import _stats
+
+    cf, gaps = [], []
+    for r in rows:
+        if r.get("exit_reason") != "stop" or not r.get("max_risk_dollars"):
+            cf.append(r)
+            continue
+        net = -STOP_LOSS_MULTIPLE * r["credit_ps"] * CONTRACT_MULTIPLIER - COMMISSION * 4
+        theo = net / r["max_risk_dollars"]
+        actual = r.get("pnl_pct")
+        if actual is not None and theo < 0:
+            gaps.append(actual / theo)
+        cf.append({**r, "pnl_pct": theo,
+                   "pnl_dollars": net})
+    import statistics as st
+
+    honest, naive = _stats(rows), _stats(cf)
+    n_stops = sum(1 for r in rows if r.get("exit_reason") == "stop")
+    return {
+        "n_stops": n_stops,
+        "honest_expectancy_pct": honest["expectancy_pct"],
+        "naive_expectancy_pct": naive["expectancy_pct"],
+        "honest_profit_factor": honest["profit_factor"],
+        "naive_profit_factor": naive["profit_factor"],
+        "cost_of_the_gap_pp": ((honest["expectancy_pct"] or 0) - (naive["expectancy_pct"] or 0)),
+        "median_gap_multiple": st.median(gaps) if gaps else None,
+        "full_width_losses": sum(1 for r in rows if (r.get("pnl_pct") or 0) <= -0.99),
+        "verdict_rests_on_the_gap_model": bool((naive["expectancy_pct"] or 0) > 0
+                                               and (honest["expectancy_pct"] or 0) <= 0),
+    }
+
+
 def costs_block(rows) -> dict:
     """Breakeven vs realised, the number to QUOTE — same logic as the stock model's costs block.
 

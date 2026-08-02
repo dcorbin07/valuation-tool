@@ -463,13 +463,23 @@ def arm_correlation(vrp_rows, single_rows, risk: float = RISK_PER_TRADE) -> dict
     }
 
 
-def stress_correlation(returns_panel: dict, tickers, worst_n: int = 20) -> dict:
+def stress_correlation(returns_panel: dict, tickers, iv_by_date: Optional[dict] = None,
+                       worst_n: int = 20, high_vol_pct: float = 0.10) -> dict:
     """Does cross-name correlation really go to ~1 in a selloff? Measured, not assumed.
 
-    Average pairwise correlation of the traded names' daily returns on the WORST `worst_n` days
-    of the equal-weight basket, against the full-sample average. If the stress number is much
-    higher, ten short-put spreads across ten names are one position on those days and the book
-    must be sized for that.
+    THE OBVIOUS TEST IS BIASED, so it is reported but not believed. Taking the worst N days of
+    the equal-weight basket and correlating within them conditions the sample on its own
+    cross-sectional mean: every selected day already has a large common component, and the
+    correlation is then estimated from the DEVIATIONS around that (already extreme) mean.
+    Selection on the aggregate compresses the estimate, and it can easily come out LOWER than
+    the full sample even when co-movement genuinely rose. A number that moves the wrong way for
+    a known statistical reason is not evidence of anything, so it is labelled rather than quoted.
+
+    The primary split is therefore on an EXOGENOUS marker: the cross-sectional average ATM IV
+    (A2's daily series). High-vol days are the top `high_vol_pct` of that distribution. Selecting
+    on the level of implied vol does not condition on the realised cross-sectional mean return,
+    so the comparison is much closer to honest. It is still not perfect — vol and correlation are
+    themselves related — but it is not the artifact above.
     """
     names = [t for t in tickers if returns_panel.get(t)]
     if len(names) < 3:
@@ -481,10 +491,11 @@ def stress_correlation(returns_panel: dict, tickers, worst_n: int = 20) -> dict:
     days = sorted(d for d, row in by_date.items() if len(row) >= max(3, len(names) // 2))
     if len(days) < 100:
         return {"error": "too few aligned days"}
-    basket = {d: sum(by_date[d].values()) / len(by_date[d]) for d in days}
-    worst = sorted(days, key=lambda d: basket[d])[:worst_n]
 
     def avg_corr(subset):
+        subset = sorted(subset)
+        if len(subset) < 10:
+            return None
         common = [t for t in names
                   if sum(1 for d in subset if t in by_date[d]) == len(subset)]
         if len(common) < 3:
@@ -494,12 +505,33 @@ def stress_correlation(returns_panel: dict, tickers, worst_n: int = 20) -> dict:
         off = [corr[i][j] for i in range(len(common)) for j in range(i + 1, len(common))]
         return sum(off) / len(off) if off else None
 
-    return {
-        "n_names": len(names), "n_days": len(days), "worst_n": worst_n,
-        "avg_pairwise_corr_full_sample": avg_corr(days),
-        "avg_pairwise_corr_worst_days": avg_corr(worst),
-        "worst_days": worst[:10],
-        "note": ("short puts across names are the same trade in a selloff; if the worst-day "
-                 "figure is far above the full-sample one, diversification is not available "
-                 "when it is needed and the book must be sized off the stressed number"),
-    }
+    out = {"n_names": len(names), "n_days": len(days),
+           "avg_pairwise_corr_full_sample": avg_corr(days)}
+
+    if iv_by_date:
+        marked = [d for d in days if iv_by_date.get(d) is not None]
+        if len(marked) >= 100:
+            ranked = sorted(marked, key=lambda d: iv_by_date[d], reverse=True)
+            k = max(20, int(len(ranked) * high_vol_pct))
+            hi, lo = ranked[:k], ranked[k:]
+            out.update({
+                "primary_split": "cross-sectional average ATM IV (exogenous to returns)",
+                "n_high_vol_days": len(hi), "high_vol_pct": high_vol_pct,
+                "avg_pairwise_corr_high_vol": avg_corr(hi),
+                "avg_pairwise_corr_rest": avg_corr(lo),
+                "high_vol_window_examples": sorted(hi)[:5],
+            })
+    basket = {d: sum(by_date[d].values()) / len(by_date[d]) for d in days}
+    worst = sorted(days, key=lambda d: basket[d])[:worst_n]
+    out.update({
+        "worst_n": worst_n,
+        "avg_pairwise_corr_worst_days_BIASED": avg_corr(worst),
+        "worst_days": sorted(worst)[:10],
+        "worst_days_caveat": ("selected on their own basket return, so this is conditioned on "
+                              "the common component and is biased DOWNWARD; do not read it as "
+                              "evidence that correlation falls in a selloff"),
+        "note": ("short puts across names are the same trade in a selloff; if the high-vol "
+                 "figure is above the rest, diversification is not available when it is needed "
+                 "and the book must be sized off the stressed number"),
+    })
+    return out

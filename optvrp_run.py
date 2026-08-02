@@ -28,7 +28,23 @@ from valuation.edge.theta_bulk import ThetaBulk
 ROOT = r"C:\Users\donni\Downloads\valuation-tool"
 OPTROOT = os.path.join(ROOT, "data", "options")
 IV_SERIES = os.path.join(OPTROOT, "atm_iv_series.pkl")
-OUT = os.path.join(OPTROOT, "optvrp_state.pkl")
+# The PRE-REGISTERED SENSITIVITY, not a second headline. `options_vrp` commits to the bot's 10%
+# short-leg bid-ask gate as the primary and to the project's own 25% quote-sanity bar as the one
+# alternative worth measuring, so that "the tight gate starved the sample" is a number rather
+# than a suspicion. Set VRP_BID_ASK_PCT to run it; it banks to its own file.
+BID_ASK = float(os.environ.get("VRP_BID_ASK_PCT") or V.MAX_BID_ASK_PCT)
+# Fill aggression. 1.0 (the default, and the ONLY headline) is the full touch on both legs both
+# ways. `options_fill` already declares lower values a DIAGNOSTIC — "provided ONLY to show how
+# much of a result is spread assumption; it is never the headline number" — and a credit spread
+# is in practice worked as one net-credit limit order rather than two market orders, so how much
+# fill quality the arm needs is a decision-relevant sensitivity. It is NOT a second verdict: a
+# result that exists only at better-than-touch fills is reported as "does not survive the
+# spread", exactly as the single-leg arm's mandate requires.
+AGGRESSION = float(os.environ.get("VRP_AGGRESSION") or 1.0)
+_TAG = "" if abs(BID_ASK - V.MAX_BID_ASK_PCT) < 1e-9 else "_ba%02d" % round(BID_ASK * 100)
+if abs(AGGRESSION - 1.0) > 1e-9:
+    _TAG += "_ag%02d" % round(AGGRESSION * 100)
+OUT = os.path.join(OPTROOT, "optvrp_state%s.pkl" % _TAG)
 LOCK = OUT + ".lock"
 START, END = "2016-01-01", "2025-12-31"
 YEARS = list(range(2016, 2026))
@@ -98,7 +114,9 @@ print(f"universe {len(UNI)} names with bars + IV series", flush=True)
 state = {"trades": [], "mirror": [], "done": [], "funnel": {}, "gaps": {},
          "config": {"width": V.SPREAD_WIDTH, "delta": V.TARGET_SHORT_DELTA,
                     "dte": [V.MIN_DTE, V.MAX_DTE], "iv_rank_min": V.IV_RANK_MIN,
-                    "bid_ask_pct": V.MAX_BID_ASK_PCT}}
+                    "bid_ask_pct": BID_ASK, "aggression": AGGRESSION,
+                    "is_headline": (abs(BID_ASK - V.MAX_BID_ASK_PCT) < 1e-9
+                                    and abs(AGGRESSION - 1.0) < 1e-9)}}
 if os.path.exists(OUT):
     try:
         with open(OUT, "rb") as f:
@@ -230,7 +248,7 @@ def run_name(t):
             note("no_strikes_in_band")
             continue
         enr = BS.enrich_chain(near, und, day)
-        short_row, why = V.find_short_put(enr)
+        short_row, why = V.find_short_put(enr, max_bid_ask_pct=BID_ASK)
         if short_row is None:
             note(why or "no_short_leg")
             continue
@@ -244,7 +262,7 @@ def run_name(t):
         if width <= 0:
             note("bad_width")
             continue
-        credit = V.entry_credit(short_row, wing)
+        credit = V.entry_credit(short_row, wing, aggression=AGGRESSION)
         if credit is None:
             note("wing_unquotable")
             continue
@@ -267,7 +285,8 @@ def run_name(t):
             # those trades. Skip rather than score one the data cannot support.
             note("expiry_year_uncovered")
             continue
-        tr = V.simulate_spread(sh, lh, day, exp, short_k, long_k, credit, settle)
+        tr = V.simulate_spread(sh, lh, day, exp, short_k, long_k, credit, settle,
+                               aggression=AGGRESSION)
         if not tr or not tr.get("ok"):
             note((tr or {}).get("reason", "sim_failed"))
             continue
@@ -286,7 +305,8 @@ def run_name(t):
         })
         out.append(tr)
         note("trades")
-        mir = V.simulate_mirror(sh, lh, day, exp, short_k, long_k, settle)
+        mir = V.simulate_mirror(sh, lh, day, exp, short_k, long_k, settle,
+                                aggression=AGGRESSION)
         if mir:
             mir["ticker"] = t
             mirrors.append(mir)
