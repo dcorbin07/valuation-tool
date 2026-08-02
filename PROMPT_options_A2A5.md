@@ -4,17 +4,12 @@ Tighter scope than the last prompt (which was too big for one session). Do item 
 order, commit each. Pre-commit each research gate results-free. Reuse the cached ThetaData (55 names,
 2016–2025). Detailed specs for A2–A5 are in `PROMPT_phase4_big.md`; this is the completable slice.
 
-## 0. Make `.\git_push.bat` a true one-command land + deploy (kills the manual merges)
-Today it FF-merges agent branches only, so when `main` has diverged the branch can't fast-forward and Don
-does a manual Vim merge every time. Upgrade it to:
-- **Merge any worktree branch ahead of `main` with `git merge --no-edit`** — a real merge (not FF-only, so
-  divergence stops mattering) with no editor prompt.
-- **On a genuine conflict:** `git merge --abort`, print `[conflict] <branch> — resolve manually`, and do
-  NOT push. (In practice these don't conflict — main and the branches touch different files — but guard.)
-- **Run `python tests/test_edge.py`; REFUSE to push if any test fails** (never auto-deploy red).
-- Then commit + push as today.
-**Verify on a scratch branch — this script has broken twice on batch escaping; test it, don't eyeball it.**
-After this, `.\git_push.bat` is the only command Don runs to land + deploy.
+## 0. (Removed) — merge automation is OFF your plate
+Do NOT touch `git_push.bat`. Your harness can't invoke `cmd.exe` to actually test a Windows script, and an
+unverified deploy script is worse than a manual merge (the v2 attempt already introduced LF line endings
+that would make the `.bat` non-executable). Don handles the merge with `git merge --no-edit`; the durable
+automation will live in a GitHub Action, not a local `.bat`. **Focus this session entirely on A2–A5**, and
+push your worktree branch to origin as usual so Don (or the future Action) can land it.
 
 ## 1. A2 — make iv_rank testable + test tick flow
 Build a **daily ATM-IV series per name across all trading days** from the cached ThetaData (iv_rank had
