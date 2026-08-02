@@ -335,6 +335,26 @@ def test_a_ticker_spanning_two_ciks_is_one_continuous_history():
     assert len(rows) == 1 and rows[0]["available_from"] == "2025-02-01", rows
 
 
+def test_overlapping_registrants_keep_one_filing_per_period():
+    """Apollo's predecessor kept filing until 2023-08 while the successor started in 2022-05,
+    so five quarters exist twice. Two documents for one period would let find_prior pair a
+    successor 10-Q against the predecessor's from a year earlier and read the change of
+    registrant as a rewrite."""
+    def f(cik, acc, fd, rd, form="10-Q"):
+        return {"form": form, "cik": cik, "accession": acc, "filing_date": fd,
+                "report_date": rd, "primary_doc": "x.htm"}
+    listed = [f(1411494, "old-2022q1", "2022-05-09", "2022-03-31"),
+              f(1858681, "new-2022q1", "2022-05-10", "2022-03-31"),   # same period, successor
+              f(1411494, "old-2023q2", "2023-08-07", "2023-06-30"),
+              f(1858681, "new-2023q2", "2023-08-08", "2023-06-30"),
+              f(1858681, "new-2026q1", "2026-05-07", "2026-03-31")]
+    got = lp._dedupe_overlapping_registrants("APO", listed)
+    assert [x["accession"] for x in got] == ["new-2022q1", "new-2023q2", "new-2026q1"], got
+    # a clean handover (no shared periods) must lose nothing
+    clean = [f(1058057, "a", "2021-03-16", "2021-01-31"), f(1835632, "b", "2021-06-09", "2021-05-01")]
+    assert len(lp._dedupe_overlapping_registrants("MRVL", clean)) == 2
+
+
 def test_cik_overrides_ship_with_the_known_case_and_are_file_overridable():
     assert lp.CIK_OVERRIDES["XOM"] == [34088, 2115436]
     d = _tmp()
