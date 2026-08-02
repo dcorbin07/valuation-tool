@@ -12,7 +12,7 @@ import os
 import pickle
 import sys
 
-BANK = r"C:\Users\donni\.claude\jobs\7819c8eb\tmp\optbt_trades.pkl"
+BANK = r"C:\Users\donni\Downloads\valuation-tool\data\options\optbt_state.pkl"
 LOG = (r"C:\Users\donni\AppData\Local\Temp\claude"
        r"\C--Users-donni-Downloads-valuation-tool--claude-worktrees-fix-13f-lag-test"
        r"\7819c8eb-b85f-49ad-a6ec-03b4cf384f37\tasks\bzl4uunmg.output")

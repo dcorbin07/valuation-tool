@@ -18,7 +18,13 @@ from valuation.intraday.signals import evaluate
 from valuation.saas.notify import _BULL
 
 OPTROOT = r"C:\Users\donni\Downloads\valuation-tool\data\options"
-OUT = r"C:\Users\donni\.claude\jobs\7819c8eb\tmp\optbt_trades.pkl"
+# Distinct bank per runner. The 15-name runner shared this path, and when a zombie
+# instance of it finished it OVERWROTE a 197-trade result with its own 5-trade
+# state. TaskStop kills the shell, not the detached python child, so "stopped" runs
+# kept writing. The bank now also lives next to the chain cache it belongs with,
+# instead of a temp job dir that gets cleaned up.
+OUT = r"C:\Users\donni\Downloads\valuation-tool\data\options\optbt_state.pkl"
+LOCK = OUT + ".lock"
 # 2026 IS EXCLUDED ENTIRELY, not merely un-required. It failed on every single name and every
 # retry (while 2016-2025 fetched cleanly for all of them), so requesting it only burned ~90s
 # per name in futile retries. Ten complete years is the sample; the year in progress is not
@@ -37,6 +43,20 @@ POOL = ["AAPL","MSFT","AMZN","GOOGL","META","NVDA","TSLA","JPM","BAC","WFC","C",
         "CVX","JNJ","PFE","MRK","UNH","WMT","HD","DIS","NKE","MCD","KO","PEP","CSCO","INTC",
         "ORCL","IBM","QCOM","TXN","AMD","MU","CAT","BA","GE","F","GM","T","VZ","CMCSA","NFLX",
         "CRM","ADBE","PYPL","SBUX","LOW","TGT","COST","UPS","MMM","HON","LMT","RTX","DE"]
+
+# Single instance only. Two runners writing one bank silently corrupt each other.
+if os.path.exists(LOCK):
+    try:
+        _pid = int(open(LOCK).read().strip())
+        import subprocess
+        _alive = str(_pid) in subprocess.run(["tasklist", "/FI", "PID eq %d" % _pid],
+                                             capture_output=True, text=True).stdout
+    except Exception:
+        _alive = False
+    if _alive:
+        raise SystemExit("another run is active (pid %d); refusing to share the bank" % _pid)
+os.makedirs(os.path.dirname(LOCK), exist_ok=True)
+open(LOCK, "w").write(str(os.getpid()))
 
 prov = ThetaBulk(root=OPTROOT)
 print("status:", prov.status(), flush=True)
