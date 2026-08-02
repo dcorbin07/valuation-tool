@@ -147,7 +147,7 @@ def pick_live_contract(chain_rows, underlying: float, as_of=None,
     df = normalize_chain(chain_rows)
     if df is None or not underlying or float(underlying) <= 0:
         return None
-    asof = _as_date(as_of)
+    asof = resolve_as_of(chain_rows, as_of)
 
     row = OB.pick_contract(df, float(underlying), asof, right=right,
                            target_delta=TARGET_DELTA, dte_range=DTE_RANGE)
@@ -203,6 +203,60 @@ def _as_date(as_of) -> _dt.date:
     return _dt.date.today()
 
 
+def chain_as_of(chain_rows) -> Optional[_dt.date]:
+    """The date the QUOTES are from, which is not always today. None if undeterminable.
+
+    FOUND ON THE FIRST LIVE RUN (2026-08-02), and it is not a weekend curiosity - it fires on
+    any scan where the feed is stale relative to the wall clock: before the open, on a holiday,
+    or after a feed stall.
+
+    Time to expiry enters Black-Scholes under a square root, so getting the as-of date wrong
+    scales solved IV by sqrt(T_true / T_assumed). That is negligible on the 45-75 DTE contract
+    the strategy trades, and enormous on the ~3-DTE FRONT expiry that `term_slope` differences
+    against. Measured on AAPL with Friday's quotes read on a Sunday - a 1-day error out of 3:
+
+        as_of = today (Sun)   front T=1d   BS IV 0.4711   vs broker 0.2683   slope -0.1979
+        as_of = quote date    front T=3d   BS IV 0.2756   vs broker 0.2683   slope -0.0079
+
+    The first reading is pure artefact and would have been reported as "the fitted estimator does
+    not transfer to a broker surface". It does transfer - to better than one vol point - once the
+    clock is right. Deriving the date from the data rather than from `date.today()` removes a
+    whole class of that error.
+    """
+    best = None
+    for o in chain_rows or []:
+        if not isinstance(o, dict):
+            continue
+        g = o.get("greeks") or {}
+        for raw in (g.get("updated_at"), o.get("trade_date"), o.get("bid_date")):
+            d = _parse_quote_date(raw)
+            if d is not None and (best is None or d > best):
+                best = d
+    return best
+
+
+def _parse_quote_date(raw) -> Optional[_dt.date]:
+    """ISO-ish string or epoch-milliseconds -> date. None on anything else."""
+    if raw is None:
+        return None
+    if isinstance(raw, (int, float)) and raw > 0:
+        try:                                   # Tradier serves epoch MILLISECONDS
+            return _dt.datetime.fromtimestamp(float(raw) / 1000.0).date()
+        except (OverflowError, OSError, ValueError):
+            return None
+    try:
+        return _dt.date.fromisoformat(str(raw)[:10])
+    except (TypeError, ValueError):
+        return None
+
+
+def resolve_as_of(chain_rows, as_of=None) -> _dt.date:
+    """Explicit date wins; else the quotes' own date; else today."""
+    if as_of is not None:
+        return _as_date(as_of)
+    return chain_as_of(chain_rows) or _dt.date.today()
+
+
 # ============================ term structure, live ========================================
 def term_read(chain_rows=None, summary: Optional[dict] = None, underlying: Optional[float] = None,
               as_of=None, threshold: float = TF.TERM_SLOPE_THRESHOLD) -> dict:
@@ -215,7 +269,7 @@ def term_read(chain_rows=None, summary: Optional[dict] = None, underlying: Optio
     if chain_rows is not None and underlying:
         df = normalize_chain(chain_rows)
         if df is not None and len(df):
-            asof = _as_date(as_of)
+            asof = resolve_as_of(chain_rows, as_of)
             exps = sorted({str(e)[:10] for e in df["expiration"]
                            if _safe_date(e) and _safe_date(e) > asof})
             if len(exps) >= 2:
@@ -228,6 +282,11 @@ def term_read(chain_rows=None, summary: Optional[dict] = None, underlying: Optio
                         out = TF.classify({"atm_iv": f_iv, "atm_iv_60d": m_iv}, threshold)
                         out["source"] = "chain (BS-from-mid, as fitted)"
                         out["front_expiry"], out["far_expiry"] = front, mid_exp
+                        out["front_iv"], out["far_iv"] = round(f_iv, 4), round(m_iv, 4)
+                        # Surfaced because a stale feed silently inflates the short-dated leg;
+                        # if this is not the current session, the read is a snapshot of the last.
+                        out["quote_date"] = asof.isoformat()
+                        out["front_dte"] = (_dt.date.fromisoformat(front) - asof).days
                         return out
     out = TF.classify(summary, threshold)
     out["source"] = ("broker IV (estimator differs from the fitted series)"
@@ -361,6 +420,48 @@ def build_alert(scan_row: dict, chain_rows=None, as_of=None,
         "not_advice": ("Educational only. A suggestion, not an order - Valquo never places "
                        "trades."),
     }
+
+
+def apply_term_gate(alerts, mode: str = TF.MODE_SUPPRESS):
+    """The AUTHORITATIVE term gate, applied to the chain-derived read. Returns (kept, stats).
+
+    WHY THE GATE MOVED HERE (2026-08-02). It used to run inside `screaming_buys`, on the ATM IVs
+    from the cheap whole-universe summary - i.e. BEFORE any chain was fetched. That put the
+    decision on the worse of the two estimators and made the better one, computed moments later
+    in `build_alerts`, purely decorative. It also meant a bug in the summary path could suppress
+    alerts silently, which is exactly what was happening: the summary's ATM IV was being read off
+    the lowest strike on the board (see providers.atm_iv_from_chain), so the gate was firing on
+    slopes of +/-1.0 against a 0.0105 threshold.
+
+    With the summary fixed the two estimators agree closely, so this is no longer a correctness
+    fix - it is an ordering one. The gate should rest on the series the threshold was fitted to
+    whenever that series is available, and fall back to the cheap one only when it is not.
+
+    Fail-open is preserved exactly: `term_ok is None` (no chain, no readable term structure) is
+    never suppressed. A feed outage must not read as backwardation.
+    """
+    stats = {"mode": mode, "n_in": len(alerts or []), "kept": 0, "discarded": 0, "unknown": 0,
+             "sources": {}}
+    out = []
+    for a in alerts or []:
+        term = a.get("term") or {}
+        ok = term.get("term_ok")
+        src = term.get("source") or "unavailable"
+        stats["sources"][src] = stats["sources"].get(src, 0) + 1
+        if ok is True:
+            stats["kept"] += 1
+        elif ok is False:
+            stats["discarded"] += 1
+        else:
+            stats["unknown"] += 1
+        if mode == TF.MODE_SUPPRESS and ok is False:
+            continue
+        out.append(a)
+    known = stats["kept"] + stats["discarded"]
+    stats["retention"] = (stats["kept"] / known) if known else None
+    stats["backtest_retention"] = BACKTEST_TERM_RETENTION
+    stats["n_out"] = len(out)
+    return out, stats
 
 
 def build_alerts(scan_rows, provider=None, as_of=None,
