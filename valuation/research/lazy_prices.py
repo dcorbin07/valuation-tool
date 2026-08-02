@@ -382,7 +382,9 @@ def fetch_ticker_cik_map(limiter: RateLimiter, cache_path: Optional[str] = None)
 # noticing XOM came back with zero filings — a coverage check, not a guess. Values are
 # [predecessor, successor]: both are fetched and merged into one continuous history.
 CIK_OVERRIDES = {
-    "XOM": [34088, 2115436],        # Exxon Mobil Corp -> ExxonMobil Holdings Corp
+    "XOM": [34088, 2115436],        # Exxon Mobil Corp -> ExxonMobil Holdings Corp (0 filings
+                                    #   under the mapped CIK, 42 under the predecessor)
+    "BLK": [1364742, 2012383],      # BlackRock Inc -> BlackRock Funding (35 + 7, split 2024-08)
 }
 
 
@@ -829,6 +831,24 @@ def coverage_report(cached: dict, rows: list, requested: list, unmapped: list,
                 ok += 1
     scored_acc = {r["accession"] for r in rows}
     unpaired = ok - len(scored_acc)
+
+    # SHORT-HISTORY DETECTOR. XOM was caught because it returned ZERO filings; BLK returns
+    # SEVEN, which looks like a working ticker unless something compares it to its peers. Both
+    # are the same fault — a holdco reorganization split the history across two CIKs — and a
+    # 7-of-42 history is the more dangerous one because nothing about it looks broken. Every
+    # ticker under 60% of the universe median is listed for a human to resolve into
+    # CIK_OVERRIDES; the alternative is a factor that is quietly missing years of data.
+    per_ticker = {t: sum(1 for d in docs.values() if not d.get("error"))
+                  for t, docs in cached.items()}
+    counts = sorted(per_ticker.values())
+    median = counts[len(counts) // 2] if counts else 0
+    floor = 0.6 * median
+    short = []
+    for t, n in sorted(per_ticker.items(), key=lambda kv: kv[1]):
+        if median and n < floor:
+            fd = sorted(d["filing_date"] for d in cached[t].values() if not d.get("error"))
+            short.append({"ticker": t, "filings": n,
+                          "first": fd[0] if fd else "", "last": fd[-1] if fd else ""})
     by_form = Counter(r["form"] for r in rows)
     dates = [r["available_from"] for r in rows]
 
@@ -850,6 +870,12 @@ def coverage_report(cached: dict, rows: list, requested: list, unmapped: list,
         "filings_failed": dict(errs),
         "filings_scored": len(rows),
         "filings_ok_but_unpaired": unpaired,
+        "median_filings_per_ticker": median,
+        "tickers_short_history": short,
+        "short_history_note": ("Under 60% of the universe median. Usually a genuinely younger "
+                               "company (recent IPO), but a holdco reorganization splitting "
+                               "the history across two CIKs looks exactly like this — see "
+                               "CIK_OVERRIDES. BLK returned 7 of ~42 for that reason."),
         "unpaired_note": ("No same-form filing 270-450 days earlier — the first year of any "
                           "ticker's history can never pair, by construction."),
         "pct_of_parsed_scored": round(100.0 * len(rows) / ok, 1) if ok else 0.0,
@@ -933,6 +959,18 @@ def write_report_md(cov: dict, path: str, out_dir: str = DEFAULT_OUT_DIR) -> str
         "",
         f"By form: `{cov.get('by_form')}`  |  Date range (availability dates): "
         f"**{dr[0]} to {dr[1]}**" if dr and dr[0] else "",
+        "",
+        "## Short histories — resolve these, do not ignore them",
+        "",
+        f"Median filings per ticker: **{cov.get('median_filings_per_ticker', 0)}**. "
+        f"Tickers under 60% of it: **{len(cov.get('tickers_short_history') or [])}**.",
+        "",
+        cov.get("short_history_note", ""),
+        "",
+        "| ticker | filings | first | last |",
+        "|---|---:|---|---|",
+    ] + [f"| {s['ticker']} | {s['filings']} | {s['first']} | {s['last']} |"
+         for s in (cov.get("tickers_short_history") or [])[:40]] + [
         "",
         "## Section isolation (heuristic — Item headings)",
         "",

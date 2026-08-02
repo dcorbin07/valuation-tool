@@ -393,6 +393,24 @@ def test_similarity_is_bounded_and_ordered_as_the_paper_reads_it():
             assert 0.0 <= r[k] <= 1.0 + 1e-9, (k, r[k])
 
 
+def test_short_history_detector_flags_a_split_cik_ticker():
+    """XOM was caught at ZERO filings. BLK returns SEVEN of ~42 for the same reason — a
+    reorganization split its history — and seven looks like a working ticker. Nothing
+    surfaces that except comparing each ticker to its peers."""
+    cached = {}
+    for t in ("AAA", "BBB", "CCC", "DDD"):
+        cached[t] = {f"{t}{i}": _doc(t, "10-K", f"20{16+i}-02-01", f"20{15+i}-12-31", "alpha")
+                     for i in range(10)}
+    cached["BLK"] = {f"BLK{i}": _doc("BLK", "10-K", f"202{4+i}-02-01", f"202{3+i}-12-31", "alpha")
+                     for i in range(2)}
+    cov = lp.coverage_report(cached, lp.score_all(cached), list(cached), [])
+    flagged = [s["ticker"] for s in cov["tickers_short_history"]]
+    assert flagged == ["BLK"], cov["tickers_short_history"]
+    assert cov["median_filings_per_ticker"] == 10, cov["median_filings_per_ticker"]
+    entry = cov["tickers_short_history"][0]
+    assert entry["filings"] == 2 and entry["first"] == "2024-02-01", entry
+
+
 def test_coverage_report_states_skips_not_just_successes():
     d = _tmp()
     docs = {x["accession"]: x for x in
