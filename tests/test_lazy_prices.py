@@ -305,6 +305,47 @@ def test_rebuild_sections_works_offline_from_the_text_cache():
     assert lp.rebuild_sections("NOSUCH", d) == (0, 0)      # missing text cache -> no-op
 
 
+def test_a_ticker_spanning_two_ciks_is_one_continuous_history():
+    """REGRESSION — XOM came back with ZERO filings. SEC's ticker map points at the
+    post-reorganization entity ("ExxonMobil Holdings Corp", no 10-K history) while 42 filings
+    sat under the predecessor CIK 34088. A mapped ticker with no filings looks exactly like a
+    foreign issuer, so this would have passed as a legitimate coverage gap."""
+    d = _tmp()
+    by_cik = {
+        34088: [{"form": "10-K", "cik": 34088, "accession": "old1", "filing_date": "2024-02-01",
+                 "report_date": "2023-12-31", "primary_doc": "a.htm"}],
+        2115436: [{"form": "10-K", "cik": 2115436, "accession": "new1",
+                   "filing_date": "2025-02-01", "report_date": "2024-12-31",
+                   "primary_doc": "b.htm"}],
+    }
+    seen_ciks = []
+    orig_list, orig_fetch = lp.list_filings, lp.fetch_document
+    lp.list_filings = lambda cik, *a, **k: by_cik.get(cik, [])
+    lp.fetch_document = lambda cik, f, lim, session=None: (
+        seen_ciks.append(cik) or _doc("XOM", "10-K", f["filing_date"], f["report_date"],
+                                      "alpha beta", acc=f["accession"]))
+    try:
+        docs = lp.build_ticker_cache("XOM", [34088, 2115436], d, lp.RateLimiter(1000))
+    finally:
+        lp.list_filings, lp.fetch_document = orig_list, orig_fetch
+    assert set(docs) == {"old1", "new1"}, docs
+    # each filing must be fetched from ITS OWN CIK's archive path, not the first one
+    assert sorted(seen_ciks) == [34088, 2115436], seen_ciks
+    rows = lp.score_all({"XOM": docs})
+    assert len(rows) == 1 and rows[0]["available_from"] == "2025-02-01", rows
+
+
+def test_cik_overrides_ship_with_the_known_case_and_are_file_overridable():
+    assert lp.CIK_OVERRIDES["XOM"] == [34088, 2115436]
+    d = _tmp()
+    assert lp.load_cik_overrides(d)["XOM"] == [34088, 2115436]
+    import json as _json
+    with open(os.path.join(d, "cik_overrides.json"), "w", encoding="utf-8") as f:
+        _json.dump({"foo": 42, "XOM": [1, 2]}, f)
+    got = lp.load_cik_overrides(d)
+    assert got["FOO"] == [42] and got["XOM"] == [1, 2], got
+
+
 def test_failed_filings_are_recorded_and_never_scored():
     docs = {"bad": {"form": "10-K", "accession": "bad", "filing_date": "2024-02-01",
                     "report_date": "2023-12-31", "error": "http_404"},

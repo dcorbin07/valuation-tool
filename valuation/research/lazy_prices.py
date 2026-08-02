@@ -376,7 +376,34 @@ def fetch_ticker_cik_map(limiter: RateLimiter, cache_path: Optional[str] = None)
     return out
 
 
-def _rows_from_block(block: dict) -> list:
+# Tickers whose filing history does NOT live under the CIK SEC's ticker map points at.
+# A holdco reorganization registers a successor entity and the history stays with the
+# predecessor, so the mapped CIK looks like a company that has never filed a 10-K. Found by
+# noticing XOM came back with zero filings — a coverage check, not a guess. Values are
+# [predecessor, successor]: both are fetched and merged into one continuous history.
+CIK_OVERRIDES = {
+    "XOM": [34088, 2115436],        # Exxon Mobil Corp -> ExxonMobil Holdings Corp
+}
+
+
+def load_cik_overrides(out_dir: str) -> dict:
+    """Built-in overrides, plus any `<out-dir>/cik_overrides.json` ({"TICKER": cik or [ciks]}).
+
+    A file so the next reorganization is a one-line data fix rather than a code change.
+    """
+    out = {k: list(v) for k, v in CIK_OVERRIDES.items()}
+    p = os.path.join(out_dir, "cik_overrides.json")
+    if os.path.exists(p):
+        try:
+            with open(p, encoding="utf-8") as f:
+                for k, v in json.load(f).items():
+                    out[k.strip().upper()] = v if isinstance(v, list) else [v]
+        except Exception as e:                                 # noqa: BLE001
+            _log(f"cik_overrides.json ignored ({e})")
+    return out
+
+
+def _rows_from_block(block: dict, cik: int = 0) -> list:
     """One EDGAR filings block (`recent` or a shard) -> list of filing dicts."""
     forms = block.get("form") or []
     out = []
@@ -389,6 +416,7 @@ def _rows_from_block(block: dict) -> list:
             return v[i] if i < len(v) else ""
 
         out.append({"form": form,
+                    "cik": cik,               # kept per filing: a ticker can span two CIKs
                     "accession": g("accessionNumber"),
                     "filing_date": g("filingDate"),
                     "report_date": g("reportDate"),
@@ -407,14 +435,14 @@ def list_filings(cik: int, limiter: RateLimiter, since: str = "", session=None) 
         return []
     j = r.json()
     filings = j.get("filings") or {}
-    rows = _rows_from_block(filings.get("recent") or {})
+    rows = _rows_from_block(filings.get("recent") or {}, cik)
     oldest = min((x["filing_date"] for x in rows if x["filing_date"]), default="")
     for shard in filings.get("files") or []:
         if since and oldest and (shard.get("filingTo") or "") < since:
             continue
         rs = _get(SUBMISSION_SHARD.format(name=shard.get("name", "")), limiter, session=session)
         if rs is not None and rs.status_code == 200:
-            rows.extend(_rows_from_block(rs.json()))
+            rows.extend(_rows_from_block(rs.json(), cik))
     if since:
         rows = [x for x in rows if (x["filing_date"] or "") >= since]
     rows = [x for x in rows if x["accession"] and x["filing_date"]]
@@ -539,12 +567,25 @@ def rebuild_sections(ticker: str, out_dir: str) -> tuple:
     return (n, len(docs))
 
 
-def build_ticker_cache(ticker: str, cik: int, out_dir: str, limiter: RateLimiter,
+def build_ticker_cache(ticker: str, cik, out_dir: str, limiter: RateLimiter,
                        since: str = "", workers: int = 4, retry_errors: bool = False,
                        keep_text: bool = True, session=None) -> dict:
-    """Fetch+tokenize every not-yet-cached 10-K/10-Q for one ticker. Returns {accession: rec}."""
+    """Fetch+tokenize every not-yet-cached 10-K/10-Q for one ticker. Returns {accession: rec}.
+
+    `cik` may be a LIST. A holdco reorganization moves a company to a new CIK and leaves its
+    filing history under the old one — SEC's ticker map points at the new entity, so XOM
+    resolved to "ExxonMobil Holdings Corp" with ZERO 10-Ks while 42 sat under CIK 34088.
+    A ticker spanning both CIKs is a normal, continuous filing history and is treated as one.
+    """
     docs = load_cache(out_dir, ticker)
-    listed = list_filings(cik, limiter, since=since, session=session)
+    ciks = cik if isinstance(cik, (list, tuple)) else [cik]
+    listed, seen = [], set()
+    for c in ciks:
+        for f in list_filings(int(c), limiter, since=since, session=session):
+            if f["accession"] not in seen:
+                seen.add(f["accession"])
+                listed.append(f)
+    listed.sort(key=lambda x: (x["filing_date"], x["accession"]))
     todo = [f for f in listed
             if f["accession"] not in docs
             or (retry_errors and docs[f["accession"]].get("error"))]
@@ -558,7 +599,9 @@ def build_ticker_cache(ticker: str, cik: int, out_dir: str, limiter: RateLimiter
 
         done = 0
         with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
-            for rec in pool.map(lambda f: fetch_document(cik, f, limiter, session=session), todo):
+            fetch = lambda f: fetch_document(f.get("cik") or ciks[0], f, limiter,   # noqa: E731
+                                             session=session)
+            for rec in pool.map(fetch, todo):
                 text = rec.pop("_text", None)
                 if keep_text and text:
                     texts[rec["accession"]] = text
@@ -863,8 +906,14 @@ def write_report_md(cov: dict, path: str, out_dir: str = DEFAULT_OUT_DIR) -> str
         "",
         f"- Tickers requested: **{cov.get('tickers_requested', 0)}**",
         f"- Not in SEC's ticker->CIK map: **{len(cov.get('tickers_unmapped_to_cik') or [])}**",
-        f"- Mapped but filing no 10-K/10-Q (foreign issuers on 20-F, trusts, ETFs): "
-        f"**{len(cov.get('tickers_no_10k_10q') or [])}**",
+        f"- Mapped but filing no 10-K/10-Q: **{len(cov.get('tickers_no_10k_10q') or [])}** — "
+        f"`{', '.join(cov.get('tickers_no_10k_10q') or []) or 'none'}`",
+        "",
+        "  Mostly foreign issuers (20-F) and trusts/ETFs, which are structurally out of scope. "
+        "**But check this list every run**: a holdco reorganization looks identical here. XOM "
+        "resolved to a successor entity with zero 10-Ks while 42 filings sat under the "
+        "predecessor CIK; it is fixed via `CIK_OVERRIDES` / `cik_overrides.json`, which fetch "
+        "both CIKs and merge them into one history.",
         f"- Tickers with at least one scored pair: **{cov.get('tickers_scored', 0)}**",
         "",
         "## Filings",
@@ -951,6 +1000,7 @@ def run(tickers: list, out_dir: str = DEFAULT_OUT_DIR, since: str = "", workers:
         for tk in list(cik_map):
             if "-" in tk:
                 cik_map.setdefault(tk.replace("-", "."), cik_map[tk])
+        cik_map.update(load_cik_overrides(out_dir))
     unmapped = [t for t in tickers if t not in cik_map] if cik_map else []
 
     cached, t0, rebuilt, no_filings = {}, time.time(), 0, []
