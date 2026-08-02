@@ -42,7 +42,8 @@ half's expectancy. By year it is positive in **7 of 10**, and the misses are rec
     drop the best 5%      exp= +2.3%    cum = -$151,760
 
 **Fifteen trades are 98% of the dollar profit.** Drop 5% of trades and a decade of trading is
-deeply negative. The single best trade returned +766%.
+deeply negative. The single best trade returned +766%. *(Phase 2 showed this is an artefact of
+buying one contract per signal — see below.)*
 
 Note the split, because it changes the recommendation rather than just qualifying it:
 **percentage expectancy is fairly robust** (+10.4% -> +9.0% after removing the top 1%) while
@@ -101,8 +102,14 @@ bar, but it is not demonstrated to be reliably profitable.** Three reasons to be
 3. The sample is 2016-2025, a period dominated by a bull market in exactly these large caps —
    a long-call strategy is structurally advantaged in it.
 
-The honest summary is **"positive expectancy, thin and fading, and far too tail-dependent to
-size aggressively"** — not "the scream-buy engine works".
+The honest summary is **"positive expectancy, thin and fading"** — not "the scream-buy engine
+works".
+
+> **SUPERSEDED IN PART BY PHASE 2 (below).** Point 1 above — "dollar profit rests on ~15
+> trades" — turned out to be a POSITION-SIZING ARTEFACT of the 1-contract reporting convention,
+> not a property of the strategy. At fixed dollar risk the top-15 share falls from 98% to 42%.
+> Points 2 and 3 (decay across halves, bull-market sample) still stand. The phrase "far too
+> tail-dependent to size aggressively" has been removed here because phase 2 disproved it.
 
 ---
 
