@@ -56,6 +56,64 @@ PRE-COMMITTED GATE for shipping a "scream-buy+" conviction tier:
 
 An "outsized winner" is fixed in advance as a trade returning >= BIG_WIN_PCT, rather than "the
 top N", so the definition does not move with the sample.
+
+================================ RESULT (run after the above was committed) =================
+
+ANSWER: (b), AND THE PREMISE OF THE QUESTION WAS PARTLY WRONG.
+
+1. THE BASE SURVIVES WITHOUT THE TAIL. Excluding the top 15 dollar winners:
+
+       all 1,540 trades   expectancy +10.42%/trade   cum $143,723   pf 1.30
+       ex-top-15 (1,525)  expectancy  +8.96%/trade   cum   $2,767   pf 1.26
+
+   Expectancy per trade barely moves. So the tail is upside on a real base, not the base
+   itself - the pre-registered discriminator says (b), sizeable with discipline.
+
+2. BIG WINNERS ARE NOT RARE. 473 of 1,540 trades (30.7%) returned >= +100%. The "15 trades"
+   framing describes which trades produced DOLLARS, not which produced returns. Nearly a third
+   of all trades doubled.
+
+3. THE DOLLAR CONCENTRATION IS A POSITION-SIZING ARTEFACT, and this is the finding that
+   changes the recommendation. Entry premium per contract spans 1,076x ($13 to $13,985). Buying
+   ONE CONTRACT of a pre-split $3,000 AMZN next to one contract of a $40 bank guarantees that a
+   handful of expensive names dominate the dollars regardless of signal quality. Re-weighting
+   every trade to a fixed $1,000 of risk:
+
+                              total     top-15 share   profit ex-top-15   top-3 names
+       1 contract each     $143,723         98.1%            $2,767           76%
+       fixed $1,000 risk   $160,461         42.0%           $92,998           34%
+
+   Fixed-dollar sizing removes most of the concentration AND earns more. The phase-1 conclusion
+   "too tail-dependent to size aggressively" was substantially an artefact of the 1-contract
+   reporting convention, not a property of the strategy.
+
+4. THE TAIL ITSELF IS UNPREDICTABLE - NO CONVICTION TIER SHIPS. The fingerprint was fitted on
+   the first half (score >= 83.0, IV >= 21.6%, DTE >= 59) and applied to the held-out half:
+
+       flagged big-win rate    28.07%
+       unflagged base rate     29.05%
+       random control          29.04%
+       lift                     0.966   (gate: >= 2.0)     FAIL
+       expectancy gap          -2.09pp  (gate: >= +20pp)   FAIL
+
+   The rule performed slightly WORSE than both the unflagged base and a random control that
+   flags the same number of trades. It fails every arm of the gate. No "scream-buy+" tier is
+   built. Reporting this rather than shipping a plausible-looking tier is the whole point of
+   fitting on one half: an in-sample fingerprint over 15 points would have looked convincing.
+
+   Context for why it cannot work: 9 of the top 15 came from 2020 and the names are AMZN (5),
+   GOOGL (5), TSLA (3). That is one regime and a few high-priced names, not a repeatable setup.
+
+WHAT THIS MEANS FOR SIZING. The honest phase-1 line was "too tail-dependent to size
+aggressively". The corrected line is: **size by fixed dollar risk, not by contract count.** Doing
+so is what makes the edge broad rather than tail-dependent. Sizing by contracts is what created
+the fragility, and it is also how a real account would accidentally take a 50x larger position
+in AMZN than in BAC.
+
+STILL TRUE, AND STILL LIMITING: expectancy decays +16.4% -> +4.4% across the held-out halves,
+and 2022, 2023 and 2025 are negative. Robustness improves the fragility finding; it does not
+make the edge strong.
+
 """
 from __future__ import annotations
 
