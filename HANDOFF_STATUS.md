@@ -12,6 +12,31 @@ file directly.
 
 ---
 
+## OPTIONS PHASE 2 - tail analysis + spread comparison (2026-08-02)
+
+**The phase-1 "too tail-dependent to size" verdict is CORRECTED.** The dollar concentration was
+a position-sizing artefact: entry premiums span 1,076x, so 1 contract of a pre-split $3,000 AMZN
+next to 1 of a $40 bank guarantees a few names dominate. At fixed $1,000 risk per trade the
+top-15 share falls 98.1% -> 42.0%, profit ex-top-15 goes $2,767 -> $92,998, top-3 name
+concentration 76% -> 34%, and total profit RISES to $160,461. **Size by fixed dollar risk, not
+contract count.** Excluding the top 15 winners entirely, expectancy is still +8.96%/trade, and
+30.7% of all trades returned >= +100% - big winners are common, not rare.
+
+**No conviction tier ships.** A fingerprint fit on half 1 scored a 28.07% big-win rate on the
+held-out half vs a 29.05% base and 29.04% random control (lift 0.966 vs a required 2.0). Worse
+than random; fails every arm of the gate. The tail is unpredictable - 9 of the top 15 were 2020
+AMZN/GOOGL/TSLA. Building a louder "scream-buy+" alert would have been false emphasis.
+
+**Section 4 REJECTED:** matched vertical debit spread scores -4.46%/trade vs single-leg +12.33%
+on 1,313 matched pairs, worse in every IV regime and both halves, and no better hit rate. The
++100% target is measured on the debit but a debit spread's max value is the strike width, so
+targets sit at the ceiling while the -50% stop fires normally.
+
+**STILL NOT DONE (mandate sections 3-6 of phase 2):** the new ThetaData signals (IV rank, VRP,
+term structure, skew, tick flow, GEX); the VRP/credit-spread arm; the options-bot fold-in
+(OPTIONS_BOT_INTEGRATION.md); and the live-engine + tracked-book wiring with annualized
+net-of-cost and after-tax returns. Nothing in the live product has been changed.
+
 ## OPTIONS TRACK - scream-buy validated on real ThetaData (2026-08-02)
 
 Full detail in `OPTIONS_BACKTEST_RESULTS.md`. 55 names, 2016-2025, **1,540 closed trades**, all

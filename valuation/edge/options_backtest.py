@@ -439,6 +439,25 @@ def simulate_spread(provider, ticker, entry_row, entry_date, bars, chain,
                           long_strike, short_strike)
 
 
+# ============================ SECTION 4 RESULT: SPREAD REJECTED =============================
+# Run on 1,313 matched pairs (same alert, same day, same long leg; 227 alerts had no fillable
+# short leg). The hypothesis was that capping vega/theta trades the fragile tail for a steadier
+# edge. It does not - it removes the edge:
+#
+#     single-leg      exp +12.33%/trade   hit 38%   pf 1.36
+#     vert spread     exp  -4.46%/trade   hit 36%   pf 0.88
+#
+#     by IV regime    low  +21.14% vs  +2.35%    mid +6.57% vs -9.22%    high +15.04% vs -1.73%
+#     held-out        first +19.15% vs +0.50%    second +5.51% vs -9.41%
+#
+# Worse in every IV regime and both held-out halves, and it does not even deliver the higher hit
+# rate that was its rationale (36% vs 38%). The mechanism is the exit rule: the live target is
+# +100% ON THE DEBIT, but a debit spread's maximum value is the strike width, so +100% often sits
+# at or near the spread's ceiling. Targets therefore rarely fill while the -50% stop still
+# triggers normally - the payoff is truncated on the winning side and intact on the losing one.
+# REJECTED against the pre-committed +0.10 expectancy bar (it is 16.8pp WORSE). Kept for the
+# record and for anyone tempted to re-open it; a credit/short-vol construction is a different
+# strategy and remains untested here.
 def _spread_result(debit, credit, exit_day, entry_date, reason, long_strike, short_strike):
     mult = F.CONTRACT_MULTIPLIER
     commission = F.COMMISSION_PER_CONTRACT * 4          # two legs, both ways

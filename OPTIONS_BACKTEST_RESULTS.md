@@ -133,6 +133,50 @@ rejected with a named reason rather than repaired, the liquidity filter applies 
 Local greeks were validated against ThetaData's own: **delta agreed 98.96%** (median error
 0.0016), and IV agreed **100% within the tradable |delta| 0.20-0.80 band** (median error 0.0018).
 
+## Phase 2 (2026-08-02)
+
+### The tail was a POSITION-SIZING artefact, not a signal defect
+
+Excluding the top 15 dollar winners, expectancy goes **+10.42% -> +8.96%/trade** - the base
+survives. And big winners are not rare: **473 of 1,540 trades (30.7%) returned >= +100%.** The
+"15 trades" framing describes which trades produced DOLLARS, not returns.
+
+Entry premium per contract spans **1,076x** ($13 to $13,985). Buying ONE CONTRACT of a
+pre-split $3,000 AMZN next to one of a $40 bank guarantees a few expensive names dominate the
+dollars whatever the signal does. Re-weighting to a fixed $1,000 of risk per trade:
+
+                          total     top-15 share   ex-top-15    top-3 names
+    1 contract each     $143,723        98.1%         $2,767        76%
+    fixed $1,000 risk   $160,461        42.0%        $92,998        34%
+
+Concentration collapses and total profit RISES. **Corrected guidance: size by fixed dollar risk,
+not contract count.** Phase 1's "too tail-dependent to size aggressively" was substantially a
+reporting-convention artefact.
+
+### The tail itself is unpredictable - NO conviction tier ships
+
+A fingerprint fitted on the first half (score >= 83, IV >= 21.6%, DTE >= 59), applied unchanged
+to the held-out half:
+
+    flagged big-win rate 28.07%   unflagged base 29.05%   random control 29.04%
+    lift 0.966 (gate >= 2.0) FAIL       expectancy gap -2.09pp (gate >= +20pp) FAIL
+
+Worse than random. 9 of the top 15 came from 2020, in AMZN/GOOGL/TSLA - one regime, a few
+high-priced names. An in-sample rule over 15 points would have looked convincing; fitting on one
+half is what stopped it shipping. **Do not build a "scream-buy+" tier.**
+
+### Section 4 - vertical debit spread REJECTED
+
+1,313 matched pairs, same alert and same long leg:
+
+    single-leg    exp +12.33%   hit 38%   pf 1.36
+    vert spread   exp  -4.46%   hit 36%   pf 0.88
+
+Worse in every IV regime and both halves, and it does not deliver the higher hit rate that was
+its rationale. Mechanism: the live +100% target is measured ON THE DEBIT, but a debit spread's
+maximum value is the strike width, so the target often sits at the spread's ceiling - winners
+are truncated while the -50% stop still fires normally.
+
 ## Not done
 
 Sections 4-6 of the mandate are untouched: the single-leg vs vertical-spread comparison (the arm
