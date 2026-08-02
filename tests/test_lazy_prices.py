@@ -352,6 +352,22 @@ def test_similarity_is_bounded_and_ordered_as_the_paper_reads_it():
             assert 0.0 <= r[k] <= 1.0 + 1e-9, (k, r[k])
 
 
+def test_coverage_report_states_skips_not_just_successes():
+    d = _tmp()
+    docs = {x["accession"]: x for x in
+            [_doc("A", "10-K", "2023-02-01", "2022-12-31", "alpha beta", acc="p"),
+             _doc("A", "10-K", "2024-02-01", "2023-12-31", "alpha gamma", acc="c")]}
+    docs["bad"] = {"form": "10-Q", "accession": "bad", "filing_date": "2024-05-01",
+                   "report_date": "2024-03-31", "error": "http_403"}
+    rows = lp.score_all({"A": docs})
+    cov = lp.coverage_report({"A": docs}, rows, ["A", "TSM"], [], ["TSM"])
+    path = lp.write_report_md(cov, os.path.join(d, "REPORT.md"), d)
+    text = open(path, encoding="utf-8").read()
+    for must in ("http_403", "unpaired", "Survivor-only", "HIGHER similarity",
+                 "not wired into the panel", "20-F"):
+        assert must in text, f"coverage report omits {must!r}"
+
+
 def test_module_is_not_imported_by_the_live_panel():
     """Non-interference, enforced rather than promised: nothing under valuation/edge,
     valuation/screener or the web app may import this research module."""
