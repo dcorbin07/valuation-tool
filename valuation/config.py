@@ -96,6 +96,12 @@ class Config:
     # and opt-in email. alert_min_score is the score bar a signal must clear to alert.
     discord_webhook_url: str = field(default_factory=lambda: _get("DISCORD_WEBHOOK_URL"))
     alert_min_score: float = field(default_factory=lambda: _get_float("ALERT_MIN_SCORE", 80))
+    # Term-structure filter on scream-buy alerts (phase 3b: the only signal that survived the
+    # fade gate). "flag" annotates every alert, "suppress" drops backwardation ones, "off"
+    # restores the previous behaviour. Defaults to flag because suppressing ~60% of alerts is a
+    # large product change that should be chosen deliberately, not inherited from a backtest.
+    options_term_filter: str = field(
+        default_factory=lambda: os.environ.get("OPTIONS_TERM_FILTER", "flag"))
     # Paper-account sell logic (the Track Record). Buy on entry to the top-N hot
     # list; hold at least min-hold days (no churn); then SELL only when the name is
     # genuinely no longer hot (its hot score falls below paper_exit_score) or it

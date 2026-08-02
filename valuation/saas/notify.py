@@ -32,7 +32,15 @@ def unsub_user_id(cfg, token):
         return None
 
 
-def screaming_buys(rows, min_score) -> list:
+def screaming_buys(rows, min_score, term_mode=None) -> list:
+    """Scream-buy alerts, annotated with the phase-3b term-structure read.
+
+    `term_mode` defaults to the config flag. "flag" (the default) annotates every alert and
+    suppresses none: the filter removes ~60% of signals, which is too large a product change to
+    inherit silently from a backtest. "suppress" is one env var away for whoever wants it.
+    """
+    from ..intraday import term_filter as TF
+
     out = []
     for r in rows or []:
         s = r.get("score")
@@ -40,7 +48,13 @@ def screaming_buys(rows, min_score) -> list:
         if s is not None and s >= min_score and any(any(b in l for b in _BULL) for l in labels):
             out.append(r)
     out.sort(key=lambda r: r.get("score", 0), reverse=True)
-    return out
+    if term_mode is None:
+        try:
+            from ..config import CONFIG
+            term_mode = getattr(CONFIG, "options_term_filter", TF.DEFAULT_MODE)
+        except Exception:                                            # noqa: BLE001
+            term_mode = TF.DEFAULT_MODE
+    return TF.apply(out, mode=term_mode)
 
 
 def send_discord(cfg, content: str) -> bool:

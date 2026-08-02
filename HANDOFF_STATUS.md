@@ -12,6 +12,48 @@ file directly.
 
 ---
 
+## PHASE 4 - test fix + A1 term-structure filter WIRED LIVE (2026-08-02)
+
+**Close-out item done first, as instructed: the env-sensitive test is fixed.**
+`test_thetadata_provider_is_optional_and_dedupes` asserted a keyless provider returns an empty
+chain - but `chain_on` consults its DISK CACHE before checking availability, so on any machine
+with a real `data/bulk/prepared/theta/AAPL/2023-03-01.pkl` the keyless provider returned live
+cached data and the assertion failed. It also read THETADATA_API_KEY from the environment/.env.
+That is exactly why it was 88/88 here and 87/88 on Don's machine. Now pinned to an empty temp
+cache dir with an explicit `api_key=""`. **Verified 88/88 with the key set AND unset.**
+
+**A1 DONE - `term_slope` wired as a standing, reversible live filter.**
+Chain: TradierProvider now also fetches a ~60-DTE expiry's ATM IV (term_slope needs both legs)
+-> `options_signals` carries `atm_iv_60d` -> `screaming_buys` annotates via
+`intraday/term_filter.py`. Config flag `OPTIONS_TERM_FILTER` = flag | suppress | off.
+
+Three deliberate design choices:
+- **Default is FLAG, not suppress.** The filter removes ~60% of alerts; that is too large a
+  product change to inherit silently from a backtest. Every alert still appears carrying
+  `term_ok` + a reason, so the UI can show backwardation ones as reduced confidence.
+  `OPTIONS_TERM_FILTER=suppress` is one env var away.
+- **Fails OPEN.** Missing/malformed IV -> `term_ok=None` (unknown), never False. A quote-feed
+  hiccup must not masquerade as backwardation and silently halt alerting.
+- **Sizing compensates.** Contango alerts get a 1.5x multiplier, backwardation 0.5x, unknown
+  1.0x - so filtering 60% of signals does not quietly shrink sleeve exposure by 60%. Capped,
+  because "trade less often but much bigger" is how a modest edge becomes a concentrated bet.
+
+Tests 89/89 (one added pinning fail-open, flag-by-default, and reversibility).
+
+**NOT DONE - the bulk of phase 4.** A2 (daily ATM-IV series to make iv_rank testable; tick
+flow), A3 (VRP/credit-spread arm + correlation with the long arm), A4 (options-bot fold-in),
+A5 (tracked book + per-alert confidence + suggested sizing), and ALL of PART B (live-app
+backlog: data integrity, 861-name universe, remove Sharadar from the live path, dynamic net
+alpha, trust/reliability) and PART C (growth/pre-profit valuation, RKLB $2.63 vs $65).
+
+**§0 STILL BLOCKED and phase 4 assumed it was done.** Phases 1-3b are NOT on `main`. Dry-run
+merge confirms NO conflicts, ZERO overlapping files:
+
+    git checkout main
+    git merge worktree-p24-shortinterest
+    python tests/test_edge.py        (expect 89/89)
+    .\git_push.bat
+
 ## OPTIONS PHASE 3b §2 - term structure ADOPTED, arrests most of the fade (2026-08-02)
 
 Five ThetaData-derived signals tested, each fitted on 2016-2020 and judged ONLY on 2021-2025

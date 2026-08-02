@@ -74,7 +74,23 @@ class TradierProvider(IntradayProvider):
             dates = ((exps or {}).get("expirations") or {}).get("date")
             if not dates:
                 return None
-            expiry = dates[0] if isinstance(dates, list) else dates
+            dl = dates if isinstance(dates, list) else [dates]
+            expiry = dl[0]
+            # A ~60-DTE expiry too: term_slope needs BOTH legs and the front alone cannot give it.
+            expiry_60 = None
+            try:
+                import datetime as _dt
+                today = _dt.date.today()
+                cand = []
+                for d in dl:
+                    try:
+                        cand.append((abs((_dt.date.fromisoformat(str(d)[:10]) - today).days - 60), d))
+                    except ValueError:
+                        continue
+                if cand:
+                    expiry_60 = min(cand)[1]
+            except Exception:                                        # noqa: BLE001
+                expiry_60 = None
             ch = self._get("markets/options/chains", symbol=ticker, expiration=expiry, greeks="true")
             opts = ((ch or {}).get("options") or {}).get("option")
             if not opts:
@@ -98,7 +114,29 @@ class TradierProvider(IntradayProvider):
             atm_iv = None
             if ivs:
                 atm_iv = sorted(ivs, key=lambda x: x[1])[0][0]
-            return {"call_volume": cv, "put_volume": pv, "call_oi": coi, "put_oi": poi, "atm_iv": atm_iv}
+            # ATM IV of a ~60-DTE expiry, the second leg term_slope needs. Best-effort: a
+            # failure here leaves atm_iv_60d absent, which the filter reads as UNKNOWN and does
+            # not act on - a quote hiccup must never look like backwardation.
+            atm_iv_60d = None
+            if expiry_60 and expiry_60 != expiry:
+                try:
+                    ch2 = self._get("markets/options/chains", symbol=ticker,
+                                    expiration=expiry_60, greeks="true")
+                    o2 = ((ch2 or {}).get("options") or {}).get("option")
+                    if isinstance(o2, dict):
+                        o2 = [o2]
+                    ivs2 = [((o.get("greeks") or {}).get("mid_iv")
+                             or (o.get("greeks") or {}).get("smv_vol"),
+                             abs((o.get("strike") or 0) - (o.get("underlying_price") or 0)))
+                            for o in (o2 or [])
+                            if (o.get("greeks") or {}).get("mid_iv")
+                            or (o.get("greeks") or {}).get("smv_vol")]
+                    if ivs2:
+                        atm_iv_60d = sorted(ivs2, key=lambda x: x[1])[0][0]
+                except Exception:                                    # noqa: BLE001
+                    atm_iv_60d = None
+            return {"call_volume": cv, "put_volume": pv, "call_oi": coi, "put_oi": poi,
+                    "atm_iv": atm_iv, "atm_iv_60d": atm_iv_60d}
         except Exception:
             return None
 

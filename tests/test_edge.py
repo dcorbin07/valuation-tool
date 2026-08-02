@@ -2116,6 +2116,49 @@ def test_options_split_adjustment_two_series():
     assert "raw_close" in inspect.getsource(OB.simulate_trade)
 
 
+def test_live_term_structure_filter():
+    """The one signal that survived phase 3b's fade gate, wired live.
+
+    Three properties matter more than the threshold itself:
+      * it FAILS OPEN - unknown term structure is None, never False, so a quote-feed hiccup
+        cannot masquerade as backwardation and silently halt alerting;
+      * the DEFAULT mode annotates rather than suppresses, because the filter removes ~60% of
+        signals and that is too large a product change to inherit silently from a backtest;
+      * contango alerts carry a LARGER size multiple, so filtering 60% of signals does not
+        quietly shrink the sleeve's exposure by 60% - capped, so a modest edge cannot become a
+        concentrated bet.
+    """
+    from valuation.intraday import term_filter as TF
+
+    assert TF.DEFAULT_MODE == TF.MODE_FLAG, "default must annotate, not suppress"
+    contango = {"atm_iv": 0.30, "atm_iv_60d": 0.35}
+    backward = {"atm_iv": 0.40, "atm_iv_60d": 0.32}
+    assert TF.classify(contango)["term_ok"] is True
+    assert TF.classify(backward)["term_ok"] is False
+    # Missing / malformed data is UNKNOWN, never bad.
+    for bad in ({}, None, {"atm_iv": 0.3}, {"atm_iv": 0.3, "atm_iv_60d": None},
+                {"atm_iv": 0.0, "atm_iv_60d": 0.3}, {"atm_iv": "x", "atm_iv_60d": 0.3}):
+        assert TF.classify(bad)["term_ok"] is None, bad
+    assert TF.size_multiplier(True) > TF.size_multiplier(None) > TF.size_multiplier(False)
+
+    rows = [{"score": 90, "labels": ["Uptrend"],
+             "detail": {"opt_atm_iv": 0.30, "opt_atm_iv_60d": 0.35}},
+            {"score": 85, "labels": ["Breakout"],
+             "detail": {"opt_atm_iv": 0.40, "opt_atm_iv_60d": 0.32}},
+            {"score": 82, "labels": ["Uptrend"], "detail": {}}]
+    assert len(TF.apply(rows, mode=TF.MODE_FLAG)) == 3          # annotates, drops nothing
+    sup = TF.apply(rows, mode=TF.MODE_SUPPRESS)
+    assert len(sup) == 2                                        # only backwardation removed
+    assert all(r.get("term_ok") is not False for r in sup)
+    assert any(r.get("term_ok") is None for r in sup), "unknown must survive suppression"
+    assert TF.apply(rows, mode=TF.MODE_OFF) == rows              # fully reversible
+
+    # The live path passes the config flag through and still returns alerts.
+    from valuation.saas.notify import screaming_buys
+    got = screaming_buys(rows, 80, term_mode=TF.MODE_FLAG)
+    assert len(got) == 3 and all("term_ok" in r for r in got)
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
