@@ -109,7 +109,7 @@ def run_name(t):
         chain = prov.chain_on(t, day)
         if chain is None or len(chain) == 0:
             continue
-        und = w["close"][-1]
+        und = w["raw_close"][-1]     # AS-TRADED: strikes are never split-adjusted
         summ = OB.chain_summary(chain, und, day)
         ev = evaluate(w, summ, horizon=OB.HORIZON)
         sc, labels = ev.get("score"), ev.get("labels") or []

@@ -2060,6 +2060,34 @@ def test_thetadata_provider_is_optional_and_dedupes():
     assert float(day1["bid"].iloc[0]) == 2.55, "must keep the LAST (closing) snapshot"
 
 
+def test_options_split_adjustment_two_series():
+    """Adjusted prices must never meet unadjusted strikes.
+
+    Sharadar closeadj is retro-adjusted for splits; option strikes are as-traded and never are.
+    AAPL on 2019-05-07 reads 48.34 adjusted (and 50.72 under plain `close`, which is ALSO
+    adjusted) against real strikes of 150-200, because of the 4:1 split in August 2020. Mixing
+    them solved ATM IV to None on every pre-split date and picked contracts from the wrong end
+    of the ladder - silently, with no error. `closeunadj` is the as-traded series.
+    """
+    from valuation.edge import options_backtest as OB
+
+    bars = {"date": ["2019-05-06", "2019-05-07"], "close": [48.0, 48.34],
+            "raw_close": [201.0, 202.86], "volume": [1e6, 1e6]}
+    w = OB.bars_asof({"date": bars["date"] * 40, "close": bars["close"] * 40,
+                      "raw_close": bars["raw_close"] * 40, "volume": bars["volume"] * 40},
+                     "2019-05-07")
+    assert w is not None
+    # Both series survive the slice, and they are NOT the same number.
+    assert w["close"][-1] != w["raw_close"][-1]
+    assert abs(w["raw_close"][-1] - 202.86) < 1e-6
+    # A cache without raw_close must be rejected rather than run split-mixed.
+    import inspect
+    src = inspect.getsource(OB.load_bars)
+    assert "raw_close" in src and "closeunadj" in src
+    # Option maths must never be handed the adjusted series.
+    assert "raw_close" in inspect.getsource(OB.simulate_trade)
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

@@ -31,10 +31,12 @@ from typing import Optional
 
 IV_LO, IV_HI = 0.005, 5.0       # 0.5% to 500% vol - anything outside is a bad quote, not a vol
 IV_TOL = 1e-4
-IV_MAX_ITER = 100
+IV_MAX_ITER = 40        # bisection over [0.005, 5] reaches 1e-4 in ~16 halvings;
+                        # 100 was pure waste in the inner loop of every chain
 MIN_T = 1.0 / 365.0             # under a day to expiry, greeks are meaningless
 
 _RATE_CACHE = {}
+_RATES_TRIED = False    # load ONCE per process, success or failure
 FRED_CSV = ("https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS3MO"
             "&cosd=1995-01-01")
 # Fallback if FRED is unreachable. Coarse but never silently zero.
@@ -132,7 +134,13 @@ def risk_free_rate(date, cache_path: Optional[str] = None) -> float:
     import datetime as dt
 
     d = date if isinstance(date, dt.date) else dt.date.fromisoformat(str(date)[:10])
-    if not _RATE_CACHE:
+    global _RATES_TRIED
+    if not _RATE_CACHE and not _RATES_TRIED:
+        # Load ONCE. Guarding only on an empty cache meant a FAILED fetch was retried on every
+        # single call - measured at 19.7s then 60.3s per call, which was essentially the entire
+        # runtime of the backtest. It presented as slow option maths; it was a network round
+        # trip inside the inner loop.
+        _RATES_TRIED = True
         _load_rates(cache_path)
     if _RATE_CACHE:
         key = max((k for k in _RATE_CACHE if k <= d), default=None)
@@ -149,7 +157,15 @@ def _load_rates(cache_path: Optional[str] = None):
     import csv
     import datetime as dt
 
-    path = cache_path or os.path.join("data", "bulk", "prepared", "dgs3mo.csv")
+    # Repo-anchored, not relative. A relative path resolved against whatever the working
+    # directory happened to be, so the cache was never found and never persisted.
+    _here = os.path.dirname(os.path.abspath(__file__))
+    _repo = os.path.dirname(os.path.dirname(_here))
+    path = cache_path or os.path.join(_repo, "data", "bulk", "prepared", "dgs3mo.csv")
+    if not os.path.exists(path):
+        _alt = os.path.join("C:\\Users\\donni\\Downloads\\valuation-tool", "data", "bulk", "prepared", "dgs3mo.csv")
+        if os.path.exists(_alt):
+            path = _alt
     text = None
     if os.path.exists(path):
         try:
@@ -159,7 +175,7 @@ def _load_rates(cache_path: Optional[str] = None):
     if text is None:
         try:
             import requests
-            resp = requests.get(FRED_CSV, timeout=60,
+            resp = requests.get(FRED_CSV, timeout=15,
                                 headers={"User-Agent": "Valquo research"})
             if resp.status_code == 200 and "," in resp.text:
                 text = resp.text

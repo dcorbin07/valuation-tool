@@ -46,6 +46,27 @@ bound, not a heuristic. `PREFILTER_TECH` records it so the reasoning is visible 
 weights ever change (in which case this bound MUST be recomputed).
 
 --------------------------------------------------------------------------------------------
+SPLIT ADJUSTMENT: TWO PRICE SERIES ARE REQUIRED, AND MIXING THEM IS SILENTLY FATAL.
+
+Sharadar `closeadj` is retro-adjusted for splits. Option STRIKES are as-traded and are never
+retro-adjusted. Using the adjusted close as the underlying therefore compares a 2026-basis price
+against 2019-basis strikes: AAPL on 2019-05-07 reads 48.34 adjusted against real strikes of
+150-200, because of the 4:1 split in August 2020. Note that Sharadar's `close` is ALSO
+split-adjusted - it reads 50.72 on that date, exactly 202.90/4 - so the as-traded column is
+`closeunadj`, and using plain `close` fixes nothing.
+
+The consequences were not subtle but were completely silent: ATM implied vol solved to None on
+every pre-split date (the "nearest" strike was nowhere near the money), and contract selection
+picked from the wrong end of the ladder. Nothing errored.
+
+So both series are carried and used for different jobs:
+
+    closeadj    ->  TECHNICALS. A split is not a 75% crash; indicators must see adjusted prices.
+    closeunadj  ->  ALL OPTION MATHS. Underlying for IV/greeks, strike matching, moneyness, and
+                  intrinsic settlement at expiry, because those meet the strike ladder as it
+                  actually stood on the day.
+
+--------------------------------------------------------------------------------------------
 A KNOWN DEVIATION FROM LIVE, stated up front rather than discovered later.
 
 The live scan gets bar VOLUME from Tradier. The Sharadar export on disk carries date+close
@@ -118,7 +139,10 @@ def load_bars(ticker: str, api_key: Optional[str] = None, cache_dir: str = BARS_
     if os.path.exists(path):
         try:
             with open(path, "rb") as f:
-                return pickle.load(f)
+                got = pickle.load(f)
+            # Older caches predate raw_close; refetch rather than silently run split-mixed.
+            if isinstance(got, dict) and "raw_close" in got:
+                return got
         except (OSError, pickle.UnpicklingError):
             pass
     key = api_key or os.environ.get("SHARADAR_API_KEY", "")
@@ -129,7 +153,7 @@ def load_bars(ticker: str, api_key: Optional[str] = None, cache_dir: str = BARS_
         rows, cursor = [], None
         for _ in range(20):
             params = {"ticker": ticker.upper(), "api_key": key,
-                      "qopts.columns": "date,closeadj,volume"}
+                      "qopts.columns": "date,closeadj,closeunadj,volume"}
             if cursor:
                 params["qopts.cursor_id"] = cursor
             r = requests.get("https://data.nasdaq.com/api/v3/datatables/SHARADAR/SEP.json",
@@ -146,8 +170,9 @@ def load_bars(ticker: str, api_key: Optional[str] = None, cache_dir: str = BARS_
             return None
         rows.sort(key=lambda x: x[0])
         out = {"date": [str(r[0])[:10] for r in rows],
-               "close": [float(r[1]) for r in rows],
-               "volume": [float(r[2] or 0) for r in rows]}
+               "close": [float(r[1]) for r in rows],        # ADJUSTED - technicals only
+               "raw_close": [float(r[2]) for r in rows],    # AS-TRADED - all option maths
+               "volume": [float(r[3] or 0) for r in rows]}
         with open(path, "wb") as f:
             pickle.dump(out, f, protocol=pickle.HIGHEST_PROTOCOL)
         return out
@@ -171,7 +196,9 @@ def bars_asof(bars: dict, as_of: str, lookback: int = 400) -> Optional[dict]:
         return None
     lo = max(0, hi - lookback + 1)
     return {"close": bars["close"][lo:hi + 1], "volume": bars["volume"][lo:hi + 1],
-            "high": bars["close"][lo:hi + 1], "low": bars["close"][lo:hi + 1]}
+            "high": bars["close"][lo:hi + 1], "low": bars["close"][lo:hi + 1],
+            # As-traded price for option maths; never feed this to the indicators.
+            "raw_close": (bars.get("raw_close") or bars["close"])[lo:hi + 1]}
 
 
 # ============================ option-chain summary (the live shape) ========================
@@ -198,13 +225,25 @@ def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
     pv = float(pd.to_numeric(puts.get("volume"), errors="coerce").fillna(0).sum())
     coi = float(pd.to_numeric(calls.get("open_interest"), errors="coerce").fillna(0).sum())
     poi = float(pd.to_numeric(puts.get("open_interest"), errors="coerce").fillna(0).sum())
+    # ATM IV only. Enriching the WHOLE front chain solved IV on ~100 contracts to return one
+    # number - the dominant cost of the whole backtest. Solve the nearest strike, walking out
+    # a few if the closest quote is unusable.
     atm_iv = None
-    enr = BS.enrich_chain(f, underlying, asof)
-    if enr is not None and len(enr):
-        near = enr.dropna(subset=["iv"]).copy()
-        if len(near):
-            near["dist"] = (near["strike"] - underlying).abs()
-            atm_iv = float(near.sort_values("dist")["iv"].iloc[0])
+    calls_only = f[f["right"].astype(str).str.upper().str.startswith("C")].copy()
+    if len(calls_only):
+        calls_only["_d"] = (calls_only["strike"].astype(float) - underlying).abs()
+        r_free = BS.risk_free_rate(asof)
+        for _, r in calls_only.sort_values("_d").head(5).iterrows():
+            bid, ask = r.get("bid"), r.get("ask")
+            try:
+                mid = (float(bid) + float(ask)) / 2.0
+            except (TypeError, ValueError):
+                continue
+            T = (pd.Timestamp(r["expiration"]).date() - asof).days / 365.0
+            v = BS.implied_vol(mid, underlying, float(r["strike"]), T, r_free, "C")
+            if v:
+                atm_iv = float(v)
+                break
     return {"call_volume": cv, "put_volume": pv, "call_oi": coi, "put_oi": poi,
             "atm_iv": atm_iv}
 
@@ -232,7 +271,14 @@ def pick_contract(chain, underlying: float, as_of, right: str = "C",
     d = d[(dte >= dte_range[0]) & (dte <= dte_range[1])]
     if len(d) == 0:
         return None
-    enr = BS.enrich_chain(d, underlying, asof)
+    # Narrow by moneyness FIRST. A ~35-delta call is a few percent OTM, so solving IV across
+    # the whole ladder to locate it was the single biggest compute cost in the run.
+    mny = d["strike"].astype(float) / float(underlying)
+    lo, hi = (0.90, 1.20) if right.upper().startswith("C") else (0.80, 1.10)
+    near = d[(mny >= lo) & (mny <= hi)]
+    if len(near) == 0:
+        near = d
+    enr = BS.enrich_chain(near, underlying, asof)
     enr = enr.dropna(subset=["delta"])
     if len(enr) == 0:
         return None
@@ -295,9 +341,10 @@ def simulate_trade(provider, ticker: str, entry_row, entry_date, bars: dict,
                 return t
     # Never triggered: hold to expiry and settle at intrinsic against the underlying.
     und = None
+    _px = bars.get("raw_close") or bars["close"]      # as-traded: strikes are not adjusted
     for i, ds in enumerate(bars["date"]):
         if ds <= expiry.isoformat():
-            und = bars["close"][i]
+            und = _px[i]
     t = F.round_trip(entry_q, last_q, right=right, strike=strike, exit_underlying=und,
                      aggression=aggression, expired=True)
     if t.get("ok"):
@@ -381,9 +428,10 @@ def simulate_spread(provider, ticker, entry_row, entry_date, bars, chain,
                                   long_strike, short_strike)
     # Held to expiry: the spread settles at its intrinsic width.
     und = None
+    _px = bars.get("raw_close") or bars["close"]      # as-traded: strikes are not adjusted
     for i, ds in enumerate(bars["date"]):
         if ds <= expiry.isoformat():
-            und = bars["close"][i]
+            und = _px[i]
     if und is None:
         return {"ok": False, "reason": "no_settle_price"}
     credit = (F.intrinsic(right, long_strike, und) - F.intrinsic(right, short_strike, und))
