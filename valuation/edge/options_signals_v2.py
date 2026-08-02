@@ -68,6 +68,58 @@ PRE-COMMITTED GATE - a signal is adopted as a live filter only if ALL hold:
 
 Expect rejections. These are the most-watched derived quantities in options, and the fade may
 simply be the strategy decaying rather than something a filter can rescue.
+
+================================ RESULT (run after the above was committed) =================
+
+ONE OF FIVE ADOPTED. One was not testable and is reported as such, not as a rejection.
+
+    signal       thr      kept (late)     late exp -> filtered    gain     early    verdict
+    term_slope  +0.011   307/756 (40.6%)   +4.76% -> +12.88%    +8.12pp   +5.80pp   ADOPT
+    skew_25d    +0.036   266/605 (44.0%)   +5.33% ->  +6.43%    +1.10pp   +1.36pp   reject
+    vrp         -0.027   424/756 (56.1%)   +4.76% ->  +5.30%    +0.54pp   -3.11pp   reject
+    gex_proxy   +0.048   366/729 (50.2%)   +4.65% ->  +4.00%    -0.65pp   +1.17pp   reject
+    iv_rank        -           -                 -                  -         -     NOT TESTABLE
+
+TERM STRUCTURE IS THE ONE THING THAT ARRESTS THE FADE. Requiring contango - ~60-DTE IV above
+front-expiry IV - nearly triples late-half expectancy, clears every arm of the gate, and is
+economically coherent: backwardation means the market is pricing near-term stress or a pending
+event, which is a bad moment to pay up for a 45-75 day call.
+
+Its effect on the years that were LOSING, which is what it was aimed at:
+
+    2022   -11.41% -> +19.78%   (+31.19pp)   fixed
+    2023    -4.61% ->  +7.30%   (+11.91pp)   fixed
+    2025    -0.05% ->  -5.90%   ( -5.84pp)   MADE WORSE
+
+Two of three losing years repaired, the third not. Across all ten years it helps six and hurts
+four (2019 -8.18pp and 2021 -5.44pp are the others). A real filter, not a universal one, and it
+should not be described as fixing the fade outright.
+
+ROBUST, NOT A KNIFE-EDGE. Varying the threshold over a 3x range changes almost nothing:
+
+    thr x0.50  kept 44.3%  gain +7.71pp        thr x1.25  kept 39.3%  gain +8.96pp
+    thr x0.75  kept 42.5%  gain +8.87pp        thr x1.50  kept 37.7%  gain +8.15pp
+    thr x1.00  kept 40.6%  gain +8.12pp
+
+That matters more than the headline: a result surviving a 3x move in its only free parameter is
+not a fitted cutoff. NOTE the retention floor is only just cleared (40.6% vs a 40% bar), so the
+filter discards ~60% of alerts - a materially smaller book, and that belongs in sizing.
+
+A BUG THAT INVALIDATED skew_25d'S FIRST TEST. 288 of 1,540 skew values were NaN (not None), so
+they passed the `is not None` filter, `median` returned NaN, and every `>= threshold` comparison
+was False - the filter kept ZERO trades while the coverage guard reported 100%. The reported
+reason was wrong too ("no late-half coverage"). Both fixed: NaN excluded explicitly and the two
+failure modes now distinguished. skew_25d then tested fairly on 605 late rows and rejected on
+its merits (+1.10pp).
+
+iv_rank IS NOT TESTABLE AS BUILT, not rejected. It needs 60 prior ATM-IV observations for a name
+before a percentile means anything, but IV history was accumulated only from that name's own
+alerts (~28 on average), so coverage was 0%. Testing it properly needs a daily ATM-IV series per
+name across all trading days - a straightforward extension of the cached chain, but a fresh
+compute pass. Calling it "rejected" would misrepresent an untested signal.
+
+TICK FLOW remains untested: it needs the tick trade feed, which is not in the cached EOD history.
+
 """
 from __future__ import annotations
 
@@ -171,8 +223,12 @@ def fit_threshold(early_rows, signal: str) -> Optional[float]:
     """Median of the signal among PROFITABLE early-half trades. Untuned by construction."""
     import statistics as st
 
-    vals = [r.get(signal) for r in early_rows
-            if r.get(signal) is not None and (r.get("pnl_pct") or 0) > 0]
+    # NaN must be excluded explicitly: it is not None, so a naive filter lets it through and
+    # st.median returns NaN, after which every `>= threshold` comparison is False and the signal
+    # silently "keeps nothing" while appearing to have full coverage. That happened to skew_25d.
+    vals = [v for v in (r.get(signal) for r in early_rows
+                        if (r.get("pnl_pct") or 0) > 0)
+            if v is not None and v == v]
     if len(vals) < 30:
         return None
     return st.median(vals)
@@ -190,10 +246,12 @@ def evaluate(rows, signal: str, seed: int = 0) -> dict:
     if thr is None:
         return {"signal": signal, "ok": False, "reason": "too few early-half values"}
 
-    late_has = [r for r in late if r.get(signal) is not None]
+    late_has = [r for r in late if r.get(signal) is not None and r[signal] == r[signal]]
     keep = [r for r in late_has if r[signal] >= thr]
     if not keep or not late_has:
-        return {"signal": signal, "ok": False, "reason": "no late-half coverage", "threshold": thr}
+        why = ("no late-half rows carry this signal" if not late_has
+               else "filter kept ZERO late-half trades")
+        return {"signal": signal, "ok": False, "reason": why, "threshold": thr}
 
     base, filt = _stats(late_has), _stats(keep)
     gain = (filt["expectancy_pct"] or 0) - (base["expectancy_pct"] or 0)
@@ -206,7 +264,7 @@ def evaluate(rows, signal: str, seed: int = 0) -> dict:
         ctrl.append(_stats(s)["expectancy_pct"] or 0)
     ctrl_mean = sum(ctrl) / len(ctrl)
 
-    early_has = [r for r in early if r.get(signal) is not None]
+    early_has = [r for r in early if r.get(signal) is not None and r[signal] == r[signal]]
     early_keep = [r for r in early_has if r[signal] >= thr]
     early_gain = ((_stats(early_keep)["expectancy_pct"] or 0)
                   - (_stats(early_has)["expectancy_pct"] or 0)) if early_keep else None

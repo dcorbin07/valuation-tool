@@ -12,6 +12,50 @@ file directly.
 
 ---
 
+## OPTIONS PHASE 3b §2 - term structure ADOPTED, arrests most of the fade (2026-08-02)
+
+Five ThetaData-derived signals tested, each fitted on 2016-2020 and judged ONLY on 2021-2025
+(where the edge fades). **One adopted, three rejected, one not testable.**
+
+    term_slope  kept 40.6%  late +4.76% -> +12.88%   +8.12pp   ADOPT
+    skew_25d    kept 44.0%  late +5.33% ->  +6.43%   +1.10pp   reject
+    vrp         kept 56.1%  late +4.76% ->  +5.30%   +0.54pp   reject
+    gex_proxy   kept 50.2%  late +4.65% ->  +4.00%   -0.65pp   reject
+    iv_rank                        NOT TESTABLE (see below)
+
+**TERM STRUCTURE (contango: ~60-DTE IV above front IV) nearly triples late-half expectancy** and
+is economically coherent - backwardation prices near-term stress or a pending event, a bad moment
+to buy a 45-75 day call. On the losing years: **2022 -11.41% -> +19.78%, 2023 -4.61% -> +7.30%,
+but 2025 -0.05% -> -5.90%.** Two of three repaired, one worsened; across ten years it helps six
+and hurts four. A real filter, not a universal one.
+
+Robust to its only parameter: over a 3x threshold range the gain stays +7.7 to +9.0pp. But it
+DISCARDS ~60% of alerts (retention 40.6% against a 40% floor), so the book gets materially
+smaller - that belongs in any sizing decision.
+
+**Bug worth knowing:** 288 skew values were NaN (not None), so they passed the not-None filter,
+the median came back NaN, and every comparison was False - the filter kept ZERO trades while
+coverage reported 100%. Fixed; skew then tested fairly and rejected on merit.
+
+**iv_rank is NOT TESTABLE as built, not rejected.** It needs 60 prior ATM-IV observations per
+name, but IV history came only from that name's alerts (~28 avg), so coverage was 0%. Needs a
+daily ATM-IV series per name across all trading days - straightforward, but a fresh compute pass.
+Tick flow also remains untested (needs the tick feed, not cached).
+
+**§0 STILL BLOCKED - BUT VERIFIED SAFE.** A dry-run merge shows NO conflicts and ZERO overlapping
+files (main adds 166 under options-bot/ + prompts; this branch changes 23 under valuation/,
+tests/, docs). My harness forbids merging/pushing to main, so this needs one manual step:
+
+    git checkout main
+    git merge worktree-p24-shortinterest
+    python tests/test_edge.py        (expect 88/88)
+    .\git_push.bat
+
+**NOT DONE:** §4 VRP/credit-spread arm + correlation with the long arm; §5 options-bot fold-in
+(also blocked - that code is on main, not in this worktree); §6 live engine, tracked book,
+per-alert confidence + suggested sizing. Roadmap 22b (small/mid-cap) is the next iteration and
+needs a fresh ThetaData pull.
+
 ## OPTIONS PHASE 3 - sizing adopted, DTE rejected, §0 BLOCKED (2026-08-02)
 
 **§0 IS BLOCKED AND NEEDS DON.** `main` has DIVERGED from the options branch: main took in the
