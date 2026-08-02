@@ -23,21 +23,40 @@ if not defined GIT ( echo Git not found. Use GitHub Desktop, or run connect_gith
 
 rem --- Auto-land finished agent work ---------------------------------------------------
 rem  Claude Code works on worktree-* branches (its harness will not push to main), so every
-rem  session used to end with a manual merge. Fast-forward ONLY: a branch is merged only when
-rem  main is already its ancestor, which cannot conflict and cannot rewrite history. Anything
-rem  that is not a clean FF (diverged, or main moved past it) is skipped with a note rather
-rem  than forced.
-echo Checking for finished agent branches to land...
-rem  "delims=* " strips the leading "* " / "  " that git branch prints, so %%b is the bare name.
-for /f "usebackq tokens=* delims=* " %%b in (`"%GIT%" branch --list worktree-*`) do (
-  "%GIT%" merge-base --is-ancestor main %%b >nul 2>nul && (
-    "%GIT%" merge --ff-only %%b >nul 2>nul && (
-      echo   [merged] %%b
-    ) || (
-      echo   [skip]   %%b - not a clean fast-forward, merge by hand
-    )
+rem  session used to end with a manual merge. This now does a REAL merge (--no-edit), not
+rem  fast-forward-only: main and the agent branches routinely diverge because main picks up
+rem  its own commits, and FF-only silently skipped every diverged branch - which is exactly
+rem  the manual-merge treadmill this is meant to kill.
+rem
+rem  Safety: a genuine conflict is aborted, reported, and BLOCKS the push, so a half-merged
+rem  tree is never deployed. Tests then run, and a red suite also blocks the push - this
+rem  script deploys to Render, and auto-deploying a failing build is worse than not landing.
+set "LANDFAIL="
+set "CURBR="
+for /f "usebackq tokens=*" %%c in (`"%GIT%" rev-parse --abbrev-ref HEAD`) do set "CURBR=%%c"
+if /i not "%CURBR%"=="main" (
+  echo Not on main ^(on %CURBR%^) - skipping auto-land.
+) else (
+  echo Checking for finished agent branches to land...
+  rem  "delims=* " strips the leading "* " / "  " that git branch prints, so %%b is the bare name.
+  for /f "usebackq tokens=* delims=* " %%b in (`"%GIT%" branch --list worktree-*`) do (
+    call :try_merge "%%b"
   )
 )
+if defined LANDFAIL (
+  echo.
+  echo  [!] A branch could not be merged cleanly. Nothing was pushed.
+  goto :done
+)
+
+rem --- Never deploy red ------------------------------------------------------------------
+echo Running tests before pushing...
+python tests\test_edge.py >nul 2>nul
+if errorlevel 1 (
+  echo  [!] TESTS FAILED - refusing to push. Fix them, then run this again.
+  goto :done
+)
+echo   [OK] tests pass.
 
 "%GIT%" add -A
 "%GIT%" diff --cached --quiet
@@ -55,6 +74,28 @@ if errorlevel 1 (
 ) else (
   echo  [OK] GitHub is up to date.
 )
+
+goto :done
+
+:try_merge
+rem  Merge one agent branch. Called (not inlined) so plain %VAR% expansion works - doing this
+rem  inside the for-loop needs delayed expansion, which is how this script broke twice before.
+set "BR=%~1"
+set "AHEAD=0"
+for /f "usebackq tokens=*" %%n in (`"%GIT%" rev-list --count main..%BR% 2^>nul`) do set "AHEAD=%%n"
+if "%AHEAD%"=="0" (
+  echo   [skip]    %BR% - nothing new
+  goto :eof
+)
+"%GIT%" merge --no-edit "%BR%" >nul 2>nul
+if errorlevel 1 (
+  "%GIT%" merge --abort >nul 2>nul
+  echo   [conflict] %BR% - resolve manually
+  set "LANDFAIL=1"
+) else (
+  echo   [merged]  %BR% ^(%AHEAD% commits^)
+)
+goto :eof
 
 :done
 if "%~1"=="" pause
