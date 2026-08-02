@@ -12,6 +12,324 @@ file directly.
 
 ---
 
+## OPTIONS PHASE 3b §2 - term structure ADOPTED, arrests most of the fade (2026-08-02)
+
+Five ThetaData-derived signals tested, each fitted on 2016-2020 and judged ONLY on 2021-2025
+(where the edge fades). **One adopted, three rejected, one not testable.**
+
+    term_slope  kept 40.6%  late +4.76% -> +12.88%   +8.12pp   ADOPT
+    skew_25d    kept 44.0%  late +5.33% ->  +6.43%   +1.10pp   reject
+    vrp         kept 56.1%  late +4.76% ->  +5.30%   +0.54pp   reject
+    gex_proxy   kept 50.2%  late +4.65% ->  +4.00%   -0.65pp   reject
+    iv_rank                        NOT TESTABLE (see below)
+
+**TERM STRUCTURE (contango: ~60-DTE IV above front IV) nearly triples late-half expectancy** and
+is economically coherent - backwardation prices near-term stress or a pending event, a bad moment
+to buy a 45-75 day call. On the losing years: **2022 -11.41% -> +19.78%, 2023 -4.61% -> +7.30%,
+but 2025 -0.05% -> -5.90%.** Two of three repaired, one worsened; across ten years it helps six
+and hurts four. A real filter, not a universal one.
+
+Robust to its only parameter: over a 3x threshold range the gain stays +7.7 to +9.0pp. But it
+DISCARDS ~60% of alerts (retention 40.6% against a 40% floor), so the book gets materially
+smaller - that belongs in any sizing decision.
+
+**Bug worth knowing:** 288 skew values were NaN (not None), so they passed the not-None filter,
+the median came back NaN, and every comparison was False - the filter kept ZERO trades while
+coverage reported 100%. Fixed; skew then tested fairly and rejected on merit.
+
+**iv_rank is NOT TESTABLE as built, not rejected.** It needs 60 prior ATM-IV observations per
+name, but IV history came only from that name's alerts (~28 avg), so coverage was 0%. Needs a
+daily ATM-IV series per name across all trading days - straightforward, but a fresh compute pass.
+Tick flow also remains untested (needs the tick feed, not cached).
+
+**§0 STILL BLOCKED - BUT VERIFIED SAFE.** A dry-run merge shows NO conflicts and ZERO overlapping
+files (main adds 166 under options-bot/ + prompts; this branch changes 23 under valuation/,
+tests/, docs). My harness forbids merging/pushing to main, so this needs one manual step:
+
+    git checkout main
+    git merge worktree-p24-shortinterest
+    python tests/test_edge.py        (expect 88/88)
+    .\git_push.bat
+
+**NOT DONE:** §4 VRP/credit-spread arm + correlation with the long arm; §5 options-bot fold-in
+(also blocked - that code is on main, not in this worktree); §6 live engine, tracked book,
+per-alert confidence + suggested sizing. Roadmap 22b (small/mid-cap) is the next iteration and
+needs a fresh ThetaData pull.
+
+## OPTIONS PHASE 3 - sizing adopted, DTE rejected, §0 BLOCKED (2026-08-02)
+
+**§0 IS BLOCKED AND NEEDS DON.** `main` has DIVERGED from the options branch: main took in the
+whole `options-bot` tree (164 files, ~27k lines) plus the PROMPT files in two automated "Update"
+commits, while 28 phase-1/2/3 commits sit on `worktree-p24-shortinterest`. Because it is no
+longer a fast-forward, **`git_push.bat` will SKIP it** ("not a clean fast-forward, merge by
+hand"). The changes do not overlap - main added `options-bot/`, the branch touched `valuation/`,
+`tests/` and the docs - so the merge should be clean. My harness forbids merging or pushing to
+main, so this needs one manual step:
+
+    git checkout main
+    git merge worktree-p24-shortinterest
+    python tests/test_edge.py        (expect 88/88)
+    .\git_push.bat
+
+**§1 FIXED-DOLLAR SIZING ADOPTED - and a phase-2 number is CORRECTED.** Phase 2 said fixed-dollar
+sizing cuts the top-15 share to 42.0%; that deployed exactly $1,000 per trade, i.e. FRACTIONAL
+contracts, which do not exist. With whole contracts:
+
+    1 contract each (phase 1)          top-15 98.1%   ex-top-15  $2,767
+    idealised fractional (phase 2)            42.0%              $92,998
+    whole contracts, min 1                    62.9%              $83,986
+    whole contracts, skip too-costly          50.3%              $54,853  (drops 13% of signals)
+
+200 of 1,540 signals cost more than a $1,000 budget for one contract, so they can only be
+skipped or taken oversized. **The conclusion survives - 98.1% -> ~45-63%, ex-tail $2,767 ->
+$55k-$93k - but 42% is not reachable in any tradeable form.** Larger budgets are better on every
+axis ($5,000: 98.4% of signals, +10.16%, 44.5% concentration). Percentage expectancy is identical
+across sizing schemes (+10.42%), which is the check the re-weighting is correct.
+
+**§3 65-75 DTE REJECTED.** +11.55pp on the first half, **+1.19pp on the second** against a
+required +5pp. It inherits the very fade it was meant to arrest. Phase 2's +17.0% vs +7.8% was a
+full-sample figure dominated by the early period. Live band stays 45-75. 35-delta remains
+confirmed optimal and untouched.
+
+**NOT DONE:** §2 (new ThetaData signals judged on the 2021-2025 fade - the core remaining
+research), §4 (VRP/credit-spread arm + correlation with the long arm), §5 (options-bot fold-in -
+also blocked, the code is on main and not in this worktree), §6 (live engine + tracked book +
+annualized net-of-cost/after-tax returns). Roadmap 22b (small/mid-cap expansion) is explicitly
+the iteration after this and needs a fresh ThetaData pull.
+
+## OPTIONS PHASE 2 - tail analysis + spread comparison (2026-08-02)
+
+**The phase-1 "too tail-dependent to size" verdict is CORRECTED.** The dollar concentration was
+a position-sizing artefact: entry premiums span 1,076x, so 1 contract of a pre-split $3,000 AMZN
+next to 1 of a $40 bank guarantees a few names dominate. At fixed $1,000 risk per trade the
+top-15 share falls 98.1% -> 42.0% (idealised; 44-63% with whole contracts - see phase 3), profit ex-top-15 goes $2,767 -> $92,998, top-3 name
+concentration 76% -> 34%, and total profit RISES to $160,461. **Size by fixed dollar risk, not
+contract count.** Excluding the top 15 winners entirely, expectancy is still +8.96%/trade, and
+30.7% of all trades returned >= +100% - big winners are common, not rare.
+
+**No conviction tier ships.** A fingerprint fit on half 1 scored a 28.07% big-win rate on the
+held-out half vs a 29.05% base and 29.04% random control (lift 0.966 vs a required 2.0). Worse
+than random; fails every arm of the gate. The tail is unpredictable - 9 of the top 15 were 2020
+AMZN/GOOGL/TSLA. Building a louder "scream-buy+" alert would have been false emphasis.
+
+**Section 4 REJECTED:** matched vertical debit spread scores -4.46%/trade vs single-leg +12.33%
+on 1,313 matched pairs, worse in every IV regime and both halves, and no better hit rate. The
++100% target is measured on the debit but a debit spread's max value is the strike width, so
+targets sit at the ceiling while the -50% stop fires normally.
+
+**STILL NOT DONE (mandate sections 3-6 of phase 2):** the new ThetaData signals (IV rank, VRP,
+term structure, skew, tick flow, GEX); the VRP/credit-spread arm; the options-bot fold-in
+(OPTIONS_BOT_INTEGRATION.md); and the live-engine + tracked-book wiring with annualized
+net-of-cost and after-tax returns. Nothing in the live product has been changed.
+
+## OPTIONS TRACK - scream-buy validated on real ThetaData (2026-08-02)
+
+Full detail in `OPTIONS_BACKTEST_RESULTS.md`. 55 names, 2016-2025, **1,540 closed trades**, all
+net of spread + commission at the punishing fill (buy ask / sell bid).
+
+    hit rate 37.4%   avg win +120.4%   avg loss -55.3%   PF 1.30
+    EXPECTANCY +10.4%/trade   cum $143,723 (1 contract/trade)
+    held-out split: +16.4% (2016-2020) vs +4.4% (2021-2025) - positive in BOTH, bar met
+    positive in 7/10 years; 2022, 2023, 2025 negative
+    37 of 55 names positive
+
+**THE DECISIVE CAVEAT: dollar P&L is tail-driven. Drop the best 1% of trades (15 of 1,540) and
+$143,723 becomes $2,767; drop 5% and it is -$151,760.** Percentage expectancy is far more robust
+(+10.4% -> +9.0% dropping the top 1%), because the book buys ONE CONTRACT per signal so
+expensive contracts dominate dollars. **Sizing by fixed dollar risk instead of fixed contract
+count is the obvious next test.**
+
+Verdict: positive expectancy, survives costs, clears the pre-committed bar - but thin, fading,
+and too tail-dependent to size aggressively. NOT "the scream-buy engine works". Nothing in the
+live product was changed on the basis of it.
+
+Useful sub-findings: realised stop loss is -59.1% not -50% (daily-mark trigger, worse fill);
+the live 35-delta pick is the best of three delta buckets; 65-75 DTE more than doubles 45-55
+(+17.0% vs +7.8%) and is a testable refinement, not yet gated.
+
+**Infrastructure now in place** (all committed, tests 88/88):
+- `theta_bulk.py` - year-chunked bulk loader, 4 concurrent, quarterly chunks with
+  retry/backoff/timeout, resumable atomic cache in `data/options/`. Per name the pull went from
+  280-640 calls to ~22; a full year of compute went from "did not finish in 500s" to 0.6s.
+- `options_fill.py` - fill/cost engine. Honest fill is the DEFAULT (mid-fills are a diagnostic
+  only), bad quotes rejected with named reasons, expired-worthless posts -100%.
+- `blackscholes.py` - local greeks, validated against the vendor (delta 98.96%, IV 100% in the
+  tradable band).
+- `options_backtest.py` - reconstruction that CALLS the live alert + live scorecard functions,
+  so backtest and forward tracker cannot diverge.
+- `optbt_status.py` - progress + partial verdict at any time; `optbt_run.py` - the runner.
+
+**Four silent bugs found and fixed** (each would have produced a confident wrong answer):
+split-adjusted prices meeting unadjusted strikes; a failed FRED fetch retried every call (60s);
+11 of 30 year-pulls failing with no retry and no record; and ticker renames (META/FB) silently
+dropping six years.
+
+**NOT DONE - mandate sections 4-6:** single-leg vs vertical spread (arm is built and committed,
+not run), the new ThetaData signals (IV rank, VRP, term structure, skew, tick flow, GEX), and
+the live-engine / tracked-options-book updates. Premium selling (CSP/covered calls) remains
+deferred by the mandate as a separate short-vol track.
+
+## P24.3 / P24.4 - USAspending REJECTED, congressional trades INCONCLUSIVE (2026-08-01)
+
+This closes the alt-data question opened in P24: four external sources tested, four gates
+pre-committed to git before any number came back, nothing adopted.
+
+### USAspending federal contract awards - REJECTED
+
+    signal                     median IC    IC t   dates   avg names   coverage
+    govt_award_momentum          +0.0044   +0.70      62          89      4.03%
+    govt_award_level (PLACEBO)   +0.0007   -0.52      62          96      4.34%
+    -- POWER CONTROLS on the same restricted subset --
+    inst_accum                   +0.0412   +2.27      50          90
+    quality                      +0.0290   +1.61      62          88
+    ret_6_1                      +0.0114   +0.78      62          88
+
+**The power control earned its keep.** The FIRST run mapped only 89 tickers and produced a
+70-ticker subset on which ret_6_1 fell from t +3.40 (full panel) to +0.83, with no control
+clearing 2.0. By the pre-committed rule that was INCONCLUSIVE, and it was not written up as a
+rejection. Going deeper into the recipient list (top 2,000 -> top 6,000) lifted the mapping to
+137 tickers and the subset to 102, at which point inst_accum reached +2.27 and the null became
+interpretable. Without that rule the thin first run would have been reported as "federal award
+momentum does not work" on evidence that could not support the claim.
+
+Limits that survive the verdict: coverage is 4%, so even a real signal there could not move a
+broad book (it would have been a gov-exposure sleeve, not a composite change); and the
+subsidiary problem is unsolved - no parent-rollup endpoint exists (parent_recipient /
+recipient_parent / parent_duns all 404), so Electric Boat is still not credited to General
+Dynamics. That adds noise, which biases toward rejection, so it does not undermine this null.
+
+### Congressional trades - INCONCLUSIVE, explicitly NOT a rejection
+
+    signal                     median IC    IC t   dates   avg names   coverage
+    congress_net_buy             +0.0020   +0.97      49         314     11.27%
+    congress_activity (PLACEBO)  -0.0040   +0.02      49         314     11.27%
+    -- POWER CONTROLS on the same restricted subset --
+    ret_6_1                      +0.0484   +1.87      49         313
+    inst_accum                   +0.0230   +1.80      49         313
+
+The signal shows nothing (t +0.97, and it would have to more than double to clear the bar), but
+the subset cannot certify a null - the best known-real control reaches only +1.87 against a
+pre-committed 2.0. So no verdict is claimed.
+
+**The limit is TIME, not cross-section**, which says what would fix it. Coverage is healthy
+(1,157 tickers, ~314 names/date - wider than the USAspending test that DID reach power). The
+binding constraint is that the data starts 2014, giving 49 rebalance dates over a decade in
+which momentum itself was weak. More tickers cannot fix that; only more years, which do not
+exist.
+
+**Point-in-time, now quantified rather than asserted.** Of 47,455 transactions, 21.9% were filed
+late; days from trade to filing have a median of 29, a 90th PERCENTILE OF 210, and a max of
+4,049. Using transaction_date injects up to SEVEN MONTHS of look-ahead for a tenth of the
+sample, precisely during the window a member's presumed advantage would play out. The loader
+DISCARDS the transaction date entirely rather than merely declining to filter on it, so it
+cannot be reached later. Pinned by `test_congress_never_stores_transaction_date`.
+
+**Second finding worth keeping:** the originally intended source (House/Senate Stock Watcher) is
+defunct - S3 403, site dead - and its surviving GitHub mirror is Senate-only, stops in 2019, and
+carries `transaction_date` as its ONLY date field. A test built on the first free dataset to hand
+could not have been correct, and no field would have warned anyone. Source used instead:
+kadoa-org/congress-trading-monitor, built from the official House Clerk and Senate eFD feeds,
+which carries filing_date separately. The GATE (thresholds, orientation, placebo, power control)
+was unchanged by the source switch.
+
+### Where the alt-data question now stands
+
+    source                  verdict        why
+    FINRA short interest    REJECTED       t +1.04 vs 2.0; controls on the same window +3.53
+    SEC EDGAR 13D/13G       REJECTED       activist t -0.69; passive placebo beat it by 2.35
+    USAspending awards      REJECTED       t +0.70; subset had power (inst_accum +2.27)
+    Congressional trades    INCONCLUSIVE   t +0.97 but no control cleared 2.0 on 49 dates
+
+Nothing adopted. Three clean rejections and one honest inconclusive. Combined with the P6/P10
+rejections, the standing conclusion is unchanged and now better supported: **the signal set is
+saturated for this dataset, and free public alt-data did not add to it.** All eight signals stay
+MEASURED (per-signal IC table) and score in no theme, so re-testing any of them is one line in
+factors.py.
+
+Tests 81/81.
+
+### Recommended next step
+
+The internal-research avenue is exhausted for now. The top priority remains what it was before
+P24: **a forward paper-track vs SPY** - the edge has still only ever seen this one 18-year
+Sharadar panel, and a live track on data nobody has looked at is the only remaining honest test.
+That is Cowork's lane ("Valquo Index vs SPY").
+
+## P24.2 - SEC EDGAR 13D/13G: TESTED AND REJECTED (2026-08-01)
+
+352,332 filings -> 6,632 tickers from EDGAR quarterly form indexes (112s for 2007-2026).
+
+    signal                  median IC    IC t   nonzero   coverage
+    activist_13d              -0.0055   -0.69     4.56%      58.5%
+    passive_13g (PLACEBO)     +0.0159   +1.66    18.59%      58.5%
+    inst_accum (in the book)  +0.0314   +1.88        --      61.4%
+
+    gate: standalone t >= 2.0              FAIL (-0.69)
+          13D beats 13G placebo by >= 1.0  FAIL (-2.35)
+
+**The activist signal came out NEGATIVE** - opposite to the direction fixed in advance - and the
+PASSIVE placebo (the box index funds tick mechanically) outscored it by 2.35 t. Measuring 13D
+alone would have given a bland "weak, rejected"; the pre-committed placebo gives a sharper
+verdict: whatever these filings carry at a quarterly horizon, it is not activism creating value.
+It also forecloses chasing passive_13g's +1.66, very likely a coarser echo of inst_accum (+1.88)
+that the institutional theme already owns.
+
+**Two silent-failure bugs caught, both now pinned by tests:**
+1. The SEC RENAMED the forms during 2024 ("SC 13D" -> "SCHEDULE 13D"). The old spelling returns
+   ~30 filings/quarter for 2025-2026 vs ~15,000 - the most recent panel dates would have carried
+   a structurally-zero signal while looking perfectly healthy.
+2. form.idx is nominally fixed-width but the column offsets have MOVED over EDGAR's history; a
+   fixed-width parse scored 0/200 rows on 2015. Parsed by structure instead (98.6-99.5% across
+   1998/2015/2024).
+
+Honest deviation: the docstring specifies absence -> 0.0, but the panel wiring skips tickers with
+no filing history at all, so coverage is 58.5% not ~100%. That made the test EASIER (the
+never-filed mass is excluded) and activist_13d still went negative, so the verdict stands.
+
+Point-in-time: only `Date Filed` is read - the public disclosure date. The event date (crossing
+5%, up to 10 days earlier) is never parsed. Tests 79/79.
+
+**Next - P24 items 3 and 4 are UNTOUCHED:**
+- USAspending.gov contract awards (use the award ACTION/entry date)
+- Congressional trades (use the PTR DISCLOSURE date, NEVER the transaction date - it lags up to
+  45 days, and using the trade date would be look-ahead)
+
+## P24.1 — FINRA short interest: TESTED AND REJECTED (2026-08-01)
+
+Downloaded FINRA's consolidated short interest: **3,866,270 rows -> 48,539 tickers** (1,294s,
+cached to `data/bulk/prepared/short_interest.pkl`). Two signals wired, measured, rejected.
+
+    signal                    median IC    IC t   n_dates   gate (t >= 2.0)
+    neg_days_to_cover           +0.0147   +1.04        33   FAIL
+    neg_short_interest_chg      +0.0133   +0.42        33   FAIL
+    -- controls, SAME 34-date window --
+    ret_6_1                     +0.0643   +3.53        34
+    inst_accum                  +0.0669   +3.27        34
+
+**The controls are the point.** The pre-committed caveat was that 34 dates might be too few to
+detect anything. They are not — on this exact window ret_6_1 shows at t +3.53. The window has
+ample power to see an effect of that size, so t +1.04 is an absence of SIGNAL, not an absence of
+EVIDENCE. That is a real verdict, not an inconclusive one.
+
+Both signs came out as pre-committed (both median ICs positive). The orthogonality premise was
+also correct and did not save it: neg_days_to_cover correlates only +0.048 with ret_6_1 and
++0.034 with inst_accum — genuinely new information, simply not predictive. It is -0.311
+correlated with size, so days-to-cover partly re-expresses a size effect the book already has.
+
+POINT-IN-TIME: FINRA exposes `settlementDate` and no dissemination field, so using it directly
+would inject ~2 weeks of look-ahead. Every observation is stamped `settlementDate + 15 days` and
+the raw settlement date is never returned to callers. Pinned by a test.
+
+Coverage 90.4% within the 2018+ window (plumbing works); 40.0% of the full 110-date panel — a
+data-availability ceiling, as FINRA publishes nothing before 2018. Standalone gate not cleared,
+so the held-out comparison was not run. Both signals stay MEASURED, scoring in no theme.
+
+Tests 78/78. Downloader and publication-lag machinery kept — correct and reusable; only more
+history would change the verdict, and FINRA does not publish it.
+
+**Next:** P24 items 2-4 untouched — SEC EDGAR 13D/13G (use FILING date), USAspending (award
+action date), congressional trades (PTR DISCLOSURE date, never transaction date).
+
 ## Hot Stocks ⇄ Valquo Index unified, with a Roth/Taxable toggle — AND the UI is finally VERIFIED
 
 **The blocker is gone.** `pip install flask werkzeug jinja2 openpyxl reportlab` (all already in

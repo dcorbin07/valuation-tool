@@ -196,3 +196,67 @@ gated behind P7/P8. Once the book is clean and the edge re-confirmed, stand up t
 **P14 — Gated auto-apply of weights** (after the L2 autolearn review).
 
 **Parked:** WRDS/IBES estimate-revisions sentiment (data-gated).
+
+## FINRA short interest (P24.1, 2026-08-01)
+`valuation/edge/short_interest.py` — committed results-free, then the verdict appended.
+REJECTED: t +1.04 / +0.42 vs a 2.0 bar. Not low power — controls on the same 34-date window
+score +3.53 (ret_6_1) and +3.27 (inst_accum). Genuinely orthogonal (+0.048 vs ret_6_1), just not
+predictive; -0.311 vs size.
+
+The one thing to not break: FINRA gives only `settlementDate`, which is ~2 weeks BEFORE the data
+is public. `fetch_short_interest` stamps every row with settlement + 15 days and deliberately
+never returns the settlement date, so a future caller cannot reintroduce the look-ahead.
+Pinned by `test_short_interest_uses_publication_date_not_settlement`.
+
+Cache: `data/bulk/prepared/short_interest.pkl` (167MB, gitignored with the rest of data/).
+
+## SEC EDGAR 13D/13G (P24.2, 2026-08-01)
+`valuation/edge/edgar13d.py` - committed results-free, verdict appended. REJECTED: activist_13d
+t -0.69 (wrong sign), and the pre-committed passive 13G placebo beat it by 2.35 t.
+
+Two things not to re-break, both pinned by `test_edgar13d_dating_and_form_rename`:
+- BOTH form spellings are required. The SEC renamed "SC 13D" -> "SCHEDULE 13D" during 2024;
+  matching only the old one silently empties 2025 onward (~30 vs ~15,000 filings/quarter).
+- form.idx must be parsed by STRUCTURE, not fixed width - the column offsets moved over EDGAR's
+  history and a fixed-width parse returns nothing for whole eras.
+
+Only `Date Filed` is ever read (the public disclosure date); the 5%-crossing event date is not
+parsed at all. Caches: `data/bulk/prepared/edgar13d.pkl`, `cik_ticker.json` (gitignored).
+
+## USAspending + congressional trades (P24.3/P24.4, 2026-08-01)
+`valuation/edge/usaspending.py`, `valuation/edge/congress.py` - both committed results-free,
+verdicts appended. USAspending REJECTED (t +0.70, subset had power). Congress INCONCLUSIVE
+(t +0.97, best control only +1.87 - no verdict claimed).
+
+Things not to re-break:
+- **congress.py must never store `transaction_date`.** 21.9% of filings are late; the 90th
+  percentile trade-to-filing gap is 210 days and the max is 4,049. Using the transaction date
+  injects up to seven months of look-ahead. The loader discards the field rather than merely
+  declining to filter on it. Pinned by `test_congress_never_stores_transaction_date`.
+- **usaspending.py stamps quarter_end + 60 days** and never returns the raw quarter end. FPDS has
+  a reporting delay and DoD actions were historically withheld 90 days.
+- Federal award momentum is 4-quarters-over-4-quarters on purpose: obligations spike hugely in
+  the September fiscal year-end, so a shorter window measures the calendar, not the company.
+- The USAspending recipient->ticker map is exact-normalized-name only, never fuzzy: a false match
+  silently credits another company's contracts to a stock. Subsidiaries (Electric Boat -> GD) are
+  therefore missed; no parent-rollup endpoint exists (all three candidate paths 404).
+
+Caches (gitignored): `data/bulk/prepared/usaspending.pkl`, `congress.pkl`, `sec_names.json`.
+
+## Options track (2026-08-02)
+See `OPTIONS_BACKTEST_RESULTS.md`. Scream-buy: +10.4%/trade over 1,540 trades net of spread,
+positive in both held-out halves, but 15 trades are 98% of the dollar profit.
+
+Things not to re-break:
+- **Two price series.** `closeadj` for technicals, `closeunadj` for ALL option maths. Option
+  strikes are never split-adjusted; mixing them made ATM IV solve to None on every pre-split
+  date and picked contracts from the wrong end of the ladder, silently. Pinned by
+  `test_options_split_adjustment_two_series`.
+- **Fill defaults to buying the ask and selling the bid.** Mid fills are a diagnostic, never a
+  headline. Pinned by `test_options_fill_engine_charges_the_spread_both_ways`.
+- **Expired-worthless contracts must post -100%**, not vanish - that is the survivorship bias
+  that flatters options backtests. Pinned by `test_options_expired_worthless_is_recorded_not_dropped`.
+- **Year gaps are recorded and the name excluded**, never silently under-sampled.
+- **The runner takes a PID lock**: two runners sharing one bank silently corrupted each other
+  (a zombie run overwrote a 197-trade result with 5 trades).
+Caches (gitignored): `data/options/<SYM>/<SYM>-<YEAR>.pkl`, `optbt_state.pkl`.

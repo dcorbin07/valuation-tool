@@ -399,6 +399,26 @@ class WRDSProvider(HistoricalDataProvider):
         from .bulk import earnings_dates as _ed
         return _ed(self._bulk("events"), ticker)
 
+    def congress_for(self, ticker):
+        """Congressional trades as (FILING date, signed dollars). Never the transaction date."""
+        return self._bulk("congress").get(ticker.upper(), [])
+
+    def usaspending_for(self, ticker):
+        """Federal award quarters as (available_date, obligations) — already publication-lagged."""
+        return self._bulk("usaspending").get(ticker.upper(), [])
+
+    def edgar_13d_for(self, ticker):
+        """SEC 13D/13G filings as (FILING date, form). Filing date == public disclosure date."""
+        return self._bulk("edgar13d").get(ticker.upper(), [])
+
+    def short_interest_for(self, ticker):
+        """FINRA short-interest observations, already stamped with the PUBLICATION date.
+
+        The cache stores settlementDate + publication lag, never the settlement date itself,
+        so a caller cannot accidentally use the un-lagged figure.
+        """
+        return self._bulk("short_interest").get(ticker.upper(), [])
+
     def elite_conviction_for(self, ticker):
         """{quarter: elite conviction} from the elite13f cache, or {} when not built."""
         return self._bulk("elite_conv").get(ticker.upper(), {})

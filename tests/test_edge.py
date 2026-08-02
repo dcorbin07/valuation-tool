@@ -4,7 +4,10 @@ Edge Lab tests (offline, deterministic). Run:
 Validates the backtest math, the no-overfit walk-forward + advisor, the factor
 panel, and owner-only gating.
 """
+import datetime as dt
+import math
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -1788,6 +1791,301 @@ def test_elite13f_skill_is_point_in_time():
                           sector_neutral=False, residual_momentum=False)
     pd.testing.assert_series_equal(fr["institutional"], without["institutional"],
                                    check_names=False)
+
+
+def test_short_interest_uses_publication_date_not_settlement():
+    """The trap this dataset sets: FINRA exposes only settlementDate, but the figure is not
+    public until ~8 business days later. Using settlement as the as-of would inject ~2 weeks of
+    look-ahead into every observation."""
+    from valuation.edge import short_interest as SI
+    from valuation.screener import settings as S
+    assert SI.PUBLICATION_LAG_DAYS >= 12, "must clear the ~8 business day dissemination schedule"
+    # Rows are stamped with the AVAILABLE date; a settlement-dated caller cannot reach them.
+    rows = [("2026-01-30", 3.0, 100.0, 80.0), ("2026-02-14", 5.0, 150.0, 100.0)]
+    # As of a date before the first publication -> nothing, even though settlement has passed.
+    assert SI.signals_at(rows, "2026-01-29") == {}
+    got = SI.signals_at(rows, "2026-01-30")
+    assert got["neg_days_to_cover"] == -3.0
+    assert abs(got["neg_short_interest_chg"] - (-(100.0 / 80.0 - 1.0))) < 1e-12
+    # A later observation supersedes, but only once IT is published.
+    assert SI.signals_at(rows, "2026-02-13")["neg_days_to_cover"] == -3.0
+    assert SI.signals_at(rows, "2026-02-14")["neg_days_to_cover"] == -5.0
+    assert SI.signals_at([], "2026-02-14") == {}
+    # Orientation is negated: MORE days-to-cover must score WORSE.
+    heavy = SI.signals_at([("2026-01-30", 9.0, 100.0, 80.0)], "2026-02-01")
+    light = SI.signals_at([("2026-01-30", 1.0, 100.0, 80.0)], "2026-02-01")
+    assert heavy["neg_days_to_cover"] < light["neg_days_to_cover"]
+    # Rejected: measured but scoring in no theme.
+    assert S.NUMBER_THEME.get("neg_days_to_cover") == "low_risk"
+    from valuation.screener.factors import build_frame
+    metrics = [{"ticker": f"T{i}", "price": 10.0, "market_cap": 1e10, "net_income": 5.0,
+                "operating_income": 6.0, "realized_vol": 0.2 + 0.01 * i, "beta": 1.0,
+                "neg_days_to_cover": -99.0} for i in range(20)]
+    fr = build_frame(metrics, sector_neutral=False, residual_momentum=False)
+    without = build_frame([{**m, "neg_days_to_cover": None} for m in metrics],
+                          sector_neutral=False, residual_momentum=False)
+    pd.testing.assert_series_equal(fr["low_risk"], without["low_risk"], check_names=False)
+
+
+def test_edgar13d_dating_and_form_rename():
+    """Two silent-failure guards, both of which actually bit during P24.2.
+
+    1. The SEC RENAMED these forms during 2024 ("SC 13D" -> "SCHEDULE 13D"). Matching only the
+       old spelling returned ~30 filings/quarter for 2025-2026 instead of ~15,000, so the most
+       recent panel dates would have carried a structurally-zero signal while looking healthy.
+    2. Only the FILING date may be used. The event date (crossing 5%, up to 10 days earlier) is
+       never parsed, so a filing must be invisible until the day it is filed.
+    """
+    from valuation.edge import edgar13d as E
+    from valuation.screener import settings as S
+    for f in ("SC 13D", "SC 13D/A", "SCHEDULE 13D", "SCHEDULE 13D/A"):
+        assert f in E.FORMS_13D, f
+    for f in ("SC 13G", "SCHEDULE 13G/A"):
+        assert f in E.FORMS_13G, f
+    rx = re.compile(E.ROW_RX)
+    for line, want in (
+            ("SC 13D           Acme Corp                    1591890     2015-05-21  edgar/x.txt", "SC 13D"),
+            ("SCHEDULE 13G/A   Acme Corp                    1591890     2025-05-21  edgar/y.txt", "SCHEDULE 13G/A")):
+        m = rx.match(line)
+        assert m and m.group(1) == want and m.group(3) == "1591890"
+    rows = [("2026-01-05", "SC 13D"), ("2026-06-01", "SCHEDULE 13G"),
+            ("2026-07-20", "SCHEDULE 13D")]
+    # Nothing is visible the day before it is filed.
+    assert E.signals_at(rows, "2026-07-19")["activist_13d"] == 0.0
+    assert E.signals_at(rows, "2026-07-20")["activist_13d"] == 1.0
+    # Old spelling still counts, and the window is trailing, not cumulative.
+    assert E.signals_at(rows, "2026-01-05")["activist_13d"] == 1.0
+    got = E.signals_at(rows, "2026-07-30")
+    assert got["activist_13d"] == 1.0 and got["passive_13g"] == 1.0   # Jan 13D aged out
+    # Absence is zero for a name with history; both rejected, so neither is scored.
+    assert E.signals_at([], "2026-07-30") == {"activist_13d": 0.0, "passive_13g": 0.0}
+    assert S.NUMBER_THEME.get("activist_13d") == "institutional"
+    assert "activist_13d" not in S.WEIGHTS_ESTABLISHED
+
+
+def test_congress_never_stores_transaction_date():
+    """The single most dangerous field in this project.
+
+    The STOCK Act allows 45 days from trade to PTR filing and late filings are common: measured
+    on the real data, 21.9% are late, the 90th percentile delay is 210 days and the max is 4,049.
+    Using transaction_date would inject up to seven months of look-ahead exactly when a member's
+    presumed advantage plays out. So the loader must DISCARD it - not merely decline to filter on
+    it - and signals_at must key off the filing date.
+    """
+    import json as _json
+    import tempfile
+    from valuation.edge import congress as CG
+    from valuation.screener import settings as S
+
+    row = {"ticker": "ZZZ", "source_id": "house_clerk", "transaction_type": "Purchase",
+           "amount_range_low": 1001, "amount_range_high": 15000,
+           "transaction_date": "2020-01-02", "filing_date": "2020-06-30"}
+    with tempfile.TemporaryDirectory() as d:
+        sub = os.path.join(d, "public", "data", "ticker")
+        os.makedirs(sub)
+        with open(os.path.join(sub, "ZZZ.json"), "w", encoding="utf-8") as f:
+            _json.dump({"trades": [row, dict(row, source_id="oge_executive")]}, f)
+        got = CG.fetch_congress_trades(repo_dir=d)
+    assert list(got) == ["ZZZ"]
+    # Executive-branch row excluded; only one transaction survives.
+    assert len(got["ZZZ"]) == 1
+    stored_dates = [d for d, _ in got["ZZZ"]]
+    assert stored_dates == ["2020-06-30"], stored_dates
+    assert "2020-01-02" not in str(got), "transaction date must never reach the cache"
+    # Invisible until filed, even though the trade happened in January.
+    assert CG.signals_at(got["ZZZ"], "2020-06-29") == {}
+    assert CG.signals_at(got["ZZZ"], "2020-06-30")["congress_net_buy"] == 1.0
+    assert CG.amount_midpoint(1001, 15000) == 8000.5
+    assert S.NUMBER_THEME.get("congress_net_buy") == "sentiment"
+    assert "congress_net_buy" not in S.WEIGHTS_ESTABLISHED
+
+
+def test_usaspending_publication_lag_and_seasonality():
+    """Awards are stamped quarter_end + lag, and 4q-over-4q so the federal year-end spike cancels."""
+    from valuation.edge import usaspending as U
+    from valuation.screener import settings as S
+
+    assert U.PUBLICATION_LAG_DAYS >= 45           # FPDS reporting delay; DoD historically 90d
+    assert U._quarter_end(2010, 1) == "2009-12-31"   # federal FY starts Oct 1 of the prior year
+    assert U._quarter_end(2010, 4) == "2010-09-30"
+    assert U.normalize_name("THE BOEING COMPANY") == "BOEING"
+    assert U.normalize_name("Lockheed Martin Corporation") == "LOCKHEED MARTIN"
+    # Needs 2*trailing published quarters, else no half-formed number.
+    short = [(f"2020-{m:02d}-01", 100.0) for m in range(1, 8)]
+    assert U.signals_at(short, "2020-12-31") == {}
+    flat = [(f"2020-{m:02d}-01", 100.0) for m in range(1, 9)]
+    assert U.signals_at(flat, "2020-12-31")["govt_award_momentum"] == 0.0
+    grow = [(f"2020-{m:02d}-01", float(m)) for m in range(1, 9)]
+    assert abs(U.signals_at(grow, "2020-12-31")["govt_award_momentum"] - 1.6) < 1e-9
+    # Nothing is visible before its publication date.
+    assert U.signals_at(grow, "2020-07-31") == {}
+    assert S.NUMBER_THEME.get("govt_award_momentum") == "growth"
+    assert "govt_award_momentum" not in S.WEIGHTS_ESTABLISHED
+
+
+def test_options_fill_engine_charges_the_spread_both_ways():
+    """The default must be the HONEST fill, not the flattering one.
+
+    An options backtest that fills at the mid is not optimistic, it measures a strategy nobody
+    can trade: a 2.40/2.60 quote is an 8% round-trip haircut before the underlying moves.
+    """
+    from valuation.edge import options_fill as F
+
+    assert F.DEFAULT_AGGRESSION == 1.0, "default must be buy-the-ask / sell-the-bid"
+    q = F.Quote(bid=2.40, ask=2.60, oi=500, volume=100)
+    assert q.mid == 2.50
+    assert abs(q.spread_pct - 0.08) < 1e-9
+    assert F.fill_price(q, "buy") == 2.60          # pays the ask
+    assert F.fill_price(q, "sell") == 2.40         # hits the bid
+    assert F.fill_price(q, "buy", aggression=0.0) == 2.50   # mid: diagnostic only
+    # A flat round trip must LOSE the spread plus commission, never break even.
+    t = F.round_trip(q, q, right="C", strike=100.0)
+    assert t["ok"]
+    assert t["net_pnl"] < 0, t
+    assert abs(t["net_pnl"] - ((2.40 - 2.60) * 100 - 1.30)) < 1e-9
+    assert t["gross_pnl"] == 0.0                   # mid-to-mid is flat; the cost is explicit
+    assert abs(t["cost"] - 21.30) < 1e-9
+
+
+def test_options_fill_rejects_bad_quotes_and_never_repairs_them():
+    """Every rejection is a named reason. Silently skipping unfillable contracts would be
+    survivorship bias: hard-to-fill contracts are disproportionately the ones that moved."""
+    from valuation.edge import options_fill as F
+
+    good = dict(oi=500, volume=100)
+    cases = {
+        "no_quote":     F.Quote(bid=None, ask=None, **good),
+        "non_positive": F.Quote(bid=0.0, ask=0.5, **good),
+        "crossed":      F.Quote(bid=2.60, ask=2.40, **good),
+        "locked":       F.Quote(bid=2.50, ask=2.50, **good),
+        "thin_premium": F.Quote(bid=0.01, ask=0.05, **good),
+        "wide_spread":  F.Quote(bid=1.00, ask=2.00, **good),
+        "low_oi":       F.Quote(bid=2.40, ask=2.60, oi=1, volume=100),
+        "low_volume":   F.Quote(bid=2.40, ask=2.60, oi=500, volume=0),
+    }
+    for want, q in cases.items():
+        assert F.quote_reject_reason(q) == want, (want, F.quote_reject_reason(q))
+        assert F.round_trip(q, q, right="C", strike=100.0)["ok"] is False
+    ok = F.Quote(bid=2.40, ask=2.60, **good)
+    assert F.quote_reject_reason(ok) is None
+    # Liquidity is an ENTRY filter only - you must be able to exit what you own.
+    illiquid_exit = F.Quote(bid=4.00, ask=4.40, oi=0, volume=0)
+    assert F.quote_reject_reason(illiquid_exit, check_liquidity=False) is None
+    t = F.round_trip(ok, illiquid_exit, right="C", strike=100.0)
+    assert t["ok"] and t["net_pnl"] > 0
+
+
+def test_options_expired_worthless_is_recorded_not_dropped():
+    """A contract that expired worthless must post -100%, not vanish from the sample."""
+    from valuation.edge import options_fill as F
+
+    entry = F.Quote(bid=2.40, ask=2.60, oi=500, volume=100)
+    t = F.round_trip(entry, None, right="C", strike=150.0, exit_underlying=120.0, expired=True)
+    assert t["ok"] and t["settled_at_intrinsic"]
+    assert t["exit_fill"] == 0.0
+    assert abs(t["net_pnl"] - (-2.60 * 100 - 1.30)) < 1e-9
+    assert t["return_pct"] == -1.0
+    # In the money at expiry settles at intrinsic.
+    t2 = F.round_trip(entry, None, right="C", strike=150.0, exit_underlying=160.0, expired=True)
+    assert t2["exit_fill"] == 10.0
+    # Without expired=True a missing exit quote is an error, not a free zero.
+    assert F.round_trip(entry, None, right="C", strike=150.0)["ok"] is False
+
+
+def test_options_breakeven_is_the_quotable_number():
+    from valuation.edge import options_fill as F
+
+    q = F.Quote(bid=2.40, ask=2.60, oi=500, volume=100)
+    up = F.Quote(bid=5.40, ask=5.60, oi=500, volume=100)
+    trades = [F.round_trip(q, up, right="C", strike=100.0) for _ in range(3)]
+    be = F.breakeven_cost_per_contract(trades)
+    assert abs(be - 300.0) < 1e-9        # $3.00 mid-to-mid move x 100
+    cs = F.cost_summary(trades + [{"ok": False, "reason": "low_oi"}])
+    assert cs["n_filled"] == 3 and cs["n_rejected"] == 1
+    assert cs["reject_reasons"] == {"low_oi": 1}
+    assert cs["avg_cost_per_contract"] > 0
+
+
+def test_blackscholes_matches_reference_and_refuses_bad_prices():
+    """Validated against ThetaData's own greeks on AAPL 2023-03-01: delta agreed 98.96% of the
+    time (median error 0.0016), and in the tradable band |delta| 0.20-0.80 IV agreed 100%
+    (median error 0.0018). The disagreements sat at median |delta| 0.94 - deep ITM, vega ~ 0."""
+    from valuation.edge import blackscholes as BS
+
+    S, K, T, r, sig = 100.0, 100.0, 1.0, 0.05, 0.20
+    call = BS.bs_price(S, K, T, r, sig, "C")
+    put = BS.bs_price(S, K, T, r, sig, "P")
+    assert abs(call - 10.4506) < 1e-3
+    assert abs(put - 5.5735) < 1e-3
+    # Put-call parity.
+    assert abs((call - put) - (S - K * math.exp(-r * T))) < 1e-9
+    # IV round-trips.
+    assert abs(BS.implied_vol(call, S, K, T, r, "C") - sig) < 1e-3
+    g = BS.greeks(S, K, T, r, sig, "C")
+    assert abs(g["delta"] - 0.6368) < 1e-3
+    assert g["gamma"] > 0 and g["vega"] > 0 and g["theta"] < 0
+    assert BS.greeks(S, K, T, r, sig, "P")["delta"] < 0
+    # A price below intrinsic has no implied vol - must be None, never a fabricated number.
+    assert BS.implied_vol(0.5, 150.0, 100.0, 1.0, r, "C") is None
+    assert BS.implied_vol(-1, S, K, T, r, "C") is None
+    assert BS.implied_vol(call, S, K, 0.0, r, "C") is None
+    # The rate must never silently be zero.
+    assert BS.risk_free_rate(dt.date(2023, 3, 1)) > 0.001
+
+
+def test_thetadata_provider_is_optional_and_dedupes():
+    """No key must degrade to a no-op, and the feed's duplicate rows must collapse to one
+    closing snapshot per contract - otherwise every trade is counted more than once."""
+    import pandas as pd
+    from valuation.edge.thetadata_provider import ThetaProvider
+
+    p = ThetaProvider(api_key="")
+    st = p.status()
+    assert st["available"] is False and "THETADATA_API_KEY" in (st["reason"] or "")
+    assert len(p.chain_on("AAPL", dt.date(2023, 3, 1))) == 0     # no raise
+    assert p.cached_dates("NOSUCHTICKER") == []
+
+    raw = pd.DataFrame({
+        "created": ["2023-03-01 17:16:02", "2023-03-01 18:38:46",
+                    "2023-03-01 17:16:02", "2023-03-02 18:38:46"],
+        "expiration": ["2023-04-21"] * 4,
+        "strike": [150.0, 150.0, 155.0, 150.0],
+        "right": ["CALL"] * 4,
+        "bid": [2.40, 2.55, 1.10, 2.70],
+        "ask": [2.60, 2.75, 1.30, 2.90],
+    })
+    d = ThetaProvider._dedupe(raw)
+    assert len(d) == 3, d          # 2 contracts on day 1, 1 on day 2
+    day1 = d[(d["strike"] == 150.0) & (d["date"].astype(str) == "2023-03-01")]
+    assert float(day1["bid"].iloc[0]) == 2.55, "must keep the LAST (closing) snapshot"
+
+
+def test_options_split_adjustment_two_series():
+    """Adjusted prices must never meet unadjusted strikes.
+
+    Sharadar closeadj is retro-adjusted for splits; option strikes are as-traded and never are.
+    AAPL on 2019-05-07 reads 48.34 adjusted (and 50.72 under plain `close`, which is ALSO
+    adjusted) against real strikes of 150-200, because of the 4:1 split in August 2020. Mixing
+    them solved ATM IV to None on every pre-split date and picked contracts from the wrong end
+    of the ladder - silently, with no error. `closeunadj` is the as-traded series.
+    """
+    from valuation.edge import options_backtest as OB
+
+    bars = {"date": ["2019-05-06", "2019-05-07"], "close": [48.0, 48.34],
+            "raw_close": [201.0, 202.86], "volume": [1e6, 1e6]}
+    w = OB.bars_asof({"date": bars["date"] * 40, "close": bars["close"] * 40,
+                      "raw_close": bars["raw_close"] * 40, "volume": bars["volume"] * 40},
+                     "2019-05-07")
+    assert w is not None
+    # Both series survive the slice, and they are NOT the same number.
+    assert w["close"][-1] != w["raw_close"][-1]
+    assert abs(w["raw_close"][-1] - 202.86) < 1e-6
+    # A cache without raw_close must be rejected rather than run split-mixed.
+    import inspect
+    src = inspect.getsource(OB.load_bars)
+    assert "raw_close" in src and "closeunadj" in src
+    # Option maths must never be handed the adjusted series.
+    assert "raw_close" in inspect.getsource(OB.simulate_trade)
 
 
 def _run_all():

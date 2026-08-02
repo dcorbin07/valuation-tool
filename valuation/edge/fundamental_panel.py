@@ -794,6 +794,10 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     meta = {}                  # TICKERS: sector / country / exchange (NOT point-in-time)
     earn = {}                  # EVENTS: earnings announcement dates (code 22)
     elite = {}                 # SF3: manager-quality-weighted conviction
+    shorts = {}                # FINRA short interest (publication-dated)
+    e13d = {}                  # SEC 13D/13G activist stakes (filing-dated)
+    usasp = {}                 # USAspending federal awards (quarter-end + lag)
+    cong = {}                  # Congressional trades (PTR filing-dated)
     for _i, t in enumerate(tickers):
         if _i and _i % 250 == 0:
             _prog(f"  loaded {_i}/{len(tickers)} tickers, {len(px)} usable")
@@ -813,6 +817,14 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # Sharadar BULK: point-in-time market cap / ratios, and per-manager 13F detail.
             dly[t] = provider.daily_history(t) if hasattr(provider, "daily_history") else []
             sf3[t] = provider.sf3_for(t) if hasattr(provider, "sf3_for") else {}
+            shorts[t] = (provider.short_interest_for(t)
+                         if hasattr(provider, "short_interest_for") else [])
+            e13d[t] = (provider.edgar_13d_for(t)
+                       if hasattr(provider, "edgar_13d_for") else [])
+            usasp[t] = (provider.usaspending_for(t)
+                        if hasattr(provider, "usaspending_for") else [])
+            cong[t] = (provider.congress_for(t)
+                       if hasattr(provider, "congress_for") else [])
             elite[t] = (provider.elite_conviction_for(t)
                         if hasattr(provider, "elite_conviction_for") else {})
             meta[t] = provider.ticker_meta(t) if hasattr(provider, "ticker_meta") else {}
@@ -918,6 +930,22 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # SF3 per-manager detail. Exposed as factor INPUTS here; whether any of them
             # earns a place in the composite is for CPCV to decide (P4), so they are not
             # yet registered in NUMBER_THEME.
+            _cg = cong.get(t)
+            if _cg:
+                from .congress import signals_at as _cg_at
+                m.update(_cg_at(_cg, as_of))
+            _ua = usasp.get(t)
+            if _ua:
+                from .usaspending import signals_at as _ua_at
+                m.update(_ua_at(_ua, as_of))
+            _e = e13d.get(t)
+            if _e:
+                from .edgar13d import signals_at as _e13_at
+                m.update(_e13_at(_e, as_of))
+            _si = shorts.get(t)
+            if _si:
+                from .short_interest import signals_at
+                m.update(signals_at(_si, as_of))
             # Elite-manager conviction, lagged exactly like every other 13F input.
             _eq = elite.get(t) or {}
             if _eq:
