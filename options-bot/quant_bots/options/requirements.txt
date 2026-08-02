@@ -1,0 +1,4 @@
+requests>=2.31
+python-dotenv>=1.0
+yfinance>=0.2.40
+apscheduler>=3.10

@@ -1,0 +1,35 @@
+# Secrets — the lesson from the previous bot
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Logs and runtime data
+*.log
+*.db
+*.sqlite
+
+# Local config overrides
+local_config.yaml

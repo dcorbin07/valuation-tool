@@ -1,0 +1,9 @@
+[Unit]
+Description=End-of-day strategy summary
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/quant_bots
+Environment=BOT_MODE=sim
+ExecStart=/home/ubuntu/quant_bots/venv/bin/python3 scripts/end_of_day_summary.py

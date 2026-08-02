@@ -29,6 +29,8 @@ services:
         sync: false
       - key: TRADIER_ENV
         value: sandbox
+      - key: THETADATA_API_KEY
+        sync: false
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_PUBLISHABLE_KEY

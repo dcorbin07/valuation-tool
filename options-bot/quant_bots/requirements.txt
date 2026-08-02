@@ -1,0 +1,6 @@
+requests>=2.31
+python-dotenv>=1.0
+apscheduler>=3.10
+# Optional: only needed to enable the options bot's LLM news-advisory layer
+# (flag-and-log binary-event check). The bots run fine without it.
+anthropic>=0.39

@@ -1,0 +1,18 @@
+[Unit]
+Description=Mean-reversion bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/quant_bots
+Environment=BOT_MODE=sim
+ExecStart=/home/ubuntu/quant_bots/venv/bin/python3 scripts/run_reversion_bot.py
+Restart=always
+RestartSec=30
+StandardOutput=append:/home/ubuntu/quant_bots/reversion_service.log
+StandardError=append:/home/ubuntu/quant_bots/reversion_service.log
+
+[Install]
+WantedBy=multi-user.target

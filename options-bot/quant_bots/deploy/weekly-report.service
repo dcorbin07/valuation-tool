@@ -1,0 +1,8 @@
+[Unit]
+Description=Weekly correlation report
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/quant_bots
+ExecStart=/home/ubuntu/quant_bots/venv/bin/python3 scripts/weekly_report.py

@@ -40,6 +40,7 @@ each item when you actually need the feature it unlocks.
 | `EDGE_DATA_PROVIDER` | research data source | `free` (default), `sharadar`, or `wrds` |
 | `SHARADAR_API_KEY` | you switch Edge Lab to Sharadar | Nasdaq Data Link account key |
 | `WRDS_DATA_DIR` | you switch Edge Lab to WRDS | folder of CRSP/Compustat exports (free via W&M) |
+| `THETADATA_API_KEY` | you run the options backtest / live options signals | thetadata.net → your API key (Standard ~$80/mo). Local `.env` for the backtest; add to Render too once live options signals use it. |
 | `STRIPE_SECRET_KEY` | you're ready to charge money | Stripe → Developers → API keys |
 | `STRIPE_PUBLISHABLE_KEY` | " | Stripe → Developers → API keys |
 | `STRIPE_WEBHOOK_SECRET` | " | Stripe → Developers → Webhooks |
