@@ -45,6 +45,54 @@ it clears a held-out test.
 A narrower DTE band also means FEWER alerts (a contract must exist in the tighter window), so a
 higher expectancy on many fewer trades is not automatically better for the book. Trade count is
 reported alongside so that trade-off is visible rather than hidden behind a percentage.
+
+================================ RESULT (run after the above was committed) =================
+
+§1 SIZING - ADOPTED, but the phase-2 headline figure was IDEALISED and is corrected here.
+
+Phase 2 reported that fixed-dollar sizing cuts the top-15 share to 42.0%. That computation
+deployed exactly $1,000 per trade, i.e. FRACTIONAL CONTRACTS, which do not exist. With whole
+contracts the achievable range is worse:
+
+    basis                                  n      exp      cum        top-15   ex-top-15
+    1 contract each (phase 1)          1,540   +10.42%   $143,723     98.1%      $2,767
+    idealised fractional (phase 2)     1,540   +10.42%   $160,461     42.0%     $92,998
+    whole contracts, min 1             1,540   +10.42%   $226,082     62.9%     $83,986
+    whole contracts, skip too-costly   1,340    +9.54%   $110,318     50.3%     $54,853
+
+200 of 1,540 signals (13.0%) have a single contract costing more than a $1,000 budget, so they
+are either skipped or taken oversized - there is no way to size them correctly at that budget.
+
+THE CONCLUSION SURVIVES, THE NUMBER DOES NOT. Fixed-dollar sizing takes concentration from 98.1%
+to roughly 45-63% and lifts profit ex-tail from $2,767 to $55k-$93k. It does NOT reach 42%
+in any tradeable form, and phase 2 should have said so.
+
+BUDGET SENSITIVITY - a larger budget is better on every axis, because it is what lets an
+expensive name be sized correctly relative to a cheap one:
+
+    $1,000   1,340 trades (87.0% of signals)   exp  +9.54%   top-15 50.3%
+    $2,500   1,480 trades (96.1%)              exp  +9.70%   top-15 47.8%
+    $5,000   1,515 trades (98.4%)              exp +10.16%   top-15 44.5%
+
+Note percentage expectancy is IDENTICAL across sizing schemes at full coverage (+10.42%) - as it
+must be, since sizing cannot change a per-trade return. Only the dollars and the concentration
+move. That invariance is the check that the re-weighting was done correctly.
+
+--------------------------------------------------------------------------------------------
+§3 65-75 DTE REFINEMENT - REJECTED.
+
+    half     all trades              65-75 DTE subset          gain
+    first    n=770  +16.43%          n=242  +27.97%          +11.55pp   PASS
+    second   n=770   +4.41%          n=231   +5.60%           +1.19pp   FAIL
+
+It clears the bar spectacularly on the early half and essentially vanishes on the recent one.
+That is the SAME fade that afflicts the strategy overall, so the refinement does not arrest the
+fade - it inherits it. Phase 2's +17.0% vs +7.8% was a full-sample observation dominated by the
+early period. The live band stays 45-75.
+
+This is exactly why the observation was not adopted when it was noticed: a 9pp full-sample gap
+looked like an easy win and is worth nothing on the half that matters.
+
 """
 from __future__ import annotations
 

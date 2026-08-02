@@ -17,7 +17,7 @@ file directly.
 **The phase-1 "too tail-dependent to size" verdict is CORRECTED.** The dollar concentration was
 a position-sizing artefact: entry premiums span 1,076x, so 1 contract of a pre-split $3,000 AMZN
 next to 1 of a $40 bank guarantees a few names dominate. At fixed $1,000 risk per trade the
-top-15 share falls 98.1% -> 42.0%, profit ex-top-15 goes $2,767 -> $92,998, top-3 name
+top-15 share falls 98.1% -> 42.0% (idealised; 44-63% with whole contracts - see phase 3), profit ex-top-15 goes $2,767 -> $92,998, top-3 name
 concentration 76% -> 34%, and total profit RISES to $160,461. **Size by fixed dollar risk, not
 contract count.** Excluding the top 15 winners entirely, expectancy is still +8.96%/trade, and
 30.7% of all trades returned >= +100% - big winners are common, not rare.

@@ -107,7 +107,7 @@ works".
 
 > **SUPERSEDED IN PART BY PHASE 2 (below).** Point 1 above — "dollar profit rests on ~15
 > trades" — turned out to be a POSITION-SIZING ARTEFACT of the 1-contract reporting convention,
-> not a property of the strategy. At fixed dollar risk the top-15 share falls from 98% to 42%.
+> not a property of the strategy. At fixed dollar risk the top-15 share falls from 98% to ~45-63% (the 42% figure assumed fractional contracts).
 > Points 2 and 3 (decay across halves, bull-market sample) still stand. The phrase "far too
 > tail-dependent to size aggressively" has been removed here because phase 2 disproved it.
 
