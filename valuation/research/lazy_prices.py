@@ -752,11 +752,17 @@ def large_cap_universe(limit: int = 60, data_dir: str = os.path.join("data", "ba
         from ..edge.bulk import _load_cache
         prepared = os.path.join(os.path.dirname(os.path.normpath(data_dir)), "bulk", "prepared")
         daily = _load_cache("daily", prepared) or {}
+        # STALENESS FILTER. Ranking on last-known market cap alone puts long-dead giants in
+        # "today's large caps": the first run pulled in TWX (last quoted 2018), RAI (2017) and
+        # WLA, which SEC's ticker map cannot resolve, so 17 slots produced nothing. Require a
+        # quote within a year of the cache's own latest date.
+        latest = max((r[0] for rows in daily.values() if rows for r in rows), default="")
+        cutoff = f"{int(latest[:4]) - 1}{latest[4:]}" if latest else ""
         for tk, rows in daily.items():
             if not rows:
                 continue
             last = max(rows, key=lambda r: r[0])
-            if last[1]:
+            if last[1] and (not cutoff or last[0] >= cutoff):
                 caps[tk.upper()] = float(last[1])
     except Exception as e:                                     # noqa: BLE001
         _log(f"DAILY cache unavailable ({e})")
