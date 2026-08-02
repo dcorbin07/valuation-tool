@@ -11,8 +11,10 @@ is back.
 
 ## One-line status
 
-**29 of 500 names cached; 3 skipped as too illiquid (HSBC, SKHY, SPCX); 0 partial; 5.3GB on
-disk** as of ~80 minutes in. Running at ~3 min/name → roughly **25–30 hours** for the full 500.
+**Target raised to 1,000 names** (updated brief). ~30 cached, 0 partial, ~5.8GB on disk at the
+time of writing; ~3 min/name → roughly **45–55 hours** for the full 1,000. Disk projects to
+~199GB at megacap scale against 322GB free, and mid/small caps are far smaller, so the real
+figure lands well below that. A guard stops the run cleanly below 40GB free.
 
 Check it any time:
 
@@ -33,8 +35,8 @@ on disk, so a kill costs at most the year in flight.
 
 | | |
 |---|---|
-| Universe | Top **500** optionable US names, market-cap ranked most-liquid-first |
-| Reach | Megacaps down to ~$27B (#100 SNDK, #300 FIX, #500 LPLA) |
+| Universe | Top **1,000** optionable US names, market-cap ranked most-liquid-first |
+| Reach | Megacaps through the liquid mid/small-cap tier — the high-IV movers worth testing |
 | Years | 2016–2025, ten complete years each (2026 excluded — year in progress) |
 | Already had | The 55 names from the earlier overnight run, all inside this universe, so none are re-pulled |
 
@@ -85,7 +87,24 @@ its actual option liquidity is measured, and names too thin to trade are abandon
 remaining nine years are pulled. A bad proxy costs one year, not ten. Thresholds: ≥5 tradeable
 contracts/day (against the real entry screen) and ≥100 days with a chain.
 
-That check is working — HSBC, SKHY and SPCX have already been dropped.
+### The screen, and the mis-measurement that nearly defeated it
+
+Thresholds sit at the **permissive end** of the brief's ranges — near-ATM OI ≥500, daily option
+volume ≥100, median spread ≤15% — because the whole point of reaching past the megacaps is to
+capture high-IV movers, and the tight end of each range would exclude exactly those.
+
+**Spread is measured only on contracts with a real premium (mid ≥ $0.50).** This matters more
+than any threshold. Measured across every quoted contract, the median sweeps in far-OTM lottery
+tickets where a one-cent tick on a five-cent mid reads as 20% — which is not what a 35-delta,
+45–75 DTE call pays. On that metric **RKLB scored 18.2% and was rejected**, despite 8,198
+contracts/day and 1,821 ATM OI — and the brief names RKLB explicitly as the kind of name that
+should pass. On real premium it is **8.7%** and passes. AAPL goes 6.3% → 3.4%, INTC 10.5% → 5.0%.
+
+Near-the-money is approximated by the **top decile of open interest** rather than distance from
+spot, which avoids needing a per-name spot series just to screen.
+
+Names skipped under the earlier, superseded metric (HSBC, SKHY, SPCX) were cleared from the
+manifest so they are re-judged under these criteria.
 
 ---
 
