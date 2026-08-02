@@ -2034,17 +2034,45 @@ def test_blackscholes_matches_reference_and_refuses_bad_prices():
 
 
 def test_thetadata_provider_is_optional_and_dedupes():
-    """No key must degrade to a no-op, and the feed's duplicate rows must collapse to one
-    closing snapshot per contract - otherwise every trade is counted more than once."""
+    """Optional-by-design, and dedupe collapses the feed's duplicate daily rows.
+
+    HERMETIC ON PURPOSE. An earlier version of this test asserted that a keyless provider
+    returns an empty chain, which passed or failed depending on the MACHINE: `chain_on` consults
+    its disk cache BEFORE checking availability, so anywhere a real
+    data/bulk/prepared/theta/AAPL/2023-03-01.pkl existed the keyless provider returned live
+    cached data and the assertion failed. It also read THETADATA_API_KEY from the environment
+    and .env, so the result depended on whether a credential happened to be present.
+
+    A test that depends on local credentials or leftover cache files is not testing the code.
+    This version pins the cache to an empty temp directory and never touches the network.
+    """
+    import tempfile
+
     import pandas as pd
     from valuation.edge.thetadata_provider import ThetaProvider
 
-    p = ThetaProvider(api_key="")
-    st = p.status()
-    assert st["available"] is False and "THETADATA_API_KEY" in (st["reason"] or "")
-    assert len(p.chain_on("AAPL", dt.date(2023, 3, 1))) == 0     # no raise
-    assert p.cached_dates("NOSUCHTICKER") == []
+    with tempfile.TemporaryDirectory() as tmp:
+        # api_key="" is an explicit "no credential", never the ambient environment.
+        p = ThetaProvider(api_key="", cache_dir=tmp)
+        st = p.status()
+        assert st["available"] is False
+        assert "THETADATA_API_KEY" in (st["reason"] or "")
+        # Empty cache dir => nothing to return, and no client is ever constructed.
+        assert len(p.chain_on("AAPL", dt.date(2023, 3, 1))) == 0
+        assert p.cached_dates("AAPL") == []
+        assert p._client is None, "a keyless provider must never build a client"
 
+        # A cache hit must be returned WITHOUT a key - that is what makes runs resumable.
+        import pickle
+        d = os.path.join(tmp, "AAPL")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "2023-03-01.pkl"), "wb") as f:
+            pickle.dump(pd.DataFrame({"strike": [150.0]}), f)
+        assert len(p.chain_on("AAPL", dt.date(2023, 3, 1))) == 1
+        assert p.cached_dates("AAPL") == [dt.date(2023, 3, 1)]
+
+    # Dedupe is pure and env-independent: the feed emits several rows per contract per day and
+    # the LAST (closing) snapshot must win, or every trade is counted more than once.
     raw = pd.DataFrame({
         "created": ["2023-03-01 17:16:02", "2023-03-01 18:38:46",
                     "2023-03-01 17:16:02", "2023-03-02 18:38:46"],
@@ -2054,9 +2082,9 @@ def test_thetadata_provider_is_optional_and_dedupes():
         "bid": [2.40, 2.55, 1.10, 2.70],
         "ask": [2.60, 2.75, 1.30, 2.90],
     })
-    d = ThetaProvider._dedupe(raw)
-    assert len(d) == 3, d          # 2 contracts on day 1, 1 on day 2
-    day1 = d[(d["strike"] == 150.0) & (d["date"].astype(str) == "2023-03-01")]
+    ded = ThetaProvider._dedupe(raw)
+    assert len(ded) == 3, ded
+    day1 = ded[(ded["strike"] == 150.0) & (ded["date"].astype(str) == "2023-03-01")]
     assert float(day1["bid"].iloc[0]) == 2.55, "must keep the LAST (closing) snapshot"
 
 
@@ -2086,6 +2114,49 @@ def test_options_split_adjustment_two_series():
     assert "raw_close" in src and "closeunadj" in src
     # Option maths must never be handed the adjusted series.
     assert "raw_close" in inspect.getsource(OB.simulate_trade)
+
+
+def test_live_term_structure_filter():
+    """The one signal that survived phase 3b's fade gate, wired live.
+
+    Three properties matter more than the threshold itself:
+      * it FAILS OPEN - unknown term structure is None, never False, so a quote-feed hiccup
+        cannot masquerade as backwardation and silently halt alerting;
+      * the DEFAULT mode annotates rather than suppresses, because the filter removes ~60% of
+        signals and that is too large a product change to inherit silently from a backtest;
+      * contango alerts carry a LARGER size multiple, so filtering 60% of signals does not
+        quietly shrink the sleeve's exposure by 60% - capped, so a modest edge cannot become a
+        concentrated bet.
+    """
+    from valuation.intraday import term_filter as TF
+
+    assert TF.DEFAULT_MODE == TF.MODE_FLAG, "default must annotate, not suppress"
+    contango = {"atm_iv": 0.30, "atm_iv_60d": 0.35}
+    backward = {"atm_iv": 0.40, "atm_iv_60d": 0.32}
+    assert TF.classify(contango)["term_ok"] is True
+    assert TF.classify(backward)["term_ok"] is False
+    # Missing / malformed data is UNKNOWN, never bad.
+    for bad in ({}, None, {"atm_iv": 0.3}, {"atm_iv": 0.3, "atm_iv_60d": None},
+                {"atm_iv": 0.0, "atm_iv_60d": 0.3}, {"atm_iv": "x", "atm_iv_60d": 0.3}):
+        assert TF.classify(bad)["term_ok"] is None, bad
+    assert TF.size_multiplier(True) > TF.size_multiplier(None) > TF.size_multiplier(False)
+
+    rows = [{"score": 90, "labels": ["Uptrend"],
+             "detail": {"opt_atm_iv": 0.30, "opt_atm_iv_60d": 0.35}},
+            {"score": 85, "labels": ["Breakout"],
+             "detail": {"opt_atm_iv": 0.40, "opt_atm_iv_60d": 0.32}},
+            {"score": 82, "labels": ["Uptrend"], "detail": {}}]
+    assert len(TF.apply(rows, mode=TF.MODE_FLAG)) == 3          # annotates, drops nothing
+    sup = TF.apply(rows, mode=TF.MODE_SUPPRESS)
+    assert len(sup) == 2                                        # only backwardation removed
+    assert all(r.get("term_ok") is not False for r in sup)
+    assert any(r.get("term_ok") is None for r in sup), "unknown must survive suppression"
+    assert TF.apply(rows, mode=TF.MODE_OFF) == rows              # fully reversible
+
+    # The live path passes the config flag through and still returns alerts.
+    from valuation.saas.notify import screaming_buys
+    got = screaming_buys(rows, 80, term_mode=TF.MODE_FLAG)
+    assert len(got) == 3 and all("term_ok" in r for r in got)
 
 
 def _run_all():

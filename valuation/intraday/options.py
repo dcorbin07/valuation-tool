@@ -41,4 +41,6 @@ def options_signals(opt: dict | None) -> dict:
 
     return {"score": _clamp(score), "labels": labels, "available": True,
             "detail": {"put_call_ratio": pcr, "atm_iv": iv,
+                       # carried through for the term-structure filter; not scored here
+                       "atm_iv_60d": opt.get("atm_iv_60d"),
                        "call_volume": cv, "put_volume": pv}}
