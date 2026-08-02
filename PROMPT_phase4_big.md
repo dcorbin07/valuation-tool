@@ -52,6 +52,11 @@ the bear/base/bull scenario cards to use the same method as the headline (they s
 DCF today).
 
 ## Close-out
+**Fix the one failing edge test first:** `test_thetadata_provider_is_optional_and_dedupes` is
+environment-sensitive — 88/88 in the agent env, 87/88 locally once `THETADATA_API_KEY` is set / the
+`thetadata` library state differs. Make it **mock the ThetaData client** so it passes regardless of whether
+the key or library is present; a test must not depend on local env. (Backtest-only; does not affect the
+live site.)
 Coverage guard + sanity + costs on every options run; keep tests green; regenerate
 OPTIONS_BACKTEST_RESULTS + HANDOFF_STATUS + the master roadmap; **commit to `main` per item.** Do NOT
 re-open rejected items (spreads for the long arm, conviction tier, 65–75 DTE, skew/VRP/gex, ML combiner,
