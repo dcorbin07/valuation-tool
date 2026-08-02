@@ -50,6 +50,19 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 REPO = r"C:\Users\donni\Downloads\valuation-tool"
 OPTROOT = os.path.join(REPO, "data", "options")
+
+# Load .env from the REPO explicitly. The provider's fallback searches the CWD and the package
+# parent, neither of which is the main checkout when this runs from a worktree - so the key was
+# invisible and the miner exited immediately with "no THETADATA_API_KEY".
+try:
+    for _line in open(os.path.join(REPO, ".env"), encoding="utf-8", errors="replace"):
+        if "=" in _line and not _line.strip().startswith("#"):
+            _k, _v = _line.split("=", 1)
+            os.environ.setdefault(_k.strip(), _v.strip())
+except OSError:
+    pass
+
+
 MANIFEST = os.path.join(OPTROOT, "cache_manifest.json")
 PROGRESS = os.path.join(OPTROOT, "MINING_PROGRESS.txt")
 
