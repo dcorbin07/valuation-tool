@@ -38,6 +38,8 @@ class ValuationResult:
     sensitivity: SensitivityResult
     score: ScoreResult
     fair_value_blend: Optional[object] = None      # FairValueBlend (archetype-adaptive)
+    growth_lens: Optional[object] = None           # GrowthValue (revenue-multiple lens)
+    fair_value_scenarios: dict = field(default_factory=dict)  # bear/base/bull, SAME method
     ai: Optional[dict] = None
     warnings: list = field(default_factory=list)
 
@@ -79,12 +81,62 @@ class ValuationResult:
             "ai": self.ai,
             "fair_value_blend": (self.fair_value_blend.to_dict()
                                  if self.fair_value_blend is not None else None),
+            "growth_lens": (self.growth_lens.to_dict()
+                            if self.growth_lens is not None else None),
+            "fair_value_scenarios": self.fair_value_scenarios,
             "base_fair_value": self.base_fair_value,
             "dcf_per_share": self.dcf_per_share,
             "upside": self.upside,
             "warnings": self.warnings,
             "sources": self.company.sources,
         }
+
+
+def _blend_scenarios(cd, cls, scenarios, comps, rev, growth_scn, maturity, maturity_parts) -> dict:
+    """bear / base / bull run through the SAME blend as the headline.
+
+    Each scenario carries its own DCF (already shifted on growth/margin/terminal) and
+    its own growth-lens value (shifted the same way, plus exit-multiple compression or
+    expansion). The mature-multiples lens has no forecast to shift, so it gets the same
+    multiple factor — a bear case in which the multiple does NOT compress isn't a bear case.
+    """
+    from .blend import blended_fair_value
+    from .growth import SCENARIO_MULTIPLE
+
+    out = {"method": "", "bear": None, "base": None, "bull": None}
+    per_share = {"bear": scenarios.bear.per_share, "base": scenarios.base.per_share,
+                 "bull": scenarios.bull.per_share}
+    growth_ps = {k: (growth_scn.get(k).value if growth_scn.get(k) is not None else None)
+                 for k in per_share}
+
+    # Every case must use the SAME lenses, or the three numbers stop being one
+    # valuation's range and become three different valuations — which is how a bear case
+    # can come out ABOVE the bull case (seen on Unity: the DCF survived the bull case and
+    # not the bear one). The base case decides which lenses are live; in the other cases a
+    # lens that goes non-positive is floored at zero ("worthless under these assumptions")
+    # rather than dropped. That also keeps the base card identical to the headline.
+    def _live(v):
+        return v is not None and float(v) > 0
+
+    use_dcf, use_growth = _live(per_share["base"]), _live(growth_ps["base"])
+    if not (use_dcf or use_growth or comps.comps_fair_value):
+        return out
+
+    def _floor(v):
+        return max(float(v), 1e-9) if v is not None else 1e-9
+
+    for name in ("bear", "base", "bull"):
+        cmp_v = comps.comps_fair_value
+        if cmp_v is not None:
+            cmp_v = cmp_v * SCENARIO_MULTIPLE[name]
+        b = blended_fair_value(cd, cls, _floor(per_share[name]) if use_dcf else None, cmp_v,
+                               reverse=rev,
+                               growth_value=_floor(growth_ps[name]) if use_growth else None,
+                               maturity=maturity, maturity_parts=maturity_parts, quiet=True)
+        out[name] = b.value if b.valuable else None
+        if name == "base":
+            out["method"] = b.method
+    return out
 
 
 def value_ticker(ticker: str, cfg=CONFIG, overrides: Optional[dict] = None,
@@ -134,33 +186,61 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
                           fetch_fn=(lambda p: fetcher.get_company(p, cfg)) if peers else None)
     sens = build_sensitivity(cd, base, wacc_value)
 
-    # Archetype-adaptive headline value: DCF for established/profitable names, multiples
-    # for growth/pre-profit ones, P/B-ROE for financials — and nothing at all rather than
-    # a negative DCF figure when no lens genuinely applies.
+    # Archetype-adaptive headline value: DCF for established/profitable names, a
+    # growth-scaled REVENUE multiple for growth/pre-profit ones, P/B-ROE for financials —
+    # and nothing at all rather than a negative DCF figure when no lens genuinely applies.
     from .blend import blended_fair_value
-    blend = blended_fair_value(cd, cls, scenarios.base.per_share,
-                               comps.comps_fair_value, reverse=rev)
+    from .growth import maturity_from_company, build_growth_scenarios, mature_discount_rate
+
+    maturity, maturity_parts = maturity_from_company(cd, growth=cls.blended_growth)
+    mature_rate = mature_discount_rate(wacc.risk_free, wacc.erp, wacc_value)
+    growth_scn = ({} if cls.regime == "financial"
+                  else build_growth_scenarios(cd, cls, base, wacc_value, maturity,
+                                              comps.benchmark, mature_rate=mature_rate))
+    growth_lens = growth_scn.get("base")
+
+    blend = blended_fair_value(
+        cd, cls, scenarios.base.per_share, comps.comps_fair_value, reverse=rev,
+        growth_value=(growth_lens.value if growth_lens is not None else None),
+        maturity=maturity, maturity_parts=maturity_parts)
+
+    # Bear / base / bull computed the SAME WAY as the headline. Showing the raw DCF cone
+    # next to a multiples-based headline is how a growth name ended up displaying three
+    # negative scenario cards under a positive fair value.
+    fv_scen = _blend_scenarios(cd, cls, scenarios, comps, rev, growth_scn,
+                               maturity, maturity_parts)
+    blend.value_low, blend.value_high = fv_scen.get("bear"), fv_scen.get("bull")
 
     # Score against the SAME number the user is shown, so the valuation sub-score and the
     # headline can't disagree. compute_score already tolerates None (it renormalizes).
     score = compute_score(cd, cls, wacc_value,
-                          blend.value if blend.valuable else None, mc, comps)
+                          blend.value if blend.valuable else None, mc, comps, blend=blend)
 
     result = ValuationResult(
         company=cd, classification=cls, wacc=wacc, assumptions=base, scenarios=scenarios,
         montecarlo=mc, reverse=rev, comps=comps, sensitivity=sens, score=score,
-        fair_value_blend=blend, warnings=list(cd.quality_notes),
+        fair_value_blend=blend, growth_lens=growth_lens, fair_value_scenarios=fv_scen,
+        warnings=list(cd.quality_notes),
     )
     if not blend.valuable and blend.reason:
         result.warnings.insert(0, blend.reason)
 
     # Loud, top-of-list warning when the model output is implausible vs the price —
     # this is the tell for a data problem (e.g. an ADR's currency/share mismatch).
+    # EXCEPT on a growth-led valuation: a pre-profit name whose price already discounts
+    # a decade of compounding SHOULD come out far below it on our numbers. Calling that
+    # a data error taught the reader to ignore the one signal that matters there.
     fv, px = result.base_fair_value, cd.price
-    if fv and px and px > 0 and (fv / px > 5 or fv / px < 0.2):
-        result.warnings.insert(0, f"Fair value ${fv:,.0f} is {fv/px:.0f}× the ${px:,.2f} price — almost "
-                                  f"certainly a data problem (currency or share count), not a real "
-                                  f"opportunity. Verify the figures before trusting this valuation.")
+    if fv and px and px > 0:
+        ratio = fv / px
+        if ratio > 5 or (ratio < 0.2 and not blend.growth_led):
+            result.warnings.insert(0, f"Fair value ${fv:,.2f} is {ratio:.1f}× the ${px:,.2f} price — almost "
+                                      f"certainly a data problem (currency or share count), not a real "
+                                      f"opportunity. Verify the figures before trusting this valuation.")
+        elif ratio < 0.2:
+            result.warnings.insert(0, f"Our valuation (${fv:,.2f}) is a fraction of the ${px:,.2f} price. "
+                                      f"For a pre-profit growth name that is a disagreement about future "
+                                      f"growth, not a data error — see the implied-growth read.")
 
     if run_ai:
         try:

@@ -48,6 +48,11 @@ def company_to_metrics(cd, quote: Optional[dict] = None) -> dict:
         "price": sd(cd.price if cd.price is not None else (quote or {}).get("price")),
         "market_cap": mc, "revenue": cd.revenue, "net_income": cd.net_income,
         "operating_income": cd.ebit, "fcf": cd.fcf, "ebitda": ebitda, "ev": ev,
+        # Carried per row so the hot-list fair value can bridge an ENTERPRISE multiple
+        # (EV/Sales, EV/EBITDA) back to a per-share EQUITY value. Without it those
+        # multiples had to be skipped, which left every pre-profit name with nothing to
+        # value on but a (negative, unusable) earnings yield.
+        "net_debt": cd.net_debt,
         "earnings_yield": (cd.net_income / mc) if (cd.net_income is not None and mc) else None,
         "fcf_yield": (cd.fcf / mc) if (cd.fcf is not None and mc) else None,
         "ebit_ev": (cd.ebit / ev) if (cd.ebit is not None and ev) else None,
