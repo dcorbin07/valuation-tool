@@ -7,6 +7,23 @@ const money = (x, d = 2) => (x == null || isNaN(x)) ? "—" : "$" + Number(x).to
 const pct = (x, d = 1) => (x == null || isNaN(x)) ? "—" : (x * 100).toFixed(d) + "%";
 const num = (x, d = 0) => (x == null || isNaN(x)) ? "—" : Number(x).toLocaleString("en-US", { maximumFractionDigits: d });
 const mult = (x) => (x == null || isNaN(x)) ? "—" : x.toFixed(1) + "x";
+/* Market cap — ONE convention everywhere it appears. Values arrive in USD dollars
+   (valuation/screener/providers.py::METRICS_UNITS); $B is the default unit, with $T above a
+   trillion and $M below a billion so a mega-cap doesn't read as a four-digit blur. Two
+   decimals throughout. */
+const mcap = (x) => {
+  if (x == null || isNaN(x)) return "—";
+  const v = Number(x), a = Math.abs(v);
+  if (a >= 1e12) return "$" + (v / 1e12).toFixed(2) + "T";
+  if (a >= 1e9) return "$" + (v / 1e9).toFixed(2) + "B";
+  if (a >= 1e6) return "$" + (v / 1e6).toFixed(0) + "M";
+  return money(v, 0);
+};
+/* Signed percentage, for figures where the direction is the point (alpha, P&L). */
+const spct = (x, d = 1) => (x == null || isNaN(x)) ? "—" : (x >= 0 ? "+" : "") + pct(x, d);
+/* Company names and sectors are third-party strings (FMP / SEC) dropped into innerHTML. */
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const scoreColor = (s) => s >= 66 ? "var(--green)" : (s >= 46 ? "var(--amber)" : "var(--red)");
 const scoreClass = (s) => s >= 66 ? "g" : (s >= 46 ? "a" : "r");
 
@@ -566,15 +583,17 @@ function renderHot(d) {
   document.getElementById("hotMeta").textContent = meta;
   loadRegime();
   let html = '<table><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th><th>Bucket</th>' +
-    '<th class="num">Price</th><th class="num">Hot</th><th class="num">Value</th><th class="num">Qual</th>' +
+    '<th class="num">Price</th><th class="num">Market cap</th><th class="num">Hot</th>' +
+    '<th class="num">Value</th><th class="num">Qual</th>' +
     '<th class="num">Grow</th><th class="num">Mom</th><th class="num">Fair val</th></tr>';
   d.rows.forEach(r => {
     const up = r.upside;
     html += `<tr><td>${r.rank}</td><td><a href="#" onclick="gotoValue('${r.ticker}');return false"><b>${r.ticker}</b></a></td>
-      <td>${(r.name || "").slice(0, 22)}${_whyChips(r)}</td><td>${(r.sector || "").slice(0, 16)}</td>
+      <td>${esc((r.name || "").slice(0, 22))}${_whyChips(r)}</td><td>${esc((r.sector || "—").slice(0, 16))}</td>
       <td><span class="pill ${r.bucket === 'established' ? 'est' : 'spec'}">${r.bucket || ''}</span></td>
       <td class="num">${money(r.price)}</td>
-      <td class="num hotrow-score" style="color:${scoreColor(r.hot_score)}">${r.hot_score == null ? '' : r.hot_score.toFixed(0)}</td>
+      <td class="num">${mcap(r.market_cap)}</td>
+      <td class="num hotrow-score" style="color:${scoreColor(r.hot_score)}">${r.hot_score == null ? '—' : r.hot_score.toFixed(0)}</td>
       <td class="num">${z(r.z_value)}</td><td class="num">${z(r.z_quality)}</td>
       <td class="num">${z(r.z_growth)}</td><td class="num">${z(r.z_momentum)}</td>
       <td class="num">${_fairValCell(r, up)}</td></tr>`;
@@ -589,6 +608,18 @@ function renderHot(d) {
   if (hz.length) {
     html += `<div class="note">⚠ Low data coverage this scan: ${hz.map(([k, v]) => `${k.replace(/_/g, ' ')} ${Math.round(v * 100)}%`).join(" · ")}. ` +
       `Scores still computed on the data present (missing inputs are neutralized), but worth a glance.</div>`;
+  }
+  // Company name / sector / market cap are invisible to every scoring check, so a gap in
+  // them can sit on the live site for weeks unnoticed. Say it out loud when it happens.
+  const dc = (d.health && d.health.display_coverage) || null;
+  const gaps = dc ? Object.entries(dc).filter(([k, v]) => v < 0.9) : [];
+  if (gaps.length) {
+    html += `<div class="note">⚠ Missing display data: ${gaps.map(([k, v]) =>
+      `${k.replace(/_/g, " ")} present on ${pct(v, 0)} of names`).join(" · ")}. `
+      + `Scores are unaffected — this is what the table can show, not what it ranked on.</div>`;
+  }
+  if (d.health && d.health.universe_note) {
+    html += `<div class="note">⚠ Universe: ${esc(d.health.universe_note)}.</div>`;
   }
   if (f && f.total_removed) {
     const parts = Object.entries(f.by_reason || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${v} ${k}`).join(" · ");
@@ -624,7 +655,7 @@ function renderSectors(sectors) {
   sectors.forEach(s => {
     const t = (s.avg_composite - lo) / ((hi - lo) || 1);
     const col = s.avg_composite >= 0 ? "var(--green)" : "var(--amber)";
-    html += `<div class="sector-bar"><span class="nm">#${s.sector_rank} ${s.sector.slice(0, 14)}</span>
+    html += `<div class="sector-bar"><span class="nm">#${s.sector_rank} ${esc(String(s.sector || "—").slice(0, 14))}</span>
       <span class="track"><span style="width:${Math.max(4, t * 100)}%;background:${col}"></span></span>
       <span style="width:96px;text-align:right;color:${col};font-weight:700">${z(s.avg_composite)} <span class="muted" style="font-weight:400">(${s.count})</span></span></div>`;
   });
@@ -648,10 +679,11 @@ function renderPortfolio(pf) {
   let html = `<div class="metricline" style="margin:6px 0 10px">
     ${metric("Names", s.n_names)} ${metric("Sectors", s.n_sectors)}
     ${metric("Eff. names", s.effective_names)} ${metric("Wtd hot", s.weighted_hot_score)}</div>`;
-  html += '<table><tr><th>Ticker</th><th>Sector</th><th class="num">Weight</th><th class="num">Hot</th></tr>';
+  html += '<table><tr><th>Ticker</th><th>Company</th><th>Sector</th><th class="num">Weight</th><th class="num">Hot</th></tr>';
   pf.positions.forEach(p => {
-    html += `<tr><td><b>${p.ticker}</b></td><td>${(p.sector || '').slice(0, 16)}</td>
-      <td class="num">${pct(p.weight, 1)}</td><td class="num">${p.hot_score == null ? '' : p.hot_score.toFixed(0)}</td></tr>`;
+    html += `<tr><td><b>${p.ticker}</b></td><td>${esc((p.name || '').slice(0, 24))}</td>
+      <td>${esc((p.sector || '—').slice(0, 16))}</td>
+      <td class="num">${pct(p.weight, 1)}</td><td class="num">${p.hot_score == null ? '—' : p.hot_score.toFixed(0)}</td></tr>`;
   });
   html += "</table>";
   html += `<div class="note">Max sector weight ${pct(s.max_sector_weight, 0)} (cap ${pct(s.max_sector_cap, 0)}). Exposures — value ${z(s.exposure_value)}, quality ${z(s.exposure_quality)}, growth ${z(s.exposure_growth)}, momentum ${z(s.exposure_momentum)}.</div>`;
@@ -1021,10 +1053,10 @@ function _themeBars(w) {
   const entries = Object.entries(w).sort((a, b) => b[1] - a[1]);
   const max = Math.max(...entries.map(e => e[1]), 0.01);
   return entries.map(([k, v]) => {
-    const pct = (v * 100).toFixed(0), wd = Math.round(v / max * 100);
+    const label = pct(v, 0), wd = Math.round(v / max * 100);
     return `<div style="margin:5px 0">
       <div style="display:flex;justify-content:space-between;font-size:12px">
-        <span style="text-transform:capitalize"><b>${k.replace(/_/g, " ")}</b></span><span>${pct}%</span></div>
+        <span style="text-transform:capitalize"><b>${k.replace(/_/g, " ")}</b></span><span>${label}</span></div>
       <div style="background:#eef;border-radius:4px;height:8px"><div style="width:${wd}%;background:#3454a4;height:8px;border-radius:4px"></div></div>
       <div class="muted" style="font-size:11px">${THEME_INPUTS[k] || ""}</div></div>`;
   }).join("");
@@ -1121,8 +1153,6 @@ async function loadOptionsScorecard() {
   const n = o.n_closed || 0, open = d.n_open || 0;
   box.style.display = "";
   const note = document.getElementById("optScoreNote");
-  const pct = v => (v === null || v === undefined) ? "—" : (v * 100).toFixed(1) + "%";
-  const num = v => (v === null || v === undefined) ? "—" : v.toFixed(2);
   if (!n) {
     note.textContent = `No closed trades yet — ${open} alert${open === 1 ? "" : "s"} logged and `
       + `awaiting outcomes. Contract results are written back by the Robinhood job; until then `
@@ -1135,13 +1165,13 @@ async function loadOptionsScorecard() {
       ? `<b>Below the ${d.min_closed_per_bucket || 30}-trade floor</b> — read as directional only; `
         + `no criterion is tuned on this.` : ``}`;
   const rows = [
-    ["Expectancy / trade", pct(o.expectancy_pct)],
+    ["Expectancy / trade", spct(o.expectancy_pct)],
     ["Hit rate", pct(o.hit_rate)],
-    ["Avg win", pct(o.avg_win_pct)],
-    ["Avg loss", pct(o.avg_loss_pct)],
-    ["Profit factor", o.profit_factor == null ? "— (undefined)" : num(o.profit_factor)],
+    ["Avg win", spct(o.avg_win_pct)],
+    ["Avg loss", spct(o.avg_loss_pct)],
+    ["Profit factor", o.profit_factor == null ? "— (undefined)" : num(o.profit_factor, 2)],
     ["Cumulative P&L (1 contract)", o.cum_pnl_dollars == null ? "—"
-      : (o.cum_pnl_dollars >= 0 ? "+" : "") + "$" + o.cum_pnl_dollars.toFixed(0)],
+      : (o.cum_pnl_dollars >= 0 ? "+" : "−") + money(Math.abs(o.cum_pnl_dollars), 0)],
   ];
   let html = '<table class="tbl"><tbody>' + rows.map(
     r => `<tr><td class="muted">${r[0]}</td><td style="text-align:right"><b>${r[1]}</b></td></tr>`
@@ -1157,8 +1187,8 @@ async function loadOptionsScorecard() {
       const s = buckets[dim][b];
       const thin = !s.enough_to_tune;
       html += `<tr style="${thin ? "opacity:.55" : ""}"><td>${dim}: ${b}${thin ? " ⚠" : ""}</td>`
-        + `<td>${s.n_closed}</td><td>${pct(s.expectancy_pct)}</td><td>${pct(s.hit_rate)}</td>`
-        + `<td>${s.profit_factor == null ? "—" : num(s.profit_factor)}</td></tr>`;
+        + `<td>${s.n_closed}</td><td>${spct(s.expectancy_pct)}</td><td>${pct(s.hit_rate)}</td>`
+        + `<td>${s.profit_factor == null ? "—" : num(s.profit_factor, 2)}</td></tr>`;
     }));
     html += "</tbody></table>";
   }
@@ -1207,12 +1237,44 @@ async function loadValquoIndex() {
     + (c.exit_frac ? `, hold until a name falls past the top ${(c.exit_frac * 100).toFixed(0)}%` : ", full rotation")
     + `. ${meas}<br><span class="muted">${d.source_note || ""}</span>`;
   const rows = (d.positions || []).slice(0, 30);
-  body.innerHTML = '<table class="tbl"><thead><tr><th>#</th><th>Ticker</th><th>Weight</th>'
-    + '<th>Hot score</th><th>Market cap</th></tr></thead><tbody>'
+  body.innerHTML = _indexSectorBox(d)
+    + '<table class="tbl"><thead><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th>'
+    + '<th class="num">Weight</th><th class="num">Hot score</th><th class="num">Market cap</th>'
+    + '</tr></thead><tbody>'
     + rows.map((p, i) => `<tr><td>${i + 1}</td><td><b>${p.ticker}</b></td>`
-        + `<td>${(p.weight * 100).toFixed(2)}%</td><td>${p.hot_score}</td>`
-        + `<td>${p.market_cap ? "$" + (p.market_cap / 1e9).toFixed(1) + "B" : "—"}</td></tr>`).join("")
+        + `<td>${esc((p.name || "").slice(0, 28))}</td><td>${esc((p.sector || "—").slice(0, 18))}</td>`
+        + `<td class="num">${pct(p.weight, 2)}</td>`
+        + `<td class="num">${p.hot_score == null ? "—" : p.hot_score.toFixed(1)}</td>`
+        + `<td class="num">${mcap(p.market_cap)}</td></tr>`).join("")
     + "</tbody></table>"
     + ((d.positions || []).length > rows.length
         ? `<div class="note">… and ${d.positions.length - rows.length} more</div>` : "");
+}
+
+/* Sector breakdown of the book — the one view that makes its diversification visible.
+   `sector_data_available` is a real signal, not a formatting detail: a source with no sector
+   column (the Sharadar export has none) would otherwise render a single "unknown" bar that
+   reads as "this book is 100% one sector" rather than "this data is missing". Say which. */
+function _indexSectorBox(d) {
+  const w = d.sector_weights || {};
+  const entries = Object.entries(w).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) return "";
+  if (!d.sector_data_available) {
+    return `<div class="note">Sector breakdown unavailable — this book was built from a source `
+      + `that carries no sector labels, so its diversification can't be shown.</div>`;
+  }
+  const top = entries[0];
+  const hhi = entries.reduce((s, e) => s + e[1] * e[1], 0);
+  return `<div style="margin:6px 0 12px">
+    <div class="metricline" style="margin-bottom:8px">
+      ${metric("Sectors", entries.length)}
+      ${metric("Largest", esc(top[0]) + " " + pct(top[1], 1))}
+      ${metric("Eff. sectors", (1 / (hhi || 1)).toFixed(1))}</div>`
+    + entries.map(([s, v]) => `<div class="sector-bar">
+        <span class="nm">${esc(s.slice(0, 20))}</span>
+        <span class="track"><span style="width:${Math.max(3, Math.round(v / top[1] * 100))}%;background:var(--green)"></span></span>
+        <span style="width:64px;text-align:right;font-weight:700">${pct(v, 1)}</span></div>`).join("")
+    + `<div class="note">Weight by sector across the whole book (not just the ${
+        Math.min(30, (d.positions || []).length)} rows shown). "Eff. sectors" is the
+        inverse Herfindahl — how many sectors this book is really spread across.</div></div>`;
 }

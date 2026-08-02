@@ -38,10 +38,10 @@ def prefilter(m: dict):
         return False, "no price/quote"
     if price < S.PRICE_FLOOR:
         return False, f"penny (<${S.PRICE_FLOOR:.0f})"
-    mc = m.get("market_cap")               # in $ millions
+    mc = m.get("market_cap")               # USD dollars (see providers.METRICS_UNITS)
     if not mc or mc <= 0:
         return False, "no market cap"
-    if mc < S.MIN_MARKET_CAP_MM:
+    if mc < S.MIN_MARKET_CAP_MM * 1e6:
         return False, f"nano-cap (<${S.MIN_MARKET_CAP_MM:.0f}M)"
     adv = m.get("avg_dollar_volume")       # in $
     if adv is not None and adv < S.MIN_AVG_DOLLAR_VOLUME:
@@ -101,7 +101,7 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     # --- individual theme inputs (each oriented higher = better) ---
     def _num(c):   # always a Series aligned to df.index, even if the column is absent
         return pd.to_numeric(df[c], errors="coerce") if c in df.columns else pd.Series(np.nan, index=df.index)
-    mc = _num("market_cap")
+    mc = _num("market_cap")                              # USD dollars, like every absolute figure
     gp, td, te = _num("gross_profit"), _num("total_debt"), _num("total_equity")
     rev, fcf, ni = _num("revenue"), _num("fcf"), _num("net_income")
     ebit, iexp = _num("operating_income"), _num("interest_expense")

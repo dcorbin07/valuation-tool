@@ -512,6 +512,62 @@ def test_valquo_index_export_writes_json(tmpdir=None):
     assert os.path.getsize(path) < 200_000, "index file should stay small"
 
 
+def test_valquo_index_market_caps_are_dollars_not_millions():
+    """The large-cap floor is 10e9 DOLLARS. A book fed millions-denominated caps clears
+    nothing, silently degrades to 'largest half', and renders as $0.0B in the UI — which is
+    exactly what the live site showed. Pin the contract so it can't drift back."""
+    from valuation.edge.valquo_index import build_index, LARGE_CAP_MIN
+    assert LARGE_CAP_MIN == 10e9
+
+    dollars = build_index(_index_rows())
+    assert dollars["criteria"]["tilt"] == "large-cap only"
+
+    millions = _index_rows()
+    for r in millions:
+        r["market_cap"] = r["market_cap"] / 1e6           # the pre-fix live convention
+    degraded = build_index(millions)
+    assert "large-cap only" not in degraded["criteria"]["tilt"], (
+        "millions-denominated caps must not masquerade as a large-cap book")
+
+
+def test_valquo_index_export_fills_blank_names_and_sectors():
+    """The point-in-time Sharadar export carries no company name and no sector, so an
+    exported book listed bare tickers and reported sector_data_available: false. The export
+    now decorates the finished book from the live feed and recomputes the sector block."""
+    import json
+    import os
+    import tempfile
+    from valuation.edge.valquo_index import export
+
+    rows = _index_rows()
+    truth = {r["ticker"]: (r["name"], r["sector"]) for r in rows}
+    for r in rows:                                        # what the Sharadar path emits
+        r["name"], r["sector"] = "", ""
+
+    class _St:
+        """The book is built from `rows` (no names, no sectors — the Sharadar shape); the
+        names/sectors come from the store's profile cache, which the live scan populated."""
+        def latest_scan_date(self): return "2026-07-28"
+        def load_snapshot(self, d=None, top=None): return rows
+        def get_profiles(self, tickers=None):
+            want = {t.upper() for t in (tickers or truth)}
+            return [{"ticker": t, "name": n, "sector": s, "industry": ""}
+                    for t, (n, s) in truth.items() if t in want]
+        def get_cached_fundamentals(self, t, max_age_days=None): return None
+        def cache_profiles(self, profiles): pass
+
+    path = os.path.join(tempfile.mkdtemp(), "valquo_index.json")
+    p = export(store=_St(), path=path)
+
+    assert p["sector_data_available"] is True, p["profile_enrichment"]
+    assert "unknown" not in p["sector_weights"], p["sector_weights"]
+    assert abs(sum(p["sector_weights"].values()) - 1.0) < 1e-3
+    assert all(x["name"] and x["sector"] for x in p["positions"])
+    for x in p["positions"]:
+        assert (x["name"], x["sector"]) == truth[x["ticker"]]
+    assert json.load(open(path, encoding="utf-8"))["sector_data_available"] is True
+
+
 def test_grades_signal_is_point_in_time():
     """The rating signal must only ever see actions dated on or before as_of."""
     from valuation.edge.fundamental_panel import _prep_grades, _grades_at

@@ -20,6 +20,46 @@ from . import prices as P
 
 
 # --------------------------------------------------------------------------- #
+# UNIT CONVENTION (do not break): every absolute currency figure in a metrics
+# dict is in USD DOLLARS.
+#
+# This used to be provider-dependent and it silently corrupted the product. The
+# valuation CompanyData carries millions (see data/models.py), so the free path
+# emitted market_cap in MILLIONS while FMP's profile emits DOLLARS — and the two
+# meet in the same scan. Downstream everything assumes dollars: the Valquo Index
+# keeps names above a 10e9 large-cap floor and the web UI renders market_cap/1e9,
+# so a millions-denominated $276B Dell displayed as "$0.0B" and no name ever
+# cleared the large-cap floor (the book quietly fell back to "largest half").
+#
+# Ratios are unit-free, so they are computed on the raw (millions) values and the
+# absolute figures are scaled once, at the end. Every metrics dict is stamped with
+# `units` so a cache entry written under the old convention is discarded instead
+# of being mixed into a fresh scan.
+# --------------------------------------------------------------------------- #
+METRICS_UNITS = "usd"
+
+_ABSOLUTE_USD = ("market_cap", "revenue", "net_income", "operating_income", "fcf",
+                 "ebitda", "ev", "gross_profit", "total_debt", "total_equity",
+                 "interest_expense")
+
+
+def _stamp_units(m: dict, scale: float = 1.0) -> dict:
+    """Scale the absolute currency figures to USD dollars and record the convention."""
+    if scale != 1.0:
+        for k in _ABSOLUTE_USD:
+            v = m.get(k)
+            if v is not None:
+                m[k] = v * scale
+    m["units"] = METRICS_UNITS
+    return m
+
+
+def _usable_cache(cached):
+    """Drop cached fundamentals written before the USD normalization (they hold millions)."""
+    return cached if (cached or {}).get("units") == METRICS_UNITS else None
+
+
+# --------------------------------------------------------------------------- #
 # Pure mapping: CompanyData -> screener metrics (unit-testable offline)
 # --------------------------------------------------------------------------- #
 def company_to_metrics(cd, quote: Optional[dict] = None) -> dict:
@@ -75,7 +115,9 @@ def company_to_metrics(cd, quote: Optional[dict] = None) -> dict:
         "is_fund": (getattr(cd, "quote_type", "") or "").upper() in
                    {"ETF", "MUTUALFUND", "MONEYMARKET", "CURRENCY", "INDEX", "FUND"},
     }
-    return m
+    # CompanyData carries millions; the metrics contract is dollars. Ratios above are
+    # unit-free and unaffected — only the absolute figures move.
+    return _stamp_units(m, scale=1e6)
 
 
 class ScreenerProvider:
@@ -125,7 +167,8 @@ class FreeProvider(ScreenerProvider):
     def get_metrics(self, ticker: str) -> Optional[dict]:
         # cached?
         if self.store:
-            cached = self.store.get_cached_fundamentals(ticker, max_age_days=self.cfg_max_age())
+            cached = _usable_cache(
+                self.store.get_cached_fundamentals(ticker, max_age_days=self.cfg_max_age()))
             if cached:
                 return cached
         try:
@@ -153,6 +196,10 @@ class FMPProvider(ScreenerProvider):
         self.cfg = cfg
         self.store = store
         self.key = cfg.fmp_api_key
+        # Why a universe call fell back, recorded rather than swallowed. The live site spent
+        # weeks scanning 191 bundled names instead of the market because this exception was
+        # caught silently and the fallback looks identical to success from the outside.
+        self.universe_note = ""
 
     def _get(self, path, **params):
         import requests
@@ -171,14 +218,19 @@ class FMPProvider(ScreenerProvider):
                 out.append({"ticker": (d.get("symbol") or "").upper(),
                             "name": d.get("companyName", ""), "sector": d.get("sector", ""),
                             "industry": d.get("industry", ""), "market_cap": d.get("marketCap")})
-            return [x for x in out if x["ticker"]]
-        except Exception:
+            out = [x for x in out if x["ticker"]]
+            if not out:
+                self.universe_note = "FMP company-screener returned no rows — using the bundled list"
+                return FreeProvider(self.cfg, self.store).get_universe("bundled")
+            return out
+        except Exception as e:
             # fall back to the free universe if the key/endpoint isn't working
+            self.universe_note = f"FMP company-screener failed ({e}) — using the bundled list"
             return FreeProvider(self.cfg, self.store).get_universe("bundled")
 
     def get_metrics(self, ticker: str) -> Optional[dict]:
         if self.store:
-            cached = self.store.get_cached_fundamentals(ticker, max_age_days=30)
+            cached = _usable_cache(self.store.get_cached_fundamentals(ticker, max_age_days=30))
             if cached:
                 return cached
         try:
@@ -198,7 +250,7 @@ def _fmp_to_metrics(ticker, km, ratios, profile) -> dict:
     verify field names against your FMP plan's live payload on first run)."""
     g = lambda d, *ks: next((d[k] for k in ks if d.get(k) is not None), None)
     mc = g(profile, "marketCap", "mktCap")
-    return {
+    m = {
         "ticker": ticker.upper(), "name": g(profile, "companyName") or ticker,
         "sector": g(profile, "sector") or "", "industry": g(profile, "industry") or "",
         "price": g(profile, "price"), "market_cap": mc,
@@ -223,6 +275,8 @@ def _fmp_to_metrics(ticker, km, ratios, profile) -> dict:
         "is_fund": bool(g(profile, "isEtf") or g(profile, "isFund")),
         "quote_type": "ETF" if (g(profile, "isEtf") or g(profile, "isFund")) else "EQUITY",
     }
+    # FMP already reports absolute figures in dollars — stamp, don't scale.
+    return _stamp_units(m)
 
 
 def get_provider(cfg=CONFIG, store=None) -> ScreenerProvider:

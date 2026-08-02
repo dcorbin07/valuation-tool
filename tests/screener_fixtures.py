@@ -22,15 +22,18 @@ def synth_metrics(ticker, sector, edge=None):
     r = _rng(ticker)
     if edge is None:
         edge = float(r.normal(0, 1))            # hidden quality of the name
+    # Absolute currency figures are USD DOLLARS, matching providers.METRICS_UNITS — the
+    # contract every real provider now emits. ($0.5B–$300B caps, $50M–$3B operating income.)
     profitable = r.random() > 0.35
-    op = (r.uniform(50, 3000) if profitable else -r.uniform(20, 800))
-    mc = float(r.uniform(500, 300000))
+    op = (r.uniform(50, 3000) if profitable else -r.uniform(20, 800)) * 1e6
+    mc = float(r.uniform(500, 300000)) * 1e6
     ey = 0.02 + 0.05 * edge + r.normal(0, 0.01) if profitable else r.normal(-0.02, 0.02)
     return {
         "ticker": ticker, "name": f"{ticker} Corp", "sector": sector, "industry": "",
         "price": float(r.uniform(8, 400)), "market_cap": mc,
-        "operating_income": op, "net_income": op * 0.8, "revenue": float(r.uniform(200, 50000)),
-        "fcf": op * r.uniform(0.5, 1.2), "ebitda": abs(op) + r.uniform(50, 500),
+        "operating_income": op, "net_income": op * 0.8,
+        "revenue": float(r.uniform(200, 50000)) * 1e6,
+        "fcf": op * r.uniform(0.5, 1.2), "ebitda": abs(op) + r.uniform(50, 500) * 1e6,
         "earnings_yield": ey, "fcf_yield": ey * r.uniform(0.7, 1.3),
         "ebit_ev": 0.03 + 0.05 * edge + r.normal(0, 0.01),
         "ev_ebitda": float(max(3, 18 - 4 * edge + r.normal(0, 2))),
@@ -46,6 +49,7 @@ def synth_metrics(ticker, sector, edge=None):
         "revenue_growth_prior": float(np.clip(0.07 + 0.03 * edge, -0.3, 0.7)),
         "ret_12_1": float(np.clip(0.05 + 0.10 * edge + r.normal(0, 0.15), -0.7, 1.5)),
         "avg_dollar_volume": float(r.uniform(2e6, 5e8)), "beta": float(r.uniform(0.6, 1.8)),
+        "units": "usd",
         "_edge": edge,
     }
 

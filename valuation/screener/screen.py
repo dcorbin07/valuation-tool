@@ -101,6 +101,35 @@ def _rows_from(scored: pd.DataFrame) -> list:
     return rows
 
 
+def _cov(rows: list, ok) -> float:
+    """Fraction of rows for which `ok` holds — used for the display-field health panel."""
+    if not rows:
+        return 0.0
+    return round(sum(1 for r in rows if ok(r)) / len(rows), 3)
+
+
+def _fill_from_universe(m: dict, u: Optional[dict]) -> dict:
+    """Backfill display fields the per-name fetch didn't supply, from the universe listing.
+
+    Only fills what is genuinely missing, so a real fetched value always wins. A `name` equal
+    to the ticker counts as missing: that is what the Yahoo path falls back to when its `.info`
+    call is throttled, and "DELL" is not a company name. Market cap is a display/eligibility
+    field here, and the listing reports it in USD dollars like everything else.
+    """
+    if not u:
+        return m
+    tkr = (m.get("ticker") or u.get("ticker") or "").upper()
+    if not (m.get("name") or "").strip() or (m.get("name") or "").strip().upper() == tkr:
+        if (u.get("name") or "").strip():
+            m["name"] = u["name"]
+    for k in ("sector", "industry"):
+        if not (m.get(k) or "").strip() and (u.get(k) or "").strip():
+            m[k] = u[k]
+    if not m.get("market_cap") and u.get("market_cap"):
+        m["market_cap"] = u["market_cap"]
+    return m
+
+
 def _f(x):
     try:
         if x is None or (isinstance(x, float) and np.isnan(x)):
@@ -119,7 +148,12 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     uni = provider.get_universe(scope)
     if limit:
         uni = uni[:limit]
-    sector_hint = {u["ticker"]: u.get("sector") for u in uni}
+    # The universe listing already carries a company name / sector / market cap (FMP's
+    # screener returns all three; SEC EDGAR's filer list returns the legal name). The
+    # per-name fetch does NOT reliably re-supply them — yfinance's `.info` is rate-limited
+    # from cloud IPs and comes back empty, which is how the book ended up showing bare
+    # tickers and an "unknown" sector breakdown. Keep the listing's values as a fallback.
+    hints = {u["ticker"]: u for u in uni}
 
     total = len(uni)
     workers = max(1, int(getattr(cfg, "scan_workers", 8) or 8)) if cfg is not None else 8
@@ -158,8 +192,7 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
         if not m:
             filtered["no data"] = filtered.get("no data", 0) + 1
             continue
-        if not m.get("sector") and sector_hint.get(u["ticker"]):
-            m["sector"] = sector_hint[u["ticker"]]
+        _fill_from_universe(m, hints.get(u["ticker"]))
         m.setdefault("ticker", u["ticker"])
         keep, reason = prefilter(m)
         if not keep:
@@ -211,7 +244,19 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
         "scored": len(rows),
         "theme_coverage": {t: round(float(scored[t].notna().mean()), 2)
                            for t in S.FACTORS_ALL if t in scored.columns},
+        # Display-field coverage. A blank company name or sector is not a scoring bug, so
+        # nothing else would ever report it — and it went unnoticed on the live site for
+        # weeks. Measured on the rows that actually ship.
+        "display_coverage": {
+            "name": _cov(rows, lambda r: (r.get("name") or "").strip()
+                         and (r.get("name") or "").strip().upper() != r["ticker"].upper()),
+            "sector": _cov(rows, lambda r: (r.get("sector") or "").strip()),
+            "market_cap": _cov(rows, lambda r: r.get("market_cap")),
+        },
     }
+    note = getattr(provider, "universe_note", "")
+    if note:
+        health["universe_note"] = note
 
     scan_date = _today()
     if save:

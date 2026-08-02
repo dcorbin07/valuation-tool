@@ -205,6 +205,122 @@ def test_ticker_search_endpoint_ranks_exact_first():
     assert len(many) > 1 and all(m["ticker"].startswith("A") or "A" in m["ticker"] for m in many)
 
 
+def test_metrics_are_in_usd_dollars_not_millions():
+    """The screener's absolute figures are USD DOLLARS, and ratios are unaffected by the scale.
+
+    This was the bug behind "$0.00 market cap" on every Index name: CompanyData carries
+    millions, FMP's profile carries dollars, and both fed the same scan. Downstream — the
+    10e9 large-cap floor and the UI's market_cap/1e9 — assumes dollars, so a $276B Dell
+    arrived as 275,844 and rendered as $0.0B.
+    """
+    from valuation.screener.providers import METRICS_UNITS
+    cd = CompanyData(ticker="DELL", name="Dell Technologies Inc.", sector="Technology")
+    cd.price = 426.91
+    cd.market_cap = 275_844.66          # CompanyData is in millions, by its own contract
+    cd.net_income = 5_000.0
+    cd.revenue = 100_000.0
+    cd.total_equity = 3_000.0
+    m = company_to_metrics(cd)
+
+    assert m["units"] == METRICS_UNITS == "usd"
+    assert abs(m["market_cap"] - 275_844.66e6) < 1.0, m["market_cap"]
+    # The FMP mapper already speaks dollars — it must stamp the convention WITHOUT rescaling,
+    # or every FMP row looks like a stale cache entry and gets refetched forever.
+    from valuation.screener.providers import _fmp_to_metrics
+    fm = _fmp_to_metrics("DELL", {"grossProfitTTM": 1.2e10}, {},
+                         {"companyName": "Dell Technologies Inc.", "sector": "Technology",
+                          "marketCap": 275_844_661_248, "price": 426.91})
+    assert fm["units"] == "usd"
+    assert fm["market_cap"] == 275_844_661_248 and fm["gross_profit"] == 1.2e10
+    assert fm["name"] == "Dell Technologies Inc." and fm["sector"] == "Technology"
+    assert abs(m["net_income"] - 5e9) < 1.0
+    assert abs(m["revenue"] - 100e9) < 1.0
+    # Ratios are unit-free and must NOT move: 5000/275844.66 either way.
+    assert abs(m["earnings_yield"] - (5_000.0 / 275_844.66)) < 1e-12
+    assert abs(m["pe"] - (275_844.66 / 5_000.0)) < 1e-9
+    # Per-share price is not a currency aggregate and must stay untouched.
+    assert m["price"] == 426.91
+
+
+def test_nano_cap_floor_is_applied_in_dollars():
+    from valuation.screener.factors import prefilter
+    base = {"ticker": "X", "price": 20.0, "avg_dollar_volume": 5e6}
+    assert prefilter({**base, "market_cap": 40e6})[0] is False     # $40M — nano-cap
+    assert prefilter({**base, "market_cap": 60e6})[0] is True      # $60M — real small cap
+    # The old millions-denominated comparison let a $60 company through and, worse, would
+    # now reject every genuine name in a dollars-denominated scan.
+    assert prefilter({**base, "market_cap": 60.0})[0] is False
+
+
+def test_cache_written_before_the_usd_normalization_is_discarded():
+    """A cached metrics dict with no `units` stamp holds millions — mixing it into a fresh
+    scan would put two currencies' worth of scale in one cross-section."""
+    from valuation.screener.providers import FMPProvider, _usable_cache
+
+    class _FakeStore:
+        def __init__(self, data):
+            self.data = data
+        def get_cached_fundamentals(self, ticker, max_age_days=None):
+            return self.data
+
+    assert _usable_cache({"market_cap": 275_844.66}) is None            # legacy: no stamp
+    assert _usable_cache({"market_cap": 275e9, "units": "usd"}) is not None
+
+    class _Cfg:
+        fmp_api_key = "k"
+    p = FMPProvider(_Cfg(), _FakeStore({"ticker": "DELL", "market_cap": 275_844.66}))
+    # Legacy cache must not be returned; with no network the fetch fails and we get None,
+    # which is the honest answer — not a silently mis-scaled row.
+    assert p.get_metrics("DELL") is None
+
+
+def test_scan_backfills_blank_company_names_and_sectors():
+    """yfinance's `.info` is throttled from cloud IPs and comes back empty, so the per-name
+    fetch returns a bare ticker for a name and no sector at all. The universe listing has
+    both — the scan must fall back to it instead of shipping "DELL" with a blank sector."""
+    from valuation.screener.screen import _fill_from_universe
+
+    u = {"ticker": "DELL", "name": "Dell Technologies Inc.", "sector": "Technology",
+         "industry": "Computer Hardware", "market_cap": 275e9}
+
+    # The Yahoo failure mode: name falls back to the ticker, sector is empty.
+    m = _fill_from_universe({"ticker": "DELL", "name": "DELL", "sector": ""}, u)
+    assert m["name"] == "Dell Technologies Inc."
+    assert m["sector"] == "Technology"
+    assert m["market_cap"] == 275e9
+
+    # A real fetched value always wins over the listing.
+    m2 = _fill_from_universe({"ticker": "DELL", "name": "Dell Inc", "sector": "Tech",
+                              "market_cap": 271e9}, u)
+    assert (m2["name"], m2["sector"], m2["market_cap"]) == ("Dell Inc", "Tech", 271e9)
+
+
+def test_scan_reports_display_field_coverage():
+    """A blank name or sector is invisible to every scoring check, so the scan measures it."""
+    res, _ = _scan()
+    cov = res["health"]["display_coverage"]
+    assert cov["name"] == 1.0 and cov["sector"] == 1.0 and cov["market_cap"] == 1.0, cov
+
+
+def test_profile_lookup_fills_from_the_store_without_network():
+    """profiles.lookup must resolve from data the live scan already fetched — no API call."""
+    from valuation.screener import profiles
+    res, store = _scan()
+    tickers = [r["ticker"] for r in res["rows"][:5]]
+
+    class _NoKeyCfg:
+        fmp_api_key = ""
+        sec_user_agent = "test test@example.com"
+    got = profiles.lookup(tickers, cfg=_NoKeyCfg(), store=store, max_api=0)
+    assert set(got) == set(tickers), got
+    assert all(got[t]["name"] and got[t]["sector"] for t in tickers)
+
+    # And a book row with blank fields gets decorated in place.
+    rows = [{"ticker": tickers[0], "name": "", "sector": ""}]
+    assert profiles.decorate(rows, cfg=_NoKeyCfg(), store=store, max_api=0) == 1
+    assert rows[0]["name"] and rows[0]["sector"]
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

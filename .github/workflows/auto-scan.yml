@@ -51,6 +51,10 @@ jobs:
           BASE_URL: ${{ secrets.SITE_BASE_URL }}
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Without this the CI scan silently falls back to the ~190-name bundled list AND
+          # loses the universe's company names / sectors / market caps. Empty is harmless
+          # (the free EDGAR+Yahoo path still runs), so this is safe before the secret exists.
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           SEC_USER_AGENT: "Donovan Corbin donniecorbin6@gmail.com"
           KIND: hot
           SCAN_SCOPE: whole_market
