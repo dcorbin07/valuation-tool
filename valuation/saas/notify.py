@@ -40,14 +40,15 @@ def screaming_buys(rows, min_score, term_mode=None) -> list:
 def screaming_buys_with_stats(rows, min_score, term_mode=None):
     """`screaming_buys`, plus what the term gate did. Returns (picks, term_stats).
 
-    `term_mode` defaults to the config flag, now "suppress": the filter removes ~60% of signals
-    and is the single thing arresting the fade, so leaving it as an annotation meant the live
-    alerts carried the full fade. "flag" is still one env var away. Missing term data is never
-    suppressed - a quote outage must not read as backwardation.
+    `term_mode` defaults to the config flag ("suppress"), but NOTE that `run_alerts` deliberately
+    passes MODE_FLAG here and applies the real gate later, once the chain has been fetched, via
+    `options_live.apply_term_gate`. This function reads the ATM IVs from the cheap whole-universe
+    scan summary; the chain gives the estimator the threshold was actually fitted to. Deciding
+    here would throw the alert away before the better read exists.
 
-    The stats exist so the live discard rate can be compared against the backtested 40.6%
-    retention. A live retention nowhere near it means the threshold did not transfer between IV
-    estimators, which is invisible if nobody counts.
+    Callers that have no chain (and never will) can still pass "suppress" and get the cheap gate.
+    Missing term data is never suppressed either way - a quote outage must not read as
+    backwardation.
     """
     from ..intraday import term_filter as TF
 
@@ -181,21 +182,42 @@ def post_hot_digest(cfg, store, scan_date, rows, sectors=None) -> bool:
 def run_alerts(cfg, store, users) -> dict:
     """New screaming buys from the latest intraday snapshot → Discord + opt-in email.
     De-dupes per ticker per day. Safe to call after every intraday scan."""
+    from ..edge.options_live import apply_term_gate
+    from ..intraday import term_filter as TF
+
     run_time = store.latest_intraday_time()
     rows = store.load_intraday()
-    picks, term_stats = screaming_buys_with_stats(rows, cfg.alert_min_score)
+    # ANNOTATE ONLY here. The gate is applied after the chain fetch, on the estimator the
+    # threshold was actually fitted to - see options_live.apply_term_gate. Suppressing at this
+    # point would decide on the cheap whole-universe summary and discard the alert before the
+    # better read exists.
+    picks, term_stats = screaming_buys_with_stats(rows, cfg.alert_min_score,
+                                                  term_mode=TF.MODE_FLAG)
     picks = [r for r in picks if not store.alerted_today(r["ticker"])]
     if not picks:
         return {"new": 0, "emails": 0, "tickers": [], "term_filter": term_stats}
     # Resolve each alert to a REAL contract on the live chain, so the paper book records a
     # priceable trade rather than a descriptor. Never allowed to break the alert path.
-    live = []
+    live, gate_stats = [], None
     try:
         live = build_live_alerts(cfg, picks)
+        mode = getattr(cfg, "options_term_filter", TF.DEFAULT_MODE)
+        kept, gate_stats = apply_term_gate(live, mode=mode)
+        keep_tickers = {a.get("ticker") for a in kept}
+        # Mark the suppressed ones alerted anyway: they were genuinely evaluated today, and
+        # leaving them unmarked would re-evaluate and re-suppress them on every later scan.
+        for r in picks:
+            if r["ticker"] not in keep_tickers:
+                store.mark_alerted(r["ticker"], run_time)
+        picks = [r for r in picks if r["ticker"] in keep_tickers]
+        live = kept
     except Exception as e:                                  # pragma: no cover - defensive
         import sys
         print(f"[alerts] live contract resolution failed (alerts still sent): {e}",
               file=sys.stderr)
+    if not picks:
+        return {"new": 0, "emails": 0, "tickers": [], "term_filter": term_stats,
+                "term_gate": gate_stats}
     send_discord(cfg, alert_discord_text(run_time, picks, live_alerts=live))
     sent = 0
     for u in users.alert_subscribers():
@@ -215,6 +237,7 @@ def run_alerts(cfg, store, users) -> dict:
         store.mark_alerted(r["ticker"], run_time)
     return {"new": len(picks), "emails": sent, "logged": logged,
             "tickers": [r["ticker"] for r in picks], "term_filter": term_stats,
+            "term_gate": gate_stats,
             "with_contract": sum(1 for a in live if a.get("contract"))}
 
 

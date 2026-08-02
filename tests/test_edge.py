@@ -2496,7 +2496,118 @@ def test_vrp_arm_correlation_uses_a_common_risk_footing():
     assert P._exit_date_single_leg({"alert_ts": "2020-01-01", "held_days": 31}) == "2020-02-01"
 
 
-def _live_chain(spot, asof, dtes, sigma=0.30, mny=(0.90, 0.95, 1.00, 1.05, 1.10, 1.15)):
+def test_atm_iv_survives_a_chain_with_no_underlying_price_field():
+    """The bug that made the live term gate fire at random, pinned so it cannot return.
+
+    Tradier option rows do NOT carry `underlying_price`. The old rule ranked contracts by
+    `abs(strike - (o.get("underlying_price") or 0))`, so the missing field collapsed to 0 and the
+    "nearest strike" was the LOWEST one on the board - AAPL's ATM IV was read off the $50 strike
+    at a $308 spot, giving 1.49 against a true 0.256. That fed term_slope directly and produced
+    live slopes of +/-1.0 against a 0.0105 threshold.
+
+    Two properties matter: ATM is located WITHOUT needing a spot price (by |delta| -> 0.50, which
+    is what at-the-money means), and an implausible `mid_iv` loses to the smoothed `smv_vol`
+    instead of beating it.
+    """
+    from valuation.intraday.providers import atm_iv_from_chain
+
+    # Spot ~308. No underlying_price anywhere, exactly as Tradier serves it.
+    chain = [
+        {"strike": 50.0, "option_type": "put",
+         "greeks": {"delta": -0.0003, "mid_iv": 2.2997, "smv_vol": 0.423}},
+        {"strike": 250.0, "option_type": "call",
+         "greeks": {"delta": 0.92, "mid_iv": 0.44, "smv_vol": 0.40}},
+        {"strike": 310.0, "option_type": "call",
+         "greeks": {"delta": 0.51, "mid_iv": 0.2561, "smv_vol": 0.263}},
+        {"strike": 400.0, "option_type": "call",
+         "greeks": {"delta": 0.04, "mid_iv": 0.61, "smv_vol": 0.55}},
+    ]
+    assert not any("underlying_price" in o for o in chain)
+    assert abs(atm_iv_from_chain(chain) - 0.2561) < 1e-9, "ATM must be found by delta, not by 0"
+    # A supplied spot is used directly and must agree.
+    assert abs(atm_iv_from_chain(chain, 308.91) - 0.2561) < 1e-9
+
+    # An implausible mid_iv must LOSE to smv_vol, not win. 2.2997 is 230% vol on a wing.
+    only_wing = [{"strike": 50.0, "option_type": "put",
+                  "greeks": {"delta": -0.50, "mid_iv": 2.2997, "smv_vol": 0.423}}]
+    assert abs(atm_iv_from_chain(only_wing) - 0.423) < 1e-9
+    # Neither plausible -> skipped, never fabricated.
+    assert atm_iv_from_chain([{"strike": 50.0, "option_type": "put",
+                               "greeks": {"delta": -0.5, "mid_iv": 9.9, "smv_vol": 8.8}}]) is None
+    assert atm_iv_from_chain([]) is None and atm_iv_from_chain(None) is None
+
+
+def test_chain_as_of_reads_the_quote_date_not_the_wall_clock():
+    from valuation.edge import options_live as L
+
+    rows = [{"strike": 1.0, "greeks": {"updated_at": "2026-07-31 20:00:00"}},
+            {"strike": 2.0, "greeks": {"updated_at": "2026-07-30 20:00:00"}}]
+    assert L.chain_as_of(rows) == dt.date(2026, 7, 31), "must take the LATEST quote date"
+    # Epoch milliseconds (Tradier's trade_date) are understood too.
+    ms = int(dt.datetime(2026, 7, 31, 16, 0).timestamp() * 1000)
+    assert L.chain_as_of([{"trade_date": ms}]) == dt.date(2026, 7, 31)
+    # Explicit wins; nothing usable falls back to today.
+    assert L.resolve_as_of(rows, dt.date(2026, 1, 1)) == dt.date(2026, 1, 1)
+    assert L.resolve_as_of([{"strike": 1.0}]) == dt.date.today()
+    assert L.chain_as_of([{"strike": 1.0, "greeks": {"updated_at": "nonsense"}}]) is None
+
+
+def test_stale_quotes_do_not_inflate_the_short_dated_term_leg():
+    """The second live bug: assuming quotes are from today when they are not.
+
+    T enters Black-Scholes under a square root, so an as-of error scales solved IV by
+    sqrt(T_true/T_assumed). That is nothing on the 45-75 DTE contract traded and enormous on the
+    ~3-DTE FRONT leg term_slope differences against. Reading Friday's quotes on a Sunday - a
+    1-day error out of 3 - turned AAPL's slope from -0.008 into -0.198 and would have been
+    reported as "the fitted estimator does not transfer to a broker surface".
+
+    Here the chain is built FLAT (same vol at both expiries), so the true slope is ~0. Anything
+    materially negative is the artefact.
+    """
+    from valuation.edge import options_live as L
+
+    quote_date = dt.date(2026, 7, 31)
+    chain = _live_chain(100.0, quote_date, [3, 60], sigma=0.30, updated_at=quote_date)
+
+    honest = L.term_read(chain_rows=chain, underlying=100.0)          # resolves to quote_date
+    assert honest["quote_date"] == quote_date.isoformat()
+    assert honest["front_dte"] == 3
+    assert abs(honest["term_slope"]) < 0.02, honest["term_slope"]
+
+    # Same chain read two days later without the fix: the front leg's IV is inflated.
+    stale = L.term_read(chain_rows=chain, underlying=100.0, as_of=quote_date + dt.timedelta(days=2))
+    assert stale["front_dte"] == 1
+    assert stale["front_iv"] > honest["front_iv"] * 1.4, (stale["front_iv"], honest["front_iv"])
+    assert stale["term_slope"] < honest["term_slope"] - 0.05
+    # The far leg barely moves - which is exactly why only the front leg corrupts the slope.
+    assert abs(stale["far_iv"] - honest["far_iv"]) < 0.02
+
+
+def test_term_gate_authority_moved_to_the_chain_read_and_still_fails_open():
+    """The gate now runs on the estimator the threshold was fitted to, after the chain fetch.
+
+    It used to run inside screaming_buys on the cheap whole-universe summary - which meant a bug
+    in that summary suppressed alerts silently, and the better read computed moments later was
+    decorative. Fail-open is unchanged: unknown is never dropped.
+    """
+    from valuation.edge import options_live as L
+    from valuation.intraday import term_filter as TF
+
+    alerts = [{"ticker": "AAA", "term": {"term_ok": True, "source": "chain (BS-from-mid)"}},
+              {"ticker": "BBB", "term": {"term_ok": False, "source": "chain (BS-from-mid)"}},
+              {"ticker": "CCC", "term": {"term_ok": None, "source": "unavailable"}}]
+    kept, stats = L.apply_term_gate(alerts)
+    assert [a["ticker"] for a in kept] == ["AAA", "CCC"]
+    assert stats["kept"] == 1 and stats["discarded"] == 1 and stats["unknown"] == 1
+    assert stats["retention"] == 0.5 and stats["backtest_retention"] == L.BACKTEST_TERM_RETENTION
+    assert stats["sources"]["chain (BS-from-mid)"] == 2
+    # Flag mode annotates without dropping.
+    kept_flag, s2 = L.apply_term_gate(alerts, mode=TF.MODE_FLAG)
+    assert len(kept_flag) == 3 and s2["discarded"] == 1
+
+
+def _live_chain(spot, asof, dtes, sigma=0.30, mny=(0.90, 0.95, 1.00, 1.05, 1.10, 1.15),
+                updated_at=None):
     """A broker-shaped chain priced by Black-Scholes, so delta targets are actually reachable.
 
     `sigma` may be a dict keyed by DTE, which is how a term structure is built for the
@@ -2517,10 +2628,12 @@ def _live_chain(spot, asof, dtes, sigma=0.30, mny=(0.90, 0.95, 1.00, 1.05, 1.10,
                 px = BS.bs_price(spot, k, T, r, vol, right)
                 if px is None or px < 0.20:
                     continue
+                g = {"delta": None, "mid_iv": vol}
+                if updated_at is not None:
+                    g["updated_at"] = f"{updated_at} 20:00:00"
                 rows.append({"option_type": kind, "expiration_date": exp, "strike": k,
                              "bid": round(px * 0.97, 2), "ask": round(px * 1.03, 2),
-                             "volume": 500, "open_interest": 1000,
-                             "greeks": {"delta": None, "mid_iv": vol}})
+                             "volume": 500, "open_interest": 1000, "greeks": g})
     return rows
 
 
