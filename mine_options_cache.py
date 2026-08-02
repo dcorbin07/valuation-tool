@@ -77,7 +77,14 @@ CACHE_MAX_SPREAD_PCT = 3.0               # 300%: only placeholder quotes, not re
 # spread 10-15%) on purpose: the point of extending past the megacaps is to reach the
 # high-IV mid/small movers retail trades heavily, and the tight end of each range would start
 # excluding exactly those. The cut is aimed at untradeable micro-caps, not at volatility.
-MIN_ATM_OI = 500                 # median OI among the most-held (near-the-money) contracts
+MIN_ATM_OI = 500                 # contract-count floor, used only for the spread population
+# Open interest is measured in DOLLARS, not contracts. A contract controls 100 x share price, so
+# an absolute contract floor systematically penalises high-priced stocks: DE was rejected at 492
+# contracts - eight short of 500 - while trading 5,964 contracts/day at a 9.7% spread, and LRCX
+# at 240 contracts while trading 11,686/day. Neither is remotely illiquid; they are simply
+# expensive, so the same dollar exposure needs fewer contracts. $2.5M is 500 contracts on a $50
+# stock, i.e. the brief's intent expressed at a price-neutral scale.
+MIN_ATM_OI_NOTIONAL = 2_500_000
 MIN_DAILY_OPTION_VOLUME = 100    # median total contracts traded across the chain per day
 MAX_MEDIAN_SPREAD_PCT = 0.15     # THE key cut - spread is what kills a long-premium edge
 SPREAD_MIN_PREMIUM = 0.50        # measure spread only on contracts with a REAL premium
@@ -175,8 +182,16 @@ def name_is_viable(tb, sym: str, year: int) -> tuple:
     dv = df.assign(_v=vol).groupby("date")["_v"].sum()
     daily_volume = float(dv.median()) if len(dv) else 0.0
     # near-ATM open interest: the top decile by OI, which is where the money sits
-    live_oi = oi[quoted & (oi > 0)]
+    live = quoted & (oi > 0)
+    live_oi = oi[live]
     atm_oi = float(live_oi.quantile(0.90)) if len(live_oi) else 0.0
+    # Price proxy: the strike of those most-held contracts, since OI concentrates near the money.
+    # This avoids needing a per-name spot series purely to screen.
+    strike = pd.to_numeric(df["strike"], errors="coerce")
+    top = live & (oi >= atm_oi) if atm_oi > 0 else live
+    atm_strike = float(strike[top].median()) if int(top.sum()) else 0.0
+    atm_notional = atm_oi * atm_strike * 100.0
+
     # Spread on contracts we would ACTUALLY trade. Measuring it across every quoted contract
     # includes far-OTM lottery tickets where a one-cent tick on a five-cent mid reads as 20%,
     # which is not the spread a 35-delta 45-75 DTE call pays. That mis-measurement rejected
@@ -189,6 +204,8 @@ def name_is_viable(tb, sym: str, year: int) -> tuple:
     stats = {"days_with_chain": days,
              "daily_option_volume": round(daily_volume, 0),
              "atm_oi": round(atm_oi, 0),
+             "atm_strike": round(atm_strike, 2),
+             "atm_oi_notional_m": round(atm_notional / 1e6, 1),
              "median_spread_pct": round(median_spread, 4),
              "rows": int(len(df))}
     fails = []
@@ -196,8 +213,14 @@ def name_is_viable(tb, sym: str, year: int) -> tuple:
         fails.append(f"{days}d chain")
     if daily_volume < MIN_DAILY_OPTION_VOLUME:
         fails.append(f"vol {daily_volume:.0f}/day")
-    if atm_oi < MIN_ATM_OI:
-        fails.append(f"atm OI {atm_oi:.0f}")
+    # Open interest passes on EITHER measure. Liquidity has two faces: an expensive name holds
+    # few contracts but large notional (DE: 492 contracts, $19.2M), a cheap one holds many
+    # contracts but small notional (RKLB: 1,821 contracts, $1.3M). Requiring contracts alone
+    # rejected DE; requiring notional alone rejected RKLB - and the brief names RKLB explicitly
+    # as a name that should pass. Only a name failing BOTH is genuinely too small to trade
+    # (SPCX: 8 contracts, $0.0M). Spread remains the primary cut, as the brief specifies.
+    if atm_oi < MIN_ATM_OI and atm_notional < MIN_ATM_OI_NOTIONAL:
+        fails.append(f"atm OI {atm_oi:.0f} contracts / ${atm_notional/1e6:.1f}M")
     if median_spread > MAX_MEDIAN_SPREAD_PCT:
         fails.append(f"spread {median_spread:.0%}")
     stats["reason"] = "ok" if not fails else "thin: " + ", ".join(fails)

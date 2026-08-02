@@ -26,8 +26,19 @@ python mine_status.py
 Greppable progress: `data/options/MINING_PROGRESS.txt` (lines read `N of 1000 names cached`).
 Per-name manifest with years, gaps and skip reasons: `data/options/cache_manifest.json`.
 
-Restart after any interruption with `python mine_options_cache.py` — it skips everything already
-on disk, so a kill costs at most the year in flight.
+**Restart after any interruption** — it skips everything already on disk, so a kill costs at most
+the year in flight. Launch it **detached**, not from an agent shell:
+
+    Start-Process python mine_options_cache.py -WindowStyle Hidden ^
+      -WorkingDirectory C:\Users\donni\Downloads\valuation-tool\.claude\worktrees\p5-coverage-and-derived-inputs ^
+      -RedirectStandardOutput C:\Users\donni\Downloads\valuation-tool\data\options\miner_stdout.log
+
+A harness-tracked background task is killed when the harness tidies its task list, which already
+stopped this run once at 79 of 1,000 names. The cache was intact and it resumed, but a multi-day
+pull should not depend on an agent session staying alive. Confirm it is running with:
+
+    @(Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+      Where-Object { $_.CommandLine -match 'mine_options_cache' }).Count
 
 ---
 
@@ -105,6 +116,39 @@ spot, which avoids needing a per-name spot series just to screen.
 
 Names skipped under the earlier, superseded metric (HSBC, SKHY, SPCX) were cleared from the
 manifest so they are re-judged under these criteria.
+
+---
+
+## The liquidity screen, and two mis-measurements that had to be fixed
+
+Spread is the primary cut, per the brief. Volume is the activity check. Open interest is a
+secondary guard against genuinely tiny names. Thresholds sit at the permissive end of the given
+ranges (OI 500 / $2.5M, volume 100/day, spread 15%) because the point of reaching past the
+megacaps is to capture high-IV movers, and the tight end would exclude exactly those.
+
+**Mis-measurement 1 — spread on the wrong population.** Measured across every quoted contract,
+the median sweeps in far-OTM lottery tickets where a one-cent tick on a five-cent mid reads as
+20%. That is not what a 35-delta, 45–75 DTE call pays. On that metric **RKLB scored 18.2% and was
+rejected** despite 8,198 contracts/day — and the brief names RKLB explicitly as a name that should
+pass. Spread is now measured only on contracts with a **real premium (mid ≥ $0.50)**: RKLB 8.7%,
+AAPL 6.3% → 3.4%, INTC 10.5% → 5.0%.
+
+**Mis-measurement 2 — open interest as an absolute contract count.** A contract controls 100 ×
+share price, so a contract floor systematically penalises expensive stocks. **DE was rejected at
+492 contracts — eight short of 500 — while trading 5,964 contracts/day at a 9.7% spread.** ANET,
+STX and TM went the same way. Switching to dollar notional fixed those but then rejected **RKLB**
+($1.3M), because a cheap stock holds many contracts of small notional — the mirror image.
+
+Open interest therefore passes on **either** measure (≥500 contracts **or** ≥$2.5M notional), so
+only a name failing *both* is genuinely too small (SPCX: 8 contracts, $0.0M). Verified against 15
+names with no mismatches: AAPL, RKLB, DE, ANET, STX, TM pass; BLK, KLAC, TMO, LIN, SAP, RY, HSBC
+(16–22% spreads), MUFG (14 contracts/day) and SPCX are cut.
+
+Near-the-money is approximated by the **top decile of open interest**, with the median strike of
+those contracts as the price proxy — this avoids needing a per-name spot series purely to screen.
+
+Names skipped under either superseded metric were cleared from the manifest and are being
+re-judged under these criteria.
 
 ---
 
