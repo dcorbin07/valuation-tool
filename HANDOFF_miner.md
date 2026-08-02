@@ -23,7 +23,7 @@ cd C:\Users\donni\Downloads\valuation-tool\.claude\worktrees\p5-coverage-and-der
 python mine_status.py
 ```
 
-Greppable progress: `data/options/MINING_PROGRESS.txt` (lines read `N of 500 names cached`).
+Greppable progress: `data/options/MINING_PROGRESS.txt` (lines read `N of 1000 names cached`).
 Per-name manifest with years, gaps and skip reasons: `data/options/cache_manifest.json`.
 
 Restart after any interruption with `python mine_options_cache.py` — it skips everything already
@@ -39,6 +39,7 @@ on disk, so a kill costs at most the year in flight.
 | Reach | Megacaps through the liquid mid/small-cap tier — the high-IV movers worth testing |
 | Years | 2016–2025, ten complete years each (2026 excluded — year in progress) |
 | Already had | The 55 names from the earlier overnight run, all inside this universe, so none are re-pulled |
+| Disk | ~199MB/name at megacap scale; guard stops the run below 40GB free |
 
 ### Where the cache lives — two locations, only one current
 
@@ -84,8 +85,7 @@ returns `PERMISSION_DENIED`.
 
 So market cap orders the queue, and reality corrects it: after a name's **first** year is cached,
 its actual option liquidity is measured, and names too thin to trade are abandoned before their
-remaining nine years are pulled. A bad proxy costs one year, not ten. Thresholds: ≥5 tradeable
-contracts/day (against the real entry screen) and ≥100 days with a chain.
+remaining nine years are pulled. A bad proxy costs one year, not ten. The thresholds it applies are in the next section.
 
 ### The screen, and the mis-measurement that nearly defeated it
 

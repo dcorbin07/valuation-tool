@@ -12,7 +12,7 @@ REPO = r"C:\Users\donni\Downloads\valuation-tool"
 OPTROOT = os.path.join(REPO, "data", "options")
 MANIFEST = os.path.join(OPTROOT, "cache_manifest.json")
 PROGRESS = os.path.join(OPTROOT, "MINING_PROGRESS.txt")
-TARGET = 500
+TARGET = 1000
 
 
 def human(nbytes):
