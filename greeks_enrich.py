@@ -370,6 +370,16 @@ def write_report(out_root: str, report_path: str):
 
     tot_in = sum(r.get("rows_in", 0) for r in rows.values())
     tot_ok = sum(r.get("rows_iv_ok", 0) for r in rows.values())
+
+    def _oi_missing(rec):
+        """Prefer the per-name total, but fall back to summing the year records — a name derived
+        before that total was aggregated still has the numbers, one level down."""
+        if rec.get("oi_missing_rows"):
+            return int(rec["oi_missing_rows"])
+        return int(sum((y or {}).get("oi_missing_rows", 0)
+                       for y in (rec.get("years") or {}).values()))
+
+    tot_oi_missing = sum(_oi_missing(r) for r in rows.values())
     skipped = {}
     for r in rows.values():
         for k, v in (r.get("skipped") or {}).items():
@@ -381,13 +391,24 @@ def write_report(out_root: str, report_path: str):
         "contract_days_in": tot_in,
         "contract_days_priced": tot_ok,
         "iv_ok_frac": round(tot_ok / tot_in, 4) if tot_in else 0.0,
+        "oi_sentinel_rows": tot_oi_missing,
+        "oi_sentinel_frac": round(tot_oi_missing / tot_in, 4) if tot_in else 0.0,
         "skipped_by_reason": dict(sorted(skipped.items(), key=lambda kv: -kv[1])),
+        # schema + rate source are per NAME, not global: a partially-resumed root can legitimately
+        # hold names derived under an older schema or an older rate curve, and that must be
+        # visible rather than averaged away.
+        "schema_versions": sorted({r.get("schema_version") for r in rows.values()},
+                                  key=lambda x: (x is None, x)),
+        "rate_sources": sorted({r.get("rate_source", "unknown") for r in rows.values()}),
         "per_name": {
             s: {"years": sorted((r.get("years") or {}).keys()),
                 "rows_in": r.get("rows_in", 0),
                 "rows_priced": r.get("rows_iv_ok", 0),
                 "iv_ok_frac": round(r.get("iv_ok_frac", 0), 4),
                 "dates": r.get("dates", 0),
+                "oi_sentinel_rows": _oi_missing(r),
+                "schema_version": r.get("schema_version"),
+                "rate_source": r.get("rate_source", "unknown"),
                 "flags": r.get("flags", [])}
             for s, r in sorted(rows.items())},
     }

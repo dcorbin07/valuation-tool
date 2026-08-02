@@ -354,6 +354,35 @@ def test_sanity_flags_fire_rather_than_staying_quiet():
                            "skipped": {"neg_time": 0, "no_spot": 0}}) == []
 
 
+def test_open_interest_sentinel_is_treated_as_missing_not_as_a_number():
+    """`theta_bulk` fills an open-interest merge miss with -1, and 11% of the mined cache carries
+    it — including every row of AAPL 2020. Read as a number it flips that contract's sign in the
+    GEX sum and poisons the put/call ratio, silently. It must become NaN, be counted, and leave
+    the aggregates blank rather than confidently wrong."""
+    df, spots, _ = _chain_fixture()
+    df = df.copy()
+    df.loc[df["right"] == "P", "open_interest"] = -1        # every put's OI unavailable
+    derived, raw_daily, cov = G.enrich_frame(df, spots)
+    assert cov["oi_missing_rows"] == int((df["open_interest"] < 0).sum()), cov
+    assert derived["open_interest"].isna().any()
+    assert not (derived["open_interest"].fillna(0) < 0).any(), "a -1 survived into the output"
+    # puts contributed nothing, so the profile is call-side only and strictly positive
+    prof = G.gex_by_strike(derived)
+    assert float(prof["gex"].min()) > 0, prof
+    assert float(raw_daily["put_oi"].iloc[0]) == 0.0
+    assert 0.0 < float(raw_daily["oi_coverage"].iloc[0]) < 1.0
+
+    # and with NO known OI anywhere, GEX must be blank rather than a confident zero
+    df2 = df.copy()
+    df2["open_interest"] = -1
+    derived2, raw2, cov2 = G.enrich_frame(df2, spots)
+    daily2 = G.daily_features(derived2, raw2)
+    assert bool(pd.isna(daily2["total_gex"].iloc[0])), daily2["total_gex"].iloc[0]
+    assert bool(pd.isna(daily2["call_wall"].iloc[0]))
+    assert daily2["zero_gamma"].isna().all()
+    assert any("open interest missing" in f for f in G.sanity_flags(daily2, cov2)), cov2
+
+
 def test_empty_column_guard_fires():
     """The COVERAGE RULE applied to this layer. An all-NaN derived column must announce itself
     here; the 90-DTE tenors did exactly this before they were removed."""
