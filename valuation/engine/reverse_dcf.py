@@ -41,6 +41,9 @@ def _bisect(f: Callable[[float], float], lo: float, hi: float, tol=1e-3, iters=6
     return 0.5 * (lo + hi)
 
 
+GROWTH_SEARCH = (-0.30, 0.60)      # bounds the implied-growth solver searches over
+
+
 @dataclass
 class ReverseDCFResult:
     price: Optional[float]
@@ -52,6 +55,11 @@ class ReverseDCFResult:
     base_target_margin: float
     growth_verdict: str = ""
     margin_verdict: str = ""
+    # True when the solver ran into its search bound rather than converging: the price
+    # demands MORE (or less) growth than the model can express, so the figure is a
+    # floor, not an estimate. Reported honestly as "at least ~X%" — this fires on
+    # exactly the priced-for-perfection names where the number matters most.
+    implied_growth_bounded: str = ""      # "" | "above" | "below"
 
     def to_dict(self) -> dict:
         return dict(self.__dict__)
@@ -70,6 +78,7 @@ def reverse_dcf(cd: CompanyData, base: AssumptionSet, wacc: float) -> ReverseDCF
         price=price, implied_start_growth=None, implied_avg_growth=None,
         base_start_growth=base.start_growth, base_avg_growth=base_avg_g,
         implied_target_margin=None, base_target_margin=base.target_margin,
+        implied_growth_bounded="",
     )
     if not price or price <= 0 or cd.shares_diluted in (None, 0):
         res.growth_verdict = "No price/shares — reverse DCF unavailable."
@@ -80,14 +89,21 @@ def reverse_dcf(cd: CompanyData, base: AssumptionSet, wacc: float) -> ReverseDCF
         ps = intrinsic_per_share(cd, shift_assumptions(base, growth_delta=dg), wacc, troic)
         return None if ps is None else ps - price
 
-    dg = _bisect(fg, -0.30, 0.60)
+    lo_g, hi_g = GROWTH_SEARCH
+    dg = _bisect(fg, lo_g, hi_g)
     if dg is not None:
+        if abs(dg - hi_g) < 1e-9:
+            res.implied_growth_bounded = "above"
+        elif abs(dg - lo_g) < 1e-9:
+            res.implied_growth_bounded = "below"
         res.implied_start_growth = base.start_growth + dg
         res.implied_avg_growth = base_avg_g + dg
         gap = res.implied_avg_growth - base_avg_g
+        at_least = "at least " if res.implied_growth_bounded == "above" else ""
         if gap > 0.03:
-            res.growth_verdict = (f"Market prices in ~{res.implied_avg_growth:.1%} avg revenue growth — "
-                                  f"{gap:.1%} above our base ({base_avg_g:.1%}). Priced for optimism.")
+            res.growth_verdict = (f"Market prices in {at_least}~{res.implied_avg_growth:.1%} avg revenue "
+                                  f"growth — {gap:.1%} above our base ({base_avg_g:.1%}). "
+                                  f"Priced for optimism.")
         elif gap < -0.03:
             res.growth_verdict = (f"Market prices in only ~{res.implied_avg_growth:.1%} avg growth — "
                                   f"below our base ({base_avg_g:.1%}). Expectations look cheap.")

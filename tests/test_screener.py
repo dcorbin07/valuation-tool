@@ -187,6 +187,74 @@ def test_fair_value_medians_come_from_peer_rows_not_the_slice():
     assert abs(shown[0]["fair_value"] - 200.0) < 1e-6, shown[0]["fair_value"]
 
 
+def _growth_row(ticker, price, sector, revenue=None, net_debt=None, ev_sales=None,
+                op_margin=None, revenue_growth=None, gross_margin=None, market_cap=None,
+                ey=None, fcfy=None):
+    extra = {k: v for k, v in
+             {"earnings_yield": ey, "fcf_yield": fcfy, "revenue": revenue,
+              "net_debt": net_debt, "ev_sales": ev_sales, "op_margin": op_margin,
+              "revenue_growth": revenue_growth, "gross_margin": gross_margin}.items()
+             if v is not None}
+    return {"ticker": ticker, "price": price, "sector": sector, "market_cap": market_cap,
+            "fair_value": None, "upside": None, "extra": extra}
+
+
+def test_fair_value_bridges_ev_multiples_with_net_debt():
+    """EV multiples used to be skipped for lack of net debt. The scan carries it now,
+    so a cheap-on-EV/Sales name re-rates — and leverage is charged, not ignored."""
+    from valuation.screener.fairvalue import estimate_fair_values
+    # Six peers at 4x EV/Sales; two subjects at 2x (half the peer multiple), identical
+    # except that one is funded with net cash and the other with net debt.
+    rows = [_growth_row(f"P{i}", 100.0, "Tech", revenue=100.0, net_debt=0.0, ev_sales=4.0,
+                        market_cap=400.0) for i in range(6)]
+    cash = _growth_row("CASHY", 100.0, "Tech", revenue=100.0, net_debt=-100.0,
+                       ev_sales=2.0, market_cap=300.0)
+    lev = _growth_row("LEVY", 100.0, "Tech", revenue=100.0, net_debt=100.0,
+                      ev_sales=2.0, market_cap=100.0)
+    rows += [cash, lev]
+    estimate_fair_values(rows)
+    assert cash["fair_value"] is not None, "an EV multiple alone must now produce a value"
+    # implied EV = 4x100 = 400 -> equity 500 on a 300 cap -> 100 * 500/300
+    assert abs(cash["fair_value"] - 100.0 * 500.0 / 300.0) < 1e-6, cash["fair_value"]
+    # Same implied EV, but the debt is subtracted: equity 300 on a 100 cap, then clamped.
+    assert lev["fair_value"] is not None
+    assert lev["upside"] > cash["upside"], "the levered name re-rates further off a smaller cap"
+
+
+def test_fair_value_uses_the_growth_lens_for_a_preprofit_grower():
+    """A loss-maker used to get NOTHING here (both equity yields negative). It is now
+    valued on revenue, and flagged low confidence."""
+    from valuation.screener.fairvalue import estimate_fair_values
+    peers = [_growth_row(f"P{i}", 100.0, "Technology", revenue=100.0, net_debt=0.0,
+                         ev_sales=4.0, market_cap=400.0, ey=0.04) for i in range(6)]
+    grower = _growth_row("ROCK", 60.0, "Technology", revenue=600.0, net_debt=-700.0,
+                         ev_sales=50.0, op_margin=-0.33, revenue_growth=0.45,
+                         gross_margin=0.34, market_cap=30000.0, ey=-0.01)
+    rows = peers + [grower]
+    estimate_fair_values(rows)
+    assert grower["fair_value"] is not None and grower["fair_value"] > 0
+    assert grower["fair_value_method"] in ("growth", "blended"), grower["fair_value_method"]
+    assert grower["fair_value_confidence"] == "low"
+    # A mature profitable peer is NOT growth-led.
+    assert peers[0]["fair_value_confidence"] == "medium"
+
+
+def test_fair_value_growth_lens_rewards_faster_growth():
+    from valuation.screener.fairvalue import estimate_fair_values
+    def one(g):
+        rows = [_growth_row(f"P{i}", 100.0, "Technology", revenue=100.0, net_debt=0.0,
+                            ev_sales=4.0, market_cap=400.0) for i in range(6)]
+        sub = _growth_row("SUB", 20.0, "Technology", revenue=200.0, net_debt=-50.0,
+                          ev_sales=10.0, op_margin=-0.10, revenue_growth=g,
+                          gross_margin=0.70, market_cap=2000.0)
+        rows.append(sub)
+        estimate_fair_values(rows)
+        return sub["fair_value"]
+    slow, fast = one(0.05), one(0.50)
+    assert slow is not None and fast is not None
+    assert fast > slow * 1.5, (slow, fast)
+
+
 def test_ticker_search_endpoint_ranks_exact_first():
     try:
         from valuation.web.app import app

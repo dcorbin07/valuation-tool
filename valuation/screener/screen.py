@@ -80,7 +80,10 @@ def _rows_from(scored: pd.DataFrame) -> list:
     for tkr, r in scored.iterrows():
         extra = {k: (None if pd.isna(r.get(k)) else float(r.get(k)))
                  for k in ["earnings_yield", "fcf_yield", "ev_ebitda", "ev_sales", "pe",
-                           "op_margin", "roic", "revenue_growth", "ret_12_1", "net_debt_to_ebitda"]
+                           "op_margin", "roic", "revenue_growth", "ret_12_1", "net_debt_to_ebitda",
+                           # net_debt + revenue let fairvalue.py bridge EV multiples to a
+                           # per-share equity value and run the growth (revenue) lens.
+                           "net_debt", "revenue", "gross_margin"]
                  if k in scored.columns}
         # Persist EVERY theme column (not just the legacy five) so the monthly
         # learner can tune the newer themes too. Legacy z_* columns stay for the UI.

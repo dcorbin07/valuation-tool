@@ -192,23 +192,36 @@ function render(d) {
 
   // hero metrics — a company the DCF can't value shows so explicitly, never a
   // negative "fair value" (which reads as precision the model doesn't have).
+  // A growth/pre-profit name shows a RANGE instead of a point: its value is a wide
+  // band by nature, and pretending otherwise is the false precision that produced
+  // things like a $2.63 headline on a $65 stock.
   const up = d.upside;
   const fvb = d.fair_value_blend || {};
+  const fvs = d.fair_value_scenarios || {};
   const notValuable = (d.base_fair_value == null && fvb.valuable === false);
+  const asRange = (!notValuable && fvb.growth_led && fvs.bear != null && fvs.bull != null);
   const fvCell = notValuable
     ? `<span class="nv">Not DCF-valuable</span>`
-    : `<span style="color:var(--navy)">${money(d.base_fair_value)}</span>`;
+    : (asRange
+      ? `<span style="color:var(--navy)">${money(fvs.bear, 0)}–${money(fvs.bull, 0)}</span>`
+      : `<span style="color:var(--navy)">${money(d.base_fair_value)}</span>`);
   document.getElementById("heroMetrics").innerHTML =
     metric("Price", money(c.price)) +
-    metric(notValuable ? "Fair value" : "Base fair value", fvCell) +
+    metric(notValuable ? "Fair value" : (asRange ? "Fair value range" : "Base fair value"), fvCell) +
     metric("Upside", notValuable ? '<span class="muted">n/a</span>'
       : `<span class="${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</span>`) +
     metric("WACC", pct(d.wacc.wacc));
 
   gauge(score.score, score.recommendation, score.confidence);
   fairValueMethod(fvb, d);
-  rangebar(sc.bear_price, sc.base_price, sc.bull_price, c.price);
-  scenarioCards(sc, c.price);
+  // Scenarios are drawn from the SAME method as the headline when we have it. Showing
+  // the raw DCF cone under a multiples-based headline is how a growth name ended up
+  // displaying three negative scenario cards beneath a positive fair value.
+  const scen = (fvs.base != null)
+    ? { bear: fvs.bear, base: fvs.base, bull: fvs.bull, method: fvs.method }
+    : { bear: sc.bear_price, base: sc.base_price, bull: sc.bull_price, method: "DCF" };
+  rangebar(scen.bear, scen.base, scen.bull, c.price);
+  scenarioCards(scen, c.price, fvb);
   fcfChart(sc.base.rows);
   mcChart(d.montecarlo);
   scoreBars(score);
@@ -250,17 +263,32 @@ function fairValueMethod(fvb, d) {
   const el = document.getElementById("fvMethod");
   if (!el) return;
   if (!fvb || fvb.method === undefined) { el.innerHTML = ""; return; }
+  const LENS = { dcf: "DCF", pb_roe: "P/B–ROE", growth: "growth (revenue)", multiples: "multiples" };
   let html = "";
   if (fvb.valuable === false) {
     html = `<div class="nv-box"><b>Not DCF-valuable.</b> ${fvb.reason || ""}</div>`;
   } else {
+    // A growth name leads with what the PRICE implies, not with our point value —
+    // the reverse-DCF read is the decision-grade statement for a pre-profit company.
+    if (fvb.headline) {
+      html += `<div class="nv-box" style="margin-top:0"><b>Priced for growth.</b> ${fvb.headline}</div>`;
+    }
     const lens = Object.entries(fvb.lenses || {})
-      .map(([k, v]) => `${k === "dcf" ? "DCF" : (k === "pb_roe" ? "P/B–ROE" : "multiples")} ${money(v.value)}`)
+      .map(([k, v]) => `${LENS[k] || k} ${money(v.value)}`)
       .join(" · ");
-    html = `<div class="note" style="margin-top:0">Valued as <b>${fvb.method}</b>` +
+    html += `<div class="note" style="margin-top:0">Valued as <b>${fvb.method}</b>` +
       (lens ? ` — ${lens}.` : ".") +
+      (fvb.confidence ? ` Confidence: <b>${fvb.confidence}</b>.` : "") +
       ` <span class="muted">The mix adapts to the company: cash-generative businesses lean on the
-        DCF, growth and pre-profit names on multiples, banks on book value and ROE.</span></div>`;
+        DCF, growth and pre-profit names on a revenue multiple scaled to their growth rate,
+        banks on book value and ROE.</span></div>`;
+    const gl = d && d.growth_lens;
+    if (gl && gl.applies) {
+      html += `<div class="note">Growth lens: revenue compounds to ${money(gl.revenue_at_horizon, 0)}mm over
+        ~${gl.horizon_years}y and exits at ${(gl.exit_multiple || 0).toFixed(1)}x sales — a justified
+        <b>${gl.implied_ev_sales_now}x</b> sales today` +
+        (gl.current_ev_sales != null ? ` versus the <b>${gl.current_ev_sales}x</b> it trades at` : "") + `.</div>`;
+    }
     if (d && d.dcf_per_share != null && fvb.dcf_meaningful === false) {
       html += `<div class="note">The raw DCF returns ${money(d.dcf_per_share)} here, which is why it's
         excluded rather than averaged in.</div>`;
@@ -284,16 +312,24 @@ function rangebar(bear, base, bull, price) {
   if (price) html += `<div class="price-marker" style="left:${p(price)}%">Price ${money(price, 0)}<div class="line"></div></div>`;
   el.innerHTML = html;
 }
-function scenarioCards(sc, price) {
+function scenarioCards(scen, price, fvb) {
   const card = (lab, v, col) => {
-    const u = price ? (v / price - 1) : null;
+    const u = (price && v != null) ? (v / price - 1) : null;
     return `<div class="card" style="margin:0;box-shadow:none;border:1px solid var(--border);padding:14px">
       <div style="font-size:12px;color:var(--muted);font-weight:700">${lab.toUpperCase()}</div>
-      <div style="font-size:22px;font-weight:800;color:${col}">${money(v)}</div>
+      <div style="font-size:22px;font-weight:800;color:${col}">${v == null ? '—' : money(v)}</div>
       <div style="font-size:13px" class="${u >= 0 ? 'pos' : 'neg'}">${u == null ? '' : (u >= 0 ? '+' : '') + pct(u, 0) + ' vs price'}</div></div>`;
   };
-  document.getElementById("scenarioCards").innerHTML =
-    card("Bear", sc.bear_price, "var(--red)") + card("Base", sc.base_price, "var(--navy)") + card("Bull", sc.bull_price, "var(--green)");
+  let html = card("Bear", scen.bear, "var(--red)") + card("Base", scen.base, "var(--navy)") + card("Bull", scen.bull, "var(--green)");
+  document.getElementById("scenarioCards").innerHTML = html;
+  const el = document.getElementById("scenarioNote");
+  if (el) {
+    const conf = (fvb && fvb.confidence) ? fvb.confidence : null;
+    el.innerHTML = `<div class="note">Each case is valued the same way as the headline${scen.method ? ` (${scen.method})` : ""} —
+      growth and margins shifted, and the exit multiple compressed or expanded with them.` +
+      (conf === "low" ? ` <b>Confidence: low.</b> This is a range, not a forecast — a growth valuation
+      moves a long way on assumptions nobody can pin down yet.` : "") + `</div>`;
+  }
 }
 
 /* ---------- charts ---------- */
