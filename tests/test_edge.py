@@ -2034,17 +2034,45 @@ def test_blackscholes_matches_reference_and_refuses_bad_prices():
 
 
 def test_thetadata_provider_is_optional_and_dedupes():
-    """No key must degrade to a no-op, and the feed's duplicate rows must collapse to one
-    closing snapshot per contract - otherwise every trade is counted more than once."""
+    """Optional-by-design, and dedupe collapses the feed's duplicate daily rows.
+
+    HERMETIC ON PURPOSE. An earlier version of this test asserted that a keyless provider
+    returns an empty chain, which passed or failed depending on the MACHINE: `chain_on` consults
+    its disk cache BEFORE checking availability, so anywhere a real
+    data/bulk/prepared/theta/AAPL/2023-03-01.pkl existed the keyless provider returned live
+    cached data and the assertion failed. It also read THETADATA_API_KEY from the environment
+    and .env, so the result depended on whether a credential happened to be present.
+
+    A test that depends on local credentials or leftover cache files is not testing the code.
+    This version pins the cache to an empty temp directory and never touches the network.
+    """
+    import tempfile
+
     import pandas as pd
     from valuation.edge.thetadata_provider import ThetaProvider
 
-    p = ThetaProvider(api_key="")
-    st = p.status()
-    assert st["available"] is False and "THETADATA_API_KEY" in (st["reason"] or "")
-    assert len(p.chain_on("AAPL", dt.date(2023, 3, 1))) == 0     # no raise
-    assert p.cached_dates("NOSUCHTICKER") == []
+    with tempfile.TemporaryDirectory() as tmp:
+        # api_key="" is an explicit "no credential", never the ambient environment.
+        p = ThetaProvider(api_key="", cache_dir=tmp)
+        st = p.status()
+        assert st["available"] is False
+        assert "THETADATA_API_KEY" in (st["reason"] or "")
+        # Empty cache dir => nothing to return, and no client is ever constructed.
+        assert len(p.chain_on("AAPL", dt.date(2023, 3, 1))) == 0
+        assert p.cached_dates("AAPL") == []
+        assert p._client is None, "a keyless provider must never build a client"
 
+        # A cache hit must be returned WITHOUT a key - that is what makes runs resumable.
+        import pickle
+        d = os.path.join(tmp, "AAPL")
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "2023-03-01.pkl"), "wb") as f:
+            pickle.dump(pd.DataFrame({"strike": [150.0]}), f)
+        assert len(p.chain_on("AAPL", dt.date(2023, 3, 1))) == 1
+        assert p.cached_dates("AAPL") == [dt.date(2023, 3, 1)]
+
+    # Dedupe is pure and env-independent: the feed emits several rows per contract per day and
+    # the LAST (closing) snapshot must win, or every trade is counted more than once.
     raw = pd.DataFrame({
         "created": ["2023-03-01 17:16:02", "2023-03-01 18:38:46",
                     "2023-03-01 17:16:02", "2023-03-02 18:38:46"],
@@ -2054,9 +2082,9 @@ def test_thetadata_provider_is_optional_and_dedupes():
         "bid": [2.40, 2.55, 1.10, 2.70],
         "ask": [2.60, 2.75, 1.30, 2.90],
     })
-    d = ThetaProvider._dedupe(raw)
-    assert len(d) == 3, d          # 2 contracts on day 1, 1 on day 2
-    day1 = d[(d["strike"] == 150.0) & (d["date"].astype(str) == "2023-03-01")]
+    ded = ThetaProvider._dedupe(raw)
+    assert len(ded) == 3, ded
+    day1 = ded[(ded["strike"] == 150.0) & (ded["date"].astype(str) == "2023-03-01")]
     assert float(day1["bid"].iloc[0]) == 2.55, "must keep the LAST (closing) snapshot"
 
 
