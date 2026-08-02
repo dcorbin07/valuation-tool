@@ -2,16 +2,24 @@
 Data providers for the screener — a thin abstraction so the scan logic never
 cares where the numbers come from.
 
-  * FreeProvider  — default, no key. Universe from the bundled list or SEC EDGAR's
-    full filer list; per-name metrics from the existing yahoo/EDGAR fetch; prices
-    from Stooq/yfinance. Works everywhere but slower at whole-market scale.
-  * FMPProvider   — used automatically if FMP_API_KEY is set. One screener call
-    returns the whole market with metrics; fast enough for ~5,000+ names.
+  * FreeProvider  — default, no key. Universe from the BROKER (Tradier: ~7,100 listed
+    names, liquidity-ranked), else SEC EDGAR's filer list, else the bundled list;
+    per-name metrics from the existing yahoo/EDGAR fetch; prices from Stooq/yfinance.
+    Works everywhere but slower at whole-market scale.
+  * FMPProvider   — used automatically if FMP_API_KEY is set.
 
-Both emit the same normalized `metrics` dict that the factor engine consumes.
+FMP's bulk endpoints (`company-screener`, `stock-list`, every `*-constituent` list) are
+402 Restricted on the current subscription, and its per-symbol endpoints serve only an
+allowlist — most of the liquid universe returns 402 "this value set for 'symbol' is not
+available under your current subscription". So FMPProvider is NOT a whole-market provider
+here: it takes the universe from the fallback chain and serves whichever individual names
+its plan allows, delegating the rest to the free stack. Both paths emit the same normalized
+`metrics` dict, and the per-source split is reported in the scan's health block so a book
+built from two fundamentals feeds is never a silent fact.
 """
 from __future__ import annotations
 
+import threading as _threading
 from typing import Optional
 
 from ..config import CONFIG
@@ -57,6 +65,20 @@ def _stamp_units(m: dict, scale: float = 1.0) -> dict:
 def _usable_cache(cached):
     """Drop cached fundamentals written before the USD normalization (they hold millions)."""
     return cached if (cached or {}).get("units") == METRICS_UNITS else None
+
+
+def _redact(msg) -> str:
+    """Strip API keys out of a message before it can be stored or served.
+
+    `requests` puts the FULL request URL in its HTTPError text, query string included — so
+    an unedited "FMP call failed" note carries the live apikey, and these notes are surfaced
+    publicly in the scan's health block. Never widen what reaches that block without going
+    through here.
+    """
+    import re
+    s = str(msg)
+    s = re.sub(r"(?i)([?&](?:apikey|api_key|token|access_token)=)[^&\s]+", r"\1<redacted>", s)
+    return re.sub(r"(?i)(bearer\s+)\S+", r"\1<redacted>", s)
 
 
 # --------------------------------------------------------------------------- #
@@ -139,16 +161,47 @@ class FreeProvider(ScreenerProvider):
     def __init__(self, cfg=CONFIG, store=None):
         self.cfg = cfg
         self.store = store
+        self.universe_note = ""
 
     def get_universe(self, scope: str = "bundled") -> list:
+        # Broker first for a whole-market scope. Tradier enumerates ~7,100 listed common
+        # stocks in 26 calls and prices them in batches, so it returns a LIQUIDITY-RANKED
+        # universe with company names and prices already attached. SEC EDGAR returns every
+        # filer that ever existed — ~10,000 rows with no price and no way to tell a mega-cap
+        # from a shell — so it is the second choice, not the first.
+        if scope in ("whole_market", "broker", "liquid"):
+            rows = self._broker_universe()
+            if rows:
+                self.universe_note = ""
+                return rows
         if scope in ("whole_market", "edgar"):
             edgar_list = self._edgar_universe()
             if edgar_list:
                 return edgar_list
+        if scope == "sp500":
+            smap = U.bundled_sector_map()
+            return [{"ticker": t, "name": "", "sector": smap.get(t, ""), "industry": "",
+                     "market_cap": None} for t in U.sp500_tickers(self.cfg)]
         # default / fallback: bundled sector-labeled list
         smap = U.bundled_sector_map()
         return [{"ticker": t, "name": t, "sector": smap.get(t, ""), "industry": "",
                  "market_cap": None} for t in U.bundled_tickers()]
+
+    def _broker_universe(self) -> list:
+        try:
+            from . import broker_universe as BU
+            if not BU.available(self.cfg):
+                self.universe_note = ("no TRADIER_TOKEN — cannot source the broker universe; "
+                                      "falling back")
+                return []
+            rows = BU.build(self.cfg, limit=int(getattr(self.cfg, "universe_limit", 0)
+                                                or BU.DEFAULT_LIMIT))
+            if not rows:
+                self.universe_note = "broker universe came back empty — falling back"
+            return rows
+        except Exception as e:
+            self.universe_note = f"broker universe failed ({_redact(e)}) — falling back"
+            return []
 
     def _edgar_universe(self) -> list:
         try:
@@ -191,6 +244,8 @@ class FreeProvider(ScreenerProvider):
 class FMPProvider(ScreenerProvider):
     name = "Financial Modeling Prep"
     BASE = "https://financialmodelingprep.com/stable"
+    CALLS_PER_NAME = 3          # key-metrics-ttm + ratios-ttm + profile
+    FAIL_STREAK_OFF = 12        # consecutive failures before we stop asking FMP
 
     def __init__(self, cfg=CONFIG, store=None):
         self.cfg = cfg
@@ -200,6 +255,21 @@ class FMPProvider(ScreenerProvider):
         # weeks scanning 191 bundled names instead of the market because this exception was
         # caught silently and the fallback looks identical to success from the outside.
         self.universe_note = ""
+        # Per-scan call budget. With no bulk endpoint every uncached name costs
+        # CALLS_PER_NAME requests, so an 800-name universe is ~2,400 — enough to exhaust a
+        # day's quota in one scan. 0 = unlimited (the default; set FMP_MAX_CALLS to bound
+        # it). This caps what we SPEND, not what we rank: a name past the budget is served
+        # by the free stack instead, and the split is reported in the scan's health block.
+        self.max_calls = int(getattr(cfg, "fmp_max_calls", 0) or 0)
+        self._calls = 0
+        self._skipped = 0
+        self._served_fmp = 0
+        self._served_free = 0
+        self._fmp_errors: list = []
+        self._fail_streak = 0
+        self._fmp_off = False
+        self._free = None
+        self._lock = _threading.Lock()
 
     def _get(self, path, **params):
         import requests
@@ -220,28 +290,100 @@ class FMPProvider(ScreenerProvider):
                             "industry": d.get("industry", ""), "market_cap": d.get("marketCap")})
             out = [x for x in out if x["ticker"]]
             if not out:
-                self.universe_note = "FMP company-screener returned no rows — using the bundled list"
-                return FreeProvider(self.cfg, self.store).get_universe("bundled")
+                return self._fallback_universe(scope, "FMP company-screener returned no rows")
             return out
         except Exception as e:
-            # fall back to the free universe if the key/endpoint isn't working
-            self.universe_note = f"FMP company-screener failed ({e}) — using the bundled list"
-            return FreeProvider(self.cfg, self.store).get_universe("bundled")
+            return self._fallback_universe(scope, f"FMP company-screener failed ({_redact(e)})")
+
+    def _fallback_universe(self, scope: str, why: str) -> list:
+        """Fall back for the SCOPE THAT WAS ASKED FOR.
+
+        This used to hardcode "bundled" no matter what the caller wanted, which is why a
+        `whole_market` scan silently became a 191-name scan: FMP's `company-screener` is a
+        402 Restricted Endpoint on this subscription (so is `stock-list`, every
+        `*-constituent` list and `batch-quote-short` — verified 2026-08-02 against the live
+        key), the exception was swallowed, and the bundled list looked like success.
+        """
+        free = FreeProvider(self.cfg, self.store)
+        rows = free.get_universe(scope)
+        detail = free.universe_note
+        self.universe_note = (f"{_redact(why)} — this subscription has no bulk endpoint; sourced "
+                              f"{len(rows)} names from the fallback chain instead"
+                              + (f" ({detail})" if detail else ""))
+        return rows
+
+    def _take_budget(self, n: int = None) -> bool:
+        n = self.CALLS_PER_NAME if n is None else n
+        if not self.max_calls:
+            return True
+        with self._lock:
+            if self._calls + n > self.max_calls:
+                self._skipped += 1
+                return False
+            self._calls += n
+            return True
+
+    @property
+    def budget(self) -> dict:
+        seen = []
+        for e in self._fmp_errors:                      # de-duped, bounded sample
+            k = e[:70]
+            if k not in seen:
+                seen.append(k)
+        return {"calls_per_name": self.CALLS_PER_NAME, "max_calls": self.max_calls or None,
+                "calls_used": self._calls, "names_skipped_over_budget": self._skipped,
+                "served_by_fmp": self._served_fmp, "served_by_free_fallback": self._served_free,
+                "fmp_errors": len(self._fmp_errors), "fmp_error_sample": seen[:3],
+                "fmp_disabled_mid_scan": self._fmp_off}
 
     def get_metrics(self, ticker: str) -> Optional[dict]:
         if self.store:
             cached = _usable_cache(self.store.get_cached_fundamentals(ticker, max_age_days=30))
             if cached:
-                return cached
+                return cached                       # cache hits cost no quota
+        # Over budget or circuit-broken: serve the name from the free stack rather than drop
+        # it. The budget bounds what we SPEND at FMP, not how many names the product ranks.
+        if self._fmp_off or not self._take_budget():
+            return self._free_fallback(ticker)
         try:
             km = (self._get("key-metrics-ttm", symbol=ticker) or [{}])[0]
             ratios = (self._get("ratios-ttm", symbol=ticker) or [{}])[0]
             profile = (self._get("profile", symbol=ticker) or [{}])[0]
             m = _fmp_to_metrics(ticker, km, ratios, profile)
-        except Exception:
-            return None
+            with self._lock:
+                self._served_fmp += 1
+                self._fail_streak = 0
+        except Exception as e:
+            # This subscription serves only an allowlist of symbols: most names come back
+            # 402 "This value set for 'symbol' is not available under your current
+            # subscription" (verified 2026-08-02 — FCX, NSC, MU and most of the liquid
+            # universe). Returning None there would leave the product ranking a handful of
+            # mega-caps, so fall back to the free stack for that one name rather than
+            # dropping it. The split is reported in the scan's health block, because a book
+            # built from two fundamentals sources is a fact the reader should see.
+            with self._lock:
+                self._fmp_errors.append(_redact(e)[:120])
+                self._fail_streak += 1
+                # Circuit breaker. When the subscription is symbol-restricted essentially
+                # every name fails, and paying 3 requests each to discover that would burn
+                # the daily quota and the wall clock on nothing. After a run of consecutive
+                # failures, stop asking and serve the rest from the free stack.
+                if self._fail_streak >= self.FAIL_STREAK_OFF and not self._fmp_off:
+                    self._fmp_off = True
+            m = self._free_fallback(ticker)
+            if m is None:
+                return None
         if self.store and m:
             self.store.cache_fundamentals(ticker, m)
+        return m
+
+    def _free_fallback(self, ticker: str) -> Optional[dict]:
+        if not self._free:
+            self._free = FreeProvider(self.cfg, None)      # no store: we cache below
+        m = self._free.get_metrics(ticker)
+        if m is not None:
+            with self._lock:
+                self._served_free += 1
         return m
 
 

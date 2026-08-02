@@ -262,6 +262,8 @@ def test_cache_written_before_the_usd_normalization_is_discarded():
             self.data = data
         def get_cached_fundamentals(self, ticker, max_age_days=None):
             return self.data
+        def cache_fundamentals(self, ticker, data):
+            self.data = data
 
     assert _usable_cache({"market_cap": 275_844.66}) is None            # legacy: no stamp
     assert _usable_cache({"market_cap": 275e9, "units": "usd"}) is not None
@@ -269,8 +271,10 @@ def test_cache_written_before_the_usd_normalization_is_discarded():
     class _Cfg:
         fmp_api_key = "k"
     p = FMPProvider(_Cfg(), _FakeStore({"ticker": "DELL", "market_cap": 275_844.66}))
-    # Legacy cache must not be returned; with no network the fetch fails and we get None,
-    # which is the honest answer — not a silently mis-scaled row.
+    p._get = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no network"))
+    p._free_fallback = lambda t: None
+    # Legacy cache must not be returned; with nothing else able to serve the name we get
+    # None, which is the honest answer — not a silently mis-scaled row.
     assert p.get_metrics("DELL") is None
 
 
@@ -319,6 +323,136 @@ def test_profile_lookup_fills_from_the_store_without_network():
     rows = [{"ticker": tickers[0], "name": "", "sector": ""}]
     assert profiles.decorate(rows, cfg=_NoKeyCfg(), store=store, max_api=0) == 1
     assert rows[0]["name"] and rows[0]["sector"]
+
+
+def test_api_keys_never_reach_the_health_block():
+    """`requests` puts the full URL — query string and all — in its HTTPError text, and the
+    universe note is served publicly by /api/hotstocks. Redact before it can be stored."""
+    from valuation.screener.providers import _redact
+    key = "DkkPylwVxZZ91CAiCOhXshz7fQbETlUS"          # shape only; not a live credential
+    for msg in (f"402 Client Error for url: https://x/company-screener?exchange=NYSE&apikey={key}",
+                f"failed https://api.tradier.com/v1/q?token={key}&y=1",
+                f"Authorization: Bearer {key}"):
+        out = _redact(msg)
+        assert key not in out, out
+        assert "<redacted>" in out, out
+
+
+def test_fmp_universe_falls_back_for_the_scope_that_was_asked_for():
+    """The fallback hardcoded "bundled", so a whole_market scan silently became a 191-name
+    scan when FMP's screener 402'd. It must fall back for the SCOPE requested."""
+    from valuation.screener.providers import FMPProvider
+
+    class _Cfg:
+        fmp_api_key = "k"
+        tradier_token = ""            # no broker -> chain continues past it
+        sec_user_agent = "test test@example.com"
+        universe_limit = 0
+
+    p = FMPProvider(_Cfg())
+    p._get = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("402 Payment Required"))
+    # EDGAR is a network call, so stub the whole free chain and assert the SCOPE is passed on.
+    seen = {}
+    import valuation.screener.providers as P
+
+    class _Free:
+        universe_note = ""
+        def __init__(self, *a, **k): pass
+        def get_universe(self, scope):
+            seen["scope"] = scope
+            return [{"ticker": "AAA", "name": "A", "sector": "", "industry": "",
+                     "market_cap": None}] * 900
+    orig = P.FreeProvider
+    try:
+        P.FreeProvider = _Free
+        rows = p.get_universe("whole_market")
+    finally:
+        P.FreeProvider = orig
+    assert seen["scope"] == "whole_market", seen
+    assert len(rows) == 900
+    assert "no bulk endpoint" in p.universe_note
+
+
+def test_fmp_budget_and_circuit_breaker_fall_back_instead_of_dropping_names():
+    """A per-scan FMP ceiling bounds SPEND, not how many names get ranked — and once the
+    subscription starts refusing symbols we stop paying to rediscover that every time."""
+    from valuation.screener.providers import FMPProvider
+
+    def _provider(max_calls):
+        class _Cfg:
+            fmp_api_key = "k"
+            fmp_max_calls = max_calls
+        p = FMPProvider(_Cfg())
+        p._get = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("402 premium symbol"))
+        p._free = _Stub()
+        return p
+
+    class _Stub:                       # stands in for the free stack; always serves
+        def get_metrics(self, t):
+            return {"ticker": t, "units": "usd", "market_cap": 1e10}
+
+    # Budget: only 2 names' worth of calls, but all 20 names still get ranked.
+    p = _provider(6)
+    got = [p.get_metrics(f"T{i}") for i in range(20)]
+    assert all(g is not None for g in got), "no name may be dropped just because FMP refused it"
+    b = p.budget
+    assert b["calls_used"] == 6, b                     # spend is bounded...
+    assert b["served_by_free_fallback"] == 20, b       # ...coverage is not
+    assert b["served_by_fmp"] == 0 and b["fmp_errors"] == 2, b
+
+    # Uncapped: the breaker must stop paying to rediscover a refusing subscription.
+    p2 = _provider(0)
+    for i in range(40):
+        assert p2.get_metrics(f"T{i}") is not None
+    b2 = p2.budget
+    assert b2["fmp_disabled_mid_scan"] is True, b2
+    assert b2["fmp_errors"] == FMPProvider.FAIL_STREAK_OFF, b2
+    assert b2["served_by_free_fallback"] == 40, b2
+
+
+def test_broker_universe_normalizes_class_share_symbols():
+    """Tradier writes BRK/B; the fundamentals feeds and yfinance want BRK-B. Unconverted,
+    some of the largest companies in the market silently fail every lookup."""
+    from valuation.screener import broker_universe as B
+    assert B.normalize("BRK/B") == "BRK-B"
+    assert B.normalize("bf/b") == "BF-B"
+    assert B.normalize("AAPL") == "AAPL"
+
+
+def test_broker_universe_ranks_by_liquidity_and_drops_junk():
+    from valuation.screener import broker_universe as B
+
+    class _Cfg:
+        tradier_token = "t"
+        tradier_env = "live"
+    names = {"BIG": "Big Co", "SMALL": "Small Co", "PENNY": "Penny Co",
+             "THIN": "Thin Co", "BRK/B": "Berkshire"}
+    quotes = {
+        "BIG":   {"symbol": "BIG", "type": "stock", "last": 100.0, "average_volume": 5e6,
+                  "week_52_high": 125.0},
+        "SMALL": {"symbol": "SMALL", "type": "stock", "last": 20.0, "average_volume": 1e5},
+        "PENNY": {"symbol": "PENNY", "type": "stock", "last": 0.40, "average_volume": 9e9},
+        "THIN":  {"symbol": "THIN", "type": "stock", "last": 50.0, "average_volume": 10},
+        "BRK/B": {"symbol": "BRK/B", "type": "stock", "last": 400.0, "average_volume": 4e6},
+    }
+    B_list, B_quote = B.list_symbols, B.quote_batch
+    try:
+        B.list_symbols = lambda cfg=None, session=None: names
+        B.quote_batch = lambda t, cfg=None, session=None: quotes
+        rows = B.build(_Cfg(), limit=10)
+    finally:
+        B.list_symbols, B.quote_batch = B_list, B_quote
+
+    tickers = [r["ticker"] for r in rows]
+    assert "PENNY" not in tickers, "sub-$1 names are not investable"
+    assert "THIN" not in tickers, "illiquid names must not consume a fundamentals call"
+    assert "BRK-B" in tickers, tickers
+    # Most liquid first: BIG ($500M/day) then BRK-B ($1.6B/day)... check the actual order.
+    advs = [r["avg_dollar_volume"] for r in rows]
+    assert advs == sorted(advs, reverse=True), advs
+    big = next(r for r in rows if r["ticker"] == "BIG")
+    assert abs(big["high_prox"] - 0.8) < 1e-9          # 100 / 125
+    assert big["market_cap"] is None                   # the broker doesn't publish it
 
 
 def _run_all():
