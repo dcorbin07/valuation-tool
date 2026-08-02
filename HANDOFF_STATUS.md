@@ -12,42 +12,9 @@ file directly.
 
 ---
 
-## UNATTENDED DATA MINING - ThetaData cache expansion RUNNING (2026-08-02)
+## Data mining (ThetaData cache expansion)
 
-**Pure data-pull, no research run on it** (per the prompt: A3 and the small/mid-cap backtest
-happen when Don is back, on this cache).
-
-Target universe: **top 500 optionable US names**, market-cap ranked most-liquid-first (#100 SNDK,
-#300 FIX, #500 LPLA - megacaps down to ~$27B), 10 complete years each (2016-2025). All 55
-previously cached names are inside it, so nothing is re-pulled.
-
-**Live status: `python mine_status.py`** - names cached / partial / skipped, disk, liquidity, and
-the last progress lines. Greppable progress also at `data/options/MINING_PROGRESS.txt`
-("N of 500 names cached"); per-name manifest with years, gaps and skip reasons at
-`data/options/cache_manifest.json`. Both resume cleanly - a kill costs at most the year in flight.
-
-**Ranking is a proxy, corrected by reality.** Ranking on true options liquidity would need a
-chain pull across 15,669 names first, and ThetaData's all-symbol flat file needs a PROFESSIONAL
-subscription (verified: this account is Standard -> PERMISSION_DENIED). So market cap ranks the
-queue, and after each name's FIRST year is cached its real option liquidity is measured; names
-too thin to trade are abandoned before their remaining nine years are pulled.
-
-**The cache filter is deliberately LOOSER than the backtest's entry filter - this matters.**
-`options_fill` screens ENTRIES at OI>=100/vol>=10/spread<=25% but deliberately does not re-apply
-that at exit, because you must be able to exit a contract you already own after it goes illiquid.
-Filtering the CACHE at entry thresholds would delete exactly those exit quotes from disk and bake
-that bias in permanently. The cache therefore drops only information-free rows (no two-sided
-quote AND no OI AND no volume, or spreads >300%); junk is excluded at the NAME level instead.
-Verified before launch: on AAPL 2019 it drops 0 of 203,666 rows and preserves all 82,461
-low-OI-but-quoted rows a trade would need to exit.
-
-Two bugs caught before they cost hours: years initially ran sequentially (~18 min/name, ~133h for
-the universe) and are now 4-concurrent (~5 min/name); and the miner exited instantly with "no
-THETADATA_API_KEY" because the provider's key fallback searches the CWD and package parent,
-neither of which is the main checkout when running from a worktree.
-
-Expect roughly 35-40 hours for the full 500 at ~5 min/name. Raw cache is gitignored and stays on
-disk; only code + manifest are committed.
+Running in its own session; status and design notes are in **`HANDOFF_miner.md`**, not here.
 
 ## ITEM 0 SHIPPED + A2 COMPLETE (2026-08-02)
 

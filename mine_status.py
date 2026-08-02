@@ -54,7 +54,11 @@ def main():
                     pass
     print(f"DISK    {nfiles:,} year-files, {human(total)}")
 
-    live = [v for v in m.values() if v.get("tradeable_per_day") is not None]
+    # Only names actually CACHED. Including skipped_thin ones made a correctly-rejected
+    # name look like the thinnest one kept ("thinnest kept 0").
+    live = [v for v in m.values()
+            if v.get("tradeable_per_day") is not None
+            and v.get("status") in ("complete", "partial")]
     if live:
         tp = sorted(v["tradeable_per_day"] for v in live)
         print(f"LIQUIDITY  median {tp[len(tp)//2]:.0f} tradeable contracts/day; "
