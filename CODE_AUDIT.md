@@ -242,3 +242,21 @@ Things not to re-break:
   therefore missed; no parent-rollup endpoint exists (all three candidate paths 404).
 
 Caches (gitignored): `data/bulk/prepared/usaspending.pkl`, `congress.pkl`, `sec_names.json`.
+
+## Options track (2026-08-02)
+See `OPTIONS_BACKTEST_RESULTS.md`. Scream-buy: +10.4%/trade over 1,540 trades net of spread,
+positive in both held-out halves, but 15 trades are 98% of the dollar profit.
+
+Things not to re-break:
+- **Two price series.** `closeadj` for technicals, `closeunadj` for ALL option maths. Option
+  strikes are never split-adjusted; mixing them made ATM IV solve to None on every pre-split
+  date and picked contracts from the wrong end of the ladder, silently. Pinned by
+  `test_options_split_adjustment_two_series`.
+- **Fill defaults to buying the ask and selling the bid.** Mid fills are a diagnostic, never a
+  headline. Pinned by `test_options_fill_engine_charges_the_spread_both_ways`.
+- **Expired-worthless contracts must post -100%**, not vanish - that is the survivorship bias
+  that flatters options backtests. Pinned by `test_options_expired_worthless_is_recorded_not_dropped`.
+- **Year gaps are recorded and the name excluded**, never silently under-sampled.
+- **The runner takes a PID lock**: two runners sharing one bank silently corrupted each other
+  (a zombie run overwrote a 197-trade result with 5 trades).
+Caches (gitignored): `data/options/<SYM>/<SYM>-<YEAR>.pkl`, `optbt_state.pkl`.

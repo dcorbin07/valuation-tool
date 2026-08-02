@@ -12,6 +12,53 @@ file directly.
 
 ---
 
+## OPTIONS TRACK - scream-buy validated on real ThetaData (2026-08-02)
+
+Full detail in `OPTIONS_BACKTEST_RESULTS.md`. 55 names, 2016-2025, **1,540 closed trades**, all
+net of spread + commission at the punishing fill (buy ask / sell bid).
+
+    hit rate 37.4%   avg win +120.4%   avg loss -55.3%   PF 1.30
+    EXPECTANCY +10.4%/trade   cum $143,723 (1 contract/trade)
+    held-out split: +16.4% (2016-2020) vs +4.4% (2021-2025) - positive in BOTH, bar met
+    positive in 7/10 years; 2022, 2023, 2025 negative
+    37 of 55 names positive
+
+**THE DECISIVE CAVEAT: dollar P&L is tail-driven. Drop the best 1% of trades (15 of 1,540) and
+$143,723 becomes $2,767; drop 5% and it is -$151,760.** Percentage expectancy is far more robust
+(+10.4% -> +9.0% dropping the top 1%), because the book buys ONE CONTRACT per signal so
+expensive contracts dominate dollars. **Sizing by fixed dollar risk instead of fixed contract
+count is the obvious next test.**
+
+Verdict: positive expectancy, survives costs, clears the pre-committed bar - but thin, fading,
+and too tail-dependent to size aggressively. NOT "the scream-buy engine works". Nothing in the
+live product was changed on the basis of it.
+
+Useful sub-findings: realised stop loss is -59.1% not -50% (daily-mark trigger, worse fill);
+the live 35-delta pick is the best of three delta buckets; 65-75 DTE more than doubles 45-55
+(+17.0% vs +7.8%) and is a testable refinement, not yet gated.
+
+**Infrastructure now in place** (all committed, tests 88/88):
+- `theta_bulk.py` - year-chunked bulk loader, 4 concurrent, quarterly chunks with
+  retry/backoff/timeout, resumable atomic cache in `data/options/`. Per name the pull went from
+  280-640 calls to ~22; a full year of compute went from "did not finish in 500s" to 0.6s.
+- `options_fill.py` - fill/cost engine. Honest fill is the DEFAULT (mid-fills are a diagnostic
+  only), bad quotes rejected with named reasons, expired-worthless posts -100%.
+- `blackscholes.py` - local greeks, validated against the vendor (delta 98.96%, IV 100% in the
+  tradable band).
+- `options_backtest.py` - reconstruction that CALLS the live alert + live scorecard functions,
+  so backtest and forward tracker cannot diverge.
+- `optbt_status.py` - progress + partial verdict at any time; `optbt_run.py` - the runner.
+
+**Four silent bugs found and fixed** (each would have produced a confident wrong answer):
+split-adjusted prices meeting unadjusted strikes; a failed FRED fetch retried every call (60s);
+11 of 30 year-pulls failing with no retry and no record; and ticker renames (META/FB) silently
+dropping six years.
+
+**NOT DONE - mandate sections 4-6:** single-leg vs vertical spread (arm is built and committed,
+not run), the new ThetaData signals (IV rank, VRP, term structure, skew, tick flow, GEX), and
+the live-engine / tracked-options-book updates. Premium selling (CSP/covered calls) remains
+deferred by the mandate as a separate short-vol track.
+
 ## P24.3 / P24.4 - USAspending REJECTED, congressional trades INCONCLUSIVE (2026-08-01)
 
 This closes the alt-data question opened in P24: four external sources tested, four gates
