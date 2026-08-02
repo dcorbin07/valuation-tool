@@ -67,14 +67,26 @@ MANIFEST = os.path.join(OPTROOT, "cache_manifest.json")
 PROGRESS = os.path.join(OPTROOT, "MINING_PROGRESS.txt")
 
 YEARS = list(range(2016, 2026))          # ten complete years; 2026 is in progress and excluded
-TARGET_NAMES = 500
+TARGET_NAMES = 1000
 
 # Cache-level filter. LOOSER than options_fill's entry screen on purpose - see the header.
 CACHE_MAX_SPREAD_PCT = 3.0               # 300%: only placeholder quotes, not real markets
 
 # Name-level viability, judged on the FIRST cached year rather than assumed from market cap.
-MIN_TRADEABLE_CONTRACTS_PER_DAY = 5      # contracts/day clearing the real entry screen
-MIN_DAYS_WITH_CHAIN = 100                # of ~252; below this the name is not continuously live
+# Thresholds are the PERMISSIVE end of the specified ranges (OI 500-1000, volume 100-500,
+# spread 10-15%) on purpose: the point of extending past the megacaps is to reach the
+# high-IV mid/small movers retail trades heavily, and the tight end of each range would start
+# excluding exactly those. The cut is aimed at untradeable micro-caps, not at volatility.
+MIN_ATM_OI = 500                 # median OI among the most-held (near-the-money) contracts
+MIN_DAILY_OPTION_VOLUME = 100    # median total contracts traded across the chain per day
+MAX_MEDIAN_SPREAD_PCT = 0.15     # THE key cut - spread is what kills a long-premium edge
+SPREAD_MIN_PREMIUM = 0.50        # measure spread only on contracts with a REAL premium
+MIN_DAYS_WITH_CHAIN = 100        # of ~252; below this the name is not continuously live
+
+# Unattended runs must not fill the disk. ~199MB/name at megacap scale (mid/small caps are far
+# smaller), so 1,000 names projects to well under the free space - but a guard costs nothing and
+# a full C: drive during an overnight job is expensive.
+MIN_FREE_GB = 40
 
 
 def log(msg):
@@ -139,33 +151,62 @@ def slim_filter(df):
 
 
 def name_is_viable(tb, sym: str, year: int) -> tuple:
-    """Measure a name's REAL option liquidity from one cached year. (viable, stats)."""
-    import pandas as pd
+    """Measure a name's REAL option tradeability from one cached year. (viable, stats).
 
-    from valuation.edge import options_fill as F
+    Near-the-money is approximated by the HIGHEST-OI contracts rather than by distance from spot:
+    open interest concentrates around the money, and using it avoids needing a per-name spot
+    series just to screen. Spread is measured only on contracts that actually trade, because the
+    spread on a contract nobody touches is not the spread you would pay.
+    """
+    import pandas as pd
 
     df = tb._year_frame(sym, year)
     if df is None or len(df) == 0:
         return False, {"reason": "no data"}
-    days = df["date"].nunique()
+    days = int(df["date"].nunique())
     bid = pd.to_numeric(df["bid"], errors="coerce").fillna(0)
     ask = pd.to_numeric(df["ask"], errors="coerce").fillna(0)
     oi = pd.to_numeric(df["open_interest"], errors="coerce").fillna(-1)
     vol = pd.to_numeric(df["volume"], errors="coerce").fillna(0)
     mid = (bid + ask) / 2.0
-    tradeable = ((bid > 0) & (ask > bid) & (oi >= F.MIN_OI) & (vol >= F.MIN_VOLUME)
-                 & (mid >= F.MIN_PREMIUM)
-                 & (((ask - bid) / mid.replace(0, float("nan"))) <= F.MAX_SPREAD_PCT))
-    per_day = float(tradeable.sum()) / max(days, 1)
-    stats = {"days_with_chain": int(days), "tradeable_per_day": round(per_day, 1),
+
+    quoted = (bid > 0) & (ask > bid) & (mid > 0)
+    # daily option volume across the whole chain
+    dv = df.assign(_v=vol).groupby("date")["_v"].sum()
+    daily_volume = float(dv.median()) if len(dv) else 0.0
+    # near-ATM open interest: the top decile by OI, which is where the money sits
+    live_oi = oi[quoted & (oi > 0)]
+    atm_oi = float(live_oi.quantile(0.90)) if len(live_oi) else 0.0
+    # Spread on contracts we would ACTUALLY trade. Measuring it across every quoted contract
+    # includes far-OTM lottery tickets where a one-cent tick on a five-cent mid reads as 20%,
+    # which is not the spread a 35-delta 45-75 DTE call pays. That mis-measurement rejected
+    # RKLB at 18.2% - a name with 8,198 contracts/day and 1,821 ATM OI, and one the brief names
+    # explicitly as the kind of high-IV mover worth having. On real premium it is 8.7%.
+    tradeable_mask = quoted & (vol > 0) & (oi >= MIN_ATM_OI) & (mid >= SPREAD_MIN_PREMIUM)
+    spr = ((ask - bid) / mid)[tradeable_mask]
+    median_spread = float(spr.median()) if len(spr) else 1.0
+
+    stats = {"days_with_chain": days,
+             "daily_option_volume": round(daily_volume, 0),
+             "atm_oi": round(atm_oi, 0),
+             "median_spread_pct": round(median_spread, 4),
              "rows": int(len(df))}
-    ok = (days >= MIN_DAYS_WITH_CHAIN and per_day >= MIN_TRADEABLE_CONTRACTS_PER_DAY)
-    stats["reason"] = "ok" if ok else (
-        f"thin: {per_day:.1f} tradeable/day, {days} days with a chain")
-    return ok, stats
+    fails = []
+    if days < MIN_DAYS_WITH_CHAIN:
+        fails.append(f"{days}d chain")
+    if daily_volume < MIN_DAILY_OPTION_VOLUME:
+        fails.append(f"vol {daily_volume:.0f}/day")
+    if atm_oi < MIN_ATM_OI:
+        fails.append(f"atm OI {atm_oi:.0f}")
+    if median_spread > MAX_MEDIAN_SPREAD_PCT:
+        fails.append(f"spread {median_spread:.0%}")
+    stats["reason"] = "ok" if not fails else "thin: " + ", ".join(fails)
+    return (not fails), stats
 
 
 def main():
+    import shutil
+
     from valuation.edge.theta_bulk import ThetaBulk, year_path
 
     os.makedirs(OPTROOT, exist_ok=True)
@@ -182,10 +223,17 @@ def main():
             manifest = {}
 
     uni = ranked_universe(TARGET_NAMES)
-    log(f"target universe: {len(uni)} names (market-cap ranked, optionable)")
+    log(f"target universe: {len(uni)} names (market-cap ranked, optionable); free disk {shutil.disk_usage(chr(67)+chr(58)+chr(47)).free/1e9:.0f}GB")
 
     t0 = time.time()
     for i, sym in enumerate(uni, 1):
+        import shutil
+        free_gb = shutil.disk_usage("C:/").free / 1e9
+        if free_gb < MIN_FREE_GB:
+            log(f"STOPPING: only {free_gb:.0f}GB free (floor {MIN_FREE_GB}GB). "
+                f"Cache is intact and the run resumes where it left off.")
+            break
+
         rec = manifest.get(sym, {})
         if rec.get("status") in ("complete", "skipped_thin"):
             continue
