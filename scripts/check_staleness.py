@@ -94,6 +94,34 @@ def main() -> int:
             except (TypeError, ValueError):
                 problems.append(f"the hot list has an unreadable scan_date: {scan_date!r}")
 
+    # The forward paper track. Its whole value is being an unbroken daily record, so a run
+    # that silently stops is worse here than anywhere else on the site — a gap cannot be
+    # backfilled honestly once the prices have moved on.
+    #
+    # Deliberately only complains ONCE THE TRACK HAS STARTED. Before the first point,
+    # `available: false` is the correct state (the cron is scheduled but the book has not been
+    # seeded yet), and alerting on it would train the reader to ignore this channel — which is
+    # how the July outage went unnoticed for four days.
+    try:
+        t = _get(f"{base}/api/index-track")
+        if not t.get("available"):
+            print("  paper track: not started yet (no live points) — not an alert")
+        else:
+            last = ((t.get("series") or [{}])[-1] or {}).get("date") or t.get("as_of")
+            try:
+                ld = _dt.date.fromisoformat(str(last)[:10])
+                age = trading_days_between(ld, today)
+                print(f"  paper track: {t.get('days')} points, last {last} "
+                      f"({age} trading days old)")
+                if age >= limit:
+                    problems.append(
+                        f"the forward paper track has not recorded a point in **{age} trading "
+                        f"days** (last {last}). The daily cycle is not running.")
+            except (TypeError, ValueError):
+                problems.append(f"the paper track has an unreadable date: {last!r}")
+    except Exception as e:
+        print(f"  paper track: /api/index-track not responding ({e}) — not an alert")
+
     if not problems:
         print("OK — the live site is being fed.")
         return 0

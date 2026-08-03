@@ -376,6 +376,79 @@ def test_methodology_page_is_public_and_states_the_weaknesses():
         assert weakness in body, f"methodology must keep the weakness: {weakness!r}"
 
 
+def test_landing_renders_the_sample_and_survives_having_none():
+    """The landing must SHOW the product. It must also still be a finished page when nothing
+    has been ingested yet — a broken hero is worse than a plain one, and this is the first
+    thing a visitor ever sees."""
+    from valuation.saas.app_saas import create_saas_app
+    from valuation.web import showcase
+
+    sample = {"ticker": "TSTQ", "name": "Test Corp", "sector": "Technology", "price": 100.0,
+              "fair_value": 150.0, "upside": 0.5, "score": 72.0, "verdict": "Buy",
+              "confidence": "high", "bear": 120.0, "base": 150.0, "bull": 190.0,
+              "implied_growth": 0.04, "base_growth": 0.09, "implied_growth_bounded": "",
+              "as_of": "2026-08-02"}
+
+    real_ctx = showcase.landing_context
+    showcase.landing_context = lambda store: {
+        "sample": sample, "bar": showcase.range_bar(sample), "sample_stale": False,
+        "sample_age": 0, "track": None, "spark": None, "scan": None}
+    try:
+        c = create_saas_app(CONFIG).test_client()
+        html = c.get("/").data.decode()
+        assert "TSTQ" in html and "Test Corp" in html
+        assert "150.00" in html and "72" in html
+        assert "4% a year" in html, "the reverse-DCF read is the most persuasive number"
+    finally:
+        showcase.landing_context = real_ctx
+
+    # Nothing ingested: no exception, no empty widget, still a real page with the CTA.
+    showcase.landing_context = lambda store: {}
+    try:
+        c = create_saas_app(CONFIG).test_client()
+        r = c.get("/")
+        assert r.status_code == 200
+        html = r.data.decode()
+        assert "Live sample" not in html
+        # Asserted on the static section, not the CTA: the CTA wording flips with
+        # signup_enabled, which other tests in this file mutate on the shared CONFIG.
+        assert "Adaptive DCF" in html and "Valquo" in html
+    finally:
+        showcase.landing_context = real_ctx
+
+
+def test_landing_never_500s_when_the_showcase_blows_up():
+    """The store can be missing or corrupt on a fresh box. That must cost a section, not the
+    home page."""
+    from valuation.saas.app_saas import create_saas_app
+    from valuation.web import showcase
+
+    real = showcase.landing_context
+
+    def _boom(store):
+        raise RuntimeError("store exploded")
+    showcase.landing_context = _boom
+    try:
+        r = create_saas_app(CONFIG).test_client().get("/")
+        assert r.status_code == 200, r.status_code
+        assert "Adaptive DCF" in r.data.decode(), "the static page must still be there"
+    finally:
+        showcase.landing_context = real
+
+
+def test_sample_ingest_requires_a_token_and_rejects_an_empty_sample():
+    from valuation.saas.app_saas import create_saas_app
+    CONFIG.admin_token = "tok-123"
+    c = create_saas_app(CONFIG).test_client()
+    good = {"ticker": "AAPL", "fair_value": 119.6, "as_of": "2026-08-02"}
+    assert c.post("/admin/ingest-sample", json=good).status_code == 401
+    hdr = {"X-Admin-Token": "tok-123"}
+    # A sample with no fair value renders an empty hero — refuse it rather than publish it.
+    assert c.post("/admin/ingest-sample", json={"ticker": "AAPL"}, headers=hdr).status_code == 400
+    assert c.post("/admin/ingest-sample", json={}, headers=hdr).status_code == 400
+    assert c.post("/admin/ingest-sample", json=good, headers=hdr).status_code == 200
+
+
 def test_paper_track_endpoint_skips_when_the_session_has_not_closed():
     """The scheduled cycle must refuse to run mid-session.
 

@@ -5,6 +5,124 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 6 — 2026-08-03 — Paper schedule confirmed + the landing now SHOWS (PROMPT_appfixer_landing.md)
+
+## 1. Is the paper track actually scheduled? YES — here is exactly where
+
+| where | when (UTC) | what it does |
+|---|---|---|
+| `.github/workflows/auto-scan.yml`, job `paper` | `47 20` **and** `47 21`, Mon–Fri | POSTs `/admin/run-paper-track` with `X-Admin-Token` |
+| `render.yaml`, cron `paper-track` | `45 21`, Mon–Fri | same endpoint, same token |
+
+Both are on `main`, which is what matters — GitHub only registers cron schedules from the
+default branch. Two Actions crons because a crontab cannot express "4pm Eastern": one is
+correct under EDT, the other under EST, and the endpoint's session guard turns the early one
+into a no-op. The endpoint is deployed and token-gated in production right now (an
+unauthenticated POST returns **401**).
+
+**What I still cannot verify from here, and it is the one remaining risk:** whether Render
+actually holds `TRADIER_PAPER_TOKEN` / `TRADIER_PAPER_ACCOUNT_ID`. `ADMIN_TOKEN` is not in the
+local `.env`, so I cannot call the production admin route, and the endpoint fails closed — a
+401 looks identical whether the token is wrong or the paper creds are missing. The local creds
+authenticate fine (sandbox account VA35863695).
+
+**One-click check for Don:** Actions → "Auto scans" → Run workflow → kind `paper`, `force`
+true. The step now **fails loudly** with an explicit message if the Render credentials are
+missing, instead of treating any 200 as success.
+
+**New this session — the watchdog now covers the paper track too.** `scripts/check_staleness.py`
+also reads `/api/index-track` and alerts if the track has stopped recording points. It
+deliberately stays quiet before the first point (`available: false` is the correct state today,
+and alerting on it would train the reader to ignore the channel — which is how the July outage
+went unnoticed for four days). Verified against production just now:
+
+```
+  hot list: 2026-07-29 (2 trading days old), 154 scored
+  paper track: not started yet (no live points) — not an alert
+🔴 Valquo data pipeline problem
+• the last scan only scored 154 names — the universe has collapsed
+```
+
+That hot-list line is last session's outage, still unfixed in production because the first
+scheduled run under the fix had not happened yet — **Monday 2026-08-03 22:23 UTC is the test.**
+
+## 2. The landing page now shows the product instead of describing it
+
+Everything is **server-rendered from the store** (`valuation/web/showcase.py`), so the page
+paints in one pass with no client fetch and no empty-then-populated flash on the first thing a
+visitor ever sees.
+
+**A real sample valuation in the hero.** Not a mock-up — a genuine run of the real engine on
+real filings, stamped with the date it ran. Today's AAPL sample renders:
+
+> **$308.91 → $119.65   −61.3%** · Opportunity score **51/100 · Hold · high confidence**
+> Bear $99 · base $120 · bull $145, with today's price pinned past the end of the bar and
+> labelled *"Today's price is above even the bull case."*
+> *"To justify $308.91 you have to believe revenue compounds at **40% a year**. The model's
+> base case is **6%**. That is the question, not the price."*
+
+That the flagship demo says a mega-cap is 61% overvalued is the point — it shows the tool will
+tell you something you did not want to hear.
+
+**Why it is cached rather than computed per visit:** a full valuation is a multi-second,
+network-heavy job. Running it inside the landing request would make every first-time visitor
+wait, on the box least able to afford it — the exact opposite of demonstrating the product in
+two seconds. CI already has the RAM and the network, so `ci_scan.py` computes it after each hot
+scan and POSTs it to the new token-gated `/admin/ingest-sample`. That refresh is **non-fatal**:
+the ranking is the product, a stale hero is cosmetic, and failing the job over it would turn a
+cosmetic miss into a red run and a Discord alert that teaches people to ignore alerts.
+
+**The forward track is a hero element, directly under the fold.** An inline SVG of Index vs S&P
+500 on a **shared** y-axis (drawing each line to its own scale would make a line that lost look
+like it won). Inline SVG rather than a chart library because the page must paint immediately
+and the site's CSP blocks external scripts anyway.
+
+The honesty rules are enforced by the same `index_track.summarize()` the Index tab uses, so the
+landing can never disagree with the page it links to:
+- Under 60 trading days it is badged **`paper · thin`** and says *"Far too short to mean
+  anything yet — shown because hiding it until it looks good is how track records lie."*
+- Past that it becomes **`paper · live`** and the caveat drops. Verified both states in a
+  browser by seeding a 70-day series, then restoring the real data.
+- With **no live points at all** — today's real state — it shows `not started`, states plainly
+  that there is no live curve, and labels the backtested figures as *"a different and weaker
+  kind of evidence"*. It never draws a backtested curve under a "live" heading.
+
+**Copy tightened** from a paragraph to three scannable value-props. The beta banner,
+"educational only, not investment advice", the footer disclaimer and the per-card "a model
+output — an estimate, not a price target or advice" all stay.
+
+**Fixed a pre-existing mobile bug while I was in there.** The three value-prop cards were a
+hard-coded `repeat(3,1fr)` grid with no breakpoint, so at 390px the page ran **493px wide** and
+each card became roughly one word per line. Now single-column below 860px; verified
+`scrollWidth == 390`.
+
+Verified by running the app and driving it in Chromium at 1280px and 390px — no console errors,
+no horizontal overflow, screenshots read at both sizes and in both track states.
+
+## Changed
+
+- **NEW `valuation/web/showcase.py`** — cached sample, `range_bar()`, `sparkline()`,
+  `landing_context()`. Every block independently optional.
+- `valuation/web/templates/landing.html` — rebuilt.
+- `valuation/saas/app_saas.py` — landing route passes the showcase context (and **logs** rather
+  than silently swallowing a failure); new `/admin/ingest-sample`.
+- `scripts/ci_scan.py` — refreshes the landing sample after the hot scan, non-fatally.
+- `scripts/check_staleness.py` — watches the paper track.
+- Tests: screener 47 → 50, saas 24 → 27.
+
+## Caveats
+
+- The sample is only as fresh as the last successful hot scan — and the hot scan has been down
+  since 07-29. Until Monday's run lands there will be **no sample on production** and the
+  landing falls back to the static value-props. That fallback is tested, but it means the new
+  hero will not appear until the scan recovers.
+- `SAMPLE_TICKER` env var overrides AAPL if you ever want a different demo name.
+- The sample carries an `as_of` date and is labelled "not refreshed since" past 7 days rather
+  than hidden — an old real valuation beats an empty hero, but it must not read as live.
+- I did not touch the paper-track lane's files, the options backtest, the panel or the miner.
+
+---
+
 # Session 5 — 2026-08-02 — Paper track verified + scheduled server-side (PROMPT_appfixer_paper_schedule.md)
 
 ## READ THIS FIRST: the hot scan has been dead since 2026-07-29, and it is not the paper track

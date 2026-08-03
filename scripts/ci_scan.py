@@ -102,6 +102,35 @@ def run_hot() -> None:
     _post("/admin/ingest-snapshot", {
         "scan_date": res["scan_date"], "provider": res.get("provider", "ci"),
         "rows": rows, "params": {"scope": scope, "universe_size": res.get("universe_size")}})
+    refresh_landing_sample()
+
+
+def refresh_landing_sample() -> None:
+    """Recompute the landing page's sample valuation and push it to the site.
+
+    Runs HERE rather than on the web box because a full valuation is a multi-second,
+    network-heavy job and the landing page must paint immediately — the whole point of the
+    sample is to show the product working in about two seconds, which a live DCF per visitor
+    would destroy.
+
+    Deliberately NON-FATAL. This runs after the snapshot has already been ingested, and the
+    ranking is the product; a stale hero sample is a cosmetic problem. Letting it fail the job
+    here would turn a cosmetic miss into a red run and, worse, into a Discord alert that
+    trains the reader to ignore the channel.
+    """
+    ticker = os.environ.get("SAMPLE_TICKER", "AAPL").strip().upper()
+    try:
+        from valuation.web import showcase
+        sample = showcase.build(ticker, CONFIG)
+        if sample.get("fair_value") is None:
+            print(f"  landing sample: {ticker} produced no fair value — leaving the old one")
+            return
+        _post("/admin/ingest-sample", sample)
+        print(f"  landing sample: {ticker} ${sample['fair_value']:.2f} "
+              f"({sample.get('upside', 0) * 100:+.1f}%) ingested")
+    except Exception as e:                                            # noqa: BLE001
+        print(f"  landing sample failed ({type(e).__name__}: {str(e)[:160]}) — "
+              f"the site keeps the previous one")
 
 
 def run_intraday() -> None:

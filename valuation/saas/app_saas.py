@@ -364,6 +364,30 @@ def create_saas_app(cfg=CONFIG):
         out["summary"] = PT.summary(st)
         return jsonify(out)
 
+    @app.route("/admin/ingest-sample", methods=["POST"])
+    def admin_ingest_sample():
+        """The landing page's sample valuation, computed in CI and posted here.
+
+        Computed out of band on purpose: a full valuation is a multi-second, network-heavy
+        job, and running it inside the request that renders the landing page would make every
+        first-time visitor wait — on the box least able to afford it. CI already has the RAM
+        and the network, so it does the work and this only stores the result.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        data = request.get_json(silent=True) or {}
+        # A sample with no ticker or no fair value would render an empty card, which is worse
+        # than the static fallback. Refuse it rather than publish a broken hero.
+        if not data.get("ticker") or data.get("fair_value") is None:
+            return jsonify({"error": "a sample needs at least a ticker and a fair_value"}), 400
+        try:
+            from ..screener.store import Store
+            from ..web import showcase
+            showcase.save(Store(), data)
+            return jsonify({"ok": True, "ticker": data["ticker"], "as_of": data.get("as_of")})
+        except Exception as e:
+            return jsonify({"error": safe_error(e)}), 500
+
     @app.route("/admin/ingest-snapshot", methods=["POST"])
     def admin_ingest_snapshot():
         # Free-tier bridge: a CI runner (GitHub Actions) does the heavy whole-market
@@ -549,7 +573,19 @@ def create_saas_app(cfg=CONFIG):
         if path == "/":
             if auth.current_user(store):
                 return redirect("/app")
-            return render_template("landing.html")
+            # Server-rendered proof: a real cached valuation and the real forward track, read
+            # straight from the screener store. Wrapped because this is the FIRST thing a
+            # visitor sees — a missing sample must cost us a section, never the page.
+            try:
+                from ..screener.store import Store as _ScreenerStore
+                from ..web import showcase
+                ctx = showcase.landing_context(_ScreenerStore())
+            except Exception:
+                # Swallowed so the page still renders, but never silently: a landing that
+                # quietly loses its only proof looks fine and is the whole problem.
+                app.logger.exception("landing showcase failed; falling back to static copy")
+                ctx = {}
+            return render_template("landing.html", **ctx)
         # API gating.
         if path.startswith("/api/"):
             body = request.get_json(silent=True) or {}

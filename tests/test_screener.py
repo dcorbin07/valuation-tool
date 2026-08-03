@@ -847,6 +847,72 @@ def test_session_guard_skips_weekends_and_holidays():
     assert xmas["ok"] is False and "holiday" in xmas["reason"]
 
 
+# --------------------------------------------------------------------------- #
+# Landing showcase — the numbers behind the "show, don't tell" hero.
+# --------------------------------------------------------------------------- #
+def test_range_bar_flags_a_price_outside_the_scenario_range():
+    """A strongly over- or under-valued name puts the price beyond bear/bull. Clamping the
+    marker silently would draw it at the edge as though it were inside the range."""
+    from valuation.web.showcase import range_bar
+    hot = range_bar({"bear": 98.5, "base": 119.6, "bull": 145.3, "price": 308.9})
+    assert hot["price_pos"] == 100.0 and hot["price_outside"] == "above"
+    assert 0 < hot["base_pos"] < 100
+    cheap = range_bar({"bear": 98.5, "base": 119.6, "bull": 145.3, "price": 40.0})
+    assert cheap["price_pos"] == 0.0 and cheap["price_outside"] == "below"
+    inside = range_bar({"bear": 98.5, "base": 119.6, "bull": 145.3, "price": 120.0})
+    assert inside["price_outside"] == ""
+    # A degenerate range must not divide by zero.
+    assert range_bar({"bear": 10.0, "base": 10.0, "bull": 10.0, "price": 5.0}) is None
+
+
+def test_sparkline_puts_both_lines_on_one_shared_axis():
+    """Drawing each series to its own scale would make a line that LOST look like it won."""
+    from valuation.web.showcase import sparkline
+    s = sparkline([{"date": "2026-07-01", "valquo": 0.0, "spy": 0.0},
+                   {"date": "2026-07-02", "valquo": 10.0, "spy": 5.0}], width=100, height=50)
+    assert s["ok"] and s["n"] == 2
+    iy = [float(p.split(",")[1]) for p in s["index"].split()]
+    by = [float(p.split(",")[1]) for p in s["bench"].split()]
+    # Both start together; the better performer ends HIGHER on screen (smaller y).
+    assert abs(iy[0] - by[0]) < 1e-6
+    assert iy[1] < by[1], "the outperforming line must be drawn above the benchmark"
+    # One point cannot make a line — say so rather than emit a degenerate path.
+    assert sparkline([{"date": "2026-07-01", "valquo": 1.0, "spy": 1.0}])["ok"] is False
+    assert sparkline([])["ok"] is False
+
+
+def test_landing_sample_missing_a_price_is_treated_as_no_sample():
+    """The template formats price/fair_value with %.2f, which raises on None — inside
+    render_template, i.e. OUTSIDE the route's try/except. A half-filled sample would 500 the
+    home page rather than degrade to the static copy."""
+    from valuation.web.showcase import load
+
+    class _St:
+        def __init__(self, v):
+            self.v = v
+
+        def get_meta(self, k, default=None):
+            return self.v
+    assert load(_St({"ticker": "AAPL", "price": 100.0, "fair_value": 120.0})) is not None
+    assert load(_St({"ticker": "AAPL", "fair_value": 120.0})) is None      # no price
+    assert load(_St({"price": 1.0, "fair_value": 2.0})) is None            # no ticker
+    assert load(_St({"ticker": "AAPL", "price": 100.0})) is None           # no fair value
+    assert load(_St("not-a-dict")) is None
+
+
+def test_landing_context_degrades_to_nothing_rather_than_raising():
+    from valuation.web.showcase import landing_context
+
+    class _Dead:
+        def get_meta(self, k, default=None):
+            raise RuntimeError("no db")
+
+        def latest_scan_date(self):
+            raise RuntimeError("no db")
+    ctx = landing_context(_Dead())
+    assert ctx["sample"] is None and ctx["scan"] is None
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
