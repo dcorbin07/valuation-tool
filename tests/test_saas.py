@@ -385,6 +385,60 @@ def test_index_track_ingest_requires_the_admin_token():
     assert bad.status_code == 400
 
 
+def test_forgot_never_discloses_a_reset_link_in_production():
+    """SECURITY_AUDIT.md C1 — account takeover via /forgot.
+
+    The old code set `dev_link = None if sent else link`, and `send_email` returned False
+    for BOTH "no SMTP configured" and "the send threw". So a production mail server merely
+    being down turned /forgot into: POST any address, get a valid 1-hour reset token. The
+    owner address is a committed default, and the owner account unlocks /api/edge/*.
+
+    A reset link may ONLY appear when DEV_MODE is explicitly set AND no SMTP exists.
+    """
+    import uuid
+    from valuation.saas import auth as auth_mod
+    from valuation.saas import emailer
+    from valuation.saas.app_saas import create_saas_app
+
+    app = create_saas_app(CONFIG)
+    app.config.update(TESTING=True)
+    c = app.test_client()
+
+    # A real account, in the same database the app's store is bound to.
+    real = "fgt_" + uuid.uuid4().hex[:8] + "@ex.com"
+    UserStore(CONFIG.database_url).create_user(real, "password123")
+    unknown = "nobody_" + uuid.uuid4().hex[:8] + "@ex.com"
+
+    orig_send, orig_dev = auth_mod.send_status, CONFIG.dev_mode
+    try:
+        # --- 1. Production, SMTP configured but FAILING: no token, ever. ---
+        CONFIG.dev_mode = False
+        auth_mod.send_status = lambda *a, **k: emailer.FAILED
+        body = c.post("/forgot", data={"email": real}).data.decode("utf-8", "ignore")
+        assert "/reset/" not in body, "a failing prod mail server must not leak a reset link"
+
+        # --- 2. No account-enumeration tell: byte-identical response either way. ---
+        miss = c.post("/forgot", data={"email": unknown}).data.decode("utf-8", "ignore")
+        assert body == miss, "response differs for a known vs unknown address"
+
+        # --- 3. Not configured at all, but still not DEV_MODE: still no token. ---
+        auth_mod.send_status = lambda *a, **k: emailer.NOT_CONFIGURED
+        b3 = c.post("/forgot", data={"email": real}).data.decode("utf-8", "ignore")
+        assert "/reset/" not in b3, "absent SMTP alone must not imply a dev box"
+
+        # --- 4. DEV_MODE + no SMTP: the local convenience still works... ---
+        CONFIG.dev_mode = True
+        b4 = c.post("/forgot", data={"email": real}).data.decode("utf-8", "ignore")
+        assert "/reset/" in b4, "DEV_MODE with no SMTP should still surface the link locally"
+
+        # --- 5. ...but even in DEV_MODE a mere send FAILURE discloses nothing. ---
+        auth_mod.send_status = lambda *a, **k: emailer.FAILED
+        b5 = c.post("/forgot", data={"email": real}).data.decode("utf-8", "ignore")
+        assert "/reset/" not in b5, "send failure must never be treated as 'we're in dev'"
+    finally:
+        auth_mod.send_status, CONFIG.dev_mode = orig_send, orig_dev
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

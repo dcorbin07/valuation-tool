@@ -77,6 +77,12 @@ class Config:
     # SaaS / subscription mode (only used when running the hosted app).
     # ------------------------------------------------------------------ #
     secret_key: str = field(default_factory=lambda: _get("SECRET_KEY", "dev-insecure-change-me"))
+    # DEV_MODE — opt-in, local-only conveniences that must NEVER be inferred from runtime
+    # state. Today it gates exactly one thing: showing a password-reset link in the /forgot
+    # response when SMTP isn't configured. That used to be inferred from "the send failed",
+    # which meant a flaky prod mail server turned /forgot into an account-takeover endpoint
+    # for any address (SECURITY_AUDIT.md C1). Default false; never set it in production.
+    dev_mode: bool = field(default_factory=lambda: _get("DEV_MODE", "").lower() in ("1", "true", "yes", "on"))
     database_url: str = field(default_factory=lambda: _get("DATABASE_URL", "sqlite:///data/app.db"))
     stripe_secret_key: str = field(default_factory=lambda: _get("STRIPE_SECRET_KEY"))
     stripe_publishable_key: str = field(default_factory=lambda: _get("STRIPE_PUBLISHABLE_KEY"))

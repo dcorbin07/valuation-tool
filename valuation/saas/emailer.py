@@ -8,10 +8,19 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+# send_status() outcomes. The distinction matters for security, not just for logging:
+# "not_configured" means we are almost certainly on a dev box, while "failed" is the
+# normal way a PRODUCTION mail server misbehaves. Collapsing the two into one False
+# is what let /forgot hand reset links to anonymous callers whenever SMTP hiccuped.
+SENT = "sent"
+NOT_CONFIGURED = "not_configured"
+FAILED = "failed"
 
-def send_email(cfg, to_addr: str, subject: str, html: str) -> bool:
+
+def send_status(cfg, to_addr: str, subject: str, html: str) -> str:
+    """Send one email and report WHICH of the three outcomes happened."""
     if not (cfg.smtp_host and cfg.smtp_user):
-        return False
+        return NOT_CONFIGURED
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = cfg.email_from
@@ -22,9 +31,14 @@ def send_email(cfg, to_addr: str, subject: str, html: str) -> bool:
             s.starttls()
             s.login(cfg.smtp_user, cfg.smtp_password)
             s.sendmail(cfg.email_from, [to_addr], msg.as_string())
-        return True
+        return SENT
     except Exception:
-        return False
+        return FAILED
+
+
+def send_email(cfg, to_addr: str, subject: str, html: str) -> bool:
+    """Bool wrapper for the digest/alert callers that only care 'did it go out'."""
+    return send_status(cfg, to_addr, subject, html) == SENT
 
 
 def _fmt_weights(prev: dict, cur: dict) -> str:
