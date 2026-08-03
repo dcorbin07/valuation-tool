@@ -176,6 +176,7 @@ FACTORS_ALL = ["value", "quality", "growth", "momentum", "insider",
 NUMBER_THEME = {
     "earnings_yield": "value", "fcf_yield": "value", "ebit_ev": "value",
     "neg_ev_sales": "value", "neg_ps": "value", "book_to_price": "value",
+    "neg_ev_ebitda": "value",
     "roic": "quality", "roe": "quality", "op_margin": "quality", "gross_margin": "quality",
     "neg_leverage": "quality", "gp_on_capital": "quality", "fcf_margin": "quality",
     "accruals_q": "quality", "interest_cov": "quality",

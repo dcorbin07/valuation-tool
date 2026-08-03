@@ -158,6 +158,13 @@ class Config:
     sector_neutral: bool = field(default_factory=lambda: _get("SCREENER_SECTOR_NEUTRAL", "true").lower() != "false")
     residual_momentum: bool = field(default_factory=lambda: _get("SCREENER_RESIDUAL_MOMENTUM", "true").lower() != "false")
     soft_bucket: bool = field(default_factory=lambda: _get("SCREENER_SOFT_BUCKET", "true").lower() != "false")
+    # Feed EV/Sales + EV/EBITDA into the ESTABLISHED value branch too (they already feed the
+    # speculative one). Default OFF pending the full-universe A/B — HANDOFF_growth_evsales.md.
+    value_ev_multiples: bool = field(default_factory=lambda: _get("SCREENER_VALUE_EV_MULTIPLES", "false").lower() == "true")
+    # Rebuild enterprise value at the REBALANCE date (PIT market cap + filing net debt) rather
+    # than using the filing's own `ev`, whose embedded price is ~111 days stale. Affects
+    # ebit_ev / ev_sales / ev_ebitda. Default OFF pending its own A/B — HANDOFF_growth_evsales.md.
+    ev_point_in_time: bool = field(default_factory=lambda: _get("EDGE_EV_POINT_IN_TIME", "false").lower() == "true")
     # Historical backtest (Edge Lab) — ALL configured here, not on the data vendor's site.
     # Long window across regimes, but the optimizer weights recent history more (half-life)
     # and only adopts weights that also hold on the recent out-of-sample stretch.

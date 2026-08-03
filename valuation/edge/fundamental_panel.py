@@ -198,7 +198,27 @@ def _to_usd(sf1, usd_key, local_value, divisor):
     return local_value / divisor if divisor else local_value
 
 
-def _sf1_to_metrics(ticker, sf1, price, market_cap) -> dict:
+def _ev_point_in_time() -> bool:
+    """Rebuild EV at the REBALANCE date instead of trusting the filing's own `ev`.
+
+    Sharadar's `ev` is exactly `marketcap + debt - cashneq` (verified: median |diff|/mc = 0,
+    96.4% inside 1% on 193,811 ARQ rows), and that `marketcap` is the one from the FILING
+    date. The panel replaced the buggy shares x price market cap with a point-in-time figure
+    from DAILY, but `ev` was left alone — so `ebit_ev`, `ev_sales` and `ev_ebitda` measure
+    cheapness against a price roughly 111 days stale (the panel's effective fundamental lag),
+    while `earnings_yield`, `fcf_yield` and `book_to_price` use the fresh one. The median
+    one-quarter market-cap move is 10.5% and 18.6% of names move more than 25%, so this is a
+    real handicap on the EV ratios rather than a rounding detail.
+
+    It is STALE, not look-ahead: the price used is older than the rebalance, never newer, so
+    the bias is conservative. Default OFF because turning it on also changes `ebit_ev`, an
+    already-adopted factor — it gets its own A/B rather than riding along with another change.
+    """
+    from ..config import CONFIG
+    return bool(getattr(CONFIG, "ev_point_in_time", False))
+
+
+def _sf1_to_metrics(ticker, sf1, price, market_cap, ev_point_in_time=None) -> dict:
     """Map a Sharadar SF1 (ARQ) row → our metrics dict, valued at the as-of price.
 
     CURRENCY (P7): `marketcap` and `ev` are USD, but the raw line items are in the company's
@@ -246,7 +266,17 @@ def _sf1_to_metrics(ticker, sf1, price, market_cap) -> dict:
     # is the better numerator against market cap anyway, since market cap is common equity.
     ni_usd = _to_usd(sf1, "netinccmnusd", ni, div)
     fcf_usd = _to_usd(sf1, None, fcf, div)        # no fcfusd column — convert
+    ebitda_usd = _to_usd(sf1, None, ebitda, div)  # no ebitdausd column — convert
     is_foreign = abs(div - 1.0) > 1e-9
+
+    # EV at the rebalance date: the fresh point-in-time market cap plus the filing's net debt.
+    # `debt`/`cashneq` are REPORTING-currency line items and `mc` is USD, so net debt has to be
+    # converted before it is added — adding local won to a USD market cap is the P7 bug wearing
+    # a different hat. Falls back to the filing's own `ev` whenever a piece is missing.
+    if ev_point_in_time is None:
+        ev_point_in_time = _ev_point_in_time()
+    if ev_point_in_time and mc and debt is not None and cash is not None and div:
+        ev = mc + (debt - cash) / div
 
     return {
         "ticker": ticker, "sector": "", "price": price, "market_cap": mc,
@@ -258,6 +288,11 @@ def _sf1_to_metrics(ticker, sf1, price, market_cap) -> dict:
         "fcf_yield": (fcf_usd / mc) if (fcf_usd is not None and mc) else None,
         "ebit_ev": (ebit_usd / ev) if (ebit_usd is not None and ev) else None,
         "ev_sales": (ev / rev_usd) if (ev and rev_usd) else None,
+        # EV/EBITDA, POSITIVE EBITDA ONLY. A negative denominator flips the multiple negative,
+        # which then sorts as "cheapest of all" — the loss-makers would lead the value ranking.
+        # Leaving it None instead means the theme simply averages its other inputs for that
+        # name (same convention build_frame already uses for a missing input).
+        "ev_ebitda": (ev / ebitda_usd) if (ev and ebitda_usd and ebitda_usd > 0) else None,
         "ps": (mc / rev_usd) if (mc and rev_usd) else None,
         # SAME-CURRENCY ratios — local/local, already correct, deliberately untouched.
         "op_margin": (ebit / rev) if (ebit is not None and rev) else _f(sf1, "ebitmargin"),
@@ -1022,6 +1057,11 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                 # and the RAW value ratios (the z-scores alone can't reveal an implausible
                 # LEVEL, which is exactly what the currency bug produced).
                 _src = _by_ticker.get(t) or {}
+                # Which side of the value split this name fell on. `value` means different
+                # things either side of it, so any value diagnostic that ignores the bucket is
+                # averaging two different factors together.
+                _bk = r.get("bucket") if "bucket" in fr.columns else None
+                row["bucket"] = None if (_bk is None or pd.isna(_bk)) else str(_bk)
                 row["is_foreign"] = bool(_src.get("_is_foreign"))
                 row["fx_divisor"] = _src.get("_fx_divisor")
                 row["mc_ratio"] = _src.get("_mc_ratio")
@@ -2837,10 +2877,11 @@ def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,
 #   ebit_ev          [-25, 25]           0.033%         0.039%
 #   earnings_yield   [-10, 10]           ~0%            ~0%       <- range can't see it
 #
-# `ev_sales` and `ps` are deliberately NOT range-checked: their tails are driven by
-# near-zero-revenue companies (a real |max| of 2.9M on good data), negative EV is legitimate,
+# `ev_sales`, `ev_ebitda` and `ps` are deliberately NOT range-checked: their tails are driven by
+# near-zero-denominator companies (a real |max| of 2.9M on good data), negative EV is legitimate,
 # and the band flagged identical shares before and after the fix — a pure no-op. The SUBGROUP
-# check below is what covers them.
+# check below is what covers them. `ev_ebitda` is already restricted to POSITIVE EBITDA at
+# construction, so its remaining tail is genuinely "barely profitable", not a sign error.
 SANE_RANGES = {
     "book_to_price": (-50.0, 50.0),
     "earnings_yield": (-10.0, 10.0),   # quarterly earnings / market cap
@@ -2848,7 +2889,7 @@ SANE_RANGES = {
     "ebit_ev": (-25.0, 25.0),
 }
 # Ratios measured but intentionally exempt from the range check (see above).
-SANE_RANGE_EXEMPT = ("ev_sales", "ps")
+SANE_RANGE_EXEMPT = ("ev_sales", "ev_ebitda", "ps")
 SANE_VIOLATION_SHARE = 0.01        # >1% of rows outside the band = systematic, not a fat tail
 # A subgroup whose MEDIAN percentile sits this high/low is pegged. 0.70 verified against the
 # pre-P7 values: it catches 4 of the 6 corrupted value ratios (book_to_price and
@@ -3347,6 +3388,18 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
         panel = build_fundamental_panel(provider, tickers, rebalance_days=63,
                                         lookback_years=lookback_years, horizon=63,
                                         keep_numbers=True)
+        # Optional dump of the scored panel. Building it is the expensive part of a run
+        # (~12 min); a follow-up study that only re-reads the stored z-columns should not
+        # have to pay for it twice. Diagnostic only — nothing in the run reads it back.
+        import os as _os
+        import sys as _sy
+        _pp = _os.environ.get("EDGE_PANEL_PICKLE")
+        if _pp:
+            try:
+                panel.to_pickle(_pp)
+                print(f"[panel] dumped {len(panel)} rows -> {_pp}", file=_sy.stderr, flush=True)
+            except Exception as e:                       # a failed dump must not kill the run
+                print(f"[panel] dump FAILED: {e}", file=_sy.stderr, flush=True)
         # Coverage guard runs BEFORE any validation, so an empty factor is reported even if
         # something downstream fails.
         out["signal_coverage"] = signal_coverage(panel)
