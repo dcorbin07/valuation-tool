@@ -250,8 +250,22 @@ score), so there is no performance excuse to judge on a subset. If you must scre
     the only version worth re-opening.
 14. **Watch live behaviour after the P5 deploy.** `low_risk` 12.5% → 0 tilts the hot list
     smaller-cap. Intended, but eyeball the first scans; revert is one line in `settings.py`.
-15. **PEAD from EVENTS** — now the most promising NEW signal, since the cheap refinements are
-    exhausted. Still needs `bulk.EARNINGS_CODES` from Sharadar's EVENTS legend first.
+15. ~~**PEAD from EVENTS**~~ **DONE — REJECTED (2026-08-01, independently re-verified
+    2026-08-03).** EVENTS code 22 was decoded, so it was finally testable. `pead_car` clears
+    the standalone bar (median IC +0.0100, **t +2.215**, coverage 82.3%) but earns no weight;
+    `pead_drift` fails outright (t −0.473, coverage 25.1% under the 30% floor). Two reasons the
+    reject is solid, both stronger than the IC: **(a)** residualized on the three momentum
+    inputs, pead_car's incremental IC t is **+0.020** — 89% of it is orthogonal to momentum and
+    that 89% predicts nothing; **(b)** the book gain it does produce is beaten by a control
+    using NO earnings data (counting `ret_6_1` twice: +0.83pp alpha vs pead_car's +0.52pp). It
+    correlates most with the strongest momentum input and least with the weakest, so it acts as
+    an implicit REWEIGHTING, not a new signal. Also **not actually PEAD**: theory says drift is
+    strongest right after the announcement, but the recent-only window scores t −0.473 against
+    the all-ages +2.215 — backwards. **Held-out deltas for PEAD are CONSTRUCTION-SENSITIVE and
+    even flip sign** between the full composite and a restricted-universe book — never quote one
+    without naming the book. Both variants stay MEASURED but score in no theme. Point-in-time is
+    pinned by `tests/test_pead.py` (12 tests, incl. a tampering test). `HANDOFF_pead.md`.
+    Re-open only with real point-in-time earnings surprises (IBES, parked — same blocker as #20).
 16. **ML tree combiner** — clearly worthwhile now: several genuinely real signals exist, and P6
     showed the linear composite is sensitive to how inputs are scaled.
 17. **Re-read every past "monotonicity" conclusion with the sign flipped** (see LATEST).
