@@ -362,8 +362,10 @@ def test_cache_written_before_the_usd_normalization_is_discarded():
         def cache_fundamentals(self, ticker, data):
             self.data = data
 
+    from valuation.screener.providers import METRICS_SCHEMA
     assert _usable_cache({"market_cap": 275_844.66}) is None            # legacy: no stamp
-    assert _usable_cache({"market_cap": 275e9, "units": "usd"}) is not None
+    assert _usable_cache({"market_cap": 275e9, "units": "usd",
+                          "schema": METRICS_SCHEMA}) is not None
 
     class _Cfg:
         fmp_api_key = "k"
@@ -626,6 +628,177 @@ def test_live_track_is_absent_not_invented_when_there_is_no_data():
     assert out["available"] is False and out["live"] is None
     assert out["headline"] == "backtested"
     assert out["backtested"]["net_sharpe"] is not None, "the backtest still has something to say"
+
+
+# --------------------------------------------------------------------------- #
+# Broker fundamentals (the free route) — offline, against a payload shaped like
+# the live Tradier one. See valuation/screener/broker_fundamentals.py.
+# --------------------------------------------------------------------------- #
+def _broker_payload(ev=1.1e12, pe=25.0, sector_code=311, roe_1y=0.34, roe_3m=0.08,
+                    ev_ebitda=20.0):
+    """A Tradier-shaped payload: several result blocks per symbol, most tables null."""
+    return {
+        "company": {"ACME": [
+            {"type": "Company", "tables": {
+                "company_profile": None, "asset_classification": None,
+                "historical_asset_classification": {"morningstar_sector_code": sector_code}}},
+            {"type": "Stock", "tables": {
+                "share_class_profile": {"market_cap": 1.0e12, "enterprise_value": ev,
+                                        "shares_outstanding": 5.0e9},
+                "ownership_summary": {"shares_outstanding": 5.0e9}}},
+        ]},
+        "ratios": {"ACME": [
+            {"type": "Company", "tables": {
+                "operation_ratios_restate": None,
+                "operation_ratios_a_o_r": [
+                    # The 3M block comes FIRST on purpose: it is a quarterly ROE and must lose.
+                    {"period_3m": {"r_o_e": roe_3m, "total_debt_equity_ratio": 0.5},
+                     "period_1y": {"r_o_e": roe_1y}},
+                ]}},
+            {"type": "Stock", "tables": {
+                "valuation_ratios": {"p_e_ratio": pe, "p_s_ratio": 4.0, "p_b_ratio": 8.0,
+                                     "e_v_to_e_b_i_t_d_a": ev_ebitda,
+                                     "book_value_per_share": 25.0},
+                "alpha_beta": {"period_60m": {"beta": 1.2}, "period_36m": {"beta": 0.9}}}},
+        ]},
+        "financials": {"ACME": []},
+    }
+
+
+def test_broker_fundamentals_maps_and_derives_the_absolutes():
+    from valuation.screener import broker_fundamentals as BF
+    m = BF.to_metrics("ACME", _broker_payload())
+    assert m["market_cap"] == 1.0e12
+    assert m["sector"] == "Technology"
+    # revenue = mc / ps, net_income = mc / pe, equity = bvps * shares, ebitda = ev / ev_ebitda
+    assert abs(m["revenue"] - 2.5e11) < 1, m["revenue"]
+    assert abs(m["net_income"] - 4.0e10) < 1, m["net_income"]
+    assert abs(m["total_equity"] - 1.25e11) < 1, m["total_equity"]
+    assert abs(m["ebitda"] - 5.5e10) < 1, m["ebitda"]
+    assert abs(m["net_debt"] - 1.0e11) < 1, m["net_debt"]      # ev - mc
+    assert abs(m["earnings_yield"] - 0.04) < 1e-9
+    assert m["beta"] == 1.2, "60-month beta is preferred over the 36-month one"
+    # Everything the broker has no table for must be explicitly None, never fabricated.
+    for gap in BF.GAP_FIELDS:
+        assert m[gap] is None, f"{gap} has no broker source and must stay None"
+
+
+def test_broker_roe_uses_the_annual_window_not_the_quarterly_one():
+    """Morningstar publishes 3M and 1Y ROE in one table. A quarterly ROE is ~1/4 of the
+    annual one, so mixing them across a cross-section makes the quality theme a coin flip
+    on which window a name happened to report."""
+    from valuation.screener import broker_fundamentals as BF
+    m = BF.to_metrics("ACME", _broker_payload(roe_1y=0.34, roe_3m=0.08))
+    assert m["roe"] == 0.34, m["roe"]
+
+
+def test_broker_zero_enterprise_value_is_missing_not_free():
+    """EV is reported as exactly 0 for banks — a 'not applicable' sentinel. Taken as a
+    number it sets net_debt = -market_cap and ev_sales = 0, which would hand every large
+    bank the cheapest EV/Sales in the universe and peg the sector to the top of value."""
+    from valuation.screener import broker_fundamentals as BF
+    # Shaped like the live payload: verified 2026-08-02 that all 11 banks in a 200-name
+    # sample report ev == 0 AND ev_to_ebitda == null together.
+    m = BF.to_metrics("ACME", _broker_payload(ev=0.0, ev_ebitda=None))
+    assert m["ev"] is None
+    assert m["net_debt"] is None, "net_debt must not become -market_cap"
+    assert m["ev_sales"] is None, "ev_sales must not become 0 (the cheapest in the universe)"
+    assert m["book_to_price"] is not None, "the non-EV value inputs still work for a bank"
+    assert m["earnings_yield"] is not None
+
+
+def test_broker_loss_maker_has_no_earnings_rather_than_zero():
+    """A loss-making company has no published P/E. Inferring 0 (or a negative) earnings
+    from a missing ratio would invent data; leaving it None puts the name in the
+    'speculative' bucket, which is where a loss-maker belongs."""
+    from valuation.screener import broker_fundamentals as BF
+    from valuation.screener.factors import classify_bucket
+    m = BF.to_metrics("ACME", _broker_payload(pe=None))
+    assert m["net_income"] is None and m["earnings_yield"] is None
+    assert classify_bucket(m) == "speculative"
+
+
+def test_broker_merge_never_overwrites_a_reported_value_with_a_derived_one():
+    """The free stack reads actual filings. Where it has a real revenue, the broker's
+    ratio-inverted reconstruction must not replace it."""
+    from valuation.screener import broker_fundamentals as BF
+    broker = {"revenue": 999.0, "sector": "Technology", "beta": 1.2, "market_cap": 5.0}
+    free = {"revenue": 100.0, "sector": "", "beta": None, "market_cap": None, "fcf": 7.0}
+    out = BF.merge(broker, free)
+    assert out["revenue"] == 100.0, "reported revenue wins"
+    assert out["sector"] == "Technology", "an empty string counts as missing"
+    assert out["beta"] == 1.2 and out["market_cap"] == 5.0
+    assert out["fcf"] == 7.0, "free-only fields survive the merge"
+    assert out["source"] == "free+broker"
+    assert set(out["broker_filled"]) == {"sector", "beta", "market_cap"}
+
+
+def test_broker_row_survives_when_the_free_stack_returns_nothing():
+    """The resilience property: from a throttled cloud IP the per-name yfinance fetch comes
+    back empty and USED TO drop the name from the scan entirely. It must now survive on the
+    broker's half rather than disappear."""
+    from valuation.screener import broker_fundamentals as BF
+    broker = BF.to_metrics("ACME", _broker_payload())
+    out = BF.merge(broker, None)
+    assert out is not None and out["market_cap"] == 1.0e12
+    assert BF.merge(None, None) is None
+
+
+def test_broker_prefetch_absent_token_degrades_quietly():
+    from valuation.screener.providers import FreeProvider
+
+    class _Cfg:
+        tradier_token = ""
+        sec_user_agent = "x"
+    p = FreeProvider(_Cfg(), None)
+    assert p.prefetch(["AAPL"]) == {}
+    assert "TRADIER_TOKEN" in p.broker_stats["note"]
+    assert p._broker_metrics("AAPL") is None
+
+
+def test_metrics_cache_from_an_older_schema_is_discarded():
+    """A cached row written before the broker merge is missing sector/beta/ev. Served as-is
+    it is indistinguishable from a name the feed genuinely has no sector for, which is how
+    the blank-sector bug survived for weeks."""
+    from valuation.screener.providers import _usable_cache, METRICS_SCHEMA
+    assert _usable_cache({"units": "usd", "schema": METRICS_SCHEMA}) is not None
+    assert _usable_cache({"units": "usd", "schema": 1}) is None
+    assert _usable_cache({"units": "usd"}) is None, "an unstamped row predates the schema"
+    assert _usable_cache({"units": "millions", "schema": METRICS_SCHEMA}) is None
+
+
+def test_broker_coverage_report_separates_covered_from_gap_fields():
+    from valuation.screener import broker_fundamentals as BF
+    rows = [BF.to_metrics("ACME", _broker_payload()),
+            {"market_cap": 1.0, "source": "free", "fcf": 2.0, "op_margin": 0.1}]
+    cov = BF.coverage(rows)
+    assert cov["names"] == 2
+    assert cov["broker_fields"]["market_cap"] == 1.0
+    assert cov["gap_fields"]["fcf"] == 0.5, "only the free row has FCF"
+    assert cov["by_source"]["broker"] == 1 and cov["by_source"]["free"] == 1
+
+
+def test_theme_coverage_distinguishes_present_from_contributing():
+    """A constant theme is 100% 'covered' and contributes nothing: zscore() of a zero-variance
+    column is all-NaN and composite_score renormalizes it away. Live, `insider` is exactly
+    that — no insider_score reaches build_frame, so the column is the constant 0.0 and its
+    12.5% weight is silently inert. Reporting only presence hides that."""
+    import pandas as pd
+    from valuation.screener.screen import _theme_contribution
+
+    df = pd.DataFrame({"value": [1.0, 2.0, 3.0, 4.0], "insider": [0.0, 0.0, 0.0, 0.0]})
+    out = _theme_contribution(df)
+    assert out["value"] == 1.0
+    assert out["insider"] == 0.0, "a constant theme must not read as contributing"
+
+
+def test_morningstar_sector_codes_match_the_apps_sector_names():
+    """A broker sector only helps if it lands in the peer-median lookup — a near-miss like
+    'Financials' would silently fall through to the generic default multiple."""
+    from valuation.screener.broker_fundamentals import SECTOR_CODES
+    from valuation.engine.comps import SECTOR_MULTIPLES
+    assert set(SECTOR_CODES.values()) == set(SECTOR_MULTIPLES), \
+        set(SECTOR_CODES.values()) ^ set(SECTOR_MULTIPLES)
 
 
 def _run_all():

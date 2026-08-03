@@ -5,6 +5,159 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 4 — 2026-08-02 — Broker fundamentals, the free route (PROMPT_broker_fundamentals.md)
+
+## The verdict up front: NO, you do not need to pay for FMP
+
+Tradier — which you already pay for — carries Morningstar fundamentals at
+`beta/markets/fundamentals`, **100 symbols per call**. The whole 800-name universe now costs
+about **24 calls** against a feed with no daily quota, versus FMP's ~2,400 metered per-name
+calls. It covers market cap, enterprise value, the full valuation-ratio set, ROE, beta,
+sector, and shares outstanding at **~99% of liquid names**.
+
+What it does **not** carry is an income statement or a balance sheet. That is the honest
+limit, and it is stated precisely in the gap table below.
+
+**Recommendation: do not buy FMP Premium.** The one thing paid FMP would add that nothing free
+covers is the growth theme, and there is a caveat on that below that matters more than the
+price. If you ever do pay, the reason should be revenue growth, not "better data" generally.
+
+## What is actually in the broker feed (measured, not assumed)
+
+Measured on **200 liquid names, 2026-08-02**. Tradier returns a large envelope in which most
+tables are null; I counted per-field fill rates rather than trusting the shape:
+
+| Field | Broker source | Coverage |
+|---|---|---|
+| market cap, enterprise value, shares outstanding | `share_class_profile` | 99% |
+| book value/share, P/S | `valuation_ratios` | 99% / 98.5% |
+| P/B, P/E, EV/EBITDA | `valuation_ratios` | 91.5% / 88% / 83.5% |
+| ROE, ROA, debt/equity | `operation_ratios` | 89.5% / 95.5% / 87.5% |
+| beta (36/48/60-month) | `alpha_beta` | 99% |
+| sector | `historical_asset_classification` | 99% |
+| EPS (3M/9M/12M) | `earning_reports` | 98.5% |
+| 13F + insider ownership tallies | `ownership_summary` | 99% |
+
+**Null for every symbol, at every tier we can reach:** `financial_statements_restate`,
+`segmentation`, `earning_reports_restate`, `historical_returns`, `operation_ratios_restate`,
+`earning_ratios_restate`, `trailing_returns`, `asset_classification`.
+
+Several absolutes are **derived** rather than reported — `revenue = mktcap / P/S`,
+`net income = mktcap / P/E`, `equity = BVPS x shares`, `EBITDA = EV / EV-EBITDA`,
+`net debt = EV - mktcap`. These are arithmetic identities, not estimates, but they inherit the
+ratio's month-end as-of date while market cap is same-day, so a fast-moving name's derived
+revenue can be a few percent off the filed figure. A **reported** value from the free stack
+always beats a derived one (`broker_fundamentals.merge`).
+
+### The fields with NO free source anywhere — the real "would need paid data" list
+
+`operating_income`, `gross_profit`, `fcf`, `interest_expense`, `op_margin`, `gross_margin`,
+`fcf_yield`, `ebit_ev`, `roic`, `revenue_growth`.
+
+These come only from the slow per-name free stack (yfinance/EDGAR). They feed **growth** and
+about half of **quality**. Locally the free stack supplies them fine; from a cloud IP it is
+rate-limited, and that is the real exposure.
+
+## Coverage: before vs after (100 liquid names, same universe, cold cache)
+
+| | Before | After (broker + free) | Broker ONLY |
+|---|---|---|---|
+| Names scored | 99/100 | 99/100 | **97/100** |
+| Wall clock | 244s | 230s / 189s (2 runs) | **15s / 16s** |
+| growth theme coverage | **0.76** | **1.00** | 0.00 |
+| quality / value / momentum / size | 1.00 | 1.00 | 0.94 / 1.00 / 1.00 / 1.00 |
+| low_risk (beta) | 1.00 | 1.00 | 0.92 |
+
+Be careful with the middle column's timing: the shipped path still makes the same slow
+per-name free call, so **it is not meaningfully faster** — 244s vs 230s/189s is network noise
+across three runs, not an improvement. The speed result is the third column.
+
+The "Broker ONLY" column is the one that matters: I forced the free stack to fail outright,
+simulating a throttled cloud IP. **97 of 100 names still scored, in 15 seconds instead of 230**
+— with value, quality, momentum, size and low-risk intact and **growth gone**.
+
+That is the resilience win, and it is the concrete answer to "what happens when Yahoo throttles
+us". Before this change a failed per-name fetch returned nothing and the name was **dropped
+from the scan entirely** ("no data"). Now the name survives on the broker's half. A throttled
+Yahoo costs the scan some quality per name instead of costing it the name.
+
+## Two bugs found and fixed on the way
+
+**1. Enterprise value is `0` for banks — a "not applicable" sentinel, not a number.** Of 200
+liquid names, 11 carry `ev == 0` and **all eleven are Financial Services** (JPM, BAC, WFC, GS,
+MS, C, SCHW, AXP, COF, NU, SOFI); no other sector has one and none is negative. Taken
+literally it sets `net_debt = -market_cap` (JPM: **-$935B**) and `ev_sales = 0` — i.e. it would
+hand every large bank the cheapest possible EV/Sales in the universe and **peg the entire
+sector to the top of the value theme**. Now treated as missing, so banks are ranked on earnings
+yield / book / sales, which is how a bank should be valued anyway. Pinned by a test.
+
+**2. The `insider` theme is inert in the live scan, and coverage was reporting it as 100%.**
+No `insider_score` ever reaches `build_frame` in the live path (only the backtest panel and a
+post-scan decoration set it), so the column is the constant `0.0`. A constant has zero
+variance, `zscore()` returns all-NaN, and `composite_score` renormalizes its **12.5% weight
+away**. But `theme_coverage` measures *presence*, so it read `insider: 1.0` — a dead theme
+reported as perfectly healthy. This is the same class of bug as the five silently-empty factors
+in CLAUDE.md.
+
+I did **not** change the scoring. I added `theme_contributing` to the health block, which
+measures each theme *after* standardization, and pointed the UI warning at it. Present and
+usable are now separate numbers.
+
+Measured live, only **4 of 9 themes actually drive the score**: value, quality, momentum, size.
+`low_risk` is deliberately weighted 0; `insider`, `capital_discipline`, `sentiment` and
+`institutional` are all inert. Worth knowing before reading any live ranking.
+
+## What I did NOT wire, on purpose
+
+The broker carries **13F and insider ownership at 99% coverage** — holder counts, shares
+bought/sold, insider buys/sells. That is exactly the input the `institutional` theme
+(12.5% weight, currently empty live) and the `insider` theme want, and it is tempting.
+
+I left it unwired because **populating an empty theme changes every ranking**: `composite_score`
+renormalizes over whichever themes are present, so a name that was scored on 4 themes would
+suddenly be scored on 5 or 6. CLAUDE.md's rule is that a theme change has to clear
+`holdout_theme_validate()` first, and I cannot run that here — this is a live-only snapshot
+feed with no history, and Morningstar's aggregate 13F summary is a different construction from
+the point-in-time Sharadar SF3 data the backtest validated. Wiring it would be an unvalidated
+scoring change dressed as a data fix.
+
+**This is the highest-value follow-up and it is Don's call, not mine.** Fields are
+`ownership_summary.{13_f_holder_number, 13_f_shares_bought, 13_f_shares_sold, 13_f_shares_held,
+insider_shares_bought, insider_shares_sold, number_of_insider_buys, number_of_insider_sellers}`.
+
+## Changed
+
+- **NEW `valuation/screener/broker_fundamentals.py`** — batched fetch, the field map, the
+  sector-code map, `merge()` (reported beats derived) and `coverage()`.
+- `providers.py` — `FreeProvider.prefetch()` bulk-loads the universe; `get_metrics` merges
+  broker + free and no longer drops a name when the free fetch fails. `FMPProvider` delegates
+  prefetch to the free stack behind it (on the current FMP tier the fallback IS the hot path).
+  Added `METRICS_SCHEMA`, so cache rows written before the merge are discarded rather than
+  served — a stale row missing `sector` is indistinguishable from a name that has none.
+- `screen.py` — calls `prefetch()` when the provider supports it (optional by contract);
+  ships a `fundamentals` health block (per-field fill rates, per-source counts) and
+  `theme_contributing`; carries `extra.source` per name.
+- `app.js` — per-name `p` marker for broker-only rows, a fundamentals-source line, and the
+  theme warning now reads `theme_contributing`.
+- `tests/test_screener.py` — 32 -> 43 tests.
+
+Morningstar's 11 sector codes map **exactly** onto the sector names `engine/comps` already
+uses, so a broker sector lands straight in the fair-value peer medians instead of falling
+through to the generic default. A test pins that — a near-miss like "Financials" would fail
+silently.
+
+## Caveats — do not drop these
+
+- Coverage is measured on **200 liquid large caps**. Thinner names will have worse ratio
+  coverage; the 83.5% EV/EBITDA figure is the weakest link and will be lower down-cap.
+- The derived absolutes carry the ratio's month-end as-of date, not today's filing.
+- I could not test the throttled-cloud-IP case for real — I simulated it by forcing the free
+  fetch to raise. The 97/100 survival number is from that simulation, not from production.
+- The broker feed is a **snapshot**, not point-in-time. It is fine for live ranking and must
+  never be fed to the backtest panel.
+
+---
+
 # Session 3 — 2026-08-02 — Index tab, dynamic alpha, trust enablers (PROMPT_appfixes_index.md)
 
 ## Shipped — all five items, including the "if time" one
