@@ -166,6 +166,9 @@ async function runValue(overrides) {
     STATE.data = data;
     render(data);
     show("results", true);
+    // Fired AFTER the valuation has painted, and never awaited: the unified view is an
+    // addition to the page, so a slow or broken /api/whatdo must not delay or break it.
+    loadWhatDo(ticker);
   } catch (e) {
     errBox(e.message);
   } finally {
@@ -389,6 +392,69 @@ function scoreBars(score) {
   document.getElementById("scoreBars").innerHTML = html;
 }
 
+/* ====================== UNIFIED "what the tool does with this name" ======================
+   The product used to answer this across three tabs that never met: the opportunity score
+   here, the scream-buy alert on Signals, the tracked outcome on Track Record. This joins them
+   for one ticker from a single read of what is already stored (/api/whatdo).
+
+   The framing rule is the important part. These lines describe what the MODEL is doing — held
+   in the book at this weight, alerted on this contract, sold on this date — never what the
+   reader should do. And every options figure carries the convexity line: the backtested hit
+   rate is ~37%, so an alert is a bet with a fat right tail, not a likely winner. A "1 of 1
+   won" on a single name is a count and is labelled as one; it is never a rate. */
+async function loadWhatDo(ticker) {
+  const box = document.getElementById("whatDoCard");
+  if (!box) return;
+  box.style.display = "";
+  document.getElementById("whatDoBody").innerHTML = skeleton(3);
+  let d;
+  try {
+    d = await (await fetch("/api/whatdo?ticker=" + encodeURIComponent(ticker))).json();
+  } catch (e) {
+    box.style.display = "none";
+    return;
+  }
+  if (!d || (d.error && !d.action?.length)) { box.style.display = "none"; return; }
+  STATE.whatdo = d;
+  renderWhatDo(d);
+}
+
+function renderWhatDo(d) {
+  const s = d.stock || {}, o = d.options || {};
+  const lines = (d.action || []).map(a => {
+    const cls = a.kind === "caveat" ? "wd-caveat" : "wd-line";
+    return `<div class="${cls}">${a.kind === "caveat" ? "" : "<span class=\"wd-dot\"></span>"}${esc(a.text || "")}</div>`;
+  }).join("");
+
+  let stats = "";
+  if (s.in_scan) {
+    stats = `<div class="metricline" style="margin:4px 0 12px">
+      ${metric("Hot score", s.hot_score == null ? "—" :
+        `<span style="color:${scoreColor(s.hot_score)}">${s.hot_score.toFixed(0)}</span>`)}
+      ${metric("Rank", `${s.rank} / ${s.n_scored}`)}
+      ${metric("In the book", (s.index || {}).in_book
+        ? `<span class="pos">${pct((s.index || {}).weight, 1)}</span>`
+        : `<span class="muted">no</span>`)}
+      ${metric("Options alerts", o.withheld ? "—" : (o.n_logged || 0))}
+    </div>`;
+  }
+
+  // The same attribution the Hot tab shows, on the name the reader is already looking at —
+  // one explanation of one ranking, not a second opinion.
+  const why = (s.why || []).length
+    ? `<div style="margin-top:6px">${attributionPanel(
+        { ticker: d.ticker, rank: s.rank, hot_score: s.hot_score, composite: s.composite,
+          extra: { why: s.why, why_composite: s.why_composite } }, { of: s.n_scored })}</div>`
+    : "";
+
+  const opt = o.withheld
+    ? `<div class="note">${esc(o.message || "")}</div>`
+    : "";
+
+  document.getElementById("whatDoBody").innerHTML = stats + lines + opt + why +
+    (s.freshness ? freshnessBanner(s.freshness) : "");
+}
+
 /* ---------- reverse & comps ---------- */
 function reverseBox(rv) {
   document.getElementById("reverseBox").innerHTML =
@@ -567,18 +633,42 @@ async function runRank() {
 
 /* ====================== HOT STOCKS ====================== */
 async function loadHotStocks() {
-  toggle("hotLoader", true); document.getElementById("hotResults").style.display = "none";
   eshow("hotErr", "");
-  document.getElementById("hotLoadMsg").textContent = "Loading latest scan…";
+  const results = document.getElementById("hotResults");
+  // Paint SOMETHING before the network: the last good ranking if we have one, a
+  // table-shaped skeleton if we don't. Either way the spinner never appears for this tab.
+  const cached = cacheGet("hot");
+  if (cached) {
+    try { renderHot(cached.d); } catch (e) { }
+    // The freshness verdict inside a cached payload was computed WHEN IT WAS CACHED. A copy
+    // saved yesterday still says "ranking from today", which is the exact lie the freshness
+    // banner exists to prevent — so it is suppressed until the live fetch replaces it.
+    setHtml("hotFreshness", "");
+    cacheBanner("hotCache", cached);
+  } else {
+    setHtml("hotTable", skeletonTable(10, 8));
+    setHtml("hotCache", "");
+  }
+  results.style.display = "block";
+  toggle("hotLoader", false);
   try {
     const res = await fetch("/api/hotstocks?top=100");
     const d = await res.json();
-    if (d.empty) { eshow("hotErr", d.message); return; }
+    if (d.empty) {
+      eshow("hotErr", d.message);
+      if (!cached) { results.style.display = "none"; }
+      return;
+    }
     STATE.hot = d;
     renderHot(d);
-    document.getElementById("hotResults").style.display = "block";
-  } catch (e) { eshow("hotErr", e.message); }
-  finally { toggle("hotLoader", false); }
+    cacheSet("hot", d);
+    setHtml("hotCache", "");
+  } catch (e) {
+    eshow("hotErr", cached
+      ? `${e.message} — the ranking above is your last saved copy, not a fresh one.`
+      : e.message);
+    if (!cached) { results.style.display = "none"; }
+  }
 }
 async function runScan() {
   // Owner-only controls — absent from the page for everyone else.
@@ -605,6 +695,74 @@ function _whyChips(r) {
   if (!w.length) return "";
   return `<div class="muted" style="font-size:10px">` +
     w.slice(0, 3).map(x => `<span class="${x.c >= 0 ? 'pos' : 'neg'}">${x.theme.replace(/_/g, ' ')}</span>`).join(" · ") + `</div>`;
+}
+
+/* ---------- "why this score" attribution ----------
+   The hot score is a percentile RANK of a composite, and the composite is a weighted average
+   of standardized themes. The server decomposes that average back into per-theme
+   contributions that SUM to the composite (valuation/screener/attribution.py), so this panel
+   is arithmetic rather than a narrative: every bar is a real term in the number above it.
+
+   Two things this must never imply. The contributions are in composite units — cross-sectional
+   standard deviations — NOT points of the 1-100 score, because rank is a monotone but
+   non-linear map. And a theme's contribution is relative to the rest of the scan that day,
+   so "+0.2 quality" means "better than this cross-section", not "good in absolute terms". */
+const THEME_LABEL = {
+  value: ["Value", "cheap vs earnings, cash flow and book"],
+  quality: ["Quality", "returns on capital, margins, low debt"],
+  growth: ["Growth", "revenue growth and its acceleration"],
+  momentum: ["Momentum", "6- and 12-month price trend"],
+  insider: ["Insider buying", "cluster buying by company officers"],
+  low_risk: ["Low risk", "low beta and realized volatility"],
+  capital_discipline: ["Capital discipline", "not issuing shares to fund itself"],
+  sentiment: ["Analyst sentiment", "rating actions and estimate revisions"],
+  size: ["Size", "small-cap tilt"],
+  institutional: ["Institutional buying", "13F accumulation and holder breadth"],
+};
+function _themeLabel(k) { return (THEME_LABEL[k] || [k.replace(/_/g, " "), ""])[0]; }
+function _themeHint(k) { return (THEME_LABEL[k] || ["", ""])[1]; }
+
+function attributionPanel(r, opts) {
+  const why = (r.extra && r.extra.why) || [];
+  const o = opts || {};
+  if (!why.length) {
+    return `<div class="note">No attribution stored for this name — it is written at scan time,
+      so rows saved by an older scan show none. It appears after the next daily scan.</div>`;
+  }
+  const max = Math.max(...why.map(x => Math.abs(x.c))) || 1;
+  const comp = (r.extra && r.extra.why_composite != null) ? r.extra.why_composite : r.composite;
+  const up = why.filter(x => x.c > 0), down = why.filter(x => x.c < 0);
+  const bars = why.map(x => {
+    const w = Math.max(2, Math.round(Math.abs(x.c) / max * 50));
+    const pos = x.c >= 0;
+    return `<div class="attr-row">
+      <span class="nm" title="${esc(_themeHint(x.theme))}">${esc(_themeLabel(x.theme))}</span>
+      <span class="track"><span class="mid"></span>
+        <span class="fill ${pos ? "pos" : "neg"}" style="${pos ? "left:50%" : `right:50%`};width:${w}%"></span></span>
+      <span class="val ${pos ? "pos" : "neg"}">${x.c >= 0 ? "+" : ""}${x.c.toFixed(3)}</span>
+      <span class="sh">${Math.round(x.share * 100)}%</span></div>`;
+  }).join("");
+  const head = `<div class="attr-head">
+      <b>Hot ${r.hot_score == null ? "—" : r.hot_score.toFixed(0)}</b> = rank ${r.rank}${
+        o.of ? " of " + o.of : ""} · composite <b>${comp == null ? "—" : (comp >= 0 ? "+" : "") + comp.toFixed(3)}</b>
+      ${up.length ? `· helped by <b class="pos">${up.slice(0, 2).map(x => esc(_themeLabel(x.theme).toLowerCase())).join(", ")}</b>` : ""}
+      ${down.length ? `· held back by <b class="neg">${down.slice(0, 2).map(x => esc(_themeLabel(x.theme).toLowerCase())).join(", ")}</b>` : ""}
+    </div>`;
+  return `<div class="attr">${head}${bars}
+    <div class="note">Bars are the actual terms of the score: they add up to the composite
+      (${comp == null ? "—" : comp.toFixed(3)}), and the 1–100 is that composite's percentile rank
+      against every other name in this scan. Units are standard deviations versus this scan, not
+      percent — "+0.20 quality" means better quality than this peer set, not good in the abstract.
+      The % column is the share of everything that moved this name, positive and negative alike.</div></div>`;
+}
+
+function toggleWhy(t) {
+  const el = document.getElementById("why-" + t);
+  if (!el) return;
+  const open = el.style.display !== "none";
+  el.style.display = open ? "none" : "";
+  const btn = document.getElementById("whybtn-" + t);
+  if (btn) { btn.textContent = open ? "why?" : "hide"; btn.setAttribute("aria-expanded", String(!open)); }
 }
 async function loadRegime() {
   try {
@@ -634,9 +792,10 @@ function renderHot(d) {
   document.getElementById("hotMeta").textContent = meta;
   setHtml("hotFreshness", freshnessBanner(d.freshness));
   loadRegime();
+  const NCOLS = 14;
   let html = '<table><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th><th>Bucket</th>' +
     '<th class="num">Price</th><th class="num">Market cap</th><th class="num">Hot</th>' +
-    '<th class="num">Value</th><th class="num">Qual</th>' +
+    '<th></th><th class="num">Value</th><th class="num">Qual</th>' +
     '<th class="num">Grow</th><th class="num">Mom</th><th class="num">Fair val</th></tr>';
   d.rows.forEach(r => {
     const up = r.upside;
@@ -646,9 +805,13 @@ function renderHot(d) {
       <td class="num">${money(r.price)}</td>
       <td class="num">${mcap(r.market_cap)}</td>
       <td class="num hotrow-score" style="color:${scoreColor(r.hot_score)}">${r.hot_score == null ? '—' : r.hot_score.toFixed(0)}</td>
+      <td><button class="whybtn" id="whybtn-${r.ticker}" aria-expanded="false"
+            onclick="toggleWhy('${r.ticker}')" title="Break this score into the themes that produced it">why?</button></td>
       <td class="num">${z(r.z_value)}</td><td class="num">${z(r.z_quality)}</td>
       <td class="num">${z(r.z_growth)}</td><td class="num">${z(r.z_momentum)}</td>
-      <td class="num">${_fairValCell(r, up)}</td></tr>`;
+      <td class="num">${_fairValCell(r, up)}</td></tr>
+      <tr class="whyrow" id="why-${r.ticker}" style="display:none"><td colspan="${NCOLS}">${
+        attributionPanel(r, { of: d.scored })}</td></tr>`;
   });
   html += "</table>";
   html += `<div class="note"><b>Fair value.</b> Names marked <span class="est-mark" title="peer-relative estimate">e</span>
@@ -758,13 +921,22 @@ function renderPortfolio(pf) {
 
 /* ====================== TRACK RECORD ====================== */
 async function loadTrack() {
-  toggle("trackLoader", true); eshow("trackErr", "");
-  document.getElementById("trackResults").innerHTML = "";
+  eshow("trackErr", "");
+  // /api/track can kick off a background refresh, so it is the slowest read in the app and
+  // the one most worth painting from cache first.
+  const cached = cacheGet("track");
+  if (cached) { try { renderTrack(cached.d); } catch (e) { } }
+  else { document.getElementById("trackResults").innerHTML = skeleton(6, { head: true }); }
+  toggle("trackLoader", false);
   try {
     const res = await fetch("/api/track");
-    renderTrack(await res.json());
-  } catch (e) { eshow("trackErr", e.message); }
-  finally { toggle("trackLoader", false); }
+    const d = await res.json();
+    renderTrack(d);
+    cacheSet("track", d);
+  } catch (e) {
+    eshow("trackErr", e.message);
+    if (!cached) document.getElementById("trackResults").innerHTML = "";
+  }
 }
 function _trackCard(title, sub, s) {
   const sm = (s && s.summary) || {}, rec = (s && s.recent) || [];
@@ -1205,6 +1377,72 @@ function renderLearning(d) {
 function toggle(id, on) { const e = document.getElementById(id); if (e) e.classList.toggle("on", on); }
 function eshow(id, msg) { const e = document.getElementById(id); if (e) { e.textContent = msg; e.classList.toggle("on", !!msg); } }
 
+/* ---------- skeletons ----------
+   A spinner says "something is happening"; a skeleton says "content of about this shape is
+   coming", which is why the wait feels shorter even when it isn't. Deliberately NOT used for
+   anything whose shape we can't honestly predict — a skeleton table that resolves to "no data"
+   has promised something that never arrives. */
+function skeleton(rows, opts) {
+  const o = opts || {};
+  let h = "";
+  if (o.head) h += `<div class="sk sk-head"></div>`;
+  for (let i = 0; i < (rows || 3); i++) {
+    h += `<div class="sk sk-row" style="width:${[100, 92, 84, 96, 88][i % 5]}%"></div>`;
+  }
+  return `<div class="sk-wrap" aria-busy="true" aria-live="polite">${h}
+    <span class="sk-sr">Loading…</span></div>`;
+}
+/* A skeleton shaped like the table that is coming, so the page doesn't jump when it lands. */
+function skeletonTable(rows, cols) {
+  const n = cols || 6;
+  let h = `<div class="sk-tbl" aria-busy="true"><div class="sk-tr head">` +
+    Array.from({ length: n }, () => `<div class="sk sk-cell"></div>`).join("") + `</div>`;
+  for (let i = 0; i < (rows || 8); i++) {
+    h += `<div class="sk-tr">` +
+      Array.from({ length: n }, () => `<div class="sk sk-cell"></div>`).join("") + `</div>`;
+  }
+  return h + `<span class="sk-sr">Loading…</span></div>`;
+}
+
+/* ---------- last-good cache (perceived speed) ----------
+   These tabs read a snapshot that only changes once a day, so re-fetching before painting
+   anything means staring at a spinner for data the browser already had. The last good
+   payload is stored and painted IMMEDIATELY on open, then replaced by the live fetch.
+
+   Two rules keep this from becoming a lie. A cached paint is LABELLED as one until the
+   refresh lands — silently serving yesterday's ranking as today's is precisely the failure
+   the freshness banner was built for. And the cache hard-expires, so a browser left open
+   over a long weekend re-fetches rather than painting something days old. The payload
+   carries its own scan_date and freshness block, so the stale banner renders from the cache
+   too and cannot be lost by caching. */
+const CACHE_PREFIX = "valquo-cache:";
+const CACHE_TTL_MS = 36 * 3600 * 1000;
+
+function cacheGet(key) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || !o.t || (Date.now() - o.t) > CACHE_TTL_MS) return null;
+    return o;
+  } catch (e) { return null; }
+}
+function cacheSet(key, data) {
+  try { localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ t: Date.now(), d: data })); }
+  catch (e) { }                       // private mode / quota — the app works without it
+}
+function cacheAge(o) {
+  const mins = Math.round((Date.now() - o.t) / 60000);
+  if (mins < 1) return "moments ago";
+  if (mins < 60) return `${mins} min ago`;
+  const h = Math.round(mins / 60);
+  return h < 24 ? `${h} hour${h === 1 ? "" : "s"} ago` : `${Math.round(h / 24)} day(s) ago`;
+}
+function cacheBanner(id, o) {
+  setHtml(id, o ? `<div class="cachebar">Showing your last copy (loaded ${cacheAge(o)}) —
+    refreshing…</div>` : "");
+}
+
 // ---------------------------------------------------------------------------------------- //
 // Scream-buy options expectancy. EXPECTANCY, not "success rate": with a payoff this
 // asymmetric a hit rate on its own is uninformative — a 40%-hit setup whose winners triple
@@ -1298,10 +1536,29 @@ async function loadValquoIndex() {
   const body0 = document.getElementById("valquoIndexBody");
   if (!body0) return;
   const cfg = (document.getElementById("bookConfig") || {}).value || "roth";
+  // The Index is the tab people open on a phone, on a cold connection. Cached holdings paint
+  // first; the skeleton only shows on a genuinely first visit.
+  const cached = cacheGet("index:" + cfg);
+  if (cached) {
+    try { _renderValquoIndex(cached.d, cfg); } catch (e) { }
+    setHtml("indexFreshness", "");     // stale verdict, cached — see loadHotStocks
+    cacheBanner("indexCache", cached);
+  } else { setHtml("valquoIndexBody", skeletonTable(8, 7)); setHtml("indexCache", ""); }
   let d;
   try {
     d = await (await fetch("/api/valquo-index?config=" + encodeURIComponent(cfg))).json();
-  } catch (e) { return; }
+  } catch (e) {
+    if (!cached) setHtml("valquoIndexBody", "");
+    setHtml("indexCache", cached
+      ? `<div class="cachebar warnish">Couldn't refresh — these holdings are your last saved copy.</div>` : "");
+    return;
+  }
+  setHtml("indexCache", "");
+  if (!(d.empty || d.error)) cacheSet("index:" + cfg, d);
+  _renderValquoIndex(d, cfg);
+}
+
+function _renderValquoIndex(d, cfg) {
   setHtml("indexFreshness", freshnessBanner(d.freshness));
   setHtml("indexDisclaimer", d.disclaimer ? esc(d.disclaimer) : "");
   const note = document.getElementById("valquoIndexNote");
@@ -1379,10 +1636,23 @@ async function loadIndexTrack() {
   const body = document.getElementById("indexPerfBody");
   if (!body) return;
   const cfg = (document.getElementById("bookConfig") || {}).value || "roth";
+  const cached = cacheGet("indextrack:" + cfg);
+  if (cached) { try { _renderIndexTrack(cached.d); } catch (e) { } }
+  else { body.innerHTML = skeleton(4, { head: true }); }
   let d;
   try {
     d = await (await fetch("/api/index-track?config=" + encodeURIComponent(cfg))).json();
-  } catch (e) { body.innerHTML = `<div class="muted">Performance unavailable.</div>`; return; }
+  } catch (e) {
+    if (!cached) body.innerHTML = `<div class="muted">Performance unavailable.</div>`;
+    return;
+  }
+  cacheSet("indextrack:" + cfg, d);
+  _renderIndexTrack(d);
+}
+
+function _renderIndexTrack(d) {
+  const body = document.getElementById("indexPerfBody");
+  if (!body) return;
 
   const bt = d.backtested || {}, live = d.live;
   const liveLeads = d.headline === "live";

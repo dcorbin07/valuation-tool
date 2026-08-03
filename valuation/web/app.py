@@ -63,9 +63,27 @@ def _site_context():
     render site that forgets to pass one still gets a working link rather than an empty
     href. Explicit values passed to render_template() still take precedence.
     """
+    def _live_hero():
+        """The forward-track hero band, computed only if a template actually asks for it.
+
+        A callable rather than a value: this context processor runs on EVERY render, including
+        error pages, and the hero costs a couple of DB reads. Templates that don't show it
+        don't pay for it. Failure returns the not-started shape — a hero band is never a
+        reason for a page to 500.
+        """
+        try:
+            from .hero import live_hero
+            return live_hero(_store())
+        except Exception:
+            return {"show": False, "may_lead": False, "thin": True,
+                    "label": "the forward paper track has not started",
+                    "index": {"available": False}, "options": {"available": False},
+                    "spark": None, "caveat": ""}
+
     return {"contact_email": CONFIG.contact_email,
             "feedback_url": CONFIG.resolved_feedback_url,
-            "signed_in": False, "logout_url": "/logout"}
+            "signed_in": False, "logout_url": "/logout",
+            "live_hero": _live_hero}
 
 
 @app.route("/")
@@ -383,6 +401,31 @@ def api_hotstocks():
                     "freshness": _freshness(scan_date, label="ranking"),
                     "disclaimer": RISK_DISCLAIMER,
                     "history": [s["scan_date"] for s in scans][:12]})
+
+
+@app.route("/api/whatdo")
+def api_whatdo():
+    """One name across BOTH books — the ranking, the book position, the options alert.
+
+    Composed from stored state only (scan snapshot, constructed book, logged alerts, paper
+    positions), so it is cheap enough to fire alongside every valuation and can never disagree
+    with the tabs it summarizes: each figure comes back from the module that owns it.
+    """
+    from flask import g
+    from .unified import name_view
+    ticker = (request.args.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "ticker required"}), 400
+    try:
+        return jsonify(name_view(_store(), ticker,
+                                 book_config=request.args.get("config"),
+                                 with_options=getattr(g, "may_see_options", True)))
+    except Exception as e:
+        log_exception()
+        # This panel is an ADDITION to a valuation that already rendered. A failure here must
+        # never take the page down with it.
+        return jsonify({"ticker": ticker, "error": safe_error(e),
+                        "stock": {"in_scan": False}, "options": {}, "action": []}), 200
 
 
 @app.route("/api/tickers")

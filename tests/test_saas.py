@@ -581,6 +581,57 @@ def test_post_recap_endpoint_is_gated_validated_and_quiet_without_a_webhook():
         CONFIG.admin_token, CONFIG.discord_webhook_url = orig_token, orig_hook
 
 
+# The custom-backtest UI block in app.js (runBacktest / renderBacktest / eqChart / qChart /
+# renderBtStats) references a form that is no longer in index.html, and nothing calls it. It
+# is dead, not broken, and removing it is a separate decision from this test — but it must not
+# grow, and it must not hide a genuine typo in a live feature.
+_KNOWN_ORPHAN_IDS = {
+    "btBench", "btCost", "btErr", "btHorizon", "btLoader", "btRebal", "btResults",
+    "btSource", "btStats", "btTickers", "btVerdict", "eqChart", "qChart",
+}
+
+
+def test_every_element_the_dashboard_writes_to_actually_exists():
+    """A renamed id fails silently: the write lands on nothing and the panel just stays blank.
+
+    Nothing else in the stack catches that — the Python tests never touch the DOM, and the
+    page renders fine with a dead panel in it. So the wiring is checked statically.
+    """
+    import re
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    js = open(os.path.join(root, "valuation", "web", "static", "app.js"), encoding="utf-8").read()
+    html = open(os.path.join(root, "valuation", "web", "templates", "index.html"),
+                encoding="utf-8").read()
+
+    refs = set(re.findall(r'getElementById\("([A-Za-z0-9_-]+)"\)', js))
+    refs |= set(re.findall(r'setHtml\("([A-Za-z0-9_-]+)"', js))
+    refs |= set(re.findall(r'\beshow\("([A-Za-z0-9_-]+)"', js))
+    # `toggle("id", on)` is the app's own helper; `classList.toggle("active")` is not.
+    refs |= set(re.findall(r'(?<!classList\.)\btoggle\("([A-Za-z0-9_-]+)",', js))
+
+    ids = set(re.findall(r'id="([A-Za-z0-9_-]+)"', html))
+    missing = refs - ids - _KNOWN_ORPHAN_IDS
+    assert not missing, f"app.js writes to elements that do not exist: {sorted(missing)}"
+
+    # And the dead block has not grown.
+    still_dead = (refs & _KNOWN_ORPHAN_IDS) - ids
+    assert still_dead == _KNOWN_ORPHAN_IDS - ids, (
+        "the known-dead backtest UI changed — re-check whether it is live now: "
+        f"{sorted(still_dead)}")
+
+
+def test_the_new_ui_surfaces_are_wired_to_real_elements():
+    """Named explicitly, so a rename of one of THESE is a loud failure, not an allowlist edit."""
+    import re
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    html = open(os.path.join(root, "valuation", "web", "templates", "index.html"),
+                encoding="utf-8").read()
+    ids = set(re.findall(r'id="([A-Za-z0-9_-]+)"', html))
+    for needed in ("whatDoCard", "whatDoBody", "hotCache", "indexCache",
+                   "hotTable", "valquoIndexBody", "indexPerfBody", "trackResults"):
+        assert needed in ids, needed
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

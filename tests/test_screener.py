@@ -913,6 +913,240 @@ def test_landing_context_degrades_to_nothing_rather_than_raising():
     assert ctx["sample"] is None and ctx["scan"] is None
 
 
+# ---------------------------------------------------------------------------------------- #
+# "Why this score" attribution. The point of these is that the explanation and the ranking
+# come from ONE calculation: an attribution that merely looks plausible next to a score it
+# was not derived from is worse than none, because it reads as an audit and isn't one.
+# ---------------------------------------------------------------------------------------- #
+def test_score_attribution_sums_to_the_composite_it_explains():
+    res, _ = _scan()
+    checked = 0
+    for r in res["rows"]:
+        why = (r["extra"] or {}).get("why") or []
+        if not why:
+            continue
+        total = sum(w["c"] for w in why)
+        # Contributions are rounded to 4dp each, so ~10 themes can drift ~5e-4 in the worst
+        # case. Anything beyond that means the pieces are not the score's pieces.
+        assert abs(total - r["composite"]) < 1e-3, (r["ticker"], total, r["composite"])
+        assert r["extra"]["why_composite"] == r["composite"]
+        checked += 1
+    assert checked > 100, f"only {checked} rows carried an attribution"
+
+
+def test_attribution_is_ordered_by_size_and_keeps_the_sign_of_the_drag():
+    res, _ = _scan()
+    negatives = 0
+    for r in res["rows"]:
+        why = (r["extra"] or {}).get("why") or []
+        mags = [abs(w["c"]) for w in why]
+        assert mags == sorted(mags, reverse=True), r["ticker"]
+        negatives += sum(1 for w in why if w["c"] < 0)
+    # A decomposition where nothing ever holds a name back is a decomposition of the wrong
+    # thing: z-scores are centred, so every cross-section has losers on every theme.
+    assert negatives > 0
+
+
+def test_attribution_shares_are_of_the_absolute_push_not_the_signed_total():
+    """Shares must stay in [0, 1] and sum to 1 even when themes cancel out.
+
+    With a signed denominator a name whose positives and negatives nearly cancel gets a
+    near-zero total and shares in the hundreds of percent — the exact rows a reader is most
+    likely to open.
+    """
+    res, _ = _scan()
+    seen_mixed = False
+    for r in res["rows"]:
+        why = (r["extra"] or {}).get("why") or []
+        if not why:
+            continue
+        shares = [w["share"] for w in why]
+        assert all(0.0 <= s <= 1.0 for s in shares), (r["ticker"], shares)
+        assert abs(sum(shares) - 1.0) < 0.01, (r["ticker"], sum(shares))
+        if any(w["c"] > 0 for w in why) and any(w["c"] < 0 for w in why):
+            seen_mixed = True
+    assert seen_mixed, "no name had themes pulling in both directions"
+
+
+def test_decomposition_did_not_change_the_ranking_it_explains():
+    """The composite must still be the OLD composite, computed the old way.
+
+    `_composites` now delegates to the attribution module. That is only safe if it produces
+    the identical number — this recomputes it from `composite_score` directly, the way the
+    scan did before the decomposition existed, under both bucketing modes.
+    """
+    import numpy as np
+    import pandas as pd
+    from valuation.screener.factors import build_frame
+    from valuation.screener.cross_sectional import composite_score
+    from valuation.screener.screen import _composites, _p_established
+    from valuation.screener import settings as S
+    from tests.screener_fixtures import SyntheticProvider
+
+    prov = SyntheticProvider(14)
+    tickers = [u["ticker"] for u in prov.get_universe()]
+    metrics = [prov.get_metrics(t) for t in tickers]
+    for m, t in zip(metrics, tickers):
+        m.setdefault("ticker", t)
+    df = build_frame(metrics)
+    est_w, spec_w = S.WEIGHTS_ESTABLISHED, S.WEIGHTS_SPECULATIVE
+
+    d = df.copy()
+    d["value"] = df["value_est"]
+    comp_est = composite_score(d, est_w)
+    d["value"] = df["value_spec"]
+    comp_spec = composite_score(d, spec_w)
+    p = _p_established(df)
+    expected_soft = p * comp_est + (1.0 - p) * comp_spec
+    got_soft = _composites(df, est_w, spec_w, soft=True)
+    assert np.allclose(got_soft.values, expected_soft.values, atol=1e-12, equal_nan=True)
+
+    expected_hard = pd.Series(index=df.index, dtype=float)
+    for bucket, w in [("established", est_w), ("speculative", spec_w)]:
+        sub = df[df["bucket"] == bucket]
+        if len(sub) >= 5:
+            expected_hard.loc[sub.index] = composite_score(sub, w)
+        elif len(sub) > 0:
+            expected_hard.loc[sub.index] = composite_score(df, w).loc[sub.index]
+    got_hard = _composites(df, est_w, spec_w, soft=False)
+    assert np.allclose(got_hard.values, expected_hard.values, atol=1e-12, equal_nan=True)
+
+
+def test_a_name_no_theme_scored_has_no_attribution_rather_than_a_zero():
+    """An unscoreable name must come back NaN, not 0.0.
+
+    A zero composite would rank mid-pack — a name nobody could score would sit above every
+    genuinely cheap-but-flawed one.
+    """
+    import numpy as np
+    import pandas as pd
+    from valuation.screener.attribution import decompose
+
+    df = pd.DataFrame({
+        "value": [1.0, -1.0, 0.5, np.nan],
+        "quality": [0.5, -0.5, 1.0, np.nan],
+        "momentum": [0.2, 0.1, -0.3, np.nan],
+        "bucket": ["established"] * 4,
+        "op_margin": [0.2, 0.1, 0.15, 0.1],
+    }, index=["A", "B", "C", "DEAD"])
+    w = {"value": 0.4, "quality": 0.4, "momentum": 0.2}
+    comp, contrib = decompose(df, w, w, soft=False)
+    assert np.isnan(comp.loc["DEAD"])
+    assert contrib.loc["DEAD"].isna().all()
+    assert not np.isnan(comp.loc["A"])
+    assert abs(float(contrib.loc["A"].sum()) - float(comp.loc["A"])) < 1e-12
+
+
+# ---------------------------------------------------------------------------------------- #
+# The unified "what does this tool do with this name" view. It spans the ranking, the book
+# and the options alerts, which is exactly why its failure mode is a confident sentence that
+# is not true of any of them.
+# ---------------------------------------------------------------------------------------- #
+def test_name_view_joins_the_ranking_the_book_and_the_options_record():
+    res, store = _scan()
+    from valuation.web.unified import name_view
+    top = res["rows"][0]["ticker"]
+    v = name_view(store, top)
+    s = v["stock"]
+    assert s["in_scan"] and s["rank"] == 1
+    assert s["n_scored"] == res["scored"]
+    # The attribution shown here is the SAME one the Hot tab shows — not a re-derivation.
+    assert s["why"] == (res["rows"][0]["extra"] or {}).get("why")
+    assert s["index"]["available"] and isinstance(s["index"]["in_book"], bool)
+    assert v["options"]["n_logged"] == 0
+    assert any(a["kind"] == "caveat" for a in v["action"])
+
+
+def test_name_view_says_a_name_is_absent_rather_than_bad():
+    res, store = _scan()
+    from valuation.web.unified import name_view
+    v = name_view(store, "NOTATICKER")
+    assert v["stock"]["in_scan"] is False
+    msg = v["stock"]["message"].lower()
+    assert "not in" in msg and "says nothing about" in msg
+    # No score, no rank, no fabricated neutral value.
+    assert "hot_score" not in v["stock"] and "rank" not in v["stock"]
+
+
+def test_name_view_never_quotes_a_per_ticker_hit_rate():
+    """One name yields a handful of trades at most; a rate off that is noise wearing a %."""
+    import datetime as _dt
+    from valuation.edge import options_tracker as OT
+    from valuation.web.unified import name_view
+    res, store = _scan()
+    t = res["rows"][0]["ticker"]
+    ts = _dt.datetime.utcnow().isoformat(timespec="seconds")
+    aid = OT.log_alert(store, {"ticker": t, "alert_ts": ts, "opt_right": "call", "strike": 100.0,
+                               "expiry": "2026-12-18", "entry_premium": 4.00, "dte": 60,
+                               "score": 88.0})
+    assert OT.record_outcome(store, alert_id=aid, exit_premium=8.00, exit_ts=ts,
+                             exit_reason="target")
+    v = name_view(store, t)
+    o = v["options"]
+    assert o["n_logged"] == 1 and o["n_closed"] == 1
+    ch = o["closed_here"]
+    assert ch["n_won"] == 1 and ch["n"] == 1
+    assert "rate" in ch["note"]
+    # A rate on one trade must not appear anywhere in the payload or the action lines.
+    assert "hit_rate" not in ch and "expectancy" not in ch
+    text = " ".join(a["text"] for a in v["action"])
+    assert "1 of 1 closed option trade(s) on this name won" in text
+    assert "100%" not in text
+
+
+def test_name_view_sizes_in_whole_contracts_and_reports_zero_honestly():
+    """A premium above the risk budget sizes to ZERO. Rounding it to one breaks the rule."""
+    import datetime as _dt
+    from valuation.edge import options_tracker as OT
+    from valuation.web.unified import name_view
+    res, store = _scan()
+    t = res["rows"][0]["ticker"]
+    ts = _dt.datetime.utcnow().isoformat(timespec="seconds")
+    OT.log_alert(store, {"ticker": t, "alert_ts": ts, "opt_right": "call", "strike": 100.0,
+                         "expiry": "2026-12-18", "entry_premium": 25.00, "dte": 60})
+    v = name_view(store, t, risk_budget=1000.0)
+    sz = v["options"]["latest"]["sizing"]
+    assert sz["contracts"] == 0          # $25 x 100 = $2,500 > $1,000
+    assert "zero, not one" in sz["note"]
+
+    v2 = name_view(store, t, risk_budget=10000.0)
+    assert v2["options"]["latest"]["sizing"]["contracts"] == 4
+
+
+def test_name_view_withholding_options_is_not_the_same_as_having_none():
+    """The free tier doesn't LOOK at the options record — it must not report an empty one."""
+    from valuation.web.unified import name_view
+    res, store = _scan()
+    t = res["rows"][0]["ticker"]
+    v = name_view(store, t, with_options=False)
+    assert v["options"]["withheld"] is True
+    text = " ".join(a["text"] for a in v["action"])
+    assert "No scream-buy options alert has ever fired" not in text
+    assert "part of Signals" in text
+    # The convexity framing survives the withholding — a reader who sees a contract exists
+    # but no caveat is the worst of both.
+    assert "CONVEX" in v["options"]["convexity"]
+
+
+def test_name_view_action_lines_describe_the_model_not_the_reader():
+    from valuation.web.unified import name_view
+    res, store = _scan()
+    v = name_view(store, res["rows"][0]["ticker"])
+    text = " ".join(a["text"] for a in v["action"]).lower()
+    for phrase in ("you should", "we recommend", "buy now", "strong buy", "guaranteed"):
+        assert phrase not in text, phrase
+
+
+def test_name_view_survives_a_store_with_no_scan_at_all():
+    import tempfile
+    from valuation.web.unified import name_view
+    store = Store(os.path.join(tempfile.mkdtemp(prefix="valquo_empty_"), "s.db"))
+    v = name_view(store, "AAPL")
+    assert v["stock"]["in_scan"] is False
+    assert "No scan" in v["stock"]["message"]
+    assert v["options"]["n_logged"] == 0
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

@@ -168,6 +168,99 @@ code{background:#f0f3f9;padding:1px 6px;border-radius:5px;font-size:12.5px;color
 .ac-name{flex:1;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ac-sec{color:var(--faint);font-size:12px;white-space:nowrap}
 
+/* ---- "why this score" attribution (Hot stocks + the unified name view) ----
+   A diverging bar: the centre line is "this theme did nothing for the score", right is a
+   push up, left is a drag down. Deliberately two-sided — a one-sided bar would hide the
+   fact that most names are held back by something, which is the honest half of the story. */
+.whybtn{background:transparent;border:1px solid var(--border);color:var(--muted);
+  font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;cursor:pointer;white-space:nowrap}
+.whybtn:hover{background:var(--blue-soft);color:var(--navy);border-color:var(--blue-soft)}
+.whyrow > td{background:var(--blue-soft);padding:14px 16px}
+.attr-head{font-size:13px;margin-bottom:10px;color:var(--ink)}
+.attr-row{display:flex;align-items:center;gap:10px;margin:5px 0;font-size:12.5px}
+.attr-row .nm{width:150px;flex:none;color:var(--ink);font-weight:600}
+.attr-row .track{position:relative;flex:1;height:12px;background:var(--card);
+  border:1px solid var(--border);border-radius:4px;min-width:80px}
+.attr-row .track .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--faint);opacity:.6}
+.attr-row .fill{position:absolute;top:1px;bottom:1px;border-radius:3px}
+.attr-row .fill.pos{background:var(--green)} .attr-row .fill.neg{background:var(--red)}
+.attr-row .val{width:56px;flex:none;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.attr-row .sh{width:40px;flex:none;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+/* `.pos` / `.neg` had NEVER been defined, in any stylesheet, while app.js applies them in
+   about fifteen places — fair-value upside, track-record alpha, paper P&L, the why-chips.
+   Every one of those has been rendering as plain body text, so a -18% and a +18% looked
+   identical at a glance. Defined once here, which colours all of them. */
+.pos{color:var(--green)} .neg{color:var(--red)}
+@media(max-width:640px){
+  .attr-row{flex-wrap:wrap;gap:6px}
+  .attr-row .nm{width:100%}
+  .attr-row .track{min-width:120px}
+}
+
+/* ---- live forward-track hero band ----
+   Sits above every tab and paints with the page (server-rendered, no fetch). Visually
+   quieter than a card on purpose: it is the most important number in the product AND the
+   thinnest evidence, so it gets prominence without the loud styling that would read as a
+   performance claim. */
+.livebar{display:flex;gap:20px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  background:var(--card);border:1px solid var(--border);border-left:3px solid var(--green);
+  border-radius:14px;box-shadow:var(--shadow);padding:14px 18px;margin-top:20px}
+.livebar.thin{border-left-color:var(--amber)}
+.livebar.notstarted{border-left-color:var(--faint);opacity:.75}
+.lb-main{flex:1;min-width:260px}
+.lb-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:14px;color:var(--navy)}
+.lb-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex:none;
+  box-shadow:0 0 0 3px var(--green-soft)}
+.livebar.thin .lb-dot{background:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
+.lb-dot.off{background:var(--faint);box-shadow:none}
+.lb-label{color:var(--muted);font-size:12.5px;font-weight:600}
+.lb-stats{display:flex;gap:22px;flex-wrap:wrap;margin-top:10px}
+.lb-stat .k{display:block;font-size:11.5px;color:var(--muted);font-weight:600}
+.lb-stat .v{display:block;font-size:19px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums}
+.lb-foot{font-size:11.5px;color:var(--faint);margin-top:10px;line-height:1.6}
+.lb-foot a{font-weight:600;margin-left:6px}
+.lb-spark{width:260px;flex:none}
+.lb-spark svg{display:block}
+.lb-sparklab{font-size:10.5px;color:var(--faint);text-align:right;margin-top:2px}
+@media(max-width:640px){
+  .livebar{padding:12px 14px;gap:12px}
+  .lb-stats{gap:14px}
+  .lb-stat .v{font-size:16px}
+  /* The sparkline goes full-width under the numbers rather than squeezing them. */
+  .lb-spark{width:100%}
+}
+
+/* ---- unified "what the tool does with this name" ---- */
+.wd-line{display:flex;align-items:flex-start;gap:9px;font-size:14px;line-height:1.6;margin:7px 0}
+.wd-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--blue);margin-top:8px}
+.wd-caveat{font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:12px;
+  padding-top:10px;border-top:1px solid var(--border)}
+
+/* ---- skeleton loaders ----
+   Reduced motion is respected: a shimmer that can't be turned off is an accessibility
+   problem, and a static block still reads as "loading" next to aria-busy. */
+.sk-wrap{padding:2px 0}
+.sk{background:linear-gradient(90deg,var(--border) 25%,var(--bg) 37%,var(--border) 63%);
+  background-size:400% 100%;animation:sk 1.4s ease infinite;border-radius:7px}
+.sk-head{height:15px;width:38%;margin:6px 0 14px}
+.sk-row{height:12px;margin:9px 0}
+.sk-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
+@media(prefers-reduced-motion:reduce){.sk{animation:none;background:var(--border)}}
+/* Table-shaped, so the real table lands without the page jumping. */
+.sk-tbl{width:100%}
+.sk-tr{display:flex;gap:12px;padding:9px 10px;border-bottom:1px solid var(--border)}
+.sk-tr.head .sk-cell{height:9px;opacity:.7}
+.sk-cell{height:11px;flex:1;border-radius:5px}
+.sk-tr .sk-cell:first-child{max-width:38px}
+.sk-tr .sk-cell:nth-child(2){max-width:64px}
+
+/* A cached paint is always LABELLED as one. Serving yesterday's ranking as though it were
+   today's is the exact failure the freshness banner exists to catch. */
+.cachebar{font-size:12px;color:var(--muted);background:var(--blue-soft);border-radius:9px;
+  padding:7px 12px;margin-top:8px}
+.cachebar.warnish{background:var(--amber-soft);color:#8a5a12}
+
 /* ---- fair-value estimate marker (Hot stocks) ---- */
 .est-mark{display:inline-block;margin-left:2px;font-size:10px;font-weight:700;color:var(--muted);
   vertical-align:super;cursor:help}
@@ -251,7 +344,20 @@ table tbody tr:hover{background:var(--blue-soft)}
   .sector-bar .nm{width:88px}
   /* Any table wide enough to overflow scrolls inside its own box, never the page. */
   #valquoIndexBody, #hotTable, #sigTable, #indexPerfBody{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  #valquoIndexBody table, #hotTable table{min-width:560px}
+  /* 620, not 560: the hot table gained the "why?" column. Too small a min-width lets the
+     columns crush rather than scroll, which is how a table becomes unreadable instead of
+     merely wide. */
+  #valquoIndexBody table{min-width:560px}
+  #hotTable table{min-width:620px}
+  /* The attribution panel lives INSIDE that scrolling table, so without this it inherits the
+     620px minimum and the bars scroll sideways along with the row that opened them. */
+  .whyrow > td{padding:12px 10px}
+  .whyrow .attr{min-width:0;max-width:88vw}
+  .whyrow .note{white-space:normal}
   .search-row{flex-wrap:wrap}
   .selin{max-width:100%}
+  /* The unified card stacks its stats rather than squeezing four across a phone. */
+  #whatDoBody .metricline{gap:14px}
+  #whatDoBody .metricline .m .v{font-size:18px}
+  .wd-line{font-size:13.5px}
 }
