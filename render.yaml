@@ -29,6 +29,15 @@ services:
         sync: false
       - key: TRADIER_ENV
         value: sandbox
+      # Forward paper track (roadmap #12). SEPARATE credentials from TRADIER_TOKEN above,
+      # which stays the live app's production feed. The paper broker refuses any endpoint
+      # other than sandbox.tradier.com and will not fall back to the production token, so
+      # these two are the only way the track can reach an account — and it is a paper one.
+      # Leave them unset and the paper-track cron reports "configured: false" and no-ops.
+      - key: TRADIER_PAPER_TOKEN
+        sync: false
+      - key: TRADIER_PAPER_ACCOUNT_ID
+        sync: false
       - key: THETADATA_API_KEY
         sync: false
       - key: STRIPE_SECRET_KEY
@@ -91,6 +100,32 @@ services:
     schedule: "*/15 13-20 * * 1-5"    # every 15 min, ~9:30am-4pm ET, weekdays
     dockerCommand: >
       curl -fsS -X POST "https://$TARGET_HOST/admin/run-intraday" -H "X-Admin-Token: $ADMIN_TOKEN"
+    envVars:
+      - key: TARGET_HOST
+        fromService:
+          type: web
+          name: valuation-tool
+          property: host
+      - key: ADMIN_TOKEN
+        fromService:
+          type: web
+          name: valuation-tool
+          envVarKey: ADMIN_TOKEN
+
+  # Forward paper track (roadmap #12) — submits new scream-buy alerts to the Tradier PAPER
+  # sandbox, marks the open ones, closes the matured ones through record_outcome, and appends
+  # the day's Valquo-Index-vs-SPY point. Runs INSIDE the web service because the alerts, the
+  # paper order state and the index holdings all live on its persistent disk; a CI runner gets
+  # an empty database every time. Once, after the close — the exit rules are daily-mark rules,
+  # so intraday runs would add broker calls without adding information.
+  - type: cron
+    name: paper-track
+    runtime: image
+    image:
+      url: curlimages/curl:latest
+    schedule: "45 20 * * 1-5"          # weekdays 20:45 UTC (~4:45pm ET), just after the close
+    dockerCommand: >
+      curl -fsS -X POST "https://$TARGET_HOST/admin/run-paper-track" -H "X-Admin-Token: $ADMIN_TOKEN"
     envVars:
       - key: TARGET_HOST
         fromService:

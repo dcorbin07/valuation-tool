@@ -21,7 +21,7 @@ on:
       kind:
         description: Which scan to run now
         type: choice
-        options: [hot, intraday, both, watchdog]
+        options: [hot, intraday, both, watchdog, paper]
         default: hot
   schedule:
     # Hot list runs just AFTER the close so it uses complete end-of-day data and is ready before
@@ -32,6 +32,12 @@ on:
     - cron: "41 23 * * 1-5"         # hot list — 23:41 UTC backup, if GitHub dropped the primary
     - cron: "*/30 13-20 * * 1-5"    # intraday — every 30 min on free (fits Actions minutes);
                                     # the paid Render cron (render.yaml) runs this every 15 min
+    - cron: "47 20 * * 1-5"         # paper track - 20:47 UTC (~4:47pm ET), just after the close.
+                                    # Once a day: the exit rules are daily-mark rules, so
+                                    # intraday runs would add broker calls, not information.
+                                    # render.yaml schedules the same endpoint at 20:45; the
+                                    # cycle is idempotent (claim rows on the alerts, PK on the
+                                    # day's index point) so both firing is harmless, not double.
     - cron: "0 12 1 * *"            # self-learning — monthly (1st, 12:00 UTC), OOS-gated re-tune
     - cron: "15 13 * * 1-5"         # watchdog — 13:15 UTC (~9:15am ET), BEFORE the open, so a
                                     # dead pipeline is known about while there is still a day
@@ -128,6 +134,30 @@ jobs:
           BASE_URL: ${{ secrets.SITE_BASE_URL }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: python scripts/check_staleness.py
+
+  paper:
+    # Forward paper track (roadmap #12) - the project's #1 remaining validation: a track on data
+    # nobody had seen when the rules were fixed.
+    #
+    # This is a TRIGGER, not the work. The cycle runs inside the web service because the alerts,
+    # the paper order state and the index holdings all live in its database on the persistent
+    # disk. A GitHub runner gets an empty database every run: it would find no alerts, submit
+    # nothing, and lose the state that makes the cycle idempotent - so the state would be gone
+    # and the "never double-submit" guarantee with it.
+    #
+    # Needs TRADIER_PAPER_TOKEN + TRADIER_PAPER_ACCOUNT_ID set as RENDER env vars (not as Actions
+    # secrets - the endpoint reads them server-side). Until they are set the endpoint answers
+    # {"configured": false} and does nothing, which is why this is safe to schedule first.
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '47 20 * * 1-5') || (github.event_name == 'workflow_dispatch' && github.event.inputs.kind == 'paper') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run one day of the forward paper track
+        env:
+          BASE: ${{ secrets.SITE_BASE_URL }}
+          TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          curl -fsS -X POST "$BASE/admin/run-paper-track"                -H "X-Admin-Token: $TOKEN" -H "Content-Type: application/json"                -d '{}' | head -c 2000
 
   learn:
     # Monthly self-learning: tells the site to re-tune its screener weights out-of-sample

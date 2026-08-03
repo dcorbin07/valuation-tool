@@ -238,6 +238,59 @@ def create_saas_app(cfg=CONFIG):
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
+    @app.route("/admin/run-paper-track", methods=["POST"])
+    def admin_run_paper_track():
+        """One day of the forward paper track (roadmap #12) — Tradier SANDBOX only.
+
+        Runs HERE rather than on a CI runner because the alerts, the paper order state and the
+        index holdings all live in this service's screener database on the persistent disk. A
+        GitHub runner gets a fresh empty DB every time: it would find no alerts, submit
+        nothing, and lose the state that makes the cycle idempotent.
+
+        The broker refuses to construct on anything but the sandbox endpoint and the dedicated
+        TRADIER_PAPER_TOKEN, so this route cannot reach a funded account even if misconfigured.
+        Without those secrets it reports `configured: false` and does nothing — the endpoint
+        existing is not the same as the track running.
+        """
+        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+            return jsonify({"error": "unauthorized"}), 401
+        from ..edge import paper_track as PT
+        from ..edge.paper_broker import NotSandboxError, PaperBroker
+        from ..screener.store import Store
+        body = request.get_json(silent=True) or {}
+        try:
+            broker = PaperBroker(cfg, dry_run=bool(body.get("dry_run")))
+        except NotSandboxError as e:
+            return jsonify({"ok": False, "configured": False, "reason": str(e)}), 200
+        st = Store()
+        out = {"ok": True, "configured": True, "health": broker.health()}
+        if not out["health"].get("ok"):
+            return jsonify({**out, "ok": False}), 200
+        try:
+            out["options"] = PT.run_options_cycle(st, broker, cfg=cfg,
+                                                  limit=int(body.get("limit", 25)))
+        except Exception as e:
+            out["options_error"] = f"{type(e).__name__}: {e}"
+        # The index leg must not be able to take down the options leg, or a stale book file
+        # would silently stop the options book being marked.
+        try:
+            import json as _json
+            import os as _os
+            path = body.get("book") or _os.path.join("data", "valquo_index.json")
+            if _os.path.exists(path):
+                with open(path, encoding="utf-8") as f:
+                    book = _json.load(f)
+            else:
+                from ..edge.valquo_index import export
+                book = export(store=st, path=path)
+            out["seed"] = PT.seed_book(st, broker, book,
+                                       place_equity=bool(body.get("place_equity")))
+            out["index"] = PT.index_point(st, broker)
+        except Exception as e:
+            out["index_error"] = f"{type(e).__name__}: {e}"
+        out["summary"] = PT.summary(st)
+        return jsonify(out)
+
     @app.route("/admin/ingest-snapshot", methods=["POST"])
     def admin_ingest_snapshot():
         # Free-tier bridge: a CI runner (GitHub Actions) does the heavy whole-market

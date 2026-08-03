@@ -51,6 +51,17 @@ class Config:
     # Tradier (intraday signals watcher): real-time quotes + option chains.
     tradier_token: str = field(default_factory=lambda: _get("TRADIER_TOKEN"))
     tradier_env: str = field(default_factory=lambda: _get("TRADIER_ENV", "sandbox"))  # sandbox | live
+    # SEPARATE Tradier PAPER (sandbox) credentials, used ONLY by the forward paper track
+    # (valuation/edge/paper_broker.py). Deliberately not the same fields as `tradier_token` /
+    # `tradier_env`: those are the live app's market-data feed and must keep pointing at
+    # production. Splitting them means the paper track cannot be aimed at a real account by an
+    # env typo, and flipping the app's feed cannot silently move the paper book.
+    tradier_paper_token: str = field(default_factory=lambda: _get("TRADIER_PAPER_TOKEN"))
+    tradier_paper_account_id: str = field(default_factory=lambda: _get("TRADIER_PAPER_ACCOUNT_ID"))
+    # Contracts per paper option trade. 1 keeps the forward book on the same fixed-1-contract
+    # basis the backtested scorecard uses, so paper and backtest expectancy are comparable.
+    paper_contracts_per_trade: int = field(
+        default_factory=lambda: int(_get_float("PAPER_CONTRACTS_PER_TRADE", 1)))
     # Edge Lab historical data source: free (default) | sharadar | wrds.
     edge_data_provider: str = field(default_factory=lambda: _get("EDGE_DATA_PROVIDER", "free"))
     sharadar_api_key: str = field(default_factory=lambda: _get("SHARADAR_API_KEY"))   # Nasdaq Data Link key
