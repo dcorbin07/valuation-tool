@@ -402,6 +402,42 @@ def test_band_max_dte_matches_what_the_miner_actually_caches():
     assert max(G.TENORS) < theta_bulk.MAX_DTE, G.TENORS
 
 
+def test_repair_coverage_reraises_a_flag_a_stale_record_lost():
+    """A record written before `oi_missing_rows` was summed per name carried a name-level 0, so
+    the sentinel guard stayed quiet on the names with the WORST sentinel rates while flagging a
+    fresh name at 3%. The repair must recompute the totals from the year records and put the
+    flag back — a guard that is silently blind is this project's most repeated bug."""
+    import json as _json
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as root:
+        sym = "STALE"
+        os.makedirs(os.path.join(root, sym))
+        stale = {"symbol": sym, "schema_version": G.SCHEMA_VERSION,
+                 # the year records held the counts all along ...
+                 "years": {"2020": {"rows_in": 600, "rows_iv_ok": 300, "oi_missing_rows": 200,
+                                    "iv_at_bound": 0, "skipped": {"penny": 100}},
+                           "2021": {"rows_in": 400, "rows_iv_ok": 200, "oi_missing_rows": 100,
+                                    "iv_at_bound": 0, "skipped": {"penny": 50}}},
+                 # ... while the name level said zero, and the flag list was therefore empty.
+                 "rows_in": 1000, "rows_iv_ok": 500, "oi_missing_rows": 0, "iv_at_bound": 0,
+                 "skipped": {k: 0 for k in G.SKIP_REASONS}, "dates": 2,
+                 "rate_source": "dgs3mo daily series", "flags": []}
+        path = os.path.join(root, sym, "coverage.json")
+        with open(path, "w", encoding="utf-8") as f:
+            _json.dump(stale, f)
+
+        fixed = G.repair_coverage(sym, root)
+        assert fixed is not None, "a stale record must be reported as repaired"
+        assert fixed["oi_missing_rows"] == 300, fixed["oi_missing_rows"]
+        assert fixed["skipped"]["penny"] == 150, fixed["skipped"]
+        assert any("sentinel" in f for f in fixed["flags"]), fixed["flags"]
+        with open(path, encoding="utf-8") as f:
+            assert _json.load(f)["oi_missing_rows"] == 300, "the repair must be persisted"
+        # Idempotent: a record already consistent with its own year records is left alone.
+        assert G.repair_coverage(sym, root) is None, "repair must not churn a healthy record"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

@@ -113,19 +113,32 @@ class IntradayProvider:
         return None
 
 
+TRADIER_LIVE_BASE = "https://api.tradier.com/v1"
+TRADIER_SANDBOX_BASE = "https://sandbox.tradier.com/v1"
+
+
 class TradierProvider(IntradayProvider):
     name = "Tradier"
 
-    def __init__(self, cfg=CONFIG):
+    def __init__(self, cfg=CONFIG, base=None, token=None):
+        """`base`/`token` are ADDITIVE overrides, both default to the existing behaviour.
+
+        They exist so the forward paper track can point one instance at the sandbox on the
+        dedicated paper credentials WITHOUT touching `TRADIER_ENV` / `TRADIER_TOKEN`, which are
+        the live app's production feed. Two instances therefore run side by side: the scan keeps
+        reading production quotes while the paper book reads (and trades) the sandbox. Passing
+        neither reproduces the previous constructor exactly.
+        """
         self.cfg = cfg
-        self.base = ("https://api.tradier.com/v1" if cfg.tradier_env == "live"
-                     else "https://sandbox.tradier.com/v1")
+        self.base = base or (TRADIER_LIVE_BASE if cfg.tradier_env == "live"
+                             else TRADIER_SANDBOX_BASE)
+        self._token = token or cfg.tradier_token
 
     def _get(self, path, **params):
         import requests
         r = requests.get(f"{self.base}/{path}",
                          params=params,
-                         headers={"Authorization": f"Bearer {self.cfg.tradier_token}",
+                         headers={"Authorization": f"Bearer {self._token}",
                                   "Accept": "application/json"}, timeout=20)
         r.raise_for_status()
         return r.json()

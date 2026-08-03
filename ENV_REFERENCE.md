@@ -37,6 +37,9 @@ each item when you actually need the feature it unlocks.
 | `FMP_BACKTEST_API_KEY` | optional — a *second* FMP key used only by the backtest exporters (`export_grades`). The live hot-list scan (22:23 UTC) and the grades export share `FMP_API_KEY`, so on the free tier a big export can eat the quota the scan needs. A second free account is enough to keep the two apart. Falls back to `FMP_API_KEY` when unset. | financialmodelingprep.com |
 | `TRADIER_TOKEN` | you want real-time intraday **Signals** | your Tradier account → API access token |
 | `TRADIER_ENV` | with Tradier | `sandbox` (delayed) or `live` (real-time) |
+| `TRADIER_PAPER_TOKEN` | you want the **forward paper track** running (roadmap #12 — the one thing that tests the edge on data nobody has seen) | a Tradier **sandbox/paper** account → Preferences → API Access. Must be a *different* credential from `TRADIER_TOKEN`: the paper track refuses to start if the two are identical, and never falls back to the production token. |
+| `TRADIER_PAPER_ACCOUNT_ID` | with `TRADIER_PAPER_TOKEN` | the paper account number, e.g. `VA12345678` — same Tradier page |
+| `PAPER_CONTRACTS_PER_TRADE` | optional (default `1`) | keeps the forward options book on the same fixed-1-contract basis the backtested scorecard uses, so the two expectancies are comparable |
 | `EDGE_DATA_PROVIDER` | research data source | `free` (default), `sharadar`, or `wrds` |
 | `SHARADAR_API_KEY` | you switch Edge Lab to Sharadar | Nasdaq Data Link account key |
 | `WRDS_DATA_DIR` | you switch Edge Lab to WRDS | folder of CRSP/Compustat exports (free via W&M) |

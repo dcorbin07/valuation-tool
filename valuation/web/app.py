@@ -582,10 +582,21 @@ def api_track():
         paper["bench"] = _PAPER_BENCH.get("hot10")
     except Exception:
         paper = {"summary": {}, "watching": [], "closed": []}
-    return jsonify({"sources": out, "paper": paper,
+    # The Tradier-sandbox forward track (roadmap #12): real paper orders, real fills, and the
+    # Index-vs-SPY record since inception. Read-only here and never allowed to break the page —
+    # an empty or absent paper book must render as "not started", not as a 500.
+    try:
+        from ..edge import paper_track
+        sandbox = paper_track.summary(st)
+    except Exception:
+        sandbox = {"options": {"started": False}, "index": {"started": False},
+                   "headline": "The forward paper track has not been started."}
+    return jsonify({"sources": out, "paper": paper, "paper_sandbox": sandbox,
                     "note": "Forward, survivorship-free record of real dated picks vs the S&P 500. Options "
                             "are tracked by the underlying's forward return (signal accuracy, not option "
-                            "P&L). Educational only; past results don't predict future performance."})
+                            "P&L). `paper_sandbox` is the separate Tradier PAPER account track — real "
+                            "simulated orders and fills on ~15-min-delayed data, thin until it says "
+                            "otherwise. Educational only; past results don't predict future performance."})
 
 
 @app.route("/api/edge/learning")
