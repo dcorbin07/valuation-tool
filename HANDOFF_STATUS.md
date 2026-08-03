@@ -12,6 +12,68 @@ file directly.
 
 ---
 
+## OPTIONS ENTRY TIMING (roadmap 22c) — **THE ANTI-TILT IS REAL AND STABLE, AND NOT SALVAGEABLE** (2026-08-03)
+
+Full report: **`HANDOFF_entry_fix.md`**. Gate committed results-free at `52a4658` before the run.
+
+22b found the scream-buy alert picks worse-than-random entry days. 22c asks why, and whether a
+corrected entry beats BOTH the signal and the random-entry control. Full run, 187 names,
+aggression 1.0, 2016-01-01..2025-10-15. The signal arm reproduces the 22b book **trade for
+trade** (3,042 trades, zero P&L differences).
+
+**The finding replicates and is STABLE — it is a property of the signal, not of a period.**
+Signal +5.14% vs control +11.07% (5,919 control trades); paired −3.72pp over 1,080 name-year
+cells, sign z = −3.48. Negative in **both** halves (−5.88pp early z −2.20, −5.96pp late z −2.69)
+and significant in the two tiers that carry the book (mega −5.03pp z −2.61, large −7.37pp z −2.26).
+
+**The hypothesis was WRONG, with the sign reversed.** The mandate expected the alert to chase
+pumped IV. It does not — alert days carry **CHEAPER** vol than a random day in the same name-year:
+~60-DTE ATM IV 0.2428 vs 0.2577 (paired z −11.13, only 32.9% of cells higher), IV rank 0.345 vs
+0.425 (z −9.89), IV pop 0.968 vs 0.991 (z −6.56). **Zero of four IV proxies confirm.** What alert
+days do carry is EXTENSION: the median alert buys **0.24% below the 52-week high** after a +4.1%
+five-day run, against −4.68% and +0.78% for a random day (z +29.45 and +27.92). Sustained advances
+compress vol, so the alert buys strength cheaply and still does worse. **E2 verdict: PARTIAL.**
+
+**All FIFTEEN corrections fail** (9 simulated arms + 6 same-day context gates, all counted in the
+deflation, DSR at n_trials = 14):
+- **Delaying makes it monotonically WORSE**: +6.36% / +4.36% / +3.59% at 3 / 5 / 10 sessions. Not
+  a timing offset.
+- **Fading loses outright**: buying the put instead returns **−10.54%/trade**, PF 0.743, negative
+  in both halves. The anti-tilt does not invert.
+- **`pullback` is the sharpest picture and still fails.** On the 867 alerts followed by a 3% dip
+  the signal returns **−43.59%/trade** and buying the dip returns +3.19% — paired +46.07pp, z
+  +11.64, p = 2.5e-31, the only BH-FDR discovery. It still loses to the control by 8.45pp, is
+  negative early, and loses to a same-sized random drop (+2.62% vs +4.99%).
+- **Context gates 0 of 6.** "Skip the most-extended alerts" (ret_21d) clears FOUR of the §2 gate's
+  five arms — late gain +5.93pp, retention 44.7%, beats its random filter — and fails the fifth
+  (early-half gain −0.83pp). Rejected on the pre-committed bar, not renegotiated.
+
+**Why nothing works: the underperformance is UNIFORM.** The alert loses to its control in every
+quartile of run-up (−7.5/−2.3/−10.8/−3.1pp) and every quartile of IV pop (−11.7/−0.9/−3.4/−7.9pp).
+Within the alert book neither run-up nor the alert score itself orders the outcome — a HIGHER
+scream-buy score does not mean a better trade (+2.33/+8.55/+4.11/+4.34% by score quartile). There
+is no slice to condition on. Nor does any label: all nine label families with a real sample sit in
+a +4.3% to +6.8% band around the book's +5.14%, and the OPTIONS-FLOW labels do not separate from
+the TECHNICAL ones — which answers 22b's open question about which half of the score does the
+damage: **neither, distinguishably.**
+
+**Held-out arm selection, both directions:** the best arm beats the signal by +40 to +50pp on the
+half that did NOT choose it — and still cannot beat buying on a random day.
+
+**THE CAVEAT THAT MUST TRAVEL WITH THIS.** The control is a yardstick, not a tradable strategy: it
+only trades name-years the alert selected, and it is buying weakness inside years that by
+construction contained a strong advance. The correct statement is "within the years the alert
+selects, the alert picks a below-average day." Whether the book beats SPY is **still unanswered**
+— every options comparison in this project is internal. **That is the forward paper track, and it
+is Cowork's lane.**
+
+**Do not re-open:** delayed entries, IV-normalisation waits, IV-cheap gating, extension gating,
+fading the alert. All measured, all in `data/options_entry/ENTRY_RESULTS.json`.
+
+Tests **156/156** edge (14 new).
+
+---
+
 ## OPTIONS ON THE EXPANDED UNIVERSE (roadmap 22b) — **THE EDGE HALVES, AND THE SIGNAL FAILS ITS FIRST PLACEBO** (2026-08-03), landed on `main` at 1a2f95f
 
 Full report: **`HANDOFF_universe_backtest.md`**.

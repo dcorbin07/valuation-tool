@@ -893,11 +893,24 @@ def tilt_decomposition(signal_rows, ctrl_rows, n_bands: int = 4) -> dict:
     labels = {}
     for r in signal_rows:
         for l in (r.get("labels") or []):
-            labels.setdefault(str(l), []).append(r)
-    out["by_label"] = {l: {"n": len(rs), "expectancy_pct": _stats(rs)["expectancy_pct"]}
+            # Live labels embed their own reading — "Call-heavy flow (P/C 0.23)", "Volume surge
+            # 1.7x" — so keying on the raw string splits ONE label into sixty buckets of ~40
+            # trades each and every one of them looks like a signal. Group on the label itself.
+            labels.setdefault(_label_family(str(l)), []).append(r)
+    out["by_label"] = {l: {"n": len(rs), "expectancy_pct": _stats(rs)["expectancy_pct"],
+                           "p_tail_win": U.tail_stats(rs)["p_tail_win"]}
                        for l, rs in sorted(labels.items())
                        if len(rs) >= MIN_CLOSED_PER_BUCKET}
     return out
+
+
+def _label_family(label: str) -> str:
+    """'Call-heavy flow (P/C 0.23)' -> 'Call-heavy flow'; 'Volume surge 1.7x' -> 'Volume surge'."""
+    import re
+
+    s = re.sub(r"\s*\([^)]*\)", "", str(label))
+    s = re.sub(r"\s+[\d.]+x?$", "", s)
+    return s.strip()
 
 
 def context_filters(signal_rows, filters=CONTEXT_FILTERS, seed: int = 0) -> dict:
@@ -1202,6 +1215,17 @@ def analyse(arms_rows: dict, ctrl_rows: list, meta: Optional[dict] = None,
         "deflated_sharpe": dsr,
         "sanity": {arm: U.sanity(rows) for arm, rows in arms_rows.items()
                    if len(rows) >= MIN_CLOSED_PER_BUCKET},
+        # `U.sanity` checks the five §2 chain signals, which this study does not compute: the
+        # vol read here is the ~60-DTE ATM IV SERIES, not a per-alert chain solve, and the
+        # term_slope filter is not under test in 22c. So those five WILL flag at 0% coverage on
+        # every arm. Recorded as expected rather than silenced — the project's rule is that a
+        # sanity flag is explained or investigated, never suppressed to make a run look green.
+        "sanity_expected_flags": {
+            "empty_by_design": ["term_slope", "skew_25d", "vrp", "gex_proxy", "iv"],
+            "why": "22c does not call options_signals_v2.compute_signals; entry vol comes from "
+                   "the ATM IV series (atm_iv_60d / iv_rank_252 / iv_pop_20 / iv_vs_rv), whose "
+                   "coverage IS reported in `characterization`.",
+            "load_bearing_fields_present": ["entry_spread_pct", "cap_tier", "pnl_pct"]},
         "no_entry_reasons": (meta or {}).get("no_entry"),
         "overlaps": (meta or {}).get("overlaps"),
         "meta": meta,
