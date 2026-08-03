@@ -481,22 +481,27 @@ function aiBox(ai) {
   if (!ai) { card.style.display = "none"; return; }
   card.style.display = "block";
   document.getElementById("aiSrc").textContent = ai.source ? `(${ai.source})` : "";
-  const list = arr => (arr || []).map(x => `<li>${x}</li>`).join("");
+  // EVERY field below is model output, written from filings and news text — i.e. from
+  // sources an outsider can influence. Interpolating it raw into innerHTML made a crafted
+  // string in a filing into script in the user's page (SECURITY_AUDIT.md M6). Jinja
+  // autoescapes the templates, but this path bypasses templates entirely, so it has to
+  // escape here. The layout markup is ours; only the values are escaped.
+  const list = arr => (arr || []).map(x => `<li>${esc(x)}</li>`).join("");
   let html = "";
-  if (ai.business_summary) html += `<div style="font-size:14px">${ai.business_summary}</div>`;
-  if (ai.moat) html += `<div style="margin-top:10px"><span class="rating">Moat: ${ai.moat.rating}</span> <span style="font-size:14px">${ai.moat.text || ""}</span></div>`;
-  if (ai.bull_thesis) html += `<div class="thesis bull"><b style="color:var(--green)">Bull.</b> ${ai.bull_thesis}</div>`;
-  if (ai.bear_thesis) html += `<div class="thesis bear"><b style="color:var(--red)">Bear.</b> ${ai.bear_thesis}</div>`;
+  if (ai.business_summary) html += `<div style="font-size:14px">${esc(ai.business_summary)}</div>`;
+  if (ai.moat) html += `<div style="margin-top:10px"><span class="rating">Moat: ${esc(ai.moat.rating)}</span> <span style="font-size:14px">${esc(ai.moat.text || "")}</span></div>`;
+  if (ai.bull_thesis) html += `<div class="thesis bull"><b style="color:var(--green)">Bull.</b> ${esc(ai.bull_thesis)}</div>`;
+  if (ai.bear_thesis) html += `<div class="thesis bear"><b style="color:var(--red)">Bear.</b> ${esc(ai.bear_thesis)}</div>`;
   if (ai.key_risks) html += `<h4>Key risks</h4><ul>${list(ai.key_risks)}</ul>`;
   if (ai.catalysts) html += `<h4>Catalysts</h4><ul>${list(ai.catalysts)}</ul>`;
   if (ai.assumption_critique) html += `<h4>Assumption critique</h4><ul>${list(ai.assumption_critique)}</ul>`;
-  if (ai.overall_take) html += `<div style="margin-top:12px;padding:12px 14px;background:var(--blue-soft);border-radius:10px"><b>Bottom line.</b> ${ai.overall_take}</div>`;
+  if (ai.overall_take) html += `<div style="margin-top:12px;padding:12px 14px;background:var(--blue-soft);border-radius:10px"><b>Bottom line.</b> ${esc(ai.overall_take)}</div>`;
   document.getElementById("aiBox").innerHTML = html;
 }
 function warnBox(warnings) {
   const el = document.getElementById("warnBox");
   if (!warnings || !warnings.length) { el.innerHTML = ""; return; }
-  el.innerHTML = warnings.map(w => `<div class="warn">⚠ ${w}</div>`).join("");
+  el.innerHTML = warnings.map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join("");
 }
 
 /* ---------- earnings awareness ---------- */

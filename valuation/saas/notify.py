@@ -11,21 +11,34 @@ In-app notifications will hang off the same run_alerts() once the desktop app sh
 """
 from __future__ import annotations
 
-from itsdangerous import URLSafeSerializer, BadSignature
+from itsdangerous import URLSafeSerializer, URLSafeTimedSerializer, BadSignature
 
 from .emailer import send_email
 
 _UNSUB_SALT = "alerts-unsub"
+# Unsubscribe links used to be minted with the untimed URLSafeSerializer, so every one
+# ever emailed stayed valid forever (SECURITY_AUDIT.md L6). Now timed, with a window long
+# enough that a link in an old email still works for a year.
+_UNSUB_MAX_AGE = 365 * 24 * 3600
 
 # A high score alone isn't "screaming" — require a genuinely bullish tag too.
 _BULL = ("Call-heavy", "Unusual call volume", "Breakout", "Golden cross", "Uptrend", "MACD bullish")
 
 
 def unsub_token(cfg, user_id) -> str:
-    return URLSafeSerializer(cfg.secret_key, salt=_UNSUB_SALT).dumps(user_id)
+    return URLSafeTimedSerializer(cfg.secret_key, salt=_UNSUB_SALT).dumps(user_id)
 
 
 def unsub_user_id(cfg, token):
+    try:
+        return URLSafeTimedSerializer(cfg.secret_key, salt=_UNSUB_SALT).loads(
+            token, max_age=_UNSUB_MAX_AGE)
+    except BadSignature:
+        pass
+    # Legacy fallback: tokens minted before the switch carry no timestamp, so the timed
+    # loader rejects them and an unsubscribe link in an already-sent email would 400 —
+    # punishing the user for our fix. Still signature-checked, just not expiring.
+    # SAFE TO DELETE after mid-2027, once no pre-fix email is plausibly live.
     try:
         return URLSafeSerializer(cfg.secret_key, salt=_UNSUB_SALT).loads(token)
     except BadSignature:

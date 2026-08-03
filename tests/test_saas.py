@@ -24,6 +24,16 @@ CONFIG.beta_all_premium = False
 CONFIG.open_access = False
 
 
+def _csrf(c):
+    """Establish a CSRF token on this client and return it (SECURITY_AUDIT.md M2).
+
+    Real browsers get one from the hidden field the context processor renders into every
+    form; a test client can just seed the session directly."""
+    with c.session_transaction() as s:
+        s["_csrf_token"] = "test-csrf-token"
+    return "test-csrf-token"
+
+
 def _store():
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
@@ -143,7 +153,8 @@ def test_demo_signup_converts_to_real_account():
     c.get("/demo/sekret-xyz")                          # enter the preview
     assert b"get ahead of the beta" in c.get("/app").data
     email = "conv_" + uuid.uuid4().hex[:8] + "@ex.com"
-    r = c.post("/register", data={"email": email, "password": "password123", "agree": "on"})
+    r = c.post("/register", data={"email": email, "password": "password123",
+                                  "agree": "on", "_csrf": _csrf(c)})
     assert r.status_code in (301, 302)                 # redirected to /app as the new user
     after = c.get("/app").data
     assert b"get ahead of the beta" not in after       # demo flag cleared → generic banner
@@ -414,26 +425,27 @@ def test_forgot_never_discloses_a_reset_link_in_production():
         # --- 1. Production, SMTP configured but FAILING: no token, ever. ---
         CONFIG.dev_mode = False
         auth_mod.send_status = lambda *a, **k: emailer.FAILED
-        body = c.post("/forgot", data={"email": real}).data.decode("utf-8", "ignore")
+        tok = _csrf(c)
+        body = c.post("/forgot", data={"email": real, "_csrf": tok}).data.decode("utf-8", "ignore")
         assert "/reset/" not in body, "a failing prod mail server must not leak a reset link"
 
         # --- 2. No account-enumeration tell: byte-identical response either way. ---
-        miss = c.post("/forgot", data={"email": unknown}).data.decode("utf-8", "ignore")
+        miss = c.post("/forgot", data={"email": unknown, "_csrf": tok}).data.decode("utf-8", "ignore")
         assert body == miss, "response differs for a known vs unknown address"
 
         # --- 3. Not configured at all, but still not DEV_MODE: still no token. ---
         auth_mod.send_status = lambda *a, **k: emailer.NOT_CONFIGURED
-        b3 = c.post("/forgot", data={"email": real}).data.decode("utf-8", "ignore")
+        b3 = c.post("/forgot", data={"email": real, "_csrf": tok}).data.decode("utf-8", "ignore")
         assert "/reset/" not in b3, "absent SMTP alone must not imply a dev box"
 
         # --- 4. DEV_MODE + no SMTP: the local convenience still works... ---
         CONFIG.dev_mode = True
-        b4 = c.post("/forgot", data={"email": real}).data.decode("utf-8", "ignore")
+        b4 = c.post("/forgot", data={"email": real, "_csrf": tok}).data.decode("utf-8", "ignore")
         assert "/reset/" in b4, "DEV_MODE with no SMTP should still surface the link locally"
 
         # --- 5. ...but even in DEV_MODE a mere send FAILURE discloses nothing. ---
         auth_mod.send_status = lambda *a, **k: emailer.FAILED
-        b5 = c.post("/forgot", data={"email": real}).data.decode("utf-8", "ignore")
+        b5 = c.post("/forgot", data={"email": real, "_csrf": tok}).data.decode("utf-8", "ignore")
         assert "/reset/" not in b5, "send failure must never be treated as 'we're in dev'"
     finally:
         auth_mod.send_status, CONFIG.dev_mode = orig_send, orig_dev

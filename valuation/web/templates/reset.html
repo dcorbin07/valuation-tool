@@ -8,7 +8,7 @@
       <div class="err">This reset link is invalid or has expired. <a href="/forgot">Request a new one</a>.</div>
     {% else %}
       {% if error %}<div class="err">{{ error }}</div>{% endif %}
-      <form method="POST" action="/reset/{{ token }}">
+      <form method="POST" action="/reset/{{ token }}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
         <label class="muted" style="font-size:13px">New password (min 8 characters)</label>
         <input type="password" name="password" required minlength="8" autofocus>
         <button class="btn" style="width:100%">Update password</button>

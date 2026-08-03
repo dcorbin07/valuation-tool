@@ -213,6 +213,166 @@ def test_rate_limit_is_enforced_by_the_app_and_bypassed_by_the_admin_token():
         ratelimit.reset()
 
 
+# --------------------------------------------------------------------------- #
+#  M2 — CSRF on the cookie-authenticated form POSTs, and cookie hardening
+# --------------------------------------------------------------------------- #
+def test_form_posts_require_a_csrf_token():
+    from valuation.saas import csrf
+
+    c = APP.test_client()
+    # No token at all -> rejected before the handler runs.
+    r = c.post("/forgot", data={"email": "someone@example.com"})
+    assert r.status_code == 400, r.status_code
+    # A wrong token -> also rejected.
+    with c.session_transaction() as s:
+        s["_csrf_token"] = "the-real-one"
+    assert c.post("/forgot", data={"email": "x@y.com", "_csrf": "guessed"}).status_code == 400
+    # The matching token -> allowed through.
+    assert c.post("/forgot", data={"email": "x@y.com",
+                                   "_csrf": "the-real-one"}).status_code == 200
+
+    # Stripe's webhook must stay exempt: it is posted from outside any browser session
+    # and is already authenticated by its signature.
+    assert not csrf.needs_protection("/billing/webhook", "POST")
+    assert not csrf.needs_protection("/admin/ingest-snapshot", "POST")
+    # ...and every form the audit named must be covered.
+    for p in ("/login", "/register", "/forgot", "/account/alerts",
+              "/billing/checkout", "/billing/portal", "/reset/sometoken"):
+        assert csrf.needs_protection(p, "POST"), p
+        assert not csrf.needs_protection(p, "GET"), p
+
+
+def test_every_form_template_carries_the_csrf_field():
+    """Structural guard: a new form without the hidden field would be rejected at runtime
+    with a confusing 400, so catch it here instead."""
+    import glob
+    missing = []
+    for path in glob.glob(os.path.join(_ROOT, "valuation/web/templates/*.html")):
+        with io.open(path, encoding="utf-8") as fh:
+            html = fh.read()
+        for form in re.findall(r'<form\s[^>]*method="POST"[^>]*>.*?</form>', html, re.S | re.I):
+            if 'name="_csrf"' not in form:
+                missing.append(os.path.basename(path))
+    assert not missing, f"form POST without a CSRF field in: {sorted(set(missing))}"
+
+
+def test_session_cookie_is_hardened():
+    assert APP.config["SESSION_COOKIE_HTTPONLY"] is True
+    assert APP.config["SESSION_COOKIE_SAMESITE"] == "Lax"
+    assert APP.config["PERMANENT_SESSION_LIFETIME"].days == 30
+
+
+# --------------------------------------------------------------------------- #
+#  M3 / M5 / L1 / L2 / L5 / L6
+# --------------------------------------------------------------------------- #
+def test_refuses_to_boot_on_the_committed_secret_key_in_production():
+    """M3 — SECRET_KEY signs session cookies AND reset tokens AND unsubscribe tokens.
+    Its default is a literal in this repo, so a fail-open default means anyone who can
+    read the repo can forge a session for any uid."""
+    from valuation.saas import app_saas
+
+    class _Cfg:
+        secret_key = "dev-insecure-change-me"
+        dev_mode = False
+
+    orig = os.environ.get("RENDER")
+    try:
+        os.environ["RENDER"] = "true"
+        assert app_saas._looks_like_production(_Cfg()) is True
+        _Cfg.dev_mode = True                     # the explicit local escape hatch
+        assert app_saas._looks_like_production(_Cfg()) is False
+    finally:
+        if orig is None:
+            os.environ.pop("RENDER", None)
+        else:
+            os.environ["RENDER"] = orig
+    # A laptop with no platform env var is not production, whatever PUBLIC_BASE_URL says.
+    _Cfg.dev_mode = False
+    assert app_saas._looks_like_production(_Cfg()) is False
+
+
+def test_admin_token_is_compared_in_constant_time():
+    """M5 — `==` short-circuits on the first differing byte. Also re-asserts the
+    fail-closed behaviour when ADMIN_TOKEN is unset, which is load-bearing."""
+    src = _read("valuation/saas/app_saas.py")
+    assert "hmac.compare_digest" in src
+    assert 'request.headers.get("X-Admin-Token") != cfg.admin_token' not in src, \
+        "an inline == admin comparison came back"
+
+    c = APP.test_client()
+    orig = CONFIG.admin_token
+    try:
+        CONFIG.admin_token = ""          # unset must fail CLOSED, not open
+        assert c.post("/admin/run-scan").status_code == 401
+        assert c.post("/admin/run-scan", headers={"X-Admin-Token": ""}).status_code == 401
+        CONFIG.admin_token = "right-token"
+        assert c.post("/admin/ingest-snapshot", json={"rows": []},
+                      headers={"X-Admin-Token": "wrong-token"}).status_code == 401
+    finally:
+        CONFIG.admin_token = orig
+
+
+def test_dead_public_paths_allowlist_is_gone():
+    """L1 — it was never referenced, so it read like enforced access control and enforced
+    nothing. A trap for the next reader."""
+    from valuation.saas import app_saas
+    assert not hasattr(app_saas, "PUBLIC_PATHS")
+
+
+def test_security_headers_are_sent():
+    """L2 — there was no after_request hook in the codebase at all."""
+    r = APP.test_client().get("/api/health")
+    assert r.headers.get("X-Content-Type-Options") == "nosniff"
+    assert r.headers.get("X-Frame-Options") == "DENY"
+    assert r.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+
+
+def test_dockerignore_excludes_the_whole_licensed_data_dir():
+    """L5 — Dockerfile does `COPY . .`, and the old rules only excluded data/*.db, so
+    data/raw/ and the licensed Sharadar CSVs got baked into a locally built image."""
+    ignore = _read(".dockerignore").splitlines()
+    assert "data/" in [ln.strip() for ln in ignore], ignore
+
+
+def test_unsubscribe_tokens_expire_but_old_links_still_work():
+    """L6 — these were minted with the untimed serializer, so every one ever emailed
+    stayed valid forever. The legacy fallback keeps already-sent emails working."""
+    from itsdangerous import URLSafeSerializer
+    from valuation.saas import notify
+
+    class _Cfg:
+        secret_key = "unit-test-key"
+
+    cfg = _Cfg()
+    assert notify.unsub_user_id(cfg, notify.unsub_token(cfg, 42)) == 42
+    legacy = URLSafeSerializer(cfg.secret_key, salt=notify._UNSUB_SALT).dumps(7)
+    assert notify.unsub_user_id(cfg, legacy) == 7, "pre-fix email links must keep working"
+    assert notify.unsub_user_id(cfg, "not-a-real-token") is None
+    # Forged with the wrong key -> rejected by both loaders.
+    class _Other:
+        secret_key = "a-different-key"
+    assert notify.unsub_user_id(cfg, notify.unsub_token(_Other(), 42)) is None
+
+
+def test_llm_output_is_escaped_before_it_reaches_innerhtml():
+    """M6 — the model writes from filings and news text, which outsiders influence. Every
+    such field is concatenated into a string assigned to innerHTML."""
+    js = _read("valuation/web/static/app.js")
+    block = js[js.index("function aiBox("):js.index("function warnBox(")]
+    # Only the lines that build the innerHTML string. `ai.source` is assigned via
+    # textContent, which is already inert — and escaping it there would render literal
+    # &amp; entities to the user.
+    raw = []
+    for line in block.splitlines():
+        if "html +=" not in line and "<li>" not in line:
+            continue
+        raw += re.findall(r"\$\{(ai\.[A-Za-z_.]+(?:\s*\|\|\s*\"\")?)\}", line)
+        raw += re.findall(r"\$\{(x)\}", line)          # the list() helper's item
+    assert not raw, f"model output interpolated into innerHTML without esc(): {raw}"
+    assert "esc(ai.business_summary)" in block and "esc(ai.overall_take)" in block
+    assert "innerHTML" in block, "test is anchored on the wrong function"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

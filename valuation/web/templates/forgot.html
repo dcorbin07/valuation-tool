@@ -15,7 +15,7 @@
       {% endif %}
       <p class="muted" style="font-size:14px"><a href="/login">Back to log in</a></p>
     {% else %}
-      <form method="POST" action="/forgot">
+      <form method="POST" action="/forgot"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
         <label class="muted" style="font-size:13px">Email</label>
         <input type="email" name="email" required autofocus>
         <button class="btn" style="width:100%">Send reset link</button>
