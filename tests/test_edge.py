@@ -3035,6 +3035,190 @@ def test_paper_book_compares_against_the_gated_reference_not_the_full_sample_hea
     assert r["hit_rate_reference"] == C.HIT_RATE
 
 
+# ============================ #23 trade autopsy ============================================
+def _autopsy_rows(spec):
+    """Trades shaped like the backtest log. `spec` is (date, feature value, pnl_pct)."""
+    return [{"alert_ts": d, "ticker": "T", "pnl_pct": p, "pnl_dollars": p * 100,
+             "_f": {"f_x": v}, "_has_contract": True, "_has_daily": True}
+            for d, v, p in spec]
+
+
+def test_autopsy_spearman_handles_ties_instead_of_reporting_nonsense():
+    """A binary feature is mostly ties. Naive ordinal ranks would score two identical columns
+    at well under 1.0 and quietly understate every label feature in the sweep."""
+    from valuation.edge import options_autopsy as A
+
+    x = [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0]
+    assert abs(A._spearman(x, x) - 1.0) < 1e-9
+    assert abs(A._spearman(x, [-v for v in x]) + 1.0) < 1e-9
+    assert A._spearman([1] * 12, list(range(12))) is None, "constant feature has no correlation"
+
+
+def test_autopsy_tail_retention_bar_rejects_a_filter_that_buys_expectancy_by_clipping_the_tail():
+    """G5, the bar with no precedent in this project. A convex book's whole value is the right
+    tail, so a filter can look excellent on hit rate and mean while destroying the strategy.
+
+    Construct exactly that: a feature that keeps the small winners and drops the +100% trades.
+    Expectancy still rises, which is why expectancy ALONE is not a sufficient bar.
+    """
+    from valuation.edge import options_autopsy as A
+
+    spec = []
+    for half, yr in ((0, "2017"), (1, "2022")):     # same shape in both halves
+        for i in range(200):                        # KEPT: steady +35%, not one tail winner
+            spec.append((f"{yr}-0{i % 9 + 1}-15", 1.0, 0.35))
+        for i in range(50):                         # DROPPED: the entire right tail
+            spec.append((f"{yr}-0{i % 9 + 1}-16", 0.0, 3.00))
+        for i in range(250):                        # DROPPED: and the worst losers with it
+            spec.append((f"{yr}-0{i % 9 + 1}-17", 0.0, -0.50))
+    rows = _autopsy_rows(spec)
+    res = A.holdout_feature(rows, "f_x")
+
+    for k in ("fit_early_test_late", "fit_late_test_early"):
+        d = res[k]
+        # It clears every OTHER bar convincingly — that is the point of the construction.
+        assert d["gain"] >= A.MIN_LATE_GAIN, f"{k}: expectancy really does rise ({d['gain']})"
+        assert d["retention"] >= A.MIN_RETAINED
+        assert d["n_kept"] >= A.MIN_TRADES
+        assert d["perm_p"] < A.ALPHA, f"{k}: and it is not merely selective"
+        # ...and G5 alone stops it, because it kept none of the +100% trades.
+        assert d["tail_retention"] == 0.0
+        assert not d["passed"], f"{k}: a tail-clipping filter must be rejected"
+    assert not res["passes_both_directions"]
+
+
+def test_autopsy_gate_needs_both_split_directions():
+    """G7. A feature engineered to work only on the late half must not be adopted, however
+    strong it looks there — the failure mode that made `insider` a keep-at-0.125 in the stock
+    model and that every phase of this project has had to re-learn."""
+    from valuation.edge import options_autopsy as A
+
+    spec = []
+    for i in range(300):        # early half: feature is pure noise w.r.t. outcome
+        spec.append((f"2017-0{i % 9 + 1}-15", float(i % 10), 1.5 if i % 3 == 0 else -0.5))
+    for i in range(300):        # late half: high feature value == winner, perfectly
+        hi = i % 2 == 0
+        spec.append((f"2022-0{i % 9 + 1}-15", 9.0 if hi else 0.0, 1.5 if hi else -0.5))
+    res = A.holdout_feature(_autopsy_rows(spec), "f_x")
+    assert not res["passes_both_directions"], "one-sided fit must not survive G7"
+
+
+def test_autopsy_bh_fdr_is_monotone_and_controls_the_sweep():
+    """124 hypotheses were tested; without an FDR pass ~6 would clear p<0.05 by chance."""
+    from valuation.edge import options_autopsy as A
+
+    assert A.bh_fdr([0.5] * 20, 0.10) == [False] * 20
+    flags = A.bh_fdr([0.0001] + [0.6] * 19, 0.10)
+    assert flags[0] and not any(flags[1:])
+    # monotonicity: a discovery cannot become a non-discovery when its p-value falls
+    p = [0.001, 0.02, 0.04, 0.9]
+    before = A.bh_fdr(p, 0.10)
+    p2 = list(p)
+    p2[2] = 0.005
+    after = A.bh_fdr(p2, 0.10)
+    assert all(b <= a for b, a in zip(before, after))
+
+
+def test_autopsy_outcome_mix_separates_the_stop_from_the_zero():
+    """The mandate asked about total losses. The -50% stop means they barely exist, so the two
+    buckets must be counted separately or the finding is invisible."""
+    from valuation.edge import options_autopsy as A
+
+    rows = [{"pnl_pct": v} for v in (-0.95, -0.60, -0.50, -0.20, 0.40, 1.00, 3.0)]
+    m = A.outcome_mix(rows)
+    assert m["n"] == 7
+    assert m["p_total_loss"] == 1 / 7, "only the -95% is a total loss"
+    assert m["p_stop"] == 3 / 7, "-95, -60 and -50 are all at or through the stop"
+    assert m["p_tail"] == 2 / 7 and m["hit_rate"] == 3 / 7
+
+
+def test_autopsy_direction_is_fitted_not_assumed():
+    """G1. Nothing in the sweep pre-declares which way a feature should point, so the rule has
+    to read the direction off the fitting half and apply it consistently."""
+    from valuation.edge import options_autopsy as A
+
+    up = _autopsy_rows([(f"2017-01-{i % 28 + 1:02d}", float(i), 1.0 if i > 50 else -0.5)
+                        for i in range(100)])
+    rule = A.fit_rule(up, "f_x")
+    assert rule["direction"] == 1
+    assert all(r["_f"]["f_x"] >= rule["threshold"] for r in A.apply_rule(up, "f_x", rule))
+
+    down = _autopsy_rows([(f"2017-01-{i % 28 + 1:02d}", float(i), -0.5 if i > 50 else 1.0)
+                          for i in range(100)])
+    rule = A.fit_rule(down, "f_x")
+    assert rule["direction"] == -1
+    assert all(r["_f"]["f_x"] <= rule["threshold"] for r in A.apply_rule(down, "f_x", rule))
+
+
+def test_autopsy_nan_features_are_dropped_not_treated_as_present():
+    """The §2 skew_25d bug: NaN is not None, so it survives an `is not None` check, poisons the
+    median, and empties a filter while coverage still reads 100%. It cost that phase a wrong
+    published reason. Pinned here so the autopsy cannot repeat it."""
+    from valuation.edge import options_autopsy as A
+
+    rows = _autopsy_rows([("2017-01-05", float("nan"), 1.0)] * 40
+                         + [("2017-01-06", 2.0, -0.5)] * 40)
+    assert A._f(float("nan")) is None
+    assert len(A._present(rows, "f_x")) == 40
+    cov = A.feature_coverage(rows)
+    assert abs(cov["f_x"] - 0.5) < 1e-9, "coverage must count NaN as missing"
+
+
+def test_autopsy_deflated_sharpe_deflates_for_the_number_of_trials():
+    """A per-trade Sharpe that looks fine on its own must not look fine after you admit how many
+    features you searched. The threshold has to RISE with the trial count, or the statistic is
+    decoration."""
+    import random
+
+    from valuation.edge import options_autopsy as A
+
+    rnd = random.Random(7)
+    xs = [rnd.gauss(0.08, 1.0) for _ in range(600)]
+    few = A.deflated_sharpe(xs, n_trials=2)
+    many = A.deflated_sharpe(xs, n_trials=500)
+    assert few["ok"] and many["ok"]
+    assert few["sharpe_per_trade"] == many["sharpe_per_trade"], "the raw SR is unchanged"
+    assert many["sr0_threshold"] > few["sr0_threshold"], "more trials must raise the bar"
+    assert many["deflated_sharpe"] < few["deflated_sharpe"]
+
+    # pure noise must not clear it at any trial count
+    noise = A.deflated_sharpe([rnd.gauss(0.0, 1.0) for _ in range(600)], n_trials=63)
+    assert noise["deflated_sharpe"] < 0.95
+
+
+def test_autopsy_pbo_reports_a_coin_flip_when_the_features_are_pure_noise():
+    """PBO scores the SELECTION step. If every candidate is noise, picking the in-sample best
+    should land below the out-of-sample median about half the time. A construction that returned
+    a flattering PBO on noise would make the whole statistic worthless."""
+    import random
+
+    from valuation.edge import options_autopsy as A
+
+    rnd = random.Random(11)
+    rows = []
+    for i in range(900):
+        d = f"{2016 + i // 90}-{i % 12 + 1:02d}-15"
+        rows.append({"alert_ts": d, "ticker": "T", "pnl_pct": rnd.gauss(0.10, 1.0),
+                     "pnl_dollars": 0.0,
+                     "_f": {f"f_n{j}": rnd.gauss(0, 1) for j in range(12)}})
+    res = A.pbo_cscv(rows, [f"f_n{j}" for j in range(12)], n_blocks=6)
+    assert res["ok"], res.get("reason")
+    assert 0.2 <= res["pbo"] <= 0.8, f"noise features should not look skilful: {res['pbo']}"
+
+
+def test_autopsy_regime_cache_is_versioned():
+    """A cache keyed only on its path served a regime dict built before `mkt_mom60` existed, and
+    the feature silently never appeared in the sweep — no error, no warning. The version now
+    lives in the filename so a changed field cannot be masked by a stale file."""
+    import inspect
+
+    from valuation.edge import options_autopsy as A
+
+    src = inspect.getsource(A.market_regime)
+    assert "REGIME_VERSION" in src, "the cache filename must carry the version"
+    assert isinstance(A.REGIME_VERSION, int) and A.REGIME_VERSION >= 2
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
