@@ -46,6 +46,15 @@ from . import prices as P
 # --------------------------------------------------------------------------- #
 METRICS_UNITS = "usd"
 
+# Bumped whenever a metrics row gains fields that a cached row would be missing. A cache entry
+# written under an older schema is DISCARDED rather than served, because a stale row silently
+# lacking (say) `sector` looks identical to a name the feed genuinely has no sector for — and
+# that is exactly how the blank-sector bug survived on the live site for weeks. Cost of a bump
+# is one slow refetch cycle; cost of not bumping is a coverage number that lies.
+#   1 -> USD normalization (the original `units` stamp)
+#   2 -> broker fundamentals merged in (sector / beta / ev / book_to_price / roe now expected)
+METRICS_SCHEMA = 2
+
 _ABSOLUTE_USD = ("market_cap", "revenue", "net_income", "operating_income", "fcf",
                  "ebitda", "ev", "gross_profit", "total_debt", "total_equity",
                  "interest_expense")
@@ -59,12 +68,16 @@ def _stamp_units(m: dict, scale: float = 1.0) -> dict:
             if v is not None:
                 m[k] = v * scale
     m["units"] = METRICS_UNITS
+    m["schema"] = METRICS_SCHEMA
     return m
 
 
 def _usable_cache(cached):
-    """Drop cached fundamentals written before the USD normalization (they hold millions)."""
-    return cached if (cached or {}).get("units") == METRICS_UNITS else None
+    """Drop cached fundamentals written before the USD normalization or an older schema."""
+    c = cached or {}
+    if c.get("units") != METRICS_UNITS:
+        return None
+    return cached if int(c.get("schema") or 1) >= METRICS_SCHEMA else None
 
 
 def _redact(msg) -> str:
@@ -161,12 +174,60 @@ class ScreenerProvider:
 
 
 class FreeProvider(ScreenerProvider):
-    name = "free (EDGAR + Yahoo + Stooq)"
+    name = "free (broker fundamentals + EDGAR/Yahoo/Stooq)"
 
     def __init__(self, cfg=CONFIG, store=None):
         self.cfg = cfg
         self.store = store
         self.universe_note = ""
+        # Broker fundamentals, bulk-loaded once per scan by prefetch(). None means "never
+        # attempted", an empty dict means "attempted and got nothing" — the two are reported
+        # differently so a broken token is not mistaken for a feed with no coverage.
+        self._broker_raw: Optional[dict] = None
+        self._broker_note = ""
+        self._broker_hits = 0
+        self._broker_only = 0
+        # get_metrics runs on a thread pool (scan_workers, default 8) and these counters are
+        # reported in the health block — an unsynchronized += drops updates and understates
+        # the very coverage number this change exists to establish.
+        self._lock = _threading.Lock()
+
+    # ----------------------------------------------------------------- #
+    # Bulk fundamentals prefetch (the free route — see broker_fundamentals.py)
+    # ----------------------------------------------------------------- #
+    def prefetch(self, tickers) -> dict:
+        """Bulk-load broker fundamentals for the whole universe in ~3 calls per 100 names.
+
+        Optional by contract: run_scan calls this only if the provider defines it, so a
+        provider without it (or a run with no TRADIER_TOKEN) behaves exactly as before.
+        """
+        from . import broker_fundamentals as BF
+        if not BF.available(self.cfg):
+            self._broker_raw = {}
+            self._broker_note = "no TRADIER_TOKEN — broker fundamentals unavailable"
+            return {}
+        try:
+            self._broker_raw = BF.fetch_raw(list(tickers), self.cfg)
+            got = len((self._broker_raw or {}).get("company") or {})
+            self._broker_note = f"broker fundamentals loaded for {got} of {len(tickers)} names"
+        except Exception as e:
+            self._broker_raw = {}
+            self._broker_note = f"broker fundamentals failed ({_redact(e)})"
+        return self._broker_raw or {}
+
+    def _broker_metrics(self, ticker: str):
+        if not self._broker_raw:
+            return None
+        from . import broker_fundamentals as BF
+        try:
+            return BF.to_metrics(ticker, self._broker_raw)
+        except Exception:
+            return None
+
+    @property
+    def broker_stats(self) -> dict:
+        return {"note": self._broker_note, "names_with_broker_data": self._broker_hits,
+                "names_broker_only": self._broker_only}
 
     def get_universe(self, scope: str = "bundled") -> list:
         # Broker first for a whole-market scope. Tradier enumerates ~7,100 listed common
@@ -229,16 +290,41 @@ class FreeProvider(ScreenerProvider):
                 self.store.get_cached_fundamentals(ticker, max_age_days=self.cfg_max_age()))
             if cached:
                 return cached
+
+        from . import broker_fundamentals as BF
+        broker = self._broker_metrics(ticker)
+
+        # The per-name free fetch (yfinance `.info` + EDGAR) is the ONLY free source for the
+        # flow items the broker has no table for — operating income, gross profit, FCF,
+        # interest expense, revenue growth. It is also slow and aggressively rate-limited from
+        # a cloud IP, and when it fails it returns nothing at all. Before the broker prefill
+        # that meant the name was DROPPED from the scan entirely ("no data"); now it survives
+        # on the broker's half, so a throttled Yahoo costs the scan some quality per name
+        # instead of costing it the name.
+        free = None
         try:
             from ..data import fetcher
             cd = fetcher.get_company(ticker, self.cfg)
-            if getattr(cd, "fx_unresolved", False):
-                return None   # statement/price currency mismatch we couldn't resolve — skip vs. rank garbage
-            quote = P.get_quote(ticker)
-            m = company_to_metrics(cd, quote)
+            # A statement/price currency mismatch we could not resolve: the free row is
+            # garbage, but the broker's figures are natively USD and unaffected, so drop
+            # only the free half rather than the whole name.
+            if not getattr(cd, "fx_unresolved", False):
+                free = company_to_metrics(cd, P.get_quote(ticker))
         except Exception:
+            free = None
+
+        m = BF.merge(broker, free)
+        if m is None:
             return None
-        if self.store and m:
+        if broker is not None:
+            with self._lock:
+                self._broker_hits += 1
+                if free is None:
+                    self._broker_only += 1
+        m.setdefault("ticker", ticker.upper())
+        m["units"] = METRICS_UNITS
+        m["schema"] = METRICS_SCHEMA
+        if self.store:
             self.store.cache_fundamentals(ticker, m)
         return m
 
@@ -382,10 +468,26 @@ class FMPProvider(ScreenerProvider):
             self.store.cache_fundamentals(ticker, m)
         return m
 
-    def _free_fallback(self, ticker: str) -> Optional[dict]:
+    def prefetch(self, tickers) -> dict:
+        """Delegate the bulk broker prefetch to the free stack behind this provider.
+
+        On the current FMP subscription almost every per-symbol call 402s and the circuit
+        breaker hands the whole universe to the free stack, so the fallback path is the hot
+        path — it needs the broker prefill more than the FMP path does, not less.
+        """
+        return self._free_provider().prefetch(tickers)
+
+    def _free_provider(self) -> "FreeProvider":
         if not self._free:
             self._free = FreeProvider(self.cfg, None)      # no store: we cache below
-        m = self._free.get_metrics(ticker)
+        return self._free
+
+    @property
+    def broker_stats(self) -> dict:
+        return self._free.broker_stats if self._free else {}
+
+    def _free_fallback(self, ticker: str) -> Optional[dict]:
+        m = self._free_provider().get_metrics(ticker)
         if m is not None:
             with self._lock:
                 self._served_free += 1

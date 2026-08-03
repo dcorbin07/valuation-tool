@@ -613,6 +613,15 @@ async function loadRegime() {
     }
   } catch (e) { }
 }
+// Mark a name whose fundamentals came from the broker alone. That row has a real market cap,
+// value and quality reading but NO margins, free cash flow or revenue growth, so it is scored
+// on fewer themes than its neighbours — a difference worth seeing rather than inferring.
+function _srcMark(r) {
+  const src = (r.extra || {}).source;
+  if (src !== "broker") return "";
+  return ` <span class="est-mark" title="Partial fundamentals: broker feed only — no margins, free cash flow or revenue growth for this name, so its score rests on fewer factors.">p</span>`;
+}
+
 function renderHot(d) {
   const f = d.filtered;
   let meta = `scan ${d.scan_date}${_ageStr(d.scan_date)} · ${d.scored}/${d.universe_size || "?"} scored · ${d.provider || ""}`;
@@ -627,7 +636,7 @@ function renderHot(d) {
   d.rows.forEach(r => {
     const up = r.upside;
     html += `<tr><td>${r.rank}</td><td><a href="#" onclick="gotoValue('${r.ticker}');return false"><b>${r.ticker}</b></a></td>
-      <td>${esc((r.name || "").slice(0, 22))}${_whyChips(r)}</td><td>${esc((r.sector || "—").slice(0, 16))}</td>
+      <td>${esc((r.name || "").slice(0, 22))}${_srcMark(r)}${_whyChips(r)}</td><td>${esc((r.sector || "—").slice(0, 16))}</td>
       <td><span class="pill ${r.bucket === 'established' ? 'est' : 'spec'}">${r.bucket || ''}</span></td>
       <td class="num">${money(r.price)}</td>
       <td class="num">${mcap(r.market_cap)}</td>
@@ -642,10 +651,24 @@ function renderHot(d) {
     yield) — the full discounted-cash-flow model is far too slow to run on every name, so only the top few carry one.
     Unmarked values are the full DCF. The estimate says "cheap versus peers", which is a rougher claim than the DCF's
     "worth this much" — open a name in Single valuation for the real model.</div>`;
-  const hz = (d.health && d.health.theme_coverage) ? Object.entries(d.health.theme_coverage).filter(([k, v]) => v < 0.5) : [];
+  // Prefer theme_contributing over theme_coverage: a theme can be 100% "covered" and still be
+  // a constant, which standardizes to nothing and drops out of the score entirely. Reporting
+  // the presence number here would call such a theme healthy.
+  const th = (d.health && (d.health.theme_contributing || d.health.theme_coverage)) || null;
+  const hz = th ? Object.entries(th).filter(([k, v]) => v < 0.5) : [];
   if (hz.length) {
-    html += `<div class="note">⚠ Low data coverage this scan: ${hz.map(([k, v]) => `${k.replace(/_/g, ' ')} ${Math.round(v * 100)}%`).join(" · ")}. ` +
-      `Scores still computed on the data present (missing inputs are neutralized), but worth a glance.</div>`;
+    html += `<div class="note">⚠ Themes not driving this scan: ${hz.map(([k, v]) => `${k.replace(/_/g, ' ')} ${Math.round(v * 100)}%`).join(" · ")}. ` +
+      `Scores are computed on the themes that are present (the rest are neutralized and their weight redistributed), but worth a glance.</div>`;
+  }
+  // Where the fundamentals came from. A book built from two feeds that cover different fields
+  // should never be a silent fact.
+  const fu = (d.health && d.health.fundamentals) || null;
+  if (fu && fu.by_source) {
+    const parts = Object.entries(fu.by_source).sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${v} ${k.replace(/\+/g, " + ")}`).join(" · ");
+    html += `<div class="note">Fundamentals source: ${parts}. Names marked ` +
+      `<span class="est-mark">p</span> carry broker data only — real market cap, value and quality, ` +
+      `but no margins, free cash flow or revenue growth.</div>`;
   }
   // Company name / sector / market cap are invisible to every scoring check, so a gap in
   // them can sit on the live site for weeks unnoticed. Say it out loud when it happens.

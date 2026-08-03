@@ -92,6 +92,13 @@ def _rows_from(scored: pd.DataFrame) -> list:
         # each number's standalone predictive power over time (visibility only).
         extra["numbers"] = {n: _f(r.get("z_" + n)) for n in S.NUMBERS_ALL if ("z_" + n) in scored.columns}
         extra["vol"] = _f(r.get("realized_vol"))       # for inverse-volatility position sizing
+        # Which feed this row's fundamentals came from ("free+broker", "broker", "free").
+        # Carried per NAME, not just as a scan-level total, because the two sources cover
+        # different fields — a broker-only row has no margins, FCF or revenue growth, so its
+        # score rests on fewer themes and a reader comparing two picks should be able to see
+        # that rather than infer it.
+        src = r.get("source")
+        extra["source"] = None if (src is None or (isinstance(src, float) and pd.isna(src))) else str(src)
         rows.append({
             "ticker": tkr, "name": r.get("name") or tkr, "sector": r.get("sector") or "",
             "bucket": r.get("bucket"), "price": _f(r.get("price")), "market_cap": _f(r.get("market_cap")),
@@ -102,6 +109,22 @@ def _rows_from(scored: pd.DataFrame) -> list:
             "z_insider": _f(r.get("insider")), "fair_value": None, "upside": None, "extra": extra,
         })
     return rows
+
+
+def _theme_contribution(scored: pd.DataFrame) -> dict:
+    """Fraction of names each theme actually scores, measured after standardization.
+
+    A theme that is present but constant across the cross-section carries no information:
+    zscore() divides by a zero standard deviation and returns all-NaN, and composite_score
+    then renormalizes the remaining weights over the themes that survive. Reported next to
+    theme_coverage so "the column is full" and "the theme moves the score" stay distinct.
+    """
+    from .cross_sectional import standardize_factors
+    cols = [t for t in S.FACTORS_ALL if t in scored.columns]
+    if not cols or scored.empty:
+        return {}
+    z = standardize_factors(scored, cols)
+    return {t: round(float(z[t].notna().mean()), 2) for t in cols}
 
 
 def _cov(rows: list, ok) -> float:
@@ -164,6 +187,16 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     # from cloud IPs and comes back empty, which is how the book ended up showing bare
     # tickers and an "unknown" sector breakdown. Keep the listing's values as a fallback.
     hints = {u["ticker"]: u for u in uni}
+
+    # Bulk-load fundamentals for the whole universe up front, where the provider supports it.
+    # The broker serves 100 symbols per call, so this is ~3 calls per 100 names against a feed
+    # that is already paid for — versus one metered per-name round trip each. Optional by
+    # contract: a provider without prefetch() behaves exactly as it did before.
+    if hasattr(provider, "prefetch"):
+        try:
+            provider.prefetch([u["ticker"] for u in uni])
+        except Exception:
+            pass
 
     total = len(uni)
     workers = max(1, int(getattr(cfg, "scan_workers", 8) or 8)) if cfg is not None else 8
@@ -254,6 +287,13 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
         "scored": len(rows),
         "theme_coverage": {t: round(float(scored[t].notna().mean()), 2)
                            for t in S.FACTORS_ALL if t in scored.columns},
+        # PRESENT is not the same as USABLE, and reporting only the former is how a dead
+        # theme hides in plain sight. `insider` is the live example: with no insider_score in
+        # the metrics, build_frame sets the whole column to the constant 0.0 — so it is 100%
+        # "covered", yet zscore() of a zero-variance column is all-NaN, composite_score
+        # renormalizes it away, and its 12.5% weight does nothing. This measures the theme
+        # AFTER standardization, i.e. what actually reaches the score.
+        "theme_contributing": _theme_contribution(scored),
         # Display-field coverage. A blank company name or sector is not a scoring bug, so
         # nothing else would ever report it — and it went unnoticed on the live site for
         # weeks. Measured on the rows that actually ship.
@@ -264,6 +304,19 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
             "market_cap": _cov(rows, lambda r: r.get("market_cap")),
         },
     }
+    # Where each name's fundamentals actually came from, and how completely each field is
+    # filled. Without this the free route's real coverage is invisible: a name served entirely
+    # by the broker still produces a score, so "it ran" says nothing about whether the flow
+    # factors (margins, FCF, growth) were present or silently absent.
+    try:
+        from . import broker_fundamentals as BF
+        health["fundamentals"] = BF.coverage(metrics)
+    except Exception:
+        pass
+    bstats = getattr(provider, "broker_stats", None)
+    if bstats:
+        health.setdefault("fundamentals", {})["broker"] = bstats
+
     note = getattr(provider, "universe_note", "")
     if note:
         health["universe_note"] = note
