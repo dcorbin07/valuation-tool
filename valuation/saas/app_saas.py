@@ -18,7 +18,7 @@ from ..config import CONFIG
 from ..safe_error import safe_error
 from ..web.app import app as tool_app
 from .models import UserStore
-from . import auth, billing, gating
+from . import auth, billing, gating, ratelimit
 
 PUBLIC_PATHS = {"/", "/login", "/register", "/logout", "/pricing", "/billing/webhook",
                 "/api/health", "/favicon.ico", "/terms", "/privacy", "/forgot"}
@@ -407,6 +407,19 @@ def create_saas_app(cfg=CONFIG):
         # API gating.
         if path.startswith("/api/"):
             body = request.get_json(silent=True) or {}
+            # Rate limit BEFORE anything expensive, and before gating, so a flood costs
+            # us a dict lookup rather than an Anthropic call (SECURITY_AUDIT.md H1).
+            # The admin token bypasses it: the cron jobs legitimately hit these on a
+            # schedule and are already authenticated.
+            bucket = ratelimit.bucket_for(path, body)
+            if bucket and not _admin_ok():
+                retry = ratelimit.check(ratelimit.client_ip(request), bucket)
+                if retry is not None:
+                    return jsonify({
+                        "error": "Rate limit reached for this endpoint. It runs live data "
+                                 "and AI calls, so it's capped per visitor.",
+                        "retry_after_seconds": retry,
+                    }), 429, {"Retry-After": str(retry)}
             u = auth.current_user(store)
             # How many hot-stocks rows this tier may see (free 10 / pro 100 / premium 500).
             g.hotstocks_cap = gating.features(gating._active(u))["hotstocks_top"]
