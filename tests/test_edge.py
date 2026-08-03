@@ -993,8 +993,12 @@ def test_value_ratios_are_currency_invariant():
     # And the actual values are right, not merely equal.
     assert abs(usd["book_to_price"] - 800.0 / 10_000.0) < 1e-12
     assert abs(usd["earnings_yield"] - 100.0 / 10_000.0) < 1e-12
-    assert abs(usd["ebit_ev"] - 150.0 / 5000.0) < 1e-12
-    assert abs(usd["ev_sales"] - 5000.0 / 500.0) < 1e-12
+    # EV is rebuilt at the REBALANCE date (market cap 10,000 + USD net debt 200 - 50 = 10,150),
+    # not read off the filing's stale `ev` of 5,000. That the won-reporting twin lands on the
+    # same number is the sharper half of the claim: net debt is a LOCAL line item and the
+    # market cap is USD, so the rebuild has to convert before adding — P7 in a second costume.
+    assert abs(usd["ebit_ev"] - 150.0 / 10_150.0) < 1e-12
+    assert abs(usd["ev_sales"] - 10_150.0 / 500.0) < 1e-12
     assert abs(usd["ps"] - 10_000.0 / 500.0) < 1e-12
     assert won["_is_foreign"] is True and usd["_is_foreign"] is False
     # SAME-CURRENCY ratios must be untouched by the fix (local/local was always correct) —
