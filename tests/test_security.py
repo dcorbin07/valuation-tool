@@ -125,8 +125,12 @@ def test_api_value_error_response_carries_no_key():
         assert r.status_code == 500
         assert FAKE_KEY not in body, f"live key published to an anonymous caller: {body}"
         assert "<redacted>" in body, body
-        # ...while the operator still gets the full, unedited detail server-side.
+        # ...while the operator still gets the full stack trace server-side (L3) — with
+        # the credential scrubbed there too, because Render logs are not a safe home
+        # for a live key either.
         assert "financialmodelingprep" in logged, "the real error must still reach the log"
+        assert "Traceback" in logged, "the stack trace must survive redaction"
+        assert FAKE_KEY not in logged, "the key reached the server log"
     finally:
         web_app.value_ticker, sys.stderr = orig, orig_stderr
 

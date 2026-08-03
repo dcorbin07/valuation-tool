@@ -72,6 +72,21 @@ def strip_paths(msg) -> str:
     return s
 
 
+def log_exception(prefix: str = "") -> None:
+    """Print the current traceback to stderr with credentials scrubbed.
+
+    Drop-in for `traceback.print_exc()` on the routes that handle provider errors
+    (SECURITY_AUDIT.md L3). The audit called these "server-side only, so not a direct
+    disclosure" — true, but the traceback's exception line is the same ?apikey=... URL
+    that M1 was about, and Render/Actions logs are not a safe home for a live credential
+    either. Everything useful survives: full stack, files, line numbers. Only the key goes.
+    """
+    import sys
+    import traceback
+    sys.stderr.write(prefix + redact(traceback.format_exc()))
+    sys.stderr.flush()
+
+
 def safe_error(exc, limit: int = 200) -> str:
     """Exception -> a string that is safe to put in an HTTP response body.
 

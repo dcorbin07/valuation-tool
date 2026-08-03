@@ -13,12 +13,11 @@ from __future__ import annotations
 
 import io
 import tempfile
-import traceback
 
 from flask import Flask, render_template, request, jsonify, send_file
 
 from ..config import CONFIG
-from ..safe_error import safe_error
+from ..safe_error import log_exception, safe_error
 from ..engine.pipeline import value_ticker
 from ..report import excel as excel_report
 from ..report import pdf as pdf_report
@@ -113,7 +112,7 @@ def api_value():
                 "Check the ticker symbol.")
         return jsonify(payload)
     except Exception as e:
-        traceback.print_exc()
+        log_exception()
         return jsonify({"error": f"Valuation failed for {ticker}: {safe_error(e)}"}), 500
 
 
@@ -161,7 +160,7 @@ def export_excel():
                          download_name=f"{ticker}_DCF_Model.xlsx",
                          mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
-        traceback.print_exc()
+        log_exception()
         return jsonify({"error": safe_error(e)}), 500
 
 
@@ -184,7 +183,7 @@ def export_pdf():
                          download_name=f"{ticker}_Valuation_Report.pdf",
                          mimetype="application/pdf")
     except Exception as e:
-        traceback.print_exc()
+        log_exception()
         return jsonify({"error": safe_error(e)}), 500
 
 
@@ -325,7 +324,7 @@ def api_options_alerts():
                         "term_filter": term_stats, "risk_budget": budget,
                         "n_screaming": len(picks)})
     except Exception as e:
-        traceback.print_exc()
+        log_exception()
         return jsonify({"error": safe_error(e), "alerts": []}), 200
 
 
@@ -617,7 +616,7 @@ def api_scan_run():
         return jsonify({"ok": True, "scan_date": res["scan_date"], "scored": res["scored"],
                         "universe_size": res["universe_size"], "provider": res.get("provider")})
     except Exception as e:
-        traceback.print_exc()
+        log_exception()
         return jsonify({"error": safe_error(e)}), 500
 
 
@@ -652,7 +651,7 @@ def api_backtest_run():
             res = run_from_store(_store(), top=int(data.get("top", 50)), **kw)
         return jsonify(res)
     except Exception as e:
-        traceback.print_exc()
+        log_exception()
         return jsonify({"error": safe_error(e)}), 500
 
 
@@ -692,7 +691,7 @@ def api_signals_run():
         return jsonify({"ok": True, "run_time": res["run_time"], "scored": res["scored"],
                         "universe": res["universe"], "provider": res["provider"]})
     except Exception as e:
-        traceback.print_exc()
+        log_exception()
         return jsonify({"error": safe_error(e)}), 500
 
 
@@ -706,7 +705,7 @@ def api_edge_backtest():
                                     rebalance_days=int(d.get("rebalance", 21)),
                                     limit=int(d.get("limit", 100))))
     except Exception as e:
-        traceback.print_exc(); return jsonify({"error": safe_error(e)}), 500
+        log_exception(); return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/edge/optimize", methods=["POST"])
@@ -716,7 +715,7 @@ def api_edge_optimize():
     try:
         return jsonify(run_optimize(limit=int(d.get("limit", 100))))
     except Exception as e:
-        traceback.print_exc(); return jsonify({"error": safe_error(e)}), 500
+        log_exception(); return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/edge/track", methods=["POST"])
@@ -726,7 +725,7 @@ def api_edge_track():
     try:
         return jsonify(run_track(source=d.get("source", "hot")))
     except Exception as e:
-        traceback.print_exc(); return jsonify({"error": safe_error(e)}), 500
+        log_exception(); return jsonify({"error": safe_error(e)}), 500
 
 
 def create_app():
