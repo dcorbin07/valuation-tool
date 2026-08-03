@@ -247,6 +247,19 @@ code{background:#f0f3f9;padding:1px 6px;border-radius:5px;font-size:12.5px;color
 .sk-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
 @media(prefers-reduced-motion:reduce){.sk{animation:none;background:var(--border)}}
+/* Table-shaped, so the real table lands without the page jumping. */
+.sk-tbl{width:100%}
+.sk-tr{display:flex;gap:12px;padding:9px 10px;border-bottom:1px solid var(--border)}
+.sk-tr.head .sk-cell{height:9px;opacity:.7}
+.sk-cell{height:11px;flex:1;border-radius:5px}
+.sk-tr .sk-cell:first-child{max-width:38px}
+.sk-tr .sk-cell:nth-child(2){max-width:64px}
+
+/* A cached paint is always LABELLED as one. Serving yesterday's ranking as though it were
+   today's is the exact failure the freshness banner exists to catch. */
+.cachebar{font-size:12px;color:var(--muted);background:var(--blue-soft);border-radius:9px;
+  padding:7px 12px;margin-top:8px}
+.cachebar.warnish{background:var(--amber-soft);color:#8a5a12}
 
 /* ---- fair-value estimate marker (Hot stocks) ---- */
 .est-mark{display:inline-block;margin-left:2px;font-size:10px;font-weight:700;color:var(--muted);
@@ -331,7 +344,20 @@ table tbody tr:hover{background:var(--blue-soft)}
   .sector-bar .nm{width:88px}
   /* Any table wide enough to overflow scrolls inside its own box, never the page. */
   #valquoIndexBody, #hotTable, #sigTable, #indexPerfBody{overflow-x:auto;-webkit-overflow-scrolling:touch}
-  #valquoIndexBody table, #hotTable table{min-width:560px}
+  /* 620, not 560: the hot table gained the "why?" column. Too small a min-width lets the
+     columns crush rather than scroll, which is how a table becomes unreadable instead of
+     merely wide. */
+  #valquoIndexBody table{min-width:560px}
+  #hotTable table{min-width:620px}
+  /* The attribution panel lives INSIDE that scrolling table, so without this it inherits the
+     620px minimum and the bars scroll sideways along with the row that opened them. */
+  .whyrow > td{padding:12px 10px}
+  .whyrow .attr{min-width:0;max-width:88vw}
+  .whyrow .note{white-space:normal}
   .search-row{flex-wrap:wrap}
   .selin{max-width:100%}
+  /* The unified card stacks its stats rather than squeezing four across a phone. */
+  #whatDoBody .metricline{gap:14px}
+  #whatDoBody .metricline .m .v{font-size:18px}
+  .wd-line{font-size:13.5px}
 }

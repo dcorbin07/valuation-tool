@@ -633,18 +633,42 @@ async function runRank() {
 
 /* ====================== HOT STOCKS ====================== */
 async function loadHotStocks() {
-  toggle("hotLoader", true); document.getElementById("hotResults").style.display = "none";
   eshow("hotErr", "");
-  document.getElementById("hotLoadMsg").textContent = "Loading latest scan…";
+  const results = document.getElementById("hotResults");
+  // Paint SOMETHING before the network: the last good ranking if we have one, a
+  // table-shaped skeleton if we don't. Either way the spinner never appears for this tab.
+  const cached = cacheGet("hot");
+  if (cached) {
+    try { renderHot(cached.d); } catch (e) { }
+    // The freshness verdict inside a cached payload was computed WHEN IT WAS CACHED. A copy
+    // saved yesterday still says "ranking from today", which is the exact lie the freshness
+    // banner exists to prevent — so it is suppressed until the live fetch replaces it.
+    setHtml("hotFreshness", "");
+    cacheBanner("hotCache", cached);
+  } else {
+    setHtml("hotTable", skeletonTable(10, 8));
+    setHtml("hotCache", "");
+  }
+  results.style.display = "block";
+  toggle("hotLoader", false);
   try {
     const res = await fetch("/api/hotstocks?top=100");
     const d = await res.json();
-    if (d.empty) { eshow("hotErr", d.message); return; }
+    if (d.empty) {
+      eshow("hotErr", d.message);
+      if (!cached) { results.style.display = "none"; }
+      return;
+    }
     STATE.hot = d;
     renderHot(d);
-    document.getElementById("hotResults").style.display = "block";
-  } catch (e) { eshow("hotErr", e.message); }
-  finally { toggle("hotLoader", false); }
+    cacheSet("hot", d);
+    setHtml("hotCache", "");
+  } catch (e) {
+    eshow("hotErr", cached
+      ? `${e.message} — the ranking above is your last saved copy, not a fresh one.`
+      : e.message);
+    if (!cached) { results.style.display = "none"; }
+  }
 }
 async function runScan() {
   // Owner-only controls — absent from the page for everyone else.
@@ -897,13 +921,22 @@ function renderPortfolio(pf) {
 
 /* ====================== TRACK RECORD ====================== */
 async function loadTrack() {
-  toggle("trackLoader", true); eshow("trackErr", "");
-  document.getElementById("trackResults").innerHTML = "";
+  eshow("trackErr", "");
+  // /api/track can kick off a background refresh, so it is the slowest read in the app and
+  // the one most worth painting from cache first.
+  const cached = cacheGet("track");
+  if (cached) { try { renderTrack(cached.d); } catch (e) { } }
+  else { document.getElementById("trackResults").innerHTML = skeleton(6, { head: true }); }
+  toggle("trackLoader", false);
   try {
     const res = await fetch("/api/track");
-    renderTrack(await res.json());
-  } catch (e) { eshow("trackErr", e.message); }
-  finally { toggle("trackLoader", false); }
+    const d = await res.json();
+    renderTrack(d);
+    cacheSet("track", d);
+  } catch (e) {
+    eshow("trackErr", e.message);
+    if (!cached) document.getElementById("trackResults").innerHTML = "";
+  }
 }
 function _trackCard(title, sub, s) {
   const sm = (s && s.summary) || {}, rec = (s && s.recent) || [];
@@ -1359,6 +1392,56 @@ function skeleton(rows, opts) {
   return `<div class="sk-wrap" aria-busy="true" aria-live="polite">${h}
     <span class="sk-sr">Loading…</span></div>`;
 }
+/* A skeleton shaped like the table that is coming, so the page doesn't jump when it lands. */
+function skeletonTable(rows, cols) {
+  const n = cols || 6;
+  let h = `<div class="sk-tbl" aria-busy="true"><div class="sk-tr head">` +
+    Array.from({ length: n }, () => `<div class="sk sk-cell"></div>`).join("") + `</div>`;
+  for (let i = 0; i < (rows || 8); i++) {
+    h += `<div class="sk-tr">` +
+      Array.from({ length: n }, () => `<div class="sk sk-cell"></div>`).join("") + `</div>`;
+  }
+  return h + `<span class="sk-sr">Loading…</span></div>`;
+}
+
+/* ---------- last-good cache (perceived speed) ----------
+   These tabs read a snapshot that only changes once a day, so re-fetching before painting
+   anything means staring at a spinner for data the browser already had. The last good
+   payload is stored and painted IMMEDIATELY on open, then replaced by the live fetch.
+
+   Two rules keep this from becoming a lie. A cached paint is LABELLED as one until the
+   refresh lands — silently serving yesterday's ranking as today's is precisely the failure
+   the freshness banner was built for. And the cache hard-expires, so a browser left open
+   over a long weekend re-fetches rather than painting something days old. The payload
+   carries its own scan_date and freshness block, so the stale banner renders from the cache
+   too and cannot be lost by caching. */
+const CACHE_PREFIX = "valquo-cache:";
+const CACHE_TTL_MS = 36 * 3600 * 1000;
+
+function cacheGet(key) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (!raw) return null;
+    const o = JSON.parse(raw);
+    if (!o || !o.t || (Date.now() - o.t) > CACHE_TTL_MS) return null;
+    return o;
+  } catch (e) { return null; }
+}
+function cacheSet(key, data) {
+  try { localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ t: Date.now(), d: data })); }
+  catch (e) { }                       // private mode / quota — the app works without it
+}
+function cacheAge(o) {
+  const mins = Math.round((Date.now() - o.t) / 60000);
+  if (mins < 1) return "moments ago";
+  if (mins < 60) return `${mins} min ago`;
+  const h = Math.round(mins / 60);
+  return h < 24 ? `${h} hour${h === 1 ? "" : "s"} ago` : `${Math.round(h / 24)} day(s) ago`;
+}
+function cacheBanner(id, o) {
+  setHtml(id, o ? `<div class="cachebar">Showing your last copy (loaded ${cacheAge(o)}) —
+    refreshing…</div>` : "");
+}
 
 // ---------------------------------------------------------------------------------------- //
 // Scream-buy options expectancy. EXPECTANCY, not "success rate": with a payoff this
@@ -1453,10 +1536,29 @@ async function loadValquoIndex() {
   const body0 = document.getElementById("valquoIndexBody");
   if (!body0) return;
   const cfg = (document.getElementById("bookConfig") || {}).value || "roth";
+  // The Index is the tab people open on a phone, on a cold connection. Cached holdings paint
+  // first; the skeleton only shows on a genuinely first visit.
+  const cached = cacheGet("index:" + cfg);
+  if (cached) {
+    try { _renderValquoIndex(cached.d, cfg); } catch (e) { }
+    setHtml("indexFreshness", "");     // stale verdict, cached — see loadHotStocks
+    cacheBanner("indexCache", cached);
+  } else { setHtml("valquoIndexBody", skeletonTable(8, 7)); setHtml("indexCache", ""); }
   let d;
   try {
     d = await (await fetch("/api/valquo-index?config=" + encodeURIComponent(cfg))).json();
-  } catch (e) { return; }
+  } catch (e) {
+    if (!cached) setHtml("valquoIndexBody", "");
+    setHtml("indexCache", cached
+      ? `<div class="cachebar warnish">Couldn't refresh — these holdings are your last saved copy.</div>` : "");
+    return;
+  }
+  setHtml("indexCache", "");
+  if (!(d.empty || d.error)) cacheSet("index:" + cfg, d);
+  _renderValquoIndex(d, cfg);
+}
+
+function _renderValquoIndex(d, cfg) {
   setHtml("indexFreshness", freshnessBanner(d.freshness));
   setHtml("indexDisclaimer", d.disclaimer ? esc(d.disclaimer) : "");
   const note = document.getElementById("valquoIndexNote");
@@ -1534,10 +1636,23 @@ async function loadIndexTrack() {
   const body = document.getElementById("indexPerfBody");
   if (!body) return;
   const cfg = (document.getElementById("bookConfig") || {}).value || "roth";
+  const cached = cacheGet("indextrack:" + cfg);
+  if (cached) { try { _renderIndexTrack(cached.d); } catch (e) { } }
+  else { body.innerHTML = skeleton(4, { head: true }); }
   let d;
   try {
     d = await (await fetch("/api/index-track?config=" + encodeURIComponent(cfg))).json();
-  } catch (e) { body.innerHTML = `<div class="muted">Performance unavailable.</div>`; return; }
+  } catch (e) {
+    if (!cached) body.innerHTML = `<div class="muted">Performance unavailable.</div>`;
+    return;
+  }
+  cacheSet("indextrack:" + cfg, d);
+  _renderIndexTrack(d);
+}
+
+function _renderIndexTrack(d) {
+  const body = document.getElementById("indexPerfBody");
+  if (!body) return;
 
   const bt = d.backtested || {}, live = d.live;
   const liveLeads = d.headline === "live";
