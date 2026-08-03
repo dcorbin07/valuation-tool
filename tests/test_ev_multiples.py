@@ -47,6 +47,24 @@ def _sf1(**over):
     return row
 
 
+# Every line item a foreign filer reports is in its own currency, so a fixture that converts
+# only the field under test is not a foreign filer — it is a chimera, and it will "fail" any
+# check that touches a second field (net debt, in the EV case) for a reason that is the
+# fixture's fault rather than the code's.
+_LOCAL_FIELDS = ("revenue", "netinc", "ebit", "ebitda", "gp", "fcf", "equity", "debt",
+                 "cashneq", "intexp", "invcap", "taxexp", "ebt")
+
+
+def _sf1_foreign(fx, **over):
+    """The same real company as `_sf1()`, reporting in a currency worth 1/fx of a dollar."""
+    row = _sf1(**over)
+    for k in _LOCAL_FIELDS:
+        if row.get(k) is not None:
+            row[k] = row[k] * fx
+    row["fxusd"] = fx
+    return row
+
+
 def _metrics(n=40, established=True, ev_ebitda=None, ev_sales=None):
     """A cross-section wide enough to z-score, with a spread on every value input so that
     changing which inputs feed the composite necessarily changes the composite."""
@@ -75,7 +93,8 @@ def _metrics(n=40, established=True, ev_ebitda=None, ev_sales=None):
 def test_panel_computes_ev_ebitda():
     m = _sf1_to_metrics("T", _sf1(), price=10.0, market_cap=1200.0)
     assert m["ev_ebitda"] is not None, "ev_ebitda must be populated (the coverage-rule bug class)"
-    assert abs(m["ev_ebitda"] - 2400.0 / 200.0) < 1e-9, m["ev_ebitda"]
+    # EV is rebuilt at the rebalance date by default now: 1200 cap + (300 - 100) net debt.
+    assert abs(m["ev_ebitda"] - 1400.0 / 200.0) < 1e-9, m["ev_ebitda"]
 
 
 def test_a_loss_makers_ev_ebitda_is_dropped_not_negative():
@@ -91,10 +110,8 @@ def test_ev_ebitda_is_converted_to_usd_for_a_foreign_reporter():
     the other hands a foreign reporter a fake multiple — SK Telecom's book_to_price came out
     at 892 against a true 0.589 from precisely this. fxusd is LOCAL PER USD, so it divides."""
     fx = 1514.2                                  # won per USD
-    local = _sf1(ebitda=200.0 * fx, fxusd=fx)    # same real company, reporting in won
-    usd = _sf1()
-    m_local = _sf1_to_metrics("T", local, price=10.0, market_cap=1200.0)
-    m_usd = _sf1_to_metrics("T", usd, price=10.0, market_cap=1200.0)
+    m_local = _sf1_to_metrics("T", _sf1_foreign(fx), price=10.0, market_cap=1200.0)
+    m_usd = _sf1_to_metrics("T", _sf1(), price=10.0, market_cap=1200.0)
     assert abs(m_local["ev_ebitda"] - m_usd["ev_ebitda"]) < 1e-6, (
         f"foreign reporter got {m_local['ev_ebitda']} vs {m_usd['ev_ebitda']} — currency bug")
 
@@ -113,8 +130,9 @@ def test_ev_ebitda_is_exempt_from_the_range_check_like_the_other_multiples():
 # --------------------------------------------------------------------------- #
 #  point-in-time EV  (a latent defect found while wiring the above)
 # --------------------------------------------------------------------------- #
-def test_ev_is_the_filings_own_by_default():
-    """Baseline behaviour, pinned so the A/B has a fixed reference point."""
+def test_ev_is_the_filings_own_when_the_fix_is_disabled():
+    """The pre-fix behaviour, pinned so the A/B keeps a fixed reference point and so the
+    revert path (EDGE_EV_POINT_IN_TIME=false) stays honest rather than becoming a no-op."""
     m = _sf1_to_metrics("T", _sf1(), price=10.0, market_cap=3000.0, ev_point_in_time=False)
     assert abs(m["ev_sales"] - 2400.0 / 1000.0) < 1e-9, m["ev_sales"]
 
@@ -133,28 +151,112 @@ def test_point_in_time_ev_converts_net_debt_before_adding_it_to_a_usd_market_cap
     """P7 wearing a different hat: `debt`/`cashneq` are REPORTING currency, `marketcap` is
     USD. Adding won to dollars would dwarf the market cap by ~1,500x."""
     fx = 1514.2
-    loc = _sf1(fxusd=fx)
-    for k in ("revenue", "netinc", "ebit", "ebitda", "gp", "fcf", "equity", "debt",
-              "cashneq", "intexp", "invcap", "taxexp", "ebt"):
-        loc[k] = loc[k] * fx                       # a foreign filer reports EVERY line in won
     a = _sf1_to_metrics("T", _sf1(), price=10.0, market_cap=3000.0, ev_point_in_time=True)
-    b = _sf1_to_metrics("T", loc, price=10.0, market_cap=3000.0, ev_point_in_time=True)
+    b = _sf1_to_metrics("T", _sf1_foreign(fx), price=10.0, market_cap=3000.0,
+                        ev_point_in_time=True)
     for k in ("ev_sales", "ev_ebitda", "ebit_ev"):
         assert abs(a[k] - b[k]) < 1e-6, f"{k}: usd {a[k]} vs foreign {b[k]} — currency bug"
 
 
 def test_point_in_time_ev_falls_back_when_a_piece_is_missing():
-    """No net-debt line items means no rebuild — keep the filing's `ev` rather than
-    inventing an EV equal to the market cap."""
+    """No net-debt line items AND no filing market cap means no rebuild — keep the filing's
+    `ev` rather than inventing an EV equal to the market cap."""
     m = _sf1_to_metrics("T", _sf1(debt=None, cashneq=None), price=10.0,
                         market_cap=3000.0, ev_point_in_time=True)
     assert abs(m["ev_sales"] - 2400.0 / 1000.0) < 1e-9, "should fall back to the filing ev"
+    assert m["_ev_src"] == "stale_no_netdebt"
 
 
-def test_point_in_time_ev_is_off_by_default():
+def test_point_in_time_ev_is_on_by_default():
     from valuation.config import CONFIG
-    assert CONFIG.ev_point_in_time is False, (
-        "ev_point_in_time defaults ON — it silently changes ebit_ev, an adopted factor")
+    assert CONFIG.ev_point_in_time is True, (
+        "ev_point_in_time defaults OFF — the EV ratios are being priced ~111 days stale "
+        "while earnings_yield / fcf_yield / book_to_price are priced at the rebalance date")
+
+
+# --------------------------------------------------------------------------- #
+#  THE regression this can silently suffer: EV drifting loose from the rebalance
+#  date again. A single-row test cannot see it — the value only looks wrong once
+#  you ask whether it MOVED when the price did.
+# --------------------------------------------------------------------------- #
+def test_ev_tracks_market_cap_across_rebalances_from_one_filing():
+    """The defect, stated as a property: ONE filing scored at several rebalance dates must
+    produce an EV that moves dollar-for-dollar with the point-in-time market cap.
+
+    This is the AAPL case from the prompt in miniature. Under the stale behaviour all three
+    rebalances reuse the filing's single `ev` and this comes out constant, which is the whole
+    bug: a name whose price doubled between filings kept its old cheapness.
+    """
+    sf1 = _sf1()                                   # net debt = 300 - 100 = 200, filing ev 2400
+    caps = [2000.0, 3000.0, 5000.0]                # same quarter, three rebalances
+    evs = [_sf1_to_metrics("T", sf1, price=10.0, market_cap=c, ev_point_in_time=True)["ev_sales"]
+           * 1000.0 for c in caps]                 # ev_sales * revenue -> back out EV
+
+    assert evs == sorted(evs), f"EV did not rise with market cap: {evs}"
+    for cap, ev in zip(caps, evs):
+        assert abs((ev - cap) - 200.0) < 1e-6, (
+            f"implied net debt {ev - cap:.2f} != 200 at cap {cap} — the debt leg should be "
+            "held at its last reported value while the equity leg re-prices")
+    # dollar-for-dollar with the cap, not merely monotone
+    assert abs((evs[2] - evs[0]) - (caps[2] - caps[0])) < 1e-6
+    # and it is genuinely different from the stale answer it replaced
+    stale = [_sf1_to_metrics("T", sf1, price=10.0, market_cap=c,
+                             ev_point_in_time=False)["ev_sales"] * 1000.0 for c in caps]
+    assert len(set(round(x, 6) for x in stale)) == 1, "stale EV should be constant by definition"
+    assert not any(abs(a - b) < 1e-6 for a, b in zip(evs, stale)), (
+        "the fix produced the stale value at every cap — is the rebuild running at all?")
+
+
+def test_every_ev_ratio_moves_with_the_rebalance_and_not_one_of_them_is_left_behind():
+    """`ebit_ev` is the one that is actually deployed, so it is the one most worth pinning:
+    all three EV ratios must re-price together or the value theme mixes two vintages."""
+    sf1 = _sf1()
+    lo = _sf1_to_metrics("T", sf1, price=10.0, market_cap=2000.0, ev_point_in_time=True)
+    hi = _sf1_to_metrics("T", sf1, price=10.0, market_cap=5000.0, ev_point_in_time=True)
+    assert hi["ev_sales"] > lo["ev_sales"]         # pricier on a bigger cap
+    assert hi["ev_ebitda"] > lo["ev_ebitda"]
+    assert hi["ebit_ev"] < lo["ebit_ev"]           # a YIELD — moves the other way
+    # market-cap-based ratios are untouched by this change
+    for k in ("book_to_price", "earnings_yield", "fcf_yield"):
+        assert lo[k] != hi[k], f"{k} should already track the cap"
+
+
+def test_the_ev_identity_route_recovers_a_row_with_no_debt_line_items():
+    """Second route: `ev - marketcap` is Sharadar's own net debt, already USD, so it needs no
+    fx at all. Worth 82 rows on the real export — small, but the alternative for those rows is
+    silently keeping the stale value, which is the failure mode this whole change is about."""
+    sf1 = _sf1(debt=None, cashneq=None, marketcap=2200.0)   # implies net debt 2400-2200 = 200
+    m = _sf1_to_metrics("T", sf1, price=10.0, market_cap=3000.0, ev_point_in_time=True)
+    assert m["_ev_src"] == "pit_ev_identity"
+    assert abs(m["ev_sales"] * 1000.0 - (3000.0 + 200.0)) < 1e-6
+
+
+def test_the_two_routes_agree_when_both_are_available():
+    """They agree to a p99 of 0.001% of market cap on 193,811 real rows; on a clean fixture
+    they should be exact. If these ever diverge, one of them is wrong about currency."""
+    a = _sf1_to_metrics("T", _sf1(marketcap=2200.0), price=10.0, market_cap=3000.0,
+                        ev_point_in_time=True)
+    b = _sf1_to_metrics("T", _sf1(debt=None, cashneq=None, marketcap=2200.0), price=10.0,
+                        market_cap=3000.0, ev_point_in_time=True)
+    assert a["_ev_src"] == "pit_line_items" and b["_ev_src"] == "pit_ev_identity"
+    assert abs(a["ev_sales"] - b["ev_sales"]) < 1e-9
+
+
+def test_the_route_taken_is_recorded_on_every_row():
+    """`ev_freshness` is only as good as this tag — an untagged row cannot be counted as
+    stale, and an uncounted stale row is exactly what went unnoticed for months."""
+    on = _sf1_to_metrics("T", _sf1(), price=10.0, market_cap=3000.0, ev_point_in_time=True)
+    off = _sf1_to_metrics("T", _sf1(), price=10.0, market_cap=3000.0, ev_point_in_time=False)
+    assert on["_ev_src"] == "pit_line_items"
+    assert off["_ev_src"] == "stale_flag_off"
+    assert on["_ev_drift"] > 0.0, "drift should be non-zero when the cap moved"
+    assert abs(off["_ev_drift"]) < 1e-12, "flag off cannot drift — it IS the filing value"
+
+
+def test_no_market_cap_cannot_silently_produce_a_debt_only_ev():
+    m = _sf1_to_metrics("T", _sf1(), price=10.0, market_cap=None, ev_point_in_time=True)
+    assert m["_ev_src"] == "stale_no_mc"
+    assert abs(m["ev_sales"] - 2400.0 / 1000.0) < 1e-9
 
 
 def test_the_number_is_registered_to_the_value_theme():
@@ -270,6 +372,94 @@ def test_panel_rows_record_the_bucket():
     from valuation.edge import fundamental_panel as F
     src = inspect.getsource(F.build_fundamental_panel)
     assert 'row["bucket"]' in src, "panel must persist the bucket for per-branch diagnostics"
+
+
+# --------------------------------------------------------------------------- #
+#  ev_freshness — the guard that makes a silent revert loud
+# --------------------------------------------------------------------------- #
+def _fresh_panel(srcs, drifts=None):
+    import pandas as pd
+    drifts = drifts if drifts is not None else [0.1] * len(srcs)
+    return pd.DataFrame({"ev_src": srcs, "ev_drift": drifts})
+
+
+def test_ev_freshness_reports_a_clean_panel_as_ok():
+    from valuation.edge.fundamental_panel import ev_freshness
+    r = ev_freshness(_fresh_panel(["pit_line_items"] * 99 + ["pit_ev_identity"]), warn=False)
+    assert r["fresh"] == 1.0 and r["stale"] == 0.0
+    assert r["ok"] is True and not r["warnings"]
+    assert r["by_source"]["pit_ev_identity"] == 1
+
+
+def test_ev_freshness_catches_the_flag_being_turned_off():
+    """The most likely way this regresses is somebody flipping the env var and nobody
+    noticing, so that has to be the loudest case rather than a silent pass."""
+    from valuation.edge.fundamental_panel import ev_freshness
+    r = ev_freshness(_fresh_panel(["stale_flag_off"] * 100, [0.0] * 100), warn=False)
+    assert r["ok"] is False
+    assert any("OFF" in w for w in r["warnings"]), r["warnings"]
+
+
+def test_ev_freshness_catches_a_rebuild_that_quietly_fell_back():
+    """A fallback path doing most of the work looks identical to a working fix from the
+    outside — same columns, same coverage, no error."""
+    from valuation.edge.fundamental_panel import ev_freshness
+    r = ev_freshness(_fresh_panel(["pit_line_items"] * 50 + ["stale_no_netdebt"] * 50),
+                     warn=False)
+    assert abs(r["fresh"] - 0.5) < 1e-9
+    assert r["ok"] is False and any("floor" in w for w in r["warnings"])
+
+
+def test_ev_freshness_reports_the_drift_the_fix_actually_produced():
+    """Effect size, not just a pass/fail: a rebuild that runs but never moves anything is
+    its own kind of broken and would otherwise read as perfectly healthy."""
+    from valuation.edge.fundamental_panel import ev_freshness
+    r = ev_freshness(_fresh_panel(["pit_line_items"] * 4, [0.0, 0.05, 0.20, 0.40]), warn=False)
+    assert abs(r["drift"]["median"] - 0.125) < 1e-9
+    assert abs(r["drift"]["frac_over_10pct"] - 0.5) < 1e-9
+    assert abs(r["drift"]["frac_over_25pct"] - 0.25) < 1e-9
+
+
+def test_ev_freshness_does_not_pretend_a_panel_without_the_column_is_fine():
+    from valuation.edge.fundamental_panel import ev_freshness
+    import pandas as pd
+    r = ev_freshness(pd.DataFrame({"ticker": ["A"]}), warn=False)
+    assert r["ok"] is False and r["warnings"]
+
+
+def test_ev_freshness_is_computed_by_the_backtest():
+    import inspect
+    from valuation.edge import fundamental_panel as F
+    src = inspect.getsource(F.run_backtests)
+    assert 'out["ev_freshness"] = ev_freshness(panel)' in src
+
+
+def test_ev_freshness_reaches_backtest_results_json():
+    """`run_backtests` putting it in its own dict is NOT enough: results_file builds a
+    curated payload and silently drops anything it does not name, so a block can be computed
+    every run and still never reach the file Don and the Cowork agent actually read."""
+    from valuation.edge.results_file import build_payload
+    res = {"ev_freshness": {"fresh": 0.9995, "stale": 0.0005, "floor": 0.95, "ok": True,
+                            "by_source": {"pit_line_items": 136000},
+                            "drift": {"median": 0.104, "frac_over_25pct": 0.186},
+                            "warnings": []}}
+    p = build_payload(res, universe_label="full")
+    ev = p.get("ev_freshness")
+    assert ev and ev["available"] is True, "ev_freshness dropped by the payload builder"
+    assert abs(ev["fresh"] - 0.9995) < 1e-12
+    assert ev["by_source"]["pit_line_items"] == 136000
+    assert abs(ev["drift"]["median"] - 0.104) < 1e-12
+
+
+def test_a_stale_run_says_so_in_the_markdown_not_just_the_json():
+    """The .md is what gets read at a glance. A stale run has to be visible there or the
+    warning only exists somewhere nobody looks."""
+    from valuation.edge.results_file import build_payload, render_md
+    res = {"ev_freshness": {"fresh": 0.0, "stale": 1.0, "floor": 0.95, "ok": False,
+                            "by_source": {"stale_flag_off": 136000}, "drift": {},
+                            "warnings": ["ev_point_in_time is OFF for 136,000 rows"]}}
+    md = render_md(build_payload(res, universe_label="full"))
+    assert "EV IS STALE" in md, md[:2000]
 
 
 def _run_all():

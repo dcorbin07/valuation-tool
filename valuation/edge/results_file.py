@@ -35,7 +35,9 @@ MD_NAME = "BACKTEST_RESULTS.md"
 # a v1 reader still works; the bump is the signal that new fields exist.
 # 3 adds `sanity_check` (correctness: range / subgroup-pegging / market-cap divergence),
 # `per_theme`, `holdout_validation` and `costs`. All additive; a v2 reader still works.
-SCHEMA_VERSION = 3
+# 4 adds `ev_freshness`: what fraction of rows carry an enterprise value priced at the
+# REBALANCE date rather than the filing date, and how far re-pricing moved it. Additive.
+SCHEMA_VERSION = 4
 
 
 def repo_root(start: str | None = None) -> str:
@@ -95,6 +97,7 @@ def build_payload(res: dict, universe_label: str | None = None,
     hv = res.get("holdout_validation") or {}
     cst = res.get("costs") or {}
     san = res.get("sanity_check") or {}
+    evf = res.get("ev_freshness") or {}
     atx = res.get("after_tax") or {}
     ntb = res.get("no_trade_band") or {}
     bkc = res.get("book_configs") or {}
@@ -253,6 +256,24 @@ def build_payload(res: dict, universe_label: str | None = None,
         # means the range / subgroup-pegging / market-cap-divergence checks all passed.
         "sanity_check": san or {"available": False, "flags": []},
 
+        # Coverage says a factor is PRESENT and sanity says it is BELIEVABLE; this says the
+        # EV ratios are CURRENT. `ev` used to be read straight off the filing, so `ebit_ev` /
+        # `ev_sales` / `ev_ebitda` priced cheapness against a ~111-day-old quote while
+        # `earnings_yield` / `fcf_yield` / `book_to_price` used the rebalance-date one. A
+        # rebuild that silently falls back to the filing value raises nothing and leaves both
+        # of the other blocks perfectly happy, so it needs its own number. `fresh` is the
+        # load-bearing part; `drift` is the effect size (a rebuild that never moves anything
+        # is its own kind of broken).
+        "ev_freshness": {
+            "available": bool(evf),
+            "fresh": _num(evf.get("fresh")),
+            "stale": _num(evf.get("stale")),
+            "floor": _num(evf.get("floor")),
+            "ok": evf.get("ok"),
+            "by_source": {k: int(v) for k, v in (evf.get("by_source") or {}).items()},
+            "drift": {k: _num(v) for k, v in (evf.get("drift") or {}).items()},
+            "warnings": evf.get("warnings") or []},
+
         # {signal: coverage} for every wired number and theme — the fraction of panel rows
         # where it actually reached the composite. `below_floor` is the load-bearing part:
         # a wired factor at ~0% is a plumbing bug that no other metric in this file exposes,
@@ -336,6 +357,18 @@ def render_md(p: dict) -> str:
               + ", ".join(f"`{r['name']}` ({_rate(r['coverage'], 1)})" for r in bf))
         else:
             A(f"- **Coverage guard:** all wired signals above {_rate(sc.get('floor'))} coverage")
+    ev = p.get("ev_freshness") or {}
+    if ev.get("available"):
+        _dr = ev.get("drift") or {}
+        _md = ("" if _dr.get("median") is None else
+               f", median re-pricing {_rate(_dr['median'], 1)} "
+               f"(>25% on {_rate(_dr.get('frac_over_25pct'), 1)} of rows)")
+        if ev.get("ok"):
+            A(f"- **EV freshness:** {_rate(ev.get('fresh'), 1)} of rows priced at the "
+              f"REBALANCE date{_md}")
+        else:
+            A(f"- **⚠️ EV IS STALE — only {_rate(ev.get('fresh'), 1)} of rows priced at the "
+              f"rebalance date:** " + "; ".join(ev.get("warnings") or []))
     A("")
     A("## Validation\n")
     A("| metric | value | want |")
