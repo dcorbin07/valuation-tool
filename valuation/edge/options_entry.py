@@ -1165,11 +1165,17 @@ def analyse(arms_rows: dict, ctrl_rows: list, meta: Optional[dict] = None,
         # Same basis the gate uses: matched for timing arms, pooled for a pure filter whose
         # matched cells are identical trades and would produce a degenerate test.
         basis = "vs_signal_pooled" if arm in FILTER_ARMS else "vs_signal_matched"
-        p = (((rep.get(basis) or {}).get("paired") or {}).get("p_sign"))
-        # A one-sided reading: only an arm that is BETTER than the signal can be a discovery.
-        md = (((rep.get(basis) or {}).get("paired") or {}).get("mean_diff"))
+        pr = ((rep.get(basis) or {}).get("paired") or {})
+        p = pr.get("p_sign")
+        # A one-sided reading: only an arm that is BETTER than the signal can be a discovery —
+        # and the direction must come from the SIGN TEST, whose p-value this is, not from the
+        # mean. An arm can have a positive mean and a significantly negative sign test (a big
+        # average carried by a few cells while losing in most), and screening on the mean would
+        # call that a discovery in the wrong direction. Found in the exit lab; corrected here
+        # too. It changes nothing in 22c's result — `pullback`, its only discovery, had
+        # mean_diff +0.46 AND sign_z +11.64, so both readings agree.
         if p is not None:
-            pvals.append(p if (md or 0) > 0 else 1.0)
+            pvals.append(p if (pr.get("sign_z") or 0) > 0 else 1.0)
             order.append(arm)
     flags = bh_fdr(pvals, FDR_Q) if pvals else []
     fdr = {a: {"p_sign": pvals[i], "discovery": bool(flags[i]) if i < len(flags) else False}

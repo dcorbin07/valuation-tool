@@ -272,12 +272,32 @@ def _entry_quote(path) -> F.Quote:
                    oi=path["entry_oi"], volume=path["entry_volume"])
 
 
-def apply_policy(path: dict, policy: dict, aggression: float = 1.0) -> Optional[dict]:
+def apply_policy(path: dict, policy: dict, aggression: float = 1.0,
+                 settle: str = "intrinsic") -> Optional[dict]:
     """Evaluate ONE exit policy against ONE captured path.
 
     A line-for-line re-reading of `options_backtest.simulate_trade`'s loop with the exit
     conditions generalised. The baseline policy must therefore reproduce it exactly, which
     `replay_matches_shipped` asserts on the real trade log rather than on a fixture.
+
+    `settle` decides what happens when a policy holds PAST the last quote the contract still had:
+
+      "last_quote"  what the production simulator does — mark at the last usable quote.
+      "intrinsic"   what actually happens — the position is settled against the underlying at
+                    expiry.  THE DEFAULT, and the only honest basis for comparing exits.
+
+    THIS DISTINCTION IS NOT COSMETIC AND IT IS THE MAIN FINDING OF THIS THREAD. A contract stops
+    being quotable when its bid goes to zero or its spread blows out, which is precisely when it
+    is dying. Marking it at the last day it was still quotable therefore books a price from BEFORE
+    the final decay. Measured on this run: for the hold-to-expiry policy, 44.6% of trades land in
+    that fall-through, their last usable quote is a MEDIAN OF 10 DAYS before expiry, the stale mark
+    is higher than the true settlement in 94.7% of cases, and 86.1% of them carry a positive mark
+    on a contract that expires worthless. Mean marked return -77.8% against a true -92.2%.
+
+    The bias scales with how long a policy holds, so it does not merely add noise — it manufactures
+    a monotone "reward" for holding longer. Every earlier options result in this project uses the
+    shipped exit, which reaches this fall-through on 0.9% of trades, so those results are
+    essentially unaffected; the moment a hold-longer policy is tested, they are not.
     """
     entry_q = _entry_quote(path)
     entry_fill = path["entry_fill"]
@@ -323,20 +343,26 @@ def apply_policy(path: dict, policy: dict, aggression: float = 1.0) -> Optional[
                                       "trail" if hit_trail else
                                       "time_stop" if hit_time else "dte_exit")})
             return t
-    t = F.round_trip(entry_q, last_q, right=right, strike=strike,
-                     exit_underlying=path["settle_underlying"], aggression=aggression,
-                     expired=True)
+    # Held past the last quote the contract had. `settle` decides how that is priced.
+    und = path.get("settle_underlying")
+    use_intrinsic = (settle == "intrinsic" and und is not None)
+    t = F.round_trip(entry_q, None if use_intrinsic else last_q, right=right, strike=strike,
+                     exit_underlying=und, aggression=aggression, expired=True)
     if t.get("ok"):
         t.update({"exit_date": path["expiry"], "held_days": (expiry - entry_date).days,
-                  "exit_reason": "expiry"})
+                  "exit_reason": "expiry",
+                  # Flagged so a policy that leans on this path can never hide in an average.
+                  "stale_mark_used": bool(not use_intrinsic and last_q is not None),
+                  "no_settle_price": bool(settle == "intrinsic" and und is None)})
     return t
 
 
-def score_paths(paths: list, policy_name: str, policy: dict, aggression: float = 1.0) -> list:
+def score_paths(paths: list, policy_name: str, policy: dict, aggression: float = 1.0,
+                settle: str = "intrinsic") -> list:
     """One policy over a whole entry set -> rows in the shape `options_tracker._stats` scores."""
     out = []
     for p in paths:
-        t = apply_policy(p, policy, aggression=aggression)
+        t = apply_policy(p, policy, aggression=aggression, settle=settle)
         if not t or not t.get("ok"):
             continue
         out.append({
@@ -351,6 +377,7 @@ def score_paths(paths: list, policy_name: str, policy: dict, aggression: float =
             "dte0": p["dte0"], "cap_tier": p.get("cap_tier"),
             "entry_spread_pct": p.get("entry_spread_pct"),
             "settled_at_intrinsic": t.get("settled_at_intrinsic"),
+            "stale_mark_used": t.get("stale_mark_used"),
             "policy": policy_name, "status": "closed"})
     return out
 
@@ -358,9 +385,14 @@ def score_paths(paths: list, policy_name: str, policy: dict, aggression: float =
 def replay_matches_shipped(paths: list, shipped_rows: list) -> dict:
     """The correctness gate: the baseline policy re-derived from the paths must equal the log the
     production simulator produced. Any mismatch and every number in this thread is incomparable
-    to the rest of the project, so it fails loudly rather than warning."""
+    to the rest of the project, so it fails loudly rather than warning.
+
+    Runs on `settle="last_quote"` deliberately: the point is to prove the evaluator reproduces
+    PRODUCTION, and production marks the fall-through at the last usable quote. The honest
+    settlement is what every policy comparison uses; this is the parity check, not the headline.
+    """
     got = {(r["ticker"], r["entry_date"]): r for r in
-           score_paths(paths, BASELINE, dict(SHIPPED))}
+           score_paths(paths, BASELINE, dict(SHIPPED), settle="last_quote")}
     want = {(r["ticker"], str(r.get("entry_date") or r["alert_ts"])[:10]): r
             for r in shipped_rows}
     shared = set(got) & set(want)
@@ -622,9 +654,23 @@ def holdout_policy_select(rows_by_policy: dict) -> dict:
 # ================================ orchestration ============================================
 def analyse(paths_by_set: dict, shipped_rows: Optional[list] = None, seed: int = 0) -> dict:
     """Score every policy on every entry set and put it all through the gate."""
-    scored = {}
+    scored, stale = {}, {}
     for es, paths in paths_by_set.items():
         scored[es] = {n: score_paths(paths, n, p) for n, p in POLICIES}
+        # The SAME grid on production's stale-quote settlement, so the size of the artifact is a
+        # reported number per policy rather than a caveat in prose. Nothing is judged on it.
+        legacy = {n: score_paths(paths, n, p, settle="last_quote") for n, p in POLICIES}
+        stale[es] = {}
+        for n in scored[es]:
+            hon, leg = scored[es][n], legacy[n]
+            used = sum(1 for r in leg if r.get("stale_mark_used"))
+            stale[es][n] = {
+                "expectancy_honest": _stats(hon)["expectancy_pct"],
+                "expectancy_stale_mark": _stats(leg)["expectancy_pct"],
+                "overstatement": ((_stats(leg)["expectancy_pct"] or 0)
+                                  - (_stats(hon)["expectancy_pct"] or 0)),
+                "share_marked_stale": used / len(leg) if leg else None,
+                "mean_held_days": _mean([_f(r.get("held_days")) for r in hon])}
 
     cmp_signal = compare(scored.get("signal") or {}, seed=seed)
     cmp_random = compare(scored.get("random") or {}, seed=seed)
@@ -636,9 +682,15 @@ def analyse(paths_by_set: dict, shipped_rows: Optional[list] = None, seed: int =
         if name == BASELINE or name not in cmp_signal:
             continue
         pr = (cmp_signal[name].get("vs_shipped") or {}).get("paired") or {}
-        p, md = pr.get("p_sign"), pr.get("mean_diff")
+        p, z = pr.get("p_sign"), pr.get("sign_z")
         if p is not None:
-            pvals.append(p if (md or 0) > 0 else 1.0)
+            # The direction MUST come from the sign test itself, not from the mean. A policy can
+            # have a positive mean difference and a significantly NEGATIVE sign test — a big
+            # average carried by a few cells while losing in most of them — and screening on the
+            # mean would hand it a tiny two-sided p and call it a discovery in the wrong
+            # direction. Measured here: sl70's mean is +0.0200 but it wins only 23.8% of cells
+            # (z = -7.50), and the mean-screened version flagged it.
+            pvals.append(p if (z or 0) > 0 else 1.0)
             order.append(name)
     flags = bh_fdr(pvals, FDR_Q) if pvals else []
     fdr = {n: {"p_sign": pvals[i], "discovery": bool(flags[i]) if i < len(flags) else False}
@@ -664,6 +716,12 @@ def analyse(paths_by_set: dict, shipped_rows: Optional[list] = None, seed: int =
         "holdout_signal": holdout_policy_select(scored.get("signal") or {}),
         "holdout_random": holdout_policy_select(scored.get("random") or {}),
         "deflated_sharpe": dsr,
+        "stale_mark_artifact": stale,
+        "settlement": {"headline": "intrinsic", "parity_check": "last_quote",
+                       "why": "a contract stops being quotable when its bid hits zero, i.e. "
+                              "exactly when it is dying, so marking the fall-through at the last "
+                              "usable quote books a price from before the final decay and "
+                              "rewards any policy that holds longer."},
         "params": {"policies": {n: p for n, p in POLICIES}, "baseline": BASELINE,
                    "n_policies": len(POLICIES), "MAX_PBO": MAX_PBO,
                    "MIN_EXPECTANCY_GAIN": MIN_EXPECTANCY_GAIN,

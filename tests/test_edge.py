@@ -3785,6 +3785,31 @@ def test_exitlab_worthless_expiries_settle_at_intrinsic_and_are_not_dropped():
     assert t["settled_at_intrinsic"] and t["return_pct"] == -1.0, t
 
 
+def test_exitlab_holding_past_the_last_quote_settles_at_intrinsic_not_at_a_stale_mark():
+    """THE finding of this thread. A contract stops being quotable when its bid hits zero or its
+    spread blows out — exactly when it is dying — so marking the fall-through at the last usable
+    quote books a price from BEFORE the final decay. That bias grows with holding period, so it
+    manufactures a monotone reward for holding longer and would hand the grid a fake winner."""
+    from valuation.edge import options_exitlab as EL
+
+    # quotes stop 10 days before expiry with the bid still at 0.60; the stock finishes OTM, so
+    # the honest settlement is a total loss and the stale mark is a 45% loss.
+    p = _exit_path([0.90, 0.75, 0.60], dte0=45, strike=100.0, settle=80.0)
+    honest = EL.apply_policy(p, {"tp": 1.00, "sl": None, "time_frac": 1.00}, settle="intrinsic")
+    legacy = EL.apply_policy(p, {"tp": 1.00, "sl": None, "time_frac": 1.00},
+                             settle="last_quote")
+    assert honest["exit_reason"] == "expiry" and legacy["exit_reason"] == "expiry"
+    assert honest["return_pct"] == -1.0, honest
+    assert abs(legacy["return_pct"] - (0.60 / 1.10 - 1.0)) < 1e-12, legacy
+    assert legacy["return_pct"] > honest["return_pct"], "the stale mark flatters, always"
+    assert legacy["stale_mark_used"] and not honest.get("stale_mark_used")
+
+    # the shipped exit barely touches this path, which is why earlier results are unaffected
+    quick = _exit_path([2.40] + [0.60] * 5, dte0=45, strike=100.0, settle=80.0)
+    t = EL.apply_policy(quick, dict(EL.SHIPPED))
+    assert t["exit_reason"] == "target" and not t.get("stale_mark_used")
+
+
 def test_exitlab_gate_requires_the_random_entry_set_not_just_the_signal():
     """X1(b), the key test the mandate names. The scream-buy entry is dead, so an exit that only
     improves things behind it is entry-conditional, not an exit edge. It is recorded separately
@@ -3883,6 +3908,13 @@ def test_exitlab_policy_grid_is_fixed_and_pays_for_its_own_multiplicity():
     assert "n_trials=n_trials" in src and "len(POLICY_NAMES)" in src
     assert "bh_fdr" in src and "else 1.0" in src, "one-sided: worse policies are not discoveries"
     assert EL.MAX_PBO == 0.50
+    # The one-sided screen must take its DIRECTION from the sign test, whose p-value it is —
+    # not from the mean, which can point the other way on a heavy tail.
+    assert 'pr.get("sign_z")' in src, "direction must come from the sign test"
+    assert 'pvals.append(p if (z or 0) > 0 else 1.0)' in src
+    from valuation.edge import options_entry as E
+    assert 'pr.get("sign_z")' in inspect.getsource(E.analyse), \
+        "the same screen in the 22c entry study must agree"
 
 
 def _run_all():
