@@ -5,6 +5,144 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 7 — 2026-08-03 — Daily + weekly Discord recap of the paper track (PROMPT_appfixer_discord_recap.md)
+
+## What Don gets
+
+Two automated Discord posts about the forward paper track, both server-side, both running with
+his computer off:
+
+- **Mon–Thu, ~5 min after the paper-track cycle** — a short daily: options open / opened today /
+  closed today with each trade's P&L, expectancy to date against the backtest reference, then
+  Index vs SPY for the session and since inception, holdings count and any additions.
+- **Friday, same slot** — a fuller weekly: the week's closed trades and P&L for both books, hit
+  rate and expectancy to date, best/worst trade, the index cumulative, and a health line.
+
+**Friday posts the weekly INSTEAD of the daily, not as well as.** The weekly is a superset;
+firing both a minute apart would just train him to skim past them. Every weekday still gets
+exactly one post.
+
+## The one thing Don must do
+
+**Set `DISCORD_WEBHOOK_URL` on RENDER** (Dashboard → valuation-tool → Environment). It is now
+declared in `render.yaml` with `sync: false`, so it appears as a blank to fill in.
+
+This is *not* the same as the GitHub Actions secret of the same name. The Actions secret feeds
+the scan-failure alert and the watchdog, which run on the runner. The recaps post from inside
+the web service, so they read Render's copy. Until it is set the endpoint returns
+`posted: false` with a reason and the Actions job emits a **warning, not a failure** — a
+missing optional notification must not turn the pipeline red.
+
+Same standing item as the last two sessions, now with a second reason to do it.
+
+## The cron entries
+
+| where | when (UTC) | posts |
+|---|---|---|
+| `auto-scan.yml` job `recap` | `58 20` **and** `58 21`, Mon–Thu | daily |
+| `auto-scan.yml` job `recap` | `59 20` **and** `59 21`, Fri | weekly |
+| `render.yaml` cron `paper-recap-daily` | `58 21`, Mon–Thu | daily |
+| `render.yaml` cron `paper-recap-weekly` | `59 21`, Fri | weekly |
+
+Two Actions crons per kind for the same DST reason as the paper track: a crontab cannot say
+"after the 4pm Eastern close", so one entry is correct under EDT and the other under EST, and
+`/admin/post-recap` applies the same `market_session` guard the paper track uses. Render gets a
+single entry each at 21:5x UTC, which is after the close in both regimes.
+
+Both land ~11–13 minutes behind the paper-track cron, so the recap describes a **finished**
+cycle rather than the previous day's.
+
+Manual run: Actions → "Auto scans" → Run workflow → kind `recap-daily` or `recap-weekly`.
+
+## How it stays honest
+
+The prompt's honesty rules are enforced in code and pinned by tests, not left to the wording:
+
+- Every post carries `paper (Tradier sandbox), since <date>` and the `thin` flag **taken from
+  `paper_track._label`** — the same string `/api/track` serves. The recap cannot grade the
+  track more generously than the product does.
+- **No closed trades → "No closed trades yet".** An empty scorecard printed as `0% hit rate,
+  $0 expectancy` is not neutral; it looks like a measured result. Test:
+  `test_recap_says_no_closed_trades_rather_than_reporting_zeros`.
+- **A hit RATE is only quoted once the sample can carry one.** Below the 30-trade floor it
+  reads `1 of 1 won (too few to read as a rate)`. "hit rate 100%" off a single winner was the
+  most flattering untrue number available and is now impossible.
+- Options are always framed as **convex** — "the backtest hits 37% of the time, most trades
+  lose a little and a few win big" — so the hit rate can never be read as a win rate.
+- The backtest is quoted as a **reference point, not a target and not a promise**: +10.4%/trade
+  full-sample and +4.4% in the recent half, both shown, so the fade is visible.
+- Every post ends with "Educational only, not investment advice" and the sandbox/delayed-quote
+  caveat.
+
+## Two bugs I fixed in my own first version
+
+1. **Discord truncates at 1900 characters — from the END, where every caveat lives.** A busy
+   day with six closed trades would have silently dropped "educational only, not investment
+   advice" off the bottom. `_fit()` now trims the per-trade DETAIL lines instead, oldest first,
+   leaves a visible "…detail trimmed" marker, and never touches the last lines. Pinned by
+   `test_fit_drops_detail_not_caveats_and_says_that_it_did`.
+2. **The health line cried wolf on a new track.** It counts recorded sessions against trading
+   days in the window; a track that started yesterday reported "1/5 sessions" and warned about
+   a hole every day of its first week. It now only counts sessions on or after inception. A
+   watchdog that is wrong exactly when you are watching it teaches you to ignore it.
+
+## It reads; it does not recompute
+
+`recap.py` derives no P&L, expectancy or return of its own. It reads
+`options_tracker.scorecard`, the `pnl_pct`/`pnl_dollars` that `record_outcome` already stored,
+and `paper_track.index_summary`. `test_recap_prints_the_tracked_pnl_rather_than_recomputing_it`
+writes a deliberately odd P&L straight into the table and asserts the post shows *that* number
+— so a future divergence between the Discord post and the API fails the suite instead of
+shipping. The one exception is documented: a trade closed with no entry premium is unscoreable,
+so the recap falls back to the stored premiums rather than dropping the trade from the book.
+
+## Idempotency
+
+`post()` marks the day in the same `alerts_sent` table the scream-buy de-dupe uses, keyed
+`__RECAP_DAILY__` / `__RECAP_WEEKLY__`. The two DST crons, the Render cron and any manual re-run
+therefore produce exactly one post per kind per day. **A failed post is deliberately NOT
+marked**, so a Discord outage at 20:58 is retried by the 21:58 cron rather than burning the
+day's only slot on a message nobody received.
+
+## Changed
+
+- **NEW `valuation/saas/recap.py`** — collect / format / post, with the honesty rules in the
+  module docstring.
+- `valuation/saas/app_saas.py` — new `/admin/post-recap` (X-Admin-Token, validates `kind`,
+  applies the market-session guard, returns 200 with a reason on every non-post path).
+- `.github/workflows/auto-scan.yml` — four crons + the `recap` job + two dispatch options.
+- `render.yaml` — `DISCORD_WEBHOOK_URL` declared on the web service; two recap crons.
+- `ENV_REFERENCE.md` — says explicitly that the webhook must be on Render, and why.
+- Tests: `tests/test_paper_track.py` 22 → **34**, `tests/test_saas.py` 27 → **28**.
+
+## Verified
+
+All seven suites green: **edge 142, screener 51, saas 28, intraday 18, engine 28, bulk 14,
+paper-track 34.**
+
+Beyond the unit tests I ran the real Flask route against the real screener database with a
+local HTTP sink standing in for Discord: `POST /admin/post-recap` returned
+`{"posted": true, "chars": 621}`, the sink received exactly one payload ending in the
+disclaimer, and an immediate second POST returned `{"posted": false, "duplicate": true}`
+without sending anything. I also eyeballed both posts rendered against a synthetic book with a
+winning trade, an open position and two index sessions. The de-dupe row that run left in the
+local dev DB has been deleted.
+
+## Honest limits
+
+- **The recaps will say "not started" until the paper track has actually run on Render.** The
+  local database has no paper book, and production still needs `TRADIER_PAPER_TOKEN` /
+  `TRADIER_PAPER_ACCOUNT_ID` confirmed (Session 6's open item). The recap infrastructure is
+  correct and tested either way, but the first real post is gated on that.
+- The options scorecard it quotes is `options_tracker.scorecard`, which counts **every** closed
+  alert — including any the external Cowork/Robinhood filler closes, not only paper ones. That
+  is the existing project-wide definition and `/api/track` already reports it that way; I did
+  not fork a second definition just for Discord.
+- Index holdings only ever get **added** (`seed_book` never drops a name), so "holdings changes"
+  means additions. The post says "added today" rather than implying rotation.
+
+---
+
 # Session 6 — 2026-08-03 — Paper schedule confirmed + the landing now SHOWS (PROMPT_appfixer_landing.md)
 
 ## 1. Is the paper track actually scheduled? YES — here is exactly where

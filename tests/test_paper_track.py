@@ -17,6 +17,7 @@ from valuation.edge import options_tracker as OT           # noqa: E402
 from valuation.edge import paper_track as PT               # noqa: E402
 from valuation.edge.paper_broker import (                  # noqa: E402
     NotSandboxError, PaperBroker, SANDBOX_BASE, assert_sandbox)
+from valuation.saas import recap as RC                     # noqa: E402
 
 
 # ----------------------------------------------------------------- fixtures
@@ -359,6 +360,186 @@ def test_summary_survives_an_untouched_database():
     """`/api/track` must render before the track has ever run."""
     s = PT.summary(_store())
     assert s["options"]["started"] is False and s["index"]["started"] is False
+
+
+# ----------------------------------------------------------------- the Discord recap
+# These test the thing a recap gets wrong: reporting an empty or one-trade book as if it were
+# a measured result, and losing the disclaimers to a message-length limit.
+class _RecapCfg(_Cfg):
+    discord_webhook_url = "https://discord.example/webhook"
+
+
+class _Sent:
+    """Stands in for notify.send_discord and records what would have been posted."""
+
+    def __init__(self, ok=True):
+        self.ok, self.posts = ok, []
+
+    def __call__(self, cfg, content):
+        self.posts.append(content)
+        return self.ok
+
+
+def _patched(sender):
+    RC.send_discord = sender
+    return sender
+
+
+def _book_with_one_closed_winner():
+    """A paper book with one open position and one trade closed at its target."""
+    st = _store()
+    occ_a, occ_m = _alert(st, "AAPL", entry=5.0), _alert(st, "MSFT", entry=3.0)
+    b = FakeBroker(quotes={occ_a: {"bid": 5.0, "ask": 5.2}, occ_m: {"bid": 3.0, "ask": 3.1}})
+    PT.submit_new_alerts(st, b, cfg=_Cfg())
+    for o in b.orders():
+        b.fill(o["id"], 5.2 if o["option_symbol"] == occ_a else 3.1)
+    PT.mark_open(st, b)
+    b._q[occ_a] = {"bid": 11.0, "ask": 11.4}        # through the +100% target
+    PT.mark_open(st, b)
+    PT.close_matured(st, b)
+    for o in b.orders():
+        if o.get("side") == "sell_to_close":
+            b.fill(o["id"], 11.0)
+    PT.close_matured(st, b)
+    return st, b
+
+
+def test_recap_says_no_closed_trades_rather_than_reporting_zeros():
+    """An empty scorecard printed as 0% hit rate / $0 expectancy reads as a measured result."""
+    st = _store()
+    occ = _alert(st)
+    b = FakeBroker(quotes={occ: {"bid": 5.0, "ask": 5.2}})
+    PT.submit_new_alerts(st, b, cfg=_Cfg())
+    text = RC.build(st, kind="daily")
+    assert "No closed trades yet" in text, text
+    for forbidden in ("expectancy +0.0%", "hit rate 0%", "$0 on a 1-contract"):
+        assert forbidden not in text, f"reported an empty book as a number: {forbidden}"
+
+
+def test_recap_will_not_quote_a_hit_rate_as_a_rate_below_the_evidence_floor():
+    """'hit rate 100%' off one winner is the most flattering untrue number available."""
+    st, _ = _book_with_one_closed_winner()
+    text = RC.build(st, kind="weekly")
+    assert "1 of 1 won" in text and "too few to read as a rate" in text, text
+    assert "hit rate 100%" not in text
+    assert f"below the {OT.MIN_CLOSED_PER_BUCKET}-trade floor" in text
+
+
+def test_every_recap_carries_the_paper_thin_and_convexity_labels():
+    st, _ = _book_with_one_closed_winner()
+    for kind in ("daily", "weekly"):
+        text = RC.build(st, kind=kind)
+        assert "paper (Tradier sandbox)" in text and "thin" in text, kind
+        assert "CONVEX" in text and "37%" in text, f"{kind}: hit-rate shape missing"
+        assert "Educational only, not investment advice" in text, kind
+        # The backtest is a reference point, never a target.
+        assert "not a target and not a promise" in text, kind
+
+
+def test_recap_prints_the_tracked_pnl_rather_than_recomputing_it():
+    """One definition of P&L. If the recap recomputed, this deliberately-odd value would not
+    appear — and the Discord post would eventually disagree with the API."""
+    st, _ = _book_with_one_closed_winner()
+    with st._conn() as c:
+        c.execute("UPDATE option_alerts SET pnl_pct = 0.4242, pnl_dollars = 123.0 "
+                  "WHERE status='closed'")
+    text = RC.build(st, kind="daily")
+    assert "+42.4%" in text and "+$123" in text, text
+
+
+def test_recap_falls_back_to_the_stored_premiums_when_the_trade_was_never_scored():
+    """A closed row with no matching scored alert must appear, not vanish from the book."""
+    st = _store()
+    PT.ensure_schema(st)
+    with st._conn() as c:
+        c.execute("""INSERT INTO paper_option_orders
+            (alert_id, ticker, occ_symbol, expiry, contracts, state, entry_premium,
+             exit_premium, exit_ts, exit_reason, created_at)
+            VALUES (9001,'ZZZ','ZZZ260101C00010000','2026-01-01',1,'closed',2.0,3.0,?,
+                    'target',?)""",
+                  (dt.date.today().isoformat() + "T16:05:00", dt.date.today().isoformat()))
+    text = RC.build(st, kind="daily")
+    assert "ZZZ" in text and "+50.0%" in text, text
+
+
+def test_recap_health_note_does_not_report_a_hole_before_inception():
+    """A track that started yesterday must not claim it missed the four days before it existed."""
+    st = _store()
+    b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
+                           "SPY": {"last": 500.0}})
+    PT.seed_book(st, b, _BOOK)
+    PT.index_point(st, b)
+    note = RC.health_note(RC.collect(st))
+    assert "hole in it" not in note, note
+    assert "since inception" in note, note
+
+
+def test_recap_fits_discords_limit_without_losing_the_disclaimer():
+    """Truncation happens from the END, which is where every caveat lives."""
+    st = _store()
+    PT.ensure_schema(st)
+    today = dt.date.today().isoformat()
+    with st._conn() as c:
+        for i in range(40):
+            c.execute("""INSERT INTO paper_option_orders
+                (alert_id, ticker, occ_symbol, expiry, contracts, state, entry_premium,
+                 exit_premium, exit_ts, exit_reason, created_at)
+                VALUES (?,?,?,'2026-01-01',1,'closed',2.0,3.0,?,
+                        'a deliberately long exit reason to pad the message',?)""",
+                      (5000 + i, f"TK{i:02d}", f"TK{i:02d}260101C00010000",
+                       today + "T16:05:00", today))
+    for kind in ("daily", "weekly"):
+        text = RC.build(st, kind=kind)
+        assert len(text) <= RC.MAX_CHARS, f"{kind}: {len(text)} chars would be truncated"
+        assert text.rstrip().endswith("delayed quotes._"), f"{kind} lost its disclaimer"
+
+
+def test_fit_drops_detail_not_caveats_and_says_that_it_did():
+    lines = ["**header**"] + [f"    trade {i} " + "x" * 80 for i in range(60)]
+    lines += ["_convexity caveat_", "_educational only_"]
+    out = RC._fit(lines, keep_tail=2)
+    assert len(out) <= RC.MAX_CHARS
+    assert out.startswith("**header**")
+    assert out.endswith("_convexity caveat_\n_educational only_")
+    assert "trimmed" in out, "detail was dropped without saying so"
+
+
+def test_recap_posts_at_most_once_per_kind_per_day():
+    st, _ = _book_with_one_closed_winner()
+    sent = _patched(_Sent())
+    cfg = _RecapCfg()
+    first = RC.post(cfg, st, kind="daily")
+    assert first["posted"] and len(sent.posts) == 1
+    for _ in range(3):
+        again = RC.post(cfg, st, kind="daily")
+        assert again["posted"] is False and again["duplicate"] is True, again
+    assert len(sent.posts) == 1, "the daily recap was posted more than once"
+    # A different kind on the same day is a different post, not a duplicate.
+    assert RC.post(cfg, st, kind="weekly")["posted"] and len(sent.posts) == 2
+
+
+def test_recap_without_a_webhook_fails_quietly():
+    """A missing optional secret must not turn the cron red."""
+    st, _ = _book_with_one_closed_winner()
+    _patched(_Sent())
+    out = RC.post(_Cfg(), st, kind="daily")            # _Cfg has no discord_webhook_url
+    assert out["posted"] is False and "DISCORD_WEBHOOK_URL" in out["reason"]
+
+
+def test_a_failed_post_is_not_marked_so_the_backup_cron_can_retry():
+    st, _ = _book_with_one_closed_winner()
+    down = _patched(_Sent(ok=False))
+    cfg = _RecapCfg()
+    assert RC.post(cfg, st, kind="daily")["posted"] is False
+    _patched(_Sent())                                   # Discord comes back
+    assert RC.post(cfg, st, kind="daily")["posted"] is True
+    assert len(down.posts) == 1
+
+
+def test_recap_survives_an_untouched_database():
+    for kind in ("daily", "weekly"):
+        text = RC.build(_store(), kind=kind)
+        assert "Not started" in text and "Educational only" in text, kind
 
 
 def _run_all():

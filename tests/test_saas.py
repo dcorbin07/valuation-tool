@@ -553,6 +553,34 @@ def test_forgot_never_discloses_a_reset_link_in_production():
         auth_mod.send_status, CONFIG.dev_mode = orig_send, orig_dev
 
 
+def test_post_recap_endpoint_is_gated_validated_and_quiet_without_a_webhook():
+    """The recap trigger the daily/weekly crons call.
+
+    NOTE the webhook is cleared for the duration: this test must never be able to post into a
+    real Discord channel from a developer's machine, and clearing it also exercises the path
+    the crons will hit until Don sets the secret.
+    """
+    from valuation.saas.app_saas import create_saas_app
+    orig_token, orig_hook = CONFIG.admin_token, CONFIG.discord_webhook_url
+    CONFIG.admin_token, CONFIG.discord_webhook_url = "test-admin-recap", ""
+    try:
+        c = create_saas_app(CONFIG).test_client()
+        hdr = {"X-Admin-Token": "test-admin-recap"}
+        assert c.post("/admin/post-recap", json={"kind": "daily"}).status_code == 401
+        assert c.post("/admin/post-recap", json={"kind": "daily"},
+                      headers={"X-Admin-Token": "nope"}).status_code == 401
+        bad = c.post("/admin/post-recap", json={"kind": "monthly"}, headers=hdr)
+        assert bad.status_code == 400, bad.get_json()
+        # force skips the market-session guard so the real build/post path runs here.
+        r = c.post("/admin/post-recap", json={"kind": "weekly", "force": True}, headers=hdr)
+        assert r.status_code == 200, r.get_json()
+        body = r.get_json()
+        assert body["ok"] is True and body["posted"] is False
+        assert "DISCORD_WEBHOOK_URL" in body["reason"], body
+    finally:
+        CONFIG.admin_token, CONFIG.discord_webhook_url = orig_token, orig_hook
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
