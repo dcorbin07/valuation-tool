@@ -3219,6 +3219,178 @@ def test_autopsy_regime_cache_is_versioned():
     assert isinstance(A.REGIME_VERSION, int) and A.REGIME_VERSION >= 2
 
 
+# =============== 22b — the expanded-universe options backtest ===============================
+def _univ_rows(spec):
+    """Trades shaped like the broad-universe log. `spec` is (date, ticker, tier, pnl_pct)."""
+    return [{"alert_ts": d, "ticker": t, "cap_tier": tier, "pnl_pct": p,
+             "pnl_dollars": p * 100, "entry_spread_pct": 0.05}
+            for d, t, tier, p in spec]
+
+
+def test_universe_cap_tier_is_point_in_time_and_never_reads_the_future():
+    """A name that was mid-cap in 2016 and mega-cap in 2025 must be counted as BOTH. Tiering on
+    today's cap would put ten years of a small name's trades in the mega bucket and manufacture
+    exactly the megacap-vs-broad comparison this study is trying to measure."""
+    from valuation.edge import options_universe as U
+
+    caps = {"X": [("2016-01-31", 8_000.0), ("2020-06-30", 60_000.0),
+                  ("2025-09-30", 900_000.0)]}
+    assert U.cap_at(caps, "X", "2016-02-15") == 8_000.0
+    assert U.cap_at(caps, "X", "2020-07-01") == 60_000.0
+    assert U.cap_at(caps, "X", "2025-10-01") == 900_000.0
+    # nothing before the first observation, and never a LATER month-end
+    assert U.cap_at(caps, "X", "2015-12-31") is None
+    assert U.cap_at(caps, "X", "2020-06-29") == 8_000.0, "must not reach forward to 2020-06-30"
+    assert U.tier_of(8_000.0) == "small" and U.tier_of(60_000.0) == "large"
+    assert U.tier_of(900_000.0) == "mega" and U.tier_of(None) is None
+
+
+def test_universe_deconcentration_bar_rejects_a_broader_book_that_still_rests_on_one_name():
+    """B3(b). Adding 100 mid-cap names is only diversification if the TAIL spreads out. Here the
+    broad book doubles the trade count while every new +100% winner comes from a single name, so
+    the Herfindahl does not fall and the tier must not be kept on breadth alone."""
+    from valuation.edge import options_universe as U
+
+    # the megacap book's tail is ALREADY spread across ten distinct names
+    mega = _univ_rows([(f"2018-0{i % 9 + 1}-10", f"M{i}", "mega",
+                        2.0 if i % 4 == 0 else -0.5) for i in range(40)])
+    # 40 more trades, but every tail winner in them is the SAME name
+    broad = _univ_rows([(f"2019-0{i % 9 + 1}-10", "ONE" if i % 4 == 0 else f"S{i}", "mid",
+                         2.0 if i % 4 == 0 else -0.5) for i in range(40)])
+
+    c_mega = U.concentration(mega)
+    c_all = U.concentration(mega + broad)
+    assert c_mega["tail_hhi"] is not None and c_all["tail_hhi"] is not None
+    assert c_all["tail_hhi"] >= c_mega["tail_hhi"], "this book did NOT de-concentrate"
+    v = U.verdict(mega + broad, mega, broad)
+    assert not v["B3_deconcentrates"]
+    assert not v["B3_keep_mid_small"], "positive expectancy alone must not keep the tier"
+    # and the control: genuinely spread-out winners DO clear the same bar
+    spread_out = _univ_rows([(f"2019-0{i % 9 + 1}-10", f"S{i}", "mid",
+                              2.0 if i % 4 == 0 else -0.5) for i in range(40)])
+    v2 = U.verdict(mega + spread_out, mega, spread_out)
+    assert v2["B3_deconcentrates"] and v2["B3_keep_mid_small"]
+
+
+def test_universe_home_run_thesis_needs_a_ci_that_excludes_zero():
+    """B4. A raw difference in P(>=+100%) between two heavy-tailed groups is nearly free — with
+    ~30 trades a side, a 3-winner gap is noise. The bootstrap is what makes the claim mean
+    something, so the bar is the interval, not the point estimate."""
+    from valuation.edge import options_universe as U
+
+    rnd = __import__("random").Random(3)
+    # same underlying process both sides: the difference must NOT be called real
+    a = _univ_rows([(f"2019-0{i % 9 + 1}-10", f"A{i}", "mid",
+                     2.0 if rnd.random() < 0.30 else -0.5) for i in range(120)])
+    b = _univ_rows([(f"2019-0{i % 9 + 1}-10", f"B{i}", "mega",
+                     2.0 if rnd.random() < 0.30 else -0.5) for i in range(120)])
+    same = U.bootstrap_diff(a, b, "p_tail_win", draws=800, seed=1)
+    assert same["ok"] and not same["excludes_zero"], "identical processes must not separate"
+
+    # a genuinely large, consistent gap must be detected — otherwise the bar is unfalsifiable
+    hot = _univ_rows([(f"2019-0{i % 9 + 1}-10", f"H{i}", "mid",
+                       2.0 if i % 10 < 7 else -0.5) for i in range(200)])
+    cold = _univ_rows([(f"2019-0{i % 9 + 1}-10", f"C{i}", "mega",
+                        2.0 if i % 10 < 1 else -0.5) for i in range(200)])
+    real = U.bootstrap_diff(hot, cold, "p_tail_win", draws=800, seed=1)
+    assert real["ok"] and real["diff"] > 0 and real["excludes_zero"]
+
+
+def test_universe_term_slope_is_applied_at_the_shipped_threshold_not_refitted():
+    """The whole out-of-sample value of this run is that the filter is NOT re-fitted on the new
+    names. If `term_slope_effect` ever derived its own cutoff, the broad-universe test would
+    silently become in-sample and would still look fine."""
+    import inspect
+
+    from valuation.edge import options_universe as U
+
+    src = inspect.getsource(U.term_slope_effect)
+    assert "fit_threshold" not in src and "median" not in src, \
+        "the threshold must be applied, never fitted, inside this function"
+    rows = _univ_rows([(f"2022-0{i % 9 + 1}-10", f"N{i}", "mid", 1.0) for i in range(80)])
+    for i, r in enumerate(rows):
+        r["term_slope"] = 0.05 if i % 2 else -0.05
+    res = U.term_slope_effect(rows, late_only=True)
+    assert res["ok"] and res["threshold"] == U.SHIPPED_TERM_THRESHOLD
+    assert res["n_kept"] == 40, "only the contango half survives the shipped cutoff"
+
+
+def test_universe_verdict_says_weakens_not_holds_when_one_half_is_negative():
+    """B1(c). A book that is profitable overall but only in one period is a regime, not an edge —
+    the same both-halves rule the stock model uses. It must not be reported as HOLDS."""
+    from valuation.edge import options_universe as U
+
+    early = _univ_rows([(f"2017-0{i % 9 + 1}-10", f"E{i}", "mega",
+                         3.0 if i % 3 == 0 else -0.5) for i in range(90)])
+    late = _univ_rows([(f"2023-0{i % 9 + 1}-10", f"L{i}", "mega", -0.20)
+                       for i in range(60)])
+    rows = early + late
+    assert (U._stats(rows)["expectancy_pct"] or 0) > 0, "overall really is profitable"
+    v = U.verdict(rows, rows, [])
+    assert v["B1_expectancy_and_pf"] and not v["B1_both_halves_positive"]
+    assert v["label"] == "WEAKENS" and not v["B1_edge_holds"]
+
+
+def test_universe_tail_stats_separate_the_stop_from_the_zero():
+    """The mandate asks for P(total loss) specifically, and it is NOT the stop-out rate: the -50%
+    stop is the designed cost of convexity, a -100% is a contract that went to zero. Collapsing
+    them would report the exit discipline as a failure mode."""
+    from valuation.edge import options_universe as U
+
+    rows = _univ_rows([("2019-01-10", "A", "mega", -1.00), ("2019-02-10", "B", "mega", -0.52),
+                       ("2019-03-10", "C", "mega", -0.50), ("2019-04-10", "D", "mega", 1.40),
+                       ("2019-05-10", "E", "mega", 0.10)])
+    d = U.tail_stats(rows)
+    assert abs(d["p_total_loss"] - 0.20) < 1e-9, "only the -100% counts as a total loss"
+    assert abs(d["p_stop_out"] - 0.60) < 1e-9, "all three losers are at or through the stop"
+    assert abs(d["p_tail_win"] - 0.20) < 1e-9
+
+
+def test_universe_selection_bias_is_counted_not_footnoted():
+    """The miner skipped names by spread and open interest — precisely where wide fills would
+    eat the edge. That biases this test TOWARD survival, so the count must ship in the result
+    rather than living in a comment someone can drop."""
+    import inspect
+
+    from valuation.edge import options_universe as U
+
+    src = inspect.getsource(U.universe_selection_report)
+    assert "n_skipped_thin" in src
+    doc = U.__doc__ or ""
+    assert "TOWARD the edge" in doc, "the direction of the bias must be stated, not just its size"
+    # covered-year logic must accept the feed's "no data" marker, else every post-2016 IPO —
+    # the younger, smaller names this study exists to add — is silently dropped
+    assert ".empty" in src
+
+
+def test_universe_entry_window_cannot_outrun_the_cached_history():
+    """A trade entered too close to the end of the data would have its exit path truncated and
+    settle on bars instead of quotes — a silent, one-sided distortion. The entry cutoff must
+    leave at least a full maximum-DTE contract life inside the cache."""
+    import datetime as dt
+
+    from valuation.edge import options_universe as U
+
+    cache_end = dt.date(max(U.CACHE_YEARS), 12, 31)
+    end = dt.date.fromisoformat(U.ENTRY_END)
+    assert (cache_end - end).days >= U.OB.DTE_RANGE[1], \
+        "entry cutoff must clear the maximum DTE before the cache ends"
+    assert U.ENTRY_START < U.ENTRY_END
+
+
+def test_universe_headline_is_the_ask_not_the_mid():
+    """B5. The wider mid/small-cap spread is the entire risk this run exists to measure, so the
+    default must cross it. Marking at the mid would delete the thing being tested."""
+    from valuation.edge import options_fill as F
+    from valuation.edge import options_universe as U
+
+    assert F.DEFAULT_AGGRESSION == 1.0
+    q = F.Quote(bid=1.00, ask=1.20, oi=500, volume=100)
+    assert F.fill_price(q, "buy", 1.0) == 1.20 and F.fill_price(q, "sell", 1.0) == 1.00
+    assert F.fill_price(q, "buy", 1.0) > F.fill_price(q, "buy", 0.0)
+    assert "aggression = 1.0" in (U.__doc__ or "").replace("AGGRESSION", "aggression")
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

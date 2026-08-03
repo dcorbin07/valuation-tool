@@ -771,8 +771,14 @@ def loss_autopsy(rows, features: list) -> dict:
 
 # ================================ orchestration ============================================
 def run(data_root: str = "data", seed: int = 0, min_coverage: float = 0.50,
-        stack_on_term: bool = True, combiner: bool = True, verbose: bool = True) -> dict:
-    trades = load_trades(data_root)
+        stack_on_term: bool = True, combiner: bool = True, verbose: bool = True,
+        trades: Optional[list] = None) -> dict:
+    """`trades` overrides the on-disk 55-name log so the SAME gate can be re-run unchanged on a
+    different trade log — the expanded universe (22b). Nothing else about the study moves; if the
+    sweep had to be re-implemented to point at new data, the two results would not be
+    comparable."""
+    trades = load_trades(data_root) if trades is None else \
+        [r for r in trades if _f(r.get("pnl_pct")) is not None]
     rows = build_features(trades, data_root, verbose=verbose)
     cov = feature_coverage(rows)
     feats = [f for f, c in sorted(cov.items()) if c >= min_coverage]
