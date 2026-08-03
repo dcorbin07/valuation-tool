@@ -736,6 +736,67 @@ def enrich_symbol(sym: str, spots: dict, options_root: str, out_root: str,
     return cov_all
 
 
+def repair_coverage(sym: str, out_root: str):
+    """Recompute a STORED coverage record's name-level totals and flags, in place.
+
+    This touches the record ABOUT the derived data, never the data itself. It exists because
+    `oi_missing_rows` started being counted per year one change before it was summed per name,
+    so every name derived in between carried a name-level 0 — and `sanity_flags` therefore never
+    raised the sentinel warning on precisely the names with the WORST sentinel rates (AZN 24%,
+    AAPL 22%) while flagging a freshly-derived name at 3%. A guard that is silently blind is the
+    exact failure mode this project keeps repeating, so the repair runs on every pass instead of
+    being a one-off script: any record whose totals disagree with its own year records is
+    rewritten, whatever the cause.
+
+    Returns the rewritten record, or None if there was nothing to repair.
+    """
+    dst = os.path.join(out_root, sym)
+    cov_path = os.path.join(dst, "coverage.json")
+    try:
+        with open(cov_path, encoding="utf-8") as f:
+            cov = json.load(f)
+    except (OSError, ValueError):
+        return None
+    years = cov.get("years") or {}
+    if not years:
+        return None
+    before = json.dumps(cov, sort_keys=True, default=str)
+
+    for k in ("rows_in", "rows_iv_ok", "iv_at_bound", "oi_missing_rows"):
+        cov[k] = int(sum(int((y or {}).get(k, 0) or 0) for y in years.values()))
+    skipped = {k: 0 for k in SKIP_REASONS}
+    for y in years.values():
+        for k, v in ((y or {}).get("skipped") or {}).items():
+            skipped[k] = skipped.get(k, 0) + int(v or 0)
+    cov["skipped"] = skipped
+    cov["iv_ok_frac"] = (cov["rows_iv_ok"] / cov["rows_in"]) if cov["rows_in"] else 0.0
+
+    daily = pd.DataFrame()
+    dpath = os.path.join(dst, f"{sym}-daily.pkl")
+    if os.path.exists(dpath):
+        try:
+            with open(dpath, "rb") as f:
+                loaded = pickle.load(f)
+            if isinstance(loaded, pd.DataFrame):
+                daily = loaded
+        except (OSError, pickle.UnpicklingError, EOFError):
+            daily = pd.DataFrame()
+    if len(daily):
+        cov["dates"] = int(len(daily))
+
+    flags = sanity_flags(daily, cov)
+    # Preserve the rate warning: it is derived from how the run was priced, not from the frame.
+    if cov.get("rate_source") == "COARSE FALLBACK SCHEDULE":
+        flags.append("priced with the coarse fallback rate schedule, not a real "
+                     "3-month Treasury series")
+    cov["flags"] = flags
+
+    if json.dumps(cov, sort_keys=True, default=str) == before:
+        return None
+    _atomic_json(cov, cov_path)
+    return cov
+
+
 def already_enriched(sym: str, options_root: str, out_root: str) -> bool:
     """True when a coverage record exists for the CURRENT source files and schema."""
     p = os.path.join(out_root, sym, "coverage.json")

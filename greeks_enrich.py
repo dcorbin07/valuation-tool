@@ -347,24 +347,34 @@ def summarise(cov: dict) -> str:
             + (f" | FLAGS: {'; '.join(flags)}" if flags else ""))
 
 
-def write_report(out_root: str, report_path: str):
+def write_report(out_root: str, report_path: str, repair: bool = True):
     """Roll every per-name coverage.json into one manifest + a committable summary.
 
     The derived payload itself is gitignored with the rest of `data/`, so the coverage record is
     the only part of this job that survives into the repo. It is deliberately the part that says
     what DIDN'T work.
+
+    Every record is repaired first (`G.repair_coverage`), so a name derived under an older
+    revision of the accounting cannot keep reporting stale totals — or, worse, a stale empty
+    flag list — just because it was not re-derived.
     """
     rows = {}
+    repaired = []
     if os.path.isdir(out_root):
         for sym in sorted(os.listdir(out_root)):
             p = os.path.join(out_root, sym, "coverage.json")
             if not os.path.exists(p):
                 continue
+            if repair and G.repair_coverage(sym, out_root) is not None:
+                repaired.append(sym)
             try:
                 with open(p, encoding="utf-8") as f:
                     rows[sym] = json.load(f)
             except (OSError, ValueError):
                 continue
+    if repaired:
+        _log(f"repaired {len(repaired)} stale coverage records: {', '.join(repaired[:12])}"
+             + (" ..." if len(repaired) > 12 else ""))
     man_path = os.path.join(out_root, "coverage_manifest.json")
     G._atomic_json(rows, man_path)
 
@@ -498,7 +508,18 @@ def main(argv=None) -> int:
          f"contract-days priced ({summary['iv_ok_frac']:.1%}) | report -> {a.report}")
     flagged = {s: v["flags"] for s, v in summary["per_name"].items() if v["flags"]}
     if flagged:
+        # Grouped by KIND, because the difference between "one odd name" and "a property of the
+        # whole cache" is the whole point. The -1 open-interest sentinel turned out to be the
+        # second: 104 of 109 names, median 12% of rows. Reported as one systemic line rather
+        # than 104 alarms — and never by quietly raising the threshold until it stops firing.
+        kinds = {}
+        for sym, fs in flagged.items():
+            for f in fs:
+                kinds.setdefault(re.sub(r"\d[\d.,]*", "N", f), []).append(sym)
         _log(f"{len(flagged)} names carry sanity flags — see the report, do not silence them")
+        for kind, syms in sorted(kinds.items(), key=lambda kv: -len(kv[1])):
+            shown = ", ".join(sorted(syms)[:8]) + (" ..." if len(syms) > 8 else "")
+            _log(f"  {len(syms):>3} names | {kind}  [{shown}]")
     return 0
 
 
