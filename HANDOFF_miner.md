@@ -11,10 +11,17 @@ is back.
 
 ## One-line status
 
-**Target raised to 1,000 names** (updated brief). ~30 cached, 0 partial, ~5.8GB on disk at the
-time of writing; ~3 min/name → roughly **45–55 hours** for the full 1,000. Disk projects to
-~199GB at megacap scale against 322GB free, and mid/small caps are far smaller, so the real
-figure lands well below that. A guard stops the run cleanly below 40GB free.
+**112 of 1,000 names cached** (111 complete, 1 partial,
+21 skipped as too illiquid), ~8.3GB on disk. Partial names and their missing years:
+**BKNG [2018, 2019, 2020, 2021]**.
+
+Skipped as untradeable so far: BBVA, BLK, HDB, HSBC, ING, KLAC, LIN, LRCX, MFG, MUFG, PBR, RY, SAP, SKHY, SMFG, SNDK, SPCX, SPGI, SYK, TMO, VRTX. These are overwhelmingly foreign ADRs with wide
+US option spreads (BBVA, HDB, HSBC, ING, MFG, MUFG, PBR, RY) plus a few names failing the 15%
+spread cut — the intended cut, not a defect.
+
+Running ~3 min/name → roughly **45–55 hours** for the full 1,000. Disk projects to ~199GB at
+megacap scale against 322GB free, and mid/small caps are far smaller, so the real figure lands
+well below that. A guard stops the run cleanly below 40GB free.
 
 Check it any time:
 
@@ -63,6 +70,12 @@ A folder containing only `<SYM>-<YEAR>.pkl.empty` (e.g. SKHY) is correct, not a 
 that the feed genuinely has no data for that name-year, so it counts as covered and is never
 re-fetched. A `.missing` marker is the opposite — a fetch that FAILED, which is retried on the
 next run and reported as a gap.
+
+**Partial names get a bounded retry pass at the end of every run** (2 rounds). Without it a
+transient gRPC failure would become a permanent gap: the universe is walked exactly once, and the
+main loop only skips names already `complete` or `skipped_thin`, so a `partial` was never
+revisited inside a run. The retry clears the `.missing` marker first, otherwise the year would be
+re-attempted and immediately short-circuited by its own failure record.
 
 ---
 

@@ -94,6 +94,7 @@ MIN_DAYS_WITH_CHAIN = 100        # of ~252; below this the name is not continuou
 # smaller), so 1,000 names projects to well under the free space - but a guard costs nothing and
 # a full C: drive during an overnight job is expensive.
 MIN_FREE_GB = 40
+RETRY_ROUNDS = 2         # bounded re-attempts for names that came in partial
 
 
 def log(msg):
@@ -308,11 +309,47 @@ def main():
         _save(manifest)
 
     _save(manifest)
+
+    # RETRY PASS over names that came in partial. Gaps here are transient gRPC failures far more
+    # often than genuinely absent data, and the main loop walks the universe exactly once, so
+    # without this a name keeps a gap for good. Bounded rounds so a permanently-dead year cannot
+    # spin forever.
+    for rnd in range(1, RETRY_ROUNDS + 1):
+        partial = [k for k, v in manifest.items() if v.get("status") == "partial"]
+        if not partial:
+            break
+        log(f"retry round {rnd}/{RETRY_ROUNDS}: {len(partial)} partial names "
+            f"({', '.join(partial[:8])}{' ...' if len(partial) > 8 else ''})")
+        for sym in partial:
+            gaps = manifest[sym].get("gaps") or []
+            if not gaps:
+                manifest[sym]["status"] = "complete"
+                continue
+            for y in list(gaps):
+                pth = year_path(sym, y, OPTROOT)
+                # Clear the failure marker so the year is actually re-attempted.
+                try:
+                    if os.path.exists(pth + ".missing"):
+                        os.remove(pth + ".missing")
+                except OSError:
+                    pass
+                tb.ensure_year(sym, y)
+            still = [y for y in gaps
+                     if not (os.path.exists(year_path(sym, y, OPTROOT))
+                             or os.path.exists(year_path(sym, y, OPTROOT) + ".empty"))]
+            manifest[sym]["gaps"] = still
+            manifest[sym]["status"] = "complete" if not still else "partial"
+            log(f"  {sym}: {len(gaps) - len(still)} of {len(gaps)} gap years recovered"
+                + (f"; still missing {still}" if still else ""))
+            _save(manifest)
+
+    _save(manifest)
     done = sum(1 for v in manifest.values() if v.get("status") in ("complete", "partial"))
     partial = [k for k, v in manifest.items() if v.get("status") == "partial"]
     thin = [k for k, v in manifest.items() if v.get("status") == "skipped_thin"]
-    log(f"FINISHED: {done} of {len(uni)} names cached; {len(partial)} partial; "
-        f"{len(thin)} skipped as too illiquid")
+    log(f"FINISHED: {done} of {len(uni)} names cached; {len(partial)} partial"
+        + (f" ({', '.join(partial)})" if partial else "")
+        + f"; {len(thin)} skipped as too illiquid")
 
 
 def _save(manifest):
