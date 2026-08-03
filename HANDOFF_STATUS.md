@@ -12,6 +12,61 @@ file directly.
 
 ---
 
+## OPTIONS ON THE EXPANDED UNIVERSE (roadmap 22b) — **THE EDGE HALVES, AND THE SIGNAL FAILS ITS FIRST PLACEBO** (2026-08-03), landed on `main` at 1a2f95f
+
+Full report: **`HANDOFF_universe_backtest.md`**.
+
+The single-leg scream-buy backtest was re-run across the whole cached universe — **187
+complete names, 3,042 trades**, NBBO at aggression 1.0, 2016-01-01..2025-10-15, nothing
+re-tuned. The gate was committed in the module docstring before the run.
+
+**The edge survives breadth but roughly halves: +12.33%/trade on 55 megacaps -> +5.14% on
+187.** Both held-out halves positive so it passes, but Deflated Sharpe falls **98.62% ->
+88.13% unfiltered**, below the 95% bar (95.69% on the term_slope-filtered book, only just
+clearing). Mid/small caps are the BEST tier (+9.80%), not the worst; the home-run thesis is
+NOT upheld (P(>=+100%) +1.86pp, CI spans zero).
+
+**A control this project had never run on the options book changes what all of that means.**
+Same name, same calendar year, RANDOM entry day, identical contract/fill/exit rules:
+**+13.22% against the alert book's +5.14%.** The alert book loses in every cap tier, in 9 of
+10 years, and in **58% of 1,052 name-year cells (sign-test z = -5.24, two independent seeds)**.
+Contract characteristics are near-identical (DTE 58 vs 58, delta 0.355 vs 0.351), so this is
+day-selection, not what gets bought. The scream-buy alert picked WORSE days than chance. The
+book is profitable; the signal is not what makes it profitable. **Do not ship an options
+alert change, and stop quoting +12.33%/trade, until this is settled.**
+
+**The old-vs-new gap is 100% spread, not signal.** A full second pass at mid fills on the same
+pinned names: the two cohorts are +11.99% and +11.56% at the mid, versus +6.95% and +3.90% at
+the touch. Crossing the spread costs **6.59pp — more than half the surviving edge**. Mid/small
+pay roughly double the megacap toll (-9.4pp / -11.0pp vs -5.4pp) but start from a gross edge
+high enough to finish ahead net. Don's "spreads eat it" thesis is half-right and now measured.
+
+**Universe selection is not neutral and the bias runs TOWARD the edge:** the miner skipped 55
+of 245 names as thin, and today's-liquidity selection makes the `small` tier future winners in
+their small days (median **14.8x** cap growth to today). Splitting each tier by that hindsight
+growth puts the ENTIRE mega/large edge in the names that later grew, with the other half flat
+to negative. That split is partly circular and can never be a filter — but combined with the
+control it means **this cache cannot separate the strategy from its universe's upward
+selection.** Only a forward track can.
+
+**term_slope:** the economic effect DOES generalise out of sample — **+8.89pp** on 133 names
+that never informed its threshold, against the +8.12pp that got it adopted, and it is mildly
+tail-ENRICHING (keeps 41.2% of >=+100% winners while keeping 37.3% of trades). **But B2 FAILS
+on retention** (36.4% vs the pre-committed 40% floor, which the 55-name run cleared at only
+40.6%). Reported as FAIL: a pre-committed gate is not renegotiated after the run.
+
+**The #23 autopsy headline re-confirms on the wider set** — the gate was re-run *unchanged*
+(`options_autopsy.run()` gained a `trades` override so the two stay comparable): 64 features,
+127 hypotheses, **zero survivors, zero FDR discoveries, PBO 35.7%**, combiner rejects. Mid/small
+caps surface nothing that separates winners from losers.
+
+Sanity clean, zero flags. `data/options/` read-only throughout. Suites: `test_edge.py`
+**142/142** (9 new) and all 14 other suites green. Recommended next: decompose the control
+finding (is it the technical run-up requirement or the options-flow score?), then the forward
+paper track -> **Cowork's lane**.
+
+---
+
 ## LAZY PRICES (roadmap #28) — TESTED AND **REJECTED** (2026-08-03), landed on `main`
 
 Full report: **`HANDOFF_lazy_prices_ic.md`**. Dataset build: `HANDOFF_lazy_prices.md`.

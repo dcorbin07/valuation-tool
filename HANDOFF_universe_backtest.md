@@ -9,13 +9,16 @@ Session of 2026-08-03. Options lane. Everything below is the full 187-name run a
 
 The edge **survives breadth but roughly halves**: +12.33%/trade on 55 megacaps becomes
 **+5.14%/trade on 187 names**, and it clears the pre-committed bars (positive expectancy,
-profit factor 1.16, both held-out halves positive). Mid/small caps are not the problem —
-they are the *best* tier. But a control this project had never run before changes what all of
-that means: **buying the same contract in the same name and the same year on a RANDOM day
-returned +13.22%, against the alert book's +5.14%.** The alert book wins only 41.9% of 1,052
-name-year cells (sign-test z = −5.24). On this universe, over this decade, the scream-buy
-signal picked *worse* entry days than chance. The strategy is profitable; the *signal* is not
-what makes it profitable. That is the finding, and it outranks every other number here.
+profit factor 1.16, both held-out halves positive). Mid/small caps are not the problem — they
+are the *best* tier, and the entire old-vs-new gap turns out to be the **spread**, not the
+signal: marked at the mid the two cohorts are identical (+11.99% vs +11.56%), and crossing the
+spread costs 6.59pp, more than half the surviving edge. But a control this project had never run
+before changes what all of that means: **buying the same contract in the same name and the same
+year on a RANDOM day returned +13.22%, against the alert book's +5.14%.** The alert book wins
+only 41.9% of 1,052 name-year cells (sign-test z = −5.24). On this universe, over this decade,
+the scream-buy signal picked *worse* entry days than chance. The strategy is profitable; the
+*signal* is not what makes it profitable. That is the finding, and it outranks every other
+number here.
 
 ---
 
@@ -58,6 +61,10 @@ the 55-name run had three.
 6.95% on the identical window — and the old names' own number is down from the published 12.33%
 purely from shortening the window, which is itself a warning about how much period matters here.
 
+**But the old-vs-new gap is ENTIRELY the spread — see §2a.** Marked at the mid, the two cohorts
+are indistinguishable (+11.99% vs +11.56%). Breadth does not dilute the gross edge at all; it
+dilutes the net edge, and only by costing more to trade.
+
 Deflated Sharpe on the broad book, deflated by the 64-feature search:
 **88.13% unfiltered — below the 95% bar** (55-name: 98.62%), and **95.69% on the
 term_slope-filtered book** (55-name: 99.66%), which clears it only just. The statistical
@@ -89,7 +96,44 @@ and returns nothing rather than substituting a worse contract. So wider spreads 
 strategy *opportunities*, not *fills*. The trades that happen already passed the screen.
 
 **The `small` tier is 33 trades on 10 names and must not be quoted as a finding.** It is above
-the 30-trade floor by three. See §4 — it is the most contaminated cell in the study.
+the 30-trade floor by three. See §5 — it is the most contaminated cell in the study.
+
+---
+
+## 2a. HOW MUCH OF THIS IS THE SPREAD? — a full second pass at mid fills
+
+The whole run was repeated at aggression 0.0 (mark at the mid) on the **same pinned 187 names**,
+so exactly one variable changes. Mid fills are a diagnostic and never a headline — this is the
+decomposition, not a result.
+
+```
+slice                touch (a=1.0)    mid (a=0.0)    spread toll    median entry spread
+ALL                      +5.14%         +11.73%        -6.59pp            4.78%
+  mega                   +6.21%         +11.58%        -5.37pp            3.68%
+  large                  +2.31%          +8.46%        -6.15pp            5.04%
+  mid                    +9.80%         +19.18%        -9.39pp            6.25%
+  small                 +34.36%         +45.32%       -10.96pp            8.28%
+  54 old names           +6.95%         +11.99%        -5.04pp            3.62%
+  133 new names          +3.90%         +11.56%        -7.66pp            5.92%
+```
+
+Three things fall out, and they answer the mandate's central question directly.
+
+1. **Crossing the spread costs 6.59pp — more than half of the surviving 5.14% edge.** The
+   strategy's gross edge is roughly +11.7%/trade and the market takes 56% of it at the touch.
+   This is why every number in this file is quoted at aggression 1.0.
+2. **The old-vs-new gap is 100% spread.** At the mid the two cohorts are +11.99% and +11.56% —
+   a 0.43pp difference on 3,010 trades. At the touch they are +6.95% and +3.90%. The new names
+   have the *same* gross edge and simply pay 5.92% spread against 3.62%. **Breadth does not
+   dilute the signal; it dilutes the fill.**
+3. **Don's "spreads eat it" thesis is half-right, and the half that is right is measurable.**
+   Mid and small caps pay roughly double the toll of megacaps (−9.4pp and −11.0pp vs −5.4pp) —
+   the tier ordering of the toll tracks the tier ordering of the spread exactly. But they start
+   from a gross edge so much higher (+19.2% and +45.3% vs +11.6%) that they still finish ahead
+   net. The spread eats *more* of the mid/small edge; it does not eat *all* of it.
+
+Note this understates the true cost of breadth, because the miner already excluded 55 names as
+too thin to trade. Those are where the toll would have exceeded the edge.
 
 ---
 
@@ -304,7 +348,7 @@ the same surface and is far better behaved.
 | **B2** term_slope generalises out of sample | **FAIL** — on retention (36.4% vs 40%); the +8.89pp gain arm replicates |
 | **B3** keep the mid/small tier | **PASS** — +11.15% on 600 trades, HHI falls — but on a weak de-concentration test |
 | **B4** home-run thesis | **NOT UPHELD** — P(tail) difference +1.86pp, CI spans zero |
-| **B5** headline at aggression 1.0 | held throughout |
+| **B5** headline at aggression 1.0 | held throughout; mid fills reported only as the §2a decomposition, where they cost 6.59pp |
 
 **And the bar I had not pre-committed, because this project had never run it:** the alert book
 loses to a random-entry control by 8.08pp, in every tier, in 9 of 10 years, in 58% of name-year
@@ -351,9 +395,9 @@ promoting the mid/small tier on the strength of §2 before §5 is resolved.
 | Path | What |
 |---|---|
 | `valuation/edge/options_universe.py` | the study — gate, tiers, concentration, control, survivorship probe, sanity |
-| `optuniv_run.py` | resumable runner; `--control`, `--autopsy`, `--analyse-only`, `--aggression` |
+| `optuniv_run.py` | resumable runner; `--control`, `--autopsy`, `--analyse-only`, `--aggression`, `--universe-from` (pins the name list to an earlier run so a second pass varies one thing, not two — the miner keeps growing the cache mid-flight) |
 | `valuation/edge/options_autopsy.py` | one change: `run()` takes a `trades` override so the #23 gate runs unchanged on a different log |
-| `data/options_universe/` (gitignored) | `state.pkl`, `control_rows*.pkl`, `UNIVERSE_RESULTS.json`, `AUTOPSY_BROAD_RESULTS.json` |
+| `data/options_universe/` (gitignored) | `state.pkl` (headline, a=1.0), `state_mid.pkl` (a=0.0 diagnostic, same pinned names), `control_rows.pkl` + `control_rows_seed1.pkl`, `UNIVERSE_RESULTS.json`, `AUTOPSY_BROAD_RESULTS.json` |
 
 `data/options/` was **read-only** throughout; the miner's 55-name `AUTOPSY_RESULTS.json` is
 untouched, and the broad autopsy went to a separate file.
