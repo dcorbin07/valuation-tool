@@ -1,11 +1,14 @@
 """Authentication — register/login/logout + password reset via signed email tokens."""
 from __future__ import annotations
 
+import hmac
+import sys
+
 from flask import request, session, redirect, render_template
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from werkzeug.security import generate_password_hash
 
-from .emailer import send_email
+from .emailer import send_status, NOT_CONFIGURED, SENT
 
 _RESET_SALT = "pw-reset"
 _RESET_MAX_AGE = 3600  # 1 hour
@@ -48,6 +51,17 @@ def register(app, store, cfg):
         if request.method == "POST":
             if not request.form.get("agree"):
                 return render_template("register.html", error="Please accept the Terms and Privacy Policy."), 400
+            # Owner privilege is granted by matching this typed string against OWNER_EMAILS
+            # (gating.py) and there is NO email verification anywhere in the codebase — so
+            # if no account with the owner address exists yet, the first stranger to type
+            # it into signup inherits /api/edge/*: the learning history, the adopted
+            # weights, the research bench. The owner address is not a secret; it is a
+            # committed default in config.py. Owner accounts are provisioned deliberately,
+            # never self-served. SECURITY_AUDIT.md H3.
+            if request.form.get("email", "").strip().lower() in cfg.owner_email_set:
+                return render_template(
+                    "register.html",
+                    error="That address can't be registered here. Contact support."), 400
             try:
                 u = store.create_user(request.form.get("email", ""), request.form.get("password", ""))
                 session.pop("demo", None)   # signing up from the preview takes over as a real account
@@ -76,7 +90,9 @@ def register(app, store, cfg):
         Independent of the beta flag, so this keeps working after you start charging."""
         supplied = (token or request.args.get("key", "")).strip()
         want = (cfg.demo_access_token or "").strip()
-        if want and supplied == want:
+        # `want` empty => /demo is off entirely (M4: there is no default token any more).
+        # compare_digest for the same reason as the admin token.
+        if want and hmac.compare_digest(supplied, want):
             session.clear()
             session["demo"] = True
             return redirect("/app")
@@ -89,19 +105,38 @@ def register(app, store, cfg):
 
     @app.route("/forgot", methods=["GET", "POST"])
     def forgot_view():
+        """Password reset request.
+
+        Two properties this route MUST hold, both of which it used to violate:
+
+        1. A reset link is NEVER placed in the HTTP response unless DEV_MODE is
+           explicitly on AND no SMTP is configured at all. It used to be disclosed
+           whenever `send_email` returned False — which is also what a merely *failing*
+           production mail server returns, so anyone could POST the owner's address
+           (a committed default) and be handed a valid token. See SECURITY_AUDIT.md C1.
+        2. The response is byte-identical whether or not the account exists. The old
+           code returned an extra block for real accounts, turning it into an account
+           enumeration oracle.
+        """
         if request.method == "POST":
             email = request.form.get("email", "").strip().lower()
             u = store.get_by_email(email)
+            dev_link = None
             if u:
                 token = _serializer(cfg).dumps(u["id"])
                 link = f"{cfg.public_base_url}/reset/{token}"
-                sent = send_email(cfg, email, "Reset your password",
-                                  f'<p>Reset your password (link valid 1 hour):</p>'
-                                  f'<p><a href="{link}">{link}</a></p>')
-                # Don't reveal whether the email exists. In dev (no SMTP), surface the link.
-                dev_link = None if sent else link
-                return render_template("forgot.html", sent=True, dev_link=dev_link)
-            return render_template("forgot.html", sent=True)  # same message regardless
+                status = send_status(cfg, email, "Reset your password",
+                                     f'<p>Reset your password (link valid 1 hour):</p>'
+                                     f'<p><a href="{link}">{link}</a></p>')
+                if status == NOT_CONFIGURED and cfg.dev_mode:
+                    dev_link = link      # local development only, never inferred at runtime
+                elif status != SENT:
+                    # Log that it failed, NOT the token — logs are not a safe place for
+                    # a live credential either (SECURITY_AUDIT.md M1/L3).
+                    print("[auth] password-reset email could not be sent "
+                          f"(smtp status: {status})", file=sys.stderr)
+            # Identical response in every case: exists or not, sent or not.
+            return render_template("forgot.html", sent=True, dev_link=dev_link)
         return render_template("forgot.html")
 
     @app.route("/reset/<token>", methods=["GET", "POST"])

@@ -5,7 +5,7 @@
   <div class="card">
     <h2 style="margin-top:0;color:var(--navy)">Log in</h2>
     {% if error %}<div class="err">{{ error }}</div>{% endif %}
-    <form method="POST" action="/login{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}">
+    <form method="POST" action="/login{% if request.args.get('next') %}?next={{ request.args.get('next') }}{% endif %}"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
       <label class="muted" style="font-size:13px">Email</label>
       <input type="email" name="email" required autofocus>
       <label class="muted" style="font-size:13px">Password</label>

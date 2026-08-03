@@ -6,13 +6,16 @@
     <h2 style="margin-top:0;color:var(--navy)">Reset your password</h2>
     {% if sent %}
       <p>If an account exists for that email, we've sent a reset link (valid for 1 hour).</p>
+      {# Only ever set when DEV_MODE is explicitly on AND no SMTP is configured — see
+         auth.py forgot_view(). It is never populated in production, including when the
+         production mail server is failing. #}
       {% if dev_link %}
         <div class="err" style="background:#fbf1e0;color:#8a5a12;border-color:#f0dcb8">
-          Email isn't configured, so here's your reset link (dev only):<br><a href="{{ dev_link }}">{{ dev_link }}</a></div>
+          DEV_MODE and no SMTP configured, so here's your reset link (local development only):<br><a href="{{ dev_link }}">{{ dev_link }}</a></div>
       {% endif %}
       <p class="muted" style="font-size:14px"><a href="/login">Back to log in</a></p>
     {% else %}
-      <form method="POST" action="/forgot">
+      <form method="POST" action="/forgot"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
         <label class="muted" style="font-size:13px">Email</label>
         <input type="email" name="email" required autofocus>
         <button class="btn" style="width:100%">Send reset link</button>

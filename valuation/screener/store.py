@@ -171,6 +171,41 @@ class Store:
                 pass
         return json.loads(r["data"])
 
+    # ---- company profiles (name / sector / industry) ----
+    # These are descriptive, near-static fields, so they are worth keeping once resolved:
+    # re-deriving them costs an API call per ticker and they change about once a decade.
+    def cache_profiles(self, profiles: dict):
+        """profiles = {TICKER: {"name", "sector", "industry"}}. Blank values never overwrite
+        a value already stored — a partial lookup must not erase a good one."""
+        now = _dt.datetime.utcnow().isoformat()
+        with self._conn() as c:
+            for t, p in (profiles or {}).items():
+                t = (t or "").upper()
+                if not t:
+                    continue
+                cur = c.execute("SELECT name, sector, industry FROM universe WHERE ticker=?",
+                                (t,)).fetchone()
+                merged = {k: ((p.get(k) or "").strip() or ((cur[k] if cur else "") or ""))
+                          for k in ("name", "sector", "industry")}
+                c.execute("""INSERT INTO universe (ticker,name,sector,industry,updated_at)
+                             VALUES (?,?,?,?,?)
+                             ON CONFLICT(ticker) DO UPDATE SET
+                               name=excluded.name, sector=excluded.sector,
+                               industry=excluded.industry, updated_at=excluded.updated_at""",
+                          (t, merged["name"], merged["sector"], merged["industry"], now))
+
+    def get_profiles(self, tickers=None) -> list:
+        q = "SELECT ticker, name, sector, industry, updated_at FROM universe"
+        args: tuple = ()
+        if tickers:
+            ts = [(t or "").upper() for t in tickers if t]
+            if not ts:
+                return []
+            q += " WHERE ticker IN (%s)" % ",".join("?" * len(ts))
+            args = tuple(ts)
+        with self._conn() as c:
+            return [dict(r) for r in c.execute(q, args).fetchall()]
+
     # ---- snapshots ----
     def save_snapshot(self, scan_date, rows, provider="", params=None):
         with self._conn() as c:

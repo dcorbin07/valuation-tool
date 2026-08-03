@@ -1,12 +1,12 @@
 {
   "schema_version": 3,
   "errors": [],
-  "generated_at": "2026-08-01T14:29:00",
-  "generated_at_utc": "2026-08-01T18:29:00+00:00",
+  "generated_at": "2026-08-03T00:58:45",
+  "generated_at_utc": "2026-08-03T04:58:45+00:00",
   "git": {
-    "commit": "f4cc47a5ae0103c9074c804ada14ee4a99ca6430",
-    "short": "f4cc47a",
-    "branch": "worktree-p24-shortinterest",
+    "commit": "3e3aa7fb6fd35439d460a7d819ca1843be0440ef",
+    "short": "3e3aa7f",
+    "branch": "worktree-growth-valuation",
     "dirty": true
   },
   "provider": "local export files (Sharadar or CRSP)",
@@ -373,6 +373,12 @@
         "median_ic": -0.0006852206089775783,
         "ic_tstat": 0.15334433952260976,
         "coverage": 0.9996702765280852,
+        "n_dates": 110
+      },
+      "neg_ev_ebitda": {
+        "median_ic": 0.023643013912986434,
+        "ic_tstat": 1.9056388811092049,
+        "coverage": 0.8281261448731664,
         "n_dates": 110
       },
       "roic": {
@@ -920,9 +926,9 @@
       "gross_sharpe": 1.1908086055957336,
       "net_sharpe": 1.1125531268204139,
       "net_max_drawdown": -0.4172466929690263,
-      "net_vol_ann": 0.23981295380762044,
+      "net_vol_ann": 0.23981295380762047,
       "equal_weight_sharpe": 0.721929237756659,
-      "annual_turnover": 2.5070100220651486,
+      "annual_turnover": 2.507010022065149,
       "gross_ann": 0.2853852572923101,
       "net_ann": 0.26220570054767656,
       "cost_drag_ann": 0.023179556744633567,
@@ -1099,7 +1105,7 @@
     "enter_frac": 0.1,
     "widths": {
       "none": {
-        "annual_turnover": 2.5070100220651486,
+        "annual_turnover": 2.507010022065149,
         "gross_alpha": 0.13761006653675656,
         "net_alpha": 0.11443050979212299,
         "after_tax_alpha": 0.036318789114798466,
@@ -1120,21 +1126,21 @@
         "cost_drag_ann": 0.019060099985795054
       },
       "0.20": {
-        "annual_turnover": 1.7221859648451663,
+        "annual_turnover": 1.7221859648451656,
         "gross_alpha": 0.1331504299319981,
         "net_alpha": 0.11690911842419793,
         "after_tax_alpha": 0.04861441346158957,
         "cost_drag_ann": 0.01624131150780017
       },
       "0.25": {
-        "annual_turnover": 1.4793613726233297,
+        "annual_turnover": 1.479361372623329,
         "gross_alpha": 0.1193263314993045,
         "net_alpha": 0.10523369829820828,
         "after_tax_alpha": 0.04404248358291207,
         "cost_drag_ann": 0.014092633201096216
       },
       "0.30": {
-        "annual_turnover": 1.2945737455553128,
+        "annual_turnover": 1.294573745555313,
         "gross_alpha": 0.11974089102531948,
         "net_alpha": 0.10723788591828032,
         "after_tax_alpha": 0.04702019585353012,
@@ -1160,8 +1166,8 @@
       "scored_at_horizon": 63,
       "net_alpha": 0.11690911842419793,
       "net_sharpe": 1.1285526102643764,
-      "net_max_drawdown": -0.3919893276744292,
-      "annual_turnover": 1.7221859648451663,
+      "net_max_drawdown": -0.3919893276744294,
+      "annual_turnover": 1.7221859648451656,
       "after_tax_alpha": 0.04861441346158957,
       "after_tax_sharpe": 0.8886548614885331
     }
@@ -1223,6 +1229,8 @@
         "foreign_median_percentile": {
           "neg_log_mktcap": 0.20233463035019456,
           "congress_activity": 0.3288590604026846,
+          "neg_ev_ebitda": 0.637956204379562,
+          "ev_ebitda": 0.3631587655542902,
           "neg_beta": 0.6279557629645993,
           "book_to_price": 0.6216500262743038,
           "gp_on_capital": 0.39052117765142946,
@@ -1310,6 +1318,7 @@
       "neg_ev_sales": 0.9626606486027052,
       "neg_ps": 0.9641627221969842,
       "book_to_price": 0.9996702765280852,
+      "neg_ev_ebitda": 0.8281261448731664,
       "roic": 0.967100924691159,
       "roe": 0.9339160890399918,
       "op_margin": 0.9641114318791307,

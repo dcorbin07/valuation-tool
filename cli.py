@@ -29,8 +29,20 @@ def value_one(ticker, args):
     print("=" * 58)
     print(f"  Price          {_fmt_money(c.price)}")
     print(f"  Base fair value{_fmt_money(r.base_fair_value):>14}   ({_fmt_pct(r.upside)})")
-    print(f"  Bear/Base/Bull {_fmt_money(r.scenarios.bear.per_share)} / "
-          f"{_fmt_money(r.scenarios.base.per_share)} / {_fmt_money(r.scenarios.bull.per_share)}")
+    # Scenarios come from the SAME method as the headline. Printing the raw DCF cone
+    # under a multiples/revenue-based headline showed three negative numbers beneath a
+    # positive fair value on every pre-profit name.
+    fvs = r.fair_value_scenarios or {}
+    if fvs.get("base") is not None:
+        print(f"  Bear/Base/Bull {_fmt_money(fvs.get('bear'))} / "
+              f"{_fmt_money(fvs.get('base'))} / {_fmt_money(fvs.get('bull'))}"
+              f"   [{fvs.get('method', '')}]")
+    else:
+        print(f"  Bear/Base/Bull {_fmt_money(r.scenarios.bear.per_share)} / "
+              f"{_fmt_money(r.scenarios.base.per_share)} / {_fmt_money(r.scenarios.bull.per_share)}")
+    b = r.fair_value_blend
+    if b is not None and getattr(b, "headline", ""):
+        print(f"  Growth read    {b.headline}")
     print(f"  WACC           {r.wacc.wacc*100:.1f}%")
     print(f"  SCORE          {r.score.score}/100  -> {r.score.recommendation} "
           f"(confidence: {r.score.confidence})")

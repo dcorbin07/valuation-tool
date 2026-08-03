@@ -187,6 +187,103 @@ def test_fair_value_medians_come_from_peer_rows_not_the_slice():
     assert abs(shown[0]["fair_value"] - 200.0) < 1e-6, shown[0]["fair_value"]
 
 
+def _growth_row(ticker, price, sector, revenue=None, net_debt=None, ev_sales=None,
+                op_margin=None, revenue_growth=None, gross_margin=None, market_cap=None,
+                ey=None, fcfy=None, ev_ebitda=None):
+    extra = {k: v for k, v in
+             {"earnings_yield": ey, "fcf_yield": fcfy, "revenue": revenue,
+              "net_debt": net_debt, "ev_sales": ev_sales, "ev_ebitda": ev_ebitda,
+              "op_margin": op_margin, "revenue_growth": revenue_growth,
+              "gross_margin": gross_margin}.items()
+             if v is not None}
+    return {"ticker": ticker, "price": price, "sector": sector, "market_cap": market_cap,
+            "fair_value": None, "upside": None, "extra": extra}
+
+
+def test_fair_value_bridges_ev_multiples_with_net_debt():
+    """EV multiples used to be skipped for lack of net debt. The scan carries it now,
+    so a cheap-on-EV/Sales name re-rates — and leverage is charged, not ignored."""
+    from valuation.screener.fairvalue import estimate_fair_values
+    # Six peers at 4x EV/Sales; two subjects at 2x (half the peer multiple), identical
+    # except that one is funded with net cash and the other with net debt.
+    rows = [_growth_row(f"P{i}", 100.0, "Tech", revenue=100.0, net_debt=0.0, ev_sales=4.0,
+                        market_cap=400.0) for i in range(6)]
+    cash = _growth_row("CASHY", 100.0, "Tech", revenue=100.0, net_debt=-100.0,
+                       ev_sales=2.0, market_cap=300.0)
+    lev = _growth_row("LEVY", 100.0, "Tech", revenue=100.0, net_debt=100.0,
+                      ev_sales=2.0, market_cap=100.0)
+    rows += [cash, lev]
+    estimate_fair_values(rows)
+    assert cash["fair_value"] is not None, "an EV multiple alone must now produce a value"
+    # implied EV = 4x100 = 400 -> equity 500 on a 300 cap -> 100 * 500/300
+    assert abs(cash["fair_value"] - 100.0 * 500.0 / 300.0) < 1e-6, cash["fair_value"]
+    # Same implied EV, but the debt is subtracted: equity 300 on a 100 cap, then clamped.
+    assert lev["fair_value"] is not None
+    assert lev["upside"] > cash["upside"], "the levered name re-rates further off a smaller cap"
+
+
+def test_fair_value_uses_ev_ebitda_where_ebitda_is_positive():
+    """The EV/EBITDA half of the same bridge. EV/Sales alone can't tell a 40%-margin
+    business from a 4%-margin one at the same price; EBITDA can, so a name that is cheap
+    on EBITDA must re-rate on it even when it has no usable equity yield at all.
+
+    A NEGATIVE EBITDA (so the multiple is meaningless) must be dropped, not used — that
+    is the whole reason the multiple is filtered on positivity rather than presence."""
+    from valuation.screener.fairvalue import estimate_fair_values
+    peers = [_growth_row(f"P{i}", 100.0, "Industrials", revenue=100.0, net_debt=0.0,
+                         ev_ebitda=12.0, market_cap=400.0) for i in range(6)]
+    # Cheap on EBITDA (6x vs the 12x peer median) and carrying net debt, so the bridge
+    # matters: implied EV = 400 x (12/6) = 800, equity = 800 - 100 = 700 on a 300 cap.
+    sub = _growth_row("CHEAPEBIT", 100.0, "Industrials", revenue=100.0, net_debt=100.0,
+                      ev_ebitda=6.0, market_cap=300.0)
+    rows = peers + [sub]
+    estimate_fair_values(rows)
+    assert sub["fair_value"] is not None, "EV/EBITDA alone must produce a value"
+    assert abs(sub["fair_value"] - 100.0 * 700.0 / 300.0) < 1e-6, sub["fair_value"]
+
+    # Same name, EBITDA negative -> the multiple is not information and must be ignored.
+    neg = _growth_row("BURN", 100.0, "Industrials", revenue=100.0, net_debt=100.0,
+                      ev_ebitda=-6.0, market_cap=300.0)
+    rows2 = [_growth_row(f"Q{i}", 100.0, "Industrials", revenue=100.0, net_debt=0.0,
+                         ev_ebitda=12.0, market_cap=400.0) for i in range(6)] + [neg]
+    estimate_fair_values(rows2)
+    assert neg.get("fair_value") is None, neg.get("fair_value")
+
+
+def test_fair_value_uses_the_growth_lens_for_a_preprofit_grower():
+    """A loss-maker used to get NOTHING here (both equity yields negative). It is now
+    valued on revenue, and flagged low confidence."""
+    from valuation.screener.fairvalue import estimate_fair_values
+    peers = [_growth_row(f"P{i}", 100.0, "Technology", revenue=100.0, net_debt=0.0,
+                         ev_sales=4.0, market_cap=400.0, ey=0.04) for i in range(6)]
+    grower = _growth_row("ROCK", 60.0, "Technology", revenue=600.0, net_debt=-700.0,
+                         ev_sales=50.0, op_margin=-0.33, revenue_growth=0.45,
+                         gross_margin=0.34, market_cap=30000.0, ey=-0.01)
+    rows = peers + [grower]
+    estimate_fair_values(rows)
+    assert grower["fair_value"] is not None and grower["fair_value"] > 0
+    assert grower["fair_value_method"] in ("growth", "blended"), grower["fair_value_method"]
+    assert grower["fair_value_confidence"] == "low"
+    # A mature profitable peer is NOT growth-led.
+    assert peers[0]["fair_value_confidence"] == "medium"
+
+
+def test_fair_value_growth_lens_rewards_faster_growth():
+    from valuation.screener.fairvalue import estimate_fair_values
+    def one(g):
+        rows = [_growth_row(f"P{i}", 100.0, "Technology", revenue=100.0, net_debt=0.0,
+                            ev_sales=4.0, market_cap=400.0) for i in range(6)]
+        sub = _growth_row("SUB", 20.0, "Technology", revenue=200.0, net_debt=-50.0,
+                          ev_sales=10.0, op_margin=-0.10, revenue_growth=g,
+                          gross_margin=0.70, market_cap=2000.0)
+        rows.append(sub)
+        estimate_fair_values(rows)
+        return sub["fair_value"]
+    slow, fast = one(0.05), one(0.50)
+    assert slow is not None and fast is not None
+    assert fast > slow * 1.5, (slow, fast)
+
+
 def test_ticker_search_endpoint_ranks_exact_first():
     try:
         from valuation.web.app import app
@@ -203,6 +300,617 @@ def test_ticker_search_endpoint_ranks_exact_first():
     # Prefix search surfaces multiple candidates.
     many = c.get("/api/tickers?q=A").get_json()["results"]
     assert len(many) > 1 and all(m["ticker"].startswith("A") or "A" in m["ticker"] for m in many)
+
+
+def test_metrics_are_in_usd_dollars_not_millions():
+    """The screener's absolute figures are USD DOLLARS, and ratios are unaffected by the scale.
+
+    This was the bug behind "$0.00 market cap" on every Index name: CompanyData carries
+    millions, FMP's profile carries dollars, and both fed the same scan. Downstream — the
+    10e9 large-cap floor and the UI's market_cap/1e9 — assumes dollars, so a $276B Dell
+    arrived as 275,844 and rendered as $0.0B.
+    """
+    from valuation.screener.providers import METRICS_UNITS
+    cd = CompanyData(ticker="DELL", name="Dell Technologies Inc.", sector="Technology")
+    cd.price = 426.91
+    cd.market_cap = 275_844.66          # CompanyData is in millions, by its own contract
+    cd.net_income = 5_000.0
+    cd.revenue = 100_000.0
+    cd.total_equity = 3_000.0
+    m = company_to_metrics(cd)
+
+    assert m["units"] == METRICS_UNITS == "usd"
+    assert abs(m["market_cap"] - 275_844.66e6) < 1.0, m["market_cap"]
+    # The FMP mapper already speaks dollars — it must stamp the convention WITHOUT rescaling,
+    # or every FMP row looks like a stale cache entry and gets refetched forever.
+    from valuation.screener.providers import _fmp_to_metrics
+    fm = _fmp_to_metrics("DELL", {"grossProfitTTM": 1.2e10}, {},
+                         {"companyName": "Dell Technologies Inc.", "sector": "Technology",
+                          "marketCap": 275_844_661_248, "price": 426.91})
+    assert fm["units"] == "usd"
+    assert fm["market_cap"] == 275_844_661_248 and fm["gross_profit"] == 1.2e10
+    assert fm["name"] == "Dell Technologies Inc." and fm["sector"] == "Technology"
+    assert abs(m["net_income"] - 5e9) < 1.0
+    assert abs(m["revenue"] - 100e9) < 1.0
+    # Ratios are unit-free and must NOT move: 5000/275844.66 either way.
+    assert abs(m["earnings_yield"] - (5_000.0 / 275_844.66)) < 1e-12
+    assert abs(m["pe"] - (275_844.66 / 5_000.0)) < 1e-9
+    # Per-share price is not a currency aggregate and must stay untouched.
+    assert m["price"] == 426.91
+
+
+def test_nano_cap_floor_is_applied_in_dollars():
+    from valuation.screener.factors import prefilter
+    base = {"ticker": "X", "price": 20.0, "avg_dollar_volume": 5e6}
+    assert prefilter({**base, "market_cap": 40e6})[0] is False     # $40M — nano-cap
+    assert prefilter({**base, "market_cap": 60e6})[0] is True      # $60M — real small cap
+    # The old millions-denominated comparison let a $60 company through and, worse, would
+    # now reject every genuine name in a dollars-denominated scan.
+    assert prefilter({**base, "market_cap": 60.0})[0] is False
+
+
+def test_cache_written_before_the_usd_normalization_is_discarded():
+    """A cached metrics dict with no `units` stamp holds millions — mixing it into a fresh
+    scan would put two currencies' worth of scale in one cross-section."""
+    from valuation.screener.providers import FMPProvider, _usable_cache
+
+    class _FakeStore:
+        def __init__(self, data):
+            self.data = data
+        def get_cached_fundamentals(self, ticker, max_age_days=None):
+            return self.data
+        def cache_fundamentals(self, ticker, data):
+            self.data = data
+
+    from valuation.screener.providers import METRICS_SCHEMA
+    assert _usable_cache({"market_cap": 275_844.66}) is None            # legacy: no stamp
+    assert _usable_cache({"market_cap": 275e9, "units": "usd",
+                          "schema": METRICS_SCHEMA}) is not None
+
+    class _Cfg:
+        fmp_api_key = "k"
+    p = FMPProvider(_Cfg(), _FakeStore({"ticker": "DELL", "market_cap": 275_844.66}))
+    p._get = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no network"))
+    p._free_fallback = lambda t: None
+    # Legacy cache must not be returned; with nothing else able to serve the name we get
+    # None, which is the honest answer — not a silently mis-scaled row.
+    assert p.get_metrics("DELL") is None
+
+
+def test_scan_backfills_blank_company_names_and_sectors():
+    """yfinance's `.info` is throttled from cloud IPs and comes back empty, so the per-name
+    fetch returns a bare ticker for a name and no sector at all. The universe listing has
+    both — the scan must fall back to it instead of shipping "DELL" with a blank sector."""
+    from valuation.screener.screen import _fill_from_universe
+
+    u = {"ticker": "DELL", "name": "Dell Technologies Inc.", "sector": "Technology",
+         "industry": "Computer Hardware", "market_cap": 275e9}
+
+    # The Yahoo failure mode: name falls back to the ticker, sector is empty.
+    m = _fill_from_universe({"ticker": "DELL", "name": "DELL", "sector": ""}, u)
+    assert m["name"] == "Dell Technologies Inc."
+    assert m["sector"] == "Technology"
+    assert m["market_cap"] == 275e9
+
+    # A real fetched value always wins over the listing.
+    m2 = _fill_from_universe({"ticker": "DELL", "name": "Dell Inc", "sector": "Tech",
+                              "market_cap": 271e9}, u)
+    assert (m2["name"], m2["sector"], m2["market_cap"]) == ("Dell Inc", "Tech", 271e9)
+
+
+def test_scan_reports_display_field_coverage():
+    """A blank name or sector is invisible to every scoring check, so the scan measures it."""
+    res, _ = _scan()
+    cov = res["health"]["display_coverage"]
+    assert cov["name"] == 1.0 and cov["sector"] == 1.0 and cov["market_cap"] == 1.0, cov
+
+
+def test_profile_lookup_fills_from_the_store_without_network():
+    """profiles.lookup must resolve from data the live scan already fetched — no API call."""
+    from valuation.screener import profiles
+    res, store = _scan()
+    tickers = [r["ticker"] for r in res["rows"][:5]]
+
+    class _NoKeyCfg:
+        fmp_api_key = ""
+        sec_user_agent = "test test@example.com"
+    got = profiles.lookup(tickers, cfg=_NoKeyCfg(), store=store, max_api=0)
+    assert set(got) == set(tickers), got
+    assert all(got[t]["name"] and got[t]["sector"] for t in tickers)
+
+    # And a book row with blank fields gets decorated in place.
+    rows = [{"ticker": tickers[0], "name": "", "sector": ""}]
+    assert profiles.decorate(rows, cfg=_NoKeyCfg(), store=store, max_api=0) == 1
+    assert rows[0]["name"] and rows[0]["sector"]
+
+
+def test_api_keys_never_reach_the_health_block():
+    """`requests` puts the full URL — query string and all — in its HTTPError text, and the
+    universe note is served publicly by /api/hotstocks. Redact before it can be stored."""
+    from valuation.screener.providers import _redact
+    key = "DkkPylwVxZZ91CAiCOhXshz7fQbETlUS"          # shape only; not a live credential
+    for msg in (f"402 Client Error for url: https://x/company-screener?exchange=NYSE&apikey={key}",
+                f"failed https://api.tradier.com/v1/q?token={key}&y=1",
+                f"Authorization: Bearer {key}"):
+        out = _redact(msg)
+        assert key not in out, out
+        assert "<redacted>" in out, out
+
+
+def test_fmp_universe_falls_back_for_the_scope_that_was_asked_for():
+    """The fallback hardcoded "bundled", so a whole_market scan silently became a 191-name
+    scan when FMP's screener 402'd. It must fall back for the SCOPE requested."""
+    from valuation.screener.providers import FMPProvider
+
+    class _Cfg:
+        fmp_api_key = "k"
+        tradier_token = ""            # no broker -> chain continues past it
+        sec_user_agent = "test test@example.com"
+        universe_limit = 0
+
+    p = FMPProvider(_Cfg())
+    p._get = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("402 Payment Required"))
+    # EDGAR is a network call, so stub the whole free chain and assert the SCOPE is passed on.
+    seen = {}
+    import valuation.screener.providers as P
+
+    class _Free:
+        universe_note = ""
+        def __init__(self, *a, **k): pass
+        def get_universe(self, scope):
+            seen["scope"] = scope
+            return [{"ticker": "AAA", "name": "A", "sector": "", "industry": "",
+                     "market_cap": None}] * 900
+    orig = P.FreeProvider
+    try:
+        P.FreeProvider = _Free
+        rows = p.get_universe("whole_market")
+    finally:
+        P.FreeProvider = orig
+    assert seen["scope"] == "whole_market", seen
+    assert len(rows) == 900
+    assert "no bulk endpoint" in p.universe_note
+
+
+def test_fmp_budget_and_circuit_breaker_fall_back_instead_of_dropping_names():
+    """A per-scan FMP ceiling bounds SPEND, not how many names get ranked — and once the
+    subscription starts refusing symbols we stop paying to rediscover that every time."""
+    from valuation.screener.providers import FMPProvider
+
+    def _provider(max_calls):
+        class _Cfg:
+            fmp_api_key = "k"
+            fmp_max_calls = max_calls
+        p = FMPProvider(_Cfg())
+        p._get = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("402 premium symbol"))
+        p._free = _Stub()
+        return p
+
+    class _Stub:                       # stands in for the free stack; always serves
+        def get_metrics(self, t):
+            return {"ticker": t, "units": "usd", "market_cap": 1e10}
+
+    # Budget: only 2 names' worth of calls, but all 20 names still get ranked.
+    p = _provider(6)
+    got = [p.get_metrics(f"T{i}") for i in range(20)]
+    assert all(g is not None for g in got), "no name may be dropped just because FMP refused it"
+    b = p.budget
+    assert b["calls_used"] == 6, b                     # spend is bounded...
+    assert b["served_by_free_fallback"] == 20, b       # ...coverage is not
+    assert b["served_by_fmp"] == 0 and b["fmp_errors"] == 2, b
+
+    # Uncapped: the breaker must stop paying to rediscover a refusing subscription.
+    p2 = _provider(0)
+    for i in range(40):
+        assert p2.get_metrics(f"T{i}") is not None
+    b2 = p2.budget
+    assert b2["fmp_disabled_mid_scan"] is True, b2
+    assert b2["fmp_errors"] == FMPProvider.FAIL_STREAK_OFF, b2
+    assert b2["served_by_free_fallback"] == 40, b2
+
+
+def test_broker_universe_normalizes_class_share_symbols():
+    """Tradier writes BRK/B; the fundamentals feeds and yfinance want BRK-B. Unconverted,
+    some of the largest companies in the market silently fail every lookup."""
+    from valuation.screener import broker_universe as B
+    assert B.normalize("BRK/B") == "BRK-B"
+    assert B.normalize("bf/b") == "BF-B"
+    assert B.normalize("AAPL") == "AAPL"
+
+
+def test_broker_universe_ranks_by_liquidity_and_drops_junk():
+    from valuation.screener import broker_universe as B
+
+    class _Cfg:
+        tradier_token = "t"
+        tradier_env = "live"
+    names = {"BIG": "Big Co", "SMALL": "Small Co", "PENNY": "Penny Co",
+             "THIN": "Thin Co", "BRK/B": "Berkshire"}
+    quotes = {
+        "BIG":   {"symbol": "BIG", "type": "stock", "last": 100.0, "average_volume": 5e6,
+                  "week_52_high": 125.0},
+        "SMALL": {"symbol": "SMALL", "type": "stock", "last": 20.0, "average_volume": 1e5},
+        "PENNY": {"symbol": "PENNY", "type": "stock", "last": 0.40, "average_volume": 9e9},
+        "THIN":  {"symbol": "THIN", "type": "stock", "last": 50.0, "average_volume": 10},
+        "BRK/B": {"symbol": "BRK/B", "type": "stock", "last": 400.0, "average_volume": 4e6},
+    }
+    B_list, B_quote = B.list_symbols, B.quote_batch
+    try:
+        B.list_symbols = lambda cfg=None, session=None: names
+        B.quote_batch = lambda t, cfg=None, session=None: quotes
+        rows = B.build(_Cfg(), limit=10)
+    finally:
+        B.list_symbols, B.quote_batch = B_list, B_quote
+
+    tickers = [r["ticker"] for r in rows]
+    assert "PENNY" not in tickers, "sub-$1 names are not investable"
+    assert "THIN" not in tickers, "illiquid names must not consume a fundamentals call"
+    assert "BRK-B" in tickers, tickers
+    # Most liquid first: BIG ($500M/day) then BRK-B ($1.6B/day)... check the actual order.
+    advs = [r["avg_dollar_volume"] for r in rows]
+    assert advs == sorted(advs, reverse=True), advs
+    big = next(r for r in rows if r["ticker"] == "BIG")
+    assert abs(big["high_prox"] - 0.8) < 1e-9          # 100 / 125
+    assert big["market_cap"] is None                   # the broker doesn't publish it
+
+
+def test_freshness_counts_trading_days_not_calendar_days():
+    """A Friday scan read on Sunday is current. Flagging it as two days stale trains the
+    reader to ignore the badge, which is how staleness warnings stop working."""
+    import datetime as dt
+    from valuation.screener.freshness import status, trading_days_between
+
+    fri, sun, mon = dt.date(2026, 7, 31), dt.date(2026, 8, 2), dt.date(2026, 8, 3)
+    assert trading_days_between(fri, sun) == 0
+    assert trading_days_between(fri, mon) == 1
+    assert status(fri.isoformat(), today=sun)["level"] == "fresh"
+
+    # The real failure: the scan died on 07-29 and the site served it for days.
+    late = status("2026-07-29", today=dt.date(2026, 8, 6))
+    assert late["level"] == "stale" and late["stale"] is True
+    assert "2026-07-29" in late["message"]
+    # No date at all must read as "undated", never as fresh.
+    unknown = status(None)
+    assert unknown["level"] == "unknown" and unknown["stale"] is True
+
+
+def test_live_track_never_annualizes_a_stub_or_leads_with_it():
+    """The whole point of the live column: a short track is shown but cannot be the headline,
+    and a handful of days is never compounded into a yearly rate."""
+    from valuation.screener import index_track as T
+
+    def _series(n):
+        return {"inception_date": "2026-07-01", "benchmark": "SPY",
+                "series": [{"date": f"2026-{7 + d // 28:02d}-{(d % 28) + 1:02d}",
+                            "valquo": 0.30 * (d + 1) + (0.05 if d % 3 else -0.04),
+                            "spy": 0.20 * (d + 1)} for d in range(n)]}
+
+    class _St:
+        def __init__(self, d): self.d = d
+        def get_meta(self, k, default=None): return self.d
+
+    thin = T.summarize("roth", meta_path="/nope", history_path="/nope", store=_St(_series(5)))
+    assert thin["available"] is True and thin["days"] == 5
+    assert thin["thin"] is True
+    assert thin["headline"] == "backtested", "5 days must never lead"
+    assert thin["live"]["ann_alpha"] is None, "must not compound 5 days into a yearly rate"
+    assert thin["live"]["sharpe"] is None, "too few points for a meaningful stdev"
+    assert thin["live"]["cum_valquo_pct"] is not None, "cumulative IS honest to show"
+
+    long = T.summarize("roth", meta_path="/nope", history_path="/nope",
+                       store=_St(_series(T.MIN_LIVE_DAYS + 5)))
+    assert long["thin"] is False and long["headline"] == "live"
+    assert long["live"]["ann_alpha"] is not None
+
+    # Backtested figures always travel with the live ones, never merged into them.
+    assert thin["backtested"]["net_sharpe"] == 1.17
+    assert "live" not in (thin["backtested"].get("basis") or "")
+
+
+def test_live_track_suppresses_an_implausible_sharpe():
+    """A near-constant excess series drives the denominator to zero and the ratio to
+    infinity. 'Sharpe 444' on the page would discredit every other number on it."""
+    from valuation.screener import index_track as T
+
+    class _St:
+        def get_meta(self, k, default=None):
+            return {"inception_date": "2026-01-01", "benchmark": "SPY",
+                    "series": [{"date": f"2026-01-{d:02d}", "valquo": 0.3 * d, "spy": 0.2 * d}
+                               for d in range(1, 26)]}          # perfectly linear
+    out = T.summarize("roth", meta_path="/nope", history_path="/nope", store=_St())
+    assert out["days"] == 25
+    assert out["live"]["sharpe"] is None, out["live"]["sharpe"]
+
+
+def test_live_track_is_absent_not_invented_when_there_is_no_data():
+    from valuation.screener import index_track as T
+    out = T.summarize("roth", meta_path="/nope/a.json", history_path="/nope/b.csv")
+    assert out["available"] is False and out["live"] is None
+    assert out["headline"] == "backtested"
+    assert out["backtested"]["net_sharpe"] is not None, "the backtest still has something to say"
+
+
+# --------------------------------------------------------------------------- #
+# Broker fundamentals (the free route) — offline, against a payload shaped like
+# the live Tradier one. See valuation/screener/broker_fundamentals.py.
+# --------------------------------------------------------------------------- #
+def _broker_payload(ev=1.1e12, pe=25.0, sector_code=311, roe_1y=0.34, roe_3m=0.08,
+                    ev_ebitda=20.0):
+    """A Tradier-shaped payload: several result blocks per symbol, most tables null."""
+    return {
+        "company": {"ACME": [
+            {"type": "Company", "tables": {
+                "company_profile": None, "asset_classification": None,
+                "historical_asset_classification": {"morningstar_sector_code": sector_code}}},
+            {"type": "Stock", "tables": {
+                "share_class_profile": {"market_cap": 1.0e12, "enterprise_value": ev,
+                                        "shares_outstanding": 5.0e9},
+                "ownership_summary": {"shares_outstanding": 5.0e9}}},
+        ]},
+        "ratios": {"ACME": [
+            {"type": "Company", "tables": {
+                "operation_ratios_restate": None,
+                "operation_ratios_a_o_r": [
+                    # The 3M block comes FIRST on purpose: it is a quarterly ROE and must lose.
+                    {"period_3m": {"r_o_e": roe_3m, "total_debt_equity_ratio": 0.5},
+                     "period_1y": {"r_o_e": roe_1y}},
+                ]}},
+            {"type": "Stock", "tables": {
+                "valuation_ratios": {"p_e_ratio": pe, "p_s_ratio": 4.0, "p_b_ratio": 8.0,
+                                     "e_v_to_e_b_i_t_d_a": ev_ebitda,
+                                     "book_value_per_share": 25.0},
+                "alpha_beta": {"period_60m": {"beta": 1.2}, "period_36m": {"beta": 0.9}}}},
+        ]},
+        "financials": {"ACME": []},
+    }
+
+
+def test_broker_fundamentals_maps_and_derives_the_absolutes():
+    from valuation.screener import broker_fundamentals as BF
+    m = BF.to_metrics("ACME", _broker_payload())
+    assert m["market_cap"] == 1.0e12
+    assert m["sector"] == "Technology"
+    # revenue = mc / ps, net_income = mc / pe, equity = bvps * shares, ebitda = ev / ev_ebitda
+    assert abs(m["revenue"] - 2.5e11) < 1, m["revenue"]
+    assert abs(m["net_income"] - 4.0e10) < 1, m["net_income"]
+    assert abs(m["total_equity"] - 1.25e11) < 1, m["total_equity"]
+    assert abs(m["ebitda"] - 5.5e10) < 1, m["ebitda"]
+    assert abs(m["net_debt"] - 1.0e11) < 1, m["net_debt"]      # ev - mc
+    assert abs(m["earnings_yield"] - 0.04) < 1e-9
+    assert m["beta"] == 1.2, "60-month beta is preferred over the 36-month one"
+    # Everything the broker has no table for must be explicitly None, never fabricated.
+    for gap in BF.GAP_FIELDS:
+        assert m[gap] is None, f"{gap} has no broker source and must stay None"
+
+
+def test_broker_roe_uses_the_annual_window_not_the_quarterly_one():
+    """Morningstar publishes 3M and 1Y ROE in one table. A quarterly ROE is ~1/4 of the
+    annual one, so mixing them across a cross-section makes the quality theme a coin flip
+    on which window a name happened to report."""
+    from valuation.screener import broker_fundamentals as BF
+    m = BF.to_metrics("ACME", _broker_payload(roe_1y=0.34, roe_3m=0.08))
+    assert m["roe"] == 0.34, m["roe"]
+
+
+def test_broker_zero_enterprise_value_is_missing_not_free():
+    """EV is reported as exactly 0 for banks — a 'not applicable' sentinel. Taken as a
+    number it sets net_debt = -market_cap and ev_sales = 0, which would hand every large
+    bank the cheapest EV/Sales in the universe and peg the sector to the top of value."""
+    from valuation.screener import broker_fundamentals as BF
+    # Shaped like the live payload: verified 2026-08-02 that all 11 banks in a 200-name
+    # sample report ev == 0 AND ev_to_ebitda == null together.
+    m = BF.to_metrics("ACME", _broker_payload(ev=0.0, ev_ebitda=None))
+    assert m["ev"] is None
+    assert m["net_debt"] is None, "net_debt must not become -market_cap"
+    assert m["ev_sales"] is None, "ev_sales must not become 0 (the cheapest in the universe)"
+    assert m["book_to_price"] is not None, "the non-EV value inputs still work for a bank"
+    assert m["earnings_yield"] is not None
+
+
+def test_broker_loss_maker_has_no_earnings_rather_than_zero():
+    """A loss-making company has no published P/E. Inferring 0 (or a negative) earnings
+    from a missing ratio would invent data; leaving it None puts the name in the
+    'speculative' bucket, which is where a loss-maker belongs."""
+    from valuation.screener import broker_fundamentals as BF
+    from valuation.screener.factors import classify_bucket
+    m = BF.to_metrics("ACME", _broker_payload(pe=None))
+    assert m["net_income"] is None and m["earnings_yield"] is None
+    assert classify_bucket(m) == "speculative"
+
+
+def test_broker_merge_never_overwrites_a_reported_value_with_a_derived_one():
+    """The free stack reads actual filings. Where it has a real revenue, the broker's
+    ratio-inverted reconstruction must not replace it."""
+    from valuation.screener import broker_fundamentals as BF
+    broker = {"revenue": 999.0, "sector": "Technology", "beta": 1.2, "market_cap": 5.0}
+    free = {"revenue": 100.0, "sector": "", "beta": None, "market_cap": None, "fcf": 7.0}
+    out = BF.merge(broker, free)
+    assert out["revenue"] == 100.0, "reported revenue wins"
+    assert out["sector"] == "Technology", "an empty string counts as missing"
+    assert out["beta"] == 1.2 and out["market_cap"] == 5.0
+    assert out["fcf"] == 7.0, "free-only fields survive the merge"
+    assert out["source"] == "free+broker"
+    assert set(out["broker_filled"]) == {"sector", "beta", "market_cap"}
+
+
+def test_broker_row_survives_when_the_free_stack_returns_nothing():
+    """The resilience property: from a throttled cloud IP the per-name yfinance fetch comes
+    back empty and USED TO drop the name from the scan entirely. It must now survive on the
+    broker's half rather than disappear."""
+    from valuation.screener import broker_fundamentals as BF
+    broker = BF.to_metrics("ACME", _broker_payload())
+    out = BF.merge(broker, None)
+    assert out is not None and out["market_cap"] == 1.0e12
+    assert BF.merge(None, None) is None
+
+
+def test_broker_prefetch_absent_token_degrades_quietly():
+    from valuation.screener.providers import FreeProvider
+
+    class _Cfg:
+        tradier_token = ""
+        sec_user_agent = "x"
+    p = FreeProvider(_Cfg(), None)
+    assert p.prefetch(["AAPL"]) == {}
+    assert "TRADIER_TOKEN" in p.broker_stats["note"]
+    assert p._broker_metrics("AAPL") is None
+
+
+def test_metrics_cache_from_an_older_schema_is_discarded():
+    """A cached row written before the broker merge is missing sector/beta/ev. Served as-is
+    it is indistinguishable from a name the feed genuinely has no sector for, which is how
+    the blank-sector bug survived for weeks."""
+    from valuation.screener.providers import _usable_cache, METRICS_SCHEMA
+    assert _usable_cache({"units": "usd", "schema": METRICS_SCHEMA}) is not None
+    assert _usable_cache({"units": "usd", "schema": 1}) is None
+    assert _usable_cache({"units": "usd"}) is None, "an unstamped row predates the schema"
+    assert _usable_cache({"units": "millions", "schema": METRICS_SCHEMA}) is None
+
+
+def test_broker_coverage_report_separates_covered_from_gap_fields():
+    from valuation.screener import broker_fundamentals as BF
+    rows = [BF.to_metrics("ACME", _broker_payload()),
+            {"market_cap": 1.0, "source": "free", "fcf": 2.0, "op_margin": 0.1}]
+    cov = BF.coverage(rows)
+    assert cov["names"] == 2
+    assert cov["broker_fields"]["market_cap"] == 1.0
+    assert cov["gap_fields"]["fcf"] == 0.5, "only the free row has FCF"
+    assert cov["by_source"]["broker"] == 1 and cov["by_source"]["free"] == 1
+
+
+def test_theme_coverage_distinguishes_present_from_contributing():
+    """A constant theme is 100% 'covered' and contributes nothing: zscore() of a zero-variance
+    column is all-NaN and composite_score renormalizes it away. Live, `insider` is exactly
+    that — no insider_score reaches build_frame, so the column is the constant 0.0 and its
+    12.5% weight is silently inert. Reporting only presence hides that."""
+    import pandas as pd
+    from valuation.screener.screen import _theme_contribution
+
+    df = pd.DataFrame({"value": [1.0, 2.0, 3.0, 4.0], "insider": [0.0, 0.0, 0.0, 0.0]})
+    out = _theme_contribution(df)
+    assert out["value"] == 1.0
+    assert out["insider"] == 0.0, "a constant theme must not read as contributing"
+
+
+def test_morningstar_sector_codes_match_the_apps_sector_names():
+    """A broker sector only helps if it lands in the peer-median lookup — a near-miss like
+    'Financials' would silently fall through to the generic default multiple."""
+    from valuation.screener.broker_fundamentals import SECTOR_CODES
+    from valuation.engine.comps import SECTOR_MULTIPLES
+    assert set(SECTOR_CODES.values()) == set(SECTOR_MULTIPLES), \
+        set(SECTOR_CODES.values()) ^ set(SECTOR_MULTIPLES)
+
+
+# --------------------------------------------------------------------------- #
+# Market session guard — the thing standing between a fixed-UTC cron and a
+# forward paper track marked on intraday prices all winter.
+# --------------------------------------------------------------------------- #
+def test_market_holidays_match_the_published_nyse_calendar():
+    """Computed, not listed, so it cannot expire — which is only safe if it is right.
+    Checked against the actual NYSE closures for two full years."""
+    from valuation.screener.market_session import market_holidays
+    assert {d.isoformat() for d in market_holidays(2025)} == {
+        "2025-01-01", "2025-01-20", "2025-02-17", "2025-04-18", "2025-05-26",
+        "2025-06-19", "2025-07-04", "2025-09-01", "2025-11-27", "2025-12-25"}
+    assert {d.isoformat() for d in market_holidays(2024)} == {
+        "2024-01-01", "2024-01-15", "2024-02-19", "2024-03-29", "2024-05-27",
+        "2024-06-19", "2024-07-04", "2024-09-02", "2024-11-28", "2024-12-25"}
+
+
+def test_holiday_falling_at_a_weekend_moves_to_the_observed_weekday():
+    from valuation.screener.market_session import market_holidays
+    # 4 Jul 2026 is a Saturday -> observed Friday the 3rd; 25 Dec 2027 is a Saturday -> the 24th.
+    assert __import__("datetime").date(2026, 7, 3) in market_holidays(2026)
+    assert __import__("datetime").date(2026, 7, 4) not in market_holidays(2026)
+    assert __import__("datetime").date(2027, 12, 24) in market_holidays(2027)
+
+
+def test_session_guard_blocks_before_the_close_and_opens_after():
+    """The bug this exists for: 20:45 UTC is 4:45pm ET in summer but 3:45pm ET in winter, so a
+    fixed-UTC cron runs mid-session for half the year and nothing in the output looks wrong."""
+    import datetime as dt
+    from valuation.screener.market_session import session_state
+
+    wednesday = dt.date(2026, 8, 5)                       # a plain trading day
+    assert session_state(dt.datetime.combine(wednesday, dt.time(15, 45)))["ok"] is False
+    assert session_state(dt.datetime.combine(wednesday, dt.time(16, 45)))["ok"] is True
+    # Right at the bell is still too early: the closing print settles over the next minutes.
+    assert session_state(dt.datetime.combine(wednesday, dt.time(16, 0)))["ok"] is False
+
+
+def test_session_guard_skips_weekends_and_holidays():
+    import datetime as dt
+    from valuation.screener.market_session import session_state
+    sat = session_state(dt.datetime(2026, 8, 8, 17, 0))
+    assert sat["ok"] is False and "weekend" in sat["reason"]
+    xmas = session_state(dt.datetime(2026, 12, 25, 17, 0))
+    assert xmas["ok"] is False and "holiday" in xmas["reason"]
+
+
+# --------------------------------------------------------------------------- #
+# Landing showcase — the numbers behind the "show, don't tell" hero.
+# --------------------------------------------------------------------------- #
+def test_range_bar_flags_a_price_outside_the_scenario_range():
+    """A strongly over- or under-valued name puts the price beyond bear/bull. Clamping the
+    marker silently would draw it at the edge as though it were inside the range."""
+    from valuation.web.showcase import range_bar
+    hot = range_bar({"bear": 98.5, "base": 119.6, "bull": 145.3, "price": 308.9})
+    assert hot["price_pos"] == 100.0 and hot["price_outside"] == "above"
+    assert 0 < hot["base_pos"] < 100
+    cheap = range_bar({"bear": 98.5, "base": 119.6, "bull": 145.3, "price": 40.0})
+    assert cheap["price_pos"] == 0.0 and cheap["price_outside"] == "below"
+    inside = range_bar({"bear": 98.5, "base": 119.6, "bull": 145.3, "price": 120.0})
+    assert inside["price_outside"] == ""
+    # A degenerate range must not divide by zero.
+    assert range_bar({"bear": 10.0, "base": 10.0, "bull": 10.0, "price": 5.0}) is None
+
+
+def test_sparkline_puts_both_lines_on_one_shared_axis():
+    """Drawing each series to its own scale would make a line that LOST look like it won."""
+    from valuation.web.showcase import sparkline
+    s = sparkline([{"date": "2026-07-01", "valquo": 0.0, "spy": 0.0},
+                   {"date": "2026-07-02", "valquo": 10.0, "spy": 5.0}], width=100, height=50)
+    assert s["ok"] and s["n"] == 2
+    iy = [float(p.split(",")[1]) for p in s["index"].split()]
+    by = [float(p.split(",")[1]) for p in s["bench"].split()]
+    # Both start together; the better performer ends HIGHER on screen (smaller y).
+    assert abs(iy[0] - by[0]) < 1e-6
+    assert iy[1] < by[1], "the outperforming line must be drawn above the benchmark"
+    # One point cannot make a line — say so rather than emit a degenerate path.
+    assert sparkline([{"date": "2026-07-01", "valquo": 1.0, "spy": 1.0}])["ok"] is False
+    assert sparkline([])["ok"] is False
+
+
+def test_landing_sample_missing_a_price_is_treated_as_no_sample():
+    """The template formats price/fair_value with %.2f, which raises on None — inside
+    render_template, i.e. OUTSIDE the route's try/except. A half-filled sample would 500 the
+    home page rather than degrade to the static copy."""
+    from valuation.web.showcase import load
+
+    class _St:
+        def __init__(self, v):
+            self.v = v
+
+        def get_meta(self, k, default=None):
+            return self.v
+    assert load(_St({"ticker": "AAPL", "price": 100.0, "fair_value": 120.0})) is not None
+    assert load(_St({"ticker": "AAPL", "fair_value": 120.0})) is None      # no price
+    assert load(_St({"price": 1.0, "fair_value": 2.0})) is None            # no ticker
+    assert load(_St({"ticker": "AAPL", "price": 100.0})) is None           # no fair value
+    assert load(_St("not-a-dict")) is None
+
+
+def test_landing_context_degrades_to_nothing_rather_than_raising():
+    from valuation.web.showcase import landing_context
+
+    class _Dead:
+        def get_meta(self, k, default=None):
+            raise RuntimeError("no db")
+
+        def latest_scan_date(self):
+            raise RuntimeError("no db")
+    ctx = landing_context(_Dead())
+    assert ctx["sample"] is None and ctx["scan"] is None
 
 
 def _run_all():

@@ -13,16 +13,26 @@ from __future__ import annotations
 
 import io
 import tempfile
-import traceback
 
 from flask import Flask, render_template, request, jsonify, send_file
 
 from ..config import CONFIG
+from ..safe_error import log_exception, safe_error
 from ..engine.pipeline import value_ticker
 from ..report import excel as excel_report
 from ..report import pdf as pdf_report
 
 app = Flask(__name__)
+
+# Shown wherever the product outputs something that looks like a recommendation. Kept as one
+# string so the Index, the signals feed and the methodology page cannot drift apart on what
+# the product claims — the wording is the claim.
+RISK_DISCLAIMER = (
+    "Educational research tool — not investment advice, and not a recommendation to buy or "
+    "sell any security. Backtested results are hypothetical, come from one 18-year dataset "
+    "the model was also tuned on, and are not a promise about the future. The live forward "
+    "track is real but short. You can lose money. Do your own research."
+)
 
 # In-memory cache of the last full result per ticker (local single-user tool),
 # so exports match exactly what's on screen without re-fetching.
@@ -70,6 +80,12 @@ def index():
                            feedback_url=CONFIG.resolved_feedback_url)
 
 
+@app.route("/methodology")
+def methodology():
+    """How it works — point-in-time, survivorship, costs, and the weaknesses."""
+    return render_template("methodology.html", disclaimer=RISK_DISCLAIMER)
+
+
 @app.route("/api/health")
 def health():
     return jsonify({"ok": True, "ai_enabled": CONFIG.ai_enabled,
@@ -96,8 +112,8 @@ def api_value():
                 "Check the ticker symbol.")
         return jsonify(payload)
     except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": f"Valuation failed for {ticker}: {e}"}), 500
+        log_exception()
+        return jsonify({"error": f"Valuation failed for {ticker}: {safe_error(e)}"}), 500
 
 
 @app.route("/api/rank", methods=["POST"])
@@ -117,7 +133,7 @@ def api_rank():
                 "regime": r.classification.regime, "confidence": r.score.confidence,
             })
         except Exception as e:
-            rows.append({"ticker": t, "error": str(e)})
+            rows.append({"ticker": t, "error": safe_error(e)})
     rows.sort(key=lambda x: (x.get("score") is not None, x.get("score", -1)), reverse=True)
     return jsonify({"rows": rows})
 
@@ -144,8 +160,8 @@ def export_excel():
                          download_name=f"{ticker}_DCF_Model.xlsx",
                          mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        log_exception()
+        return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/export/pdf")
@@ -167,8 +183,8 @@ def export_pdf():
                          download_name=f"{ticker}_Valuation_Report.pdf",
                          mimetype="application/pdf")
     except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        log_exception()
+        return jsonify({"error": safe_error(e)}), 500
 
 
 # =========================================================================== #
@@ -224,7 +240,33 @@ def api_valquo_index():
     payload["available_configs"] = sorted(S.BOOK_CONFIGS or {})
     payload["source_note"] = ("built from the same scan snapshot as the Hot Stocks ranking — "
                               "the Index is its disciplined top-slice, not a separate screen")
+    # The scan silently stopped running for four days in July and the site kept serving the
+    # last snapshot as if it were today's. Every scan-derived surface now dates itself.
+    from ..screener.freshness import status as _freshness
+    payload["freshness"] = _freshness(scan_date, label="book")
+    payload["disclaimer"] = RISK_DISCLAIMER
     return jsonify(payload)
+
+
+@app.route("/api/index-track")
+def api_index_track():
+    """The Valquo Index's LIVE forward track, beside the backtested figures.
+
+    Deliberately two separate blocks with a `headline` field naming which one may lead. The
+    live track is the only non-backtested evidence the product has, and it is also brand new
+    — so it is shown from day one for transparency but cannot become the headline until it
+    has enough history to mean anything.
+    """
+    from ..screener import index_track
+    from ..screener import settings as S
+    name = (request.args.get("config") or S.DEFAULT_BOOK_CONFIG or "roth").lower()
+    try:
+        out = index_track.summarize(name, store=_store())
+    except Exception as e:
+        return jsonify({"available": False, "error": safe_error(e),
+                        "note": "Live track unavailable."}), 200
+    out["disclaimer"] = RISK_DISCLAIMER
+    return jsonify(out)
 
 
 @app.route("/api/options-scorecard")
@@ -244,7 +286,62 @@ def api_options_scorecard():
         sc["tuning"] = tuning_candidates(st)
         return jsonify(sc)
     except Exception as e:
-        return jsonify({"error": str(e), "overall": {"n_closed": 0}, "n_open": 0}), 200
+        return jsonify({"error": safe_error(e), "overall": {"n_closed": 0}, "n_open": 0}), 200
+
+
+@app.route("/api/options-alerts")
+def api_options_alerts():
+    """Live scream-buy alerts: the real contract, its confidence, and a contract count.
+
+    The contract comes from the broker chain via the SAME selector the backtest used, so what is
+    shown here is the trade that was validated rather than a description of it. `confidence` is
+    EXPECTANCY-confidence and carries its own disclaimer - the backtested hit rate is 37%, so a
+    high level must never be rendered as "likely to win". `sizing` is a suggestion; nothing here
+    is routed to a broker.
+
+    Chain fetches cost several calls per name, so this is capped and defaults to the top few.
+    """
+    from ..edge.options_live import build_alerts, DEFAULT_RISK_BUDGET
+    from ..intraday.providers import get_provider
+    from ..saas.notify import screaming_buys_with_stats
+    from ..screener.store import Store
+    try:
+        st = Store()
+        rt = st.latest_intraday_time()
+        if not rt:
+            return jsonify({"empty": True, "message": "No intraday scan yet — hit Refresh."})
+        picks, term_stats = screaming_buys_with_stats(st.load_intraday(rt),
+                                                      CONFIG.alert_min_score)
+        top = max(1, min(int(request.args.get("top", 5)), 15))
+        budget = float(request.args.get("risk_budget",
+                                        getattr(CONFIG, "options_risk_per_trade", None)
+                                        or DEFAULT_RISK_BUDGET))
+        with_chain = request.args.get("chain", "1") != "0"
+        alerts, stats = build_alerts(picks[:top],
+                                     provider=get_provider(CONFIG) if with_chain else None,
+                                     risk_budget=budget)
+        return jsonify({"run_time": rt, "alerts": alerts, "stats": stats,
+                        "term_filter": term_stats, "risk_budget": budget,
+                        "n_screaming": len(picks)})
+    except Exception as e:
+        log_exception()
+        return jsonify({"error": safe_error(e), "alerts": []}), 200
+
+
+@app.route("/api/options-paper")
+def api_options_paper():
+    """Forward paper book vs the backtest reference it is actually comparable to.
+
+    Reports the GATED late-half number (+12.88%) as the primary reference, not the +10.4%
+    full-sample headline: the live book runs behind the term filter and cannot be judged against
+    an unfiltered figure dominated by 2016-2020.
+    """
+    from ..edge.options_paper import paper_report
+    from ..screener.store import Store
+    try:
+        return jsonify(paper_report(Store()))
+    except Exception as e:
+        return jsonify({"error": safe_error(e), "n_closed": 0, "thin": True}), 200
 
 
 @app.route("/api/hotstocks")
@@ -277,11 +374,14 @@ def api_hotstocks():
         params = _json.loads(meta.get("params") or "{}")
     except Exception:
         params = {}
+    from ..screener.freshness import status as _freshness
     return jsonify({"scan_date": scan_date, "rows": rows,
                     "sectors": sector_attractiveness(all_rows),
                     "universe_size": meta.get("universe_size"), "scored": meta.get("scored"),
                     "provider": meta.get("provider"), "filtered": params.get("filtered"),
                     "health": params.get("health"),
+                    "freshness": _freshness(scan_date, label="ranking"),
+                    "disclaimer": RISK_DISCLAIMER,
                     "history": [s["scan_date"] for s in scans][:12]})
 
 
@@ -482,10 +582,21 @@ def api_track():
         paper["bench"] = _PAPER_BENCH.get("hot10")
     except Exception:
         paper = {"summary": {}, "watching": [], "closed": []}
-    return jsonify({"sources": out, "paper": paper,
+    # The Tradier-sandbox forward track (roadmap #12): real paper orders, real fills, and the
+    # Index-vs-SPY record since inception. Read-only here and never allowed to break the page —
+    # an empty or absent paper book must render as "not started", not as a 500.
+    try:
+        from ..edge import paper_track
+        sandbox = paper_track.summary(st)
+    except Exception:
+        sandbox = {"options": {"started": False}, "index": {"started": False},
+                   "headline": "The forward paper track has not been started."}
+    return jsonify({"sources": out, "paper": paper, "paper_sandbox": sandbox,
                     "note": "Forward, survivorship-free record of real dated picks vs the S&P 500. Options "
                             "are tracked by the underlying's forward return (signal accuracy, not option "
-                            "P&L). Educational only; past results don't predict future performance."})
+                            "P&L). `paper_sandbox` is the separate Tradier PAPER account track — real "
+                            "simulated orders and fills on ~15-min-delayed data, thin until it says "
+                            "otherwise. Educational only; past results don't predict future performance."})
 
 
 @app.route("/api/edge/learning")
@@ -516,8 +627,8 @@ def api_scan_run():
         return jsonify({"ok": True, "scan_date": res["scan_date"], "scored": res["scored"],
                         "universe_size": res["universe_size"], "provider": res.get("provider")})
     except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        log_exception()
+        return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/portfolio", methods=["POST"])
@@ -551,8 +662,8 @@ def api_backtest_run():
             res = run_from_store(_store(), top=int(data.get("top", 50)), **kw)
         return jsonify(res)
     except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        log_exception()
+        return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/signals")
@@ -565,7 +676,12 @@ def api_signals():
         return jsonify({"empty": True, "message": "No intraday scan yet — hit Refresh. "
                         "Add a TRADIER_TOKEN for real-time; otherwise it uses free delayed data."})
     top = int(request.args.get("top", 40))
-    return jsonify({"run_time": rt, "rows": st.load_intraday(rt, top=top)})
+    # Intraday feed: a run_time is a timestamp, so freshness is measured off its DATE. An
+    # options signal from three days ago is not a signal, it is a historical note.
+    from ..screener.freshness import status as _freshness
+    return jsonify({"run_time": rt, "rows": st.load_intraday(rt, top=top),
+                    "freshness": _freshness(str(rt)[:10], label="signal feed"),
+                    "disclaimer": RISK_DISCLAIMER})
 
 
 @app.route("/api/signals/run", methods=["POST"])
@@ -586,8 +702,8 @@ def api_signals_run():
         return jsonify({"ok": True, "run_time": res["run_time"], "scored": res["scored"],
                         "universe": res["universe"], "provider": res["provider"]})
     except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        log_exception()
+        return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/edge/backtest", methods=["POST"])
@@ -600,7 +716,7 @@ def api_edge_backtest():
                                     rebalance_days=int(d.get("rebalance", 21)),
                                     limit=int(d.get("limit", 100))))
     except Exception as e:
-        traceback.print_exc(); return jsonify({"error": str(e)}), 500
+        log_exception(); return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/edge/optimize", methods=["POST"])
@@ -610,7 +726,7 @@ def api_edge_optimize():
     try:
         return jsonify(run_optimize(limit=int(d.get("limit", 100))))
     except Exception as e:
-        traceback.print_exc(); return jsonify({"error": str(e)}), 500
+        log_exception(); return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/edge/track", methods=["POST"])
@@ -620,7 +736,7 @@ def api_edge_track():
     try:
         return jsonify(run_track(source=d.get("source", "hot")))
     except Exception as e:
-        traceback.print_exc(); return jsonify({"error": str(e)}), 500
+        log_exception(); return jsonify({"error": safe_error(e)}), 500
 
 
 def create_app():

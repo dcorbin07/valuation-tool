@@ -1,0 +1,68 @@
+# ============================================================================
+#  Valquo — auto-land agent branches to main (hands-off merge + deploy)
+#
+#  WHAT IT DOES: when Claude Code pushes any `worktree-*` branch to GitHub,
+#  this runs the edge tests and — only if they pass — merges that branch into
+#  `main` and pushes it. Render auto-deploys `main`. No local merge, no Vim,
+#  no git_push.bat, no you in the loop. If tests fail or the merge conflicts,
+#  it stops and leaves `main` untouched (nothing broken ever ships).
+#
+#  ONE-TIME INSTALL (2 min, when you're back):
+#   1. Save this file to:  valuation-tool\.github\workflows\land-agent-branch.yml
+#   2. Commit + push it to main:
+#        git add .github/workflows/land-agent-branch.yml
+#        git commit -m "CI: auto-land agent branches to main"
+#        git push origin main
+#   3. In GitHub → repo Settings → Actions → General → Workflow permissions,
+#      select "Read and write permissions" (lets the Action push to main), Save.
+#   That's it. From then on every Code push auto-merges + deploys if green.
+#
+#  TWO THINGS TO VERIFY on the first run (watch the Actions tab):
+#   - test_edge.py must EXIT non-zero on failure for the gate to be real. If a
+#     run shows 87/88 but still pushes, the runner isn't exiting non-zero — tell
+#     me and I'll add an explicit pass/fail check.
+#   - The edge tests must run WITHOUT the gitignored data/ (they use fixtures).
+#     If a test needs the licensed Sharadar data, the Action will red-X safely
+#     (it won't deploy) — tell me and I'll make those tests skip in CI.
+# ============================================================================
+name: Land agent branch to main
+on:
+  push:
+    branches: ['worktree-*']
+
+concurrency: land-main          # serialize so two pushes can't race main
+
+jobs:
+  land:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write           # allow pushing to main
+    steps:
+      - name: Checkout main (full history)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Merge the pushed branch into main
+        run: |
+          git config user.name  "valquo-ci"
+          git config user.email "ci@valquo.co"
+          BR="${GITHUB_REF#refs/heads/}"
+          echo "Landing $BR into main..."
+          git fetch origin "$BR"
+          git merge --no-edit "origin/$BR" || { echo "::error::Merge conflict on $BR — main left untouched"; git merge --abort; exit 1; }
+
+      - name: Test gate — edge suite must pass
+        run: python tests/test_edge.py
+
+      - name: Push main (triggers Render deploy)
+        run: git push origin HEAD:main

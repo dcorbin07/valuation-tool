@@ -1,0 +1,14 @@
+{% extends "_saas_base.html" %}
+{% block title %}Session expired{% endblock %}
+{% block body %}
+<div class="wrap" style="padding:50px 22px;max-width:460px">
+  <div class="card">
+    <h2 style="margin-top:0;color:var(--navy)">That form has expired</h2>
+    <p>For your security we check that a form was submitted from a page we served. This one
+       wasn't — usually that just means the page sat open for a long time, or cookies are
+       blocked in your browser.</p>
+    <p class="muted" style="font-size:14px">Go back, reload the page, and try again.</p>
+    <p class="muted" style="font-size:14px;margin-top:14px"><a href="/login">Back to log in</a></p>
+  </div>
+</div>
+{% endblock %}

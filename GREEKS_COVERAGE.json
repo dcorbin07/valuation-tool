@@ -1,0 +1,2664 @@
+{
+  "schema_version": 4,
+  "band": {
+    "min_dte": 7,
+    "max_dte": 90,
+    "mny_lo": 0.7,
+    "mny_hi": 1.3,
+    "min_mid": 0.05,
+    "max_spread_frac": 1.0
+  },
+  "names_enriched": 111,
+  "contract_days_in": 166393445,
+  "contract_days_priced": 81241745,
+  "iv_ok_frac": 0.4883,
+  "oi_sentinel_rows": 19012352,
+  "oi_sentinel_frac": 0.1143,
+  "skipped_by_reason": {
+    "no_quote": 33154153,
+    "mny_band": 20699532,
+    "dte_band": 14826081,
+    "wide_spread": 7715820,
+    "below_intrinsic": 5546109,
+    "penny": 3169502,
+    "no_spot": 35610,
+    "crossed": 3358,
+    "above_max_vol": 1513,
+    "neg_time": 22,
+    "iv_unsolved": 0
+  },
+  "schema_versions": [
+    4
+  ],
+  "rate_sources": [
+    "dgs3mo daily series"
+  ],
+  "per_name": {
+    "AAPL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2261415,
+      "rows_priced": 1084143,
+      "iv_ok_frac": 0.4794,
+      "dates": 2515,
+      "oi_sentinel_rows": 499937,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 22% of raw rows",
+        "no open interest at all on 10% of dates \u2014 GEX is blank there"
+      ]
+    },
+    "ABBV": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1630888,
+      "rows_priced": 791679,
+      "iv_ok_frac": 0.4854,
+      "dates": 2515,
+      "oi_sentinel_rows": 236550,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows"
+      ]
+    },
+    "ABT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1483871,
+      "rows_priced": 739776,
+      "iv_ok_frac": 0.4985,
+      "dates": 2515,
+      "oi_sentinel_rows": 204605,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "ADI": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1323589,
+      "rows_priced": 603838,
+      "iv_ok_frac": 0.4562,
+      "dates": 2515,
+      "oi_sentinel_rows": 117812,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows"
+      ]
+    },
+    "AMAT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1618441,
+      "rows_priced": 834011,
+      "iv_ok_frac": 0.5153,
+      "dates": 2515,
+      "oi_sentinel_rows": 195291,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "AMD": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1871408,
+      "rows_priced": 874894,
+      "iv_ok_frac": 0.4675,
+      "dates": 2515,
+      "oi_sentinel_rows": 130376,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "1 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 7% of raw rows"
+      ]
+    },
+    "AMGN": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1812616,
+      "rows_priced": 781147,
+      "iv_ok_frac": 0.431,
+      "dates": 2515,
+      "oi_sentinel_rows": 237390,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows"
+      ]
+    },
+    "AMZN": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 5974514,
+      "rows_priced": 3483461,
+      "iv_ok_frac": 0.5831,
+      "dates": 2515,
+      "oi_sentinel_rows": 483150,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 8% of raw rows"
+      ]
+    },
+    "ANET": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1708765,
+      "rows_priced": 816978,
+      "iv_ok_frac": 0.4781,
+      "dates": 2515,
+      "oi_sentinel_rows": 110785,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 6% of raw rows"
+      ]
+    },
+    "APH": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 218109,
+      "rows_priced": 75207,
+      "iv_ok_frac": 0.3448,
+      "dates": 2515,
+      "oi_sentinel_rows": 29750,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "GEX pegged to one strike on 64% of dates"
+      ]
+    },
+    "APP": {
+      "years": [
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 690245,
+      "rows_priced": 279265,
+      "iv_ok_frac": 0.4046,
+      "dates": 1181,
+      "oi_sentinel_rows": 21123,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows",
+        "zero-gamma not found on 59% of dates"
+      ]
+    },
+    "ARM": {
+      "years": [
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 527520,
+      "rows_priced": 264994,
+      "iv_ok_frac": 0.5023,
+      "dates": 575,
+      "oi_sentinel_rows": 17918,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows"
+      ]
+    },
+    "ASML": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2113075,
+      "rows_priced": 977061,
+      "iv_ok_frac": 0.4624,
+      "dates": 2515,
+      "oi_sentinel_rows": 79407,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 4% of raw rows"
+      ]
+    },
+    "AVGO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2674228,
+      "rows_priced": 1323940,
+      "iv_ok_frac": 0.4951,
+      "dates": 2515,
+      "oi_sentinel_rows": 268336,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows"
+      ]
+    },
+    "AXP": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1688732,
+      "rows_priced": 840890,
+      "iv_ok_frac": 0.4979,
+      "dates": 2515,
+      "oi_sentinel_rows": 254206,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows"
+      ]
+    },
+    "AZN": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1221399,
+      "rows_priced": 546001,
+      "iv_ok_frac": 0.447,
+      "dates": 2515,
+      "oi_sentinel_rows": 295206,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 24% of raw rows",
+        "GEX pegged to one strike on 26% of dates"
+      ]
+    },
+    "BA": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2182351,
+      "rows_priced": 1099407,
+      "iv_ok_frac": 0.5038,
+      "dates": 2515,
+      "oi_sentinel_rows": 227311,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows"
+      ]
+    },
+    "BABA": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2198937,
+      "rows_priced": 1124353,
+      "iv_ok_frac": 0.5113,
+      "dates": 2513,
+      "oi_sentinel_rows": 162287,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 7% of raw rows"
+      ]
+    },
+    "BAC": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1345791,
+      "rows_priced": 632275,
+      "iv_ok_frac": 0.4698,
+      "dates": 2515,
+      "oi_sentinel_rows": 171568,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "1 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 13% of raw rows"
+      ]
+    },
+    "BHP": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 302646,
+      "rows_priced": 132427,
+      "iv_ok_frac": 0.4376,
+      "dates": 2514,
+      "oi_sentinel_rows": 26704,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows"
+      ]
+    },
+    "BMO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 210642,
+      "rows_priced": 64710,
+      "iv_ok_frac": 0.3072,
+      "dates": 2515,
+      "oi_sentinel_rows": 31475,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows",
+        "GEX pegged to one strike on 65% of dates"
+      ]
+    },
+    "BMY": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1220704,
+      "rows_priced": 617703,
+      "iv_ok_frac": 0.506,
+      "dates": 2515,
+      "oi_sentinel_rows": 180782,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows"
+      ]
+    },
+    "BTI": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 191546,
+      "rows_priced": 54925,
+      "iv_ok_frac": 0.2867,
+      "dates": 2515,
+      "oi_sentinel_rows": 35355,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows",
+        "GEX pegged to one strike on 60% of dates"
+      ]
+    },
+    "BUD": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1147824,
+      "rows_priced": 548202,
+      "iv_ok_frac": 0.4776,
+      "dates": 2515,
+      "oi_sentinel_rows": 138894,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "C": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1487951,
+      "rows_priced": 824821,
+      "iv_ok_frac": 0.5543,
+      "dates": 2515,
+      "oi_sentinel_rows": 178658,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "CAT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1964249,
+      "rows_priced": 983415,
+      "iv_ok_frac": 0.5007,
+      "dates": 2515,
+      "oi_sentinel_rows": 213469,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows"
+      ]
+    },
+    "CB": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 374195,
+      "rows_priced": 143697,
+      "iv_ok_frac": 0.384,
+      "dates": 2514,
+      "oi_sentinel_rows": 36195,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows"
+      ]
+    },
+    "COF": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1732194,
+      "rows_priced": 927620,
+      "iv_ok_frac": 0.5355,
+      "dates": 2515,
+      "oi_sentinel_rows": 294499,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 17% of raw rows"
+      ]
+    },
+    "COP": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1503979,
+      "rows_priced": 807709,
+      "iv_ok_frac": 0.537,
+      "dates": 2515,
+      "oi_sentinel_rows": 186901,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "COST": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2654554,
+      "rows_priced": 1348285,
+      "iv_ok_frac": 0.5079,
+      "dates": 2515,
+      "oi_sentinel_rows": 222443,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 8% of raw rows"
+      ]
+    },
+    "CRM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1935436,
+      "rows_priced": 976554,
+      "iv_ok_frac": 0.5046,
+      "dates": 2515,
+      "oi_sentinel_rows": 229848,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "CRWD": {
+      "years": [
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1536554,
+      "rows_priced": 719765,
+      "iv_ok_frac": 0.4684,
+      "dates": 1645,
+      "oi_sentinel_rows": 27004,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": []
+    },
+    "CSCO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1322062,
+      "rows_priced": 637488,
+      "iv_ok_frac": 0.4822,
+      "dates": 2515,
+      "oi_sentinel_rows": 205188,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "CVS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1508205,
+      "rows_priced": 822769,
+      "iv_ok_frac": 0.5455,
+      "dates": 2515,
+      "oi_sentinel_rows": 228166,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows"
+      ]
+    },
+    "CVX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1652041,
+      "rows_priced": 826269,
+      "iv_ok_frac": 0.5002,
+      "dates": 2515,
+      "oi_sentinel_rows": 239088,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "DE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1996401,
+      "rows_priced": 983458,
+      "iv_ok_frac": 0.4926,
+      "dates": 2515,
+      "oi_sentinel_rows": 257003,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows"
+      ]
+    },
+    "DELL": {
+      "years": [
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 668188,
+      "rows_priced": 329403,
+      "iv_ok_frac": 0.493,
+      "dates": 1758,
+      "oi_sentinel_rows": 17792,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows"
+      ]
+    },
+    "DHR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 933136,
+      "rows_priced": 370765,
+      "iv_ok_frac": 0.3973,
+      "dates": 2513,
+      "oi_sentinel_rows": 50584,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 5% of raw rows"
+      ]
+    },
+    "DIS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1674975,
+      "rows_priced": 933626,
+      "iv_ok_frac": 0.5574,
+      "dates": 2515,
+      "oi_sentinel_rows": 182752,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows"
+      ]
+    },
+    "ENB": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 163067,
+      "rows_priced": 56473,
+      "iv_ok_frac": 0.3463,
+      "dates": 2515,
+      "oi_sentinel_rows": 18508,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "GEX pegged to one strike on 77% of dates"
+      ]
+    },
+    "ETN": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1305670,
+      "rows_priced": 609559,
+      "iv_ok_frac": 0.4669,
+      "dates": 2515,
+      "oi_sentinel_rows": 301678,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 23% of raw rows"
+      ]
+    },
+    "GE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1346107,
+      "rows_priced": 554822,
+      "iv_ok_frac": 0.4122,
+      "dates": 2511,
+      "oi_sentinel_rows": 187511,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "GEV": {
+      "years": [
+        "2024",
+        "2025"
+      ],
+      "rows_in": 467398,
+      "rows_priced": 205270,
+      "iv_ok_frac": 0.4392,
+      "dates": 437,
+      "oi_sentinel_rows": 15614,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows"
+      ]
+    },
+    "GILD": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1546896,
+      "rows_priced": 824633,
+      "iv_ok_frac": 0.5331,
+      "dates": 2515,
+      "oi_sentinel_rows": 175397,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows"
+      ]
+    },
+    "GOOGL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 4798758,
+      "rows_priced": 2594266,
+      "iv_ok_frac": 0.5406,
+      "dates": 2515,
+      "oi_sentinel_rows": 563747,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "GS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2416146,
+      "rows_priced": 1228999,
+      "iv_ok_frac": 0.5087,
+      "dates": 2515,
+      "oi_sentinel_rows": 226138,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows"
+      ]
+    },
+    "HD": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2071564,
+      "rows_priced": 1002253,
+      "iv_ok_frac": 0.4838,
+      "dates": 2515,
+      "oi_sentinel_rows": 221570,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows"
+      ]
+    },
+    "IBM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1728735,
+      "rows_priced": 859285,
+      "iv_ok_frac": 0.4971,
+      "dates": 2514,
+      "oi_sentinel_rows": 237668,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "INTC": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1436680,
+      "rows_priced": 721901,
+      "iv_ok_frac": 0.5025,
+      "dates": 2515,
+      "oi_sentinel_rows": 178409,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "ISRG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 3124068,
+      "rows_priced": 1508850,
+      "iv_ok_frac": 0.483,
+      "dates": 2515,
+      "oi_sentinel_rows": 499251,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "JNJ": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1519764,
+      "rows_priced": 673856,
+      "iv_ok_frac": 0.4434,
+      "dates": 2515,
+      "oi_sentinel_rows": 240464,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "JPM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1753121,
+      "rows_priced": 915852,
+      "iv_ok_frac": 0.5224,
+      "dates": 2515,
+      "oi_sentinel_rows": 200033,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows"
+      ]
+    },
+    "KO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1254380,
+      "rows_priced": 583514,
+      "iv_ok_frac": 0.4652,
+      "dates": 2515,
+      "oi_sentinel_rows": 231898,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows"
+      ]
+    },
+    "LLY": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2213031,
+      "rows_priced": 1059461,
+      "iv_ok_frac": 0.4787,
+      "dates": 2345,
+      "oi_sentinel_rows": 312829,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "LMT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2145931,
+      "rows_priced": 968425,
+      "iv_ok_frac": 0.4513,
+      "dates": 2345,
+      "oi_sentinel_rows": 260305,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "LOW": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1525367,
+      "rows_priced": 722123,
+      "iv_ok_frac": 0.4734,
+      "dates": 2345,
+      "oi_sentinel_rows": 212814,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "MA": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2179214,
+      "rows_priced": 1082456,
+      "iv_ok_frac": 0.4967,
+      "dates": 2381,
+      "oi_sentinel_rows": 260247,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "MCD": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1614701,
+      "rows_priced": 731203,
+      "iv_ok_frac": 0.4528,
+      "dates": 2381,
+      "oi_sentinel_rows": 229780,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "META": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2658950,
+      "rows_priced": 1245264,
+      "iv_ok_frac": 0.4683,
+      "dates": 2297,
+      "oi_sentinel_rows": 159465,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 6% of raw rows"
+      ]
+    },
+    "MO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1267619,
+      "rows_priced": 595068,
+      "iv_ok_frac": 0.4694,
+      "dates": 2515,
+      "oi_sentinel_rows": 238858,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 19% of raw rows"
+      ]
+    },
+    "MRK": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1520798,
+      "rows_priced": 785990,
+      "iv_ok_frac": 0.5168,
+      "dates": 2514,
+      "oi_sentinel_rows": 238013,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "MRVL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1405891,
+      "rows_priced": 665741,
+      "iv_ok_frac": 0.4735,
+      "dates": 2515,
+      "oi_sentinel_rows": 253472,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows"
+      ]
+    },
+    "MS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1486287,
+      "rows_priced": 808562,
+      "iv_ok_frac": 0.544,
+      "dates": 2515,
+      "oi_sentinel_rows": 216443,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows"
+      ]
+    },
+    "MSFT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2250578,
+      "rows_priced": 1168114,
+      "iv_ok_frac": 0.519,
+      "dates": 2515,
+      "oi_sentinel_rows": 172829,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 8% of raw rows"
+      ]
+    },
+    "MU": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1789276,
+      "rows_priced": 953168,
+      "iv_ok_frac": 0.5327,
+      "dates": 2515,
+      "oi_sentinel_rows": 161157,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows"
+      ]
+    },
+    "NEE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 593305,
+      "rows_priced": 256848,
+      "iv_ok_frac": 0.4329,
+      "dates": 2515,
+      "oi_sentinel_rows": 53761,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "1 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "GEX pegged to one strike on 27% of dates"
+      ]
+    },
+    "NFLX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 3937592,
+      "rows_priced": 1859968,
+      "iv_ok_frac": 0.4724,
+      "dates": 2515,
+      "oi_sentinel_rows": 224040,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 6% of raw rows"
+      ]
+    },
+    "NVDA": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 3501071,
+      "rows_priced": 1583346,
+      "iv_ok_frac": 0.4522,
+      "dates": 2515,
+      "oi_sentinel_rows": 203766,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 6% of raw rows"
+      ]
+    },
+    "NVO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 670247,
+      "rows_priced": 300174,
+      "iv_ok_frac": 0.4479,
+      "dates": 2515,
+      "oi_sentinel_rows": 42673,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 6% of raw rows",
+        "GEX pegged to one strike on 32% of dates"
+      ]
+    },
+    "NVS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 265402,
+      "rows_priced": 98569,
+      "iv_ok_frac": 0.3714,
+      "dates": 2513,
+      "oi_sentinel_rows": 33922,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 43% of dates"
+      ]
+    },
+    "ORCL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1525015,
+      "rows_priced": 785060,
+      "iv_ok_frac": 0.5148,
+      "dates": 2515,
+      "oi_sentinel_rows": 204573,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows"
+      ]
+    },
+    "PANW": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2138146,
+      "rows_priced": 981729,
+      "iv_ok_frac": 0.4591,
+      "dates": 2515,
+      "oi_sentinel_rows": 268688,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows"
+      ]
+    },
+    "PDD": {
+      "years": [
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1227874,
+      "rows_priced": 637499,
+      "iv_ok_frac": 0.5192,
+      "dates": 1860,
+      "oi_sentinel_rows": 21257,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": []
+    },
+    "PEP": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1489976,
+      "rows_priced": 679364,
+      "iv_ok_frac": 0.456,
+      "dates": 2515,
+      "oi_sentinel_rows": 249707,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 17% of raw rows"
+      ]
+    },
+    "PFE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1288285,
+      "rows_priced": 580657,
+      "iv_ok_frac": 0.4507,
+      "dates": 2514,
+      "oi_sentinel_rows": 232201,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows"
+      ]
+    },
+    "PG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1581375,
+      "rows_priced": 747553,
+      "iv_ok_frac": 0.4727,
+      "dates": 2515,
+      "oi_sentinel_rows": 245930,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "PGR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 473460,
+      "rows_priced": 190735,
+      "iv_ok_frac": 0.4029,
+      "dates": 2515,
+      "oi_sentinel_rows": 41500,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "GEX pegged to one strike on 29% of dates"
+      ]
+    },
+    "PH": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 417764,
+      "rows_priced": 168215,
+      "iv_ok_frac": 0.4027,
+      "dates": 2515,
+      "oi_sentinel_rows": 38788,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows"
+      ]
+    },
+    "PLD": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 266906,
+      "rows_priced": 94797,
+      "iv_ok_frac": 0.3552,
+      "dates": 2515,
+      "oi_sentinel_rows": 33029,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "GEX pegged to one strike on 49% of dates"
+      ]
+    },
+    "PLTR": {
+      "years": [
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 883077,
+      "rows_priced": 365527,
+      "iv_ok_frac": 0.4139,
+      "dates": 1316,
+      "oi_sentinel_rows": 16626,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": []
+    },
+    "PM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1560040,
+      "rows_priced": 770331,
+      "iv_ok_frac": 0.4938,
+      "dates": 2515,
+      "oi_sentinel_rows": 284866,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows"
+      ]
+    },
+    "QCOM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1659771,
+      "rows_priced": 847182,
+      "iv_ok_frac": 0.5104,
+      "dates": 2515,
+      "oi_sentinel_rows": 189050,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows"
+      ]
+    },
+    "RIO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 267993,
+      "rows_priced": 113664,
+      "iv_ok_frac": 0.4241,
+      "dates": 2514,
+      "oi_sentinel_rows": 14217,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 5% of raw rows"
+      ]
+    },
+    "RTX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1482219,
+      "rows_priced": 734074,
+      "iv_ok_frac": 0.4953,
+      "dates": 2512,
+      "oi_sentinel_rows": 285838,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 19% of raw rows"
+      ]
+    },
+    "SCCO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 351204,
+      "rows_priced": 152653,
+      "iv_ok_frac": 0.4347,
+      "dates": 2515,
+      "oi_sentinel_rows": 47177,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows"
+      ]
+    },
+    "SCHW": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1331107,
+      "rows_priced": 687710,
+      "iv_ok_frac": 0.5166,
+      "dates": 2515,
+      "oi_sentinel_rows": 209526,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "SHEL": {
+      "years": [
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 400172,
+      "rows_priced": 174161,
+      "iv_ok_frac": 0.4352,
+      "dates": 984,
+      "oi_sentinel_rows": 11154,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows"
+      ]
+    },
+    "SHOP": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2859821,
+      "rows_priced": 1420193,
+      "iv_ok_frac": 0.4966,
+      "dates": 2515,
+      "oi_sentinel_rows": 119996,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 4% of raw rows"
+      ]
+    },
+    "SONY": {
+      "years": [
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 646222,
+      "rows_priced": 293341,
+      "iv_ok_frac": 0.4539,
+      "dates": 1193,
+      "oi_sentinel_rows": 13784,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 2% of raw rows"
+      ]
+    },
+    "STX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1604198,
+      "rows_priced": 831597,
+      "iv_ok_frac": 0.5184,
+      "dates": 2515,
+      "oi_sentinel_rows": 197683,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "T": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1238595,
+      "rows_priced": 525038,
+      "iv_ok_frac": 0.4239,
+      "dates": 2514,
+      "oi_sentinel_rows": 195320,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "TD": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 227308,
+      "rows_priced": 81327,
+      "iv_ok_frac": 0.3578,
+      "dates": 2515,
+      "oi_sentinel_rows": 27336,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "GEX pegged to one strike on 54% of dates"
+      ]
+    },
+    "TJX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 900018,
+      "rows_priced": 438687,
+      "iv_ok_frac": 0.4874,
+      "dates": 2515,
+      "oi_sentinel_rows": 41376,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 5% of raw rows"
+      ]
+    },
+    "TM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 316541,
+      "rows_priced": 116580,
+      "iv_ok_frac": 0.3683,
+      "dates": 2515,
+      "oi_sentinel_rows": 45895,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "GEX pegged to one strike on 28% of dates"
+      ]
+    },
+    "TMUS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1616465,
+      "rows_priced": 763069,
+      "iv_ok_frac": 0.4721,
+      "dates": 2514,
+      "oi_sentinel_rows": 281116,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 17% of raw rows"
+      ]
+    },
+    "TSLA": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 4682227,
+      "rows_priced": 1852409,
+      "iv_ok_frac": 0.3956,
+      "dates": 2515,
+      "oi_sentinel_rows": 274585,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 6% of raw rows"
+      ]
+    },
+    "TSM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1171104,
+      "rows_priced": 629143,
+      "iv_ok_frac": 0.5372,
+      "dates": 2515,
+      "oi_sentinel_rows": 46406,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 4% of raw rows"
+      ]
+    },
+    "TTE": {
+      "years": [
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 107682,
+      "rows_priced": 39438,
+      "iv_ok_frac": 0.3662,
+      "dates": 1144,
+      "oi_sentinel_rows": 936,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "7 rows with expiration before quote date",
+        "GEX pegged to one strike on 52% of dates"
+      ]
+    },
+    "TXN": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1536218,
+      "rows_priced": 748312,
+      "iv_ok_frac": 0.4871,
+      "dates": 2515,
+      "oi_sentinel_rows": 234704,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows"
+      ]
+    },
+    "UBER": {
+      "years": [
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 997036,
+      "rows_priced": 547011,
+      "iv_ok_frac": 0.5486,
+      "dates": 1667,
+      "oi_sentinel_rows": 13913,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": []
+    },
+    "UBS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 199694,
+      "rows_priced": 56025,
+      "iv_ok_frac": 0.2806,
+      "dates": 2514,
+      "oi_sentinel_rows": 26033,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 83% of dates"
+      ]
+    },
+    "UL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 212677,
+      "rows_priced": 73714,
+      "iv_ok_frac": 0.3466,
+      "dates": 2514,
+      "oi_sentinel_rows": 32877,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows",
+        "GEX pegged to one strike on 54% of dates"
+      ]
+    },
+    "UNH": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2101811,
+      "rows_priced": 1006165,
+      "iv_ok_frac": 0.4787,
+      "dates": 2515,
+      "oi_sentinel_rows": 256838,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "UNP": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1719466,
+      "rows_priced": 789635,
+      "iv_ok_frac": 0.4592,
+      "dates": 2515,
+      "oi_sentinel_rows": 261130,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows"
+      ]
+    },
+    "V": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1822504,
+      "rows_priced": 895170,
+      "iv_ok_frac": 0.4912,
+      "dates": 2515,
+      "oi_sentinel_rows": 227222,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "VZ": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1136962,
+      "rows_priced": 525783,
+      "iv_ok_frac": 0.4624,
+      "dates": 2515,
+      "oi_sentinel_rows": 183080,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "WDC": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1609851,
+      "rows_priced": 881117,
+      "iv_ok_frac": 0.5473,
+      "dates": 2514,
+      "oi_sentinel_rows": 225802,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "5 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "WELL": {
+      "years": [
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 236791,
+      "rows_priced": 87750,
+      "iv_ok_frac": 0.3706,
+      "dates": 1973,
+      "oi_sentinel_rows": 7866,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows",
+        "GEX pegged to one strike on 33% of dates"
+      ]
+    },
+    "WFC": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1356837,
+      "rows_priced": 727006,
+      "iv_ok_frac": 0.5358,
+      "dates": 2515,
+      "oi_sentinel_rows": 193480,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "7 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "WMT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1600849,
+      "rows_priced": 859449,
+      "iv_ok_frac": 0.5369,
+      "dates": 2515,
+      "oi_sentinel_rows": 188258,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
+      ]
+    },
+    "XOM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1627194,
+      "rows_priced": 891931,
+      "iv_ok_frac": 0.5481,
+      "dates": 2515,
+      "oi_sentinel_rows": 224521,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    }
+  }
+}

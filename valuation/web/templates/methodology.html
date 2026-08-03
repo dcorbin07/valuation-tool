@@ -1,0 +1,81 @@
+{% extends "_saas_base.html" %}
+{% block title %}How it works — methodology{% endblock %}
+{% block body %}
+<div class="wrap" style="padding:40px 22px;max-width:840px">
+  <h1 style="color:var(--navy);margin-bottom:4px">How it works</h1>
+  <p class="muted" style="margin-top:0">What the model does, how it was tested, and — the part
+  most tools leave out — where it is weak.</p>
+
+  <div class="note" style="margin:18px 0">{{ disclaimer }}</div>
+
+  <h3>The short version</h3>
+  <p>Every listed US common stock we can price is scored each market close on nine themes —
+  value, quality, growth, momentum, size, low-risk, capital discipline, institutional
+  positioning and insider activity. Each theme is built from individual numbers, each number
+  is standardised across the whole universe that day, and the themes are combined into one
+  composite. The <b>Hot Stocks</b> tab is that ranking. The <b>Valquo Index</b> is a
+  disciplined slice of it: the top decile of the large-cap tier, score-weighted, capped at 8%
+  per name. One ranking, two views — the Index is not a second, competing screen.</p>
+
+  <h3>Point-in-time, and why it matters more than the score</h3>
+  <p>The backtest is built from a point-in-time fundamentals panel: on any historical date the
+  model sees only what was actually public and filed by then. Restated figures do not leak
+  backwards. Institutional (13F) holdings are lagged by their real filing deadline — the
+  panel's effective lag is about 111 days, more conservative than the 45-day rule. We checked
+  this the direct way: feeding the model <i>fresher, not-yet-filed</i> holdings makes it
+  <b>weaker</b>, not stronger, which is the opposite of what a look-ahead artefact does.</p>
+
+  <h3>Survivorship</h3>
+  <p>Delisted and acquired companies stay in the universe up to the date they disappear, using
+  a delisting mask rather than today's surviving-company list. A backtest run on the names that
+  still exist is a backtest of not going bankrupt. The live forward track has the same property
+  by construction: the picks are dated when they are made and measured forward, so nothing can
+  be quietly dropped after the fact.</p>
+
+  <h3>Costs — quote the breakeven, not the net number</h3>
+  <p>Trading costs are modelled, not assumed away. The top decile's <b>breakeven cost is about
+  236 basis points one-way</b> against an estimated <b>37 bps</b> real-world cost profile, on
+  roughly 249% annual turnover. We lead with the breakeven deliberately: it requires you to
+  believe no particular cost estimate. Borrow cost is <i>not</i> modelled, which affects the
+  long/short statistic but not the long-only book that the Index actually is.</p>
+
+  <h3>How we decide something is real</h3>
+  <ul>
+    <li><b>Combinatorial Purged Cross-Validation</b> is the authority on weights, reporting the
+      probability of backtest overfitting (PBO) and a Deflated Sharpe that penalises how many
+      variants were tried. If it rejects, the shipped defaults stay — we do not quietly fall
+      back to the friendlier single-path result.</li>
+    <li><b>Held-out confirmation.</b> A change decided on one half of history has to survive
+      measurement on the half that did not inform it, in both directions. Several plausible
+      improvements were rejected exactly here.</li>
+    <li><b>Full universe only.</b> Verdicts come from the whole ~2,710-name panel. Smaller
+      samples systematically flatter results and are used only as smoke tests.</li>
+  </ul>
+
+  <h3>Where it is weak — read this part</h3>
+  <ul>
+    <li><b>It has seen one dataset.</b> Every backtested figure comes from a single 18-year
+      panel that the model was also tuned on. That is the fundamental limit, and no amount of
+      internal validation removes it. The live forward track is the only cure, and it is new.</li>
+    <li><b>Deflated Sharpe is saturated.</b> It reads &gt;99.9%, which is a sign the statistic
+      has run out of room, not proof the edge is certain.</li>
+    <li><b>Some themes are dormant.</b> Sentiment (estimate revisions) has no point-in-time
+      source we trust and contributes nothing today. Sector-relative ranking is currently
+      inert on the live path because the classification source is not wired in yet.</li>
+    <li><b>Concentrated books are noisy.</b> The 25-name construction scores higher in the
+      backtest than the decile, but it is the least reliable number in the study — which is
+      why breadth is the default.</li>
+    <li><b>Live data has gaps.</b> The market-data subscription is degraded, so fundamentals
+      currently come from a free fallback for most names. Every page dates itself, and a
+      stale scan says so rather than being served as today's.</li>
+  </ul>
+
+  <h3>What this is not</h3>
+  <p>It is not a forecast, not personalised advice, and not a claim that the next twelve months
+  will resemble the backtest. It is a disciplined, auditable ranking with its assumptions and
+  its failures written down. If a page here ever shows you a number without telling you
+  whether it is backtested or live, that is a bug — please report it.</p>
+
+  <p style="margin-top:26px"><a class="btn secondary" href="/app">← Back to the app</a></p>
+</div>
+{% endblock %}

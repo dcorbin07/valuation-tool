@@ -80,7 +80,10 @@ def _rows_from(scored: pd.DataFrame) -> list:
     for tkr, r in scored.iterrows():
         extra = {k: (None if pd.isna(r.get(k)) else float(r.get(k)))
                  for k in ["earnings_yield", "fcf_yield", "ev_ebitda", "ev_sales", "pe",
-                           "op_margin", "roic", "revenue_growth", "ret_12_1", "net_debt_to_ebitda"]
+                           "op_margin", "roic", "revenue_growth", "ret_12_1", "net_debt_to_ebitda",
+                           # net_debt + revenue let fairvalue.py bridge EV multiples to a
+                           # per-share equity value and run the growth (revenue) lens.
+                           "net_debt", "revenue", "gross_margin"]
                  if k in scored.columns}
         # Persist EVERY theme column (not just the legacy five) so the monthly
         # learner can tune the newer themes too. Legacy z_* columns stay for the UI.
@@ -89,6 +92,13 @@ def _rows_from(scored: pd.DataFrame) -> list:
         # each number's standalone predictive power over time (visibility only).
         extra["numbers"] = {n: _f(r.get("z_" + n)) for n in S.NUMBERS_ALL if ("z_" + n) in scored.columns}
         extra["vol"] = _f(r.get("realized_vol"))       # for inverse-volatility position sizing
+        # Which feed this row's fundamentals came from ("free+broker", "broker", "free").
+        # Carried per NAME, not just as a scan-level total, because the two sources cover
+        # different fields — a broker-only row has no margins, FCF or revenue growth, so its
+        # score rests on fewer themes and a reader comparing two picks should be able to see
+        # that rather than infer it.
+        src = r.get("source")
+        extra["source"] = None if (src is None or (isinstance(src, float) and pd.isna(src))) else str(src)
         rows.append({
             "ticker": tkr, "name": r.get("name") or tkr, "sector": r.get("sector") or "",
             "bucket": r.get("bucket"), "price": _f(r.get("price")), "market_cap": _f(r.get("market_cap")),
@@ -99,6 +109,58 @@ def _rows_from(scored: pd.DataFrame) -> list:
             "z_insider": _f(r.get("insider")), "fair_value": None, "upside": None, "extra": extra,
         })
     return rows
+
+
+def _theme_contribution(scored: pd.DataFrame) -> dict:
+    """Fraction of names each theme actually scores, measured after standardization.
+
+    A theme that is present but constant across the cross-section carries no information:
+    zscore() divides by a zero standard deviation and returns all-NaN, and composite_score
+    then renormalizes the remaining weights over the themes that survive. Reported next to
+    theme_coverage so "the column is full" and "the theme moves the score" stay distinct.
+    """
+    from .cross_sectional import standardize_factors
+    cols = [t for t in S.FACTORS_ALL if t in scored.columns]
+    if not cols or scored.empty:
+        return {}
+    z = standardize_factors(scored, cols)
+    return {t: round(float(z[t].notna().mean()), 2) for t in cols}
+
+
+def _cov(rows: list, ok) -> float:
+    """Fraction of rows for which `ok` holds — used for the display-field health panel."""
+    if not rows:
+        return 0.0
+    return round(sum(1 for r in rows if ok(r)) / len(rows), 3)
+
+
+def _fill_from_universe(m: dict, u: Optional[dict]) -> dict:
+    """Backfill display fields the per-name fetch didn't supply, from the universe listing.
+
+    Only fills what is genuinely missing, so a real fetched value always wins. A `name` equal
+    to the ticker counts as missing: that is what the Yahoo path falls back to when its `.info`
+    call is throttled, and "DELL" is not a company name. Market cap is a display/eligibility
+    field here, and the listing reports it in USD dollars like everything else.
+    """
+    if not u:
+        return m
+    tkr = (m.get("ticker") or u.get("ticker") or "").upper()
+    if not (m.get("name") or "").strip() or (m.get("name") or "").strip().upper() == tkr:
+        if (u.get("name") or "").strip():
+            m["name"] = u["name"]
+    for k in ("sector", "industry"):
+        if not (m.get(k) or "").strip() and (u.get(k) or "").strip():
+            m[k] = u[k]
+    # Live quote fields the broker supplies for free with the universe (price, average
+    # dollar volume, nearness to the 52-week high). Only used where the fundamentals feed
+    # left a hole — which for `high_prox` is every FMP row, so momentum gains an input it
+    # never had rather than having one overwritten.
+    for k in ("price", "avg_dollar_volume", "high_prox"):
+        if m.get(k) is None and u.get(k) is not None:
+            m[k] = u[k]
+    if not m.get("market_cap") and u.get("market_cap"):
+        m["market_cap"] = u["market_cap"]
+    return m
 
 
 def _f(x):
@@ -119,7 +181,22 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     uni = provider.get_universe(scope)
     if limit:
         uni = uni[:limit]
-    sector_hint = {u["ticker"]: u.get("sector") for u in uni}
+    # The universe listing already carries a company name / sector / market cap (FMP's
+    # screener returns all three; SEC EDGAR's filer list returns the legal name). The
+    # per-name fetch does NOT reliably re-supply them — yfinance's `.info` is rate-limited
+    # from cloud IPs and comes back empty, which is how the book ended up showing bare
+    # tickers and an "unknown" sector breakdown. Keep the listing's values as a fallback.
+    hints = {u["ticker"]: u for u in uni}
+
+    # Bulk-load fundamentals for the whole universe up front, where the provider supports it.
+    # The broker serves 100 symbols per call, so this is ~3 calls per 100 names against a feed
+    # that is already paid for — versus one metered per-name round trip each. Optional by
+    # contract: a provider without prefetch() behaves exactly as it did before.
+    if hasattr(provider, "prefetch"):
+        try:
+            provider.prefetch([u["ticker"] for u in uni])
+        except Exception:
+            pass
 
     total = len(uni)
     workers = max(1, int(getattr(cfg, "scan_workers", 8) or 8)) if cfg is not None else 8
@@ -158,8 +235,7 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
         if not m:
             filtered["no data"] = filtered.get("no data", 0) + 1
             continue
-        if not m.get("sector") and sector_hint.get(u["ticker"]):
-            m["sector"] = sector_hint[u["ticker"]]
+        _fill_from_universe(m, hints.get(u["ticker"]))
         m.setdefault("ticker", u["ticker"])
         keep, reason = prefilter(m)
         if not keep:
@@ -211,7 +287,42 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
         "scored": len(rows),
         "theme_coverage": {t: round(float(scored[t].notna().mean()), 2)
                            for t in S.FACTORS_ALL if t in scored.columns},
+        # PRESENT is not the same as USABLE, and reporting only the former is how a dead
+        # theme hides in plain sight. `insider` is the live example: with no insider_score in
+        # the metrics, build_frame sets the whole column to the constant 0.0 — so it is 100%
+        # "covered", yet zscore() of a zero-variance column is all-NaN, composite_score
+        # renormalizes it away, and its 12.5% weight does nothing. This measures the theme
+        # AFTER standardization, i.e. what actually reaches the score.
+        "theme_contributing": _theme_contribution(scored),
+        # Display-field coverage. A blank company name or sector is not a scoring bug, so
+        # nothing else would ever report it — and it went unnoticed on the live site for
+        # weeks. Measured on the rows that actually ship.
+        "display_coverage": {
+            "name": _cov(rows, lambda r: (r.get("name") or "").strip()
+                         and (r.get("name") or "").strip().upper() != r["ticker"].upper()),
+            "sector": _cov(rows, lambda r: (r.get("sector") or "").strip()),
+            "market_cap": _cov(rows, lambda r: r.get("market_cap")),
+        },
     }
+    # Where each name's fundamentals actually came from, and how completely each field is
+    # filled. Without this the free route's real coverage is invisible: a name served entirely
+    # by the broker still produces a score, so "it ran" says nothing about whether the flow
+    # factors (margins, FCF, growth) were present or silently absent.
+    try:
+        from . import broker_fundamentals as BF
+        health["fundamentals"] = BF.coverage(metrics)
+    except Exception:
+        pass
+    bstats = getattr(provider, "broker_stats", None)
+    if bstats:
+        health.setdefault("fundamentals", {})["broker"] = bstats
+
+    note = getattr(provider, "universe_note", "")
+    if note:
+        health["universe_note"] = note
+    budget = getattr(provider, "budget", None)
+    if budget:
+        health["api_budget"] = budget
 
     scan_date = _today()
     if save:

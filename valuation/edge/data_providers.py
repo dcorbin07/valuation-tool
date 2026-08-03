@@ -24,6 +24,7 @@ import os
 from typing import Optional
 
 from ..config import CONFIG
+from ..safe_error import redact, safe_error
 
 
 class HistoricalDataProvider:
@@ -101,12 +102,16 @@ class SharadarProvider(HistoricalDataProvider):
                              params={"ticker": "AAPL", "qopts.per_page": "1", "api_key": self.key}, timeout=20)
             if r.status_code == 200:
                 return True, "Sharadar OK — key valid and subscription active."
+            # check()'s reason string is surfaced through /admin/run-fundamental-backtest,
+            # and every URL this provider builds carries ?api_key= — so it goes through the
+            # shared scrubber like any other error text (SECURITY_AUDIT.md M1).
             if r.status_code in (403, 400):
                 return False, (f"Sharadar rejected the request (HTTP {r.status_code}). Usually this means the "
-                               f"key is wrong OR you haven't subscribed to the Sharadar bundle yet. Detail: {r.text[:200]}")
-            return False, f"Sharadar HTTP {r.status_code}: {r.text[:200]}"
+                               f"key is wrong OR you haven't subscribed to the Sharadar bundle yet. "
+                               f"Detail: {redact(r.text[:200])}")
+            return False, f"Sharadar HTTP {r.status_code}: {redact(r.text[:200])}"
         except Exception as e:
-            return False, f"Could not reach Nasdaq Data Link: {e}"
+            return False, f"Could not reach Nasdaq Data Link: {safe_error(e)}"
 
     def _get(self, table, **params):
         import requests
@@ -209,7 +214,10 @@ class SharadarProvider(HistoricalDataProvider):
             return [t for _, t in kept][:limit] if limit else [t for _, t in kept]
         except Exception as e:
             import sys
-            print(f"[universe] Sharadar TICKERS fetch failed: {e}", file=sys.stderr)
+            # Redacted: this exception is usually a requests HTTPError, whose text is the
+            # full ?api_key=... URL, and Render/Actions logs are not a safe home for a live
+            # credential (SECURITY_AUDIT.md M1).
+            print(f"[universe] Sharadar TICKERS fetch failed: {safe_error(e)}", file=sys.stderr)
             return []
 
     def insider_history(self, ticker):

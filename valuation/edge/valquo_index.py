@@ -38,6 +38,21 @@ def _f(x) -> Optional[float]:
     return v if v == v else None
 
 
+def _sector_block(positions) -> tuple:
+    """(sector -> weight, whether the source actually carried sectors).
+
+    A source with no sector column (the Sharadar export has none) would otherwise emit
+    {"": 1.0} — which reads to a downstream consumer as "one real sector holds the entire
+    book" rather than "this data is missing". Say missing explicitly.
+    """
+    sectors: dict = {}
+    for p in positions:
+        key = (p.get("sector") or "").strip() or "unknown"
+        sectors[key] = round(sectors.get(key, 0.0) + (p.get("weight") or 0.0), 5)
+    ordered = dict(sorted(sectors.items(), key=lambda kv: -kv[1]))
+    return ordered, any((p.get("sector") or "").strip() for p in positions)
+
+
 def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
                 top_decile: float = TOP_DECILE, weighting: str = "score",
                 top_n: int | None = None) -> dict:
@@ -106,14 +121,7 @@ def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
         "weight": round(weights.get(r["ticker"], 0.0), 5),
     } for r in picks]
 
-    # Sector breakdown. A source with no sector column (the Sharadar export has none) would
-    # otherwise emit {"": 1.0} — which reads to a downstream consumer as "one real sector
-    # holds the entire book" rather than "this data is missing". Say missing explicitly.
-    sectors = {}
-    for p in positions:
-        key = p["sector"] or "unknown"
-        sectors[key] = round(sectors.get(key, 0.0) + p["weight"], 5)
-    sector_data = any(p["sector"] for p in positions)
+    sectors, sector_data = _sector_block(positions)
 
     return {
         "name": "Valquo Index",
@@ -130,9 +138,24 @@ def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
                      "max_weight": MAX_WEIGHT, "effective_max_weight": round(cap, 5)},
         "n_scored": len(scored), "n_eligible": len(large), "n_positions": len(positions),
         "sector_data_available": sector_data,
-        "sector_weights": dict(sorted(sectors.items(), key=lambda kv: -kv[1])),
+        "sector_weights": sectors,
         "positions": positions,
     }
+
+
+def _enrich_profiles(payload: dict, store=None) -> str:
+    """Fill blank name/sector on a built book from the live feed; refresh its sector block."""
+    positions = payload.get("positions") or []
+    if not positions:
+        return "no positions to enrich"
+    try:
+        from ..screener import profiles
+        from ..screener.store import Store
+        filled = profiles.decorate(positions, store=(store or Store()))
+    except Exception as e:
+        return f"skipped: {e}"
+    payload["sector_weights"], payload["sector_data_available"] = _sector_block(positions)
+    return f"filled name/sector on {filled} of {len(positions)} positions from the live feed"
 
 
 def _full_universe_rows(data_dir: str, limit: int = 3000):
@@ -195,6 +218,14 @@ def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
         rows = store.load_snapshot(scan_date) if scan_date else []
         source = "latest saved live scan snapshot"
     payload = build_index(rows, **kw)
+    # Fill company names and sectors from the LIVE feed. The point-in-time Sharadar export
+    # carries neither field, which is why an exported book listed bare tickers and reported
+    # sector_data_available: false — its diversification was invisible. Done on the finished
+    # book (tens of names) rather than the whole scored universe (thousands), and only on
+    # rows that are actually blank. Descriptive fields only: nothing here feeds a score, so
+    # today's classification is safe. It would NOT be safe inside the panel, where applying a
+    # current sector label to a 1998 row is look-ahead.
+    payload["profile_enrichment"] = _enrich_profiles(payload, store)
     payload["scan_date"] = scan_date
     payload["data_as_of"] = scan_date
     payload["source"] = source

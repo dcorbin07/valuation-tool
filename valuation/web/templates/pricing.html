@@ -54,7 +54,7 @@
         <li>Everything in Free, 100 valuations/day</li><li><b>Whole-market</b> hot-stocks scan</li>
         <li><b>Backtest</b> + portfolio builder</li><li>Excel + PDF exports</li><li>Daily email digest</li>
       </ul>
-      <form method="POST" action="/billing/checkout"{% if not billing_enabled %} onsubmit="return false"{% endif %}><input type="hidden" name="plan" value="pro"><input type="hidden" name="cycle" value="monthly">
+      <form method="POST" action="/billing/checkout"{% if not billing_enabled %} onsubmit="return false"{% endif %}><input type="hidden" name="_csrf" value="{{ csrf_token }}"><input type="hidden" name="plan" value="pro"><input type="hidden" name="cycle" value="monthly">
         <button class="btn" style="width:100%">Choose Pro</button></form>
     </div>
 
@@ -65,7 +65,7 @@
         <li>Everything in Pro</li><li>Full hot list (top 500)</li>
         <li><b>Factor-weight optimizer</b> (OOS-guarded)</li><li>API access</li><li>Priority data refresh</li>
       </ul>
-      <form method="POST" action="/billing/checkout"{% if not billing_enabled %} onsubmit="return false"{% endif %}><input type="hidden" name="plan" value="premium"><input type="hidden" name="cycle" value="monthly">
+      <form method="POST" action="/billing/checkout"{% if not billing_enabled %} onsubmit="return false"{% endif %}><input type="hidden" name="_csrf" value="{{ csrf_token }}"><input type="hidden" name="plan" value="premium"><input type="hidden" name="cycle" value="monthly">
         <button class="btn alt" style="width:100%">Choose Premium</button></form>
     </div>
   </div>

@@ -1,0 +1,18 @@
+[Unit]
+Description=Trend-following bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/quant_bots
+Environment=BOT_MODE=sim
+ExecStart=/home/ubuntu/quant_bots/venv/bin/python3 scripts/run_trend_bot.py
+Restart=always
+RestartSec=30
+StandardOutput=append:/home/ubuntu/quant_bots/trend_service.log
+StandardError=append:/home/ubuntu/quant_bots/trend_service.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,622 @@
+{
+  "universe": {
+    "names": 2625,
+    "dates": 110,
+    "rows": 129574,
+    "horizon_days": 63,
+    "rebalance_days": 63,
+    "risk_free_override": null
+  },
+  "coverage": {
+    "rows": 129574,
+    "dates": 110,
+    "names": 2625,
+    "coverage": {
+      "fair_value": 0.9988,
+      "gap": 0.9988,
+      "dcf_ps": 0.9988,
+      "comps_fv": 1.0,
+      "growth_ps": 0.7517,
+      "maturity": 1.0,
+      "implied_growth": 1.0,
+      "realized_growth": 0.764,
+      "rev_growth": 0.9578,
+      "op_margin": 0.9999,
+      "net_debt": 0.9998,
+      "beta": 1.0,
+      "revenue": 1.0
+    },
+    "valuable_frac": 0.9988,
+    "growth_led_frac": 0.1294,
+    "ev_ebitda_used_frac": 0.7409,
+    "ev_sales_used_frac": 0.8664,
+    "regime_mix": {
+      "mature": 0.3687,
+      "growth": 0.1767,
+      "cyclical": 0.1751,
+      "hypergrowth": 0.1401,
+      "financial": 0.1394
+    }
+  },
+  "sanity": {
+    "flags": [],
+    "top_decile_rows": 12889,
+    "adr_share_universe": 0.0433,
+    "adr_share_top_decile": 0.0547,
+    "adr_over_representation": 1.265,
+    "median_mktcap_universe": 4604000000.0,
+    "median_mktcap_top_decile": 1727200000.0,
+    "top_decile_sector_top": {
+      "Technology": 0.22
+    },
+    "top_decile_regime_top": {
+      "mature": 0.361
+    },
+    "median_maturity_top_decile": 0.573,
+    "median_maturity_bottom_decile": 0.594
+  },
+  "gap_ic": {
+    "n_dates": 110,
+    "mean_ic": 0.010210823637731934,
+    "median_ic": 0.009168393609111185,
+    "ic_tstat": 0.9904605136034262,
+    "ic_positive_frac": 0.5727272727272728,
+    "coverage": 0.9987883371664068,
+    "first_date": "1998-12-31",
+    "last_date": "2026-04-22"
+  },
+  "gap_quantiles": {
+    "n_periods": 110,
+    "n_quantiles": 10,
+    "top_decile_alpha_tstat": 2.0393170215807017,
+    "decile_ann_return": [
+      0.24777269476071764,
+      0.19141643630506816,
+      0.15252617676642535,
+      0.16725470938518766,
+      0.1406483532789446,
+      0.15449033415188418,
+      0.1503574935125884,
+      0.14079642008167095,
+      0.17033955796338432,
+      0.16923897672716176
+    ],
+    "equal_weight_ann": 0.1685235128117082,
+    "long_short_ann": 0.07853371803355595,
+    "long_short_tstat": 1.2698169557055392,
+    "long_short_hit": 0.4727272727272727,
+    "top_decile_alpha": 0.07924918194900946,
+    "bottom_decile_alpha": 0.0007154639154535736,
+    "monotonicity": -0.29696969696969694
+  },
+  "nonoverlapping": {
+    "stride": 1,
+    "note": "windows already non-overlapping"
+  },
+  "controls": {
+    "ebit_ev": {
+      "ic": {
+        "n_dates": 110,
+        "mean_ic": 0.024718085667528797,
+        "median_ic": 0.013952115323113506,
+        "ic_tstat": 1.7277678303761208,
+        "ic_positive_frac": 0.5636363636363636,
+        "coverage": 0.994752033586985,
+        "first_date": "1998-12-31",
+        "last_date": "2026-04-22"
+      },
+      "quantiles": {
+        "n_periods": 110,
+        "n_quantiles": 10,
+        "top_decile_alpha_tstat": -0.701073929186344,
+        "decile_ann_return": [
+          0.15432028560870914,
+          0.1506269931800175,
+          0.14204090559084148,
+          0.1583673773630599,
+          0.12771044774470836,
+          0.13738514681541114,
+          0.153816815916943,
+          0.17442448587155762,
+          0.19269489367721088,
+          0.283185642111974
+        ],
+        "equal_weight_ann": 0.16724492142550398,
+        "long_short_ann": -0.1288653565032649,
+        "long_short_tstat": -1.9023972518867358,
+        "long_short_hit": 0.45454545454545453,
+        "top_decile_alpha": -0.012924635816794844,
+        "bottom_decile_alpha": 0.11594072068647002,
+        "monotonicity": 0.5515151515151515
+      }
+    },
+    "neg_ev_sales": {
+      "ic": {
+        "n_dates": 110,
+        "mean_ic": 0.024289047057339603,
+        "median_ic": 0.025887278047497637,
+        "ic_tstat": 1.9153196754940676,
+        "ic_positive_frac": 0.6090909090909091,
+        "coverage": 0.9948600799543118,
+        "first_date": "1998-12-31",
+        "last_date": "2026-04-22"
+      },
+      "quantiles": {
+        "n_periods": 110,
+        "n_quantiles": 10,
+        "top_decile_alpha_tstat": 2.9607345088564303,
+        "decile_ann_return": [
+          0.2406712330858301,
+          0.2035469792460872,
+          0.1618601375936513,
+          0.16716464818085677,
+          0.1498359221832035,
+          0.17470774695833846,
+          0.13464062495302548,
+          0.14618691275442633,
+          0.13502865653917853,
+          0.15770491732483521
+        ],
+        "equal_weight_ann": 0.16722769265141377,
+        "long_short_ann": 0.08296631576099486,
+        "long_short_tstat": 1.4030390014541003,
+        "long_short_hit": 0.5272727272727272,
+        "top_decile_alpha": 0.07344354043441634,
+        "bottom_decile_alpha": -0.009522775326578553,
+        "monotonicity": -0.7454545454545454
+      }
+    }
+  },
+  "by_maturity": {
+    "deep_growth": {
+      "bounds": [
+        0.0,
+        0.35
+      ],
+      "rows": 11432,
+      "share_of_panel": 0.0882,
+      "ic": {
+        "n_dates": 110,
+        "mean_ic": -0.018030905775814773,
+        "median_ic": -0.008405105894307478,
+        "ic_tstat": -1.260738606816575,
+        "ic_positive_frac": 0.4909090909090909,
+        "coverage": 0.9970258922323303,
+        "first_date": "1998-12-31",
+        "last_date": "2026-04-22"
+      },
+      "quantiles": {
+        "n_periods": 110,
+        "n_quantiles": 5,
+        "top_decile_alpha_tstat": -0.29068438901102517,
+        "decile_ann_return": [
+          0.23748947071746276,
+          0.27629618042308385,
+          0.20391827587145692,
+          0.3484367227503408,
+          0.1980407498645481
+        ],
+        "equal_weight_ann": 0.2526274487892221,
+        "long_short_ann": 0.03944872085291468,
+        "long_short_tstat": 0.4811556765725088,
+        "long_short_hit": 0.5454545454545454,
+        "top_decile_alpha": -0.015137978071759345,
+        "bottom_decile_alpha": -0.05458669892467402,
+        "monotonicity": -0.3
+      }
+    },
+    "mixed": {
+      "bounds": [
+        0.35,
+        0.65
+      ],
+      "rows": 34725,
+      "share_of_panel": 0.268,
+      "ic": {
+        "n_dates": 110,
+        "mean_ic": 0.008292306095089184,
+        "median_ic": 0.0037872409883527064,
+        "ic_tstat": 0.6836947630449434,
+        "ic_positive_frac": 0.5454545454545454,
+        "coverage": 0.9993664506839453,
+        "first_date": "1998-12-31",
+        "last_date": "2026-04-22"
+      },
+      "quantiles": {
+        "n_periods": 110,
+        "n_quantiles": 5,
+        "top_decile_alpha_tstat": 1.8453869046559777,
+        "decile_ann_return": [
+          0.24917224175329136,
+          0.20095537680717063,
+          0.1912284521210885,
+          0.17021654307089304,
+          0.1722870166836173
+        ],
+        "equal_weight_ann": 0.19675821469684257,
+        "long_short_ann": 0.07688522506967407,
+        "long_short_tstat": 1.657911286758615,
+        "long_short_hit": 0.5727272727272728,
+        "top_decile_alpha": 0.05241402705644879,
+        "bottom_decile_alpha": -0.02447119801322528,
+        "monotonicity": -0.8999999999999998
+      }
+    },
+    "established": {
+      "bounds": [
+        0.65,
+        1.01
+      ],
+      "rows": 83417,
+      "share_of_panel": 0.6438,
+      "ic": {
+        "n_dates": 110,
+        "mean_ic": 0.005372511987643611,
+        "median_ic": 0.0027802342370249707,
+        "ic_tstat": 0.5029519580662076,
+        "ic_positive_frac": 0.509090909090909,
+        "coverage": 0.99878921562751,
+        "first_date": "1998-12-31",
+        "last_date": "2026-04-22"
+      },
+      "quantiles": {
+        "n_periods": 110,
+        "n_quantiles": 5,
+        "top_decile_alpha_tstat": 1.3505919026138926,
+        "decile_ann_return": [
+          0.15637038035252174,
+          0.1349671783227384,
+          0.12589063711843093,
+          0.1315974862368911,
+          0.14214628569538074
+        ],
+        "equal_weight_ann": 0.13822377879225273,
+        "long_short_ann": 0.014224094657141008,
+        "long_short_tstat": 0.5334779273097588,
+        "long_short_hit": 0.5636363636363636,
+        "top_decile_alpha": 0.01814660156026901,
+        "bottom_decile_alpha": 0.003922506903128009,
+        "monotonicity": -0.3
+      }
+    },
+    "growth_led": {
+      "rows": 16768,
+      "ic": {
+        "n_dates": 110,
+        "mean_ic": 0.012813100437217301,
+        "median_ic": 0.027641283846295654,
+        "ic_tstat": 0.8546119730224755,
+        "ic_positive_frac": 0.6090909090909091,
+        "coverage": 1.0,
+        "first_date": "1998-12-31",
+        "last_date": "2026-04-22"
+      },
+      "quantiles": {
+        "n_periods": 110,
+        "n_quantiles": 5,
+        "top_decile_alpha_tstat": 0.17494374761307974,
+        "decile_ann_return": [
+          0.23902773637994798,
+          0.24306581586400614,
+          0.1963899882921289,
+          0.25079295810255664,
+          0.23208192885668574
+        ],
+        "equal_weight_ann": 0.23119932287792108,
+        "long_short_ann": 0.006945807523262134,
+        "long_short_tstat": 0.09728994142044507,
+        "long_short_hit": 0.4909090909090909,
+        "top_decile_alpha": 0.007828413502026899,
+        "bottom_decile_alpha": 0.0008826059787646612,
+        "monotonicity": -0.09999999999999999
+      }
+    }
+  },
+  "by_size": {
+    "small": {
+      "rows": 43226,
+      "median_mktcap": 1045850000.0,
+      "ic": {
+        "n_dates": 110,
+        "mean_ic": -0.006019994091530249,
+        "median_ic": 0.004188531089207053,
+        "ic_tstat": -0.5095682136468426,
+        "ic_positive_frac": 0.5363636363636364,
+        "coverage": 0.9987276176375329,
+        "first_date": "1998-12-31",
+        "last_date": "2026-04-22"
+      },
+      "quantiles": {
+        "n_periods": 110,
+        "n_quantiles": 5,
+        "top_decile_alpha_tstat": 0.9491149186152463,
+        "decile_ann_return": [
+          0.2890602407095635,
+          0.26596267548125996,
+          0.22273828320147096,
+          0.19577410267831818,
+          0.2927941010727977
+        ],
+        "equal_weight_ann": 0.25320023953275406,
+        "long_short_ann": -0.0037338603632342125,
+        "long_short_tstat": -0.06274183845907488,
+        "long_short_hit": 0.5,
+        "top_decile_alpha": 0.03586000117680943,
+        "bottom_decile_alpha": 0.03959386154004363,
+        "monotonicity": 0.0
+      }
+    },
+    "mid": {
+      "rows": 43159,
+      "median_mktcap": 4663300000.0,
+      "ic": {
+        "n_dates": 110,
+        "mean_ic": 0.0077841411456751105,
+        "median_ic": 0.01666592103708237,
+        "ic_tstat": 0.6932223826011059,
+        "ic_positive_frac": 0.6,
+        "coverage": 0.9994439166801826,
+        "first_date": "1998-12-31",
+        "last_date": "2026-04-22"
+      },
+      "quantiles": {
+        "n_periods": 110,
+        "n_quantiles": 5,
+        "top_decile_alpha_tstat": 0.20747722249517375,
+        "decile_ann_return": [
+          0.16230459044508946,
+          0.15643322038819465,
+          0.1506534675028021,
+          0.1550971286187322,
+          0.16699350998463314
+        ],
+        "equal_weight_ann": 0.1582561811750624,
+        "long_short_ann": -0.004688919539543675,
+        "long_short_tstat": -0.1202263341491478,
+        "long_short_hit": 0.5636363636363636,
+        "top_decile_alpha": 0.004048409270027059,
+        "bottom_decile_alpha": 0.008737328809570732,
+        "monotonicity": 0.09999999999999999
+      }
+    },
+    "large": {
+      "rows": 43189,
+      "median_mktcap": 22699200000.0,
+      "ic": {
+        "n_dates": 110,
+        "mean_ic": 0.010756377286705048,
+        "median_ic": 0.01075104488688351,
+        "ic_tstat": 0.8655141361654787,
+        "ic_positive_frac": 0.5272727272727272,
+        "coverage": 0.9981939845794068,
+        "first_date": "1998-12-31",
+        "last_date": "2026-04-22"
+      },
+      "quantiles": {
+        "n_periods": 110,
+        "n_quantiles": 5,
+        "top_decile_alpha_tstat": 0.15979915991099625,
+        "decile_ann_return": [
+          0.09643210869732033,
+          0.09198322733019072,
+          0.09879385384939193,
+          0.09683899242541648,
+          0.08674148042347866
+        ],
+        "equal_weight_ann": 0.09404030076254459,
+        "long_short_ann": 0.009690628273841671,
+        "long_short_tstat": 0.3105411287741946,
+        "long_short_hit": 0.509090909090909,
+        "top_decile_alpha": 0.0023918079347757387,
+        "bottom_decile_alpha": -0.007298820339065926,
+        "monotonicity": -0.19999999999999998
+      }
+    }
+  },
+  "half_split": {
+    "first_half": {
+      "dates": [
+        "1998-12-31",
+        "2012-07-10"
+      ],
+      "ic": {
+        "n_dates": 55,
+        "mean_ic": 0.014435991437720399,
+        "median_ic": 0.006289071369173802,
+        "ic_tstat": 0.9153821253503888,
+        "ic_positive_frac": 0.5818181818181818,
+        "coverage": 0.9992564699110162,
+        "first_date": "1998-12-31",
+        "last_date": "2012-07-10"
+      },
+      "quantiles": {
+        "n_periods": 55,
+        "n_quantiles": 10,
+        "top_decile_alpha_tstat": 1.5871755402049226,
+        "decile_ann_return": [
+          0.28413241132985284,
+          0.19532495884167467,
+          0.14323803495134788,
+          0.1757009327850421,
+          0.14063469320643596,
+          0.15830094867278097,
+          0.13591823658740726,
+          0.13407964080599719,
+          0.18075927389140228,
+          0.15559426577424615
+        ],
+        "equal_weight_ann": 0.17043310789345395,
+        "long_short_ann": 0.12853814555560672,
+        "long_short_tstat": 1.1136017954061888,
+        "long_short_hit": 0.5272727272727272,
+        "top_decile_alpha": 0.11369930343639889,
+        "bottom_decile_alpha": -0.014838842119207801,
+        "monotonicity": -0.4787878787878787
+      }
+    },
+    "second_half": {
+      "dates": [
+        "2012-10-08",
+        "2026-04-22"
+      ],
+      "ic": {
+        "n_dates": 55,
+        "mean_ic": 0.005985655837743476,
+        "median_ic": 0.010717466841779624,
+        "ic_tstat": 0.44653704503576463,
+        "ic_positive_frac": 0.5636363636363636,
+        "coverage": 0.9985662429876765,
+        "first_date": "2012-10-08",
+        "last_date": "2026-04-22"
+      },
+      "quantiles": {
+        "n_periods": 55,
+        "n_quantiles": 10,
+        "top_decile_alpha_tstat": 1.4763209009972298,
+        "decile_ann_return": [
+          0.21141297819158256,
+          0.18750791376846163,
+          0.16181431858150283,
+          0.15880848598533326,
+          0.14066201335145323,
+          0.15067971963098736,
+          0.16479675043776948,
+          0.1475131993573447,
+          0.15991984203536627,
+          0.18288368768007734
+        ],
+        "equal_weight_ann": 0.16661391772996242,
+        "long_short_ann": 0.028529290511505195,
+        "long_short_tstat": 0.6338368210303442,
+        "long_short_hit": 0.41818181818181815,
+        "top_decile_alpha": 0.04479906046162013,
+        "bottom_decile_alpha": 0.01626976995011492,
+        "monotonicity": -0.33333333333333326
+      }
+    }
+  },
+  "implied_growth": {
+    "all": {
+      "label": "all names",
+      "n": 98991,
+      "median_implied": 0.155026347981839,
+      "median_realized": 0.062131320318433,
+      "median_shortfall": -0.0698322153465951,
+      "frac_realized_at_or_above_implied": 0.3866614136638684,
+      "rank_corr_implied_vs_realized": 0.20575722416660236,
+      "frac_solver_bounded_above": 0.1920982715600408,
+      "horizon_years": 3
+    },
+    "growth_led": {
+      "label": "growth-led names",
+      "n": 11927,
+      "median_implied": 0.4938622055053711,
+      "median_realized": 0.1180012762696427,
+      "median_shortfall": -0.21464119973179419,
+      "frac_realized_at_or_above_implied": 0.307621363293368,
+      "rank_corr_implied_vs_realized": 0.14339613503072432,
+      "frac_solver_bounded_above": 0.4151085771778318,
+      "horizon_years": 3
+    },
+    "not_growth_led": {
+      "label": "everything else",
+      "n": 87064,
+      "median_implied": 0.13280242181610935,
+      "median_realized": 0.05857074999204685,
+      "median_shortfall": -0.05927682723059645,
+      "frac_realized_at_or_above_implied": 0.397489203344666,
+      "rank_corr_implied_vs_realized": 0.18929960564394466,
+      "frac_solver_bounded_above": 0.16154782688596894,
+      "horizon_years": 3
+    }
+  },
+  "spot_checks": {
+    "financial": [
+      {
+        "date": "1998-12-31",
+        "ticker": "ACAS",
+        "price": 5.05,
+        "fair_value": 3.53,
+        "method": "justified P/B from ROE",
+        "maturity": 0.817,
+        "confidence": "medium"
+      },
+      {
+        "date": "2012-10-08",
+        "ticker": "MS",
+        "price": 12.55,
+        "fair_value": 4.77,
+        "method": "justified P/B from ROE",
+        "maturity": 0.866,
+        "confidence": "medium"
+      },
+      {
+        "date": "2019-10-14",
+        "ticker": "KMPR",
+        "price": 63.79,
+        "fair_value": 34.11,
+        "method": "justified P/B from ROE",
+        "maturity": 0.636,
+        "confidence": "medium"
+      }
+    ],
+    "established": [
+      {
+        "date": "1998-12-31",
+        "ticker": "AAMRQ",
+        "price": 29.96,
+        "fair_value": 74.69,
+        "method": "44% DCF \u00b7 36% multiples \u00b7 19% growth (revenue multiple)",
+        "maturity": 0.807,
+        "confidence": "medium"
+      },
+      {
+        "date": "2013-04-12",
+        "ticker": "TRI",
+        "price": 23.56,
+        "fair_value": 22.52,
+        "method": "49% DCF \u00b7 40% multiples \u00b7 10% growth (revenue multiple)",
+        "maturity": 0.897,
+        "confidence": "medium"
+      },
+      {
+        "date": "2020-01-14",
+        "ticker": "GRMN",
+        "price": 84.41,
+        "fair_value": 72.74,
+        "method": "65% DCF \u00b7 22% multiples \u00b7 13% growth (revenue multiple)",
+        "maturity": 0.866,
+        "confidence": "high"
+      }
+    ],
+    "deep_growth": [
+      {
+        "date": "1998-12-31",
+        "ticker": "ATHM1",
+        "price": 37.12,
+        "fair_value": 0.69,
+        "method": "88% growth (revenue multiple) \u00b7 7% DCF \u00b7 5% multiples",
+        "maturity": 0.121,
+        "confidence": "low"
+      },
+      {
+        "date": "2014-04-11",
+        "ticker": "XPO",
+        "price": 9.73,
+        "fair_value": 46.41,
+        "method": "87% growth (revenue multiple) \u00b7 10% multiples \u00b7 3% DCF",
+        "maturity": 0.131,
+        "confidence": "low"
+      },
+      {
+        "date": "2022-07-15",
+        "ticker": "HRTX",
+        "price": 2.94,
+        "fair_value": 2.85,
+        "method": "100% multiples",
+        "maturity": 0.215,
+        "confidence": "low"
+      }
+    ]
+  }
+}

@@ -171,19 +171,29 @@ def test_blend_favours_dcf_for_established_profitable():
     r = value_from_company(build_nike(), CONFIG, mc_trials=300)
     b = r.fair_value_blend
     assert b.valuable and b.value > 0
-    assert b.p_established > 0.7, b.p_established
+    assert b.maturity > 0.7, b.maturity
+    assert b.p_established == b.maturity, "legacy alias must track the maturity score"
     assert b.lenses["dcf"]["weight"] > b.lenses["multiples"]["weight"], b.lenses
-    # Headline sits between the two lenses it blended.
-    lo, hi = sorted([r.dcf_per_share, r.comps.comps_fair_value])
-    assert lo <= b.value <= hi
+    assert b.lenses["dcf"]["weight"] > b.lenses.get("growth", {}).get("weight", 0), b.lenses
+    # Headline sits inside the span of the lenses it blended.
+    vals = [l["value"] for l in b.lenses.values()]
+    assert min(vals) <= b.value <= max(vals)
+    assert b.headline_mode == "point", "a mature name gets a point value, not a growth read"
 
 
-def test_blend_favours_multiples_for_cash_burning_growth():
+def test_blend_favours_the_growth_lens_for_cash_burning_growth():
+    """A loss-making grower is valued on REVENUE, not on profit it doesn't have.
+
+    Was: 'multiples' carried >80% of the blend, which meant a mature sector multiple
+    priced a hypergrowth company (the RKLB $2.63 bug). The revenue lens carries it now.
+    """
     r = value_from_company(build_growth(), CONFIG, mc_trials=300)
     b = r.fair_value_blend
     assert b.valuable
-    assert b.p_established < 0.3, b.p_established
-    assert b.lenses["multiples"]["weight"] > 0.8, b.lenses
+    assert b.maturity < 0.3, b.maturity
+    assert b.lenses["growth"]["weight"] > 0.6, b.lenses
+    assert b.growth_led is True and b.confidence == "low"
+    assert r.growth_lens is not None and r.growth_lens.applies
 
 
 def test_negative_dcf_is_dropped_not_averaged():
@@ -227,6 +237,145 @@ def test_blend_serializes_for_the_api():
     assert d["fair_value_blend"]["method"]
     assert d["dcf_per_share"] is not None
     assert d["base_fair_value"] == r.fair_value_blend.value
+    # The growth lens and the same-method scenarios have to reach the UI too.
+    assert d["growth_lens"] is not None and "implied_ev_sales_now" in d["growth_lens"]
+    assert set(d["fair_value_scenarios"]) >= {"bear", "base", "bull", "method"}
+
+
+# --------------------------------------------------------------------------- #
+# Growth / pre-profit valuation (the RKLB $2.63-against-a-$65-price bug)
+# --------------------------------------------------------------------------- #
+def _preprofit_grower(price=65.0, revenue=600.0, shares=580.0, cash=1000.0, debt=250.0):
+    """An RKLB-like name: real fast-growing revenue, deeply negative EBIT and FCF.
+
+    The old engine had nothing valid to value this on — both equity yields are
+    negative, so it fell through to a mature sector EV/Sales benchmark.
+    """
+    from valuation.data.models import CompanyData
+    return CompanyData(
+        ticker="ROCK", name="Pre-profit Grower", sector="Industrials",
+        industry="Aerospace & Defense", currency="USD", price=price, shares_diluted=shares,
+        market_cap=price * shares, beta=2.2, revenue=revenue, ebit=-0.33 * revenue,
+        gross_profit=0.34 * revenue, net_income=-0.33 * revenue, effective_tax_rate=0.0,
+        da=44.0, capex=100.0, total_debt=debt, cash_sti=cash, interest_expense=12.0,
+        invested_capital=900.0, fcf=-0.5 * revenue, total_equity=1100.0,
+        fiscal_years=[2025, 2024, 2023],
+        revenue_history=[revenue, revenue / 1.38, revenue / 2.1],
+        ebit_history=[-198.0, -182.0, -136.0], ebit_margin_history=[-0.33, -0.42, -0.48],
+        analyst_rev_growth_next=1.42,
+        ma_200=50.0, ret_6m=0.5, ret_1m=0.1, price_52w_high=70.0, price_52w_low=20.0,
+        risk_free_rate=0.043)
+
+
+def test_growth_lens_values_a_preprofit_name_on_revenue():
+    """The headline must come from revenue, not from a mature sector multiple."""
+    r = value_from_company(_preprofit_grower(), CONFIG, mc_trials=300)
+    b, g = r.fair_value_blend, r.growth_lens
+    assert r.dcf_per_share < 0, "fixture should still produce a negative DCF"
+    assert g is not None and g.applies, g.reason if g else "no growth lens"
+    assert b.valuable and b.value > 0
+    assert b.lenses["growth"]["weight"] > 0.6, b.lenses
+    # The growth lens must beat the naive mature-multiple read it replaced.
+    assert g.value > r.comps.comps_fair_value, (g.value, r.comps.comps_fair_value)
+    # …and it reports the sales multiple its own arithmetic justifies TODAY.
+    assert g.implied_ev_sales_now > 0
+    assert g.current_ev_sales > g.implied_ev_sales_now, "fixture is priced above our read"
+
+
+def test_growth_name_leads_with_the_implied_growth_read():
+    """Item 4 of the brief: a growth name's headline is the reverse-DCF read, and the
+    point value is presented as a range with low confidence."""
+    r = value_from_company(_preprofit_grower(), CONFIG, mc_trials=300)
+    b = r.fair_value_blend
+    assert b.growth_led is True
+    assert b.headline_mode == "implied_growth"
+    assert "%" in b.headline and "growth" in b.headline.lower()
+    assert b.confidence == "low"
+    assert b.value_low is not None and b.value_high is not None
+    assert b.value_low < b.value < b.value_high
+
+
+def test_scenario_cards_use_the_same_method_as_the_headline():
+    """Item 5: bear/base/bull must not be the excluded (negative) DCF cone."""
+    for build in (_preprofit_grower, build_growth, build_nike):
+        r = value_from_company(build(), CONFIG, mc_trials=300)
+        s = r.fair_value_scenarios
+        assert s["base"] is not None
+        assert abs(s["base"] - r.fair_value_blend.value) < 1e-6, "base card must equal the headline"
+        assert s["bear"] < s["base"] < s["bull"], s
+        assert s["bear"] > 0, "a scenario card must never show a negative value"
+        assert s["method"], "the cards have to say how they were built"
+
+
+def test_implied_growth_says_at_least_when_the_solver_hits_its_bound():
+    """A saturated reverse DCF is a floor, not an estimate — say so."""
+    r = value_from_company(_preprofit_grower(price=400.0), CONFIG, mc_trials=200)
+    assert r.reverse.implied_growth_bounded == "above", r.reverse.implied_growth_bounded
+    assert "at least" in r.reverse.growth_verdict.lower()
+    assert "at least" in r.fair_value_blend.headline.lower()
+
+
+def test_maturity_score_orders_companies():
+    from valuation.engine.growth import maturity_score
+    mature, _ = maturity_score(op_margin=0.18, fcf_margin=0.15, growth=0.04, market_cap=200000)
+    middling, _ = maturity_score(op_margin=0.06, fcf_margin=0.04, growth=0.20, market_cap=8000)
+    early, _ = maturity_score(op_margin=-0.35, fcf_margin=-0.50, growth=0.60, market_cap=800)
+    assert mature > 0.8 and early < 0.2, (mature, early)
+    assert mature > middling > early
+    # No inputs at all -> genuinely undecided, not a confident guess either way.
+    assert maturity_score()[0] == 0.5
+
+
+def test_growth_lens_scales_the_multiple_with_the_growth_rate():
+    """'Revenue multiples scaled to the growth rate': a faster grower is worth more
+    per dollar of TODAY's revenue, all else equal."""
+    from valuation.engine.growth import compound_growth, fade_path, growth_equity_value
+    slow = fade_path(0.05, 0.03, 8)
+    fast = fade_path(0.45, 0.03, 8)
+    eq_slow, ev_slow, _ = growth_equity_value(100.0, slow, 8, 2.0, 0.12, mature_rate=0.09)
+    eq_fast, ev_fast, _ = growth_equity_value(100.0, fast, 8, 2.0, 0.12, mature_rate=0.09)
+    assert ev_fast > 3 * ev_slow, (ev_slow, ev_fast)
+    assert compound_growth(fast, 8) > compound_growth(slow, 8)
+    # Net debt is bridged, not ignored: the same business with debt is worth less.
+    eq_levered, _, _ = growth_equity_value(100.0, fast, 8, 2.0, 0.12, net_debt=500.0,
+                                           mature_rate=0.09)
+    assert abs((eq_fast - eq_levered) - 500.0) < 1e-6
+
+
+def test_growth_lens_degenerates_to_a_sales_multiple_when_mature():
+    """No cliff between the archetypes: at maturity the horizon is 0 and the lens is
+    just 'revenue x multiple', which is what a mature name should get."""
+    from valuation.engine.growth import growth_equity_value, years_to_maturity
+    assert years_to_maturity(10, 1.0) == 0.0
+    eq, ev, rev_h = growth_equity_value(100.0, [0.4] * 5, 0.0, 2.5, 0.12, mature_rate=0.09)
+    assert abs(ev - 250.0) < 1e-9 and abs(rev_h - 100.0) < 1e-9
+
+
+def test_growth_lens_charges_the_losses_it_has_to_fund():
+    """Cash raised to cover operating losses is dilution an exit multiple never pays
+    back, so it is charged. Profitable years are not credited (one-sided by design)."""
+    from valuation.engine.growth import operating_loss_pv
+    losses = operating_loss_pv(100.0, [0.3] * 5, [-0.2] * 5, 5, 0.13, 0.09)
+    assert losses > 0
+    profits = operating_loss_pv(100.0, [0.3] * 5, [0.2] * 5, 5, 0.13, 0.09)
+    assert profits == 0.0
+    r = value_from_company(_preprofit_grower(), CONFIG, mc_trials=200)
+    assert r.growth_lens.funding_gap_pv > 0, "a cash burner must be charged for its burn"
+
+
+def test_exit_multiple_is_anchored_to_mature_fundamentals():
+    """A sector's CURRENT EV/Sales embeds the growth it's expected to deliver. Using it
+    as an EXIT multiple, after already compounding revenue to the horizon, counts that
+    growth twice — so a frothy benchmark is capped against the fundamental anchor."""
+    from valuation.engine.growth import exit_sales_multiple, fundamental_sales_multiple
+    fund = fundamental_sales_multiple(0.27, mature_rate=0.09, terminal_growth=0.03)
+    frothy = exit_sales_multiple({"ev_sales": 30.0, "ev_ebitda": 60.0}, 0.27,
+                                 mature_rate=0.09, terminal_growth=0.03)
+    assert frothy <= 2.0 * fund + 1e-9, (frothy, fund)
+    # A higher sustainable margin is worth a higher multiple of sales.
+    assert (fundamental_sales_multiple(0.30, 0.09, 0.03)
+            > fundamental_sales_multiple(0.10, 0.09, 0.03))
+    assert exit_sales_multiple({}, None) is None
 
 
 def _run_all():

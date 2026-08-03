@@ -13,7 +13,7 @@
       {% if eff_tier == 'free' and signup_enabled %}
         <a href="/pricing" class="btn">Upgrade</a>
       {% else %}
-        {% if billing_enabled %}<form method="POST" action="/billing/portal" style="display:inline">
+        {% if billing_enabled %}<form method="POST" action="/billing/portal" style="display:inline"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
           <button class="btn alt">Manage subscription</button></form>{% endif %}
       {% endif %}
       <a href="/app" class="btn alt">Open dashboard</a>
@@ -34,7 +34,7 @@
     <h3 style="margin-top:0;color:var(--navy)">🚨 Screaming-buy alerts</h3>
     <p class="muted" style="font-size:14px">Get pinged when a name flashes a high-conviction bullish options
        setup during market hours — de-duped to at most once per ticker per day.</p>
-    <form method="POST" action="/account/alerts" id="alertsForm">
+    <form method="POST" action="/account/alerts" id="alertsForm"><input type="hidden" name="_csrf" value="{{ csrf_token }}">
       <label class="opt"><input type="checkbox" name="alerts" {{ 'checked' if alerts_on else '' }}
         onchange="document.getElementById('alertsForm').submit()"> Email me screaming-buy alerts</label>
     </form>

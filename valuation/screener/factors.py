@@ -38,10 +38,10 @@ def prefilter(m: dict):
         return False, "no price/quote"
     if price < S.PRICE_FLOOR:
         return False, f"penny (<${S.PRICE_FLOOR:.0f})"
-    mc = m.get("market_cap")               # in $ millions
+    mc = m.get("market_cap")               # USD dollars (see providers.METRICS_UNITS)
     if not mc or mc <= 0:
         return False, "no market cap"
-    if mc < S.MIN_MARKET_CAP_MM:
+    if mc < S.MIN_MARKET_CAP_MM * 1e6:
         return False, f"nano-cap (<${S.MIN_MARKET_CAP_MM:.0f}M)"
     adv = m.get("avg_dollar_volume")       # in $
     if adv is not None and adv < S.MIN_AVG_DOLLAR_VOLUME:
@@ -67,16 +67,20 @@ def classify_bucket(m: dict) -> str:
 _GRANULAR = list(S.NUMBERS_ALL)
 
 
-def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None) -> pd.DataFrame:
+def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None,
+                value_ev_multiples=None) -> pd.DataFrame:
     """Return a DataFrame indexed by ticker with the theme columns standardized across
     the universe. sector_neutral scores each number relative to its sector peers (removes
     accidental sector bets); residual_momentum strips the beta component out of momentum.
-    Both default to config."""
+    value_ev_multiples also feeds EV/Sales + EV/EBITDA into the ESTABLISHED value branch
+    (they already feed the speculative one). All three default to config."""
     from ..config import CONFIG
     if sector_neutral is None:
         sector_neutral = CONFIG.sector_neutral
     if residual_momentum is None:
         residual_momentum = CONFIG.residual_momentum
+    if value_ev_multiples is None:
+        value_ev_multiples = CONFIG.value_ev_multiples
     df = pd.DataFrame(metrics)
     if df.empty:
         return df
@@ -85,6 +89,16 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     # Derived oriented (higher = better) raw columns.
     df["neg_leverage"] = -pd.to_numeric(df.get("net_debt_to_ebitda"), errors="coerce")
     df["neg_ev_sales"] = -pd.to_numeric(df.get("ev_sales"), errors="coerce")
+    # EV/EBITDA only means anything on POSITIVE EBITDA. A loss-maker's multiple comes out
+    # negative, and negating it would rank the deepest losses as the greatest bargains. The
+    # panel already guards this at construction; FMP hands back its raw value unguarded, so
+    # the guard lives here where every provider passes through it.
+    # (built as an explicit Series: df.get on an ABSENT column returns None, and
+    # pd.to_numeric(None) is a bare scalar NaN with no .where — which is how the other
+    # derivations here get away with a plain unary minus.)
+    _evebitda = pd.to_numeric(df["ev_ebitda"], errors="coerce") \
+        if "ev_ebitda" in df.columns else pd.Series(np.nan, index=df.index)
+    df["neg_ev_ebitda"] = -_evebitda.where(_evebitda > 0)
     df["neg_ps"] = -pd.to_numeric(df.get("ps"), errors="coerce")
     # Growth acceleration. Derive it from this-year-vs-last-year revenue growth ONLY when a
     # provider supplies revenue_growth_prior; otherwise leave whatever the caller already
@@ -101,7 +115,7 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     # --- individual theme inputs (each oriented higher = better) ---
     def _num(c):   # always a Series aligned to df.index, even if the column is absent
         return pd.to_numeric(df[c], errors="coerce") if c in df.columns else pd.Series(np.nan, index=df.index)
-    mc = _num("market_cap")
+    mc = _num("market_cap")                              # USD dollars, like every absolute figure
     gp, td, te = _num("gross_profit"), _num("total_debt"), _num("total_equity")
     rev, fcf, ni = _num("revenue"), _num("fcf"), _num("net_income")
     ebit, iexp = _num("operating_income"), _num("interest_expense")
@@ -179,7 +193,15 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     # Factor columns = mean of the relevant standardized metrics.
     # Themes = mean of their (already-standardized) inputs, so a name with a missing
     # input isn't punished; an all-missing theme stays NaN and is neutralized per name.
-    df["value_est"] = df[["z_earnings_yield", "z_fcf_yield", "z_ebit_ev", "z_book_to_price"]].mean(axis=1)
+    # Value is bucket-split: profitable names are judged on earnings-based yields, loss-makers
+    # on sales multiples (an earnings yield is meaningless when earnings are negative).
+    # value_ev_multiples extends the ESTABLISHED branch with the two EV multiples, which the
+    # speculative branch has always used. EV/Sales is the 2nd-strongest value input on the full
+    # panel (IC t +2.11) yet has never scored a single profitable name — see HANDOFF_growth_evsales.md.
+    _est = ["z_earnings_yield", "z_fcf_yield", "z_ebit_ev", "z_book_to_price"]
+    if value_ev_multiples:
+        _est = _est + ["z_neg_ev_sales", "z_neg_ev_ebitda"]
+    df["value_est"] = df[_est].mean(axis=1)
     df["value_spec"] = df[["z_neg_ev_sales", "z_neg_ps", "z_book_to_price"]].mean(axis=1)
     df["value"] = np.where(df["bucket"].eq("established"), df["value_est"], df["value_spec"])
     df["quality"] = df[["z_roic", "z_roe", "z_op_margin", "z_gross_margin", "z_neg_leverage",

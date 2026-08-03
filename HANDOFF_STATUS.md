@@ -12,6 +12,32 @@ file directly.
 
 ---
 
+## LAZY PRICES (roadmap #28) — TESTED AND **REJECTED** (2026-08-03), landed on `main`
+
+Full report: **`HANDOFF_lazy_prices_ic.md`**. Dataset build: `HANDOFF_lazy_prices.md`.
+
+The 10-K/10-Q language-change signal was built (195 filers, 7,095 scored pairs, free SEC
+EDGAR, 0 fetch failures) and then put through the gate. It does nothing: rank-IC **-0.0156**,
+t(NW) **-1.07**, long-short **-5.0%/yr**, top-decile alpha **-2.9%/yr**, and the deciles run
+BACKWARDS (monotonicity +0.709, where -1.0 is ideal). Both time halves negative. Across 28
+measure x horizon cells nothing clears the bar in the pre-registered direction, and the one
+cell that looked good (`jaccard@252`, IC t +3.88 early) collapses to +0.24 on the later half.
+It is genuinely orthogonal to every existing theme (|r| < 0.07) and genuinely uninformative —
+residual IC after regressing the themes out is -0.001 (t -0.06). **Nothing wired in; roadmap
+#28 closes.** Do not spend the ~1hr/250-names fetch on extending it — see §8 of the report.
+
+One finding was left deliberately unexploited and is written up in §5: the MD&A-section
+measure has a *significant* spread in the WRONG direction (biggest rewriters +8.6pp), stable
+in both halves, not explained by the growth or momentum themes. It was NOT flipped into a
+signal — the direction was pre-registered before returns were joined, so reading it backwards
+is a new hypothesis, not a rescue of this one.
+
+Suites on the merged tree: `test_edge.py` 123/123, `test_lazy_prices.py` 28/28,
+`test_lazy_prices_ic.py` 24/24. Research code lives in `valuation/research/` and a test
+asserts no production module imports it.
+
+---
+
 ## Data mining (ThetaData cache expansion)
 
 Running in its own session; status and design notes are in **`HANDOFF_miner.md`**, not here.

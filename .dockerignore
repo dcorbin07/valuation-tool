@@ -4,8 +4,11 @@ venv
 __pycache__
 *.pyc
 .pytest_cache
-data/*.db
-data/*.sqlite
+# The WHOLE data directory, not just the databases. Dockerfile does `COPY . .`, and the
+# old two-line version let data/**/*.csv and data/raw/ (the licensed Sharadar exports)
+# get baked into any locally built image — against the project's hard rule on data/.
+# SECURITY_AUDIT.md L5.
+data/
 *_DCF_Model.xlsx
 *_Valuation_Report.pdf
 .env

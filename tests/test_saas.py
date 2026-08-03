@@ -24,6 +24,16 @@ CONFIG.beta_all_premium = False
 CONFIG.open_access = False
 
 
+def _csrf(c):
+    """Establish a CSRF token on this client and return it (SECURITY_AUDIT.md M2).
+
+    Real browsers get one from the hidden field the context processor renders into every
+    form; a test client can just seed the session directly."""
+    with c.session_transaction() as s:
+        s["_csrf_token"] = "test-csrf-token"
+    return "test-csrf-token"
+
+
 def _store():
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
@@ -130,7 +140,7 @@ def test_master_link_route_and_banner():
     assert page.status_code == 200
     assert b"get ahead of the beta" in page.data      # inclusive demo banner copy
     assert b'href="/register"' in page.data           # + a sign-up call to action
-    CONFIG.demo_access_token = "preview"              # restore default
+    CONFIG.demo_access_token = ""                     # restore default (M4: no default token)
 
 
 def test_demo_signup_converts_to_real_account():
@@ -143,11 +153,12 @@ def test_demo_signup_converts_to_real_account():
     c.get("/demo/sekret-xyz")                          # enter the preview
     assert b"get ahead of the beta" in c.get("/app").data
     email = "conv_" + uuid.uuid4().hex[:8] + "@ex.com"
-    r = c.post("/register", data={"email": email, "password": "password123", "agree": "on"})
+    r = c.post("/register", data={"email": email, "password": "password123",
+                                  "agree": "on", "_csrf": _csrf(c)})
     assert r.status_code in (301, 302)                 # redirected to /app as the new user
     after = c.get("/app").data
     assert b"get ahead of the beta" not in after       # demo flag cleared → generic banner
-    CONFIG.demo_access_token = "preview"
+    CONFIG.demo_access_token = ""
 
 
 def test_ci_ingest_snapshot_roundtrip():
@@ -346,6 +357,200 @@ def test_valquo_index_api_config_toggle():
         h = _fh.read()
     assert 'id="bookConfig"' in h, "account-type toggle missing"
     assert "discovery" in h and "disciplined, backtested book" in h, "blurbs missing"
+
+
+def test_methodology_page_is_public_and_states_the_weaknesses():
+    """The methodology page is the trust moat — it is worthless if it only lists strengths,
+    and it must not sit behind a login."""
+    from valuation.saas.app_saas import create_saas_app
+    app = create_saas_app(CONFIG)
+    app.config.update(TESTING=True)
+    c = app.test_client()
+    r = c.get("/methodology")
+    assert r.status_code == 200
+    body = r.data.decode("utf-8", "ignore").lower()
+    for must in ("point-in-time", "survivorship", "breakeven", "not investment advice"):
+        assert must in body, f"methodology must cover {must!r}"
+    # The honest half. If these go missing the page has become marketing.
+    for weakness in ("one 18-year", "saturated", "dormant"):
+        assert weakness in body, f"methodology must keep the weakness: {weakness!r}"
+
+
+def test_landing_renders_the_sample_and_survives_having_none():
+    """The landing must SHOW the product. It must also still be a finished page when nothing
+    has been ingested yet — a broken hero is worse than a plain one, and this is the first
+    thing a visitor ever sees."""
+    from valuation.saas.app_saas import create_saas_app
+    from valuation.web import showcase
+
+    sample = {"ticker": "TSTQ", "name": "Test Corp", "sector": "Technology", "price": 100.0,
+              "fair_value": 150.0, "upside": 0.5, "score": 72.0, "verdict": "Buy",
+              "confidence": "high", "bear": 120.0, "base": 150.0, "bull": 190.0,
+              "implied_growth": 0.04, "base_growth": 0.09, "implied_growth_bounded": "",
+              "as_of": "2026-08-02"}
+
+    real_ctx = showcase.landing_context
+    showcase.landing_context = lambda store: {
+        "sample": sample, "bar": showcase.range_bar(sample), "sample_stale": False,
+        "sample_age": 0, "track": None, "spark": None, "scan": None}
+    try:
+        c = create_saas_app(CONFIG).test_client()
+        html = c.get("/").data.decode()
+        assert "TSTQ" in html and "Test Corp" in html
+        assert "150.00" in html and "72" in html
+        assert "4% a year" in html, "the reverse-DCF read is the most persuasive number"
+    finally:
+        showcase.landing_context = real_ctx
+
+    # Nothing ingested: no exception, no empty widget, still a real page with the CTA.
+    showcase.landing_context = lambda store: {}
+    try:
+        c = create_saas_app(CONFIG).test_client()
+        r = c.get("/")
+        assert r.status_code == 200
+        html = r.data.decode()
+        assert "Live sample" not in html
+        # Asserted on the static section, not the CTA: the CTA wording flips with
+        # signup_enabled, which other tests in this file mutate on the shared CONFIG.
+        assert "Adaptive DCF" in html and "Valquo" in html
+    finally:
+        showcase.landing_context = real_ctx
+
+
+def test_landing_never_500s_when_the_showcase_blows_up():
+    """The store can be missing or corrupt on a fresh box. That must cost a section, not the
+    home page."""
+    from valuation.saas.app_saas import create_saas_app
+    from valuation.web import showcase
+
+    real = showcase.landing_context
+
+    def _boom(store):
+        raise RuntimeError("store exploded")
+    showcase.landing_context = _boom
+    try:
+        r = create_saas_app(CONFIG).test_client().get("/")
+        assert r.status_code == 200, r.status_code
+        assert "Adaptive DCF" in r.data.decode(), "the static page must still be there"
+    finally:
+        showcase.landing_context = real
+
+
+def test_sample_ingest_requires_a_token_and_rejects_an_empty_sample():
+    from valuation.saas.app_saas import create_saas_app
+    CONFIG.admin_token = "tok-123"
+    c = create_saas_app(CONFIG).test_client()
+    good = {"ticker": "AAPL", "fair_value": 119.6, "as_of": "2026-08-02"}
+    assert c.post("/admin/ingest-sample", json=good).status_code == 401
+    hdr = {"X-Admin-Token": "tok-123"}
+    # A sample with no fair value renders an empty hero — refuse it rather than publish it.
+    assert c.post("/admin/ingest-sample", json={"ticker": "AAPL"}, headers=hdr).status_code == 400
+    assert c.post("/admin/ingest-sample", json={}, headers=hdr).status_code == 400
+    assert c.post("/admin/ingest-sample", json=good, headers=hdr).status_code == 200
+
+
+def test_paper_track_endpoint_skips_when_the_session_has_not_closed():
+    """The scheduled cycle must refuse to run mid-session.
+
+    The crons are pinned to a fixed UTC time, but 4pm Eastern moves an hour against UTC twice
+    a year — 20:45 UTC is 4:45pm ET in summer and 3:45pm ET in WINTER. Without this guard the
+    whole winter would have been marked and entered on intraday prices, and every run would
+    have looked completely normal. The skip must also be visibly a skip, not an empty success.
+    """
+    import datetime as dt
+    from valuation.saas.app_saas import create_saas_app
+    from valuation.screener import market_session as MS
+
+    real = MS.session_state
+    MS.session_state = lambda now=None: real(dt.datetime(2026, 8, 5, 15, 45))   # mid-session
+    try:
+        CONFIG.admin_token = "tok-123"
+        app = create_saas_app(CONFIG)
+        app.config.update(TESTING=True)
+        c = app.test_client()
+        assert c.post("/admin/run-paper-track", json={}).status_code == 401
+        r = c.post("/admin/run-paper-track", json={}, headers={"X-Admin-Token": "tok-123"})
+        assert r.status_code == 200, r.data
+        body = r.get_json()
+        assert body.get("skipped") is True, body
+        assert "not closed" in body["session"]["reason"], body["session"]
+    finally:
+        MS.session_state = real
+
+
+def test_index_track_ingest_requires_the_admin_token():
+    """The live-track ingest writes what the site publishes as its real performance record.
+    An open endpoint would let anyone post a track."""
+    from valuation.saas.app_saas import create_saas_app
+    CONFIG.admin_token = "tok-123"
+    app = create_saas_app(CONFIG)
+    app.config.update(TESTING=True)
+    c = app.test_client()
+    payload = {"inception_date": "2026-07-01", "benchmark": "SPY",
+               "series": [{"date": "2026-07-01", "valquo": 0.5, "spy": 0.3}]}
+    assert c.post("/admin/ingest-index-track", json=payload).status_code == 401
+    ok = c.post("/admin/ingest-index-track", json=payload, headers={"X-Admin-Token": "tok-123"})
+    assert ok.status_code == 200, ok.data
+    assert ok.get_json()["days"] == 1
+    # An empty series is a no-op, not a way to blank the published record.
+    bad = c.post("/admin/ingest-index-track", json={"series": []},
+                 headers={"X-Admin-Token": "tok-123"})
+    assert bad.status_code == 400
+
+
+def test_forgot_never_discloses_a_reset_link_in_production():
+    """SECURITY_AUDIT.md C1 — account takeover via /forgot.
+
+    The old code set `dev_link = None if sent else link`, and `send_email` returned False
+    for BOTH "no SMTP configured" and "the send threw". So a production mail server merely
+    being down turned /forgot into: POST any address, get a valid 1-hour reset token. The
+    owner address is a committed default, and the owner account unlocks /api/edge/*.
+
+    A reset link may ONLY appear when DEV_MODE is explicitly set AND no SMTP exists.
+    """
+    import uuid
+    from valuation.saas import auth as auth_mod
+    from valuation.saas import emailer
+    from valuation.saas.app_saas import create_saas_app
+
+    app = create_saas_app(CONFIG)
+    app.config.update(TESTING=True)
+    c = app.test_client()
+
+    # A real account, in the same database the app's store is bound to.
+    real = "fgt_" + uuid.uuid4().hex[:8] + "@ex.com"
+    UserStore(CONFIG.database_url).create_user(real, "password123")
+    unknown = "nobody_" + uuid.uuid4().hex[:8] + "@ex.com"
+
+    orig_send, orig_dev = auth_mod.send_status, CONFIG.dev_mode
+    try:
+        # --- 1. Production, SMTP configured but FAILING: no token, ever. ---
+        CONFIG.dev_mode = False
+        auth_mod.send_status = lambda *a, **k: emailer.FAILED
+        tok = _csrf(c)
+        body = c.post("/forgot", data={"email": real, "_csrf": tok}).data.decode("utf-8", "ignore")
+        assert "/reset/" not in body, "a failing prod mail server must not leak a reset link"
+
+        # --- 2. No account-enumeration tell: byte-identical response either way. ---
+        miss = c.post("/forgot", data={"email": unknown, "_csrf": tok}).data.decode("utf-8", "ignore")
+        assert body == miss, "response differs for a known vs unknown address"
+
+        # --- 3. Not configured at all, but still not DEV_MODE: still no token. ---
+        auth_mod.send_status = lambda *a, **k: emailer.NOT_CONFIGURED
+        b3 = c.post("/forgot", data={"email": real, "_csrf": tok}).data.decode("utf-8", "ignore")
+        assert "/reset/" not in b3, "absent SMTP alone must not imply a dev box"
+
+        # --- 4. DEV_MODE + no SMTP: the local convenience still works... ---
+        CONFIG.dev_mode = True
+        b4 = c.post("/forgot", data={"email": real, "_csrf": tok}).data.decode("utf-8", "ignore")
+        assert "/reset/" in b4, "DEV_MODE with no SMTP should still surface the link locally"
+
+        # --- 5. ...but even in DEV_MODE a mere send FAILURE discloses nothing. ---
+        auth_mod.send_status = lambda *a, **k: emailer.FAILED
+        b5 = c.post("/forgot", data={"email": real, "_csrf": tok}).data.decode("utf-8", "ignore")
+        assert "/reset/" not in b5, "send failure must never be treated as 'we're in dev'"
+    finally:
+        auth_mod.send_status, CONFIG.dev_mode = orig_send, orig_dev
 
 
 def _run_all():

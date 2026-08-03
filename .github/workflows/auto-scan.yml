@@ -10,6 +10,10 @@ name: Auto scans (free-tier bridge)
 #   ADMIN_TOKEN        same value you set on Render
 #   ANTHROPIC_API_KEY  (optional) enables AI notes on the top names
 #   TRADIER_TOKEN      (optional) real-time Signals; else free/delayed data
+#   FMP_API_KEY        (optional) fundamentals; the free stack covers the rest
+#   DISCORD_WEBHOOK_URL (optional but RECOMMENDED) — where the watchdog and the scan-failure
+#                      alert post. Without it a dead pipeline is only visible as a red run in
+#                      the Actions tab, which is what let the July gap go unnoticed for 4 days.
 
 on:
   workflow_dispatch:
@@ -17,8 +21,12 @@ on:
       kind:
         description: Which scan to run now
         type: choice
-        options: [hot, intraday, both]
+        options: [hot, intraday, both, watchdog, paper]
         default: hot
+      force:
+        description: "paper only: run even if the session has not closed (skips the market-hours guard)"
+        type: boolean
+        default: false
   schedule:
     # Hot list runs just AFTER the close so it uses complete end-of-day data and is ready before
     # the next open. Two attempts at ODD minutes because GitHub's free scheduler routinely DROPS
@@ -28,7 +36,21 @@ on:
     - cron: "41 23 * * 1-5"         # hot list — 23:41 UTC backup, if GitHub dropped the primary
     - cron: "*/30 13-20 * * 1-5"    # intraday — every 30 min on free (fits Actions minutes);
                                     # the paid Render cron (render.yaml) runs this every 15 min
+    # Paper track. TWO crons because a crontab cannot say "4pm Eastern": 20:47 UTC is 4:47pm ET
+    # under EDT but 3:47pm ET under EST — i.e. BEFORE the close for the whole winter, which
+    # would have marked the book and entered positions mid-session on intraday prices with
+    # nothing in the output looking wrong. Each cron is correct in one half of the year and
+    # early in the other, and the endpoint's session guard (screener/market_session.py) turns
+    # the early one into a no-op, so exactly one real run happens per day either way.
+    # Once a day: the exit rules are daily-mark rules, so intraday runs would add broker
+    # calls, not information. The cycle is idempotent (claim rows on the alerts, PK on the
+    # day's index point), so overlapping with render.yaml's cron is harmless, not double.
+    - cron: "47 20 * * 1-5"         # 20:47 UTC = 4:47pm ET in summer (EDT)
+    - cron: "47 21 * * 1-5"         # 21:47 UTC = 4:47pm ET in winter (EST)
     - cron: "0 12 1 * *"            # self-learning — monthly (1st, 12:00 UTC), OOS-gated re-tune
+    - cron: "15 13 * * 1-5"         # watchdog — 13:15 UTC (~9:15am ET), BEFORE the open, so a
+                                    # dead pipeline is known about while there is still a day
+                                    # to fix it rather than after the next close
 
 concurrency:
   group: auto-scan-${{ github.workflow }}
@@ -38,7 +60,10 @@ jobs:
   hot:
     if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '23 22 * * 1-5' || github.event.schedule == '41 23 * * 1-5')) || (github.event_name == 'workflow_dispatch' && (github.event.inputs.kind == 'hot' || github.event.inputs.kind == 'both')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 30 was sized for the 191-name bundled fallback. The real universe is ~800 names and
+    # most of them are served by the free stack at ~1.8s each on a cold cache (much faster
+    # once actions/cache has warmed the fundamentals), so it needs real headroom.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -46,15 +71,34 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
+      # Persist the fundamentals cache between runs. FMP's subscription here has no bulk
+      # endpoint, so every uncached name costs 3 requests and a 1,500-name universe on a
+      # cold cache is ~4,500 — more than a day's quota. With the cache warm a run only pays
+      # for entries that have aged past the 30-day TTL. restore-keys makes each run start
+      # from the most recent cache even though the key is date-stamped.
+      - name: Restore the scan cache
+        uses: actions/cache@v4
+        with:
+          path: .scan-cache
+          key: scan-cache-${{ github.run_id }}
+          restore-keys: scan-cache-
       - name: Scan the market and push the daily hot list
         env:
           BASE_URL: ${{ secrets.SITE_BASE_URL }}
           ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          # Without this the CI scan silently falls back to the ~190-name bundled list AND
+          # loses the universe's company names / sectors / market caps. Empty is harmless
+          # (the free EDGAR+Yahoo path still runs), so this is safe before the secret exists.
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           SEC_USER_AGENT: "Donovan Corbin donniecorbin6@gmail.com"
           KIND: hot
+          # whole_market now resolves to the broker's liquidity-ranked universe (~7,100
+          # listed names, kept to the most liquid SCAN_LIMIT). 800 is the large-cap tier and
+          # fits the job's wall clock on a cold cache; raise it once the cache is warm.
           SCAN_SCOPE: whole_market
-          SCAN_LIMIT: "1500"
+          SCAN_LIMIT: "800"
           SCAN_DCF_TOP: "12"
         run: python scripts/ci_scan.py
 
@@ -80,6 +124,66 @@ jobs:
           INTRADAY_LIMIT: "150"
           INTRADAY_AI_TOP: "10"
         run: python scripts/ci_scan.py
+
+  watchdog:
+    # Runs SEPARATELY from the scan on purpose: a check inside the scan job cannot fire when
+    # the scan job is what died, which is exactly the July failure. This asks the public API
+    # what a real visitor would receive, and goes red (plus pings Discord) if it is stale or
+    # if the universe has collapsed.
+    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '15 13 * * 1-5') || (github.event_name == 'workflow_dispatch' && github.event.inputs.kind == 'watchdog') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check the live site is still being fed
+        env:
+          BASE_URL: ${{ secrets.SITE_BASE_URL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python scripts/check_staleness.py
+
+  paper:
+    # Forward paper track (roadmap #12) - the project's #1 remaining validation: a track on data
+    # nobody had seen when the rules were fixed.
+    #
+    # This is a TRIGGER, not the work. The cycle runs inside the web service because the alerts,
+    # the paper order state and the index holdings all live in its database on the persistent
+    # disk. A GitHub runner gets an empty database every run: it would find no alerts, submit
+    # nothing, and lose the state that makes the cycle idempotent - so the state would be gone
+    # and the "never double-submit" guarantee with it.
+    #
+    # Needs TRADIER_PAPER_TOKEN + TRADIER_PAPER_ACCOUNT_ID set as RENDER env vars (not as Actions
+    # secrets - the endpoint reads them server-side). Until they are set the endpoint answers
+    # {"configured": false} and does nothing, which is why this is safe to schedule first.
+    if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '47 20 * * 1-5' || github.event.schedule == '47 21 * * 1-5')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.kind == 'paper') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Run one day of the forward paper track
+        env:
+          BASE: ${{ secrets.SITE_BASE_URL }}
+          TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          FORCE: ${{ github.event.inputs.force }}
+        run: |
+          set -euo pipefail
+          BODY='{}'
+          if [ "${FORCE:-false}" = "true" ]; then BODY='{"force": true}'; fi
+          RESP=$(curl -fsS -X POST "$BASE/admin/run-paper-track" \
+            -H "X-Admin-Token: $TOKEN" -H "Content-Type: application/json" -d "$BODY")
+          echo "$RESP" | head -c 4000; echo
+          # Say out loud which of the two crons this was. A skip is the EXPECTED outcome for
+          # the one that fires on the wrong side of the DST boundary — but a skip every single
+          # day would mean the guard never opens, and that must not read as a green run.
+          case "$RESP" in
+            *'"skipped": true'*|*'"skipped":true'*)
+              echo "::notice::paper track skipped — session not closed (expected for the off-season cron)" ;;
+            *'"configured": false'*|*'"configured":false'*)
+              echo "::error::paper track is NOT configured — TRADIER_PAPER_TOKEN / TRADIER_PAPER_ACCOUNT_ID are missing on Render"
+              exit 1 ;;
+            *) echo "::notice::paper track ran" ;;
+          esac
 
   learn:
     # Monthly self-learning: tells the site to re-tune its screener weights out-of-sample

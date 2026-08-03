@@ -56,6 +56,7 @@
     <div class="tabs">
       <button class="tab active" data-tab="single" onclick="switchTab('single')">Single valuation</button>
       <button class="tab" data-tab="hot" onclick="switchTab('hot')">🔥 Hot stocks</button>
+      <button class="tab" data-tab="index" onclick="switchTab('index')">◆ Valquo Index</button>
       <button class="tab" data-tab="signals" onclick="switchTab('signals')">⚡ Signals</button>
       <button class="tab" data-tab="track" onclick="switchTab('track')">📊 Track Record</button>
       {% if is_owner %}<button class="tab" data-tab="edge" onclick="switchTab('edge')">🔬 Edge Lab</button>{% endif %}
@@ -130,6 +131,7 @@
         <div id="fvMethod"></div>
         <div class="rangebar" id="rangebar"></div>
         <div class="grid3" id="scenarioCards" style="margin-top:14px"></div>
+        <div id="scenarioNote"></div>
       </div>
 
       <!-- 3. Opportunity score breakdown -->
@@ -247,20 +249,9 @@
         cut to a validated construction. The list is rebuilt automatically after each market
         close and stays the same through the trading day, so it's always the latest — there's
         nothing to refresh.</div>
-      <div class="search-row" style="align-items:center;margin-top:10px">
-        <label class="opt" style="margin:0">Account type
-          <select id="bookConfig" class="selin" onchange="loadValquoIndex()">
-            <option value="roth" selected>Roth / IRA — top 25, ~2-month rebalance</option>
-            <option value="taxable">Taxable — decile, quarterly, 20% no-trade band</option>
-          </select>
-        </label>
-        <span class="note" id="bookConfigNote" style="margin:0"></span>
-      </div>
-      <div id="valquoIndexBox" class="card" style="margin-top:12px;display:none">
-        <h3 style="margin:0 0 6px">◆ Valquo Index — the book to hold</h3>
-        <div class="note" id="valquoIndexNote" style="margin-bottom:8px"></div>
-        <div id="valquoIndexBody"></div>
-      </div>
+      <div class="note" style="margin-top:10px">The <b>Valquo Index</b> now has its own tab —
+        holdings, sector mix and its live record versus the S&amp;P are all there.
+        <a href="#" onclick="switchTab('index');return false"><b>Open the Index →</b></a></div>
       {% if is_owner %}
       <div class="search-row" style="align-items:center;margin-top:10px">
         <select id="scanScope" class="selin">
@@ -275,6 +266,7 @@
     </div>
     <div class="loader" id="hotLoader"><div class="spinner"></div><div id="hotLoadMsg">Scanning…</div></div>
     <div class="err" id="hotErr"></div>
+    <div id="hotFreshness"></div>
     <div id="hotResults" style="display:none">
       <div class="card">
         <h3>🔥 Hot stocks that screen as buys <span class="ai-src" id="hotMeta"></span></h3>
@@ -297,6 +289,44 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- VALQUO INDEX -->
+  <div id="tab-index" style="display:none">
+    <div class="search-card">
+      <div class="section-hint" style="margin-top:0"><b>The book you would actually hold.</b>
+        The same ranking Hot Stocks shows, cut to a validated construction: the top decile of
+        the large-cap tier, score-weighted, capped at 8% per name. Rebuilt after each close.</div>
+      <div class="search-row" style="align-items:center;margin-top:10px;flex-wrap:wrap">
+        <label class="opt" style="margin:0">Account type
+          <select id="bookConfig" class="selin" onchange="loadValquoIndex();loadIndexTrack()">
+            <option value="roth" selected>Roth / IRA — top 25, ~2-month rebalance</option>
+            <option value="taxable">Taxable — decile, quarterly, 20% no-trade band</option>
+          </select>
+        </label>
+        <span class="note" id="bookConfigNote" style="margin:0"></span>
+      </div>
+      <div id="indexFreshness"></div>
+    </div>
+
+    <!-- Backtested vs live, side by side. Never blended; see /methodology. -->
+    <div class="card" id="indexPerfCard">
+      <h3 style="margin:0 0 6px">Performance — backtested vs live</h3>
+      <div class="section-hint" style="margin-top:0">Two different kinds of evidence, kept
+        apart on purpose. The backtest is 18 years of point-in-time history the model was also
+        tuned on. The live track is real money-less trading since inception, and is the only
+        figure nobody could have fitted. <a href="/methodology">How this was tested →</a></div>
+      <div id="indexPerfBody"></div>
+      <div style="margin-top:14px"><canvas id="indexChart" height="190"></canvas></div>
+      <div class="note" id="indexChartNote"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 6px">Holdings</h3>
+      <div class="note" id="valquoIndexNote" style="margin-bottom:8px"></div>
+      <div id="valquoIndexBody" style="overflow-x:auto"></div>
+    </div>
+    <div class="note" id="indexDisclaimer" style="margin-bottom:22px"></div>
   </div>
 
   <!-- TRACK RECORD -->
@@ -347,8 +377,11 @@
         <label class="opt" style="margin:0"><input type="checkbox" id="sigAuto" onchange="toggleSigAuto()"> Auto-refresh (60s)</label>
         <span class="note" id="sigMeta" style="margin:0"></span>
       </div>
+      <div id="sigFreshness"></div>
       <div class="note">Educational scanner — technical signals are widely used but <b>not a proven edge</b>, and this is
-        <b>not an autotrader</b>.{% if is_owner %} Validate with the Edge Lab tab.{% endif %}</div>
+        <b>not an autotrader</b>.{% if is_owner %} Validate with the Edge Lab tab.{% endif %}
+        <a href="/methodology">How this works →</a></div>
+      <div class="note" id="sigDisclaimer"></div>
     </div>
     <div class="loader" id="sigLoader"><div class="spinner"></div><div>Scanning intraday setups…</div></div>
     <div class="err" id="sigErr"></div>
@@ -391,7 +424,7 @@
     </div>
     <div class="sp"></div>
     <div><a href="{{ feedback_url }}">Send feedback</a></div>
-    <div><a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></div>
+    <div><a href="/methodology">How it works</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></div>
     <div class="muted" style="width:100%">Educational tool, not investment advice. Fair value is a model
       output, not a price target — verify against primary filings before making decisions.</div>
   </div>

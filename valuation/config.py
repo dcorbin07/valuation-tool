@@ -51,6 +51,17 @@ class Config:
     # Tradier (intraday signals watcher): real-time quotes + option chains.
     tradier_token: str = field(default_factory=lambda: _get("TRADIER_TOKEN"))
     tradier_env: str = field(default_factory=lambda: _get("TRADIER_ENV", "sandbox"))  # sandbox | live
+    # SEPARATE Tradier PAPER (sandbox) credentials, used ONLY by the forward paper track
+    # (valuation/edge/paper_broker.py). Deliberately not the same fields as `tradier_token` /
+    # `tradier_env`: those are the live app's market-data feed and must keep pointing at
+    # production. Splitting them means the paper track cannot be aimed at a real account by an
+    # env typo, and flipping the app's feed cannot silently move the paper book.
+    tradier_paper_token: str = field(default_factory=lambda: _get("TRADIER_PAPER_TOKEN"))
+    tradier_paper_account_id: str = field(default_factory=lambda: _get("TRADIER_PAPER_ACCOUNT_ID"))
+    # Contracts per paper option trade. 1 keeps the forward book on the same fixed-1-contract
+    # basis the backtested scorecard uses, so paper and backtest expectancy are comparable.
+    paper_contracts_per_trade: int = field(
+        default_factory=lambda: int(_get_float("PAPER_CONTRACTS_PER_TRADE", 1)))
     # Edge Lab historical data source: free (default) | sharadar | wrds.
     edge_data_provider: str = field(default_factory=lambda: _get("EDGE_DATA_PROVIDER", "free"))
     sharadar_api_key: str = field(default_factory=lambda: _get("SHARADAR_API_KEY"))   # Nasdaq Data Link key
@@ -77,6 +88,12 @@ class Config:
     # SaaS / subscription mode (only used when running the hosted app).
     # ------------------------------------------------------------------ #
     secret_key: str = field(default_factory=lambda: _get("SECRET_KEY", "dev-insecure-change-me"))
+    # DEV_MODE — opt-in, local-only conveniences that must NEVER be inferred from runtime
+    # state. Today it gates exactly one thing: showing a password-reset link in the /forgot
+    # response when SMTP isn't configured. That used to be inferred from "the send failed",
+    # which meant a flaky prod mail server turned /forgot into an account-takeover endpoint
+    # for any address (SECURITY_AUDIT.md C1). Default false; never set it in production.
+    dev_mode: bool = field(default_factory=lambda: _get("DEV_MODE", "").lower() in ("1", "true", "yes", "on"))
     database_url: str = field(default_factory=lambda: _get("DATABASE_URL", "sqlite:///data/app.db"))
     stripe_secret_key: str = field(default_factory=lambda: _get("STRIPE_SECRET_KEY"))
     stripe_publishable_key: str = field(default_factory=lambda: _get("STRIPE_PUBLISHABLE_KEY"))
@@ -98,10 +115,16 @@ class Config:
     alert_min_score: float = field(default_factory=lambda: _get_float("ALERT_MIN_SCORE", 80))
     # Term-structure filter on scream-buy alerts (phase 3b: the only signal that survived the
     # fade gate). "flag" annotates every alert, "suppress" drops backwardation ones, "off"
-    # restores the previous behaviour. Defaults to flag because suppressing ~60% of alerts is a
-    # large product change that should be chosen deliberately, not inherited from a backtest.
+    # restores the pre-3b behaviour. DEFAULT CHANGED to "suppress" (roadmap #21): it used to be
+    # "flag" so that a ~60% cut in alert volume would be chosen rather than inherited, and it has
+    # now been chosen - an unapplied filter leaves the live alerts carrying the full fade.
+    # Missing term data is still never suppressed; see intraday/term_filter.py.
     options_term_filter: str = field(
-        default_factory=lambda: os.environ.get("OPTIONS_TERM_FILTER", "flag"))
+        default_factory=lambda: os.environ.get("OPTIONS_TERM_FILTER", "suppress"))
+    # Dollar risk per scream-buy options suggestion. Whole contracts only; an alert whose single
+    # contract exceeds this is skipped rather than taken oversized.
+    options_risk_per_trade: float = field(
+        default_factory=lambda: _get_float("OPTIONS_RISK_PER_TRADE", 1000))
     # Paper-account sell logic (the Track Record). Buy on entry to the top-N hot
     # list; hold at least min-hold days (no churn); then SELL only when the name is
     # genuinely no longer hot (its hot score falls below paper_exit_score) or it
@@ -123,11 +146,25 @@ class Config:
     # Whole-market scan: fetch this many names concurrently (big speedup; each fetch
     # is I/O-bound). Set SCAN_WORKERS=1 to force the old sequential behavior.
     scan_workers: int = field(default_factory=lambda: int(_get_float("SCAN_WORKERS", 8)))
+    # How many names the live universe keeps after ranking by dollar liquidity (broker
+    # source). 0 = the broker module's own default.
+    universe_limit: int = field(default_factory=lambda: int(_get_float("UNIVERSE_LIMIT", 0)))
+    # Hard ceiling on FMP requests in ONE scan. This subscription has no bulk endpoint, so
+    # every uncached name costs 3 requests; without a ceiling a big universe can spend the
+    # whole daily quota in a single run. 0 = unlimited.
+    fmp_max_calls: int = field(default_factory=lambda: int(_get_float("FMP_MAX_CALLS", 0)))
     # Score factors relative to sector peers (removes accidental sector bets). Toggle
     # off (SCREENER_SECTOR_NEUTRAL=false) to A/B against whole-universe scoring.
     sector_neutral: bool = field(default_factory=lambda: _get("SCREENER_SECTOR_NEUTRAL", "true").lower() != "false")
     residual_momentum: bool = field(default_factory=lambda: _get("SCREENER_RESIDUAL_MOMENTUM", "true").lower() != "false")
     soft_bucket: bool = field(default_factory=lambda: _get("SCREENER_SOFT_BUCKET", "true").lower() != "false")
+    # Feed EV/Sales + EV/EBITDA into the ESTABLISHED value branch too (they already feed the
+    # speculative one). Default OFF pending the full-universe A/B — HANDOFF_growth_evsales.md.
+    value_ev_multiples: bool = field(default_factory=lambda: _get("SCREENER_VALUE_EV_MULTIPLES", "false").lower() == "true")
+    # Rebuild enterprise value at the REBALANCE date (PIT market cap + filing net debt) rather
+    # than using the filing's own `ev`, whose embedded price is ~111 days stale. Affects
+    # ebit_ev / ev_sales / ev_ebitda. Default OFF pending its own A/B — HANDOFF_growth_evsales.md.
+    ev_point_in_time: bool = field(default_factory=lambda: _get("EDGE_EV_POINT_IN_TIME", "false").lower() == "true")
     # Historical backtest (Edge Lab) — ALL configured here, not on the data vendor's site.
     # Long window across regimes, but the optimizer weights recent history more (half-life)
     # and only adopts weights that also hold on the recent out-of-sample stretch.
@@ -197,7 +234,11 @@ class Config:
     # signup-required product exactly as it was. It goes further than
     # BETA_ALL_PREMIUM, which still required an account to sign in to.
     open_access: bool = field(default_factory=lambda: _get("OPEN_ACCESS", "true").lower() != "false")
-    demo_access_token: str = field(default_factory=lambda: _get("DEMO_ACCESS_TOKEN", "preview"))
+    # NO DEFAULT, deliberately. This used to default to the literal "preview", which grants
+    # a permanent Premium session to anyone who guesses /demo/preview. Harmless while
+    # OPEN_ACCESS is true (everything is open anyway) and a free-Premium bypass the day you
+    # start charging. Unset => /demo is disabled outright. SECURITY_AUDIT.md M4.
+    demo_access_token: str = field(default_factory=lambda: _get("DEMO_ACCESS_TOKEN", ""))
 
     # FEATURE_BILLING — explicit override for the signup/pricing SURFACES (the nav "Pricing"
     # link, the "Get started" CTA, the /register and /pricing routes). Unset by default, in

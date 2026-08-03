@@ -190,7 +190,7 @@ def _recommendation(score: int) -> str:
 
 
 def compute_score(cd: CompanyData, cls: Classification, wacc: float,
-                  base_fv: Optional[float], mc, comps) -> ScoreResult:
+                  base_fv: Optional[float], mc, comps, blend=None) -> ScoreResult:
     val, d_val = _valuation_score(cd, base_fv, mc, comps)
     qual, d_qual = _quality_score(cd, wacc)
     grow, d_grow = _growth_score(cd, cls)
@@ -220,14 +220,24 @@ def compute_score(cd: CompanyData, cls: Classification, wacc: float,
     # Data-sanity guard: a fair value >5x or <0.2x the price is almost always a
     # data problem (currency, share count, a one-off item) rather than a real
     # opportunity — never surface that as a strong buy.
+    # A growth-led valuation legitimately lands far below a price that's discounting
+    # years of compounding — that's the thesis, not a data glitch — so the low side of
+    # the guard doesn't apply to it. The high side still does: a fair value 5x the price
+    # is a currency/share-count smell whatever the archetype.
+    growth_led = bool(getattr(blend, "growth_led", False)) if blend is not None else False
     if base_fv and cd.price and cd.price > 0:
         ratio = base_fv / cd.price
-        if ratio > 5 or ratio < 0.2:
+        if ratio > 5 or (ratio < 0.2 and not growth_led):
             composite = min(composite, 50)
             confidence = "low"
             drivers.insert(0, f"⚠ Model fair value is {ratio:.1f}× the price — implausible; likely a data "
                               f"issue (currency, share count, or a one-off). Capped and flagged unreliable, "
                               f"not a recommendation.")
+        elif ratio < 0.2:
+            confidence = "low"
+            drivers.insert(0, f"Model fair value is {ratio*100:.0f}% of the price. On a growth name that is "
+                              f"a disagreement with the market about future growth, not necessarily a data "
+                              f"error — see the implied-growth read.")
 
     return ScoreResult(
         score=composite, recommendation=_recommendation(composite), confidence=confidence,

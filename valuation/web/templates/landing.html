@@ -1,27 +1,242 @@
 {% extends "_saas_base.html" %}
 {% block title %}Valquo — Value any stock{% endblock %}
 {% block body %}
-<div style="background:linear-gradient(120deg,#1f3864,#2e5fa3);color:#fff">
-  <div class="wrap" style="padding:64px 22px 70px;text-align:center">
-    <h1 style="font-size:40px;margin:0 0 14px;font-weight:800;letter-spacing:-.5px">Value any stock. Find the hot ones. Prove the edge.</h1>
-    <p style="font-size:18px;color:#d6e0f3;max-width:720px;margin:0 auto 26px">
-      A live-data DCF for any ticker with bull/base/bear cases and a 1–100 score, a whole-market
-      screener that ranks the market for you, and an honest backtest that checks whether the ranking
-      actually beats the market.</p>
-    {# Signup/pricing CTAs are flagged off while the product is open and free — the honest CTA
-     # is then "use it", since no account is required. See config.signup_enabled. #}
+{# The landing SHOWS the product instead of describing it: a real cached valuation from the
+ # real engine, and the real forward track. Everything below is rendered server-side from the
+ # store (valuation/web/showcase.py) — no client fetch, so it paints in one pass and there is
+ # no empty-then-populated flash on the first thing a visitor ever sees.
+ #
+ # Every block is independently optional. If nothing has been ingested yet the page falls back
+ # to the static value-props and still reads as a finished page. #}
+<style>
+  .hero{background:linear-gradient(120deg,#1f3864,#2e5fa3);color:#fff}
+  .hero .in{max-width:1080px;margin:auto;padding:52px 22px 58px;display:grid;
+    grid-template-columns:1.05fr .95fr;gap:38px;align-items:center}
+  .hero h1{font-size:38px;margin:0 0 14px;font-weight:800;letter-spacing:-.5px;line-height:1.15}
+  .props{list-style:none;padding:0;margin:0 0 24px}
+  .props li{color:#d6e0f3;font-size:15.5px;padding:5px 0 5px 26px;position:relative}
+  .props li:before{content:"→";position:absolute;left:0;color:#9dbaf0;font-weight:700}
+  .props b{color:#fff}
+  .hero .fine{color:#a9bbe0;font-size:13px;margin-top:14px}
+  /* The sample card sits on white inside the navy hero so it reads as "the product", not as
+     more marketing surface. */
+  .demo{background:#fff;color:var(--ink);border-radius:16px;padding:20px 22px;
+    box-shadow:0 10px 34px rgba(10,20,45,.28)}
+  .demo .tag{font-size:10.5px;font-weight:800;letter-spacing:.9px;color:var(--blue);
+    text-transform:uppercase}
+  .demo .co{font-size:19px;font-weight:800;color:var(--navy);margin:2px 0 0}
+  .demo .sub{font-size:12px;color:var(--muted);margin-bottom:14px}
+  .pricerow{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+  .pricerow .px{font-size:26px;font-weight:800}
+  .pricerow .arrow{color:var(--muted);font-size:17px}
+  .pricerow .fv{font-size:26px;font-weight:800;color:var(--navy)}
+  .updown{font-weight:800;font-size:15px}
+  .up{color:var(--green)} .down{color:var(--red)}
+  .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .gauge{height:8px;border-radius:99px;background:#e9eef8;overflow:hidden;margin:5px 0 3px}
+  .gauge > i{display:block;height:100%;border-radius:99px}
+  /* Scenario bar: bear -> bull, with the base value and today's price marked on it. */
+  .rng{position:relative;height:8px;border-radius:99px;margin:16px 0 6px;
+    background:linear-gradient(90deg,#f2c3bf,#e8eef9 45%,#bfe3cf)}
+  .rng .pin{position:absolute;top:-5px;width:2px;height:18px;background:var(--navy);border-radius:2px}
+  .rng .pin.price{background:var(--red);width:3px}
+  .rngtxt{display:flex;justify-content:space-between;font-size:11.5px;color:var(--muted)}
+  .read{margin-top:14px;padding:11px 13px;background:var(--bsoft);border-radius:10px;
+    font-size:13.5px;line-height:1.5}
+  .read b{color:var(--navy)}
+  /* Forward-track band */
+  .track{background:#fff;border-bottom:1px solid var(--border)}
+  .track .in{max-width:1080px;margin:auto;padding:26px 22px;display:grid;
+    grid-template-columns:1fr 1.15fr;gap:30px;align-items:center}
+  .badge{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.7px;
+    text-transform:uppercase;padding:3px 8px;border-radius:99px;background:#fdf0dc;
+    color:var(--amber);margin-left:7px;vertical-align:2px}
+  .kpi{display:flex;gap:26px;flex-wrap:wrap;margin-top:10px}
+  .kpi .n{font-size:21px;font-weight:800;color:var(--navy)}
+  /* The three value-prop cards. This grid had no breakpoint before, so at 390px it stayed
+     three-across and pushed the page 100px wider than the viewport — every card became a
+     one-word-per-line column. */
+  .props3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  @media (max-width:860px){
+    .hero .in,.track .in{grid-template-columns:1fr;gap:26px}
+    .hero h1{font-size:30px}
+    .props3{grid-template-columns:1fr}
+    .kpi{gap:18px}
+  }
+</style>
+
+<div class="hero"><div class="in">
+  <div>
+    <h1>Value any stock. Find the hot ones.<br>Prove the edge.</h1>
+    <ul class="props">
+      <li><b>A real DCF, not a ratio.</b> Live filings → bull/base/bear, Monte Carlo, and the growth the price already assumes.</li>
+      <li><b>The whole US market, ranked.</b> ~800 liquid names scored on value, quality, momentum and size every weekday.</li>
+      <li><b>An edge that had to survive a real test.</b> 18 years point-in-time, survivorship-free, net of costs — and it says so when it fails.</li>
+    </ul>
     {% if signup_enabled %}
     <a href="/register" class="btn" style="background:#fff;color:#1f3864;font-size:16px">Start free</a>
     <a href="/pricing" class="btn alt" style="background:rgba(255,255,255,.15);color:#fff;margin-left:8px">See plans</a>
-    <div style="color:#a9bbe0;font-size:13px;margin-top:16px">No card for the free plan · educational tool, not advice</div>
+    <div class="fine">No card for the free plan · educational tool, not advice</div>
     {% else %}
     <a href="/app" class="btn" style="background:#fff;color:#1f3864;font-size:16px">Open the app</a>
-    <div style="color:#a9bbe0;font-size:13px;margin-top:16px">Free · no account needed · educational tool, not advice</div>
+    <a href="/methodology" class="btn alt" style="background:rgba(255,255,255,.15);color:#fff;margin-left:8px">How it works</a>
+    <div class="fine">Free · no account needed · educational tool, not advice</div>
     {% endif %}
   </div>
-</div>
-<div class="wrap" style="padding:52px 22px">
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px">
+
+  {% if sample %}
+  {# A real run of the real engine on real filings, stamped with the date it ran. #}
+  <div class="demo">
+    <div class="tag">Live sample — the actual output</div>
+    <div class="co">{{ sample.ticker }} · {{ sample.name }}</div>
+    <div class="sub">{{ sample.sector }}{% if sample.sector %} · {% endif %}valued {{ sample.as_of }}{% if sample_stale %} · not refreshed since{% endif %}</div>
+
+    <div class="pricerow">
+      <span class="px">${{ "%.2f"|format(sample.price) }}</span>
+      <span class="arrow">→</span>
+      <span class="fv">${{ "%.2f"|format(sample.fair_value) }}</span>
+      {% if sample.upside is not none %}
+      <span class="updown {{ 'up' if sample.upside >= 0 else 'down' }}">
+        {{ "%+.1f"|format(sample.upside * 100) }}%</span>
+      {% endif %}
+    </div>
+    <div class="lbl">price today → estimated fair value</div>
+
+    {% if sample.score is not none %}
+    <div style="margin-top:14px">
+      <div class="lbl">Opportunity score</div>
+      <div class="gauge"><i style="width:{{ sample.score }}%;background:{{ '#1b7f4b' if sample.score >= 65 else ('#c77c11' if sample.score >= 45 else '#b3261e') }}"></i></div>
+      <div style="font-size:13px"><b>{{ sample.score|int }}/100</b>
+        <span class="muted">· {{ sample.verdict }}{% if sample.confidence %} · {{ sample.confidence }} confidence{% endif %}</span></div>
+    </div>
+    {% endif %}
+
+    {% if bar %}
+    <div style="margin-top:6px">
+      <div class="lbl">Bear · base · bull</div>
+      <div class="rng">
+        <span class="pin" style="left:{{ "%.1f"|format(bar.base_pos) }}%"></span>
+        {% if bar.price_pos is not none %}
+        <span class="pin price" style="left:{{ "%.1f"|format(bar.price_pos) }}%"
+              title="today's price"></span>
+        {% endif %}
+      </div>
+      <div class="rngtxt">
+        <span>${{ "%.0f"|format(bar.bear) }}</span>
+        <span><b style="color:var(--navy)">${{ "%.0f"|format(bar.base) }}</b></span>
+        <span>${{ "%.0f"|format(bar.bull) }}</span>
+      </div>
+      {% if bar.price_outside %}
+      <div style="font-size:11.5px;color:var(--red);margin-top:3px">
+        Today's price is {{ bar.price_outside }} even the bull case.</div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if sample.implied_growth is not none %}
+    <div class="read">
+      To justify ${{ "%.2f"|format(sample.price) }} you have to believe revenue compounds at
+      <b>{% if sample.implied_growth_bounded == 'above' %}at least ~{% endif %}{{ "%.0f"|format(sample.implied_growth * 100) }}% a year</b>.
+      {% if sample.base_growth is not none %}The model's base case is
+      <b>{{ "%.0f"|format(sample.base_growth * 100) }}%</b>.{% endif %}
+      <span class="muted">That is the question, not the price.</span>
+    </div>
+    {% endif %}
+    <div style="margin-top:11px;font-size:11.5px;color:var(--muted)">
+      A model output on live filings — an estimate, not a price target or advice.
+      <a href="/app">Run it on any ticker →</a>
+    </div>
+  </div>
+  {% endif %}
+</div></div>
+
+{% if track %}
+{# The transparent track record is the differentiator, so it sits directly under the hero —
+ # but the LIVE and BACKTESTED numbers are never merged, and the live one may not lead until
+ # it is deep enough (index_track.summarize decides, not this template). #}
+<div class="track"><div class="in">
+  <div>
+    <h2 style="margin:0 0 4px;font-size:20px;color:var(--navy)">
+      Valquo Index vs S&amp;P 500
+      {% if track.available and not track.thin %}<span class="badge">paper · live</span>
+      {% elif track.available %}<span class="badge">paper · thin</span>
+      {% else %}<span class="badge">not started</span>{% endif %}
+    </h2>
+    {% if track.available %}
+      <div class="muted" style="font-size:13.5px">
+        Live paper track since {{ track.inception }} · {{ track.days }} trading day{{ '' if track.days == 1 else 's' }}.
+        {% if track.thin %}Far too short to mean anything yet — shown because hiding it until it
+        looks good is how track records lie.{% endif %}
+      </div>
+      {# cum_*_pct and excess_pp are ALREADY percentages (the backtested block's net_alpha is a
+       # fraction — do not scale these the same way). #}
+      {% if track.live %}
+      <div class="kpi">
+        <div><div class="lbl">Index</div>
+          <div class="n">{{ "%+.2f"|format(track.live.cum_valquo_pct) }}%</div></div>
+        <div><div class="lbl">S&amp;P 500</div>
+          <div class="n">{{ "%+.2f"|format(track.live.cum_spy_pct) }}%</div></div>
+        <div><div class="lbl">Difference</div>
+          <div class="n {{ 'up' if track.live.excess_pp >= 0 else 'down' }}">
+            {{ "%+.2f"|format(track.live.excess_pp) }} pp</div></div>
+      </div>
+      {% endif %}
+    {% else %}
+      <div class="muted" style="font-size:13.5px">
+        The live paper track has <b>not started yet</b> — there are no live points to show, so
+        there is no live curve here. What follows is the <b>backtested</b> result, which is a
+        different and weaker kind of evidence.
+      </div>
+      {% if track.backtested %}
+      <div class="kpi">
+        <div><div class="lbl">Backtested net alpha</div>
+          <div class="n">{{ "%+.1f"|format(track.backtested.net_alpha * 100) }}%/yr</div></div>
+        {% if track.backtested.net_sharpe is not none %}
+        <div><div class="lbl">Net Sharpe</div><div class="n">{{ "%.2f"|format(track.backtested.net_sharpe) }}</div></div>
+        {% endif %}
+      </div>
+      {% endif %}
+    {% endif %}
+    <div style="margin-top:10px"><a href="/app#index">See the holdings and the full chart →</a></div>
+  </div>
+
+  <div>
+    {% if spark and spark.ok %}
+    <svg viewBox="0 0 {{ spark.width }} {{ spark.height }}" width="100%" height="{{ spark.height }}"
+         role="img" aria-label="Valquo Index versus S&P 500, cumulative return since inception">
+      <polyline points="{{ spark.bench }}" fill="none" stroke="#9aa4b5" stroke-width="2"
+                stroke-linejoin="round" stroke-linecap="round"></polyline>
+      <polyline points="{{ spark.index }}" fill="none" stroke="#2e5fa3" stroke-width="2.5"
+                stroke-linejoin="round" stroke-linecap="round"></polyline>
+    </svg>
+    <div class="rngtxt" style="margin-top:2px">
+      <span>{{ spark.start }}</span>
+      <span><b style="color:var(--blue)">Valquo</b> vs <b style="color:#7c8698">S&amp;P 500</b>,
+        cumulative</span>
+      <span>{{ spark.end }}</span>
+    </div>
+    {% else %}
+    <div class="card" style="padding:18px;background:var(--bsoft);box-shadow:none">
+      <div class="lbl">What gets published here</div>
+      <div style="font-size:13.5px;margin-top:5px;line-height:1.55">
+        Every weekday after the close, the book is marked against the S&amp;P 500 and the point
+        is appended — win or lose. It is a <b>paper</b> account, and it will be labelled thin
+        until it has enough history to mean anything.
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div></div>
+{% endif %}
+
+<div class="wrap" style="padding:44px 22px 10px">
+  {% if scan and scan.date %}
+  <div class="muted" style="text-align:center;font-size:13px;margin-bottom:22px">
+    Latest market-wide ranking: <b>{{ scan.date }}</b>{% if scan.freshness and scan.freshness.stale %}
+    — <span style="color:var(--amber)">not refreshed since; treat as out of date</span>{% endif %}.
+  </div>
+  {% endif %}
+  <div class="props3">
     <div class="card"><h3 style="margin-top:0;color:var(--navy)">📈 Adaptive DCF</h3>
       <p class="muted">Live financials → fair value with bull/base/bear, Monte Carlo, reverse DCF, comps, and a
       transparent 1–100 score. It adapts to mature, growth, and cash-burning companies.</p></div>
@@ -32,7 +247,7 @@
       <p class="muted">Information Coefficient, quantile spread after costs, equity curve vs benchmark, out-of-sample —
       it won't call a lucky curve an edge. Survivorship caveats included.</p></div>
   </div>
-  <div style="text-align:center;margin-top:40px">
+  <div style="text-align:center;margin-top:34px">
     {% if signup_enabled %}<a href="/register" class="btn">Create your free account</a>
     {% else %}<a href="/app" class="btn">Open the app — no account needed</a>{% endif %}
   </div>

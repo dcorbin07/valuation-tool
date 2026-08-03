@@ -12,15 +12,45 @@ A single before_request enforces "landing for anonymous" and per-tier API gating
 """
 from __future__ import annotations
 
+import datetime as _dt
+import hmac
+import os
+
 from flask import request, render_template, redirect, jsonify, g
 
 from ..config import CONFIG
+from ..safe_error import safe_error
 from ..web.app import app as tool_app
 from .models import UserStore
-from . import auth, billing, gating
+from . import auth, billing, csrf, gating, ratelimit
 
-PUBLIC_PATHS = {"/", "/login", "/register", "/logout", "/pricing", "/billing/webhook",
-                "/api/health", "/favicon.ico", "/terms", "/privacy", "/forgot"}
+# NOTE: a PUBLIC_PATHS set used to sit here. It was never referenced anywhere — _guard
+# implements a different and narrower policy — so it read like enforced access control
+# while enforcing nothing (SECURITY_AUDIT.md L1). Deleted rather than wired in, because
+# _guard is the real policy and two overlapping allowlists is how they drift apart.
+
+_INSECURE_SECRET = "dev-insecure-change-me"
+
+
+PLATFORM_ENV = ("RENDER", "DYNO", "KUBERNETES_SERVICE_HOST",
+                "AWS_EXECUTION_ENV", "WEBSITE_INSTANCE_ID", "PRODUCTION")
+
+
+def _looks_like_production(cfg) -> bool:
+    """Are we actually deployed? Gates the SECRET_KEY hard-fail, Secure cookies and HSTS.
+
+    Deliberately keyed on the HOSTING PLATFORM's own env vars (Render sets RENDER=true)
+    plus an explicit PRODUCTION=1 escape hatch for anywhere else — NOT on PUBLIC_BASE_URL.
+    An earlier version used the URL and was wrong: Don's laptop has a production
+    PUBLIC_BASE_URL in .env, so every local run and every test looked like production and
+    the app refused to boot. A false positive here is a dev box that will not start, and a
+    security check that gets in the way on a laptop is a security check that gets deleted.
+    Render is the real deployment target and sets RENDER, so the protection holds where it
+    counts. Self-hosting elsewhere: set PRODUCTION=1.
+    """
+    if cfg.dev_mode:
+        return False
+    return any(os.environ.get(v) for v in PLATFORM_ENV)
 
 
 def create_saas_app(cfg=CONFIG):
@@ -28,7 +58,29 @@ def create_saas_app(cfg=CONFIG):
     if getattr(app, "_saas_ready", False):   # idempotent: wrap the tool app only once
         return app
     app._saas_ready = True
+
+    # SECRET_KEY signs the session cookie AND the password-reset tokens AND the unsubscribe
+    # tokens. Its default is a literal committed to this repo, so falling back to it means
+    # anyone who can read the repo can forge a session for any uid and mint valid reset
+    # tokens. render.yaml sets generateValue:true, so this is a fail-OPEN default rather
+    # than a live breach — refuse to boot on it instead (SECURITY_AUDIT.md M3).
+    if cfg.secret_key == _INSECURE_SECRET and _looks_like_production(cfg):
+        raise RuntimeError(
+            "SECRET_KEY is still the committed development default. It signs session "
+            "cookies and password-reset tokens, so on a public host it lets anyone forge "
+            "either. Set SECRET_KEY to a random value (render.yaml already does this via "
+            "generateValue), or set DEV_MODE=1 if this really is a local box.")
     app.secret_key = cfg.secret_key
+
+    # Session cookie hardening (SECURITY_AUDIT.md M2). None of these were set, so the
+    # cookie had no SameSite protection and would ride over plain HTTP. Secure is tied to
+    # the production check so local http://127.0.0.1 development still works.
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=_looks_like_production(cfg),
+        PERMANENT_SESSION_LIFETIME=_dt.timedelta(days=30),
+    )
     store = UserStore(cfg.database_url)
 
     def _fire_alerts(intraday_store):
@@ -54,6 +106,9 @@ def create_saas_app(cfg=CONFIG):
                 "signup_enabled": cfg.signup_enabled,
                 "stripe_pk": cfg.stripe_publishable_key,
                 "beta_mode": cfg.beta_mode,
+                # Every form template renders this into a hidden field; simply rendering a
+                # page with a form is what establishes the token for anonymous visitors.
+                "csrf_token": csrf.token(),
                 "is_demo": bool(u and u.get("is_demo"))}
 
     # ---- Options outcome API (the Cowork/Robinhood filler) ------------------------------
@@ -63,7 +118,12 @@ def create_saas_app(cfg=CONFIG):
     # learning hook rather than a session: the caller is a scheduled process, not a browser,
     # and these write to the record the scorecard is computed from.
     def _admin_ok():
-        return bool(cfg.admin_token) and request.headers.get("X-Admin-Token") == cfg.admin_token
+        # compare_digest, not == : a plain string compare short-circuits on the first
+        # differing byte and leaks the token's prefix through timing (M5). Note the
+        # `bool(cfg.admin_token)` guard — an unset token must fail CLOSED, and that
+        # behaviour is deliberate and load-bearing in all eight admin endpoints.
+        supplied = request.headers.get("X-Admin-Token") or ""
+        return bool(cfg.admin_token) and hmac.compare_digest(supplied, cfg.admin_token)
 
     @app.route("/api/option-alerts/open")
     def api_option_alerts_open():
@@ -117,7 +177,7 @@ def create_saas_app(cfg=CONFIG):
     @app.route("/admin/run-learning", methods=["POST"])
     def admin_run_learning():
         # Monthly self-learning: OOS-gated re-tune of the screener weights.
-        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+        if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
         if not cfg.learn_enabled:
             return jsonify({"ok": False, "status": "learning disabled"})
@@ -134,7 +194,7 @@ def create_saas_app(cfg=CONFIG):
             _email_owner_learning(cfg, report)
             return jsonify(report)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
 
     def _email_owner_learning(cfg, report):
         """Private monthly note to the owner(s) only — what the learner changed, if anything."""
@@ -156,7 +216,7 @@ def create_saas_app(cfg=CONFIG):
     def admin_run_fundamental_backtest():
         # Heavy: builds a point-in-time panel from the historical provider (Sharadar/WRDS)
         # and backtests + optimizes vs the S&P. Token-protected; result stored for the owner view.
-        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+        if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
         try:
             from ..edge.data_providers import get_historical_provider
@@ -180,13 +240,13 @@ def create_saas_app(cfg=CONFIG):
                 pass
             return jsonify(res)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/admin/adopt-backtest-weights", methods=["POST"])
     def admin_adopt_backtest_weights():
         # Promote the backtest's optimized weights into the LIVE tuner — but only a
         # weighting that beat the default out-of-sample (the same anti-overfit gate).
-        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+        if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
         from ..screener.store import Store
         st = Store()
@@ -208,19 +268,19 @@ def create_saas_app(cfg=CONFIG):
     def admin_run_scan():
         # Token-protected so an external cron (cron-job.org / Render Cron) can
         # refresh the weekly snapshot inside this service — no shared disk needed.
-        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+        if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
         from .scan_worker import run_weekly
         try:
             return jsonify(run_weekly(cfg))
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/admin/run-intraday", methods=["POST"])
     def admin_run_intraday():
         # Token-protected intraday refresh — an every-N-minutes cron hits this so
         # the Signals feed is "always running" during market hours.
-        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+        if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
         from ..intraday.scan import run_intraday
         from ..intraday.ai import explain_top
@@ -236,14 +296,104 @@ def create_saas_app(cfg=CONFIG):
             tracker.log_options(st, res["rows"], cfg.alert_min_score)
             return jsonify({"ok": True, "run_time": res["run_time"], "scored": res["scored"], "alerts": alerts})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
+
+    @app.route("/admin/run-paper-track", methods=["POST"])
+    def admin_run_paper_track():
+        """One day of the forward paper track (roadmap #12) — Tradier SANDBOX only.
+
+        Runs HERE rather than on a CI runner because the alerts, the paper order state and the
+        index holdings all live in this service's screener database on the persistent disk. A
+        GitHub runner gets a fresh empty DB every time: it would find no alerts, submit
+        nothing, and lose the state that makes the cycle idempotent.
+
+        The broker refuses to construct on anything but the sandbox endpoint and the dedicated
+        TRADIER_PAPER_TOKEN, so this route cannot reach a funded account even if misconfigured.
+        Without those secrets it reports `configured: false` and does nothing — the endpoint
+        existing is not the same as the track running.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        from ..edge import paper_track as PT
+        from ..edge.paper_broker import NotSandboxError, PaperBroker
+        from ..screener.market_session import session_state
+        from ..screener.store import Store
+        body = request.get_json(silent=True) or {}
+
+        # Only run once the session has actually closed. The crons are pinned to a fixed UTC
+        # time, but 4:00pm Eastern moves an hour against UTC twice a year — 20:45 UTC is
+        # 4:45pm ET in summer and 3:45pm ET in winter. Without this the whole winter would
+        # have been marked and entered mid-session, on intraday prices, with nothing in the
+        # output looking wrong. Also skips weekends and market holidays, which have no close.
+        # `force` is the manual escape hatch for testing; `dry_run` never needs it blocked.
+        if not body.get("force"):
+            sess = session_state()
+            if not sess["ok"]:
+                return jsonify({"ok": True, "configured": True, "skipped": True,
+                                "session": sess}), 200
+        try:
+            broker = PaperBroker(cfg, dry_run=bool(body.get("dry_run")))
+        except NotSandboxError as e:
+            return jsonify({"ok": False, "configured": False, "reason": safe_error(e)}), 200
+        st = Store()
+        out = {"ok": True, "configured": True, "health": broker.health()}
+        if not out["health"].get("ok"):
+            return jsonify({**out, "ok": False}), 200
+        try:
+            out["options"] = PT.run_options_cycle(st, broker, cfg=cfg,
+                                                  limit=int(body.get("limit", 25)))
+        except Exception as e:
+            out["options_error"] = f"{type(e).__name__}: {e}"
+        # The index leg must not be able to take down the options leg, or a stale book file
+        # would silently stop the options book being marked.
+        try:
+            import json as _json
+            import os as _os
+            path = body.get("book") or _os.path.join("data", "valquo_index.json")
+            if _os.path.exists(path):
+                with open(path, encoding="utf-8") as f:
+                    book = _json.load(f)
+            else:
+                from ..edge.valquo_index import export
+                book = export(store=st, path=path)
+            out["seed"] = PT.seed_book(st, broker, book,
+                                       place_equity=bool(body.get("place_equity")))
+            out["index"] = PT.index_point(st, broker)
+        except Exception as e:
+            out["index_error"] = f"{type(e).__name__}: {e}"
+        out["summary"] = PT.summary(st)
+        return jsonify(out)
+
+    @app.route("/admin/ingest-sample", methods=["POST"])
+    def admin_ingest_sample():
+        """The landing page's sample valuation, computed in CI and posted here.
+
+        Computed out of band on purpose: a full valuation is a multi-second, network-heavy
+        job, and running it inside the request that renders the landing page would make every
+        first-time visitor wait — on the box least able to afford it. CI already has the RAM
+        and the network, so it does the work and this only stores the result.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        data = request.get_json(silent=True) or {}
+        # A sample with no ticker or no fair value would render an empty card, which is worse
+        # than the static fallback. Refuse it rather than publish a broken hero.
+        if not data.get("ticker") or data.get("fair_value") is None:
+            return jsonify({"error": "a sample needs at least a ticker and a fair_value"}), 400
+        try:
+            from ..screener.store import Store
+            from ..web import showcase
+            showcase.save(Store(), data)
+            return jsonify({"ok": True, "ticker": data["ticker"], "as_of": data.get("as_of")})
+        except Exception as e:
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/admin/ingest-snapshot", methods=["POST"])
     def admin_ingest_snapshot():
         # Free-tier bridge: a CI runner (GitHub Actions) does the heavy whole-market
         # scan where there's real RAM + internet, then POSTs the finished rows here.
         # The 512 MB web box only does a light DB write — it never runs the scan.
-        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+        if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
         data = request.get_json(silent=True) or {}
         rows = data.get("rows") or []
@@ -271,12 +421,12 @@ def create_saas_app(cfg=CONFIG):
                     pass
             return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows), "reprocessed": already})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/admin/ingest-intraday", methods=["POST"])
     def admin_ingest_intraday():
         # Same pattern for the Premium Signals feed (technical + options + AI).
-        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+        if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
         data = request.get_json(silent=True) or {}
         rows = data.get("rows") or []
@@ -293,7 +443,7 @@ def create_saas_app(cfg=CONFIG):
             tracker.log_options(st, rows, cfg.alert_min_score)   # log screaming buys into the tracker
             return jsonify({"ok": True, "run_time": run_time, "rows": len(rows), "alerts": alerts})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/app")
     def dashboard():
@@ -321,6 +471,39 @@ def create_saas_app(cfg=CONFIG):
             return redirect("/")
         return render_template("pricing.html", tiers=gating.TIER_FEATURES)
 
+    @app.route("/admin/ingest-index-track", methods=["POST"])
+    def admin_ingest_index_track():
+        """Accept the Valquo Index's live forward track from the external tracker.
+
+        The tracker runs on the Cowork side and writes to `data/`, which is gitignored — so
+        without this endpoint the live-vs-backtested comparison would work on a laptop and be
+        permanently empty in production. Body mirrors the tracker's own files:
+            {"inception_date": ..., "benchmark": "SPY",
+             "series": [{"date","valquo","spy","excess","n_priced"}, ...]}
+        Percentages are cumulative-since-inception, in percent, exactly as the CSV holds them.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        data = request.get_json(silent=True) or {}
+        series = data.get("series") or []
+        if not isinstance(series, list) or not series:
+            return jsonify({"error": "no series"}), 400
+        from ..screener.store import Store
+        from ..screener import index_track
+        try:
+            Store().set_meta(index_track.STORE_KEY, {
+                "inception_date": data.get("inception_date"),
+                "benchmark": data.get("benchmark") or "SPY",
+                "scan_date": data.get("scan_date"),
+                "series": series[-2000:],          # bounded; this is a daily series
+            })
+            return jsonify({"ok": True, "days": len(series)})
+        except Exception as e:
+            return jsonify({"error": safe_error(e)}), 500
+
+    # /methodology is registered on the shared app object in web/app.py — the SaaS layer uses
+    # the SAME Flask app (`app = tool_app` above), so declaring it again is a duplicate
+    # endpoint and the process would refuse to start.
     @app.route("/terms")
     def terms():
         return render_template("terms.html")
@@ -358,21 +541,67 @@ def create_saas_app(cfg=CONFIG):
         return ("<div style='font-family:sans-serif;max-width:520px;margin:60px auto;text-align:center'>"
                 "<h2>Invalid or expired link</h2></div>", 400)
 
+    @app.after_request
+    def _security_headers(resp):
+        """L2 — there was no after_request hook in the codebase at all.
+
+        No CSP here: the dashboard uses inline handlers and inline <style>, so a policy
+        strict enough to be worth having would break the page, and a policy loose enough
+        to not break it (`unsafe-inline`) buys nothing. Recorded as deferred in
+        HANDOFF_security_fixes.md rather than shipped as security theatre.
+        """
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        if _looks_like_production(cfg):
+            resp.headers.setdefault("Strict-Transport-Security",
+                                    "max-age=31536000; includeSubDomains")
+        return resp
+
     @app.before_request
     def _guard():
         path = request.path
         if path.startswith("/static/"):
             return None
+        # CSRF on the cookie-authenticated form POSTs (M2). Checked first: a request that
+        # cannot prove it came from our own page should not reach the handler at all.
+        if csrf.needs_protection(path, request.method) and not csrf.validate():
+            return render_template("csrf_error.html"), 400
         # Marketing landing for anonymous visitors at "/". Under open access the landing
         # page still shows (it explains what the tool is), but nothing behind it is
         # locked — /app renders for anonymous visitors too.
         if path == "/":
             if auth.current_user(store):
                 return redirect("/app")
-            return render_template("landing.html")
+            # Server-rendered proof: a real cached valuation and the real forward track, read
+            # straight from the screener store. Wrapped because this is the FIRST thing a
+            # visitor sees — a missing sample must cost us a section, never the page.
+            try:
+                from ..screener.store import Store as _ScreenerStore
+                from ..web import showcase
+                ctx = showcase.landing_context(_ScreenerStore())
+            except Exception:
+                # Swallowed so the page still renders, but never silently: a landing that
+                # quietly loses its only proof looks fine and is the whole problem.
+                app.logger.exception("landing showcase failed; falling back to static copy")
+                ctx = {}
+            return render_template("landing.html", **ctx)
         # API gating.
         if path.startswith("/api/"):
             body = request.get_json(silent=True) or {}
+            # Rate limit BEFORE anything expensive, and before gating, so a flood costs
+            # us a dict lookup rather than an Anthropic call (SECURITY_AUDIT.md H1).
+            # The admin token bypasses it: the cron jobs legitimately hit these on a
+            # schedule and are already authenticated.
+            bucket = ratelimit.bucket_for(path, body)
+            if bucket and not _admin_ok():
+                retry = ratelimit.check(ratelimit.client_ip(request), bucket)
+                if retry is not None:
+                    return jsonify({
+                        "error": "Rate limit reached for this endpoint. It runs live data "
+                                 "and AI calls, so it's capped per visitor.",
+                        "retry_after_seconds": retry,
+                    }), 429, {"Retry-After": str(retry)}
             u = auth.current_user(store)
             # How many hot-stocks rows this tier may see (free 10 / pro 100 / premium 500).
             g.hotstocks_cap = gating.features(gating._active(u))["hotstocks_top"]

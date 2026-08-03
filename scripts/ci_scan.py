@@ -53,9 +53,26 @@ def _post(path: str, payload: dict) -> None:
 
 
 def _tmp_store():
+    """The scan's local store.
+
+    Defaults to a PERSISTED path (`.scan-cache/screener.db`) so the 30-day fundamentals
+    cache survives between CI runs — the workflow restores it with actions/cache. This is
+    not a nicety: the FMP subscription has no bulk endpoint, so every uncached name costs
+    three requests, and a 1,500-name universe on a cold cache is ~4,500 requests. With the
+    cache warm a daily run only pays for names whose entry has aged out (~1/30th of the
+    universe), which fits comfortably in a day's quota.
+
+    Set SCAN_DB="" to force the old throwaway behaviour.
+    """
     from valuation.screener.store import Store
-    fd, path = tempfile.mkstemp(suffix=".db")
-    os.close(fd); os.remove(path)
+    path = os.environ.get("SCAN_DB", os.path.join(".scan-cache", "screener.db"))
+    if not path:
+        fd, path = tempfile.mkstemp(suffix=".db")
+        os.close(fd); os.remove(path)
+        return Store(path)
+    d = os.path.dirname(path)
+    if d:
+        os.makedirs(d, exist_ok=True)
     return Store(path)   # screener Store takes a plain filesystem path
 
 
@@ -69,11 +86,51 @@ def run_hot() -> None:
                    run_dcf_top=dcf_top, save=True)
     rows = res.get("rows") or []
     print(f"  scored {len(rows)} names from a universe of {res.get('universe_size')}")
+    h = res.get("health") or {}
+    if h.get("universe_note"):
+        print(f"  universe: {h['universe_note']}")
+    if h.get("api_budget"):
+        b = h["api_budget"]
+        print(f"  api budget: {b['calls_used']} calls used"
+              + (f" of {b['max_calls']}" if b.get("max_calls") else " (uncapped)")
+              + (f", {b['names_skipped_over_budget']} names skipped over budget"
+                 if b.get("names_skipped_over_budget") else ""))
+    if h.get("display_coverage"):
+        print(f"  display coverage: {h['display_coverage']}")
     if not rows:
         print("  nothing scored — not ingesting."); sys.exit(1)
     _post("/admin/ingest-snapshot", {
         "scan_date": res["scan_date"], "provider": res.get("provider", "ci"),
         "rows": rows, "params": {"scope": scope, "universe_size": res.get("universe_size")}})
+    refresh_landing_sample()
+
+
+def refresh_landing_sample() -> None:
+    """Recompute the landing page's sample valuation and push it to the site.
+
+    Runs HERE rather than on the web box because a full valuation is a multi-second,
+    network-heavy job and the landing page must paint immediately — the whole point of the
+    sample is to show the product working in about two seconds, which a live DCF per visitor
+    would destroy.
+
+    Deliberately NON-FATAL. This runs after the snapshot has already been ingested, and the
+    ranking is the product; a stale hero sample is a cosmetic problem. Letting it fail the job
+    here would turn a cosmetic miss into a red run and, worse, into a Discord alert that
+    trains the reader to ignore the channel.
+    """
+    ticker = os.environ.get("SAMPLE_TICKER", "AAPL").strip().upper()
+    try:
+        from valuation.web import showcase
+        sample = showcase.build(ticker, CONFIG)
+        if sample.get("fair_value") is None:
+            print(f"  landing sample: {ticker} produced no fair value — leaving the old one")
+            return
+        _post("/admin/ingest-sample", sample)
+        print(f"  landing sample: {ticker} ${sample['fair_value']:.2f} "
+              f"({sample.get('upside', 0) * 100:+.1f}%) ingested")
+    except Exception as e:                                            # noqa: BLE001
+        print(f"  landing sample failed ({type(e).__name__}: {str(e)[:160]}) — "
+              f"the site keeps the previous one")
 
 
 def run_intraday() -> None:
@@ -99,7 +156,39 @@ def run_intraday() -> None:
         "run_time": res["run_time"], "provider": res.get("provider", "ci"), "rows": rows})
 
 
+def _alert(text: str) -> None:
+    """Ping Discord about a scan failure.
+
+    A scan that dies is invisible: the site keeps serving the previous snapshot and nothing
+    on the page changes. The July gap ran for four days before anyone noticed, so a failure
+    now has to announce itself. Never raises — an alerting problem must not mask the original
+    failure it is trying to report.
+    """
+    url = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
+    if not url:
+        print("  (no DISCORD_WEBHOOK_URL — failure alert not sent)")
+        return
+    try:
+        body = json.dumps({"content": text[:1900]}).encode()
+        req = urllib.request.Request(url, data=body, method="POST",
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=45) as r:
+            print(f"  discord: {r.status}")
+    except Exception as e:
+        print(f"  discord FAILED: {e}")
+
+
 if __name__ == "__main__":
     kind = os.environ.get("KIND", "hot").strip().lower()
-    (run_intraday if kind == "intraday" else run_hot)()
+    try:
+        (run_intraday if kind == "intraday" else run_hot)()
+    except SystemExit as e:
+        if e.code:
+            _alert(f"🔴 **Valquo {kind} scan failed** — it exited {e.code} without ingesting. "
+                   f"The site is still serving the previous snapshot.")
+        raise
+    except Exception as e:
+        _alert(f"🔴 **Valquo {kind} scan crashed** — `{type(e).__name__}: {str(e)[:300]}`. "
+               f"The site is still serving the previous snapshot.")
+        raise
     print("done.")

@@ -21,11 +21,18 @@ It is robust rather than a tuned cutoff: over a 3x range of the threshold the ga
 --------------------------------------------------------------------------------------------
 THREE THINGS THIS DELIBERATELY DOES NOT DO.
 
-1. IT DOES NOT SILENTLY DELETE ALERTS BY DEFAULT. The filter discards roughly 60% of signals.
-   That is a large behavioural change to a live product, so the default MODE is "flag": every
-   alert still appears, carrying `term_ok` and a reason, and the UI can present backwardation
-   ones as reduced-confidence. `MODE_SUPPRESS` is available and is one config value away, but
-   the choice to show fewer alerts should be explicit rather than a side effect of a backtest.
+1. CORRECTED 2026-08-02 - IT NOW DOES DELETE ALERTS BY DEFAULT. This paragraph used to say the
+   opposite, and the reason it said so still stands on its own terms: discarding ~60% of signals
+   is a large product change that should be chosen deliberately rather than inherited from a
+   backtest. It has now been chosen deliberately (roadmap #21), on the grounds that a filter
+   which is the single thing arresting the fade is worth nothing if the live path shows the
+   alerts it would have removed. DEFAULT_MODE is therefore MODE_SUPPRESS, and MODE_FLAG remains
+   one config value away for anyone who wants the annotated-but-complete list.
+
+   Because this is now a gate rather than a label, the live retention rate is logged and
+   compared against the backtested 40.6% - see `options_live.term_filter_stats`. The threshold
+   was fitted on IV solved from the mid by bisection; a broker publishes its own smoothed
+   surface, and ~1 vol point is a small enough threshold that the two need not agree.
 
 2. IT DOES NOT FAIL CLOSED ON MISSING DATA. If the chain does not yield both IVs, `term_ok` is
    None - unknown, not bad. Suppressing alerts because a quote feed hiccuped would convert a
@@ -49,9 +56,9 @@ from typing import Optional
 TERM_SLOPE_THRESHOLD = 0.0105
 
 MODE_OFF = "off"            # compute nothing, behave exactly as before
-MODE_FLAG = "flag"          # annotate every alert, suppress none  (DEFAULT)
-MODE_SUPPRESS = "suppress"  # drop backwardation alerts entirely
-DEFAULT_MODE = MODE_FLAG
+MODE_FLAG = "flag"          # annotate every alert, suppress none
+MODE_SUPPRESS = "suppress"  # drop backwardation alerts entirely  (DEFAULT since roadmap #21)
+DEFAULT_MODE = MODE_SUPPRESS
 
 # Contango alerts carry more of the book because ~60% of signals are filtered out. Capped so a
 # fading edge cannot turn into a concentrated bet.
@@ -95,16 +102,40 @@ def size_multiplier(term_ok: Optional[bool]) -> float:
 
 def apply(rows, mode: str = DEFAULT_MODE, threshold: float = TERM_SLOPE_THRESHOLD) -> list:
     """Annotate (and optionally filter) live scan rows. Unknown term structure is never dropped."""
+    return apply_with_stats(rows, mode, threshold)[0]
+
+
+def apply_with_stats(rows, mode: str = DEFAULT_MODE,
+                     threshold: float = TERM_SLOPE_THRESHOLD):
+    """`apply`, plus what it did. Returns (rows, stats).
+
+    The counts are not decoration. Now that the default is to SUPPRESS, the discard rate is the
+    only way to notice that a threshold fitted on one IV estimator did not transfer to another:
+    the backtest kept 40.6% of alerts, so a live retention of 5% or 95% means the live filter is
+    not the filter that was tested.
+    """
+    stats = {"mode": mode, "threshold": threshold, "n_in": len(rows or []),
+             "kept": 0, "discarded": 0, "unknown": 0}
     if mode == MODE_OFF:
-        return list(rows or [])
+        stats["n_out"] = stats["n_in"]
+        return list(rows or []), stats
     out = []
     for r in rows or []:
         detail = r.get("detail") or {}
         summary = {"atm_iv": detail.get("opt_atm_iv"),
                    "atm_iv_60d": detail.get("opt_atm_iv_60d")}
         c = classify(summary, threshold)
+        if c["term_ok"] is True:
+            stats["kept"] += 1
+        elif c["term_ok"] is False:
+            stats["discarded"] += 1
+        else:
+            stats["unknown"] += 1
         r = {**r, **c, "size_multiplier": size_multiplier(c["term_ok"])}
         if mode == MODE_SUPPRESS and c["term_ok"] is False:
             continue
         out.append(r)
-    return out
+    known = stats["kept"] + stats["discarded"]
+    stats["retention"] = (stats["kept"] / known) if known else None
+    stats["n_out"] = len(out)
+    return out, stats
