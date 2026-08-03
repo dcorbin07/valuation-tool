@@ -312,7 +312,7 @@ def create_saas_app(cfg=CONFIG):
         Without those secrets it reports `configured: false` and does nothing — the endpoint
         existing is not the same as the track running.
         """
-        if not cfg.admin_token or request.headers.get("X-Admin-Token") != cfg.admin_token:
+        if not _admin_ok():
             return jsonify({"error": "unauthorized"}), 401
         from ..edge import paper_track as PT
         from ..edge.paper_broker import NotSandboxError, PaperBroker
@@ -321,7 +321,7 @@ def create_saas_app(cfg=CONFIG):
         try:
             broker = PaperBroker(cfg, dry_run=bool(body.get("dry_run")))
         except NotSandboxError as e:
-            return jsonify({"ok": False, "configured": False, "reason": str(e)}), 200
+            return jsonify({"ok": False, "configured": False, "reason": safe_error(e)}), 200
         st = Store()
         out = {"ok": True, "configured": True, "health": broker.health()}
         if not out["health"].get("ok"):

@@ -19,16 +19,34 @@ password-reset link in the response body. That is now impossible regardless of S
 
 ## Test counts
 
-| Suite | Before | After |
-|---|---|---|
-| security (new) | — | **22/22** |
-| saas | 22/22 | 23/23 |
-| screener | 32/32 | 32/32 |
-| engine | 28/28 | 28/28 |
-| edge | 123/123 | 123/123 |
-| bulk / calibration / freeze / lazy-prices / greeks / intraday | 14 / 23 / 13 / 28 / 20 / 18 | unchanged |
+Measured after merging `origin/main` (which moved twice during the session — greeks, lazy
+prices, broker fundamentals, paper-track all landed while this was in flight).
 
-**344 tests across 11 suites, all passing.** 23 of those are new.
+| Suite | Result |
+|---|---|
+| **security (new)** | **22/22** |
+| saas | 23/23 |
+| screener | 43/43 |
+| engine | 28/28 |
+| edge | 123/123 |
+| paper_track | 22/22 |
+| bulk / calibration / freeze / lazy-prices / greeks / intraday | 14 / 23 / 13 / 28 / 21 / 18 |
+
+**378 tests across 12 suites, all passing.** 23 of those are new.
+
+### The structural guards already paid for themselves
+
+Merging `origin/main` near the end of the session brought in a new `/admin/run-paper-track`
+endpoint from another agent, and it reintroduced **both** patterns this session had just
+finished removing — an inline `!=` admin-token comparison and a
+`jsonify({... "reason": str(e)})`. Two of the new tests failed within seconds and named the
+exact lines (`app_saas.py:315` and `:324`). Both fixed in the same commit.
+
+That is the whole argument for writing `test_no_handler_returns_raw_exception_text` and
+`test_admin_token_is_compared_in_constant_time` as **source scans** rather than as tests of
+the 25 known sites. The FMP leak got fixed once and came back in 23 places because nothing
+stopped re-introduction. With several agents committing to this repo in parallel, that is
+not a hypothetical failure mode — it happened during this session.
 
 ## What shipped, in order
 
