@@ -170,7 +170,16 @@ def name_is_viable(tb, sym: str, year: int) -> tuple:
 
     df = tb._year_frame(sym, year)
     if df is None or len(df) == 0:
-        return False, {"reason": "no data"}
+        # CRITICAL DISTINCTION. An absent frame means either the feed genuinely has nothing for
+        # this name (correct to skip) or the probe FETCH did not succeed (a transient failure,
+        # or a large chain that timed out). Treating the second as the first silently deleted
+        # good names from the universe: CAH (12,456 rows) and FIX (4,298) were both marked
+        # "no data" and skipped, while only MDLN was genuinely empty.
+        from valuation.edge.theta_bulk import year_path as _yp
+        base = _yp(sym, year, tb.root)
+        if os.path.exists(base + ".empty"):
+            return False, {"reason": "no data"}          # feed really has nothing
+        return None, {"reason": "probe fetch failed"}    # unknown - do NOT judge liquidity
     days = int(df["date"].nunique())
     bid = pd.to_numeric(df["bid"], errors="coerce").fillna(0)
     ask = pd.to_numeric(df["ask"], errors="coerce").fillna(0)
@@ -276,6 +285,11 @@ def main():
         probe = 2024 if 2024 in YEARS else YEARS[-1]
         tb.ensure_year(sym, probe)
         viable, stats = name_is_viable(tb, sym, probe)
+        if viable is None:
+            # Unknown, not thin. Leave it OUT of the manifest so the next run re-probes it
+            # rather than inheriting a verdict the data never supported.
+            log(f"[{i}/{len(uni)}] {sym}: probe failed - will re-probe next run")
+            continue
         if not viable:
             manifest[sym] = {"status": "skipped_thin", **stats}
             log(f"[{i}/{len(uni)}] {sym}: SKIP - {stats['reason']}")

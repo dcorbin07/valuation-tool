@@ -95,6 +95,22 @@ CALL_TIMEOUT = 75              # seconds. Was 180, which let ONE pathological sy
                                # half a day - enough to stall an unattended queue on one name.
                                # A healthy quarter returns in ~5-20s, so 75s is generous.
 RETRIES = 2                    # a call that fails twice at 75s is not going to succeed
+MIN_SPAN_DAYS = 20             # floor for adaptive splitting; below a month, stop halving
+
+# --- throughput controls (added after names took ~17 min each) ------------------------------
+# A name that fails once keeps its SMALLER chunk size for every remaining span, instead of
+# rediscovering the failure quarter by quarter. Paying the ~150s failure cost once per name
+# rather than once per quarter is the single biggest win here.
+DEFAULT_CHUNK_DAYS = 30        # a MONTH, not a quarter. Measured: quarterly spans were both
+                               # slower and failure-prone. AAPL is 110,416 rows in 41.4s per
+                               # quarter but 34,996 in 9.0s per month (3 months = 27s), and
+                               # BKNG's quarter times out at 396,240 rows / 72.8s while its
+                               # month returns in 20.9s. Smaller responses are simply more
+                               # efficient here, so monthly is faster AND removes the failure
+                               # -discovery cost that made every large name burn ~150s.
+MIN_CHUNK_DAYS = 22            # ~a month; BKNG returns 122,488 rows in 30s at this size
+NAME_BUDGET_S = 900            # hard wall-clock ceiling per symbol-year; then give up
+MAX_MISSING_ATTEMPTS = 2       # after this many failed runs a year is EXHAUSTED, not retried
 BACKOFF = 4.0                  # seconds, multiplied by attempt number
 KEEP = ["expiration", "strike", "right", "date", "bid", "ask", "volume", "open_interest"]
 
@@ -129,6 +145,8 @@ class ThetaBulk:
         self._mem_order = []
         self._max_mem = max_years_in_memory
         self._client_lock = threading.Lock()
+        self._chunk_days = {}          # symbol -> span size that actually works
+        self._budget_start = {}        # symbol -> wall-clock start for its pull
 
     def status(self) -> dict:
         return {"available": bool(self._key), "reason": self._err, "root": self.root,
@@ -171,7 +189,7 @@ class ThetaBulk:
                 time.sleep(BACKOFF * attempt)
         return "FAILED"
 
-    def _fetch_span(self, symbol: str, start: dt.date, end: dt.date):
+    def _fetch_span_once(self, symbol: str, start: dt.date, end: dt.date):
         """One EOD + one open-interest call for a span. Returns (frame_or_None, failed_bool)."""
         import pandas as pd
 
@@ -220,28 +238,86 @@ class ThetaBulk:
         slim["right"] = slim["right"].astype(str).str[0].str.upper()
         return slim.reset_index(drop=True), False
 
+
+    def _fetch_span(self, symbol: str, start: dt.date, end: dt.date, depth: int = 0):
+        """Fetch a span, HALVING it on failure until it succeeds or hits MIN_SPAN_DAYS.
+
+        Response size, not flakiness, is what makes these calls fail. Measured: a quarter of
+        BKNG is 396,240 rows and takes 72.8s against a 75s deadline, because it is the
+        highest-priced US stock and carries an enormous strike ladder; the same quarter of AAPL
+        is 110,416 rows in 41.4s. So BKNG failed whenever the connection was under any load,
+        and it failed the SAME way every run - which is why BKNG and NOW each came back missing
+        exactly four consecutive years rather than random ones.
+
+        A longer deadline is the wrong fix: it makes a slow name slower without making a large
+        response smaller. Halving the span halves the rows (BKNG one month: 122,488 rows in
+        30.0s), and it adapts automatically to whatever a name's chain size demands rather than
+        needing a per-name tuning table.
+        """
+        import pandas as pd
+
+        df, failed = self._fetch_span_once(symbol, start, end)
+        if not failed:
+            return df, False
+        span_days = (end - start).days
+        if span_days <= MIN_SPAN_DAYS:
+            return df, True
+        mid = start + dt.timedelta(days=span_days // 2)
+        _log(f"{symbol} {start}..{end} failed; splitting ({span_days}d -> 2x{span_days//2}d)")
+        a, fa = self._fetch_span(symbol, start, mid, depth + 1)
+        b, fb = self._fetch_span(symbol, mid + dt.timedelta(days=1), end, depth + 1)
+        parts = [x for x in (a, b) if x is not None and len(x)]
+        if not parts:
+            return None, (fa or fb)
+        return pd.concat(parts, ignore_index=True), (fa or fb)
+
     def _fetch_year(self, symbol: str, year: int):
-        """A year assembled from QUARTERS. Returns (frame_or_None, any_quarter_failed)."""
+        """A year assembled from adaptive chunks. Returns (frame_or_None, any_chunk_failed).
+
+        Two behaviours matter for throughput:
+
+        * THE CHUNK SIZE IS REMEMBERED PER NAME. Response size, not flakiness, is what fails:
+          a quarter of BKNG is 396,240 rows and takes 72.8s against a 75s deadline, while the
+          same quarter of AAPL is 110,416 rows in 41.4s. Rediscovering that quarter by quarter
+          cost ~150s of dead time four times over; now the first failure halves the chunk for
+          the REST of the name.
+        * THERE IS A WALL-CLOCK BUDGET. Past NAME_BUDGET_S the name is abandoned with whatever
+          it has. One pathological symbol must never consume a whole unattended run.
+        """
         import pandas as pd
 
         today = dt.date.today()
+        t_start = time.time()
+        chunk = self._chunk_days.get(symbol.upper(), DEFAULT_CHUNK_DAYS)
         parts, failed = [], False
-        for q in range(4):
-            start = dt.date(year, 1 + 3 * q, 1)
-            end = (dt.date(year + 1, 1, 1) if q == 3
-                   else dt.date(year, 4 + 3 * q, 1)) - dt.timedelta(days=1)
-            if start > today:
-                continue
-            end = min(end, today)
-            df, fail = self._fetch_span(symbol, start, end)
-            failed = failed or fail
+
+        cur = dt.date(year, 1, 1)
+        year_end = min(dt.date(year, 12, 31), today)
+        while cur <= year_end:
+            if time.time() - t_start > NAME_BUDGET_S:
+                _log(f"{symbol} {year}: budget {NAME_BUDGET_S}s exhausted; abandoning the rest")
+                failed = True
+                break
+            span_end = min(cur + dt.timedelta(days=chunk - 1), year_end)
+            df, fail = self._fetch_span_once(symbol, cur, span_end)
+            if fail and chunk > MIN_CHUNK_DAYS:
+                # Halve for this span AND every later one - the name has told us its size.
+                chunk = max(MIN_CHUNK_DAYS, chunk // 2)
+                self._chunk_days[symbol.upper()] = chunk
+                _log(f"{symbol}: chunk -> {chunk}d for the rest of this name")
+                continue                      # retry the same start at the smaller size
+            if fail:
+                failed = True
             if df is not None and len(df):
                 parts.append(df)
+            cur = span_end + dt.timedelta(days=1)
+
         if not parts:
             return None, failed
         out = pd.concat(parts, ignore_index=True)
+        out = out.drop_duplicates(subset=["date", "expiration", "strike", "right"], keep="last")
         out["right"] = out["right"].astype("category")
-        return out, failed
+        return out.reset_index(drop=True), failed
 
     def ensure_year(self, symbol: str, year: int) -> bool:
         """Pull + cache one symbol-year unless already on disk. Atomic write; resumable."""
@@ -250,6 +326,10 @@ class ThetaBulk:
             return True
         if os.path.exists(path + ".empty"):
             return True          # genuinely no data (pre-IPO / pre-rename): covered, not a gap
+        if os.path.exists(path + ".exhausted"):
+            # Tried MAX_MISSING_ATTEMPTS times across runs and never succeeded. Retrying it
+            # again is the blackhole that made every run spend ~17 minutes on the same name.
+            return False
         df, failed = self._fetch_year(symbol, year)
         if df is None or len(df) == 0:
             # Distinguish "the feed has nothing" from "the request broke". A silently-absent
@@ -257,9 +337,27 @@ class ThetaBulk:
             marker = ".missing" if failed else ".empty"
             try:
                 os.makedirs(os.path.dirname(path), exist_ok=True)
-                with open(path + marker, "w", encoding="utf-8") as f:
-                    f.write(f"{'fetch failed' if failed else 'no data'} "
-                            f"{dt.date.today().isoformat()}\n")
+                attempts = 0
+                if failed and os.path.exists(path + ".missing"):
+                    try:
+                        attempts = int(open(path + ".missing").read().split()[0])
+                    except (OSError, ValueError, IndexError):
+                        attempts = 1
+                attempts += 1
+                if failed and attempts >= MAX_MISSING_ATTEMPTS:
+                    # Give up permanently rather than re-burning the budget every run.
+                    with open(path + ".exhausted", "w", encoding="utf-8") as f:
+                        f.write(f"{attempts} failed attempts, last "
+                                f"{dt.date.today().isoformat()}\n")
+                    try:
+                        os.remove(path + ".missing")
+                    except OSError:
+                        pass
+                    _log(f"{symbol} {year}: EXHAUSTED after {attempts} attempts; will not retry")
+                else:
+                    with open(path + marker, "w", encoding="utf-8") as f:
+                        f.write(f"{attempts} {'fetch failed' if failed else 'no data'} "
+                                f"{dt.date.today().isoformat()}\n")
             except OSError:
                 pass
             return not failed
@@ -402,3 +500,16 @@ class ThetaBulk:
                 except ValueError:
                     pass
         return sorted(out)
+
+
+# ---------------------------------------------------------------------------------------
+# Standalone entry point so the pull is NOT driven by an agent session:
+#     python -m valuation.edge.theta_bulk
+# It delegates to the miner, which owns the ranked universe and the liquidity screen.
+if __name__ == "__main__":
+    import runpy
+    import sys
+
+    _here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.insert(0, _here)
+    runpy.run_path(os.path.join(_here, "mine_options_cache.py"), run_name="__main__")
