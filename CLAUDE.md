@@ -95,12 +95,20 @@ the project's memory and the old versions had been repeated for months.
   while halving the long-short t. Rank-IC is INVARIANT to a monotone rescaling; the composite
   is a weighted SUM of z-scores and is very much scale-sensitive. **Never judge a
   standardization or scaling change by per-signal IC.**
-- **`sector_neutral` HAS BEEN SILENTLY INERT IN EVERY BACKTEST.** There is no sector/industry
-  column anywhere on disk and the panel hard-codes `"sector": ""`, so `build_frame` groups on a
-  constant. Industry-relative ranking is BLOCKED until Sharadar's TICKERS table is downloaded
-  (API-only, not one of the four bulk tables). Note when doing it: TICKERS gives TODAY's
-  classification, so applying it to 1998 rows is a mild look-ahead — usually considered benign
-  (reclassification is rare and not return-predictive) but say so rather than hide it.
+- **CORRECTED — `sector_neutral` WAS silently inert; it is now wired, TESTED, and REJECTED.**
+  The old text ("no sector column anywhere on disk ... BLOCKED until TICKERS is downloaded") is
+  obsolete: TICKERS was downloaded in P10 and the panel populates `metrics["sector"]` from it.
+  Sector coverage is **100.0% of panel rows** (2,710/2,710 names, 11 sectors), so the toggle
+  genuinely changes every z-scored theme instead of grouping on a constant. It was then measured
+  on the full universe and **rejected in both held-out directions, twice** (P10, and an
+  independent re-run 2026-08-02 on a panel that had since gained several signals). Under the
+  DEPLOYED weights it raises long-short t 3.396 → 3.896 but COSTS top-decile alpha
+  +11.82% → +10.24%, worsens monotonicity −0.952 → −0.915 and nearly doubles PBO 26.7% → 46.7%;
+  the later half is worse on both metrics. `sector_neutral` stays **OFF**. Full numbers in
+  `HANDOFF_sector_neutral.md`; wiring pinned by `tests/test_sector_neutral.py` so it cannot
+  silently go inert again. TICKERS gives TODAY's classification, so applying it to 1998 rows is
+  a mild look-ahead — the one non-point-in-time input in the panel, which is a reason to be MORE
+  sceptical of a positive sector result, not less. It rejected anyway, so nothing rests on it.
 - **P7: THE VALUE THEME WAS CURRENCY-CORRUPTED and is now fixed.** `marketcap`/`ev` are USD but
   the raw line items are in the REPORTING currency, so every value ratio was wrong for the 4.1%
   of rows that report abroad — SK Telecom's `book_to_price` computed to **892 vs a true 0.589**.
@@ -219,10 +227,13 @@ score), so there is no performance excuse to judge on a subset. If you must scre
     survives costs, but has still only ever seen this ONE 18-year Sharadar panel. A live track
     starting today is the only thing that tests it on data nobody has looked at.
     → **Cowork's lane** (tracked "Valquo Index vs SPY"). Tell Don to take it there.
-13. **Industry-relative ranking — BLOCKED, and it's also a latent bug.** `sector_neutral` has
-    been silently inert in every backtest (no sector column on disk; panel hard-codes
-    `"sector": ""`). Needs one Sharadar TICKERS download → ticker→sector map → populate
-    `metrics["sector"]`. Mind the today's-classification look-ahead caveat (see LATEST).
+13. ~~**Industry-relative ranking**~~ **DONE — unblocked (P10), then REJECTED and re-confirmed
+    2026-08-02.** Sector is wired from TICKERS at 100% coverage and pinned by
+    `tests/test_sector_neutral.py`; sector-neutral ranking fails the held-out gate in both
+    directions under both flat and deployed weights (it buys long-short t and sells top-decile
+    alpha — the wrong trade for a long-only book). Stays OFF. `HANDOFF_sector_neutral.md`.
+    A NARROWER variant (sector-relative on the value theme alone) is now cheap to test and is
+    the only version worth re-opening.
 14. **Watch live behaviour after the P5 deploy.** `low_risk` 12.5% → 0 tilts the hot list
     smaller-cap. Intended, but eyeball the first scans; revert is one line in `settings.py`.
 15. **PEAD from EVENTS** — now the most promising NEW signal, since the cheap refinements are
