@@ -4,11 +4,91 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-07-31 (P7 currency, P8 sanity, P9b headless book, P10 sectors)
-**Branch:** `worktree-p10-sectors` (P7/P8 merged to `main` at 2f0110e)
+**Session date:** 2026-08-03 (EV point-in-time fix; PEAD rejection re-verified)
+**Branch:** all of the below is landed on `main` (tip `d86af01`)
 
-> **Scope:** P9b + P10 first, then P7/P8, then earlier sessions. Canonical numbers in
-> `BACKTEST_RESULTS.json`; per-finding status in `CODE_AUDIT.md`.
+> **Scope:** newest sections first — EV staleness fix, then PEAD, then options 22b, then
+> P9b/P10, then P7/P8, then earlier sessions. Canonical numbers in `BACKTEST_RESULTS.json`;
+> per-finding status in `CODE_AUDIT.md`.
+
+---
+
+## ENTERPRISE VALUE IS NOW PRICED AT THE REBALANCE DATE (2026-08-03), landed on `main` at 3f688d4 — **SHIPPED ON**
+
+Full report: **`HANDOFF_ev_fix.md`**.
+
+Sharadar's `ev` embeds the **filing-date** market cap, so `ebit_ev` / `ev_sales` / `ev_ebitda`
+measured cheapness against a ~111-day-old quote while `earnings_yield` / `fcf_yield` /
+`book_to_price` used the fresh one. `_pit_ev()` now re-prices the **equity leg** to the
+point-in-time market cap and holds the **debt leg** at its last filed value (net debt is only
+observable at a filing — that *is* the point-in-time answer). Net debt must be
+currency-converted before it is added, which is P7 in a second costume.
+
+Re-pricing moves EV a **median 5.1%** (mean 9.9%, p90 19.6%); **26.7% of rows move >10%**. The
+direct evidence the staleness was real: `neg_ev_sales` median IC **+0.0214 → +0.0363 (+70%)**.
+
+**The book is a wash, so it ships on correctness, not performance.** Long-short t 3.3957 →
+**3.5202**, top-decile alpha +11.82% → **+11.88%**, PBO **6.67% unchanged**, monotonicity
+unchanged, and net top-decile alpha slightly *worse*. The A/B is clean: the stale arm
+reproduced the committed baseline exactly, and the panel diff showed exactly 9 changed columns
+on identical keys.
+
+The bias was **stale, not look-ahead** — the embedded price is always older than the
+rebalance, never newer — so **no past result is invalidated upward**.
+
+- New **`ev_freshness`** block in `BACKTEST_RESULTS.json` (schema v4): **100.0% fresh**, zero
+  stale rows. It makes a silent revert loud. `EDGE_EV_POINT_IN_TIME=false` reverts.
+- Fixing this also closed a latent bug in `results_file.build_payload`, which **silently drops
+  any block it does not explicitly name** — the new guard would never have reached the JSON.
+- Tests 22 → **34** in `tests/test_ev_multiples.py`, pinned by a test asserting EV tracks
+  market cap across rebalances from a single filing.
+- **One shipped number moved:** the Valquo Index paper-track book swaps **RF out, BP in** —
+  one position of 86, **1.81% one-way weight turnover**. → **Tell Cowork.** The live web
+  screener is unaffected (provider EVs are already current).
+- **Deliberately NOT fixed:** negative EV (net cash > market cap, 909 → 950 rows, 0.70%) is
+  read as *maximally cheap* by `neg_ev_sales` and as *expensive* by `ebit_ev` — a live sign
+  inconsistency, pre-existing and unrelated to staleness. Bundling it would have confounded
+  the before/after. One guard plus one held-out A/B.
+
+---
+
+## PEAD — REJECTION INDEPENDENTLY RE-VERIFIED, and the control that explains it (2026-08-03), landed on `main` at d86af01
+
+Full report: **`HANDOFF_pead.md`**. The verdict below **supersedes nothing** — it confirms the
+earlier PEAD section further down this file and adds the diagnostic that was missing.
+
+PEAD was already built and rejected (`9323a08`, `2f75d60`); what was missing was the report.
+So this session re-measured every claim on a fresh full-universe run built on the
+**post-EV-fix** panel, rather than re-running a settled experiment.
+
+**Replicates essentially exactly:** `pead_car` median IC **+0.01004, t +2.215, coverage
+82.33%**; `pead_drift` **−0.00201, t −0.473, coverage 25.06%** (below the pre-committed 30%
+floor). Orthogonality within rounding: `ret_6_1` +0.301, `high_prox` +0.239, `ret_12_1` +0.208.
+
+**The control that settles it — correlation alone would have flattered this signal.** Momentum
+explains only **R² 11.2%** of `pead_car`'s variance, so 89% of it is orthogonal — which reads
+like a promising near-independent factor. It is not: residualized, its IC t is **+0.020**. And
+the book movement it does produce is reproducible with **no earnings data at all** — counting
+`ret_6_1` twice in the momentum mean gives **+0.83pp** alpha against `pead_car`'s **+0.52pp**,
+beating it in the early half by more than 4x. Adding `pead_car` is an implicit **reweighting**
+toward the strongest momentum input, not new information.
+
+**One correction worth flagging:** my held-out deltas came out **positive** where `pead.py`
+records negative ones. Chased down rather than resolved by preference — the deltas are
+**construction-sensitive and flip sign** between the full composite and a restricted-universe
+book (restricting to rows where the signal exists reproduces the original magnitudes and its
+−1.06pp early-half alpha). **Every construction fails the pre-registered margins, so the
+reject is robust** — but never quote a held-out delta for PEAD without naming the book.
+
+`pead.py` runs on every panel row and had **zero test coverage**; added `tests/test_pead.py`
+(**12 tests**), including a tampering test that multiplies every price *after* the CAR window
+by 5 and asserts the signal does not move. A CAR is a forward-looking window by construction,
+so an off-by-one there would manufacture edge from future returns while raising no error and
+denting no coverage metric.
+
+**All 16 suites green on merged `main`: 485 tests.** With this closed, the cheap signal ideas
+are exhausted — the honest next steps are the **forward paper-track vs SPY** (Cowork's lane)
+and the **ML tree combiner**, not another factor.
 
 ---
 
