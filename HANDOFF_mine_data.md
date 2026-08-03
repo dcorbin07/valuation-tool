@@ -109,29 +109,59 @@ known and will be visible once the re-probe completes.
 
 ---
 
-## Throughput
+## Throughput — measured over 72 completed names, not extrapolated from one
 
-* **Clean name, 10 years: ~4.2 minutes** (NDAQ, measured post-fix). That is the number to plan
-  with — roughly **25s per symbol-year**.
-* **Already-cached name: instant** (skipped on the manifest).
-* **Genuinely thin / empty name: 5–20s** (one probe month, then skipped).
-* **Gap-heavy name: bounded at 900s** and then abandoned, versus unbounded before.
+An earlier draft of this file quoted **4.2 min/name** from a single fast name (NDAQ). That was
+optimistic by about 50%. With 72 full-history names now on the clock the real figures are:
 
-The queue advanced from name 134 to **303** during the post-fix sampling window, versus roughly
-ten names per agent-driven run before.
+| case | measured |
+|---|---|
+| **Fresh name, full 10-year history** | **mean 5.4 min, median 6.0 min** (last 30: mean 6.4) |
+| p10 / p90 of the same set | 0.1 min (mostly cached) / 9.0 min |
+| slowest completed name | 12.5 min |
+| Already-cached name | instant (manifest skip) |
+| Genuinely thin / empty name | 5–20s (one probe month, then skipped) |
+| Gap-heavy name | **bounded at 900s** then abandoned, versus unbounded before |
 
-**Projected wall clock:** ~4.2 min/name against the names that actually pass the screen. With
-158 names returning for re-screening the eventual count is uncertain, but at ~300–500 viable
-names this is **20–35 hours** of continuous running. It is resumable, so that is elapsed time
-across as many sittings as you like.
+**Plan with ~6.4 min for a fresh 10-year name (~38s per symbol-year), not 4.2.**
+
+End-to-end queue rate is better than the per-name figure suggests, because most queue positions
+are cheap: the queue advanced **9 → 236 in 413 minutes of mining — ~1.8 min per position, about
+33 positions screened per hour**. 65 names were rejected as thin along the way, each costing
+seconds rather than minutes.
+
+**Projected wall clock:** ~764 positions remain at ~1.8 min each ≈ **23 hours**, and the mix
+downstream skews thinner (cheaper) while the 158 re-probes add back some full pulls — so
+**20–30 hours** of continuous running is the honest range. It is resumable, so that is elapsed
+time across as many sittings as you like.
+
+---
+
+## The fix did not reach `main` on its first push — now unblocked
+
+Worth recording, because it would have silently stranded this work. The repo auto-lands any
+pushed `worktree-*` branch via `.github/workflows/land-agent-branch.yml`, and that job had been
+**failing on a merge conflict in `HANDOFF_STATUS.md`** — two lanes appended a new section at the
+top of the same file on the same day. The workflow does exactly what it should on a conflict
+(abort, leave `main` untouched), so nothing broke; it just meant the miner commit sat on the
+branch looking shipped.
+
+Resolved by merging `origin/main` into the branch and keeping **both** sections (lazy-prices
+first, miner/A2 second — they are independent lanes, not competing edits). `test_edge.py` is
+**133/133** on the merged tree, so the CI test gate passes too.
+
+Cheap check for next time: `git merge-tree --write-tree origin/main HEAD` reports a conflict
+without touching anything. Do not assume a green push means a landed merge.
 
 ---
 
 ## Current state
 
-**125 of 1,000 cached** (122 complete, 3 partial, 21 skipped as too illiquid), 8.5GB, 290GB free.
+**186 of 1,000 cached** (183 complete, 3 partial, 53 skipped as too illiquid) at queue position
+236, **1,815 year-files, 11.4GB**. Liquidity of what was kept: median 101 tradeable
+contracts/day, thinnest 42, richest 897. Still running.
 
-Partial (missing years, will be retried by the end-of-run pass):
+Partial (missing years, retried by the end-of-run pass, then `.exhausted`):
 `BKNG [2018-2021]`, `NOW [2020-2023]`, `BP [2016, 2019-2023, 2025]`.
 
 Skipped as untradeable: overwhelmingly foreign ADRs with wide US option spreads (BBVA, HDB,
