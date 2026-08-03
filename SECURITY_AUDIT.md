@@ -6,6 +6,14 @@ of git history. This file is a map, not a repair; fixes are sequenced separately
 
 **No secret value appears anywhere in this document.** Findings reference name + location only.
 
+> **STATUS — updated 2026-08-02, later the same day.** This file is the original snapshot and
+> is kept as the historical record; the `file:line` references below are pre-fix and have
+> since moved. **Every finding here is now fixed and pinned by a test except M7**, which this
+> document itself flags as a decision for Don rather than a bug. See
+> `HANDOFF_security_fixes.md` for what shipped, what was deliberately deferred (CSP, full
+> email verification, the `/forgot` timing side-channel) and why. New regression suite:
+> `tests/test_security.py`, 22/22.
+
 ---
 
 ## 0. Headline

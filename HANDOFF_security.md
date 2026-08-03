@@ -1,5 +1,8 @@
 # HANDOFF_security.md
 
+> **Superseded 2026-08-02 (same day):** everything below was the read-only AUDIT phase. The
+> fixes have since shipped — all findings closed except M7. See `HANDOFF_security_fixes.md`.
+
 Read-only secret sweep done (2026-08-02), findings in `SECURITY_AUDIT.md`, no code touched: **no secret
 has ever been committed to git (261 commits swept) — nothing to rotate**, but `/forgot` hands the
 password-reset link back in the response whenever SMTP is unconfigured or failing
