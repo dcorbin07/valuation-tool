@@ -23,6 +23,7 @@ import threading as _threading
 from typing import Optional
 
 from ..config import CONFIG
+from ..safe_error import redact
 from . import universe as U
 from . import prices as P
 
@@ -74,11 +75,13 @@ def _redact(msg) -> str:
     an unedited "FMP call failed" note carries the live apikey, and these notes are surfaced
     publicly in the scan's health block. Never widen what reaches that block without going
     through here.
+
+    The implementation now lives in `valuation/safe_error.py` so every route, log line and
+    provider shares ONE scrubber — this used to be a private helper called from four places
+    in this file while 23 HTTP handlers returned raw exception text (SECURITY_AUDIT.md H2).
+    Kept as a thin alias because it is the name the health-block call sites already use.
     """
-    import re
-    s = str(msg)
-    s = re.sub(r"(?i)([?&](?:apikey|api_key|token|access_token)=)[^&\s]+", r"\1<redacted>", s)
-    return re.sub(r"(?i)(bearer\s+)\S+", r"\1<redacted>", s)
+    return redact(msg)
 
 
 # --------------------------------------------------------------------------- #

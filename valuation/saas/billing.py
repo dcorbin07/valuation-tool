@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from flask import request, redirect, jsonify
 
+from ..safe_error import safe_error
 from .auth import current_user
 
 
@@ -49,7 +50,7 @@ def register(app, store, cfg):
                 metadata={"user_id": str(user["id"]), "plan": plan})
             return redirect(sess.url, code=303)
         except Exception as e:
-            return jsonify({"error": f"Stripe error: {e}"}), 500
+            return jsonify({"error": f"Stripe error: {safe_error(e)}"}), 500
 
     @app.route("/billing/portal", methods=["POST"])
     def portal():
@@ -63,7 +64,7 @@ def register(app, store, cfg):
                 customer=user["stripe_customer_id"], return_url=cfg.public_base_url + "/account")
             return redirect(ps.url, code=303)
         except Exception as e:
-            return jsonify({"error": f"Stripe error: {e}"}), 500
+            return jsonify({"error": f"Stripe error: {safe_error(e)}"}), 500
 
     @app.route("/billing/webhook", methods=["POST"])
     def webhook():
@@ -74,7 +75,7 @@ def register(app, store, cfg):
             event = stripe.Webhook.construct_event(
                 request.data, request.headers.get("Stripe-Signature"), cfg.stripe_webhook_secret)
         except Exception as e:
-            return f"bad signature: {e}", 400
+            return f"bad signature: {safe_error(e)}", 400
 
         t = event["type"]
         obj = event["data"]["object"]
@@ -100,5 +101,5 @@ def register(app, store, cfg):
                 if u:
                     store.set_subscription(u["id"], tier="free", status="canceled")
         except Exception as e:
-            return f"handler error: {e}", 500
+            return f"handler error: {safe_error(e)}", 500
         return "", 200

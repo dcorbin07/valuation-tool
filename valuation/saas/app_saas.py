@@ -15,6 +15,7 @@ from __future__ import annotations
 from flask import request, render_template, redirect, jsonify, g
 
 from ..config import CONFIG
+from ..safe_error import safe_error
 from ..web.app import app as tool_app
 from .models import UserStore
 from . import auth, billing, gating
@@ -134,7 +135,7 @@ def create_saas_app(cfg=CONFIG):
             _email_owner_learning(cfg, report)
             return jsonify(report)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
 
     def _email_owner_learning(cfg, report):
         """Private monthly note to the owner(s) only — what the learner changed, if anything."""
@@ -180,7 +181,7 @@ def create_saas_app(cfg=CONFIG):
                 pass
             return jsonify(res)
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/admin/adopt-backtest-weights", methods=["POST"])
     def admin_adopt_backtest_weights():
@@ -214,7 +215,7 @@ def create_saas_app(cfg=CONFIG):
         try:
             return jsonify(run_weekly(cfg))
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/admin/run-intraday", methods=["POST"])
     def admin_run_intraday():
@@ -236,7 +237,7 @@ def create_saas_app(cfg=CONFIG):
             tracker.log_options(st, res["rows"], cfg.alert_min_score)
             return jsonify({"ok": True, "run_time": res["run_time"], "scored": res["scored"], "alerts": alerts})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/admin/ingest-snapshot", methods=["POST"])
     def admin_ingest_snapshot():
@@ -271,7 +272,7 @@ def create_saas_app(cfg=CONFIG):
                     pass
             return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows), "reprocessed": already})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/admin/ingest-intraday", methods=["POST"])
     def admin_ingest_intraday():
@@ -293,7 +294,7 @@ def create_saas_app(cfg=CONFIG):
             tracker.log_options(st, rows, cfg.alert_min_score)   # log screaming buys into the tracker
             return jsonify({"ok": True, "run_time": run_time, "rows": len(rows), "alerts": alerts})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/app")
     def dashboard():
@@ -349,7 +350,7 @@ def create_saas_app(cfg=CONFIG):
             })
             return jsonify({"ok": True, "days": len(series)})
         except Exception as e:
-            return jsonify({"error": str(e)}), 500
+            return jsonify({"error": safe_error(e)}), 500
 
     # /methodology is registered on the shared app object in web/app.py — the SaaS layer uses
     # the SAME Flask app (`app = tool_app` above), so declaring it again is a duplicate

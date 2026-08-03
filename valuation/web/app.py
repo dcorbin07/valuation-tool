@@ -18,6 +18,7 @@ import traceback
 from flask import Flask, render_template, request, jsonify, send_file
 
 from ..config import CONFIG
+from ..safe_error import safe_error
 from ..engine.pipeline import value_ticker
 from ..report import excel as excel_report
 from ..report import pdf as pdf_report
@@ -113,7 +114,7 @@ def api_value():
         return jsonify(payload)
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": f"Valuation failed for {ticker}: {e}"}), 500
+        return jsonify({"error": f"Valuation failed for {ticker}: {safe_error(e)}"}), 500
 
 
 @app.route("/api/rank", methods=["POST"])
@@ -133,7 +134,7 @@ def api_rank():
                 "regime": r.classification.regime, "confidence": r.score.confidence,
             })
         except Exception as e:
-            rows.append({"ticker": t, "error": str(e)})
+            rows.append({"ticker": t, "error": safe_error(e)})
     rows.sort(key=lambda x: (x.get("score") is not None, x.get("score", -1)), reverse=True)
     return jsonify({"rows": rows})
 
@@ -161,7 +162,7 @@ def export_excel():
                          mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/export/pdf")
@@ -184,7 +185,7 @@ def export_pdf():
                          mimetype="application/pdf")
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": safe_error(e)}), 500
 
 
 # =========================================================================== #
@@ -263,7 +264,7 @@ def api_index_track():
     try:
         out = index_track.summarize(name, store=_store())
     except Exception as e:
-        return jsonify({"available": False, "error": str(e),
+        return jsonify({"available": False, "error": safe_error(e),
                         "note": "Live track unavailable."}), 200
     out["disclaimer"] = RISK_DISCLAIMER
     return jsonify(out)
@@ -286,7 +287,7 @@ def api_options_scorecard():
         sc["tuning"] = tuning_candidates(st)
         return jsonify(sc)
     except Exception as e:
-        return jsonify({"error": str(e), "overall": {"n_closed": 0}, "n_open": 0}), 200
+        return jsonify({"error": safe_error(e), "overall": {"n_closed": 0}, "n_open": 0}), 200
 
 
 @app.route("/api/options-alerts")
@@ -325,7 +326,7 @@ def api_options_alerts():
                         "n_screaming": len(picks)})
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": str(e), "alerts": []}), 200
+        return jsonify({"error": safe_error(e), "alerts": []}), 200
 
 
 @app.route("/api/options-paper")
@@ -341,7 +342,7 @@ def api_options_paper():
     try:
         return jsonify(paper_report(Store()))
     except Exception as e:
-        return jsonify({"error": str(e), "n_closed": 0, "thin": True}), 200
+        return jsonify({"error": safe_error(e), "n_closed": 0, "thin": True}), 200
 
 
 @app.route("/api/hotstocks")
@@ -617,7 +618,7 @@ def api_scan_run():
                         "universe_size": res["universe_size"], "provider": res.get("provider")})
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/portfolio", methods=["POST"])
@@ -652,7 +653,7 @@ def api_backtest_run():
         return jsonify(res)
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/signals")
@@ -692,7 +693,7 @@ def api_signals_run():
                         "universe": res["universe"], "provider": res["provider"]})
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/edge/backtest", methods=["POST"])
@@ -705,7 +706,7 @@ def api_edge_backtest():
                                     rebalance_days=int(d.get("rebalance", 21)),
                                     limit=int(d.get("limit", 100))))
     except Exception as e:
-        traceback.print_exc(); return jsonify({"error": str(e)}), 500
+        traceback.print_exc(); return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/edge/optimize", methods=["POST"])
@@ -715,7 +716,7 @@ def api_edge_optimize():
     try:
         return jsonify(run_optimize(limit=int(d.get("limit", 100))))
     except Exception as e:
-        traceback.print_exc(); return jsonify({"error": str(e)}), 500
+        traceback.print_exc(); return jsonify({"error": safe_error(e)}), 500
 
 
 @app.route("/api/edge/track", methods=["POST"])
@@ -725,7 +726,7 @@ def api_edge_track():
     try:
         return jsonify(run_track(source=d.get("source", "hot")))
     except Exception as e:
-        traceback.print_exc(); return jsonify({"error": str(e)}), 500
+        traceback.print_exc(); return jsonify({"error": safe_error(e)}), 500
 
 
 def create_app():
