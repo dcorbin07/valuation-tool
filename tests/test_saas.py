@@ -140,7 +140,7 @@ def test_master_link_route_and_banner():
     assert page.status_code == 200
     assert b"get ahead of the beta" in page.data      # inclusive demo banner copy
     assert b'href="/register"' in page.data           # + a sign-up call to action
-    CONFIG.demo_access_token = "preview"              # restore default
+    CONFIG.demo_access_token = ""                     # restore default (M4: no default token)
 
 
 def test_demo_signup_converts_to_real_account():
@@ -158,7 +158,7 @@ def test_demo_signup_converts_to_real_account():
     assert r.status_code in (301, 302)                 # redirected to /app as the new user
     after = c.get("/app").data
     assert b"get ahead of the beta" not in after       # demo flag cleared → generic banner
-    CONFIG.demo_access_token = "preview"
+    CONFIG.demo_access_token = ""
 
 
 def test_ci_ingest_snapshot_roundtrip():

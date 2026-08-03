@@ -251,6 +251,13 @@ numbers (test counts, PBO / Deflated Sharpe / IC / t-stats / alpha, row counts, 
 verdicts), what's blocked and why, and the recommended next step. Plain markdown, no colour
 codes, factual. The Cowork agent reads that file directly instead of screenshots.
 
+**Write your full end-of-session report — the complete recap you'd show Don (what shipped,
+concrete numbers/verdicts, blockers, the recommended next step) — to your OWN
+`HANDOFF_<name>.md`.** The Cowork agent reads that file directly, so Don never has to
+screenshot. `HANDOFF_STATUS.md` stays the shared project state; `HANDOFF_<name>.md` is your
+session's own full write-up, and parallel agents each own a separate file so they never
+clobber each other.
+
 ## Working with Don
 Concise, direct, honest. He is non-technical but sharp and rightly skeptical — show reasoning and caveats, don't inflate. Unlike the Cowork agent, you (Claude Code) can run commands yourself, so run the backtest/tests directly rather than handing him `.bat` files.
 

@@ -216,7 +216,11 @@ class Config:
     # signup-required product exactly as it was. It goes further than
     # BETA_ALL_PREMIUM, which still required an account to sign in to.
     open_access: bool = field(default_factory=lambda: _get("OPEN_ACCESS", "true").lower() != "false")
-    demo_access_token: str = field(default_factory=lambda: _get("DEMO_ACCESS_TOKEN", "preview"))
+    # NO DEFAULT, deliberately. This used to default to the literal "preview", which grants
+    # a permanent Premium session to anyone who guesses /demo/preview. Harmless while
+    # OPEN_ACCESS is true (everything is open anyway) and a free-Premium bypass the day you
+    # start charging. Unset => /demo is disabled outright. SECURITY_AUDIT.md M4.
+    demo_access_token: str = field(default_factory=lambda: _get("DEMO_ACCESS_TOKEN", ""))
 
     # FEATURE_BILLING — explicit override for the signup/pricing SURFACES (the nav "Pricing"
     # link, the "Get started" CTA, the /register and /pricing routes). Unset by default, in

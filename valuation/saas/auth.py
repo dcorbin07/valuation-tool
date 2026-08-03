@@ -1,6 +1,7 @@
 """Authentication — register/login/logout + password reset via signed email tokens."""
 from __future__ import annotations
 
+import hmac
 import sys
 
 from flask import request, session, redirect, render_template
@@ -50,6 +51,17 @@ def register(app, store, cfg):
         if request.method == "POST":
             if not request.form.get("agree"):
                 return render_template("register.html", error="Please accept the Terms and Privacy Policy."), 400
+            # Owner privilege is granted by matching this typed string against OWNER_EMAILS
+            # (gating.py) and there is NO email verification anywhere in the codebase — so
+            # if no account with the owner address exists yet, the first stranger to type
+            # it into signup inherits /api/edge/*: the learning history, the adopted
+            # weights, the research bench. The owner address is not a secret; it is a
+            # committed default in config.py. Owner accounts are provisioned deliberately,
+            # never self-served. SECURITY_AUDIT.md H3.
+            if request.form.get("email", "").strip().lower() in cfg.owner_email_set:
+                return render_template(
+                    "register.html",
+                    error="That address can't be registered here. Contact support."), 400
             try:
                 u = store.create_user(request.form.get("email", ""), request.form.get("password", ""))
                 session.pop("demo", None)   # signing up from the preview takes over as a real account
@@ -78,7 +90,9 @@ def register(app, store, cfg):
         Independent of the beta flag, so this keeps working after you start charging."""
         supplied = (token or request.args.get("key", "")).strip()
         want = (cfg.demo_access_token or "").strip()
-        if want and supplied == want:
+        # `want` empty => /demo is off entirely (M4: there is no default token any more).
+        # compare_digest for the same reason as the admin token.
+        if want and hmac.compare_digest(supplied, want):
             session.clear()
             session["demo"] = True
             return redirect("/app")

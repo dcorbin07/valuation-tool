@@ -373,6 +373,57 @@ def test_llm_output_is_escaped_before_it_reaches_innerhtml():
     assert "innerHTML" in block, "test is anchored on the wrong function"
 
 
+# --------------------------------------------------------------------------- #
+#  H3 / M4 — latent today, live the day OPEN_ACCESS goes false
+# --------------------------------------------------------------------------- #
+def test_signup_cannot_claim_an_owner_address():
+    """H3 — owner privilege is granted by matching a typed string against OWNER_EMAILS,
+    there is no email verification anywhere, and the owner address is a committed default.
+    So the first stranger to register it would inherit /api/edge/*."""
+    import uuid
+
+    c = APP.test_client()
+    orig_signup, orig_owners = CONFIG.feature_billing, CONFIG.owner_emails
+    try:
+        CONFIG.feature_billing = "on"           # force the signup surface open
+        CONFIG.owner_emails = "boss@valquo.co"
+        assert CONFIG.signup_enabled is True
+        with c.session_transaction() as s:
+            s["_csrf_token"] = "t"
+        r = c.post("/register", data={"email": "BOSS@Valquo.co", "password": "password123",
+                                      "agree": "on", "_csrf": "t"})
+        assert r.status_code == 400, "an owner address must not be self-registerable"
+        # Case and whitespace must not be a way around it.
+        r2 = c.post("/register", data={"email": "  boss@valquo.co  ", "password": "password123",
+                                       "agree": "on", "_csrf": "t"})
+        assert r2.status_code == 400
+        # A normal address still registers fine.
+        ok = c.post("/register", data={"email": "ok_" + uuid.uuid4().hex[:8] + "@ex.com",
+                                       "password": "password123", "agree": "on", "_csrf": "t"})
+        assert ok.status_code in (301, 302), ok.status_code
+    finally:
+        CONFIG.feature_billing, CONFIG.owner_emails = orig_signup, orig_owners
+
+
+def test_demo_token_has_no_guessable_default():
+    """M4 — DEMO_ACCESS_TOKEN defaulted to the literal "preview", so /demo/preview handed
+    out a permanent Premium session. Unset must disable /demo entirely."""
+    from valuation.config import Config
+    assert Config().demo_access_token == "" or os.environ.get("DEMO_ACCESS_TOKEN")
+
+    c = APP.test_client()
+    orig = CONFIG.demo_access_token
+    try:
+        CONFIG.demo_access_token = ""
+        for guess in ("preview", "demo", "test"):
+            r = c.get(f"/demo/{guess}")
+            assert r.headers["Location"].endswith("/"), f"/demo/{guess} must not grant access"
+            with c.session_transaction() as s:
+                assert not s.get("demo"), f"/demo/{guess} opened a premium session"
+    finally:
+        CONFIG.demo_access_token = orig
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
