@@ -3395,6 +3395,292 @@ def test_universe_headline_is_the_ask_not_the_mid():
     assert "aggression = 1.0" in (U.__doc__ or "").replace("AGGRESSION", "aggression")
 
 
+# ---------------------------------------------------------------------------------------------
+# 22c — entry timing. The scream-buy alert picks WORSE-than-random days; these pin the design
+# decisions of the study that diagnoses it, so none of them can drift out silently later.
+# ---------------------------------------------------------------------------------------------
+def _entry_bars(closes, start="2019-01-02"):
+    """Synthetic daily bars. Dates are consecutive business days so the index arithmetic in
+    `arm_entry_day` runs against real calendar strings rather than integers."""
+    ds = [str(d.date()) for d in pd.bdate_range(start=start, periods=len(closes))]
+    return {"date": ds, "close": list(closes), "raw_close": list(closes),
+            "volume": [1e6] * len(closes)}
+
+
+def _entry_rows(spec, arm="signal"):
+    """(alert_date, ticker, pnl_pct) -> rows in the shape every arm emits."""
+    return [{"alert_ts": d, "alert_date": d, "entry_date": d, "ticker": t,
+             "pnl_pct": p, "status": "closed", "arm": arm, "opt_right": "call",
+             "entry_premium": 1.0, "exit_premium": 1.0 + p, "cap_tier": "mega"}
+            for d, t, p in spec]
+
+
+def test_entry_arms_cannot_wait_longer_than_their_declared_window():
+    """Every corrected entry gets WAIT_WINDOW sessions and no more. A pullback that only arrives
+    on session 11 must produce NO trade — otherwise the arm quietly becomes an unbounded 'wait
+    for a dip' rule and its trade count stops being comparable to the baseline's."""
+    from valuation.edge import options_entry as E
+
+    late = [100.0] * 30
+    late[11] = 90.0                      # 10% retrace, one session past the window
+    bars = _entry_bars(late)
+    sel = E.arm_entry_day("pullback", bars, {}, [], bars["date"][0])
+    assert sel["date"] is None and sel["reason"] == "no_pullback", sel
+
+    soon = [100.0] * 30
+    soon[4] = 90.0
+    bars2 = _entry_bars(soon)
+    sel2 = E.arm_entry_day("pullback", bars2, {}, [], bars2["date"][0])
+    assert sel2["date"] == bars2["date"][4] and sel2["lag"] == 4, sel2
+    # the sized variant must still trade, so its comparison is timing and not selection
+    sel3 = E.arm_entry_day("pullback_or_w", bars, {}, [], bars["date"][0])
+    assert sel3["date"] == bars["date"][E.WAIT_WINDOW]
+    assert sel3["reason"] == "no_pullback_entered_anyway"
+
+
+def test_entry_delayed_arms_cannot_buy_history_the_baseline_never_had():
+    """A delayed entry running past ENTRY_END would hold a contract whose exit path leaves the
+    cached quotes and settles on bars — the same one-sided distortion the 22b window exists to
+    avoid, except handed only to the arms being promoted."""
+    from valuation.edge import options_entry as E
+
+    ds = [str(d.date()) for d in pd.bdate_range(end=E.ENTRY_END, periods=20)]
+    ds += [str(d.date()) for d in pd.bdate_range(start=E.ENTRY_END, periods=15)][1:]
+    bars = {"date": ds, "close": [100.0] * len(ds), "raw_close": [100.0] * len(ds),
+            "volume": [1e6] * len(ds)}
+    alert = ds[15]                      # four sessions before the cutoff
+    assert E.arm_entry_day("delay3", bars, {}, [], alert)["date"] <= E.ENTRY_END
+    late = E.arm_entry_day("delay10", bars, {}, [], alert)
+    assert late["date"] is None and late["reason"] == "past_window", late
+
+
+def test_entry_iv_rank_and_pop_read_strictly_prior_days():
+    """Including the day's own IV in its own baseline leaks the observation into the statistic it
+    is judged against — the exact bug A2 had to fix before iv_rank was testable at all."""
+    from valuation.edge import options_entry as E
+
+    dates = [str(d.date()) for d in pd.bdate_range(start="2019-01-02", periods=101)]
+    series = {d: 0.20 for d in dates[:100]}
+    series[dates[100]] = 0.40
+    f = E.iv_features(series, dates, dates[100])
+    assert abs(f["atm_iv_60d"] - 0.40) < 1e-12
+    assert abs(f["iv_rank_252"] - 1.0) < 1e-12, "the day itself must not dilute its own rank"
+    # base = mean of the 20 STRICTLY prior sessions = 0.20, so the pop is exactly 2.0.
+    # Including the day would make the base 0.2095 and the pop 1.909.
+    assert abs(f["iv_pop_20"] - 2.0) < 1e-9, f
+
+
+def test_entry_timing_arm_is_judged_on_the_alerts_it_shares_with_the_signal():
+    """An arm that keeps only the winners looks spectacular against the FULL signal book and
+    identical against the alerts it actually shares with it. The second number is the honest one,
+    so the gate reads the matched subset for every arm that changes the entry DAY."""
+    from valuation.edge import options_entry as E
+
+    spec = [(f"2019-{(i % 12) + 1:02d}-05", f"N{i}", 2.0 if i % 2 == 0 else -0.5)
+            for i in range(80)]
+    signal = _entry_rows(spec)
+    arm = _entry_rows([s for s in spec if s[2] > 0], arm="pullback")
+    rep = E.arm_report("pullback", arm, signal, [], seed=0)
+    assert rep["vs_signal_pooled"]["expectancy_diff"] > 0.9, "pooled flatters the cherry-picker"
+    assert abs(rep["vs_signal_matched"]["expectancy_diff"]) < 1e-12, \
+        "on the shared alerts the arm IS the signal — the whole gap was selection"
+    # E6's benchmark must be drawn from the full book: sampling 40 out of the matched 40 would
+    # "drop" nothing and the control would be the arm itself.
+    rd = rep["random_drop_control"]
+    assert rd["keep_n"] == 40 and rd["n_signal_pool"] == 80
+
+
+def test_entry_pure_filter_is_judged_pooled_because_matched_is_zero_by_construction():
+    """`iv_cheap` buys on the alert day, so on shared alerts it is the SAME trade and its matched
+    difference is exactly zero — E1(a) would be unattainable rather than failed. It is judged on
+    the pooled book, where E6's random drop does the work of separating selection from luck."""
+    from valuation.edge import options_entry as E
+
+    assert "iv_cheap" in E.FILTER_ARMS and "delay5" not in E.FILTER_ARMS
+    rep = {"n": 200, "held_out": {"both_positive": True}, "stats": {"expectancy_pct": 0.3},
+           "vs_signal_matched": {"expectancy_diff": 0.0, "arm": {"expectancy_pct": 0.3}},
+           "vs_signal_pooled": {"expectancy_diff": 0.25},
+           "vs_control": {"bootstrap": {"ok": True, "diff": 0.08, "excludes_zero": True}},
+           "random_drop_control": {"beats_random_drop": True}}
+    g = E.arm_gate(rep, "iv_cheap", p_adjusted=True)
+    assert g["basis"] == "pooled" and g["beats_signal_by_bar"] and g["passed"], g
+    # the same report judged as a timing arm reads the matched zero and cannot pass
+    assert E.arm_gate(rep, "delay5", p_adjusted=True)["basis"] == "matched"
+    assert not E.arm_gate(rep, "delay5", p_adjusted=True)["passed"]
+
+
+def test_entry_gate_refuses_an_arm_that_only_beats_the_broken_baseline():
+    """E1(b), the bar 22b forces on everything after it: the signal arm LOSES to a random-entry
+    control, so beating the signal is not on its own evidence of anything."""
+    from valuation.edge import options_entry as E
+
+    rep = {"n": 500, "held_out": {"both_positive": True}, "stats": {"expectancy_pct": 0.4},
+           "vs_signal_matched": {"expectancy_diff": 0.50, "arm": {"expectancy_pct": 0.4}},
+           "vs_signal_pooled": {"expectancy_diff": 0.50},
+           "vs_control": {"bootstrap": {"ok": True, "diff": -0.02, "excludes_zero": True}}}
+    g = E.arm_gate(rep, "delay5", p_adjusted=True)
+    assert g["beats_signal_by_bar"] and not g["beats_control"] and not g["passed"]
+    rep["vs_control"]["bootstrap"] = {"ok": True, "diff": 0.05, "excludes_zero": True}
+    assert E.arm_gate(rep, "delay5", p_adjusted=True)["passed"]
+
+
+def test_entry_dropping_arm_must_also_beat_a_random_drop():
+    """E6. Removing trades at random from a heavy tail moves expectancy on its own, so a
+    selective arm that clears every other bar is still not evidence until it beats a same-sized
+    random drop of the signal book."""
+    from valuation.edge import options_entry as E
+
+    rep = {"n": 200, "held_out": {"both_positive": True}, "stats": {"expectancy_pct": 0.3},
+           "vs_signal_matched": {"expectancy_diff": 0.20, "arm": {"expectancy_pct": 0.3}},
+           "vs_signal_pooled": {"expectancy_diff": 0.20},
+           "vs_control": {"bootstrap": {"ok": True, "diff": 0.08, "excludes_zero": True}},
+           "random_drop_control": {"beats_random_drop": False}}
+    assert not E.arm_gate(rep, "iv_wait", p_adjusted=True)["passed"]
+    rep["random_drop_control"]["beats_random_drop"] = True
+    assert E.arm_gate(rep, "iv_wait", p_adjusted=True)["passed"]
+
+
+def test_entry_fade_put_is_exempt_from_the_improvement_bar_but_not_the_control():
+    """E3. A long put is a different trade, not a better long call, so asking it to beat the call
+    book by MIN_EXPECTANCY_GAIN is the wrong question. It must still make money, beat the
+    random-entry control, and hold in both halves."""
+    from valuation.edge import options_entry as E
+
+    rep = {"n": 400, "held_out": {"both_positive": True}, "stats": {"expectancy_pct": 0.06},
+           "vs_signal_matched": {"expectancy_diff": -0.30, "arm": {"expectancy_pct": 0.06}},
+           "vs_signal_pooled": {"expectancy_diff": -0.30},
+           "vs_control": {"bootstrap": {"ok": True, "diff": 0.04, "excludes_zero": True}}}
+    g = E.arm_gate(rep, "fade_put", p_adjusted=None)
+    assert g["gate"] == "E3" and g["passed"], g
+    rep["vs_control"]["bootstrap"] = {"ok": True, "diff": -0.04, "excludes_zero": True}
+    assert not E.arm_gate(rep, "fade_put", p_adjusted=None)["passed"]
+    rep["vs_control"]["bootstrap"] = {"ok": True, "diff": 0.04, "excludes_zero": True}
+    rep["stats"]["expectancy_pct"] = -0.01
+    rep["vs_signal_matched"]["arm"]["expectancy_pct"] = -0.01
+    assert not E.arm_gate(rep, "fade_put", p_adjusted=None)["passed"], \
+        "a losing fade is not an exploitable anti-tilt"
+
+
+def test_entry_best_arm_is_chosen_on_the_half_it_is_not_judged_on():
+    """E5. Nine arms on a heavy tail means the best full-sample arm is partly the luckiest one.
+    The only uncontaminated read is choose-on-one-half / measure-on-the-other, and an arm that
+    wins the half that picked it and collapses on the other must NOT survive."""
+    from valuation.edge import options_entry as E
+
+    early = [(f"2018-{(i % 12) + 1:02d}-05", f"N{i}", 0.0) for i in range(40)]
+    late = [(f"2023-{(i % 12) + 1:02d}-05", f"M{i}", 0.0) for i in range(40)]
+    signal = _entry_rows(early + late)
+    good_early = _entry_rows([(d, t, 1.0) for d, t, _ in early]
+                             + [(d, t, -1.0) for d, t, _ in late], arm="delay5")
+    steady = _entry_rows([(d, t, 0.02) for d, t, _ in early + late], arm="delay3")
+    ctrl = _entry_rows([(d, t, 0.0) for d, t, _ in early + late], arm="control")
+    out = E.holdout_arm_select({"signal": signal, "delay5": good_early, "delay3": steady},
+                               signal, ctrl)
+    assert out["decide_early"]["chosen_arm"] == "delay5", out["decide_early"]
+    assert out["decide_early"]["gain_on_measure_half"] < 0, "it collapses on the held-out half"
+    assert not out["survives_both_directions"]
+
+
+def test_entry_mechanism_needs_a_majority_of_both_iv_and_runup_proxies():
+    """E2. 'The alert chases pumped IV' is a two-part claim, and each part has several proxies.
+    One proxy firing while the rest point the other way is a cherry-pick, not a mechanism."""
+    from valuation.edge import options_entry as E
+
+    def ch(iv_hits, run_hits):
+        d = {}
+        for i, f in enumerate(E.IV_MECHANISM_FEATURES):
+            s = 1.0 if i < iv_hits else -1.0
+            d[f] = {"ok": True, "paired": {"ok": True, "mean_diff": 0.05 * s, "sign_z": 5.0 * s}}
+        for i, f in enumerate(E.RUNUP_MECHANISM_FEATURES):
+            s = 1.0 if i < run_hits else -1.0
+            d[f] = {"ok": True, "paired": {"ok": True, "mean_diff": 0.05 * s, "sign_z": 5.0 * s}}
+        return d
+
+    full = len(E.IV_MECHANISM_FEATURES), len(E.RUNUP_MECHANISM_FEATURES)
+    assert E.mechanism_verdict(ch(*full))["label"] == "CONFIRMED"
+    lone = E.mechanism_verdict(ch(1, 0))
+    assert lone["label"] == "REJECTED" and not lone["E2_mechanism"], lone
+    part = E.mechanism_verdict(ch(full[0], 0))
+    assert part["label"] == "PARTIAL" and not part["E2_mechanism"], part
+    assert E.mechanism_verdict(ch(0, 0))["label"] == "REJECTED"
+
+
+def test_entry_paired_test_is_by_name_year_and_not_pooled():
+    """The whole 22b control finding rests on the paired name-year cell rather than the pooled
+    mean: one name that alerts 100 times would otherwise decide the verdict for all 187."""
+    from valuation.edge import options_entry as E
+
+    real = _entry_rows([(f"2019-{(i % 12) + 1:02d}-05", "LOUD", 0.30) for i in range(100)]
+                       + [(f"2019-{(i % 12) + 1:02d}-05", f"Q{i}", -0.10) for i in range(20)])
+    ctrl = _entry_rows([(f"2019-{(i % 12) + 1:02d}-05", "LOUD", 0.20) for i in range(100)]
+                       + [(f"2019-{(i % 12) + 1:02d}-05", f"Q{i}", 0.10) for i in range(20)],
+                       arm="control")
+    pooled = (E._stats(real)["expectancy_pct"] or 0) - (E._stats(ctrl)["expectancy_pct"] or 0)
+    pr = E.paired_cells(real, ctrl)
+    assert pooled > 0, "pooled is carried by the one loud name"
+    assert pr["ok"] and pr["mean_diff"] < 0 and pr["win_rate"] < 0.5, pr
+    assert pr["sign_z"] < 0 and pr["n_cells"] == 21
+
+
+def test_entry_iv_is_read_at_the_traded_tenor_not_the_front_expiry():
+    """The 22b `iv` field is the FRONT expiry, often solved days from expiry, and reads a median
+    of 1.28-1.57 across cap tiers. This strategy buys 45-75 DTE, so that is the tenor whose vol
+    matters — and a garbage front-month quote must not be able to reach the answer."""
+    from valuation.edge import blackscholes as BS
+    from valuation.edge import options_entry as E
+
+    assert E.IV_TENOR_DTE == 60
+    asof = dt.date(2020, 6, 1)
+    spot, vol = 100.0, 0.30
+    rows = [{"expiration": asof + dt.timedelta(days=7), "strike": k, "right": "C",
+             "bid": 9.0, "ask": 0.5, "volume": 10, "open_interest": 10}
+            for k in (95.0, 100.0, 105.0)]                    # crossed: unusable
+    T = 60 / 365.0
+    for k in (95.0, 100.0, 105.0):
+        px = BS.bs_price(spot, k, T, BS.risk_free_rate(asof), vol, "C")
+        rows.append({"expiration": asof + dt.timedelta(days=60), "strike": k, "right": "C",
+                     "bid": px - 0.02, "ask": px + 0.02, "volume": 10, "open_interest": 10})
+    got = E.atm_iv_on(pd.DataFrame(rows), spot, asof)
+    assert got is not None, "a bad front month must not blank the traded-tenor read"
+    assert abs(got - vol) < 0.02, got
+    assert E.atm_iv_on(pd.DataFrame(rows[:3]), spot, asof) is None, \
+        "the crossed front-month quotes really are unusable"
+
+
+def test_entry_context_gates_reuse_the_committed_section2_gate_unchanged():
+    """E7. The same-day gates are judged by `options_signals_v2.evaluate` — fitted on 2016-2020,
+    applied to 2021-2025, against the bars term_slope had to clear. Writing a fresh gate here
+    would let this session run an easier race than the one that adopted the only live filter."""
+    import inspect
+
+    from valuation.edge import options_entry as E
+
+    src = inspect.getsource(E.context_filters)
+    assert "S2.evaluate" in src, "the committed gate must be called, not reimplemented"
+    assert "-v" in src, "direction is fixed by the hypothesis: low extension / low vol is good"
+    assert set(E.CONTEXT_FILTERS) <= set(E.CONTEXT_FEATURES)
+    # and the search they add must be paid for in the deflation
+    an = inspect.getsource(E.analyse)
+    assert "len(CONTEXT_FILTERS)" in an, "context gates are part of the search, not free"
+
+
+def test_entry_multiplicity_is_paid_for_not_merely_mentioned():
+    """Nine arms are a search. The Deflated Sharpe must be deflated by the number of arms and the
+    paired p-values must go through BH-FDR together — if either silently reverts to a single
+    trial, the study becomes a ranking exercise wearing a significance label."""
+    import inspect
+
+    from valuation.edge import options_entry as E
+
+    src = inspect.getsource(E.analyse)
+    assert "n_trials=max(1, n_arms)" in src, "the DSR must be deflated by the arms searched"
+    assert "bh_fdr" in src and "FDR_Q" in src
+    assert len(E.ARMS) == 9 and E.ARMS[0] == "signal"
+    assert set(E.DROPPING_ARMS) <= set(E.ARMS) and set(E.FILTER_ARMS) <= set(E.ARMS)
+    # one-sided: an arm WORSE than the signal must not be able to become a discovery
+    assert "else 1.0" in src
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
