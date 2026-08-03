@@ -197,6 +197,39 @@ code{background:#f0f3f9;padding:1px 6px;border-radius:5px;font-size:12.5px;color
   .attr-row .track{min-width:120px}
 }
 
+/* ---- live forward-track hero band ----
+   Sits above every tab and paints with the page (server-rendered, no fetch). Visually
+   quieter than a card on purpose: it is the most important number in the product AND the
+   thinnest evidence, so it gets prominence without the loud styling that would read as a
+   performance claim. */
+.livebar{display:flex;gap:20px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  background:var(--card);border:1px solid var(--border);border-left:3px solid var(--green);
+  border-radius:14px;box-shadow:var(--shadow);padding:14px 18px;margin-top:20px}
+.livebar.thin{border-left-color:var(--amber)}
+.livebar.notstarted{border-left-color:var(--faint);opacity:.75}
+.lb-main{flex:1;min-width:260px}
+.lb-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;font-size:14px;color:var(--navy)}
+.lb-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex:none;
+  box-shadow:0 0 0 3px var(--green-soft)}
+.livebar.thin .lb-dot{background:var(--amber);box-shadow:0 0 0 3px var(--amber-soft)}
+.lb-dot.off{background:var(--faint);box-shadow:none}
+.lb-label{color:var(--muted);font-size:12.5px;font-weight:600}
+.lb-stats{display:flex;gap:22px;flex-wrap:wrap;margin-top:10px}
+.lb-stat .k{display:block;font-size:11.5px;color:var(--muted);font-weight:600}
+.lb-stat .v{display:block;font-size:19px;font-weight:800;line-height:1.2;font-variant-numeric:tabular-nums}
+.lb-foot{font-size:11.5px;color:var(--faint);margin-top:10px;line-height:1.6}
+.lb-foot a{font-weight:600;margin-left:6px}
+.lb-spark{width:260px;flex:none}
+.lb-spark svg{display:block}
+.lb-sparklab{font-size:10.5px;color:var(--faint);text-align:right;margin-top:2px}
+@media(max-width:640px){
+  .livebar{padding:12px 14px;gap:12px}
+  .lb-stats{gap:14px}
+  .lb-stat .v{font-size:16px}
+  /* The sparkline goes full-width under the numbers rather than squeezing them. */
+  .lb-spark{width:100%}
+}
+
 /* ---- unified "what the tool does with this name" ---- */
 .wd-line{display:flex;align-items:flex-start;gap:9px;font-size:14px;line-height:1.6;margin:7px 0}
 .wd-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--blue);margin-top:8px}

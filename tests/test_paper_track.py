@@ -542,6 +542,97 @@ def test_recap_survives_an_untouched_database():
         assert "Not started" in text and "Educational only" in text, kind
 
 
+# ---------------------------------------------------------------------------------------- #
+# The live-track HERO band. It is the most prominent thing on the page and the thinnest
+# evidence in the product, so the gates that keep it honest are worth more tests than the
+# layout is.
+# ---------------------------------------------------------------------------------------- #
+def test_hero_stays_hidden_until_the_track_actually_reports():
+    """No data means no band. A 'coming soon' strip is clutter; a backtested curve under a
+    'live' heading would be a lie."""
+    from valuation.web.hero import live_hero
+    h = live_hero(_store())
+    assert h["show"] is False and h["may_lead"] is False
+    assert "not started" in h["label"]
+    assert h["index"]["available"] is False and h["options"]["available"] is False
+
+
+def test_hero_labels_the_track_paper_and_thin_with_its_inception_date():
+    from valuation.web.hero import live_hero
+    st, _ = _book_with_one_closed_winner()
+    h = live_hero(st)
+    assert h["show"] is True
+    assert h["label"].startswith("paper, since ")
+    assert h["label"].endswith(", thin")
+    # Thin means shown, not celebrated: the band renders but may not carry the claim.
+    assert h["thin"] is True and h["may_lead"] is False
+
+
+def test_hero_withholds_an_expectancy_below_the_evidence_floor():
+    """One closed winner must not become a headline expectancy."""
+    from valuation.web.hero import live_hero
+    st, _ = _book_with_one_closed_winner()
+    o = live_hero(st)["options"]
+    assert o["available"] is True and o["n_closed"] == 1
+    assert o["expectancy_pct"] is None, "printed an expectancy off one trade"
+    assert o["thin"] is True and o["min_closed"] >= 1
+
+
+def test_hero_expectancy_comes_from_the_scorecard_not_a_second_calculation():
+    """Whatever the scorecard says IS what the hero shows, once the sample clears the floor."""
+    from valuation.web import hero as H
+    st, _ = _book_with_one_closed_winner()
+
+    real = H._options_block(st)
+    assert real["expectancy_pct"] is None            # thin, as above
+
+    # Same book, but the floor lowered so the sample counts. The number must be the
+    # scorecard's, to the digit — the hero may not re-derive expectancy from premiums.
+    from valuation.edge import paper_track as _PT
+    keep = _PT.MIN_CLOSED_FOR_MEANING
+    try:
+        _PT.MIN_CLOSED_FOR_MEANING = 1
+        block = H._options_block(st)
+        expected = (_PT.options_summary(st)["scorecard"] or {}).get("expectancy_pct")
+    finally:
+        _PT.MIN_CLOSED_FOR_MEANING = keep
+    assert expected is not None
+    assert block["expectancy_pct"] == expected
+    assert block["thin"] is False
+
+
+def test_hero_names_which_forward_record_it_drew():
+    """Two live records exist. An unlabelled fallback would swap the number's meaning."""
+    from valuation.web.hero import live_hero
+    st, _ = _book_with_one_closed_winner()
+    PT.ensure_schema(st)
+    with st._conn() as c:
+        c.execute("INSERT INTO paper_index_track (as_of, inception, index_ret, bench_ret, "
+                  "active_ret, n_priced) VALUES (?,?,?,?,?,?)",
+                  ("2026-08-03", "2026-08-01", 0.0182, 0.0091, 0.0091, 25))
+    idx = live_hero(st)["index"]
+    assert idx["available"] is True
+    assert idx["source"] == "paper-sandbox"
+    # paper_track reports fractions; the hero speaks percent, and the two must not be mixed.
+    assert abs(idx["cum_pct"] - 1.82) < 1e-9
+    assert abs(idx["bench_pct"] - 0.91) < 1e-9
+    assert abs(idx["excess_pp"] - 0.91) < 1e-9
+
+
+def test_hero_never_raises_and_never_takes_the_page_down():
+    """The band decorates a page that must render without it."""
+    from valuation.web.hero import live_hero
+
+    class _Dead:
+        def get_meta(self, k, default=None):
+            raise RuntimeError("no db")
+
+        def _conn(self):
+            raise RuntimeError("no db")
+    h = live_hero(_Dead())
+    assert h["show"] is False and h["may_lead"] is False
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

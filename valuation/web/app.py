@@ -63,9 +63,27 @@ def _site_context():
     render site that forgets to pass one still gets a working link rather than an empty
     href. Explicit values passed to render_template() still take precedence.
     """
+    def _live_hero():
+        """The forward-track hero band, computed only if a template actually asks for it.
+
+        A callable rather than a value: this context processor runs on EVERY render, including
+        error pages, and the hero costs a couple of DB reads. Templates that don't show it
+        don't pay for it. Failure returns the not-started shape — a hero band is never a
+        reason for a page to 500.
+        """
+        try:
+            from .hero import live_hero
+            return live_hero(_store())
+        except Exception:
+            return {"show": False, "may_lead": False, "thin": True,
+                    "label": "the forward paper track has not started",
+                    "index": {"available": False}, "options": {"available": False},
+                    "spark": None, "caveat": ""}
+
     return {"contact_email": CONFIG.contact_email,
             "feedback_url": CONFIG.resolved_feedback_url,
-            "signed_in": False, "logout_url": "/logout"}
+            "signed_in": False, "logout_url": "/logout",
+            "live_hero": _live_hero}
 
 
 @app.route("/")
