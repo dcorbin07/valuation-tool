@@ -606,6 +606,74 @@ function _whyChips(r) {
   return `<div class="muted" style="font-size:10px">` +
     w.slice(0, 3).map(x => `<span class="${x.c >= 0 ? 'pos' : 'neg'}">${x.theme.replace(/_/g, ' ')}</span>`).join(" · ") + `</div>`;
 }
+
+/* ---------- "why this score" attribution ----------
+   The hot score is a percentile RANK of a composite, and the composite is a weighted average
+   of standardized themes. The server decomposes that average back into per-theme
+   contributions that SUM to the composite (valuation/screener/attribution.py), so this panel
+   is arithmetic rather than a narrative: every bar is a real term in the number above it.
+
+   Two things this must never imply. The contributions are in composite units — cross-sectional
+   standard deviations — NOT points of the 1-100 score, because rank is a monotone but
+   non-linear map. And a theme's contribution is relative to the rest of the scan that day,
+   so "+0.2 quality" means "better than this cross-section", not "good in absolute terms". */
+const THEME_LABEL = {
+  value: ["Value", "cheap vs earnings, cash flow and book"],
+  quality: ["Quality", "returns on capital, margins, low debt"],
+  growth: ["Growth", "revenue growth and its acceleration"],
+  momentum: ["Momentum", "6- and 12-month price trend"],
+  insider: ["Insider buying", "cluster buying by company officers"],
+  low_risk: ["Low risk", "low beta and realized volatility"],
+  capital_discipline: ["Capital discipline", "not issuing shares to fund itself"],
+  sentiment: ["Analyst sentiment", "rating actions and estimate revisions"],
+  size: ["Size", "small-cap tilt"],
+  institutional: ["Institutional buying", "13F accumulation and holder breadth"],
+};
+function _themeLabel(k) { return (THEME_LABEL[k] || [k.replace(/_/g, " "), ""])[0]; }
+function _themeHint(k) { return (THEME_LABEL[k] || ["", ""])[1]; }
+
+function attributionPanel(r, opts) {
+  const why = (r.extra && r.extra.why) || [];
+  const o = opts || {};
+  if (!why.length) {
+    return `<div class="note">No attribution stored for this name — it is written at scan time,
+      so rows saved by an older scan show none. It appears after the next daily scan.</div>`;
+  }
+  const max = Math.max(...why.map(x => Math.abs(x.c))) || 1;
+  const comp = (r.extra && r.extra.why_composite != null) ? r.extra.why_composite : r.composite;
+  const up = why.filter(x => x.c > 0), down = why.filter(x => x.c < 0);
+  const bars = why.map(x => {
+    const w = Math.max(2, Math.round(Math.abs(x.c) / max * 50));
+    const pos = x.c >= 0;
+    return `<div class="attr-row">
+      <span class="nm" title="${esc(_themeHint(x.theme))}">${esc(_themeLabel(x.theme))}</span>
+      <span class="track"><span class="mid"></span>
+        <span class="fill ${pos ? "pos" : "neg"}" style="${pos ? "left:50%" : `right:50%`};width:${w}%"></span></span>
+      <span class="val ${pos ? "pos" : "neg"}">${x.c >= 0 ? "+" : ""}${x.c.toFixed(3)}</span>
+      <span class="sh">${Math.round(x.share * 100)}%</span></div>`;
+  }).join("");
+  const head = `<div class="attr-head">
+      <b>Hot ${r.hot_score == null ? "—" : r.hot_score.toFixed(0)}</b> = rank ${r.rank}${
+        o.of ? " of " + o.of : ""} · composite <b>${comp == null ? "—" : (comp >= 0 ? "+" : "") + comp.toFixed(3)}</b>
+      ${up.length ? `· helped by <b class="pos">${up.slice(0, 2).map(x => esc(_themeLabel(x.theme).toLowerCase())).join(", ")}</b>` : ""}
+      ${down.length ? `· held back by <b class="neg">${down.slice(0, 2).map(x => esc(_themeLabel(x.theme).toLowerCase())).join(", ")}</b>` : ""}
+    </div>`;
+  return `<div class="attr">${head}${bars}
+    <div class="note">Bars are the actual terms of the score: they add up to the composite
+      (${comp == null ? "—" : comp.toFixed(3)}), and the 1–100 is that composite's percentile rank
+      against every other name in this scan. Units are standard deviations versus this scan, not
+      percent — "+0.20 quality" means better quality than this peer set, not good in the abstract.
+      The % column is the share of everything that moved this name, positive and negative alike.</div></div>`;
+}
+
+function toggleWhy(t) {
+  const el = document.getElementById("why-" + t);
+  if (!el) return;
+  const open = el.style.display !== "none";
+  el.style.display = open ? "none" : "";
+  const btn = document.getElementById("whybtn-" + t);
+  if (btn) { btn.textContent = open ? "why?" : "hide"; btn.setAttribute("aria-expanded", String(!open)); }
+}
 async function loadRegime() {
   try {
     const g = await (await fetch("/api/regime")).json();
@@ -634,9 +702,10 @@ function renderHot(d) {
   document.getElementById("hotMeta").textContent = meta;
   setHtml("hotFreshness", freshnessBanner(d.freshness));
   loadRegime();
+  const NCOLS = 14;
   let html = '<table><tr><th>#</th><th>Ticker</th><th>Company</th><th>Sector</th><th>Bucket</th>' +
     '<th class="num">Price</th><th class="num">Market cap</th><th class="num">Hot</th>' +
-    '<th class="num">Value</th><th class="num">Qual</th>' +
+    '<th></th><th class="num">Value</th><th class="num">Qual</th>' +
     '<th class="num">Grow</th><th class="num">Mom</th><th class="num">Fair val</th></tr>';
   d.rows.forEach(r => {
     const up = r.upside;
@@ -646,9 +715,13 @@ function renderHot(d) {
       <td class="num">${money(r.price)}</td>
       <td class="num">${mcap(r.market_cap)}</td>
       <td class="num hotrow-score" style="color:${scoreColor(r.hot_score)}">${r.hot_score == null ? '—' : r.hot_score.toFixed(0)}</td>
+      <td><button class="whybtn" id="whybtn-${r.ticker}" aria-expanded="false"
+            onclick="toggleWhy('${r.ticker}')" title="Break this score into the themes that produced it">why?</button></td>
       <td class="num">${z(r.z_value)}</td><td class="num">${z(r.z_quality)}</td>
       <td class="num">${z(r.z_growth)}</td><td class="num">${z(r.z_momentum)}</td>
-      <td class="num">${_fairValCell(r, up)}</td></tr>`;
+      <td class="num">${_fairValCell(r, up)}</td></tr>
+      <tr class="whyrow" id="why-${r.ticker}" style="display:none"><td colspan="${NCOLS}">${
+        attributionPanel(r, { of: d.scored })}</td></tr>`;
   });
   html += "</table>";
   html += `<div class="note"><b>Fair value.</b> Names marked <span class="est-mark" title="peer-relative estimate">e</span>

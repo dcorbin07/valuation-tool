@@ -168,6 +168,35 @@ code{background:#f0f3f9;padding:1px 6px;border-radius:5px;font-size:12.5px;color
 .ac-name{flex:1;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ac-sec{color:var(--faint);font-size:12px;white-space:nowrap}
 
+/* ---- "why this score" attribution (Hot stocks + the unified name view) ----
+   A diverging bar: the centre line is "this theme did nothing for the score", right is a
+   push up, left is a drag down. Deliberately two-sided — a one-sided bar would hide the
+   fact that most names are held back by something, which is the honest half of the story. */
+.whybtn{background:transparent;border:1px solid var(--border);color:var(--muted);
+  font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;cursor:pointer;white-space:nowrap}
+.whybtn:hover{background:var(--blue-soft);color:var(--navy);border-color:var(--blue-soft)}
+.whyrow > td{background:var(--blue-soft);padding:14px 16px}
+.attr-head{font-size:13px;margin-bottom:10px;color:var(--ink)}
+.attr-row{display:flex;align-items:center;gap:10px;margin:5px 0;font-size:12.5px}
+.attr-row .nm{width:150px;flex:none;color:var(--ink);font-weight:600}
+.attr-row .track{position:relative;flex:1;height:12px;background:var(--card);
+  border:1px solid var(--border);border-radius:4px;min-width:80px}
+.attr-row .track .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--faint);opacity:.6}
+.attr-row .fill{position:absolute;top:1px;bottom:1px;border-radius:3px}
+.attr-row .fill.pos{background:var(--green)} .attr-row .fill.neg{background:var(--red)}
+.attr-row .val{width:56px;flex:none;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.attr-row .sh{width:40px;flex:none;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+/* `.pos` / `.neg` had NEVER been defined, in any stylesheet, while app.js applies them in
+   about fifteen places — fair-value upside, track-record alpha, paper P&L, the why-chips.
+   Every one of those has been rendering as plain body text, so a -18% and a +18% looked
+   identical at a glance. Defined once here, which colours all of them. */
+.pos{color:var(--green)} .neg{color:var(--red)}
+@media(max-width:640px){
+  .attr-row{flex-wrap:wrap;gap:6px}
+  .attr-row .nm{width:100%}
+  .attr-row .track{min-width:120px}
+}
+
 /* ---- fair-value estimate marker (Hot stocks) ---- */
 .est-mark{display:inline-block;margin-left:2px;font-size:10px;font-weight:700;color:var(--muted);
   vertical-align:super;cursor:help}

@@ -913,6 +913,130 @@ def test_landing_context_degrades_to_nothing_rather_than_raising():
     assert ctx["sample"] is None and ctx["scan"] is None
 
 
+# ---------------------------------------------------------------------------------------- #
+# "Why this score" attribution. The point of these is that the explanation and the ranking
+# come from ONE calculation: an attribution that merely looks plausible next to a score it
+# was not derived from is worse than none, because it reads as an audit and isn't one.
+# ---------------------------------------------------------------------------------------- #
+def test_score_attribution_sums_to_the_composite_it_explains():
+    res, _ = _scan()
+    checked = 0
+    for r in res["rows"]:
+        why = (r["extra"] or {}).get("why") or []
+        if not why:
+            continue
+        total = sum(w["c"] for w in why)
+        # Contributions are rounded to 4dp each, so ~10 themes can drift ~5e-4 in the worst
+        # case. Anything beyond that means the pieces are not the score's pieces.
+        assert abs(total - r["composite"]) < 1e-3, (r["ticker"], total, r["composite"])
+        assert r["extra"]["why_composite"] == r["composite"]
+        checked += 1
+    assert checked > 100, f"only {checked} rows carried an attribution"
+
+
+def test_attribution_is_ordered_by_size_and_keeps_the_sign_of_the_drag():
+    res, _ = _scan()
+    negatives = 0
+    for r in res["rows"]:
+        why = (r["extra"] or {}).get("why") or []
+        mags = [abs(w["c"]) for w in why]
+        assert mags == sorted(mags, reverse=True), r["ticker"]
+        negatives += sum(1 for w in why if w["c"] < 0)
+    # A decomposition where nothing ever holds a name back is a decomposition of the wrong
+    # thing: z-scores are centred, so every cross-section has losers on every theme.
+    assert negatives > 0
+
+
+def test_attribution_shares_are_of_the_absolute_push_not_the_signed_total():
+    """Shares must stay in [0, 1] and sum to 1 even when themes cancel out.
+
+    With a signed denominator a name whose positives and negatives nearly cancel gets a
+    near-zero total and shares in the hundreds of percent — the exact rows a reader is most
+    likely to open.
+    """
+    res, _ = _scan()
+    seen_mixed = False
+    for r in res["rows"]:
+        why = (r["extra"] or {}).get("why") or []
+        if not why:
+            continue
+        shares = [w["share"] for w in why]
+        assert all(0.0 <= s <= 1.0 for s in shares), (r["ticker"], shares)
+        assert abs(sum(shares) - 1.0) < 0.01, (r["ticker"], sum(shares))
+        if any(w["c"] > 0 for w in why) and any(w["c"] < 0 for w in why):
+            seen_mixed = True
+    assert seen_mixed, "no name had themes pulling in both directions"
+
+
+def test_decomposition_did_not_change_the_ranking_it_explains():
+    """The composite must still be the OLD composite, computed the old way.
+
+    `_composites` now delegates to the attribution module. That is only safe if it produces
+    the identical number — this recomputes it from `composite_score` directly, the way the
+    scan did before the decomposition existed, under both bucketing modes.
+    """
+    import numpy as np
+    import pandas as pd
+    from valuation.screener.factors import build_frame
+    from valuation.screener.cross_sectional import composite_score
+    from valuation.screener.screen import _composites, _p_established
+    from valuation.screener import settings as S
+    from tests.screener_fixtures import SyntheticProvider
+
+    prov = SyntheticProvider(14)
+    tickers = [u["ticker"] for u in prov.get_universe()]
+    metrics = [prov.get_metrics(t) for t in tickers]
+    for m, t in zip(metrics, tickers):
+        m.setdefault("ticker", t)
+    df = build_frame(metrics)
+    est_w, spec_w = S.WEIGHTS_ESTABLISHED, S.WEIGHTS_SPECULATIVE
+
+    d = df.copy()
+    d["value"] = df["value_est"]
+    comp_est = composite_score(d, est_w)
+    d["value"] = df["value_spec"]
+    comp_spec = composite_score(d, spec_w)
+    p = _p_established(df)
+    expected_soft = p * comp_est + (1.0 - p) * comp_spec
+    got_soft = _composites(df, est_w, spec_w, soft=True)
+    assert np.allclose(got_soft.values, expected_soft.values, atol=1e-12, equal_nan=True)
+
+    expected_hard = pd.Series(index=df.index, dtype=float)
+    for bucket, w in [("established", est_w), ("speculative", spec_w)]:
+        sub = df[df["bucket"] == bucket]
+        if len(sub) >= 5:
+            expected_hard.loc[sub.index] = composite_score(sub, w)
+        elif len(sub) > 0:
+            expected_hard.loc[sub.index] = composite_score(df, w).loc[sub.index]
+    got_hard = _composites(df, est_w, spec_w, soft=False)
+    assert np.allclose(got_hard.values, expected_hard.values, atol=1e-12, equal_nan=True)
+
+
+def test_a_name_no_theme_scored_has_no_attribution_rather_than_a_zero():
+    """An unscoreable name must come back NaN, not 0.0.
+
+    A zero composite would rank mid-pack — a name nobody could score would sit above every
+    genuinely cheap-but-flawed one.
+    """
+    import numpy as np
+    import pandas as pd
+    from valuation.screener.attribution import decompose
+
+    df = pd.DataFrame({
+        "value": [1.0, -1.0, 0.5, np.nan],
+        "quality": [0.5, -0.5, 1.0, np.nan],
+        "momentum": [0.2, 0.1, -0.3, np.nan],
+        "bucket": ["established"] * 4,
+        "op_margin": [0.2, 0.1, 0.15, 0.1],
+    }, index=["A", "B", "C", "DEAD"])
+    w = {"value": 0.4, "quality": 0.4, "momentum": 0.2}
+    comp, contrib = decompose(df, w, w, soft=False)
+    assert np.isnan(comp.loc["DEAD"])
+    assert contrib.loc["DEAD"].isna().all()
+    assert not np.isnan(comp.loc["A"])
+    assert abs(float(contrib.loc["A"].sum()) - float(comp.loc["A"])) < 1e-12
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
