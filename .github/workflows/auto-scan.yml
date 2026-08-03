@@ -23,6 +23,10 @@ on:
         type: choice
         options: [hot, intraday, both, watchdog, paper]
         default: hot
+      force:
+        description: "paper only: run even if the session has not closed (skips the market-hours guard)"
+        type: boolean
+        default: false
   schedule:
     # Hot list runs just AFTER the close so it uses complete end-of-day data and is ready before
     # the next open. Two attempts at ODD minutes because GitHub's free scheduler routinely DROPS
@@ -32,12 +36,17 @@ on:
     - cron: "41 23 * * 1-5"         # hot list — 23:41 UTC backup, if GitHub dropped the primary
     - cron: "*/30 13-20 * * 1-5"    # intraday — every 30 min on free (fits Actions minutes);
                                     # the paid Render cron (render.yaml) runs this every 15 min
-    - cron: "47 20 * * 1-5"         # paper track - 20:47 UTC (~4:47pm ET), just after the close.
-                                    # Once a day: the exit rules are daily-mark rules, so
-                                    # intraday runs would add broker calls, not information.
-                                    # render.yaml schedules the same endpoint at 20:45; the
-                                    # cycle is idempotent (claim rows on the alerts, PK on the
-                                    # day's index point) so both firing is harmless, not double.
+    # Paper track. TWO crons because a crontab cannot say "4pm Eastern": 20:47 UTC is 4:47pm ET
+    # under EDT but 3:47pm ET under EST — i.e. BEFORE the close for the whole winter, which
+    # would have marked the book and entered positions mid-session on intraday prices with
+    # nothing in the output looking wrong. Each cron is correct in one half of the year and
+    # early in the other, and the endpoint's session guard (screener/market_session.py) turns
+    # the early one into a no-op, so exactly one real run happens per day either way.
+    # Once a day: the exit rules are daily-mark rules, so intraday runs would add broker
+    # calls, not information. The cycle is idempotent (claim rows on the alerts, PK on the
+    # day's index point), so overlapping with render.yaml's cron is harmless, not double.
+    - cron: "47 20 * * 1-5"         # 20:47 UTC = 4:47pm ET in summer (EDT)
+    - cron: "47 21 * * 1-5"         # 21:47 UTC = 4:47pm ET in winter (EST)
     - cron: "0 12 1 * *"            # self-learning — monthly (1st, 12:00 UTC), OOS-gated re-tune
     - cron: "15 13 * * 1-5"         # watchdog — 13:15 UTC (~9:15am ET), BEFORE the open, so a
                                     # dead pipeline is known about while there is still a day
@@ -148,7 +157,7 @@ jobs:
     # Needs TRADIER_PAPER_TOKEN + TRADIER_PAPER_ACCOUNT_ID set as RENDER env vars (not as Actions
     # secrets - the endpoint reads them server-side). Until they are set the endpoint answers
     # {"configured": false} and does nothing, which is why this is safe to schedule first.
-    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '47 20 * * 1-5') || (github.event_name == 'workflow_dispatch' && github.event.inputs.kind == 'paper') }}
+    if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '47 20 * * 1-5' || github.event.schedule == '47 21 * * 1-5')) || (github.event_name == 'workflow_dispatch' && github.event.inputs.kind == 'paper') }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -156,8 +165,25 @@ jobs:
         env:
           BASE: ${{ secrets.SITE_BASE_URL }}
           TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          FORCE: ${{ github.event.inputs.force }}
         run: |
-          curl -fsS -X POST "$BASE/admin/run-paper-track"                -H "X-Admin-Token: $TOKEN" -H "Content-Type: application/json"                -d '{}' | head -c 2000
+          set -euo pipefail
+          BODY='{}'
+          if [ "${FORCE:-false}" = "true" ]; then BODY='{"force": true}'; fi
+          RESP=$(curl -fsS -X POST "$BASE/admin/run-paper-track" \
+            -H "X-Admin-Token: $TOKEN" -H "Content-Type: application/json" -d "$BODY")
+          echo "$RESP" | head -c 4000; echo
+          # Say out loud which of the two crons this was. A skip is the EXPECTED outcome for
+          # the one that fires on the wrong side of the DST boundary — but a skip every single
+          # day would mean the guard never opens, and that must not read as a green run.
+          case "$RESP" in
+            *'"skipped": true'*|*'"skipped":true'*)
+              echo "::notice::paper track skipped — session not closed (expected for the off-season cron)" ;;
+            *'"configured": false'*|*'"configured":false'*)
+              echo "::error::paper track is NOT configured — TRADIER_PAPER_TOKEN / TRADIER_PAPER_ACCOUNT_ID are missing on Render"
+              exit 1 ;;
+            *) echo "::notice::paper track ran" ;;
+          esac
 
   learn:
     # Monthly self-learning: tells the site to re-tune its screener weights out-of-sample

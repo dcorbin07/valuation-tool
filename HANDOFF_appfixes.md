@@ -5,6 +5,180 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 5 — 2026-08-02 — Paper track verified + scheduled server-side (PROMPT_appfixer_paper_schedule.md)
+
+## READ THIS FIRST: the hot scan has been dead since 2026-07-29, and it is not the paper track
+
+The live site is serving a **four-day-old hot list**. Verified against production just now:
+
+| feed | as of | state |
+|---|---|---|
+| `/api/hotstocks` | **2026-07-29** | **stale (3 trading days), 154 scored, 191-name universe** |
+| `/api/signals` (intraday) | 2026-07-31 | fresh — last run Fri 21:41, correct for a Sunday |
+| `/api/index-track` | — | no live series yet (`available: false`) |
+
+Intraday being **fresh** while hot is stale is the useful part: it rules out the boring
+explanations. Actions minutes are not exhausted (intraday is the minute-hungry job and it is
+running), the schedule is firing, Render is up, and the secrets exist.
+
+**Diagnosis — the FMP lapse killed the hot scan on 07-30 and nothing announced it.** The
+workflow was last edited 2026-07-25 and the last code change before today was 07-28, so on
+07-30 and 07-31 the hot job ran *the same code that succeeded on 07-29* and failed. What
+changed underneath it was FMP: session 2 established the subscription lapsed around 07-29
+(FCX/ELV/MU are present in the 07-29 snapshot and 402 now). Under the **old** provider code a
+402 made `get_metrics` return `None`, so every name was dropped, the scan produced zero rows,
+and `/admin/ingest-snapshot` rejected the empty post with a 400. Red run, nothing ingested,
+no notification. Intraday was untouched because it runs on Tradier, not FMP.
+
+**It is already fixed — the fix just has not had a scheduled run yet.** Session 2's free-stack
+fallback + circuit breaker and session 4's broker fundamentals both landed on main *today*
+(16:30 and later). The first hot run under the fix is **Monday 2026-08-03, 22:23 UTC**. If
+`/api/hotstocks` still says 07-29 on Tuesday morning, that hypothesis is wrong and the Actions
+log is the next place to look — I could not read it from here (no `gh`, no GitHub token).
+
+**One thing to actually do: set `DISCORD_WEBHOOK_URL` as an Actions secret.** The watchdog and
+the scan-failure alert are both wired and both inert without it. A four-day outage that only
+manifests as a red run in a tab nobody opens is exactly what it exists to prevent — and this
+is now the second time.
+
+## 1. Sandbox connection — verified, output verbatim
+
+```
+$ python scripts/paper_track_run.py --health
+Tradier SANDBOX https://sandbox.tradier.com/v1  account VA35863695  ok
+  paper equity $199,256.75  cash $199,256.75
+```
+
+```
+$ python scripts/paper_track_run.py --dry-run
+Tradier SANDBOX https://sandbox.tradier.com/v1  account VA35863695  ok
+  paper equity $199,256.75  cash $199,256.75
+  DRY RUN — orders are previewed at the broker, nothing is placed.
+Options: 0 submitted, 0 skipped, 0 rejected | 0 newly filled, 0 marked | 0 closed (0 written to the scorecard)
+Index: 0 held, 0 added (quote-marked)
+  no point written: no index holdings seeded yet
+```
+
+**That dry run proves almost nothing, and I did not stop there.** Every number is zero because
+the local database is a test fixture — `option_alerts: 0 rows`, one snapshot row, scan date
+`2099-01-01`, and a `data/valquo_index.json` whose only holding is a fake ticker `TESTX` that
+cannot be quoted. A clean exit with no work done is not a working order path.
+
+So I exercised the real path against the sandbox with real symbols and a throwaway database:
+
+- **equity quotes** — AAPL 308.91, MSFT 464.72, SPY 747.03
+- **option chain** — 466 contracts for AAPL, 233 calls with a two-sided market
+- **option quote by OCC symbol** — `AAPL261016C00360000` bid 1.97 / ask 2.25
+- **option order PREVIEW** — `status: ok, result: true, commission 0.35` (nothing placed)
+- **equity order PREVIEW** — `status: ok, result: true, cost 1.00` (nothing placed)
+- **index seed + mark** — 2 positions added, 2/2 priced, `index_point` ok against SPY
+
+So the broker, the quote path, the order path and the index mark all work. The zeros were the
+fixture, not the plumbing.
+
+## 2. The schedule — and the DST bug I found in it
+
+The paper job already existed (landed in `cde1579` by the paper-track lane): a GitHub Actions
+job at `47 20 * * 1-5` and a Render cron at `45 20 * * 1-5`. **Both were wrong for half the
+year.**
+
+A crontab cannot express "4pm Eastern". `20:45 UTC` is 4:45pm ET under EDT — but under **EST
+it is 3:45pm ET, fifteen minutes BEFORE the close.** From the first weekend in November the
+cycle would have started running mid-session every weekday: entering option positions and
+marking the index book against *intraday* prices instead of closing prices. Nothing would
+error. Every run would have looked completely normal. And the one record whose entire value is
+being a clean out-of-sample forward track would have quietly stopped meaning what it says.
+
+Fixed in three places:
+
+1. **NEW `valuation/screener/market_session.py`** — `session_state()` answers "has today's
+   session actually closed?" in real Eastern time, including weekends and market holidays
+   (holidays are **computed**, not listed, so this does not expire in a year — Good Friday via
+   the Easter algorithm, the floating Mondays, and the weekend-observed rule). Verified
+   against the published NYSE calendars for 2024 and 2025: **exact match, both years.** There
+   is a 15-minute settle after the bell so a mark cannot catch a half-formed close.
+2. **The endpoint guards itself** — `/admin/run-paper-track` returns `{"skipped": true,
+   "session": {...}}` and does nothing if the session has not closed. This is the part that
+   matters: the guard is unit-tested, a crontab is not.
+3. **The crons fire generously and let the guard decide** — Actions now has **both**
+   `47 20` and `47 21` UTC (one is correct in each DST regime, the other no-ops), and the
+   Render cron moved `45 20` -> **`45 21` UTC**, which is after the close in *both* regimes
+   (5:45pm EDT / 4:45pm EST) since there is only one entry there.
+
+The workflow step now also distinguishes the three outcomes instead of treating any 200 as
+success: a skip logs a notice, `configured: false` **fails the job loudly**, and a real run
+says so. A skip every single day would mean the guard never opens, and that must not read
+green. `workflow_dispatch` gained a `force` input so the job can be tested outside the window.
+
+Double-running is safe by construction and always was — claim rows are `INSERT OR IGNORE` on
+the alert id, and the day's index point is keyed by date.
+
+## 3. What runs server-side (and what does not)
+
+**Server-side, no laptop involved** — GitHub Actions (`auto-scan.yml`), all triggering
+token-protected endpoints on Render:
+
+| job | schedule (UTC) | status |
+|---|---|---|
+| hot list | `23 22` + `41 23` backup, weekdays | scheduled; **failing since 07-30**, fix landed today |
+| intraday | `*/30 13-20`, weekdays | **working** — verified fresh 07-31 |
+| paper track | `47 20` + `47 21`, weekdays | scheduled; endpoint live (401 without a token) |
+| watchdog | `15 13`, weekdays | working; **inert without `DISCORD_WEBHOOK_URL`** |
+| self-learning | `0 12 1 * *` monthly | scheduled |
+
+`render.yaml` defines its own equivalent crons, but the Actions workflow is the live path
+today (the blueprint's comment says to disable the workflow only once the paid blueprint is
+in use). Both hitting the same idempotent endpoints is harmless.
+
+**Still laptop-dependent:**
+- **ThetaData miner** — expected and correct; it is a local gateway. Leave it.
+- **The Sharadar backtest** (`fundamental_panel`) — licensed local data, run on demand. Not a
+  live-product dependency.
+- **`scripts/paper_track_run.py`** — the local path only. The scheduled path is the endpoint,
+  deliberately: a CI runner gets an empty database and would lose the order state that makes
+  the cycle idempotent.
+- Nothing the live product serves depends on Don's machine being on.
+
+## Secrets Don must set
+
+| where | key | status |
+|---|---|---|
+| GitHub Actions | `DISCORD_WEBHOOK_URL` | **missing — please set.** Alerting is wired and inert without it |
+| GitHub Actions | `SITE_BASE_URL`, `ADMIN_TOKEN` | already set (the scans reach Render) |
+| Render env | `TRADIER_PAPER_TOKEN`, `TRADIER_PAPER_ACCOUNT_ID` | Don says set; **I could not verify from here** |
+
+I could not confirm the Render paper credentials because `ADMIN_TOKEN` is not in the local
+`.env`, so I cannot call the production admin endpoint. The local creds authenticate fine
+(account VA35863695), but Render holds its own copy. **One-click check:** Actions -> "Auto
+scans" -> Run workflow -> kind `paper`, `force` true. It fails loudly with an explicit message
+if the Render credentials are missing, and otherwise runs one cycle.
+
+## Changed
+
+- **NEW `valuation/screener/market_session.py`** + 4 tests.
+- `valuation/saas/app_saas.py` — session guard on `/admin/run-paper-track` (+ `force` escape).
+- `.github/workflows/auto-scan.yml` — second paper cron, `force` dispatch input, outcome-aware
+  step that fails on `configured: false`.
+- `render.yaml` — paper cron `45 20` -> `45 21` UTC.
+- Tests: screener 43 -> 47, saas 22 -> 24.
+
+Did **not** touch `paper_track.py` / `paper_broker.py` (the paper lane's files), the options
+backtest, the panel or the miner.
+
+## Caveats
+
+- The session guard uses `zoneinfo`, which needs system tzdata (present on Linux/Render and
+  here). It falls back to naive UTC if unavailable, which would make it conservative in
+  summer, not permissive.
+- Holiday computation covers the ten scheduled NYSE closures. Ad-hoc closures (mourning,
+  weather) are not predictable; the cost of a run on one is a single duplicate-priced mark.
+- The paper track has **never completed a real scheduled run**. Everything above verifies the
+  parts. The first end-to-end proof is Monday's cron.
+- Sandbox quotes are delayed ~15 min (the broker's own `data_caveat`), so paper fills are
+  close to, but not, what a live account would have received.
+
+---
+
 # Session 4 — 2026-08-02 — Broker fundamentals, the free route (PROMPT_broker_fundamentals.md)
 
 ## The verdict up front: NO, you do not need to pay for FMP

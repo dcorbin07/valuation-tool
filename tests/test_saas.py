@@ -376,6 +376,35 @@ def test_methodology_page_is_public_and_states_the_weaknesses():
         assert weakness in body, f"methodology must keep the weakness: {weakness!r}"
 
 
+def test_paper_track_endpoint_skips_when_the_session_has_not_closed():
+    """The scheduled cycle must refuse to run mid-session.
+
+    The crons are pinned to a fixed UTC time, but 4pm Eastern moves an hour against UTC twice
+    a year — 20:45 UTC is 4:45pm ET in summer and 3:45pm ET in WINTER. Without this guard the
+    whole winter would have been marked and entered on intraday prices, and every run would
+    have looked completely normal. The skip must also be visibly a skip, not an empty success.
+    """
+    import datetime as dt
+    from valuation.saas.app_saas import create_saas_app
+    from valuation.screener import market_session as MS
+
+    real = MS.session_state
+    MS.session_state = lambda now=None: real(dt.datetime(2026, 8, 5, 15, 45))   # mid-session
+    try:
+        CONFIG.admin_token = "tok-123"
+        app = create_saas_app(CONFIG)
+        app.config.update(TESTING=True)
+        c = app.test_client()
+        assert c.post("/admin/run-paper-track", json={}).status_code == 401
+        r = c.post("/admin/run-paper-track", json={}, headers={"X-Admin-Token": "tok-123"})
+        assert r.status_code == 200, r.data
+        body = r.get_json()
+        assert body.get("skipped") is True, body
+        assert "not closed" in body["session"]["reason"], body["session"]
+    finally:
+        MS.session_state = real
+
+
 def test_index_track_ingest_requires_the_admin_token():
     """The live-track ingest writes what the site publishes as its real performance record.
     An open endpoint would let anyone post a track."""

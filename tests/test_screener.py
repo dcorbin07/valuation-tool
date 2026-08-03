@@ -801,6 +801,52 @@ def test_morningstar_sector_codes_match_the_apps_sector_names():
         set(SECTOR_CODES.values()) ^ set(SECTOR_MULTIPLES)
 
 
+# --------------------------------------------------------------------------- #
+# Market session guard — the thing standing between a fixed-UTC cron and a
+# forward paper track marked on intraday prices all winter.
+# --------------------------------------------------------------------------- #
+def test_market_holidays_match_the_published_nyse_calendar():
+    """Computed, not listed, so it cannot expire — which is only safe if it is right.
+    Checked against the actual NYSE closures for two full years."""
+    from valuation.screener.market_session import market_holidays
+    assert {d.isoformat() for d in market_holidays(2025)} == {
+        "2025-01-01", "2025-01-20", "2025-02-17", "2025-04-18", "2025-05-26",
+        "2025-06-19", "2025-07-04", "2025-09-01", "2025-11-27", "2025-12-25"}
+    assert {d.isoformat() for d in market_holidays(2024)} == {
+        "2024-01-01", "2024-01-15", "2024-02-19", "2024-03-29", "2024-05-27",
+        "2024-06-19", "2024-07-04", "2024-09-02", "2024-11-28", "2024-12-25"}
+
+
+def test_holiday_falling_at_a_weekend_moves_to_the_observed_weekday():
+    from valuation.screener.market_session import market_holidays
+    # 4 Jul 2026 is a Saturday -> observed Friday the 3rd; 25 Dec 2027 is a Saturday -> the 24th.
+    assert __import__("datetime").date(2026, 7, 3) in market_holidays(2026)
+    assert __import__("datetime").date(2026, 7, 4) not in market_holidays(2026)
+    assert __import__("datetime").date(2027, 12, 24) in market_holidays(2027)
+
+
+def test_session_guard_blocks_before_the_close_and_opens_after():
+    """The bug this exists for: 20:45 UTC is 4:45pm ET in summer but 3:45pm ET in winter, so a
+    fixed-UTC cron runs mid-session for half the year and nothing in the output looks wrong."""
+    import datetime as dt
+    from valuation.screener.market_session import session_state
+
+    wednesday = dt.date(2026, 8, 5)                       # a plain trading day
+    assert session_state(dt.datetime.combine(wednesday, dt.time(15, 45)))["ok"] is False
+    assert session_state(dt.datetime.combine(wednesday, dt.time(16, 45)))["ok"] is True
+    # Right at the bell is still too early: the closing print settles over the next minutes.
+    assert session_state(dt.datetime.combine(wednesday, dt.time(16, 0)))["ok"] is False
+
+
+def test_session_guard_skips_weekends_and_holidays():
+    import datetime as dt
+    from valuation.screener.market_session import session_state
+    sat = session_state(dt.datetime(2026, 8, 8, 17, 0))
+    assert sat["ok"] is False and "weekend" in sat["reason"]
+    xmas = session_state(dt.datetime(2026, 12, 25, 17, 0))
+    assert xmas["ok"] is False and "holiday" in xmas["reason"]
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

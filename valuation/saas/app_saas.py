@@ -316,8 +316,21 @@ def create_saas_app(cfg=CONFIG):
             return jsonify({"error": "unauthorized"}), 401
         from ..edge import paper_track as PT
         from ..edge.paper_broker import NotSandboxError, PaperBroker
+        from ..screener.market_session import session_state
         from ..screener.store import Store
         body = request.get_json(silent=True) or {}
+
+        # Only run once the session has actually closed. The crons are pinned to a fixed UTC
+        # time, but 4:00pm Eastern moves an hour against UTC twice a year — 20:45 UTC is
+        # 4:45pm ET in summer and 3:45pm ET in winter. Without this the whole winter would
+        # have been marked and entered mid-session, on intraday prices, with nothing in the
+        # output looking wrong. Also skips weekends and market holidays, which have no close.
+        # `force` is the manual escape hatch for testing; `dry_run` never needs it blocked.
+        if not body.get("force"):
+            sess = session_state()
+            if not sess["ok"]:
+                return jsonify({"ok": True, "configured": True, "skipped": True,
+                                "session": sess}), 200
         try:
             broker = PaperBroker(cfg, dry_run=bool(body.get("dry_run")))
         except NotSandboxError as e:
