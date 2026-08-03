@@ -3917,6 +3917,206 @@ def test_exitlab_policy_grid_is_fixed_and_pays_for_its_own_multiplicity():
         "the same screen in the 22c entry study must agree"
 
 
+# ---------------------------------------------------------------------------------------------
+# OPTIONS_DEEP_RESEARCH thread #2 — the cross-section of option returns. These pin the decisions
+# that would otherwise let a two-ended sort produce a winner by construction.
+# ---------------------------------------------------------------------------------------------
+def _xs_chain(strikes=(95.0, 100.0, 105.0), dte=30, asof="2020-06-01",
+              call=(4.00, 4.20), put=(3.80, 4.00), rights=("C", "P")):
+    """A minimal one-expiry chain that passes the fill model's liquidity screen."""
+    a = dt.date.fromisoformat(asof)
+    rows = []
+    for k in strikes:
+        for r in rights:
+            bid, ask = (call if r == "C" else put)
+            rows.append({"expiration": a + dt.timedelta(days=dte), "strike": k, "right": r,
+                         "bid": bid, "ask": ask, "open_interest": 500, "volume": 50})
+    return pd.DataFrame(rows)
+
+
+def _xs_ev(quintiles, t=3.0, months=120, both=True, char="iv_rv"):
+    """A hand-built evaluate_char result, so the gate can be tested without a panel."""
+    from valuation.edge import options_xsection as X
+    return {"char": char, "ok": True, "source": "test", "is_hypothesis":
+            X.CHARACTERISTICS[char]["hypothesis"], "published_sign":
+            X.CHARACTERISTICS[char]["sign"],
+            "n_months": months, "n_dates_dropped_thin": 0,
+            "quintile_mean_returns": list(quintiles),
+            "quintile_mean_char": list(range(len(quintiles))),
+            "monotonicity": X._spearman(list(range(len(quintiles))), list(quintiles)),
+            "all_names": {"n": months, "mean": 0.0},
+            "long_only_q1_excess": {"n": months, "mean": 0.05, "t": t},
+            "held_out_q1_excess": {"early": {"n": 60, "mean": 0.05},
+                                   "late": {"n": 60, "mean": 0.05},
+                                   "both_positive": both},
+            "long_short_NOT_INVESTABLE": {"n": months, "mean": 0.10, "t": t},
+            "monthly_q1_excess": {}}
+
+
+def test_xsection_direction_is_fixed_before_the_sort_not_after():
+    """S2, the single most important rule in the module. A cross-sectional sort has two ends; a
+    study that chooses which end to go long AFTER seeing the numbers wins half the time by
+    construction. Every published sign is declared up front, and a sort that runs BACKWARDS is a
+    contradiction of the literature — never quietly re-signed into a result."""
+    from valuation.edge import options_xsection as X
+
+    assert all(m["sign"] == +1 for m in X.CHARACTERISTICS.values()), \
+        "every characteristic is declared as 'high predicts LOWER option returns'"
+
+    # predicted: returns fall as the characteristic rises -> Q1 highest
+    good = X.gate(_xs_ev([0.30, 0.20, 0.10, 0.00, -0.10]), fdr_discovery=True)
+    assert good["passed"] and good["monotone_in_predicted_direction"]
+    assert not good["contradicts_published_sign"]
+
+    # BACKWARDS: a strong sort in the opposite direction must not pass
+    bad = X.gate(_xs_ev([-0.10, 0.00, 0.10, 0.20, 0.30]), fdr_discovery=True)
+    assert not bad["passed"], bad
+    assert bad["contradicts_published_sign"] and not bad["monotone_in_predicted_direction"]
+
+
+def test_xsection_straddle_is_bought_at_the_ask_on_both_legs():
+    """S5. A straddle crosses TWO spreads at entry — it is the most spread-punished instrument in
+    the project. Marking either leg at the mid would manufacture most of any cross-sectional
+    result, so both legs pay the ask and the arithmetic is pinned here."""
+    from valuation.edge import options_fill as F
+    from valuation.edge import options_xsection as X
+
+    asof = dt.date(2020, 6, 1)
+    s = X.pick_straddle(_xs_chain(), 100.0, asof)
+    assert s is not None and s["strike"] == 100.0
+    assert s["call"].ask == 4.20 and s["put"].ask == 4.00
+
+    r = X.straddle_return(s, settle_underlying=110.0)
+    cost = (4.20 + 4.00) * F.CONTRACT_MULTIPLIER
+    comm = F.COMMISSION_PER_CONTRACT * 2 * 2               # two legs, both ways
+    pnl = (10.0 - 4.20) * F.CONTRACT_MULTIPLIER + (0.0 - 4.00) * F.CONTRACT_MULTIPLIER - comm
+    assert abs(r["entry_cost"] - cost) < 1e-9
+    assert abs(r["net_pnl"] - pnl) < 1e-9
+    assert abs(r["return_pct"] - pnl / cost) < 1e-12
+
+
+def test_xsection_straddle_settles_at_intrinsic_carrying_thread1s_lesson():
+    """Thread #1 found the simulator marks a position that outlives its last usable quote at that
+    STALE quote — higher than the truth in 94.7% of cases. Holding to expiry and settling against
+    the underlying removes the mark entirely: there is only a payoff."""
+    from valuation.edge import options_xsection as X
+
+    s = X.pick_straddle(_xs_chain(), 100.0, dt.date(2020, 6, 1))
+    pinned = X.straddle_return(s, settle_underlying=100.0)      # both legs finish worthless
+    assert pinned["return_pct"] < -1.0, "premium plus commission, all of it"
+    assert abs(pinned["return_pct"] + 1.0) < 0.01
+    # and no settle price at all must drop the observation rather than invent one
+    assert X.straddle_return(s, settle_underlying=None) is None
+
+
+def test_xsection_straddle_legs_must_share_a_strike_and_an_expiry():
+    """Two legs at different strikes is a strangle, not a straddle, and is not delta-neutral at
+    inception — which is the entire reason this instrument was chosen."""
+    from valuation.edge import options_xsection as X
+
+    ch = _xs_chain(strikes=(95.0, 100.0, 105.0))
+    ch = ch[~((ch["strike"] == 100.0) & (ch["right"] == "P"))]   # no ATM put available
+    s = X.pick_straddle(ch, 100.0, dt.date(2020, 6, 1))
+    assert s is not None and s["strike"] in (95.0, 105.0), \
+        "it must fall back to a strike where BOTH legs exist"
+
+    far = X.pick_straddle(_xs_chain(strikes=(200.0,)), 100.0, dt.date(2020, 6, 1))
+    assert far is None, "a strike miles from spot is not an ATM straddle"
+
+
+def test_xsection_thin_dates_are_dropped_and_counted_not_silently_used():
+    """A cross-sectional sort on eight names is five quintiles of one or two. Thin dates are
+    dropped and the count ships, because a silently thin month looks identical to a real one."""
+    from valuation.edge import options_xsection as X
+
+    panel = [{"date": "2019-01-31", "ticker": f"N{i}", "return_pct": 0.1 * (i % 5),
+              "iv_rv": float(i)} for i in range(8)]
+    panel += [{"date": "2019-02-28", "ticker": f"N{i}", "return_pct": 0.1 * (i % 5),
+               "iv_rv": float(i)} for i in range(40)]
+    s = X.quintile_sort(panel, "iv_rv")
+    assert s["n_months"] == 1 and s["n_dates_dropped_thin"] == 1
+    assert "2019-02-28" in s["months"] and "2019-01-31" not in s["months"]
+
+
+def test_xsection_monotonicity_bar_rejects_a_q1_q5_gap_with_noise_between():
+    """S1(c). A characteristic whose extremes differ while the middle is noise has not sorted
+    anything — it has found two tails. The rank correlation across all five quintiles is what
+    separates a real monotone relationship from a lucky pair of ends."""
+    from valuation.edge import options_xsection as X
+
+    noisy = X.gate(_xs_ev([0.30, -0.15, 0.25, -0.05, -0.12]), fdr_discovery=True)
+    assert not noisy["monotone_enough"] and not noisy["passed"], noisy
+    clean = X.gate(_xs_ev([0.30, 0.18, 0.09, -0.02, -0.12]), fdr_discovery=True)
+    assert clean["monotone_enough"] and clean["passed"]
+
+
+def test_xsection_long_short_is_labelled_uninvestable_and_never_gates():
+    """S4. The short leg of Q1-Q5 is a NAKED SHORT STRADDLE — unlimited risk, not permitted in
+    Don's account, and excluded by the mandate's own guardrail. The gate must read the long-only
+    excess, and the long-short must carry its warning in the key name itself."""
+    import inspect
+
+    from valuation.edge import options_xsection as X
+
+    ev = _xs_ev([0.30, 0.18, 0.09, -0.02, -0.12])
+    assert "long_short_NOT_INVESTABLE" in ev
+    src = inspect.getsource(X.gate)
+    assert "long_only_q1_excess" in src and "long_short" not in src, \
+        "the gate must never read the long-short leg"
+    assert "naked short straddle" in (X.__doc__ or "").lower() or \
+        "naked short straddle" in (X.verdict.__doc__ or "") or \
+        "naked short straddle" in inspect.getsource(X.verdict)
+
+
+def test_xsection_illiq_is_a_mechanical_control_and_cannot_be_adopted():
+    """Returns here are net of the spread, so a wide-spread name must earn less BY CONSTRUCTION.
+    `illiq` is carried as a control — if it does not sort, the panel is not measuring what it
+    thinks it is — but it can never be a discovery, however good its statistics look."""
+    from valuation.edge import options_xsection as X
+
+    assert X.CHARACTERISTICS["illiq"]["hypothesis"] is False
+    perfect = X.gate(_xs_ev([0.30, 0.18, 0.09, -0.02, -0.12], t=9.0, char="illiq"),
+                     fdr_discovery=True)
+    assert perfect["t_ok"] and perfect["monotone_in_predicted_direction"]
+    assert not perfect["passed"], "a mechanical control must never be adopted"
+
+
+def test_xsection_idio_moments_refuse_a_short_window_and_coverage_is_reported():
+    """The COVERAGE RULE, which this project learned the expensive way: five wired factors were
+    silently empty for its entire history. A characteristic with no coverage must be visible in
+    the result, not an absent column that quietly contributes nothing to a quintile mean."""
+    from valuation.edge import options_xsection as X
+
+    days = [f"2019-{m:02d}-{d:02d}" for m in range(1, 13) for d in range(1, 29)]
+    # the market proxy must actually VARY, or the one-factor regression has no regressor
+    mkt = {d: 0.001 * ((i % 5) - 2) for i, d in enumerate(days)}
+    short = [(k, 0.002) for k in days[:50]]
+    assert X.idio_moments(short, mkt) == {}, "too few observations must yield nothing, not noise"
+
+    long_ = [(k, 0.002 * ((i % 7) - 3)) for i, k in enumerate(days[:300])]
+    got = X.idio_moments(long_, mkt)
+    assert "idio_vol" in got and "idio_skew" in got
+
+    panel = [{"date": "2019-01-31", "ticker": "A", "return_pct": 0.1, "iv_rv": 1.0,
+              "entry_cost": 100.0, "spread_pct": 0.05, "dte": 30}]
+    cov = X.panel_summary(panel)["coverage"]
+    assert set(cov) == set(X.CHAR_NAMES)
+    assert cov["iv_rv"] == 1.0 and cov["idio_vol"] == 0.0
+
+
+def test_xsection_one_sided_screen_cannot_reward_a_backwards_sort():
+    """A characteristic that sorts the wrong way must not be able to earn a small p-value from a
+    two-sided test and become a 'discovery'. Same failure the exit lab's FDR screen had."""
+    import inspect
+
+    from valuation.edge import options_xsection as X
+
+    src = inspect.getsource(X.analyse)
+    assert "if t > 0 else 1.0" in src
+    assert "n_trials=len(CHAR_NAMES)" in src, "deflate by every characteristic tested"
+    assert "pbo_cscv_policies" in src and "bh_fdr" in src
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
