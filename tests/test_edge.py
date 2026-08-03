@@ -3681,6 +3681,246 @@ def test_entry_multiplicity_is_paid_for_not_merely_mentioned():
     assert "else 1.0" in src
 
 
+# ---------------------------------------------------------------------------------------------
+# OPTIONS_DEEP_RESEARCH thread #1 — exit optimization. These pin the design decisions of the
+# exit lab: the baseline must reproduce production, the tail must be watched, the random-entry
+# set must be required, and the policy grid must pay for its own multiplicity.
+# ---------------------------------------------------------------------------------------------
+def _exit_path(marks, entry=(1.00, 1.10), dte0=60, right="C", strike=100.0,
+               settle=None, start="2019-01-02"):
+    """A synthetic contract path. `marks` are daily BID levels; the ask sits 4% above so every
+    exit quote is tradable and the sell-side fill is exactly the bid at aggression 1.0."""
+    ds = [str(d.date()) for d in pd.bdate_range(start=start, periods=len(marks) + 1)][1:]
+    days = [(d, float(b), float(b) * 1.04) for d, b in zip(ds, marks)]
+    return {"ticker": "T", "entry_date": start, "expiry": str(
+                (dt.date.fromisoformat(start) + dt.timedelta(days=dte0))),
+            "strike": strike, "right": right,
+            "entry_bid": entry[0], "entry_ask": entry[1], "entry_oi": 500.0,
+            "entry_volume": 50.0, "entry_fill": entry[1], "dte0": dte0,
+            "days": days, "settle_underlying": settle, "entry_spread_pct": 0.095,
+            "alert_date": start, "cap_tier": "mega"}
+
+
+def test_exitlab_baseline_policy_reproduces_the_shipped_simulator():
+    """Every number in this thread is compared against results the PRODUCTION simulator produced.
+    If the path-replay evaluator differs from it by even a cent the comparison is meaningless, so
+    the baseline replay is a hard gate rather than a warning."""
+    from valuation.edge import options_exitlab as EL
+
+    assert EL.SHIPPED == {"tp": 1.00, "sl": -0.50, "time_frac": 0.50}
+    # +100% on the entry fill of 1.10 needs a bid of 2.20; it arrives on day 3.
+    p = _exit_path([1.20, 1.60, 2.30, 3.00])
+    t = EL.apply_policy(p, dict(EL.SHIPPED))
+    assert t["ok"] and t["exit_reason"] == "target"
+    assert abs(t["return_pct"] - (2.30 / 1.10 - 1.0)) < 1e-12, t
+
+    # and the checker must actually catch a mismatch rather than rubber-stamping
+    good = [{"ticker": "T", "entry_date": p["entry_date"], "alert_ts": p["entry_date"],
+             "pnl_pct": t["return_pct"]}]
+    bad = [dict(good[0], pnl_pct=t["return_pct"] + 0.01)]
+    assert EL.replay_matches_shipped([p], good)["ok"]
+    chk = EL.replay_matches_shipped([p], bad)
+    assert not chk["ok"] and chk["n_mismatched"] == 1
+
+
+def test_exitlab_take_profit_mechanically_removes_the_tail_it_is_judged_on():
+    """X6. 83.7% of the book's gross winnings come from >= +100% trades. A +50% take-profit
+    raises the hit rate by deleting exactly that tail, so a policy cannot be read on expectancy
+    alone — the tail statistics have to travel with it."""
+    from valuation.edge import options_exitlab as EL
+
+    runner = _exit_path([1.30, 2.00, 3.00, 4.40, 5.00])
+    tp50 = EL.apply_policy(runner, {"tp": 0.50, "sl": -0.50, "time_frac": 0.50})
+    none = EL.apply_policy(runner, {"tp": None, "sl": -0.50, "time_frac": 0.50})
+    assert tp50["exit_reason"] == "target" and tp50["return_pct"] < 1.0
+    assert none["return_pct"] > 3.0, "with no target the runner is allowed to run"
+
+    rows_tp = EL.score_paths([runner], "tp50", {"tp": 0.50, "sl": -0.50, "time_frac": 0.50})
+    rows_no = EL.score_paths([runner], "tp_none", {"tp": None, "sl": -0.50, "time_frac": 0.50})
+    assert EL.policy_stats(rows_tp)["p_tail_win"] == 0.0
+    assert EL.policy_stats(rows_no)["p_tail_win"] == 1.0
+
+
+def test_exitlab_trailing_stop_arms_only_after_its_ratchet_threshold():
+    """A ratcheting trail must not fire on a position that never got going — otherwise it is just
+    a tighter stop wearing a different name, and the two would be indistinguishable in the grid."""
+    from valuation.edge import options_exitlab as EL
+
+    # peaks at +9% (bid 1.20 vs a 1.10 fill), then gives back 42% of the peak.
+    p = _exit_path([1.15, 1.20, 0.69, 0.68, 0.67])
+    plain = EL.apply_policy(p, {"tp": 1.00, "sl": None, "time_frac": 0.50, "trail": 0.35})
+    assert plain["exit_reason"] == "trail", plain
+
+    ratchet = EL.apply_policy(p, {"tp": 1.00, "sl": -0.50, "time_frac": 0.50,
+                                  "trail": 0.35, "trail_after": 0.50})
+    assert ratchet["exit_reason"] != "trail", "the trail must stay disarmed below +50%"
+
+    # once it clears +50% the same trail does fire
+    q = _exit_path([1.20, 1.70, 1.05, 1.00])
+    armed = EL.apply_policy(q, {"tp": 1.00, "sl": -0.50, "time_frac": 0.50,
+                                "trail": 0.35, "trail_after": 0.50})
+    assert armed["exit_reason"] == "trail", armed
+
+
+def test_exitlab_exit_checks_fire_in_the_declared_order():
+    """TARGET, then fixed STOP, then TRAIL, then TIME — matching the shipped simulator, which
+    records the target when one day clears both. The ordering flatters the target slightly; it is
+    held constant across the grid so no policy gains from it, but it must not drift."""
+    from valuation.edge import options_exitlab as EL
+
+    # a day that is simultaneously past the time stop AND at the target
+    p = _exit_path([1.15] * 40 + [2.40], dte0=20)
+    t = EL.apply_policy(p, dict(EL.SHIPPED))
+    assert t["exit_reason"] == "time_stop", "the time stop bites long before the target arrives"
+
+    q = _exit_path([2.40], dte0=1)
+    t2 = EL.apply_policy(q, dict(EL.SHIPPED))
+    assert t2["exit_reason"] == "target", "target wins when both fire on the same day"
+
+
+def test_exitlab_worthless_expiries_settle_at_intrinsic_and_are_not_dropped():
+    """Dropping the contracts that expired worthless is the survivorship bias that makes every
+    options backtest look good. A path with no tradable exit quote must still post its -100%."""
+    from valuation.edge import options_exitlab as EL
+
+    p = _exit_path([], dte0=45, strike=100.0, settle=80.0)
+    t = EL.apply_policy(p, dict(EL.SHIPPED))
+    assert t["ok"] and t["exit_reason"] == "expiry"
+    assert t["settled_at_intrinsic"] and t["return_pct"] == -1.0, t
+
+
+def test_exitlab_holding_past_the_last_quote_settles_at_intrinsic_not_at_a_stale_mark():
+    """THE finding of this thread. A contract stops being quotable when its bid hits zero or its
+    spread blows out — exactly when it is dying — so marking the fall-through at the last usable
+    quote books a price from BEFORE the final decay. That bias grows with holding period, so it
+    manufactures a monotone reward for holding longer and would hand the grid a fake winner."""
+    from valuation.edge import options_exitlab as EL
+
+    # quotes stop 10 days before expiry with the bid still at 0.60; the stock finishes OTM, so
+    # the honest settlement is a total loss and the stale mark is a 45% loss.
+    p = _exit_path([0.90, 0.75, 0.60], dte0=45, strike=100.0, settle=80.0)
+    honest = EL.apply_policy(p, {"tp": 1.00, "sl": None, "time_frac": 1.00}, settle="intrinsic")
+    legacy = EL.apply_policy(p, {"tp": 1.00, "sl": None, "time_frac": 1.00},
+                             settle="last_quote")
+    assert honest["exit_reason"] == "expiry" and legacy["exit_reason"] == "expiry"
+    assert honest["return_pct"] == -1.0, honest
+    assert abs(legacy["return_pct"] - (0.60 / 1.10 - 1.0)) < 1e-12, legacy
+    assert legacy["return_pct"] > honest["return_pct"], "the stale mark flatters, always"
+    assert legacy["stale_mark_used"] and not honest.get("stale_mark_used")
+
+    # the shipped exit barely touches this path, which is why earlier results are unaffected
+    quick = _exit_path([2.40] + [0.60] * 5, dte0=45, strike=100.0, settle=80.0)
+    t = EL.apply_policy(quick, dict(EL.SHIPPED))
+    assert t["exit_reason"] == "target" and not t.get("stale_mark_used")
+
+
+def test_exitlab_gate_requires_the_random_entry_set_not_just_the_signal():
+    """X1(b), the key test the mandate names. The scream-buy entry is dead, so an exit that only
+    improves things behind it is entry-conditional, not an exit edge. It is recorded separately
+    as SIGNAL-ONLY and never merged into the headline."""
+    from valuation.edge import options_exitlab as EL
+
+    def cmp_(gain, halves=True):
+        return {"tp_none": {"stats": {"n": 500, "expectancy_pct": 0.3},
+                            "held_out": {"both_positive": halves},
+                            "vs_shipped": {"expectancy_diff": gain, "tail_share_change": 0.0}}}
+
+    fdr = {"tp_none": {"discovery": True}}
+    only = EL.gate(cmp_(0.25), cmp_(-0.02), fdr)["tp_none"]
+    assert only["beats_shipped_on_signal_by_bar"] and not only["beats_shipped_on_random"]
+    assert only["X2_signal_only"] and not only["X1_adopt"]
+
+    both = EL.gate(cmp_(0.25), cmp_(0.11), fdr)["tp_none"]
+    assert both["X1_adopt"] and not both["X2_signal_only"]
+
+    # and a policy the paired test does not support cannot be adopted however big the gap
+    assert not EL.gate(cmp_(0.25), cmp_(0.11),
+                       {"tp_none": {"discovery": False}})["tp_none"]["X1_adopt"]
+
+
+def test_exitlab_pbo_detects_a_grid_whose_winner_does_not_persist():
+    """X3. CSCV over the policy grid is the one statistic that directly answers 'would picking the
+    best backtest have been a mistake'. It must return a HIGH PBO when the in-sample winner is the
+    out-of-sample loser, and a low one when a policy genuinely dominates throughout."""
+    from valuation.edge import options_exitlab as EL
+
+    early = [str(d.date()) for d in pd.bdate_range(start="2017-01-02", periods=120)]
+    late = [str(d.date()) for d in pd.bdate_range(start="2023-01-02", periods=120)]
+
+    # Every policy carries the SAME large dispersion, so the block Sharpe ranks by mean. Giving
+    # one policy a tighter spread would hand it a huge Sharpe on a trivial edge — which is a real
+    # property of the statistic and would make this test pass for the wrong reason.
+    OFFSETS = (-0.9, 0.9, -0.3, 0.3, -0.6, 0.6)
+
+    def rows(dates, val):
+        return [{"ticker": f"N{i%7}", "alert_ts": d, "alert_date": d,
+                 "pnl_pct": val + OFFSETS[i % len(OFFSETS)], "status": "closed"}
+                for i, d in enumerate(dates)]
+
+    # A wins early and loses late; B does the reverse. Neither persists.
+    flip = {"shipped": rows(early, 0.05) + rows(late, 0.05),
+            "A": rows(early, 0.60) + rows(late, -0.50),
+            "B": rows(early, -0.50) + rows(late, 0.60)}
+    bad = EL.pbo_cscv_policies(flip, n_blocks=6)
+    assert bad["ok"] and bad["pbo"] > 0.5, bad
+
+    # C is better in every block; picking it in sample is the right call out of sample.
+    steady = {"shipped": rows(early, 0.05) + rows(late, 0.05),
+              "A": rows(early, 0.02) + rows(late, 0.02),
+              "C": rows(early, 0.60) + rows(late, 0.60)}
+    good = EL.pbo_cscv_policies(steady, n_blocks=6)
+    assert good["ok"] and good["pbo"] < 0.5 and good["passes"], good
+
+
+def test_exitlab_expectancy_is_reported_per_day_held_as_well_as_per_trade():
+    """X5. An exit that closes in half the time is not comparable per trade — it frees the capital
+    sooner. Both readings must ship, or a fast-exit policy is judged on the wrong axis."""
+    from valuation.edge import options_exitlab as EL
+
+    slow = [{"ticker": "A", "alert_ts": "2019-01-02", "alert_date": "2019-01-02",
+             "pnl_pct": 0.20, "held_days": 40, "status": "closed"}]
+    fast = [{"ticker": "A", "alert_ts": "2019-01-02", "alert_date": "2019-01-02",
+             "pnl_pct": 0.10, "held_days": 20, "status": "closed"}]
+    a, b = EL.policy_stats(slow), EL.policy_stats(fast)
+    assert a["expectancy_pct"] > b["expectancy_pct"], "slow wins per trade"
+    assert abs(a["expectancy_per_day_held"] - b["expectancy_per_day_held"]) < 1e-12, \
+        "and they are identical per day held — which is why both are reported"
+
+
+def test_exitlab_policy_grid_is_fixed_and_pays_for_its_own_multiplicity():
+    """X3/X6. Twenty-one policies is a search. The grid is declared before the run, each
+    single-dimension family varies exactly one field from the shipped exit, and the deflation is
+    by the policy count rather than by one."""
+    import inspect
+
+    from valuation.edge import options_exitlab as EL
+
+    assert len(EL.POLICIES) == 21 and EL.POLICY_NAMES[0] == EL.BASELINE
+    assert len(set(EL.POLICY_NAMES)) == 21, "no duplicate policy names"
+    assert dict(EL.POLICIES)[EL.BASELINE] == EL.SHIPPED
+
+    composites = {"shipped", "ratchet35", "run_winners", "tp100_only"}
+    for name, pol in EL.POLICIES:
+        if name in composites:
+            continue
+        diff = [k for k in set(pol) | set(EL.SHIPPED)
+                if pol.get(k) != EL.SHIPPED.get(k)]
+        # a family may drop time_frac in favour of dte_exit; that is still one dimension
+        assert len(diff) <= 2, f"{name} varies more than one dimension: {diff}"
+
+    src = inspect.getsource(EL.analyse)
+    assert "n_trials=n_trials" in src and "len(POLICY_NAMES)" in src
+    assert "bh_fdr" in src and "else 1.0" in src, "one-sided: worse policies are not discoveries"
+    assert EL.MAX_PBO == 0.50
+    # The one-sided screen must take its DIRECTION from the sign test, whose p-value it is —
+    # not from the mean, which can point the other way on a heavy tail.
+    assert 'pr.get("sign_z")' in src, "direction must come from the sign test"
+    assert 'pvals.append(p if (z or 0) > 0 else 1.0)' in src
+    from valuation.edge import options_entry as E
+    assert 'pr.get("sign_z")' in inspect.getsource(E.analyse), \
+        "the same screen in the 22c entry study must agree"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

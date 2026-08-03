@@ -92,6 +92,55 @@ and the **ML tree combiner**, not another factor.
 
 ---
 
+## DEEP RESEARCH THREAD #1 — EXIT OPTIMIZATION — **REJECT, AND A SIMULATOR BUG FOUND** (2026-08-03)
+
+Full report: **`HANDOFF_deep_exits.md`**. Gate committed results-free at `56268b6` before scoring.
+Full run: **278 complete names**, 3,119 signal entries + 5,986 random entries, 21 exit policies,
+aggression 1.0. Catalog updated in `OPTIONS_DEEP_RESEARCH.md`; next thread is **#2 cross-sectional
+option returns**.
+
+**READ THIS BEFORE ANY THREAD THAT HOLDS POSITIONS LONGER (VRP, earnings, calendars).** The
+production simulator marks a position that outlives its contract's last usable quote at **that
+stale quote** — and a contract stops being quotable exactly when it is dying. For the
+hold-to-expiry policy **44.6%** of trades land in that fall-through, their last quote is a **median
+of 10 days before expiry**, it is **higher than true settlement in 94.7%** of cases, and **86.1%**
+carry a positive mark on a contract that expired worthless (mean marked −77.8% vs a true −92.2%).
+The bias **scales with holding period**, so it manufactures a monotone fake reward for holding
+longer — worth **+6.45pp** on that policy. **The shipped exit hits it on 0.9% of trades, so 22b,
+22c and every earlier options result are essentially unaffected**, and all of them use the same
+exit so their comparisons are unaffected too. Honest settlement (`settle="intrinsic"`) is now the
+default in `options_exitlab.apply_policy` and is pinned by a test.
+
+**Verdict REJECT — nothing clears the +10pp bar.** But the direction is real, small and consistent,
+and it **replicates on RANDOM entries** with equal or larger size, so whatever effect exists is a
+property of the **EXIT**, not of the dead entry signal — which is exactly what the mandate asked:
+- **cutting winners early is costly**: +50% target −3.61pp, +75% −1.19pp, **+150% +2.11pp, +200%
+  +3.26pp**;
+- **stopping out tight is costly**: −30% stop −2.61pp, −70% +3.13pp, no stop +3.20pp; trailing stops
+  are the worst family (25% trail −4.06pp);
+- so the optimum target sits nearer **+150–200%** than the shipped +100%, and the −50% stop is on
+  the costly side. `tp200` is the only policy better on **every** axis — per trade, per day held,
+  both entry sets, both halves, majority of the cells it changes (FDR 10%), DSR 99.8%.
+
+**Do NOT be fooled by `tp100_only`**, the grid's biggest per-trade number (+6.71pp): per DAY of
+capital committed it is *worse* than the shipped exit on both entry sets (+0.00250 vs +0.00256),
+it simply holds **2.5x longer**, its paired direction **flips sign between entry sets**, and it
+carries **21.5% total losses vs 0.67%**.
+
+**The barbell, measured in two numbers:** tightening the stop (sl30) **wins a majority of cells
+(z +10.6) and loses 2.61pp of expectancy**; holding to expiry **earns +6.71pp and loses a majority
+of cells (z −3.97)**. Mean improvement and win-rate point in opposite directions — the same lesson
+the autopsy taught about hit rate.
+
+PBO by CSCV over the policy grid: **0.075 signal / 0.000 random** over 252 splits — not overfit,
+there is just not much in it. Tests **166/166** edge (10 new).
+
+**Two questions left open, deliberately not renegotiated:** whether an ABSOLUTE +10pp bar is right
+for a proportional improvement (tp200 is a ~69% relative lift on a +4.71% book), and whether
+requiring both a mean gain and a cell-win majority is self-defeating on a convex payoff.
+
+---
+
 ## OPTIONS ENTRY TIMING (roadmap 22c) — **THE ANTI-TILT IS REAL AND STABLE, AND NOT SALVAGEABLE** (2026-08-03)
 
 Full report: **`HANDOFF_entry_fix.md`**. Gate committed results-free at `52a4658` before the run.
