@@ -259,8 +259,18 @@ def main():
             break
 
         rec = manifest.get(sym, {})
-        if rec.get("status") in ("complete", "skipped_thin"):
+        # "partial" is skipped HERE and handled by the bounded retry pass at the end. Retrying it
+        # inline meant a name with genuinely unavailable years was re-attempted on every restart,
+        # blocking the queue before any new name was reached - BKNG (2018-2021) cost ~48 minutes
+        # per restart that way, and the log gave no clue which name was responsible.
+        if rec.get("status") in ("complete", "skipped_thin", "partial"):
             continue
+
+        # Announce BEFORE the pull. Progress was logged only on completion, so a name that took
+        # 48 minutes looked identical to a hung process - there was no way to tell from the log
+        # which name was in flight.
+        t_name = time.time()
+        log(f"-> [{i}/{len(uni)}] {sym} ...")
 
         # Probe year: cache one year, then let REAL liquidity decide whether to continue.
         probe = 2024 if 2024 in YEARS else YEARS[-1]
@@ -305,7 +315,8 @@ def main():
         done = sum(1 for v in manifest.values() if v.get("status") in ("complete", "partial"))
         log(f"[{i}/{len(uni)}] {sym}: {len(got)} years"
             + (f", GAPS {gaps}" if gaps else "")
-            + f" | {done} of {len(uni)} names cached | {(time.time()-t0)/60:.0f}m")
+            + f" | {done} of {len(uni)} names cached"
+            + f" | {(time.time()-t_name)/60:.1f}m this name, {(time.time()-t0)/60:.0f}m total")
         _save(manifest)
 
     _save(manifest)

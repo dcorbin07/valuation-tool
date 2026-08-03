@@ -163,6 +163,23 @@ those contracts as the price proxy — this avoids needing a per-name spot serie
 Names skipped under either superseded metric were cleared from the manifest and are being
 re-judged under these criteria.
 
+
+### If the log goes quiet, read it before assuming a hang
+
+Progress is announced **before** each name (`-> [134/1000] NOW ...`) as well as on completion, so
+the log always shows what is in flight. That was added after a 48-minute silence looked like a
+hung process and turned out to be one name — BKNG — being re-attempted on every restart.
+
+Three things keep one bad name from blocking the queue:
+
+* **Partial names are skipped by the main loop** and handled by the bounded retry pass at the end.
+  Retrying them inline meant a name with genuinely unavailable years re-ran on every restart,
+  blocking the queue before any *new* name was reached.
+* **Per-call deadline is 75s with 2 retries** (was 180s x 3). The old setting let a single
+  symbol-year burn 8 calls x 3 x 180s = 72 minutes, and ten such years half a day. A healthy
+  quarter returns in 5-20s.
+* **Per-name elapsed time is logged**, so a slow name is obvious in the progress file.
+
 ---
 
 ## Bugs found and fixed while setting this up

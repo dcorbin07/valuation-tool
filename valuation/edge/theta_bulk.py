@@ -90,8 +90,11 @@ from typing import Optional
 CACHE_ROOT = os.path.join("data", "options")
 MAX_DTE = 90
 WORKERS = 4                    # ThetaData Standard allows 4 concurrent requests
-CALL_TIMEOUT = 180             # seconds; a hung gRPC stream must not stall a worker forever
-RETRIES = 3
+CALL_TIMEOUT = 75              # seconds. Was 180, which let ONE pathological symbol-year burn
+                               # 8 calls x 3 retries x 180s = 72 minutes, and ten such years
+                               # half a day - enough to stall an unattended queue on one name.
+                               # A healthy quarter returns in ~5-20s, so 75s is generous.
+RETRIES = 2                    # a call that fails twice at 75s is not going to succeed
 BACKOFF = 4.0                  # seconds, multiplied by attempt number
 KEEP = ["expiration", "strike", "right", "date", "bid", "ask", "volume", "open_interest"]
 
