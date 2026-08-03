@@ -146,6 +146,20 @@ uses, so a broker sector lands straight in the fair-value peer medians instead o
 through to the generic default. A test pins that — a near-miss like "Financials" would fail
 silently.
 
+## Two operational notes
+
+**The next scan will be slow, once.** `METRICS_SCHEMA` went 1 -> 2, so every cached
+fundamentals row is discarded and refetched. The Actions `.scan-cache` is effectively empty
+for one run: at ~2.3s/name and `SCAN_LIMIT=800` that is roughly 30 minutes against a
+`timeout-minutes: 60` budget. It should fit, but if that run goes red on a timeout this is
+why, and it is self-correcting on the following run.
+
+**There is a fast mode available and I did not switch it on.** Skipping the per-name free
+fetch entirely gives a full scan in ~15s instead of ~230s, at the cost of the growth theme and
+part of quality. I did not add a flag for it because nothing needs it today, but if the
+scheduled scan ever starts timing out or Yahoo throttling gets worse, that is the lever — and
+the measured trade-off is in the table above rather than a guess.
+
 ## Caveats — do not drop these
 
 - Coverage is measured on **200 liquid large caps**. Thinner names will have worse ratio
