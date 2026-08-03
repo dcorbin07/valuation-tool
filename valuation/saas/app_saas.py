@@ -642,7 +642,12 @@ def create_saas_app(cfg=CONFIG):
                     }), 429, {"Retry-After": str(retry)}
             u = auth.current_user(store)
             # How many hot-stocks rows this tier may see (free 10 / pro 100 / premium 500).
-            g.hotstocks_cap = gating.features(gating._active(u))["hotstocks_top"]
+            _feats = gating.features(gating._active(u))
+            g.hotstocks_cap = _feats["hotstocks_top"]
+            # The unified name view spans a public ranking AND the paid Signals feature. Rather
+            # than login-wall the whole panel or leak contract detail, the options half is
+            # switched off per tier and says so, so a free reader still gets the stock half.
+            g.may_see_options = bool(_feats.get("intraday"))
             blocked = gating.check_request(path, request.method, body, u, store)
             if blocked:
                 payload, status = blocked

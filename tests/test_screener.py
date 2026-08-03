@@ -1037,6 +1037,116 @@ def test_a_name_no_theme_scored_has_no_attribution_rather_than_a_zero():
     assert abs(float(contrib.loc["A"].sum()) - float(comp.loc["A"])) < 1e-12
 
 
+# ---------------------------------------------------------------------------------------- #
+# The unified "what does this tool do with this name" view. It spans the ranking, the book
+# and the options alerts, which is exactly why its failure mode is a confident sentence that
+# is not true of any of them.
+# ---------------------------------------------------------------------------------------- #
+def test_name_view_joins_the_ranking_the_book_and_the_options_record():
+    res, store = _scan()
+    from valuation.web.unified import name_view
+    top = res["rows"][0]["ticker"]
+    v = name_view(store, top)
+    s = v["stock"]
+    assert s["in_scan"] and s["rank"] == 1
+    assert s["n_scored"] == res["scored"]
+    # The attribution shown here is the SAME one the Hot tab shows — not a re-derivation.
+    assert s["why"] == (res["rows"][0]["extra"] or {}).get("why")
+    assert s["index"]["available"] and isinstance(s["index"]["in_book"], bool)
+    assert v["options"]["n_logged"] == 0
+    assert any(a["kind"] == "caveat" for a in v["action"])
+
+
+def test_name_view_says_a_name_is_absent_rather_than_bad():
+    res, store = _scan()
+    from valuation.web.unified import name_view
+    v = name_view(store, "NOTATICKER")
+    assert v["stock"]["in_scan"] is False
+    msg = v["stock"]["message"].lower()
+    assert "not in" in msg and "says nothing about" in msg
+    # No score, no rank, no fabricated neutral value.
+    assert "hot_score" not in v["stock"] and "rank" not in v["stock"]
+
+
+def test_name_view_never_quotes_a_per_ticker_hit_rate():
+    """One name yields a handful of trades at most; a rate off that is noise wearing a %."""
+    import datetime as _dt
+    from valuation.edge import options_tracker as OT
+    from valuation.web.unified import name_view
+    res, store = _scan()
+    t = res["rows"][0]["ticker"]
+    ts = _dt.datetime.utcnow().isoformat(timespec="seconds")
+    aid = OT.log_alert(store, {"ticker": t, "alert_ts": ts, "opt_right": "call", "strike": 100.0,
+                               "expiry": "2026-12-18", "entry_premium": 4.00, "dte": 60,
+                               "score": 88.0})
+    assert OT.record_outcome(store, alert_id=aid, exit_premium=8.00, exit_ts=ts,
+                             exit_reason="target")
+    v = name_view(store, t)
+    o = v["options"]
+    assert o["n_logged"] == 1 and o["n_closed"] == 1
+    ch = o["closed_here"]
+    assert ch["n_won"] == 1 and ch["n"] == 1
+    assert "rate" in ch["note"]
+    # A rate on one trade must not appear anywhere in the payload or the action lines.
+    assert "hit_rate" not in ch and "expectancy" not in ch
+    text = " ".join(a["text"] for a in v["action"])
+    assert "1 of 1 closed option trade(s) on this name won" in text
+    assert "100%" not in text
+
+
+def test_name_view_sizes_in_whole_contracts_and_reports_zero_honestly():
+    """A premium above the risk budget sizes to ZERO. Rounding it to one breaks the rule."""
+    import datetime as _dt
+    from valuation.edge import options_tracker as OT
+    from valuation.web.unified import name_view
+    res, store = _scan()
+    t = res["rows"][0]["ticker"]
+    ts = _dt.datetime.utcnow().isoformat(timespec="seconds")
+    OT.log_alert(store, {"ticker": t, "alert_ts": ts, "opt_right": "call", "strike": 100.0,
+                         "expiry": "2026-12-18", "entry_premium": 25.00, "dte": 60})
+    v = name_view(store, t, risk_budget=1000.0)
+    sz = v["options"]["latest"]["sizing"]
+    assert sz["contracts"] == 0          # $25 x 100 = $2,500 > $1,000
+    assert "zero, not one" in sz["note"]
+
+    v2 = name_view(store, t, risk_budget=10000.0)
+    assert v2["options"]["latest"]["sizing"]["contracts"] == 4
+
+
+def test_name_view_withholding_options_is_not_the_same_as_having_none():
+    """The free tier doesn't LOOK at the options record — it must not report an empty one."""
+    from valuation.web.unified import name_view
+    res, store = _scan()
+    t = res["rows"][0]["ticker"]
+    v = name_view(store, t, with_options=False)
+    assert v["options"]["withheld"] is True
+    text = " ".join(a["text"] for a in v["action"])
+    assert "No scream-buy options alert has ever fired" not in text
+    assert "part of Signals" in text
+    # The convexity framing survives the withholding — a reader who sees a contract exists
+    # but no caveat is the worst of both.
+    assert "CONVEX" in v["options"]["convexity"]
+
+
+def test_name_view_action_lines_describe_the_model_not_the_reader():
+    from valuation.web.unified import name_view
+    res, store = _scan()
+    v = name_view(store, res["rows"][0]["ticker"])
+    text = " ".join(a["text"] for a in v["action"]).lower()
+    for phrase in ("you should", "we recommend", "buy now", "strong buy", "guaranteed"):
+        assert phrase not in text, phrase
+
+
+def test_name_view_survives_a_store_with_no_scan_at_all():
+    import tempfile
+    from valuation.web.unified import name_view
+    store = Store(os.path.join(tempfile.mkdtemp(prefix="valquo_empty_"), "s.db"))
+    v = name_view(store, "AAPL")
+    assert v["stock"]["in_scan"] is False
+    assert "No scan" in v["stock"]["message"]
+    assert v["options"]["n_logged"] == 0
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

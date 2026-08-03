@@ -166,6 +166,9 @@ async function runValue(overrides) {
     STATE.data = data;
     render(data);
     show("results", true);
+    // Fired AFTER the valuation has painted, and never awaited: the unified view is an
+    // addition to the page, so a slow or broken /api/whatdo must not delay or break it.
+    loadWhatDo(ticker);
   } catch (e) {
     errBox(e.message);
   } finally {
@@ -387,6 +390,69 @@ function scoreBars(score) {
   html += `<div style="margin-top:10px;font-size:12.5px" class="muted">Drivers:</div><ul style="margin:4px 0 0;padding-left:18px;font-size:13px">` +
     (score.drivers || []).map(x => `<li>${x}</li>`).join("") + "</ul>";
   document.getElementById("scoreBars").innerHTML = html;
+}
+
+/* ====================== UNIFIED "what the tool does with this name" ======================
+   The product used to answer this across three tabs that never met: the opportunity score
+   here, the scream-buy alert on Signals, the tracked outcome on Track Record. This joins them
+   for one ticker from a single read of what is already stored (/api/whatdo).
+
+   The framing rule is the important part. These lines describe what the MODEL is doing — held
+   in the book at this weight, alerted on this contract, sold on this date — never what the
+   reader should do. And every options figure carries the convexity line: the backtested hit
+   rate is ~37%, so an alert is a bet with a fat right tail, not a likely winner. A "1 of 1
+   won" on a single name is a count and is labelled as one; it is never a rate. */
+async function loadWhatDo(ticker) {
+  const box = document.getElementById("whatDoCard");
+  if (!box) return;
+  box.style.display = "";
+  document.getElementById("whatDoBody").innerHTML = skeleton(3);
+  let d;
+  try {
+    d = await (await fetch("/api/whatdo?ticker=" + encodeURIComponent(ticker))).json();
+  } catch (e) {
+    box.style.display = "none";
+    return;
+  }
+  if (!d || (d.error && !d.action?.length)) { box.style.display = "none"; return; }
+  STATE.whatdo = d;
+  renderWhatDo(d);
+}
+
+function renderWhatDo(d) {
+  const s = d.stock || {}, o = d.options || {};
+  const lines = (d.action || []).map(a => {
+    const cls = a.kind === "caveat" ? "wd-caveat" : "wd-line";
+    return `<div class="${cls}">${a.kind === "caveat" ? "" : "<span class=\"wd-dot\"></span>"}${esc(a.text || "")}</div>`;
+  }).join("");
+
+  let stats = "";
+  if (s.in_scan) {
+    stats = `<div class="metricline" style="margin:4px 0 12px">
+      ${metric("Hot score", s.hot_score == null ? "—" :
+        `<span style="color:${scoreColor(s.hot_score)}">${s.hot_score.toFixed(0)}</span>`)}
+      ${metric("Rank", `${s.rank} / ${s.n_scored}`)}
+      ${metric("In the book", (s.index || {}).in_book
+        ? `<span class="pos">${pct((s.index || {}).weight, 1)}</span>`
+        : `<span class="muted">no</span>`)}
+      ${metric("Options alerts", o.withheld ? "—" : (o.n_logged || 0))}
+    </div>`;
+  }
+
+  // The same attribution the Hot tab shows, on the name the reader is already looking at —
+  // one explanation of one ranking, not a second opinion.
+  const why = (s.why || []).length
+    ? `<div style="margin-top:6px">${attributionPanel(
+        { ticker: d.ticker, rank: s.rank, hot_score: s.hot_score, composite: s.composite,
+          extra: { why: s.why, why_composite: s.why_composite } }, { of: s.n_scored })}</div>`
+    : "";
+
+  const opt = o.withheld
+    ? `<div class="note">${esc(o.message || "")}</div>`
+    : "";
+
+  document.getElementById("whatDoBody").innerHTML = stats + lines + opt + why +
+    (s.freshness ? freshnessBanner(s.freshness) : "");
 }
 
 /* ---------- reverse & comps ---------- */
@@ -1277,6 +1343,22 @@ function renderLearning(d) {
 /* small helpers */
 function toggle(id, on) { const e = document.getElementById(id); if (e) e.classList.toggle("on", on); }
 function eshow(id, msg) { const e = document.getElementById(id); if (e) { e.textContent = msg; e.classList.toggle("on", !!msg); } }
+
+/* ---------- skeletons ----------
+   A spinner says "something is happening"; a skeleton says "content of about this shape is
+   coming", which is why the wait feels shorter even when it isn't. Deliberately NOT used for
+   anything whose shape we can't honestly predict — a skeleton table that resolves to "no data"
+   has promised something that never arrives. */
+function skeleton(rows, opts) {
+  const o = opts || {};
+  let h = "";
+  if (o.head) h += `<div class="sk sk-head"></div>`;
+  for (let i = 0; i < (rows || 3); i++) {
+    h += `<div class="sk sk-row" style="width:${[100, 92, 84, 96, 88][i % 5]}%"></div>`;
+  }
+  return `<div class="sk-wrap" aria-busy="true" aria-live="polite">${h}
+    <span class="sk-sr">Loading…</span></div>`;
+}
 
 // ---------------------------------------------------------------------------------------- //
 // Scream-buy options expectancy. EXPECTANCY, not "success rate": with a payoff this

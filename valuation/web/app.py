@@ -385,6 +385,31 @@ def api_hotstocks():
                     "history": [s["scan_date"] for s in scans][:12]})
 
 
+@app.route("/api/whatdo")
+def api_whatdo():
+    """One name across BOTH books — the ranking, the book position, the options alert.
+
+    Composed from stored state only (scan snapshot, constructed book, logged alerts, paper
+    positions), so it is cheap enough to fire alongside every valuation and can never disagree
+    with the tabs it summarizes: each figure comes back from the module that owns it.
+    """
+    from flask import g
+    from .unified import name_view
+    ticker = (request.args.get("ticker") or "").strip().upper()
+    if not ticker:
+        return jsonify({"error": "ticker required"}), 400
+    try:
+        return jsonify(name_view(_store(), ticker,
+                                 book_config=request.args.get("config"),
+                                 with_options=getattr(g, "may_see_options", True)))
+    except Exception as e:
+        log_exception()
+        # This panel is an ADDITION to a valuation that already rendered. A failure here must
+        # never take the page down with it.
+        return jsonify({"ticker": ticker, "error": safe_error(e),
+                        "stock": {"in_scan": False}, "options": {}, "action": []}), 200
+
+
 @app.route("/api/tickers")
 def api_tickers():
     """Ticker typeahead for the Single-valuation box.

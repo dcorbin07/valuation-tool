@@ -197,6 +197,24 @@ code{background:#f0f3f9;padding:1px 6px;border-radius:5px;font-size:12.5px;color
   .attr-row .track{min-width:120px}
 }
 
+/* ---- unified "what the tool does with this name" ---- */
+.wd-line{display:flex;align-items:flex-start;gap:9px;font-size:14px;line-height:1.6;margin:7px 0}
+.wd-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--blue);margin-top:8px}
+.wd-caveat{font-size:12.5px;color:var(--muted);line-height:1.6;margin-top:12px;
+  padding-top:10px;border-top:1px solid var(--border)}
+
+/* ---- skeleton loaders ----
+   Reduced motion is respected: a shimmer that can't be turned off is an accessibility
+   problem, and a static block still reads as "loading" next to aria-busy. */
+.sk-wrap{padding:2px 0}
+.sk{background:linear-gradient(90deg,var(--border) 25%,var(--bg) 37%,var(--border) 63%);
+  background-size:400% 100%;animation:sk 1.4s ease infinite;border-radius:7px}
+.sk-head{height:15px;width:38%;margin:6px 0 14px}
+.sk-row{height:12px;margin:9px 0}
+.sk-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@keyframes sk{0%{background-position:100% 50%}100%{background-position:0 50%}}
+@media(prefers-reduced-motion:reduce){.sk{animation:none;background:var(--border)}}
+
 /* ---- fair-value estimate marker (Hot stocks) ---- */
 .est-mark{display:inline-block;margin-left:2px;font-size:10px;font-weight:700;color:var(--muted);
   vertical-align:super;cursor:help}
