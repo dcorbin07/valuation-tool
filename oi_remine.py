@@ -60,23 +60,35 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="0 = all")
     ap.add_argument("--floor", type=float, default=OI_COVERAGE_FLOOR)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--shard", default="0/1",
+                    help="i/n - take every n-th span. ThetaData Standard allows 4 concurrent "
+                         "requests and each shard issues one at a time, so run at most 3.")
     args = ap.parse_args()
+    si, sn = (int(x) for x in args.shard.split("/"))
 
     with open(COVERAGE_JSON, encoding="utf-8") as f:
         cov = json.load(f)
     targets = list(cov["below_floor"].items())          # already sorted worst-first
     if args.limit:
         targets = targets[: args.limit]
-    log(f"{len(targets)} symbol-years below {args.floor:.0%} to re-mine (worst first)")
+    if sn > 1:
+        # Stride, not block, so every shard gets a mix of worst and least-bad spans and they
+        # finish at roughly the same time.
+        targets = targets[si::sn]
+    log(f"{len(targets)} symbol-years below {args.floor:.0%} to re-mine "
+        f"(worst first, shard {si}/{sn})")
     if args.dry_run:
         for k, v in targets[:60]:
             print(f"  {k:20s} {v:.2%}")
         return
 
+    # ONE BANK PER SHARD. Two runners sharing a single result file already destroyed a 197-trade
+    # result on this project; concurrent shards must never write the same JSON.
+    result_path = RESULT_JSON if sn == 1 else RESULT_JSON.replace(".json", f".shard{si}.json")
     prior = {}
-    if os.path.exists(RESULT_JSON):
+    if os.path.exists(result_path):
         try:
-            with open(RESULT_JSON, encoding="utf-8") as f:
+            with open(result_path, encoding="utf-8") as f:
                 prior = json.load(f).get("spans", {})
         except (OSError, ValueError):
             prior = {}
@@ -167,7 +179,7 @@ def main():
             f"(rows {rows_old:,} -> {rows_new:,}, {time.time() - t1:.0f}s, "
             f"{time.time() - t0:.0f}s total)")
 
-        with open(RESULT_JSON, "w", encoding="utf-8") as f:
+        with open(result_path, "w", encoding="utf-8") as f:
             json.dump({"generated": time.strftime("%Y-%m-%d %H:%M:%S"),
                        "floor": args.floor, "spans": results}, f, indent=1)
 
