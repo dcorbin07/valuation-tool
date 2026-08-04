@@ -67,6 +67,75 @@
 
 <div class="wrap">
 
+  {# ================= LIVE FORWARD TRACK — the hero =================
+     Rendered SERVER-SIDE and above every tab, so it is on screen in the first paint with no
+     fetch, no spinner and no layout shift. It is the only evidence in the product that was
+     not fitted on a panel the model was tuned on, which is why it leads.
+
+     It renders only when the track has actually reported. For a visitor, no data means no
+     band — a backtested curve under a "live" heading would be the most dishonest thing this
+     page could show, and a "coming soon" strip is clutter. The owner sees a muted
+     not-started line instead, so a track that silently stops is visible to the one person
+     who can fix it. #}
+  {% set hero = live_hero() %}
+  {% if hero.show %}
+  <div class="livebar {% if hero.thin %}thin{% endif %}">
+    <div class="lb-main">
+      <div class="lb-head">
+        <span class="lb-dot"></span>
+        <b>Live forward track</b>
+        <span class="lb-label">{{ hero.label }}</span>
+        {% if hero.thin %}<span class="pill spec">too early to judge</span>{% endif %}
+      </div>
+      <div class="lb-stats">
+        {% if hero.index.available %}
+          <div class="lb-stat"><span class="k">Valquo Index</span>
+            <span class="v {{ 'pos' if (hero.index.cum_pct or 0) >= 0 else 'neg' }}">
+              {{ "%+.2f%%"|format(hero.index.cum_pct) if hero.index.cum_pct is not none else "—" }}</span></div>
+          <div class="lb-stat"><span class="k">{{ hero.index.benchmark }}</span>
+            <span class="v {{ 'pos' if (hero.index.bench_pct or 0) >= 0 else 'neg' }}">
+              {{ "%+.2f%%"|format(hero.index.bench_pct) if hero.index.bench_pct is not none else "—" }}</span></div>
+          <div class="lb-stat"><span class="k">Excess</span>
+            <span class="v {{ 'pos' if (hero.index.excess_pp or 0) >= 0 else 'neg' }}">
+              {{ "%+.2fpp"|format(hero.index.excess_pp) if hero.index.excess_pp is not none else "—" }}</span></div>
+          <div class="lb-stat"><span class="k">Days</span><span class="v">{{ hero.index.days }}</span></div>
+        {% endif %}
+        {% if hero.options.available %}
+          <div class="lb-stat"><span class="k">Options (paper)</span>
+            <span class="v">{{ hero.options.n_live }} live · {{ hero.options.n_closed }} closed</span></div>
+          {# An expectancy below the evidence floor is WITHHELD, not printed small: a printed
+             number gets quoted, a withheld one gets read. #}
+          <div class="lb-stat"><span class="k">Expectancy</span>
+            <span class="v {{ 'pos' if (hero.options.expectancy_pct or 0) > 0 else '' }}">
+              {% if hero.options.expectancy_pct is not none %}{{ "%+.1f%%"|format(hero.options.expectancy_pct * 100) }}
+              {% else %}<span class="muted" style="font-size:13px">needs {{ hero.options.min_closed }} closed</span>{% endif %}
+            </span></div>
+        {% endif %}
+      </div>
+      <div class="lb-foot">{{ hero.caveat }}
+        <a href="#" onclick="switchTab('index');return false">See the full record →</a></div>
+    </div>
+    {% if hero.spark %}
+    <div class="lb-spark">
+      <svg viewBox="0 0 {{ hero.spark.width }} {{ hero.spark.height }}" width="100%"
+           height="{{ hero.spark.height }}" role="img"
+           aria-label="Valquo Index versus benchmark since inception, on one shared scale">
+        <polyline points="{{ hero.spark.bench }}" fill="none" stroke="#9aa4b8"
+                  stroke-width="1.6" stroke-dasharray="4 3"/>
+        <polyline points="{{ hero.spark.index }}" fill="none" stroke="#3454a4" stroke-width="2"/>
+      </svg>
+      <div class="lb-sparklab">Index vs {{ hero.index.benchmark }}, one shared scale</div>
+    </div>
+    {% endif %}
+  </div>
+  {% elif is_owner %}
+  <div class="livebar notstarted">
+    <div class="lb-head"><span class="lb-dot off"></span>
+      <b>Live forward track</b>
+      <span class="lb-label">{{ hero.label }} — owner-only notice, visitors see nothing here</span></div>
+  </div>
+  {% endif %}
+
   <!-- SINGLE -->
   <div id="tab-single">
     <div class="search-card">
@@ -117,6 +186,16 @@
           </div>
           <div class="gauge" id="gauge"></div>
         </div>
+      </div>
+
+      <!-- Stock + options, joined. The opportunity score, the book position and the
+           scream-buy alert for this one name, which used to live on three separate tabs. -->
+      <div class="card" id="whatDoCard" style="display:none">
+        <h3>What this tool does with this name</h3>
+        <div class="section-hint" style="margin-top:0">Where the name sits in today's ranking and
+          the book, plus any options alert on it — what the model is <b>actually doing</b>, not a
+          recommendation. Forward figures are paper.</div>
+        <div id="whatDoBody"></div>
       </div>
 
       <!-- Earnings (shown only when a report is near) -->
@@ -266,6 +345,7 @@
     </div>
     <div class="loader" id="hotLoader"><div class="spinner"></div><div id="hotLoadMsg">Scanning…</div></div>
     <div class="err" id="hotErr"></div>
+    <div id="hotCache"></div>
     <div id="hotFreshness"></div>
     <div id="hotResults" style="display:none">
       <div class="card">
@@ -306,6 +386,7 @@
         </label>
         <span class="note" id="bookConfigNote" style="margin:0"></span>
       </div>
+      <div id="indexCache"></div>
       <div id="indexFreshness"></div>
     </div>
 

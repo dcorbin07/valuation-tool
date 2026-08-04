@@ -119,6 +119,20 @@ the project's memory and the old versions had been repeated for months.
 - **`fxusd` IS A DIVISOR, NOT A MULTIPLIER** — local units per USD (SKM 1514.2 won/USD). Using
   it as a multiplier squares the error. There is **no `netincusd`** column; use `netinccmnusd`.
   `total_equity` must stay LOCAL — `gp_on_capital` divides local gross profit by it.
+- **ENTERPRISE VALUE IS NOW PRICED AT THE REBALANCE DATE (2026-08-03, shipped ON).** Sharadar's
+  `ev` embeds the FILING-date market cap, so `ebit_ev`/`ev_sales`/`ev_ebitda` measured cheapness
+  against a ~111-day-old quote while `earnings_yield`/`fcf_yield`/`book_to_price` used the fresh
+  one. `_pit_ev()` re-prices the EQUITY leg to the PIT market cap and holds the DEBT leg at its
+  last filed value (net debt is only observable at a filing — that IS point-in-time). Net debt
+  must be **currency-converted before it is added** — P7 in a second costume. Re-pricing moves EV
+  a **median 5.1%** (26.7% of rows >10%), and `neg_ev_sales` median IC goes **+0.0214 → +0.0363**.
+  The BOOK is a wash (LS t 3.396 → 3.520, alpha +11.82% → +11.88%, PBO/monotonicity unchanged,
+  net top-decile alpha slightly worse) — **it ships on correctness, not performance.** Stale, not
+  look-ahead, so no past result is invalidated upward. New **`ev_freshness`** block (100.0% fresh)
+  makes a silent revert loud; `EDGE_EV_POINT_IN_TIME=false` reverts. `HANDOFF_ev_fix.md`.
+  STILL OPEN: negative EV (net cash > market cap, 0.70% of rows) is read as maximally cheap by
+  `neg_ev_sales` and as expensive by `ebit_ev` — a live sign inconsistency, deliberately not
+  bundled into this change.
 - **P8: a SANITY layer now runs every backtest** (`sanity_check` block): range / subgroup-pegging
   / market-cap divergence. Coverage says a factor is PRESENT, this says it is SANE — the
   currency bug filled every column and coverage was blind to it. Verified it WOULD have caught
@@ -236,8 +250,22 @@ score), so there is no performance excuse to judge on a subset. If you must scre
     the only version worth re-opening.
 14. **Watch live behaviour after the P5 deploy.** `low_risk` 12.5% → 0 tilts the hot list
     smaller-cap. Intended, but eyeball the first scans; revert is one line in `settings.py`.
-15. **PEAD from EVENTS** — now the most promising NEW signal, since the cheap refinements are
-    exhausted. Still needs `bulk.EARNINGS_CODES` from Sharadar's EVENTS legend first.
+15. ~~**PEAD from EVENTS**~~ **DONE — REJECTED (2026-08-01, independently re-verified
+    2026-08-03).** EVENTS code 22 was decoded, so it was finally testable. `pead_car` clears
+    the standalone bar (median IC +0.0100, **t +2.215**, coverage 82.3%) but earns no weight;
+    `pead_drift` fails outright (t −0.473, coverage 25.1% under the 30% floor). Two reasons the
+    reject is solid, both stronger than the IC: **(a)** residualized on the three momentum
+    inputs, pead_car's incremental IC t is **+0.020** — 89% of it is orthogonal to momentum and
+    that 89% predicts nothing; **(b)** the book gain it does produce is beaten by a control
+    using NO earnings data (counting `ret_6_1` twice: +0.83pp alpha vs pead_car's +0.52pp). It
+    correlates most with the strongest momentum input and least with the weakest, so it acts as
+    an implicit REWEIGHTING, not a new signal. Also **not actually PEAD**: theory says drift is
+    strongest right after the announcement, but the recent-only window scores t −0.473 against
+    the all-ages +2.215 — backwards. **Held-out deltas for PEAD are CONSTRUCTION-SENSITIVE and
+    even flip sign** between the full composite and a restricted-universe book — never quote one
+    without naming the book. Both variants stay MEASURED but score in no theme. Point-in-time is
+    pinned by `tests/test_pead.py` (12 tests, incl. a tampering test). `HANDOFF_pead.md`.
+    Re-open only with real point-in-time earnings surprises (IBES, parked — same blocker as #20).
 16. **ML tree combiner** — clearly worthwhile now: several genuinely real signals exist, and P6
     showed the linear composite is sensitive to how inputs are scaled.
 17. **Re-read every past "monotonicity" conclusion with the sign flipped** (see LATEST).

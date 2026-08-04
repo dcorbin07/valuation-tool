@@ -38,6 +38,11 @@ services:
         sync: false
       - key: TRADIER_PAPER_ACCOUNT_ID
         sync: false
+      # Where the scream-buy alerts, the hot digest and the paper-track recaps post. Optional:
+      # everything that uses it degrades to "not posted" rather than failing. It must be set
+      # HERE (not only as a GitHub Actions secret) because those posts are sent server-side.
+      - key: DISCORD_WEBHOOK_URL
+        sync: false
       - key: THETADATA_API_KEY
         sync: false
       - key: STRIPE_SECRET_KEY
@@ -132,6 +137,55 @@ services:
     schedule: "45 21 * * 1-5"          # weekdays 21:45 UTC = 5:45pm EDT / 4:45pm EST
     dockerCommand: >
       curl -fsS -X POST "https://$TARGET_HOST/admin/run-paper-track" -H "X-Admin-Token: $ADMIN_TOKEN"
+    envVars:
+      - key: TARGET_HOST
+        fromService:
+          type: web
+          name: valuation-tool
+          property: host
+      - key: ADMIN_TOKEN
+        fromService:
+          type: web
+          name: valuation-tool
+          envVarKey: ADMIN_TOKEN
+
+  # Discord recap of the forward paper track — Mon-Thu the daily post, Friday the fuller
+  # weekly one INSTEAD of it (the weekly is a superset; two posts a minute apart is noise).
+  # 21:58 / 21:59 UTC is after the close in BOTH DST regimes, 13 minutes behind the paper-track
+  # cron above, so it reports a finished cycle. The endpoint reads the tracked record and
+  # recomputes nothing; it de-dupes per kind per day and no-ops without DISCORD_WEBHOOK_URL.
+  - type: cron
+    name: paper-recap-daily
+    runtime: image
+    image:
+      url: curlimages/curl:latest
+    schedule: "58 21 * * 1-4"          # Mon-Thu 21:58 UTC = 5:58pm EDT / 4:58pm EST
+    dockerCommand: >
+      curl -fsS -X POST "https://$TARGET_HOST/admin/post-recap"
+      -H "X-Admin-Token: $ADMIN_TOKEN" -H "Content-Type: application/json"
+      -d '{"kind": "daily"}'
+    envVars:
+      - key: TARGET_HOST
+        fromService:
+          type: web
+          name: valuation-tool
+          property: host
+      - key: ADMIN_TOKEN
+        fromService:
+          type: web
+          name: valuation-tool
+          envVarKey: ADMIN_TOKEN
+
+  - type: cron
+    name: paper-recap-weekly
+    runtime: image
+    image:
+      url: curlimages/curl:latest
+    schedule: "59 21 * * 5"            # Friday 21:59 UTC = 5:59pm EDT / 4:59pm EST
+    dockerCommand: >
+      curl -fsS -X POST "https://$TARGET_HOST/admin/post-recap"
+      -H "X-Admin-Token: $ADMIN_TOKEN" -H "Content-Type: application/json"
+      -d '{"kind": "weekly"}'
     envVars:
       - key: TARGET_HOST
         fromService:

@@ -20,8 +20,8 @@ import pandas as pd
 
 from ..config import CONFIG
 from . import settings as S
+from .attribution import decompose, p_established as _p_established
 from .factors import build_frame, prefilter
-from .cross_sectional import composite_score
 from .providers import get_provider
 from .store import Store
 
@@ -33,46 +33,22 @@ def _effective_weights(store):
     return est, spec
 
 
-def _p_established(df: pd.DataFrame) -> pd.Series:
-    """Smooth probability a name is 'established' (profitable), from operating margin:
-    0% → 0.5, +5% → 0.73, −5% → 0.27. Falls back to the hard bucket if margin is missing."""
-    om = pd.to_numeric(df.get("op_margin"), errors="coerce")
-    # Clip the exponent before exp(). A name with a huge negative operating margin (early-stage
-    # biotech, a shell with token revenue) sends this to exp(1e4) and numpy warns about
-    # overflow on every scan. The saturated answer is already correct — 0 or 1 — so this only
-    # silences a spurious RuntimeWarning, it does not change any score.
-    p = 1.0 / (1.0 + np.exp(np.clip(-(om / 0.05), -700.0, 700.0)))
-    hard = (df["bucket"] == "established").astype(float)
-    return p.fillna(hard)
+def _decompose(df: pd.DataFrame, est_w=None, spec_w=None, soft=None):
+    """(composite, per-theme contributions). The composite IS the row-sum of the pieces.
 
-
-def _composites(df: pd.DataFrame, est_w=None, spec_w=None, soft=None) -> pd.Series:
+    Both live in `attribution.py` so the score and the explanation of the score cannot come
+    from two different calculations — the failure mode where a "why" panel quietly stops
+    describing the ranking it sits next to.
+    """
     est_w = est_w or S.WEIGHTS_ESTABLISHED
     spec_w = spec_w or S.WEIGHTS_SPECULATIVE
     if soft is None:
         soft = getattr(CONFIG, "soft_bucket", True)
+    return decompose(df, est_w, spec_w, soft=soft)
 
-    # Soft bucketing: a borderline name (tiny profit/loss) shouldn't be scored 100% by
-    # one rulebook. Score it under BOTH and blend by how established it looks, so the
-    # cutoff is a gradient, not a cliff.
-    if soft and "value_est" in df.columns and "value_spec" in df.columns:
-        d = df.copy()
-        d["value"] = df["value_est"]
-        comp_est = composite_score(d, est_w)
-        d["value"] = df["value_spec"]
-        comp_spec = composite_score(d, spec_w)
-        p = _p_established(df)
-        return p * comp_est + (1.0 - p) * comp_spec
 
-    # Hard split (original behavior; used when soft bucketing is off).
-    comps = pd.Series(index=df.index, dtype=float)
-    for bucket, w in [("established", est_w), ("speculative", spec_w)]:
-        sub = df[df["bucket"] == bucket]
-        if len(sub) >= 5:
-            comps.loc[sub.index] = composite_score(sub, w)
-        elif len(sub) > 0:
-            comps.loc[sub.index] = composite_score(df, w).loc[sub.index]
-    return comps
+def _composites(df: pd.DataFrame, est_w=None, spec_w=None, soft=None) -> pd.Series:
+    return _decompose(df, est_w, spec_w, soft)[0]
 
 
 def _rows_from(scored: pd.DataFrame) -> list:
@@ -254,7 +230,8 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
                 "scored": 0, "filtered": audit}
 
     df = build_frame(metrics)
-    df["composite"] = _composites(df, *_effective_weights(store))
+    est_w, spec_w = _effective_weights(store)
+    df["composite"], contrib = _decompose(df, est_w, spec_w)
     scored = df[df["composite"].notna()].copy()
     if scored.empty:
         return {"scan_date": _today(), "rows": [], "universe_size": total, "scored": 0}
@@ -264,15 +241,20 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     scored["rank"] = range(1, len(scored) + 1)
     rows = _rows_from(scored)
 
-    # Per-pick "why" — the top theme contributions (weight × standardized theme) behind
-    # each name's score, so a pick is explainable ("here because: quality, value").
-    est_w, spec_w = _effective_weights(store)
+    # Per-pick "why" — the exact decomposition of this name's composite into per-theme
+    # contributions, biggest mover first, so a pick is explainable ("here because: quality,
+    # value; held back by: momentum") rather than a bare number.
+    #
+    # These come from `decompose()`, the same call that produced the composite, so they SUM
+    # to it. The previous version multiplied the stored weight by the pre-standardization
+    # theme value and by whichever weight set the hard bucket named — it ranked the themes
+    # roughly right but its numbers added up to nothing in particular, and under soft
+    # bucketing it credited a weight set the name was only partly scored under.
+    from .attribution import row_attribution
     for r in rows:
-        fac = (r.get("extra") or {}).get("factors") or {}
-        w = est_w if r.get("bucket") == "established" else spec_w
-        contribs = [(k, w.get(k, 0.0) * v) for k, v in fac.items() if v is not None and k in w]
-        contribs.sort(key=lambda x: abs(x[1]), reverse=True)
-        r["extra"]["why"] = [{"theme": k, "c": round(c, 3)} for k, c in contribs[:4] if abs(c) > 1e-6]
+        tkr = r["ticker"]
+        r["extra"]["why"] = row_attribution(contrib.loc[tkr]) if tkr in contrib.index else []
+        r["extra"]["why_composite"] = r.get("composite")
 
     # Deep-value the top names with the full DCF (optional, network-heavy).
     if run_dcf_top and run_dcf_top > 0:

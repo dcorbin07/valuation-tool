@@ -21,7 +21,7 @@ on:
       kind:
         description: Which scan to run now
         type: choice
-        options: [hot, intraday, both, watchdog, paper]
+        options: [hot, intraday, both, watchdog, paper, recap-daily, recap-weekly]
         default: hot
       force:
         description: "paper only: run even if the session has not closed (skips the market-hours guard)"
@@ -47,6 +47,17 @@ on:
     # day's index point), so overlapping with render.yaml's cron is harmless, not double.
     - cron: "47 20 * * 1-5"         # 20:47 UTC = 4:47pm ET in summer (EDT)
     - cron: "47 21 * * 1-5"         # 21:47 UTC = 4:47pm ET in winter (EST)
+    # Discord recap of the paper track, ~11 minutes after the track itself so it reports a
+    # finished cycle rather than the previous day's. Same two-cron DST trick and the same
+    # session guard; the endpoint also de-dupes per kind per day, so the cron that fires on
+    # the wrong side of the boundary is a no-op rather than a second post.
+    #
+    # Mon-Thu get the DAILY post and Friday gets the WEEKLY one INSTEAD of it — the weekly is
+    # a superset, and firing both a minute apart would just train Don to skim past them.
+    - cron: "58 20 * * 1-4"         # daily recap — 20:58 UTC = 4:58pm ET in summer (EDT)
+    - cron: "58 21 * * 1-4"         # daily recap — 21:58 UTC = 4:58pm ET in winter (EST)
+    - cron: "59 20 * * 5"           # weekly recap — Friday, after the close (EDT)
+    - cron: "59 21 * * 5"           # weekly recap — Friday, after the close (EST)
     - cron: "0 12 1 * *"            # self-learning — monthly (1st, 12:00 UTC), OOS-gated re-tune
     - cron: "15 13 * * 1-5"         # watchdog — 13:15 UTC (~9:15am ET), BEFORE the open, so a
                                     # dead pipeline is known about while there is still a day
@@ -183,6 +194,51 @@ jobs:
               echo "::error::paper track is NOT configured — TRADIER_PAPER_TOKEN / TRADIER_PAPER_ACCOUNT_ID are missing on Render"
               exit 1 ;;
             *) echo "::notice::paper track ran" ;;
+          esac
+
+  recap:
+    # Daily / weekly Discord recap of the forward paper track. A TRIGGER, like the paper job:
+    # the book lives in the web service's database, so a runner reading its own empty copy
+    # would post a beautifully formatted recap of nothing.
+    #
+    # Needs DISCORD_WEBHOOK_URL set as a RENDER env var (the endpoint posts server-side, so
+    # the Actions secret of the same name — used by the scan and the watchdog — does NOT feed
+    # this). Without it the endpoint answers posted:false with a reason and this job warns
+    # rather than failing: a missing optional notification must not turn the pipeline red.
+    if: ${{ (github.event_name == 'schedule' && (github.event.schedule == '58 20 * * 1-4' || github.event.schedule == '58 21 * * 1-4' || github.event.schedule == '59 20 * * 5' || github.event.schedule == '59 21 * * 5')) || (github.event_name == 'workflow_dispatch' && (github.event.inputs.kind == 'recap-daily' || github.event.inputs.kind == 'recap-weekly')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Post the paper-track recap to Discord
+        env:
+          BASE: ${{ secrets.SITE_BASE_URL }}
+          TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          SCHEDULE: ${{ github.event.schedule }}
+          DISPATCH_KIND: ${{ github.event.inputs.kind }}
+        run: |
+          set -euo pipefail
+          # The Friday crons are the weekly ones; everything else is the daily.
+          KIND=daily
+          case "${SCHEDULE:-}" in *"* * 5") KIND=weekly ;; esac
+          case "${DISPATCH_KIND:-}" in
+            recap-weekly) KIND=weekly ;;
+            recap-daily)  KIND=daily ;;
+          esac
+          echo "recap kind: $KIND"
+          RESP=$(curl -fsS -X POST "$BASE/admin/post-recap" \
+            -H "X-Admin-Token: $TOKEN" -H "Content-Type: application/json" \
+            -d "{\"kind\": \"$KIND\"}")
+          echo "$RESP" | head -c 2000; echo
+          case "$RESP" in
+            *'"posted": true'*|*'"posted":true'*)
+              echo "::notice::$KIND recap posted" ;;
+            *'"skipped": true'*|*'"skipped":true'*)
+              echo "::notice::recap skipped — session not closed (expected for the off-season cron)" ;;
+            *'"duplicate": true'*|*'"duplicate":true'*)
+              echo "::notice::recap already posted today (the other DST cron got there first)" ;;
+            *DISCORD_WEBHOOK_URL*)
+              echo "::warning::recap built fine but DISCORD_WEBHOOK_URL is not set on Render — nothing was posted" ;;
+            *) echo "::warning::recap did not post; see the response above" ;;
           esac
 
   learn:

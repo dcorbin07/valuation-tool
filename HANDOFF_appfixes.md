@@ -5,6 +5,340 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 8 — 2026-08-03 — Phase 9 UX round 2 (PROMPT_appfixer_phase9.md)
+
+All four items in the prompt shipped, one commit each, all suites green. Nothing in this
+session touches the options backtest, the fundamental panel or the miner.
+
+## 1. "Why this score" — the hot score is no longer a black box
+
+Every row in the Hot Stocks table now has a **"why?"** button. It opens a panel showing which
+themes produced that name's 1–100: a diverging bar per theme (right = pushed the score up,
+left = held it back), the size of each push, and each theme's share of everything that moved
+the name. Plain-English labels, so "capital_discipline" reads as "Capital discipline — not
+issuing shares to fund itself".
+
+**The important part is that the explanation IS the score, not a story told next to it.**
+`valuation/screener/attribution.py::decompose()` returns the composite *and* its per-theme
+pieces from one calculation, and the scan's `_composites()` now delegates to it. The pieces
+sum to the composite exactly, and a test asserts that on every scored row. A second test
+recomputes the composite the old way, directly from `composite_score`, under both bucketing
+modes, to prove the ranking itself did not move.
+
+The old per-pick "why" was wrong in a way nobody would have noticed: it multiplied the stored
+weight by the theme value *before* the second standardization, using whichever weight set the
+hard bucket named. It ordered the themes roughly right, so it looked fine — but its numbers
+added up to nothing in particular, and under soft bucketing it credited a weight set the name
+was only partly scored under.
+
+**Computed at scan time, deliberately.** `value` is scored on two different input sets
+(earnings-based for profitable names, sales-based for loss-makers) and soft bucketing blends
+both, so the single blended `value` column in a saved snapshot cannot be split back apart
+afterwards. Re-deriving the attribution at read time would also explain the score using
+whatever weights the learner has adopted *since*, not the ones the scan ranked on.
+
+**Consequence for Don: the panel is blank until the next daily scan runs.** Rows saved by an
+older scan say so ("it is written at scan time … it appears after the next daily scan")
+rather than showing an approximation. One scan fixes it; no action needed.
+
+Honesty constraints baked in: contributions are in composite units (standard deviations
+versus that day's scan), **not** points of the 1–100, because the score is a percentile *rank*
+of the composite — monotone but not linear. And shares are of the **absolute** push, so a name
+whose themes nearly cancel can't produce shares in the hundreds of percent.
+
+**Bug found along the way:** `.pos` and `.neg` had **never been defined in any stylesheet**,
+while app.js applies them in about fifteen places — fair-value upside, track-record alpha,
+paper P&L, the why-chips. Every one has been rendering as plain body text, so a −18% and a
++18% looked identical at a glance. Defined once; all of them are now green/red.
+
+## 2. The live forward track leads the page
+
+The one number in this product that nobody could have fitted was three clicks deep, inside the
+Index tab, underneath a backtest. There is now a **band above every tab**: Valquo Index vs SPY
+since inception, the excess, the day count, the paper options book's live/closed counts, and a
+shared-axis sparkline.
+
+**It is server-rendered**, so it is in the HTML the browser receives — no spinner, no layout
+shift, no round trip before the most important evidence on the page appears. It is a Jinja
+*callable* in the shared context processor rather than a value, so the renders that don't show
+it (landing, pricing, error pages) don't pay for its database reads, and a failure returns the
+not-started shape instead of 500-ing a page that would otherwise have been fine.
+
+Leading is not boasting. The gates live in `valuation/web/hero.py`, not the template:
+
+- **Paper, always**, labelled with its inception date — and the label comes from the track
+  modules themselves (`paper_track._label`, `index_track.summarize`), so the hero cannot grade
+  the track more generously than `/api/track` does.
+- **Thin until the owning module says otherwise.** While thin the band turns amber, carries a
+  "too early to judge" pill, and `may_lead` is False. A week of noise gets shown, not
+  celebrated.
+- **An expectancy below the 30-closed floor is withheld, not printed small** — a printed number
+  gets quoted, a withheld one gets read. One closed winner shows "needs 30 closed".
+- **No data means no band for a visitor.** A backtested curve under a "live" heading would be
+  the most dishonest thing this page could show, and a "coming soon" strip is clutter. *You*
+  (owner) see a muted "not started" line, so a track that quietly stops stays visible to the
+  person who can fix it.
+
+Two forward records exist — the ingested Cowork tracker and the Tradier sandbox book. The hero
+prefers the one the Index tab leads with, falls back to the other, and **names which it drew**;
+an unlabelled fallback would silently swap the meaning of the number between deploys. The
+fractions-vs-percent difference between the two is pinned by a test.
+
+Verified by rendering the real template in four states — thin, mature, no-data-visitor,
+no-data-owner — 12 assertions, all passing.
+
+## 3. Stock + options in one "what this tool does with this name" view
+
+New card under the valuation hero, on the Single tab. For whatever ticker you just valued it
+shows: rank in today's scan, whether the Valquo Index holds it and at what weight, whether the
+paper account is in it, any scream-buy options alert with whole-contract sizing, and the same
+"why this score" bars from item 1. The opportunity score, the alert and the tracked outcome
+used to live on three tabs that never met.
+
+`/api/whatdo` is a **read over stored state** — snapshot, constructed book, logged alerts,
+paper positions. It recomputes nothing: every figure comes back from the module that owns it,
+so the panel cannot disagree with the tab it summarizes, and it needs no network call. It is
+fired *after* the valuation paints and never awaited, so a slow or broken response cannot
+delay or break the page it decorates.
+
+Each honesty rule is pinned by a test:
+
+- **Never a per-ticker hit rate.** One name yields a handful of trades at most, so it reads
+  "1 of 1 won (too few trades on one name to read as a rate)" — a count, never a percentage.
+  The convexity line (~37% backtested hit rate, convex not likely) rides along with every
+  options figure.
+- **Whole contracts, and zero is a real answer.** A $25 premium against a $1,000 risk budget
+  sizes to none, not to one: "one contract costs more than the risk budget — the honest size
+  is zero, not one".
+- **An absent name is absent, not bad** — "the screen covers a defined universe, so being
+  absent says nothing about the company", with no score or rank invented for it.
+- **Withheld ≠ empty.** The free tier does not read the options record, so it must not report
+  an empty one; it says the contract is part of Signals, and still carries the convexity
+  caveat. (Gating: the ranking half is public — it is the same ranking the Hot tab serves —
+  while the specific contract follows the existing Signals feature flag.)
+- **The action lines describe what the model is doing**, never what you should do, asserted
+  against a list of recommendation phrasings.
+
+## 4. Perceived speed + mobile
+
+Hot, Index and Track read a snapshot that changes once a day, so waiting on the network before
+painting anything meant staring at a spinner for data the browser already had. They now paint
+the **last good copy immediately** and replace it when the fetch lands. A genuinely first visit
+gets a **table-shaped skeleton**, so the real table arrives without the page jumping.
+
+Two rules keep the cache from becoming a lie — the second was a bug in my own first version:
+
+- A cached paint is **labelled** ("showing your last copy, loaded 3 hours ago — refreshing…"),
+  and if the refresh fails the error says the ranking above is a saved copy, not a fresh one.
+- The freshness verdict **inside** a cached payload was computed when it was cached, so a copy
+  saved yesterday still said "ranking from today" — exactly the lie the freshness banner was
+  built to prevent. It is now suppressed until the live fetch replaces it.
+
+The cache hard-expires at 36 hours, and degrades to nothing under private mode, quota errors
+or a corrupted entry (all three exercised).
+
+Mobile: the hot table's min-width goes 560 → 620 now that it carries the "why?" column, or the
+columns crush instead of scrolling; the attribution panel is stopped from inheriting that
+minimum (it lives *inside* the scrolling table and would otherwise scroll sideways with the
+row that opened it); the unified card stacks rather than squeezing four stats across a phone;
+the hero sparkline goes full-width under the numbers. Skeletons honour
+`prefers-reduced-motion`.
+
+## A finding for Don to decide on
+
+A new static wiring check (app.js writing to an element id that does not exist in the template
+fails **silently** — the write lands on nothing and the panel just stays blank) surfaced
+pre-existing dead code: the custom-backtest UI block in app.js — `runBacktest`,
+`renderBacktest`, `eqChart`, `qChart`, `renderBtStats`, ~70 lines — references a form
+(`btSource`, `btTickers`, `btLoader`, …) that is **no longer in index.html**, and nothing calls
+it. The `/api/backtest/run` endpoint behind it is still live and still gated as a paid feature.
+
+It is dead, not broken. I left it in place — deleting it is your call, not a UX round's — but
+it is allowlisted in the test so it cannot grow, while the new surfaces are asserted by name.
+**Say the word and I'll remove it**, or re-wire a UI for it if the feature is wanted back.
+
+## Files changed
+
+| File | What |
+|---|---|
+| `valuation/screener/attribution.py` | **new** — exact decomposition of the composite into per-theme contributions |
+| `valuation/screener/screen.py` | `_composites` delegates to it; rows carry the real `why` + `why_composite` |
+| `valuation/web/unified.py` | **new** — the per-name joined view (`name_view`) |
+| `valuation/web/hero.py` | **new** — the live-track hero band, with its honesty gates |
+| `valuation/web/app.py` | `/api/whatdo`; `live_hero` in the shared template context |
+| `valuation/saas/app_saas.py` | per-tier `g.may_see_options` for the options half of the name view |
+| `valuation/web/templates/index.html` | hero band, unified card, cache slots |
+| `valuation/web/static/app.js` | attribution panel, unified view, skeletons, last-good cache |
+| `valuation/web/static/style.css` | attribution bars, hero band, skeletons, cache bars, `.pos`/`.neg`, mobile |
+| `tests/test_screener.py` | 51 → 63 (attribution sums, ranking unchanged, name-view honesty) |
+| `tests/test_paper_track.py` | 34 → 40 (hero gates) |
+| `tests/test_saas.py` | 28 → 30 (static UI wiring) |
+
+## Verification
+
+Every suite green: **edge 142, screener 63, saas 30, paper-track 40, intraday 18, engine 28,
+bulk 14, security 22, sector-neutral 6, PEAD 12, calibration 23, EV-multiples 34, freeze 13,
+lazy-prices 28, lazy-prices-IC 24, options-greeks 21.**
+
+Beyond the unit tests: `/api/whatdo` exercised end-to-end through the real SaaS app against the
+real screener DB (including the no-ticker 400 and an unknown ticker); `index.html` rendered
+through the real Jinja environment in four hero states; the JS render helpers and the cache
+exercised under a DOM shim in Node (expiry, corruption, blocked storage).
+
+## Honest limits
+
+- **The attribution panel is empty until the next daily scan.** By design — see item 1.
+- **The hero shows nothing to visitors until the forward track reports.** It is currently
+  gated on the same thing everything else is: the paper track actually running on Render,
+  which still depends on `TRADIER_PAPER_TOKEN` / `TRADIER_PAPER_ACCOUNT_ID` being set there
+  (Session 6's outstanding item) and `DISCORD_WEBHOOK_URL` for the recaps (Session 7's).
+- **None of this was opened in a real browser.** It is verified by rendering the template, the
+  JS helpers under a DOM shim, and static wiring checks — which catches typos, dead ids and
+  wrong numbers, but not "does the band look right on an iPhone". Worth a two-minute eyeball
+  after deploy.
+- The per-name options record is genuinely thin and will stay thin for months. That is the
+  point of the labels, not a defect to fix.
+
+---
+
+# Session 7 — 2026-08-03 — Daily + weekly Discord recap of the paper track (PROMPT_appfixer_discord_recap.md)
+
+## What Don gets
+
+Two automated Discord posts about the forward paper track, both server-side, both running with
+his computer off:
+
+- **Mon–Thu, ~5 min after the paper-track cycle** — a short daily: options open / opened today /
+  closed today with each trade's P&L, expectancy to date against the backtest reference, then
+  Index vs SPY for the session and since inception, holdings count and any additions.
+- **Friday, same slot** — a fuller weekly: the week's closed trades and P&L for both books, hit
+  rate and expectancy to date, best/worst trade, the index cumulative, and a health line.
+
+**Friday posts the weekly INSTEAD of the daily, not as well as.** The weekly is a superset;
+firing both a minute apart would just train him to skim past them. Every weekday still gets
+exactly one post.
+
+## The one thing Don must do
+
+**Set `DISCORD_WEBHOOK_URL` on RENDER** (Dashboard → valuation-tool → Environment). It is now
+declared in `render.yaml` with `sync: false`, so it appears as a blank to fill in.
+
+This is *not* the same as the GitHub Actions secret of the same name. The Actions secret feeds
+the scan-failure alert and the watchdog, which run on the runner. The recaps post from inside
+the web service, so they read Render's copy. Until it is set the endpoint returns
+`posted: false` with a reason and the Actions job emits a **warning, not a failure** — a
+missing optional notification must not turn the pipeline red.
+
+Same standing item as the last two sessions, now with a second reason to do it.
+
+## The cron entries
+
+| where | when (UTC) | posts |
+|---|---|---|
+| `auto-scan.yml` job `recap` | `58 20` **and** `58 21`, Mon–Thu | daily |
+| `auto-scan.yml` job `recap` | `59 20` **and** `59 21`, Fri | weekly |
+| `render.yaml` cron `paper-recap-daily` | `58 21`, Mon–Thu | daily |
+| `render.yaml` cron `paper-recap-weekly` | `59 21`, Fri | weekly |
+
+Two Actions crons per kind for the same DST reason as the paper track: a crontab cannot say
+"after the 4pm Eastern close", so one entry is correct under EDT and the other under EST, and
+`/admin/post-recap` applies the same `market_session` guard the paper track uses. Render gets a
+single entry each at 21:5x UTC, which is after the close in both regimes.
+
+Both land ~11–13 minutes behind the paper-track cron, so the recap describes a **finished**
+cycle rather than the previous day's.
+
+Manual run: Actions → "Auto scans" → Run workflow → kind `recap-daily` or `recap-weekly`.
+
+## How it stays honest
+
+The prompt's honesty rules are enforced in code and pinned by tests, not left to the wording:
+
+- Every post carries `paper (Tradier sandbox), since <date>` and the `thin` flag **taken from
+  `paper_track._label`** — the same string `/api/track` serves. The recap cannot grade the
+  track more generously than the product does.
+- **No closed trades → "No closed trades yet".** An empty scorecard printed as `0% hit rate,
+  $0 expectancy` is not neutral; it looks like a measured result. Test:
+  `test_recap_says_no_closed_trades_rather_than_reporting_zeros`.
+- **A hit RATE is only quoted once the sample can carry one.** Below the 30-trade floor it
+  reads `1 of 1 won (too few to read as a rate)`. "hit rate 100%" off a single winner was the
+  most flattering untrue number available and is now impossible.
+- Options are always framed as **convex** — "the backtest hits 37% of the time, most trades
+  lose a little and a few win big" — so the hit rate can never be read as a win rate.
+- The backtest is quoted as a **reference point, not a target and not a promise**: +10.4%/trade
+  full-sample and +4.4% in the recent half, both shown, so the fade is visible.
+- Every post ends with "Educational only, not investment advice" and the sandbox/delayed-quote
+  caveat.
+
+## Two bugs I fixed in my own first version
+
+1. **Discord truncates at 1900 characters — from the END, where every caveat lives.** A busy
+   day with six closed trades would have silently dropped "educational only, not investment
+   advice" off the bottom. `_fit()` now trims the per-trade DETAIL lines instead, oldest first,
+   leaves a visible "…detail trimmed" marker, and never touches the last lines. Pinned by
+   `test_fit_drops_detail_not_caveats_and_says_that_it_did`.
+2. **The health line cried wolf on a new track.** It counts recorded sessions against trading
+   days in the window; a track that started yesterday reported "1/5 sessions" and warned about
+   a hole every day of its first week. It now only counts sessions on or after inception. A
+   watchdog that is wrong exactly when you are watching it teaches you to ignore it.
+
+## It reads; it does not recompute
+
+`recap.py` derives no P&L, expectancy or return of its own. It reads
+`options_tracker.scorecard`, the `pnl_pct`/`pnl_dollars` that `record_outcome` already stored,
+and `paper_track.index_summary`. `test_recap_prints_the_tracked_pnl_rather_than_recomputing_it`
+writes a deliberately odd P&L straight into the table and asserts the post shows *that* number
+— so a future divergence between the Discord post and the API fails the suite instead of
+shipping. The one exception is documented: a trade closed with no entry premium is unscoreable,
+so the recap falls back to the stored premiums rather than dropping the trade from the book.
+
+## Idempotency
+
+`post()` marks the day in the same `alerts_sent` table the scream-buy de-dupe uses, keyed
+`__RECAP_DAILY__` / `__RECAP_WEEKLY__`. The two DST crons, the Render cron and any manual re-run
+therefore produce exactly one post per kind per day. **A failed post is deliberately NOT
+marked**, so a Discord outage at 20:58 is retried by the 21:58 cron rather than burning the
+day's only slot on a message nobody received.
+
+## Changed
+
+- **NEW `valuation/saas/recap.py`** — collect / format / post, with the honesty rules in the
+  module docstring.
+- `valuation/saas/app_saas.py` — new `/admin/post-recap` (X-Admin-Token, validates `kind`,
+  applies the market-session guard, returns 200 with a reason on every non-post path).
+- `.github/workflows/auto-scan.yml` — four crons + the `recap` job + two dispatch options.
+- `render.yaml` — `DISCORD_WEBHOOK_URL` declared on the web service; two recap crons.
+- `ENV_REFERENCE.md` — says explicitly that the webhook must be on Render, and why.
+- Tests: `tests/test_paper_track.py` 22 → **34**, `tests/test_saas.py` 27 → **28**.
+
+## Verified
+
+All seven suites green: **edge 142, screener 51, saas 28, intraday 18, engine 28, bulk 14,
+paper-track 34.**
+
+Beyond the unit tests I ran the real Flask route against the real screener database with a
+local HTTP sink standing in for Discord: `POST /admin/post-recap` returned
+`{"posted": true, "chars": 621}`, the sink received exactly one payload ending in the
+disclaimer, and an immediate second POST returned `{"posted": false, "duplicate": true}`
+without sending anything. I also eyeballed both posts rendered against a synthetic book with a
+winning trade, an open position and two index sessions. The de-dupe row that run left in the
+local dev DB has been deleted.
+
+## Honest limits
+
+- **The recaps will say "not started" until the paper track has actually run on Render.** The
+  local database has no paper book, and production still needs `TRADIER_PAPER_TOKEN` /
+  `TRADIER_PAPER_ACCOUNT_ID` confirmed (Session 6's open item). The recap infrastructure is
+  correct and tested either way, but the first real post is gated on that.
+- The options scorecard it quotes is `options_tracker.scorecard`, which counts **every** closed
+  alert — including any the external Cowork/Robinhood filler closes, not only paper ones. That
+  is the existing project-wide definition and `/api/track` already reports it that way; I did
+  not fork a second definition just for Discord.
+- Index holdings only ever get **added** (`seed_book` never drops a name), so "holdings changes"
+  means additions. The post says "added today" rather than implying rotation.
+
+---
+
 # Session 6 — 2026-08-03 — Paper schedule confirmed + the landing now SHOWS (PROMPT_appfixer_landing.md)
 
 ## 1. Is the paper track actually scheduled? YES — here is exactly where

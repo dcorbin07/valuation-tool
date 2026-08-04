@@ -364,6 +364,44 @@ def create_saas_app(cfg=CONFIG):
         out["summary"] = PT.summary(st)
         return jsonify(out)
 
+    @app.route("/admin/post-recap", methods=["POST"])
+    def admin_post_recap():
+        """Post the daily or weekly paper-track recap to Discord.
+
+        Runs HERE for the same reason the paper track does: the alerts, the paper order state
+        and the index holdings live in this service's screener database. A CI runner reading
+        its own empty copy would post a perfectly formatted recap of nothing.
+
+        Nothing here is computed — `recap` reads the tracked record and formats it. A missing
+        DISCORD_WEBHOOK_URL, an already-posted day and a Discord outage all return 200 with a
+        reason, because this is one optional notification in a cron family whose real job is
+        the track itself.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        from ..saas import recap as RC
+        from ..screener.market_session import session_state
+        from ..screener.store import Store
+        body = request.get_json(silent=True) or {}
+        kind = str(body.get("kind") or "daily").lower()
+        if kind not in RC.KINDS:
+            return jsonify({"error": f"kind must be one of {list(RC.KINDS)}"}), 400
+
+        # Same guard as the paper track, for the same DST reason: a recap posted before the
+        # close would report a half-finished session as the day's result, and one posted on a
+        # holiday would report yesterday's twice.
+        if not body.get("force"):
+            sess = session_state()
+            if not sess["ok"]:
+                return jsonify({"ok": True, "posted": False, "skipped": True, "kind": kind,
+                                "session": sess}), 200
+        try:
+            out = RC.post(cfg, Store(), kind=kind, day=body.get("day"),
+                          force=bool(body.get("force")))
+            return jsonify({"ok": True, **out})
+        except Exception as e:
+            return jsonify({"ok": False, "error": safe_error(e)}), 500
+
     @app.route("/admin/ingest-sample", methods=["POST"])
     def admin_ingest_sample():
         """The landing page's sample valuation, computed in CI and posted here.
@@ -604,7 +642,12 @@ def create_saas_app(cfg=CONFIG):
                     }), 429, {"Retry-After": str(retry)}
             u = auth.current_user(store)
             # How many hot-stocks rows this tier may see (free 10 / pro 100 / premium 500).
-            g.hotstocks_cap = gating.features(gating._active(u))["hotstocks_top"]
+            _feats = gating.features(gating._active(u))
+            g.hotstocks_cap = _feats["hotstocks_top"]
+            # The unified name view spans a public ranking AND the paid Signals feature. Rather
+            # than login-wall the whole panel or leak contract detail, the options half is
+            # switched off per tier and says so, so a free reader still gets the stock half.
+            g.may_see_options = bool(_feats.get("intraday"))
             blocked = gating.check_request(path, request.method, body, u, store)
             if blocked:
                 payload, status = blocked

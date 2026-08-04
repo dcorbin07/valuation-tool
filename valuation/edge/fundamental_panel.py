@@ -204,18 +204,75 @@ def _ev_point_in_time() -> bool:
     Sharadar's `ev` is exactly `marketcap + debt - cashneq` (verified: median |diff|/mc = 0,
     96.4% inside 1% on 193,811 ARQ rows), and that `marketcap` is the one from the FILING
     date. The panel replaced the buggy shares x price market cap with a point-in-time figure
-    from DAILY, but `ev` was left alone — so `ebit_ev`, `ev_sales` and `ev_ebitda` measure
+    from DAILY, but `ev` was left alone — so `ebit_ev`, `ev_sales` and `ev_ebitda` measured
     cheapness against a price roughly 111 days stale (the panel's effective fundamental lag),
-    while `earnings_yield`, `fcf_yield` and `book_to_price` use the fresh one. The median
-    one-quarter market-cap move is 10.5% and 18.6% of names move more than 25%, so this is a
+    while `earnings_yield`, `fcf_yield` and `book_to_price` used the fresh one. The median
+    one-quarter market-cap move is 10.5% and 18.6% of names move more than 25%, so this was a
     real handicap on the EV ratios rather than a rounding detail.
 
-    It is STALE, not look-ahead: the price used is older than the rebalance, never newer, so
-    the bias is conservative. Default OFF because turning it on also changes `ebit_ev`, an
-    already-adopted factor — it gets its own A/B rather than riding along with another change.
+    It was STALE, not look-ahead: the price embedded in it is older than the rebalance, never
+    newer, so the bias was conservative and no past result is invalidated upward.
+
+    Default ON since 2026-08-03. It is a CORRECTNESS fix, not a performance one — measured
+    full-universe it is a wash at book level (long-short t 3.396 -> 3.520, top-decile alpha
+    +11.82% -> +11.88%, PBO unchanged) and the held-out gate reads not_replicated in both
+    directions. The reason to ship it anyway is that there is no defensible version of the
+    panel in which half the value ratios are priced at the rebalance date and half at a
+    ~111-day-old quote. The flag remains so the old behaviour is one env var away.
     """
     from ..config import CONFIG
-    return bool(getattr(CONFIG, "ev_point_in_time", False))
+    return bool(getattr(CONFIG, "ev_point_in_time", True))
+
+
+# How each row's enterprise value was arrived at. Ordered best -> worst; anything other than
+# the first two means that row's EV ratios are still priced at the filing date.
+EV_SRC_LINE_ITEMS = "pit_line_items"   # mc + (debt - cashneq)/fx   — preferred, 99.95% of rows
+EV_SRC_IDENTITY = "pit_ev_identity"    # mc + (ev - marketcap)      — no fx needed, recovers 0.04%
+EV_SRC_STALE_OFF = "stale_flag_off"    # rebuild disabled
+EV_SRC_STALE_NO_MC = "stale_no_mc"     # no point-in-time market cap to re-price with
+EV_SRC_STALE_NO_ND = "stale_no_netdebt"  # neither net-debt route available
+
+
+def _pit_ev(sf1, ev_filing, mc, debt, cash, div, enabled):
+    """-> (enterprise_value, source_tag). Re-prices the EQUITY leg of EV to `mc`.
+
+    Net debt is only observable when a company files, so the debt leg is deliberately held at
+    its last reported value — that IS the point-in-time answer, not an approximation of one.
+    Only the equity leg is stale-able between filings, and that is the leg this refreshes.
+
+    Two routes, because a single one leaves rows behind and a row left behind silently keeps
+    the old stale value (this project's most-repeated bug class):
+
+      A `mc + (debt - cashneq)/fx` — 99.95% of ARQ rows. `debt`/`cashneq` are REPORTING-currency
+        line items and `mc` is USD, so net debt MUST be converted before it is added; adding raw
+        won to a USD market cap is the P7 currency bug wearing a different hat.
+      B `mc + (ev - marketcap)` — 98.29% of rows, and available on 82 rows where A is not. Both
+        terms are already USD so it needs no fx at all, and it inherits whatever else Sharadar
+        puts in EV (minority interest, preferred) instead of my simplification to debt - cash.
+
+    Where both exist they agree to a p99 of 0.001% of market cap (193,811 rows), including on
+    the 8,071 foreign-reporter rows where A converts and B does not — an independent check on
+    the P7 fx handling, since a wrong `fxusd` would blow A apart from B on exactly those rows.
+    A is preferred only because its coverage is higher.
+
+    Both are in raw dollars: `mc` is DAILY's $mm figure scaled up, and the fact that A and B
+    agree at all proves SF1's `ev`/`marketcap` are raw dollars too. Mixing scales here would
+    corrupt a cross-section silently, so that agreement is load-bearing, not trivia.
+
+    Falls back to the filing's stale `ev` rather than dropping the row, so a missing input
+    costs accuracy instead of coverage — but every fallback is counted and surfaced by
+    `ev_freshness()`, because a silent fallback is the bug this whole change is fixing.
+    """
+    if not enabled:
+        return ev_filing, EV_SRC_STALE_OFF
+    if not mc:
+        return ev_filing, EV_SRC_STALE_NO_MC
+    if debt is not None and cash is not None and div:
+        return mc + (debt - cash) / div, EV_SRC_LINE_ITEMS
+    mc_filing = _f(sf1, "marketcap")
+    if ev_filing is not None and mc_filing:
+        return mc + (ev_filing - mc_filing), EV_SRC_IDENTITY
+    return ev_filing, EV_SRC_STALE_NO_ND
 
 
 def _sf1_to_metrics(ticker, sf1, price, market_cap, ev_point_in_time=None) -> dict:
@@ -269,14 +326,12 @@ def _sf1_to_metrics(ticker, sf1, price, market_cap, ev_point_in_time=None) -> di
     ebitda_usd = _to_usd(sf1, None, ebitda, div)  # no ebitdausd column — convert
     is_foreign = abs(div - 1.0) > 1e-9
 
-    # EV at the rebalance date: the fresh point-in-time market cap plus the filing's net debt.
-    # `debt`/`cashneq` are REPORTING-currency line items and `mc` is USD, so net debt has to be
-    # converted before it is added — adding local won to a USD market cap is the P7 bug wearing
-    # a different hat. Falls back to the filing's own `ev` whenever a piece is missing.
+    # EV at the REBALANCE date, not the filing date. See _pit_ev — the equity leg is re-priced
+    # to the point-in-time market cap and the debt leg is held at its last reported value.
     if ev_point_in_time is None:
         ev_point_in_time = _ev_point_in_time()
-    if ev_point_in_time and mc and debt is not None and cash is not None and div:
-        ev = mc + (debt - cash) / div
+    ev_filing = ev
+    ev, ev_src = _pit_ev(sf1, ev, mc, debt, cash, div, ev_point_in_time)
 
     return {
         "ticker": ticker, "sector": "", "price": price, "market_cap": mc,
@@ -303,6 +358,11 @@ def _sf1_to_metrics(ticker, sf1, price, market_cap, ev_point_in_time=None) -> di
         "revenue_growth": None, "beta": None,
         # Diagnostics for the P8 sanity layer — not scored.
         "_is_foreign": is_foreign, "_fx_divisor": div,
+        # Which EV route fired, and how far re-pricing moved it. `_ev_drift` is the whole point
+        # of the fix expressed as a number: 0 means the filing's EV was already current.
+        "_ev_src": ev_src,
+        "_ev_drift": (abs(ev - ev_filing) / abs(ev_filing)
+                      if (ev and ev_filing) else None),
     }
 
 
@@ -1065,6 +1125,8 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                 row["is_foreign"] = bool(_src.get("_is_foreign"))
                 row["fx_divisor"] = _src.get("_fx_divisor")
                 row["mc_ratio"] = _src.get("_mc_ratio")
+                row["ev_src"] = _src.get("_ev_src")
+                row["ev_drift"] = _src.get("_ev_drift")
                 for _rr in tuple(SANE_RANGES) + SANE_RANGE_EXEMPT:
                     v = _src.get(_rr)
                     row["raw_" + _rr] = None if v is None else float(v)
@@ -3071,6 +3133,62 @@ def signal_coverage(panel, floor=COVERAGE_FLOOR, warn=True) -> dict:
     return out
 
 
+# A stale EV is not an error, so nothing raises when the rebuild silently stops working — the
+# ratios just quietly go back to being priced ~111 days late. This is the floor at which that
+# becomes a reportable problem rather than the handful of rows with no net-debt data at all.
+EV_FRESH_FLOOR = 0.95
+
+
+def ev_freshness(panel, floor=EV_FRESH_FLOOR, warn=True) -> dict:
+    """How many rows got an EV priced at the REBALANCE date, and how far that moved it.
+
+    Coverage says `ev_sales` is PRESENT; this says it is CURRENT. They are different questions
+    and only the second one catches a rebuild that has quietly reverted to the filing's value —
+    which is exactly the failure this fix exists to prevent, and which no test of a single row
+    can notice once the fallback path is doing the work.
+
+    `drift` is the fix's own effect size: the relative gap between the filing's EV and the
+    re-priced one. Near-zero drift on a full panel would mean the rebuild is running but not
+    actually changing anything, which is its own kind of broken.
+    """
+    out = {"floor": float(floor), "rows": 0, "by_source": {}, "fresh": None,
+           "stale": None, "drift": {}, "ok": True, "warnings": []}
+    if panel is None or panel.empty or "ev_src" not in panel.columns:
+        out["warnings"].append("no ev_src column — panel built without keep_numbers?")
+        out["ok"] = False
+        return out
+    n = float(len(panel))
+    out["rows"] = int(n)
+    vc = panel["ev_src"].value_counts(dropna=False)
+    out["by_source"] = {("none" if pd.isna(k) else str(k)): int(v) for k, v in vc.items()}
+    fresh_tags = {EV_SRC_LINE_ITEMS, EV_SRC_IDENTITY}
+    fresh = float(panel["ev_src"].isin(fresh_tags).sum() / n)
+    out["fresh"] = fresh
+    out["stale"] = 1.0 - fresh
+    if "ev_drift" in panel.columns:
+        d = pd.to_numeric(panel["ev_drift"], errors="coerce").dropna()
+        if len(d):
+            out["drift"] = {"median": float(d.median()), "mean": float(d.mean()),
+                            "p90": float(d.quantile(0.90)),
+                            "frac_over_10pct": float((d > 0.10).mean()),
+                            "frac_over_25pct": float((d > 0.25).mean())}
+    # Flag-off is a deliberate choice, not a malfunction; say so instead of crying wolf.
+    if out["by_source"].get(EV_SRC_STALE_OFF):
+        out["warnings"].append(
+            f"ev_point_in_time is OFF for {out['by_source'][EV_SRC_STALE_OFF]:,} rows — "
+            "EV ratios are priced at the filing date, not the rebalance date")
+        out["ok"] = False
+    elif fresh < floor:
+        out["warnings"].append(
+            f"only {fresh:.2%} of rows have a rebalance-date EV (floor {floor:.0%})")
+        out["ok"] = False
+    if warn and out["warnings"]:
+        import sys as _s
+        for w in out["warnings"]:
+            print(f"[ev_freshness] WARNING: {w}", file=_s.stderr, flush=True)
+    return out
+
+
 def run_backtest(provider, tickers, top_n=25, rebalance_days=63, horizon=63, lookback_years=18,
                  recency_halflife_days=1260, bucket="established") -> dict:
     ok, msg = provider.ready()
@@ -3406,6 +3524,9 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
         # Coverage says a factor is PRESENT; this says it is SANE. The currency bug filled
         # every column and was simply wrong, so coverage was blind to it.
         out["sanity_check"] = sanity_check(panel)
+        # ...and this says the EV ratios are CURRENT. A rebuild that reverts to the filing's
+        # stale value raises nothing and leaves coverage and sanity both perfectly happy.
+        out["ev_freshness"] = ev_freshness(panel)
         out["per_signal"] = per_signal_ic(panel)
         out["per_theme"] = theme_ic(panel)      # the level keep/drop decisions operate at
         if not panel.empty and panel["date"].nunique() >= 6:

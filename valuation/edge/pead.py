@@ -74,6 +74,42 @@ that unblocked this is independently valuable and stands regardless.
 A cleaner PEAD would need an actual earnings SURPRISE (reported vs expected), which requires
 point-in-time analyst estimates — IBES, still parked. The price-reaction proxy used here cannot
 separate "beat expectations" from "went up recently".
+
+=========================== INDEPENDENT RE-VERIFICATION (2026-08-03) =========================
+Re-measured on a fresh full-universe run built on the post-EV-fix panel. VERDICT UNCHANGED.
+
+REPLICATES EXACTLY — the standalone gate:
+    pead_car    median IC +0.01004   IC t +2.215   coverage 82.33%
+    pead_drift  median IC -0.00201   IC t -0.473   coverage 25.06%
+and the orthogonality, within rounding: ret_6_1 +0.301 (was +0.286), high_prox +0.239
+(+0.241), ret_12_1 +0.208 (+0.200). ret_6_1's own IC t is +3.405, still ~1.5x pead_car's.
+
+DOES NOT REPLICATE — the held-out DELTAS above are construction-sensitive, and their SIGN
+flips with the choice of book. On the full shipped composite, adding pead_car to momentum
+HELPS both halves (early +0.133 t / +0.33pp, late +0.350 t / +0.72pp) rather than hurting.
+Restricting to rows where the signal exists reproduces the alpha magnitudes recorded above
+and the negative early-half alpha (-1.06pp), so that is likely the original construction.
+**Every construction tried fails the pre-registered margins**, so the REJECT is robust — but
+do not quote a specific held-out delta for PEAD without naming the book it was measured on.
+
+THE DIAGNOSTIC THAT SETTLES IT — a control the original run did not have. pead_car's
+incremental content, residualized on the three momentum inputs per date, is essentially nil:
+
+    momentum inputs explain R^2 11.2% of pead_car's cross-sectional variance
+    RAW pead_car      median IC +0.00975   t +1.955
+    RESIDUAL pead_car median IC +0.00284   t +0.020      <- what it actually ADDS
+
+So 89% of it is orthogonal to momentum and still predicts nothing. And the book movement it
+does produce is reproducible WITHOUT ANY EARNINGS DATA: simply counting ret_6_1 twice in the
+momentum mean delivers +0.115 t / +0.83pp on the full sample against pead_car's +0.271 /
++0.52pp — and BEATS it on alpha in the early half (+1.45pp vs +0.33pp). pead_car correlates
+most with the strongest momentum input and least with the weakest, so adding it acts as an
+implicit REWEIGHTING toward ret_6_1, not as new information. That is a sharper statement of
+diagnostic 2 above, and it is what the reject rests on.
+
+Point-in-time behaviour is now pinned by tests/test_pead.py (12 tests), including a tampering
+test that corrupts every price after the CAR window and asserts the signal does not move.
+Full write-up: HANDOFF_pead.md.
 """
 from __future__ import annotations
 

@@ -163,8 +163,11 @@ class Config:
     value_ev_multiples: bool = field(default_factory=lambda: _get("SCREENER_VALUE_EV_MULTIPLES", "false").lower() == "true")
     # Rebuild enterprise value at the REBALANCE date (PIT market cap + filing net debt) rather
     # than using the filing's own `ev`, whose embedded price is ~111 days stale. Affects
-    # ebit_ev / ev_sales / ev_ebitda. Default OFF pending its own A/B — HANDOFF_growth_evsales.md.
-    ev_point_in_time: bool = field(default_factory=lambda: _get("EDGE_EV_POINT_IN_TIME", "false").lower() == "true")
+    # ebit_ev / ev_sales / ev_ebitda. Default ON since 2026-08-03: a correctness fix, adopted
+    # because pricing half the value ratios at the rebalance date and half at a stale quote is
+    # indefensible, NOT because it pays — it is a wash at book level. HANDOFF_ev_fix.md.
+    # Set EDGE_EV_POINT_IN_TIME=false to get the old stale behaviour back.
+    ev_point_in_time: bool = field(default_factory=lambda: _get("EDGE_EV_POINT_IN_TIME", "true").lower() != "false")
     # Historical backtest (Edge Lab) — ALL configured here, not on the data vendor's site.
     # Long window across regimes, but the optimizer weights recent history more (half-life)
     # and only adopts weights that also hold on the recent out-of-sample stretch.
