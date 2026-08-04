@@ -434,15 +434,60 @@ horizon, 8 bps/side, corrected universe, IWM benchmark:
    outstanding are missing that often on the EDGAR path. That is a coverage
    problem worth its own look before anyone re-runs this.
 
-**Insider: still not measured, and that is a real gap.** The 20-30% of live
-weight the audit flags as never backtested is still never backtested. The
-machinery now exists — `edgar.form4_index` walks the paginated submissions
-shards (`filings.recent` is capped at ~1,000 filings of all types, so for an
-active filer it can cover under a year: a live feed, not a history), and
-`panel_cache.insider_asof` replays "the six most recent Form 4s filed on or
-before this date", pinned by 11 point-in-time tests. The fetch is running. The
-number above is the live model **minus** its insider component and is labelled
-that way everywhere, including in the report the script prints.
+## Insider: still not measured — and now the cost of measuring it is a number
+
+The 20-30% of live weight the audit flags as never backtested is still never
+backtested. This is the one part of the lane's scope I did not finish, and the
+reason is quantitative, not a shrug.
+
+**The machinery is built and tested.** `edgar.form4_index` walks the paginated
+submissions shards — `filings.recent` is capped at ~1,000 filings of ALL types,
+so for an active filer it can cover under a year, which makes it a live-screener
+feed and not a history; nothing before this could replay the live insider input
+at all. `panel_cache.insider_asof` replays "the six most recent Form 4s filed ON
+OR BEFORE this date" and is pinned by 11 point-in-time tests, including that the
+window actually MOVES with the date (a replay returning the same six filings
+every month would look fine and be a constant) and that None ("not fetched",
+renormalizes away) stays distinct from [] ("looked, found nothing", a neutral 50).
+
+**Measured cost, not estimated.** The index walk ran to 482 of 1,017 gated
+filers and reported the union of documents any (name, date) pair would request:
+
+| filers indexed | documents queued |
+|---|---|
+| 300 | 35,163 |
+| 375 | 44,233 |
+| 450 | 52,132 |
+
+That extrapolates to **~120,000 Form 4 documents** for the full universe. Sustained
+document-fetch rate, measured over two minutes on an otherwise idle machine:
+**43 documents/minute** (~1.4 s round trip — latency-bound, not bandwidth-bound;
+`edgar._MIN_INTERVAL` of 0.12 s is nowhere near binding). That is **~46 hours** of
+serial crawling.
+
+So this is a scheduled job, not a session task, and running it unattended against
+a public API for two days was not something to start and walk away from. The
+cache is incremental and resumable — 482 filer indexes are already on disk, and
+nothing already fetched is ever re-fetched.
+
+**To finish it:**
+
+```
+cd options-bot/screener
+EDGAR_USER_AGENT="..." python run_backtest.py --model live --universe target \
+    --band 500 2000 --prefetch-only        # resumable; ~46h serial as written
+EDGAR_USER_AGENT="..." python run_backtest.py --model both --universe target \
+    --band 500 2000                        # then this is fast, all cached
+```
+
+**The obvious optimisation, deliberately not done here:** EDGAR permits ~10
+req/s and we are achieving 0.7. A small thread pool in `panel_cache.form4_txns`
+would cut this to a few hours. I did not add it because a concurrency bug against
+a rate-limited public API fails by getting the IP blocked, and that is a bad thing
+to discover unattended — it wants a deliberate run with someone watching.
+
+Everything reported above is therefore the live model **minus** its insider
+component, labelled that way in this file and in the report the script prints.
 
 **One deliberate simplification, stated so it is not mistaken for an oversight:**
 the live pipeline's `market_cap_eligible` lets a name past the $10B ceiling if it
