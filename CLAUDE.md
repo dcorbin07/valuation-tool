@@ -90,14 +90,36 @@ the project's memory and the old versions had been repeated for months.
   on the later half, **long-short t goes 0.97 → 2.56 and top-decile alpha +6.09% → +9.30%**; the
   reverse direction agrees more strongly (t 0.55 → 2.57, alpha +6.63% → +14.49%). Do not treat
   the edge as settled — caveats at the end.
-- **UNTESTED, and it is the biggest open question in the project (audit R1): the headline is not
-  known to be ALPHA.** `top_decile_alpha` is `4 × (mean top-decile 63d return − mean
-  equal-weighted universe 63d return)` and nothing else — no beta adjustment, no factor
-  regression, and no t-statistic on the headline metric anywhere in the repo. The composite is
-  one-seventh each of value, quality, momentum, size, capital discipline and institutional
-  ownership, i.e. very nearly the Fama–French five factors plus momentum. **Until the FF5+MOM
-  regression runs, the word "alpha" should not appear in product copy.** Pre-registered
-  threshold and both versions of the product claim are written down in `HANDOFF_edge_audit.md`.
+- **SETTLED 2026-08-04 (audit R1) — THE HEADLINE IS NOT MERELY FACTOR EXPOSURE. The word
+  "alpha" is now permitted, as a RANGE and with caveats.** `top_decile_alpha` is still
+  `4 × (mean top-decile 63d return − mean equal-weighted universe 63d return)` with no risk
+  adjustment in it, but that object has now been regressed on the factors it was suspected of
+  merely re-assembling. On the full 2,710-name universe, 109 non-overlapping 63-trading-day
+  windows (1998-12-31 → 2026-01-21), deployed flat 1/7 weights: **FF5+MOM alpha +8.81%/yr,
+  Newey–West(1) t +5.742, R² 0.465**; Hou–Xue–Zhang **q4 +9.14% (t +5.23)**, q5 +8.33%
+  (t +4.37); long-short **+12.12% (t +4.14)**. Raw was +12.13%, so **the factor models absorb
+  about 27% of the headline and leave the rest** — the opposite of the pre-registered
+  expectation. It passes all four pre-registered specs (compound/sum × full/ex-B6), every
+  subperiod, every NW lag 0–8, **net of costs (+7.85%, t 5.16)**, and a spanning test adding the
+  EW universe's own excess return (+8.25%, t 5.88; universe loading t 0.63, insignificant).
+  **QUOTE THE RANGE +6.6% to +8.8%/yr** — +6.6% (t 4.41) is the value after dropping the 37
+  B6-contaminated early dates, and is the right single number when only one is wanted.
+  **Mechanism:** SMB +0.39 (t 3.84), RMW +0.30 (t 4.49), UMD +0.18 (t 3.49) all load — `size`,
+  `quality`, `momentum` ARE the standard premia — but **HML (t 1.08) and CMA (t 1.08) do not**,
+  so `value` (six ratios, EV re-priced at the rebalance date) and `capital_discipline`
+  (issuance/accruals) are not what FF measures. Not a benchmark artifact: alpha is linear, so
+  α(top−ew) = 14.60 − 5.80 = 8.81 exactly and the +5.80% (t 5.41) that FF5+MOM fails to explain
+  about the EW universe itself **cancels out of the spread**. **CAVEATS THAT MUST TRAVEL WITH
+  IT:** it is still ONE panel — a regression is a control, not new data, and **X8's international
+  replication is the out-of-sample evidence, R1 is not**; **t 5.74 is NOT multiplicity-corrected**
+  (audit M1 still open), though the deployed weights are flat 1/7 and were never tuned; FF5+MOM
+  is a poor description of this universe so read loadings as approximate; the book carries an
+  unhedged SMB +0.885 small-cap tilt with borrow/impact/capacity unmodelled; and the benchmark
+  is still uninvestable (audit R10). Reconciles with X4 rather than contradicting it — over X4's
+  own 2014+ window R1 gets +6.06% (t 3.16) where X4 got t 1.10, because X4 differences two
+  high-variance total-return series (low power) while R1 removes that variance first (high
+  power). Full write-up and the pre-commitment (written before any number) in `HANDOFF_r1.md`;
+  reproduce with `python -m scripts.factor_alpha`, pinned by `tests/test_factor_alpha.py`.
 - **Zeroing `insider` was tested the same way and REJECTED — it stays at 0.125.** It helped one
   split direction by a hair (Δt +0.08) and hurt the other (Δt −0.09). Its −0.34 full-sample
   t-stat is not a stable property. Same reasoning as `low_risk`, opposite outcome — which is

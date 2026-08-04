@@ -112,6 +112,12 @@ REVIEW_MODEL = "claude-opus-4-8"            # weekly/monthly self-review
 SELF_REVIEW_MIN_SAMPLE = 40                 # don't draw conclusions below this many logged picks
                                             #   *with realized returns* — rows with NULL returns do
                                             #   not count toward it.
+# C4: the second half of the review guard. SELF_REVIEW_MIN_SAMPLE alone is
+# satisfied by an old table that stopped being filled in; this is the RATE, so a
+# tracking loop that silently dies shows up as a failing review instead of as a
+# sample that quietly stops growing. Both must pass — see pipeline.review_readiness.
+MIN_TRACK_RETURN_COVERAGE = 0.50            # fraction of logged picks that must carry a realized
+                                            #   30-session return before the review may run.
 
 # ---- Discord channels ----
 # One source of truth: the channel list and its env var mapping live together, so

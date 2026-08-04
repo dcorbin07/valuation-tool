@@ -16,13 +16,13 @@ import datetime as _dt
 import hmac
 import os
 
-from flask import request, render_template, redirect, jsonify, g
+from flask import request, render_template, redirect, jsonify, g, abort, make_response
 
 from ..config import CONFIG
 from ..safe_error import safe_error
 from ..web.app import app as tool_app
 from .models import UserStore
-from . import auth, billing, csrf, gating, ratelimit
+from . import auth, billing, csrf, gating, private, ratelimit
 
 # NOTE: a PUBLIC_PATHS set used to sit here. It was never referenced anywhere — _guard
 # implements a different and narrower policy — so it read like enforced access control
@@ -99,13 +99,22 @@ def create_saas_app(cfg=CONFIG):
         u = auth.current_user(store)
         eff = gating._active(u) if u else "free"
         return {"user": u, "eff_tier": eff, "feats": gating.features(eff),
-                "open_access": cfg.open_access,
+                # public_access, not the raw open_access field: under private mode "open to
+                # everyone" is not what is happening, and a template that renders "free and
+                # open" copy on a locked-down personal tool is the exact misrepresentation
+                # this change exists to remove.
+                "open_access": cfg.public_access,
                 "billing_enabled": cfg.billing_enabled,
                 # Whether to show signup / pricing surfaces at all. Login is NOT gated by
                 # this — existing accounts must still be able to sign in.
                 "signup_enabled": cfg.signup_enabled,
                 "stripe_pk": cfg.stripe_publishable_key,
-                "beta_mode": cfg.beta_mode,
+                # Off under private mode: the strip is addressed to prospective users
+                # ("everything unlocked, no sign-up needed") and there are none.
+                "beta_mode": cfg.beta_banner_enabled,
+                # Lets the shared chrome describe what this instance IS, rather than every
+                # template having to reason about a combination of access flags.
+                "private_mode": cfg.private_mode,
                 # Every form template renders this into a hidden field; simply rendering a
                 # page with a form is what establishes the token for anonymous visitors.
                 "csrf_token": csrf.token(),
@@ -402,6 +411,30 @@ def create_saas_app(cfg=CONFIG):
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500
 
+    @app.route("/admin/export-track", methods=["GET", "POST"])
+    def admin_export_track():
+        """The forward track, in full, for backup. Read-only; writes and computes nothing.
+
+        This service's persistent disk holds the ONLY copy of the forward record, and the
+        record is the one dataset here that cannot be re-derived — see edge/track_export.py.
+        Render cannot commit to git and GitHub Actions cannot read Render's disk, so the
+        backup crosses the gap here: the weekly `track-backup` workflow GETs this with the
+        admin token and commits the files it renders.
+
+        GET as well as POST because it is a pure read and `curl` a URL is the whole client.
+        Same X-Admin-Token as every other admin route — this returns the complete forward
+        record, which is exactly the kind of thing that should not be world-readable, and
+        under private mode nothing else is either.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..edge.track_export import payload
+            from ..screener.store import Store
+            return jsonify({"ok": True, "export": payload(Store())})
+        except Exception as e:
+            return jsonify({"ok": False, "error": safe_error(e)}), 500
+
     @app.route("/admin/ingest-sample", methods=["POST"])
     def admin_ingest_sample():
         """The landing page's sample valuation, computed in CI and posted here.
@@ -486,7 +519,10 @@ def create_saas_app(cfg=CONFIG):
     @app.route("/app")
     def dashboard():
         u = auth.current_user(store)
-        if not u and not cfg.open_access:
+        # public_access rather than open_access: under private mode _guard has already
+        # refused every non-owner, and this second check means a future caller that reaches
+        # /app by another path still cannot get an anonymous render.
+        if not u and not cfg.public_access:
             return redirect("/login?next=/app")
         u = u or {}                       # open access: anonymous visitors get the app
         is_owner = u.get("email", "").strip().lower() in cfg.owner_email_set
@@ -550,6 +586,40 @@ def create_saas_app(cfg=CONFIG):
     def privacy():
         return render_template("privacy.html")
 
+    @app.route(cfg.resolved_portfolio_path)
+    def portfolio_page():
+        """The unlisted portfolio page — the one route a stranger may read under private mode.
+
+        STATIC BY CONSTRUCTION. It takes no arguments, reads no store, and its template makes
+        no fetch: every number on it is a research statistic typed into the template from this
+        repository's own handoffs, with its source named on the page. That is not a stylistic
+        choice — it is what makes "no vendor data is exposed here" a property of the code
+        rather than a promise, and `tests/test_private.py` pins it by asserting the page is
+        byte-identical across requests and contains no `/api/` call.
+
+        404, not a redirect, when the flag is off: a redirect confirms the path exists.
+        """
+        if not cfg.portfolio_page_enabled:
+            abort(404)
+        resp = make_response(render_template("portfolio.html",
+                                             contact_email=cfg.contact_email))
+        # Belt and braces with the <meta> tag and robots.txt. The header is the one of the
+        # three that a crawler cannot miss and a scraper cannot ignore by not parsing HTML.
+        resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet"
+        return resp
+
+    @app.route("/robots.txt")
+    def robots_txt():
+        """Blanket exclusion, naming nothing.
+
+        `Disallow: /` covers the portfolio page without listing it. Naming the path would be
+        self-defeating: robots.txt is world-readable, so a file that says `Disallow: /work` is
+        a public index of the URL it is trying to keep out of the public index.
+        """
+        resp = make_response("User-agent: *\nDisallow: /\n")
+        resp.mimetype = "text/plain"
+        return resp
+
     @app.route("/account")
     def account():
         u = auth.current_user(store)
@@ -605,6 +675,28 @@ def create_saas_app(cfg=CONFIG):
         # cannot prove it came from our own page should not reach the handler at all.
         if csrf.needs_protection(path, request.method) and not csrf.validate():
             return render_template("csrf_error.html"), 400
+
+        # ---- PRIVATE MODE ----------------------------------------------------------------
+        # The licence boundary (personal use only — see saas/private.py). Deliberately the
+        # FIRST access decision after CSRF and ahead of every branch below, because those
+        # branches implement the public product: the landing page, the tier caps, the
+        # rate-limit-per-visitor. Running any of them first would mean a stranger's request
+        # had already been shaped by "what may a visitor see" logic before we asked the only
+        # question that matters here, which is whether there is supposed to be a visitor.
+        if private.enabled(cfg):
+            denial = private.check(path, auth.current_user(store), cfg)
+            if denial:
+                if denial["kind"] == "json":
+                    return jsonify(denial["payload"]), denial["status"]
+                # A plain holding page, not the marketing landing: the landing page is a
+                # pitch, and there is nothing to pitch. It carries a login link for the
+                # owner and no scores, no track, no valuation, no vendor data at all.
+                return render_template("private_landing.html",
+                                       **denial["payload"]), denial["status"]
+            if path == "/":
+                # The owner is the only one who reaches this line under private mode.
+                return redirect("/app")
+
         # Marketing landing for anonymous visitors at "/". Under open access the landing
         # page still shows (it explains what the tool is), but nothing behind it is
         # locked — /app renders for anonymous visitors too.

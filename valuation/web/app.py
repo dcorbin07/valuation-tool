@@ -83,6 +83,12 @@ def _site_context():
     return {"contact_email": CONFIG.contact_email,
             "feedback_url": CONFIG.resolved_feedback_url,
             "signed_in": False, "logout_url": "/logout",
+            # Also supplied by the SaaS context processor, which overrides this one. Declared
+            # here too so the standalone tool app (no accounts layer) renders index.html with
+            # the same framing instead of falling back to Jinja's undefined — a template that
+            # silently treats "no such variable" as false would quietly restore the product
+            # copy on the one deployment shape that has no auth at all.
+            "private_mode": CONFIG.private_mode,
             "live_hero": _live_hero}
 
 

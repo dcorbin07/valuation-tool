@@ -635,6 +635,25 @@ def sanity_flags(daily: pd.DataFrame, cov: dict) -> list:
         zg = pd.to_numeric(daily.get("zero_gamma"), errors="coerce")
         if len(zg) and float(zg.isna().mean()) > 0.5:
             flags.append(f"zero-gamma not found on {float(zg.isna().mean()):.0%} of dates")
+        # A "gamma wall" on a date where most open interest is the -1 sentinel is not dealer
+        # positioning — it is whichever few contracts' OI survived the miner's merge. Measured
+        # across all 280 names: the top strike's gamma share runs 0.31 on dates with >95% known
+        # OI and 0.55 when under a quarter is known, and corr(coverage, concentration) is
+        # negative for 231 of them. So `gex_wall_conc` is partly an artifact of finding 1, and
+        # `gex_top_strike` / `call_wall` / `put_wall` inherit it. Flagged, NOT corrected: the
+        # repair belongs in the miner's merge, and a derived layer cannot invent the missing
+        # interest — filling it would be exactly the silent-fill this module refuses elsewhere.
+        if "oi_coverage_iv" in daily:
+            conc = pd.to_numeric(daily["gex_wall_conc"], errors="coerce")
+            oic = pd.to_numeric(daily["oi_coverage_iv"], errors="coerce")
+            lo = conc[oic.gt(0) & oic.lt(0.75)].dropna()
+            hi = conc[oic.ge(0.75)].dropna()
+            if len(lo) >= 50 and len(hi) >= 50:
+                gap = float(lo.median() - hi.median())
+                if gap > 0.05:
+                    flags.append(
+                        f"gamma walls are {gap:.2f} more concentrated on the {len(lo)} dates with "
+                        f"<75% known open interest — those walls may be an OI artifact")
     # The COVERAGE RULE, applied to this layer: a derived column that is essentially empty is
     # the single failure mode this project keeps repeating (roe/roic/beta/growth_accel were all
     # wired and all empty for years). It is caught HERE rather than by whoever consumes it.

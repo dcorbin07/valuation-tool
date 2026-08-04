@@ -13,6 +13,117 @@ file directly.
 
 ---
 
+## R1 SETTLED — THE HEADLINE IS NOT JUST FACTOR EXPOSURE (2026-08-04, `r1` lane)
+
+Full write-up: **`HANDOFF_r1.md`** (pre-commitment in section 1, written before any number).
+Prompt: `PROMPT_r1.md`. Audit item: **R1, "the single most important test in this document".**
+
+**The pre-registered bar was: the word "alpha" is permitted only if the FF5+MOM intercept is
+positive with Newey-West t > 2.0. It cleared it.**
+
+- **`top - ew` (the headline's own object, = `top_decile_alpha` / 4): FF5+MOM alpha
+  +8.81%/yr, NW(1) t = +5.742, R2 0.465, n = 109** non-overlapping 63-trading-day windows,
+  1998-12-31 -> 2026-01-21, full 2,710-name universe, deployed flat 1/7 weights.
+- **Hou-Xue-Zhang q4: +9.14%/yr (t +5.23). q5: +8.33%/yr (t +4.37). Long-short: FF5+MOM
+  +12.12%/yr (t +4.14), q4 +12.99%/yr (t +3.20).**
+- Raw unadjusted was +12.13%/yr, so **the factor models absorb roughly 27% of the headline and
+  leave the rest.** That was NOT the pre-registered expectation, which said most would go.
+- **Passes all four pre-registered specs** (compound/sum aggregation x full/ex-B6), every
+  subperiod, every NW lag 0-8, **net of costs (+7.85%, t 5.16)**, and a spanning test that adds
+  the equal-weighted universe's own excess return as a 7th regressor (+8.25%, t 5.88).
+- **Quote the RANGE +6.6% to +8.8%/yr**, or the conservative **+6.6% (t 4.41)** — that is the
+  figure after dropping the 37 B6-contaminated early dates.
+
+**Mechanism.** SMB +0.39 (t 3.84), RMW +0.30 (t 4.49) and UMD +0.18 (t 3.49) all load
+significantly — `size`, `quality` and `momentum` really are the standard premia and the factors
+do absorb them. **HML (t 1.08) and CMA (t 1.08) do NOT load** — Valquo's `value` (six ratios,
+EV re-priced at the rebalance date) and `capital_discipline` (issuance/accruals) are not what
+FF's value and investment factors measure. MKT loading on the spread is +0.007: market-neutral
+by construction.
+
+**Not a benchmark artifact.** Alpha is linear: a(top - ew) = a(top) - a(ew) = 14.60 - 5.80 =
+8.81 exactly, so the +5.80%/yr (t 5.41) that FF5+MOM fails to explain about the equal-weighted
+universe **cancels out of the spread**. The spanning test confirms it (universe loading +0.10,
+t 0.63, insignificant).
+
+**Reconciles with X4 rather than contradicting it.** Over X4's own 2014+ window R1 gets alpha
++6.06% (t 3.16) where X4 got t 1.10 vs an ETF blend. Different tests: X4 differences two
+high-variance total-return series (low power, practical question); R1 removes that variance
+first (high power, statistical question). **X8 says the premia are real and general, R1 says
+the headline is more than those premia, X4 says the retail-substitute margin is still
+unproven. All three stand at once.**
+
+**Caveats that must travel with the number.** (1) Still ONE panel — a regression is a control,
+not new data; **X8's international replication is the out-of-sample evidence, R1 is not.**
+(2) **t 5.74 is NOT multiplicity-corrected** — audit M1 is still open; mitigating, the deployed
+weights are flat 1/7 and were never tuned. (3) FF5+MOM is a poor description of this universe
+(+5.80% unexplained on the EW universe itself), so read every loading as approximate.
+(4) SMB +0.885 on the book — small-cap tilt, unhedged; borrow/impact/capacity not modelled.
+(5) `top - ew` is still measured against an uninvestable benchmark (audit R10).
+
+**Note on "product copy":** the app went owner-only the same day (PRIVATE_MODE, section below),
+so there is currently no public copy for this to govern. The claim discipline still applies to
+how the project describes itself in `CLAUDE.md`, the roadmap and any future public write-up.
+
+**Roadmap effect — opposite of what R1 anticipated.** The audit said a null would make further
+signal hunting "close to worthless" and construction/cost/tax the entire remaining edge. The
+pass says there is a residual worth understanding. Recommended next: **(1) attribute the
++8.81% across themes** by re-running this regression on each theme's own decile spread (cheap
+now that the machinery exists; converts inferred mechanism into measured); **(2) M1, the trial
+ledger** — now the largest unquantified threat to the headline; **(3) the forward paper-track
+vs SPY remains the top overall priority (Cowork's lane)** — R1 adds no out-of-sample evidence.
+
+New files only, panel untouched (Session 2 owns B6/B7): `scripts/factor_alpha.py`,
+`tests/test_factor_alpha.py` (14/14), `HANDOFF_r1.md`, and output
+`data/free_analysis/FACTOR_ALPHA_RESULTS.json`. The script asserts it reproduces X4's shipped
+strategy series to 9.7e-17 and asserts an alignment check (SPY excess on MKT: beta 0.9562,
+R2 0.9888, alpha +0.19%/yr t 0.45) so a future date-misalignment cannot pass silently.
+
+---
+
+## THE APP IS NOW PRIVATE — OWNER ONLY (2026-08-04, app-fixer lane)
+
+Full write-up: **`HANDOFF_appfixes.md`** (Session 9). Prompt: `PROMPT_appfixer_private.md`.
+
+**Valquo is now a personal research tool, not a product.** This is a deliberate LICENCE
+posture: ThetaData's Individual plan and Sharadar's individual terms permit personal use and
+forbid redistribution or business use. One user, no commercial activity, nobody else reading
+vendor-derived numbers => those terms are cleanly satisfied.
+
+- **One flag: `PRIVATE_MODE`, default `true`** (`valuation/config.py`, declared in
+  `render.yaml`). Read in two places only: three derived `Config` properties, and
+  `valuation/saas/private.py`, which owns the request policy and is called first in `_guard`.
+- **It outranks `OPEN_ACCESS`, `BETA_ALL_PREMIUM`, `FEATURE_BILLING=on` and a configured
+  Stripe key** — each asserted separately. Anonymous visitors and signed-in non-owners get a
+  plain holding page or a 401; the recruiter `/demo` link is refused; no payment can be
+  initiated (checkout/portal 403).
+- **NOTHING DELETED.** Every tier, route, template and Stripe path is intact and still tested.
+  `PRIVATE_MODE=false` restores the public product — `tests/test_saas.py` and
+  `tests/test_security.py` now run with it off precisely to keep that a tested claim.
+- **The crons are unaffected.** All `/admin/*` routes reach their `X-Admin-Token` check
+  unchanged (they never used a session); pinned by a test that uses a deliberately wrong token
+  so it cannot accidentally run a scan.
+- **Vendor audit done.** No raw ThetaData and no raw Sharadar rows are exposed on any page or
+  API route. Sharadar reaches the web only via owner-only `/api/edge/*`, which returns
+  aggregate statistics (walk-forward folds, ICs, Sharpes, counts). Derived constants measured
+  on licensed panels do exist in `screener/settings.py` and `edge/options_paper.py` — reported
+  as the separate category they are. Per-surface table in `HANDOFF_appfixes.md`.
+- **THE FORWARD TRACK IS NOW BACKED UP INTO GIT.** It was single-homed on one Render disk and
+  is the only dataset in this project that cannot be re-derived. New weekly `track-backup`
+  GitHub Actions workflow pulls `/admin/export-track` and commits `data_export/`
+  (`paper_track_history.json` + three CSVs + a README). Rewrite-in-full and deterministic;
+  **refuses to commit an export with fewer index days than the one already committed**, so a
+  service that comes up on a fresh disk cannot silently erase months of record. Don gets it
+  with `git pull`. **Run it once by hand from the Actions tab before ever touching Render.**
+- Tests: **`tests/test_private.py`, 22 new.** All suites green.
+
+**Not yet done / needs Don:** the workflow has never run against the live service (it needs
+`SITE_BASE_URL` + `ADMIN_TOKEN` as Actions secrets, which auto-scan already uses); this is the
+first workflow in the repo that commits to `main`; the paper track still does not run at all
+until `TRADIER_PAPER_TOKEN` / `TRADIER_PAPER_ACCOUNT_ID` are set on Render (Session 6).
+
+---
+
 ## READ FIRST — AN EXTERNAL AUDIT HAS INVALIDATED SEVERAL HEADLINE CLAIMS (2026-08-03)
 
 Full ledger: **`HANDOFF_edge_audit.md`**. Source: `VALQUO_EDGE_AUDIT.md`, a 108-item

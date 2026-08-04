@@ -1,0 +1,386 @@
+{
+  "options_backtest_IWM_2009-09-17_2017-12-31": {
+    "stats": {
+      "total_return": -0.11263000000000001,
+      "final_equity": 88737.0,
+      "annualized_return": -0.008897366658540682,
+      "annualized_vol": 0.10509086569146886,
+      "risk_free_rate_used": 0.001928873982987352,
+      "sharpe": -0.10301790331913589,
+      "sharpe_raw": -0.08466355853097668,
+      "max_drawdown": -0.22601915227626412,
+      "num_trades": 1984,
+      "win_rate": 0.7434475806451613,
+      "avg_win": 97.906461451412,
+      "avg_loss": -286.36493810381387,
+      "worst_trade": -816.1439606762091,
+      "exits_by_reason": {
+        "time": 457,
+        "stop": 203,
+        "profit": 1324
+      },
+      "halted_early": false,
+      "halt_date": null,
+      "open_positions_at_halt": 0,
+      "margin_breach_days": 0
+    },
+    "data_sources": {
+      "prices": {
+        "symbol": "IWM",
+        "source": "yfinance",
+        "days": 2087
+      },
+      "implied_vol": {
+        "symbol": "^RVX",
+        "source": "cboe",
+        "days": 2087
+      },
+      "risk_free": {
+        "symbol": "^IRX",
+        "source": "yfinance",
+        "days": 2085
+      },
+      "window_requested": [
+        "2009-09-17",
+        "2017-12-31"
+      ]
+    },
+    "cost_decomposition": {
+      "contracts": 7333,
+      "gross_pnl_pre_cost": 76382.08,
+      "commission": 19065.8,
+      "slippage": 58664.0,
+      "cost_share_of_gross": 1.0176
+    },
+    "key_config": {
+      "slippage_per_share": 0.02,
+      "commission_per_contract": 0.65,
+      "target_short_delta": 0.2,
+      "spread_width": 5.0,
+      "target_dte": 35,
+      "use_vol_scaled_sizing": true,
+      "expiration_calendar": "weekly",
+      "initial_capital": 100000.0
+    }
+  },
+  "options_backtest_IWM_2018-01-01_2025-12-31": {
+    "stats": {
+      "total_return": -0.38396620000000004,
+      "final_equity": 61603.38,
+      "annualized_return": -0.05132616045706634,
+      "annualized_vol": 0.1378131456763527,
+      "risk_free_rate_used": 0.02545023428620436,
+      "sharpe": -0.5571050161178109,
+      "sharpe_raw": -0.37243297948951304,
+      "max_drawdown": -0.46813131951222664,
+      "num_trades": 1892,
+      "win_rate": 0.702431289640592,
+      "avg_win": 115.26277269042359,
+      "avg_loss": -325.7937931179211,
+      "worst_trade": -964.948598926445,
+      "exits_by_reason": {
+        "profit": 1182,
+        "time": 484,
+        "stop": 226
+      },
+      "halted_early": false,
+      "halt_date": null,
+      "open_positions_at_halt": 0,
+      "margin_breach_days": 0
+    },
+    "data_sources": {
+      "prices": {
+        "symbol": "IWM",
+        "source": "yfinance",
+        "days": 2011
+      },
+      "implied_vol": {
+        "symbol": "^RVX",
+        "source": "cboe",
+        "days": 2006
+      },
+      "risk_free": {
+        "symbol": "^IRX",
+        "source": "yfinance",
+        "days": 2011
+      },
+      "window_requested": [
+        "2018-01-01",
+        "2025-12-31"
+      ]
+    },
+    "cost_decomposition": {
+      "contracts": 5675,
+      "gross_pnl_pre_cost": 29917.32,
+      "commission": 14755.0,
+      "slippage": 45400.0,
+      "cost_share_of_gross": 2.0107
+    },
+    "key_config": {
+      "slippage_per_share": 0.02,
+      "commission_per_contract": 0.65,
+      "target_short_delta": 0.2,
+      "spread_width": 5.0,
+      "target_dte": 35,
+      "use_vol_scaled_sizing": true,
+      "expiration_calendar": "weekly",
+      "initial_capital": 100000.0
+    }
+  },
+  "options_backtest_QQQ_2009-09-15_2017-12-31": {
+    "stats": {
+      "total_return": -0.31761779999999995,
+      "final_equity": 68238.22,
+      "annualized_return": -0.04298559344534686,
+      "annualized_vol": 0.07900157223056914,
+      "risk_free_rate_used": 0.0019280804224426436,
+      "sharpe": -0.5685162029017247,
+      "sharpe_raw": -0.5441106073166714,
+      "max_drawdown": -0.3767498511843943,
+      "num_trades": 2027,
+      "win_rate": 0.747903305377405,
+      "avg_win": 56.5391627820002,
+      "avg_loss": -213.49496436649585,
+      "worst_trade": -657.9022275088986,
+      "exits_by_reason": {
+        "profit": 1421,
+        "time": 299,
+        "stop": 307
+      },
+      "halted_early": false,
+      "halt_date": null,
+      "open_positions_at_halt": 0,
+      "margin_breach_days": 0
+    },
+    "data_sources": {
+      "prices": {
+        "symbol": "QQQ",
+        "source": "yfinance",
+        "days": 2089
+      },
+      "implied_vol": {
+        "symbol": "^VXN",
+        "source": "cboe",
+        "days": 2089
+      },
+      "risk_free": {
+        "symbol": "^IRX",
+        "source": "yfinance",
+        "days": 2087
+      },
+      "window_requested": [
+        "2009-09-15",
+        "2017-12-31"
+      ]
+    },
+    "cost_decomposition": {
+      "contracts": 5803,
+      "gross_pnl_pre_cost": 38129.24,
+      "commission": 15087.8,
+      "slippage": 46424.0,
+      "cost_share_of_gross": 1.6132
+    },
+    "key_config": {
+      "slippage_per_share": 0.02,
+      "commission_per_contract": 0.65,
+      "target_short_delta": 0.2,
+      "spread_width": 5.0,
+      "target_dte": 35,
+      "use_vol_scaled_sizing": true,
+      "expiration_calendar": "weekly",
+      "initial_capital": 100000.0
+    }
+  },
+  "options_backtest_QQQ_2018-01-01_2025-12-31": {
+    "stats": {
+      "total_return": 0.03250419999999998,
+      "final_equity": 103250.42,
+      "annualized_return": 0.01684947747971386,
+      "annualized_vol": 0.1598294792121804,
+      "risk_free_rate_used": 0.025430387856139124,
+      "sharpe": -0.053687908004966596,
+      "sharpe_raw": 0.10542158782451806,
+      "max_drawdown": -0.33305385225631,
+      "num_trades": 1907,
+      "win_rate": 0.7587834294703724,
+      "avg_win": 178.83258149729465,
+      "avg_loss": -530.0064144664065,
+      "worst_trade": -1266.9831854377815,
+      "exits_by_reason": {
+        "profit": 1299,
+        "time": 437,
+        "stop": 171
+      },
+      "halted_early": false,
+      "halt_date": null,
+      "open_positions_at_halt": 0,
+      "margin_breach_days": 0
+    },
+    "data_sources": {
+      "prices": {
+        "symbol": "QQQ",
+        "source": "yfinance",
+        "days": 2011
+      },
+      "implied_vol": {
+        "symbol": "^VXN",
+        "source": "cboe",
+        "days": 2013
+      },
+      "risk_free": {
+        "symbol": "^IRX",
+        "source": "yfinance",
+        "days": 2011
+      },
+      "window_requested": [
+        "2018-01-01",
+        "2025-12-31"
+      ]
+    },
+    "cost_decomposition": {
+      "contracts": 7995,
+      "gross_pnl_pre_cost": 99714.79,
+      "commission": 20787.0,
+      "slippage": 63960.0,
+      "cost_share_of_gross": 0.8499
+    },
+    "key_config": {
+      "slippage_per_share": 0.02,
+      "commission_per_contract": 0.65,
+      "target_short_delta": 0.2,
+      "spread_width": 5.0,
+      "target_dte": 35,
+      "use_vol_scaled_sizing": true,
+      "expiration_calendar": "weekly",
+      "initial_capital": 100000.0
+    }
+  },
+  "options_backtest_SPY_1993-02-01_2017-12-31": {
+    "stats": {
+      "total_return": -0.5376665,
+      "final_equity": 46233.35,
+      "annualized_return": -0.02658313475557488,
+      "annualized_vol": 0.09367158100053534,
+      "risk_free_rate_used": 0.024209384635940346,
+      "sharpe": -0.5422404410065945,
+      "sharpe_raw": -0.28379081970894626,
+      "max_drawdown": -0.6214325,
+      "num_trades": 5695,
+      "win_rate": 0.7357330992098332,
+      "avg_win": 52.3798175731667,
+      "avg_loss": -171.60733909171395,
+      "worst_trade": -921.4625591709009,
+      "exits_by_reason": {
+        "stop": 630,
+        "profit": 3806,
+        "time": 1259
+      },
+      "halted_early": false,
+      "halt_date": null,
+      "open_positions_at_halt": 0,
+      "margin_breach_days": 0
+    },
+    "data_sources": {
+      "prices": {
+        "symbol": "SPY",
+        "source": "yfinance",
+        "days": 6276
+      },
+      "implied_vol": {
+        "symbol": "^VIX",
+        "source": "cboe",
+        "days": 6274
+      },
+      "risk_free": {
+        "symbol": "^IRX",
+        "source": "yfinance",
+        "days": 6255
+      },
+      "window_requested": [
+        "1993-02-01",
+        "2017-12-31"
+      ]
+    },
+    "cost_decomposition": {
+      "contracts": 11334,
+      "gross_pnl_pre_cost": 81342.79,
+      "commission": 29468.4,
+      "slippage": 90672.0,
+      "cost_share_of_gross": 1.477
+    },
+    "key_config": {
+      "slippage_per_share": 0.02,
+      "commission_per_contract": 0.65,
+      "target_short_delta": 0.2,
+      "spread_width": 5.0,
+      "target_dte": 35,
+      "use_vol_scaled_sizing": true,
+      "expiration_calendar": "weekly",
+      "initial_capital": 100000.0
+    }
+  },
+  "options_backtest_SPY_2018-01-01_2025-12-31": {
+    "stats": {
+      "total_return": 1.4476479000000002,
+      "final_equity": 244764.79,
+      "annualized_return": 0.12531447797360876,
+      "annualized_vol": 0.1612224266997323,
+      "risk_free_rate_used": 0.025430387856139124,
+      "sharpe": 0.6195421577638086,
+      "sharpe_raw": 0.7772769616413225,
+      "max_drawdown": -0.2124486322923872,
+      "num_trades": 1912,
+      "win_rate": 0.774581589958159,
+      "avg_win": 330.09376150891893,
+      "avg_loss": -754.4594632241443,
+      "worst_trade": -2428.7941623021143,
+      "exits_by_reason": {
+        "profit": 1328,
+        "stop": 146,
+        "time": 438
+      },
+      "halted_early": false,
+      "halt_date": null,
+      "open_positions_at_halt": 0,
+      "margin_breach_days": 0
+    },
+    "data_sources": {
+      "prices": {
+        "symbol": "SPY",
+        "source": "yfinance",
+        "days": 2011
+      },
+      "implied_vol": {
+        "symbol": "^VIX",
+        "source": "cboe",
+        "days": 2038
+      },
+      "risk_free": {
+        "symbol": "^IRX",
+        "source": "yfinance",
+        "days": 2011
+      },
+      "window_requested": [
+        "2018-01-01",
+        "2025-12-31"
+      ]
+    },
+    "cost_decomposition": {
+      "contracts": 12908,
+      "gross_pnl_pre_cost": 197257.63,
+      "commission": 33560.8,
+      "slippage": 0.0,
+      "cost_share_of_gross": 0.1701
+    },
+    "key_config": {
+      "slippage_per_share": 0.0,
+      "commission_per_contract": 0.65,
+      "target_short_delta": 0.2,
+      "spread_width": 5.0,
+      "target_dte": 35,
+      "use_vol_scaled_sizing": true,
+      "expiration_calendar": "weekly",
+      "initial_capital": 100000.0
+    }
+  }
+}

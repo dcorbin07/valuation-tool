@@ -1,0 +1,547 @@
+{# The unlisted portfolio page. PROMPT_recruiter_page.md.
+ #
+ # THREE RULES GOVERN WHAT MAY GO ON THIS PAGE. They are worth stating here because the next
+ # person to edit it will be tempted to add a chart.
+ #
+ # 1. NO VENDOR DATA, EVER. Not a price, not a fundamental row, not a holding. Everything here
+ #    is either prose or a research statistic Don computed. That is what makes this page safe
+ #    to open on an instance whose market data is licensed for personal use only. It is also
+ #    why the template is STATIC: no fetch, no store read, no template variable carrying a
+ #    number. tests/test_private.py pins both (byte-identical across requests, no "/api/").
+ #
+ # 2. METHOD LEADS, NUMBERS ILLUSTRATE. For a quant or data reader the return figure is the
+ #    least persuasive thing on a page like this — anyone can post one. What is rare is the
+ #    process: thresholds written down before the run, nulls recorded as nulls, bugs published
+ #    in the project's own memory. So the killed strategies and the found bugs come BEFORE
+ #    anything that survived, and every surviving claim is followed by its own caveat.
+ #
+ # 3. NO PICKS, NO SOLICITATION. Historical record only — never what to buy now. No signup,
+ #    no pricing, no offer. The forward track is a Tradier SANDBOX paper account and must be
+ #    labelled as such everywhere it is mentioned; it holds no real money and never has.
+ #
+ # Deliberately does NOT extend _saas_base.html: that template carries the nav, the social
+ # card and links to routes a logged-out reader would only get 401s from. A standalone file
+ # cannot inherit a product surface by accident. #}
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valquo — how the research works</title>
+{# Unlisted, not secret. Also sent as an X-Robots-Tag header (app_saas.portfolio_page) and
+ # covered by a blanket Disallow in /robots.txt, which names no paths. #}
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="referrer" content="no-referrer">
+<style>
+  :root{--bg:#eef1f6;--card:#fff;--ink:#1a2233;--muted:#6b7688;--faint:#9aa4b5;
+    --navy:#1f3864;--blue:#2e5fa3;--soft:#eaf0fb;--border:#e2e8f2;
+    --red:#b3261e;--green:#1b7f4b;--amber:#c77c11}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.62;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    font-size:16px;-webkit-text-size-adjust:100%}
+  .wrap{max-width:840px;margin:0 auto;padding:0 20px 72px}
+  header{background:var(--navy);color:#fff;padding:44px 0 38px;margin-bottom:26px}
+  header .wrap{padding-bottom:0}
+  header .eyebrow{font-size:12.5px;letter-spacing:1.4px;text-transform:uppercase;
+    color:#a9bde0;font-weight:700;margin:0 0 10px}
+  header h1{margin:0 0 12px;font-size:31px;line-height:1.25;font-weight:800}
+  header p{margin:0 0 6px;color:#d6e0f2;font-size:16.5px;max-width:66ch}
+  header .who{margin-top:16px;font-size:14px;color:#a9bde0}
+  header .who a{color:#fff;text-decoration:underline}
+  .labels{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 0}
+  .labels span{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);
+    color:#fff;font-size:12.5px;font-weight:600;padding:5px 11px;border-radius:20px}
+  section{background:var(--card);border-radius:14px;padding:26px 28px;margin-bottom:18px;
+    box-shadow:0 1px 3px rgba(20,30,60,.07),0 6px 22px rgba(20,30,60,.04)}
+  section > h2{margin:0 0 4px;font-size:13px;letter-spacing:.7px;text-transform:uppercase;
+    color:var(--blue);font-weight:800}
+  section > .lede{margin:0 0 18px;font-size:20px;font-weight:700;color:var(--navy);
+    line-height:1.35}
+  p{margin:0 0 14px}
+  p:last-child{margin-bottom:0}
+  ul,ol{margin:0 0 14px;padding-left:22px}
+  li{margin-bottom:7px}
+  b,strong{font-weight:700}
+  code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13.5px;
+    background:var(--soft);padding:1px 5px;border-radius:5px;color:var(--navy)}
+  .tbl{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 14px}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  .tbl.wide table{min-width:520px}   /* the three-column tables; narrow ones need no scroll */
+  th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--muted);font-weight:700;padding:0 12px 8px 0;border-bottom:1px solid var(--border)}
+  td{padding:11px 12px 11px 0;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td.k{font-weight:700;color:var(--navy);white-space:nowrap}
+  .verdict{font-weight:800;font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+  .kill{color:var(--red)}
+  .null{color:var(--amber)}
+  .keep{color:var(--green)}
+  .src{font-size:12.5px;color:var(--faint);margin-top:14px}
+  .src code{background:transparent;color:var(--faint);padding:0}
+  .callout{background:var(--soft);border-left:4px solid var(--blue);border-radius:0 10px 10px 0;
+    padding:16px 18px;margin:0 0 16px}
+  .callout.warn{background:#fdf6ea;border-left-color:var(--amber)}
+  .callout p:last-child{margin-bottom:0}
+  .callout .h{font-weight:800;color:var(--navy);display:block;margin-bottom:6px;font-size:15px}
+  .num{font-variant-numeric:tabular-nums}
+  footer{max-width:840px;margin:0 auto;padding:0 20px 60px;font-size:12.5px;color:var(--faint);
+    line-height:1.65}
+  footer .rule{border-top:1px solid var(--border);margin-bottom:18px}
+  footer b{color:var(--muted)}
+  @media (max-width:600px){
+    header{padding:32px 0 28px}
+    header h1{font-size:25px}
+    section{padding:22px 18px}
+    section > .lede{font-size:18px}
+    body{font-size:15.5px}
+    /* A sideways-scrolling table on a phone is a table nobody reads, and this page will be
+     # opened from a CV link on a phone. The wide ones become stacked cards, each cell
+     # captioned by the column header it lost. */
+    .tbl.wide table{min-width:0}
+    .tbl.wide table,.tbl.wide tbody,.tbl.wide tr,.tbl.wide td{display:block;width:100%}
+    .tbl.wide thead{display:none}
+    .tbl.wide tr{border-bottom:1px solid var(--border);padding:14px 0}
+    .tbl.wide tr:last-child{border-bottom:none;padding-bottom:0}
+    .tbl.wide td{border:none;padding:0 0 10px}
+    .tbl.wide td:last-child{padding-bottom:0}
+    .tbl.wide td.k{white-space:normal;font-size:17px;margin-bottom:8px}
+    .tbl.wide td.k br{display:none}
+    .tbl.wide td[data-label]::before{content:attr(data-label);display:block;font-size:11px;
+      text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;
+      margin-bottom:3px}
+  }
+  @media print{
+    body{background:#fff;font-size:11pt}
+    header{background:#fff;color:#000;border-bottom:2px solid #000;padding-bottom:16px}
+    header h1,header p,header .who,header .eyebrow{color:#000}
+    .labels span{background:#fff;border:1px solid #666;color:#000}
+    section{box-shadow:none;border:1px solid #ccc;page-break-inside:avoid;margin-bottom:12px}
+  }
+</style>
+</head><body>
+
+<header>
+  <div class="wrap">
+    <p class="eyebrow">Valquo · research method</p>
+    <h1>A quantitative equity and options research system, and&nbsp;the&nbsp;record of what it failed to prove.</h1>
+    <p>
+      Valquo is a personal research tool: a point-in-time fundamental backtest over 2,710 US
+      names and 110 quarterly rebalances from 1998 to 2026, an options study built on a mined
+      contract history, and a live Flask app that scores the market daily. This page is about
+      how questions get settled inside it — not about a return number.
+    </p>
+    <div class="labels">
+      <span>Historical simulation</span>
+      <span>Paper account · no real money</span>
+      <span>Educational only · not investment advice</span>
+      <span>Unlisted page · not a product</span>
+    </div>
+    <p class="who">
+      Built by Donovan Corbin ·
+      <a href="mailto:{{ contact_email }}?subject=Valquo">{{ contact_email }}</a>
+    </p>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section>
+  <h2>The method</h2>
+  <p class="lede">Every test writes its threshold down before it runs, and an ambiguous
+    result is recorded as a null rather than argued into a win.</p>
+  <p>
+    The hard part of this kind of research is not finding a pattern. It is deciding, in
+    advance, what would count as finding one — because after the numbers are on the screen
+    there is always a defensible reason to keep looking. So the protocol here is fixed:
+  </p>
+  <ol>
+    <li><b>Commit the hypothesis and the pass/fail bar in writing, in the direction predicted,
+      before the run.</b> Several gates were committed as results-free git commits so the
+      timestamp proves the order.</li>
+    <li><b>Run it once on the full universe.</b> Subsets are labelled smoke tests and never
+      settle anything — a 30% subsample of this panel flattered its own overfitting statistic
+      by a factor of four.</li>
+    <li><b>Score the result against the bar as written.</b> Ambiguous against its own
+      threshold is a <b>null</b>, which is a verdict, not a judgement call.</li>
+    <li><b>Append the row — especially the rejections.</b> A log that records only adoptions
+      is a multiple-testing denominator of one with extra steps.</li>
+  </ol>
+  <p>
+    Roughly 146 pre-registered tests have been run across the project. About one in eight was
+    adopted, and the adoptions cluster in bug fixes rather than new signals. That ratio is the
+    single most honest number on this page: it is what a real search over a finite dataset
+    looks like when the nulls are not quietly dropped.
+  </p>
+  <p>
+    The append-only log that formalises this is recent and its retrospective backfill is not
+    finished — which is recorded <em>in the log</em>, together with the reason a partial count
+    has not been wired into the multiple-testing correction: a denominator of 30 carries the
+    same false precision as a denominator of 8 while looking like it was measured.
+  </p>
+  <p class="src">Protocol and schema: <code>RESEARCH_LOG.md</code> (append-only, one row per
+    pre-registered test). Universe rule: <code>CLAUDE.md</code> methodology section.</p>
+</section>
+
+<section>
+  <h2>What the evidence killed</h2>
+  <p class="lede">Seven ideas that were built, tested properly, and thrown away.</p>
+  <p>
+    Each of these took real work — an EDGAR corpus, a mined option chain, a factor panel — and
+    each is written up with the numbers that killed it. Publishing them costs nothing and is
+    the only thing that makes the surviving results worth reading.
+  </p>
+  <div class="tbl wide"><table>
+    <thead><tr><th>Idea</th><th>How it was tested</th><th>What killed it</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="k">Post-earnings<br>announcement drift</td>
+        <td data-label="How it was tested">Point-in-time earnings dates decoded from a raw event feed; 82.3% coverage on the
+          full panel.</td>
+        <td data-label="What killed it"><span class="verdict kill">Rejected.</span> Standalone rank-IC <span class="num">t
+          +2.22</span> clears the bar — but residualised on the three momentum inputs the
+          incremental <span class="num">t is +0.02</span>, and a control that simply counts one
+          momentum input twice beats it (<span class="num">+0.83pp</span> vs
+          <span class="num">+0.52pp</span>). It was a reweighting of momentum, not a signal.</td>
+      </tr>
+      <tr>
+        <td class="k">Lazy prices<br>(10-K language change)</td>
+        <td data-label="How it was tested">7,095 scored filing pairs from 195 filers, downloaded from free EDGAR with zero
+          fetch failures, scored in filing-date order so the corpus is point-in-time.</td>
+        <td data-label="What killed it"><span class="verdict kill">Rejected.</span> Rank-IC <span class="num">−0.0156</span>
+          (Newey–West <span class="num">t −1.07</span>), long-short
+          <span class="num">−5.0%/yr</span>, deciles mildly backwards. Wrong sign
+          <em>and</em> no significance. Never wired into the model.</td>
+      </tr>
+      <tr>
+        <td class="k">Sector-neutral<br>ranking</td>
+        <td data-label="How it was tested">Full universe, held-out both split directions — run twice, months apart, on a panel
+          that had gained signals in between.</td>
+        <td data-label="What killed it"><span class="verdict kill">Rejected twice.</span> It buys long-short
+          <span class="num">t</span> (3.40 → 3.90) and sells the thing the book actually
+          earns (top-decile edge <span class="num">+11.8% → +10.2%</span>), while overfitting
+          probability nearly doubles. The wrong trade for a long-only book.</td>
+      </tr>
+      <tr>
+        <td class="k">Put-credit spreads<br>(variance risk premium)</td>
+        <td data-label="How it was tested">Seven pre-committed gate arms on real mined chains, single names and index.</td>
+        <td data-label="What killed it"><span class="verdict kill">Rejected.</span> Fails five of the seven arms. The
+          ceiling is break-even before costs.</td>
+      </tr>
+      <tr>
+        <td class="k">Options exit<br>optimisation</td>
+        <td data-label="How it was tested">278 names, 3,119 signal entries and 5,986 random-entry controls, buying the ask and
+          selling the bid; policy grid gated at a pre-committed +10pp.</td>
+        <td data-label="What killed it"><span class="verdict kill">Nothing adopted.</span> The one real effect — raising
+          the take-profit — is worth <span class="num">+2.1 to +3.3pp</span> per trade against
+          a <span class="num">+10pp</span> bar. Reported as a real, small, unadopted effect.</td>
+      </tr>
+      <tr>
+        <td class="k">Cross-section of<br>option returns</td>
+        <td data-label="How it was tested">Six published characteristics, every predicted sign declared in a committed module
+          before the panel was built, with a mechanical control included on purpose.</td>
+        <td data-label="What killed it"><span class="verdict kill">Rejected.</span> Nothing clears the gate, and one
+          characteristic sorts <em>backwards</em> from the paper it came from. No follow-on run
+          recommended on this data.</td>
+      </tr>
+      <tr>
+        <td class="k">Beating the ETFs<br>you could just buy</td>
+        <td data-label="How it was tested">Benchmarked against an equal-weighted VTV / QUAL / MTUM / IWM blend on the model's
+          own rebalance grid, blend measured net of its expense ratios, strategy charged its
+          own cost model.</td>
+        <td data-label="What killed it"><span class="verdict null">Null.</span> A <span class="num">+9.21pp</span> annual
+          margin — but <span class="num">t = 1.10</span>, a 54% hit rate, and negative in the
+          first half. The stability arm killed it, which is what that arm is for.</td>
+      </tr>
+    </tbody>
+  </table></div>
+  <p class="src">Written up in <code>HANDOFF_pead.md</code>,
+    <code>HANDOFF_lazy_prices_ic.md</code>, <code>HANDOFF_sector_neutral.md</code>,
+    <code>HANDOFF_vrp.md</code>, <code>HANDOFF_deep_exits.md</code>,
+    <code>HANDOFF_deep_xsection.md</code>, <code>HANDOFF_free_analysis.md</code>.</p>
+</section>
+
+<section>
+  <h2>The uncomfortable one</h2>
+  <p class="lede">A random-entry control beat the project's own options signal — and the
+    result was written down rather than buried.</p>
+  <p>
+    The app fires a "screaming buy" alert. To find out whether the <em>day</em> it picks is
+    any good, each alert was paired with a random day in the same name and the same calendar
+    year, using identical contract selection, fill and exit rules.
+  </p>
+  <div class="tbl"><table>
+    <thead><tr><th>Entry</th><th>Trades</th><th>Expectancy per trade</th>
+      <th>Profit factor</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Alert day (the signal)</td><td class="num">3,042</td>
+        <td class="num">+5.14%</td><td class="num">1.162</td></tr>
+      <tr><td class="k">Random day (control)</td><td class="num">5,919</td>
+        <td class="num"><b>+11.07%</b></td><td class="num">1.373</td></tr>
+    </tbody>
+  </table></div>
+  <p>
+    Paired within name and year the alert loses by <span class="num">3.72pp</span> and wins
+    only 44.5% of cells (sign-test <span class="num">z = −3.48</span>), and it loses in
+    <em>both</em> held-out halves by almost exactly the same margin
+    (<span class="num">−5.88pp</span> early, <span class="num">−5.96pp</span> late). Nine
+    corrected entry rules and six same-day filters were tested; all fifteen fail. Delaying the
+    entry makes it monotonically worse, and fading it loses money outright, so it is not a
+    timing offset and the tilt does not invert.
+  </p>
+  <div class="callout">
+    <span class="h">The caveat that has to travel with it</span>
+    <p>
+      The control is a <b>yardstick, not a tradable alternative</b> — it buys weakness inside
+      name-years that only exist because the alert fired there. So this says the alert picks a
+      below-average day within the years it selects. It does not say the book loses to the
+      market; that is a different question, and it is open.
+    </p>
+  </div>
+  <p class="src"><code>HANDOFF_entry_fix.md</code> — full run, 187 names, 2016–2025, gate
+    committed results-free before the run.</p>
+</section>
+
+<section>
+  <h2>Bugs, found and published</h2>
+  <p class="lede">Six defects the project found in its own results, each recorded in the file
+    it uses as memory — including the ones that invalidated headline numbers.</p>
+  <ul>
+    <li>
+      <b>A price-basis defect underneath every options result.</b> A dividend-and-split
+      adjusted close was being fed into option maths that requires the as-traded price, in
+      five call sites across four modules. Every options conclusion in the project was held
+      pending the re-run rather than quoted in the meantime.
+    </li>
+    <li>
+      <b>Five wired factors were silently empty — for the project's entire history.</b>
+      Return on equity, return on invested capital and asset turnover were non-null in
+      <span class="num">0 of 197,265</span> rows because the licensed export ships them only
+      in a variant the loader never read; beta was hard-coded to <code>None</code>; a growth
+      factor was overwritten with NaN downstream. The quality theme was averaging 8 of its 10
+      inputs with no error, ever. Two of the five turned out to be among the strongest signals
+      in the panel. The fix shipped with a <b>coverage guard</b> that now fails loudly on any
+      wired signal under 5% coverage.
+    </li>
+    <li>
+      <b>A stale-quote settlement bias that would have handed a policy grid a fake winner.</b>
+      A position outliving its contract's last usable quote was marked at that quote — and a
+      contract stops being quotable exactly when it is dying. On a hold-to-expiry policy,
+      <span class="num">44.6%</span> of trades landed in that path, at a quote a median of
+      <span class="num">10 days</span> before expiry; the stale mark beat true settlement
+      <span class="num">94.7%</span> of the time, and <span class="num">86.1%</span> carried a
+      positive mark on a contract that expired worthless. Correcting it cost that policy
+      <span class="num">6.45pp</span>. The shipped exit touches it on 0.9% of trades, so
+      earlier results survived — but only because they were checked.
+    </li>
+    <li>
+      <b>A missing-data sentinel read as data.</b> An open-interest value of <code>-1</code>
+      means "not available" and was being consumed as a number on 106 names, a median 12.2% of
+      rows each — quietly faking liquidity, and gamma walls, on the names that mattered most.
+      The guard originally written to catch it was itself blind on 82 of the first 109 names.
+    </li>
+    <li>
+      <b>"The 800 largest names" was an alphabetical slice.</b> The universe function sorted by
+      ticker, not market cap, so a year of results labelled large-cap were companies beginning
+      with roughly A through C. That invalidated a comparison the project had been repeating
+      for months; every figure from that era is now flagged as needing a full-universe re-run.
+    </li>
+    <li>
+      <b>Every value ratio was currency-corrupted.</b> Market capitalisation arrives in USD
+      while raw line items arrive in the reporting currency, so one foreign telecom's
+      book-to-price computed as <span class="num">892</span> against a true
+      <span class="num">0.589</span>. It affected 4.1% of rows, and foreign over-representation
+      in the top decile fell from 1.35× to 0.56× once fixed. A <b>sanity layer</b> now runs on
+      every backtest: coverage says a factor is <em>present</em>, sanity says it is
+      <em>sane</em>, and the currency bug filled every column, so coverage was blind to it.
+    </li>
+  </ul>
+  <p class="src">Recorded in <code>CLAUDE.md</code> (the project's memory file, where wrong
+    claims are corrected in place and the correction is called out),
+    <code>HANDOFF_edge_audit.md</code>, <code>HANDOFF_greeks.md</code>,
+    <code>HANDOFF_ev_fix.md</code>.</p>
+</section>
+
+<section>
+  <h2>An outside audit, commissioned against the work</h2>
+  <p class="lede">134 numbered findings, produced with read-only access, executed in
+    dependency order.</p>
+  <p>
+    An independent review was run against the repository at a named commit, with instructions
+    to contradict the project record wherever the code disagreed with it. It produced 134
+    items — each with a hypothesis, an exact method, a pass/fail threshold committed before the
+    run, and a file-and-line citation — plus a dependency map, because most items are only
+    meaningful after the corrections they sit on top of have landed. A <b>lane validator</b>
+    built from the real Python import graph checks that two parallel sessions working different
+    items cannot touch the same modules.
+  </p>
+  <p>
+    It invalidated four things the project had been saying about itself. Each was corrected in
+    the memory file rather than dropped:
+  </p>
+  <ul>
+    <li>The "deflated Sharpe ratio" is an <b>undeflated</b> one. Its benchmark scales with the
+      variance of Sharpes across trials; the eight trials were eight near-identical weightings,
+      so the variance was ~0 and the statistic saturated because it was deflating nothing. It
+      now labels itself as undeflated in the output when that happens.</li>
+    <li>The one "out-of-sample confirmation" the model rests on is a <b>both-halves stability
+      check</b>. The function computed its own pre-specified flag and then never read it — a
+      demanding test, but not the test its docstring described.</li>
+    <li>The overfitting statistic scores only the <b>weight-selection step</b>, not the ~146
+      construction decisions that preceded it.</li>
+    <li>The headline number <b>has never been tested as alpha</b> (below).</li>
+  </ul>
+  <p class="src"><code>VALQUO_EDGE_AUDIT.md</code> (134 items),
+    <code>VALQUO_AUDIT_DEPENDENCY_MAP.md</code>, <code>check_lanes.py</code>,
+    <code>HANDOFF_edge_audit.md</code>.</p>
+</section>
+
+<section>
+  <h2>What survives</h2>
+  <p class="lede">Three results, each stated at the strength the evidence actually supports.</p>
+  <p>
+    <b>The composite's long-short spread has a t-statistic of 3.52</b> on the full 2,710-name,
+    110-date panel — above the 3.0 hurdle Harvey, Liu and Zhu propose for a literature with a
+    multiple-testing problem. Of the project's three internal statistical bars, this is the one
+    that measures what its label claims; the other two are described honestly above.
+  </p>
+  <p>
+    <b>It survives trading costs with room to spare.</b> The top decile's breakeven is
+    <span class="num">236 bps</span> one-way against a modelled cost profile of
+    <span class="num">37 bps</span>, on 249% annual turnover. The breakeven is the number worth
+    quoting because it requires no belief in any particular cost calibration. Borrow cost is
+    not modelled, which affects the long-short statistic and not the long-only book.
+  </p>
+  <p>
+    <b>And it replicates abroad, on another vendor's data, untuned.</b> Five themes were mapped
+    one-to-one onto public global factor data with no re-fitting of any kind, the country list
+    fixed in writing first, and the bar set at Newey–West t &gt; 2 in both target regions:
+  </p>
+  <div class="tbl"><table>
+    <thead><tr><th>Region</th><th>Annualised</th><th>Newey–West t</th></tr></thead>
+    <tbody>
+      <tr><td class="k">Japan</td><td class="num">+2.05%</td><td class="num"><b>+3.85</b></td></tr>
+      <tr><td class="k">Developed Europe (15 countries)</td><td class="num">+3.36%</td>
+        <td class="num"><b>+4.30</b></td></tr>
+      <tr><td class="k">World ex-US</td><td class="num">+3.37%</td><td class="num">+5.03</td></tr>
+      <tr><td class="k">United States (control)</td><td class="num">+3.09%</td>
+        <td class="num">+2.35</td></tr>
+    </tbody>
+  </table></div>
+  <p>
+    All 15 European countries are positive and 12 of 15 clear t &gt; 2. The striking line is the
+    last one: <b>the US — the only place any design decision was ever made — is the weakest
+    region tested.</b> That is the opposite of what overfitting looks like. It is out-of-sample
+    in vendor, country, construction and period at the same time.
+  </p>
+  <p>
+    Reported rather than buried: two of the five themes do not generalise to Japan (quality
+    contributes nothing there, momentum barely — a documented feature of that market), so the
+    composite replicates while its composition does not.
+  </p>
+  <div class="callout warn">
+    <span class="h">What is NOT claimed, and why</span>
+    <p>
+      <b>None of this has been established as alpha.</b> The headline is a spread against an
+      equal-weighted universe with no beta adjustment and no factor regression, and the
+      composite is roughly one-seventh each of value, quality, momentum, size, investment and
+      institutional ownership — very nearly the standard factor set. Until a Fama–French
+      five-factor plus momentum regression runs and the intercept clears t &gt; 2, the honest
+      description is <em>efficient factor exposure</em>, and the word "alpha" is kept out of
+      the product copy. That threshold was written down before the test, and the test has not
+      been run yet.
+    </p>
+    <p>
+      Three further limits, all published in the project's own notes: the first third of the
+      panel's calendar has a distorted universe from a data-truncation defect, and the
+      direction of that bias is genuinely unclear; the capacity of the strategy is roughly
+      <span class="num">$23M</span> as an upper bound, so it could never be a managed vehicle;
+      and every equity result comes from one licensed panel that has now been looked at many
+      times.
+    </p>
+  </div>
+  <p class="src"><code>BACKTEST_RESULTS.json</code> (schema-versioned, written by every run),
+    <code>HANDOFF_free_analysis.md</code>, <code>HANDOFF_edge_audit.md</code>.</p>
+</section>
+
+<section>
+  <h2>The forward track</h2>
+  <p class="lede">The only test that has not been contaminated by hindsight is the one that
+    has barely started.</p>
+  <p>
+    Every number above comes from data that existed before the rules were written. The single
+    thing that fixes that is a forward record, so the app now runs one: a daily book against
+    SPY and an options paper book that opens, marks and closes positions on its own.
+  </p>
+  <div class="callout">
+    <span class="h">Label, unmissably</span>
+    <p>
+      It runs in a <b>broker sandbox on a paper account. There is no real money in it, and
+      never has been.</b> It is days old, which is far too short to constitute evidence of
+      anything, so <b>no number from it appears on this page.</b> It is listed here because
+      starting the clock honestly — and admitting that the clock has barely started — is part
+      of the method.
+    </p>
+  </div>
+  <p>
+    It is also the one dataset in the project that cannot be re-derived: it is a record of what
+    the model said on days that have already happened. So it is exported to a committed,
+    human-readable file on a schedule, with a guard that refuses to overwrite a real backup
+    with a smaller one.
+  </p>
+</section>
+
+<section>
+  <h2>How it is built</h2>
+  <p class="lede">Python, and a lot of tests whose job is to make silent failure loud.</p>
+  <ul>
+    <li><b>The backtest engine</b> builds nine themes point-in-time from licensed fundamentals,
+      re-using the live app's own frame builder. That reuse is <em>not</em> complete, and the
+      project says so: an open audit item records that the live path inherits two ranking
+      options the backtest forces off, so no shipped code path reproduces the backtested
+      composite exactly. It is logged as a known defect rather than left as an assumption.
+      Weight selection is Combinatorial Purged Cross-Validation with a
+      probability-of-backtest-overfitting readout, and if it rejects, the defaults stay — the
+      selector is not allowed to talk itself into a weighting.</li>
+    <li><b>Guardrails as first-class output.</b> Every run ships coverage, sanity, cost and
+      point-in-time-freshness blocks alongside the results. Each exists because a specific bug
+      got through: an empty column contributes nothing to a mean, raises no error, and lets the
+      run complete normally.</li>
+    <li><b>A live Flask application</b> on managed hosting with scheduled scans, a
+      score-attribution panel that decomposes each name's rank into the themes that produced
+      it (the explanation is computed from the same call as the score, and a test asserts the
+      pieces sum to it), and email/Discord recaps.</li>
+    <li><b>597 tests across 17 suites</b>, run before anything merges. A representative
+      test asserts that a sign convention is read the right way round, because it had been read
+      backwards in the notes for months.</li>
+    <li><b>Written for the next reader.</b> The project keeps an append-only research log, a
+      per-session handoff file, and a memory file whose wrong claims are corrected in place
+      with the correction called out — because a stale confident note is more expensive than
+      no note.</li>
+  </ul>
+</section>
+
+</div>
+
+<footer>
+  <div class="rule"></div>
+  <p>
+    <b>Not investment advice.</b> This page is a description of a personal research project,
+    published for professional context. Nothing on it is a recommendation, an offer, a
+    solicitation, or personalised advice. No account, no subscription and no service is
+    offered. Backtested and simulated results are hypothetical, carry the benefit of hindsight, and
+    do not represent trading in any real account. The forward track described above runs in a
+    broker sandbox on a paper account containing no real money. Past or simulated performance
+    does not indicate future results. Markets involve risk of loss.
+  </p>
+  <p>
+    <b>Data.</b> No vendor data is reproduced or redistributed here. Every figure on this page
+    is a summary statistic computed by the author from data licensed for personal use, or from
+    public sources; the underlying data itself is not shown, exported, or served by this page.
+  </p>
+  <p>
+    <b>Unlisted.</b> This page is not indexed, not linked from anywhere, and is not a product
+    surface. The rest of this application is private to its owner.
+  </p>
+</footer>
+
+</body></html>
+

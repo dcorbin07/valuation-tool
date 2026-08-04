@@ -31,3 +31,8 @@ data/
 *.zip
 *.csv.gz
 *.parquet
+
+# O8: full VRP equity curves + trade logs are derived data (~5 MB), regenerable
+options-bot/options_backtest/options_backtest_*.json
+options-bot/screener/.cache/
+options-bot/screener/prefetch.*

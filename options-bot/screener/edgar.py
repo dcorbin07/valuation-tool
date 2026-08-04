@@ -14,12 +14,15 @@ recent annual (10-K / FY) value. This module is the one most in need of
 live validation against real tickers — tune the concept lists as needed.
 """
 
+import logging
 import os
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import requests
 import datetime as _dt
+
+log = logging.getLogger(__name__)
 
 UA = os.getenv("EDGAR_USER_AGENT", "screener someone@example.com")
 HEADERS = {"User-Agent": UA, "Accept-Encoding": "gzip, deflate"}
@@ -256,12 +259,54 @@ def get_8k_items(ticker, sub=None, lookback=10):
 #  Insider Form 4 transactions
 # ---------------------------------------------------------------------------
 
+def raw_form4_doc(doc):
+    """
+    Strip EDGAR's XSL-rendering prefix from a Form 4 `primaryDocument`.
+
+    THE BUG THIS FIXES MADE THE ENTIRE INSIDER COMPONENT A CONSTANT.
+
+    `filings.recent.primaryDocument` for a Form 4 is almost always the
+    XSL-RENDERED view, e.g. `xslF345X03/ownership.xml`. That path returns
+    **HTML** — a human-readable rendering of the filing — not XML. Measured over
+    the 370,681 Form 4 filings indexed for this backtest, **99.3% carry an
+    `xsl...` prefix** (xslF345X01 through X06).
+
+    `_parse_form4_xml` calls `ET.fromstring` on that HTML, raises ParseError,
+    catches it, and returns `[]`. `insider_score([])` is documented to mean
+    "fetched, nothing qualifying" and returns a NEUTRAL 50.0. So every name, on
+    every run, scored exactly 50 on insider — a component carrying 20% of the
+    Established weight and 30% of the Speculative weight.
+
+    This is the same defect as the `dcf_upside` bug this module's own history
+    records: "a 35% weight that is a constant is not a factor, it is a rounding
+    error with extra steps." That one was found because someone went looking.
+    This one hid behind an exception handler.
+
+    The raw XML lives in the same accession folder with the prefix removed:
+        .../000119312526314153/xslF345X06/ownership.xml   -> HTML, 15,423 bytes
+        .../000119312526314153/ownership.xml             -> XML,   3,160 bytes
+    """
+    if not doc:
+        return doc
+    head, sep, tail = doc.partition("/")
+    if sep and head.lower().startswith("xsl"):
+        return tail
+    return doc
+
+
 def _parse_form4_xml(xml_text):
     """Parse one Form 4 XML into a list of {code, role, person, value_usd, date}."""
     out = []
     try:
         root = ET.fromstring(xml_text)
     except ET.ParseError:
+        # Do NOT swallow this quietly. An unparseable body here is not "this
+        # filing had no transactions" — it is "we fetched the wrong document",
+        # and returning [] makes the two indistinguishable to every caller.
+        # That is precisely how the XSL-prefix bug above stayed invisible.
+        log.warning("Form 4 body did not parse as XML (%d bytes, starts %r) — "
+                    "this is a FETCH error, not an empty filing",
+                    len(xml_text or ""), (xml_text or "")[:40])
         return out
 
     def txt(node, path):
@@ -323,9 +368,13 @@ def get_insider_txns(ticker, since=None, limit=10):
         if since and i < len(dates) and dates[i] < since:
             break
         accn = accns[i].replace("-", "")
-        doc = docs[i] if i < len(docs) else None
+        doc = raw_form4_doc(docs[i] if i < len(docs) else None)
         if not doc:
             continue
+        # raw_form4_doc: primaryDocument is the XSL-RENDERED HTML view for 99.3%
+        # of Form 4s. Fetching it returns HTML, the XML parse fails, the handler
+        # returns [], and insider_score reads that as a neutral 50 — so this one
+        # missing prefix strip made the whole insider component a constant.
         url = f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accn}/{doc}"
         try:
             txns.extend(_parse_form4_xml(_get(url).text))
@@ -335,6 +384,72 @@ def get_insider_txns(ticker, since=None, limit=10):
         if fetched >= limit:
             break
     return txns
+
+
+def form4_index(ticker):
+    """
+    EVERY Form 4 this filer has ever submitted, as
+    [{"filed": "YYYY-MM-DD", "accession": "...", "doc": "...", "url": "..."}],
+    newest first.
+
+    `get_insider_txns` reads `filings.recent`, which EDGAR caps at the most
+    recent ~1,000 filings of ALL types. For a company whose insiders file often
+    that window can be under a year — so `recent` is a live-screener feed, not a
+    history. A point-in-time backtest needs the whole series, which lives in the
+    paginated `filings.files[]` shards. This walks both.
+
+    Returns [] rather than raising, like the rest of this module.
+    """
+    cik = _cik10(ticker)
+    if not cik:
+        return []
+    try:
+        sub = _get(f"https://data.sec.gov/submissions/CIK{cik}.json").json()
+    except Exception:
+        return []
+
+    out = []
+
+    def _absorb(block):
+        forms = block.get("form", [])
+        accns = block.get("accessionNumber", [])
+        docs = block.get("primaryDocument", [])
+        dates = block.get("filingDate", [])
+        for i, form in enumerate(forms):
+            if form != "4":
+                continue
+            if i >= len(accns) or i >= len(dates):
+                continue
+            accn = accns[i].replace("-", "")
+            doc = raw_form4_doc(docs[i] if i < len(docs) else None)
+            if not doc:
+                continue
+            out.append({
+                "filed": dates[i], "accession": accn, "doc": doc,
+                "url": f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accn}/{doc}",
+            })
+
+    _absorb(sub.get("filings", {}).get("recent", {}))
+    for shard in sub.get("filings", {}).get("files", []) or []:
+        name = shard.get("name")
+        if not name:
+            continue
+        try:
+            _absorb(_get(f"https://data.sec.gov/submissions/{name}").json())
+        except Exception:
+            continue
+
+    out.sort(key=lambda r: r["filed"], reverse=True)
+    return out
+
+
+def form4_transactions(url):
+    """Parse one Form 4 by URL. Separated from fetching so a backtest can cache
+    the XML on disk and re-parse it without re-hitting EDGAR."""
+    try:
+        return _parse_form4_xml(_get(url).text)
+    except Exception:
+        return []
 
 
 def recent_form4(max_items=100):

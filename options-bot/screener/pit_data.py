@@ -208,7 +208,31 @@ def _pit_sum(facts, concept_lists, as_of):
 
 
 def point_in_time_factors(facts, price_asof, as_of):
-    """Fundamental factors as known on as_of, given the price that day."""
+    """
+    Fundamental factors as known on as_of, given the price that day.
+
+    Emits TWO overlapping views of the same numbers, deliberately:
+
+      * the six oriented `raw_factors` (`ey`/`roe`/`opm`/`neg_lev`/`growth`/`mom`)
+        that the panel's own cross-sectional composite consumes; and
+      * the RAW line items under the names `scoring.score_stock` reads
+        (`net_income`, `operating_income`, `total_debt`, `cash`, `revenue`,
+        `op_margin`, `net_debt_to_ebitda`, `latest_rev_growth`,
+        `prior_rev_growth`).
+
+    The second group is what makes C1 possible: the LIVE scorer could not be
+    replayed historically because nothing point-in-time ever produced its
+    inputs. They are the same underlying values, so the two models are compared
+    on identical data and any difference between them is the MODEL, not the
+    feed. `op_margin` is `opm` and `net_debt_to_ebitda` is `-neg_lev` by
+    construction, on purpose — do not "fix" one without the other.
+
+    One definitional note, left alone on purpose: `opm` divides a TTM operating
+    income by the latest ANNUAL revenue. Both are twelve-month windows so the
+    scale is right (which is what the quarterly/annual bug was about), but they
+    are not the SAME twelve months. Changing it would move the legacy model's
+    factor and destroy the apples-to-apples C1 comparison, so it stays.
+    """
     ni = _pit_point(facts, NI, as_of, kind="ttm")     # FLOW -> twelve months
     op = _pit_point(facts, OPINC, as_of, kind="ttm")  # FLOW -> twelve months
     eq = _pit_point(facts, EQUITY, as_of)
@@ -216,19 +240,43 @@ def point_in_time_factors(facts, price_asof, as_of):
     shares = _pit_point(facts, SHARES, as_of)
     debt = _pit_sum(facts, [LTD, LTD_CUR, STD], as_of)
     da = _pit_point(facts, DA, as_of, kind="ttm")     # FLOW -> twelve months
-    rev_hist = _pit_annual(facts, REV, as_of, 2)
+    # THREE years, not two: the live `growth_score` takes a level AND an
+    # acceleration, and acceleration needs the PRIOR year's growth, which needs
+    # a third revenue observation. With only two the live model silently scored
+    # every name on level alone.
+    rev_hist = _pit_annual(facts, REV, as_of, 3)
     rev = rev_hist[0] if rev_hist else None
 
     mc = (shares * price_asof) if (shares and price_asof) else None
     ebitda = (op + da) if (op is not None and da is not None) else op
     net_debt = (debt or 0) - (cash or 0)
+
+    def _yoy(a, b):
+        return (a / b - 1) if (a is not None and b) else None
+
+    opm = (op / rev) if (op is not None and rev and rev > 0) else None
+    nd_ebitda = (net_debt / ebitda) if (ebitda and ebitda > 0) else None
+    roe = (ni / eq) if (ni is not None and eq and eq > 0) else None
+    latest_g = _yoy(rev_hist[0], rev_hist[1]) if len(rev_hist) >= 2 else None
+    prior_g = _yoy(rev_hist[1], rev_hist[2]) if len(rev_hist) >= 3 else None
+
     return {
+        # ── oriented factors for the panel composite (higher = better) ──
         "shares": shares, "market_cap": mc, "revenue": rev,
         "ey": (ni / mc) if (ni is not None and mc and mc > 0) else None,
-        "roe": (ni / eq) if (ni is not None and eq and eq > 0) else None,
-        "opm": (op / rev) if (op is not None and rev and rev > 0) else None,
-        "neg_lev": (-(net_debt / ebitda)) if (ebitda and ebitda > 0) else None,
-        "growth": (rev_hist[0] / rev_hist[1] - 1) if (len(rev_hist) == 2 and rev_hist[1]) else None,
+        "roe": roe,
+        "opm": opm,
+        "neg_lev": (-nd_ebitda) if nd_ebitda is not None else None,
+        "growth": latest_g,
+        # ── raw line items under the names scoring.score_stock() reads ──
+        "net_income": ni, "operating_income": op, "equity": eq,
+        "cash": cash, "total_debt": debt, "da": da, "ebitda": ebitda,
+        "net_debt": net_debt,
+        "op_margin": opm,
+        "net_debt_to_ebitda": nd_ebitda,
+        "latest_rev_growth": latest_g,
+        "prior_rev_growth": prior_g,
+        "rev_hist": rev_hist,
     }
 
 
@@ -239,6 +287,40 @@ def _price_arrays(price_df):
     d["Date"] = pd.to_datetime(d["Date"], utc=True, errors="coerce").dt.tz_localize(None).dt.normalize()
     d = d.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
     return d["Date"].values, d["Close"].astype(float).values
+
+
+def _volume_array(price_df):
+    """Share volume aligned with _price_arrays, or None when the feed has none."""
+    if "Volume" not in price_df:
+        return None
+    d = price_df.copy()
+    d["Date"] = pd.to_datetime(d["Date"], utc=True, errors="coerce").dt.tz_localize(None).dt.normalize()
+    d = d.dropna(subset=["Date"]).sort_values("Date").reset_index(drop=True)
+    return d["Volume"].astype(float).values
+
+
+def avg_dollar_volume(dates, closes, volumes, as_of, lookback=30):
+    """
+    Average daily dollar volume over the `lookback` sessions ENDING at as_of.
+
+    This is the input to the live model's liquidity gate. `prices.get_quote`
+    computes the same thing off the tail of the series, i.e. as of TODAY — which
+    is fine for a daily screener and completely wrong for a backtest, where
+    today's liquidity is a decade of look-ahead. Measured as of the rebalance
+    date instead.
+    """
+    if volumes is None:
+        return None
+    i = _idx_asof(dates, as_of)
+    if i is None:
+        return None
+    lo = max(0, i - lookback + 1)
+    px, vol = closes[lo:i + 1], volumes[lo:i + 1]
+    if len(px) == 0:
+        return None
+    dv = px * vol
+    dv = dv[np.isfinite(dv)]
+    return float(dv.mean()) if len(dv) else None
 
 
 def _idx_asof(dates, as_of):
@@ -266,11 +348,26 @@ def price_asof(dates, closes, as_of):
 
 
 def build_panel(tickers, rebalance_dates, get_facts, get_prices, bench_prices,
-                horizon_td=63, sectors=None):
+                horizon_td=63, sectors=None, get_insider=None,
+                is_common_equity=None):
     """
     tickers: list. rebalance_dates: list of dates. get_facts(t)->companyfacts dict.
-    get_prices(t)->DataFrame[Date,Close]. bench_prices: DataFrame[Date,Close] for the benchmark.
+    get_prices(t)->DataFrame[Date,Close(,Volume)]. bench_prices: DataFrame[Date,Close].
     sectors: optional {ticker: sector}. Returns the point-in-time panel DataFrame.
+
+    get_insider: optional callable (ticker, as_of_date) -> list of Form 4
+        transaction dicts filed ON OR BEFORE as_of, or None for "not fetched".
+        `scoring.insider_score` distinguishes those two: [] means "we looked and
+        there was no qualifying activity" (a real, neutral observation) while
+        None means "not fetched" and renormalizes away. Passing None here
+        therefore produces the live model MINUS its insider component, which is
+        a legitimate thing to measure but must be labelled as such.
+    is_common_equity: optional {ticker: bool} for the live model's first gate.
+
+    The panel now carries BOTH the six oriented factors and the raw line items
+    the live scorer reads, so one panel can be scored by either model. That is
+    the whole point of C1: two models, one point-in-time feed, no excuse for
+    them to disagree about the data.
     """
     bdates, bcloses = _price_arrays(bench_prices)
     rows = []
@@ -280,6 +377,7 @@ def build_panel(tickers, rebalance_dates, get_facts, get_prices, bench_prices,
         if not facts or pdf is None or len(pdf) == 0:
             continue
         dates, closes = _price_arrays(pdf)
+        volumes = _volume_array(pdf)
         for asof in rebalance_dates:
             p = price_asof(dates, closes, asof)
             if p is None:
@@ -288,7 +386,7 @@ def build_panel(tickers, rebalance_dates, get_facts, get_prices, bench_prices,
             if fwd is None:
                 continue  # no forward window yet (recent dates) -> excluded
             f = point_in_time_factors(facts, p, asof)
-            rows.append({
+            row = {
                 "date": pd.Timestamp(asof), "ticker": t,
                 "sector": (sectors or {}).get(t, "?"),
                 "ey": f["ey"], "roe": f["roe"], "opm": f["opm"],
@@ -296,5 +394,22 @@ def build_panel(tickers, rebalance_dates, get_facts, get_prices, bench_prices,
                 "mom": momentum_12_1(dates, closes, asof),
                 "fwd_ret": fwd,
                 "bench_ret": forward_return(bdates, bcloses, asof, horizon_td),
-            })
+                # ── raw inputs for the LIVE scorer ──
+                "price": p,
+                "avg_dollar_volume": avg_dollar_volume(dates, closes, volumes, asof),
+                "market_cap": f["market_cap"], "shares": f["shares"],
+                "revenue": f["revenue"], "net_income": f["net_income"],
+                "operating_income": f["operating_income"],
+                "total_debt": f["total_debt"], "cash": f["cash"],
+                "op_margin": f["op_margin"],
+                "net_debt_to_ebitda": f["net_debt_to_ebitda"],
+                "latest_rev_growth": f["latest_rev_growth"],
+                "prior_rev_growth": f["prior_rev_growth"],
+                "is_common_equity": (is_common_equity or {}).get(t, True),
+            }
+            # ret_12_1 is the live scorer's name for the same number `mom` holds.
+            row["ret_12_1"] = row["mom"]
+            if get_insider is not None:
+                row["insider_transactions"] = get_insider(t, asof)
+            rows.append(row)
     return pd.DataFrame(rows)

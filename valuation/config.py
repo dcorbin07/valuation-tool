@@ -231,11 +231,57 @@ class Config:
     beta_mode: bool = field(default_factory=lambda: _get("BETA_MODE", "true").lower() != "false")
     beta_all_premium: bool = field(default_factory=lambda: _get("BETA_ALL_PREMIUM", "true").lower() != "false")
 
+    # PRIVATE_MODE — Valquo is a PERSONAL RESEARCH TOOL for the owner, not a product.
+    #
+    # This is a deliberate licence-compliance posture, not a soft launch. ThetaData's
+    # Individual plan and Sharadar's individual terms are "personal use only, no
+    # redistribution, no business use"; the Business equivalents are an order of magnitude
+    # more expensive. One user, no commercial activity, no third party reading vendor-derived
+    # numbers => those terms are cleanly satisfied. Anything that presents Valquo as a service
+    # to other people — signup, checkout, tier copy, an anonymous visitor reading scores — is
+    # what would break them, so all of it is switched off here rather than trimmed by hand.
+    #
+    # DEFAULT TRUE, and it OVERRIDES open_access / beta_all_premium / signup / billing rather
+    # than being overridden by them: a lockdown that any other flag can silently undo is not a
+    # lockdown. It is read in exactly two kinds of place — the derived properties just below
+    # (which is why no template ever tests `private_mode` directly) and `saas/private.py`,
+    # which owns the request-level policy.
+    #
+    # NOTHING IS DELETED. Every tier, route, template and Stripe path stays intact and tested,
+    # so `PRIVATE_MODE=false` restores the public product exactly as it was — see
+    # "Reversing this" in HANDOFF_appfixes.md.
+    private_mode: bool = field(default_factory=lambda: _get("PRIVATE_MODE", "true").lower() != "false")
+
+    # PORTFOLIO_PAGE — the ONE deliberate hole in private mode, and its own flag on purpose.
+    #
+    # Don job-hunts with this project as his portfolio piece, so he needs a single URL a
+    # recruiter can open. That is a different question from "is Valquo a product", which is
+    # what `private_mode` answers, so it gets a separate switch: the page can be on while the
+    # whole rest of the instance stays locked to the owner, and turning it off later cannot
+    # accidentally unlock anything else.
+    #
+    # It is safe to open ONLY because of what the page is: static prose about method, with
+    # research statistics Don computed himself. It reads no store, calls no API and renders no
+    # vendor row, so no ThetaData or Sharadar licence term is engaged by a stranger loading it
+    # (that claim is pinned by tests, not asserted here). Everything a licence would care
+    # about — scores, holdings, the Index, the track, any /api route — stays refused.
+    #
+    # PORTFOLIO_PATH is the URL. It is env-overridable so Don can move the page to something
+    # unguessable without a code change, and validated (`resolved_portfolio_path`) because a
+    # typo'd value here is the one way this flag could open more than one page.
+    portfolio_page: bool = field(default_factory=lambda: _get("PORTFOLIO_PAGE", "true").lower() != "false")
+    portfolio_path: str = field(default_factory=lambda: _get("PORTFOLIO_PATH", "/work"))
+
     # OPEN_ACCESS — Valquo is free and open: every feature available to everyone, no
     # account required, no checkout. This is a FLAG, not a deletion: all the tier,
     # gating and Stripe code is untouched, so OPEN_ACCESS=false restores the paid,
     # signup-required product exactly as it was. It goes further than
     # BETA_ALL_PREMIUM, which still required an account to sign in to.
+    #
+    # SUPERSEDED BY private_mode while that is on: "open to everyone" and "owner only" are
+    # opposite answers to the same question. Read `public_access`, never this field, when the
+    # question is "may a stranger see this?" — the raw field survives only so that turning
+    # private mode off restores whatever the public product was configured to be.
     open_access: bool = field(default_factory=lambda: _get("OPEN_ACCESS", "true").lower() != "false")
     # NO DEFAULT, deliberately. This used to default to the literal "preview", which grants
     # a permanent Premium session to anyone who guesses /demo/preview. Harmless while
@@ -260,13 +306,65 @@ class Config:
         return {e.strip().lower() for e in self.owner_emails.split(",") if e.strip()}
 
     @property
+    def public_access(self) -> bool:
+        """May someone who is NOT the owner read this instance at all?
+
+        The one question every access decision reduces to, so that no caller has to remember
+        that private_mode outranks open_access. Under private mode the answer is no for
+        everybody — signed-in-but-not-owner included, which is why this is not simply
+        `open_access`.
+        """
+        return (not self.private_mode) and self.open_access
+
+    #: Prefixes the portfolio page may never be mounted on. Each one is either an access
+    #: boundary or a route that already exists, and a portfolio page sitting on top of one
+    #: would either shadow it or hand its path an anonymous door. Flask keeps the FIRST rule
+    #: registered for a path, so a collision would fail silently rather than loudly — which is
+    #: exactly why this is checked here instead of being left to whoever sets the env var.
+    _PORTFOLIO_RESERVED = ("/api", "/admin", "/static", "/login", "/logout", "/register",
+                           "/forgot", "/reset", "/account", "/billing", "/app", "/demo",
+                           "/alerts", "/pricing", "/terms", "/privacy", "/methodology",
+                           "/robots.txt")
+
+    @property
+    def resolved_portfolio_path(self) -> str:
+        """Where the portfolio page is mounted — validated, never trusted raw.
+
+        Falls back to the default rather than raising: a bad PORTFOLIO_PATH should cost Don
+        the URL he expected, not the whole deploy. The rejections that matter are "/" (which
+        would put a public page on the app's own root) and anything under a reserved prefix.
+        """
+        p = (self.portfolio_path or "").strip()
+        if p and not p.startswith("/"):
+            p = "/" + p
+        p = p.rstrip("/")
+        if (len(p) < 2 or "<" in p or ">" in p
+                or any(p == r or p.startswith(r + "/") for r in self._PORTFOLIO_RESERVED)):
+            return "/work"
+        return p
+
+    @property
+    def portfolio_page_enabled(self) -> bool:
+        """One named read, so nothing else has to know the flag's name.
+
+        Independent of `private_mode` in BOTH directions: the page can be open on a locked
+        instance (its reason for existing), and turning it off never re-locks anything else.
+        """
+        return bool(self.portfolio_page)
+
+    @property
     def signup_enabled(self) -> bool:
         """Show the signup + pricing surfaces at all?
 
         One named concept so templates never test `not open_access` directly and re-enabling
         is a single flag. LOGIN is deliberately NOT gated by this — existing accounts must
-        still be able to sign in when new signups are hidden.
+        still be able to sign in when new signups are hidden, and under private mode signing
+        in is the ONLY way the owner reaches the tool.
         """
+        # Private mode wins over an explicit FEATURE_BILLING=on: a personal tool has nobody to
+        # sell to, and "force the pricing page visible" must not be a way around the lockdown.
+        if self.private_mode:
+            return False
         v = (self.feature_billing or "").strip().lower()
         if v in ("on", "true", "1", "yes"):
             return True
@@ -279,9 +377,24 @@ class Config:
         # While the product is open, there is nothing to sell: this hides the Stripe
         # checkout everywhere it's referenced without deleting any billing code, so
         # OPEN_ACCESS=false restores the paid flow exactly as it was.
+        #
+        # Under private mode NO payment can be initiated at all — checkout, the portal and the
+        # webhook all refuse — regardless of whether Stripe keys happen to be configured. The
+        # keys staying set is deliberate: reversing this must not require re-entering secrets.
+        if self.private_mode:
+            return False
         if self.open_access:
             return False
         return bool(self.stripe_secret_key)
+
+    @property
+    def beta_banner_enabled(self) -> bool:
+        """The site-wide "you're exploring the full app, everything unlocked" strip.
+
+        It is addressed to prospective users, so under private mode it is off: there is no
+        beta, no launch and nobody being invited in.
+        """
+        return self.beta_mode and not self.private_mode
 
     @property
     def ai_enabled(self) -> bool:

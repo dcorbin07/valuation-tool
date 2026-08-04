@@ -88,6 +88,14 @@ def register(app, store, cfg):
         """Recruiter master-link: /demo/<token> (or /demo?key=<token>) opens an
         instant Premium preview with NO signup. Token must match DEMO_ACCESS_TOKEN.
         Independent of the beta flag, so this keeps working after you start charging."""
+        # Private mode disables the recruiter link outright (prompt item 6, handled
+        # conservatively). It is the one route whose entire purpose is to let a third party
+        # read the tool without an account, which is precisely what the personal-use licence
+        # terms do not permit — so it is refused here rather than merely hidden, and
+        # `private.is_owner` separately refuses to treat any surviving demo cookie as the
+        # owner. Turning PRIVATE_MODE off brings it back unchanged, token and all.
+        if cfg.private_mode:
+            return redirect("/")
         supplied = (token or request.args.get("key", "")).strip()
         want = (cfg.demo_access_token or "").strip()
         # `want` empty => /demo is off entirely (M4: there is no default token any more).

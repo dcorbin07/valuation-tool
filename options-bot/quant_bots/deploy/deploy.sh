@@ -33,7 +33,13 @@ set -euo pipefail
 REPO_DIR="${REPO_DIR:-$HOME/quant_bots}"
 VENV="${VENV:-$REPO_DIR/venv}"
 BOTS="trend-bot momentum-bot options-bot reversion-bot"
-EXPECTED_CORE_TESTS=106
+# C6: these were 106/181 — two generations stale, and therefore incapable of
+# firing. FIXES.md says "if you see the old numbers after a deploy, the old code
+# is still there", so a floor that no longer moves with the suites disables the
+# only freshness signal the deploy had. Bump these whenever tests are added; the
+# preflight below is the check that does NOT rot, because it looks for the fixes
+# themselves rather than for a count that stands in for them.
+EXPECTED_CORE_TESTS=163
 EXPECTED_OPTIONS_TESTS=181
 
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
@@ -76,6 +82,19 @@ say "Installing dependencies"
 [[ -x "$VENV/bin/python3" ]] || die "no venv at $VENV. Create it:
      python3 -m venv $VENV && $VENV/bin/pip install -r $REPO_DIR/requirements.txt"
 "$VENV/bin/pip" install -q -r requirements.txt || die "pip install failed — old services left running"
+
+# ─── 3b. Preflight (BEFORE the suites, because it explains their failures) ──
+#
+# C6. The suites already gated the deploy correctly, but when the options suite
+# broke it broke as 14 identical `ModuleNotFoundError: No module named 'data'`
+# lines — which reads as a broken test environment, not as "a source package is
+# missing from this repository because .gitignore excludes it". A deploy that
+# aborts for an undecodable reason is a deploy that quietly stops happening, and
+# that is how three fixed bugs sat undeployed. preflight.py names the cause and
+# checks that each FIXES.md fix is actually present in the code being deployed.
+say "Preflight"
+"$VENV/bin/python3" deploy/preflight.py || die "preflight failed — see above.
+     Services untouched, still on the old code."
 
 # ─── 4. Tests (BEFORE any restart) ──────────────────────────────────────────
 say "Running tests"

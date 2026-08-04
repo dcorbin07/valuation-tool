@@ -40,7 +40,7 @@ import io
 import json
 import logging
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
@@ -56,6 +56,18 @@ ETF_VOL_INDEX = {
 }
 
 STOOQ_URL = "https://stooq.com/q/d/l/?s={symbol}&d1={start}&d2={end}&i=d"
+
+# Cboe publishes the full daily history of its own volatility indices as plain
+# CSV, with no key and no anti-bot layer. This is the AUTHORITATIVE source for
+# VIX/VXN/RVX — Stooq was only ever a mirror of it — and it is the only free
+# source for ^RVX at all (Yahoo does not carry it).
+CBOE_URL = "https://cdn.cboe.com/api/global/us_indices/daily_prices/{name}_History.csv"
+
+# Stooq blocks non-browser clients outright, so send a browser UA. As of
+# 2026-08-03 that is no longer sufficient (see _fetch_stooq), but it costs
+# nothing and keeps the primary path working if they drop the challenge.
+_BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+               "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 
 
 def stooq_symbol(symbol: str) -> str:
@@ -82,28 +94,108 @@ def stooq_symbol(symbol: str) -> str:
 
 
 def _fetch_stooq(symbol: str, start: date, end: date) -> dict:
-    """Fetch daily closes from Stooq. Returns {date: close}. Empty on failure."""
+    """
+    Fetch daily closes from Stooq. Returns {date: close}. Empty on failure.
+
+    STOOQ IS NO LONGER USABLE FROM A SCRIPT (verified 2026-08-03). A bare
+    request returns HTTP 404; with a browser User-Agent it returns HTTP 200
+    carrying a JavaScript browser-verification challenge instead of CSV. The
+    module docstring's "Stooq is free and reliable" is now false, and this
+    backtest could not have run against it on the day the audit was written
+    either. We detect the challenge explicitly rather than letting DictReader
+    parse HTML into an empty dict and reporting it as "no data" — a silent
+    empty is how a dead feed turns into a wrong conclusion.
+    """
     import requests
     # quote() turns the index caret into %5E; a bare ^ is not a legal URL char.
     s = quote(stooq_symbol(symbol), safe="")
     url = STOOQ_URL.format(symbol=s, start=start.strftime("%Y%m%d"),
                            end=end.strftime("%Y%m%d"))
     try:
-        resp = requests.get(url, timeout=30)
+        resp = requests.get(url, timeout=30, headers={"User-Agent": _BROWSER_UA})
         resp.raise_for_status()
     except Exception as e:
-        logger.error("Fetch failed for %s: %s", symbol, e)
+        logger.info("Stooq unavailable for %s (%s); trying the next source.", symbol, e)
         return {}
+    head = resp.text[:200].lstrip().lower()
+    if not head.startswith("date,"):
+        logger.info("Stooq returned a non-CSV body for %s (bot challenge); "
+                    "trying the next source.", symbol)
+        return {}
+    return _parse_csv_closes(resp.text, "%Y-%m-%d", "Date", "Close")
+
+
+def _parse_csv_closes(text: str, date_fmt: str, date_col: str, close_col: str) -> dict:
     out = {}
-    reader = csv.DictReader(io.StringIO(resp.text))
-    for row in reader:
+    for row in csv.DictReader(io.StringIO(text)):
         try:
-            d = datetime.strptime(row["Date"], "%Y-%m-%d").date()
-            c = float(row["Close"])
-            out[d] = c
-        except (KeyError, ValueError):
+            out[datetime.strptime(row[date_col], date_fmt).date()] = float(row[close_col])
+        except (KeyError, ValueError, TypeError):
             continue
     return out
+
+
+def _fetch_cboe(symbol: str, start: date, end: date) -> dict:
+    """
+    Daily closes for a Cboe volatility index (^VIX / ^VXN / ^RVX) straight from
+    Cboe. Full history, no key. Empty for anything that is not a Cboe index.
+    """
+    name = symbol.strip().lstrip("^").upper()
+    if name not in ("VIX", "VXN", "RVX"):
+        return {}
+    import requests
+    try:
+        resp = requests.get(CBOE_URL.format(name=name), timeout=60,
+                            headers={"User-Agent": _BROWSER_UA})
+        resp.raise_for_status()
+    except Exception as e:
+        logger.info("Cboe unavailable for %s (%s); trying the next source.", symbol, e)
+        return {}
+    series = _parse_csv_closes(resp.text, "%m/%d/%Y", "DATE", "CLOSE")
+    return {d: v for d, v in series.items() if start <= d <= end}
+
+
+def _fetch_yfinance(symbol: str, start: date, end: date) -> dict:
+    """Daily closes via yfinance. Carries the ETFs and ^IRX; has no ^RVX."""
+    try:
+        import yfinance as yf
+    except ImportError:
+        logger.info("yfinance not installed; skipping that source.")
+        return {}
+    try:
+        h = yf.Ticker(symbol).history(start=start.isoformat(),
+                                      end=(end + timedelta(days=1)).isoformat(),
+                                      auto_adjust=False)
+    except Exception as e:
+        logger.info("yfinance failed for %s (%s).", symbol, e)
+        return {}
+    if h is None or len(h) == 0 or "Close" not in h:
+        return {}
+    return {ts.date(): float(c) for ts, c in h["Close"].items() if c == c}
+
+
+# Source order per symbol. Stooq first because it is what the script was written
+# against and what the docs claim; the rest are the fallbacks that make the
+# thing actually runnable in 2026.
+_SOURCES = (("stooq", _fetch_stooq), ("cboe", _fetch_cboe), ("yfinance", _fetch_yfinance))
+
+
+def fetch_series(symbol: str, start: date, end: date) -> tuple[dict, str]:
+    """
+    Fetch daily closes for `symbol`, trying each free source in turn.
+
+    Returns (series, source_name). The source name is recorded in the results
+    JSON: a backtest whose data provenance is not written down cannot be
+    reproduced, and this script silently changed feeds once already.
+    """
+    for name, fn in _SOURCES:
+        series = fn(symbol, start, end)
+        if series:
+            logger.info("%s: %d days from %s (%s to %s)", symbol, len(series), name,
+                        min(series), max(series))
+            return series, name
+    logger.error("No free source returned data for %s.", symbol)
+    return {}, "none"
 
 
 def main() -> int:
@@ -120,6 +212,13 @@ def main() -> int:
     p.add_argument("--rf", type=float, default=None,
                    help="Pin the risk-free rate for the Sharpe (e.g. 0.04). "
                         "Default: average of the ^IRX series over the window.")
+    p.add_argument("--slippage", type=float, default=None,
+                   help="Slippage per share per leg (default 0.02). The single "
+                        "most decision-relevant constant in the model: on the "
+                        "index legs it is 3x commission and consumes most of "
+                        "the gross premium. Use to bound the result.")
+    p.add_argument("--commission", type=float, default=None,
+                   help="Commission per contract per leg (default 0.65).")
     p.add_argument("--expiry-calendar", default="weekly",
                    choices=["weekly", "monthly", "calendar"],
                    help="weekly=every Friday (default, matches these ETFs' real "
@@ -134,13 +233,14 @@ def main() -> int:
 
     logger.info("Fetching %s prices, %s vol, ^IRX rate (%s to %s)...",
                 args.etf, vol_idx, start, end)
-    prices = _fetch_stooq(args.etf, start, end)
-    vols_raw = _fetch_stooq(vol_idx, start, end)
-    rates_raw = _fetch_stooq("^IRX", start, end)  # 13-week T-bill yield (in %)
+    prices, px_src = fetch_series(args.etf, start, end)
+    vols_raw, vol_src = fetch_series(vol_idx, start, end)
+    rates_raw, rate_src = fetch_series("^IRX", start, end)  # 13-week T-bill yield (in %)
 
     if not prices or not vols_raw:
         logger.error("Could not fetch required data. Prices=%d Vols=%d. "
-                     "Check internet access to stooq.com.", len(prices), len(vols_raw))
+                     "Every free source failed — check network access.",
+                     len(prices), len(vols_raw))
         return 1
 
     vols = {d: v / 100.0 for d, v in vols_raw.items()}     # VIX 18 -> 0.18
@@ -158,6 +258,8 @@ def main() -> int:
         use_vol_scaled_sizing=not args.no_vol_scaling,
         risk_free_rate=args.rf,
         expiration_calendar=args.expiry_calendar,
+        **({"slippage_per_share": args.slippage} if args.slippage is not None else {}),
+        **({"commission_per_contract": args.commission} if args.commission is not None else {}),
     )
     bt = be.OptionsBacktester(cfg)
     res = bt.run(prices, vols, rates)
@@ -166,10 +268,27 @@ def main() -> int:
         logger.error("Backtest error: %s", res["error"])
         return 1
 
-    _print_report(args.etf, res, cfg)
+    # Provenance. Written into the results file because this script has already
+    # silently changed feeds once, and a number whose data source is unrecorded
+    # cannot be reproduced or challenged.
+    res["data_sources"] = {
+        "prices": {"symbol": args.etf, "source": px_src, "days": len(prices)},
+        "implied_vol": {"symbol": vol_idx, "source": vol_src, "days": len(vols)},
+        "risk_free": {"symbol": "^IRX", "source": rate_src, "days": len(rates)},
+        "window_requested": [args.start, args.end],
+    }
+    res["config"] = {k: v for k, v in vars(cfg).items()}
 
-    out_path = Path(f"options_backtest_{args.etf}_{date.today().isoformat()}.json")
-    out_path.write_text(json.dumps(res, indent=2))
+    _print_report(args.etf, res, cfg)
+    print(f"  Data sources: prices={px_src}, vol={vol_src}, rate={rate_src}")
+
+    out_path = Path(f"options_backtest_{args.etf}_{args.start}_{args.end}.json")
+    # default=str: every Trade carries `entry_date`/`exit_date` as real `date`
+    # objects, which json cannot encode. Without this the script raised
+    # TypeError AFTER printing the report and BEFORE writing the file — so even
+    # a fully successful run left nothing on disk. That is a second, independent
+    # reason no result from this backtest appears anywhere in the corpus.
+    out_path.write_text(json.dumps(res, indent=2, default=str))
     logger.info("Full results saved to %s", out_path)
     return 0
 

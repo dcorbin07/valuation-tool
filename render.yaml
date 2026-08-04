@@ -13,6 +13,29 @@ services:
       mountPath: /app/data
       sizeGB: 1
     envVars:
+      # LICENCE POSTURE. Valquo is a PERSONAL research tool: owner-only, no signup, no
+      # checkout, nothing served to an anonymous visitor. That is what keeps it inside the
+      # personal-use terms of the individual ThetaData and Sharadar plans it reads market
+      # data under. It defaults to true in code (valuation/config.py) so a fresh deploy or a
+      # recreated service comes up LOCKED rather than open — declared here as well so it is
+      # visible and flippable in the Render dashboard instead of hidden in a default.
+      #
+      # To go commercial: set this to "false" (and see "Reversing this" in
+      # HANDOFF_appfixes.md). Nothing is deleted — every tier, route and Stripe path below is
+      # intact and still tested, which is why the Stripe keys stay configured.
+      - key: PRIVATE_MODE
+        value: "true"
+      # THE ONE DELIBERATE EXCEPTION to the line above, and its own switch on purpose. Don
+      # job-hunts with this project, so one unlisted page describing the RESEARCH METHOD is
+      # readable without logging in. It is static prose plus statistics computed in-house —
+      # it reads no store, calls no API and renders no vendor row, so nothing a ThetaData or
+      # Sharadar licence covers leaves the instance through it. Everything else stays locked.
+      # Set PORTFOLIO_PAGE=false to remove it; PORTFOLIO_PATH moves it to an unguessable URL
+      # without a code change (validated in config.py — a bad value falls back to /work).
+      - key: PORTFOLIO_PAGE
+        value: "true"
+      - key: PORTFOLIO_PATH
+        value: "/work"
       - key: SECRET_KEY
         generateValue: true           # Render generates a strong secret
       - key: DATABASE_URL
