@@ -377,7 +377,10 @@ class WRDSProvider(HistoricalDataProvider):
 
     def universe(self, limit=None):
         idx = self._indexed("fundamentals")
-        if not limit:
+        # A `limit` at or above the export's size is the FULL universe, not a subset — the
+        # caller's default is 3000 against a 2,827-name export. Ranking it would be harmless but
+        # labelling it a smoke test would be a lie in the other direction.
+        if not limit or limit >= len(idx):
             return sorted(idx.keys())
 
         def _cap(rows):
