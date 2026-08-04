@@ -78,6 +78,10 @@ the project's memory and the old versions had been repeated for months.
   The measured numbers below are unchanged and still stand; the word "CONFIRMED" was the
   overstatement. Fixing the function (implement the rule, or rename it and its verdict labels)
   is audit item **B8** and is NOT yet done.
+- **SUPERSEDED 2026-08-04 (audit session 2, B6) — EVERY NUMBER IN THE NEXT TWO BULLETS WAS
+  MEASURED ON A PANEL WHOSE FIRST THIRD HAD AN INVERTED UNIVERSE. The corrected numbers are
+  WORSE and TWO OF THE THREE BARS NOW FAIL. Read the "CORRECTED PANEL" bullet below first;
+  the two bullets that follow are kept only as the record of what the defect was producing.**
 - **CURRENT FULL-UNIVERSE NUMBERS (2026-08-04, after the audit's Part I corrections):
   long-short t 3.884, top-decile alpha +11.78%, monotonicity −0.988, PBO 13.3%.** Measured
   against a clean pre-audit baseline re-run on identical data (t 3.520, alpha +11.88%,
@@ -94,6 +98,36 @@ the project's memory and the old versions had been repeated for months.
   on the later half, **long-short t goes 0.97 → 2.56 and top-decile alpha +6.09% → +9.30%**; the
   reverse direction agrees more strongly (t 0.55 → 2.57, alpha +6.63% → +14.49%). Do not treat
   the edge as settled — caveats at the end.
+- **CORRECTED PANEL, 2026-08-04 (audit session 2, B6+B7+B13) — THESE ARE THE LIVE NUMBERS.
+  Long-short t 2.836, top-decile alpha +7.17%, monotonicity −0.891, PBO 73.3%, over 69
+  rebalance dates on a genuine 18.5-year window (2008-01-16 → 2026-07-24).** The equal-weight
+  benchmark moved +16.55% → +18.14%, which is the control and confirms the universe itself
+  changed. **Two of the three bars now FAIL: t 2.836 is BELOW the Harvey–Liu–Zhu hurdle of 3.0
+  it used to clear, and PBO 73.3% is far above the <50% bar.** Only the Deflated Sharpe still
+  passes and per B9 that was never the bar to lead with.
+  **ATTRIBUTED, one change per run, on the full universe — B6 IS ESSENTIALLY THE WHOLE DROP:**
+  reverting B6 alone (B7+B13 still fixed) restores t 3.733, alpha +11.36%, PBO 26.7% at 110
+  dates, so **B6 costs t −0.897, alpha −4.18pp and PBO +46.7pp — 100% of the PBO blow-out, 88%
+  of the t drop, 89% of the alpha drop.** **B7 alone is NULL on the headline** (t −0.010, alpha
+  +0.01pp, PBO and equal-weight unchanged to the digit) — a correctness fix with no performance
+  consequence, which is the ideal outcome for one. **B13 alone is small and points both ways**
+  (t +0.122, alpha −0.51pp, EW −0.24pp): dropping 384 penny names helps the long-short and costs
+  the long-only book, consistent with penny names contributing at both ends of the ranking.
+  **What this means: roughly 40% of the top-decile alpha was coming from the 41 early rebalance
+  dates at which every name present was one that had already stopped trading.** State it as a
+  hypothesis, not a finding — a repair's effect on a fitted statistic is not evidence about the
+  repair. Costs still clear comfortably: breakeven 134 bps one-way against a **measured** 33.4
+  bps realised (B11 — the old "37 bps" was an assumption quoted as a measurement). **No shipped
+  decision changed:** `low_risk` still `confirmed` in both split directions, `insider` still
+  `rejected`. Full three-way A/B in `HANDOFF_edge_audit.md` Part 3.
+- **R1 MUST BE RE-RUN — ITS PANEL NO LONGER EXISTS (flagged 2026-08-04, audit session 2).**
+  Everything in the next bullet was measured over "109 non-overlapping windows, 1998-12-31 →
+  2026-01-21" — i.e. the pre-B6 union calendar, whose first third had the inverted universe.
+  The corrected panel is 69 windows over 2008-01-16 → 2026-07-24, and the raw top-decile alpha
+  R1 was decomposing fell +11.69% → +7.17%. **Do NOT quote +8.81%/yr or the +6.6%–8.8% range
+  until `python -m scripts.factor_alpha` has been re-run on the corrected panel.** The
+  DIRECTION of R1's finding may well survive — the factor loadings are a separate question from
+  the level — but every number below is provisional. Re-running R1 is the top audit task.
 - **SETTLED 2026-08-04 (audit R1) — THE HEADLINE IS NOT MERELY FACTOR EXPOSURE. The word
   "alpha" is now permitted, as a RANGE and with caveats.** `top_decile_alpha` is still
   `4 × (mean top-decile 63d return − mean equal-weighted universe 63d return)` with no risk
@@ -253,16 +287,31 @@ the project's memory and the old versions had been repeated for months.
   only below `exit_rank = top_n × 2`) and pays neither costs nor taxes, unlike every other book
   in the results file — so it is also mislabelled. Weight-tuning itself remains noise-chasing:
   CPCV still adopts no weighting over the defaults.
+- **FIXED 2026-08-04 (audit session 2). The panel is now a genuine 18.5-year window,
+  2008-01-16 → 2026-07-24, 69 rebalance dates, cross-sections 1,471–1,954.** `days=None` means
+  the whole series and the shared calendar is cut ONCE, before the ffill. Each run ships
+  `panel_window` (available vs retained range, the cut, per-date cross-section sizes) so the
+  two-blocks-disagree-about-their-window failure cannot recur silently. **41 of the 110 dates
+  were dropped and the headline fell with them — see the CORRECTED PANEL bullet above; this was
+  the most expensive correction in the audit.** The description below is what the defect WAS:
 - **The panel is 27 YEARS long, not 18, and its first third has an INVERTED universe (audit
-  B6, not yet fixed).** `WRDSProvider.price_history` truncates with `.tail(4659)`, so each
+  B6, FIXED — see above).** `WRDSProvider.price_history` truncates with `.tail(4659)`, so each
   ticker keeps its OWN last 18.5 years and the calendar is the union: 1998-12-31 → 2026-04-22,
   110 rebalance dates over 27.3 years. At a 2001 cross-section every name present is one that
   stopped trading by roughly 2019 — the inverse of classic survivorship bias, and it makes
   roughly the first 37 of 110 periods uninterpretable. Those same 37 dates have no benchmark,
   which is why `construction.n_periods` reads 110 while `portfolio.n_periods` reads 73 in the
   same JSON over undisclosed windows. Direction of the bias is genuinely unclear.
-- **The LIVE product does not score names the way the backtest does (audit B7/G, not yet
-  fixed).** `screen.py:256` calls `build_frame(metrics)` with no keyword arguments, inheriting
+- **FIXED 2026-08-04 (audit session 2, B7/G). There is now ONE composite**, used by selection,
+  measurement and live, and it renormalises by the present-weight mass — the convention
+  SELECTION already used, so the deployed weights were chosen under it. `CONFIG.sector_neutral`
+  and `CONFIG.residual_momentum` now default **false**. **Live and backtest score identically**
+  (max abs difference 0.0), pinned by
+  `test_audit_b7_the_live_path_and_the_backtest_path_score_identically`. Measured effect on the
+  headline: **NULL** (t −0.010, alpha +0.01pp) — the disagreement was real in mechanism but
+  small in magnitude on this panel. The description below is what the defect WAS:
+- **The LIVE product does not score names the way the backtest does (audit B7/G, FIXED — see
+  above).** `screen.py:256` calls `build_frame(metrics)` with no keyword arguments, inheriting
   `CONFIG.sector_neutral` (default **true**) and `CONFIG.residual_momentum` (default **true**),
   while the backtest forces both `False`. Sector-neutral ranking was tested on the full universe
   and rejected in both held-out directions, twice. **Unless `SCREENER_SECTOR_NEUTRAL=false` is
