@@ -138,10 +138,16 @@ def test_the_allowlist_is_exactly_what_it_claims():
     assert private.always_open("/admin/run-scan") is True      # crons: token-checked inside
     assert private.always_open("/api/option-alerts/open") is True
     assert private.always_open("/alerts/unsubscribe/tok") is True
+    # A crawler never logs in, and the file's whole job is to tell it to go away.
+    assert private.always_open("/robots.txt") is True
     for closed in ("/", "/app", "/api/hotstocks", "/api/track", "/pricing", "/account",
                    "/methodology", "/api/valquo-index", "/demo", "/register",
                    "/billing/checkout", "/api/edge/learning", "/terms", "/privacy"):
         assert private.always_open(closed) is False, f"{closed} must NOT be always-open"
+    # The portfolio page is open, but through its OWN flag-gated door — never this one.
+    # If it ever appears here it would survive PORTFOLIO_PAGE=false, which is the one way
+    # that switch could stop meaning anything.
+    assert private.always_open(CONFIG.resolved_portfolio_path) is False
 
 
 def test_check_is_a_no_op_when_the_flag_is_off():
@@ -258,6 +264,134 @@ def test_gating_gives_the_owner_premium_and_everyone_else_nothing():
     assert gating._active({"email": "x@y.com", "is_demo": True}) == "anon", \
         "the demo grant must not survive private mode"
     assert gating._active(None) == "anon"
+
+
+# ============================== the portfolio page =========================================
+# The ONE deliberate hole in the lockdown (PROMPT_recruiter_page.md). Everything below exists
+# to make that hole exactly one page wide, and to make "no vendor data on it" a property of
+# the code rather than a promise in a comment.
+
+PORTFOLIO = CONFIG.resolved_portfolio_path
+
+
+def test_the_two_flags_are_independent_in_both_directions():
+    """The point of a second flag. The page may be open on a locked instance, and closing it
+    must not re-open — or further lock — anything else."""
+    on = Config(private_mode=True, portfolio_page=True)
+    off = Config(private_mode=True, portfolio_page=False)
+    assert on.portfolio_page_enabled is True and off.portfolio_page_enabled is False
+    # Neither setting touches the lockdown itself.
+    assert on.public_access is False and off.public_access is False
+    assert on.signup_enabled is False and off.signup_enabled is False
+    # And private mode does not silently switch the page off either.
+    assert Config(private_mode=False, portfolio_page=True).portfolio_page_enabled is True
+
+
+def test_the_path_is_validated_because_a_typo_is_the_only_way_this_widens():
+    """`resolved_portfolio_path` is the whole blast radius of PORTFOLIO_PATH. A value of "/"
+    would mount a world-readable page on the app's root; a reserved prefix would shadow a real
+    route (Flask keeps the first rule registered, so it would fail silently)."""
+    assert Config(portfolio_path="/portfolio").resolved_portfolio_path == "/portfolio"
+    assert Config(portfolio_path="work").resolved_portfolio_path == "/work", "leading slash"
+    assert Config(portfolio_path="/work/").resolved_portfolio_path == "/work", "trailing slash"
+    for bad in ("/", "", "  ", "/api", "/api/hotstocks", "/app", "/admin/run-scan",
+                "/static/x", "/login", "/billing/checkout", "/robots.txt", "/<path>"):
+        assert Config(portfolio_path=bad).resolved_portfolio_path == "/work", \
+            f"PORTFOLIO_PATH={bad!r} was accepted"
+
+
+def test_the_policy_grants_exactly_one_path_and_only_while_the_flag_is_on():
+    on = Config(private_mode=True, portfolio_page=True, portfolio_path="/work")
+    off = Config(private_mode=True, portfolio_page=False, portfolio_path="/work")
+    assert private.check("/work", None, on) is None, "the page must be readable"
+    assert private.check("/work", None, off) is not None, "the flag must actually gate it"
+    # Exact match, never a prefix: a prefix grant would open every route beneath it.
+    for near in ("/work/secret", "/work2", "/works", "/work/api/hotstocks"):
+        assert private.check(near, None, on) is not None, f"{near} was opened by the page"
+
+
+def test_an_anonymous_visitor_can_read_the_page_and_nothing_else():
+    """The verification the brief asks for, as a test: the page renders logged out while the
+    product stays shut. Both halves in one test on purpose — they are one claim."""
+    with APP.test_client() as c:
+        r = c.get(PORTFOLIO)
+        assert r.status_code == 200, f"{PORTFOLIO} -> {r.status_code}"
+        for still_shut in ("/", "/app", "/methodology", "/account", "/api/hotstocks",
+                           "/api/track", "/api/valquo-index"):
+            assert c.get(still_shut).status_code in (401, 302), \
+                f"{still_shut} opened up when the portfolio page did"
+
+
+def test_the_page_is_static_so_no_vendor_data_can_reach_it():
+    """The licence-critical property, pinned two ways.
+
+    BYTE-IDENTICAL across requests => it read no store and no clock. NO "/api/" anywhere =>
+    the browser makes no follow-up call, so nothing can arrive after render either. Together
+    these make "no ThetaData or Sharadar value appears here" checkable by machine, which is
+    the only way it stays true after the next edit.
+    """
+    with APP.test_client() as c:
+        a = c.get(PORTFOLIO).get_data(as_text=True)
+        b = c.get(PORTFOLIO).get_data(as_text=True)
+    assert a == b, "the page changed between requests, so something live is feeding it"
+    low = a.lower()
+    for live in ("/api/", "fetch(", "xmlhttprequest", "<script", "sharadar", "thetadata",
+                 "tradier"):
+        assert live not in low, f"the portfolio page references {live!r}"
+
+
+def test_the_page_shows_no_picks_and_labels_what_it_does_show():
+    """Content rules from the brief, as assertions. A future edit that adds a holdings table
+    or drops the paper-account label should fail here, not in a compliance conversation."""
+    with APP.test_client() as c:
+        body = c.get(PORTFOLIO).get_data(as_text=True)
+    low = body.lower()
+    for required in ("not investment advice", "paper account", "no real money",
+                     "historical simulation", "hypothetical"):
+        assert required in low, f"the page no longer says {required!r}"
+    for forbidden in ("buy now", "sign up", "subscribe", "price target", "current holdings",
+                      "today's picks"):
+        assert forbidden not in low, f"the page reads as a product: {forbidden!r}"
+
+
+def test_the_page_refuses_indexing_three_ways():
+    with APP.test_client() as c:
+        r = c.get(PORTFOLIO)
+        assert "noindex" in r.get_data(as_text=True), "missing the <meta> robots tag"
+        assert "noindex" in (r.headers.get("X-Robots-Tag") or ""), "missing the header"
+        rob = c.get("/robots.txt")
+        assert rob.status_code == 200, "a crawler cannot log in to read robots.txt"
+        txt = rob.get_data(as_text=True)
+        assert "Disallow: /" in txt
+        # Naming the path in a world-readable file would publish the URL it is hiding.
+        assert PORTFOLIO.strip("/") not in txt, "robots.txt discloses the portfolio path"
+
+
+def test_turning_the_flag_off_closes_the_page_under_both_postures():
+    """PORTFOLIO_PAGE=false must actually shut it, and the refusal differs by design.
+
+    Under private mode the page falls back into the lockdown and returns the same 401 holding
+    page as every other path — it tells a visitor nothing about whether that URL means
+    anything. On a PUBLIC instance there is no lockdown to fall back on, so the route itself
+    404s; a redirect there would confirm the path exists. Both branches are asserted because
+    the second one is the one nobody would notice was missing.
+
+    Patched on CONFIG itself: that is the object the route and the guard both closed over.
+    """
+    CONFIG.portfolio_page = False
+    try:
+        with APP.test_client() as c:
+            r = c.get(PORTFOLIO)
+            assert r.status_code == 401, f"private mode should absorb it, got {r.status_code}"
+            assert b"private research tool" in r.data, "it must be the ordinary refusal"
+        CONFIG.private_mode = False
+        with APP.test_client() as c:
+            assert c.get(PORTFOLIO).status_code == 404, "a public instance must 404 it"
+    finally:
+        CONFIG.private_mode = True
+        CONFIG.portfolio_page = True
+    with APP.test_client() as c:
+        assert c.get(PORTFOLIO).status_code == 200, "the flags did not restore"
 
 
 # ============================== the track backup ===========================================

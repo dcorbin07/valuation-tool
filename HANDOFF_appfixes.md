@@ -5,6 +5,100 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 10 — 2026-08-04 — The recruiter page (PROMPT_recruiter_page.md)
+
+One unlisted page Don can put on a résumé. It is the single deliberate exception to private
+mode, it has **its own flag**, and it is **method-led**: the rejections and the bugs come
+before anything that survived.
+
+## The flag and the URL
+
+| | |
+|---|---|
+| Flag | **`CONFIG.portfolio_page`** (env `PORTFOLIO_PAGE`, default **true**) |
+| Path | **`CONFIG.portfolio_path`** (env `PORTFOLIO_PATH`, default **`/work`**) → **`https://valquo.co/work`** |
+| Read in | `saas/private.portfolio_open()` (the request-level grant) and the route in `app_saas.py` |
+| Template | `valuation/web/templates/portfolio.html` — standalone, does **not** extend `_saas_base.html` |
+| Tests | `tests/test_private.py`, 8 new (30 total, all green) |
+
+`PORTFOLIO_PATH` is **validated** (`Config.resolved_portfolio_path`): a leading slash is
+added, a trailing one stripped, and `"/"`, empty, and every reserved prefix (`/api`, `/admin`,
+`/static`, `/login`, `/app`, `/billing`, `/robots.txt` …) fall back to `/work`. That matters
+because Flask keeps the **first** rule registered for a path, so a typo like `PORTFOLIO_PATH=/app`
+would have shadowed the dashboard *silently* rather than raising. Both are declared in
+`render.yaml` next to `PRIVATE_MODE` so they are flippable from the Render dashboard.
+
+**The two flags are independent in both directions**, and a test asserts it: the page can be
+open while the instance stays locked (its whole purpose), and `PORTFOLIO_PAGE=false` re-closes
+the page without touching anything else. With the page off, private mode absorbs the URL and
+returns the ordinary 401 holding page — indistinguishable from any other path, so it does not
+confirm the URL means anything. On a **public** instance (`PRIVATE_MODE=false`) the route
+itself 404s. Both branches are tested.
+
+## Private mode is unaffected — verified logged out
+
+Anonymous, with no session: `/work` → **200**. `/` → 401, `/app` → 401, `/methodology` → 401,
+`/account` → 401, `/api/hotstocks` → 401, `/api/track` → 401, `/api/valquo-index` → 401. The
+pre-existing sweep over the app's own URL map (every registered `/api/` route refuses an
+anonymous caller) still passes unchanged, as do the cron-route tests — the admin endpoints
+still reach their token check rather than being blocked by private mode.
+
+The grant is **exact-match on one path**, never a prefix: `/work/secret`, `/work2`, `/works`
+and `/work/api/hotstocks` are all still refused. The portfolio path is deliberately **not** in
+`private.always_open()` — that list is unconditional, and putting it there would have let the
+page survive `PORTFOLIO_PAGE=false`. A test pins that too.
+
+## No vendor data — and it is checkable, not promised
+
+The page is **static by construction**: the route passes one variable (`contact_email`), the
+template reads no store, and there is no `<script>`, no `fetch`, no `/api/` string anywhere in
+the rendered HTML. Two tests make that a property of the code — the response is asserted
+**byte-identical across two requests** (so nothing live is feeding it) and swept for `/api/`,
+`fetch(`, `sharadar`, `thetadata`, `tradier`. Every number on it is a summary statistic
+computed in-house; no Sharadar or ThetaData row, price, holding or ticker score appears.
+
+**Unlisted:** `noindex, nofollow` three ways — `<meta name="robots">`, an `X-Robots-Tag:
+noindex, nofollow, noarchive, nosnippet` response header, and a new `/robots.txt` with a
+blanket `Disallow: /`. It **names no paths on purpose** — robots.txt is world-readable, so a
+file saying `Disallow: /work` would publish the URL it is hiding. `/robots.txt` was added to
+`private.always_open()` (a crawler cannot log in to read the file that tells it to go away).
+
+## What the page says, and where every number came from
+
+Method first, numbers as illustration. Sections in order:
+
+| Section | Claims | Source in this repo |
+|---|---|---|
+| **The method** | pre-registration protocol; ~146 recorded tests, ~1 adoption in 8 | `RESEARCH_LOG.md`, `VALQUO_EDGE_AUDIT.md` §1 |
+| **What the evidence killed** | PEAD (standalone t +2.215, incremental t +0.020, control +0.83pp vs +0.52pp); lazy prices (7,095 pairs, 195 filers, IC −0.0156, NW t −1.07, LS −5.0%/yr); sector-neutral (LS t 3.40→3.90 but alpha +11.8%→+10.2%, PBO 26.7%→46.7%, rejected twice); put-credit spreads (fails 5 of 7 arms); exit sweep (+2.1–3.3pp vs a +10pp bar); option cross-section (nothing clears, one sign backwards); ETF benchmark (+9.21pp but t 1.10, halves −6.40%/+27.08%) | `HANDOFF_pead.md`, `HANDOFF_lazy_prices_ic.md`, `HANDOFF_sector_neutral.md` + `CLAUDE.md`, `HANDOFF_vrp.md`, `HANDOFF_deep_exits.md`, `HANDOFF_deep_xsection.md`, `HANDOFF_free_analysis.md` (X4) |
+| **The uncomfortable one** | random-entry control beats the signal: +11.07% (5,919) vs +5.14% (3,042), paired −3.72pp, sign z −3.48, negative in both halves (−5.88 / −5.96pp); 15 corrected arms all fail — **plus the caveat that the control is a yardstick, not a tradable alternative** | `HANDOFF_entry_fix.md` |
+| **Bugs, found and published** | price basis (adjusted close into option maths, 5 call sites); five empty factors (roe/roic/assetturnover 0 of 197,265 rows, beta hard-coded, growth_accel NaN'd); stale-quote settlement (44.6% fall-through, median 10 days early, 94.7% above settlement, 86.1% positive on worthless, −6.45pp); OI `-1` sentinel (106 names, median 12.2%, guard blind on 82 of 109); "800 largest" was alphabetical; currency-corrupted value ratios (892 vs 0.589, 4.1% of rows, 1.35×→0.56×) | `HANDOFF_edge_audit.md` (B1/B3/B12), `CLAUDE.md` LATEST, `HANDOFF_greeks.md`, `HANDOFF_deep_exits.md`, `CLAUDE.md` P7 |
+| **The external audit** | 134 numbered items, read-only, dependency map + import-graph lane validator; the four claims it invalidated (undeflated PSR, stability-not-OOS, PBO scope, never tested as alpha) | `VALQUO_EDGE_AUDIT.md` (134 keys in `valquo_audit_items.json`), `VALQUO_AUDIT_DEPENDENCY_MAP.md`, `check_lanes.py` |
+| **What survives** | LS t **3.52** vs the Harvey–Liu–Zhu 3.0 hurdle; costs breakeven **236 bps** one-way vs a **37 bps** profile at 249% turnover; international replication Japan +2.05%/**t 3.85**, developed Europe +3.36%/**t 4.30**, world ex-US t 5.03, **US control weakest at t 2.35**, 12 of 15 European countries clear t>2 — with Japan's quality/momentum failure reported | `CLAUDE.md`, `BACKTEST_RESULTS.json`, `HANDOFF_free_analysis.md` (X8) |
+| **What is NOT claimed** | not established as alpha (FF5+MOM unrun, threshold pre-committed); first third of the panel has a distorted universe (B6); capacity ≈ **$23M** upper bound; one panel, looked at many times | `HANDOFF_edge_audit.md` (R1), `CLAUDE.md` (B6), `HANDOFF_free_analysis.md` (P1) |
+| **The forward track** | labelled **broker sandbox, paper account, no real money**, days old — and **no number from it is quoted** | `HANDOFF_paper_track.md` |
+| **How it is built** | CPCV + PBO, coverage/sanity/cost/freshness blocks, attribution panel, **597 tests across 17 suites** | measured this session |
+
+Three things the page deliberately does **not** do: quote a headline return as the lead, show
+any current holding or pick, or call anything "alpha". The word appears once, in the box
+explaining why it is *not* used.
+
+## Suites
+
+All 17 green after the change: edge 191, screener 63, paper_track 40, ev_multiples 34,
+saas 30, **private 30 (+8)**, engine 28, lazy_prices 28, lazy_prices_ic 24, calibration 23,
+security 22, options_greeks 21, intraday 18, bulk 14, freeze 13, pead 12, sector_neutral 6 —
+**597 total**.
+
+## For Don
+
+The URL is **valquo.co/work** once this deploys. Nothing links to it and it is excluded from
+search; it only exists for someone you hand it to. To move it, set `PORTFOLIO_PATH` in Render
+to anything unguessable (`/work/8f2c…`) — no code change, no redeploy of the image. To remove
+it, `PORTFOLIO_PAGE=false`. Neither touches the lockdown on everything else.
+
+---
+
 # Session 9 — 2026-08-04 — Private mode: Valquo becomes a personal tool (PROMPT_appfixer_private.md)
 
 All seven items shipped. Valquo is now owner-only behind one reversible flag, every commercial

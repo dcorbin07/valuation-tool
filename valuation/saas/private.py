@@ -55,6 +55,12 @@ UNSUB_PREFIX = "/alerts/unsubscribe/"
 #: Static assets — the login page needs its stylesheet.
 STATIC_PREFIX = "/static/"
 
+#: robots.txt. A crawler never logs in, so a 401 here is a file the crawler cannot read — and
+#: the file's entire job is to tell it to stay away. It is served to everyone and says
+#: `Disallow: /` with no paths named, so it excludes the site without disclosing the portfolio
+#: URL to anyone who reads it.
+ROBOTS_PATHS = frozenset({"/robots.txt"})
+
 
 def enabled(cfg) -> bool:
     """Is the lockdown on? The single read of the flag for policy purposes."""
@@ -75,13 +81,36 @@ def is_owner(user, cfg) -> bool:
 
 
 def always_open(path: str) -> bool:
-    """Paths that stay reachable while logged out. See the module docstring for the rationale."""
+    """Paths that stay reachable while logged out. See the module docstring for the rationale.
+
+    UNCONDITIONAL, and deliberately not aware of any config: everything here is open on every
+    instance. The portfolio page is NOT here — it is open only while its own flag is on, which
+    is `portfolio_open()` below and a separate door on purpose.
+    """
     return (path in HEALTH_PATHS
+            or path in ROBOTS_PATHS
             or path in AUTH_PATHS
             or path.startswith(AUTH_PREFIXES)
             or path.startswith(ADMIN_PREFIXES)
             or path.startswith(UNSUB_PREFIX)
             or path.startswith(STATIC_PREFIX))
+
+
+def portfolio_open(path: str, cfg) -> bool:
+    """The one deliberate exception to the lockdown: the unlisted portfolio page.
+
+    EXACT match on the configured path, never a prefix. A prefix match would open every route
+    that happens to live below it, and the whole value of this function is that it can grant
+    at most one URL. `resolved_portfolio_path` has already refused "/" and every reserved
+    prefix, so the widest thing this can ever return true for is a single leaf page.
+
+    Why this is a licence-safe hole while `/app` is not: the page is static prose and research
+    statistics Don computed. It reads no store, calls no API and renders no vendor row, so a
+    stranger loading it obtains nothing ThetaData or Sharadar licensed to him.
+    """
+    if not getattr(cfg, "portfolio_page_enabled", False):
+        return False
+    return path == cfg.resolved_portfolio_path
 
 
 #: What an anonymous caller is told. Deliberately identical for "not signed in" and "signed in
@@ -102,6 +131,8 @@ def check(path: str, user, cfg):
     if not enabled(cfg):
         return None
     if always_open(path):
+        return None
+    if portfolio_open(path, cfg):
         return None
     if is_owner(user, cfg):
         return None

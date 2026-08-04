@@ -16,7 +16,7 @@ import datetime as _dt
 import hmac
 import os
 
-from flask import request, render_template, redirect, jsonify, g
+from flask import request, render_template, redirect, jsonify, g, abort, make_response
 
 from ..config import CONFIG
 from ..safe_error import safe_error
@@ -585,6 +585,40 @@ def create_saas_app(cfg=CONFIG):
     @app.route("/privacy")
     def privacy():
         return render_template("privacy.html")
+
+    @app.route(cfg.resolved_portfolio_path)
+    def portfolio_page():
+        """The unlisted portfolio page — the one route a stranger may read under private mode.
+
+        STATIC BY CONSTRUCTION. It takes no arguments, reads no store, and its template makes
+        no fetch: every number on it is a research statistic typed into the template from this
+        repository's own handoffs, with its source named on the page. That is not a stylistic
+        choice — it is what makes "no vendor data is exposed here" a property of the code
+        rather than a promise, and `tests/test_private.py` pins it by asserting the page is
+        byte-identical across requests and contains no `/api/` call.
+
+        404, not a redirect, when the flag is off: a redirect confirms the path exists.
+        """
+        if not cfg.portfolio_page_enabled:
+            abort(404)
+        resp = make_response(render_template("portfolio.html",
+                                             contact_email=cfg.contact_email))
+        # Belt and braces with the <meta> tag and robots.txt. The header is the one of the
+        # three that a crawler cannot miss and a scraper cannot ignore by not parsing HTML.
+        resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet"
+        return resp
+
+    @app.route("/robots.txt")
+    def robots_txt():
+        """Blanket exclusion, naming nothing.
+
+        `Disallow: /` covers the portfolio page without listing it. Naming the path would be
+        self-defeating: robots.txt is world-readable, so a file that says `Disallow: /work` is
+        a public index of the URL it is trying to keep out of the public index.
+        """
+        resp = make_response("User-agent: *\nDisallow: /\n")
+        resp.mimetype = "text/plain"
+        return resp
 
     @app.route("/account")
     def account():
