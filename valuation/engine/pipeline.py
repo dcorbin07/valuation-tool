@@ -24,6 +24,60 @@ from .comps import compute_comps, CompsResult
 from .sensitivity import build_sensitivity, SensitivityResult
 from .scoring import compute_score, ScoreResult
 
+# --------------------------------------------------------------------------- #
+# PUBLICATION GUARD (2026-08-04).
+#
+# The engine already DETECTED implausible output — it warned "almost certainly a data
+# problem (currency or share count)" — and then published the number anyway. KSPI
+# (Kaspi.kz, statements in KZT, USD ADR price $92.00) shipped a $1,249.16 base fair
+# value at +1,258% upside with that warning attached and "confidence: low". A confident
+# wrong number is worse than no number: the reader sees $1,249, not the caveat.
+#
+# So the same thresholds that produced the warning are now BINDING. Tripping the guard
+# marks the blend not-valuable, which is the state the UI already renders as
+# "Not DCF-valuable" with upside "n/a" — no web-layer change needed.
+#
+# Thresholds are the pre-existing warning bands, deliberately not retuned here.
+#
+# ONLY the high side refuses. A fair value far BELOW the price is not this failure mode:
+# the product is not telling anyone to buy, and suppressing it would hide legitimate
+# "this is expensive" verdicts — including the honest net-cash floor on a revenue-less
+# shell ($0.22 against a $8.00 price), which `test_dcf_still_floors_at_net_cash_when_
+# revenue_is_gone` deliberately requires us to publish. The low side keeps its warning.
+FV_BAND_HIGH = 5.0    # fair value > 5x price -> refuse
+
+
+def publication_guard(cd: CompanyData, blend, growth_led: bool = False) -> Optional[str]:
+    """Refuse to publish a fair value we cannot stand behind. Returns the reason, or None.
+
+    Two independent refusals:
+      1. UNRESOLVED CURRENCY — statements in one currency, price in another, and the FX
+         rate could not be fetched. Every monetary input is then in the wrong units by an
+         unknown factor. `yahoo.fetch` sets `fx_unresolved` for exactly this case and
+         nothing downstream had ever acted on it.
+      2. SANITY BAND — the published number is more than 5x the market price. See the
+         note above for why the low side warns rather than refuses.
+    """
+    fin = (getattr(cd, "financial_currency", "") or "").upper()
+    px_ccy = (getattr(cd, "currency", "") or "USD").upper()
+    if getattr(cd, "fx_unresolved", False):
+        return (f"Cannot value this name: the statements are reported in {fin or 'a foreign currency'} "
+                f"but the price is in {px_ccy}, and the exchange rate could not be resolved. "
+                f"Every figure would be wrong by an unknown factor, so no fair value is published.")
+    if fin and fin != px_ccy and getattr(cd, "fx_rate", None) is None:
+        return (f"Cannot value this name: the statements are in {fin} and the price is in {px_ccy}, "
+                f"but no currency conversion was applied. No fair value is published.")
+
+    fv = blend.value if getattr(blend, "valuable", False) else None
+    px = getattr(cd, "price", None)
+    if fv and px and px > 0:
+        ratio = fv / px
+        if ratio > FV_BAND_HIGH:
+            return (f"Cannot value this name: the model's ${fv:,.2f} is {ratio:.1f}x the ${px:,.2f} "
+                    f"price. That gap is a data problem (currency or share count), not an "
+                    f"opportunity, so no fair value is published.")
+    return None
+
 
 @dataclass
 class ValuationResult:
@@ -210,6 +264,16 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
     fv_scen = _blend_scenarios(cd, cls, scenarios, comps, rev, growth_scn,
                                maturity, maturity_parts)
     blend.value_low, blend.value_high = fv_scen.get("bear"), fv_scen.get("bull")
+
+    # Refuse to publish before anything downstream consumes the number — the score must
+    # not be computed against a fair value the reader is never shown.
+    refusal = publication_guard(cd, blend, growth_led=getattr(blend, "growth_led", False))
+    if refusal:
+        blend.valuable = False
+        blend.value = None
+        blend.reason = refusal
+        blend.confidence = "low"
+        blend.headline = refusal
 
     # Score against the SAME number the user is shown, so the valuation sub-score and the
     # headline can't disagree. compute_score already tolerates None (it renormalizes).

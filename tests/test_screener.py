@@ -1147,6 +1147,109 @@ def test_name_view_survives_a_store_with_no_scan_at_all():
     assert v["options"]["n_logged"] == 0
 
 
+# A real Form 4, trimmed: AAPL accession 0001140361-26-025622 (Newstead, SVP/GC).
+# One open-market SALE of 12,819 shares at $220.00 so the parser has a priced txn to score.
+_FORM4_XML = """<?xml version="1.0"?>
+<ownershipDocument>
+  <documentType>4</documentType>
+  <issuer><issuerCik>0000320193</issuerCik><issuerTradingSymbol>AAPL</issuerTradingSymbol></issuer>
+  <reportingOwner>
+    <reportingOwnerId><rptOwnerName>Newstead Jennifer</rptOwnerName></reportingOwnerId>
+    <reportingOwnerRelationship><isOfficer>true</isOfficer>
+      <officerTitle>SVP, GC and Secretary</officerTitle></reportingOwnerRelationship>
+  </reportingOwner>
+  <nonDerivativeTable>
+    <nonDerivativeTransaction>
+      <securityTitle><value>Common Stock</value></securityTitle>
+      <transactionCoding><transactionCode>S</transactionCode></transactionCoding>
+      <transactionAmounts>
+        <transactionShares><value>12819</value></transactionShares>
+        <transactionPricePerShare><value>220.00</value></transactionPricePerShare>
+      </transactionAmounts>
+    </nonDerivativeTransaction>
+  </nonDerivativeTable>
+</ownershipDocument>"""
+
+# What EDGAR actually serves at the primaryDocument path the old code used.
+_FORM4_RENDERED_HTML = ('<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">'
+                        '<html><body><table><tr><td>SEC Form 4<br></td></table></body></html>')
+
+
+def test_form4_url_strips_the_xsl_rendered_view():
+    """THE bug: EDGAR's `primaryDocument` for a Form 4 is the XSL-RENDERED HTML view
+    (xslF345X01-X06; 99.3% of 370,681 filings). Fetching it and parsing it as XML raises,
+    the raise was swallowed, and every ticker scored a constant 50. The raw XML lives at
+    the same path with that directory removed."""
+    from valuation.screener.insider import form4_xml_url
+    got = form4_xml_url(320193, "0001140361-26-025622", "xslF345X06/form4.xml")
+    assert got == ("https://www.sec.gov/Archives/edgar/data/320193/"
+                   "000114036126025622/form4.xml"), got
+    assert "xslF345" not in got
+    # every rendered prefix EDGAR uses, with the filing counts that motivated this
+    for pref in ("xslF345X01", "xslF345X02", "xslF345X03",
+                 "xslF345X04", "xslF345X05", "xslF345X06"):
+        assert "xsl" not in form4_xml_url(1, "0-0-0", f"{pref}/ownership.xml")
+    # a document that is ALREADY raw XML must pass through untouched
+    assert form4_xml_url(1, "0-0-0", "wf-form4_123.xml").endswith("/wf-form4_123.xml")
+
+
+def test_form4_parser_reads_a_known_good_filing():
+    """Fails if the parser returns empty for a real Form 4 — the regression that hid the
+    bug, since [] is indistinguishable from 'this insider transacted nothing'."""
+    from valuation.screener.insider import _parse_form4
+    txns = _parse_form4(_FORM4_XML)
+    assert txns, "a known-good Form 4 must not parse to an empty transaction list"
+    assert len(txns) == 1 and txns[0]["code"] == "S"
+    assert abs(txns[0]["value_usd"] - 12819 * 220.00) < 1e-6
+    # Pinning observed behaviour, not endorsing it: _role_multiplier matches the literal
+    # word "officer", so an isOfficer=true filer titled "SVP, GC and Secretary" gets the
+    # DIRECTOR weight of 1.0. Noted in HANDOFF_live_data_bugs.md; out of scope to retune
+    # here, since changing role weights moves every live score.
+    assert txns[0]["role_mult"] == 1.0
+
+
+def test_form4_parse_failure_raises_instead_of_scoring_neutral():
+    """The rendered HTML must RAISE, not silently become a neutral score. This is the
+    exact swallow (`except Exception: return out`) that made the signal a constant."""
+    from valuation.screener.insider import _parse_form4, Form4ParseError
+    try:
+        _parse_form4(_FORM4_RENDERED_HTML)
+    except Form4ParseError as e:
+        assert "document starts" in str(e), str(e)
+    else:
+        raise AssertionError("parsing EDGAR's rendered HTML must raise, not return []")
+
+
+def test_unreadable_insider_scores_none_not_fifty():
+    """'We could not read the filings' and 'we read them and saw nothing' must not collapse
+    to the same number. The old contract returned 50.0 for both."""
+    from valuation.screener import insider as I
+
+    class _Resp:
+        def __init__(self, text): self.text = text
+        def json(self): return {"filings": {"recent": {
+            "form": ["4"], "accessionNumber": ["0001140361-26-025622"],
+            "primaryDocument": ["xslF345X06/form4.xml"], "filingDate": ["2999-01-01"]}}}
+
+    import types
+    fake = types.SimpleNamespace(get=lambda *a, **k: _Resp(_FORM4_RENDERED_HTML))
+    real_import = __builtins__["__import__"] if isinstance(__builtins__, dict) else __builtins__.__import__
+
+    def _imp(name, *a, **k):
+        return fake if name == "requests" else real_import(name, *a, **k)
+
+    import builtins
+    orig_cik = I._edgar.resolve_cik
+    builtins.__import__, I._edgar.resolve_cik = _imp, (lambda t, c: 320193)
+    try:
+        d = I.insider_detail("AAPL")
+    finally:
+        builtins.__import__, I._edgar.resolve_cik = real_import, orig_cik
+    assert d["form4_seen"] == 1, d
+    assert d["parse_failures"] == 1, d
+    assert d["score"] is None, "an unreadable filing must not become a confident 50"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

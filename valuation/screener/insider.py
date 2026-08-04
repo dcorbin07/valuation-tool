@@ -7,11 +7,16 @@ real evidence behind it. We weight buys heavily, penalize sales, scale by role a
 reward multiple distinct buyers, then map to a 0–100 score (50 = neutral / no
 recent activity). Ported from the screener project's weighting scheme.
 
-Network-dependent (EDGAR); returns 50 (neutral) on any failure, so it never blocks.
+Network-dependent (EDGAR). A name with no recent Form 4 activity scores 50 (neutral),
+which is an honest answer. A name whose filings we FAILED to read scores `None` — not
+50 — because "we could not look" and "we looked and saw nothing" are different claims
+and collapsing them is what made this signal a constant for every ticker (see
+`form4_xml_url`).
 """
 from __future__ import annotations
 
 import math
+import re
 import datetime as _dt
 from xml.etree import ElementTree as ET
 
@@ -41,13 +46,41 @@ def _role_multiplier(rel_text: str) -> float:
     return ROLE_WEIGHTS["Dir"]
 
 
+class Form4ParseError(Exception):
+    """A Form 4 document could not be parsed as XML. Never swallowed into a neutral score."""
+
+
+# EDGAR's `primaryDocument` for a Form 4 is the XSL-RENDERED view — e.g.
+# `xslF345X06/form4.xml` — which despite the .xml suffix serves an HTML page
+# (`<!DOCTYPE html ...>`). Feeding that to ET.fromstring raises, and the old code
+# swallowed the raise and returned [], so EVERY name scored a neutral 50 on every run.
+# The raw XML sits at the SAME path with the `xslF345X0N/` directory removed.
+# Verified live 2026-08-04 on AAPL 0001140361-26-025622:
+#   .../000114036126025622/xslF345X06/form4.xml -> HTML, 18,351 bytes, ParseError
+#   .../000114036126025622/form4.xml            -> XML,   7,692 bytes, parses
+_XSL_RENDER_DIR = re.compile(r"^xslF345X\d{2}/", re.I)
+
+
+def form4_xml_url(cik: int, accession: str, primary_document: str) -> str:
+    """URL of the RAW Form 4 XML, not EDGAR's rendered HTML view."""
+    doc = _XSL_RENDER_DIR.sub("", (primary_document or "").strip())
+    return (f"https://www.sec.gov/Archives/edgar/data/{cik}/"
+            f"{(accession or '').replace('-', '')}/{doc}")
+
+
 def _parse_form4(xml_text: str):
-    """Return list of {code, value_usd, role_mult} from a Form 4 XML doc."""
+    """Return list of {code, value_usd, role_mult} from a Form 4 XML doc.
+
+    Raises Form4ParseError if the document is not parseable XML — the caller counts
+    and surfaces that. Returning [] here (the old behaviour) is indistinguishable from
+    "this insider genuinely transacted nothing", which is why the bug went unnoticed.
+    """
     out = []
     try:
         root = ET.fromstring(xml_text)
-    except Exception:
-        return out
+    except Exception as e:
+        head = (xml_text or "")[:80].replace("\n", " ")
+        raise Form4ParseError(f"{type(e).__name__}: {e} | document starts: {head!r}") from e
     # reporting owner role
     rel = root.find(".//reportingOwner/reportingOwnerRelationship")
     role_txt = ""
@@ -75,13 +108,20 @@ def _num(s):
         return None
 
 
-def insider_score(ticker: str, cfg=CONFIG, days: int = 90) -> float:
-    """0–100 quality-weighted insider signal (50 = neutral)."""
+def insider_detail(ticker: str, cfg=CONFIG, days: int = 90) -> dict:
+    """The scorer with its bookkeeping exposed.
+
+    Returns {score, form4_seen, parsed, parse_failures, fetch_failures, error}. `score`
+    is None whenever we could not read the filings we found — a refusal, not a neutral.
+    """
+    st = {"score": None, "form4_seen": 0, "parsed": 0, "parse_failures": 0,
+          "fetch_failures": 0, "error": ""}
     try:
         import requests
         cik = _edgar.resolve_cik(ticker, cfg)
         if cik is None:
-            return 50.0
+            st["error"] = "CIK not resolved"
+            return st
         sub = requests.get(f"https://data.sec.gov/submissions/CIK{cik:010d}.json",
                            headers=_headers(cfg), timeout=20).json()
         recent = sub.get("filings", {}).get("recent", {})
@@ -96,13 +136,21 @@ def insider_score(ticker: str, cfg=CONFIG, days: int = 90) -> float:
         for form, accn, doc, fdate in zip(forms, accns, docs, dates):
             if form != "4" or fdate < cutoff:
                 continue
-            acc = accn.replace("-", "")
-            url = f"https://www.sec.gov/Archives/edgar/data/{cik}/{acc}/{doc}"
+            st["form4_seen"] += 1
+            url = form4_xml_url(cik, accn, doc)
             try:
                 xml = requests.get(url, headers=_headers(cfg), timeout=20).text
-            except Exception:
+            except Exception as e:
+                st["fetch_failures"] += 1
+                st["error"] = st["error"] or f"fetch: {type(e).__name__}"
                 continue
-            txns = _parse_form4(xml)
+            try:
+                txns = _parse_form4(xml)
+            except Form4ParseError as e:
+                st["parse_failures"] += 1
+                st["error"] = st["error"] or str(e)
+                continue
+            st["parsed"] += 1
             filing_buy = False
             for t in txns:
                 cw = CODE_WEIGHTS.get(t["code"], 0.0)
@@ -114,20 +162,50 @@ def insider_score(ticker: str, cfg=CONFIG, days: int = 90) -> float:
             if filing_buy:
                 buyers += 1
 
+        # Found filings but read NONE of them: refuse rather than return a neutral that
+        # looks like evidence of no insider activity.
+        if st["form4_seen"] and st["parsed"] == 0:
+            return st
+
         if pressure == 0.0 and buyers == 0:
-            return 50.0
+            st["score"] = 50.0     # genuinely quiet (or no Form 4s in the window)
+            return st
         # squash: neutral 50, +/-40 by tanh, +cluster bonus for multiple buying filings.
         scale = 4000.0   # ~ sqrt($16M) reference
         score = 50.0 + 40.0 * math.tanh(pressure / scale)
         score += min(10.0, 3.0 * max(0, buyers - 1))
-        return float(max(0.0, min(100.0, score)))
-    except Exception:
-        return 50.0
+        st["score"] = float(max(0.0, min(100.0, score)))
+        return st
+    except Exception as e:
+        st["error"] = st["error"] or f"{type(e).__name__}: {e}"
+        return st
+
+
+def insider_score(ticker: str, cfg=CONFIG, days: int = 90):
+    """0–100 quality-weighted insider signal (50 = neutral), or None if unreadable.
+
+    None is deliberate: the old contract returned a confident 50 on every failure, and
+    since the URL was wrong for 99%+ of Form 4s, EVERY name scored exactly 50 forever.
+    """
+    return insider_detail(ticker, cfg, days)["score"]
 
 
 def enrich_insider(rows: list, cfg=CONFIG, top: int = 25) -> list:
-    """Attach insider_score to the top `top` rows (network calls; best-effort)."""
+    """Attach insider_score to the top `top` rows (network calls; best-effort).
+
+    Also attaches `insider_detail` so a run that silently reads nothing is visible in the
+    output instead of looking like a market with no insider activity.
+    """
+    unreadable = 0
     for r in rows[:top]:
-        s = insider_score(r["ticker"], cfg)
-        r.setdefault("extra", {})["insider_score"] = s
+        d = insider_detail(r["ticker"], cfg)
+        extra = r.setdefault("extra", {})
+        extra["insider_score"] = d["score"]
+        extra["insider_detail"] = {k: d[k] for k in
+                                   ("form4_seen", "parsed", "parse_failures", "fetch_failures")}
+        if d["score"] is None:
+            unreadable += 1
+    if unreadable:
+        print(f"  insider: {unreadable} of {len(rows[:top])} names unreadable "
+              f"(Form 4 fetch/parse failed) — scored None, not 50.")
     return rows
