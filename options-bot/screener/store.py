@@ -105,13 +105,63 @@ class Store:
         self.db.commit()
 
     def update_returns(self, run_date, ticker, **kw):
+        if not kw:
+            return
+        for k in kw:
+            if not k.replace("_", "").isalnum():
+                raise ValueError(f"bad column name: {k!r}")
         cols = ", ".join(f"{k}=?" for k in kw)
+        # Accept a date or an ISO string: `track_rows_needing` hands back the
+        # stored string, and requiring the caller to re-parse it is a papercut
+        # that would live in every call site.
+        rd = run_date if isinstance(run_date, str) else run_date.isoformat()
         self.db.execute(f"UPDATE track_record SET {cols} WHERE run_date=? AND ticker=?",
-                        (*kw.values(), run_date.isoformat(), ticker))
+                        (*kw.values(), rd, ticker))
         self.db.commit()
 
     def track_count(self):
         return self.db.execute("SELECT COUNT(*) FROM track_record").fetchone()[0]
+
+    # ---- C4: the tracking loop's own instrumentation ----
+    #
+    # `track_count` is a ROW count, and a row count was the only guard on the
+    # self-review. Rows were being written on every run; the return columns
+    # were never written at all, because nothing called `update_returns`. So
+    # the guard passed, the review ran, and it assessed a table of NULLs. A
+    # guard whose input is computed elsewhere is not a guard.
+
+    def track_rows_needing(self, column):
+        """(run_date, ticker, entry_price) for rows whose `column` is still NULL."""
+        if not column.replace("_", "").isalnum():
+            raise ValueError(f"bad column name: {column!r}")
+        return self.db.execute(
+            f"SELECT run_date, ticker, entry_price FROM track_record "
+            f"WHERE {column} IS NULL AND entry_price IS NOT NULL "
+            f"ORDER BY run_date"
+        ).fetchall()
+
+    def track_coverage(self, columns=("ret_7", "ret_30", "ret_90")):
+        """
+        {column: filled_row_count} plus "rows" — the denominator.
+
+        This is the number the review guard reads. It is deliberately measured
+        here, against the table itself, rather than passed in by whatever just
+        finished writing to it.
+        """
+        total = self.track_count()
+        out = {"rows": total}
+        for c in columns:
+            if not c.replace("_", "").isalnum():
+                raise ValueError(f"bad column name: {c!r}")
+            out[c] = self.db.execute(
+                f"SELECT COUNT(*) FROM track_record WHERE {c} IS NOT NULL").fetchone()[0]
+        return out
+
+    def mark_delisted(self, run_date, ticker):
+        self.db.execute(
+            "UPDATE track_record SET delisted=1 WHERE run_date=? AND ticker=?",
+            (run_date if isinstance(run_date, str) else run_date.isoformat(), ticker))
+        self.db.commit()
 
     # ---- alerts & spend ----
     def log_alert(self, ts, ticker, kind, detail):
