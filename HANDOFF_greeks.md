@@ -139,8 +139,8 @@ recorded reason, and they sum exactly to the shortfall — nothing is dropped un
 | `iv_unsolved` | 0 | — | the bisection never failed on a row that reached it |
 
 That 47.1% is not a defect — it is the deliberate refusal to publish an IV where the mid cannot
-support one, and two thirds of the skips are quote-quality or out-of-band rather than solver
-failure. The names that matter are covered: **735,226 name-dates**, essentially every trading day
+support one: **81.5% of the skips are an unusable quote or a row outside the moneyness/DTE band**,
+and the solver itself failed on zero rows. The names that matter are covered: **735,226 name-dates**, essentially every trading day
 of every mined name.
 
 ## The flags — investigated, not silenced
@@ -163,7 +163,7 @@ need to read differently):
   and 328 — with 5 strikes, one strike holding most of the gamma is arithmetic. But **18 pegged
   names have normal-thickness chains** (AFL, AZN, CCJ, CSX, DB, FLEX, HIG, HPE, KKR, KMI, NU, OKE,
   PCG, SO, SYY, VALE, WBD, WMB — enumerated when the layer stood at 85 pegged names, before the
-  last 35 names were added); those are finding 5, not thin chains — their OI coverage on pegged
+  last 25 were added); those are finding 5, not thin chains — their OI coverage on pegged
   dates is 0.80 against 1.00 elsewhere. **Read: GEX is not a usable number for the thin names, and
   is coverage-conditional for the rest.**
 - **`zero-gamma not found` — 26 names** (ALAB, APP, AU, AXON, BE, CCJ, CLS, COHR, COR,
