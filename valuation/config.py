@@ -252,6 +252,26 @@ class Config:
     # "Reversing this" in HANDOFF_appfixes.md.
     private_mode: bool = field(default_factory=lambda: _get("PRIVATE_MODE", "true").lower() != "false")
 
+    # PORTFOLIO_PAGE — the ONE deliberate hole in private mode, and its own flag on purpose.
+    #
+    # Don job-hunts with this project as his portfolio piece, so he needs a single URL a
+    # recruiter can open. That is a different question from "is Valquo a product", which is
+    # what `private_mode` answers, so it gets a separate switch: the page can be on while the
+    # whole rest of the instance stays locked to the owner, and turning it off later cannot
+    # accidentally unlock anything else.
+    #
+    # It is safe to open ONLY because of what the page is: static prose about method, with
+    # research statistics Don computed himself. It reads no store, calls no API and renders no
+    # vendor row, so no ThetaData or Sharadar licence term is engaged by a stranger loading it
+    # (that claim is pinned by tests, not asserted here). Everything a licence would care
+    # about — scores, holdings, the Index, the track, any /api route — stays refused.
+    #
+    # PORTFOLIO_PATH is the URL. It is env-overridable so Don can move the page to something
+    # unguessable without a code change, and validated (`resolved_portfolio_path`) because a
+    # typo'd value here is the one way this flag could open more than one page.
+    portfolio_page: bool = field(default_factory=lambda: _get("PORTFOLIO_PAGE", "true").lower() != "false")
+    portfolio_path: str = field(default_factory=lambda: _get("PORTFOLIO_PATH", "/work"))
+
     # OPEN_ACCESS — Valquo is free and open: every feature available to everyone, no
     # account required, no checkout. This is a FLAG, not a deletion: all the tier,
     # gating and Stripe code is untouched, so OPEN_ACCESS=false restores the paid,
@@ -295,6 +315,42 @@ class Config:
         `open_access`.
         """
         return (not self.private_mode) and self.open_access
+
+    #: Prefixes the portfolio page may never be mounted on. Each one is either an access
+    #: boundary or a route that already exists, and a portfolio page sitting on top of one
+    #: would either shadow it or hand its path an anonymous door. Flask keeps the FIRST rule
+    #: registered for a path, so a collision would fail silently rather than loudly — which is
+    #: exactly why this is checked here instead of being left to whoever sets the env var.
+    _PORTFOLIO_RESERVED = ("/api", "/admin", "/static", "/login", "/logout", "/register",
+                           "/forgot", "/reset", "/account", "/billing", "/app", "/demo",
+                           "/alerts", "/pricing", "/terms", "/privacy", "/methodology",
+                           "/robots.txt")
+
+    @property
+    def resolved_portfolio_path(self) -> str:
+        """Where the portfolio page is mounted — validated, never trusted raw.
+
+        Falls back to the default rather than raising: a bad PORTFOLIO_PATH should cost Don
+        the URL he expected, not the whole deploy. The rejections that matter are "/" (which
+        would put a public page on the app's own root) and anything under a reserved prefix.
+        """
+        p = (self.portfolio_path or "").strip()
+        if p and not p.startswith("/"):
+            p = "/" + p
+        p = p.rstrip("/")
+        if (len(p) < 2 or "<" in p or ">" in p
+                or any(p == r or p.startswith(r + "/") for r in self._PORTFOLIO_RESERVED)):
+            return "/work"
+        return p
+
+    @property
+    def portfolio_page_enabled(self) -> bool:
+        """One named read, so nothing else has to know the flag's name.
+
+        Independent of `private_mode` in BOTH directions: the page can be open on a locked
+        instance (its reason for existing), and turning it off never re-locks anything else.
+        """
+        return bool(self.portfolio_page)
 
     @property
     def signup_enabled(self) -> bool:
