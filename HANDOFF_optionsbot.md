@@ -69,6 +69,65 @@ and recorded — and none is left in the third state ("fixed in repo, not deploy
 
 ---
 
+---
+
+# READ THIS FIRST — a LIVE bug, found while doing C1
+
+## The insider component of the live screener is a constant. It has always been.
+
+Not a backtest artefact. This is in the deployed path, right now.
+
+`filings.recent.primaryDocument` for a Form 4 is EDGAR's **XSL-RENDERED** view —
+`xslF345X03/ownership.xml` — which serves **HTML**, not XML. Measured across the
+**370,681** Form 4 filings indexed for the C1 backtest: **99.3% carry an `xsl`
+prefix** (xslF345X01 through X06; the largest, X03, accounts for 232,281).
+
+`edgar.get_insider_txns` built exactly that URL. `_parse_form4_xml` called
+`ET.fromstring` on the HTML, raised `ParseError`, **caught it, and returned `[]`**.
+And `scoring.insider_score([])` is *documented* to mean "fetched, nothing
+qualifying" — so it returns a confident, neutral **50.0**.
+
+**Every name, on every run, scored exactly 50 on insider.** That component
+carries **20% of the Established weight and 30% of the Speculative weight**.
+
+Measured directly before the fix: **597 documents fetched, 597 parsed to zero
+transactions, none non-empty.** After the fix, Alcoa's five most recent Form 4s
+parse to five real transactions with named insiders, codes and dollar values
+(`Reed Matthew T`, code `S`, $215,372).
+
+Two things make this worth leading with:
+
+* **It is the same defect the project already found once and wrote up.** The
+  record says of `dcf_upside`: *"a 35% weight that is a constant is not a factor,
+  it is a rounding error with extra steps."* That one was a missing computation
+  and was found by someone going looking. This one **hid behind an exception
+  handler**, which produces identical symptoms and is much harder to see.
+* **Returning `[]` for a fetch failure is what let it survive.** `insider_score`
+  is built on a careful three-way distinction — `None` means "not fetched" and
+  renormalizes away, `[]` means "looked, found nothing" and scores a real neutral
+  50. Collapsing a total fetch failure into the second bucket made the failure
+  indistinguishable from an observation. **A silent `except` that returns the
+  same value as success is not error handling.**
+
+**Fixed.** `edgar.raw_form4_doc()` strips the renderer prefix at both URL
+construction sites — the live `get_insider_txns` and the backtest's
+`form4_index` — and the `ParseError` path now logs a WARNING stating it is a
+FETCH error rather than an empty filing. 10 tests
+(`screener/tests/test_form4_url.py`), including one that asserts five DIFFERENT
+filings through the broken path all score exactly 50.0, because zero
+cross-sectional dispersion is what a constant looks like in a cross-section.
+
+**What this means for the record.** Every historical statement about the live
+screener's insider component describes a constant. The audit's C1 note that "the
+insider component has therefore never been backtested in any form" is true, and
+understated: it was also never *computed* in production. Nothing that has ever
+been said about insider signal quality in this system rests on data.
+
+**→ This should ship.** It is a one-line behavioural change in the live scorer's
+largest single non-value input, and it is on `main` in this lane's branch.
+
+---
+
 ## A correction to the work order, found while doing it
 
 **C3 does not live where the audit says it lives.** The entry points at
@@ -434,15 +493,60 @@ horizon, 8 bps/side, corrected universe, IWM benchmark:
    outstanding are missing that often on the EDGAR path. That is a coverage
    problem worth its own look before anyone re-runs this.
 
-**Insider: still not measured, and that is a real gap.** The 20-30% of live
-weight the audit flags as never backtested is still never backtested. The
-machinery now exists — `edgar.form4_index` walks the paginated submissions
-shards (`filings.recent` is capped at ~1,000 filings of all types, so for an
-active filer it can cover under a year: a live feed, not a history), and
-`panel_cache.insider_asof` replays "the six most recent Form 4s filed on or
-before this date", pinned by 11 point-in-time tests. The fetch is running. The
-number above is the live model **minus** its insider component and is labelled
-that way everywhere, including in the report the script prints.
+## Insider: still not measured — and now the cost of measuring it is a number
+
+The 20-30% of live weight the audit flags as never backtested is still never
+backtested. This is the one part of the lane's scope I did not finish, and the
+reason is quantitative, not a shrug.
+
+**The machinery is built and tested.** `edgar.form4_index` walks the paginated
+submissions shards — `filings.recent` is capped at ~1,000 filings of ALL types,
+so for an active filer it can cover under a year, which makes it a live-screener
+feed and not a history; nothing before this could replay the live insider input
+at all. `panel_cache.insider_asof` replays "the six most recent Form 4s filed ON
+OR BEFORE this date" and is pinned by 11 point-in-time tests, including that the
+window actually MOVES with the date (a replay returning the same six filings
+every month would look fine and be a constant) and that None ("not fetched",
+renormalizes away) stays distinct from [] ("looked, found nothing", a neutral 50).
+
+**Measured cost, not estimated.** The index walk ran to 482 of 1,017 gated
+filers and reported the union of documents any (name, date) pair would request:
+
+| filers indexed | documents queued |
+|---|---|
+| 300 | 35,163 |
+| 375 | 44,233 |
+| 450 | 52,132 |
+
+That extrapolates to **~120,000 Form 4 documents** for the full universe. Sustained
+document-fetch rate, measured over two minutes on an otherwise idle machine:
+**43 documents/minute** (~1.4 s round trip — latency-bound, not bandwidth-bound;
+`edgar._MIN_INTERVAL` of 0.12 s is nowhere near binding). That is **~46 hours** of
+serial crawling.
+
+So this is a scheduled job, not a session task, and running it unattended against
+a public API for two days was not something to start and walk away from. The
+cache is incremental and resumable — 482 filer indexes are already on disk, and
+nothing already fetched is ever re-fetched.
+
+**To finish it:**
+
+```
+cd options-bot/screener
+EDGAR_USER_AGENT="..." python run_backtest.py --model live --universe target \
+    --band 500 2000 --prefetch-only        # resumable; ~46h serial as written
+EDGAR_USER_AGENT="..." python run_backtest.py --model both --universe target \
+    --band 500 2000                        # then this is fast, all cached
+```
+
+**The obvious optimisation, deliberately not done here:** EDGAR permits ~10
+req/s and we are achieving 0.7. A small thread pool in `panel_cache.form4_txns`
+would cut this to a few hours. I did not add it because a concurrency bug against
+a rate-limited public API fails by getting the IP blocked, and that is a bad thing
+to discover unattended — it wants a deliberate run with someone watching.
+
+Everything reported above is therefore the live model **minus** its insider
+component, labelled that way in this file and in the report the script prints.
 
 **One deliberate simplification, stated so it is not mistaken for an oversight:**
 the live pipeline's `market_cap_eligible` lets a name past the $10B ceiling if it
