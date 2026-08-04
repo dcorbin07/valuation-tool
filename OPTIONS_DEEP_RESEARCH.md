@@ -59,7 +59,28 @@ often IS the edge. Test whether a smart exit beats fixed **even on the current/r
 Basis: optimal-stopping / convexity literature; the well-known asymmetry that long-option P&L is dominated by
 exit discipline, not entry.
 
-### 2. Cross-sectional option returns — HIGH (the most "published research" of the lot)
+### 2. Cross-sectional option returns — **DONE 2026-08-03. REJECT.** `HANDOFF_deep_xsection.md`
+- **3,373 one-month ATM straddles, 242 names, 117 months (2016-02 to 2025-10), full mined universe,
+  both legs bought at the ASK, held to expiry and settled at intrinsic.** Coverage 82-100% on all
+  six characteristics — nothing here is a coverage artefact.
+- **Nothing clears the gate. Zero BH-FDR discoveries at q=0.10** (smallest p 0.291). PBO 41.4%.
+- **`iv_rv` — Goyal-Saretto does NOT replicate**: monotonicity **+0.20**, i.e. no ordering in
+  either direction, on the characteristic with the strongest published prior. Q1 excess t -0.69.
+- **`idio_vol` CONTRADICTS Cao-Han**: a clean **+0.90** sort running the WRONG way — high-idio-vol
+  straddles earned MORE (+0.110 vs +0.033). Reported as a contradiction, never re-signed into a
+  result; the sign was declared before the panel existed so flipping it was not available. Caveat:
+  the instrument is a straddle, not a delta-hedged call, so this may be the instrument not the market.
+- `idio_skew` (t +0.68) and `illiq` (t +1.06) have the right sign and no magnitude against MIN_T=2.0.
+  `illiq` is a MECHANICAL CONTROL and can never be adopted — that it sorts (mono -0.70, the cleanest
+  in the table) is the evidence the panel measures what it thinks it does.
+- The long-short Q1-Q5 is shipped but was never the basis of any verdict: its short leg is a naked
+  short straddle. The key is named `long_short_NOT_INVESTABLE` so it cannot be quoted by accident.
+- **NOT affected by audit item B1** (the adjusted-close price-basis bug that hits threads 22c and #1):
+  this module uses `raw_close` for every option calculation.
+- **Read this before running thread #3 (VRP done right)** — #2 is the cheap version of the same
+  question and it rejected.
+
+### 2b. Cross-sectional option returns — the original brief, kept for the record
 We've never run a pure cross-sectional study of WHICH names' options are systematically cheap/rich. Replicate
 the real documented edges on our ~370-name × decade cache:
 - **Variance risk premium cross-section** (Goyal–Saretto 2009): sort on (IV − realized vol); rich-IV names have
