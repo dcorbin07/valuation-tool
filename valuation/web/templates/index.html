@@ -45,12 +45,19 @@
       <div>
         <h1>Valquo</h1>
         <div class="tagline">Live-data DCF · bull / base / bear · 1–100 opportunity score · AI analysis</div>
+        {# Says what this instance IS, on the one page the owner actually works in. Not a
+         # disclaimer for anyone else's benefit — there is nobody else — but a standing
+         # reminder of the licence posture the vendor data is used under, so that "share a
+         # screenshot of the hot list" is a decision rather than a reflex. #}
+        {% if private_mode %}<div class="tagline" style="opacity:.75">Private research tool — personal use only. Vendor data under individual licences; not for redistribution.</div>{% endif %}
       </div>
     </div>
     <div class="hdr-actions">
       <button class="icon-btn" id="themeBtn" onclick="toggleTheme()" title="Switch between light and dark"
               aria-label="Toggle dark mode">🌙</button>
-      <a class="hdr-link" href="{{ feedback_url }}">Send feedback</a>
+      {# "Send feedback" addresses a user of a service. Under private mode the only reader is
+       # the person the mailto points at, so it is off — one less surface implying customers. #}
+      {% if not private_mode %}<a class="hdr-link" href="{{ feedback_url }}">Send feedback</a>{% endif %}
       {% if signed_in %}<a class="hdr-link" href="{{ logout_url }}">Sign out</a>{% endif %}
     </div>
     <div class="tabs">

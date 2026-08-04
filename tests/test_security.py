@@ -29,6 +29,13 @@ FAKE_KEY = "DkkPylwVxZZ91CAiCOhXshz7fQbETlUS"
 from valuation.config import CONFIG                      # noqa: E402
 from valuation.saas.app_saas import create_saas_app      # noqa: E402
 
+# private_mode ships default TRUE and refuses every non-owner before any route runs, which
+# would make most of the findings below untestable — a lockdown trivially "passes" an
+# account-enumeration or signup test by refusing the request. These tests exist to prove the
+# PUBLIC product is safe, because that is the product `PRIVATE_MODE=false` restores, so the
+# suite runs against it. The lockdown has its own suite: tests/test_private.py.
+CONFIG.private_mode = False
+
 APP = create_saas_app(CONFIG)
 APP.config.update(TESTING=True)
 

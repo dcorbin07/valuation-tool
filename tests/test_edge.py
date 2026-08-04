@@ -1124,18 +1124,24 @@ def test_signup_surfaces_follow_the_open_access_flag():
     flag rather than a code change. Login must NOT be gated — existing accounts still sign in.
     """
     from valuation.config import Config
-    open_free = Config(open_access=True, feature_billing="")
+    # private_mode=False throughout: this test is about the PUBLIC product's flags, and
+    # private mode switches all of them off by design (see test_private.py, which asserts
+    # exactly that). Passing it explicitly rather than relying on the default keeps the two
+    # concerns from silently merging when the default changes again.
+    def C(**kw):
+        return Config(private_mode=False, **kw)
+    open_free = C(open_access=True, feature_billing="")
     assert open_free.signup_enabled is False
     assert open_free.billing_enabled is False
-    paid = Config(open_access=False, feature_billing="")
+    paid = C(open_access=False, feature_billing="")
     assert paid.signup_enabled is True, "turning open access off restores the paid product"
     # FEATURE_BILLING is an explicit override in both directions.
-    assert Config(open_access=True, feature_billing="on").signup_enabled is True
-    assert Config(open_access=False, feature_billing="off").signup_enabled is False
+    assert C(open_access=True, feature_billing="on").signup_enabled is True
+    assert C(open_access=False, feature_billing="off").signup_enabled is False
     for v in ("On", "TRUE", "1", "yes"):
-        assert Config(open_access=True, feature_billing=v).signup_enabled is True, v
+        assert C(open_access=True, feature_billing=v).signup_enabled is True, v
     for v in ("off", "False", "0", "no"):
-        assert Config(open_access=False, feature_billing=v).signup_enabled is False, v
+        assert C(open_access=False, feature_billing=v).signup_enabled is False, v
 
 
 def test_no_ungated_signup_or_pricing_links_in_templates():

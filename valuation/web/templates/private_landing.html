@@ -1,0 +1,31 @@
+{# The holding page an anonymous visitor gets under PRIVATE_MODE, on ANY gated path.
+ #
+ # Rendered by app_saas._guard with a 401, in place of landing.html. It is deliberately not a
+ # smaller version of the marketing page: no sample valuation, no track record, no screenshot,
+ # no feature list, no signup. Those are all product surfaces, and the licence posture this
+ # page exists to express is that there is no product — Valquo's market data comes from
+ # vendors whose individual plans permit personal use and forbid redistribution, so a page
+ # that shows a stranger any vendor-derived number is the thing to avoid.
+ #
+ # Path-agnostic on purpose: the same page answers /, /pricing, /terms and /api-less deep
+ # links, so it cannot say anything about what the visitor was trying to reach.
+ #
+ # Not deleted, just unused when PRIVATE_MODE=false — landing.html is untouched and returns. #}
+{% extends "_saas_base.html" %}
+{% block title %}Valquo — private research tool{% endblock %}
+{% block body %}
+<div class="wrap" style="max-width:640px;padding-top:64px;padding-bottom:64px">
+  <div class="card">
+    <h1 style="color:var(--navy);margin:0 0 12px;font-size:24px">Valquo</h1>
+    <p style="margin:0 0 16px">{{ message }}</p>
+    <p class="muted" style="font-size:14px;margin:0 0 20px">
+      There is no public version, no sign-up and nothing for sale here. If you were looking
+      for a stock screener, this is not one you can use.
+    </p>
+    <a href="/login" class="btn">Log in</a>
+  </div>
+  <p class="muted" style="font-size:12px;margin-top:18px;text-align:center">
+    Educational research only. Nothing produced by this tool is investment advice.
+  </p>
+</div>
+{% endblock %}

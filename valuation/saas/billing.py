@@ -22,6 +22,15 @@ def _price_to_tier(cfg, price_id):
 def register(app, store, cfg):
     @app.route("/billing/checkout", methods=["POST"])
     def checkout():
+        # Private mode: no payment can be initiated, and the reason is stated plainly rather
+        # than disguised as a misconfiguration. `billing_enabled` is already false under
+        # private mode so the check below would catch it anyway — but "Billing isn't
+        # configured (set STRIPE_SECRET_KEY)" would be a lie, and it invites someone to
+        # "fix" it by setting a key, which would not in fact re-enable checkout.
+        if cfg.private_mode:
+            return jsonify({"error": "Valquo is a private personal research tool. It is not "
+                                     "for sale and no subscription exists.",
+                            "private_mode": True}), 403
         user = current_user(store)
         if not user:
             return redirect("/login?next=/pricing")
@@ -54,6 +63,11 @@ def register(app, store, cfg):
 
     @app.route("/billing/portal", methods=["POST"])
     def portal():
+        # Same posture as checkout: under private mode there is no subscription to manage,
+        # so this refuses rather than bouncing to /account as though one might appear.
+        if cfg.private_mode:
+            return jsonify({"error": "Valquo is a private personal research tool. There is "
+                                     "no subscription to manage.", "private_mode": True}), 403
         user = current_user(store)
         if not user or not user.get("stripe_customer_id"):
             return redirect("/account")

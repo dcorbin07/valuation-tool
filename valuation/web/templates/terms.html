@@ -2,11 +2,22 @@
 {% block title %}Terms of Service{% endblock %}
 {% block body %}
 <div class="wrap" style="padding:40px 22px;max-width:820px">
+  {# Kept, not deleted: these terms describe the PUBLIC product and become live again the day
+   # PRIVATE_MODE is turned off. Saying so is more honest than leaving a service agreement
+   # sitting on an instance that has no users and offers no service. #}
+  {% if private_mode %}
+  <div class="err" style="background:#eaf0fb;color:#1f3864;border-color:#d8e4fb">
+    <b>Not in force.</b> Valquo is currently a private research tool for its owner's personal use — there is no
+    service, no user and no subscription for these terms to govern. They are retained for the public product and
+    apply again only if it is offered to anyone.
+  </div>
+  {% else %}
   <div class="err" style="background:#fbf1e0;color:#8a5a12;border-color:#f0dcb8">
     ⚠ <b>DRAFT — attorney review required before publishing</b>, especially <b>§3 (what this is NOT)</b> and
     <b>§8 (liability cap)</b> — the two clauses that matter most for a product that outputs stock signals. Written in
     plain English on purpose; the attorney can formalize. Replace every <code>[bracketed]</code> item and set the date.
   </div>
+  {% endif %}
   <h1 style="color:var(--navy)">Terms of Service</h1>
   <p class="muted"><b>Effective date:</b> [DATE PUBLISHED]</p>
 
