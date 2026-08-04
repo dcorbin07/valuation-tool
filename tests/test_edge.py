@@ -4503,8 +4503,15 @@ def test_audit_b6_the_calendar_is_truncated_once_not_per_ticker():
     assert "if days:" in src, "the per-ticker tail must be conditional, never unconditional"
 
     psrc = inspect.getsource(FP.build_fundamental_panel)
-    assert "provider.price_history(t, days=None)" in psrc, \
+    assert "provider.price_history(t, days=(_CAL_DAYS if _B6_LEGACY else None))" in psrc, \
         "the panel must ask for the WHOLE series and cut the calendar itself"
+    # The legacy path survives ONLY as an attribution toggle, and must default to OFF: B6, B7
+    # and B13 landed together, so each needs to be revertible alone to be measured alone.
+    assert 'environ.get("EDGE_AUDIT_B6_LEGACY_TRUNCATION", "").lower() == "true"' in psrc, \
+        "the legacy truncation must be env-gated and off unless explicitly asked for"
+    import os as _o
+    assert _o.environ.get("EDGE_AUDIT_B6_LEGACY_TRUNCATION", "").lower() != "true", \
+        "the test suite must run against the CORRECTED calendar"
     assert "_CAL_DAYS" in psrc and "frame.iloc[-_CAL_DAYS:]" in psrc
     # the cut must come BEFORE the ffill, or a name with no data in the window gets filled into it
     assert psrc.index("frame.iloc[-_CAL_DAYS:]") < psrc.index("frame = frame.ffill()")

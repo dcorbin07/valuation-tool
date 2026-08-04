@@ -933,8 +933,16 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     # memory: the frame was ALWAYS the union calendar, this only stops it being mostly holes.
     _CAL_DAYS = TD * lookback_years + horizon + 60
 
+    # ATTRIBUTION TOGGLES (default OFF — the shipped behaviour is the corrected one).
+    # B6, B7 and B13 all landed in the same commit and all three move the panel, which
+    # breaks the one-change-per-run rule. These exist so each can be reverted ALONE and
+    # its own contribution to the headline measured. They are diagnostics, not options.
+    import os as _os_attr
+    _B6_LEGACY = _os_attr.environ.get("EDGE_AUDIT_B6_LEGACY_TRUNCATION", "").lower() == "true"
+    _B13_OFF = _os_attr.environ.get("EDGE_AUDIT_B13_PREFILTER", "").lower() == "off"
+
     def series(t):
-        d, c = provider.price_history(t, days=None)
+        d, c = provider.price_history(t, days=(_CAL_DAYS if _B6_LEGACY else None))
         return pd.Series(c, index=pd.to_datetime(d)) if (d and c and len(c) > TD) else None
 
     bench = series(benchmark)
@@ -1018,7 +1026,9 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     # forward-filled into it from outside. `_cal_full` records what was available so the
     # discarded span is a reported number rather than an invisible default.
     _cal_full = (str(frame.index[0].date()), str(frame.index[-1].date()), int(len(frame.index)))
-    if _CAL_DAYS and len(frame.index) > _CAL_DAYS:
+    if _B6_LEGACY:
+        pass                      # legacy: each ticker already truncated itself, union calendar
+    elif _CAL_DAYS and len(frame.index) > _CAL_DAYS:
         frame = frame.iloc[-_CAL_DAYS:]
     frame = frame.ffill()
     # Survivorship correction. The ffill() above carries each name's last close to the END
@@ -1134,7 +1144,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # and the 236 bps breakeven was computed on that book.
             _cat = str(m.get("_category") or "")
             m["is_fund"] = bool("ETF" in _cat.upper() or "FUND" in _cat.upper())
-            _keep, _why = _prefilter(m)
+            _keep, _why = (True, "") if _B13_OFF else _prefilter(m)
             if not _keep:
                 _pf_rejects[_why] = _pf_rejects.get(_why, 0) + 1
                 continue
@@ -1552,9 +1562,19 @@ def composite(Z, wv):
 
 
 def composite_from_frame(sub, cols, weights, zscore):
-    """`composite` over a per-date slice whose columns still need standardising."""
+    """`composite` over a per-date slice whose columns still need standardising.
+
+    ATTRIBUTION TOGGLE (default OFF): `EDGE_AUDIT_B7_LEGACY_COMPOSITE=true` restores the old
+    MEASUREMENT convention — a plain weighted sum with missing themes read as 0.0, i.e. as
+    exactly average. Selection (`composite` called directly) always renormalised and is left
+    alone, which is precisely the disagreement B7 removed. This exists to measure B7's own
+    contribution to the headline, not as a supported mode.
+    """
+    import os as _os_b7
     Z = np.column_stack([zscore(sub[c]).values for c in cols])
     wv = np.array([float(weights.get(c, 0.0)) for c in cols], dtype=float)
+    if _os_b7.environ.get("EDGE_AUDIT_B7_LEGACY_COMPOSITE", "").lower() == "true":
+        return np.nansum(np.where(~np.isnan(Z), Z, 0.0) * wv, axis=1)
     return composite(Z, wv)
 
 
