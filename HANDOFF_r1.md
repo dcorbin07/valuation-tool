@@ -348,3 +348,59 @@ the entire remaining edge. A pass says the reverse: **there is a residual worth 
 
 Suites: **18 files run, all green except 3 pre-existing `test_paper_track.py` hero failures that
 fail identically on `main` and belong to another lane.** `test_edge.py` 191/191.
+
+---
+---
+
+# PART II — FRAGILITY: trying to break the result
+
+Same `r1` lane, same object, continuation. Prompt: `PROMPT_r1_fragility.md`.
+
+R1 returned the strongest positive finding in the project, and it was produced **before two Part I
+corrections that change its own inputs** — **B6** (panel truncation: the first ~37 of 110 periods
+contain only names that stopped trading by roughly 2019, an inverted universe) and **B7** (three
+composites collapsing to one: the top-decile series comes from the *measurement* composite, which
+does not renormalise for missing themes). Neither invalidates Part I. Both mean **R1 is
+provisional until re-run.** This part measures how fragile it is, using only what already exists.
+
+## 6. PRE-COMMITMENT — written before any fragility number was run
+
+*Written and committed before a single cut was computed. Not revised below.*
+
+> **The R1 headline is FRAGILE if** the FF5+MOM alpha loses significance (NW t ≤ 2.0) under the
+> stable-universe window, **OR** flips sign in either half, **OR** more than half the total alpha
+> is attributable to the ≤5 best periods, **OR** the result depends on a single factor-model
+> specification.
+>
+> **It is ROBUST if** it clears t > 2.0 in every one of those cuts.
+>
+> **An ambiguous cut is recorded as ambiguous, not resolved in the result's favour.**
+
+### 6a. Operational definitions, fixed now so they cannot be chosen to suit the answer
+
+- **"Stable-universe window"** = rebalance dates from 2008-01-01 onward. This is the same
+  `ex_b6_first_37` cut already reported in Part I §2e (it begins 2008-04-10), named here in
+  advance so the test cannot be re-cut afterwards.
+- **"Flips sign in either half"** = the FF5+MOM intercept is negative in the first or second half
+  of the sample by period count.
+- **"Attributable to the ≤5 best periods"** = per-period alpha contribution is defined as
+  `a_t = y_t − β·f_t` (the fitted intercept plus that period's residual). These sum to
+  `n × alpha` by construction, so "share from the best k" is `sum(top-k a_t) / sum(all a_t)`.
+  The criterion trips if the best 5 periods account for **> 50%** of the total.
+- **"Depends on a single specification"** = the intercept clears t > 2.0 under FF5+MOM but fails
+  it under any one of CAPM, FF3, FF5-without-momentum, q4 or q5.
+- **Inference** stays Newey–West lag 1 throughout, as pre-registered in Part I §1b.
+
+### 6b. What I expect, recorded in advance
+
+The stable-universe window will **lower** the alpha — Part I already showed +8.81% → +6.58% on
+that cut, and B6 proper should push in the same direction, because the inverted early universe is
+where the raw spread is largest (+15.40%/yr in the first half vs +8.93% in the second). I expect
+it to stay significant. I expect **concentration to be the cut most likely to trip**, because a
+long-short-style spread over 109 periods with a handful of crisis quarters is exactly the shape
+that hides in a few observations. I expect model sensitivity to be mild, since Part I already ran
+q4 and q5 and both agreed.
+
+## 7. Result
+
+*(written after section 6 was committed)*
