@@ -13,6 +13,49 @@ file directly.
 
 ---
 
+## THE APP IS NOW PRIVATE — OWNER ONLY (2026-08-04, app-fixer lane)
+
+Full write-up: **`HANDOFF_appfixes.md`** (Session 9). Prompt: `PROMPT_appfixer_private.md`.
+
+**Valquo is now a personal research tool, not a product.** This is a deliberate LICENCE
+posture: ThetaData's Individual plan and Sharadar's individual terms permit personal use and
+forbid redistribution or business use. One user, no commercial activity, nobody else reading
+vendor-derived numbers => those terms are cleanly satisfied.
+
+- **One flag: `PRIVATE_MODE`, default `true`** (`valuation/config.py`, declared in
+  `render.yaml`). Read in two places only: three derived `Config` properties, and
+  `valuation/saas/private.py`, which owns the request policy and is called first in `_guard`.
+- **It outranks `OPEN_ACCESS`, `BETA_ALL_PREMIUM`, `FEATURE_BILLING=on` and a configured
+  Stripe key** — each asserted separately. Anonymous visitors and signed-in non-owners get a
+  plain holding page or a 401; the recruiter `/demo` link is refused; no payment can be
+  initiated (checkout/portal 403).
+- **NOTHING DELETED.** Every tier, route, template and Stripe path is intact and still tested.
+  `PRIVATE_MODE=false` restores the public product — `tests/test_saas.py` and
+  `tests/test_security.py` now run with it off precisely to keep that a tested claim.
+- **The crons are unaffected.** All `/admin/*` routes reach their `X-Admin-Token` check
+  unchanged (they never used a session); pinned by a test that uses a deliberately wrong token
+  so it cannot accidentally run a scan.
+- **Vendor audit done.** No raw ThetaData and no raw Sharadar rows are exposed on any page or
+  API route. Sharadar reaches the web only via owner-only `/api/edge/*`, which returns
+  aggregate statistics (walk-forward folds, ICs, Sharpes, counts). Derived constants measured
+  on licensed panels do exist in `screener/settings.py` and `edge/options_paper.py` — reported
+  as the separate category they are. Per-surface table in `HANDOFF_appfixes.md`.
+- **THE FORWARD TRACK IS NOW BACKED UP INTO GIT.** It was single-homed on one Render disk and
+  is the only dataset in this project that cannot be re-derived. New weekly `track-backup`
+  GitHub Actions workflow pulls `/admin/export-track` and commits `data_export/`
+  (`paper_track_history.json` + three CSVs + a README). Rewrite-in-full and deterministic;
+  **refuses to commit an export with fewer index days than the one already committed**, so a
+  service that comes up on a fresh disk cannot silently erase months of record. Don gets it
+  with `git pull`. **Run it once by hand from the Actions tab before ever touching Render.**
+- Tests: **`tests/test_private.py`, 22 new.** All suites green.
+
+**Not yet done / needs Don:** the workflow has never run against the live service (it needs
+`SITE_BASE_URL` + `ADMIN_TOKEN` as Actions secrets, which auto-scan already uses); this is the
+first workflow in the repo that commits to `main`; the paper track still does not run at all
+until `TRADIER_PAPER_TOKEN` / `TRADIER_PAPER_ACCOUNT_ID` are set on Render (Session 6).
+
+---
+
 ## READ FIRST — AN EXTERNAL AUDIT HAS INVALIDATED SEVERAL HEADLINE CLAIMS (2026-08-03)
 
 Full ledger: **`HANDOFF_edge_audit.md`**. Source: `VALQUO_EDGE_AUDIT.md`, a 108-item
