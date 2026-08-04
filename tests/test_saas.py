@@ -138,6 +138,10 @@ def test_demo_preview_is_premium_but_not_owner():
 
 def test_master_link_route_and_banner():
     # End-to-end through the real Flask app: token gate + demo session + banner.
+    # beta_mode is turned on locally: it ships DEFAULT FALSE since the public+free posture
+    # landed (its copy promised a paid product later), and this test is about what the banner
+    # SAYS when there is a beta, not about whether there is one.
+    CONFIG.beta_mode = True
     CONFIG.demo_access_token = "sekret-xyz"
     from valuation.saas.app_saas import create_saas_app
     app = create_saas_app(CONFIG)
@@ -150,11 +154,13 @@ def test_master_link_route_and_banner():
     assert b"get ahead of the beta" in page.data      # inclusive demo banner copy
     assert b'href="/register"' in page.data           # + a sign-up call to action
     CONFIG.demo_access_token = ""                     # restore default (M4: no default token)
+    CONFIG.beta_mode = False
 
 
 def test_demo_signup_converts_to_real_account():
     # Signing up from the preview should drop the demo flag and take over as a real account.
     import uuid
+    CONFIG.beta_mode = True                            # see the note in the test above
     CONFIG.demo_access_token = "sekret-xyz"
     from valuation.saas.app_saas import create_saas_app
     app = create_saas_app(CONFIG); app.config.update(TESTING=True)
@@ -168,6 +174,7 @@ def test_demo_signup_converts_to_real_account():
     after = c.get("/app").data
     assert b"get ahead of the beta" not in after       # demo flag cleared → generic banner
     CONFIG.demo_access_token = ""
+    CONFIG.beta_mode = False
 
 
 def test_ci_ingest_snapshot_roundtrip():
@@ -344,8 +351,18 @@ def test_valquo_index_is_a_slice_of_the_hot_stocks_ranking():
 
 
 def test_valquo_index_api_config_toggle():
+    """The endpoint's own contract. The Index became OWNER-ONLY when the public/owner split
+    landed (saas/surfaces.py), so the split is switched off for the duration — this test is
+    about the config toggle, and the access policy is tested in tests/test_public.py."""
     from valuation.saas.app_saas import create_saas_app
-    c = create_saas_app().test_client()
+    CONFIG.owner_split = False
+    try:
+        _valquo_index_config_toggle(create_saas_app().test_client())
+    finally:
+        CONFIG.owner_split = True
+
+
+def _valquo_index_config_toggle(c):
     bad = c.get("/api/valquo-index?config=nonsense")
     assert bad.status_code == 400 and "known" in bad.get_json()
     for name in ("roth", "taxable"):
@@ -365,7 +382,9 @@ def test_valquo_index_api_config_toggle():
     with open(_tpl, encoding="utf-8") as _fh:
         h = _fh.read()
     assert 'id="bookConfig"' in h, "account-type toggle missing"
-    assert "discovery" in h and "disciplined, backtested book" in h, "blurbs missing"
+    # The second blurb moved inside the owner-only block when the Index tab did, and was
+    # re-worded there; matched on the phrase that survives the line break.
+    assert "discovery" in h and "backtested top-slice" in h, "blurbs missing"
 
 
 def test_methodology_page_is_public_and_states_the_weaknesses():
@@ -381,8 +400,18 @@ def test_methodology_page_is_public_and_states_the_weaknesses():
     for must in ("point-in-time", "survivorship", "breakeven", "not investment advice"):
         assert must in body, f"methodology must cover {must!r}"
     # The honest half. If these go missing the page has become marketing.
-    for weakness in ("one 18-year", "saturated", "dormant"):
+    # "undeflated" replaces the old "saturated": audit B9 found the statistic is not a
+    # Deflated Sharpe at all, and the page now discloses the mislabelling rather than the
+    # symptom. Both are asserted so a future edit cannot drop the correction and keep the
+    # softer word.
+    for weakness in ("one 18-year", "saturates", "undeflated", "dormant"):
         assert weakness in body, f"methodology must keep the weakness: {weakness!r}"
+    # The alpha figure is permitted (audit R1 cleared its pre-registered threshold) but only
+    # wearing its labels. A page that prints +8.81% without them is the exact failure this
+    # whole posture exists to prevent.
+    if "8.81" in body:
+        for label in ("historical simulation", "not an expected", "placebo"):
+            assert label in body, f"the alpha figure lost its label: {label!r}"
 
 
 def test_landing_renders_the_sample_and_survives_having_none():
@@ -399,7 +428,10 @@ def test_landing_renders_the_sample_and_survives_having_none():
               "as_of": "2026-08-02"}
 
     real_ctx = showcase.landing_context
-    showcase.landing_context = lambda store: {
+    # **kw, not a bare `store`: landing_context gained `with_track` when the owner split
+    # landed, and a stub that does not accept it raises inside the route's try/except — which
+    # renders the fallback page and fails these assertions for the wrong reason.
+    showcase.landing_context = lambda store, **kw: {
         "sample": sample, "bar": showcase.range_bar(sample), "sample_stale": False,
         "sample_age": 0, "track": None, "spark": None, "scan": None}
     try:

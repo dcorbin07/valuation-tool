@@ -1,0 +1,21 @@
+{# The refusal a visitor gets on an owner-only PAGE (saas/surfaces.py).
+ #
+ # Today every owner-only surface is an /api route, which refuses in JSON, so this renders
+ # only if a page path is added to the list later. It exists anyway because the alternative is
+ # a 500 the day someone does — and because the copy is the point: a free tool refusing to
+ # show something should say WHY, or it reads as a broken page or a paywall. It is neither. #}
+{% extends "_saas_base.html" %}
+{% block title %}Owner-only — Valquo{% endblock %}
+{% block body %}
+<div class="wrap" style="max-width:640px;padding-top:64px;padding-bottom:64px">
+  <div class="card">
+    <h1 style="color:var(--navy);margin:0 0 12px;font-size:24px">Not published</h1>
+    <p style="margin:0 0 16px">{{ message }}</p>
+    <p class="muted" style="font-size:14px;margin:0 0 20px">
+      Everything Valquo actually does for you — valuing a company, the ranking, and the
+      write-up of how it works — is open, free, and needs no account.
+    </p>
+    <a href="/app" class="btn">Open the tool</a>
+  </div>
+</div>
+{% endblock %}

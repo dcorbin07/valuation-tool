@@ -425,7 +425,11 @@ def api_whatdo():
     try:
         return jsonify(name_view(_store(), ticker,
                                  book_config=request.args.get("config"),
-                                 with_options=getattr(g, "may_see_options", True)))
+                                 with_options=getattr(g, "may_see_options", True),
+                                 # Defaults to True so a direct/standalone run (no SaaS layer,
+                                 # i.e. the owner on a laptop) is unchanged; the SaaS guard
+                                 # sets it False for every public visitor.
+                                 with_book=getattr(g, "may_see_owner", True)))
     except Exception as e:
         log_exception()
         # This panel is an ADDITION to a valuation that already rendered. A failure here must

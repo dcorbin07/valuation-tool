@@ -83,17 +83,25 @@
   {# Private mode: "Open the app" would 401, and inviting an anonymous visitor to open a tool
    # they cannot open is worse than showing them nothing. Log in only. #}
   {% elif signup_enabled %}<a href="/login">Log in</a><a href="/register" class="cta">Get started</a>
-  {# No account needed: send anonymous visitors straight into the product. Log in stays for
-   # existing accounts, just without the signup push. #}
-  {% else %}<a href="/login">Log in</a><a href="/app" class="cta">Open the app</a>{% endif %}
+  {# Public and free. There is exactly ONE account on this instance and it is Don's, so a
+   # "Log in" in the nav is not an invitation to anyone — it is a control that does nothing
+   # for 100% of visitors while competing with the only button that matters. The owner's way
+   # in is the small footer link below (and /login, which he knows). #}
+  {% else %}<a href="/app" class="cta">Open the app</a>{% endif %}
 </div></div>
 {% block body %}{% endblock %}
 <footer><div class="disclaimer">
   {# Every link on this row is gated under private mode, so showing them to a logged-out
    # visitor is a row of 401s. The owner still gets them once signed in. #}
-  {% if user or not private_mode %}<div style="margin-bottom:10px"><a href="/methodology">How it works</a> &nbsp;·&nbsp; <a href="/terms">Terms</a> &nbsp;·&nbsp; <a href="/privacy">Privacy</a>{% if signup_enabled %} &nbsp;·&nbsp; <a href="/pricing">Pricing</a>{% endif %}</div>{% endif %}
-  <b>Not investment advice.</b> This is an educational research tool. Fair values and scores are model outputs and
-  heuristics, not recommendations or price targets, and may be wrong. Nothing here is personalized advice. Markets involve
-  risk of loss. Do your own research and consider consulting a licensed financial professional before investing.
+  {% if user or not private_mode %}<div style="margin-bottom:10px"><a href="/methodology">How it works</a> &nbsp;·&nbsp; <a href="/terms">Terms &amp; liability</a> &nbsp;·&nbsp; <a href="/privacy">Privacy</a>{% if signup_enabled %} &nbsp;·&nbsp; <a href="/pricing">Pricing</a>{% endif %}
+    {# The hidden owner login. Deliberately here and deliberately dull: there is no public
+     # signup and exactly one account, so this is a door for one person, not a call to action. #}
+    {% if not user %}&nbsp;·&nbsp; <a href="/login" style="color:inherit">Owner login</a>{% endif %}</div>{% endif %}
+  <b>Not investment advice.</b> This is a free educational research tool. Fair values and scores are model outputs and
+  heuristics of general application — not recommendations, not price targets, not tailored to you, and they may be wrong.
+  Using it creates <b>no advisory or fiduciary relationship</b>. It is provided <b>as is, without warranty of any kind</b>,
+  and there is <b>no duty to update, maintain or correct it</b>. Backtested and paper-account results are hypothetical and
+  do not represent real trading. Markets involve risk of loss. Do your own research and consider consulting a licensed
+  financial professional before investing.
 </div></footer>
 </body></html>
