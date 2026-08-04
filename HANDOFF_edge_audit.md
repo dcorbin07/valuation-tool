@@ -464,11 +464,11 @@ Audit item **M6** proposes exactly this kind of provenance stamping; this is a p
 
 | metric | BASELINE `b67b07d` | CORRECTED | delta |
 |---|---|---|---|
-| **long-short t** | 3.5202 | **3.8513** | **+0.331** |
-| **top-decile alpha** | +11.88% | **+11.69%** | −0.19pp |
+| **long-short t** | 3.5202 | **3.8838** | **+0.364** |
+| **top-decile alpha** | +11.88% | **+11.78%** | −0.10pp |
 | **monotonicity** | −0.9515 | **−0.9879** | better (−1.0 is ideal) |
 | long-short annualised | +17.58% | +18.58% | +1.00pp |
-| signal-weighted top-decile alpha | +12.74% | +12.67% | −0.08pp |
+| signal-weighted top-decile alpha | +12.74% | +12.75% | +0.01pp |
 | long-short hit rate | 65.45% | 65.45% | 0 |
 | equal-weight benchmark | +16.55% | +16.55% | **0** |
 | **PBO** | 6.7% | **13.3%** | +6.7pp (still far under the 50% bar) |
@@ -477,7 +477,7 @@ Audit item **M6** proposes exactly this kind of provenance stamping; this is a p
 The benchmark not moving is the control: the corrections touch how names are *scored*, not what
 the universe earns.
 
-**Long-short t up 0.33 and monotonicity to −0.988 — the deciles are now almost perfectly ordered
+**Long-short t up 0.36 and monotonicity to −0.988 — the deciles are now almost perfectly ordered
 — against 0.19pp off the top-decile alpha and PBO doubling off a low base.** Net: the composite
 sorts better and the concentrated top of it earns marginally less. Nothing here is large.
 
@@ -499,40 +499,65 @@ different model. What moved is what the numbers *mean*, which is the audit's own
 | theme | BASELINE t | CORRECTED t |
 |---|---|---|
 | quality | +3.39 | **+3.57** |
-| **insider** | **−0.34** | **+2.69** |
-| capital_discipline | +2.25 | +2.24 |
+| **insider** | **−0.34** | **−0.43** |
+| capital_discipline | +2.25 | +2.25 |
 | momentum | +2.62 | +2.62 |
 | institutional | +1.81 | +1.81 |
 | size | +1.68 | +1.68 |
-| value | +1.47 | **+1.51** |
+| value | +1.47 | **+1.52** |
 | growth | +1.45 | +1.45 |
 | low_risk | +0.71 | +0.71 |
 | sentiment | empty | empty |
 
-### The insider theme flipped sign, and it should be read as fragility, not as a discovery
+### RETRACTED, AND REPLACED BY A WORSE PROBLEM: a full backtest is not reproducible
 
-`insider` — the model's only negative theme, carrying one-seventh of the weight — went from
-**median IC −0.00335 (t −0.34)** to **+0.01551 (t +2.69)**, at **unchanged 85.0% coverage**.
+**This section originally reported that B26 flipped the `insider` theme from t −0.34 to +2.69.
+That attribution was WRONG and is retracted here rather than edited away.**
 
-**The only correction touching it is B26**, the same-day filing exclusion. That change was
-measured directly, outside the panel, on 22,975 (ticker, date) score pairs across the 400
-highest-activity names and 64 quarterly dates: **it alters 3.96% of scores, at a level
-correlation of 0.9975.**
+A third full-universe run — the one whose code matches the committed tree, after B18 was
+completed — does not reproduce it:
 
-So a perturbation of four per cent of observations flips the sign of a theme. **The correct
-reading is not "the insider theme works after all." It is that the insider theme's IC was never a
-stable quantity, and −0.34 was no more reliable than +2.69.** That is consistent with what the
-project already recorded and did not act on: zeroing `insider` helped one split direction by
-Δt +0.08 and hurt the other by Δt −0.09, which is *no evidence in either direction*.
+| run | code | `insider` median IC | t |
+|---|---|---|---|
+| BASELINE | `b67b07d`, pre-audit | −0.00335 | **−0.34** |
+| intermediate | corrections, B18 partial | +0.01551 | **+2.69** |
+| **FINAL** | corrections, B18 complete | −0.00339 | **−0.43** |
 
-The decision-relevant fact is in the block above: **the held-out gate returns `insider: rejected`
-in BOTH runs.** Nothing about the deployed configuration changes.
+Coverage is 85.0% in all three. **The first and third bracket the second and agree to four
+decimal places**, and they differ by *both* B26 and the negative-multiple guards — so B26 cannot
+be the cause. That matches the direct measurement, which should have been given more weight at
+the time: B26 alters **3.96% of scores at a level correlation of 0.9975** across 22,975
+(ticker, date) pairs, which is not a sign-flipping perturbation.
 
-**Follow-on, and it is now much more interesting:** audit item **S3** proposes three variants of
-the insider score's construction — dropping the unconditionally-additive `+min(10, 2·buys)` bonus,
-scaling net activity by market cap instead of a fixed $5M before the `tanh`, and splitting net
-buying from cluster breadth. A theme this sensitive to a one-day window change is a theme whose
-*construction* is plausibly the problem. S3 was mid-priority; on this evidence it should move up.
+**Every other theme is stable to ±0.01 across all three runs.** So the anomaly is confined to the
+one theme whose IC sits essentially at zero.
+
+Two conclusions, and the second is the more serious:
+
+1. **`insider`'s t-statistic is not a measurable quantity in either direction.** A median IC of
+   −0.003 over 110 dates is noise, and −0.34 was never more reliable than +2.69. This is exactly
+   consistent with what the project already recorded and correctly declined to act on: zeroing
+   `insider` helped one split direction by Δt +0.08 and hurt the other by Δt −0.09. The held-out
+   gate returns **`insider: rejected` in all three runs**, so nothing deployed is affected.
+2. **A full backtest is not reproducible run-to-run, and nobody knew.** The cause is not
+   identified. Candidates worth checking in order: a bulk cache under `data/bulk/prepared/`
+   being refreshed between runs; iteration order somewhere in the panel build; a float
+   accumulation whose order varies. **This is a genuine problem for a project whose memory is
+   its results files** — every marginal IC in the record is quoted from a single run, and the
+   two statistics most exposed are exactly the marginal ones the project keeps making decisions
+   about. It belongs with audit **M6** (the results file's silent-failure modes) and should be
+   settled before any further marginal-IC decision.
+
+**Method note for the next session, since this is the second time it has mattered:** the reason
+this was caught at all is that a third run was launched purely so the *tracked* results file
+would match the *committed* code. That is worth keeping as a habit.
+
+**Follow-on:** audit item **S3** proposes three variants of the insider score's construction —
+dropping the unconditionally-additive `+min(10, 2·buys)` bonus, scaling net activity by market
+cap rather than a fixed $5M before the `tanh`, and splitting net buying from cluster breadth. A
+theme whose IC is indistinguishable from zero is a theme whose construction is the first thing
+to question, so S3 keeps its promotion — just for the opposite reason to the one first written
+here.
 
 ### B10, answered: the recovered signal is the WORSE one
 

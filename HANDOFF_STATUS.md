@@ -68,8 +68,8 @@ advance, and it is only knowable at all because the results file records its git
 
 | metric | BASELINE | CORRECTED | delta |
 |---|---|---|---|
-| long-short t | 3.5202 | **3.8513** | +0.331 |
-| top-decile alpha | +11.88% | **+11.69%** | -0.19pp |
+| long-short t | 3.5202 | **3.8838** | +0.364 |
+| top-decile alpha | +11.88% | **+11.78%** | -0.10pp |
 | monotonicity | -0.9515 | **-0.9879** | better |
 | equal-weight benchmark | +16.55% | +16.55% | 0 (the control) |
 | PBO | 6.7% | **13.3%** | +6.7pp, still far under 50% |
@@ -80,13 +80,18 @@ were not hiding a different model — what moved is what the numbers MEAN.
 
 **Two measured surprises, both reported against the audit's own expectations:**
 
-- **`insider` flipped from t -0.34 to +2.69** (median IC -0.00335 -> +0.01551, coverage
-  unchanged at 85.0%). The only change touching it is B26, the same-day-filing exclusion — and
-  B26 was measured directly on 22,975 score pairs: **it moves 3.96% of scores at correlation
-  0.9975.** A four-per-cent perturbation flipping a theme's sign means **-0.34 was never a
-  reliable number either.** Read as fragility, not as a discovery. The held-out gate still says
-  `insider: rejected` in both runs, so nothing deployed changes. This promotes audit **S3** (the
-  insider score's construction) from mid-priority to interesting.
+- **A FULL BACKTEST IS NOT REPRODUCIBLE RUN TO RUN — unexplained, and it needs finding.**
+  THREE full-universe runs on identical data gave `insider` median IC **-0.00335 (t -0.34)**,
+  **+0.01551 (t +2.69)** and **-0.00339 (t -0.43)**, at unchanged 85.0% coverage. The first and
+  third bracket the second and agree to four decimals, so the middle run is the anomaly — and
+  **B26 is NOT the cause**, which an earlier draft of this file said it was. B26's effect was
+  measured directly on 22,975 score pairs: 3.96% of scores move, correlation 0.9975, consistent
+  with the ~0 IC change between the runs that bracket it. Every OTHER theme is stable to +/-0.01
+  across all three. Two conclusions: `insider`'s IC sits so close to zero that its t is not a
+  measurable quantity in either direction (which is why zeroing it came back `not_replicated`),
+  and **a project whose memory is its results files needs those files to be deterministic.**
+  Find the nondeterminism before trusting any marginal IC. Audit **S3** (the insider score's
+  construction) is the thread that might make the theme measurable at all.
 - **B10 recovered the WORSE signal.** The audit called it "one of the cheapest genuine signal
   recoveries available." Head to head: `accruals_q` as FCF/NI reads **t +1.26**; as the Sloan
   measure it reads **t +0.27**, at coverage 0.75 -> 0.97. The overwrite was a real defect — the

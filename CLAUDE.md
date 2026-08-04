@@ -75,13 +75,14 @@ the project's memory and the old versions had been repeated for months.
   overstatement. Fixing the function (implement the rule, or rename it and its verdict labels)
   is audit item **B8** and is NOT yet done.
 - **CURRENT FULL-UNIVERSE NUMBERS (2026-08-04, after the audit's Part I corrections):
-  long-short t 3.851, top-decile alpha +11.69%, monotonicity −0.988, PBO 13.3%.** Measured
+  long-short t 3.884, top-decile alpha +11.78%, monotonicity −0.988, PBO 13.3%.** Measured
   against a clean pre-audit baseline re-run on identical data (t 3.520, alpha +11.88%,
-  monotonicity −0.952, PBO 6.7%): the composite sorts BETTER and the concentrated top of it
-  earns marginally less. The equal-weight benchmark did not move (+16.55% both runs), which is
-  the control. **Thirteen corrections and NOT ONE held-out verdict changed** — the record's
-  decisions were not resting on the defects, and the defects were not hiding a different model.
-  Full A/B in `HANDOFF_edge_audit.md` Part 2.
+  monotonicity −0.952, PBO 6.7%): the composite sorts BETTER, top-decile alpha is a rounding
+  change, PBO doubles off a low base. The equal-weight benchmark did not move (+16.55% in every
+  run), which is the control. **Thirteen corrections and NOT ONE held-out verdict changed** —
+  the record's decisions were not resting on the defects, and the defects were not hiding a
+  different model. The sanity layer's flag count fell 5 → 2 (the three negative-multiple sign
+  flags cleared). Full A/B in `HANDOFF_edge_audit.md` Part 2.
 - **The edge clears PBO 13.3% (want <50%), long-short t 3.851 (want >2), top-decile alpha
   +11.69%.** The single biggest driver was zeroing `low_risk`, which passed the both-halves test
   described above (decide on one half, measure on the other, both directions). On the
@@ -118,23 +119,26 @@ the project's memory and the old versions had been repeated for months.
 - **CORRECTED — `institutional` coverage is 61.4%**, not the 81.7% previously recorded (that
   came from a smaller universe). It is still empty before 2013-06-30, so any early-period
   comparison involving it is uninformative rather than negative.
-- **Theme ICs (full universe, CURRENT 2026-08-04):** quality +3.57, **insider +2.69**,
-  momentum +2.62, capital_discipline +2.24, institutional +1.81, size +1.68, value +1.51,
-  growth +1.45, low_risk +0.71, sentiment empty.
-- **CORRECTED 2026-08-04 — `insider` IS NO LONGER NEGATIVE, AND THAT IS A FINDING ABOUT ITS
-  FRAGILITY, NOT A DISCOVERY.** It went from median IC −0.00335 (t −0.34) to +0.01551 (t +2.69)
-  at unchanged 85.0% coverage. The ONLY change touching it is audit **B26**, the same-day-filing
-  exclusion — and B26 was measured directly on 22,975 (ticker, date) score pairs: **it alters
-  3.96% of scores at a level correlation of 0.9975.** A four-per-cent perturbation flipping a
-  theme's sign means **the −0.34 was never a reliable number either.** That matches what the
-  record already showed and did not act on: zeroing `insider` helped one split direction by
-  Δt +0.08 and hurt the other by Δt −0.09, i.e. no evidence in either direction. **The held-out
-  gate still returns `insider: rejected` in both runs, so nothing deployed changes.** Audit item
-  **S3** (the `+min(10, 2·buys)` bonus is unconditionally additive; the `tanh(net/5e6)` saturates
-  regardless of company size) is now the interesting thread — a theme this sensitive to a one-day
-  window is a theme whose CONSTRUCTION is plausibly the problem.
-- **Historical note (superseded):** `insider` was recorded as the only negative theme at −0.34
-  and still carrying 12.5% weight — but
+- **Theme ICs (full universe, CURRENT 2026-08-04):** quality +3.57, momentum +2.62,
+  capital_discipline +2.25, institutional +1.81, size +1.68, value +1.52, growth +1.45,
+  low_risk +0.71, **insider −0.43**, sentiment empty.
+- **A FULL BACKTEST IS NOT REPRODUCIBLE RUN TO RUN, AND THE INSIDER THEME IS WHERE IT SHOWS.
+  Found 2026-08-04; unexplained; do not build on any single run's insider number.** Three
+  full-universe runs on identical data gave `insider` median IC **−0.00335 (t −0.34)**,
+  **+0.01551 (t +2.69)** and **−0.00339 (t −0.43)** at unchanged 85.0% coverage. The first and
+  third bracket the second and agree to four decimals, so the middle run is the anomaly and
+  **audit B26 (the same-day-filing exclusion) is NOT the cause** — an earlier note in this file
+  said it was, and that was wrong. B26's effect was measured directly on 22,975 (ticker, date)
+  score pairs: it alters **3.96% of scores at a level correlation of 0.9975**, consistent with
+  the ~0 IC change between the runs that bracket it. Every other theme is stable to ±0.01 across
+  all three runs. **What this means: `insider`'s IC sits so close to zero that its t-statistic is
+  not a measurable quantity**, which is exactly why zeroing it came back `not_replicated`
+  (Δt +0.08 one direction, −0.09 the other). It is also a reproducibility problem in its own
+  right — a project whose memory is its results files needs its results files to be
+  deterministic. **Next session: find the nondeterminism before trusting any marginal IC.**
+  Audit item **S3** (the `+min(10, 2·buys)` bonus is unconditionally additive; `tanh(net/5e6)`
+  saturates regardless of company size) is the thread that might make this theme measurable.
+- **Historical note:** `insider` is the only negative theme, and still carries 12.5% weight — but
   zeroing it **did NOT replicate** out-of-sample, so it was deliberately left alone.
 - **Theme ICs are NOT stable across time.** `low_risk` flips −0.031 → +0.041 between halves and
   `size` flips t +3.17 → −0.67 (the small-cap premium worked pre-2012, not after). Treat any
@@ -270,9 +274,10 @@ the project's memory and the old versions had been repeated for months.
 - **"The entire edge is 13F" is now OBSOLETE.** Without the institutional theme, top-decile
   alpha is still +10.6% and long-short t 2.86 (was 0.71). That finding was an artifact of
   quality/low_risk running on half their inputs.
-- **`insider` was the only negative theme (t −0.34) and still carries 12.5% weight** — the
-  obvious next candidate, deliberately NOT changed. **SUPERSEDED 2026-08-04: it now reads +2.69
-  after the B26 same-day fix; see the fragility note above. The held-out verdict is unchanged.**
+- **`insider` is the only negative theme (t −0.34, now −0.43) and still carries 12.5% weight** —
+  the obvious next candidate, deliberately NOT changed. **See the reproducibility note above:
+  one of three identical-data runs returned +2.69, so this theme's t is not a measurable
+  quantity in either direction. The held-out verdict is `rejected` in all three runs.**
 - Real full-universe coverage: `institutional` **61.4%** (not the 81.7% below), `insider`
   85.0%. F-Score is **t +2.74** on the full universe, not +5.66.
 
