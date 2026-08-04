@@ -2,7 +2,7 @@
 #  Valquo — auto-land agent branches to main (hands-off merge + deploy)
 #
 #  WHAT IT DOES: when Claude Code pushes any `worktree-*` branch to GitHub,
-#  this runs the edge tests and — only if they pass — merges that branch into
+#  this runs EVERY test suite in tests/ and — only if they all pass — merges that branch into
 #  `main` and pushes it. Render auto-deploys `main`. No local merge, no Vim,
 #  no git_push.bat, no you in the loop. If tests fail or the merge conflicts,
 #  it stops and leaves `main` untouched (nothing broken ever ships).
@@ -61,8 +61,20 @@ jobs:
           git fetch origin "$BR"
           git merge --no-edit "origin/$BR" || { echo "::error::Merge conflict on $BR — main left untouched"; git merge --abort; exit 1; }
 
-      - name: Test gate — edge suite must pass
-        run: python tests/test_edge.py
+      # AUDIT C7 — the gate used to run tests/test_edge.py ONLY. Fourteen other suites did not
+      # gate a deploy, while agent branches routinely edit options_universe.py, paper_track.py,
+      # factors.py and screen.py, which that suite does not cover. Every suite runs now; the
+      # loop keeps going so one red suite does not hide the others, and the job fails if any
+      # failed. Longer CI is cheaper than an auto-merged regression reaching production.
+      - name: Test gate — every suite must pass
+        run: |
+          fail=0
+          for f in tests/test_*.py; do
+            echo "::group::$f"
+            python "$f" || { echo "::error::$f FAILED"; fail=1; }
+            echo "::endgroup::"
+          done
+          exit $fail
 
       - name: Push main (triggers Render deploy)
         run: git push origin HEAD:main

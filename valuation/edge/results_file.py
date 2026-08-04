@@ -175,6 +175,13 @@ def build_payload(res: dict, universe_label: str | None = None,
         "cpcv": {"n_paths": cp.get("n_paths"),
                  "pbo": {"value": _num(cp.get("pbo")), "want": "<0.50",
                          "meaning": "probability_of_backtest_overfitting"},
+                 # AUDIT B9 — the label is not the claim. `deflated_sharpe_detail` carries
+                 # sr0, the trial count and the cross-trial variance, and `metric` says
+                 # plainly when the statistic degenerated to an UNDEFLATED PSR (sr0 ~ 0,
+                 # which is what eight near-identical weight schemes produce). `pbo_scope`
+                 # says which selection step the PBO covers.
+                 "deflated_sharpe_detail": cp.get("deflated_sharpe_detail"),
+                 "pbo_scope": cp.get("pbo_scope"),
                  "deflated_sharpe": {"value": _num(cp.get("deflated_sharpe")), "want": ">0.95",
                                      "meaning": "probability_edge_is_real_after_trials_correction"},
                  "recommend": cp.get("recommend"), "adopt": cp.get("adopt"),

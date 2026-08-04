@@ -67,7 +67,7 @@ def collect_name(ticker: str) -> dict:
         if chain is None or len(chain) == 0:
             rejects["no_chain"] = rejects.get("no_chain", 0) + 1
             continue
-        und = w["close"][-1]
+        und = OB.spot_asof(w)      # AUDIT B1 — as-traded
         summ = OB.chain_summary(chain, und, day)
         ev = sig_evaluate(w, summ, horizon=OB.HORIZON)
         sc, labels = ev.get("score"), ev.get("labels") or []
@@ -123,7 +123,7 @@ def collect_name(ticker: str) -> dict:
             chain = prov.chain_on(ticker, day)
             if chain is None or len(chain) == 0:
                 continue
-            row = OB.pick_contract(chain, w["close"][-1], day, right="C")
+            row = OB.pick_contract(chain, OB.spot_asof(w), day, right="C")  # AUDIT B1
             if row is None:
                 continue
             p = EL.capture_path(prov, ticker, row, day, bars)

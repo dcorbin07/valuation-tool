@@ -4,12 +4,110 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-03 (EV point-in-time fix; PEAD rejection re-verified)
-**Branch:** all of the below is landed on `main` (tip `d86af01`)
+**Session date:** 2026-08-03 (external edge audit, session 1; deep research thread #2)
+**Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
-> **Scope:** newest sections first — EV staleness fix, then PEAD, then options 22b, then
-> P9b/P10, then P7/P8, then earlier sessions. Canonical numbers in `BACKTEST_RESULTS.json`;
-> per-finding status in `CODE_AUDIT.md`.
+> **Scope:** newest sections first — the external edge audit, then deep research #2, then the
+> EV staleness fix, then PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in
+> `BACKTEST_RESULTS.json`; per-finding status in `CODE_AUDIT.md`.
+
+---
+
+## READ FIRST — AN EXTERNAL AUDIT HAS INVALIDATED SEVERAL HEADLINE CLAIMS (2026-08-03)
+
+Full ledger: **`HANDOFF_edge_audit.md`**. Source: `VALQUO_EDGE_AUDIT.md`, a 108-item
+code-reading review by an outside session. Session 1 of 8 is done — step 0 plus thirteen
+Part I corrections. **What follows is what changed about what the project believes it knows.**
+
+**Three claims in `CLAUDE.md` were unsupported and are now corrected in place:**
+
+1. **"Deflated Sharpe >99.9%" is an UNDEFLATED Probabilistic Sharpe Ratio.** The deflation uses
+   N = 8 trials and those eight are near-identical weightings of the same eight themes, so the
+   cross-trial variance is ~0, `SR0` collapses to ~0, and the statistic degenerates. It saturates
+   because it is not deflating anything. PBO 6.7% likewise scores **only the weight-scheme
+   selection step** — a selection the shipped strategy never makes, since it keeps
+   `current-default`. **Lead with the long-short t of 3.52 against the Harvey-Liu-Zhu hurdle of
+   3.0.** That bar is real and it is cleared. The run now self-reports the degeneracy
+   (`deflated_sharpe_detail.metric`, `pbo_scope`).
+2. **`low_risk` was NOT "confirmed out-of-sample."** Verified in the code:
+   `holdout_theme_validate` computes `rule_fired` at `fundamental_panel.py:3048` and **never
+   reads it**; the verdict is `all(improves)` across both split directions. That is a demanding
+   both-halves stability test and a legitimate one — it is not out-of-sample confirmation. The
+   measured numbers are unchanged and still stand; the word was the overstatement. Fixing the
+   function is audit **B8** and is NOT yet done.
+3. **Every "800 largest names" result was an ALPHABETICAL slice** (`sorted(keys)[:limit]`), i.e.
+   names beginning with roughly A through C. So "PBO 13% on 800 -> 53% on full" never measured
+   what a large-cap tier does — it measured what an arbitrary subsample does. The function is
+   fixed; **the affected figures are not citable until re-run**: the first CPCV "adopt", PBO 13%,
+   Deflated Sharpe 77%, `f_score` t +5.66, `sm_breadth` t 2.37, the 13F look-ahead stress test,
+   and the four classic-anomaly rejections.
+
+**The biggest open question, and it is cheap: the headline has never been tested as alpha.**
+`top_decile_alpha` is `4 x (top-decile 63d return - equal-weight universe 63d return)` and
+nothing else — no beta adjustment, no factor model anywhere in the tree, and no t-statistic on
+the headline metric at all. The composite is nearly FF5+MOM by construction. Pre-registered
+thresholds and **both versions of the product claim** are written down in `HANDOFF_edge_audit.md`
+Part 0, before the number exists. Until that regression runs, **the word "alpha" should not
+appear in product copy.**
+
+**A second live-product finding, not yet fixed (audit B7/G):** `screen.py:256` calls
+`build_frame(metrics)` with no keyword arguments, so it inherits `CONFIG.sector_neutral`
+(default **true**) and `CONFIG.residual_momentum` (default **true**), while the backtest forces
+both `False`. Sector-neutral ranking was tested on the full universe and rejected in both
+held-out directions, twice. **Unless `SCREENER_SECTOR_NEUTRAL=false` is set in the environment,
+the hot list users see is scored under the intervention the research eliminated.**
+
+**Corrected this session (13 items + 1 new finding), all with regression guards:**
+B1 price basis in the options universe (and four MORE sites, including in roadmap 22c and deep
+research thread #1 — **both of those need re-running**); B3 stale marks at expiry; B9 DSR/PBO
+relabel; B10 the `accruals_q` overwrite; B12 the alphabetical universe; B14 delisting-mask
+coverage now shipped with an `ended_early_unmasked` counter; B15 commission in `return_pct`;
+B16 the dead exit module quarantined; B18 one convention for negative EV; B19 the Sharpe label;
+B20 the `earnings_yield` numerator; B24 duplicate sanity evaluation; B26 same-day filings.
+Plus **C7**: the CI gate now runs all 16 suites, not one of sixteen — it auto-merges to `main`
+and Render auto-deploys, so this needed to land before any other edit.
+
+**D10-a, a NEW defect not in the audit,** found by running `verify_sharadar.py` against the live
+key: Sharadar **appends** a new ARQ row on restatement (3.15% of ticker-reportperiod groups,
+1,818 of 2,827 tickers), and `_ttm` de-duplicated on **datekey**, which two filings of one
+quarter never share. Blast radius is small — only `roe_ttm`/`roic_ttm`, already rejected — but it
+is the fifth instance of "a guard that cannot see the failure it was written for."
+
+**Also settled from the live Sharadar key before it lapses (D10/C5):** all 8 bundle tables are
+reachable including SFP; SEP has **no `dividends` column** and `closeadj` is dividend-back-
+adjusted, i.e. **total return** — which means audit item **R8**'s premise ("dividends are on
+disk and unused") has to be re-checked before R8 is run; `TICKERS.category` has 15 real values
+and the options-bot's universe filter knows 6, silently excluding 382 Canadian common-stock
+rows; SF1 percentage fields are fractions, not percents.
+
+**Not yet done, in the audit's own order:** session 2 (B2, B4, B5, B7, B11, B13, B17, B21-B23,
+B25, begin B6), then X7/X2 (the noise floor), then **R1** (factor-adjusted alpha — do not start
+Parts III-V until it returns), then R2/R3/R7 (the corrected options re-run). **P4 is urgent out
+of band**: the forward track's `seed_book` never sells names that leave the book, so it only ever
+adds — a track that silently drops losers is worse than no track.
+
+---
+
+## DEEP RESEARCH THREAD #2 — CROSS-SECTIONAL OPTION RETURNS: REJECT (2026-08-03)
+
+Full report: **`HANDOFF_deep_xsection.md`**.
+
+3,373 one-month ATM straddles, 242 names, 117 months (2016-02 to 2025-10), full mined universe,
+both legs bought at the **ask**, held to expiry and settled at intrinsic. Coverage 82-100%.
+
+**Zero adoptions. Zero BH-FDR discoveries at q = 0.10** (smallest p 0.291). PBO 41.4%.
+
+- **`iv_rv` — Goyal-Saretto does NOT replicate**: monotonicity **+0.20**, i.e. no ordering in
+  either direction, on the characteristic with the strongest published prior. Q1 excess t -0.69.
+- **`idio_vol` CONTRADICTS Cao-Han**: a clean **+0.90** sort running the WRONG way — high-idio-vol
+  straddles earned MORE (+0.110 vs +0.033). Reported as a contradiction of the literature, never
+  re-signed into a result; the sign was declared before the panel existed. Caveat: the instrument
+  is a straddle, not a delta-hedged call, so this may be the instrument and not the market.
+- `idio_skew` (t +0.68) and `illiq` (t +1.06) have the right sign and no magnitude against
+  MIN_T = 2.0. `illiq` is a mechanical control and can never be adopted; that it sorts at all
+  (mono -0.70, the cleanest in the table) is the evidence the panel measures what it claims to.
+- The long-short Q1-Q5 gates nothing — its short leg is a naked short straddle.
+- **Not affected by audit B1**: this module uses `raw_close` for every option calculation.
 
 ---
 

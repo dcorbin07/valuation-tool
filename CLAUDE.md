@@ -34,14 +34,50 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
-- **The edge now clears both statistical bars for the first time: PBO 13.3% (want <50%),
-  Deflated Sharpe >99.9% (want >95%), long-short t 3.485 (want >2), top-decile alpha +11.77%.**
-  The single biggest driver was zeroing `low_risk` — **and that has since been CONFIRMED on a
-  held-out time split** (decide on one half, measure on the other, both directions). On the
+- **CORRECTED 2026-08-03 (audit B9) — TWO OF THE THREE "statistical bars" MEASURE SOMETHING
+  NARROWER THAN THE CLAIM THEY SUPPORT. Lead with the long-short t of 3.52 against the
+  Harvey–Liu–Zhu hurdle of 3.0. That one is real.** The other two:
+  * **"Deflated Sharpe >99.9%" is an UNDEFLATED Probabilistic Sharpe Ratio.** The deflation
+    uses N = 8 trials, and those eight are eight near-identical weightings of the same eight
+    themes (out-of-sample median ICs spanning +0.061 to +0.062). Bailey–López de Prado's
+    benchmark `SR₀` scales with the CROSS-TRIAL VARIANCE of Sharpes; when the trials are
+    indistinguishable that variance is ~0, `SR₀ ≈ 0`, and the statistic collapses to
+    Φ(SR·√(n−1)). It saturates because it is not deflating anything. The run now ships
+    `deflated_sharpe_detail` with `sr0_benchmark`, `n_trials` and a `metric` field that says
+    `probabilistic_sharpe_ratio_UNDEFLATED` when this happens. **Do not quote it as a DSR.**
+  * **PBO 6.7% scores the WEIGHT-SCHEME SELECTION STEP ONLY** — "the best of eight nearly
+    identical weightings generalises". It says nothing about the ~146 signal-inclusion,
+    theme-membership, universe, standardisation and construction decisions in the ledger, and
+    the shipped strategy keeps `current-default` anyway, so the selection being scored is one
+    the model never makes. Now shipped as `pbo_scope`.
+  * The honest version of both needs a real trial counter (audit M1, the append-only research
+    log). **Not done.** At N ≈ 100+, √(2·ln N) ≈ 3.0 — about the Harvey–Liu–Zhu hurdle.
+- **CORRECTED 2026-08-03 (audit B8) — `low_risk` was NOT "confirmed out-of-sample". It passed a
+  BOTH-HALVES STABILITY TEST.** `holdout_theme_validate`'s docstring describes a clean protocol
+  — flag a theme on one half using a pre-specified rule, then measure the effect of removing it
+  ONLY on the other half. **Verified in the code: `rule_fired` is computed at
+  `fundamental_panel.py:3048` and never read.** The verdict is `all(improves)` across both split
+  directions, which is a demanding test and a legitimate one — but it is a stability check on the
+  full sample, not an out-of-sample confirmation, and `low_risk` reads `confirmed` while
+  `rule_fired = false` in one direction, which is only possible because the flag is ignored.
+  The measured numbers below are unchanged and still stand; the word "CONFIRMED" was the
+  overstatement. Fixing the function (implement the rule, or rename it and its verdict labels)
+  is audit item **B8** and is NOT yet done.
+- **The edge clears PBO 13.3% (want <50%), long-short t 3.485 (want >2), top-decile alpha
+  +11.77%.** The single biggest driver was zeroing `low_risk`, which passed the both-halves test
+  described above (decide on one half, measure on the other, both directions). On the
   pre-registered direction the rule fires on the early half (median IC −0.0308) and, measured
-  on the later half that did NOT inform the decision, **long-short t goes 0.97 → 2.56 and
-  top-decile alpha +6.09% → +9.30%**; the reverse direction agrees more strongly (t 0.55 →
-  2.57, alpha +6.63% → +14.49%). Do not treat the edge as settled anyway — caveats at the end.
+  on the later half, **long-short t goes 0.97 → 2.56 and top-decile alpha +6.09% → +9.30%**; the
+  reverse direction agrees more strongly (t 0.55 → 2.57, alpha +6.63% → +14.49%). Do not treat
+  the edge as settled — caveats at the end.
+- **UNTESTED, and it is the biggest open question in the project (audit R1): the headline is not
+  known to be ALPHA.** `top_decile_alpha` is `4 × (mean top-decile 63d return − mean
+  equal-weighted universe 63d return)` and nothing else — no beta adjustment, no factor
+  regression, and no t-statistic on the headline metric anywhere in the repo. The composite is
+  one-seventh each of value, quality, momentum, size, capital discipline and institutional
+  ownership, i.e. very nearly the Fama–French five factors plus momentum. **Until the FF5+MOM
+  regression runs, the word "alpha" should not appear in product copy.** Pre-registered
+  threshold and both versions of the product claim are written down in `HANDOFF_edge_audit.md`.
 - **Zeroing `insider` was tested the same way and REJECTED — it stays at 0.125.** It helped one
   split direction by a hair (Δt +0.08) and hurt the other (Δt −0.09). Its −0.34 full-sample
   t-stat is not a stable property. Same reasoning as `low_risk`, opposite outcome — which is
@@ -144,12 +180,33 @@ the project's memory and the old versions had been repeated for months.
   agree to 1.6x, the share count is plausible, and the price ran 29.6x over 17 months with zero
   discontinuities (WDC 10.3x, MU 8.5x — the whole storage complex). If it is wrong the error is
   upstream in the PRICE, which both estimates share. Unresolved, not fixed.
-- **Standing caveats, do not drop them:** Deflated Sharpe is a *saturated* 0.9999991, not a
-  proof. Both halves of the held-out test come from the same 18-year panel and universe, and
-  the size-cancellation mechanism was hypothesised on the full sample — so the *decision* is
-  confirmed out-of-sample, the *hypothesis generation* is not. The concentrated top-25 book is
-  the noisiest number in the file. Weight-tuning itself remains noise-chasing: CPCV still
-  adopts no weighting over the defaults.
+- **Standing caveats, do not drop them:** Deflated Sharpe is a *saturated* 0.9999991 and, per
+  the B9 correction at the top of this section, it is an **undeflated PSR** — not a proof of
+  anything. Both halves of the held-out test come from the same panel and universe, the test is
+  a **both-halves stability check rather than an out-of-sample confirmation** (B8), and the
+  size-cancellation mechanism was hypothesised on the full sample — so neither the decision nor
+  the hypothesis generation is out-of-sample in the strict sense. The concentrated top-25 book
+  is the noisiest number in the file, and per audit **B17** it holds up to FIFTY names (it sells
+  only below `exit_rank = top_n × 2`) and pays neither costs nor taxes, unlike every other book
+  in the results file — so it is also mislabelled. Weight-tuning itself remains noise-chasing:
+  CPCV still adopts no weighting over the defaults.
+- **The panel is 27 YEARS long, not 18, and its first third has an INVERTED universe (audit
+  B6, not yet fixed).** `WRDSProvider.price_history` truncates with `.tail(4659)`, so each
+  ticker keeps its OWN last 18.5 years and the calendar is the union: 1998-12-31 → 2026-04-22,
+  110 rebalance dates over 27.3 years. At a 2001 cross-section every name present is one that
+  stopped trading by roughly 2019 — the inverse of classic survivorship bias, and it makes
+  roughly the first 37 of 110 periods uninterpretable. Those same 37 dates have no benchmark,
+  which is why `construction.n_periods` reads 110 while `portfolio.n_periods` reads 73 in the
+  same JSON over undisclosed windows. Direction of the bias is genuinely unclear.
+- **The LIVE product does not score names the way the backtest does (audit B7/G, not yet
+  fixed).** `screen.py:256` calls `build_frame(metrics)` with no keyword arguments, inheriting
+  `CONFIG.sector_neutral` (default **true**) and `CONFIG.residual_momentum` (default **true**),
+  while the backtest forces both `False`. Sector-neutral ranking was tested on the full universe
+  and rejected in both held-out directions, twice. **Unless `SCREENER_SECTOR_NEUTRAL=false` is
+  set in the environment, the hot list users see is scored under the intervention the research
+  eliminated.** There are also three different composite functions in the tree (selection
+  renormalises by present-weight mass, measurement does not, live renormalises AND adds the two
+  interventions), so **no shipped code path reproduces the backtested composite exactly.**
 
 **LATEST (2026-07-30) — SUPERSEDES much of CURRENT STATE above. Read this first.**
 - **Five wired factors were SILENTLY EMPTY in every run this project has ever done.** The
@@ -207,6 +264,15 @@ the project's memory and the old versions had been repeated for months.
 ## METHODOLOGY RULE (hard — do not violate)
 **Report verdicts ONLY from the full ~2,710-name universe.** 400/800-name subsets systematically
 flatter results (PBO 13% on 800 → 53% on full; `sm_breadth` t 2.37 on 800 is unverified on full).
+**CORRECTED 2026-08-03 (audit B12): the 800-name era was an ALPHABETICAL slice, not the 800
+largest.** `WRDSProvider.universe` returned `sorted(keys)[:limit]`, so those runs were names
+beginning with roughly A through C. "PBO 13% on 800 → 53% on full" was therefore never measuring
+how much a large-cap tier flatters results — it was measuring how much an ARBITRARY 30%
+alphabetical subsample does. The function is fixed (ranked by market cap, sort key printed in the
+banner, subsets labelled smoke tests), but **every 800-name-era figure needs a full-universe
+re-run before it is cited again**: the first CPCV "adopt", PBO 13%, Deflated Sharpe 77%,
+`f_score` t +5.66, `sm_breadth` t 2.37, the 13F look-ahead stress test, and the four
+classic-anomaly rejections (short-term reversal, idio-vol, MAX, low-vol).
 Small samples are dev smoke-tests only ("does it compute / not crash") and MUST be labeled as such —
 never the number a keep/reject/adopt decision rests on. The full run is now fast (~75s load + ~11s
 score), so there is no performance excuse to judge on a subset. If you must screen small first, say

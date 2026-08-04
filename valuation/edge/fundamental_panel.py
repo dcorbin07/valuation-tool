@@ -121,6 +121,22 @@ def _ttm(rows, as_of, keys, n=4):
             break
     if len(picked) < n:
         return None
+    # AUDIT D10-a — COLLAPSE RESTATEMENTS BEFORE TAKING THE LAST n. Verified against the live
+    # Sharadar key on 2026-08-03: a restatement APPENDS a new ARQ row rather than rewriting the
+    # existing one, and in the shipped export 3.15% of (ticker, reportperiod) groups carry more
+    # than one datekey, across 1,818 of 2,827 tickers. The two rows describe the SAME fiscal
+    # quarter, so a window taken over the last four rows could sum Q1, Q2, Q2', Q3 — one quarter
+    # counted twice and one dropped. The guard below deduplicated on DATEKEY, which two filings
+    # of one quarter never share, so it could not see this: exactly the "guard that cannot see"
+    # pattern. Keep the LATEST filing of each reportperiod that is public by `as_of`, which is
+    # both the correct point-in-time choice and one row per quarter.
+    if any(r.get("reportperiod") for _, r in picked):
+        by_period = {}
+        for dk, r in picked:                       # datekey-ascending, so later wins
+            by_period[r.get("reportperiod") or dk] = (dk, r)
+        picked = sorted(by_period.values(), key=lambda x: x[0])
+        if len(picked) < n:
+            return None
     picked = picked[-n:]
     seen = {dk for dk, _ in picked}
     if len(seen) < n:                   # duplicate datekeys -> not n distinct quarters
@@ -321,7 +337,20 @@ def _sf1_to_metrics(ticker, sf1, price, market_cap, ev_point_in_time=None) -> di
     ebit_usd = _to_usd(sf1, "ebitusd", ebit, div)
     # No `netincusd` column exists in this export; `netinccmnusd` (net income to COMMON, USD)
     # is the better numerator against market cap anyway, since market cap is common equity.
-    ni_usd = _to_usd(sf1, "netinccmnusd", ni, div)
+    #
+    # AUDIT B20 — ONE definition, computed consistently. The fallback used to be `ni` (TOTAL net
+    # income / fx), so `earnings_yield` silently switched numerator definition mid-cross-section:
+    # net income to common where the USD column was populated, total net income where it was
+    # not. For most names those are identical, but for preferred-heavy issuers — banks, REITs,
+    # recently-recapitalised companies — they differ by the preferred dividend, and those names
+    # cluster in one sector. The fallback is now `netinccmn`, the SAME quantity in local
+    # currency, so only the currency conversion varies. `ni` remains the last resort for a row
+    # carrying neither, and how often that happens is counted rather than assumed.
+    _ni_cmn = _f(sf1, "netinccmn")
+    ni_usd = _to_usd(sf1, "netinccmnusd", _ni_cmn if _ni_cmn is not None else ni, div)
+    _ni_basis = ("netinccmnusd" if _f(sf1, "netinccmnusd") is not None else
+                 "netinccmn_fx" if _ni_cmn is not None else
+                 "netinc_fx_FALLBACK" if ni is not None else "none")
     fcf_usd = _to_usd(sf1, None, fcf, div)        # no fcfusd column — convert
     ebitda_usd = _to_usd(sf1, None, ebitda, div)  # no ebitdausd column — convert
     is_foreign = abs(div - 1.0) > 1e-9
@@ -341,8 +370,14 @@ def _sf1_to_metrics(ticker, sf1, price, market_cap, ev_point_in_time=None) -> di
         "book_to_price": (eq_usd / mc) if (eq_usd is not None and mc) else None,
         "earnings_yield": (ni_usd / mc) if (ni_usd is not None and mc) else None,
         "fcf_yield": (fcf_usd / mc) if (fcf_usd is not None and mc) else None,
-        "ebit_ev": (ebit_usd / ev) if (ebit_usd is not None and ev) else None,
-        "ev_sales": (ev / rev_usd) if (ev and rev_usd) else None,
+        # AUDIT B18 — ONE convention for negative enterprise value across all three EV ratios:
+        # treat it as MISSING. A net-cash company used to read as the most expensive name in the
+        # cross-section on `ebit_ev` and, once negated in build_frame, the cheapest of all on
+        # `neg_ev_sales` — the same fact sorted to opposite ends of the same theme. A negative
+        # multiple is not on the same scale as a positive one, so there is no ordering that is
+        # right; the honest answer is no observation. ~0.70% of rows.
+        "ebit_ev": (ebit_usd / ev) if (ebit_usd is not None and ev and ev > 0) else None,
+        "ev_sales": (ev / rev_usd) if (ev and ev > 0 and rev_usd) else None,
         # EV/EBITDA, POSITIVE EBITDA ONLY. A negative denominator flips the multiple negative,
         # which then sorts as "cheapest of all" — the loss-makers would lead the value ranking.
         # Leaving it None instead means the theme simply averages its other inputs for that
@@ -668,7 +703,10 @@ def _insider_score(rows, as_of, lookback_days=90):
     net, buys = 0.0, 0
     for r in rows:
         d = pd.to_datetime(r.get("filingdate") or r.get("date"), errors="coerce")
-        if d is pd.NaT or d > hi or d < lo:
+        # AUDIT B26 — `>= hi`, matching _insider_score_at: a Form 4 dated as_of is not
+        # reliably public before that day's close. The two paths must agree or the
+        # prepped fast path and the fallback score the same name differently.
+        if d is pd.NaT or d >= hi or d < lo:
             continue
         sh, pr = _f(r, "transactionshares"), _f(r, "transactionpricepershare")
         val = (sh * pr) if (sh is not None and pr is not None) else _f(r, "transactionvalue")
@@ -732,8 +770,12 @@ def _insider_score_at(prep, as_of, lookback_days=90):
     dts, vals = prep
     hi = np.datetime64(as_of[:10], "D")
     lo = hi - np.timedelta64(lookback_days, "D")
+    # AUDIT B26 — SAME-DAY EXCLUSION. `side="right"` on the upper bound made a filing dated
+    # `as_of` itself usable at that day's close. Form 4s and rating actions are routinely
+    # filed after the bell, so a same-day row is not reliably public when the panel scores.
+    # At most one day of optimism, and free to remove; `side="left"` stops at the day BEFORE.
     a = int(np.searchsorted(dts, lo, side="left"))
-    b = int(np.searchsorted(dts, hi, side="right"))
+    b = int(np.searchsorted(dts, hi, side="left"))
     if b <= a:
         return None
     w = vals[a:b]
@@ -811,8 +853,12 @@ def _grades_at(prep, as_of, window_days=GRADES_WINDOW_DAYS):
     dts, vals = prep
     hi = np.datetime64(as_of[:10], "D")
     lo = hi - np.timedelta64(int(window_days), "D")
+    # AUDIT B26 — SAME-DAY EXCLUSION. `side="right"` on the upper bound made a filing dated
+    # `as_of` itself usable at that day's close. Form 4s and rating actions are routinely
+    # filed after the bell, so a same-day row is not reliably public when the panel scores.
+    # At most one day of optimism, and free to remove; `side="left"` stops at the day BEFORE.
     a = int(np.searchsorted(dts, lo, side="right"))
-    b = int(np.searchsorted(dts, hi, side="right"))
+    b = int(np.searchsorted(dts, hi, side="left"))
     if b <= a:
         return None
     w = vals[a:b]
@@ -955,6 +1001,38 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                 if m.any():
                     frame.loc[m, t] = np.nan
                     _masked += 1
+    # AUDIT B14 — SHIP the mask's coverage instead of counting it and throwing it away. The
+    # results file only ever carried `cleanups.survivorship_mask` as a boolean meaning "the
+    # ACTIONS map is non-empty", which cannot distinguish a working mask from one that matched
+    # nothing. The failure it exists to prevent is silent: if ACTIONS misses a delisting, that
+    # name's last close is forward-filled to the panel end and it contributes a fake flat 0%
+    # forward return to EVERY subsequent rebalance date. `ended_early_unmasked` counts exactly
+    # that population — names whose price series stops well before the panel end with no
+    # corresponding ACTIONS row — so a mask that quietly stops working becomes loud, the same
+    # way `ev_freshness` was built to make a silent revert loud.
+    _last_ok, _panel_end = {}, frame.index[-1] if len(frame.index) else None
+    _ended_early = 0
+    if _panel_end is not None:
+        _cut = _panel_end - pd.Timedelta(days=STALE_TAIL_DAYS)
+        for t in frame.columns:
+            s = frame[t]
+            idx = s.last_valid_index()
+            if idx is None:
+                continue
+            _last_ok[str(t)] = str(idx.date())
+            if idx < _cut and not _delisted.get(str(t).upper()):
+                _ended_early += 1
+    _mask_coverage = {
+        "delisting_map_names": len(_delisted or {}),
+        "series_masked": _masked,
+        "tickers_in_frame": int(len(frame.columns)),
+        "masked_share": (_masked / float(len(frame.columns))) if len(frame.columns) else None,
+        "ended_early_unmasked": _ended_early,
+        "ended_early_unmasked_share": (_ended_early / float(len(frame.columns))
+                                       if len(frame.columns) else None),
+        "stale_tail_days": STALE_TAIL_DAYS,
+        "panel_end": str(_panel_end.date()) if _panel_end is not None else None,
+    }
     cal = frame.index
     _cal64 = cal.values.astype("datetime64[D]")
     benchf = bench.reindex(cal).ffill()
@@ -1131,8 +1209,22 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                     v = _src.get(_rr)
                     row["raw_" + _rr] = None if v is None else float(v)
             rows.append(row)
-    return pd.DataFrame(rows)
+    _out = pd.DataFrame(rows)
+    _out.attrs["survivorship_mask_coverage"] = _mask_coverage   # AUDIT B14
+    LAST_PANEL_DIAGNOSTICS["survivorship_mask_coverage"] = _mask_coverage
+    return _out
 
+
+# AUDIT B14 — a price series that stops this far short of the panel end, with no ACTIONS
+# delisting row to explain it, is the signature of a delisting the mask MISSED. Two quarters
+# is well past any ordinary data gap and well inside the horizon over which a forward-filled
+# last close would start contributing fake flat returns.
+STALE_TAIL_DAYS = 180
+
+# AUDIT B14 — diagnostics from the most recent panel build, for the results writer. The
+# panel returns a bare DataFrame and DataFrame.attrs does not survive every pandas
+# operation, so the writer reads this instead of re-deriving anything.
+LAST_PANEL_DIAGNOSTICS = {}
 
 STALE_PRICE_MAX_DAYS = 10          # trading days a name may be quiet before it's not investable
 
@@ -1967,7 +2059,36 @@ def _nppf(p):
 
 def _deflated_sharpe(strategy_rets, all_trial_sr):
     """Deflated Sharpe Ratio (Bailey & Lopez de Prado): probability the strategy's Sharpe is really >0
-    after correcting for (a) how many variants we tried and (b) non-normal returns. >~0.95 = credible."""
+    after correcting for (a) how many variants we tried and (b) non-normal returns. >~0.95 = credible.
+
+    AUDIT B9 — READ THIS BEFORE QUOTING THE NUMBER. As invoked in this project the statistic is
+    very close to an UNDEFLATED Probabilistic Sharpe Ratio, and the ~100% figure in the record is
+    not evidence of a 100% probability of anything.
+
+    Two reasons, both structural:
+
+      1. `all_trial_sr` is the eight weight schemes. Bailey-Lopez de Prado's benchmark `sr0`
+         scales with the CROSS-TRIAL VARIANCE of Sharpe ratios, and eight near-identical
+         weightings of the same eight themes have out-of-sample median ICs spanning +0.061 to
+         +0.062 — so `var_sr` is ~0, `sr0` collapses to ~0, and the expression degenerates to
+         phi(sr * sqrt(n-1)). Nothing is being deflated.
+      2. N = 8 is not the number of trials the project has run. The research ledger records of
+         the order of 100+ pre-registered tests. At N = 100+, sqrt(2 ln N) ~ 3.0 — which is,
+         coincidentally, about the Harvey-Liu-Zhu multiple-testing hurdle.
+
+    `sr0`, `var_sr` and `N` now ship alongside the probability (see `_deflated_sharpe_detail`)
+    so a reader can see the degeneracy rather than infer it. Feeding a real trial count is item
+    M1 (the append-only research log) and is NOT done here.
+
+    The bar that IS meaningful on this evidence is the long-short t-statistic against the
+    Harvey-Liu-Zhu hurdle of 3.0. Lead with that one.
+    """
+    d = _deflated_sharpe_detail(strategy_rets, all_trial_sr)
+    return None if d is None else d["probability"]
+
+
+def _deflated_sharpe_detail(strategy_rets, all_trial_sr):
+    """The same computation, with the inputs that determine whether it deflated anything."""
     r = np.asarray(strategy_rets, dtype=float)
     r = r[np.isfinite(r)]
     n = len(r)
@@ -1987,7 +2108,12 @@ def _deflated_sharpe(strategy_rets, all_trial_sr):
     if denom <= 0:
         return None
     z = (sr - sr0) * ((n - 1) ** 0.5) / (denom ** 0.5)
-    return float(_ncdf(z))
+    return {"probability": float(_ncdf(z)), "sharpe_per_period": sr, "sr0_benchmark": float(sr0),
+            "n_trials": int(N), "var_sr_across_trials": var_sr, "n_periods": int(n),
+            # AUDIT B9: when sr0 is ~0 the statistic is an UNDEFLATED PSR, not a DSR.
+            "is_effectively_undeflated": bool(abs(sr0) < 0.05 * abs(sr) if sr else True),
+            "metric": ("probabilistic_sharpe_ratio_UNDEFLATED"
+                       if (abs(sr0) < 0.05 * abs(sr) if sr else True) else "deflated_sharpe_ratio")}
 
 
 def _pbo(is_mat, oos_mat, names):
@@ -2131,8 +2257,18 @@ def cpcv_validate(panel, cols, base, halflife_days=1260, horizon=63, n_groups=6,
         s = _strategy_returns(panel, cols, all_w[nm])
         rr = np.asarray(s, dtype=float)
         trial_sr.append(float(rr.mean() / rr.std(ddof=1)) if len(rr) > 2 and rr.std(ddof=1) > 0 else None)
-    dsr = _deflated_sharpe(_strategy_returns(panel, cols, all_w[recname]), trial_sr)
-    return {"n_paths": len(paths), "pbo": pbo, "deflated_sharpe": dsr, "recommend": recname, "adopt": adopt,
+    _dsr_detail = _deflated_sharpe_detail(_strategy_returns(panel, cols, all_w[recname]), trial_sr)
+    dsr = None if _dsr_detail is None else _dsr_detail["probability"]
+    return {"n_paths": len(paths), "pbo": pbo, "deflated_sharpe": dsr,
+            # AUDIT B9 — what the two headline statistics actually measure. `pbo` scores the
+            # WEIGHT-SCHEME SELECTION STEP only: "the best of eight nearly-identical weightings
+            # generalises". It says nothing about the signal-inclusion, theme-membership,
+            # universe, standardisation and construction decisions in the project ledger — and
+            # the shipped strategy keeps `current-default` anyway, so the selection being scored
+            # is one the model never makes.
+            "pbo_scope": "weight_scheme_selection_only",
+            "deflated_sharpe_detail": _dsr_detail,
+            "recommend": recname, "adopt": adopt,
             "verdict": verdict, "recommended_weights_cols": (all_w[recname] if adopt else dict(base)),
             "candidates": {nm: {"median_oos_ic": med[nm], "folds_positive": posf[nm]} for nm in names}}
 
@@ -2348,15 +2484,29 @@ def risk_stats(rets, per_year, rf=0.0):
     """
     a = np.asarray([r for r in rets if r == r], dtype=float)
     if len(a) < 3:
-        return {"sharpe": None, "max_drawdown": None, "vol_ann": None, "n": int(len(a))}
+        return {"sharpe": None, "max_drawdown": None, "vol_ann": None, "n": int(len(a)),
+                "rf_annual": float(rf), "metric": _risk_metric_name(rf)}
     sd = float(a.std(ddof=1))
     mu = float(a.mean()) - rf / per_year
     sharpe = (mu / sd) * (per_year ** 0.5) if sd > 0 else None
     eq = np.cumprod(1.0 + a)
     peak = np.maximum.accumulate(eq)
     dd = float((eq / peak - 1.0).min())
+    # AUDIT B19 — every caller passes rf = 0, so the figure labelled "sharpe" throughout the
+    # results file is a return-to-VOLATILITY ratio, i.e. an information ratio against zero. Over
+    # 1998-2026, with the risk-free rate averaging roughly 2%, that overstates a true Sharpe by
+    # about 0.05-0.10. The direction is consistent across every book so relative comparisons are
+    # unaffected, but the label is wrong and the figure reaches product-facing material — and
+    # the options engine in this same repository subtracts a real rate, so two subsystems used
+    # different definitions of the same word. The rate and the metric name now ship with the
+    # number, so a reader can never take one for the other.
     return {"sharpe": sharpe, "max_drawdown": dd,
-            "vol_ann": sd * (per_year ** 0.5), "n": int(len(a))}
+            "vol_ann": sd * (per_year ** 0.5), "n": int(len(a)),
+            "rf_annual": float(rf), "metric": _risk_metric_name(rf)}
+
+
+def _risk_metric_name(rf) -> str:
+    return "sharpe_ratio" if rf else "information_ratio_vs_zero_rf"
 
 
 def _sector_capped(order, tickers, sectors, n_target, max_sector_w):
@@ -3010,6 +3160,31 @@ def sanity_check(panel, ranges=None, warn=True) -> dict:
                 "detail": f"{share:.2%} of rows outside [{lo}, {hi}] — systematic, not a fat tail"})
     out["checks"]["range"] = rng
 
+    # ---- 1b. SIGN check on the range-exempt ratios ----
+    # AUDIT B18. `ev_sales`, `ev_ebitda` and `ps` are exempt from the range band because they
+    # legitimately take a wide range — which meant the one place a sign error could hide was the
+    # one place nothing checked. A sign check is cheap and needs no band: after the negative-EV
+    # convention was unified these should be empty, and a non-zero count means the guard has
+    # something to say.
+    sign = {}
+    for name in SANE_RANGE_EXEMPT:
+        col = "raw_" + name
+        if col not in panel.columns:
+            continue
+        s = pd.to_numeric(panel[col], errors="coerce").dropna()
+        if s.empty:
+            continue
+        neg = int((s < 0).sum())
+        sign[name] = {"n": int(len(s)), "negative": neg, "share": neg / float(len(s))}
+        if neg:
+            out["flags"].append({
+                "check": "sign", "factor": name, "negative": neg,
+                "share_negative": neg / float(len(s)),
+                "detail": (f"{neg} rows ({neg/float(len(s)):.2%}) of {name} are NEGATIVE — a "
+                           f"negative multiple sorts to the wrong end of the value theme once "
+                           f"negated; the convention is to treat it as missing")})
+    out["checks"]["sign"] = sign
+
     # ---- 2. subgroup pegging ----
     sub = {}
     if "is_foreign" in panel.columns:
@@ -3018,8 +3193,24 @@ def sanity_check(panel, ranges=None, warn=True) -> dict:
         sub["foreign"] = {"n_rows": n_for, "share_of_rows": n_for / n}
         if n_for and n_for < len(panel):
             per_factor = {}
+            # AUDIT B24 — de-duplicate the scan list. SANE_RANGES keys and SANE_RANGE_EXEMPT
+            # names also appear as z_ columns, so factors were evaluated more than once, and the
+            # raw-versus-z preference below meant the same factor could be measured on a raw
+            # level in one pass and a standardised value in another. Worse, a factor and its
+            # own negated twin were both reported — the shipped output showed `ev_ebitda` at a
+            # foreign median percentile of 0.362 next to `neg_ev_ebitda` at 0.640, which is one
+            # fact printed twice with the sign flipped. Cosmetic on its own, but an inflated
+            # flag count trains readers to ignore the guard, and this guard is the one that
+            # would have caught the currency bug.
+            _seen, _scan = set(), []
             for name in (list(ranges) + list(SANE_RANGE_EXEMPT)
                          + [c[2:] for c in panel.columns if c.startswith("z_")]):
+                if name not in _seen:
+                    _seen.add(name)
+                    _scan.append(name)
+            _scan = [nm for nm in _scan
+                     if not (nm.startswith("neg_") and nm[4:] in _seen)]
+            for name in _scan:
                 col = "raw_" + name if "raw_" + name in panel.columns else "z_" + name
                 if col not in panel.columns:
                     continue
@@ -3445,6 +3636,11 @@ def main(argv=None):
         from .results_file import write as _write_results
         _cleanups = {
             "survivorship_mask": bool(getattr(prov, "delisted_map", None) and prov.delisted_map()),
+            # AUDIT B14 — the boolean above only says the ACTIONS map is non-empty. This is
+            # the mask's actual measured coverage, plus the count of names whose price
+            # series ends early with NO delisting row to explain it.
+            "survivorship_mask_coverage":
+                LAST_PANEL_DIAGNOSTICS.get("survivorship_mask_coverage"),
             "pit_market_cap_from_daily": bool(getattr(prov, "daily_history", None)
                                               and prov.daily_history("AAPL")),
             "sf3_per_manager_inputs": bool(getattr(prov, "sf3_for", None) and prov.sf3_for("AAPL")),

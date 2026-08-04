@@ -324,7 +324,7 @@ def run_name(prov, ticker: str, bars: dict, start: str = ENTRY_START, end: str =
         if chain is None or len(chain) == 0:
             rejects["no_chain"] = rejects.get("no_chain", 0) + 1
             continue
-        und = w["close"][-1]
+        und = OB.spot_asof(w)        # AUDIT B1 — AS-TRADED: strikes are never split-adjusted
         summ = OB.chain_summary(chain, und, day)
         ev = sig_evaluate(w, summ, horizon=OB.HORIZON)
         sc, labels = ev.get("score"), ev.get("labels") or []
@@ -591,7 +591,7 @@ def random_entry_control(prov, ticker: str, bars: dict, trades: list, draws: int
             chain = prov.chain_on(ticker, day)
             if chain is None or len(chain) == 0:
                 continue
-            und = w["close"][-1]
+            und = OB.spot_asof(w)      # AUDIT B1 — AS-TRADED, matching run_name and settlement
             row = OB.pick_contract(chain, und, day, right="C")
             if row is None:
                 continue
@@ -731,11 +731,24 @@ def sanity(rows, meta: Optional[dict] = None) -> dict:
         if c < 0.05:
             flags.append(f"signal {k} has {c:.1%} coverage — effectively empty")
 
+    # 6. AUDIT B1 — is the ENTRY IV a plausible equity vol at all? This is the guard that the
+    #    price-basis bug walked straight past. Feeding a split/dividend-ADJUSTED spot into an
+    #    implied-vol solve against AS-TRADED strikes produces vols of 1.28-1.57 (128-157%), which
+    #    the 187-name run reported and the handoff recorded as an unexplained anomaly. Coverage
+    #    said `iv` was present; nothing asked whether it was sane. A median outside [0.05, 1.00]
+    #    is not a market regime, it is a broken input.
+    ivs = [_f(r.get("iv")) for r in rows]
+    ivs = [v for v in ivs if v is not None and v > 0]
+    iv_med = _median(ivs)
+    if iv_med is not None and not (0.05 <= iv_med <= 1.00):
+        flags.append(f"median entry IV {iv_med:.3f} is outside [0.05, 1.00] — implausible as an "
+                     f"equity ATM vol; check the underlying price basis (adjusted vs as-traded)")
+
     exits = {}
     for r in rows:
         exits[str(r.get("exit_reason") or "?")] = exits.get(str(r.get("exit_reason") or "?"), 0) + 1
 
-    out = {"ok": True, "n": n, "settled_at_intrinsic_frac": intrinsic,
+    out = {"ok": True, "n": n, "settled_at_intrinsic_frac": intrinsic, "iv_median": iv_med,
            "signal_coverage": cov, "exit_reason_mix": {k: v / n for k, v in sorted(exits.items())},
            "spread_median": _median(sp), "spread_p90": (sorted(sp)[int(0.9 * len(sp))]
                                                         if sp else None),

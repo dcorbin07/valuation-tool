@@ -1,4 +1,14 @@
 """
+ARCHIVED — NOT LIVE, NOT TESTED AS PRODUCTION, NOT PART OF ANY RESULT.
+Quarantined by AUDIT B16 and renamed so it cannot be mistaken for live code.
+
+THE LIVE EXIT LOGIC IS THE INLINE DAY-WALK LOOP IN
+`valuation/edge/options_backtest.simulate_trade`. This module evaluates an exit on the
+UNDERLYING (+/-1 sigma on the stock) and has never contributed to a reported number.
+It is imported only by tests/test_intraday.py — contrary to the audit's 'imported by
+nothing', which was a code-reading finding and is corrected here.
+
+--------------------------------------------------------------------------------------
 Options exit rule — a first-cut, honest placeholder.
 
 Until we have real options price history, "how did the screaming-buy options signals do?"

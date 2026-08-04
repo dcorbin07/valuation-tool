@@ -2044,7 +2044,13 @@ def test_options_expired_worthless_is_recorded_not_dropped():
     assert t["ok"] and t["settled_at_intrinsic"]
     assert t["exit_fill"] == 0.0
     assert abs(t["net_pnl"] - (-2.60 * 100 - 1.30)) < 1e-9
-    assert t["return_pct"] == -1.0
+    # AUDIT B15 — `return_pct` is now net of spread AND commission, as the module docstring and
+    # OPTIONS_BACKTEST_RESULTS.md always claimed it was. A long option that expires worthless
+    # loses the whole premium PLUS the round-trip commission, so the return on capital deployed
+    # is slightly worse than -100%. The old gross-of-commission quantity is pinned alongside it.
+    assert abs(t["return_pct"] - (-2.60 * 100 - 1.30) / (2.60 * 100)) < 1e-12
+    assert t["return_pct"] < -1.0
+    assert t["return_pct_gross_comm"] == -1.0
     # In the money at expiry settles at intrinsic.
     t2 = F.round_trip(entry, None, right="C", strike=150.0, exit_underlying=160.0, expired=True)
     assert t2["exit_fill"] == 10.0
@@ -3712,7 +3718,9 @@ def test_exitlab_baseline_policy_reproduces_the_shipped_simulator():
     p = _exit_path([1.20, 1.60, 2.30, 3.00])
     t = EL.apply_policy(p, dict(EL.SHIPPED))
     assert t["ok"] and t["exit_reason"] == "target"
-    assert abs(t["return_pct"] - (2.30 / 1.10 - 1.0)) < 1e-12, t
+    # AUDIT B15: return_pct is net of commission; the gross figure keeps the old arithmetic.
+    assert abs(t["return_pct_gross_comm"] - (2.30 / 1.10 - 1.0)) < 1e-12, t
+    assert abs(t["return_pct"] - ((2.30 - 1.10) * 100 - 1.30) / (1.10 * 100)) < 1e-12, t
 
     # and the checker must actually catch a mismatch rather than rubber-stamping
     good = [{"ticker": "T", "entry_date": p["entry_date"], "alert_ts": p["entry_date"],
@@ -3786,7 +3794,7 @@ def test_exitlab_worthless_expiries_settle_at_intrinsic_and_are_not_dropped():
     p = _exit_path([], dte0=45, strike=100.0, settle=80.0)
     t = EL.apply_policy(p, dict(EL.SHIPPED))
     assert t["ok"] and t["exit_reason"] == "expiry"
-    assert t["settled_at_intrinsic"] and t["return_pct"] == -1.0, t
+    assert t["settled_at_intrinsic"] and t["return_pct_gross_comm"] == -1.0, t   # AUDIT B15
 
 
 def test_exitlab_holding_past_the_last_quote_settles_at_intrinsic_not_at_a_stale_mark():
@@ -3803,8 +3811,8 @@ def test_exitlab_holding_past_the_last_quote_settles_at_intrinsic_not_at_a_stale
     legacy = EL.apply_policy(p, {"tp": 1.00, "sl": None, "time_frac": 1.00},
                              settle="last_quote")
     assert honest["exit_reason"] == "expiry" and legacy["exit_reason"] == "expiry"
-    assert honest["return_pct"] == -1.0, honest
-    assert abs(legacy["return_pct"] - (0.60 / 1.10 - 1.0)) < 1e-12, legacy
+    assert honest["return_pct_gross_comm"] == -1.0, honest                       # AUDIT B15
+    assert abs(legacy["return_pct_gross_comm"] - (0.60 / 1.10 - 1.0)) < 1e-12, legacy  # B15
     assert legacy["return_pct"] > honest["return_pct"], "the stale mark flatters, always"
     assert legacy["stale_mark_used"] and not honest.get("stale_mark_used")
 
@@ -3919,6 +3927,483 @@ def test_exitlab_policy_grid_is_fixed_and_pays_for_its_own_multiplicity():
     from valuation.edge import options_entry as E
     assert 'pr.get("sign_z")' in inspect.getsource(E.analyse), \
         "the same screen in the 22c entry study must agree"
+
+
+# ---------------------------------------------------------------------------------------------
+# OPTIONS_DEEP_RESEARCH thread #2 — the cross-section of option returns. These pin the decisions
+# that would otherwise let a two-ended sort produce a winner by construction.
+# ---------------------------------------------------------------------------------------------
+def _xs_chain(strikes=(95.0, 100.0, 105.0), dte=30, asof="2020-06-01",
+              call=(4.00, 4.20), put=(3.80, 4.00), rights=("C", "P")):
+    """A minimal one-expiry chain that passes the fill model's liquidity screen."""
+    a = dt.date.fromisoformat(asof)
+    rows = []
+    for k in strikes:
+        for r in rights:
+            bid, ask = (call if r == "C" else put)
+            rows.append({"expiration": a + dt.timedelta(days=dte), "strike": k, "right": r,
+                         "bid": bid, "ask": ask, "open_interest": 500, "volume": 50})
+    return pd.DataFrame(rows)
+
+
+def _xs_ev(quintiles, t=3.0, months=120, both=True, char="iv_rv"):
+    """A hand-built evaluate_char result, so the gate can be tested without a panel."""
+    from valuation.edge import options_xsection as X
+    return {"char": char, "ok": True, "source": "test", "is_hypothesis":
+            X.CHARACTERISTICS[char]["hypothesis"], "published_sign":
+            X.CHARACTERISTICS[char]["sign"],
+            "n_months": months, "n_dates_dropped_thin": 0,
+            "quintile_mean_returns": list(quintiles),
+            "quintile_mean_char": list(range(len(quintiles))),
+            "monotonicity": X._spearman(list(range(len(quintiles))), list(quintiles)),
+            "all_names": {"n": months, "mean": 0.0},
+            "long_only_q1_excess": {"n": months, "mean": 0.05, "t": t},
+            "held_out_q1_excess": {"early": {"n": 60, "mean": 0.05},
+                                   "late": {"n": 60, "mean": 0.05},
+                                   "both_positive": both},
+            "long_short_NOT_INVESTABLE": {"n": months, "mean": 0.10, "t": t},
+            "monthly_q1_excess": {}}
+
+
+def test_xsection_direction_is_fixed_before_the_sort_not_after():
+    """S2, the single most important rule in the module. A cross-sectional sort has two ends; a
+    study that chooses which end to go long AFTER seeing the numbers wins half the time by
+    construction. Every published sign is declared up front, and a sort that runs BACKWARDS is a
+    contradiction of the literature — never quietly re-signed into a result."""
+    from valuation.edge import options_xsection as X
+
+    assert all(m["sign"] == +1 for m in X.CHARACTERISTICS.values()), \
+        "every characteristic is declared as 'high predicts LOWER option returns'"
+
+    # predicted: returns fall as the characteristic rises -> Q1 highest
+    good = X.gate(_xs_ev([0.30, 0.20, 0.10, 0.00, -0.10]), fdr_discovery=True)
+    assert good["passed"] and good["monotone_in_predicted_direction"]
+    assert not good["contradicts_published_sign"]
+
+    # BACKWARDS: a strong sort in the opposite direction must not pass
+    bad = X.gate(_xs_ev([-0.10, 0.00, 0.10, 0.20, 0.30]), fdr_discovery=True)
+    assert not bad["passed"], bad
+    assert bad["contradicts_published_sign"] and not bad["monotone_in_predicted_direction"]
+
+
+def test_xsection_straddle_is_bought_at_the_ask_on_both_legs():
+    """S5. A straddle crosses TWO spreads at entry — it is the most spread-punished instrument in
+    the project. Marking either leg at the mid would manufacture most of any cross-sectional
+    result, so both legs pay the ask and the arithmetic is pinned here."""
+    from valuation.edge import options_fill as F
+    from valuation.edge import options_xsection as X
+
+    asof = dt.date(2020, 6, 1)
+    s = X.pick_straddle(_xs_chain(), 100.0, asof)
+    assert s is not None and s["strike"] == 100.0
+    assert s["call"].ask == 4.20 and s["put"].ask == 4.00
+
+    r = X.straddle_return(s, settle_underlying=110.0)
+    cost = (4.20 + 4.00) * F.CONTRACT_MULTIPLIER
+    comm = F.COMMISSION_PER_CONTRACT * 2 * 2               # two legs, both ways
+    pnl = (10.0 - 4.20) * F.CONTRACT_MULTIPLIER + (0.0 - 4.00) * F.CONTRACT_MULTIPLIER - comm
+    assert abs(r["entry_cost"] - cost) < 1e-9
+    assert abs(r["net_pnl"] - pnl) < 1e-9
+    assert abs(r["return_pct"] - pnl / cost) < 1e-12
+
+
+def test_xsection_straddle_settles_at_intrinsic_carrying_thread1s_lesson():
+    """Thread #1 found the simulator marks a position that outlives its last usable quote at that
+    STALE quote — higher than the truth in 94.7% of cases. Holding to expiry and settling against
+    the underlying removes the mark entirely: there is only a payoff."""
+    from valuation.edge import options_xsection as X
+
+    s = X.pick_straddle(_xs_chain(), 100.0, dt.date(2020, 6, 1))
+    pinned = X.straddle_return(s, settle_underlying=100.0)      # both legs finish worthless
+    assert pinned["return_pct"] < -1.0, "premium plus commission, all of it"
+    assert abs(pinned["return_pct"] + 1.0) < 0.01
+    # and no settle price at all must drop the observation rather than invent one
+    assert X.straddle_return(s, settle_underlying=None) is None
+
+
+def test_xsection_straddle_legs_must_share_a_strike_and_an_expiry():
+    """Two legs at different strikes is a strangle, not a straddle, and is not delta-neutral at
+    inception — which is the entire reason this instrument was chosen."""
+    from valuation.edge import options_xsection as X
+
+    ch = _xs_chain(strikes=(95.0, 100.0, 105.0))
+    ch = ch[~((ch["strike"] == 100.0) & (ch["right"] == "P"))]   # no ATM put available
+    s = X.pick_straddle(ch, 100.0, dt.date(2020, 6, 1))
+    assert s is not None and s["strike"] in (95.0, 105.0), \
+        "it must fall back to a strike where BOTH legs exist"
+
+    far = X.pick_straddle(_xs_chain(strikes=(200.0,)), 100.0, dt.date(2020, 6, 1))
+    assert far is None, "a strike miles from spot is not an ATM straddle"
+
+
+def test_xsection_thin_dates_are_dropped_and_counted_not_silently_used():
+    """A cross-sectional sort on eight names is five quintiles of one or two. Thin dates are
+    dropped and the count ships, because a silently thin month looks identical to a real one."""
+    from valuation.edge import options_xsection as X
+
+    panel = [{"date": "2019-01-31", "ticker": f"N{i}", "return_pct": 0.1 * (i % 5),
+              "iv_rv": float(i)} for i in range(8)]
+    panel += [{"date": "2019-02-28", "ticker": f"N{i}", "return_pct": 0.1 * (i % 5),
+               "iv_rv": float(i)} for i in range(40)]
+    s = X.quintile_sort(panel, "iv_rv")
+    assert s["n_months"] == 1 and s["n_dates_dropped_thin"] == 1
+    assert "2019-02-28" in s["months"] and "2019-01-31" not in s["months"]
+
+
+def test_xsection_monotonicity_bar_rejects_a_q1_q5_gap_with_noise_between():
+    """S1(c). A characteristic whose extremes differ while the middle is noise has not sorted
+    anything — it has found two tails. The rank correlation across all five quintiles is what
+    separates a real monotone relationship from a lucky pair of ends."""
+    from valuation.edge import options_xsection as X
+
+    noisy = X.gate(_xs_ev([0.30, -0.15, 0.25, -0.05, -0.12]), fdr_discovery=True)
+    assert not noisy["monotone_enough"] and not noisy["passed"], noisy
+    clean = X.gate(_xs_ev([0.30, 0.18, 0.09, -0.02, -0.12]), fdr_discovery=True)
+    assert clean["monotone_enough"] and clean["passed"]
+
+
+def test_xsection_long_short_is_labelled_uninvestable_and_never_gates():
+    """S4. The short leg of Q1-Q5 is a NAKED SHORT STRADDLE — unlimited risk, not permitted in
+    Don's account, and excluded by the mandate's own guardrail. The gate must read the long-only
+    excess, and the long-short must carry its warning in the key name itself."""
+    import inspect
+
+    from valuation.edge import options_xsection as X
+
+    ev = _xs_ev([0.30, 0.18, 0.09, -0.02, -0.12])
+    assert "long_short_NOT_INVESTABLE" in ev
+    src = inspect.getsource(X.gate)
+    assert "long_only_q1_excess" in src and "long_short" not in src, \
+        "the gate must never read the long-short leg"
+    assert "naked short straddle" in (X.__doc__ or "").lower() or \
+        "naked short straddle" in (X.verdict.__doc__ or "") or \
+        "naked short straddle" in inspect.getsource(X.verdict)
+
+
+def test_xsection_illiq_is_a_mechanical_control_and_cannot_be_adopted():
+    """Returns here are net of the spread, so a wide-spread name must earn less BY CONSTRUCTION.
+    `illiq` is carried as a control — if it does not sort, the panel is not measuring what it
+    thinks it is — but it can never be a discovery, however good its statistics look."""
+    from valuation.edge import options_xsection as X
+
+    assert X.CHARACTERISTICS["illiq"]["hypothesis"] is False
+    perfect = X.gate(_xs_ev([0.30, 0.18, 0.09, -0.02, -0.12], t=9.0, char="illiq"),
+                     fdr_discovery=True)
+    assert perfect["t_ok"] and perfect["monotone_in_predicted_direction"]
+    assert not perfect["passed"], "a mechanical control must never be adopted"
+
+
+def test_xsection_idio_moments_refuse_a_short_window_and_coverage_is_reported():
+    """The COVERAGE RULE, which this project learned the expensive way: five wired factors were
+    silently empty for its entire history. A characteristic with no coverage must be visible in
+    the result, not an absent column that quietly contributes nothing to a quintile mean."""
+    from valuation.edge import options_xsection as X
+
+    days = [f"2019-{m:02d}-{d:02d}" for m in range(1, 13) for d in range(1, 29)]
+    # the market proxy must actually VARY, or the one-factor regression has no regressor
+    mkt = {d: 0.001 * ((i % 5) - 2) for i, d in enumerate(days)}
+    short = [(k, 0.002) for k in days[:50]]
+    assert X.idio_moments(short, mkt) == {}, "too few observations must yield nothing, not noise"
+
+    long_ = [(k, 0.002 * ((i % 7) - 3)) for i, k in enumerate(days[:300])]
+    got = X.idio_moments(long_, mkt)
+    assert "idio_vol" in got and "idio_skew" in got
+
+    panel = [{"date": "2019-01-31", "ticker": "A", "return_pct": 0.1, "iv_rv": 1.0,
+              "entry_cost": 100.0, "spread_pct": 0.05, "dte": 30}]
+    cov = X.panel_summary(panel)["coverage"]
+    assert set(cov) == set(X.CHAR_NAMES)
+    assert cov["iv_rv"] == 1.0 and cov["idio_vol"] == 0.0
+
+
+def test_xsection_one_sided_screen_cannot_reward_a_backwards_sort():
+    """A characteristic that sorts the wrong way must not be able to earn a small p-value from a
+    two-sided test and become a 'discovery'. Same failure the exit lab's FDR screen had."""
+    import inspect
+
+    from valuation.edge import options_xsection as X
+
+    src = inspect.getsource(X.analyse)
+    assert "if t > 0 else 1.0" in src
+    assert "n_trials=len(CHAR_NAMES)" in src, "deflate by every characteristic tested"
+    assert "pbo_cscv_policies" in src and "bh_fdr" in src
+
+
+
+# =============================================================================================
+# EXTERNAL EDGE AUDIT (VALQUO_EDGE_AUDIT.md) — Part I regression guards.
+# One test per corrected item, cited by ID. Several of these defects survived for months
+# because nothing failed when they were wrong; each guard exists so that stops being true.
+# =============================================================================================
+def test_audit_b1_option_maths_never_uses_the_adjusted_close():
+    """B1. `close` is `closeadj` — split AND dividend adjusted, indicators only — while strikes
+    trade unadjusted. Feeding the adjusted series to `chain_summary` / `pick_contract` /
+    `compute_signals` throws the moneyness prefilter and the delta target on every pre-split
+    date and corrupts every dividend payer on every date, while settlement kept using the
+    unadjusted series — so entry and settlement of one trade ran on different price bases.
+
+    FIVE call sites across four modules made this exact mistake independently, which is why the
+    guard is a source scan and not a value assertion: the next module has to fail here, not in a
+    result nobody can interpret."""
+    import inspect
+
+    from valuation.edge import options_backtest as OB
+    from valuation.edge import options_entry, options_universe
+
+    # the one sanctioned accessor
+    assert OB.spot_asof({"raw_close": [1.0, 2.0, 3.5], "close": [9, 9, 9]}) == 3.5
+    assert OB.spot_asof({"close": [9, 9, 7.0]}) == 7.0, "fall back only when raw is absent"
+    assert OB.spot_asof(None) is None
+
+    for mod in (options_universe, options_entry):
+        src = inspect.getsource(mod)
+        for fn in ("chain_summary", "pick_contract"):
+            for line in src.splitlines():
+                if fn + "(" in line:
+                    assert 'w["close"]' not in line and '["close"][-1]' not in line, \
+                        f"{mod.__name__}: {fn} must be fed an as-traded spot, got: {line.strip()}"
+
+
+def test_audit_b1_sanity_flags_an_implausible_median_entry_iv():
+    """B1's second guard. The 187-name run reported a median entry IV of 1.28-1.57 and the
+    handoff recorded it as an unexplained anomaly; it was the price-basis bug. Coverage said
+    `iv` was PRESENT. Nothing asked whether it was SANE."""
+    from valuation.edge import options_universe as U
+
+    ok = [{"ticker": f"T{i}", "iv": 0.35, "pnl_pct": 0.1, "entry_spread_pct": 0.05}
+          for i in range(200)]
+    bad = [dict(r, iv=1.42) for r in ok]
+    assert not any("entry IV" in f for f in U.sanity(ok)["flags"]), U.sanity(ok)["flags"]
+    flags = U.sanity(bad)["flags"]
+    assert any("entry IV" in f for f in flags), flags
+    assert abs(U.sanity(bad)["iv_median"] - 1.42) < 1e-9
+
+
+def test_audit_b3_a_stale_quote_never_marks_a_position_at_expiry():
+    """B3. `round_trip` preferred a quote over intrinsic whenever one existed, and the caller
+    supplies the last quote that passed validation at ANY point in the contract's life. A
+    position that outlived its quotes was stamped with a price from before it decayed: measured
+    at 94.7% higher than the truth, 86.1% of marks positive on worthless contracts."""
+    from valuation.edge import options_fill as F
+
+    entry = F.Quote(bid=2.40, ask=2.60, oi=500, volume=100)
+    stale = F.Quote(bid=1.00, ask=1.10)
+
+    t = F.round_trip(entry, stale, right="C", strike=150.0, exit_underlying=120.0, expired=True)
+    assert t["settled_at_intrinsic"] and t["exit_fill"] == 0.0, t
+
+    # and away from expiry, age alone is enough to reject the mark
+    old = F.round_trip(entry, stale, right="C", strike=150.0, exit_underlying=120.0,
+                       exit_quote_age_days=F.MAX_MARK_AGE_DAYS + 1)
+    assert old["settled_at_intrinsic"] and old["stale_mark_rejected"], old
+    fresh = F.round_trip(entry, stale, right="C", strike=150.0, exit_underlying=120.0,
+                         exit_quote_age_days=1)
+    assert not fresh["settled_at_intrinsic"] and fresh["exit_fill"] == 1.0, fresh
+
+    # the opt-out exists ONLY so the exit lab can reproduce the old behaviour for comparison
+    legacy = F.round_trip(entry, stale, right="C", strike=150.0, exit_underlying=120.0,
+                          expired=True, force_intrinsic_at_expiry=False)
+    assert not legacy["settled_at_intrinsic"] and legacy["exit_fill"] == 1.0
+
+
+def test_audit_b15_return_pct_is_net_of_commission_as_documented():
+    """B15. `return_pct` was `exit/entry - 1`, i.e. gross of commission, while the module
+    docstring and OPTIONS_BACKTEST_RESULTS.md both stated it was net of both. `pnl_pct` and
+    `expectancy_pct` inherit it, so the headline per-trade figure was overstated."""
+    from valuation.edge import options_fill as F
+
+    q = F.Quote(bid=2.40, ask=2.60, oi=500, volume=100)
+    up = F.Quote(bid=5.40, ask=5.60, oi=500, volume=100)
+    t = F.round_trip(q, up, right="C", strike=100.0)
+    assert abs(t["return_pct"] - t["net_pnl"] / (t["entry_fill"] * 100)) < 1e-12
+    assert abs(t["return_pct_gross_comm"] - (5.40 / 2.60 - 1.0)) < 1e-12
+    assert t["return_pct"] < t["return_pct_gross_comm"], "commission is a cost, always"
+
+
+def test_audit_b10_build_frame_never_overwrites_a_caller_supplied_column():
+    """B10, generalised. The panel computes the Sloan accruals measure and hands it in;
+    `build_frame` replaced it unconditionally with FCF/NI restricted to profitable names, so the
+    signal REPORTED as `accruals_q` was not the documented one and its IC fell from t +3.08 to
+    +1.26. `book_to_price` and `growth_accel` were both guarded against exactly this."""
+    from valuation.screener.factors import build_frame
+
+    base = {"ticker": "AAA", "market_cap": 1e10, "net_income": 1e8, "fcf": 5e7,
+            "revenue": 1e9, "gross_profit": 4e8, "total_equity": 2e9, "total_debt": 1e9,
+            "assets": 5e9}
+    sentinel = {"accruals_q": -0.0123, "book_to_price": 0.777, "growth_accel": 0.0456}
+    got = build_frame([dict(base, **sentinel)])
+    for col, want in sentinel.items():
+        assert abs(float(got[col].iloc[0]) - want) < 1e-9, \
+            f"build_frame overwrote caller-supplied {col!r}"
+    # the FCF/NI variant survives under its own name, so the two can be measured head to head
+    assert abs(float(got["accruals_fcf_ni"].iloc[0]) - 0.5) < 1e-9
+    # and a caller that supplies nothing still gets the derived fallback
+    derived = build_frame([dict(base)])
+    assert abs(float(derived["accruals_q"].iloc[0]) - 0.5) < 1e-9
+
+
+def test_audit_b18_negative_enterprise_value_reads_the_same_way_everywhere():
+    """B18. A net-cash company ranked as the MOST EXPENSIVE name in the cross-section on
+    `ebit_ev` and, once negated, the CHEAPEST of all on `neg_ev_sales` — the same fact sorted to
+    opposite ends of one theme. `neg_ev_ebitda` was guarded; the other two were not."""
+    from valuation.screener.factors import build_frame
+
+    rows = [{"ticker": "NEG", "ev_sales": -3.0, "ev_ebitda": -4.0, "ps": 2.0, "market_cap": 1e9},
+            {"ticker": "POS", "ev_sales": 2.0, "ev_ebitda": 8.0, "ps": 2.0, "market_cap": 1e9}]
+    f = build_frame(rows)
+    assert np.isnan(f.loc["NEG", "neg_ev_sales"]), "negative EV is missing, never 'cheapest'"
+    assert np.isnan(f.loc["NEG", "neg_ev_ebitda"])
+    assert abs(float(f.loc["POS", "neg_ev_sales"]) + 2.0) < 1e-9
+
+
+def test_audit_b19_the_reported_sharpe_carries_its_risk_free_rate():
+    """B19. `risk_stats` is invoked with rf = 0 everywhere, so every 'Sharpe' in the results file
+    is a return-to-volatility ratio — an information ratio against zero. Over 1998-2026 that
+    overstates a true Sharpe by roughly 0.05-0.10, consistently, and the figure reaches
+    product-facing material. The options engine in this same repository subtracts a real rate."""
+    from valuation.edge.fundamental_panel import risk_stats
+
+    r = [0.03, -0.01, 0.04, 0.00, 0.02, -0.02, 0.05, 0.01]
+    zero = risk_stats(r, 4)
+    assert zero["rf_annual"] == 0.0
+    assert zero["metric"] == "information_ratio_vs_zero_rf"
+    real = risk_stats(r, 4, rf=0.02)
+    assert real["metric"] == "sharpe_ratio" and real["sharpe"] < zero["sharpe"]
+    assert risk_stats([0.01], 4)["metric"] == "information_ratio_vs_zero_rf"
+
+
+def test_audit_b12_a_limited_universe_is_ranked_by_size_not_by_alphabet():
+    """B12. `WRDSProvider.universe` returned `sorted(keys)[:limit]`. Every '800 largest names'
+    result in the project's history was therefore names beginning with roughly A through C —
+    including the first CPCV adopt, PBO 13%, f_score at t +5.66 and the four classic-anomaly
+    rejections. It also reframes the calibration note: 'PBO 13% on 800 -> 53% on full' measured
+    what an arbitrary alphabetical subsample does, not what a large-cap tier does."""
+    from valuation.edge.data_providers import WRDSProvider
+
+    p = WRDSProvider.__new__(WRDSProvider)
+    idx = {"ZZZ": [{"datekey": "2020-01-01", "marketcap": 900.0}],
+           "AAA": [{"datekey": "2020-01-01", "marketcap": 10.0}],
+           "MMM": [{"datekey": "2020-01-01", "marketcap": 500.0}]}
+    p._indexed = lambda _base: idx
+    assert p.universe(2) == ["ZZZ", "MMM"], "biggest first, not alphabetical"
+    assert p.universe() == ["AAA", "MMM", "ZZZ"], "no limit = everything, order irrelevant"
+    assert "market_cap" in WRDSProvider.UNIVERSE_SORT_KEY
+
+
+def test_audit_b26_a_filing_dated_today_is_not_readable_at_todays_close():
+    """B26. `searchsorted(..., side='right')` on the upper bound made a Form 4 or rating action
+    dated `as_of` usable at that day's close. Both are routinely filed after the bell."""
+    from valuation.edge import fundamental_panel as FP
+
+    dts = np.array(["2020-01-10", "2020-03-01"], dtype="datetime64[D]")
+    vals = np.array([5e6, 5e6])
+    same_day = FP._insider_score_at((dts, vals), "2020-03-01", lookback_days=90)
+    day_after = FP._insider_score_at((dts, vals), "2020-03-02", lookback_days=90)
+    assert day_after is not None
+    assert same_day != day_after, "the 2020-03-01 filing must not count on 2020-03-01"
+
+
+def test_audit_b9_the_deflated_sharpe_says_when_it_deflated_nothing():
+    """B9. With eight near-identical weight schemes the cross-trial variance of Sharpes is ~0,
+    so the Bailey-Lopez de Prado benchmark sr0 collapses to ~0 and the statistic degenerates to
+    an UNDEFLATED Probabilistic Sharpe Ratio. It saturates at 0.9999986 because it is not
+    deflating anything. The degeneracy now ships next to the number."""
+    from valuation.edge.fundamental_panel import _deflated_sharpe, _deflated_sharpe_detail
+
+    r = np.random.RandomState(3).normal(0.02, 0.05, 80)
+    flat = _deflated_sharpe_detail(r, [0.400, 0.401, 0.402])        # eight-schemes-like
+    assert flat["is_effectively_undeflated"]
+    assert flat["metric"] == "probabilistic_sharpe_ratio_UNDEFLATED"
+    spread = _deflated_sharpe_detail(r, [0.05, 0.40, 0.90, -0.20])  # genuinely different trials
+    assert not spread["is_effectively_undeflated"]
+    assert spread["sr0_benchmark"] > flat["sr0_benchmark"]
+    assert spread["probability"] < flat["probability"], "real deflation costs probability"
+    assert _deflated_sharpe(r, [0.400, 0.401, 0.402]) == flat["probability"]
+
+
+def test_audit_b24_the_sanity_scan_evaluates_each_factor_once():
+    """B24. `SANE_RANGES` keys, `SANE_RANGE_EXEMPT` and the derived `z_*` names overlap, so
+    factors were checked more than once and could be measured on a raw level in one pass and a
+    standardised value in another. The shipped output printed `ev_ebitda` at a foreign median
+    percentile of 0.362 beside `neg_ev_ebitda` at 0.640 — one fact, twice, sign-flipped. An
+    inflated flag count trains readers to ignore the guard."""
+    import inspect
+
+    from valuation.edge import fundamental_panel as FP
+
+    src = inspect.getsource(FP.sanity_check)
+    assert "_seen" in src and "_scan" in src, "the scan list must be de-duplicated"
+    assert 'nm.startswith("neg_")' in src, "a factor and its negated twin are one fact"
+    assert '"check": "sign"' in src, "B18: the range-exempt ratios get a sign check instead"
+
+
+def test_audit_b14_the_delisting_mask_ships_its_coverage():
+    """B14. `_masked` was incremented and never printed, returned or shipped;
+    `cleanups.survivorship_mask` was only a boolean meaning 'the ACTIONS map is non-empty'. If
+    ACTIONS misses a delisting, that name's last close is forward-filled to the panel end and
+    contributes a fake flat 0% forward return to every subsequent rebalance — silently."""
+    import inspect
+
+    from valuation.edge import fundamental_panel as FP
+
+    src = inspect.getsource(FP.build_fundamental_panel)
+    assert "_mask_coverage" in src and "ended_early_unmasked" in src
+    assert "LAST_PANEL_DIAGNOSTICS" in src
+    assert isinstance(FP.LAST_PANEL_DIAGNOSTICS, dict)
+    assert FP.STALE_TAIL_DAYS >= 90, "a tail shorter than a quarter would flag ordinary gaps"
+
+
+def test_audit_d10a_a_restated_quarter_is_not_counted_twice_in_a_ttm_window():
+    """D10-a — found by running `verify_sharadar.py` against the live key on 2026-08-03, not by
+    the audit. Sharadar APPENDS a new ARQ row on restatement rather than rewriting the existing
+    one: in the shipped export 3.15% of (ticker, reportperiod) groups carry more than one
+    datekey, across 1,818 of 2,827 tickers. `_ttm` took the last four ROWS and de-duplicated on
+    DATEKEY, which two filings of one quarter never share — so it could sum Q1, Q2, Q2', Q3.
+    Impact is confined to `roe_ttm` / `roic_ttm`, which were measured and rejected, but the guard
+    could not see the defect it was written for."""
+    from valuation.edge.fundamental_panel import _ttm
+
+    def row(dk, rp, ni):
+        return {"datekey": dk, "reportperiod": rp, "netinc": ni}
+
+    clean = [row("2020-02-01", "2019-12-31", 10), row("2020-05-01", "2020-03-31", 20),
+             row("2020-08-01", "2020-06-30", 30), row("2020-11-01", "2020-09-30", 40)]
+    assert _ttm(clean, "2020-12-01", ("netinc",))["netinc"] == 100.0
+
+    # the same year, but Q2 was restated a week later. The extra row must not push Q4 out.
+    restated = [clean[0], clean[1], row("2020-08-08", "2020-06-30", 33), clean[2], clean[3]]
+    restated.sort(key=lambda r: r["datekey"])
+    got = _ttm(restated, "2020-12-01", ("netinc",))
+    assert got is not None and got["netinc"] == 103.0, got   # 10 + 20 + 33 (latest) + 40
+
+
+def test_audit_b20_earnings_yield_keeps_one_numerator_definition():
+    """B20. The USD fallback was TOTAL net income / fx while the primary was net income to
+    COMMON, so `earnings_yield` switched numerator definition mid-cross-section. For most names
+    those agree; for preferred-heavy issuers — banks, REITs, recent recapitalisations — they
+    differ by the preferred dividend, and those names cluster in one sector."""
+    import inspect
+
+    from valuation.edge import fundamental_panel as FP
+    from valuation.edge.data_providers import WRDSProvider
+
+    src = inspect.getsource(FP._sf1_to_metrics)
+    assert "_ni_cmn" in src and '_f(sf1, "netinccmn")' in src
+    assert "_ni_basis" in src, "how often the last-resort path fires must be visible"
+    assert "netinccmn" in WRDSProvider._KEEP["fundamentals"], "the allowlist is load-bearing"
+    assert "reportperiod" in WRDSProvider._KEEP["fundamentals"]
+
+
+def test_audit_c7_every_test_suite_gates_the_auto_merge():
+    """C7. `land-agent-branch.yml` auto-merges every `worktree-*` push into main and Render
+    auto-deploys, behind `tests/test_edge.py` ONLY. Fourteen other suites did not gate a deploy,
+    while agent branches routinely edit options_universe.py, paper_track.py, factors.py and
+    screen.py — none of which that suite covers in full."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    wf = open(os.path.join(root, ".github", "workflows", "land-agent-branch.yml"),
+              encoding="utf-8").read()
+    assert "for f in tests/test_*.py" in wf, "the gate must run every suite, not one"
+    assert "exit $fail" in wf, "one red suite must not be hidden by a later green one"
 
 
 def _run_all():
