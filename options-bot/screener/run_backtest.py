@@ -195,6 +195,39 @@ _LIVE_FIELDS = ("ticker", "sector", "price", "avg_dollar_volume", "market_cap",
                 "is_common_equity")
 
 
+def _denan(row):
+    """
+    NaN -> None on the way from the panel into the live scorer.
+
+    THIS IS LOAD-BEARING, and it is the same defect class that has bitten this
+    project four times. `pit_data` correctly returns None for a missing input,
+    but the moment those values pass through a DataFrame pandas stores them as
+    float NaN, and `to_dict("records")` hands NaN back. Every missing-data
+    branch in `scoring.py` tests `is None`, so a NaN sails through as PRESENT:
+
+        quality_score(op_margin=nan, ...) -> _clip01(nan/0.25) -> nan
+        -> _weighted() counts it as present -> quality = nan
+        -> the whole composite = nan -> the name is DROPPED
+
+    So one missing input deleted a name from the book instead of renormalizing
+    the remaining weights onto what was there — and it did it without raising,
+    without appearing in the coverage tally (which only counts names that
+    reached the `sc is None` branch), and while looking exactly like a name that
+    simply failed a gate. Measured on a 60-name slice: 89 unscored rows, of
+    which the skip counter saw 19 and this silently ate the other 70.
+
+    Reasoning about it the other way round is what makes it obvious: an
+    all-NaN-tolerant scorer is impossible here BY DESIGN, because `insider_score`
+    has to tell `None` ("not fetched", renormalize away) apart from `[]`
+    ("fetched, nothing there", a real neutral 50). A convention that fine cannot
+    survive a silent None->NaN coercion in the transport layer.
+    """
+    out = {}
+    for k, v in row.items():
+        out[k] = None if (isinstance(v, float) and v != v) else v
+    return out
+
+
 def score_live(panel, with_insider=True, insider_limit=6):
     """
     Score every cross-section with `scoring.score_stock` — the deployed model.
@@ -211,7 +244,7 @@ def score_live(panel, with_insider=True, insider_limit=6):
     """
     out, skips = [], {}
     for _, g in panel.groupby("date"):
-        rows = g[list(_LIVE_FIELDS)].to_dict("records")
+        rows = [_denan(r) for r in g[list(_LIVE_FIELDS)].to_dict("records")]
         for r, (_, src) in zip(rows, g.iterrows()):
             r["insider_transactions"] = (
                 PC.insider_asof(r["ticker"], src["date"], insider_limit)
