@@ -620,3 +620,241 @@ intercept also comes back short of t > 2.0, the two results agree and the honest
 is **efficient factor exposure**, per P5's pre-committed language rule. If R1's intercept is
 strong while X4 is null, that gap — regression alpha a retail ETF blend cannot capture — is the
 actual product, and X4's window says how much of it is currently demonstrable.
+
+---
+---
+
+# Round 3 — X8, U5, M5 (2026-08-04)
+
+Thresholds committed in `PREREG_free_analysis.md` **before** each run. Lane re-validated:
+`python check_lanes.py X8 U5 M5` → **SAFE**. No pre-existing project file modified.
+Part IV/V (U7, O7, O3–O5) still **held until R1 returns**.
+
+| item | verdict | one line |
+|---|---|---|
+| **X8** | **REPLICATES** | Untuned 5-theme composite is positive and significant in Japan (t 3.85) *and* developed Europe (t 4.30) — **and the US control is the weakest region of all**. |
+| **U5** | **decided, and the headline corrected** | The famous "+17.4% vs +4.86%" is **~55% tax and ~45% configuration**, not all tax. The allocation still holds. |
+| **M5** | **protocol written** | The regime overlay is re-classified from *failed test* to *untestable hypothesis under the chosen protocol*. |
+
+---
+
+## X8 — replicate on another vendor's data, in another country → **REPLICATES**
+
+**Committed bar:** the untuned 5-theme equal-weighted composite must be positive with
+**Newey–West t > 2.0 (12 lags)** in **both** Japan and developed Europe on the matched window.
+Mapping, regions and the European country list were all fixed in writing first.
+
+**Run.** `python -m scripts.jkp_replication`. Global Factor Data, monthly, `vw_cap`, matched
+window 1999-01 → 2026-04. Themes mapped 1:1 with **no tuning of any kind**:
+value→`value`, quality→`quality`, momentum→`momentum`, size→`size`,
+capital_discipline→`investment`.
+
+### Result
+
+| region | ann. (matched) | NW t | ann. (full history) | NW t |
+|---|---|---|---|---|
+| **Japan** | **+2.05%** | **+3.85** | +2.01% | +5.00 |
+| **developed Europe** (15 countries) | **+3.36%** | **+4.30** | — | — |
+| world ex-US | +3.37% | +5.03 | +3.02% | +6.27 |
+| developed | +3.13% | +4.20 | +2.83% | +5.33 |
+| **USA (control)** | +3.09% | **+2.35** | +3.05% | +6.07 |
+
+> **VERDICT: REPLICATES — positive and significant in both Japan and developed Europe.**
+
+**Developed Europe is not carried by one country: all 15 are positive and 12 of 15 clear t > 2.**
+Denmark +4.61% (t 4.14), Italy +3.05% (4.06), Norway +4.58% (3.87), UK +3.68% (3.82), Portugal
++5.38% (3.66), Germany +4.29% (3.02) … the three below the bar are Netherlands (1.99), Finland
+(1.89) and Belgium (1.55) — small markets, and none negative.
+
+**The most striking number is the control.** On the matched window the **USA is the *weakest*
+region tested (t 2.35)** — weaker than Japan, Europe, developed and world-ex-US. Whatever else is
+true, the theme structure is **not** a US artifact. That is the single strongest piece of
+external evidence this project has obtained, and it is out-of-sample in vendor, country,
+construction and period simultaneously.
+
+### Where it does not replicate cleanly, reported rather than buried
+
+**Japan's result is carried by value and size; quality and momentum contribute nothing there.**
+Per-theme NW t in Japan: value **+2.27**, size **+1.81**, investment +1.57, momentum +0.88,
+quality **−0.12** (full history: momentum **−0.10**, quality +0.19). Momentum failing in Japan is
+a well-documented stylised fact in the literature, so its appearance here is a good sign the data
+is real rather than a defect in the test. But it means **two of the five mapped themes do not
+generalise to Japan**, and the Japanese result rests on two themes plus investment.
+
+By contrast the US control's per-theme profile is nearly the mirror image — quality **+3.03**,
+momentum +1.69, value +1.01, size +0.87 — so the *composite* replicates while its *composition*
+does not. An equal-weighted blend is exactly the right structure for that world, which is a
+quiet vindication of the untuned equal weights.
+
+### Secondary monotonicity arm — descriptive, and one correction
+
+**Correction to my own pre-registration:** I committed to "decile portfolios"; JKP's public
+portfolio files are **terciles** (3 buckets), so monotonicity is measured across 3 points, which
+is weaker than promised. Reported as measured.
+
+In the published direction, monotonicity holds for **5/5 characteristics in the US** and **4/5 in
+Japan** (`be_me` +1.00, `ret_12_1` +1.00, `market_equity` −1.00 and `at_gr1` −1.00 are all the
+*correct* sign given how those characteristics are oriented). The single exception is Japan's
+`qmj` at −0.50 — consistent with quality's t of −0.12 there, so the two arms agree.
+
+### What this does and does not establish — the part that matters for R1
+
+**It establishes that the theme structure is real and internationally general.** It does **not**
+establish Valquo's magnitude. The JKP composite earns **+2% to +3.4%/yr long-short at `vw_cap`**;
+Valquo's own long-short is **+20.4%/yr**. Those are not comparable instruments — JKP is
+capped-value-weighted broad factors, Valquo is an equal-weighted concentrated decile book — but
+the gap is a factor of six and nothing here corroborates it.
+
+**Read alongside X4, the two results are consistent and they point the same way:**
+
+- **X8:** the factor premia the composite harvests are real, and general across 16 countries.
+- **X4:** the strategy's margin over what a user can *buy* is not demonstrable since 2014 (t 1.10
+  vs the ETF blend, 0.95 vs SPY).
+
+Together that is **strong evidence for genuine factor exposure and weak evidence for
+implementation alpha** — which is precisely P5's "efficient factor exposure" framing. X8 turns
+that framing from a consolation prize into a positive, defensible claim: *these premia are real,
+we harvest them transparently, and here is 16-country evidence that they are not a backtest
+artifact.* **If R1's intercept comes back short of t > 2.0, this is the product.**
+
+**Licence discipline.** All JKP data landed in `data/factors/research_only/jkp/` with a
+`LICENCE.txt`. **CC BY-NC 4.0 — research only, never shippable.** Product code must never read
+that directory. The 16-country evidence above may be *described* in product copy as validation;
+the data itself cannot be redistributed.
+
+---
+
+## U5 — tax-aware arm allocation → **decided, and the headline corrected**
+
+**Committed method:** state the current numbers as they are; derive the allocation from
+**shelter gain per dollar**, not from comparing a pre-tax figure in one account with a post-tax
+figure in another; report any discrepancy with the audit rather than smoothing it.
+
+### The audit's numbers are authoritative — and they are not comparing what they appear to
+
+`settings.BOOK_CONFIGS` confirms both figures exactly: roth `net_alpha` **0.1737**, taxable
+`after_tax_alpha` **0.0486**. So "+17.4% vs +4.86%" is not stale.
+
+**But +17.4% is a PRE-tax alpha and +4.86% is a POST-tax alpha, and they belong to two different
+books at two different cadences** — roth is top-25 on a 42-day full rotation (turnover 3.79),
+taxable is a decile with a 20% no-trade band on 63 days (turnover 1.72). The 12.51pp gap
+therefore contains both effects. Decomposed on the same file's numbers:
+
+| component | value | share |
+|---|---|---|
+| **configuration** (roth book 17.37% vs taxable book 11.69%, both pre-tax) | **5.68pp** | **45.4%** |
+| **tax** (taxable book 11.69% pre-tax → 4.86% after tax) | **6.83pp** | **54.6%** |
+| total | 12.51pp | 100% |
+
+> **The audit calls this "close to a 3.6× difference… the largest single lever." The direction is
+> right and the magnitude is overstated: roughly 45% of that gap is the choice of book, not the
+> choice of account.**
+
+The clean tax-only figure on a single fixed book is in the `after_tax` block: the top-decile book
+goes gross **28.51% → 18.36%** after tax, a **10.15pp/yr drag** at a **35.6% effective rate**,
+with **88.0% of gains short-term** (rates used: 40.8% short, 23.8% long).
+
+**Even corrected, the tax lever is real and large.** 6.83pp/yr on the taxable book — larger than
+any signal improvement in the catalogue, and it requires no research. The audit's conclusion
+survives its own arithmetic being tightened.
+
+### The allocation
+
+1. **Options sleeve → Roth, entirely.** Single-stock options are **100% short-term** (40.8%)
+   versus the equity book's 88%, and they realise fully every year. Their drag *rate* is the
+   highest of any sleeve and — unlike the equity book — **no configuration change can improve
+   their tax character.** Only the account can. That asymmetry, not the raw size of the gap, is
+   the actual argument for putting them first.
+2. **Equity book → taxable, in the low-turnover `taxable` configuration** (decile + 20% no-trade
+   band, turnover 1.72 vs 3.79). This recovers **5.68pp/yr of the gap without consuming any Roth
+   space at all**, which is exactly why it belongs in the taxable account.
+3. **Any Roth space left over → equity**, worth ~6.83pp/yr per dollar. Large, but strictly second
+   priority to the options sleeve on the rate argument above.
+
+**Robustness:** the allocation is unchanged by the correction. The decomposition changes the
+*size* of the tax lever, not its sign, and not the ordering of the sleeves.
+
+**One further observation the numbers force.** **88% of the equity book's gains are short-term**,
+so it is barely benefiting from long-term rates at all. Holding period is therefore a live
+after-tax lever in its own right, and it connects directly to **S14** (no-trade band) and **S23**
+(exit rule) — both of which should now be judged on after-tax alpha, not gross.
+
+**Product note, endorsed.** For Valquo's users the taxable case is the common one. "Here is the
+after-tax number for your account type" is a genuine differentiator — most competing tools report
+gross and never mention it — and it is exactly the kind of checkable claim the project's
+positioning rests on. It is also cheap: both configurations already exist in the codebase.
+
+---
+
+## M5 — protocol for tail-hedge and conditional tests → **written**
+
+**The category error, stated first.** The regime overlay passed both numeric criteria on the full
+sample — max drawdown −57.0% → −37.0% (a 20-point gain) for a 2.70-point return give-up, Sharpe
+1.13 → 1.17 — and was rejected because the benefit sits in one episode and the late half shows
+zero drawdown improvement.
+
+**That rejection was correct discipline applied to a test the rule could not have passed.**
+A crash-insurance rule cannot clear a both-halves gate unless the sample contains **two
+comparable crashes**. The panel has one. Structuring the test that way guarantees rejection
+regardless of merit — so the record currently files an **untestable hypothesis** as a **failed
+test**, and those are different things. The distinction goes in the record so nobody re-runs the
+same doomed experiment and reaches the same uninformative answer.
+
+### The protocol — three arms, none of which is a return test
+
+**1. Conditional accuracy.** Does the rule fire on the states it is supposed to fire on? The
+definition of the state must be **written down before the rule is scored** — e.g. "a drawdown
+exceeding X% within N months" — and the rule is graded on hit rate and false-alarm rate against
+*that* definition. This is a classification test, not a P&L test.
+
+**2. Cost of carry.** The explicit, quantified give-up over the ~90% of the time the rule is
+wrong, stated in annualised return and in Sharpe. A hedge with an unstated carry cost is not a
+result, it is an advertisement.
+
+**3. Payoff conditional on firing.** Measured **only** on the firing episodes, and reported
+**with the episode count stated in the same sentence**. With n = 1 the honest output is a
+description of what happened once — never a t-statistic, never a Sharpe, and never the word
+"significant".
+
+### The constraint that stops this becoming a loophole
+
+**This protocol is strictly harder to claim adoption under, not easier.** A rule that passes all
+three arms on a single episode is adoptable **only as an optional configuration with a published
+cost statement** — never as a default, and never described as validated or confirmed. A protocol
+invented to rescue a rejected rule would be worthless; this one exists to prevent a category
+error, and it must not be used to resurrect anything that failed a test it could genuinely have
+passed.
+
+**Scope.** Applies only to rules whose benefit is *definitionally* concentrated in rare states —
+tail hedges, crash overlays, regime filters. It does **not** apply to any cross-sectional signal,
+which can and must clear the ordinary both-halves gate.
+
+### Where that leaves the regime overlay
+
+Re-classified in the record from **"tested and rejected"** to **"untestable under the both-halves
+protocol; not yet evaluated under the conditional protocol."** It currently ships as
+`settings.REGIME_OVERLAY`, default `None` — which is the right default and, under this protocol,
+is now a *considered* default rather than an accident of a doomed test. Evaluating it properly is
+a future item; **M5 delivers the protocol, not the evaluation.**
+
+---
+
+## Files added in round 3
+
+| file | item |
+|---|---|
+| `scripts/jkp_replication.py` | X8 |
+| `data/free_analysis/JKP_REPLICATION.json` | X8 output (gitignored) |
+| `data/factors/research_only/jkp/` + `LICENCE.txt` | JKP cache — **CC BY-NC, never shipped** (gitignored) |
+
+U5 and M5 are decision/doc items and add no code.
+
+## Recommended next step
+
+**Still R1, and X8 has now changed what its null would mean.** Before X8, a weak R1 intercept
+would have read as "the edge may not be real." After X8 it reads as "the edge is real, general
+across 16 countries, and is factor exposure rather than selection" — a materially better place to
+land. Run R1 against FF5+MOM and the q-factors using the series already shipped in
+`ETF_BENCHMARK_RESULTS_strategy_series.csv`, hold to P5's language rule, and read the three
+together: **X8 says the premia are real, X4 says the implementation margin is unproven, R1 will
+say which of the two the headline number actually is.**
