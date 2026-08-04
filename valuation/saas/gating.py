@@ -41,9 +41,21 @@ def _active(user) -> str:
       4. anyone with a genuinely active paid subscription.
     Flip BETA_ALL_PREMIUM=false (env) to end the free beta with no code change.
 
-    OPEN_ACCESS overrides all of it: the full product for everyone, account or not."""
+    OPEN_ACCESS overrides all of it: the full product for everyone, account or not.
+
+    PRIVATE_MODE overrides even that, in the other direction: the owner gets everything and
+    everyone else gets the "anon" stub, including demo sessions and (unlike every rule below)
+    signed-in accounts. `app_saas._guard` refuses non-owners long before this runs, so this is
+    defence in depth rather than the enforcement point — but a tier function that hands out
+    Premium to strangers whenever some other flag is set is exactly the kind of thing that
+    turns a future refactor into a leak."""
     from ..config import CONFIG
-    # 0. Open access — deliberately ahead of the `not user` check, because that IS the
+    # 0a. Private mode — a personal tool. Deliberately the first rule, ahead of open access,
+    #     the demo link and the beta grant, all three of which would otherwise unlock it.
+    if CONFIG.private_mode:
+        from .private import is_owner
+        return "premium" if is_owner(user, CONFIG) else "anon"
+    # 0b. Open access — deliberately ahead of the `not user` check, because that IS the
     #    point: an anonymous visitor gets the whole product, not the "anon" stub tier.
     if CONFIG.open_access:
         return "premium"
@@ -89,6 +101,13 @@ def check_request(path: str, method: str, body: dict, user, store) -> tuple | No
     if path.startswith("/api/edge/"):
         if not user or user.get("email", "").strip().lower() not in CONFIG.owner_email_set:
             return ({"error": "Owner-only research tools.", "owner_only": True}, 403)
+
+    # Private mode: the only caller that gets this far is the owner (see _guard), and the
+    # owner has no tier caps, no daily valuation limit and nothing to upgrade to. Skipped
+    # wholesale for the same reason open access skips it — every rule below describes a
+    # commercial product that is switched off.
+    if CONFIG.private_mode:
+        return None
 
     # Open access: no login wall, no feature locks, no usage caps. Everything below this
     # line exists only for the paid product, and is skipped wholesale.

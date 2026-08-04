@@ -22,6 +22,15 @@ from valuation.backtest.optimize import optimize_weights
 #   open_access      -> the whole product free, no account at all (current default)
 CONFIG.beta_all_premium = False
 CONFIG.open_access = False
+# THREE overrides now. private_mode ships DEFAULT TRUE (Valquo is a personal research tool —
+# see config.py), and under it there are no tiers, no signup and no anonymous reader, so every
+# tier assertion in this file would be asserting against a product that is switched off.
+#
+# Turning it off here is not a workaround: this suite is what proves the PUBLIC product still
+# works, which is the thing `PRIVATE_MODE=false` is promised to restore. If these tests only
+# ran in private mode, "flipping the flag back brings the product back" would be an untested
+# claim. The lockdown itself is tested in tests/test_private.py.
+CONFIG.private_mode = False
 
 
 def _csrf(c):

@@ -5,6 +5,238 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 9 — 2026-08-04 — Private mode: Valquo becomes a personal tool (PROMPT_appfixer_private.md)
+
+All seven items shipped. Valquo is now owner-only behind one reversible flag, every commercial
+surface is off, and the forward track — the one dataset here that cannot be rebuilt — is backed
+up into git on a weekly schedule. Nothing in this session touches the options backtest, the
+fundamental panel or the miner.
+
+## The flag
+
+**`PRIVATE_MODE`, default `true`** (`valuation/config.py`). Also declared in `render.yaml` so it
+is visible and flippable in the Render dashboard rather than hidden in a code default.
+
+It is read in exactly two kinds of place, which is what makes it auditable:
+
+1. **Three derived properties on `Config`** — `public_access`, `signup_enabled`,
+   `billing_enabled`, plus `beta_banner_enabled`. No template or route tests `private_mode`
+   arithmetic itself; they read a named concept.
+2. **`valuation/saas/private.py`** — the request-level policy, called from `app_saas._guard`
+   before any other access decision. `check(path, user, cfg)` is a pure function returning
+   `None` (allow) or a refusal dict, so "prove the lockdown holds" is a unit test rather than a
+   browser session.
+
+**It outranks every flag that would open the product**, and each is asserted separately:
+`OPEN_ACCESS=true`, `BETA_ALL_PREMIUM=true`, an explicit `FEATURE_BILLING=on` and a configured
+Stripe key all fail to re-open anything. A lockdown that another flag can quietly undo is not a
+lockdown, and `FEATURE_BILLING=on` in particular used to be an explicit "force the pricing page
+visible" override — it is now refused.
+
+**Nothing is deleted.** Every tier, route, template and Stripe path is intact and still under
+test. See "Reversing this" at the end.
+
+## 1. Locked to the owner
+
+`_guard` refuses everyone but the owner, ahead of the landing page, the tier caps and the
+per-visitor rate limit — because all three implement the public product, and shaping a
+stranger's request with "what may a visitor see" logic before asking whether there is supposed
+to be a visitor is the wrong order.
+
+- **Owner = a real signed-in account whose address is in `OWNER_EMAILS`.** A demo/preview
+  session is explicitly *not* the owner even though `gating._active` grants it Premium.
+- **Signed in but not the owner is refused too** — which is why the concept is `public_access`
+  and not simply `open_access`.
+- **The refusal is identical for anonymous and for signed-in-as-someone-else.** The difference
+  is not information a stranger should have, and leaking it is a free account-enumeration
+  oracle. Pinned by a test.
+- **Anonymous gets a plain holding page** (`private_landing.html`), not a trimmed landing page:
+  no sample valuation, no track, no screenshot, no feature list, no signup. Plus
+  `noindex, nofollow` and no Open Graph card — a rich preview advertising "a whole-market
+  screener" is the wrong public face for an instance nobody can use.
+- **`/demo` (the recruiter link) is refused outright**, handled conservatively per the brief.
+  It is the one route whose entire purpose is letting a third party read the tool without an
+  account. `private.is_owner` separately refuses to honour a surviving demo cookie.
+
+Five things stay open, each for a stated reason, and the allowlist is pinned by a test so it
+cannot be widened by accident:
+
+| Open | Why |
+|---|---|
+| `/api/health` | `render.yaml` health probe. Blocking it makes Render roll back every deploy — the lockdown would take the service *down* rather than lock it. Returns three config booleans, no market data. |
+| `/login`, `/forgot`, `/reset/<token>` | Or the owner can never get in. |
+| `/admin/*`, `/api/option-alerts/*` | The crons. This lets them REACH `_admin_ok`; it does not skip it. |
+| `/alerts/unsubscribe/<token>` | An unsubscribe link that requires signing in first is not an unsubscribe link. |
+| `/static/` | The login page needs its stylesheet. |
+
+Everything else is denied, so forgetting a route fails as "the owner has to log in", never as
+"a stranger reads the book". A test sweeps the app's own URL map — not a hand-written list — so
+an `/api/` route added next month is covered the day it is added.
+
+## 2. Commercial surfaces off
+
+No payment can be initiated: `/billing/checkout` and `/billing/portal` return **403**, and they
+say why rather than claiming a misconfiguration — "Billing isn't configured (set
+STRIPE_SECRET_KEY)" would be a lie that invites someone to "fix" it by setting a key, which
+would not in fact re-enable checkout. `/pricing` and `/register` redirect (route-level, not just
+hidden buttons). The Stripe webhook no-ops. The beta strip — "you're exploring the full app,
+everything unlocked, no sign-up needed" — is off; it addresses prospective users and there are
+none. Nav and footer drop every link that now 401s, so a logged-out visitor never sees a row of
+dead links.
+
+## 3. Vendor audit — what each surface actually serves
+
+**Confirmed: no raw ThetaData and no raw Sharadar rows are exposed on any page or API route.**
+Traced by reading each route's imports through to the provider, not by assuming.
+
+| Surface | Numbers come from | Category |
+|---|---|---|
+| `/app` dashboard shell, `/methodology` | nothing — static copy | — |
+| Single valuation (`/api/value`) | yfinance + SEC EDGAR (+ FMP if keyed), live Treasury | live vendor, derived (DCF output) |
+| Hot stocks (`/api/hotstocks`) | the daily scan snapshot → FMP / yfinance / SEC EDGAR | derived (z-scores, 1–100 rank) |
+| Valquo Index (`/api/valquo-index`) | the **same** snapshot, top-sliced | derived |
+| Index forward track (`/api/index-track`) | Valquo's own recorded series (+ ingested Cowork tracker) | Valquo's own record |
+| Signals (`/api/signals`, `/api/options-alerts`) | Tradier quotes + option chains (yfinance delayed fallback) | live vendor, derived (scores, sizing) |
+| Options scorecard (`/api/options-scorecard`) | Valquo's own `option_alerts` table | Valquo's own record |
+| Options paper (`/api/options-paper`) | Valquo's own alert table vs a hard-coded backtest constant | Valquo's own record + derived constant |
+| Regime (`/api/regime`) | 10Y yield, VIX, S&P vs 200-day | live public market data |
+| `/api/whatdo` | stored state only; recomputes nothing | derived |
+| Edge Lab (`/api/edge/*`) | **Sharadar/WRDS exports** | **derived only** — walk-forward folds, ICs, Sharpes, row counts. No vendor rows. Owner-only before this change; now private-gated as well. |
+
+Two honest notes, since the brief asked for the distinction rather than an assumption:
+
+- **Derived vs raw.** The screener's factor weights in `screener/settings.py` are committed
+  constants *measured on* the Sharadar panel, and `options_paper.py` compares against a
+  hard-coded expectancy figure derived from the ThetaData panel. These are statistics computed
+  from licensed data, not the licensed data — the ordinary output of research, and the category
+  the vendors sell the data to produce. Worth knowing they exist; not a redistribution of rows.
+- **ThetaData appears in `valuation/edge/options_*` only as research modules and comments.** No
+  web route imports a ThetaData provider. The live options path is Tradier.
+- **The new `data_export/` backup** contains Valquo's own paper record — Tradier *sandbox*
+  marks, timestamps and computed P&L. No Sharadar and no ThetaData content. A test scans the
+  written files for credential-shaped strings on every run.
+
+## 4. Framing copy
+
+The visible surfaces under private mode are the holding page, the login page and the dashboard.
+The holding page says what this is in two sentences and offers a login. The dashboard header
+carries a standing line — *"Private research tool — personal use only. Vendor data under
+individual licences; not for redistribution"* — which is not a disclaimer for anyone else's
+benefit (there is nobody else) but a reminder that makes "share a screenshot of the hot list" a
+decision rather than a reflex. "Send feedback" is gone; it addresses a user of a service.
+`/terms` and `/privacy` are kept and marked **Not in force**, which is more honest than leaving
+a service agreement sitting on an instance with no users. **The "educational only, not
+investment advice" disclaimers are untouched** — they still apply to Don.
+
+## 5. The crons still run
+
+All six admin routes reach `_admin_ok` unchanged, verified end-to-end and pinned by a test that
+uses a **wrong** token deliberately — a correct one would actually run a market scan, a broker
+cycle or a Discord post. The discriminator is which layer refused: private mode answers
+`{"private_mode": true}`, `_admin_ok` answers `{"error": "unauthorized"}`. Seeing the latter
+proves the request got through. Covered: `run-scan`, `run-intraday`, `run-paper-track`,
+`post-recap`, `ingest-snapshot`, `ingest-index-track`, `export-track`, `option-alerts/*`.
+
+They were never at risk of a session wall — they authenticate with a token and no cookie — but
+"never at risk" is exactly the assumption worth testing before locking the front door.
+
+## 6. Track backup — the irreplaceable dataset
+
+Everything else here can be rebuilt: the panel re-reads Sharadar, the backtest re-runs, the hot
+list re-scans. **The forward track cannot.** It records what the model said on days that have
+already happened, and its whole value is that nobody could have seen the outcome first.
+Recreating it later from current data would produce a different object with the same column
+names — worse than losing it, because it would look fine.
+
+It lives in one place: the SQLite DB on the Render service's persistent disk.
+
+**The delivery problem, and why it is solved this way.** Render cannot commit to git and GitHub
+Actions cannot read Render's disk. So the backup crosses the gap over HTTP: the service exposes
+`/admin/export-track` (admin token, pure read), and a new **weekly `track-backup` workflow**
+pulls it, renders the files, and commits them. Committed means it is in git history *and* on
+Don's machine after a `git pull`.
+
+Written to `data_export/`: `paper_track_history.json` (the complete artifact),
+`paper_track_index.csv` (daily Index vs SPY), `paper_track_trades.csv` (every trade, entry →
+exit → P&L), `paper_track_holdings.csv`, and a README so a CSV found in this repo years from now
+is not a mystery. Three CSVs rather than the one the brief suggested, because merging a daily
+return series with per-contract trades needs a `record_type` column and a union of ~30 mostly-
+null columns — unreadable in a spreadsheet, which is the only reason to have CSV here. The JSON
+is the complete artifact.
+
+Design points worth knowing:
+
+- **Both forward records are captured** — the Tradier sandbox book *and* the ingested Cowork
+  tracker series. Backing up only the one the hero happens to lead with would silently lose the
+  other.
+- **Rewrite-in-full, not append-only.** Append-only preserves a corrupted row forever; the
+  database is the source of truth. Output is deterministic (stable sort, fixed float precision)
+  so a quiet week produces no diff and a real change produces a readable one.
+- **The workflow refuses to shrink.** The failure that would actually destroy the record is the
+  service coming up on a fresh disk and a well-behaved backup faithfully committing nothing over
+  months of history. If the new export has fewer index days than the committed one, the job
+  fails loudly instead of committing. `curl -fsS` so an HTTP error fails the step rather than
+  committing `{"error":"unauthorized"}` over a good backup. Failure posts to Discord.
+- **Stored raw-ish, not summarised.** Column names match the table columns exactly, so it can be
+  re-inserted. A summary cannot be un-summarised.
+- **Committed empty as a placeholder.** This machine's dev database holds synthetic fixture rows,
+  and a file whose entire job is to be the real record must not ship with fake data in it.
+
+**How Don gets it locally:** `git pull`, then look in `data_export/`. To make one on demand:
+`python -m valuation.edge.track_export`. To pull the live one by hand, run the workflow from the
+Actions tab (`workflow_dispatch`) — worth doing **before** ever touching the Render service.
+
+## Verification
+
+`tests/test_private.py` — **22 new tests**. Beyond them, the lockdown was exercised end-to-end
+through the real SaaS app against real databases: 21 gated paths anonymous, 3 signed-in as a
+non-owner, 7 as the owner, the six cron routes, both billing routes, and `/demo`.
+
+`tests/test_saas.py` and `tests/test_security.py` now set `private_mode = False` at module
+level. That is not a workaround — those suites are what prove the **public** product still
+works, which is exactly what `PRIVATE_MODE=false` promises to restore. If every suite ran in
+private mode, "flipping the flag back brings the product back" would be an untested claim.
+Between the three files, both sides of the flag are covered.
+
+## Reversing this — when Valquo goes commercial
+
+One setting, in this order:
+
+1. Get the licences the commercial posture needs: **ThetaData Business** (~$1,600/mo vs
+   Individual) and a Sharadar plan permitting redistribution. This is the actual constraint —
+   the flag is downstream of it.
+2. Set `PRIVATE_MODE=false` on Render (it is already in `render.yaml`).
+3. Choose the public posture with the flags that were always there: `OPEN_ACCESS=true` for free
+   and open, or `OPEN_ACCESS=false` for the paid, signup-required product. `FEATURE_BILLING=on`
+   forces the pricing surfaces regardless.
+4. Stripe keys were left configured, so no secrets need re-entering.
+5. Optionally re-enable `/demo` by setting `DEMO_ACCESS_TOKEN`.
+
+Nothing was deleted and nothing needs rebuilding. `tests/test_saas.py` and
+`tests/test_security.py` are the regression suite for that restored product.
+
+## Honest limits
+
+- **Verified through the app, not a browser.** Real requests against real Flask and real
+  databases — which catches routing, gating and status codes, but not "does the holding page
+  look right on a phone". Worth a two-minute eyeball after deploy.
+- **The backup has not yet run against Render.** The endpoint, the renderer and the shrink-guard
+  are all tested locally, but the first real pull happens on the first workflow run (or a manual
+  `workflow_dispatch`). **Do that once by hand before trusting it** — it needs `SITE_BASE_URL`
+  and `ADMIN_TOKEN` as Actions secrets, which the auto-scan workflow already uses, so there is
+  most likely nothing to add.
+- **This is the first workflow in the repo that commits to `main`.** That is what "backed up in
+  git history" requires, but it is a real change in how the repo operates and Don should know it.
+- **The lockdown is an application-layer boundary.** Anyone with the `ADMIN_TOKEN`, the Render
+  dashboard or the database file still has everything. That is the right scope for a licence
+  posture; it is not a threat model against a determined attacker.
+- **Carried forward, still outside my access:** `DISCORD_WEBHOOK_URL` on Render (Session 7);
+  `TRADIER_PAPER_TOKEN` / `TRADIER_PAPER_ACCOUNT_ID` on Render (Session 6) — until those are set
+  the paper track does not run, and a backup of an empty track is what it is.
+- **Still awaiting a decision from Session 8:** the ~70 lines of dead custom-backtest JS.
+
+---
+
 # Session 8 — 2026-08-03 — Phase 9 UX round 2 (PROMPT_appfixer_phase9.md)
 
 All four items in the prompt shipped, one commit each, all suites green. Nothing in this

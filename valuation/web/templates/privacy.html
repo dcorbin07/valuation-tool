@@ -2,10 +2,18 @@
 {% block title %}Privacy Policy{% endblock %}
 {% block body %}
 <div class="wrap" style="padding:40px 22px;max-width:820px">
+  {% if private_mode %}
+  <div class="err" style="background:#eaf0fb;color:#1f3864;border-color:#d8e4fb">
+    <b>Not in force.</b> Valquo is currently a private research tool for its owner's personal use. It has one account,
+    collects nothing from anybody else, and offers no service — so there is no processing for this policy to describe.
+    Retained for the public product.
+  </div>
+  {% else %}
   <div class="err" style="background:#fbf1e0;color:#8a5a12;border-color:#f0dcb8">
     ⚠ <b>DRAFT — attorney review before publishing.</b> Confirm it matches what your deployment actually collects and your
     obligations (state privacy laws; GDPR if you serve EU users). Replace every <code>[bracketed]</code> item.
   </div>
+  {% endif %}
   <h1 style="color:var(--navy)">Privacy Policy</h1>
   <p class="muted"><b>Effective date:</b> [DATE PUBLISHED]</p>
 

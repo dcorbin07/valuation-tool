@@ -231,11 +231,37 @@ class Config:
     beta_mode: bool = field(default_factory=lambda: _get("BETA_MODE", "true").lower() != "false")
     beta_all_premium: bool = field(default_factory=lambda: _get("BETA_ALL_PREMIUM", "true").lower() != "false")
 
+    # PRIVATE_MODE — Valquo is a PERSONAL RESEARCH TOOL for the owner, not a product.
+    #
+    # This is a deliberate licence-compliance posture, not a soft launch. ThetaData's
+    # Individual plan and Sharadar's individual terms are "personal use only, no
+    # redistribution, no business use"; the Business equivalents are an order of magnitude
+    # more expensive. One user, no commercial activity, no third party reading vendor-derived
+    # numbers => those terms are cleanly satisfied. Anything that presents Valquo as a service
+    # to other people — signup, checkout, tier copy, an anonymous visitor reading scores — is
+    # what would break them, so all of it is switched off here rather than trimmed by hand.
+    #
+    # DEFAULT TRUE, and it OVERRIDES open_access / beta_all_premium / signup / billing rather
+    # than being overridden by them: a lockdown that any other flag can silently undo is not a
+    # lockdown. It is read in exactly two kinds of place — the derived properties just below
+    # (which is why no template ever tests `private_mode` directly) and `saas/private.py`,
+    # which owns the request-level policy.
+    #
+    # NOTHING IS DELETED. Every tier, route, template and Stripe path stays intact and tested,
+    # so `PRIVATE_MODE=false` restores the public product exactly as it was — see
+    # "Reversing this" in HANDOFF_appfixes.md.
+    private_mode: bool = field(default_factory=lambda: _get("PRIVATE_MODE", "true").lower() != "false")
+
     # OPEN_ACCESS — Valquo is free and open: every feature available to everyone, no
     # account required, no checkout. This is a FLAG, not a deletion: all the tier,
     # gating and Stripe code is untouched, so OPEN_ACCESS=false restores the paid,
     # signup-required product exactly as it was. It goes further than
     # BETA_ALL_PREMIUM, which still required an account to sign in to.
+    #
+    # SUPERSEDED BY private_mode while that is on: "open to everyone" and "owner only" are
+    # opposite answers to the same question. Read `public_access`, never this field, when the
+    # question is "may a stranger see this?" — the raw field survives only so that turning
+    # private mode off restores whatever the public product was configured to be.
     open_access: bool = field(default_factory=lambda: _get("OPEN_ACCESS", "true").lower() != "false")
     # NO DEFAULT, deliberately. This used to default to the literal "preview", which grants
     # a permanent Premium session to anyone who guesses /demo/preview. Harmless while
@@ -260,13 +286,29 @@ class Config:
         return {e.strip().lower() for e in self.owner_emails.split(",") if e.strip()}
 
     @property
+    def public_access(self) -> bool:
+        """May someone who is NOT the owner read this instance at all?
+
+        The one question every access decision reduces to, so that no caller has to remember
+        that private_mode outranks open_access. Under private mode the answer is no for
+        everybody — signed-in-but-not-owner included, which is why this is not simply
+        `open_access`.
+        """
+        return (not self.private_mode) and self.open_access
+
+    @property
     def signup_enabled(self) -> bool:
         """Show the signup + pricing surfaces at all?
 
         One named concept so templates never test `not open_access` directly and re-enabling
         is a single flag. LOGIN is deliberately NOT gated by this — existing accounts must
-        still be able to sign in when new signups are hidden.
+        still be able to sign in when new signups are hidden, and under private mode signing
+        in is the ONLY way the owner reaches the tool.
         """
+        # Private mode wins over an explicit FEATURE_BILLING=on: a personal tool has nobody to
+        # sell to, and "force the pricing page visible" must not be a way around the lockdown.
+        if self.private_mode:
+            return False
         v = (self.feature_billing or "").strip().lower()
         if v in ("on", "true", "1", "yes"):
             return True
@@ -279,9 +321,24 @@ class Config:
         # While the product is open, there is nothing to sell: this hides the Stripe
         # checkout everywhere it's referenced without deleting any billing code, so
         # OPEN_ACCESS=false restores the paid flow exactly as it was.
+        #
+        # Under private mode NO payment can be initiated at all — checkout, the portal and the
+        # webhook all refuse — regardless of whether Stripe keys happen to be configured. The
+        # keys staying set is deliberate: reversing this must not require re-entering secrets.
+        if self.private_mode:
+            return False
         if self.open_access:
             return False
         return bool(self.stripe_secret_key)
+
+    @property
+    def beta_banner_enabled(self) -> bool:
+        """The site-wide "you're exploring the full app, everything unlocked" strip.
+
+        It is addressed to prospective users, so under private mode it is off: there is no
+        beta, no launch and nobody being invited in.
+        """
+        return self.beta_mode and not self.private_mode
 
     @property
     def ai_enabled(self) -> bool:

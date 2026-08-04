@@ -1,0 +1,118 @@
+name: Track backup (the one thing that can't be re-derived)
+
+# Commits a plain-text snapshot of the FORWARD PAPER TRACK into the repo every week.
+#
+# Why this workflow has to exist at all: the live record lives in the SQLite database on the
+# Render web service's persistent disk (render.yaml: disk `data`, /app/data, 1GB). That disk
+# survives redeploys but not the service being deleted or recreated. Everything else in this
+# project can be rebuilt from the vendor exports; the forward track cannot, because it is a
+# record of what the model said on days that have already passed. Recreating it later from
+# current data would produce a different object with the same column names.
+#
+# Render cannot commit to git and GitHub Actions cannot read Render's disk, so the backup
+# crosses the gap over HTTP: the web service exposes the payload at /admin/export-track behind
+# the same admin token the other crons use, and this job renders it into data_export/ and
+# commits it. Committed means it is in git history AND on Don's machine after a `git pull`.
+#
+# Setup (repo -> Settings -> Secrets and variables -> Actions) — the SAME two secrets the
+# auto-scan workflow already uses, so there is most likely nothing to add:
+#   SITE_BASE_URL       https://valuation-tool-h2hr.onrender.com
+#   ADMIN_TOKEN         the value Render generated for the web service
+#   DISCORD_WEBHOOK_URL (optional) — where a FAILED backup is announced
+
+on:
+  workflow_dispatch: {}          # run it by hand any time, e.g. right before touching Render
+  schedule:
+    # Sunday 06:17 UTC. Weekly is enough — the track appends one index point per weekday and
+    # a handful of trades, so a lost week is a small loss, while a daily commit would add ~250
+    # no-op-ish commits a year to a repo Don reads by hand. An ODD minute because GitHub's
+    # scheduler routinely drops top-of-the-hour runs (the same reason auto-scan.yml uses :23).
+    - cron: "17 6 * * 0"
+
+# Least privilege: this job writes files to the repo and nothing else.
+permissions:
+  contents: write
+
+concurrency:
+  # Never two backups racing to commit the same four files.
+  group: track-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Pull the forward track from the live service
+        env:
+          BASE: ${{ secrets.SITE_BASE_URL }}
+          TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BASE:-}" ] || [ -z "${TOKEN:-}" ]; then
+            echo "::error::SITE_BASE_URL and ADMIN_TOKEN must both be set as Actions secrets."
+            exit 1
+          fi
+          # -f so an HTTP error is a failed step rather than a committed error page. That
+          # matters more here than anywhere else in the repo: silently committing {"error":
+          # "unauthorized"} over a good backup would destroy the thing being backed up.
+          curl -fsS "$BASE/admin/export-track" -H "X-Admin-Token: $TOKEN" -o payload.json
+          python - <<'PY'
+          import json, sys
+          d = json.load(open("payload.json"))
+          if not d.get("ok"):
+              print("::error::export endpoint returned an error:", d.get("error"))
+              sys.exit(1)
+          c = (d.get("export") or {}).get("counts") or {}
+          print("index days:", c.get("index_days"), "| closed trades:",
+                c.get("option_alerts_closed"), "| ingested days:", c.get("ingested_index_days"))
+          PY
+
+      - name: Render the backup files
+        run: python -m valuation.edge.track_export --from-json payload.json --out data_export
+
+      - name: Refuse to overwrite a real backup with an empty one
+        run: |
+          set -euo pipefail
+          # The failure this guards against: the service comes up against a FRESH disk, the
+          # track reads as empty, and a well-behaved backup faithfully commits nothing over
+          # months of record. An empty export is only allowed to land if what is already
+          # committed is empty too. Tripping this is a real incident, not a flaky job.
+          NEW=$(python -c "import csv;print(sum(1 for _ in csv.DictReader(open('data_export/paper_track_index.csv'))))")
+          OLD=$(git show HEAD:data_export/paper_track_index.csv 2>/dev/null | tail -n +2 | grep -c . || echo 0)
+          echo "index rows: committed=$OLD new=$NEW"
+          if [ "$NEW" -lt "$OLD" ]; then
+            echo "::error::the new export has FEWER index days ($NEW) than the committed backup ($OLD). Refusing to commit. The live database may have been reset — investigate before overwriting."
+            exit 1
+          fi
+
+      - name: Commit if anything changed
+        run: |
+          set -euo pipefail
+          git config user.name  "valquo-track-backup[bot]"
+          git config user.email "actions@github.com"
+          git add data_export/
+          # The export is deterministic, so "no diff" is the normal outcome on a quiet week
+          # and must not be a failure.
+          if git diff --cached --quiet; then
+            echo "no change since the last backup"
+            exit 0
+          fi
+          git commit -m "Track backup: forward paper record as of $(date -u +%Y-%m-%d)"
+          git push
+
+      - name: Say so if the backup failed
+        if: failure()
+        env:
+          HOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          # A backup that fails quietly is not a backup. Best-effort: no webhook configured
+          # still leaves a red run in the Actions tab.
+          if [ -n "${HOOK:-}" ]; then
+            curl -fsS -X POST "$HOOK" -H "Content-Type: application/json" \
+              -d '{"content":"⚠️ Valquo **track backup FAILED**. The forward paper record is the one dataset that cannot be rebuilt — check the Actions run."}' || true
+          fi
