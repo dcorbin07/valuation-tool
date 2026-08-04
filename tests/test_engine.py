@@ -378,6 +378,66 @@ def test_exit_multiple_is_anchored_to_mature_fundamentals():
     assert exit_sales_multiple({}, None) is None
 
 
+def _foreign_reporting(fin="KZT", px="USD", fx_rate=None, fx_unresolved=False):
+    """Nike's numbers wearing a foreign reporting currency — the KSPI shape."""
+    cd = build_nike()
+    cd.currency, cd.financial_currency = px, fin
+    cd.fx_rate, cd.fx_unresolved = fx_rate, fx_unresolved
+    return cd
+
+
+def test_unresolved_fx_refuses_to_publish_a_fair_value():
+    """BUG 1, half 2. `yahoo.fetch` sets fx_unresolved when statements are in one currency,
+    the price in another, and the FX rate can't be fetched. Nothing downstream had ever
+    acted on it, so the engine published a fair value built from unknown units. It must
+    now refuse — silently emitting a number here is the whole failure mode."""
+    r = value_from_company(_foreign_reporting(fx_unresolved=True), CONFIG, mc_trials=200)
+    assert r.base_fair_value is None, "must not publish a fair value on unresolved FX"
+    assert r.upside is None, "and must not publish an upside derived from it"
+    b = r.fair_value_blend
+    assert b.valuable is False, "the UI's not-valuable state is keyed on this"
+    assert "KZT" in b.reason and "USD" in b.reason, b.reason
+    assert b.reason in r.warnings, "the refusal must surface to the reader"
+
+
+def test_unconverted_foreign_currency_refuses_to_publish():
+    """Currencies differ and NO conversion was applied (fx_rate is None) — the P7 shape,
+    where local-currency cash flows get compared to a USD share price."""
+    r = value_from_company(_foreign_reporting(fin="JPY", fx_rate=None), CONFIG, mc_trials=200)
+    assert r.base_fair_value is None and r.upside is None
+    assert "JPY" in r.fair_value_blend.reason
+
+
+def test_resolved_fx_still_publishes():
+    """The guard must not fire merely because a name reports abroad. A converted name is
+    valuable like any other — otherwise the fix would just blank every ADR."""
+    r = value_from_company(_foreign_reporting(fin="JPY", fx_rate=0.0067), CONFIG, mc_trials=200)
+    assert r.base_fair_value is not None and r.base_fair_value > 0
+    assert r.fair_value_blend.valuable is True
+
+
+def test_fair_value_far_above_price_is_withheld_not_warned():
+    """KSPI shipped $1,249.16 against a $92.00 price (+1,258%) with a warning attached
+    saying it was 'almost certainly a data problem' — and printed the number anyway.
+    The threshold that produced that warning is now binding."""
+    cd = build_nike()
+    cd.price = (cd.price or 100.0) / 40.0          # same model, implausible price
+    r = value_from_company(cd, CONFIG, mc_trials=200)
+    assert r.base_fair_value is None, "a >5x fair value must not be published"
+    assert r.upside is None
+    assert "Cannot value this name" in r.fair_value_blend.reason
+    assert any("Cannot value this name" in w for w in r.warnings)
+
+
+def test_guard_leaves_a_normal_name_alone():
+    """The guard must be inert on the reference model — a fix that suppresses good names
+    is not a fix."""
+    r = value_from_company(build_nike(), CONFIG, mc_trials=200)
+    assert r.base_fair_value is not None and r.base_fair_value > 0
+    assert r.fair_value_blend.valuable is True
+    assert not any("Cannot value this name" in w for w in r.warnings)
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
