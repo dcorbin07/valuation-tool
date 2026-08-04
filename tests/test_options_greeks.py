@@ -383,6 +383,28 @@ def test_open_interest_sentinel_is_treated_as_missing_not_as_a_number():
     assert any("open interest missing" in f for f in G.sanity_flags(daily2, cov2)), cov2
 
 
+def test_gamma_walls_built_on_missing_open_interest_are_flagged():
+    """A gamma wall on a date where most open interest is the -1 sentinel is not dealer
+    positioning — it is whichever contracts' OI survived the merge. Across all 280 derived names
+    the top strike's gamma share runs 0.31 at >95% known OI and 0.55 under 25%, negative
+    correlation on 231 of them. The guard must SAY SO, and must stay quiet when the same
+    concentration is present at full coverage (real walls exist too)."""
+    clean = {"rows_in": 100, "rows_iv_ok": 80, "iv_at_bound": 0,
+             "skipped": {"neg_time": 0, "no_spot": 0}}
+    # concentrated exactly where OI is unknown, flat where it is known
+    bad = pd.DataFrame({"gex_wall_conc": [0.85] * 100 + [0.20] * 100,
+                        "oi_coverage_iv": [0.3] * 100 + [1.0] * 100,
+                        "zero_gamma": [100.0] * 200})
+    flags = G.sanity_flags(bad, clean)
+    assert any("OI artifact" in f for f in flags), flags
+
+    # same concentration, but it does NOT track coverage -> not an artifact, no flag
+    ok = pd.DataFrame({"gex_wall_conc": [0.85] * 100 + [0.85] * 100,
+                       "oi_coverage_iv": [0.3] * 100 + [1.0] * 100,
+                       "zero_gamma": [100.0] * 200})
+    assert not any("OI artifact" in f for f in G.sanity_flags(ok, clean)), G.sanity_flags(ok, clean)
+
+
 def test_empty_column_guard_fires():
     """The COVERAGE RULE applied to this layer. An all-NaN derived column must announce itself
     here; the 90-DTE tenors did exactly this before they were removed."""
