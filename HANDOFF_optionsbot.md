@@ -692,6 +692,95 @@ SPY excess Sharpe **0.14**, QQQ **−0.05**, IWM **−0.56**.
 
 ---
 
+---
+
+# O9 — IV rank as a SELL-timing rule · REJECTED. **The short-vol question is closed.**
+
+Full numbers: `options_backtest/o9_iv_rank_summary.json`. Threshold committed at
+`65b2456`, before the run.
+
+**What was actually tested, and why it was not a re-run.** `iv_rank` had been
+rejected three times, always as a filter on a LONG-vol strategy ("buy calls only
+when IV rank is low"). That asks whether cheap vol predicts good long-option
+outcomes. This asks the opposite question — whether expensive vol predicts good
+SHORT-option outcomes — as an on/off switch rather than as a floor on an
+always-on strategy. O8 is what made it answerable: on index options execution is
+not the binding constraint, so a result here cannot be confounded by "high IV
+rank names have wider spreads", which is exactly what made the single-name
+banding uninterpretable.
+
+**Design.** Same engine, same 2018-2025 window, same config as O8. Open a spread
+only when the index's own vol index sits in the top tercile of its trailing
+252-session distribution; otherwise hold cash. **Entries only** — gating exits
+would hold losers because vol fell, which is a different and much worse strategy,
+and there is a test asserting exits stay ungated.
+
+| | ungated Sharpe | **gated Sharpe** | ann. vol | max DD | trades | time invested |
+|---|---|---|---|---|---|---|
+| **SPY** | +0.14 | **+0.04** | 15.7% → 8.2% | −23.2% → −14.5% | 1,905 → 538 | **27.2%** |
+| QQQ | −0.05 | **−0.28** | 16.0% → 9.1% | −33.3% → −26.2% | 1,907 → 542 | 27.9% |
+| IWM | −0.56 | **+0.12** | 13.8% → 6.6% | −46.8% → −11.8% | 1,892 → 491 | 24.8% |
+
+**ADOPT required SPY gated excess Sharpe >= 0.50. It is 0.04 — and it is WORSE
+than ungated.** The gate roughly halves volatility on every underlying, so it is
+a genuine risk reducer; on the primary underlying it simply cuts return by more
+than it cuts risk (annualised return 4.68% → 2.86%, against a 2.54% risk-free).
+
+## The decisive result is not the Sharpe — the sign flips across underlyings
+
+Ungated mean P&L per trade, by IV-rank tercile (terciles cut on the *observed*
+rank distribution, because IV rank is not uniform on [0,1]):
+
+| | bottom | middle | top | shape |
+|---|---|---|---|---|
+| **SPY** | **$56.73** | $0.16 | $47.34 | non-monotone; **cheapest tercile is best** |
+| **QQQ** | **$68.76** | −$3.83 | −$8.46 | monotone **decreasing** — top is worst |
+| **IWM** | −$35.28 | −$17.69 | **$29.98** | monotone **increasing** — top is best |
+
+My pre-registered "effect present" test — top tercile above the bottom two, on
+SPY — **fires TRUE** ($47.34 vs $28.50). I am reporting that because it was
+pre-registered, but it does not mean what it was written to test: it fires only
+because the middle tercile is ≈$0, and on SPY the **cheapest** vol tercile is the
+best of the three, which is the opposite of the hypothesis. On QQQ the ordering
+is cleanly monotone in the *wrong* direction.
+
+A rule whose sign flips between SPY, QQQ and IWM over the same eight years is not
+a rule. One positive out of three underlyings is what chance looks like. IWM's
+improvement (−0.56 → +0.12) is the single result that superficially supports the
+idea, and it still does not clear the bar.
+
+**Verdict: REJECTED.** Per the audit's own pre-registration — *"if the effect
+does not appear on index options where the spread is small, close the question
+permanently"* — **the short-vol question is closed.** Not "parked": closed. The
+friendliest possible execution environment, the two prior rejections, O8's
+cost decomposition and now this all point the same way, and there is no version
+of this that survives on single names, which are strictly worse on every axis
+that matters.
+
+**What it unblocks.** Nothing further should be spent on short vol —
+re-parameterisation, different deltas, different DTEs, IV-rank variants. If it is
+ever reopened it needs a *new mechanism*, not a new parameter, and a fresh
+pre-registration that says so.
+
+**Two construction notes worth keeping.**
+* `iv_rank_series` computes the **percentile** form (fraction of the trailing
+  window at or below today), not the `(IV − low)/(high − low)` range form. The
+  range form is hostage to two extreme observations, so one 2020-03 print pins it
+  near zero for the following year — switching the rule OFF precisely when
+  premium is richest. That choice would have changed the answer.
+* Days whose trailing window is not yet full get **no signal and do not trade**.
+  Consequently 243 of SPY's 1,905 ungated trades (12.8%) carry no rank and are
+  excluded from the tercile table, which is why the tercile P&L does not sum to
+  the strategy total. The counts are reported (`trades_without_a_rank`) rather
+  than left for a reader to trip over.
+
+13 tests (`options_backtest/test_iv_rank.py`), the important one asserting that
+every rank on or before day K is unchanged when vol after day K is replaced with
+a huge spike — a sell-timing rule that peeks one day forward would look excellent
+and be worthless, and nothing in the equity curve would say so.
+
+---
+
 *Note: `HANDOFF_STATUS.md` has deliberately NOT been overwritten. Several agents
 are working parallel lanes against this repo and that file is shared project
 state; overwriting it from one lane would clobber the others. This file is this
