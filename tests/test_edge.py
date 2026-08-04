@@ -4532,6 +4532,102 @@ def test_audit_b6_the_panel_ships_its_window_and_cross_section_sizes():
     assert '"truncation": "shared_calendar"' in src
 
 
+def test_theta_cache_root_is_absolute_and_anchored_on_the_primary_checkout():
+    """The miner's cache root was RELATIVE (`data/options`), so it resolved against the cwd.
+
+    `data/` and `.env` are gitignored and therefore exist ONLY in the primary checkout. Run the
+    miner from a git worktree and it mined into a phantom empty `data/options` beside the real
+    16GB cache, while the ThetaData key failed to resolve and every name logged "probe failed".
+    Both failures were silent. Anchor it absolutely or this returns.
+    """
+    import os
+
+    from valuation.edge import theta_bulk as TB
+
+    assert os.path.isabs(TB.CACHE_ROOT), TB.CACHE_ROOT
+    assert os.path.isabs(TB.REPO_ROOT), TB.REPO_ROOT
+    # REPO_ROOT must be a real checkout (has the package), not a worktree's .git pointer target.
+    assert os.path.isdir(os.path.join(TB.REPO_ROOT, "valuation")), TB.REPO_ROOT
+    assert TB.CACHE_ROOT.startswith(TB.REPO_ROOT), (TB.CACHE_ROOT, TB.REPO_ROOT)
+    # A worktree checkout is never the anchor: .git there is a file, not a directory.
+    assert not os.path.isfile(os.path.join(TB.REPO_ROOT, ".git")), (
+        "REPO_ROOT resolved to a worktree, not the primary checkout")
+
+
+def test_oi_coverage_reads_minus_one_as_unknown_not_as_a_quantity():
+    """B4, writer side. -1 is the feed's UNKNOWN sentinel; counting it as data is the defect."""
+    import pandas as pd
+
+    from valuation.edge.theta_bulk import oi_coverage
+
+    assert oi_coverage(pd.DataFrame({"open_interest": [10, 20, 30, 40]})) == 1.0
+    assert oi_coverage(pd.DataFrame({"open_interest": [-1, -1, -1, -1]})) == 0.0
+    assert oi_coverage(pd.DataFrame({"open_interest": [-1, 5, -1, 5]})) == 0.5
+    assert oi_coverage(pd.DataFrame({"open_interest": [0, 0]})) == 1.0     # zero OI is KNOWN
+    assert oi_coverage(None) == 0.0
+    assert oi_coverage(pd.DataFrame({"x": [1]})) == 0.0                    # no column at all
+
+
+def test_degraded_open_interest_year_is_marked_on_disk_not_cached_as_clean():
+    """A year whose OI call faulted used to be written looking identical to a clean one.
+
+    That is exactly how 11.4% of the cache became -1 with nothing to show for it. The frame is
+    still cached (the EOD data is valid and expensive) but the year must carry an `.oi_degraded`
+    sidecar recording the measured coverage, and a clean re-mine must clear it.
+    """
+    import os
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    def _frame(oi):
+        n = len(oi)
+        return pd.DataFrame({"expiration": [dt.date(2020, 6, 19)] * n,
+                             "strike": [100.0] * n, "right": ["C"] * n,
+                             "date": [dt.date(2020, 6, 1)] * n,
+                             "bid": [1.0] * n, "ask": [1.1] * n,
+                             "volume": [5] * n, "open_interest": oi})
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tb = TB.ThetaBulk(api_key="", root=tmp)
+        path = TB.year_path("ZZZ", 2020, tmp)
+
+        tb._fetch_year = lambda s, y: (_frame([-1, -1, -1, -1]), False)
+        assert tb.ensure_year("ZZZ", 2020) is True
+        assert os.path.exists(path), "the EOD data must still be cached"
+        assert os.path.exists(path + ".oi_degraded"), "a degraded year must be visible on disk"
+        assert "coverage 0.000000" in open(path + ".oi_degraded").read()
+
+        os.remove(path)                                   # simulate the re-mine
+        tb._fetch_year = lambda s, y: (_frame([7, 8, 9, 10]), False)
+        assert tb.ensure_year("ZZZ", 2020) is True
+        assert not os.path.exists(path + ".oi_degraded"), "a recovered year must clear the mark"
+
+
+def test_sustained_faults_rebuild_the_grpc_client():
+    """One run pulled 318 names then failed EVERY call from queue position 371 to 826 -- 455
+    names burned -- while a fresh process pulled AAPL in 6.8s. The channel was dead and nothing
+    in the loop ever reset it, so the miner could not recover in-process."""
+    from valuation.edge import theta_bulk as TB
+
+    tb = TB.ThetaBulk(api_key="x", root=".")
+    tb._client = object()
+    for _ in range(TB.CLIENT_RESET_AFTER_FAULTS - 1):
+        tb._note_fault()
+    assert tb._client is not None, "must not reset on a single transient fault"
+    tb._note_fault()
+    assert tb._client is None, "a sustained run of faults must rebuild the channel"
+    # A success in between clears the streak, so slow-but-alive feeds are not churned.
+    tb._client = object()
+    for _ in range(TB.CLIENT_RESET_AFTER_FAULTS - 1):
+        tb._note_fault()
+    tb._note_ok()
+    tb._note_fault()
+    assert tb._client is not None
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
