@@ -201,6 +201,26 @@ def bars_asof(bars: dict, as_of: str, lookback: int = 400) -> Optional[dict]:
             "raw_close": (bars.get("raw_close") or bars["close"])[lo:hi + 1]}
 
 
+def spot_asof(w) -> Optional[float]:
+    """The ONE way to get a spot price for option maths out of a `bars_asof` window.
+
+    AUDIT B1. Five call sites across four modules independently wrote `w["close"][-1]` here.
+    `close` is `closeadj` — split AND dividend adjusted, for indicators only — while strikes
+    trade unadjusted, so an adjusted spot throws the 0.90-1.20 moneyness prefilter and the
+    0.35-delta target on every pre-split date of every split name (AAPL 4:1, TSLA 5:1 and 3:1,
+    NVDA 4:1 and 10:1, AMZN/GOOGL 20:1), and corrupts every dividend payer on every date by a
+    factor that grows with lookback. Settlement always used the unadjusted series, so entry and
+    settlement of the same trade ran on different price bases.
+
+    Named and exported so the next module gets it right by reaching for the obvious function
+    rather than by remembering a two-word comment.
+    """
+    if not w:
+        return None
+    px = w.get("raw_close") or w.get("close")
+    return px[-1] if px else None
+
+
 # ============================ option-chain summary (the live shape) ========================
 def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
     """The dict `intraday.options.options_signals` expects, rebuilt from a historical chain.
@@ -317,7 +337,7 @@ def simulate_trade(provider, ticker: str, entry_row, entry_date, bars: dict,
 
     # ONE call for the contract's whole life, rather than a chain pull per holding day.
     hist = provider.contract_history(ticker, expiry, strike, right, entry_date, expiry)
-    last_q = None
+    last_q, last_q_day = None, None
     if hist is not None and len(hist):
         for _, row in hist.iterrows():
             day = row["date"]
@@ -326,15 +346,20 @@ def simulate_trade(provider, ticker: str, entry_row, entry_date, bars: dict,
             q = F.Quote(bid=row.get("bid"), ask=row.get("ask"))
             if F.quote_reject_reason(q, check_liquidity=False) is not None:
                 continue
-            last_q = q
+            last_q, last_q_day = q, day
             mark = F.fill_price(q, "sell", aggression)
             ret = mark / entry_fill - 1.0
             hit_target = ret >= target_pct
             hit_stop = ret <= stop_pct
             if hit_target or hit_stop or day >= time_stop_date:
                 t = F.round_trip(entry_q, q, right=right, strike=strike, aggression=aggression)
+                # AUDIT B16: this used to `continue` on a not-ok round trip, silently skipping a
+                # genuine exit trigger and letting the trade ride on. It is unreachable — the
+                # entry quote cleared the liquidity filter at line 331 and `q` cleared the exit
+                # filter just above — so if it ever fires, something upstream changed and the
+                # right response is to say so, not to swallow the exit.
                 if not t.get("ok"):
-                    continue
+                    return {"ok": False, "reason": f"exit_trigger_unfillable:{t.get('reason')}"}
                 t.update({"exit_date": day.isoformat(), "held_days": (day - entry_date).days,
                           "exit_reason": ("target" if hit_target else
                                           "stop" if hit_stop else "time_stop")})
@@ -345,8 +370,13 @@ def simulate_trade(provider, ticker: str, entry_row, entry_date, bars: dict,
     for i, ds in enumerate(bars["date"]):
         if ds <= expiry.isoformat():
             und = _px[i]
+    # AUDIT B3 — pass the AGE of `last_q`. It is the last quote that passed validation at ANY
+    # point in the contract's life, so on a position that outlived its quotes it can be weeks
+    # old; `round_trip` now prefers the payoff over that memory whenever a settle price exists.
+    age = ((expiry - last_q_day).days if (last_q is not None and last_q_day is not None)
+           else None)
     t = F.round_trip(entry_q, last_q, right=right, strike=strike, exit_underlying=und,
-                     aggression=aggression, expired=True)
+                     aggression=aggression, expired=True, exit_quote_age_days=age)
     if t.get("ok"):
         t.update({"exit_date": expiry.isoformat(), "held_days": (expiry - entry_date).days,
                   "exit_reason": "expiry"})

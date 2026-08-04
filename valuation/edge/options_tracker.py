@@ -1,7 +1,8 @@
 """
 Scream-buy options tracker — log the contract, score the expectancy, then tune.
 
-WHY THIS REPLACES THE OLD REPORTING. `options_exit.py` measures the UNDERLYING's move under an
+WHY THIS REPLACES THE OLD REPORTING. The old `options_exit.py` (now in `edge/archive/`,
+imported by nothing — AUDIT B16) measured the UNDERLYING's move under an
 exit discipline. That was honest about its own limits but it answers the wrong question twice
 over: an option's P&L is not the stock's move (premium, theta and vega all sit in between), and
 a bare "success rate" is meaningless for a payoff this asymmetric — a 40%-hit-rate strategy

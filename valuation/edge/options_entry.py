@@ -511,7 +511,9 @@ def simulate_on(prov, ticker: str, bars: dict, day_str: str, right: str,
         day = dt.date.fromisoformat(day_str)
         chain = prov.chain_on(ticker, day)
         if chain is not None and len(chain):
-            row = OB.pick_contract(chain, w["close"][-1], day, right=right)
+            # AUDIT B1 — AS-TRADED spot. Strikes are never split-adjusted, so an adjusted close
+            # throws the moneyness band and the delta target on every pre-split date.
+            row = OB.pick_contract(chain, OB.spot_asof(w), day, right=right)
             if row is None:
                 got = ("no_contract_in_band", None)
             else:
@@ -562,7 +564,7 @@ def alerts_for_name(prov, ticker: str, bars: dict, caps: dict,
         if chain is None or len(chain) == 0:
             rejects["no_chain"] = rejects.get("no_chain", 0) + 1
             continue
-        und = w["close"][-1]
+        und = OB.spot_asof(w)                       # AUDIT B1 — as-traded, never the adjusted close
         summ = OB.chain_summary(chain, und, day)
         ev = sig_evaluate(w, summ, horizon=OB.HORIZON)
         sc, labels = ev.get("score"), ev.get("labels") or []

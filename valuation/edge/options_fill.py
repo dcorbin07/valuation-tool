@@ -43,7 +43,10 @@ LIQUIDITY FILTER — applied at ENTRY only, and deliberately so.
 A contract must clear MIN_OI and MIN_VOLUME to be entered. It is NOT re-tested at exit: if you
 own a contract that has gone illiquid you still have to get out of it, and pretending otherwise
 would let the backtest abandon its losers. Exit therefore uses whatever quote exists, however
-bad, and only a completely absent quote falls back to intrinsic value (see `exit_value`).
+bad, and falls back to intrinsic value (`intrinsic`, applied inside `round_trip`) when there is
+no quote at all, when the contract has expired, or when the only available quote is staler than
+MAX_MARK_AGE_DAYS. AUDIT B16: this paragraph used to point at an `exit_value` function that does
+not exist anywhere in the repository.
 
 --------------------------------------------------------------------------------------------
 COSTS AND WHAT GETS REPORTED.
@@ -161,16 +164,40 @@ def intrinsic(right: str, strike: float, underlying: float) -> float:
     return max(0.0, float(underlying) - float(strike))
 
 
+MAX_MARK_AGE_DAYS = 3       # AUDIT B3: a quote older than this is not a mark, it is a memory
+
+
 def round_trip(entry_q: Quote, exit_q: Optional[Quote], right: str, strike: float,
                exit_underlying: Optional[float] = None, contracts: int = 1,
                aggression: float = DEFAULT_AGGRESSION,
-               expired: bool = False) -> dict:
+               expired: bool = False, exit_quote_age_days: Optional[int] = None,
+               force_intrinsic_at_expiry: bool = True) -> dict:
     """One long-option trade, entry to exit, net of spread and commission.
 
     Returns a dict with entry/exit fills, gross and net P&L in dollars, and the total cost
     charged. `expired=True` with no exit quote settles at intrinsic against `exit_underlying` -
     which is how a contract that expired WORTHLESS gets its -100% recorded instead of vanishing
     from the sample.
+
+    AUDIT B3 — STALE MARKS AT EXPIRY. This function used to prefer a quote over intrinsic value
+    whenever ANY quote was supplied, and the caller supplies `last_q`: the last quote that passed
+    validation at any point in the contract's life, possibly weeks earlier. A position that
+    outlived its last usable quote was therefore stamped `exit_date = expiry`, `held_days = full
+    DTE`, `settled_at_intrinsic = False` and marked at a price from before it decayed. Expiry
+    trades showed a mean of -29.3% where a genuinely expired long option belongs at or near
+    -100%, and `sanity()`'s `settled_at_intrinsic_frac` check could not see it because the flag
+    read False. Independently measured in the exit lab: the stale mark was HIGHER than the truth
+    in 94.7% of cases, 86.1% of marks were positive on contracts that were in fact worthless, and
+    the mean read -77.75% against a true -92.22%.
+
+    Two guards, both on by default:
+      * `force_intrinsic_at_expiry` - at expiry, settle against the underlying whenever a settle
+        price exists. A payoff needs no mark.
+      * `exit_quote_age_days` - any mark older than MAX_MARK_AGE_DAYS is rejected in favour of
+        intrinsic. Pass it and the guard binds; omit it and only the expiry rule applies.
+
+    `settled_at_intrinsic` and the new `stale_mark_rejected` / `exit_quote_age_days` fields make
+    the choice visible in the trade row rather than implicit in the arithmetic.
     """
     reason = quote_reject_reason(entry_q, check_liquidity=True)
     if reason:
@@ -181,10 +208,14 @@ def round_trip(entry_q: Quote, exit_q: Optional[Quote], right: str, strike: floa
 
     # Exit does NOT re-apply the liquidity filter: you must exit what you own.
     exit_reason = quote_reject_reason(exit_q, check_liquidity=False) if exit_q else "no_quote"
+    can_settle = exit_underlying is not None
+    stale = (exit_quote_age_days is not None and exit_quote_age_days > MAX_MARK_AGE_DAYS)
+    # AUDIT B3: prefer the payoff over the mark whenever the payoff is knowable.
+    prefer_intrinsic = can_settle and ((expired and force_intrinsic_at_expiry) or stale)
     settled_at_intrinsic = False
-    if exit_reason is None:
+    if exit_reason is None and not prefer_intrinsic:
         exit_px = fill_price(exit_q, "sell", aggression)
-    elif expired and exit_underlying is not None:
+    elif can_settle and (expired or stale):
         exit_px = intrinsic(right, strike, exit_underlying)
         settled_at_intrinsic = True
     else:
@@ -195,14 +226,23 @@ def round_trip(entry_q: Quote, exit_q: Optional[Quote], right: str, strike: floa
     mult = CONTRACT_MULTIPLIER * max(1, int(contracts))
     commission = COMMISSION_PER_CONTRACT * max(1, int(contracts)) * 2       # both legs
     # "Gross" prices at the MID both ways: the spread is then an explicit, visible cost.
-    gross = ((exit_q.mid if (exit_q and exit_reason is None) else exit_px) - entry_q.mid) * mult
+    _marked = (exit_q is not None and exit_reason is None and not settled_at_intrinsic)
+    gross = ((exit_q.mid if _marked else exit_px) - entry_q.mid) * mult
     net = (exit_px - entry) * mult - commission
     return {"ok": True, "entry_fill": entry, "exit_fill": exit_px,
             "entry_mid": entry_q.mid, "exit_mid": exit_q.mid if exit_q else None,
             "gross_pnl": gross, "net_pnl": net, "cost": gross - net,
             "commission": commission, "contracts": max(1, int(contracts)),
-            "return_pct": (exit_px / entry - 1.0) if entry > 0 else None,
+            # AUDIT B15 — net of spread AND commission, as the module docstring and
+            # OPTIONS_BACKTEST_RESULTS.md have always claimed. This was `exit_px / entry - 1`,
+            # i.e. gross of commission, and `pnl_pct` / `expectancy_pct` inherit it. Small
+            # ($1.30 round trip on a ~$485 median position, about 0.27pp) but the claim was
+            # false as written. `return_pct_gross_comm` keeps the old quantity for continuity.
+            "return_pct": (net / (entry * mult)) if entry > 0 else None,
+            "return_pct_gross_comm": (exit_px / entry - 1.0) if entry > 0 else None,
             "settled_at_intrinsic": settled_at_intrinsic,
+            "stale_mark_rejected": bool(stale and settled_at_intrinsic),
+            "exit_quote_age_days": exit_quote_age_days,
             "entry_spread_pct": entry_q.spread_pct}
 
 

@@ -346,8 +346,13 @@ def apply_policy(path: dict, policy: dict, aggression: float = 1.0,
     # Held past the last quote the contract had. `settle` decides how that is priced.
     und = path.get("settle_underlying")
     use_intrinsic = (settle == "intrinsic" and und is not None)
+    # AUDIT B3 landed the intrinsic-at-expiry rule inside `round_trip` itself, defaulted ON.
+    # The `last_quote` mode here exists ONLY to reproduce the old, buggy production behaviour for
+    # the parity check, so it must be able to opt out — otherwise the demonstration of the bug
+    # silently becomes a demonstration of the fix and the comparison measures nothing.
     t = F.round_trip(entry_q, None if use_intrinsic else last_q, right=right, strike=strike,
-                     exit_underlying=und, aggression=aggression, expired=True)
+                     exit_underlying=und, aggression=aggression, expired=True,
+                     force_intrinsic_at_expiry=use_intrinsic)
     if t.get("ok"):
         t.update({"exit_date": path["expiry"], "held_days": (expiry - entry_date).days,
                   "exit_reason": "expiry",

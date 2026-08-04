@@ -66,7 +66,7 @@ def _flat_then(move_pct, n_pre=80, n_post=200, start=100.0):
 
 
 def test_options_exit_take_profit_fires_first():
-    from valuation.edge.options_exit import simulate_exit
+    from valuation.edge.deprecated_options_exit import simulate_exit
     closes = _flat_then(+0.40)                      # strong rally after entry
     e = simulate_exit(closes, entry_idx=79, horizon="swing", direction="bull", iv=0.30)
     assert e["outcome"] == "take_profit", e["outcome"]
@@ -76,7 +76,7 @@ def test_options_exit_take_profit_fires_first():
 
 
 def test_options_exit_stop_loss_fires_first():
-    from valuation.edge.options_exit import simulate_exit
+    from valuation.edge.deprecated_options_exit import simulate_exit
     closes = _flat_then(-0.40)                      # sharp decline after entry
     e = simulate_exit(closes, entry_idx=79, horizon="swing", direction="bull", iv=0.30)
     assert e["outcome"] == "stop_loss", e["outcome"]
@@ -84,7 +84,7 @@ def test_options_exit_stop_loss_fires_first():
 
 
 def test_options_exit_time_stop_when_nothing_triggers():
-    from valuation.edge.options_exit import simulate_exit
+    from valuation.edge.deprecated_options_exit import simulate_exit
     closes = [100.0] * 400                          # dead flat: never hits +/-1 sigma
     e = simulate_exit(closes, entry_idx=79, horizon="swing", direction="bull", iv=0.30)
     assert e["outcome"] == "time_stop", e["outcome"]
@@ -93,7 +93,7 @@ def test_options_exit_time_stop_when_nothing_triggers():
 
 
 def test_options_exit_bearish_profits_on_a_fall():
-    from valuation.edge.options_exit import simulate_exit
+    from valuation.edge.deprecated_options_exit import simulate_exit
     closes = _flat_then(-0.40)
     e = simulate_exit(closes, entry_idx=79, horizon="swing", direction="bear", iv=0.30)
     assert e["outcome"] == "take_profit", e["outcome"]
@@ -103,7 +103,7 @@ def test_options_exit_bearish_profits_on_a_fall():
 
 def test_options_exit_vol_fallback_is_strictly_pre_entry():
     """Direct no-look-ahead check: mutating bars AFTER the entry must not move the vol."""
-    from valuation.edge.options_exit import realized_vol
+    from valuation.edge.deprecated_options_exit import realized_vol
     closes = _flat_then(+0.40)
     v_before = realized_vol(closes, end_idx=79)
     tampered = list(closes)
@@ -115,7 +115,7 @@ def test_options_exit_vol_fallback_is_strictly_pre_entry():
 
 
 def test_options_exit_summary_shapes():
-    from valuation.edge.options_exit import simulate_exit, summarize_exits
+    from valuation.edge.deprecated_options_exit import simulate_exit, summarize_exits
     ex = [simulate_exit(_flat_then(+0.40), 79, iv=0.30),
           simulate_exit(_flat_then(-0.40), 79, iv=0.30),
           simulate_exit([100.0] * 400, 79, iv=0.30)]

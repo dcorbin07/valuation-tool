@@ -88,7 +88,15 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
 
     # Derived oriented (higher = better) raw columns.
     df["neg_leverage"] = -pd.to_numeric(df.get("net_debt_to_ebitda"), errors="coerce")
-    df["neg_ev_sales"] = -pd.to_numeric(df.get("ev_sales"), errors="coerce")
+    # AUDIT B18 — NEGATIVE ENTERPRISE VALUE, one convention for all three EV ratios. A net-cash
+    # company used to rank as the CHEAPEST name in the cross-section on neg_ev_sales (negated
+    # negative multiple -> large positive) while simultaneously ranking as the MOST EXPENSIVE on
+    # ebit_ev. `neg_ev_ebitda` was already guarded; this one was not. A negative multiple is not
+    # on the same scale as a positive one, so the defensible convention is MISSING, not extreme.
+    # ~0.70% of rows.
+    _evsales = pd.to_numeric(df["ev_sales"], errors="coerce") \
+        if "ev_sales" in df.columns else pd.Series(np.nan, index=df.index)
+    df["neg_ev_sales"] = -_evsales.where(_evsales > 0)
     # EV/EBITDA only means anything on POSITIVE EBITDA. A loss-maker's multiple comes out
     # negative, and negating it would rank the deepest losses as the greatest bargains. The
     # panel already guards this at construction; FMP hands back its raw value unguarded, so
@@ -133,7 +141,18 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
                                    np.where(mc > 0, te / mc, np.nan))
     df["gp_on_capital"] = np.where(cap_emp > 0, gp / cap_emp, np.nan)   # quality: Novy-Marx gross profitability
     df["fcf_margin"] = np.where(rev > 0, fcf / rev, np.nan)             # quality: cash profitability
-    df["accruals_q"] = np.where(ni > 0, fcf / ni, np.nan)              # quality: earnings backed by cash (Sloan)
+    # AUDIT B10 — this line used to overwrite `accruals_q` UNCONDITIONALLY. The backtest panel
+    # computes the Sloan measure itself (`-((NI - CFO) / assets)`, fundamental_panel.py) and
+    # hands it in; this then replaced it with FCF/NI restricted to profitable names. So the
+    # signal REPORTED as `accruals_q` was not the one documented, its coverage fell to 75.3%
+    # (consistent with the ni > 0 restriction, against ~95% for the accruals measure), and its
+    # recorded IC fell from t +3.08 to +1.26. `book_to_price` and `growth_accel` above are both
+    # guarded against exactly this; this one was not. The caller now wins, and the FCF/NI
+    # variant is kept alongside under its own name so the two can be measured head to head
+    # instead of one silently replacing the other.
+    _acc = _num("accruals_q")
+    df["accruals_fcf_ni"] = np.where(ni > 0, fcf / ni, np.nan)         # quality: earnings backed by cash
+    df["accruals_q"] = np.where(_acc.notna(), _acc, df["accruals_fcf_ni"])
     df["interest_cov"] = np.where(iexp > 0, ebit / iexp, np.nan)        # quality: can it service its debt
     df["ret_6_1"] = _num("ret_6_1")                                    # momentum: 6-1 month return
     df["high_prox"] = _num("high_prox")                                # momentum: nearness to 52-week high

@@ -275,7 +275,17 @@ class WRDSProvider(HistoricalDataProvider):
                          # USD — divide by it, never multiply. There is no `netincusd`;
                          # `netinccmnusd` is net income to common and is the right numerator
                          # against market cap.
-                         "equityusd", "revenueusd", "ebitusd", "netinccmnusd", "fxusd"],
+                         "equityusd", "revenueusd", "ebitusd", "netinccmnusd", "fxusd",
+                         # AUDIT B20 — the LOCAL-currency twin of netinccmnusd, so the
+                         # USD fallback path keeps the same numerator DEFINITION (income
+                         # to common) instead of switching to total net income.
+                         # AUDIT D10-a — `reportperiod` is what identifies a fiscal
+                         # quarter. Sharadar APPENDS a new ARQ row on restatement
+                         # (verified against the live key 2026-08-03: 3.15% of
+                         # (ticker, reportperiod) groups carry more than one datekey,
+                         # 1,818 of 2,827 tickers), so a window de-duplicated on datekey
+                         # cannot tell two filings of one quarter apart.
+                         "netinccmn", "reportperiod"],
     }
 
     def __init__(self, cfg=CONFIG):
@@ -351,9 +361,42 @@ class WRDSProvider(HistoricalDataProvider):
     def fundamentals_history(self, ticker):
         return self._indexed("fundamentals").get(ticker.upper(), [])
 
+    # AUDIT B12 — a `limit` on this provider used to take an ALPHABETICAL slice. Every
+    # "800 largest names" result in the project's history was therefore names beginning with
+    # roughly A through C: the first CPCV "adopt", PBO 13%, Deflated Sharpe 77%, f_score at
+    # t +5.66, sm_breadth at t 2.37, the 13F look-ahead stress test and the four classic-anomaly
+    # rejections. It also reframes the project's own calibration note — "PBO 13% on 800 -> 53%
+    # on full" was not measuring how much a large-cap tier flatters results, it was measuring
+    # how much an arbitrary alphabetical subsample does.
+    #
+    # NOTE the ranking below is by each ticker's LATEST market cap, which is a mild look-ahead
+    # (it is today's size, applied to a 1998 cross-section). That is acceptable for a subset
+    # used as a SMOKE TEST and is not acceptable for anything reported — per the METHODOLOGY
+    # RULE, verdicts come from the full universe, where `limit` is None and no ranking applies.
+    UNIVERSE_SORT_KEY = "market_cap_desc_latest_marketcap"
+
     def universe(self, limit=None):
-        tk = sorted(self._indexed("fundamentals").keys())
-        return tk[:limit] if limit else tk
+        idx = self._indexed("fundamentals")
+        if not limit:
+            return sorted(idx.keys())
+
+        def _cap(rows):
+            for r in reversed(rows or []):          # rows are datekey-ascending
+                v = r.get("marketcap")
+                try:
+                    f = float(v)
+                except (TypeError, ValueError):
+                    continue
+                if f == f and f > 0:
+                    return f
+            return 0.0
+
+        ranked = sorted(idx.keys(), key=lambda t: (-_cap(idx[t]), t))
+        n_capped = sum(1 for t in ranked[:limit] if _cap(idx[t]) > 0)
+        print(f"[universe] {limit} of {len(ranked)} names, sort_key={self.UNIVERSE_SORT_KEY} "
+              f"({n_capped} with a resolvable market cap) — SMOKE-TEST SUBSET, not a verdict",
+              flush=True)
+        return ranked[:limit]
 
     def insider_history(self, ticker):
         return self._indexed("insiders").get(ticker.upper(), [])
