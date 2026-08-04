@@ -1,0 +1,242 @@
+{
+  "SPY_ungated": {
+    "total_return": 0.3154104999999998,
+    "sharpe_excess": 0.13597862899047342,
+    "ann_return": 0.04683285521333915,
+    "ann_vol": 0.1573958166521849,
+    "max_dd": -0.23234652396028743,
+    "num_trades": 1905,
+    "win_rate": 0.7595800524934383,
+    "fraction_of_time_invested": null,
+    "trades_with_a_rank": 1662,
+    "trades_without_a_rank": 243,
+    "by_tercile": {
+      "bottom": {
+        "n_trades": 558,
+        "mean_pnl": 56.72764185752416,
+        "total_pnl": 31654.024156498483,
+        "win_rate": 0.7849462365591398
+      },
+      "middle": {
+        "n_trades": 556,
+        "mean_pnl": 0.16397882423696972,
+        "total_pnl": 91.17222627575516,
+        "win_rate": 0.7176258992805755
+      },
+      "top": {
+        "n_trades": 548,
+        "mean_pnl": 47.34369931681073,
+        "total_pnl": 25944.34722561228,
+        "win_rate": 0.7937956204379562
+      }
+    },
+    "top_vs_rest": {
+      "top": 47.34369931681073,
+      "rest": 28.496585621879927
+    },
+    "tercile_cuts": {
+      "low": 0.2619047619047619,
+      "high": 0.6388888888888888
+    }
+  },
+  "SPY_gated_top_tercile": {
+    "total_return": 0.2232274999999999,
+    "sharpe_excess": 0.039068052959870835,
+    "ann_return": 0.02862846010895182,
+    "ann_vol": 0.08185901294076854,
+    "max_dd": -0.1450271245666771,
+    "num_trades": 538,
+    "win_rate": 0.7881040892193308,
+    "fraction_of_time_invested": 0.2715067130780706,
+    "trades_with_a_rank": 538,
+    "trades_without_a_rank": 0,
+    "by_tercile": {
+      "bottom": {
+        "n_trades": 0,
+        "mean_pnl": null,
+        "total_pnl": 0,
+        "win_rate": null
+      },
+      "middle": {
+        "n_trades": 0,
+        "mean_pnl": null,
+        "total_pnl": 0,
+        "win_rate": null
+      },
+      "top": {
+        "n_trades": 538,
+        "mean_pnl": 47.76737578763309,
+        "total_pnl": 25698.848173746603,
+        "win_rate": 0.7881040892193308
+      }
+    },
+    "top_vs_rest": {
+      "top": 47.76737578763309,
+      "rest": null
+    },
+    "tercile_cuts": {
+      "low": 0.2619047619047619,
+      "high": 0.6388888888888888
+    }
+  },
+  "QQQ_ungated": {
+    "total_return": 0.03250419999999998,
+    "sharpe_excess": -0.053687908004966596,
+    "ann_return": 0.01684947747971386,
+    "ann_vol": 0.1598294792121804,
+    "max_dd": -0.33305385225631,
+    "num_trades": 1907,
+    "win_rate": 0.7587834294703724,
+    "fraction_of_time_invested": null,
+    "trades_with_a_rank": 1660,
+    "trades_without_a_rank": 247,
+    "by_tercile": {
+      "bottom": {
+        "n_trades": 552,
+        "mean_pnl": 68.76308433614332,
+        "total_pnl": 37957.22255355112,
+        "win_rate": 0.8061594202898551
+      },
+      "middle": {
+        "n_trades": 553,
+        "mean_pnl": -3.8337118029087343,
+        "total_pnl": -2120.04262700853,
+        "win_rate": 0.7504520795660036
+      },
+      "top": {
+        "n_trades": 555,
+        "mean_pnl": -8.457710795644033,
+        "total_pnl": -4694.029491582438,
+        "win_rate": 0.7405405405405405
+      }
+    },
+    "top_vs_rest": {
+      "top": -8.457710795644033,
+      "rest": 32.4318370375951
+    },
+    "tercile_cuts": {
+      "low": 0.2222222222222222,
+      "high": 0.6507936507936508
+    }
+  },
+  "QQQ_gated_top_tercile": {
+    "total_return": -0.031657500000000005,
+    "sharpe_excess": -0.2760638512345152,
+    "ann_return": 0.00017212584896760262,
+    "ann_vol": 0.09149427530703656,
+    "max_dd": -0.2624142491652941,
+    "num_trades": 542,
+    "win_rate": 0.7380073800738007,
+    "fraction_of_time_invested": 0.2794629537543511,
+    "trades_with_a_rank": 542,
+    "trades_without_a_rank": 0,
+    "by_tercile": {
+      "bottom": {
+        "n_trades": 0,
+        "mean_pnl": null,
+        "total_pnl": 0,
+        "win_rate": null
+      },
+      "middle": {
+        "n_trades": 0,
+        "mean_pnl": null,
+        "total_pnl": 0,
+        "win_rate": null
+      },
+      "top": {
+        "n_trades": 542,
+        "mean_pnl": -0.1899405373924089,
+        "total_pnl": -102.94777126668562,
+        "win_rate": 0.7380073800738007
+      }
+    },
+    "top_vs_rest": {
+      "top": -0.1899405373924089,
+      "rest": null
+    },
+    "tercile_cuts": {
+      "low": 0.2222222222222222,
+      "high": 0.6507936507936508
+    }
+  },
+  "IWM_ungated": {
+    "total_return": -0.38396620000000004,
+    "sharpe_excess": -0.5571050161178109,
+    "ann_return": -0.05132616045706634,
+    "ann_vol": 0.1378131456763527,
+    "max_dd": -0.46813131951222664,
+    "num_trades": 1892,
+    "win_rate": 0.702431289640592,
+    "fraction_of_time_invested": null,
+    "trades_with_a_rank": 1650,
+    "trades_without_a_rank": 242,
+    "by_tercile": {
+      "bottom": {
+        "n_trades": 545,
+        "mean_pnl": -35.279479955882984,
+        "total_pnl": -19227.316575956225,
+        "win_rate": 0.6477064220183486
+      },
+      "middle": {
+        "n_trades": 543,
+        "mean_pnl": -17.68799241775231,
+        "total_pnl": -9604.579882839504,
+        "win_rate": 0.6795580110497238
+      },
+      "top": {
+        "n_trades": 562,
+        "mean_pnl": 29.984052421546366,
+        "total_pnl": 16851.037460909058,
+        "win_rate": 0.7864768683274022
+      }
+    },
+    "top_vs_rest": {
+      "top": 29.984052421546366,
+      "rest": -26.499904833451954
+    },
+    "tercile_cuts": {
+      "low": 0.28174603174603174,
+      "high": 0.6150793650793651
+    }
+  },
+  "IWM_gated_top_tercile": {
+    "total_return": 0.2834751,
+    "sharpe_excess": 0.12248625492088187,
+    "ann_return": 0.03357961501468205,
+    "ann_vol": 0.06636973865948254,
+    "max_dd": -0.11822828336648772,
+    "num_trades": 491,
+    "win_rate": 0.8024439918533605,
+    "fraction_of_time_invested": 0.2477567298105683,
+    "trades_with_a_rank": 491,
+    "trades_without_a_rank": 0,
+    "by_tercile": {
+      "bottom": {
+        "n_trades": 0,
+        "mean_pnl": null,
+        "total_pnl": 0,
+        "win_rate": null
+      },
+      "middle": {
+        "n_trades": 0,
+        "mean_pnl": null,
+        "total_pnl": 0,
+        "win_rate": null
+      },
+      "top": {
+        "n_trades": 491,
+        "mean_pnl": 63.92711465699908,
+        "total_pnl": 31388.21329658655,
+        "win_rate": 0.8024439918533605
+      }
+    },
+    "top_vs_rest": {
+      "top": 63.92711465699908,
+      "rest": null
+    },
+    "tercile_cuts": {
+      "low": 0.28174603174603174,
+      "high": 0.6150793650793651
+    }
+  }
+}

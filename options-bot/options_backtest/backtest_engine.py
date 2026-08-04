@@ -177,6 +177,28 @@ class BacktestConfig:
     # of overlapping positions, like the real bot opening ~daily). 1 = every day.
     entry_every_n_days: int = 1
 
+    # ── O9: IV rank as a SELL-TIMING switch ────────────────────────────────
+    # `iv_rank` has been rejected three times, but always as a FILTER ON A
+    # LONG-VOL STRATEGY ("buy calls only when IV rank is low"). That is a
+    # different hypothesis from "sell premium only when IV rank is high, and
+    # otherwise do nothing". This is the second one.
+    #
+    # iv_rank_min = None disables the gate entirely (the O8 baseline).
+    # Set it to a fraction in [0, 1] and a new spread is opened ONLY when the
+    # vol index sits at or above that percentile of its own trailing window.
+    #
+    # EXITS ARE NOT GATED. This is a sell-TIMING rule; gating exits too would
+    # make it an entirely different (and much less honest) strategy — one that
+    # holds losers because vol fell.
+    #
+    # The rank is computed strictly from vol observations ON OR BEFORE the entry
+    # date, so it introduces no look-ahead. A day whose trailing window is not
+    # yet full is treated as "no signal" and does NOT trade — the alternative,
+    # ranking against a short window, manufactures extreme percentiles out of
+    # three observations.
+    iv_rank_min: float | None = None
+    iv_rank_window: int = 252          # trailing sessions; ~1 year, the convention
+
 
 @dataclass
 class OpenSpread:
@@ -188,6 +210,7 @@ class OpenSpread:
     credit_per_share: float          # net credit collected per share (after 0.95x + slippage)
     entry_spot: float
     max_loss_total: float = 0.0      # (width - credit) * 100 * contracts, i.e. buying power held
+    entry_iv_rank: float | None = None   # O9: carried onto the Trade for tercile analysis
 
     @property
     def credit_per_spread(self) -> float:
@@ -199,6 +222,43 @@ class OpenSpread:
 
 
 # ─── Sizing helpers (ported from the live bot) ──────────────────────────────
+
+
+def iv_rank_series(dates, vol_series, window):
+    """
+    {date: iv_rank} where iv_rank is the fraction of the trailing `window`
+    sessions (INCLUDING today) whose vol was at or below today's.
+
+    Two deliberate choices, because "IV rank" names two different statistics in
+    common use:
+
+      * This is the PERCENTILE form (fraction of the window below today), not
+        the (IV − low) / (high − low) range form. The range form is dominated by
+        two extreme observations, so a single 2020-03 print pins it near zero
+        for the following year and the rule stops firing exactly when premium is
+        richest. The percentile form degrades gracefully.
+      * The window is trailing and INCLUSIVE of today, and today's own value is
+        counted in its own denominator. That is the honest construction: on the
+        entry date the trader knows today's vol.
+
+    A date whose trailing history is shorter than `window` gets None — no
+    signal, no trade. Ranking against a handful of observations invents
+    confident percentiles out of nothing.
+    """
+    out = {}
+    vals = []
+    for d in dates:
+        v = vol_series.get(d)
+        if v is None:
+            out[d] = None
+            continue
+        vals.append(v)
+        if len(vals) < window:
+            out[d] = None
+            continue
+        w = vals[-window:]
+        out[d] = sum(1 for x in w if x <= v) / len(w)
+    return out
 
 
 def vol_scale_factor(atm_iv: float, cfg: BacktestConfig) -> float:
@@ -327,6 +387,7 @@ class Trade:
     credit_collected: float       # total $ received at open (after costs)
     close_cost: float             # total $ paid to close (after costs)
     pnl: float                    # realized $ P&L
+    entry_iv_rank: float | None = None   # O9: IV rank on the day this was opened
 
 
 class OptionsBacktester:
@@ -363,6 +424,11 @@ class OptionsBacktester:
 
         trading_days = set(dates)
         first_day, last_day = dates[0], dates[-1]
+
+        # O9. Computed over the full session list up front, but each date's value
+        # depends only on that date and earlier ones, so this is not look-ahead.
+        ivr = iv_rank_series(dates, vol_series, cfg.iv_rank_window)
+        gated_days = eligible_days = 0
 
         halted = False
         halt_reason = None
@@ -410,7 +476,8 @@ class OptionsBacktester:
                     cash -= (close_total + commissions)
                     pnl = sp.total_credit - close_total - commissions
                     trades.append(Trade(sp.entry_date, today, exit_reason, sp.contracts,
-                                        sp.total_credit, close_total + commissions, pnl))
+                                        sp.total_credit, close_total + commissions, pnl,
+                                        entry_iv_rank=sp.entry_iv_rank))
                 else:
                     still_open.append(sp)
             open_spreads = still_open
@@ -458,6 +525,18 @@ class OptionsBacktester:
             # ---- 3. Attempt a new entry (cadence + capacity gates) ----
             if i % cfg.entry_every_n_days != 0:
                 continue
+
+            # O9: the sell-timing switch. Counted BEFORE the capacity gate so
+            # "fraction of time invested" measures the RULE, not the book being
+            # full — otherwise a strategy that is always at max_concurrent would
+            # report the gate as binding when it never got consulted.
+            today_ivr = ivr.get(today)
+            if cfg.iv_rank_min is not None:
+                eligible_days += 1
+                if today_ivr is None or today_ivr < cfg.iv_rank_min:
+                    gated_days += 1
+                    continue
+
             if len(open_spreads) >= cfg.max_concurrent:
                 continue
 
@@ -524,6 +603,7 @@ class OptionsBacktester:
                 short_strike=short_k, long_strike=long_k, contracts=contracts,
                 credit_per_share=credit_ps, entry_spot=spot,
                 max_loss_total=order_max_loss,
+                entry_iv_rank=today_ivr,
             ))
             deployed += order_max_loss
 
@@ -537,11 +617,72 @@ class OptionsBacktester:
         else:
             rf = cfg.default_rate
 
-        return self._summarize(equity_curve, trades, cfg, rf,
-                               halted=halted, halt_reason=halt_reason,
-                               halt_date=halt_date,
-                               open_at_halt=len(open_spreads) if halted else 0,
-                               margin_breach_days=margin_breach_days)
+        res = self._summarize(equity_curve, trades, cfg, rf,
+                              halted=halted, halt_reason=halt_reason,
+                              halt_date=halt_date,
+                              open_at_halt=len(open_spreads) if halted else 0,
+                              margin_breach_days=margin_breach_days)
+        res["iv_rank"] = self._iv_rank_report(trades, ivr, dates, cfg,
+                                              gated_days, eligible_days)
+        return res
+
+    @staticmethod
+    def _iv_rank_report(trades, ivr, dates, cfg, gated_days, eligible_days):
+        """
+        O9's two required numbers: fraction of time invested, and conditional
+        expectancy by IV-rank tercile.
+
+        The terciles are cut on the OBSERVED IV-rank distribution of the tested
+        window, not on fixed 1/3-2/3 boundaries of [0,1]. IV rank is not
+        uniformly distributed — vol spends most of its time in the lower half of
+        its own trailing range — so fixed boundaries would put far fewer than a
+        third of days in the top bucket and the comparison would be between
+        groups of wildly different size.
+        """
+        ranked = [v for v in (ivr.get(d) for d in dates) if v is not None]
+        report = {
+            "window": cfg.iv_rank_window,
+            "gate_applied": cfg.iv_rank_min is not None,
+            "iv_rank_min": cfg.iv_rank_min,
+            "days_with_a_signal": len(ranked),
+            "days_total": len(dates),
+        }
+        if cfg.iv_rank_min is not None and eligible_days:
+            report["entry_days_allowed"] = eligible_days - gated_days
+            report["entry_days_blocked"] = gated_days
+            report["fraction_of_time_invested"] = (
+                (eligible_days - gated_days) / eligible_days)
+
+        with_rank = [t for t in trades if t.entry_iv_rank is not None]
+        # Trades opened before the trailing window filled carry no rank and are
+        # excluded from the tercile analysis. Report the count: otherwise the
+        # tercile P&L silently fails to sum to the strategy's total, and a reader
+        # reconciling the two would conclude the numbers are wrong.
+        report["trades_without_a_rank"] = len(trades) - len(with_rank)
+        report["trades_with_a_rank"] = len(with_rank)
+        if with_rank and len(ranked) >= 3:
+            s = sorted(ranked)
+            lo_cut = s[len(s) // 3]
+            hi_cut = s[2 * len(s) // 3]
+            buckets = {"bottom": [], "middle": [], "top": []}
+            for t in with_rank:
+                key = ("top" if t.entry_iv_rank >= hi_cut
+                       else "bottom" if t.entry_iv_rank < lo_cut else "middle")
+                buckets[key].append(t.pnl)
+            report["tercile_cuts"] = {"low": lo_cut, "high": hi_cut}
+            report["by_tercile"] = {
+                k: {"n_trades": len(v),
+                    "mean_pnl": (sum(v) / len(v)) if v else None,
+                    "total_pnl": sum(v),
+                    "win_rate": (sum(1 for x in v if x > 0) / len(v)) if v else None}
+                for k, v in buckets.items()
+            }
+            bottom_two = buckets["bottom"] + buckets["middle"]
+            report["top_vs_rest_mean_pnl"] = {
+                "top": (sum(buckets["top"]) / len(buckets["top"])) if buckets["top"] else None,
+                "rest": (sum(bottom_two) / len(bottom_two)) if bottom_two else None,
+            }
+        return report
 
     def _summarize(self, equity_curve, trades, cfg, rf, halted=False,
                    halt_reason=None, halt_date=None, open_at_halt=0,
