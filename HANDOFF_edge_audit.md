@@ -781,9 +781,47 @@ B6+B13 (window and universe) and contains no B7 at all.**
 
 To fix this properly, three attribution toggles were added — `EDGE_AUDIT_B6_LEGACY_TRUNCATION`,
 `EDGE_AUDIT_B7_LEGACY_COMPOSITE`, `EDGE_AUDIT_B13_PREFILTER` — each defaulting to the corrected
-behaviour, each reverting exactly one change, and a sweep of three full-universe runs is in
-flight. **Those numbers are NOT in this document yet.** Until they land, "B6 cost the headline
-4.5pp" is an inference from the window change, not a measurement.
+behaviour and each reverting exactly one change. **A three-run full-universe sweep has now been
+run and the decomposition is clean.**
+
+| run | n | ls_t | alpha | mono | EW bench | PBO |
+|---|---|---|---|---|---|---|
+| S1 final (all three defects present) | 110 | 3.851 | +11.69% | −0.988 | +16.55% | 13.3% |
+| **A — B6 reverted** (B7+B13 fixed) | 110 | 3.733 | +11.36% | −1.000 | +16.26% | 26.7% |
+| **B — B7 reverted** (B6+B13 fixed) | 69 | 2.846 | +7.17% | −0.939 | +18.14% | 73.3% |
+| **C — B13 reverted** (B6+B7 fixed) | 69 | 2.715 | +7.68% | −0.903 | +18.38% | 73.3% |
+| **S2 shipped** (all three fixed) | 69 | 2.836 | +7.17% | −0.891 | +18.14% | 73.3% |
+
+Each row reverts exactly one change from the shipped state, so the shipped-minus-row difference
+is that change's own contribution:
+
+| | long-short t | top-decile alpha | PBO | EW bench |
+|---|---|---|---|---|
+| **B6 alone** | **−0.897** | **−4.18pp** | **+46.7pp** | +1.88pp |
+| **B7 alone** | −0.010 | +0.01pp | 0.0pp | 0.00pp |
+| **B13 alone** | +0.122 | −0.51pp | 0.0pp | −0.24pp |
+
+**B6 is the entire move, and it is not close.** It carries 100% of the PBO blow-out, 88% of the
+long-short t drop and 89% of the alpha drop.
+
+**B7 alone is a NULL on the headline** — ten-thousandths of a t, one basis point of alpha, PBO
+and the equal-weight benchmark unchanged to the digit (the benchmark *must* be unchanged, since
+it never touches the composite; that it is, is a check on the toggle rather than a finding).
+**This is the ideal outcome for a correctness fix**: three code paths that disagreed now agree,
+and the disagreement turns out to have been costing essentially nothing on this panel. The
+mechanism argued in the B7 entry was real; its magnitude was small.
+
+**B13 alone is small and points both ways** — dropping 384 penny names *raises* the long-short t
+(+0.122) and *lowers* top-decile alpha (−0.51pp), which is what you would expect if penny names
+were contributing return at both extremes of the ranking. It also lowers the equal-weight
+benchmark by 0.24pp, which is the clean composite-independent read on the universe change.
+
+**With attribution done, the claim that could not be made before can now be made:** the
+inverted-universe window was carrying roughly 4.2 percentage points of the 11.7% top-decile
+alpha and was holding PBO down at 13%. That is a measurement, not an inference. It remains a
+statement about what the defect was producing, **not** evidence that the corrected panel is the
+"right" one in any deeper sense — a repair's effect on a fitted statistic is not evidence about
+the repair.
 
 **Theme ICs moved, and one move has a clean mechanism:**
 

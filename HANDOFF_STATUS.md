@@ -4,14 +4,137 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-03 (external edge audit, session 1; deep research thread #2)
+**Session date:** 2026-08-04 (external edge audit, session 2)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
-> **Scope:** newest sections first — the external edge audit, then deep research #2, then the
-> EV staleness fix, then PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in
-> `BACKTEST_RESULTS.json`; per-finding status in `CODE_AUDIT.md`.
+> **FIRST: `RUN_RULES.md` is now in the repo root and CLAUDE.md points every session at it.
+> Read it before starting work. It is non-negotiable for all agents — pushing, handoffs, bug
+> reporting, pre-committed thresholds, never silencing a check.**
+
+> **Scope:** newest sections first — audit session 2 (this one), then R1, then audit session 1,
+> then deep research #2, then the EV staleness fix, then PEAD, then options 22b, then P9b/P10,
+> then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`; per-finding status in `CODE_AUDIT.md`.
 
 ---
+
+## AUDIT SESSION 2 — THE HEADLINE FELL, AND B6 IS THE WHOLE REASON (2026-08-04)
+
+Full write-up: **`HANDOFF_edge_audit.md` Part 3** (twelve per-item entries + BUGS FOUND).
+Commits: `adcd85a` (the corrections) and `018ebc2` (the ledger, RUN_RULES.md, attribution
+toggles). Both pushed and verified on `origin/worktree-options-live`.
+
+**Items completed:** B2, B4, B5, B6, B7, B11, B13, B17, B21, B22, B25. **B23 deliberately
+deferred** (speed item; changing panel construction in the same commit as the run validating a
+change to panel construction is the wrong risk trade). **617 tests green across all 18 suites.**
+
+### The headline, on the corrected panel
+
+| | S1 final | **S2 corrected** |
+|---|---|---|
+| rebalance dates | 110 | **69** |
+| long-short t | 3.851 | **2.836** |
+| top-decile alpha | +11.69% | **+7.17%** |
+| monotonicity | −0.988 | **−0.891** |
+| PBO | 13.3% | **73.3%** |
+| equal-weight benchmark | +16.55% | **+18.14%** |
+| breakeven one-way | 236 bps | **134 bps** (vs 33.4 bps measured) |
+
+**TWO OF THE THREE BARS NOW FAIL.** Long-short t 2.836 is BELOW the Harvey–Liu–Zhu hurdle of
+3.0 it used to clear, and PBO 73.3% is far above the <50% bar. Only the Deflated Sharpe still
+passes, and per B9 that is computed against N=8 when the ledger records ~146 trials — it was
+never the bar to lead with. **Do not quote the old numbers. Do not describe the edge as
+clearing its bars.**
+
+### Attribution — one change per run, full universe
+
+B6, B7 and B13 all move the panel and all landed in one commit, which broke the
+one-change-per-run rule. Three toggles were added (`EDGE_AUDIT_B6_LEGACY_TRUNCATION`,
+`EDGE_AUDIT_B7_LEGACY_COMPOSITE`, `EDGE_AUDIT_B13_PREFILTER`, each defaulting to the corrected
+behaviour) and a full-universe sweep run to separate them.
+
+| run | n | ls_t | alpha | PBO | EW bench |
+|---|---|---|---|---|---|
+| S1 final (all 3 defects present) | 110 | 3.851 | +11.69% | 13.3% | +16.55% |
+| **A — B6 reverted** (B7+B13 fixed) | 110 | 3.733 | +11.36% | 26.7% | +16.26% |
+| **B — B7 reverted** (B6+B13 fixed) | 69 | 2.846 | +7.17% | 73.3% | +18.14% |
+| **C — B13 reverted** (B6+B7 fixed) | 69 | 2.715 | +7.68% | 73.3% | +18.38% |
+| **S2 shipped** (all 3 fixed) | 69 | 2.836 | +7.17% | 73.3% | +18.14% |
+
+- **B6 alone: t −0.897, alpha −4.18pp, PBO +46.7pp.** 100% of the PBO blow-out, 88% of the t
+  drop, 89% of the alpha drop. It is the entire move and it is not close.
+- **B7 alone: NULL** — t −0.010, alpha +0.01pp, PBO and equal-weight unchanged to the digit.
+  A correctness fix with no performance consequence, which is the ideal outcome for one.
+- **B13 alone: small, both directions** — t +0.122, alpha −0.51pp, EW −0.24pp. Dropping 384
+  penny names helps the long-short and costs the long-only book.
+
+**What B6 was.** `price_history` ended in `.tail(days)`, so every ticker kept its OWN last N
+rows and the panel calendar was the UNION of those windows. At a 2001 cross-section every name
+present was one that had already stopped trading by roughly 2019 — the inverse of classic
+survivorship bias. The calendar is now cut ONCE, before the ffill. The panel went from a
+27.3-year union to a genuine 18.5-year window: **2008-01-16 → 2026-07-24, 69 dates,
+cross-sections 1,471–1,954**, shipped every run as `panel_window`. 41 dates dropped, against
+the audit's estimate of 37.
+
+**The honest reading:** roughly 40% of the top-decile alpha was coming from those 41
+uninterpretable early dates. State it as a hypothesis, not a finding — a repair's effect on a
+fitted statistic is not evidence about the repair.
+
+**What did NOT change: any shipped decision.** `low_risk` is still `confirmed` in both split
+directions (delta t +1.383 / +1.518), `insider` still `rejected`. Two non-adopted themes swapped
+between two flavours of "no". The weights ship unchanged.
+
+**`size` +1.68 → −0.30 is the documented mechanism, not a surprise** — the small-cap premium
+worked pre-2012 and B6 deleted everything before 2009. **`insider` +2.69 → −0.24 is the
+anomalous session-1 run reverting** to the other two runs' values (−0.34, −0.43); it is not
+evidence about B6 or B7, and this theme's t remains unmeasurable.
+
+### R1 IS NOW PROVISIONAL AND MUST BE RE-RUN — TOP PRIORITY
+
+R1's +8.81%/yr FF5+MOM alpha was measured over "109 windows, 1998-12-31 → 2026-01-21" — the
+pre-B6 union calendar, whose first third had the inverted universe. That panel no longer
+exists, and the raw object R1 decomposed fell +11.69% → +7.17%. **Do not quote +8.81%/yr or the
++6.6%–8.8% range until `python -m scripts.factor_alpha` has been re-run on the corrected
+panel.** The direction of R1's finding may survive — loadings are a separate question from the
+level — but every number in it is provisional.
+
+### Other session-2 outcomes worth carrying
+
+- **B25: the audit was WRONG and it is recorded.** The two Deflated Sharpe implementations are
+  algebraically identical in the test statistic and now agree to **exactly 0**. One real defect
+  was underneath it — the autopsy approximated `sr0` with a sampling variance where
+  Bailey–López de Prado specify the CROSS-TRIAL variance; the panel was right all along.
+- **B11: the "37 bps actual cost" was never computed anywhere.** It was a model assumption
+  quoted as a measurement. `realised_one_way_bps` is now measured: **33.4 bps against a 134 bps
+  breakeven, a 4.0x margin.** The edge still survives costs comfortably.
+- **B17: the "top-25" book is really a ~42-name book** (`held_median` 42, exit_rank 50) and
+  pays neither costs nor taxes, unlike every other book in the file. Now labelled.
+- **B21: sector caps are a clean NULL** — 5 bps of net alpha across none/25/30/40%. The book is
+  not sector-concentrated enough for a cap to bind. Measured, not adopted; do not re-open.
+- **B13: PARTIAL.** `prefilter` now runs in the backtest and rejects 384 penny names, but
+  `MIN_AVG_DOLLAR_VOLUME` still cannot bind — the price export carries `date` + `close` only.
+  Shipped as `prefilter_adv_wired: false` with the reason. Wiring SEP volume is open work.
+- **B22: a failure inside `costs` used to discard four blocks with no marker** while `errors: []`
+  stayed empty. All 12 blocks are stamped now, plus a pre-write schema check. Verified on the
+  corrected run: `errors` absent, all 12 present.
+- **B2/B4/B5 are options-side correctness fixes, none re-measured yet** — they fold into R2.
+  B5's four paper-track defects ALL flattered the track, so its pre-fix history is not
+  comparable to post-fix outcomes.
+
+### Open, in priority order
+
+1. **Re-run R1 on the corrected panel.** Everything else about the headline waits on this.
+2. **Find the run-to-run non-reproducibility.** Still unexplained. Three runs on identical data
+   gave `insider` median IC −0.00335 / +0.01551 / −0.00339. Until this is fixed no marginal IC
+   is trustworthy, and the project's memory is its results files.
+3. **R2** — the options re-run. B1/B2/B3/B4/B15 are all fixed and unmeasured; no absolute
+   options number in the record is citable until it lands.
+4. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect,
+   still open, still urgent.
+5. **B23** (speed) and the remaining audit sessions: X7/X2 noise floor, then R3/R7, U7/X3,
+   U2/U1/U6, O1 onward.
+
+---
+
 
 ## R1 SETTLED — THE HEADLINE IS NOT JUST FACTOR EXPOSURE (2026-08-04, `r1` lane)
 
