@@ -49,7 +49,8 @@
          # disclaimer for anyone else's benefit — there is nobody else — but a standing
          # reminder of the licence posture the vendor data is used under, so that "share a
          # screenshot of the hot list" is a decision rather than a reflex. #}
-        {% if private_mode %}<div class="tagline" style="opacity:.75">Private research tool — personal use only. Vendor data under individual licences; not for redistribution.</div>{% endif %}
+        {% if private_mode %}<div class="tagline" style="opacity:.75">Private research tool — personal use only. Vendor data under individual licences; not for redistribution.</div>
+        {% else %}<div class="tagline" style="opacity:.75">Free for anyone, no account needed. Educational research only — <b>not investment advice</b>.</div>{% endif %}
       </div>
     </div>
     <div class="hdr-actions">
@@ -63,16 +64,34 @@
     <div class="tabs">
       <button class="tab active" data-tab="single" onclick="switchTab('single')">Single valuation</button>
       <button class="tab" data-tab="hot" onclick="switchTab('hot')">🔥 Hot stocks</button>
+      {# OWNER-ONLY TABS (saas/surfaces.py). The Index is a live book of positions, Signals is
+       # a live actionable alert, Track Record is a paper-account performance claim, and the
+       # Edge Lab is the research bench. They are removed from the DOM rather than hidden with
+       # CSS, which also means their loaders never fire and no owner-only endpoint is called
+       # for a visitor at all. #}
+      {% if may_see_owner %}
       <button class="tab" data-tab="index" onclick="switchTab('index')">◆ Valquo Index</button>
       <button class="tab" data-tab="signals" onclick="switchTab('signals')">⚡ Signals</button>
       <button class="tab" data-tab="track" onclick="switchTab('track')">📊 Track Record</button>
-      {% if is_owner %}<button class="tab" data-tab="edge" onclick="switchTab('edge')">🔬 Edge Lab</button>{% endif %}
+      <button class="tab" data-tab="edge" onclick="switchTab('edge')">🔬 Edge Lab</button>
+      {% endif %}
       <button class="tab" data-tab="rank" onclick="switchTab('rank')">Watchlist</button>
     </div>
   </div>
 </header>
 
 <div class="wrap">
+
+  {# The liability line, on screen on every tab rather than at the bottom of one. Rendered for
+   # the owner too: the day this is screenshotted or shared, the caveat travels with it. #}
+  <div class="note" style="margin-top:14px;margin-bottom:2px">
+    <b>Educational tool — not investment advice.</b> Everything here is model output of general
+    application: fair values, scores and rankings are not recommendations, not price targets and
+    not tailored to you. No advisory relationship is created by using it, nothing is warranted to
+    be accurate or current, and there is no duty to maintain or update it. Markets involve risk of
+    loss — do your own research and consider a licensed professional.
+    <a href="/terms">Terms &amp; liability</a> · <a href="/methodology">How it works</a>
+  </div>
 
   {# ================= LIVE FORWARD TRACK — the hero =================
      Rendered SERVER-SIDE and above every tab, so it is on screen in the first paint with no
@@ -84,7 +103,7 @@
      page could show, and a "coming soon" strip is clutter. The owner sees a muted
      not-started line instead, so a track that silently stops is visible to the one person
      who can fix it. #}
-  {% set hero = live_hero() %}
+  {% set hero = live_hero() if may_see_owner else {'show': False} %}
   {% if hero.show %}
   <div class="livebar {% if hero.thin %}thin{% endif %}">
     <div class="lb-main">
@@ -135,7 +154,7 @@
     </div>
     {% endif %}
   </div>
-  {% elif is_owner %}
+  {% elif may_see_owner %}
   <div class="livebar notstarted">
     <div class="lb-head"><span class="lb-dot off"></span>
       <b>Live forward track</b>
@@ -330,15 +349,21 @@
       <!-- One ranking, two views. Hot Stocks IS the ranking; the Valquo Index is its
            disciplined top-slice. Deliberately not a second competing screen. -->
       <div class="note" style="margin-top:0"><b>Hot Stocks is the full ranked screen — this is
-        discovery.</b> Every name the model scores, in order. The <b>Valquo Index</b> below is
-        the disciplined, backtested book you would actually hold and track: the same ranking,
-        cut to a validated construction. The list is rebuilt automatically after each market
-        close and stays the same through the trading day, so it's always the latest — there's
-        nothing to refresh.</div>
-      <div class="note" style="margin-top:10px">The <b>Valquo Index</b> now has its own tab —
-        holdings, sector mix and its live record versus the S&amp;P are all there.
+        discovery.</b> Every name the model scores, in order. The list is rebuilt automatically
+        after each market close and stays the same through the trading day, so it's always the
+        latest — there's nothing to refresh. <b>A rank is analysis, not a recommendation:</b>
+        it says how a name scores against the others today, and nothing about whether it suits
+        you.</div>
+      {# The Index tab is a live book of positions and is owner-only, so the cross-links to it
+       # exist only where the tab does — a "see the Index" link that lands on a 403 is worse
+       # than no link. #}
+      {% if may_see_owner %}
+      <div class="note" style="margin-top:10px">The <b>Valquo Index</b> — the disciplined,
+        backtested top-slice of this same ranking — has its own tab: holdings, sector mix and
+        its live record versus the S&amp;P are all there.
         <a href="#" onclick="switchTab('index');return false"><b>Open the Index →</b></a></div>
-      {% if is_owner %}
+      {% endif %}
+      {% if may_see_owner %}
       <div class="search-row" style="align-items:center;margin-top:10px">
         <select id="scanScope" class="selin">
           <option value="bundled">Bundled universe (~180 liquid names, fast)</option>
@@ -362,6 +387,9 @@
       </div>
       <div class="grid2">
         <div class="card"><h3>Sector attractiveness</h3><div id="sectorBox"></div></div>
+        {% if may_see_owner %}
+        {# Owner-only: a ranked list is analysis, but "these fifteen names at these weights"
+         # is an allocation. The API refuses it for a visitor too (saas/surfaces.py). #}
         <div class="card">
           <h3>Portfolio builder</h3>
           <div class="opt" style="gap:12px">
@@ -374,11 +402,13 @@
           </div>
           <div id="portfolioBox"></div>
         </div>
+        {% endif %}
       </div>
     </div>
   </div>
 
-  <!-- VALQUO INDEX -->
+  {% if may_see_owner %}
+  <!-- VALQUO INDEX (owner-only: a live book of positions) -->
   <div id="tab-index" style="display:none">
     <div class="search-card">
       <div class="section-hint" style="margin-top:0"><b>The book you would actually hold.</b>
@@ -417,7 +447,7 @@
     <div class="note" id="indexDisclaimer" style="margin-bottom:22px"></div>
   </div>
 
-  <!-- TRACK RECORD -->
+  <!-- TRACK RECORD (owner-only: a paper-account performance claim) -->
   <div id="tab-track" style="display:none">
     <div class="search-card">
       <div class="section-hint" style="margin-top:0">A live, <b>forward</b> track record — how the tool's daily
@@ -431,7 +461,7 @@
     <div id="trackResults"></div>
   </div>
 
-  <!-- SIGNALS (Premium) -->
+  <!-- SIGNALS (owner-only: live actionable alerts with a specific contract) -->
   <div id="tab-signals" style="display:none">
     <div class="search-card">
       <div class="section-hint" style="margin-top:0">Intraday buy-setup scanner over liquid S&amp;P-500 names — blends reputable
@@ -479,8 +509,7 @@
     </div>
   </div>
 
-  {% if is_owner %}
-  <!-- EDGE LAB (owner-only, private) -->
+  <!-- EDGE LAB (owner-only: the research bench; reads Sharadar-derived output) -->
   <div id="tab-edge" style="display:none">
     <div class="search-card">
       <div class="section-hint" style="margin-top:0">Private research bench (owner-only). Does following the picks actually beat the S&amp;P?
@@ -513,8 +542,11 @@
     <div class="sp"></div>
     <div><a href="{{ feedback_url }}">Send feedback</a></div>
     <div><a href="/methodology">How it works</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></div>
-    <div class="muted" style="width:100%">Educational tool, not investment advice. Fair value is a model
-      output, not a price target — verify against primary filings before making decisions.</div>
+    <div class="muted" style="width:100%">Free and educational, <b>not investment advice</b> and not a
+      solicitation. Fair value is a model output, not a price target — verify against primary filings
+      before making decisions. Provided as is, without warranty of any kind; no advisory relationship,
+      and no duty to update or maintain. Markets involve risk of loss. See the
+      <a href="/terms">Terms</a> for the full disclaimer and limitation of liability.</div>
   </div>
 </footer>
 

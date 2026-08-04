@@ -242,7 +242,8 @@
       transparent 1–100 score. It adapts to mature, growth, and cash-burning companies.</p></div>
     <div class="card"><h3 style="margin-top:0;color:var(--navy)">🔥 Hot-stocks screener</h3>
       <p class="muted">Scans the whole US market and ranks every name on a self-calibrating value · quality · growth ·
-      momentum composite, with sector heat and a one-click portfolio.</p></div>
+      momentum composite, with sector heat. A ranking, not a recommendation — it says how names score
+      against each other, not what belongs in your account.</p></div>
     <div class="card"><h3 style="margin-top:0;color:var(--navy)">📊 Honest backtest</h3>
       <p class="muted">Information Coefficient, quantile spread after costs, equity curve vs benchmark, out-of-sample —
       it won't call a lucky curve an edge. Survivorship caveats included.</p></div>
@@ -250,6 +251,12 @@
   <div style="text-align:center;margin-top:34px">
     {% if signup_enabled %}<a href="/register" class="btn">Create your free account</a>
     {% else %}<a href="/app" class="btn">Open the app — no account needed</a>{% endif %}
+    <div class="muted" style="font-size:12.5px;max-width:640px;margin:14px auto 0;line-height:1.6">
+      Free, forever, with no account and nothing for sale. <b>Educational only — not investment
+      advice</b>, no recommendations, and no advisory relationship. Backtested results are a
+      historical simulation, not returns anyone earned.
+      <a href="/terms">Terms &amp; liability</a>
+    </div>
   </div>
 </div>
 {% endblock %}

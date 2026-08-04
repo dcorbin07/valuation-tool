@@ -79,14 +79,20 @@ def _restore(orig):
 
 
 # ============================== the flag itself ============================================
-def test_private_mode_is_on_by_default():
-    """Default TRUE. Valquo is a personal tool unless someone deliberately says otherwise."""
-    assert Config(private_mode=True).private_mode is True
-    # The env default, read the way config.py reads it.
+def test_private_mode_is_off_by_default_but_still_works_when_asked_for():
+    """DEFAULT CHANGED TO FALSE (2026-08-04): Valquo is public and free, with the sensitive
+    half held back by the owner split (saas/surfaces.py) rather than by locking the door.
+
+    The flag is not deleted and this whole suite still runs it ON, which is what keeps
+    "PRIVATE_MODE=true restores the personal-tool posture" a tested claim rather than a
+    promise. The parse is asserted too: `== "true"` and not `!= "false"`, so a typo'd or
+    empty value comes up PUBLIC-with-the-split rather than half-locked.
+    """
     import valuation.config as C
     src = open(C.__file__, encoding="utf-8").read()
-    assert '_get("PRIVATE_MODE", "true")' in src, \
-        "PRIVATE_MODE must default to true, or a fresh deploy comes up public"
+    assert '_get("PRIVATE_MODE", "false").lower() == "true"' in src, \
+        "PRIVATE_MODE must default to false now; the lockdown is opt-in"
+    assert Config(private_mode=True).private_mode is True    # ...and still honoured
 
 
 def test_private_mode_overrides_every_flag_that_would_open_the_product():

@@ -163,11 +163,17 @@ def range_bar(sample: dict) -> Optional[dict]:
     return out
 
 
-def landing_context(store) -> dict:
+def landing_context(store, with_track: bool = True) -> dict:
     """Everything the landing template needs, with every piece independently optional.
 
     One dead component must not take the page down, so each block is built defensively and
     the template checks for None. This is the first thing a visitor sees.
+
+    `with_track=False` is the PUBLIC landing. The forward track is a sandbox paper account,
+    and a performance figure on the front page of a free educational site is the single most
+    liability-shaped thing this project could publish — so it is not computed at all for a
+    visitor, rather than computed and hidden in the template. The caller passes
+    `surfaces.may_see_owner_surfaces(...)`, so this follows the same split as everything else.
     """
     ctx = {"sample": None, "sample_age": None, "sample_stale": False, "bar": None,
            "track": None, "spark": None, "scan": None}
@@ -188,15 +194,16 @@ def landing_context(store) -> dict:
     # backtested figures and `headline: "backtested"`, and the template shows those, labelled,
     # alongside "the live paper track has not started". Drawing a backtested curve under a
     # "live" heading would be the one dishonest thing this page could do.
-    try:
-        from ..screener.index_track import summarize
-        t = summarize("roth", store=store)
-        if t:
-            ctx["track"] = t
-            if t.get("available"):
-                ctx["spark"] = sparkline(t.get("series") or [])
-    except Exception:
-        ctx["track"] = None
+    if with_track:
+        try:
+            from ..screener.index_track import summarize
+            t = summarize("roth", store=store)
+            if t:
+                ctx["track"] = t
+                if t.get("available"):
+                    ctx["spark"] = sparkline(t.get("series") or [])
+        except Exception:
+            ctx["track"] = None
 
     # Proof that the ranking is real and current: how many names were scored, and when.
     try:

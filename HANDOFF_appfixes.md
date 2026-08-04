@@ -5,6 +5,164 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 11 — 2026-08-04 — Public + free, with a hidden owner view (PROMPT_appfixer_public_free.md)
+
+Valquo is now **public and free to anyone, forever**, with the liability-shaped half held back
+by an **owner split** instead of a locked door. Private mode is not deleted — it is one env var
+away, and its whole test suite still runs.
+
+## Flag states, and where each is read
+
+| Flag | Was | Now | Read in |
+|---|---|---|---|
+| `PRIVATE_MODE` | **true** | **false** | `config.py` (derived properties) + `saas/private.py` (request policy) |
+| `OWNER_SPLIT` | — | **true** (new) | `saas/surfaces.py` (request policy) + `_inject` → `may_see_owner` in every template |
+| `BETA_MODE` | true | **false** | `Config.beta_banner_enabled` → `_beta_banner.html` |
+| `OPEN_ACCESS` | true | true (unchanged) | `Config.public_access` |
+| `PORTFOLIO_PAGE` / `PORTFOLIO_PATH` | true / `/work` | unchanged | `saas/private.py`, the route in `app_saas.py` |
+
+Derived, and unchanged in value: `signup_enabled` **false** (no public signup — registration is
+refused at the route, not just hidden), `billing_enabled` **false** (no payment can be
+initiated even with Stripe keys set).
+
+`PRIVATE_MODE` now parses as `== "true"` rather than `!= "false"`, so a typo or an empty value
+comes up public-with-the-split rather than half-locked. `BETA_MODE` went off because its copy
+("everything is unlocked free **while we build**") promises a paid product later; neither half
+of that is true, and the header now states the real posture instead.
+
+## Why this is still licence-clean — recorded so nobody re-litigates it
+
+- **No commercial activity.** Free, no billing, no revenue, no customers → no "business use"
+  trigger under ThetaData Individual or Sharadar's individual terms.
+- **The live path is FMP + Tradier.** Sharadar and ThetaData are **backtest-only** and reach
+  exactly one HTTP route between them (`/api/edge/*`, plus the ThetaData-derived reference
+  figure inside `/api/options-paper`) — both **owner-only**.
+- **Derived statistics Don computed are his; raw vendor rows are not.** That line did not move.
+  It is why `/methodology` and `/work` may quote backtest statistics while no vendor row,
+  price, fundamental or per-name panel value is served to anyone.
+
+## The split — every surface, and the vendor behind it
+
+**PUBLIC (no login, full render).** Analysis only.
+
+| Surface | What it serves | Vendor |
+|---|---|---|
+| `/` landing | cached sample valuation + scan date | FMP |
+| `/app` → Single valuation (`/api/value`, `/api/rank`, `/api/export/*`) | live DCF, bull/base/bear, score | FMP + SEC EDGAR + Treasury; AI commentary optional (Anthropic) |
+| `/app` → Hot stocks (`/api/hotstocks`) | the daily ranking snapshot | FMP (yfinance fallback) |
+| `/app` → Watchlist | scores a typed list | FMP |
+| `/api/whatdo` | one name — **ranking half only** | FMP |
+| `/api/tickers`, `/api/regime` | typeahead; 10Y / VIX / SPY-vs-200dma | local; Treasury + yfinance |
+| `/methodology` | method + derived research statistics | derived from the Sharadar backtest (statistics, not rows) |
+| `/work` | the portfolio page | none at runtime (static) |
+| `/terms`, `/privacy` | prose | none |
+
+**OWNER-ONLY (403 + `owner_only`).** Three reasons, named per entry in `saas/surfaces.py`:
+
+| Surface | Why | Vendor |
+|---|---|---|
+| `/api/track`, `/api/index-track` | performance claim (forward record, equity curve) | Tradier **sandbox** + FMP marks |
+| `/api/options-paper`, `/api/options-scorecard` | performance claim (paper option book, expectancy) | Tradier sandbox fills; **ThetaData**-derived reference |
+| `/api/valquo-index` | actionable live pick (names **and weights**, today) | FMP |
+| `/api/options-alerts` | actionable live pick (a contract, a size, a risk budget) | Tradier chains |
+| `/api/signals`, `/api/signals/run` | actionable live pick (intraday feed) | Tradier / free stack + Anthropic |
+| `/api/portfolio` | actionable live pick (an allocation) | FMP |
+| `/api/backtest/run`, `/api/scan/run` | backtest internals; expensive vendor-quota triggers | FMP / yfinance |
+| `/api/edge/*` | research bench + adopted weights + `fundamental_backtest` meta | **Sharadar**-derived |
+
+**Judgement call worth flagging:** the **portfolio builder** is owner-only. A ranked list is
+analysis, but "these fifteen names at these weights" is an allocation, and it was the most
+recommendation-shaped output in the app. One line in `surfaces.py` moves it back if Don
+disagrees.
+
+In the UI the four owner tabs (Index, Signals, Track Record, Edge Lab), the live-track band
+above every tab, the portfolio-builder card and the "Run scan now" control are **removed from
+the DOM** for a visitor, not hidden with CSS — so their loaders never fire and no owner-only
+endpoint is called for a visitor at all. `/api/whatdo` withholds the book/paper half and
+**says so** rather than omitting the key (an absent field reads as "not in the book", which is
+a different and false statement).
+
+## Verified logged out
+
+`/` `/app` `/methodology` `/terms` `/privacy` `/work` → **200**, fully rendered.
+`/api/health` `/api/hotstocks` `/api/tickers` `/api/regime` `/api/value` → **200**.
+All twelve owner-only paths → **403** with `owner_only`, and the refusal body carries none of
+`cum_`, `excess`, `expectancy`, `holdings`, `occ_symbol`. `POST /register` with a valid CSRF
+token → 302 and **no account created, no session**. Logged in as owner: all four tabs and every
+owner endpoint return 200.
+
+**Crons unaffected.** Every scheduled job hits `/admin/*` with `X-Admin-Token`; `/admin/` is not
+in the split, and the guard bypasses the split for a valid admin token anyway. Re-verified that
+`run-scan`, `run-intraday`, `run-paper-track`, `post-recap`, `export-track`, `run-learning` and
+`ingest-snapshot` all still reach their token check (401 `unauthorized` on a wrong token, not a
+403 from the split).
+
+## Liability posture
+
+- The not-advice line is now **on screen on every tab** (a strip above the tab content, not
+  only in the footer), plus the header line, plus the footer — all three name: model output of
+  general application, no recommendations, **no advisory relationship**, **no warranty**, **no
+  duty to update or maintain**, risk of loss, do your own research.
+- **`/terms` rewritten.** The old page described a paid subscription service, carried nine
+  `[bracketed]` placeholders and a public "DRAFT — attorney review required" banner. All of
+  that was wrong on a site with no fees, no subscriptions and no user accounts, and a public
+  draft banner tells the reader the disclaimer above it is not meant seriously. It now covers:
+  no advisory/fiduciary relationship · impersonal and general · backtests are a **historical
+  simulation** · any forward record is a **broker sandbox paper account with no real money** ·
+  no duty to maintain · **as is, no warranty of any kind** · limitation of liability (nothing
+  is charged; residual cap $100) · acceptable use · Virginia law. **The attorney-review note is
+  now shown to the owner only** — that is a deliberate call, flagged here rather than buried.
+- **No performance claims in public**, enforced by a test that greps every public page.
+
+## The one number the posture now permits
+
+Audit **R1** cleared its pre-registered threshold, so the FF5+MOM result may be stated. It
+appears on `/methodology` and `/work`, both times wearing its labels: **+8.81%/yr, NW t 5.74**,
+with the passive-ETF placebo at **t 0.45**, described as a **historical simulation**, explicitly
+**"not an expected return, not an achievable return, and not a return anyone earned"**, with
+the +6.6% conservative figure, the missing multiplicity correction, and the fact that it does
+**not** overturn X4's null against buyable factor ETFs. A test asserts that if `8.81` appears on
+a public page, those labels appear with it.
+
+Two stale claims were corrected on `/methodology` while it was open: the "Deflated Sharpe is
+saturated" bullet now discloses that it is an **undeflated** PSR (audit B9), and the "sector
+ranking is inert because the classification is not wired" bullet is replaced by the true state
+— sector is wired at 100% coverage, sector-neutral ranking was **rejected**, and the live path
+still inherits it on, which is a recorded open discrepancy (audit B7/G).
+
+## How Don reaches the hidden login
+
+**`valquo.co/login`**, or the small **"Owner login"** link in the footer of every page. There is
+no "Sign in" in the nav — with exactly one account on the instance it would be a control that
+does nothing for every visitor while competing with "Open the app". Registration is closed, so
+that link is a door for one person.
+
+**Not changed, and worth a decision:** `robots.txt` still says `Disallow: /` from the private-mode
+era, so the public site is reachable by anyone with the link but **will not appear in search**.
+The prompt did not ask for search visibility and turning it on is an outward-facing change, so
+it was left alone — flip it to `Allow: /` in `app_saas.robots_txt` if Don wants traffic. `/work`
+stays out of the index either way: it sends `X-Robots-Tag: noindex` on its own response.
+
+## Suites
+
+19 suites green, **628 tests**, including a new `tests/test_public.py` (**16**) that pins the
+posture: the public half renders in full, every owner-only path refuses outright, every `/api`
+route is knowingly on one side of the split (an unclassified new route fails the suite), the
+split reverts with its flag, the Terms keep their four clauses, and no public page makes a
+performance claim. `tests/test_private.py` (30) still runs the whole lockdown with
+`PRIVATE_MODE=true`, which is what keeps "the flag restores the personal tool" a tested claim.
+
+## Reversing this
+
+- Lock it back down: `PRIVATE_MODE=true` (owner-only, nothing served to anyone else).
+- Publish everything: `OWNER_SPLIT=false` — read the Terms first; it turns performance claims
+  and live positions back on.
+- Go commercial: `OPEN_ACCESS=false` (+ `FEATURE_BILLING=on`) restores signup, tiers and
+  Stripe, all still tested — and the Terms would need rewriting for a paid service, with an
+  attorney.
+
+---
+
 # Session 10 — 2026-08-04 — The recruiter page (PROMPT_recruiter_page.md)
 
 One unlisted page Don can put on a résumé. It is the single deliberate exception to private
