@@ -7,6 +7,12 @@ Read-only on Sharadar throughout. No key printed, logged or committed. No `data/
 Did not touch `options_universe.py`, `options_backtest.py`, `fundamental_panel.py`, `factors.py`,
 `screen.py` or `paper_track.py` — the main edge-audit agent's correction files.
 
+> **See the ADDENDUM at the end of this file (2026-08-04)** — the freeze has since been completed
+> (six caches copied; `signal_coverage` now matches live) and audit item **B6** is answered
+> (price history is FULL DEPTH; no Sharadar pull needed). The addendum also **corrects** one claim
+> made below: the missing caches had **zero** effect on any backtest number, not the limited effect
+> the "five signals" section originally states.
+
 ---
 
 ## One line
@@ -348,3 +354,174 @@ regress. Suites were run to confirm the tree is green, not because anything was 
 - Did not fix `ebitmargin` or `pit_universe.py` — this bot writes docs and a reference file only,
   and both sit near the main agent's correction files.
 - Did not re-open the earliest-datekey rule. The evidence says keep it.
+
+---
+---
+
+# ADDENDUM — 2026-08-04: freeze completed, and the B6 price-depth question answered
+
+Two follow-ups requested after the session above. Both done; evidence below.
+
+---
+
+## A. The freeze is now a true standalone replacement
+
+**Six auxiliary caches copied into `data/backtest_freeze_2026-08/bulk/prepared/`, each verified
+sha256-identical to its source, and the freeze re-run now matches the live run's coverage exactly.**
+
+Scope was decided by grepping which modules actually read each cache, not by copying everything
+present:
+
+| cache | size | feeds | sha256 (first 16) |
+|---|---:|---|---|
+| `short_interest.pkl` | 166.8 MB | `neg_days_to_cover`, `neg_short_interest_chg` | `88e0880b62850fde` |
+| `edgar13d.pkl` | 9.4 MB | `activist_13d`, `passive_13g` | `1e107f34807eee83` |
+| `elite_conv.pkl` | 7.0 MB | `sm_elite_conviction` | `68c6a48a2b4e1eb7` |
+| `congress.pkl` | 1.1 MB | `congress_net_buy`, `congress_activity` | `0c65f3e181c85b08` |
+| `usaspending.pkl` | 235 KB | `govt_award_momentum`, `govt_award_level` | `074abab1b38eb66e` |
+| `cik_ticker.json` | 151 KB | EDGAR CIK-to-ticker map | `d3a4a2aefd30eb0d` |
+
+**Deliberately NOT copied**, and this is a standing boundary, not an oversight:
+`bars/` (68 MB), `theta/` (28 MB), `dgs3mo.csv`, `sec_names.json`. These belong to the options and
+screener lanes — ThetaData is a **separate vendor on its own lifecycle**, and its cache already
+lives independently under `data/options/`. This freeze exists because the *Sharadar* subscription
+is lapsing. Mixing vendors would make "what is this snapshot" ambiguous later. **If ThetaData ever
+needs a freeze, it gets its own.**
+
+### Verification: `signal_coverage.below_floor` now matches live
+
+| run | signals below the 5% floor |
+|---|---|
+| freeze, before the copy | **7** — `sm_elite_conviction` 0.0, `neg_days_to_cover` 0.0, `neg_short_interest_chg` 0.0, `activist_13d` 0.0, `passive_13g` 0.0, `govt_award_momentum` 0.0, `govt_award_level` 0.0 |
+| **freeze, after the copy** | **2** — `govt_award_momentum` 3.36%, `govt_award_level` 3.61% |
+| live | **2** — `govt_award_momentum` 4.03%, `govt_award_level` 4.34% |
+
+**Set-identical to the live run.** All five previously-zeroed signals are populated. The two that
+remain are below the floor in the live run too — a known pre-existing gap, not a freeze defect
+(slightly lower on the freeze only because its universe is larger, which dilutes coverage).
+
+### CORRECTION to the main report above
+
+The section "The real defect: the freeze silently zeroes five signals" said the practical impact
+was "confined to `sm_elite_conviction` inside the `institutional` theme (weight 0.143)".
+**That was wrong. The impact on the backtest was exactly ZERO.**
+
+The re-run is **bit-identical** to the pre-copy run on every headline number:
+
+| metric | freeze BEFORE copy | freeze AFTER copy | live |
+|---|---:|---:|---:|
+| long-short t | 4.10447 | **4.10447** | 3.52024 |
+| top-decile alpha | 0.13588 | **0.13588** | 0.11879 |
+| monotonicity | -1.00000 | **-1.00000** | -0.95152 |
+| CPCV PBO | 0.26667 | **0.26667** | 0.06667 |
+| Deflated Sharpe | 0.99995 | **0.99995** | 1.00000 |
+
+The reason is in `valuation/screener/settings.py`, which says it outright for each signal:
+**"Measured, not scored."** `NUMBER_THEME` governs z-scoring and measurement; theme membership for
+the composite is decided separately in `factors.py`, and all five were **tested and rejected by the
+project's own gates** — `sm_elite_conviction` t +1.32 against a 2.0 bar and below both signals
+already in the theme; short interest t +1.04 / +0.42; `activist_13d` t -0.69; `passive_13g` and
+`govt_award_level` are **declared placebos**. Two of them additionally sit in `low_risk`, which
+carries weight 0.0.
+
+So the corrected reading: **no past or present backtest number was ever affected by the missing
+caches.** What the gap actually cost was (a) a misleading `signal_coverage` block that flagged
+seven failures where the live panel has two, and (b) the ability to re-test any of those five
+signals from the freeze at all. Both are now fixed. The coverage guard did its job — it reported a
+real absence — but the absence was of already-rejected signals.
+
+---
+
+## B. Audit B6 — is the freeze's price history full-depth, or truncated?
+
+**VERDICT: FULL DEPTH. B6 is fixable from the freeze alone. No fresh Sharadar pull is required,
+and Don does not need to buy a subscription for this item.**
+
+### The truncation is at READ time, not in the data
+
+`WRDSProvider.price_history` (`valuation/edge/data_providers.py:325`) ends with:
+
+```python
+df = df.sort_values("date").tail(days)
+```
+
+`build_fundamental_panel(lookback_years=18, horizon=63)` calls it as
+`price_history(t, days=TD * lookback_years + horizon + 60)` = `252*18 + 63 + 60` = **4,659**.
+That confirms the 4,659 figure exactly. It keeps the last N rows **per ticker**, so each ticker's
+window floats relative to *its own* final bar — which is precisely the B6 complaint (truncate the
+CALENDAR, not each ticker's series).
+
+### What is actually on disk — per-ticker earliest-date distribution, SEP
+
+Measured over all **3,735** per-ticker files in `backtest_freeze_2026-08/backtest/prices/`:
+
+```
+rows/ticker:  min 7   p10 695   median 3,524   p90 7,189   max 7,189
+```
+
+| earliest date | tickers |
+|---|---:|
+| **1997** | **1,647** |
+| 1998-1999 | 204 |
+| 2000-2004 | 312 |
+| 2005-2009 | 234 |
+| 2010-2014 | 279 |
+| 2015-2019 | 306 |
+| 2020-2021 | 501 |
+| 2022-2026 | 252 |
+
+- earliest date: **min 1997-12-31**, p25 1997-12-31, **median 2000-03-28**, p75 2017-04-27, max 2026-06-04
+- last date: median and max **2026-07-31**
+- **1,647 tickers (44.1%) begin at the very first bar available** (on or before 1998-01-02)
+
+**1997-12-31 is SEP's own start-of-coverage**, not a truncation — the raw table begins there too.
+No pull, at any price, could produce earlier data.
+
+### How much the read-time cap actually discards
+
+- **1,564 of 3,735 tickers (41.9%)** hold more than 4,659 bars, so they *are* truncated at read time
+- **3,024,857 of 14,502,282 daily bars (20.9%)** are thrown away by the `.tail(4,659)` call
+
+That is the size of the prize for fixing B6: a fifth of the price history already on disk is
+currently discarded before it reaches the panel.
+
+### Is the derived export itself lossy? No.
+
+Cross-checked the per-ticker export against the raw **3.2 GB `bulk/sep.csv`**
+(46,248,674 rows over 21,938 tickers, spanning 1997-12-31 to 2026-07-31):
+
+| check | result |
+|---|---|
+| tickers present in both | 3,734 |
+| tickers where the export has FEWER rows than raw | **0** |
+| tickers whose RAW history starts EARLIER than the export | **0** |
+
+**The export preserved every available bar for every ticker in the universe.** Nothing was lost at
+export time; the freeze carries the full depth twice over (derived + raw).
+
+### What this means for B6
+
+1. **Fixable from the freeze alone.** The fix is to slice by calendar date instead of
+   `.tail(days)` — a read-side change in `price_history`. Every bar it needs is already on disk.
+2. **No subscription needed for this item.** Neither for depth (already complete to SEP's own
+   1997-12-31 origin) nor for breadth.
+3. **One precision point:** the derived export covers 3,735 tickers, while raw SEP holds 21,938.
+   That difference is a **universe choice**, not a depth truncation. If a future B6 fix wants names
+   outside the exported universe, the raw `bulk/sep.csv` in the freeze has all 21,938 — still no
+   pull required.
+
+**Caveat, stated rather than buried:** this establishes the *data* is sufficient. It does not
+measure what fixing B6 does to any result. Restoring 20.9% more history — disproportionately the
+oldest bars and the delisted names — will move the momentum and reversal inputs and could move the
+headline in either direction. That is a research question for whoever takes B6, and it should go
+through `holdout_theme_validate()` like any other change.
+
+---
+
+## Housekeeping
+
+- `BACKTEST_RESULTS.json` / `.md` were clobbered by both re-runs (the panel always writes them to
+  the repo root) and have been **restored to the canonical `long_short_tstat = 3.5202358069482473`,
+  `top_decile_alpha = 0.11879`**. Tracked tree verified clean.
+- The freeze copies were left writable rather than marked read-only like the original freeze files,
+  so `bulk.py` can refresh them in place if a cache is ever rebuilt.
