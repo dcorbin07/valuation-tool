@@ -337,6 +337,72 @@ def get_insider_txns(ticker, since=None, limit=10):
     return txns
 
 
+def form4_index(ticker):
+    """
+    EVERY Form 4 this filer has ever submitted, as
+    [{"filed": "YYYY-MM-DD", "accession": "...", "doc": "...", "url": "..."}],
+    newest first.
+
+    `get_insider_txns` reads `filings.recent`, which EDGAR caps at the most
+    recent ~1,000 filings of ALL types. For a company whose insiders file often
+    that window can be under a year — so `recent` is a live-screener feed, not a
+    history. A point-in-time backtest needs the whole series, which lives in the
+    paginated `filings.files[]` shards. This walks both.
+
+    Returns [] rather than raising, like the rest of this module.
+    """
+    cik = _cik10(ticker)
+    if not cik:
+        return []
+    try:
+        sub = _get(f"https://data.sec.gov/submissions/CIK{cik}.json").json()
+    except Exception:
+        return []
+
+    out = []
+
+    def _absorb(block):
+        forms = block.get("form", [])
+        accns = block.get("accessionNumber", [])
+        docs = block.get("primaryDocument", [])
+        dates = block.get("filingDate", [])
+        for i, form in enumerate(forms):
+            if form != "4":
+                continue
+            if i >= len(accns) or i >= len(dates):
+                continue
+            accn = accns[i].replace("-", "")
+            doc = docs[i] if i < len(docs) else None
+            if not doc:
+                continue
+            out.append({
+                "filed": dates[i], "accession": accn, "doc": doc,
+                "url": f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accn}/{doc}",
+            })
+
+    _absorb(sub.get("filings", {}).get("recent", {}))
+    for shard in sub.get("filings", {}).get("files", []) or []:
+        name = shard.get("name")
+        if not name:
+            continue
+        try:
+            _absorb(_get(f"https://data.sec.gov/submissions/{name}").json())
+        except Exception:
+            continue
+
+    out.sort(key=lambda r: r["filed"], reverse=True)
+    return out
+
+
+def form4_transactions(url):
+    """Parse one Form 4 by URL. Separated from fetching so a backtest can cache
+    the XML on disk and re-parse it without re-hitting EDGAR."""
+    try:
+        return _parse_form4_xml(_get(url).text)
+    except Exception:
+        return []
+
+
 def recent_form4(max_items=100):
     """
     Firehose for the intraday poller: recent Form 4 filings across all companies,

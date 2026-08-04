@@ -131,6 +131,16 @@ def apply_live_gates(panel):
     Deliberately uses `config` rather than re-stating the numbers, so a change
     to the live ceiling or liquidity floor moves the backtest with it. Returns
     (filtered_panel, per-reason counts).
+
+    ONE DELIBERATE SIMPLIFICATION, stated so it is not mistaken for an oversight:
+    the live pipeline applies the $10B ceiling through `market_cap_eligible`,
+    which lets a name through anyway if it ranks in the top `OVERRIDE_TOP_RANK`
+    (3) of its bucket or shows an insider cluster. That override is applied
+    AFTER ranking, so reproducing it here would make universe membership depend
+    on the score — and then the two models would be scored on two different
+    universes, which is the one thing C1 exists to prevent. The ceiling is
+    applied as a hard gate instead. Effect: a handful of megacap names the live
+    product would occasionally surface are absent from both models' panels.
     """
     n0 = len(panel)
     junk = panel["ticker"].map(S.is_junk_ticker)
@@ -211,7 +221,12 @@ def score_live(panel, with_insider=True, insider_limit=6):
         for r in rows:
             sc, why = S.score_stock_verbose(r)
             if sc is None:
-                skips[why.split("(")[0].strip()] = skips.get(why.split("(")[0].strip(), 0) + 1
+                # Bucket the reason, don't key on the raw string: the coverage
+                # message embeds a per-row percentage, so keying on it would
+                # produce one dict entry per row instead of a tally.
+                key = ("insufficient factor coverage"
+                       if why.startswith("insufficient factor coverage") else why)
+                skips[key] = skips.get(key, 0) + 1
                 comps.append(np.nan); buckets.append(None); covs.append(np.nan)
             else:
                 comps.append(sc.composite); buckets.append(sc.bucket); covs.append(sc.coverage)
@@ -364,6 +379,15 @@ def main():
                 f"{k}={v:,}" for k, v in sc["bucket"].value_counts().items()))
 
     print("\n" + "=" * 72)
+    print("DO NOT QUOTE cum_port / cum_bench. HORIZON_TD=21 was chosen because")
+    print("'1-month holding = matches monthly rebalance (no overlap)' — but calendar")
+    print("months are not uniformly 21 sessions, so windows anchored at month starts")
+    print("do not tile: some leave a gap, some overlap. Measured on IWM over this")
+    print("window, buy-and-hold is +4.6% while the compounded 21-session windows give")
+    print("-4.5% — a 9pp artefact. It hits both models identically and cancels out of")
+    print("IC and of the quantile spread (both computed WITHIN a date), so the C1")
+    print("comparison is unaffected; only the cumulative figures are distorted.")
+    print("=" * 72)
     print("SURVIVORSHIP CAVEAT: the candidate pool is today's EDGAR filer list, so")
     print("names that delisted over the window are structurally absent and every")
     print("number above is biased optimistic. The point-in-time cap gate removes the")
