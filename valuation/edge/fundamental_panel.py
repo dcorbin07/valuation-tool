@@ -377,13 +377,28 @@ def _sf1_to_metrics(ticker, sf1, price, market_cap, ev_point_in_time=None) -> di
         # multiple is not on the same scale as a positive one, so there is no ordering that is
         # right; the honest answer is no observation. ~0.70% of rows.
         "ebit_ev": (ebit_usd / ev) if (ebit_usd is not None and ev and ev > 0) else None,
-        "ev_sales": (ev / rev_usd) if (ev and ev > 0 and rev_usd) else None,
+        "ev_sales": (ev / rev_usd) if (ev and ev > 0 and rev_usd and rev_usd > 0) else None,
         # EV/EBITDA, POSITIVE EBITDA ONLY. A negative denominator flips the multiple negative,
         # which then sorts as "cheapest of all" — the loss-makers would lead the value ranking.
         # Leaving it None instead means the theme simply averages its other inputs for that
         # name (same convention build_frame already uses for a missing input).
-        "ev_ebitda": (ev / ebitda_usd) if (ev and ebitda_usd and ebitda_usd > 0) else None,
-        "ps": (mc / rev_usd) if (mc and rev_usd) else None,
+        # AUDIT B18, completed. The first pass guarded `ebit_ev` and `ev_sales` on `ev > 0` and
+        # left this one on the truthiness test alone, so 414 rows (0.36%) still carried a
+        # negative EV/EBITDA — and the NEW sign check found them on the very next run, which is
+        # what that check was added for. Same convention as its two siblings: missing.
+        "ev_ebitda": (ev / ebitda_usd) if (ev and ev > 0 and ebitda_usd and ebitda_usd > 0)
+        else None,
+        # AUDIT B18, second half. The remaining negatives in `ev_sales` and `ps` are NOT negative
+        # enterprise value — they are negative REVENUE: 538 rows, 0.273% of the export, and the
+        # names are agency mortgage REITs and financial guarantors (DX, NLY, AGNC, MBI, RWT,
+        # FNMA), where a quarter's net interest income after losses genuinely comes out below
+        # zero. A negative sales multiple has exactly the same failure mode as a negative EV one:
+        # negate it and the name sorts as the cheapest in the cross-section. Same answer — a
+        # multiple on a negative denominator is not on the same scale as one on a positive
+        # denominator, so it is no observation rather than an extreme.
+        # (Verified: 746 rows have negative `ev` (0.378%), which is the population behind the
+        # `ev_ebitda` flag; 538 have negative `revenueusd`, which is the `ev_sales`/`ps` one.)
+        "ps": (mc / rev_usd) if (mc and rev_usd and rev_usd > 0) else None,
         # SAME-CURRENCY ratios — local/local, already correct, deliberately untouched.
         "op_margin": (ebit / rev) if (ebit is not None and rev) else _f(sf1, "ebitmargin"),
         "gross_margin": (gp / rev) if (gp is not None and rev) else _f(sf1, "grossmargin"),

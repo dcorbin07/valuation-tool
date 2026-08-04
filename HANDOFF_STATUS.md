@@ -21,14 +21,17 @@ Part I corrections. **What follows is what changed about what the project believ
 
 **Three claims in `CLAUDE.md` were unsupported and are now corrected in place:**
 
-1. **"Deflated Sharpe >99.9%" is an UNDEFLATED Probabilistic Sharpe Ratio.** The deflation uses
-   N = 8 trials and those eight are near-identical weightings of the same eight themes, so the
-   cross-trial variance is ~0, `SR0` collapses to ~0, and the statistic degenerates. It saturates
-   because it is not deflating anything. PBO 6.7% likewise scores **only the weight-scheme
-   selection step** — a selection the shipped strategy never makes, since it keeps
-   `current-default`. **Lead with the long-short t of 3.52 against the Harvey-Liu-Zhu hurdle of
-   3.0.** That bar is real and it is cleared. The run now self-reports the degeneracy
-   (`deflated_sharpe_detail.metric`, `pbo_scope`).
+1. **The Deflated Sharpe: the audit's MECHANISM is refuted, its COUNT criticism stands.** It
+   argued the eight weight schemes are indistinguishable so `SR0` collapses to ~0 and nothing is
+   deflated. **Measured on the corrected full-universe run: `var_sr_across_trials` = 0.0276 and
+   `sr0_benchmark` = 0.242 against a per-period Sharpe of 0.606** — it deflates away 40% of the
+   Sharpe. The audit inferred near-identical trial SHARPES from near-identical median ICs; those
+   are different quantities. What DOES stand: **`N = 8` against a ledger of ~146 real trials**, a
+   denominator roughly 18x too small. Every run now ships `deflated_sharpe_detail` so this is a
+   measured property per run, not an assumption either way. PBO likewise scores **only the
+   weight-scheme selection step** — a selection the shipped strategy never makes, since it keeps
+   `current-default` (now shipped as `pbo_scope`). **Lead with the long-short t against the
+   Harvey-Liu-Zhu hurdle of 3.0.** That bar is real and it is cleared.
 2. **`low_risk` was NOT "confirmed out-of-sample."** Verified in the code:
    `holdout_theme_validate` computes `rule_fired` at `fundamental_panel.py:3048` and **never
    reads it**; the verdict is `all(improves)` across both split directions. That is a demanding

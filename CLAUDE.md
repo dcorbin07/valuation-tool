@@ -37,14 +37,25 @@ the project's memory and the old versions had been repeated for months.
 - **CORRECTED 2026-08-03 (audit B9) — TWO OF THE THREE "statistical bars" MEASURE SOMETHING
   NARROWER THAN THE CLAIM THEY SUPPORT. Lead with the long-short t of 3.52 against the
   Harvey–Liu–Zhu hurdle of 3.0. That one is real.** The other two:
-  * **"Deflated Sharpe >99.9%" is an UNDEFLATED Probabilistic Sharpe Ratio.** The deflation
-    uses N = 8 trials, and those eight are eight near-identical weightings of the same eight
-    themes (out-of-sample median ICs spanning +0.061 to +0.062). Bailey–López de Prado's
-    benchmark `SR₀` scales with the CROSS-TRIAL VARIANCE of Sharpes; when the trials are
-    indistinguishable that variance is ~0, `SR₀ ≈ 0`, and the statistic collapses to
-    Φ(SR·√(n−1)). It saturates because it is not deflating anything. The run now ships
-    `deflated_sharpe_detail` with `sr0_benchmark`, `n_trials` and a `metric` field that says
-    `probabilistic_sharpe_ratio_UNDEFLATED` when this happens. **Do not quote it as a DSR.**
+  * **The Deflated Sharpe IS deflating — the audit's mechanism for this one is REFUTED by
+    measurement, and only half of its criticism survives.** The audit argued that the eight
+    weight schemes are indistinguishable (out-of-sample median ICs spanning +0.061 to +0.062),
+    so the cross-trial VARIANCE of Sharpes is ~0, `SR₀ ≈ 0`, and the statistic degenerates to
+    Φ(SR·√(n−1)). **Measured on the full-universe run: `var_sr_across_trials` = 0.0276 (sd
+    0.166, not ~0) and `sr0_benchmark` = 0.242 against a per-period Sharpe of 0.606** — the
+    benchmark is deflating away 40% of the Sharpe. The audit inferred near-identical trial
+    SHARPES from near-identical median ICs; those are different quantities, and the Sharpes are
+    genuinely dispersed. It saturates because a per-period Sharpe of 0.61 over 110 periods is
+    a large z, not because nothing is deflated. Every run now ships
+    `deflated_sharpe_detail` (`sr0_benchmark`, `var_sr_across_trials`, `n_trials`) plus a
+    `metric` field that reads `probabilistic_sharpe_ratio_UNDEFLATED` **if** `sr0` ever does
+    collapse — so this is now a measured property of each run rather than an assumption in
+    either direction.
+  * **What DOES survive: `N = 8` is not the number of trials this project has run.** The
+    ledger records of the order of 146 pre-registered tests. That criticism is untouched by
+    the above and is the real one. Until a genuine trial counter exists (audit M1,
+    `RESEARCH_LOG.md`, started but deliberately not wired), the deflated figure is computed
+    against a denominator that is roughly 18x too small.
   * **PBO 6.7% scores the WEIGHT-SCHEME SELECTION STEP ONLY** — "the best of eight nearly
     identical weightings generalises". It says nothing about the ~146 signal-inclusion,
     theme-membership, universe, standardisation and construction decisions in the ledger, and
