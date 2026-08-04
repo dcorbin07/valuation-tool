@@ -381,3 +381,242 @@ substantially like managed size exposure, so **SMB should absorb a large share o
 Run it against both FF5+MOM and the q-factors, report the intercept with its Newey–West t, and
 hold to P5's pre-committed language rule — "alpha" only if the FF5+MOM intercept clears t > 2.0,
 otherwise the honest framing is *efficient factor exposure*.
+
+---
+---
+
+# Round 2 — X4, S26, P1 (2026-08-04)
+
+Thresholds committed in `PREREG_free_analysis.md` **before** each run. Lane re-validated:
+`python check_lanes.py X4 S26 P1` → **SAFE**. Still **no existing file modified**.
+Per the audit's own gate, U7 / O7 / O3–O5 are **held until R1 returns**.
+
+| item | verdict | one line |
+|---|---|---|
+| **X4** | **NULL** on the primary blend | +9.21pp margin vs the 4-factor blend, but **t = 1.10** and negative in the first half. Real-looking, not demonstrable. |
+| **S26** | pattern found, **then partly refuted** | The worst 20 are small, volatile, deep-value, crisis-clustered — but the book beats the universe *more* in drawdowns. What survives is that `low_risk`'s IC **flips sign by regime**. |
+| **P1** | **capacity ≈ $23M** (upper bound) | Valquo cannot be a managed vehicle. It is a research tool users implement themselves. Don's own account is unaffected. |
+
+---
+
+## X4 — benchmark against what a user could actually buy → **NULL**
+
+**Committed bar:** net excess over the matched blend **≥ +2.0pp annualised AND positive in both
+halves**; 0 to +2.0pp → NULL; negative → the product's claim must change.
+
+**Run.** `python -m scripts.etf_benchmark`. Blend = **VTV / QUAL / MTUM / IWM**, equal-weighted,
+rebalanced on the panel's own 63-day grid. ETF adjusted closes are **already net of expense
+ratios**, so the blend is measured net of fees — stricter than the audit asked. The strategy is
+charged the project's own market-cap-keyed cost model at its measured turnover.
+
+### Primary: matched 4-factor blend, 2014-01-10 to 2026-04-22, n = 50
+
+```
+  strategy gross +22.75%   net +21.87%   (cost drag 0.89%)
+  blend    +12.65%     SPY +14.11%     equal-weight universe +13.40%
+    IWM +9.37%   MTUM +15.29%   QUAL +13.59%   VTV +11.59%
+  EXCESS vs blend  +9.21%   halves  -6.40% / +27.08%   both positive = FALSE
+  -> NULL, margin not demonstrated
+```
+
+**The margin is large and the stability arm kills it, which is exactly what that arm is for.**
+Supporting evidence, all pointing the same way:
+
+- quarterly excess vs the blend: **mean +2.46%, median +1.98%, t = 1.10** — indistinguishable
+  from zero
+- **hit rate 27/50 = 54%** — barely better than a coin
+- **four losing years**: 2014 -3.5pp, 2015 -12.2pp, 2017 -1.8pp, 2018 -14.5pp
+- worst quarter **-40.1pp** (the window opening 2020-01-14, COVID hitting the small-cap tilt),
+  best **+53.1pp** (2025-04-21)
+
+### Secondary: long-history 2-factor blend (IWD + IWM), 2000-09-29 to 2026-04-22, n = 103
+
+```
+  strategy net +24.07%   blend +8.20%   SPY +8.28%   EW universe +12.70%
+  EXCESS +15.87%   halves +19.59% / +12.19%   both positive = TRUE  -> BEATS
+```
+
+**This passes, and it is the weaker test**, so it does not rescue the primary: it is only value
+and size (no quality, no momentum), IWD/IWM are cruder instruments, and its window includes the
+pre-2006 era where **X6 found `size` had a real premium that has since broken**. Reported for
+context, not as the verdict.
+
+### Two facts that reframe the question
+
+1. **The cheap factor blend lost to plain SPY over its own lifetime** — +12.65% vs +14.11%.
+   "Just buy factor ETFs" was itself a losing trade over 2014-2026, so beating the blend is a
+   weaker claim than it sounds.
+2. **Versus SPY, the strategy's edge is significant full-sample and not in the last decade:**
+
+| window | strategy net | SPY | excess | t | hit |
+|---|---|---|---|---|---|
+| 1999-2026 (n=109) | +27.42% | +8.52% | **+18.90pp** | **3.07** | 61% |
+| 2014-2026 (n=50) | +21.87% | +14.11% | +7.76pp | **0.95** | 54% |
+
+**Honest reading, stated both ways.** Over the last twelve years the strategy's advantage over
+*every* investable benchmark tested — the factor blend and SPY alike — is a large point estimate
+with a t-statistic near 1. That is **not** evidence of no edge: 50 quarterly observations is low
+power and the confidence interval is wide. But it is also not the demonstrated margin the product
+would need to claim one. The pre-registered answer is NULL, and NULL is what is reported.
+
+**Also shipped:** `ETF_BENCHMARK_RESULTS_strategy_series.csv` — the per-rebalance top-decile and
+equal-weight return series. **This is exactly the object R1 needs** ("already exists inside
+`quantile_backtest` as `q_rets[0]` and `ewb`; it just needs to be shipped"), now available
+without touching the panel module.
+
+---
+
+## S26 — read the twenty worst holdings → pattern named, then **partly refuted**
+
+**Committed discipline:** name the pattern first, then test it; a pattern in 20 hand-read cases
+is a hypothesis, never a finding; report the 20 against the book's own loss distribution.
+
+### Context first — freak events or the ordinary left tail?
+
+Top-decile holdings: **13,600 name-dates** over 110 rebalances. Forward 63-day returns: mean
++6.25%, median +3.70%, **sd 31.54%**, **40.7% negative**, p05 -29.5%, p01 -47.6%, worst -91.7%.
+**The worst 20 run -67% to -92%, past the 1st percentile — genuine tail events, not the ordinary
+left end.** Losing 40.7% of the time is normal for this book and is not a defect.
+
+### The pattern, named before testing
+
+The 20 worst versus the whole top-decile book:
+
+| theme | worst 20 | book | diff |
+|---|---|---|---|
+| low_risk | -1.126 | -0.119 | **-1.006** |
+| growth | -0.712 | +0.111 | **-0.823** |
+| momentum | +0.056 | +0.640 | -0.584 |
+| value | +1.013 | +0.542 | **+0.470** |
+| size | +1.215 | +0.608 | **+0.608** |
+
+Median market cap **$402M vs $1,900M — 0.21x, five times smaller.** Dates cluster hard:
+2008-01, 2008-07, 2008-10, 2009-01, 2020-01, 2020-04, plus 2000-03.
+
+> **Named hypothesis: the model's failure mode is the deep-value small-cap distress trap in a
+> market-wide drawdown** — cheap, small, high-volatility, low-growth, low-momentum names, which
+> is precisely what a crisis destroys.
+
+The individual cases are vivid. **FNMA, 2008-07-10, composite +0.347** — the model bought Fannie
+Mae two months before conservatorship on `book_to_price` +3.14 and `earnings_yield` **-4.34**,
+the textbook value trap. Three of the twenty carry bankruptcy ticker suffixes (RELYQ, EBIXQ,
+DBDQQ) — names that later filed. WFRD 2020-04 entered on a **`book_to_price` of +4.29** and
+essentially nothing else.
+
+### The test — and it refutes the interesting half of the hypothesis
+
+Within the top decile only, per-date cross-sectional IC of each theme against forward return,
+split by whether the universe return that quarter was negative (37 dates) or positive (73):
+
+| signal | median IC | t | IC in DOWN quarters | IC in UP quarters |
+|---|---|---|---|---|
+| **low_risk** | -0.0289 | -0.58 | **+0.1200** | **-0.1038** |
+| size | +0.0082 | +0.55 | -0.0254 | +0.0192 |
+| value | -0.0246 | -1.53 | -0.0298 | -0.0240 |
+| growth | +0.0358 | +1.47 | +0.0560 | +0.0160 |
+| momentum | +0.0174 | +1.52 | +0.0193 | +0.0155 |
+
+**The book is NOT crisis-fragile — it beats the universe MORE in drawdowns than in rallies:**
+excess **+3.54%** in down quarters versus **+2.74%** in up quarters. So the crisis clustering of
+the worst 20 is largely the mechanical consequence of dispersion being enormous in those
+quarters, not evidence that the strategy breaks in a crisis. The vivid reading was wrong and is
+retracted here rather than left standing.
+
+**What survives, and it is more useful than the original hypothesis:**
+
+> **`low_risk`'s information coefficient flips sign with the regime — +0.120 in down quarters,
+> -0.104 in up quarters — and averages to the near-zero that got it zeroed.**
+
+The project zeroed `low_risk` on an unconditional IC of -0.0014 (t +0.71), reading it as dead
+weight. This says it may instead be **two real and opposite effects cancelling**. That is a
+materially different diagnosis, and it fits the X3 mechanism (`low_risk` is the most
+size-anticorrelated theme, -0.365): it behaves as a drawdown hedge that costs you the small-cap
+premium in rallies.
+
+**The honest limitation, which blocks immediate use:** the conditioning variable is the
+*contemporaneous* universe return, which is **not observable at entry**. So this is not a
+tradeable rule as measured. A tradeable version must condition on something knowable at
+rebalance — the project already has `regime.py` and `valuation_regime.py` for exactly this.
+
+**Feeds S10** (downside-exclusion screen) directly. Per the pre-registration, this hypothesis
+must clear `holdout_theme_validate()` before it touches a weight.
+
+---
+
+## P1 — estimate capacity → **approximately $23M, and that is an upper bound**
+
+**Data finding first, because it changed the method.** The audit states *"The ADV data is in SEP,
+already on disk."* **It is not.** SEP is not on disk in any form; the bulk extracts are ACTIONS,
+DAILY, EVENTS and SF3, none carrying volume, and the per-ticker price CSVs are `date,close` only.
+The only volume on disk is `data/bulk/prepared/bars/` — **32 of the book's 918 names (3.5%)**.
+
+**ADV assembled as pre-registered:** local bars (32 names) + yfinance (540 more) = **572/918
+names, 62.3%**, covering **1,505/2,750 positions (54.7%)**. The remainder is filled by a
+calibrated proxy, `log(ADV) = -8.72 + 1.186*log(mktcap)`, **R^2 = 0.704** on n = 1,505.
+
+Book profile: **median dollar ADV $8.3M, median market cap $1.0B.**
+
+### Participation and modelled cost (lambda = 1.0)
+
+| AUM | position | median participation | >5% ADV | >10% ADV | mean cost | vs 234.5bps |
+|---|---|---|---|---|---|---|
+| $1M | $40K | 0.48% | 9.5% | 4.5% | **87 bps** | under |
+| $10M | $400K | 4.82% | 49.0% | 33.7% | **171 bps** | under |
+| $50M | $2.0M | 24.12% | 81.0% | 68.3% | **323 bps** | **OVER** |
+| $250M | $10M | 120.59% | 97.7% | 92.9% | 662 bps | **OVER** |
+| $1B | $40M | 482.37% | 99.6% | 99.3% | 1276 bps | **OVER** |
+
+### Capacity — the AUM where modelled one-way cost crosses the measured 234.5bps breakeven
+
+| lambda | capacity |
+|---|---|
+| 0.5 | $91.8M |
+| **1.0 (headline)** | **$23.0M** |
+| 2.0 | $5.7M |
+
+### What this means, stated plainly
+
+**Valquo cannot be a managed vehicle of meaningful size.** At $50M the book is already paying
+323bps against a 234bps breakeven, and 81% of positions would exceed 5% of a day's volume. The
+strategic answer the audit asked for is therefore: **it must remain a research tool that users
+implement themselves** — which is also the positioning that avoids the regulatory posture of a
+managed product.
+
+**Don's own account is unaffected.** At $1M the modelled cost is 87bps against a 234bps
+breakeven, with only 4.5% of positions above 10% of ADV. The strategy works fine at the size it
+is actually run.
+
+**Four caveats, none of which should be dropped:**
+
+1. **Every number is an UPPER BOUND.** ADV comes from survivors; the 346 of 918 names that could
+   not be fetched are disproportionately the delisted, illiquid ones. True capacity is lower.
+2. **lambda is an assumption, not a measurement**, and the capacity range spans **16x**
+   ($5.7M to $91.8M). The headline is the middle of a wide band.
+3. **The 234.5bps breakeven was measured on the top-DECILE book (~271 names), but capacity is
+   computed on the 25-name product book**, which is more concentrated and smaller-cap. Using the
+   decile's breakeven is generous to capacity.
+4. 45% of positions use the market-cap proxy rather than observed volume.
+
+**Unblocks P2** (model user crowding) — and P1's answer sharpens it: at $23M total capacity, it
+does not take many users to become the crowding mechanism.
+
+---
+
+## Files added in round 2
+
+| file | item |
+|---|---|
+| `scripts/etf_benchmark.py` | X4 (also ships the per-period series R1 needs) |
+| `scripts/failure_cases.py` | S26 |
+| `scripts/capacity.py` | P1 |
+| `data/free_analysis/{ETF_BENCHMARK_RESULTS.json, ETF_BENCHMARK_RESULTS_strategy_series.csv, FAILURE_CASES.json, CAPACITY_RESULTS.json}` | outputs (gitignored) |
+
+## Recommended next step, unchanged and now sharper
+
+**Run R1.** D3 unblocked it; X4 has now made its answer interpretable in advance. The two
+questions are complementary, and X4 has already supplied half the answer: over 2014-2026 the
+strategy does not demonstrably beat cheap factor ETFs *or* SPY (t 1.10 and 0.95). If R1's FF5+MOM
+intercept also comes back short of t > 2.0, the two results agree and the honest product framing
+is **efficient factor exposure**, per P5's pre-committed language rule. If R1's intercept is
+strong while X4 is null, that gap — regression alpha a retail ETF blend cannot capture — is the
+actual product, and X4's window says how much of it is currently demonstrable.

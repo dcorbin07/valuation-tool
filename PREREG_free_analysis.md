@@ -247,3 +247,122 @@ without adjustment, since those were written before that run:
 verbatim from the catalogue rather than restated by me — there is no room to adjust a bar I am
 copying. A verdict reached this way is reported as an **audit of another lane's result**, not as an
 independent pre-registered test of my own.
+
+---
+---
+
+# Pre-registration, round 2 — X4, S26, P1
+
+**Written 2026-08-04, before any run of the three.** Same rule: an ambiguous result against its
+own threshold is a **null**, not a judgement call. Lane re-validated first:
+
+```
+$ python check_lanes.py X4 S26 P1
+SAFE — disjoint write sets, no import coupling, all dependencies met.
+```
+
+Per the audit's own gate, the deeper Part IV/V items (U7, O7, O3–O5) are **held until R1 returns**.
+
+---
+
+## X4 — benchmark against what a user could actually buy
+
+**Construction.** An investable blend of liquid factor ETFs matched to the composite's themes,
+equal-weighted, rebalanced on the panel's own 63-trading-day grid:
+
+| theme | ETF | listed |
+|---|---|---|
+| value | **VTV** | 2004-01 |
+| quality | **QUAL** | 2013-07 |
+| momentum | **MTUM** | 2013-04 |
+| size | **IWM** | 2000-05 |
+
+**Stated in advance, not adjusted for:** only **4 of the composite's 7 weighted themes have a
+retail ETF analogue.** `insider`, `capital_discipline` and `institutional` have none, so the
+blend replicates half the composite's weight by construction. That gap is a *result* of X4, not
+a defect in it — it is precisely the part of the model a user could not buy.
+
+**Window.** QUAL lists 2013-07-18, so the matched blend runs only over the ~51 rebalance dates
+from late 2013. **The strategy must be measured on the identical window** — quoting a full-sample
++11.88% against a 2013–2026 blend would be the central dishonesty available here, and is
+forbidden. A secondary long-history blend (**IWD + IWM**, 2000-05+) is reported for context.
+
+**Fees.** ETF adjusted closes are already net of expense ratios, so the blend is measured **net
+of fees**. That is stricter than the audit asked ("gross of the ETF's fees") and is stated so the
+comparison is not later credited as more generous than it was.
+
+**Costs.** The strategy is charged its own cost model — the project's market-cap-keyed one-way
+bps at its measured 2.51×/yr turnover.
+
+> **Threshold.** The claim "this beats a cheap factor blend" survives iff the strategy's net
+> excess over the matched blend is **≥ +2.0pp annualised** AND positive in **both halves** of the
+> common window.
+> - **0 to +2.0pp → NULL, "not demonstrated."** A margin under 2pp does not survive the ~20bps of
+>   fees, the tax drag of a 251% turnover book, and the research burden that the ETF buyer avoids.
+> - **Negative → the product's claim has to change**, per the audit's instruction.
+
+Also reported for comparability on the same window: SPY, the blend alone, and the strategy's
+excess over the equal-weighted universe.
+
+---
+
+## S26 — read the twenty worst holdings
+
+Qualitative and hypothesis-generating. It carries **no adopt/reject bar**, and pretending
+otherwise would be the failure mode.
+
+**Run.** The 20 worst forward returns among top-decile holdings across all 110 rebalance dates;
+for each, the full standardized signal vector, every theme score, and the composite at entry.
+
+**Committed discipline, which is the actual pre-registration here:**
+
+1. I will report **whatever pattern appears, including "no pattern."** A tidy story is not the
+   success condition.
+2. **A pattern seen in 20 hand-read cases is a HYPOTHESIS, never a finding.** I commit to naming
+   the pattern *first* and only then testing it on the full panel — in that order, so the test
+   cannot be tuned to the anecdote.
+3. The 20 worst are reported **against the top decile's own loss distribution**, so it is visible
+   whether they are freak tail events or merely the left end of an ordinary spread. Twenty
+   disasters look damning in isolation and may be unremarkable in context.
+4. Any hypothesis this generates must clear `holdout_theme_validate()` before it touches a
+   weight — the same gate that killed `insider` and `sector_neutral`.
+
+---
+
+## P1 — estimate capacity
+
+**A data finding, recorded before the run because it changes the method.** The audit says *"The
+ADV data is in SEP, already on disk."* **It is not.** SEP is not on disk in any form; the bulk
+extracts are ACTIONS, DAILY, EVENTS and SF3, none of which carries volume, and the per-ticker
+price CSVs are `date,close` only. The **only** volume on disk is
+`data/bulk/prepared/bars/*.pkl` — 290 large-cap names from the options miner, covering
+**3.5% of the top-25 book's 918 distinct names** and 8.1% of the top decile's 1,961. So P1
+cannot be run as specified and the substitute is declared here rather than improvised later.
+
+**ADV sources, in priority order:** (i) real volume from `bars/` where present; (ii) yfinance for
+the remainder, with coverage reported; (iii) names with neither are **excluded and counted**, not
+silently dropped.
+
+> **Committed bias statement.** Both sources are survivorship-biased — delisted names are the
+> ones that vanish, and survivors are larger and more liquid. Therefore **every capacity number
+> this item produces is an UPPER BOUND**, and the true capacity is lower by an unknown amount.
+> Committed now so it cannot quietly disappear from the write-up.
+
+**Method.** For each rebalance date's top-25 book, equal-weighted, at AUM ∈ {$1M, $10M, $50M,
+$250M, $1B}: position = AUM/25, participation = position / ADV. Report the count and share of
+positions exceeding **5%** and **10%** of ADV.
+
+**Cost model.** Replace the flat basis-point figure with a square-root participation term:
+
+```
+cost_bps = base_bps(mktcap)  +  λ · σ_daily · √(participation) · 1e4
+```
+
+λ = 1.0 (Almgren-style), reported with sensitivity at λ = 0.5 and 2.0. λ is an assumption, not a
+measurement, and is labelled as such.
+
+> **Capacity = the AUM at which modelled one-way cost crosses the project's own measured
+> breakeven of 234.5 bps** (`costs.breakeven_one_way_bps`).
+
+This is an estimation item, not a hypothesis test: the committed deliverable is **one capacity
+AUM, its assumptions, and the direction of its bias** — not a pass/fail.
