@@ -744,11 +744,30 @@ def sanity(rows, meta: Optional[dict] = None) -> dict:
         flags.append(f"median entry IV {iv_med:.3f} is outside [0.05, 1.00] — implausible as an "
                      f"equity ATM vol; check the underlying price basis (adjusted vs as-traded)")
 
+    # 7. AUDIT B2 — how many days were CENSORED from each trade's exit path. A skipped day is a
+    #    day the stop could have fired on and did not, and the bias is one-sided in the bad
+    #    direction: a loser that dips through -50% on a wide-quote day, is skipped, and then
+    #    recovers gets recorded as a TARGET WIN. This is now measured per trade instead of being
+    #    invisible, so a fill-model regression that starts censoring again is loud.
+    _sk = [(_f(r.get("exit_days_skipped")), _f(r.get("exit_days_used"))) for r in rows]
+    _sk = [(a, b) for a, b in _sk if a is not None and b is not None]
+    skip_rate = None
+    if _sk:
+        tot_sk = sum(a for a, _ in _sk)
+        tot_all = sum(a + b for a, b in _sk)
+        skip_rate = (tot_sk / tot_all) if tot_all else 0.0
+        any_skipped = sum(1 for a, _ in _sk if a > 0) / len(_sk)
+        if skip_rate > 0.02:
+            flags.append(f"{skip_rate:.1%} of exit-path days were censored by the quote filter "
+                         f"({any_skipped:.1%} of trades affected) — a skipped day is a day the "
+                         f"stop could have fired on")
+
     exits = {}
     for r in rows:
         exits[str(r.get("exit_reason") or "?")] = exits.get(str(r.get("exit_reason") or "?"), 0) + 1
 
     out = {"ok": True, "n": n, "settled_at_intrinsic_frac": intrinsic, "iv_median": iv_med,
+           "exit_days_censored_frac": skip_rate,                          # AUDIT B2
            "signal_coverage": cov, "exit_reason_mix": {k: v / n for k, v in sorted(exits.items())},
            "spread_median": _median(sp), "spread_p90": (sorted(sp)[int(0.9 * len(sp))]
                                                         if sp else None),

@@ -37,14 +37,25 @@ the project's memory and the old versions had been repeated for months.
 - **CORRECTED 2026-08-03 (audit B9) — TWO OF THE THREE "statistical bars" MEASURE SOMETHING
   NARROWER THAN THE CLAIM THEY SUPPORT. Lead with the long-short t of 3.52 against the
   Harvey–Liu–Zhu hurdle of 3.0. That one is real.** The other two:
-  * **"Deflated Sharpe >99.9%" is an UNDEFLATED Probabilistic Sharpe Ratio.** The deflation
-    uses N = 8 trials, and those eight are eight near-identical weightings of the same eight
-    themes (out-of-sample median ICs spanning +0.061 to +0.062). Bailey–López de Prado's
-    benchmark `SR₀` scales with the CROSS-TRIAL VARIANCE of Sharpes; when the trials are
-    indistinguishable that variance is ~0, `SR₀ ≈ 0`, and the statistic collapses to
-    Φ(SR·√(n−1)). It saturates because it is not deflating anything. The run now ships
-    `deflated_sharpe_detail` with `sr0_benchmark`, `n_trials` and a `metric` field that says
-    `probabilistic_sharpe_ratio_UNDEFLATED` when this happens. **Do not quote it as a DSR.**
+  * **The Deflated Sharpe IS deflating — the audit's mechanism for this one is REFUTED by
+    measurement, and only half of its criticism survives.** The audit argued that the eight
+    weight schemes are indistinguishable (out-of-sample median ICs spanning +0.061 to +0.062),
+    so the cross-trial VARIANCE of Sharpes is ~0, `SR₀ ≈ 0`, and the statistic degenerates to
+    Φ(SR·√(n−1)). **Measured on the full-universe run: `var_sr_across_trials` = 0.0276 (sd
+    0.166, not ~0) and `sr0_benchmark` = 0.242 against a per-period Sharpe of 0.606** — the
+    benchmark is deflating away 40% of the Sharpe. The audit inferred near-identical trial
+    SHARPES from near-identical median ICs; those are different quantities, and the Sharpes are
+    genuinely dispersed. It saturates because a per-period Sharpe of 0.61 over 110 periods is
+    a large z, not because nothing is deflated. Every run now ships
+    `deflated_sharpe_detail` (`sr0_benchmark`, `var_sr_across_trials`, `n_trials`) plus a
+    `metric` field that reads `probabilistic_sharpe_ratio_UNDEFLATED` **if** `sr0` ever does
+    collapse — so this is now a measured property of each run rather than an assumption in
+    either direction.
+  * **What DOES survive: `N = 8` is not the number of trials this project has run.** The
+    ledger records of the order of 146 pre-registered tests. That criticism is untouched by
+    the above and is the real one. Until a genuine trial counter exists (audit M1,
+    `RESEARCH_LOG.md`, started but deliberately not wired), the deflated figure is computed
+    against a denominator that is roughly 18x too small.
   * **PBO 6.7% scores the WEIGHT-SCHEME SELECTION STEP ONLY** — "the best of eight nearly
     identical weightings generalises". It says nothing about the ~146 signal-inclusion,
     theme-membership, universe, standardisation and construction decisions in the ledger, and
@@ -63,8 +74,17 @@ the project's memory and the old versions had been repeated for months.
   The measured numbers below are unchanged and still stand; the word "CONFIRMED" was the
   overstatement. Fixing the function (implement the rule, or rename it and its verdict labels)
   is audit item **B8** and is NOT yet done.
-- **The edge clears PBO 13.3% (want <50%), long-short t 3.485 (want >2), top-decile alpha
-  +11.77%.** The single biggest driver was zeroing `low_risk`, which passed the both-halves test
+- **CURRENT FULL-UNIVERSE NUMBERS (2026-08-04, after the audit's Part I corrections):
+  long-short t 3.884, top-decile alpha +11.78%, monotonicity −0.988, PBO 13.3%.** Measured
+  against a clean pre-audit baseline re-run on identical data (t 3.520, alpha +11.88%,
+  monotonicity −0.952, PBO 6.7%): the composite sorts BETTER, top-decile alpha is a rounding
+  change, PBO doubles off a low base. The equal-weight benchmark did not move (+16.55% in every
+  run), which is the control. **Thirteen corrections and NOT ONE held-out verdict changed** —
+  the record's decisions were not resting on the defects, and the defects were not hiding a
+  different model. The sanity layer's flag count fell 5 → 2 (the three negative-multiple sign
+  flags cleared). Full A/B in `HANDOFF_edge_audit.md` Part 2.
+- **The edge clears PBO 13.3% (want <50%), long-short t 3.851 (want >2), top-decile alpha
+  +11.69%.** The single biggest driver was zeroing `low_risk`, which passed the both-halves test
   described above (decide on one half, measure on the other, both directions). On the
   pre-registered direction the rule fires on the early half (median IC −0.0308) and, measured
   on the later half, **long-short t goes 0.97 → 2.56 and top-decile alpha +6.09% → +9.30%**; the
@@ -121,9 +141,26 @@ the project's memory and the old versions had been repeated for months.
 - **CORRECTED — `institutional` coverage is 61.4%**, not the 81.7% previously recorded (that
   came from a smaller universe). It is still empty before 2013-06-30, so any early-period
   comparison involving it is uninformative rather than negative.
-- **Theme ICs (full universe):** quality +3.39, momentum +2.62, capital_discipline +2.25,
-  institutional +1.81, size +1.68, growth +1.45, value +1.34, low_risk +0.71, **insider −0.34**,
-  sentiment empty. `insider` is the only negative theme and still carries 12.5% weight — but
+- **Theme ICs (full universe, CURRENT 2026-08-04):** quality +3.57, momentum +2.62,
+  capital_discipline +2.25, institutional +1.81, size +1.68, value +1.52, growth +1.45,
+  low_risk +0.71, **insider −0.43**, sentiment empty.
+- **A FULL BACKTEST IS NOT REPRODUCIBLE RUN TO RUN, AND THE INSIDER THEME IS WHERE IT SHOWS.
+  Found 2026-08-04; unexplained; do not build on any single run's insider number.** Three
+  full-universe runs on identical data gave `insider` median IC **−0.00335 (t −0.34)**,
+  **+0.01551 (t +2.69)** and **−0.00339 (t −0.43)** at unchanged 85.0% coverage. The first and
+  third bracket the second and agree to four decimals, so the middle run is the anomaly and
+  **audit B26 (the same-day-filing exclusion) is NOT the cause** — an earlier note in this file
+  said it was, and that was wrong. B26's effect was measured directly on 22,975 (ticker, date)
+  score pairs: it alters **3.96% of scores at a level correlation of 0.9975**, consistent with
+  the ~0 IC change between the runs that bracket it. Every other theme is stable to ±0.01 across
+  all three runs. **What this means: `insider`'s IC sits so close to zero that its t-statistic is
+  not a measurable quantity**, which is exactly why zeroing it came back `not_replicated`
+  (Δt +0.08 one direction, −0.09 the other). It is also a reproducibility problem in its own
+  right — a project whose memory is its results files needs its results files to be
+  deterministic. **Next session: find the nondeterminism before trusting any marginal IC.**
+  Audit item **S3** (the `+min(10, 2·buys)` bonus is unconditionally additive; `tanh(net/5e6)`
+  saturates regardless of company size) is the thread that might make this theme measurable.
+- **Historical note:** `insider` is the only negative theme, and still carries 12.5% weight — but
   zeroing it **did NOT replicate** out-of-sample, so it was deliberately left alone.
 - **Theme ICs are NOT stable across time.** `low_risk` flips −0.031 → +0.041 between halves and
   `size` flips t +3.17 → −0.67 (the small-cap premium worked pre-2012, not after). Treat any
@@ -259,8 +296,10 @@ the project's memory and the old versions had been repeated for months.
 - **"The entire edge is 13F" is now OBSOLETE.** Without the institutional theme, top-decile
   alpha is still +10.6% and long-short t 2.86 (was 0.71). That finding was an artifact of
   quality/low_risk running on half their inputs.
-- **`insider` is now the only negative theme (t −0.34) and still carries 12.5% weight** — the
-  obvious next candidate, deliberately NOT changed.
+- **`insider` is the only negative theme (t −0.34, now −0.43) and still carries 12.5% weight** —
+  the obvious next candidate, deliberately NOT changed. **See the reproducibility note above:
+  one of three identical-data runs returned +2.69, so this theme's t is not a measurable
+  quantity in either direction. The held-out verdict is `rejected` in all three runs.**
 - Real full-universe coverage: `institutional` **61.4%** (not the 81.7% below), `insider`
   85.0%. F-Score is **t +2.74** on the full universe, not +5.66.
 

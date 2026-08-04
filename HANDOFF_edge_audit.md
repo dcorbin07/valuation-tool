@@ -436,3 +436,200 @@ subsequent rebalance date. Built in the same spirit as `ev_freshness`.
 
 **Verdict: FIXED.** **Follow-on:** the number itself lands with the re-run below and is the first
 direct evidence about how complete the ACTIONS delisting map actually is.
+
+---
+
+# PART 2 — THE FULL-UNIVERSE RE-RUN
+
+**Committed before the run:** these corrections are repairs, not hypotheses, so no adopt/reject bar
+applies to them. What was pre-committed is the *reporting* rule: report the A/B against a clean
+baseline, report every metric that moved, and **treat any change in a held-out VERDICT as the
+thing that matters** — a correction that moves a measurement without moving a decision is a
+different event from one that changes what the model does.
+
+**What was run.** Two full backtests on the full **2,827-name export / 2,710-name panel**, 110
+rebalance dates, identical data, identical universe:
+
+- **BASELINE** — commit `b67b07d` (pre-audit `main`), in a throwaway worktree.
+- **CORRECTED** — this session's Part I corrections.
+
+The baseline was run **because the committed `BACKTEST_RESULTS.json` could not be trusted as
+one**: its own provenance stamp reads `commit 7eb0046, branch worktree-growth-valuation,
+dirty: true` — a different branch with an uncommitted working tree. As it turns out the clean
+baseline reproduces it to four decimals, so the stored file was fine; but that could not be known
+in advance, and **it is only knowable at all because the results file stamps its git state.**
+Audit item **M6** proposes exactly this kind of provenance stamping; this is a point in its favour.
+
+## The headline A/B
+
+| metric | BASELINE `b67b07d` | CORRECTED | delta |
+|---|---|---|---|
+| **long-short t** | 3.5202 | **3.8838** | **+0.364** |
+| **top-decile alpha** | +11.88% | **+11.78%** | −0.10pp |
+| **monotonicity** | −0.9515 | **−0.9879** | better (−1.0 is ideal) |
+| long-short annualised | +17.58% | +18.58% | +1.00pp |
+| signal-weighted top-decile alpha | +12.74% | +12.75% | +0.01pp |
+| long-short hit rate | 65.45% | 65.45% | 0 |
+| equal-weight benchmark | +16.55% | +16.55% | **0** |
+| **PBO** | 6.7% | **13.3%** | +6.7pp (still far under the 50% bar) |
+| Deflated Sharpe | 0.9999986 | 0.9999990 | ~0 |
+
+The benchmark not moving is the control: the corrections touch how names are *scored*, not what
+the universe earns.
+
+**Long-short t up 0.36 and monotonicity to −0.988 — the deciles are now almost perfectly ordered
+— against 0.19pp off the top-decile alpha and PBO doubling off a low base.** Net: the composite
+sorts better and the concentrated top of it earns marginally less. Nothing here is large.
+
+## The one that matters: no held-out verdict changed
+
+```
+BASELINE  : value rejected · quality not_replicated · momentum rejected · insider rejected
+            low_risk confirmed · capital_discipline not_replicated · size rejected
+            institutional rejected
+CORRECTED : identical, every theme
+```
+
+**Thirteen corrections, and not one decision moved.** That is the honest summary and it cuts both
+ways: the record's *decisions* were not resting on the defects, and the defects were not hiding a
+different model. What moved is what the numbers *mean*, which is the audit's own framing.
+
+## Theme ICs — and one large, unexpected move
+
+| theme | BASELINE t | CORRECTED t |
+|---|---|---|
+| quality | +3.39 | **+3.57** |
+| **insider** | **−0.34** | **−0.43** |
+| capital_discipline | +2.25 | +2.25 |
+| momentum | +2.62 | +2.62 |
+| institutional | +1.81 | +1.81 |
+| size | +1.68 | +1.68 |
+| value | +1.47 | **+1.52** |
+| growth | +1.45 | +1.45 |
+| low_risk | +0.71 | +0.71 |
+| sentiment | empty | empty |
+
+### RETRACTED, AND REPLACED BY A WORSE PROBLEM: a full backtest is not reproducible
+
+**This section originally reported that B26 flipped the `insider` theme from t −0.34 to +2.69.
+That attribution was WRONG and is retracted here rather than edited away.**
+
+A third full-universe run — the one whose code matches the committed tree, after B18 was
+completed — does not reproduce it:
+
+| run | code | `insider` median IC | t |
+|---|---|---|---|
+| BASELINE | `b67b07d`, pre-audit | −0.00335 | **−0.34** |
+| intermediate | corrections, B18 partial | +0.01551 | **+2.69** |
+| **FINAL** | corrections, B18 complete | −0.00339 | **−0.43** |
+
+Coverage is 85.0% in all three. **The first and third bracket the second and agree to four
+decimal places**, and they differ by *both* B26 and the negative-multiple guards — so B26 cannot
+be the cause. That matches the direct measurement, which should have been given more weight at
+the time: B26 alters **3.96% of scores at a level correlation of 0.9975** across 22,975
+(ticker, date) pairs, which is not a sign-flipping perturbation.
+
+**Every other theme is stable to ±0.01 across all three runs.** So the anomaly is confined to the
+one theme whose IC sits essentially at zero.
+
+Two conclusions, and the second is the more serious:
+
+1. **`insider`'s t-statistic is not a measurable quantity in either direction.** A median IC of
+   −0.003 over 110 dates is noise, and −0.34 was never more reliable than +2.69. This is exactly
+   consistent with what the project already recorded and correctly declined to act on: zeroing
+   `insider` helped one split direction by Δt +0.08 and hurt the other by Δt −0.09. The held-out
+   gate returns **`insider: rejected` in all three runs**, so nothing deployed is affected.
+2. **A full backtest is not reproducible run-to-run, and nobody knew.** The cause is not
+   identified. Candidates worth checking in order: a bulk cache under `data/bulk/prepared/`
+   being refreshed between runs; iteration order somewhere in the panel build; a float
+   accumulation whose order varies. **This is a genuine problem for a project whose memory is
+   its results files** — every marginal IC in the record is quoted from a single run, and the
+   two statistics most exposed are exactly the marginal ones the project keeps making decisions
+   about. It belongs with audit **M6** (the results file's silent-failure modes) and should be
+   settled before any further marginal-IC decision.
+
+**Method note for the next session, since this is the second time it has mattered:** the reason
+this was caught at all is that a third run was launched purely so the *tracked* results file
+would match the *committed* code. That is worth keeping as a habit.
+
+**Follow-on:** audit item **S3** proposes three variants of the insider score's construction —
+dropping the unconditionally-additive `+min(10, 2·buys)` bonus, scaling net activity by market
+cap rather than a fixed $5M before the `tanh`, and splitting net buying from cluster breadth. A
+theme whose IC is indistinguishable from zero is a theme whose construction is the first thing
+to question, so S3 keeps its promotion — just for the opposite reason to the one first written
+here.
+
+### B10, answered: the recovered signal is the WORSE one
+
+The audit called B10 "one of the cheapest genuine signal recoveries available." Measured
+head to head:
+
+| | BASELINE (`FCF/NI`) | CORRECTED (Sloan accruals) |
+|---|---|---|
+| `accruals_q` IC t | **+1.26** | **+0.27** |
+| coverage | 0.75 | **0.97** |
+
+Coverage rose exactly as predicted (the `ni > 0` restriction is gone), and **the signal got
+worse**. The overwrite was a real defect — the column did not contain what its name and its
+documentation said — but the thing it was overwriting with was the better of the two on this
+panel. The `quality` theme still improved (+3.39 → +3.57), so this is not costing anything at
+theme level.
+
+**Recommendation, NOT actioned here:** switch `accruals_q`'s theme membership back to the FCF/NI
+construction (now available as `accruals_fcf_ni`) and put the Sloan measure alongside it as a
+second input or drop it. That is a *signal* decision and belongs in front of the held-out gate,
+not in a corrections pass. Both columns now exist, so it is a one-line A/B.
+
+### The value-side corrections did what B18 predicted, in miniature
+
+`ebit_ev` t +2.36 → +2.42, `neg_ev_sales` +2.05 → +2.10, `neg_ev_ebitda` +1.99 → +1.98,
+`value` theme +1.47 → +1.51. Small, in the right direction, on ~0.65% of rows — which is the size
+of effect a negative-EV convention fix should have.
+
+Unchanged, as expected, since nothing touched them: `earnings_yield` +2.41, `roe` +2.84,
+`roic` +3.38, `book_to_price` +0.15. `f_score` moved +2.74 → +2.64.
+
+## B14's first number — the delisting mask is complete
+
+```
+delisting map          19,207 names
+series masked             887 of 2,710 tickers (32.7%)
+ended_early_unmasked        0          <-- the number this was built to expose
+panel_end            2026-07-24     stale_tail_days 180
+```
+
+**Zero names have a price series that stops more than 180 days before the panel end without an
+ACTIONS row to explain it.** That is the first direct evidence that the survivorship mask is not
+silently missing delistings — the failure mode where a dead name's last close is forward-filled
+and contributes a fake flat 0% forward return to every later rebalance date. Previously the
+results file said only `survivorship_mask: true`, meaning "the map is non-empty."
+
+## The B18 sign check fired on its first run, and caught my own incomplete fix
+
+The new sign check on the range-exempt ratios raised three flags immediately:
+
+| flag | rows | what it actually was |
+|---|---|---|
+| `ev_ebitda` negative | 414 (0.36%) | **my B18 fix was incomplete** — I guarded `ebit_ev` and `ev_sales` on `ev > 0` and left this one on a truthiness test. Verified: 746 export rows (0.378%) carry a negative `ev`. |
+| `ev_sales` negative | 378 (0.29%) | **not** negative EV — negative **revenue** |
+| `ps` negative | 382 (0.29%) | same |
+
+Negative revenue is real and identifiable: **538 export rows (0.273%)**, concentrated in agency
+mortgage REITs and financial guarantors — **DX, NLY, AGNC, MBI, RWT, FNMA** — where a quarter's
+net interest income after losses genuinely prints below zero. A negative sales multiple has the
+identical failure mode to a negative EV one: negate it and the name sorts as the cheapest in the
+cross-section. All three now take the same convention: **missing, not extreme.**
+
+Per the project's standing rule the flags were investigated rather than silenced, and the
+investigation found a defect in the correction that had just been made. **A guard that catches its
+author on its first run is the argument for having built it.**
+
+## What this section does NOT claim
+
+- **No causal claim for the corrected numbers being "better".** Long-short t and monotonicity
+  improved, top-decile alpha and PBO worsened slightly. These are repairs; the direction of a
+  repair's effect on a fitted statistic is not evidence about the repair.
+- **Nothing here bears on whether the edge is ALPHA.** That is R1, unrun. `top_decile_alpha` is
+  still `4 × (top-decile − equal-weight)` with no factor model and no t-statistic, in both runs.
+- **The options side is untouched by all of this.** B1's re-run is R2, unrun, and until it lands
+  no absolute number from the 187-name book, roadmap 22c or deep-research thread #1 is citable.

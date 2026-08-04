@@ -190,6 +190,28 @@ class PaperBroker:
                 return v
         return None
 
+    @staticmethod
+    def exit_mark_from_quote(q: Optional[dict]) -> Optional[float]:
+        """The price a LONG position could actually be SOLD at right now — the bid.
+
+        AUDIT B5a. The exit trigger fired on `mark_from_quote`, i.e. the MID, while the backtest
+        fires on the BID (`options_backtest.py` marks with `fill_price(q, "sell", aggression=1)`).
+        On a 10%-wide quote that is roughly five percentage points of measured return, and it is
+        ASYMMETRIC: marking at the mid reaches +100% earlier and -50% later than the backtest
+        would. The forward track exists precisely to test the backtest's numbers on unseen data,
+        so a systematic difference on that axis makes the two non-comparable — which is the one
+        thing the track cannot afford.
+
+        The mid remains the right number for VALUING an open position (`mark_from_quote`); it is
+        the wrong number for deciding whether an exit has triggered.
+        """
+        if not isinstance(q, dict):
+            return None
+        bid, ask = _f(q.get("bid")), _f(q.get("ask"))
+        if bid is not None and bid > 0 and (ask is None or ask >= bid):
+            return round(bid, 4)
+        return PaperBroker.mark_from_quote(q)
+
     # ------------------------------------------------------------------ account
     def balances(self) -> dict:
         return (self._get(f"accounts/{self._require_account()}/balances") or {}).get("balances") or {}

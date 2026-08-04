@@ -132,14 +132,17 @@ Part I corrections. **What follows is what changed about what the project believ
 
 **Three claims in `CLAUDE.md` were unsupported and are now corrected in place:**
 
-1. **"Deflated Sharpe >99.9%" is an UNDEFLATED Probabilistic Sharpe Ratio.** The deflation uses
-   N = 8 trials and those eight are near-identical weightings of the same eight themes, so the
-   cross-trial variance is ~0, `SR0` collapses to ~0, and the statistic degenerates. It saturates
-   because it is not deflating anything. PBO 6.7% likewise scores **only the weight-scheme
-   selection step** — a selection the shipped strategy never makes, since it keeps
-   `current-default`. **Lead with the long-short t of 3.52 against the Harvey-Liu-Zhu hurdle of
-   3.0.** That bar is real and it is cleared. The run now self-reports the degeneracy
-   (`deflated_sharpe_detail.metric`, `pbo_scope`).
+1. **The Deflated Sharpe: the audit's MECHANISM is refuted, its COUNT criticism stands.** It
+   argued the eight weight schemes are indistinguishable so `SR0` collapses to ~0 and nothing is
+   deflated. **Measured on the corrected full-universe run: `var_sr_across_trials` = 0.0276 and
+   `sr0_benchmark` = 0.242 against a per-period Sharpe of 0.606** — it deflates away 40% of the
+   Sharpe. The audit inferred near-identical trial SHARPES from near-identical median ICs; those
+   are different quantities. What DOES stand: **`N = 8` against a ledger of ~146 real trials**, a
+   denominator roughly 18x too small. Every run now ships `deflated_sharpe_detail` so this is a
+   measured property per run, not an assumption either way. PBO likewise scores **only the
+   weight-scheme selection step** — a selection the shipped strategy never makes, since it keeps
+   `current-default` (now shipped as `pbo_scope`). **Lead with the long-short t against the
+   Harvey-Liu-Zhu hurdle of 3.0.** That bar is real and it is cleared.
 2. **`low_risk` was NOT "confirmed out-of-sample."** Verified in the code:
    `holdout_theme_validate` computes `rule_fired` at `fundamental_panel.py:3048` and **never
    reads it**; the verdict is `all(improves)` across both split directions. That is a demanding
@@ -167,6 +170,55 @@ appear in product copy.**
 both `False`. Sector-neutral ranking was tested on the full universe and rejected in both
 held-out directions, twice. **Unless `SCREENER_SECTOR_NEUTRAL=false` is set in the environment,
 the hot list users see is scored under the intervention the research eliminated.**
+
+**THE FULL-UNIVERSE RE-RUN — clean A/B against a pre-audit baseline on identical data.**
+A throwaway worktree at `b67b07d` was re-run because the committed `BACKTEST_RESULTS.json`
+stamped its own provenance as `commit 7eb0046, branch worktree-growth-valuation, dirty: true`.
+(It reproduced to four decimals, so the stored file was fine — but that was not knowable in
+advance, and it is only knowable at all because the results file records its git state.)
+
+| metric | BASELINE | CORRECTED | delta |
+|---|---|---|---|
+| long-short t | 3.5202 | **3.8838** | +0.364 |
+| top-decile alpha | +11.88% | **+11.78%** | -0.10pp |
+| monotonicity | -0.9515 | **-0.9879** | better |
+| equal-weight benchmark | +16.55% | +16.55% | 0 (the control) |
+| PBO | 6.7% | **13.3%** | +6.7pp, still far under 50% |
+
+**THIRTEEN CORRECTIONS AND NOT ONE HELD-OUT VERDICT CHANGED.** Every theme returns the same
+verdict in both runs. The record's decisions were not resting on the defects, and the defects
+were not hiding a different model — what moved is what the numbers MEAN.
+
+**Two measured surprises, both reported against the audit's own expectations:**
+
+- **A FULL BACKTEST IS NOT REPRODUCIBLE RUN TO RUN — unexplained, and it needs finding.**
+  THREE full-universe runs on identical data gave `insider` median IC **-0.00335 (t -0.34)**,
+  **+0.01551 (t +2.69)** and **-0.00339 (t -0.43)**, at unchanged 85.0% coverage. The first and
+  third bracket the second and agree to four decimals, so the middle run is the anomaly — and
+  **B26 is NOT the cause**, which an earlier draft of this file said it was. B26's effect was
+  measured directly on 22,975 score pairs: 3.96% of scores move, correlation 0.9975, consistent
+  with the ~0 IC change between the runs that bracket it. Every OTHER theme is stable to +/-0.01
+  across all three. Two conclusions: `insider`'s IC sits so close to zero that its t is not a
+  measurable quantity in either direction (which is why zeroing it came back `not_replicated`),
+  and **a project whose memory is its results files needs those files to be deterministic.**
+  Find the nondeterminism before trusting any marginal IC. Audit **S3** (the insider score's
+  construction) is the thread that might make the theme measurable at all.
+- **B10 recovered the WORSE signal.** The audit called it "one of the cheapest genuine signal
+  recoveries available." Head to head: `accruals_q` as FCF/NI reads **t +1.26**; as the Sloan
+  measure it reads **t +0.27**, at coverage 0.75 -> 0.97. The overwrite was a real defect — the
+  column did not contain what its name said — but the thing it overwrote with was the better of
+  the two. Both columns now exist (`accruals_fcf_ni`), so switching back is a one-line A/B that
+  belongs in front of the held-out gate.
+
+**B14 delivered its first number: `ended_early_unmasked` = 0 of 2,710 tickers**, 887 series
+masked (32.7%) from a 19,207-name delisting map. No name's prices stop early without an ACTIONS
+row — the first direct evidence the survivorship mask is not silently missing delistings.
+
+**The new B18 sign check fired on its first run and caught my own incomplete fix:** `ev_ebitda`
+still admitted negative EV (414 rows, 0.36%). It also found that the `ev_sales`/`ps` negatives
+are NOT negative EV but negative **revenue** — 538 rows (0.273%), in agency mortgage REITs and
+financial guarantors (DX, NLY, AGNC, MBI, RWT, FNMA). All three now take the same convention:
+missing, not extreme.
 
 **Corrected this session (13 items + 1 new finding), all with regression guards:**
 B1 price basis in the options universe (and four MORE sites, including in roadmap 22c and deep
