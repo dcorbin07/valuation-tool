@@ -1,0 +1,1 @@
+alert_id,ticker,occ_symbol,opt_right,strike,expiry,contracts,state,alert_ts,entry_ts,entry_premium,exit_ts,exit_premium,exit_reason,pnl_pct,pnl_dollars

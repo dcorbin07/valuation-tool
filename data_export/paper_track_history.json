@@ -1,0 +1,25 @@
+{
+  "counts": {
+    "index_days": 0,
+    "index_holdings": 0,
+    "ingested_index_days": 0,
+    "option_alerts": 0,
+    "option_alerts_closed": 0,
+    "paper_orders": 0,
+    "paper_orders_closed": 0
+  },
+  "generated_at": "1970-01-01T00:00:00",
+  "index_holdings": [],
+  "index_series": [],
+  "ingested_index_track": null,
+  "option_alerts": [],
+  "paper_orders": [],
+  "schema_version": 1,
+  "tables_present": {
+    "option_alerts": true,
+    "paper_index_holdings": false,
+    "paper_index_track": false,
+    "paper_option_orders": false
+  },
+  "what_this_is": "Forward, out-of-sample paper record of the Valquo model. Every row was written before its outcome was known. Paper only - Tradier sandbox, no real money. This file exists because this record cannot be reconstructed if it is lost. PLACEHOLDER: committed empty to establish the format and the directory. Populated by the first `track-backup` workflow run, which pulls the live record from the Render service."
+}
