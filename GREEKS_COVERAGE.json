@@ -8,23 +8,23 @@
     "min_mid": 0.05,
     "max_spread_frac": 1.0
   },
-  "names_enriched": 111,
-  "contract_days_in": 166393445,
-  "contract_days_priced": 81241745,
-  "iv_ok_frac": 0.4883,
-  "oi_sentinel_rows": 19012352,
-  "oi_sentinel_frac": 0.1143,
+  "names_enriched": 315,
+  "contract_days_in": 349038639,
+  "contract_days_priced": 164429685,
+  "iv_ok_frac": 0.4711,
+  "oi_sentinel_rows": 42635017,
+  "oi_sentinel_frac": 0.1221,
   "skipped_by_reason": {
-    "no_quote": 33154153,
-    "mny_band": 20699532,
-    "dte_band": 14826081,
-    "wide_spread": 7715820,
-    "below_intrinsic": 5546109,
-    "penny": 3169502,
-    "no_spot": 35610,
-    "crossed": 3358,
-    "above_max_vol": 1513,
-    "neg_time": 22,
+    "no_quote": 76804162,
+    "mny_band": 43358935,
+    "dte_band": 30354474,
+    "wide_spread": 16949237,
+    "below_intrinsic": 11993825,
+    "penny": 4975253,
+    "no_spot": 150730,
+    "above_max_vol": 17246,
+    "crossed": 5055,
+    "neg_time": 37,
     "iv_unsolved": 0
   },
   "schema_versions": [
@@ -56,7 +56,8 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 22% of raw rows",
-        "no open interest at all on 10% of dates \u2014 GEX is blank there"
+        "no open interest at all on 10% of dates \u2014 GEX is blank there",
+        "gamma walls are 0.11 more concentrated on the 153 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "ABBV": {
@@ -83,6 +84,24 @@
         "open interest missing (-1 sentinel) on 15% of raw rows"
       ]
     },
+    "ABNB": {
+      "years": [
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 988775,
+      "rows_priced": 519132,
+      "iv_ok_frac": 0.525,
+      "dates": 1266,
+      "oi_sentinel_rows": 19271,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": []
+    },
     "ABT": {
       "years": [
         "2016",
@@ -104,7 +123,58 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 14% of raw rows"
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 668 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "ACN": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1890766,
+      "rows_priced": 857337,
+      "iv_ok_frac": 0.4534,
+      "dates": 2515,
+      "oi_sentinel_rows": 298276,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "gamma walls are 0.11 more concentrated on the 736 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "ADBE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2591298,
+      "rows_priced": 1297668,
+      "iv_ok_frac": 0.5008,
+      "dates": 2515,
+      "oi_sentinel_rows": 117141,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 5% of raw rows",
+        "gamma walls are 0.12 more concentrated on the 328 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "ADI": {
@@ -128,7 +198,275 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 9% of raw rows"
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "gamma walls are 0.13 more concentrated on the 439 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "ADM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1217350,
+      "rows_priced": 576088,
+      "iv_ok_frac": 0.4732,
+      "dates": 2515,
+      "oi_sentinel_rows": 212634,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 17% of raw rows"
+      ]
+    },
+    "ADP": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1371179,
+      "rows_priced": 584556,
+      "iv_ok_frac": 0.4263,
+      "dates": 2515,
+      "oi_sentinel_rows": 156009,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 660 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "ADSK": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1582220,
+      "rows_priced": 756591,
+      "iv_ok_frac": 0.4782,
+      "dates": 2515,
+      "oi_sentinel_rows": 124743,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 8% of raw rows"
+      ]
+    },
+    "AEE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 180503,
+      "rows_priced": 51254,
+      "iv_ok_frac": 0.284,
+      "dates": 2515,
+      "oi_sentinel_rows": 27393,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows",
+        "GEX pegged to one strike on 83% of dates",
+        "gamma walls are 0.22 more concentrated on the 721 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "AEM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 360254,
+      "rows_priced": 163121,
+      "iv_ok_frac": 0.4528,
+      "dates": 2515,
+      "oi_sentinel_rows": 25141,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 7% of raw rows"
+      ]
+    },
+    "AEP": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 279282,
+      "rows_priced": 107026,
+      "iv_ok_frac": 0.3832,
+      "dates": 2515,
+      "oi_sentinel_rows": 36452,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 41% of dates",
+        "gamma walls are 0.13 more concentrated on the 614 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "AFL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1086106,
+      "rows_priced": 478006,
+      "iv_ok_frac": 0.4401,
+      "dates": 2515,
+      "oi_sentinel_rows": 121850,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "GEX pegged to one strike on 45% of dates"
+      ]
+    },
+    "AIG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1239492,
+      "rows_priced": 581843,
+      "iv_ok_frac": 0.4694,
+      "dates": 2515,
+      "oi_sentinel_rows": 223410,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows",
+        "gamma walls are 0.05 more concentrated on the 734 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "AJG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 268612,
+      "rows_priced": 85007,
+      "iv_ok_frac": 0.3165,
+      "dates": 2515,
+      "oi_sentinel_rows": 32272,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "GEX pegged to one strike on 72% of dates",
+        "gamma walls are 0.36 more concentrated on the 743 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "ALAB": {
+      "years": [
+        "2024",
+        "2025"
+      ],
+      "rows_in": 253949,
+      "rows_priced": 108342,
+      "iv_ok_frac": 0.4266,
+      "dates": 446,
+      "oi_sentinel_rows": 9145,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 4% of raw rows",
+        "zero-gamma not found on 56% of dates"
+      ]
+    },
+    "ALL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 305513,
+      "rows_priced": 116573,
+      "iv_ok_frac": 0.3816,
+      "dates": 2515,
+      "oi_sentinel_rows": 35287,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "GEX pegged to one strike on 31% of dates"
       ]
     },
     "AMAT": {
@@ -152,7 +490,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 12% of raw rows"
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "gamma walls are 0.09 more concentrated on the 523 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "AMD": {
@@ -177,7 +516,8 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "1 rows with expiration before quote date",
-        "open interest missing (-1 sentinel) on 7% of raw rows"
+        "open interest missing (-1 sentinel) on 7% of raw rows",
+        "gamma walls are 0.32 more concentrated on the 109 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "AMGN": {
@@ -202,6 +542,30 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 13% of raw rows"
+      ]
+    },
+    "AMT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1096573,
+      "rows_priced": 505561,
+      "iv_ok_frac": 0.461,
+      "dates": 2515,
+      "oi_sentinel_rows": 291597,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 27% of raw rows"
       ]
     },
     "AMZN": {
@@ -252,6 +616,57 @@
         "open interest missing (-1 sentinel) on 6% of raw rows"
       ]
     },
+    "AON": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 371440,
+      "rows_priced": 130172,
+      "iv_ok_frac": 0.3505,
+      "dates": 2515,
+      "oi_sentinel_rows": 45686,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "GEX pegged to one strike on 35% of dates",
+        "gamma walls are 0.08 more concentrated on the 714 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "APD": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 385049,
+      "rows_priced": 124430,
+      "iv_ok_frac": 0.3232,
+      "dates": 2514,
+      "oi_sentinel_rows": 44554,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "GEX pegged to one strike on 37% of dates"
+      ]
+    },
     "APH": {
       "years": [
         "2016",
@@ -274,7 +689,33 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 14% of raw rows",
-        "GEX pegged to one strike on 64% of dates"
+        "GEX pegged to one strike on 64% of dates",
+        "gamma walls are 0.24 more concentrated on the 681 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "APO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1172235,
+      "rows_priced": 554246,
+      "iv_ok_frac": 0.4728,
+      "dates": 2515,
+      "oi_sentinel_rows": 108195,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "gamma walls are 0.22 more concentrated on the 529 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "APP": {
@@ -335,7 +776,35 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 4% of raw rows"
+        "open interest missing (-1 sentinel) on 4% of raw rows",
+        "gamma walls are 0.23 more concentrated on the 425 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "AU": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 292066,
+      "rows_priced": 97894,
+      "iv_ok_frac": 0.3352,
+      "dates": 2515,
+      "oi_sentinel_rows": 37898,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 35% of dates",
+        "zero-gamma not found on 60% of dates",
+        "gamma walls are 0.06 more concentrated on the 128 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "AVGO": {
@@ -359,7 +828,34 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 10% of raw rows"
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "gamma walls are 0.09 more concentrated on the 725 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "AXON": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 309836,
+      "rows_priced": 106547,
+      "iv_ok_frac": 0.3439,
+      "dates": 2025,
+      "oi_sentinel_rows": 17901,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 6% of raw rows",
+        "no open interest at all on 6% of dates \u2014 GEX is blank there",
+        "zero-gamma not found on 58% of dates",
+        "gamma walls are 0.71 more concentrated on the 205 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "AXP": {
@@ -408,7 +904,8 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 24% of raw rows",
-        "GEX pegged to one strike on 26% of dates"
+        "GEX pegged to one strike on 26% of dates",
+        "gamma walls are 0.19 more concentrated on the 736 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "BA": {
@@ -432,7 +929,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 10% of raw rows"
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 613 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "BABA": {
@@ -456,7 +954,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 7% of raw rows"
+        "open interest missing (-1 sentinel) on 7% of raw rows",
+        "gamma walls are 0.08 more concentrated on the 319 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "BAC": {
@@ -481,7 +980,31 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "1 rows with expiration before quote date",
-        "open interest missing (-1 sentinel) on 13% of raw rows"
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "gamma walls are 0.08 more concentrated on the 375 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "BE": {
+      "years": [
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 460961,
+      "rows_priced": 169839,
+      "iv_ok_frac": 0.3684,
+      "dates": 1849,
+      "oi_sentinel_rows": 10971,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 2% of raw rows",
+        "zero-gamma not found on 65% of dates"
       ]
     },
     "BHP": {
@@ -508,6 +1031,49 @@
         "open interest missing (-1 sentinel) on 9% of raw rows"
       ]
     },
+    "BIDU": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1918384,
+      "rows_priced": 1047295,
+      "iv_ok_frac": 0.5459,
+      "dates": 2515,
+      "oi_sentinel_rows": 211067,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows"
+      ]
+    },
+    "BKR": {
+      "years": [
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 198220,
+      "rows_priced": 87846,
+      "iv_ok_frac": 0.4432,
+      "dates": 1559,
+      "oi_sentinel_rows": 878,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": []
+    },
     "BMO": {
       "years": [
         "2016",
@@ -530,7 +1096,8 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 15% of raw rows",
-        "GEX pegged to one strike on 65% of dates"
+        "GEX pegged to one strike on 65% of dates",
+        "gamma walls are 0.17 more concentrated on the 599 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "BMY": {
@@ -554,7 +1121,76 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 15% of raw rows"
+        "open interest missing (-1 sentinel) on 15% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 670 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "BN": {
+      "years": [
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 38158,
+      "rows_priced": 11997,
+      "iv_ok_frac": 0.3144,
+      "dates": 748,
+      "oi_sentinel_rows": 524,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "GEX pegged to one strike on 80% of dates"
+      ]
+    },
+    "BNS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 154730,
+      "rows_priced": 44225,
+      "iv_ok_frac": 0.2858,
+      "dates": 2515,
+      "oi_sentinel_rows": 24849,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "GEX pegged to one strike on 77% of dates",
+        "gamma walls are 0.15 more concentrated on the 570 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "BSX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 996964,
+      "rows_priced": 460080,
+      "iv_ok_frac": 0.4615,
+      "dates": 2515,
+      "oi_sentinel_rows": 158266,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "gamma walls are 0.08 more concentrated on the 579 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "BTI": {
@@ -606,6 +1242,31 @@
         "open interest missing (-1 sentinel) on 12% of raw rows"
       ]
     },
+    "BX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1493487,
+      "rows_priced": 720711,
+      "iv_ok_frac": 0.4826,
+      "dates": 2515,
+      "oi_sentinel_rows": 247361,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 17% of raw rows",
+        "gamma walls are 0.09 more concentrated on the 739 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "C": {
       "years": [
         "2016",
@@ -627,8 +1288,51 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 12% of raw rows"
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "gamma walls are 0.05 more concentrated on the 609 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
+    },
+    "CAH": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1325166,
+      "rows_priced": 632098,
+      "iv_ok_frac": 0.477,
+      "dates": 2515,
+      "oi_sentinel_rows": 245026,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows"
+      ]
+    },
+    "CARR": {
+      "years": [
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 152006,
+      "rows_priced": 63245,
+      "iv_ok_frac": 0.4161,
+      "dates": 1437,
+      "oi_sentinel_rows": 878,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": []
     },
     "CAT": {
       "years": [
@@ -675,7 +1379,406 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 10% of raw rows"
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "gamma walls are 0.14 more concentrated on the 684 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CCI": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 309297,
+      "rows_priced": 118124,
+      "iv_ok_frac": 0.3819,
+      "dates": 2515,
+      "oi_sentinel_rows": 40676,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 26% of dates",
+        "gamma walls are 0.16 more concentrated on the 615 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CCJ": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1203017,
+      "rows_priced": 455588,
+      "iv_ok_frac": 0.3787,
+      "dates": 2515,
+      "oi_sentinel_rows": 253123,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 21% of raw rows",
+        "GEX pegged to one strike on 30% of dates",
+        "zero-gamma not found on 53% of dates",
+        "gamma walls are 0.21 more concentrated on the 734 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CCL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1165218,
+      "rows_priced": 518599,
+      "iv_ok_frac": 0.4451,
+      "dates": 2515,
+      "oi_sentinel_rows": 170362,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 507 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CDNS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 458686,
+      "rows_priced": 188124,
+      "iv_ok_frac": 0.4101,
+      "dates": 2515,
+      "oi_sentinel_rows": 42327,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "gamma walls are 0.15 more concentrated on the 565 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CEG": {
+      "years": [
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 401386,
+      "rows_priced": 165193,
+      "iv_ok_frac": 0.4116,
+      "dates": 977,
+      "oi_sentinel_rows": 11582,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows"
+      ]
+    },
+    "CFG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 173322,
+      "rows_priced": 61795,
+      "iv_ok_frac": 0.3565,
+      "dates": 2515,
+      "oi_sentinel_rows": 17836,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "GEX pegged to one strike on 55% of dates",
+        "gamma walls are 0.34 more concentrated on the 288 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CI": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1562463,
+      "rows_priced": 693779,
+      "iv_ok_frac": 0.444,
+      "dates": 2515,
+      "oi_sentinel_rows": 204006,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "gamma walls are 0.11 more concentrated on the 660 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CIEN": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 949736,
+      "rows_priced": 437656,
+      "iv_ok_frac": 0.4608,
+      "dates": 2515,
+      "oi_sentinel_rows": 256557,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 27% of raw rows"
+      ]
+    },
+    "CL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1305236,
+      "rows_priced": 625466,
+      "iv_ok_frac": 0.4792,
+      "dates": 2515,
+      "oi_sentinel_rows": 290344,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 22% of raw rows"
+      ]
+    },
+    "CLS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 421295,
+      "rows_priced": 163632,
+      "iv_ok_frac": 0.3884,
+      "dates": 2515,
+      "oi_sentinel_rows": 35312,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 8% of raw rows",
+        "GEX pegged to one strike on 77% of dates",
+        "zero-gamma not found on 76% of dates",
+        "gamma walls are 0.17 more concentrated on the 522 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 208215,
+      "rows_priced": 68746,
+      "iv_ok_frac": 0.3302,
+      "dates": 2515,
+      "oi_sentinel_rows": 32617,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "GEX pegged to one strike on 60% of dates",
+        "gamma walls are 0.13 more concentrated on the 695 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CMCSA": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1230114,
+      "rows_priced": 588740,
+      "iv_ok_frac": 0.4786,
+      "dates": 2515,
+      "oi_sentinel_rows": 225153,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 749 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CME": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1337207,
+      "rows_priced": 560423,
+      "iv_ok_frac": 0.4191,
+      "dates": 2515,
+      "oi_sentinel_rows": 292304,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "1 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 22% of raw rows"
+      ]
+    },
+    "CMG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 4457185,
+      "rows_priced": 2302504,
+      "iv_ok_frac": 0.5166,
+      "dates": 2515,
+      "oi_sentinel_rows": 375951,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 8% of raw rows"
+      ]
+    },
+    "CNC": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 988607,
+      "rows_priced": 457861,
+      "iv_ok_frac": 0.4631,
+      "dates": 2515,
+      "oi_sentinel_rows": 41914,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 4% of raw rows",
+        "gamma walls are 0.10 more concentrated on the 246 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CNQ": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 363076,
+      "rows_priced": 140042,
+      "iv_ok_frac": 0.3857,
+      "dates": 2513,
+      "oi_sentinel_rows": 39349,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "GEX pegged to one strike on 34% of dates",
+        "gamma walls are 0.05 more concentrated on the 444 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "COF": {
@@ -702,6 +1805,50 @@
         "open interest missing (-1 sentinel) on 17% of raw rows"
       ]
     },
+    "COHR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 662323,
+      "rows_priced": 184635,
+      "iv_ok_frac": 0.2788,
+      "dates": 2469,
+      "oi_sentinel_rows": 49129,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 7% of raw rows",
+        "zero-gamma not found on 86% of dates"
+      ]
+    },
+    "COIN": {
+      "years": [
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1416342,
+      "rows_priced": 527375,
+      "iv_ok_frac": 0.3724,
+      "dates": 1182,
+      "oi_sentinel_rows": 32829,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 2% of raw rows"
+      ]
+    },
     "COP": {
       "years": [
         "2016",
@@ -726,6 +1873,32 @@
         "open interest missing (-1 sentinel) on 12% of raw rows"
       ]
     },
+    "COR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 243561,
+      "rows_priced": 58870,
+      "iv_ok_frac": 0.2417,
+      "dates": 2096,
+      "oi_sentinel_rows": 36567,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows",
+        "GEX pegged to one strike on 59% of dates",
+        "zero-gamma not found on 74% of dates",
+        "gamma walls are 0.08 more concentrated on the 662 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "COST": {
       "years": [
         "2016",
@@ -747,7 +1920,79 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 8% of raw rows"
+        "open interest missing (-1 sentinel) on 8% of raw rows",
+        "gamma walls are 0.15 more concentrated on the 713 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CP": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 320371,
+      "rows_priced": 123758,
+      "iv_ok_frac": 0.3863,
+      "dates": 2515,
+      "oi_sentinel_rows": 42243,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 28% of dates"
+      ]
+    },
+    "CPRT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 227113,
+      "rows_priced": 78278,
+      "iv_ok_frac": 0.3447,
+      "dates": 2515,
+      "oi_sentinel_rows": 19451,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "GEX pegged to one strike on 56% of dates",
+        "gamma walls are 0.34 more concentrated on the 473 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CRDO": {
+      "years": [
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 142968,
+      "rows_priced": 60702,
+      "iv_ok_frac": 0.4246,
+      "dates": 862,
+      "oi_sentinel_rows": 4495,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows",
+        "GEX pegged to one strike on 58% of dates",
+        "zero-gamma not found on 82% of dates"
       ]
     },
     "CRM": {
@@ -771,7 +2016,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 12% of raw rows"
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "gamma walls are 0.08 more concentrated on the 694 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "CRWD": {
@@ -815,6 +2061,82 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "CSX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1087476,
+      "rows_priced": 506298,
+      "iv_ok_frac": 0.4656,
+      "dates": 2515,
+      "oi_sentinel_rows": 107505,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "GEX pegged to one strike on 27% of dates"
+      ]
+    },
+    "CVE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 274742,
+      "rows_priced": 75429,
+      "iv_ok_frac": 0.2745,
+      "dates": 2515,
+      "oi_sentinel_rows": 29586,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "GEX pegged to one strike on 64% of dates",
+        "zero-gamma not found on 63% of dates",
+        "gamma walls are 0.19 more concentrated on the 270 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "CVNA": {
+      "years": [
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1563961,
+      "rows_priced": 645749,
+      "iv_ok_frac": 0.4129,
+      "dates": 2160,
+      "oi_sentinel_rows": 37447,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 2% of raw rows",
+        "gamma walls are 0.14 more concentrated on the 106 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "CVS": {
@@ -862,8 +2184,124 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 14% of raw rows"
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 728 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
+    },
+    "D": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 253701,
+      "rows_priced": 94213,
+      "iv_ok_frac": 0.3714,
+      "dates": 2515,
+      "oi_sentinel_rows": 36605,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "GEX pegged to one strike on 43% of dates",
+        "gamma walls are 0.08 more concentrated on the 510 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "DAL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1277909,
+      "rows_priced": 679390,
+      "iv_ok_frac": 0.5316,
+      "dates": 2515,
+      "oi_sentinel_rows": 164945,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows"
+      ]
+    },
+    "DASH": {
+      "years": [
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 957206,
+      "rows_priced": 475380,
+      "iv_ok_frac": 0.4966,
+      "dates": 1267,
+      "oi_sentinel_rows": 18064,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "zero-gamma not found on 52% of dates"
+      ]
+    },
+    "DB": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 835916,
+      "rows_priced": 198187,
+      "iv_ok_frac": 0.2371,
+      "dates": 2514,
+      "oi_sentinel_rows": 118107,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "GEX pegged to one strike on 40% of dates",
+        "zero-gamma not found on 52% of dates"
+      ]
+    },
+    "DDOG": {
+      "years": [
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1121600,
+      "rows_priced": 601931,
+      "iv_ok_frac": 0.5367,
+      "dates": 1571,
+      "oi_sentinel_rows": 19364,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": []
     },
     "DE": {
       "years": [
@@ -886,7 +2324,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 13% of raw rows"
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "gamma walls are 0.08 more concentrated on the 719 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "DELL": {
@@ -910,6 +2349,82 @@
         "open interest missing (-1 sentinel) on 3% of raw rows"
       ]
     },
+    "DEO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 295748,
+      "rows_priced": 110951,
+      "iv_ok_frac": 0.3752,
+      "dates": 2515,
+      "oi_sentinel_rows": 44838,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows",
+        "GEX pegged to one strike on 32% of dates",
+        "gamma walls are 0.15 more concentrated on the 685 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "DG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1646009,
+      "rows_priced": 825748,
+      "iv_ok_frac": 0.5017,
+      "dates": 2515,
+      "oi_sentinel_rows": 281700,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 17% of raw rows",
+        "gamma walls are 0.05 more concentrated on the 743 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "DHI": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1535243,
+      "rows_priced": 804839,
+      "iv_ok_frac": 0.5242,
+      "dates": 2515,
+      "oi_sentinel_rows": 271182,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 743 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "DHR": {
       "years": [
         "2016",
@@ -931,7 +2446,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 5% of raw rows"
+        "open interest missing (-1 sentinel) on 5% of raw rows",
+        "gamma walls are 0.16 more concentrated on the 534 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "DIS": {
@@ -955,7 +2471,256 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 11% of raw rows"
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "gamma walls are 0.09 more concentrated on the 603 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "DLR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 638613,
+      "rows_priced": 268499,
+      "iv_ok_frac": 0.4204,
+      "dates": 2515,
+      "oi_sentinel_rows": 49572,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 8% of raw rows",
+        "GEX pegged to one strike on 31% of dates",
+        "gamma walls are 0.20 more concentrated on the 563 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "DUK": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 277476,
+      "rows_priced": 103153,
+      "iv_ok_frac": 0.3718,
+      "dates": 2515,
+      "oi_sentinel_rows": 34474,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "GEX pegged to one strike on 48% of dates"
+      ]
+    },
+    "DVN": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1298899,
+      "rows_priced": 657429,
+      "iv_ok_frac": 0.5061,
+      "dates": 2515,
+      "oi_sentinel_rows": 201606,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "DXCM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 679136,
+      "rows_priced": 299063,
+      "iv_ok_frac": 0.4404,
+      "dates": 2515,
+      "oi_sentinel_rows": 36250,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 5% of raw rows",
+        "gamma walls are 0.19 more concentrated on the 327 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "EA": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1692593,
+      "rows_priced": 898316,
+      "iv_ok_frac": 0.5307,
+      "dates": 2515,
+      "oi_sentinel_rows": 273425,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "EBAY": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1299168,
+      "rows_priced": 636553,
+      "iv_ok_frac": 0.49,
+      "dates": 2515,
+      "oi_sentinel_rows": 183274,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "ED": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 696533,
+      "rows_priced": 337821,
+      "iv_ok_frac": 0.485,
+      "dates": 2515,
+      "oi_sentinel_rows": 108297,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "EIX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 264575,
+      "rows_priced": 96794,
+      "iv_ok_frac": 0.3658,
+      "dates": 2515,
+      "oi_sentinel_rows": 39499,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows",
+        "GEX pegged to one strike on 40% of dates",
+        "gamma walls are 0.14 more concentrated on the 576 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "EL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 667627,
+      "rows_priced": 285039,
+      "iv_ok_frac": 0.4269,
+      "dates": 2515,
+      "oi_sentinel_rows": 46663,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 7% of raw rows",
+        "gamma walls are 0.11 more concentrated on the 426 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "EMR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1128161,
+      "rows_priced": 523019,
+      "iv_ok_frac": 0.4636,
+      "dates": 2515,
+      "oi_sentinel_rows": 106179,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "gamma walls are 0.05 more concentrated on the 486 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "ENB": {
@@ -980,7 +2745,58 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 11% of raw rows",
-        "GEX pegged to one strike on 77% of dates"
+        "GEX pegged to one strike on 77% of dates",
+        "gamma walls are 0.08 more concentrated on the 486 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "EOG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1834857,
+      "rows_priced": 1008935,
+      "iv_ok_frac": 0.5499,
+      "dates": 2515,
+      "oi_sentinel_rows": 263291,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "EQT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 608430,
+      "rows_priced": 284748,
+      "iv_ok_frac": 0.468,
+      "dates": 2514,
+      "oi_sentinel_rows": 38899,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 6% of raw rows",
+        "GEX pegged to one strike on 32% of dates",
+        "gamma walls are 0.12 more concentrated on the 328 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "ETN": {
@@ -1007,6 +2823,358 @@
         "open interest missing (-1 sentinel) on 23% of raw rows"
       ]
     },
+    "EW": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1074713,
+      "rows_priced": 514244,
+      "iv_ok_frac": 0.4785,
+      "dates": 2515,
+      "oi_sentinel_rows": 206346,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 19% of raw rows"
+      ]
+    },
+    "EXC": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 272416,
+      "rows_priced": 124318,
+      "iv_ok_frac": 0.4564,
+      "dates": 2514,
+      "oi_sentinel_rows": 36640,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "1 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 34% of dates"
+      ]
+    },
+    "EXPE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1743423,
+      "rows_priced": 909075,
+      "iv_ok_frac": 0.5214,
+      "dates": 2515,
+      "oi_sentinel_rows": 264661,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows"
+      ]
+    },
+    "F": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1109653,
+      "rows_priced": 285191,
+      "iv_ok_frac": 0.257,
+      "dates": 2515,
+      "oi_sentinel_rows": 220454,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 20% of raw rows",
+        "gamma walls are 0.11 more concentrated on the 519 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "FANG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 711060,
+      "rows_priced": 279583,
+      "iv_ok_frac": 0.3932,
+      "dates": 2515,
+      "oi_sentinel_rows": 47431,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 7% of raw rows"
+      ]
+    },
+    "FAST": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 269611,
+      "rows_priced": 106975,
+      "iv_ok_frac": 0.3968,
+      "dates": 2515,
+      "oi_sentinel_rows": 35174,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 26% of dates"
+      ]
+    },
+    "FCX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1285663,
+      "rows_priced": 571587,
+      "iv_ok_frac": 0.4446,
+      "dates": 2515,
+      "oi_sentinel_rows": 178820,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 316 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "FDX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1786653,
+      "rows_priced": 851608,
+      "iv_ok_frac": 0.4766,
+      "dates": 2515,
+      "oi_sentinel_rows": 223450,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "gamma walls are 0.09 more concentrated on the 729 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "FITB": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 364360,
+      "rows_priced": 160819,
+      "iv_ok_frac": 0.4414,
+      "dates": 2515,
+      "oi_sentinel_rows": 36297,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "gamma walls are 0.08 more concentrated on the 411 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "FLEX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 593199,
+      "rows_priced": 176559,
+      "iv_ok_frac": 0.2976,
+      "dates": 2514,
+      "oi_sentinel_rows": 129724,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 22% of raw rows",
+        "GEX pegged to one strike on 44% of dates",
+        "zero-gamma not found on 58% of dates",
+        "gamma walls are 0.12 more concentrated on the 591 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "FNV": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 279087,
+      "rows_priced": 107448,
+      "iv_ok_frac": 0.385,
+      "dates": 2515,
+      "oi_sentinel_rows": 25586,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "GEX pegged to one strike on 27% of dates",
+        "gamma walls are 0.15 more concentrated on the 304 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "FTI": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 269996,
+      "rows_priced": 83176,
+      "iv_ok_frac": 0.3081,
+      "dates": 2514,
+      "oi_sentinel_rows": 45501,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "33823 rows had no underlying close",
+        "open interest missing (-1 sentinel) on 17% of raw rows",
+        "GEX pegged to one strike on 52% of dates",
+        "zero-gamma not found on 70% of dates"
+      ]
+    },
+    "FTNT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 665314,
+      "rows_priced": 309798,
+      "iv_ok_frac": 0.4656,
+      "dates": 2515,
+      "oi_sentinel_rows": 46719,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 7% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 294 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "GD": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1351118,
+      "rows_priced": 535718,
+      "iv_ok_frac": 0.3965,
+      "dates": 2515,
+      "oi_sentinel_rows": 125923,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows"
+      ]
+    },
     "GE": {
       "years": [
         "2016",
@@ -1028,7 +3196,25 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 14% of raw rows"
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 468 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "GEHC": {
+      "years": [
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 429594,
+      "rows_priced": 204631,
+      "iv_ok_frac": 0.4763,
+      "dates": 747,
+      "oi_sentinel_rows": 14264,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows"
       ]
     },
     "GEV": {
@@ -1045,6 +3231,33 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 3% of raw rows"
+      ]
+    },
+    "GFI": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 202252,
+      "rows_priced": 53871,
+      "iv_ok_frac": 0.2664,
+      "dates": 2515,
+      "oi_sentinel_rows": 19882,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "GEX pegged to one strike on 69% of dates",
+        "zero-gamma not found on 64% of dates",
+        "gamma walls are 0.11 more concentrated on the 92 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "GILD": {
@@ -1069,6 +3282,55 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 11% of raw rows"
+      ]
+    },
+    "GLW": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1218132,
+      "rows_priced": 536805,
+      "iv_ok_frac": 0.4407,
+      "dates": 2515,
+      "oi_sentinel_rows": 252346,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 21% of raw rows",
+        "gamma walls are 0.08 more concentrated on the 734 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "GM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1381668,
+      "rows_priced": 726046,
+      "iv_ok_frac": 0.5255,
+      "dates": 2515,
+      "oi_sentinel_rows": 199230,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
       ]
     },
     "GOOGL": {
@@ -1116,7 +3378,57 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 9% of raw rows"
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 656 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "GSK": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 979001,
+      "rows_priced": 384276,
+      "iv_ok_frac": 0.3925,
+      "dates": 2511,
+      "oi_sentinel_rows": 197976,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 20% of raw rows"
+      ]
+    },
+    "GWW": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 916567,
+      "rows_priced": 426588,
+      "iv_ok_frac": 0.4654,
+      "dates": 2515,
+      "oi_sentinel_rows": 155901,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 17% of raw rows",
+        "gamma walls are 0.08 more concentrated on the 659 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "HD": {
@@ -1140,7 +3452,250 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 11% of raw rows"
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "gamma walls are 0.13 more concentrated on the 685 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "HIG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 944744,
+      "rows_priced": 436681,
+      "iv_ok_frac": 0.4622,
+      "dates": 2515,
+      "oi_sentinel_rows": 281017,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 30% of raw rows",
+        "GEX pegged to one strike on 48% of dates"
+      ]
+    },
+    "HLT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 394570,
+      "rows_priced": 162830,
+      "iv_ok_frac": 0.4127,
+      "dates": 2515,
+      "oi_sentinel_rows": 32482,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 8% of raw rows",
+        "GEX pegged to one strike on 30% of dates",
+        "gamma walls are 0.18 more concentrated on the 463 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "HMC": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 107457,
+      "rows_priced": 30963,
+      "iv_ok_frac": 0.2881,
+      "dates": 2515,
+      "oi_sentinel_rows": 17270,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "GEX pegged to one strike on 93% of dates",
+        "gamma walls are 0.14 more concentrated on the 496 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "HON": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1280177,
+      "rows_priced": 536478,
+      "iv_ok_frac": 0.4191,
+      "dates": 2511,
+      "oi_sentinel_rows": 129692,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 562 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "HOOD": {
+      "years": [
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 741612,
+      "rows_priced": 287239,
+      "iv_ok_frac": 0.3873,
+      "dates": 1108,
+      "oi_sentinel_rows": 16320,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 2% of raw rows"
+      ]
+    },
+    "HPE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 909804,
+      "rows_priced": 271667,
+      "iv_ok_frac": 0.2986,
+      "dates": 2513,
+      "oi_sentinel_rows": 247622,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 27% of raw rows",
+        "GEX pegged to one strike on 33% of dates"
+      ]
+    },
+    "HSY": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1427128,
+      "rows_priced": 591470,
+      "iv_ok_frac": 0.4144,
+      "dates": 2515,
+      "oi_sentinel_rows": 280032,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 20% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 674 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "HUM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2325637,
+      "rows_priced": 1050387,
+      "iv_ok_frac": 0.4517,
+      "dates": 2515,
+      "oi_sentinel_rows": 328263,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "gamma walls are 0.13 more concentrated on the 736 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "HWM": {
+      "years": [
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 297320,
+      "rows_priced": 131868,
+      "iv_ok_frac": 0.4435,
+      "dates": 1445,
+      "oi_sentinel_rows": 5908,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "GEX pegged to one strike on 31% of dates",
+        "zero-gamma not found on 63% of dates"
+      ]
+    },
+    "IBKR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 284087,
+      "rows_priced": 116601,
+      "iv_ok_frac": 0.4104,
+      "dates": 2515,
+      "oi_sentinel_rows": 30325,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "GEX pegged to one strike on 36% of dates"
       ]
     },
     "IBM": {
@@ -1167,6 +3722,33 @@
         "open interest missing (-1 sentinel) on 14% of raw rows"
       ]
     },
+    "INFY": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 236324,
+      "rows_priced": 63892,
+      "iv_ok_frac": 0.2704,
+      "dates": 2514,
+      "oi_sentinel_rows": 36072,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows",
+        "GEX pegged to one strike on 61% of dates",
+        "zero-gamma not found on 54% of dates",
+        "gamma walls are 0.06 more concentrated on the 332 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "INTC": {
       "years": [
         "2016",
@@ -1188,7 +3770,34 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 12% of raw rows"
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "gamma walls are 0.08 more concentrated on the 499 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "IRM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 329241,
+      "rows_priced": 129546,
+      "iv_ok_frac": 0.3935,
+      "dates": 2515,
+      "oi_sentinel_rows": 26920,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 8% of raw rows",
+        "GEX pegged to one strike on 53% of dates",
+        "gamma walls are 0.17 more concentrated on the 522 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "ISRG": {
@@ -1215,6 +3824,81 @@
         "open interest missing (-1 sentinel) on 16% of raw rows"
       ]
     },
+    "JBL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 646979,
+      "rows_priced": 286692,
+      "iv_ok_frac": 0.4431,
+      "dates": 2515,
+      "oi_sentinel_rows": 159008,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 25% of raw rows",
+        "GEX pegged to one strike on 29% of dates"
+      ]
+    },
+    "JCI": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 505980,
+      "rows_priced": 212133,
+      "iv_ok_frac": 0.4193,
+      "dates": 2513,
+      "oi_sentinel_rows": 30306,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 6% of raw rows",
+        "GEX pegged to one strike on 36% of dates"
+      ]
+    },
+    "JD": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1491529,
+      "rows_priced": 774311,
+      "iv_ok_frac": 0.5191,
+      "dates": 2515,
+      "oi_sentinel_rows": 203184,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 607 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "JNJ": {
       "years": [
         "2016",
@@ -1236,7 +3920,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 16% of raw rows"
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "gamma walls are 0.05 more concentrated on the 720 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "JPM": {
@@ -1263,6 +3948,106 @@
         "open interest missing (-1 sentinel) on 11% of raw rows"
       ]
     },
+    "KDP": {
+      "years": [
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 198339,
+      "rows_priced": 80382,
+      "iv_ok_frac": 0.4053,
+      "dates": 1881,
+      "oi_sentinel_rows": 6295,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows",
+        "GEX pegged to one strike on 45% of dates",
+        "gamma walls are 0.16 more concentrated on the 104 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "KHC": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 801553,
+      "rows_priced": 329868,
+      "iv_ok_frac": 0.4115,
+      "dates": 2515,
+      "oi_sentinel_rows": 37450,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 5% of raw rows",
+        "gamma walls are 0.12 more concentrated on the 217 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "KKR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1192007,
+      "rows_priced": 526608,
+      "iv_ok_frac": 0.4418,
+      "dates": 2515,
+      "oi_sentinel_rows": 163086,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "GEX pegged to one strike on 27% of dates",
+        "gamma walls are 0.13 more concentrated on the 503 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "KMI": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1124134,
+      "rows_priced": 366212,
+      "iv_ok_frac": 0.3258,
+      "dates": 2515,
+      "oi_sentinel_rows": 214774,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 19% of raw rows",
+        "GEX pegged to one strike on 34% of dates"
+      ]
+    },
     "KO": {
       "years": [
         "2016",
@@ -1287,6 +4072,74 @@
         "open interest missing (-1 sentinel) on 18% of raw rows"
       ]
     },
+    "KR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1044713,
+      "rows_priced": 507166,
+      "iv_ok_frac": 0.4855,
+      "dates": 2515,
+      "oi_sentinel_rows": 111657,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows"
+      ]
+    },
+    "LHX": {
+      "years": [
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 277821,
+      "rows_priced": 95607,
+      "iv_ok_frac": 0.3441,
+      "dates": 1466,
+      "oi_sentinel_rows": 2708,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": []
+    },
+    "LITE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 968745,
+      "rows_priced": 486169,
+      "iv_ok_frac": 0.5019,
+      "dates": 2345,
+      "oi_sentinel_rows": 135531,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "zero-gamma not found on 55% of dates"
+      ]
+    },
     "LLY": {
       "years": [
         "2016",
@@ -1308,7 +4161,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 14% of raw rows"
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 736 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "LMT": {
@@ -1332,7 +4186,32 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 12% of raw rows"
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "gamma walls are 0.08 more concentrated on the 726 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "LNG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1163306,
+      "rows_priced": 586767,
+      "iv_ok_frac": 0.5044,
+      "dates": 2345,
+      "oi_sentinel_rows": 244007,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 21% of raw rows"
       ]
     },
     "LOW": {
@@ -1359,6 +4238,56 @@
         "open interest missing (-1 sentinel) on 14% of raw rows"
       ]
     },
+    "LVS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1233768,
+      "rows_priced": 660546,
+      "iv_ok_frac": 0.5354,
+      "dates": 2381,
+      "oi_sentinel_rows": 200997,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
+      ]
+    },
+    "LYV": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 337673,
+      "rows_priced": 139189,
+      "iv_ok_frac": 0.4122,
+      "dates": 2381,
+      "oi_sentinel_rows": 40410,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "GEX pegged to one strike on 27% of dates",
+        "gamma walls are 0.23 more concentrated on the 526 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "MA": {
       "years": [
         "2016",
@@ -1380,7 +4309,33 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 12% of raw rows"
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "gamma walls are 0.18 more concentrated on the 731 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "MAR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1536184,
+      "rows_priced": 733911,
+      "iv_ok_frac": 0.4777,
+      "dates": 2381,
+      "oi_sentinel_rows": 252347,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "gamma walls are 0.11 more concentrated on the 613 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "MCD": {
@@ -1404,7 +4359,105 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 14% of raw rows"
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "gamma walls are 0.11 more concentrated on the 730 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "MCHP": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 827197,
+      "rows_priced": 393976,
+      "iv_ok_frac": 0.4763,
+      "dates": 2381,
+      "oi_sentinel_rows": 35585,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 4% of raw rows",
+        "gamma walls are 0.13 more concentrated on the 293 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "MDLZ": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1200979,
+      "rows_priced": 547518,
+      "iv_ok_frac": 0.4559,
+      "dates": 2515,
+      "oi_sentinel_rows": 185870,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows"
+      ]
+    },
+    "MDT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1548406,
+      "rows_priced": 754669,
+      "iv_ok_frac": 0.4874,
+      "dates": 2515,
+      "oi_sentinel_rows": 279047,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows"
+      ]
+    },
+    "MET": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1239425,
+      "rows_priced": 625998,
+      "iv_ok_frac": 0.5051,
+      "dates": 2514,
+      "oi_sentinel_rows": 232745,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 19% of raw rows"
       ]
     },
     "META": {
@@ -1428,7 +4481,56 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 6% of raw rows"
+        "open interest missing (-1 sentinel) on 6% of raw rows",
+        "gamma walls are 0.11 more concentrated on the 173 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "MMM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1547517,
+      "rows_priced": 746488,
+      "iv_ok_frac": 0.4824,
+      "dates": 2514,
+      "oi_sentinel_rows": 261960,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 17% of raw rows"
+      ]
+    },
+    "MNST": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1166234,
+      "rows_priced": 571245,
+      "iv_ok_frac": 0.4898,
+      "dates": 2515,
+      "oi_sentinel_rows": 268094,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 23% of raw rows"
       ]
     },
     "MO": {
@@ -1455,6 +4557,31 @@
         "open interest missing (-1 sentinel) on 19% of raw rows"
       ]
     },
+    "MPC": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1519580,
+      "rows_priced": 788253,
+      "iv_ok_frac": 0.5187,
+      "dates": 2515,
+      "oi_sentinel_rows": 270239,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows",
+        "gamma walls are 0.09 more concentrated on the 743 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "MRK": {
       "years": [
         "2016",
@@ -1476,7 +4603,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 16% of raw rows"
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "gamma walls are 0.09 more concentrated on the 735 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "MRVL": {
@@ -1500,7 +4628,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 18% of raw rows"
+        "open interest missing (-1 sentinel) on 18% of raw rows",
+        "gamma walls are 0.24 more concentrated on the 737 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "MS": {
@@ -1548,7 +4677,83 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 8% of raw rows"
+        "open interest missing (-1 sentinel) on 8% of raw rows",
+        "gamma walls are 0.18 more concentrated on the 368 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "MSI": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 351846,
+      "rows_priced": 132318,
+      "iv_ok_frac": 0.3761,
+      "dates": 2515,
+      "oi_sentinel_rows": 24938,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 7% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 519 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "MSTR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 2590406,
+      "rows_priced": 918286,
+      "iv_ok_frac": 0.3545,
+      "dates": 2515,
+      "oi_sentinel_rows": 97865,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 4% of raw rows",
+        "gamma walls are 0.28 more concentrated on the 717 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "MT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1058543,
+      "rows_priced": 436276,
+      "iv_ok_frac": 0.4121,
+      "dates": 2513,
+      "oi_sentinel_rows": 208912,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 20% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 625 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "MU": {
@@ -1572,7 +4777,34 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 9% of raw rows"
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "gamma walls are 0.11 more concentrated on the 276 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "NDAQ": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 280032,
+      "rows_priced": 107821,
+      "iv_ok_frac": 0.385,
+      "dates": 2515,
+      "oi_sentinel_rows": 34791,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "GEX pegged to one strike on 42% of dates",
+        "gamma walls are 0.10 more concentrated on the 577 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "NEE": {
@@ -1598,8 +4830,52 @@
       "flags": [
         "1 rows with expiration before quote date",
         "open interest missing (-1 sentinel) on 9% of raw rows",
-        "GEX pegged to one strike on 27% of dates"
+        "GEX pegged to one strike on 27% of dates",
+        "gamma walls are 0.21 more concentrated on the 647 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
+    },
+    "NEM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1418560,
+      "rows_priced": 769946,
+      "iv_ok_frac": 0.5428,
+      "dates": 2515,
+      "oi_sentinel_rows": 219667,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 15% of raw rows"
+      ]
+    },
+    "NET": {
+      "years": [
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1026296,
+      "rows_priced": 520939,
+      "iv_ok_frac": 0.5076,
+      "dates": 1577,
+      "oi_sentinel_rows": 18765,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": []
     },
     "NFLX": {
       "years": [
@@ -1622,7 +4898,201 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 6% of raw rows"
+        "open interest missing (-1 sentinel) on 6% of raw rows",
+        "gamma walls are 0.08 more concentrated on the 206 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "NKE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1636833,
+      "rows_priced": 893456,
+      "iv_ok_frac": 0.5458,
+      "dates": 2515,
+      "oi_sentinel_rows": 198038,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 670 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "NSC": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1680355,
+      "rows_priced": 746734,
+      "iv_ok_frac": 0.4444,
+      "dates": 2515,
+      "oi_sentinel_rows": 338480,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "1 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 20% of raw rows"
+      ]
+    },
+    "NTAP": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1491414,
+      "rows_priced": 747235,
+      "iv_ok_frac": 0.501,
+      "dates": 2515,
+      "oi_sentinel_rows": 284156,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 19% of raw rows"
+      ]
+    },
+    "NTES": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1799027,
+      "rows_priced": 919824,
+      "iv_ok_frac": 0.5113,
+      "dates": 2515,
+      "oi_sentinel_rows": 310216,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 17% of raw rows"
+      ]
+    },
+    "NTR": {
+      "years": [
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 986980,
+      "rows_priced": 487121,
+      "iv_ok_frac": 0.4935,
+      "dates": 2011,
+      "oi_sentinel_rows": 88484,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "GEX pegged to one strike on 26% of dates",
+        "gamma walls are 0.15 more concentrated on the 231 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "NTRS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 276713,
+      "rows_priced": 103857,
+      "iv_ok_frac": 0.3753,
+      "dates": 2515,
+      "oi_sentinel_rows": 35429,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 39% of dates",
+        "gamma walls are 0.07 more concentrated on the 646 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "NU": {
+      "years": [
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 353123,
+      "rows_priced": 86757,
+      "iv_ok_frac": 0.2457,
+      "dates": 1015,
+      "oi_sentinel_rows": 9231,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows",
+        "GEX pegged to one strike on 33% of dates",
+        "zero-gamma not found on 62% of dates"
+      ]
+    },
+    "NUE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1585832,
+      "rows_priced": 843189,
+      "iv_ok_frac": 0.5317,
+      "dates": 2515,
+      "oi_sentinel_rows": 256620,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows"
       ]
     },
     "NVDA": {
@@ -1646,7 +5116,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 6% of raw rows"
+        "open interest missing (-1 sentinel) on 6% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 312 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "NVO": {
@@ -1671,7 +5142,8 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 6% of raw rows",
-        "GEX pegged to one strike on 32% of dates"
+        "GEX pegged to one strike on 32% of dates",
+        "gamma walls are 0.14 more concentrated on the 298 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "NVS": {
@@ -1696,7 +5168,110 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 13% of raw rows",
-        "GEX pegged to one strike on 43% of dates"
+        "GEX pegged to one strike on 43% of dates",
+        "gamma walls are 0.12 more concentrated on the 463 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "NXPI": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1710695,
+      "rows_priced": 783400,
+      "iv_ok_frac": 0.4579,
+      "dates": 2515,
+      "oi_sentinel_rows": 322177,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 19% of raw rows",
+        "gamma walls are 0.12 more concentrated on the 739 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "O": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 234064,
+      "rows_priced": 83161,
+      "iv_ok_frac": 0.3553,
+      "dates": 2514,
+      "oi_sentinel_rows": 24169,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "GEX pegged to one strike on 41% of dates",
+        "gamma walls are 0.16 more concentrated on the 361 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "OKE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 840539,
+      "rows_priced": 392197,
+      "iv_ok_frac": 0.4666,
+      "dates": 2515,
+      "oi_sentinel_rows": 233986,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "1 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 28% of raw rows",
+        "GEX pegged to one strike on 26% of dates"
+      ]
+    },
+    "ON": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 842965,
+      "rows_priced": 434993,
+      "iv_ok_frac": 0.516,
+      "dates": 2515,
+      "oi_sentinel_rows": 52070,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 6% of raw rows",
+        "gamma walls are 0.25 more concentrated on the 323 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "ORCL": {
@@ -1720,7 +5295,53 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 13% of raw rows"
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 668 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "OTIS": {
+      "years": [
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 145502,
+      "rows_priced": 51585,
+      "iv_ok_frac": 0.3545,
+      "dates": 1437,
+      "oi_sentinel_rows": 949,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "GEX pegged to one strike on 56% of dates"
+      ]
+    },
+    "OXY": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1363662,
+      "rows_priced": 726089,
+      "iv_ok_frac": 0.5325,
+      "dates": 2513,
+      "oi_sentinel_rows": 269919,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 20% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 736 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "PANW": {
@@ -1744,7 +5365,85 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 13% of raw rows"
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 732 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "PAYX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 296690,
+      "rows_priced": 107558,
+      "iv_ok_frac": 0.3625,
+      "dates": 2515,
+      "oi_sentinel_rows": 31869,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "GEX pegged to one strike on 35% of dates",
+        "gamma walls are 0.14 more concentrated on the 483 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "PCAR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 312372,
+      "rows_priced": 122687,
+      "iv_ok_frac": 0.3928,
+      "dates": 2514,
+      "oi_sentinel_rows": 33005,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "gamma walls are 0.10 more concentrated on the 325 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "PCG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1033900,
+      "rows_priced": 293718,
+      "iv_ok_frac": 0.2841,
+      "dates": 2515,
+      "oi_sentinel_rows": 114484,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "GEX pegged to one strike on 42% of dates",
+        "gamma walls are 0.18 more concentrated on the 709 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "PDD": {
@@ -1767,6 +5466,32 @@
       "rate_source": "dgs3mo daily series",
       "flags": []
     },
+    "PEG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 173321,
+      "rows_priced": 54273,
+      "iv_ok_frac": 0.3131,
+      "dates": 2515,
+      "oi_sentinel_rows": 22752,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 84% of dates",
+        "gamma walls are 0.21 more concentrated on the 598 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "PEP": {
       "years": [
         "2016",
@@ -1788,7 +5513,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 17% of raw rows"
+        "open interest missing (-1 sentinel) on 17% of raw rows",
+        "gamma walls are 0.08 more concentrated on the 736 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "PFE": {
@@ -1812,7 +5538,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 18% of raw rows"
+        "open interest missing (-1 sentinel) on 18% of raw rows",
+        "gamma walls are 0.10 more concentrated on the 735 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "PG": {
@@ -1861,7 +5588,8 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 9% of raw rows",
-        "GEX pegged to one strike on 29% of dates"
+        "GEX pegged to one strike on 29% of dates",
+        "gamma walls are 0.19 more concentrated on the 545 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "PH": {
@@ -1885,7 +5613,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 9% of raw rows"
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "gamma walls are 0.09 more concentrated on the 513 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "PLD": {
@@ -1910,7 +5639,8 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 12% of raw rows",
-        "GEX pegged to one strike on 49% of dates"
+        "GEX pegged to one strike on 49% of dates",
+        "gamma walls are 0.42 more concentrated on the 645 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "PLTR": {
@@ -1955,6 +5685,107 @@
         "open interest missing (-1 sentinel) on 18% of raw rows"
       ]
     },
+    "PNC": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1303908,
+      "rows_priced": 596998,
+      "iv_ok_frac": 0.4579,
+      "dates": 2515,
+      "oi_sentinel_rows": 89344,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "1 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 7% of raw rows",
+        "gamma walls are 0.09 more concentrated on the 442 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "PRU": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 321351,
+      "rows_priced": 129281,
+      "iv_ok_frac": 0.4023,
+      "dates": 2515,
+      "oi_sentinel_rows": 33658,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "gamma walls are 0.14 more concentrated on the 318 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "PSX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1672065,
+      "rows_priced": 871874,
+      "iv_ok_frac": 0.5214,
+      "dates": 2515,
+      "oi_sentinel_rows": 299509,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 743 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "PYPL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1723039,
+      "rows_priced": 930217,
+      "iv_ok_frac": 0.5399,
+      "dates": 2515,
+      "oi_sentinel_rows": 195629,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "gamma walls are 0.09 more concentrated on the 573 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "QCOM": {
       "years": [
         "2016",
@@ -1976,7 +5807,68 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 11% of raw rows"
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "gamma walls are 0.14 more concentrated on the 677 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "RBLX": {
+      "years": [
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 819159,
+      "rows_priced": 415182,
+      "iv_ok_frac": 0.5068,
+      "dates": 1206,
+      "oi_sentinel_rows": 17617,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 2% of raw rows"
+      ]
+    },
+    "RCL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1493977,
+      "rows_priced": 779163,
+      "iv_ok_frac": 0.5215,
+      "dates": 2515,
+      "oi_sentinel_rows": 128509,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 9% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 348 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "RDDT": {
+      "years": [
+        "2024",
+        "2025"
+      ],
+      "rows_in": 403217,
+      "rows_priced": 192035,
+      "iv_ok_frac": 0.4763,
+      "dates": 445,
+      "oi_sentinel_rows": 14869,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 4% of raw rows"
       ]
     },
     "RIO": {
@@ -2000,7 +5892,100 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 5% of raw rows"
+        "open interest missing (-1 sentinel) on 5% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 66 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "RJF": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 272751,
+      "rows_priced": 104215,
+      "iv_ok_frac": 0.3821,
+      "dates": 2514,
+      "oi_sentinel_rows": 35228,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 29% of dates"
+      ]
+    },
+    "RKLB": {
+      "years": [
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 352388,
+      "rows_priced": 113954,
+      "iv_ok_frac": 0.3234,
+      "dates": 1093,
+      "oi_sentinel_rows": 10948,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows",
+        "GEX pegged to one strike on 47% of dates",
+        "zero-gamma not found on 69% of dates"
+      ]
+    },
+    "RKT": {
+      "years": [
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 641599,
+      "rows_priced": 203401,
+      "iv_ok_frac": 0.317,
+      "dates": 1354,
+      "oi_sentinel_rows": 13008,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 2% of raw rows",
+        "zero-gamma not found on 54% of dates"
+      ]
+    },
+    "ROST": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1051166,
+      "rows_priced": 484507,
+      "iv_ok_frac": 0.4609,
+      "dates": 2515,
+      "oi_sentinel_rows": 43108,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 4% of raw rows",
+        "gamma walls are 0.12 more concentrated on the 229 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "RTX": {
@@ -2025,6 +6010,30 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 19% of raw rows"
+      ]
+    },
+    "SBUX": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1472079,
+      "rows_priced": 799796,
+      "iv_ok_frac": 0.5433,
+      "dates": 2515,
+      "oi_sentinel_rows": 164191,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows"
       ]
     },
     "SCCO": {
@@ -2075,6 +6084,32 @@
         "open interest missing (-1 sentinel) on 16% of raw rows"
       ]
     },
+    "SE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1237569,
+      "rows_priced": 563007,
+      "iv_ok_frac": 0.4549,
+      "dates": 2299,
+      "oi_sentinel_rows": 36361,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows",
+        "zero-gamma not found on 55% of dates",
+        "gamma walls are 0.52 more concentrated on the 104 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "SHEL": {
       "years": [
         "2022",
@@ -2117,6 +6152,78 @@
         "open interest missing (-1 sentinel) on 4% of raw rows"
       ]
     },
+    "SLB": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1347663,
+      "rows_priced": 713350,
+      "iv_ok_frac": 0.5293,
+      "dates": 2515,
+      "oi_sentinel_rows": 225265,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 17% of raw rows"
+      ]
+    },
+    "SNOW": {
+      "years": [
+        "2016",
+        "2017",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1275341,
+      "rows_priced": 584752,
+      "iv_ok_frac": 0.4585,
+      "dates": 1723,
+      "oi_sentinel_rows": 31900,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows"
+      ]
+    },
+    "SO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1002693,
+      "rows_priced": 434196,
+      "iv_ok_frac": 0.433,
+      "dates": 2515,
+      "oi_sentinel_rows": 71623,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 7% of raw rows",
+        "GEX pegged to one strike on 27% of dates",
+        "gamma walls are 0.08 more concentrated on the 455 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "SONY": {
       "years": [
         "2021",
@@ -2134,6 +6241,154 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 2% of raw rows"
+      ]
+    },
+    "SPG": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 335803,
+      "rows_priced": 134308,
+      "iv_ok_frac": 0.4,
+      "dates": 2515,
+      "oi_sentinel_rows": 44354,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 526 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "SPOT": {
+      "years": [
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1755386,
+      "rows_priced": 877409,
+      "iv_ok_frac": 0.4998,
+      "dates": 1946,
+      "oi_sentinel_rows": 68383,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 4% of raw rows"
+      ]
+    },
+    "SRE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 269264,
+      "rows_priced": 92235,
+      "iv_ok_frac": 0.3425,
+      "dates": 2515,
+      "oi_sentinel_rows": 47538,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows",
+        "GEX pegged to one strike on 63% of dates",
+        "gamma walls are 0.16 more concentrated on the 725 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "STLD": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 321325,
+      "rows_priced": 133267,
+      "iv_ok_frac": 0.4147,
+      "dates": 2515,
+      "oi_sentinel_rows": 34925,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows"
+      ]
+    },
+    "STM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 192086,
+      "rows_priced": 74143,
+      "iv_ok_frac": 0.386,
+      "dates": 2515,
+      "oi_sentinel_rows": 12792,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 7% of raw rows",
+        "GEX pegged to one strike on 56% of dates",
+        "gamma walls are 0.39 more concentrated on the 128 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "STT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 320729,
+      "rows_priced": 128013,
+      "iv_ok_frac": 0.3991,
+      "dates": 2515,
+      "oi_sentinel_rows": 35200,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows",
+        "gamma walls are 0.13 more concentrated on the 336 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "STX": {
@@ -2160,6 +6415,56 @@
         "open interest missing (-1 sentinel) on 12% of raw rows"
       ]
     },
+    "SU": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1247143,
+      "rows_priced": 535628,
+      "iv_ok_frac": 0.4295,
+      "dates": 2515,
+      "oi_sentinel_rows": 287468,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 23% of raw rows"
+      ]
+    },
+    "SYY": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 794214,
+      "rows_priced": 388544,
+      "iv_ok_frac": 0.4892,
+      "dates": 2515,
+      "oi_sentinel_rows": 100570,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 36% of dates",
+        "gamma walls are 0.11 more concentrated on the 551 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "T": {
       "years": [
         "2016",
@@ -2184,6 +6489,25 @@
         "open interest missing (-1 sentinel) on 16% of raw rows"
       ]
     },
+    "TCOM": {
+      "years": [
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 206704,
+      "rows_priced": 92904,
+      "iv_ok_frac": 0.4495,
+      "dates": 1547,
+      "oi_sentinel_rows": 994,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": []
+    },
     "TD": {
       "years": [
         "2016",
@@ -2206,7 +6530,128 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 12% of raw rows",
-        "GEX pegged to one strike on 54% of dates"
+        "GEX pegged to one strike on 54% of dates",
+        "gamma walls are 0.18 more concentrated on the 511 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "TECK": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1123035,
+      "rows_priced": 485372,
+      "iv_ok_frac": 0.4322,
+      "dates": 2282,
+      "oi_sentinel_rows": 154417,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "TER": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 329039,
+      "rows_priced": 136125,
+      "iv_ok_frac": 0.4137,
+      "dates": 2515,
+      "oi_sentinel_rows": 33863,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "GEX pegged to one strike on 29% of dates",
+        "gamma walls are 0.17 more concentrated on the 405 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "TEVA": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1164259,
+      "rows_priced": 377842,
+      "iv_ok_frac": 0.3245,
+      "dates": 2515,
+      "oi_sentinel_rows": 198736,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 17% of raw rows"
+      ]
+    },
+    "TFC": {
+      "years": [
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 393321,
+      "rows_priced": 163841,
+      "iv_ok_frac": 0.4166,
+      "dates": 1524,
+      "oi_sentinel_rows": 10961,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "1 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 3% of raw rows"
+      ]
+    },
+    "TGT": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1689230,
+      "rows_priced": 887705,
+      "iv_ok_frac": 0.5255,
+      "dates": 2515,
+      "oi_sentinel_rows": 188750,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 11% of raw rows"
       ]
     },
     "TJX": {
@@ -2230,7 +6675,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 5% of raw rows"
+        "open interest missing (-1 sentinel) on 5% of raw rows",
+        "gamma walls are 0.13 more concentrated on the 149 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "TM": {
@@ -2255,7 +6701,8 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 14% of raw rows",
-        "GEX pegged to one strike on 28% of dates"
+        "GEX pegged to one strike on 28% of dates",
+        "gamma walls are 0.12 more concentrated on the 562 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "TMUS": {
@@ -2279,7 +6726,82 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 17% of raw rows"
+        "open interest missing (-1 sentinel) on 17% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 734 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "TPR": {
+      "years": [
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 956424,
+      "rows_priced": 448983,
+      "iv_ok_frac": 0.4694,
+      "dates": 2054,
+      "oi_sentinel_rows": 93025,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows"
+      ]
+    },
+    "TRGP": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 359723,
+      "rows_priced": 139610,
+      "iv_ok_frac": 0.3881,
+      "dates": 2515,
+      "oi_sentinel_rows": 45963,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 13% of raw rows",
+        "GEX pegged to one strike on 30% of dates"
+      ]
+    },
+    "TRV": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 315803,
+      "rows_priced": 112769,
+      "iv_ok_frac": 0.3571,
+      "dates": 2515,
+      "oi_sentinel_rows": 43628,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "GEX pegged to one strike on 35% of dates",
+        "gamma walls are 0.16 more concentrated on the 675 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "TSLA": {
@@ -2327,7 +6849,28 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 4% of raw rows"
+        "open interest missing (-1 sentinel) on 4% of raw rows",
+        "gamma walls are 0.22 more concentrated on the 398 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "TT": {
+      "years": [
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 228417,
+      "rows_priced": 81261,
+      "iv_ok_frac": 0.3558,
+      "dates": 1467,
+      "oi_sentinel_rows": 1222,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "GEX pegged to one strike on 26% of dates"
       ]
     },
     "TTE": {
@@ -2348,6 +6891,56 @@
       "flags": [
         "7 rows with expiration before quote date",
         "GEX pegged to one strike on 52% of dates"
+      ]
+    },
+    "TTWO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1461466,
+      "rows_priced": 750446,
+      "iv_ok_frac": 0.5135,
+      "dates": 2515,
+      "oi_sentinel_rows": 142172,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "gamma walls are 0.09 more concentrated on the 497 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "TWLO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1908513,
+      "rows_priced": 949198,
+      "iv_ok_frac": 0.4973,
+      "dates": 2390,
+      "oi_sentinel_rows": 188446,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "gamma walls are 0.07 more concentrated on the 576 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "TXN": {
@@ -2371,7 +6964,32 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 15% of raw rows"
+        "open interest missing (-1 sentinel) on 15% of raw rows",
+        "gamma walls are 0.05 more concentrated on the 727 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "UAL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1457394,
+      "rows_priced": 796629,
+      "iv_ok_frac": 0.5466,
+      "dates": 2515,
+      "oi_sentinel_rows": 181094,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows"
       ]
     },
     "UBER": {
@@ -2415,7 +7033,8 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 13% of raw rows",
-        "GEX pegged to one strike on 83% of dates"
+        "GEX pegged to one strike on 83% of dates",
+        "gamma walls are 0.15 more concentrated on the 327 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "UL": {
@@ -2440,7 +7059,8 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 15% of raw rows",
-        "GEX pegged to one strike on 54% of dates"
+        "GEX pegged to one strike on 54% of dates",
+        "gamma walls are 0.10 more concentrated on the 646 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "UNH": {
@@ -2464,7 +7084,8 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 12% of raw rows"
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "gamma walls are 0.16 more concentrated on the 736 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "UNP": {
@@ -2488,7 +7109,57 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 15% of raw rows"
+        "open interest missing (-1 sentinel) on 15% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 735 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "UPS": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1604998,
+      "rows_priced": 773019,
+      "iv_ok_frac": 0.4816,
+      "dates": 2515,
+      "oi_sentinel_rows": 252912,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "gamma walls are 0.11 more concentrated on the 736 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "USB": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1247671,
+      "rows_priced": 629923,
+      "iv_ok_frac": 0.5049,
+      "dates": 2515,
+      "oi_sentinel_rows": 244106,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 20% of raw rows"
       ]
     },
     "V": {
@@ -2512,7 +7183,172 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 12% of raw rows"
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "gamma walls are 0.12 more concentrated on the 698 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "VALE": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1043522,
+      "rows_priced": 276666,
+      "iv_ok_frac": 0.2651,
+      "dates": 2515,
+      "oi_sentinel_rows": 168639,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "GEX pegged to one strike on 26% of dates"
+      ]
+    },
+    "VEEV": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 386338,
+      "rows_priced": 144798,
+      "iv_ok_frac": 0.3748,
+      "dates": 2515,
+      "oi_sentinel_rows": 29077,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 8% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 166 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "VIK": {
+      "years": [
+        "2024",
+        "2025"
+      ],
+      "rows_in": 21848,
+      "rows_priced": 7897,
+      "iv_ok_frac": 0.3615,
+      "dates": 417,
+      "oi_sentinel_rows": 310,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "GEX pegged to one strike on 77% of dates"
+      ]
+    },
+    "VLO": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1684718,
+      "rows_priced": 931559,
+      "iv_ok_frac": 0.5529,
+      "dates": 2515,
+      "oi_sentinel_rows": 228826,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "VRT": {
+      "years": [
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 500552,
+      "rows_priced": 241383,
+      "iv_ok_frac": 0.4822,
+      "dates": 1463,
+      "oi_sentinel_rows": 15577,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 3% of raw rows",
+        "GEX pegged to one strike on 48% of dates",
+        "zero-gamma not found on 64% of dates"
+      ]
+    },
+    "VST": {
+      "years": [
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 540254,
+      "rows_priced": 241379,
+      "iv_ok_frac": 0.4468,
+      "dates": 2169,
+      "oi_sentinel_rows": 20529,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 4% of raw rows",
+        "GEX pegged to one strike on 42% of dates",
+        "zero-gamma not found on 53% of dates",
+        "gamma walls are 0.44 more concentrated on the 182 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "VTR": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 224408,
+      "rows_priced": 80297,
+      "iv_ok_frac": 0.3578,
+      "dates": 2515,
+      "oi_sentinel_rows": 27881,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "GEX pegged to one strike on 54% of dates",
+        "gamma walls are 0.13 more concentrated on the 480 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "VZ": {
@@ -2536,7 +7372,60 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 16% of raw rows"
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "gamma walls are 0.06 more concentrated on the 655 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "WBD": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1214932,
+      "rows_priced": 266935,
+      "iv_ok_frac": 0.2197,
+      "dates": 2509,
+      "oi_sentinel_rows": 196176,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "5 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "GEX pegged to one strike on 35% of dates",
+        "zero-gamma not found on 62% of dates",
+        "gamma walls are 0.12 more concentrated on the 649 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "WDAY": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1836329,
+      "rows_priced": 905381,
+      "iv_ok_frac": 0.493,
+      "dates": 2515,
+      "oi_sentinel_rows": 323949,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 18% of raw rows"
       ]
     },
     "WDC": {
@@ -2564,6 +7453,33 @@
         "open interest missing (-1 sentinel) on 14% of raw rows"
       ]
     },
+    "WEC": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 213899,
+      "rows_priced": 65830,
+      "iv_ok_frac": 0.3078,
+      "dates": 2515,
+      "oi_sentinel_rows": 29397,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "4 rows with expiration before quote date",
+        "open interest missing (-1 sentinel) on 14% of raw rows",
+        "GEX pegged to one strike on 74% of dates",
+        "gamma walls are 0.26 more concentrated on the 710 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
     "WELL": {
       "years": [
         "2018",
@@ -2584,7 +7500,8 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 3% of raw rows",
-        "GEX pegged to one strike on 33% of dates"
+        "GEX pegged to one strike on 33% of dates",
+        "gamma walls are 0.13 more concentrated on the 150 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "WFC": {
@@ -2612,6 +7529,57 @@
         "open interest missing (-1 sentinel) on 14% of raw rows"
       ]
     },
+    "WM": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 612772,
+      "rows_priced": 203738,
+      "iv_ok_frac": 0.3325,
+      "dates": 2515,
+      "oi_sentinel_rows": 40701,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 7% of raw rows",
+        "GEX pegged to one strike on 35% of dates",
+        "gamma walls are 0.10 more concentrated on the 553 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "WMB": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 1209252,
+      "rows_priced": 430147,
+      "iv_ok_frac": 0.3557,
+      "dates": 2515,
+      "oi_sentinel_rows": 303010,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 25% of raw rows",
+        "GEX pegged to one strike on 28% of dates"
+      ]
+    },
     "WMT": {
       "years": [
         "2016",
@@ -2633,7 +7601,34 @@
       "schema_version": 4,
       "rate_source": "dgs3mo daily series",
       "flags": [
-        "open interest missing (-1 sentinel) on 12% of raw rows"
+        "open interest missing (-1 sentinel) on 12% of raw rows",
+        "gamma walls are 0.05 more concentrated on the 556 dates with <75% known open interest \u2014 those walls may be an OI artifact"
+      ]
+    },
+    "XEL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 147834,
+      "rows_priced": 42813,
+      "iv_ok_frac": 0.2896,
+      "dates": 2515,
+      "oi_sentinel_rows": 22967,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 16% of raw rows",
+        "GEX pegged to one strike on 88% of dates",
+        "gamma walls are 0.28 more concentrated on the 641 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     },
     "XOM": {
@@ -2658,6 +7653,32 @@
       "rate_source": "dgs3mo daily series",
       "flags": [
         "open interest missing (-1 sentinel) on 14% of raw rows"
+      ]
+    },
+    "XYL": {
+      "years": [
+        "2016",
+        "2017",
+        "2018",
+        "2019",
+        "2020",
+        "2021",
+        "2022",
+        "2023",
+        "2024",
+        "2025"
+      ],
+      "rows_in": 230413,
+      "rows_priced": 72845,
+      "iv_ok_frac": 0.3161,
+      "dates": 2515,
+      "oi_sentinel_rows": 23246,
+      "schema_version": 4,
+      "rate_source": "dgs3mo daily series",
+      "flags": [
+        "open interest missing (-1 sentinel) on 10% of raw rows",
+        "GEX pegged to one strike on 65% of dates",
+        "gamma walls are 0.26 more concentrated on the 609 dates with <75% known open interest \u2014 those walls may be an OI artifact"
       ]
     }
   }
