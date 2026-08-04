@@ -69,6 +69,65 @@ and recorded — and none is left in the third state ("fixed in repo, not deploy
 
 ---
 
+---
+
+# READ THIS FIRST — a LIVE bug, found while doing C1
+
+## The insider component of the live screener is a constant. It has always been.
+
+Not a backtest artefact. This is in the deployed path, right now.
+
+`filings.recent.primaryDocument` for a Form 4 is EDGAR's **XSL-RENDERED** view —
+`xslF345X03/ownership.xml` — which serves **HTML**, not XML. Measured across the
+**370,681** Form 4 filings indexed for the C1 backtest: **99.3% carry an `xsl`
+prefix** (xslF345X01 through X06; the largest, X03, accounts for 232,281).
+
+`edgar.get_insider_txns` built exactly that URL. `_parse_form4_xml` called
+`ET.fromstring` on the HTML, raised `ParseError`, **caught it, and returned `[]`**.
+And `scoring.insider_score([])` is *documented* to mean "fetched, nothing
+qualifying" — so it returns a confident, neutral **50.0**.
+
+**Every name, on every run, scored exactly 50 on insider.** That component
+carries **20% of the Established weight and 30% of the Speculative weight**.
+
+Measured directly before the fix: **597 documents fetched, 597 parsed to zero
+transactions, none non-empty.** After the fix, Alcoa's five most recent Form 4s
+parse to five real transactions with named insiders, codes and dollar values
+(`Reed Matthew T`, code `S`, $215,372).
+
+Two things make this worth leading with:
+
+* **It is the same defect the project already found once and wrote up.** The
+  record says of `dcf_upside`: *"a 35% weight that is a constant is not a factor,
+  it is a rounding error with extra steps."* That one was a missing computation
+  and was found by someone going looking. This one **hid behind an exception
+  handler**, which produces identical symptoms and is much harder to see.
+* **Returning `[]` for a fetch failure is what let it survive.** `insider_score`
+  is built on a careful three-way distinction — `None` means "not fetched" and
+  renormalizes away, `[]` means "looked, found nothing" and scores a real neutral
+  50. Collapsing a total fetch failure into the second bucket made the failure
+  indistinguishable from an observation. **A silent `except` that returns the
+  same value as success is not error handling.**
+
+**Fixed.** `edgar.raw_form4_doc()` strips the renderer prefix at both URL
+construction sites — the live `get_insider_txns` and the backtest's
+`form4_index` — and the `ParseError` path now logs a WARNING stating it is a
+FETCH error rather than an empty filing. 10 tests
+(`screener/tests/test_form4_url.py`), including one that asserts five DIFFERENT
+filings through the broken path all score exactly 50.0, because zero
+cross-sectional dispersion is what a constant looks like in a cross-section.
+
+**What this means for the record.** Every historical statement about the live
+screener's insider component describes a constant. The audit's C1 note that "the
+insider component has therefore never been backtested in any form" is true, and
+understated: it was also never *computed* in production. Nothing that has ever
+been said about insider signal quality in this system rests on data.
+
+**→ This should ship.** It is a one-line behavioural change in the live scorer's
+largest single non-value input, and it is on `main` in this lane's branch.
+
+---
+
 ## A correction to the work order, found while doing it
 
 **C3 does not live where the audit says it lives.** The entry points at
