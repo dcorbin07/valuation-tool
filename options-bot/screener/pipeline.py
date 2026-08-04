@@ -125,9 +125,132 @@ def _max_price_age_hours(universe_data):
     return max(ages) if ages else None
 
 
+def update_track_returns(store, today=None, get_prices=None, verbose=True):
+    """
+    C4 — THE TRACKING LOOP. Fill in realized forward returns on logged picks.
+
+    `store.update_returns`, `prices.benchmark_return`, `config.BENCHMARKS` and
+    `config.TRACK_HORIZONS_DAYS` were all implemented and NOTHING CALLED ANY OF
+    THEM. So `ret_7`, `ret_30` and `ret_90` stayed NULL forever, and `run_review`
+    handed an all-NULL table to the model for self-assessment — guarded only by
+    a row count, which rows satisfied and values did not. The review always ran,
+    always found nothing, and always reported success.
+
+    Why this is the most valuable thing in Part XIII: this loop accrues real
+    dated forward returns on real picks. It is proprietary, look-ahead-free by
+    construction, and over time worth more than any historical backtest, because
+    it is the only data in the project that nobody has looked at. It cannot be
+    started retroactively — a day not logged is gone — so it has been silently
+    accruing nothing for as long as it has existed.
+
+    Horizons are TRADING SESSIONS, matching `prices.benchmark_return`, which
+    indexes the close array rather than the calendar.
+
+    Delisting is handled rather than dropped: a name whose series stops inside
+    the horizon and does not resume within `DELISTING_GRACE_DAYS` has its LAST
+    OBSERVED return frozen and `delisted` set. Dropping names that stopped
+    trading is precisely how a track record lies about itself.
+
+    Returns a counts dict; safe to call repeatedly (it only touches NULLs).
+    """
+    today = today or date.today()
+    get_prices = get_prices or (lambda t: prices.get_history_df(t, days=800))
+    counts = {"filled": 0, "not_closed": 0, "delisted": 0, "no_data": 0}
+
+    # Benchmarks first: one fetch each, shared by every row at that horizon.
+    bench_hist = {}
+    for b in C.BENCHMARKS:
+        try:
+            bench_hist[b] = get_prices(b)
+        except Exception:
+            bench_hist[b] = None
+
+    for horizon in C.TRACK_HORIZONS_DAYS:
+        col = f"ret_{horizon}"
+        rows = store.track_rows_needing(col)
+        if not rows:
+            continue
+        # One price history per NAME, not per (name, horizon).
+        hist_cache = {}
+        for run_date, ticker, _entry in rows:
+            if ticker not in hist_cache:
+                try:
+                    hist_cache[ticker] = get_prices(ticker)
+                except Exception:
+                    hist_cache[ticker] = None
+            val, status = prices.forward_return_from(
+                ticker, run_date, horizon,
+                grace_sessions=C.DELISTING_GRACE_DAYS, df=hist_cache[ticker])
+            if status == prices.NOT_CLOSED:
+                counts["not_closed"] += 1
+                continue
+            if status == prices.NO_DATA:
+                counts["no_data"] += 1
+                continue
+
+            fields = {col: val}
+            # Benchmarks are logged at the 30-session horizon only — that is
+            # what the schema has columns for and what run_review compares
+            # against. Computed from the SAME run date, not from today.
+            if horizon == 30:
+                for b, colname in (("IWM", "bench_iwm_30"), ("IJR", "bench_ijr_30")):
+                    if b not in C.BENCHMARKS:
+                        continue
+                    bval, bstatus = prices.forward_return_from(
+                        b, run_date, horizon, df=bench_hist.get(b))
+                    if bstatus in ("ok", prices.DELISTED):
+                        fields[colname] = bval
+            store.update_returns(run_date, ticker, **fields)
+            counts["filled"] += 1
+            if status == prices.DELISTED:
+                store.mark_delisted(run_date, ticker)
+                counts["delisted"] += 1
+
+    if verbose:
+        cov = store.track_coverage()
+        print(f"track returns: filled={counts['filled']} "
+              f"not_closed={counts['not_closed']} delisted={counts['delisted']} "
+              f"no_data={counts['no_data']} | coverage {cov}")
+    return counts
+
+
+def review_readiness(store):
+    """
+    (ok, reasons, coverage) — may the self-review draw conclusions from this table?
+
+    TWO conditions, because either alone is satisfiable by an empty loop:
+      * at least SELF_REVIEW_MIN_SAMPLE rows with a realized 30-session return
+        (config's own comment says NULL rows must not count toward it — they
+        did, because nothing measured them); and
+      * at least MIN_TRACK_RETURN_COVERAGE of all logged rows carrying one, so a
+        loop that silently stops filling shows up as a FAILING review rather
+        than as a shrinking sample nobody notices.
+    """
+    cov = store.track_coverage()
+    reasons = []
+    filled, rows = cov.get("ret_30", 0), cov.get("rows", 0)
+    if filled < C.SELF_REVIEW_MIN_SAMPLE:
+        reasons.append(f"only {filled} picks have a realized 30-session return "
+                       f"(need {C.SELF_REVIEW_MIN_SAMPLE})")
+    frac = (filled / rows) if rows else 0.0
+    if rows and frac < C.MIN_TRACK_RETURN_COVERAGE:
+        reasons.append(f"only {frac:.0%} of {rows} logged picks carry a realized "
+                       f"return (need {C.MIN_TRACK_RETURN_COVERAGE:.0%}) — the "
+                       f"tracking loop is not filling them in")
+    return (not reasons), reasons, cov
+
+
 def run_daily(dry_run=DRY_RUN):
     today = date.today()
     store = Store(DB_PATH)
+
+    # 0) Fill in realized returns on everything logged previously. This runs
+    #    FIRST so that a crash later in the run still advances the track record
+    #    — the one dataset here that cannot be reconstructed after the fact.
+    try:
+        update_track_returns(store, today)
+    except Exception as e:                      # never let tracking kill the run
+        print(f"track returns: update failed ({e})")
 
     # 1) cheap pass over the universe: cached fundamentals + daily price, NO insider yet
     tickers = universe_tickers()
@@ -254,6 +377,22 @@ def _format_bucket(bucket, top, watch, changes, dives, by_ticker):
 
 def run_review(dry_run=DRY_RUN):
     store = Store(DB_PATH)
+
+    # C4: refuse to review a table with no realized returns in it. The old
+    # version had no guard here at all — `SELF_REVIEW_MIN_SAMPLE` was a comment
+    # in config that nothing read, so the model was handed an all-NULL table,
+    # dutifully found nothing, and the run reported success. A review that
+    # cannot fail is not a review.
+    ok, reasons, cov = review_readiness(store)
+    if not ok:
+        msg = ("Self-review SKIPPED — the track record cannot support a "
+               "conclusion yet.\n\n" + "\n".join(f"* {r}" for r in reasons) +
+               f"\n\nCoverage: {cov}")
+        print(msg)
+        discord.post("improvement_suggestions", "🧪 Strategy review skipped",
+                     msg, dry_run=dry_run)
+        return False
+
     rows = store.db.execute(
         "SELECT t.run_date, t.ticker, t.ret_30, t.bench_iwm_30, t.bench_ijr_30, "
         "p.bucket, p.composite, p.components_json FROM track_record t "
@@ -262,10 +401,15 @@ def run_review(dry_run=DRY_RUN):
     track = [dict(zip(cols, r)) for r in rows]
     text, _ = ai.self_review(track, os.getenv("ANTHROPIC_API_KEY"))
     discord.post("improvement_suggestions", "🧠 Strategy review (advisory)", text, dry_run=dry_run)
+    return True
 
 
 if __name__ == "__main__":
     if "--review" in sys.argv:
         run_review()
+    elif "--update-returns" in sys.argv:
+        # Run the tracking loop on its own — for a cron entry separate from the
+        # daily scan, or to backfill after the loop has been down.
+        update_track_returns(Store(DB_PATH))
     else:
         run_daily()

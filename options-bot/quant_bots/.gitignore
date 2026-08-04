@@ -2,7 +2,36 @@ __pycache__/
 *.pyc
 .env
 *.log
+venv/
+
+# ─── `data/` is BOTH a source package and the bots' state directory ─────────
+#
+# C6. The repository ROOT .gitignore carries a bare `data/` rule — added for the
+# main Valquo tree's licensed Sharadar exports, which genuinely must never be
+# committed. A gitignore pattern whose only slash is the trailing one matches at
+# EVERY depth, so that rule also excluded `options-bot/quant_bots/data/` when
+# this subproject was added later.
+#
+# The consequence was not cosmetic. `options/orchestrator/jobs.py`,
+# `options/screener/screener.py` and `options/scripts/screen.py` all import from
+# `data` / `data.earnings`, and NONE of those source files is tracked in git. On
+# a clean clone `cd options && python -m unittest discover` collects 53 of 181
+# tests and fails with 14x `ModuleNotFoundError: No module named 'data'` — and
+# `deploy/deploy.sh` treats a failing options suite as fatal and aborts BEFORE
+# restarting any service. That is a mechanical explanation for why three fixed
+# bugs sat in the repository undeployed: the git deploy path could not complete.
+# The zip flow deploy.sh replaced carried `data/` fine, because a zip does not
+# consult .gitignore.
+#
+# `!data/` re-includes the directory (a deeper .gitignore wins over a shallower
+# one, and the directory itself must be un-excluded before anything inside it
+# can be), and each state subdirectory is then re-ignored BY NAME. Do not
+# collapse this back to a bare `data/` — the source package would disappear
+# again and the failure mode is silent until a deploy.
+!data/
 data/cache/
 data/state/
 data/journal/
-venv/
+data/sim/
+data/reports/
+data/backtest/

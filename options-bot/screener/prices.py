@@ -104,3 +104,75 @@ def benchmark_return(symbol, days):
     close = df["Close"].astype(float).values
     k = min(days, len(close) - 1)
     return float(close[-1] / close[-1 - k] - 1)
+
+
+# ---------------------------------------------------------------------------
+#  Realized forward returns for the track record (C4)
+# ---------------------------------------------------------------------------
+
+# Horizons are expressed in TRADING SESSIONS, matching benchmark_return above,
+# which indexes into the close array rather than into the calendar.
+NOT_CLOSED = "not_closed"
+DELISTED = "delisted"
+NO_DATA = "no_data"
+
+
+def forward_return_from(symbol, since_date, sessions, grace_sessions=10, df=None):
+    """
+    Realized return of `symbol` from the close on/just before `since_date` to
+    `sessions` trading days later.
+
+    Returns (value, status):
+      (float, "ok")            the horizon closed and we have both bars
+      (None,  NOT_CLOSED)      not enough sessions have elapsed yet — come back
+      (float, DELISTED)        the series stops inside the horizon and has not
+                               resumed within `grace_sessions`. We freeze the
+                               LAST OBSERVED return rather than dropping the
+                               row. Dropping names that stopped trading is
+                               exactly how a track record lies.
+      (None,  NO_DATA)         no usable price history at all
+
+    `df` lets a caller fetch one history and reuse it across every horizon for
+    the same name instead of re-downloading three times.
+    """
+    import datetime as _dt
+
+    if df is None:
+        df = get_history_df(symbol, days=sessions + 400)
+    if df is None or len(df) < 2 or "Close" not in df:
+        return None, NO_DATA
+
+    d = df.copy()
+    d["_d"] = pd.to_datetime(d["Date"], utc=True, errors="coerce").dt.tz_localize(None).dt.normalize()
+    d = d.dropna(subset=["_d"]).sort_values("_d").reset_index(drop=True)
+    if d.empty:
+        return None, NO_DATA
+
+    if isinstance(since_date, str):
+        since_date = _dt.date.fromisoformat(since_date)
+    cutoff = pd.Timestamp(since_date).normalize()
+
+    at_or_before = d.index[d["_d"] <= cutoff]
+    if len(at_or_before) == 0:
+        return None, NO_DATA
+    i = int(at_or_before[-1])
+    closes = d["Close"].astype(float).values
+    entry = closes[i]
+    if not entry or entry <= 0:
+        return None, NO_DATA
+
+    j = i + sessions
+    if j < len(closes):
+        return float(closes[j] / entry - 1.0), "ok"
+
+    # The horizon runs past the end of the series. Two very different reasons.
+    last_bar = d["_d"].iloc[-1].date()
+    # How many sessions SHOULD have printed by now? Approximate with the
+    # calendar: 252 sessions/year. We only need to tell "the market has moved
+    # on without this name" from "the market has not got there yet".
+    today = _dt.date.today()
+    sessions_since_last_bar = int((today - last_bar).days * 252 / 365)
+    if sessions_since_last_bar > grace_sessions:
+        # The name stopped printing and has not come back. Freeze what we saw.
+        return float(closes[-1] / entry - 1.0), DELISTED
+    return None, NOT_CLOSED

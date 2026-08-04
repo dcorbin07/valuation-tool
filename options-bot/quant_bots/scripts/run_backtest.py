@@ -116,8 +116,86 @@ def backtest_momentum(tradier, cfg: BacktestConfig, universe_cap: int):
     return bt.run("momentum", build_target, PROJECT_ROOT)
 
 
+def backtest_reversion(tradier, cfg: BacktestConfig, universe_cap: int):
+    """
+    Backtest the mean-reversion bot.
+
+    C3: `--bots reversion` used to be accepted, run NOTHING, and print
+    "Backtests complete." A flag that takes an argument, does nothing, and
+    reports success is worse than an unimplemented flag, because it produces a
+    clean-looking result a reader will take as evidence. One of four live
+    strategies had therefore never been backtested at all.
+
+    The audit costed this at "M to implement". It is not: the reversion module
+    exposes exactly the same three entry points as momentum —
+    `compute_score_from_closes(sym, closes, cfg)`, `rank_and_select(scores,
+    cfg)`, `strategy.build_target(selection)` — so this is the momentum path
+    with three imports changed.
+
+    One deliberate difference from `backtest_momentum`: the price map is built
+    from `selection.all_prices` (every scored name) rather than from
+    `selection.longs + selection.shorts`. `all_prices` exists precisely because
+    the selection-only map is what silently dropped exit orders for names that
+    had fallen out of the book — see FIXES.md #1. The backtester's `mark_prices`
+    union already covers that case, so this is belt-and-braces rather than a
+    fix, but there is no reason for new code to use the shape that caused the
+    bug.
+    """
+    from core import UniverseBuilder, UniverseConfig
+    from reversion.signals import (MeanReversionConfig, compute_score_from_closes,
+                                   rank_and_select)
+    from reversion.strategy import StrategyConfig as RevStratConfig, MeanReversionStrategy
+    from trend.risk import RiskConfig, TrendRiskManager
+    from trend.portfolio import PortfolioConfig, TrendPortfolioManager
+
+    logger.info("Reversion: building stock universe...")
+    snap = UniverseBuilder(UniverseConfig(include_etfs=False), tradier).build()
+    symbols = [t.symbol for t in snap.tickers][:universe_cap]
+    history = PriceHistory(tradier)
+    fetch_start = cfg.start - timedelta(days=cfg.warmup_days + 100)
+    logger.info("Reversion: fetching history for %d stocks...", len(symbols))
+    history.fetch(symbols, fetch_start, cfg.end)
+
+    rev_cfg = MeanReversionConfig()
+    strat = MeanReversionStrategy(RevStratConfig())
+
+    def build_target(as_of):
+        scores = {}
+        for sym in history.symbols():
+            closes = history.closes_up_to(sym, as_of)
+            sc = compute_score_from_closes(sym, closes, rev_cfg)
+            if sc.usable:
+                scores[sym] = sc
+        selection = rank_and_select(scores, rev_cfg)
+        target = strat.build_target(selection)
+        return target, dict(selection.all_prices)
+
+    bt = Backtester(cfg, history, TrendRiskManager(RiskConfig()),
+                    TrendPortfolioManager(PortfolioConfig(), tradier))
+    return bt.run("reversion", build_target, PROJECT_ROOT)
+
+
+# Every bot this script can actually backtest. A name absent from this map is
+# rejected at argument-parse time rather than skipped in silence.
+BACKTESTS = {
+    "trend": lambda tradier, cfg, cap: backtest_trend(tradier, cfg),
+    "momentum": backtest_momentum,
+    "reversion": backtest_reversion,
+}
+
+# Bots that exist in this repository but that this script cannot backtest, with
+# the reason. Naming them explicitly is the difference between "unsupported,
+# here is why" and "accepted, ran nothing, reported success".
+UNSUPPORTED = {
+    "options": ("the options bot trades option chains, and this script's "
+                "PriceHistory is an equity-close feed with no chain, no implied "
+                "vol and no expirations. Its backtest lives in "
+                "options_backtest/run_options_backtest.py instead."),
+}
+
+
 def main() -> int:
-    p = argparse.ArgumentParser(description="Backtest the trend/momentum bots.")
+    p = argparse.ArgumentParser(description="Backtest the trend/momentum/reversion bots.")
     p.add_argument("--bots", nargs="+", default=["trend", "momentum"])
     p.add_argument("--years", type=float, default=3.0, help="Lookback window in years.")
     p.add_argument("--start", type=str, default=None)
@@ -129,6 +207,16 @@ def main() -> int:
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+    # C3: reject anything we cannot actually run, BEFORE fetching anything.
+    # Previously an unrecognised --bots value fell through both `if` statements
+    # and the script printed "Backtests complete."
+    for bot in args.bots:
+        if bot in UNSUPPORTED:
+            sys.exit(f"--bots {bot}: not supported here — {UNSUPPORTED[bot]}")
+        if bot not in BACKTESTS:
+            sys.exit(f"--bots {bot}: unknown bot. Known: "
+                     f"{', '.join(sorted(BACKTESTS))}.")
 
     end = date.fromisoformat(args.end) if args.end else date.today()
     start = date.fromisoformat(args.start) if args.start else \
@@ -143,15 +231,19 @@ def main() -> int:
     logger.info("SHARED BACKTEST WINDOW: %s → %s (both bots, identical dates)", start, end)
     logger.info("=" * 60)
     tradier = _tradier()
+    ran = []
     with tradier:
-        if "trend" in args.bots:
-            backtest_trend(tradier, cfg)
-        if "momentum" in args.bots:
-            backtest_momentum(tradier, cfg, args.universe_cap)
+        for bot in args.bots:
+            BACKTESTS[bot](tradier, cfg, args.universe_cap)
+            ran.append(bot)
 
-    print("\nBacktests complete. See equity curves under data/sim/*_backtest/.")
+    # Say what actually ran. "Backtests complete" with no subject was how the
+    # reversion no-op read as success for as long as it existed.
+    print(f"\nBacktests complete for: {', '.join(ran)}. "
+          f"See equity curves under data/sim/*_backtest/.")
     print("Compare them:")
-    print("  python scripts/correlation_tracker.py --bots trend_backtest momentum_backtest")
+    print("  python scripts/correlation_tracker.py --bots "
+          + " ".join(f"{b}_backtest" for b in ran))
     return 0
 
 
