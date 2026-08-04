@@ -1163,3 +1163,113 @@ these are the ones that were **not** on the catalogue.
 - **Three panel-moving changes landed in one commit** (B6, B7, B13), against the prompt's
   one-change-per-run rule. The attribution sweep now in flight is the repair, and it costs three
   full-universe runs that would not have been needed had they landed separately.
+
+---
+
+# PART 4 — SESSION 3: THE NOISE FLOOR (X7, X2)
+
+**Pre-commitments below were written and pushed BEFORE a single run was launched** (commit
+timestamps are the evidence; RUN_RULES.md Part A rule 6). Nothing in this section is revised after
+results land — if a result is ambiguous against its own committed threshold it is a **NULL**, not a
+judgement call.
+
+Why this session comes before R1 is re-run: every threshold this project uses — the IC *t* > 2.0
+bar, the PBO < 50% bar, the 0.25 *t*-gain margin on the held-out gate, the "1% alpha" margin — was
+chosen by convention. None has ever been measured against what THIS pipeline produces when the
+signal is known to be worthless. Until that floor exists, "PBO 73.3%" and "long-short *t* 2.836" are
+numbers without a scale.
+
+---
+
+## PRE-COMMITTED THRESHOLDS — X7 (placebo through the full pipeline)
+
+**The instrument.** `placebo_panel(panel, seed)` — within each rebalance date, permute the signal
+columns (the nine themes plus every `z_*` per-number column) **as a block** across the names
+present. `fwd_ret`, `marketcap`, `sector`, `date` and `ticker` are not touched. Block permutation
+rather than per-column shuffling is deliberate: it preserves each theme's exact per-date
+distribution, the exact missingness pattern (it travels with the row), and the exact cross-theme
+correlation matrix — so the weight schemes that read Sigma still see a real Sigma. The ONLY thing
+destroyed is the association between signal and return. Because the composite of a permuted
+row-block is the permuted composite, this satisfies the catalogue's "shuffled composite"
+specification as a special case, while also propagating into weight SELECTION so that CPCV, PBO and
+the Deflated Sharpe are exercised end to end.
+
+**N.** Target 100 iterations. If per-iteration cost makes 100 impossible inside the session, run
+the largest N that fits and **report N and the Monte Carlo standard error of every quantile
+quoted**. Committed now: **no percentile is quoted from N < 30**, and if N < 100 the section says so
+in the same sentence as the first number.
+
+**Committed interpretations — all written before any placebo has been run:**
+
+1. **The IC *t* > 2.0 bar.** The relevant null is not one theme's *t*, it is the MAXIMUM |*t*|
+   across the nine themes in a run, because that is the quantity a "which theme is real" decision
+   actually looks at. If the placebo's 95th percentile of max-|theme IC *t*| is **≥ 2.0**, the bar
+   does not control the false-positive rate in this pipeline and the calibrated bar becomes the
+   measured 95th percentile. If it is < 2.0, the bar is conservative and stands.
+2. **The long-short *t* > 2.0 bar.** Same rule on `construction.long_short_tstat`. If the placebo's
+   95th percentile is ≥ 2.0, the bar is uncalibrated.
+3. **PBO.** Report the full placebo distribution. If the placebo's **median PBO < 50%**, then "PBO
+   below 50%" is not evidence of anything and the bar is re-set to the placebo's **5th percentile**.
+   If the placebo's median PBO is at or above 50%, the statistic is behaving as designed and the
+   bar stands as written.
+4. **Top-decile alpha.** If the placebo's 95th percentile of `top_decile_alpha` is **≥ 1.0pp**, the
+   project's informal "1% alpha margin" is uncalibrated and the calibrated margin becomes the
+   measured 95th percentile.
+5. **Deflated Sharpe.** If the placebo's **median** Deflated Sharpe is **≥ 0.95**, the statistic as
+   computed is uninformative about a real signal and CLAUDE.md must say so outright, retiring it as
+   a bar rather than merely caveating it. This is a direct, measured test of the B9 criticism.
+6. **The held-out gate.** `holdout_theme_validate` is the gate that produced `low_risk = confirmed`
+   and every theme keep/drop decision the project has shipped. If it returns `confirmed` for at
+   least one theme in **≥ 5%** of placebo runs, its false-positive rate is above nominal and that
+   rate must be reported alongside every verdict it has ever issued — `low_risk` included.
+7. **How the shipped result is read against the floor.** The live headline (long-short *t* 2.836,
+   top-decile alpha +7.17%, PBO 73.3%) is described as "above the pipeline's noise floor" on a
+   given statistic **only if it falls outside the placebo's [2.5th, 97.5th] percentile interval for
+   that statistic**. On any statistic where it does not, the record says so plainly.
+
+**Committed in advance, so it cannot be argued away afterwards:** a placebo that produces large,
+significant-looking results is **the finding**, not a bug in the placebo. It will not be re-specified
+to make the floor lower. If the instrument itself turns out to be broken, the proof of that is a
+failing test in `tests/test_edge.py`, not a disappointing number.
+
+---
+
+## PRE-COMMITTED THRESHOLDS — X2 (rebalance-grid offset sensitivity)
+
+**What is being varied.** The grid has always been `range(TD, len(cal) - horizon, rebalance_days)`
+with `TD` hard-coded to 252. With `rebalance_days = 63` there are 63 equally valid grids and every
+number this project has ever reported came off exactly one of them. **Grids tested: offsets 0, 5,
+10, 20, 30, 40, 50 trading days** (seven, all < 63, therefore all distinct). One change per run;
+nothing else varies.
+
+**Metrics recorded per grid:** `top_decile_alpha`, `long_short_tstat`, `cpcv.pbo`, plus
+`construction.n_periods` and `equal_weight_ann` as controls (the equal-weight benchmark is
+composite-independent, so its movement across grids measures how much the WINDOW moved, separately
+from how much the SIGNAL moved).
+
+**Committed interpretations:**
+
+1. **Robustness of the central number.** Let `spread` = max − min of `top_decile_alpha` across the
+   seven grids.
+   * `spread ≤ 2.0pp` → **ROBUST.** The point estimate is meaningful and may be quoted as a figure.
+   * `spread > 2.0pp` → the headline must be quoted as a **RANGE**, permanently, in CLAUDE.md and
+     HANDOFF_STATUS.md.
+   * `spread > 4.0pp` → additionally labelled **FRAGILE**: the central number is one draw from a
+     wide distribution and must never appear without the range beside it.
+2. **Stability of significance.** If `long_short_tstat` falls **below 2.0 on any one of the seven
+   grids**, the significance claim is grid-dependent and every future statement of it says so. If
+   it is below the Harvey–Liu–Zhu hurdle of 3.0 on all seven, that independently confirms the
+   Session-2 finding is not an artefact of the one grid it was measured on.
+3. **PBO.** Report min / median / max across the grids. If PBO exceeds 50% on **≥ 4 of 7** grids,
+   Session 2's PBO 73.3% is a property of the corrected panel and not of its grid.
+4. **The offset-0 control.** Offset 0 must reproduce the shipped Session-2 numbers (*t* 2.836,
+   alpha +7.17%, PBO 73.3%, n = 69). Committed now: if it does not, that is a **reproducibility
+   finding in its own right** — it goes in `## BUGS FOUND`, and the offset-0 run of this sweep, not
+   the Session-2 results file, becomes the baseline the spread is measured against. Given the
+   project's known and still-unexplained run-to-run non-reproducibility, this control is not a
+   formality.
+5. **The ensemble.** If the seven grids are individually noisy but their average is stable, an
+   overlapping-cohort ensemble is a strictly lower-variance estimator of the same strategy. Whether
+   it is worth deploying is **out of scope for this session** and is not decided here.
+
+---
