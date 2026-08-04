@@ -345,11 +345,151 @@ second half is the part worth worrying about.
 
 ---
 
-# C1 / C2 — in progress
+# C2 — the backtest universe was the inverse of the target · FIXED
 
-Universe and scorer are rewired and the data pull is running; results appended
-when the run completes. C2's premise is already confirmed and is stronger than
-the audit states — see below.
+**Committed threshold:** median market cap of the backtest universe below the
+screener's own `MARKET_CAP_CEILING` ($10B), and >50% of names under it.
+
+**Verified, and it is stronger than the audit states.** The audit says the
+universe was "the exact inverse of the target". It was worse: **the intersection
+was EMPTY.** EDGAR's `company_tickers.json` really is ordered by market cap
+descending — checked directly, not inferred. Entries 1-10 are NVDA, AAPL, GOOGL,
+MSFT, AMZN, AVGO, META, TSLA, MU, BRK-B; entries 290-300 are NKE, O, MET, CTVA,
+COR, OKE, TEL, GWLIF, MPLX, FANG. Not one of the 300 is within an order of
+magnitude of a $10B ceiling, so **zero of the tested names could ever have been
+held by the strategy** except through the top-3-rank override.
+
+**Result.**
+
+| | old universe | corrected universe |
+|---|---|---|
+| Names | 300 | **1,017** |
+| Median market cap | the 300 largest US filers | **$3.85B** |
+| p25 / p75 | — | $2.19B / $6.59B |
+| At or under the $10B ceiling | **0%** | **100.0%** |
+
+Gate rejections on the way there (67,712 candidate rows → 42,342 kept):
+`above_10B_ceiling=15,191`, `no_market_cap=8,737`, `below_liquidity_floor=1,280`,
+`price_below_1=162`. The cap gate is genuinely point-in-time — shares
+outstanding known on the date times that date's close.
+
+**Verdict: ADOPTED (correctness).** `--universe legacy` still reproduces the old
+universe for comparison.
+
+**What is NOT fixed.** The candidate pool is still today's EDGAR filer list, so
+delisted names are structurally absent and the panel stays survivorship-biased.
+The point-in-time gate removes the LOOK-AHEAD selection only. Free data cannot
+do better; **audit item C5 (the Sharadar mirror) is the only thing that can**, and
+until it runs every number below is an upper bound.
+
+---
+
+# C1 — backtest the model that ships · REJECTED (both models)
+
+**Committed threshold** (§0, and deliberately the rule already compiled into
+`backtest_engine.summarize()`, which predates this session):
+`mean IC > 0 AND |IC t| >= 2.0 AND both out-of-sample halves positive AND
+top-minus-bottom quintile spread net of 8 bps/side > 0`.
+
+**Verified against the code.** `run_backtest.py` never imported `scoring.py`. It
+defined a six-factor model inline whose largest weight, `ey_sn`, does not exist
+in the live model in any form — no bucket split, no gates, no value percentiles,
+no insider, no DCF. The screener backtest did not measure the screener.
+
+**Both models, one panel** — 2021-01→2025-06, 54 monthly rebalances, 21-session
+horizon, 8 bps/side, corrected universe, IWM benchmark:
+
+| | LEGACY inline model | LIVE model (minus insider) |
+|---|---|---|
+| Scored rows / names | 41,805 / 1,010 | 36,776 / 890 |
+| Mean IC | 0.0168 | 0.0164 |
+| **IC t** | **1.22** | **1.89** |
+| Hit rate | 59% | 54% |
+| **Top-minus-bottom, net** | **−0.46%** | **−0.23%** |
+| Monotonic | No | No |
+| OOS IC in / out | 0.0233 / 0.0102 | 0.0121 / **0.0207** |
+| Quintile means Q1→Q5 | +1.87 / +1.03 / +0.98 / +1.20 / +1.72% | +1.63 / +1.06 / +1.04 / +1.20 / +1.72% |
+
+**Verdict: REJECTED for both.** Each fails two of the three conditions — t below
+2.0 and a negative net top-minus-bottom spread.
+
+**Three findings that outlast the verdict:**
+
+1. **The model nobody was testing is the sturdier one.** Nearly identical mean IC
+   (0.0164 vs 0.0168) but **t 1.89 vs 1.22** — the same average signal with
+   materially lower period-to-period volatility — and the live model's
+   out-of-sample half is *stronger* than its in-sample half (0.0207 vs 0.0121)
+   while the legacy model's decays (0.0102 vs 0.0233). The parallel model was
+   therefore not merely a different model; it was a noisier one, and every
+   historical number this system produced carried that extra noise.
+2. **A positive IC with a NEGATIVE top-minus-bottom spread is the decisive
+   failure, and it is not a contradiction.** Quintile returns are U-shaped in
+   both models: the WORST-scored quintile has the highest forward return
+   (+1.87% / +1.63%) and the best-scored is second (+1.72%). The rank
+   correlation is being earned in the middle of the distribution, not at the
+   tails — which is precisely where a long-only top-decile book trades. Any
+   future work here should report both; the IC alone would have read as
+   encouraging.
+3. **`no_market_cap` rejects 8,737 rows (12.9%)** — point-in-time shares
+   outstanding are missing that often on the EDGAR path. That is a coverage
+   problem worth its own look before anyone re-runs this.
+
+**Insider: still not measured, and that is a real gap.** The 20-30% of live
+weight the audit flags as never backtested is still never backtested. The
+machinery now exists — `edgar.form4_index` walks the paginated submissions
+shards (`filings.recent` is capped at ~1,000 filings of all types, so for an
+active filer it can cover under a year: a live feed, not a history), and
+`panel_cache.insider_asof` replays "the six most recent Form 4s filed on or
+before this date", pinned by 11 point-in-time tests. The fetch is running. The
+number above is the live model **minus** its insider component and is labelled
+that way everywhere, including in the report the script prints.
+
+**One deliberate simplification, stated so it is not mistaken for an oversight:**
+the live pipeline's `market_cap_eligible` lets a name past the $10B ceiling if it
+ranks top-3 or shows an insider cluster. That override is applied AFTER ranking,
+so reproducing it would make universe membership depend on the score — and then
+the two models would be scored on two different universes, which is the one thing
+C1 exists to prevent. The ceiling is a hard gate here instead.
+
+## Two defects found while validating C1, both silent, both fixed
+
+**(a) pandas was poisoning the live scorer.** `pit_data` correctly returns None
+for a missing input, but the moment those values pass through a DataFrame pandas
+stores them as float NaN, and every missing-data branch in `scoring.py` tests
+`is None`. So NaN sailed through as PRESENT: `quality_score(op_margin=nan, ...)`
+→ `_clip01(nan/0.25)` → nan → `_weighted()` counts it present → the whole
+composite is NaN → **the name is dropped instead of renormalizing onto the inputs
+it does have.** Silently, and without appearing in the skip tally. On a 60-name
+slice: 89 rows unscored, of which the counter saw 19 and NaN ate the other 70.
+
+The worse half: `classify_bucket` returns None for genuinely unknown
+profitability because — per its own docstring — mapping a parser gap to
+"speculative" turns a data problem into a strategy decision. NaN defeats that
+exactly (`nan is not None` is True, `nan > 0` is False), so **every
+profitability-unknown name was silently scored against loss-making growth
+companies on a different factor set.** The transport layer re-introduced through
+the back door the precise bug the live code had deliberately fixed.
+
+Fixed by `_denan` at the panel→scorer boundary. Unscored rows now equal reported
+skips exactly, and that is a test. 10 tests, including that 0.0 and False survive
+— collapsing a genuine zero to None is the same bug with the sign flipped. This
+is the same defect class the project has now hit six times.
+
+**(b) `HORIZON_TD = 21` does not tile the monthly rebalance dates.** The comment
+says "1-month holding = matches monthly rebalance (no overlap)", but calendar
+months are not uniformly 21 sessions, so windows anchored at month starts
+sometimes gap and sometimes overlap. Measured on IWM over this window:
+buy-and-hold **+4.6%** against **−4.5%** for the compounded 21-session windows —
+a 9pp artefact. It hits both models identically and cancels out of IC and of the
+quantile spread (both computed WITHIN a date), so the C1 comparison stands, but
+`cum_port` / `cum_bench` are not quotable and the report now says so in print.
+
+**What C1 unblocks.** The screener backtest now measures the screener, so any
+future change to `scoring.py` can be tested before it ships instead of after.
+The immediate follow-ups, in order: finish the insider measurement; chase the
+12.9% missing point-in-time share count; and re-run under C5's Sharadar universe,
+because a rejected model on a survivorship-biased panel is a *generous* reject —
+the real number is worse, not better.
 
 ---
 
