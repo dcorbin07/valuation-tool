@@ -597,6 +597,302 @@ the real number is worse, not better.
 
 ---
 
+---
+
+# ROUND 2 — PRE-REGISTERED THRESHOLDS (C5, O9), written BEFORE either run
+
+Committed first, as before, so neither can be re-derived after seeing a number.
+
+## C5 — the point-in-time universe on REAL data
+
+`core/pit_universe.py` has only ever been verified on a synthetic 30-name mirror
+in which 8 names delist mid-window. No real-data run is recorded anywhere. The
+number the module exists to produce is `pct_invisible_to_a_live_screener`: of the
+names that were genuinely in the universe on a historical date, what share are
+dead today and therefore structurally absent from any screener-built universe.
+
+**Data:** the D10 freeze, `data/backtest_freeze_2026-08/bulk/` —
+`tickers.csv` (78,881 rows / 48,925 tickers), `sep.csv` (3.2 GB), `daily.csv`
+(2.5 GB). Licensed, local, read-only, never committed.
+
+**This is a measurement, not a hypothesis test**, so the pre-registration is about
+what the number will be taken to MEAN, which is the part that can otherwise be
+chosen afterwards:
+
+* **PASS (the module works on real data)** requires all four:
+  1. `PITUniverseBuilder.build()` completes on real data at every tested date;
+  2. delisted names are genuinely present in historical universes
+     (`delisted_included > 0` on pre-2020 dates) — the module's whole purpose;
+  3. universe size is stable and plausible across dates (no date collapsing to
+     near-zero, which would indicate a silent join failure rather than a real
+     universe);
+  4. `AsOfHistory` refuses data after its as-of date **on real data**, not just
+     on the synthetic mirror.
+* **Interpretation of the bias, fixed in advance.** Let *m* = the MEDIAN of
+  `pct_invisible_to_a_live_screener` across the tested dates.
+  * **m < 2%** → the bias the module exists to remove is small; prior
+    today's-universe results are less compromised than the record claims, and
+    that would itself be a correction worth making.
+  * **2% <= m <= 10%** → material but bounded.
+  * **m > 10%** → prior backtests built on a today's-universe screen are
+    artefacts, exactly as the record asserts, and every one of them needs
+    re-running before it is quoted again.
+* Reported **per period**, never as a single aggregate — the audit asks for the
+  per-period figure specifically, and an average over 18 years would hide the
+  fact that the bias necessarily grows with distance into the past.
+* **Anti-cheat, pre-committed:** the run must NOT filter on
+  `TICKERS.scalemarketcap` / `scalerevenue`. Those are max-over-lifetime buckets
+  and using them would leak look-ahead into the very universe being validated.
+  The module refuses to offer them; the run must not reintroduce them.
+
+## O9 — IV rank as a SELL-timing rule, on index options
+
+`iv_rank` has been rejected three times, always as a filter on a LONG-vol
+strategy ("buy calls only when IV rank is low"). That is a different hypothesis
+from "sell premium only when IV rank is high, and otherwise do nothing". The VRP
+arm's `IV_RANK_MIN >= 0.50` was a floor on an always-on strategy, not a switch,
+and its own banding worsens monotonically inside the admitted range
+(0.50-0.65: −6.24%, 0.65-0.80: −8.16%, >=0.80: −9.45%) — informative, but measured
+inside a strategy whose base rate is negative *because of execution*, so it
+cannot separate "high IV rank is bad for short vol" from "high IV rank names have
+wider spreads."
+
+O8 removed that confound: on SPY/QQQ/IWM the spread is not the binding
+constraint, and O8 established the ungated baseline.
+
+**Design.** Same engine, same 2018-01-01→2025-12-31 primary window, same default
+config as O8. Add an entry gate only: **open a new spread only when the index's
+own vol index sits in the TOP TERCILE of its trailing 252-session distribution;
+otherwise hold cash.** Exits are untouched — this is a sell-*timing* rule, not an
+exit rule. IV rank is computed from the vol series alone, strictly from data on
+or before the entry date, so it introduces no look-ahead.
+
+**Baseline for comparison:** the O8 ungated numbers already committed above —
+SPY excess Sharpe **0.14**, QQQ **−0.05**, IWM **−0.56**.
+
+* **ADOPT (short vol stays open as a research question)** requires, on SPY:
+  gated excess Sharpe **>= 0.50** — the same bar O8 used. The gate has to
+  *rescue* the strategy, not merely improve it; "less bad" is not a strategy.
+* **EFFECT PRESENT (reported separately from the verdict, and decided in
+  advance so it cannot be reached for afterwards):** mean P&L per trade in the
+  top IV-rank tercile exceeds that in the bottom two terciles, on SPY, over the
+  primary window. This is the directional test of the hypothesis itself and is
+  independent of the Sharpe bar.
+* **CLOSE THE SHORT-VOL QUESTION PERMANENTLY** — the audit's own
+  pre-registration — if gated SPY excess Sharpe < 0.50 **and** the effect is not
+  present by the definition above.
+* If the effect IS present but the Sharpe bar is not cleared, that is **"effect
+  real, magnitude insufficient"** and is reported as such rather than rounded to
+  either verdict. Honouring the audit's instruction, the question still closes,
+  because the audit conditions closure on the *effect* not appearing where
+  execution is cheap — and an effect too small to clear the bar on the friendliest
+  possible underlying will not survive on single names, which are strictly worse.
+* Also reported: **fraction of time invested** (the audit asks for it explicitly)
+  and the conditional expectancy by tercile.
+
+---
+
+---
+
+# O9 — IV rank as a SELL-timing rule · REJECTED. **The short-vol question is closed.**
+
+Full numbers: `options_backtest/o9_iv_rank_summary.json`. Threshold committed at
+`65b2456`, before the run.
+
+**What was actually tested, and why it was not a re-run.** `iv_rank` had been
+rejected three times, always as a filter on a LONG-vol strategy ("buy calls only
+when IV rank is low"). That asks whether cheap vol predicts good long-option
+outcomes. This asks the opposite question — whether expensive vol predicts good
+SHORT-option outcomes — as an on/off switch rather than as a floor on an
+always-on strategy. O8 is what made it answerable: on index options execution is
+not the binding constraint, so a result here cannot be confounded by "high IV
+rank names have wider spreads", which is exactly what made the single-name
+banding uninterpretable.
+
+**Design.** Same engine, same 2018-2025 window, same config as O8. Open a spread
+only when the index's own vol index sits in the top tercile of its trailing
+252-session distribution; otherwise hold cash. **Entries only** — gating exits
+would hold losers because vol fell, which is a different and much worse strategy,
+and there is a test asserting exits stay ungated.
+
+| | ungated Sharpe | **gated Sharpe** | ann. vol | max DD | trades | time invested |
+|---|---|---|---|---|---|---|
+| **SPY** | +0.14 | **+0.04** | 15.7% → 8.2% | −23.2% → −14.5% | 1,905 → 538 | **27.2%** |
+| QQQ | −0.05 | **−0.28** | 16.0% → 9.1% | −33.3% → −26.2% | 1,907 → 542 | 27.9% |
+| IWM | −0.56 | **+0.12** | 13.8% → 6.6% | −46.8% → −11.8% | 1,892 → 491 | 24.8% |
+
+**ADOPT required SPY gated excess Sharpe >= 0.50. It is 0.04 — and it is WORSE
+than ungated.** The gate roughly halves volatility on every underlying, so it is
+a genuine risk reducer; on the primary underlying it simply cuts return by more
+than it cuts risk (annualised return 4.68% → 2.86%, against a 2.54% risk-free).
+
+## The decisive result is not the Sharpe — the sign flips across underlyings
+
+Ungated mean P&L per trade, by IV-rank tercile (terciles cut on the *observed*
+rank distribution, because IV rank is not uniform on [0,1]):
+
+| | bottom | middle | top | shape |
+|---|---|---|---|---|
+| **SPY** | **$56.73** | $0.16 | $47.34 | non-monotone; **cheapest tercile is best** |
+| **QQQ** | **$68.76** | −$3.83 | −$8.46 | monotone **decreasing** — top is worst |
+| **IWM** | −$35.28 | −$17.69 | **$29.98** | monotone **increasing** — top is best |
+
+My pre-registered "effect present" test — top tercile above the bottom two, on
+SPY — **fires TRUE** ($47.34 vs $28.50). I am reporting that because it was
+pre-registered, but it does not mean what it was written to test: it fires only
+because the middle tercile is ≈$0, and on SPY the **cheapest** vol tercile is the
+best of the three, which is the opposite of the hypothesis. On QQQ the ordering
+is cleanly monotone in the *wrong* direction.
+
+A rule whose sign flips between SPY, QQQ and IWM over the same eight years is not
+a rule. One positive out of three underlyings is what chance looks like. IWM's
+improvement (−0.56 → +0.12) is the single result that superficially supports the
+idea, and it still does not clear the bar.
+
+**Verdict: REJECTED.** Per the audit's own pre-registration — *"if the effect
+does not appear on index options where the spread is small, close the question
+permanently"* — **the short-vol question is closed.** Not "parked": closed. The
+friendliest possible execution environment, the two prior rejections, O8's
+cost decomposition and now this all point the same way, and there is no version
+of this that survives on single names, which are strictly worse on every axis
+that matters.
+
+**What it unblocks.** Nothing further should be spent on short vol —
+re-parameterisation, different deltas, different DTEs, IV-rank variants. If it is
+ever reopened it needs a *new mechanism*, not a new parameter, and a fresh
+pre-registration that says so.
+
+**Two construction notes worth keeping.**
+* `iv_rank_series` computes the **percentile** form (fraction of the trailing
+  window at or below today), not the `(IV − low)/(high − low)` range form. The
+  range form is hostage to two extreme observations, so one 2020-03 print pins it
+  near zero for the following year — switching the rule OFF precisely when
+  premium is richest. That choice would have changed the answer.
+* Days whose trailing window is not yet full get **no signal and do not trade**.
+  Consequently 243 of SPY's 1,905 ungated trades (12.8%) carry no rank and are
+  excluded from the tercile table, which is why the tercile P&L does not sum to
+  the strategy total. The counts are reported (`trades_without_a_rank`) rather
+  than left for a reader to trip over.
+
+13 tests (`options_backtest/test_iv_rank.py`), the important one asserting that
+every rank on or before day K is unchanged when vol after day K is replaced with
+a huge spike — a sell-timing rule that peeks one day forward would look excellent
+and be worthless, and nothing in the equity curve would say so.
+
+---
+
+---
+
+# C5 — the PIT universe on real data · PASSED, after fixing a bug that made it return NOTHING
+
+Per-period numbers: `data/c5_survivorship.json` (gitignored — derived from
+licensed data). Threshold committed at `65b2456`, before the run.
+
+## The first result was an empty universe on all 27 dates
+
+`core/pit_universe.py` had only ever been exercised against a synthetic 30-name
+mirror. Pointed at the D10 freeze it returned **universe size ZERO on every
+annual date from 2000 to 2026**.
+
+**Cause.** Sharadar's `DAILY.marketcap` is denominated in **millions of USD**.
+`PITUniverseConfig.min_market_cap` is written in **dollars** (`2_000_000_000`).
+So AAPL on 2015-06-30 presented as `722571.4` against a `2e9` floor and failed
+the cap gate — as did every company that has ever listed. 5,945 names were listed
+that day; the universe was empty.
+
+Cross-checked before touching anything: `722,571.4 × 1e6 = $722.57B`, which
+matches this project's own recorded *"AAPL 2015Q2 $722.6B verified"* from the
+same table. The main tree already knew the units; this module did not.
+
+**Why the test suite certified it anyway — this is the actual lesson.** The
+synthetic fixture in `tests/test_sharadar.py` wrote market caps in **dollars**
+(`GOOD = 5e9`, `TINY = 1e8`) directly into the `daily` table. The mirror spoke
+dollars; the feed speaks millions. So the suite was green on a module that
+**cannot** return a non-empty universe on real data.
+
+> A synthetic fixture cannot disagree with you about what the real feed means.
+> Its author picks the units, and naturally picks the ones the code expects.
+
+That is precisely why "verified end to end on a synthetic mirror" is not
+verification, and it is the whole reason C5 was worth doing. The audit called C5
+"Effort: S" — it was, and it found a defect that silently disabled the module the
+entire survivorship-bias programme depends on.
+
+**Fixed** in `SharadarStore.marketcap_on` (normalise once, return dollars, named
+constant `MARKETCAP_UNITS_PER_USD`) and in the fixture (specs stay in dollars and
+are converted on insert, in the same direction the real loader converts).
+
+## The C5 deliverable — invisible-name count PER PERIOD
+
+Share of each historical universe that is **dead today**, and therefore
+structurally absent from any universe a live screener could build:
+
+| as-of | universe | delisted since | **invisible** | examples |
+|---|---|---|---|---|
+| 2000-06-30 | 588 | 339 | **57.7%** | WCOEQ (WorldCom), LU1 (Lucent), JAVA1 (Sun), EMC1, DELL1 |
+| 2003-06-30 | 487 | 221 | 45.4% | WYE, WB1, BLS, TFCF |
+| 2007-06-30 | 872 | 384 | 44.0% | MER (Merrill), WB1, DNA1, TWX |
+| 2010-06-30 | 626 | 217 | 34.7% | TWX, DD1, DTV1, ESRX |
+| 2013-06-30 | 819 | 263 | 32.1% | TFCF, MON2, ESRX, EMC1 |
+| 2016-06-30 | 881 | 245 | 27.8% | AGN, RAI, CELG, TWX |
+| 2019-06-30 | 937 | 164 | 17.5% | VMW, CELG, AGN, RTN |
+| 2022-06-30 | 963 | 121 | 12.6% | ATVI, PXD, VMW, HES |
+| 2024-06-30 | 982 | 62 | 6.3% | HES, DFS, ANSS, CTRA |
+| 2026-06-30 | 1,279 | 8 | 0.6% | GTLS, BLD, NUVL, JHG |
+
+**Median 32.1% across 27 periods** (min 0.6%, max 57.7%), declining monotonically
+with recency exactly as it must.
+
+**Pre-registered band: `m > 10%` → prior today's-universe backtests are
+ARTEFACTS.** The median is 32.1%, three times the threshold. This is not a
+marginal call.
+
+Put plainly: a backtest of 2013 built from today's screener is missing **roughly
+a third of the companies that actually existed**, and they are not a random
+third — they are the ones that were acquired or went to zero. The examples are
+the tell: WorldCom in the 2000 universe is precisely the name a
+survivor-built universe deletes.
+
+**All four pre-registered PASS conditions met:**
+1. `build()` completes on every tested date — yes, after the units fix.
+2. Delisted names genuinely present in historical universes — 144 to 384 per
+   pre-2020 date.
+3. Universe sizes plausible and stable — 463 to 1,279, no date collapsing.
+4. `AsOfHistory` refuses post-as-of bars **on real data** — 42 bars returned for
+   XOM around 2013-06-30, **0** after the as-of. PASS.
+5. Anti-cheat: `scalemarketcap`/`scalerevenue` are absent from the schema
+   entirely, so the look-ahead filter is structurally impossible, not merely
+   discouraged. PASS.
+
+## What this does NOT cover, stated plainly
+
+The audit asks to run `scripts/run_sharadar_backtest.py`. **I ran the point-in-time
+universe and the survivorship report — the number the audit actually asks for —
+but not the full bot backtest.** The mirror is date-*windowed* (60 days around
+each of 27 as-of dates) rather than continuous, because a continuous mirror is
+~86M rows and tens of GB. The survivorship report needs only "price then, cap
+then, volume then"; a strategy backtest needs unbroken series for signals.
+
+To run the bots on real data, rebuild with a continuous date range over the
+window of interest and then run the existing script:
+
+```
+python scripts/build_freeze_mirror.py --freeze <freeze>/bulk --db <db> \
+    --dates <every trading date in range>      # or widen --window-days
+python scripts/run_sharadar_backtest.py --bots momentum reversion --years 5
+```
+
+**What it unblocks.** Every prior backtest built on a today's-universe screen now
+has a measured bias figure attached to it, per period, instead of an assertion.
+The momentum result the record flags as "close to fatal" is confirmed as
+artefact-scale: a 2021-2024 window carries 12-17% invisible names, and the
+further back a result reaches the worse it gets.
+
+**Housekeeping:** the mirror is `data/c5_pit_mirror.db` (~1.5 GB, gitignored,
+derived from licensed data, regenerable in ~35 min). Delete it freely.
+
+---
+
 *Note: `HANDOFF_STATUS.md` has deliberately NOT been overwritten. Several agents
 are working parallel lanes against this repo and that file is shared project
 state; overwriting it from one lane would clobber the others. This file is this
