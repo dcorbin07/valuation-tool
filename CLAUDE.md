@@ -1,5 +1,9 @@
 # CLAUDE.md — Valquo project brief (read every session)
 
+> **FIRST: read `RUN_RULES.md` (repo root) before starting any work. It is short and
+> non-negotiable — it governs pushing, handoffs, bug reporting, pre-committed thresholds, and
+> never silencing a check. Every agent, every run, no exceptions.**
+
 You are picking up **Valquo** (valquo.co), a Python/Flask stock-analysis SaaS owned by Don
 (donniecorbin6@gmail.com). Be honest, concise, and never oversell. Architecture is in section 4 below;
 the optimization/data research roadmap is in `OPTIMIZATION_RESEARCH.md` — read it once for detail.
