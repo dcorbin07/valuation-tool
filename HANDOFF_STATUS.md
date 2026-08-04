@@ -60,6 +60,50 @@ both `False`. Sector-neutral ranking was tested on the full universe and rejecte
 held-out directions, twice. **Unless `SCREENER_SECTOR_NEUTRAL=false` is set in the environment,
 the hot list users see is scored under the intervention the research eliminated.**
 
+**THE FULL-UNIVERSE RE-RUN — clean A/B against a pre-audit baseline on identical data.**
+A throwaway worktree at `b67b07d` was re-run because the committed `BACKTEST_RESULTS.json`
+stamped its own provenance as `commit 7eb0046, branch worktree-growth-valuation, dirty: true`.
+(It reproduced to four decimals, so the stored file was fine — but that was not knowable in
+advance, and it is only knowable at all because the results file records its git state.)
+
+| metric | BASELINE | CORRECTED | delta |
+|---|---|---|---|
+| long-short t | 3.5202 | **3.8513** | +0.331 |
+| top-decile alpha | +11.88% | **+11.69%** | -0.19pp |
+| monotonicity | -0.9515 | **-0.9879** | better |
+| equal-weight benchmark | +16.55% | +16.55% | 0 (the control) |
+| PBO | 6.7% | **13.3%** | +6.7pp, still far under 50% |
+
+**THIRTEEN CORRECTIONS AND NOT ONE HELD-OUT VERDICT CHANGED.** Every theme returns the same
+verdict in both runs. The record's decisions were not resting on the defects, and the defects
+were not hiding a different model — what moved is what the numbers MEAN.
+
+**Two measured surprises, both reported against the audit's own expectations:**
+
+- **`insider` flipped from t -0.34 to +2.69** (median IC -0.00335 -> +0.01551, coverage
+  unchanged at 85.0%). The only change touching it is B26, the same-day-filing exclusion — and
+  B26 was measured directly on 22,975 score pairs: **it moves 3.96% of scores at correlation
+  0.9975.** A four-per-cent perturbation flipping a theme's sign means **-0.34 was never a
+  reliable number either.** Read as fragility, not as a discovery. The held-out gate still says
+  `insider: rejected` in both runs, so nothing deployed changes. This promotes audit **S3** (the
+  insider score's construction) from mid-priority to interesting.
+- **B10 recovered the WORSE signal.** The audit called it "one of the cheapest genuine signal
+  recoveries available." Head to head: `accruals_q` as FCF/NI reads **t +1.26**; as the Sloan
+  measure it reads **t +0.27**, at coverage 0.75 -> 0.97. The overwrite was a real defect — the
+  column did not contain what its name said — but the thing it overwrote with was the better of
+  the two. Both columns now exist (`accruals_fcf_ni`), so switching back is a one-line A/B that
+  belongs in front of the held-out gate.
+
+**B14 delivered its first number: `ended_early_unmasked` = 0 of 2,710 tickers**, 887 series
+masked (32.7%) from a 19,207-name delisting map. No name's prices stop early without an ACTIONS
+row — the first direct evidence the survivorship mask is not silently missing delistings.
+
+**The new B18 sign check fired on its first run and caught my own incomplete fix:** `ev_ebitda`
+still admitted negative EV (414 rows, 0.36%). It also found that the `ev_sales`/`ps` negatives
+are NOT negative EV but negative **revenue** — 538 rows (0.273%), in agency mortgage REITs and
+financial guarantors (DX, NLY, AGNC, MBI, RWT, FNMA). All three now take the same convention:
+missing, not extreme.
+
 **Corrected this session (13 items + 1 new finding), all with regression guards:**
 B1 price basis in the options universe (and four MORE sites, including in roadmap 22c and deep
 research thread #1 — **both of those need re-running**); B3 stale marks at expiry; B9 DSR/PBO
