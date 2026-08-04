@@ -4628,6 +4628,104 @@ def test_sustained_faults_rebuild_the_grpc_client():
     assert tb._client is not None
 
 
+def test_audit_x2_the_rebalance_grid_is_a_choice_and_is_now_recorded():
+    """X2. The grid was `range(TD, len(cal) - horizon, rebalance_days)` with TD hard-coded to
+    252, so every number this project has ever produced came off ONE of the 63 equally valid
+    grids and nobody had looked at the other 62. `grid_offset` shifts it; the value used is
+    stamped into `panel_window` so no run can be silently off-grid."""
+    import inspect
+
+    from valuation.edge import fundamental_panel as FP
+
+    sig = inspect.signature(FP.build_fundamental_panel)
+    assert "grid_offset" in sig.parameters, "build_fundamental_panel must take grid_offset"
+    assert sig.parameters["grid_offset"].default is None, \
+        "grid_offset must default to None so the env var can supply it"
+
+    src = inspect.getsource(FP.build_fundamental_panel)
+    assert 'environ.get("EDGE_GRID_OFFSET", "0")' in src, \
+        "a sweep must be able to set the grid without editing every call site"
+    assert "_GRID_START = TD + grid_offset" in src
+    # BOTH the count and the loop must use the offset grid, or the progress line lies about
+    # how many dates are coming and the loop silently runs a different grid.
+    assert src.count("range(_GRID_START, len(cal) - horizon, rebalance_days)") == 2, \
+        "the date count and the scoring loop must walk the SAME grid"
+    assert "range(TD, len(cal) - horizon, rebalance_days)" not in src, \
+        "no caller may be left on the hard-coded grid"
+    assert '"grid_offset": int(grid_offset)' in src, \
+        "panel_window must record which grid produced the run"
+
+    # The default must be the historical grid, or every past number silently changes meaning.
+    import os as _o
+    assert int(_o.environ.get("EDGE_GRID_OFFSET", "0") or 0) == 0, \
+        "the test suite must run on the historical grid"
+
+
+def test_audit_x7_placebo_destroys_signal_and_preserves_everything_else():
+    """X7. The placebo is only a valid noise floor if it changes ONE thing. Permuting whole
+    signal rows within a date must leave each theme's per-date distribution, the missingness
+    pattern and the cross-theme correlation structure exactly as they were, and must not touch
+    the forward return, the market cap or the sector."""
+    import numpy as np
+    import pandas as pd
+
+    from valuation.edge import fundamental_panel as FP
+
+    rng = np.random.default_rng(7)
+    n_per_date, dates = 40, ["2020-01-31", "2020-04-30", "2020-07-31"]
+    rows = []
+    for d in dates:
+        for k in range(n_per_date):
+            rows.append({
+                "date": d, "ticker": f"T{k:03d}",
+                "quality": float(rng.normal()), "momentum": float(rng.normal()),
+                "value": (np.nan if k % 7 == 0 else float(rng.normal())),
+                "z_gp_on_capital": float(rng.normal()),
+                "fwd_ret": float(rng.normal()) * 0.1,
+                "marketcap": float(1e9 * (k + 1)), "sector": f"S{k % 4}",
+            })
+    panel = pd.DataFrame(rows)
+
+    cols = FP.placebo_signal_cols(panel)
+    assert set(cols) == {"quality", "momentum", "value", "z_gp_on_capital"}, \
+        f"placebo must permute the themes and the z_ columns and nothing else, got {cols}"
+
+    pl = FP.placebo_panel(panel, seed=11)
+
+    # 1. Nothing outside the signal block moved, at all.
+    for keep in ("date", "ticker", "fwd_ret", "marketcap", "sector"):
+        assert pl[keep].equals(panel[keep]), f"placebo must not touch {keep}"
+
+    for d in dates:
+        a, b = panel[panel["date"] == d], pl[pl["date"] == d]
+        for c in cols:
+            # 2. Exact same numbers, per date — a permutation, not a resample.
+            av = np.sort(a[c].to_numpy()[~np.isnan(a[c].to_numpy())])
+            bv = np.sort(b[c].to_numpy()[~np.isnan(b[c].to_numpy())])
+            assert np.array_equal(av, bv), f"{c} distribution changed on {d}"
+            # 3. Same count of missing values.
+            assert int(a[c].isna().sum()) == int(b[c].isna().sum()), \
+                f"{c} missingness count changed on {d}"
+        # 4. Whole ROWS moved together, so the cross-theme structure is untouched: the
+        #    multiset of signal-row tuples is identical.
+        at = sorted(map(tuple, np.nan_to_num(a[cols].to_numpy(), nan=-9e9).tolist()))
+        bt = sorted(map(tuple, np.nan_to_num(b[cols].to_numpy(), nan=-9e9).tolist()))
+        assert at == bt, f"placebo broke the cross-theme row structure on {d}"
+
+    # 5. It actually shuffled something. (P(identity) for 40 names is 1/40!.)
+    assert not pl["quality"].equals(panel["quality"]), "the placebo did not permute anything"
+
+    # 6. Deterministic in the seed, and different seeds give different draws — a noise floor
+    #    built from a non-reproducible instrument would be worthless.
+    assert FP.placebo_panel(panel, seed=11)["quality"].equals(pl["quality"])
+    assert not FP.placebo_panel(panel, seed=12)["quality"].equals(pl["quality"])
+
+    # 7. The permutation is WITHIN a date, never across one — a cross-date shuffle would leak
+    #    a later date's cross-section into an earlier one and stop being a clean null.
+    assert pl.groupby("date")["quality"].sum().round(9).equals(
+        panel.groupby("date")["quality"].sum().round(9)), "signal leaked across dates"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

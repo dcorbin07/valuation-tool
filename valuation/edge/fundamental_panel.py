@@ -903,14 +903,33 @@ def _inst_accum_at(prep, as_of, lag_days=45):
 
 def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                             lookback_years=6, horizon=63, inst_lag_days=45,
-                            keep_numbers=False, sector_neutral=False) -> pd.DataFrame:
+                            keep_numbers=False, sector_neutral=False,
+                            grid_offset=None) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
     a diagnostic can measure one signal's standalone predictive power instead of only the
     theme it was folded into. Off by default — it widens the frame considerably.
+
+    AUDIT X2 — `grid_offset` shifts the rebalance grid by N trading days. The grid has
+    always started at exactly TD = 252 and every number this project has ever reported was
+    measured on that ONE grid, which is an arbitrary choice: with rebalance_days = 63 there
+    are 63 equally valid grids and nobody has ever looked at the other 62. A signal whose
+    headline moves a lot between them is one draw from a wide distribution, and the honest
+    statement is a range rather than a figure. Defaults to 0 (the historical grid) and can
+    be set per run with EDGE_GRID_OFFSET so a sweep needs no call-site changes.
     """
     TD = 252
+    if grid_offset is None:
+        import os as _os_grid
+        try:
+            grid_offset = int(_os_grid.environ.get("EDGE_GRID_OFFSET", "0") or 0)
+        except ValueError:
+            grid_offset = 0
+    grid_offset = int(grid_offset)
+    if grid_offset < 0:
+        raise ValueError(f"grid_offset must be >= 0, got {grid_offset}")
+    _GRID_START = TD + grid_offset
     from ..screener.factors import prefilter as _prefilter   # AUDIT B13
 
     # AUDIT B6 — TRUNCATE THE CALENDAR, NOT EACH TICKER'S SERIES.
@@ -1093,12 +1112,12 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     benchf = bench.reindex(cal).ffill()
     benchv = benchf.values.tolist()        # for the idiosyncratic-vol regression, computed once
 
-    _n_dates = len(range(TD, len(cal) - horizon, rebalance_days))
+    _n_dates = len(range(_GRID_START, len(cal) - horizon, rebalance_days))
     _prog(f"history loaded: {len(px)} usable tickers, {len(cal)} calendar days "
           f"-> scoring {_n_dates} rebalance dates")
 
     rows = []
-    for _di, i in enumerate(range(TD, len(cal) - horizon, rebalance_days)):
+    for _di, i in enumerate(range(_GRID_START, len(cal) - horizon, rebalance_days)):
         as_of = str(cal[i].date())
         _asof_ts = cal[i]
         _cut1 = str((_asof_ts - pd.Timedelta(days=365)).date())
@@ -1297,6 +1316,9 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         "calendar_cut_days": int(_CAL_DAYS),
         "truncation": "shared_calendar",     # AUDIT B6: never per-ticker
         "horizon": int(horizon), "rebalance_days": int(rebalance_days),
+        # AUDIT X2 — which of the `rebalance_days` possible grids this run used. 0 is the
+        # historical grid every prior number in the project was measured on.
+        "grid_offset": int(grid_offset),
         "n_rebalance_dates": len(_cs),
         "cross_section_min": (_sizes[0] if _sizes else None),
         "cross_section_median": (_sizes[len(_sizes) // 2] if _sizes else None),
@@ -1576,6 +1598,63 @@ def composite_from_frame(sub, cols, weights, zscore):
     if _os_b7.environ.get("EDGE_AUDIT_B7_LEGACY_COMPOSITE", "").lower() == "true":
         return np.nansum(np.where(~np.isnan(Z), Z, 0.0) * wv, axis=1)
     return composite(Z, wv)
+
+
+def placebo_signal_cols(panel) -> list:
+    """The columns a placebo must destroy: every scored theme, plus the standardized
+    per-number `z_*` columns the per-signal diagnostics read. Everything else — `date`,
+    `ticker`, `fwd_ret`, `marketcap`, `sector` — is deliberately left ALONE, so the
+    cost model, the regime split and the benchmark keep operating on real data and only
+    the signal→return link is broken."""
+    themes = set()
+    for _v in S.BUCKET_FACTORS.values():
+        themes.update(_v)
+    return [c for c in panel.columns if c in themes or str(c).startswith("z_")]
+
+
+def placebo_panel(panel, seed, cols=None):
+    """AUDIT X7 — the same panel with a definitionally worthless signal in it.
+
+    The options bot has a no-edge self-test; the equity pipeline has never had one. Without
+    it, every threshold in this project — the IC *t* > 2.0 bar, the PBO < 50% bar, the 0.25
+    t-gain margin on a held-out split — is a convention rather than a measurement, because
+    nobody has ever asked what those statistics do when the signal is known to be nothing.
+
+    METHOD. Within each rebalance date, permute the signal columns AS A BLOCK across the
+    names present. This is the strongest available null:
+
+      * every theme keeps its exact per-date distribution (it is the same numbers);
+      * the missingness PATTERN is preserved exactly — it travels with the row, so the
+        per-date count of each missing-theme combination is identical;
+      * the cross-theme correlation matrix is preserved exactly, because whole rows move
+        together — so the weight schemes that read Sigma still see a real Sigma;
+      * `fwd_ret`, `marketcap` and `sector` do not move, so the ONLY thing destroyed is
+        the association between the signal and the return.
+
+    Permuting whole rows rather than the final composite matters: it propagates through
+    weight SELECTION as well as measurement, so CPCV, PBO and the Deflated Sharpe are
+    exercised end to end rather than being handed a pre-shuffled score. And because the
+    composite of a permuted row-block IS the permuted composite, it satisfies the
+    catalogue's "shuffled composite" specification as a special case.
+
+    Deterministic in `seed` — a placebo whose own numbers cannot be reproduced would be a
+    poor instrument for calibrating reproducibility thresholds.
+    """
+    cols = placebo_signal_cols(panel) if cols is None else list(cols)
+    if not cols:
+        raise ValueError("placebo_panel: no signal columns found to permute")
+    rng = np.random.default_rng(int(seed))
+    out = panel.copy()
+    vals = {c: panel[c].to_numpy(copy=True) for c in cols}
+    for _d, idx in panel.groupby("date", sort=False).indices.items():
+        if len(idx) < 2:
+            continue
+        perm = idx[rng.permutation(len(idx))]
+        for c in cols:
+            vals[c][idx] = vals[c][perm]      # RHS fancy-indexes to a copy first — safe
+    for c in cols:
+        out[c] = vals[c]
+    return out
 
 
 def _backtest(panel, cols, weights, top_n=20, horizon=252):
@@ -3950,6 +4029,11 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
                 print(f"[panel] dump FAILED: {e}", file=_sy.stderr, flush=True)
         # Coverage guard runs BEFORE any validation, so an empty factor is reported even if
         # something downstream fails.
+        # AUDIT B22 / X2 — the window and the rebalance grid this run used, carried in the
+        # result dict itself. It reached the canonical file through `cleanups` but NOT the
+        # --json dump, so a sweep that writes one JSON per configuration had no record of
+        # which configuration produced it.
+        out["panel_window"] = LAST_PANEL_DIAGNOSTICS.get("panel_window")
         out["signal_coverage"] = signal_coverage(panel)
         # Coverage says a factor is PRESENT; this says it is SANE. The currency bug filled
         # every column and was simply wrong, so coverage was blind to it.
