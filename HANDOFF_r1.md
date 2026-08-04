@@ -198,6 +198,24 @@ The pre-registered expectation was half right, and the half it got wrong is the 
   fails to price about this universe is *common to both legs and cancels*. The spanning test
   confirms it directly: adding the universe's own excess return as a seventh regressor gives it
   a loading of +0.10 (t 0.63, insignificant) and leaves alpha at +8.25% (t 5.88).
+- **Where the raw +12.13% actually goes.** The OLS identity α = mean(y) − Σβᵢ·mean(fᵢ) splits
+  the headline into the premium each factor is worth to this book. Reproduced by the script and
+  asserted to agree with the fitted intercept to 1e-9:
+
+  | factor | beta | × premium/yr | = contribution |
+  |---|--:|--:|--:|
+  | MKT | +0.007 | +8.12% | +0.05 pp |
+  | SMB | +0.394 | +2.05% | +0.81 pp |
+  | HML | +0.107 | +1.87% | +0.20 pp |
+  | RMW | +0.298 | +3.80% | **+1.13 pp** |
+  | CMA | +0.149 | +2.20% | +0.33 pp |
+  | UMD | +0.181 | +4.45% | +0.80 pp |
+  | **factor-explained total** | | | **+3.33 pp** |
+  | **UNEXPLAINED (the alpha)** | | | **+8.81 pp** |
+
+  **Of the raw 12.13 percentage points, 3.33 are the standard premia and 8.81 are not.** RMW is
+  the single largest absorber at 1.13pp, exactly as predicted — it is just far smaller than the
+  prediction implied. This is the clearest one-line statement of the R1 answer.
 - **Most likely source, per the pre-registration:** `institutional` (no FF analogue), plus
   `value` and `capital_discipline` as *implemented here* rather than as FF measures them, plus
   the interaction structure of seven flat-weighted themes. R1 does not decompose this — an

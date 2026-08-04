@@ -371,6 +371,25 @@ def main(argv=None) -> int:
         (d["top"] - d["ew"]).values, dspan, FF_MODEL + ["EWUNIV"], "top_minus_ew_plus_ewuniv",
         lag=args.lag)
 
+    # --- Where the raw headline actually goes, factor by factor.
+    # OLS identity: alpha = mean(y) - sum_i beta_i * mean(f_i). Splitting the second term names
+    # the premium each factor is worth to this book in annualised percentage points, which is a
+    # more direct statement of the R1 question than the loadings are.
+    rr = results["specs"]["compound/full"]["ff5_mom"]["top_minus_ew"]
+    betas = np.array([rr["loadings"][c]["beta"] for c in FF_MODEL])
+    means = d[FF_MODEL].values.mean(axis=0)
+    contrib = {c: float(b * m * PPY) for c, b, m in zip(FF_MODEL, betas, means)}
+    results["factor_contributions_top_minus_ew"] = {
+        "raw_ann": float(y_all.mean() * PPY),
+        "factor_explained_ann": float(betas @ means * PPY),
+        "alpha_ann_via_identity": float((y_all.mean() - betas @ means) * PPY),
+        "per_factor_pp": contrib,
+        "factor_mean_ann": {c: float(m * PPY) for c, m in zip(FF_MODEL, means)},
+    }
+    # the identity must agree with the regression to machine precision, or something is wrong
+    assert abs(results["factor_contributions_top_minus_ew"]["alpha_ann_via_identity"]
+               - rr["alpha_ann"]) < 1e-9, "OLS identity disagrees with the fitted intercept"
+
     results["nw_lag_sensitivity_top_minus_ew_ff5_mom"] = {}
     for L in (0, 1, 2, 4, 8):
         r = regress(y_all, d, FF_MODEL, "lag", lag=L)
@@ -422,6 +441,14 @@ def main(argv=None) -> int:
         print(_table(r))
     print("\n=== SPANNING TEST  (top - ew on FF5+MOM *plus* the EW universe's own excess return)")
     print(_table(results["spanning_vs_ew_universe"]))
+
+    fc = results["factor_contributions_top_minus_ew"]
+    print(f"\n=== WHERE THE RAW {_pct(fc['raw_ann'])}/yr GOES  (OLS identity, FF5+MOM)")
+    for c, v in fc["per_factor_pp"].items():
+        print(f"  {c:4s}  beta {rr['loadings'][c]['beta']:+.3f}  x  premium "
+              f"{_pct(fc['factor_mean_ann'][c])}/yr  =  {v * 100:+.3f} pp")
+    print(f"  {'':4s}  factor-explained total {_pct(fc['factor_explained_ann'])}"
+          f"   ->  UNEXPLAINED {_pct(fc['alpha_ann_via_identity'])}")
 
     print("\n=== NEWEY-WEST LAG SENSITIVITY  (top - ew, FF5+MOM)")
     for name, r in results["nw_lag_sensitivity_top_minus_ew_ff5_mom"].items():
