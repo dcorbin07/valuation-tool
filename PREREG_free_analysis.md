@@ -366,3 +366,140 @@ measurement, and is labelled as such.
 
 This is an estimation item, not a hypothesis test: the committed deliverable is **one capacity
 AUM, its assumptions, and the direction of its bias** — not a pass/fail.
+
+---
+---
+
+# Pre-registration, round 3 — X8, U5, M5
+
+**Written 2026-08-04, before any run.** Same rule: an ambiguous result against its own threshold
+is a **null**, not a judgement call. Lane re-validated first:
+
+```
+$ python check_lanes.py X8 U5 M5
+SAFE — disjoint write sets, no import coupling, all dependencies met.
+```
+
+Part IV/V (U7, O7, O3–O5) remain **held until R1 returns**, per the audit's gate.
+
+---
+
+## X8 — replicate the theme structure on another vendor's data, in another country
+
+**Data, established before committing the bar.** Global Factor Data (jkpfactors.com) serves
+theme-level factor returns from an open S3 bucket at
+`public/[region]_[theme]_[frequency]_[weight].zip`. Verified reachable: the US file returns
+`location,name,freq,weighting,n_factors,date,ret` with monthly history from 1946. Decile
+portfolios are separately available per *characteristic* at `public/portfolios/...` with a `pf`
+column (1–10). **Licence: CC BY-NC 4.0 — research only. It validates the model; it can never
+ship inside the product.** Nothing fetched here is read by product code.
+
+### The theme mapping — committed now, before any number is seen
+
+| Valquo theme | deployed weight | JKP theme |
+|---|---|---|
+| value | 0.125 | `value` |
+| quality | 0.125 | `quality` |
+| momentum | 0.125 | `momentum` |
+| size | 0.125 | `size` |
+| capital_discipline | 0.125 | `investment` |
+| **insider** | 0.125 | **no analogue — excluded** |
+| **institutional** | 0.125 | **no analogue — excluded** |
+
+**Five of seven map.** `insider` and `institutional` have no JKP equivalent, so the replication
+tests **5/7 of the composite's weight**. Stated in advance and not adjusted for — and note it is
+the *same two themes* X4 found have no retail ETF analogue. The part of the model that cannot be
+bought is also the part that cannot be externally validated. That is a structural fact about the
+model worth stating plainly, whichever way the numbers fall.
+
+**Composite = the equal-weighted mean of those five theme factor returns. Nothing is tuned.**
+Per the audit: *"Do not tune anything — the value is entirely in the absence of tuning."*
+
+### What is and is not comparable
+
+JKP theme factors are **long-short**. Valquo's headline is a long-only top-decile alpha. So the
+comparable Valquo statistic is its **long-short t of 3.52**, not its +11.88% top-decile alpha,
+and the write-up must not mix them. Weighting is `vw_cap` (JKP's capped value-weighted default —
+the most investable of the three offered).
+
+### Regions — committed
+
+- **Primary: Japan (`jpn`)** and **developed Europe**, the two the audit names. Developed Europe
+  is the equal-weighted mean across a list fixed now: `gbr, deu, fra, ita, esp, nld, che, swe,
+  dnk, nor, fin, bel, aut, irl, prt`.
+- **Controls: `usa`** (must be positive, or the mapping is wrong and the whole run is void),
+  plus `world_ex_us` and `developed` for context.
+
+### Windows
+
+- **Primary: matched to Valquo's panel, 1999-01 → 2026-04** — the like-for-like replication.
+- **Secondary: full JKP history** — more power, more period-out-of-sample.
+
+> ### Threshold
+> **REPLICATES** iff the untuned 5-theme equal-weighted composite has a positive mean with
+> **Newey–West t > 2.0 (12 lags)** in **BOTH** Japan and developed Europe on the matched window.
+> - Positive in both but t ≤ 2.0 in either → **PARTIAL — direction confirmed, significance not**.
+> - Negative in either → **does not replicate there**, and per the audit the US model is not
+>   killed but must be described as **US-specific**.
+
+**Secondary monotonicity arm.** JKP publishes decile portfolios per characteristic, so
+monotonicity — which the theme files cannot show — is testable on one pre-specified
+characteristic per theme, fixed now: value→`be_me`, quality→`qmj`, momentum→`ret_12_1`,
+size→`market_equity`, capital_discipline→`at_gr1`. Reported for `jpn` and the European
+aggregate. This arm is **descriptive**; it does not change the verdict above.
+
+**Stated in advance so it cannot be rationalised after.** A positive result is the strongest
+evidence this project could obtain — out-of-sample in vendor, country, construction and period at
+once. A negative result makes **X4's null materially more serious**, because the two would then
+agree that the measured edge is neither internationally general nor demonstrably better than what
+a user can buy.
+
+---
+
+## U5 — tax-aware arm allocation
+
+**Decision item. Nothing is run; the numbers already exist.** The committed deliverable is an
+explicit allocation with the arithmetic behind it, plus a correction if the audit's quoted
+figures no longer match the current results file.
+
+**Committed method.** Take the after-tax numbers from the live `BACKTEST_RESULTS.json`
+(`after_tax`, `book_configs`), state them as they are, and make the allocation follow from
+**shelter gain per dollar** — the return recovered by moving a sleeve into the Roth — rather than
+from comparing a pre-tax figure in one account with a post-tax figure in another, which is not a
+like-for-like comparison and would overstate the case.
+
+**Committed in advance:** if the audit's quoted "+17.4% Roth vs +4.86% taxable" does not match
+the current file, the current file wins and the discrepancy is reported rather than smoothed
+over. The allocation conclusion is reported as **robust or not robust** to that difference.
+
+---
+
+## M5 — the protocol for tail-hedge and conditional tests
+
+**Doc only.** The committed deliverable is a written protocol plus a re-classification.
+
+**The problem, stated:** a crash-insurance rule cannot clear a both-halves gate unless the sample
+contains two comparable crashes. The panel has one. So the both-halves protocol **guarantees
+rejection regardless of the rule's merit**, and the record currently files the regime overlay as
+a *failed test* when it is an **untestable hypothesis under the chosen protocol**. Those are
+different things and the distinction belongs in the record so nobody re-runs the same doomed test.
+
+**Committed structure of the protocol** — three arms, none of which is a return test:
+
+1. **Conditional accuracy** — does the rule fire on the states it is supposed to fire on, against
+   a **pre-specified** definition of that state written before the rule is scored?
+2. **Cost of carry** — the explicit, quantified give-up during the ~90% of the time the rule is
+   wrong.
+3. **Payoff conditional on firing** — measured only on the firing episodes, and reported with the
+   episode count stated, since with n = 1 the honest output is a description, not a t-statistic.
+
+**Committed constraint, so this protocol cannot become a loophole:** it is strictly *harder* to
+claim adoption under it, not easier. A rule that passes all three arms on a single episode is
+adoptable **only as an optional configuration with a published cost statement**, never as a
+default, and never described as validated. **A protocol that exists to rescue a rejected rule
+would be worthless; this one exists to stop a category error, and it must not be used to
+resurrect anything that failed a test it could actually have passed.**
+
+**Scope, committed:** the protocol applies only to rules whose benefit is *definitionally*
+concentrated in rare states — tail hedges, crash overlays, regime filters. It does **not** apply
+to any cross-sectional signal, which can and must clear the ordinary gate.
