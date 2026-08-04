@@ -781,6 +781,118 @@ and be worthless, and nothing in the equity curve would say so.
 
 ---
 
+---
+
+# C5 — the PIT universe on real data · PASSED, after fixing a bug that made it return NOTHING
+
+Per-period numbers: `data/c5_survivorship.json` (gitignored — derived from
+licensed data). Threshold committed at `65b2456`, before the run.
+
+## The first result was an empty universe on all 27 dates
+
+`core/pit_universe.py` had only ever been exercised against a synthetic 30-name
+mirror. Pointed at the D10 freeze it returned **universe size ZERO on every
+annual date from 2000 to 2026**.
+
+**Cause.** Sharadar's `DAILY.marketcap` is denominated in **millions of USD**.
+`PITUniverseConfig.min_market_cap` is written in **dollars** (`2_000_000_000`).
+So AAPL on 2015-06-30 presented as `722571.4` against a `2e9` floor and failed
+the cap gate — as did every company that has ever listed. 5,945 names were listed
+that day; the universe was empty.
+
+Cross-checked before touching anything: `722,571.4 × 1e6 = $722.57B`, which
+matches this project's own recorded *"AAPL 2015Q2 $722.6B verified"* from the
+same table. The main tree already knew the units; this module did not.
+
+**Why the test suite certified it anyway — this is the actual lesson.** The
+synthetic fixture in `tests/test_sharadar.py` wrote market caps in **dollars**
+(`GOOD = 5e9`, `TINY = 1e8`) directly into the `daily` table. The mirror spoke
+dollars; the feed speaks millions. So the suite was green on a module that
+**cannot** return a non-empty universe on real data.
+
+> A synthetic fixture cannot disagree with you about what the real feed means.
+> Its author picks the units, and naturally picks the ones the code expects.
+
+That is precisely why "verified end to end on a synthetic mirror" is not
+verification, and it is the whole reason C5 was worth doing. The audit called C5
+"Effort: S" — it was, and it found a defect that silently disabled the module the
+entire survivorship-bias programme depends on.
+
+**Fixed** in `SharadarStore.marketcap_on` (normalise once, return dollars, named
+constant `MARKETCAP_UNITS_PER_USD`) and in the fixture (specs stay in dollars and
+are converted on insert, in the same direction the real loader converts).
+
+## The C5 deliverable — invisible-name count PER PERIOD
+
+Share of each historical universe that is **dead today**, and therefore
+structurally absent from any universe a live screener could build:
+
+| as-of | universe | delisted since | **invisible** | examples |
+|---|---|---|---|---|
+| 2000-06-30 | 588 | 339 | **57.7%** | WCOEQ (WorldCom), LU1 (Lucent), JAVA1 (Sun), EMC1, DELL1 |
+| 2003-06-30 | 487 | 221 | 45.4% | WYE, WB1, BLS, TFCF |
+| 2007-06-30 | 872 | 384 | 44.0% | MER (Merrill), WB1, DNA1, TWX |
+| 2010-06-30 | 626 | 217 | 34.7% | TWX, DD1, DTV1, ESRX |
+| 2013-06-30 | 819 | 263 | 32.1% | TFCF, MON2, ESRX, EMC1 |
+| 2016-06-30 | 881 | 245 | 27.8% | AGN, RAI, CELG, TWX |
+| 2019-06-30 | 937 | 164 | 17.5% | VMW, CELG, AGN, RTN |
+| 2022-06-30 | 963 | 121 | 12.6% | ATVI, PXD, VMW, HES |
+| 2024-06-30 | 982 | 62 | 6.3% | HES, DFS, ANSS, CTRA |
+| 2026-06-30 | 1,279 | 8 | 0.6% | GTLS, BLD, NUVL, JHG |
+
+**Median 32.1% across 27 periods** (min 0.6%, max 57.7%), declining monotonically
+with recency exactly as it must.
+
+**Pre-registered band: `m > 10%` → prior today's-universe backtests are
+ARTEFACTS.** The median is 32.1%, three times the threshold. This is not a
+marginal call.
+
+Put plainly: a backtest of 2013 built from today's screener is missing **roughly
+a third of the companies that actually existed**, and they are not a random
+third — they are the ones that were acquired or went to zero. The examples are
+the tell: WorldCom in the 2000 universe is precisely the name a
+survivor-built universe deletes.
+
+**All four pre-registered PASS conditions met:**
+1. `build()` completes on every tested date — yes, after the units fix.
+2. Delisted names genuinely present in historical universes — 144 to 384 per
+   pre-2020 date.
+3. Universe sizes plausible and stable — 463 to 1,279, no date collapsing.
+4. `AsOfHistory` refuses post-as-of bars **on real data** — 42 bars returned for
+   XOM around 2013-06-30, **0** after the as-of. PASS.
+5. Anti-cheat: `scalemarketcap`/`scalerevenue` are absent from the schema
+   entirely, so the look-ahead filter is structurally impossible, not merely
+   discouraged. PASS.
+
+## What this does NOT cover, stated plainly
+
+The audit asks to run `scripts/run_sharadar_backtest.py`. **I ran the point-in-time
+universe and the survivorship report — the number the audit actually asks for —
+but not the full bot backtest.** The mirror is date-*windowed* (60 days around
+each of 27 as-of dates) rather than continuous, because a continuous mirror is
+~86M rows and tens of GB. The survivorship report needs only "price then, cap
+then, volume then"; a strategy backtest needs unbroken series for signals.
+
+To run the bots on real data, rebuild with a continuous date range over the
+window of interest and then run the existing script:
+
+```
+python scripts/build_freeze_mirror.py --freeze <freeze>/bulk --db <db> \
+    --dates <every trading date in range>      # or widen --window-days
+python scripts/run_sharadar_backtest.py --bots momentum reversion --years 5
+```
+
+**What it unblocks.** Every prior backtest built on a today's-universe screen now
+has a measured bias figure attached to it, per period, instead of an assertion.
+The momentum result the record flags as "close to fatal" is confirmed as
+artefact-scale: a 2021-2024 window carries 12-17% invisible names, and the
+further back a result reaches the worse it gets.
+
+**Housekeeping:** the mirror is `data/c5_pit_mirror.db` (~1.5 GB, gitignored,
+derived from licensed data, regenerable in ~35 min). Delete it freely.
+
+---
+
 *Note: `HANDOFF_STATUS.md` has deliberately NOT been overwritten. Several agents
 are working parallel lanes against this repo and that file is shared project
 state; overwriting it from one lane would clobber the others. This file is this
