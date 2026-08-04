@@ -275,6 +275,23 @@ live track yet**. Claim B is retired for this item.
   `capital_discipline` carry the residual is *inference from the loadings*, not a measurement.
 - **Did not correct for the trial count.** Audit M1 is still open and this result inherits that.
 
+## 3b. Incidental finding for the paper-track lane (not fixed — not my file)
+
+`tests/test_paper_track.py` shows **3 failures when run locally on a developer machine and 0 in
+CI**, on `main` as well as on this branch. Not a regression and not a landing blocker — branches
+were still auto-merging to `main` at 05:35 today.
+
+**Cause:** the three `test_hero_*` tests assert `live_hero(st)["index"]["source"] ==
+"paper-sandbox"`, which is `hero.py`'s *fallback* branch. They build a paper-sandbox store but do
+not isolate `valuation.screener.index_track.summarize()`, which on a real machine finds Don's
+actual index track (`available: True`), so `live_hero` returns the **`index-track`** branch
+instead and the assertion fails. In CI there is no such track, the fallback fires, and the tests
+pass. Verified directly: `summarize(store=st)` returns `available=True` locally.
+
+It should be isolated (stub `summarize` in those three tests) so local and CI agree — otherwise
+every future session that runs the suites locally will see a red suite and waste time on it, as
+this one did. **Left for whoever owns `paper_track` / the app-fixer lane.**
+
 ## 4. Recommended next step
 
 The result changes the roadmap in the *opposite* direction from what R1 anticipated. The audit
