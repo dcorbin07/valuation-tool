@@ -153,10 +153,17 @@ class Config:
     # every uncached name costs 3 requests; without a ceiling a big universe can spend the
     # whole daily quota in a single run. 0 = unlimited.
     fmp_max_calls: int = field(default_factory=lambda: int(_get_float("FMP_MAX_CALLS", 0)))
-    # Score factors relative to sector peers (removes accidental sector bets). Toggle
-    # off (SCREENER_SECTOR_NEUTRAL=false) to A/B against whole-universe scoring.
-    sector_neutral: bool = field(default_factory=lambda: _get("SCREENER_SECTOR_NEUTRAL", "true").lower() != "false")
-    residual_momentum: bool = field(default_factory=lambda: _get("SCREENER_RESIDUAL_MOMENTUM", "true").lower() != "false")
+    # AUDIT B7/G — BOTH OF THESE DEFAULTED **TRUE** WHILE THE BACKTEST FORCED THEM **FALSE**.
+    # `screen.py` calls `build_frame(metrics)` with no keyword arguments, so the live hot list
+    # inherited whatever these say. Sector-neutral ranking was tested on the full universe and
+    # REJECTED in both held-out directions, then independently re-run on a later panel and
+    # rejected again (it buys long-short t and sells top-decile alpha — the wrong trade for a
+    # long-only book; see HANDOFF_sector_neutral.md). The code default was never flipped, so
+    # unless SCREENER_SECTOR_NEUTRAL=false was set in the environment the product scored names
+    # under the one intervention the research eliminated. Defaults now match the research.
+    # Set either env var to "true" to A/B against whole-universe scoring.
+    sector_neutral: bool = field(default_factory=lambda: _get("SCREENER_SECTOR_NEUTRAL", "false").lower() == "true")
+    residual_momentum: bool = field(default_factory=lambda: _get("SCREENER_RESIDUAL_MOMENTUM", "false").lower() == "true")
     soft_bucket: bool = field(default_factory=lambda: _get("SCREENER_SOFT_BUCKET", "true").lower() != "false")
     # Feed EV/Sales + EV/EBITDA into the ESTABLISHED value branch too (they already feed the
     # speculative one). Default OFF pending the full-universe A/B — HANDOFF_growth_evsales.md.

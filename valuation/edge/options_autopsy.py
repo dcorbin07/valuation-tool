@@ -1029,13 +1029,32 @@ def pbo_cscv(rows, feats, n_blocks: int = 8) -> dict:
             "note": "PBO scores the SELECTION among configs, not any single filter."}
 
 
-def deflated_sharpe(returns, n_trials: int) -> dict:
+def deflated_sharpe(returns, n_trials: int, trial_sharpes=None) -> dict:
     """Deflated Sharpe Ratio on the per-trade return series, adjusted for `n_trials` searched.
 
     Two things to keep in view. The 'Sharpe' here is PER TRADE, not annualised — these are not
     a time series of periodic returns and must not be read as one. And the skew/kurtosis terms
     are load-bearing rather than cosmetic: the return distribution is a barbell with a fat right
     tail, which is precisely the shape a plain Sharpe misprices.
+
+    AUDIT B25 — RECONCILED WITH `fundamental_panel._deflated_sharpe`. The audit reported the two
+    as irreconcilable ("they disagree on the key input, `var_sr` as sampling variance versus
+    cross-trial variance, and will never reconcile"). Worked through, they are **algebraically
+    identical in the test statistic**:
+
+        this module :  stat = (sr - sr0) / sqrt(var_sr),  var_sr = denom / (n - 1)
+        the panel   :  z    = (sr - sr0) * sqrt(n - 1) / sqrt(denom)
+
+    with `denom = 1 - skew*sr + (kurt - 1)/4 * sr^2` in both. Substituting one into the other
+    gives the same expression. The ONLY genuine difference is the variance fed to the `sr0`
+    benchmark, and there Bailey-Lopez de Prado are explicit: `SR0` scales with `V[{SR_n}]`, the
+    variance ACROSS the trials searched — not with the sampling variance of one Sharpe estimate.
+
+    So the panel's convention is the correct one and this module's was an approximation. Pass
+    `trial_sharpes` and the benchmark is computed the paper's way; omit it and the sampling
+    variance is used as before, with `sr0_basis` recording which was done. The 126-feature
+    autopsy has no meaningful cross-trial Sharpe vector (its trials are feature screens, not
+    strategies), which is why the fallback stays rather than being removed.
     """
     import numpy as np
     from math import erf, exp, log, sqrt
@@ -1077,11 +1096,18 @@ def deflated_sharpe(returns, n_trials: int) -> dict:
     var_sr = (1 - g3 * sr + ((g4 - 1) / 4.0) * sr * sr) / (n - 1)
     if var_sr <= 0:
         return {"ok": False, "reason": "non-positive SR variance"}
-    sr0 *= sqrt(var_sr)
+    # AUDIT B25 — the benchmark scales with the variance ACROSS TRIALS when that is knowable.
+    _ts = [v for v in (_f(t) for t in (trial_sharpes or [])) if v is not None]
+    if len(_ts) > 1:
+        _v = float(np.var(_ts, ddof=1))
+        sr0_basis, sr0 = "cross_trial_variance", sr0 * sqrt(_v)
+    else:
+        sr0_basis, sr0 = "sampling_variance_APPROXIMATION", sr0 * sqrt(var_sr)
     stat = (sr - sr0) / sqrt(var_sr)
     dsr = 0.5 * (1 + erf(stat / sqrt(2)))
     return {"ok": True, "n": n, "sharpe_per_trade": sr, "skew": g3, "kurtosis": g4,
             "n_trials": N, "sr0_threshold": sr0, "deflated_sharpe": dsr,
+            "sr0_basis": sr0_basis,                       # AUDIT B25
             "note": "per-TRADE Sharpe, not annualised"}
 
 

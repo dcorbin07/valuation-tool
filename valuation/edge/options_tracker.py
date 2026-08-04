@@ -98,12 +98,20 @@ def log_alert(store, alert: dict) -> Optional[int]:
 
 def record_outcome(store, alert_id=None, occ=None, alert_ts=None, ticker=None,
                    exit_premium=None, exit_ts=None, exit_reason=None,
-                   contracts: int = 1) -> bool:
+                   contracts: int = 1, entry_premium=None) -> bool:
     """Write a realized outcome back. Called by the EXTERNAL (Cowork/Robinhood) job.
 
     P&L is computed here rather than trusted from the caller, so the scorecard cannot silently
     disagree with the stored premiums. `pnl_dollars` is on a fixed 1-contract, 100-share basis:
     the point is comparing setups, not modelling position sizing.
+
+    AUDIT B5d — `entry_premium` overrides the ALERT-TIME entry with the price actually PAID.
+    The paper track fills at the broker and stores that fill in
+    `paper_option_orders.entry_premium`, but this function read `option_alerts.entry_premium`,
+    which is the ask quoted when the alert fired. So the broker fill was decorative for return
+    purposes and the stored paper fill was never used — in the one book whose entire purpose is
+    to measure what a real account would have got. When the override is supplied the basis is
+    recorded in `exit_reason` so a row's provenance is readable after the fact.
     """
     ex = _f(exit_premium)
     if ex is None:
@@ -123,6 +131,10 @@ def record_outcome(store, alert_id=None, occ=None, alert_ts=None, ticker=None,
         if not row:
             return False
         rid, entry = row[0], _f(row[1])
+        _paid = _f(entry_premium)                    # AUDIT B5d: the price actually paid
+        if _paid is not None and _paid > 0:
+            entry = _paid
+            exit_reason = f"{exit_reason or 'exit'} [pnl vs fill]"
         if entry is None or entry <= 0:
             # No entry premium means no P&L is computable; close it as unscoreable rather than
             # inventing a return.

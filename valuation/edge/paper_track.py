@@ -102,11 +102,17 @@ def ensure_schema(store) -> None:
             state TEXT NOT NULL DEFAULT 'claimed',
             entry_order_id TEXT, entry_premium REAL, entry_ts TEXT,
             target_premium REAL, stop_premium REAL, time_stop_date TEXT,
-            last_mark REAL, last_mark_ts TEXT,
+            last_mark REAL, last_mark_ts TEXT, last_mid REAL,
             exit_order_id TEXT, exit_premium REAL, exit_ts TEXT, exit_reason TEXT,
             note TEXT, created_at TEXT, updated_at TEXT)""")
         c.execute("CREATE INDEX IF NOT EXISTS ix_paper_orders_state "
                   "ON paper_option_orders(state)")
+        # AUDIT B5a — `last_mark` is now the BID (what the position can be sold at, and what
+        # the backtest triggers on); `last_mid` carries the mid alongside it for VALUATION.
+        # Added by migration so an existing book is not dropped.
+        _cols = {r[1] for r in c.execute("PRAGMA table_info(paper_option_orders)")}
+        if "last_mid" not in _cols:
+            c.execute("ALTER TABLE paper_option_orders ADD COLUMN last_mid REAL")
         # The index book. `bench_entry_price` is SPY on the day the name was added, so each
         # name is compared with the benchmark over ITS OWN window — the same construction
         # edge/track.py uses, rather than one inception date applied to later additions.
@@ -224,17 +230,46 @@ def submit_new_alerts(store, broker: PaperBroker, cfg=CONFIG, limit: int = 25,
 
     known = {r["alert_id"] for r in paper_orders(store, limit=100000)}
     # Resume any row claimed by a run that died before it recorded an order id.
-    for r in paper_orders(store, states=("claimed",)):
+    #
+    # AUDIT B5c — BOTH branches below used to leave `target_premium` and `stop_premium` NULL,
+    # and the re-place branch additionally sent a MARKET order (no `price`). `_exit_decision`
+    # reads those two columns, so a resumed position could never take profit and could never
+    # stop out: it exited only on time or expiry. A crashed run silently converted trades into
+    # a DIFFERENT STRATEGY, in the book whose entire purpose is to be comparable to the
+    # backtest. Both branches now rebuild the price and the exit policy the same way the fresh
+    # path does.
+    # "pending" is the state a DRY RUN leaves behind (audit B5b) — it must be resumable,
+    # or the preview has burned the alert by a different route than the one just fixed.
+    for r in paper_orders(store, states=("claimed", "pending")):
         out["considered"] += 1
+        _rq = broker.quotes([r["occ_symbol"]]).get(r["occ_symbol"]) if r.get("occ_symbol") else None
+        _rask = _f((_rq or {}).get("ask"))
+        _rpol = _exit_policy(dict(r))
         existing = _adopt_open_entry(broker, r["occ_symbol"])
         if existing:
-            _update(store, r["alert_id"], state="submitted",
-                    entry_order_id=str(existing.get("id") or ""),
-                    note="adopted an order left by an interrupted run")
+            _fields = {"state": "submitted",
+                       "entry_order_id": str(existing.get("id") or ""),
+                       "note": "adopted an order left by an interrupted run"}
+            _rprice = _f(PaperBroker.fill_price(existing)) or _rask
+            if _rprice and _rpol:
+                _fields["target_premium"] = round(_rprice * (1.0 + (_rpol["target_pct"] or 0)), 4)
+                _fields["stop_premium"] = round(_rprice * (1.0 + (_rpol["stop_pct"] or 0)), 4)
+            else:
+                _fields["note"] += " (NO exit levels: no usable price — audit B5c)"
+            _update(store, r["alert_id"], **_fields)
             out["adopted"] += 1
             continue
+        if _rask is None or _rask <= 0:
+            # No quote: do NOT fall back to a market order with no exit levels. Leave the row
+            # claimed so a later run can resume it properly.
+            out["skipped"] += 1
+            out["skips"].append({"alert_id": r["alert_id"], "ticker": r.get("ticker"),
+                                 "reason": "resume deferred: no quote for the contract, and a "
+                                           "market order with no target/stop is a different "
+                                           "strategy (audit B5c)"})
+            continue
         res = _place_entry(store, broker, r["alert_id"], r["ticker"], r["occ_symbol"],
-                           n_contracts)
+                           n_contracts, price=_rask, policy=_rpol)
         out["submitted" if res else "rejected"] += 1
 
     for a in OT.open_alerts(store, limit=500):
@@ -305,8 +340,14 @@ def _place_entry(store, broker: PaperBroker, alert_id, ticker, occ, contracts,
     if res.get("dry_run"):
         # A preview validated the order at the broker but created nothing. Record that
         # plainly instead of leaving a row that looks like a live position.
-        fields["state"] = "skipped"
-        fields["note"] = "dry run - broker previewed and accepted the order; nothing placed"
+        #
+        # AUDIT B5b — this used to write state="skipped", and skipped alerts are PERMANENTLY
+        # excluded from the live track. So any alert a dry run happened to touch could never
+        # enter the real book afterwards, silently and forever. A preview is a no-op: the row
+        # goes back to the queue instead, and the note records that it was previewed.
+        fields["state"] = "pending"
+        fields["note"] = ("dry run - broker previewed and accepted the order; nothing placed. "
+                          "Left PENDING so a real run can still take this alert (audit B5b).")
     _update(store, alert_id, **fields)
     return True
 
@@ -340,9 +381,18 @@ def mark_open(store, broker: PaperBroker) -> dict:
     if live:
         quotes = broker.quotes([r["occ_symbol"] for r in live if r.get("occ_symbol")])
         for r in live:
-            mark = PaperBroker.mark_from_quote(quotes.get(r.get("occ_symbol")))
+            _q = quotes.get(r.get("occ_symbol"))
+            # AUDIT B5a — `last_mark` is what `_exit_decision` compares against target/stop, so
+            # it must be the price this long position could actually be SOLD at: the BID, which
+            # is what the backtest triggers on. Marking at the mid reached +100% earlier and
+            # -50% later than the backtest would, by roughly 5pp on a 10%-wide quote — a
+            # systematic difference on exactly the axis the forward track exists to test.
+            # The mid is kept alongside it for VALUING the position, which is a different job.
+            mark = PaperBroker.exit_mark_from_quote(_q)
+            mid = PaperBroker.mark_from_quote(_q)
             if mark is not None:
-                _update(store, r["alert_id"], last_mark=mark, last_mark_ts=now_iso())
+                _update(store, r["alert_id"], last_mark=mark, last_mark_ts=now_iso(),
+                        last_mid=mid)
                 out["marked"] += 1
     return out
 
@@ -409,9 +459,19 @@ def close_matured(store, broker: PaperBroker, today=None) -> dict:
             continue
         q = broker.quotes([r["occ_symbol"]]).get(r["occ_symbol"]) if r.get("occ_symbol") else None
         bid = _f((q or {}).get("bid"))
+        # AUDIT B5 (lesser) — a missing bid used to send price=None, i.e. a MARKET order, which
+        # is outside the stated ask-in / bid-out convention every validated options number in
+        # this repo is net of. If there is no bid there is no two-sided market and no defensible
+        # exit price; defer to the next run rather than take an unmodelled fill.
+        if not (bid and bid > 0):
+            _update(store, r["alert_id"],
+                    note=f"{reason} deferred: no bid, and a market order is outside the "
+                         f"bid-out convention (audit B5)")
+            out.setdefault("deferred_no_bid", 0)
+            out["deferred_no_bid"] += 1
+            continue
         res = broker.place_option(r["occ_symbol"], r["ticker"], "sell_to_close",
-                                  int(r.get("contracts") or 1),
-                                  price=(bid if (bid and bid > 0) else None))
+                                  int(r.get("contracts") or 1), price=bid)
         if not res.get("ok"):
             # A rejected exit still has to produce a number, or a losing trade could sit open
             # forever and quietly flatter the closed-trade statistics.
@@ -436,15 +496,25 @@ def close_matured(store, broker: PaperBroker, today=None) -> dict:
 
 def _record(store, row: dict, exit_premium: float, reason: str, out: dict) -> bool:
     """Close the paper row AND write the outcome through the existing tracker."""
+    # AUDIT B5d — hand over the price actually PAID at the broker. Without it `record_outcome`
+    # computes the return against the ALERT-TIME ASK and the paper fill is decorative.
     ok = OT.record_outcome(store, alert_id=row["alert_id"], exit_premium=exit_premium,
                            exit_ts=now_iso(), exit_reason=reason,
-                           contracts=int(row.get("contracts") or 1))
+                           contracts=int(row.get("contracts") or 1),
+                           entry_premium=_f(row.get("entry_premium")))
     _update(store, row["alert_id"], state="closed", exit_premium=exit_premium,
             exit_ts=now_iso(), exit_reason=reason,
-            note=None if ok else "record_outcome did not match an open alert")
+            note=None if ok else "DESYNC: record_outcome did not match an open alert — this "
+                                 "paper row is closed but the scorecard has no outcome for it "
+                                 "(audit B5)")
     if ok:
         out["recorded"] += 1
-    return True
+    else:
+        out.setdefault("desynced", 0)
+        out["desynced"] += 1
+    # AUDIT B5 — this used to `return True` unconditionally, so a failed write looked identical
+    # to a successful one and the two tables drifted apart in silence.
+    return ok
 
 
 def run_options_cycle(store, broker: PaperBroker, cfg=CONFIG, limit: int = 25,

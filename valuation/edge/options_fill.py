@@ -76,7 +76,10 @@ MIN_OI = 100                    # open interest at entry
 MIN_VOLUME = 10                 # contracts traded on the decision day
 
 REJECT_REASONS = ("no_quote", "non_positive", "crossed", "locked", "wide_spread",
-                  "thin_premium", "low_oi", "low_volume")
+                  "thin_premium", "low_oi", "unknown_oi", "low_volume")
+# AUDIT B4: treat a contract whose open interest was never fetched as tradable (the
+# volume test still applies) rather than as zero-OI. Flip for a sensitivity run.
+REQUIRE_KNOWN_OI = False
 
 
 class Quote:
@@ -87,7 +90,14 @@ class Quote:
     def __init__(self, bid, ask, oi=None, volume=None, underlying=None, strike=None,
                  right=None, expiry=None, date=None):
         self.bid, self.ask = _f(bid), _f(ask)
-        self.oi, self.volume = _f(oi), _f(volume)
+        # AUDIT B4 — the ThetaData cache writes **-1** for "the open-interest call failed",
+        # then returns failed=False and caches the year as complete: 19,012,352 rows, 11.4% of
+        # the cache, 106 of 111 names, and every single row of AAPL 2020. Read as a NUMBER it
+        # flips that contract's contribution in any OI sum and fails the MIN_OI gate as though
+        # OI were zero. It means UNKNOWN, and unknown is None.
+        _oi = _f(oi)
+        self.oi = None if (_oi is not None and _oi < 0) else _oi
+        self.volume = _f(volume)
         self.underlying, self.strike = _f(underlying), _f(strike)
         self.right, self.expiry, self.date = right, expiry, date
 
@@ -134,11 +144,50 @@ def quote_reject_reason(q: Optional[Quote], check_liquidity: bool = True) -> Opt
     if sp is None or sp > MAX_SPREAD_PCT:
         return "wide_spread"
     if check_liquidity:
-        if q.oi is None or q.oi < MIN_OI:
+        # AUDIT B4 — UNKNOWN open interest is not the same as ZERO open interest, and the two
+        # used to be conflated. Every contract in an affected span failed `low_oi` and was
+        # silently counted as `no_contract_in_band`, so alert-to-trade conversion was understated
+        # in an unknown, NAME-DEPENDENT way (AAPL 2020 has no OI at all). Rejecting them is a
+        # large systematic exclusion; accepting them leans on the VOLUME test, which is
+        # independent and still applies. The default accepts and counts, so the rate is visible;
+        # REQUIRE_KNOWN_OI=True restores the strict behaviour for a sensitivity run.
+        if q.oi is None:
+            if REQUIRE_KNOWN_OI:
+                return "unknown_oi"
+        elif q.oi < MIN_OI:
             return "low_oi"
         if q.volume is None or q.volume < MIN_VOLUME:
             return "low_volume"
     return None
+
+
+# AUDIT B2 — the ONLY reasons a quote cannot be used to GET OUT of a position.
+EXIT_FATAL = ("no_quote", "non_positive", "crossed")
+
+
+def exit_reject_reason(q: Optional[Quote]) -> Optional[str]:
+    """The exit tolerance, which is much looser than the entry one — and deliberately so.
+
+    AUDIT B2. The exit day-walk used `quote_reject_reason(q, check_liquidity=False)`, which
+    disables only the open-interest and volume tests. `wide_spread` (spread > 25% of mid) and
+    `thin_premium` (mid < $0.10) still rejected — and a rejected day was `continue`d, i.e. the
+    day vanished from the trade's history as though it had never happened.
+
+    That is wrong in BOTH directions, and only one of them is conservative. A decaying
+    out-of-the-money call quoting 0.25/0.35 has a 33% spread, so it disappears from its own exit
+    path *precisely in the price region where the -50% stop should fire*. Losers that decay
+    through the stop on wide-quote days are never stopped and ride on to a worse outcome — bad,
+    but conservative. Losers that dip through -50% on a wide-quote day, are skipped, and then
+    recover are **recorded as TARGET WINS** — optimistic, and until now unmeasured.
+
+    You have to sell what you own at whatever the market shows. A wide or thin quote is a bad
+    price, not an absent one: mark it at the bid and take the hit. Only a quote that does not
+    exist, is non-positive, or is crossed is genuinely unusable.
+
+    The module docstring asserted this behaviour all along; the code did the opposite.
+    """
+    r = quote_reject_reason(q, check_liquidity=False)
+    return r if r in EXIT_FATAL else None
 
 
 def fill_price(q: Quote, side: str, aggression: float = DEFAULT_AGGRESSION) -> Optional[float]:
@@ -206,8 +255,10 @@ def round_trip(entry_q: Quote, exit_q: Optional[Quote], right: str, strike: floa
     if entry is None or entry <= 0:
         return {"ok": False, "reason": "no_quote"}
 
-    # Exit does NOT re-apply the liquidity filter: you must exit what you own.
-    exit_reason = quote_reject_reason(exit_q, check_liquidity=False) if exit_q else "no_quote"
+    # Exit does NOT re-apply the liquidity filter: you must exit what you own. AUDIT B2 — and it
+    # no longer applies the SPREAD or PREMIUM filters either. A wide or thin quote is a bad
+    # price, not an absent one; it gets marked at the bid.
+    exit_reason = exit_reject_reason(exit_q) if exit_q else "no_quote"
     can_settle = exit_underlying is not None
     stale = (exit_quote_age_days is not None and exit_quote_age_days > MAX_MARK_AGE_DAYS)
     # AUDIT B3: prefer the payoff over the mark whenever the payoff is knowable.

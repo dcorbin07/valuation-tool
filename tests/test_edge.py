@@ -4412,6 +4412,119 @@ def test_audit_c7_every_test_suite_gates_the_auto_merge():
     assert "exit $fail" in wf, "one red suite must not be hidden by a later green one"
 
 
+
+def test_audit_b7_the_live_path_and_the_backtest_path_score_identically():
+    """B7, the test the audit asked for by name. THREE composite functions existed and did not
+    agree: selection renormalised by present-weight mass, measurement did not (a missing theme
+    contributed a hard zero, which after z-scoring IS the cross-sectional average, so an
+    incomplete name was dragged to mid-pack), and live renormalised AND added sector-neutral
+    ranking plus residual momentum. `institutional` is missing on 38.6% of rows and `insider` on
+    15%, and both absences track size and coverage — so the extreme deciles were biased toward
+    data-complete names. The top-decile alpha and long-short t were computed under one
+    composite while the weights that produced them were chosen under another.
+
+    No shipped code path reproduced the backtested composite exactly. This pins that it does."""
+    from valuation.edge.fundamental_panel import composite
+    from valuation.screener.cross_sectional import composite_score, zscore
+
+    rng = np.random.RandomState(0)
+    n = 40
+    df = pd.DataFrame({"value": rng.normal(size=n), "quality": rng.normal(size=n),
+                       "institutional": rng.normal(size=n)})
+    df.loc[:14, "institutional"] = np.nan          # ~37.5% missing, like the real panel
+    w = {"value": 0.4, "quality": 0.4, "institutional": 0.2}
+
+    live = composite_score(df, w).values
+    Z = np.column_stack([zscore(df[c]).values for c in w])
+    bt = composite(Z, np.array([w[c] for c in w], dtype=float))
+
+    assert np.array_equal(np.isnan(live), np.isnan(bt)), "the two paths must agree on missing"
+    assert np.nanmax(np.abs(live - bt)) < 1e-12, "live and backtest composites must be identical"
+
+
+def test_audit_b7_a_missing_theme_is_renormalised_away_not_scored_as_average():
+    """B7's mechanism, isolated. Under the old measurement composite a name missing a theme got
+    that theme's weight times zero — and zero is exactly the cross-sectional mean of a z-scored
+    column, so 'no data' was silently scored as 'perfectly average'. Renormalising instead
+    scores the name on what it HAS."""
+    from valuation.edge.fundamental_panel import composite
+
+    wv = np.array([0.5, 0.5])
+    both = composite(np.array([[2.0, 2.0]]), wv)[0]
+    one_missing = composite(np.array([[2.0, np.nan]]), wv)[0]
+    assert abs(both - 2.0) < 1e-12
+    assert abs(one_missing - 2.0) < 1e-12, \
+        "a strong name missing a theme keeps its score; it is not halved toward the mean"
+    # the old behaviour, kept here only to show what it did
+    legacy = float(np.nansum(np.where([[True, False]], [[2.0, 0.0]], 0.0) * wv))
+    assert abs(legacy - 1.0) < 1e-12, "the discarded convention would have scored it 1.0"
+    # and a row with no present weight at all has NO opinion rather than a mid-pack 0.0
+    assert np.isnan(composite(np.array([[np.nan, np.nan]]), wv)[0])
+
+
+def test_audit_b7_the_rejected_interventions_are_no_longer_the_live_default():
+    """B7/G. `screen.py` calls `build_frame(metrics)` with no keyword arguments, so the live hot
+    list inherits CONFIG. Both flags defaulted TRUE while the backtest forced them FALSE.
+    Sector-neutral ranking was tested on the full universe, rejected in both held-out
+    directions, re-run independently on a later panel, and rejected again. The code default was
+    never flipped — so unless SCREENER_SECTOR_NEUTRAL=false was set in the environment, users
+    saw a list scored under the intervention the research eliminated."""
+    import importlib
+
+    from valuation import config as cfgmod
+
+    for var in ("SCREENER_SECTOR_NEUTRAL", "SCREENER_RESIDUAL_MOMENTUM"):
+        os.environ.pop(var, None)
+    importlib.reload(cfgmod)
+    assert cfgmod.CONFIG.sector_neutral is False, "the research rejected this, twice"
+    assert cfgmod.CONFIG.residual_momentum is False
+    # still overridable, so the A/B remains one env var away
+    os.environ["SCREENER_SECTOR_NEUTRAL"] = "true"
+    importlib.reload(cfgmod)
+    assert cfgmod.CONFIG.sector_neutral is True
+    os.environ.pop("SCREENER_SECTOR_NEUTRAL", None)
+    importlib.reload(cfgmod)
+
+
+def test_audit_b6_the_calendar_is_truncated_once_not_per_ticker():
+    """B6. `price_history` ended in `df.sort_values('date').tail(days)`, so EVERY ticker kept its
+    own last N rows and the panel calendar was the UNION of those windows. At a 2001
+    cross-section the only names present were ones that STOPPED TRADING by about 2019, because a
+    name still trading in 2026 had its first decade truncated away — the inverse of classic
+    survivorship bias, and severe enough to make roughly the first 37 of 110 rebalance dates
+    uninterpretable. `days=None` now means the whole series, and the shared calendar is cut once
+    after the frame is built."""
+    import inspect
+
+    from valuation.edge import fundamental_panel as FP
+    from valuation.edge.data_providers import WRDSProvider
+
+    src = inspect.getsource(WRDSProvider.price_history)
+    assert "if days:" in src, "the per-ticker tail must be conditional, never unconditional"
+
+    psrc = inspect.getsource(FP.build_fundamental_panel)
+    assert "provider.price_history(t, days=None)" in psrc, \
+        "the panel must ask for the WHOLE series and cut the calendar itself"
+    assert "_CAL_DAYS" in psrc and "frame.iloc[-_CAL_DAYS:]" in psrc
+    # the cut must come BEFORE the ffill, or a name with no data in the window gets filled into it
+    assert psrc.index("frame.iloc[-_CAL_DAYS:]") < psrc.index("frame = frame.ffill()")
+
+
+def test_audit_b6_the_panel_ships_its_window_and_cross_section_sizes():
+    """B6 / B22 / M6. `construction.n_periods` read 110 while `portfolio.n_periods` read 73 in
+    the same JSON, over different and undisclosed windows. And a thin early cross-section
+    counted as one observation of equal weight to a full recent one, with no way to see it."""
+    import inspect
+
+    from valuation.edge import fundamental_panel as FP
+
+    src = inspect.getsource(FP.build_fundamental_panel)
+    for key in ("available_start", "retained_start", "retained_end", "calendar_cut_days",
+                "cross_section_by_date", "cross_section_min", "n_rebalance_dates"):
+        assert key in src, f"panel_window must ship {key}"
+    assert '"truncation": "shared_calendar"' in src
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
