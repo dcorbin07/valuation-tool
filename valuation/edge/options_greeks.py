@@ -77,14 +77,24 @@ DERIVED_ROOT = os.path.join("data", "options_derived")
 # error swamps the vol; beyond ~130% / below ~70% moneyness the quote is mostly spread; a mid
 # under a nickel is a rounding artefact.
 #
-# `max_dte` is 90 because the CACHE stops there: `theta_bulk.MAX_DTE = 90` is a deliberate
-# mining decision (the live strategy only ever reads the front expiry and the 45-75 DTE band).
-# So there is no such thing as a 6-month contract in these files, and a 180-day tenor here would
-# be a column that is 100% empty while looking wired — exactly the failure the COVERAGE RULE in
-# CLAUDE.md exists to prevent. Term structure beyond ~2 months is NOT derivable from this cache.
+# `max_dte` TRACKS THE CACHE and is now 200, raised with `theta_bulk.MAX_DTE` (audit O15) so
+# that U1 can reach the equity composite's own horizon: 63 trading days is ~92 calendar days,
+# which the old 90 ceiling cut off by two days.
+#
+# READ THIS BEFORE TRUSTING A LONG TENOR. The deepening is PARTIAL by design — only the ~100
+# most liquid names were re-mined to 200 DTE; the rest of the cache is still 90. Widening the
+# band therefore does NOT mean every name has 90-200 DTE contracts, it means the band no longer
+# excludes them where they exist. `theta_bulk.depth_report()` says exactly which names are deep,
+# and `theta_bulk.cached_dte(sym, year)` says it per symbol-year. Any cross-sectional statistic
+# computed over the 90-200 DTE range is therefore comparing deep names against names that have
+# no such rows at all — check depth before ranking on one.
+#
+# TENORS deliberately stays under the old 90 ceiling for the same reason: a 180-day tenor would
+# be populated for the deep names and 100% empty for the rest, which is the COVERAGE RULE
+# failure in CLAUDE.md wearing a new hat. Widen TENORS when the deepening is universal.
 BAND = {
     "min_dte": 7,
-    "max_dte": 90,
+    "max_dte": 200,
     "mny_lo": 0.70,          # strike / spot
     "mny_hi": 1.30,
     "min_mid": 0.05,

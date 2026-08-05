@@ -4628,6 +4628,125 @@ def test_sustained_faults_rebuild_the_grpc_client():
     assert tb._client is not None
 
 
+def test_o15_cached_dte_depth_is_recorded_per_symbol_year():
+    """O15. The cache is now mined at two ceilings (90 before, 200 after) and on disk a shallow
+    year and a deep one are the SAME FILE SHAPE. Without a recorded depth, a consumer asking for
+    a 150-DTE contract gets data for some names and silence for others with nothing to explain
+    the difference -- this project's most-repeated bug class."""
+    import os
+    import pickle
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = TB.year_path("ZZZ", 2020, tmp)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        assert TB.cached_dte("ZZZ", 2020, tmp) == 0, "not cached at all must be 0, not a depth"
+        with open(path, "wb") as f:
+            pickle.dump(pd.DataFrame({"strike": [1.0]}), f)
+        # A pre-O15 file has no sidecar. That is not unknown -- MAX_DTE was 90 for its whole
+        # history, so the legacy depth is a recorded fact.
+        assert TB.cached_dte("ZZZ", 2020, tmp) == TB.LEGACY_MAX_DTE == 90
+        with open(path + ".dte", "w", encoding="utf-8") as f:
+            f.write("200 pulled 2026-08-05\n")
+        assert TB.cached_dte("ZZZ", 2020, tmp) == 200
+
+        rep = TB.depth_report(tmp)
+        assert rep["by_depth"] == {"200": 1}, rep
+        assert rep["names_fully_deep"] == ["ZZZ"], rep
+
+
+def test_o15_raising_max_dte_does_not_silently_re_pull_the_whole_cache():
+    """Deepening is OPT-IN. MAX_DTE 90 -> 200 makes all 3,140 cached symbol-years look stale;
+    if that alone triggered a re-pull, the next ordinary breadth-mining run would quietly
+    re-fetch the entire 17GB cache. `prefetch` must consult the SAME rule as `ensure_year` --
+    it used to do its own bare `os.path.exists`, which would have bypassed this completely."""
+    import inspect
+    import os
+    import pickle
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    assert TB.MAX_DTE == 200, "O15 raised the mining ceiling"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = TB.year_path("ZZZ", 2020, tmp)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:                      # a legacy 90-DTE year
+            pickle.dump(pd.DataFrame({"strike": [1.0]}), f)
+
+        plain = TB.ThetaBulk(api_key="x", root=tmp)
+        assert plain.upgrade_depth is False, "deepening must never be the default"
+        assert plain.needs_pull("ZZZ", 2020) is False, "a shallow year is NOT stale by default"
+
+        deep = TB.ThetaBulk(api_key="x", root=tmp, max_dte=200, upgrade_depth=True)
+        assert deep.needs_pull("ZZZ", 2020) is True, "the explicit deepening job must re-pull"
+
+        # ... and once it is deep, even the deepening job leaves it alone.
+        with open(path + ".dte", "w", encoding="utf-8") as f:
+            f.write("200 pulled 2026-08-05\n")
+        assert deep.needs_pull("ZZZ", 2020) is False, "a deep year must not be re-pulled"
+
+        # An exhausted / genuinely-empty year stays skipped: those are answers, not gaps.
+        for marker in (".empty", ".exhausted"):
+            p2 = TB.year_path("QQQ", 2020, tmp)
+            os.makedirs(os.path.dirname(p2), exist_ok=True)
+            with open(p2 + marker, "w", encoding="utf-8") as f:
+                f.write("x\n")
+            assert deep.needs_pull("QQQ", 2020) is False, marker
+            os.remove(p2 + marker)
+
+    assert "needs_pull" in inspect.getsource(TB.ThetaBulk.prefetch), \
+        "prefetch must route through needs_pull, not re-implement the skip rule"
+
+
+def test_o15_a_deeper_pull_may_never_replace_a_frame_with_fewer_rows():
+    """A 200-DTE pull of a span is a strict SUPERSET of the 90-DTE pull of that span. If the
+    deeper frame comes back SMALLER the pull was partial in a way the failure flags missed, and
+    overwriting would trade real, expensive data for less of it."""
+    import os
+    import pickle
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    def _frame(n):
+        return pd.DataFrame({"expiration": [dt.date(2020, 6, 19)] * n,
+                             "strike": [100.0] * n, "right": ["C"] * n,
+                             "date": [dt.date(2020, 6, 1)] * n,
+                             "bid": [1.0] * n, "ask": [1.1] * n,
+                             "volume": [5] * n, "open_interest": [7] * n})
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = TB.year_path("ZZZ", 2020, tmp)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            pickle.dump(_frame(500), f)                   # the cached 90-DTE year
+
+        tb = TB.ThetaBulk(api_key="x", root=tmp, max_dte=200, upgrade_depth=True)
+
+        tb._fetch_year = lambda s, y: (_frame(120), False)      # a thinner "deep" pull
+        assert tb.ensure_year("ZZZ", 2020) is False
+        with open(path, "rb") as f:
+            assert len(pickle.load(f)) == 500, "the shallow frame must survive"
+        assert TB.cached_dte("ZZZ", 2020, tmp) == 90, "a rejected pull must not claim depth"
+
+        tb._fetch_year = lambda s, y: (_frame(640), False)      # a genuine superset
+        assert tb.ensure_year("ZZZ", 2020) is True
+        with open(path, "rb") as f:
+            assert len(pickle.load(f)) == 640
+        assert TB.cached_dte("ZZZ", 2020, tmp) == 200, "a kept pull must record its depth"
+
+
 def test_audit_x2_the_rebalance_grid_is_a_choice_and_is_now_recorded():
     """X2. The grid was `range(TD, len(cal) - horizon, rebalance_days)` with TD hard-coded to
     252, so every number this project has ever produced came off ONE of the 63 equally valid
