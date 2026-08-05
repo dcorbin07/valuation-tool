@@ -4726,6 +4726,37 @@ def test_audit_x7_placebo_destroys_signal_and_preserves_everything_else():
         panel.groupby("date")["quality"].sum().round(9)), "signal leaked across dates"
 
 
+def test_theme_ic_returns_theme_keyed_blocks_at_the_top_level():
+    """The results FILE nests these under `per_theme.themes`; the FUNCTION does not. Reading
+    a "themes" key off `theme_ic()` yields {} silently — no error, no warning, just an empty
+    result — which is exactly the failure mode the coverage rule exists for. X7's calibration
+    of the IC t > 2.0 bar reads its max |t| from here, so the shape is pinned."""
+    import numpy as np
+    import pandas as pd
+
+    from valuation.edge import fundamental_panel as FP
+
+    rng = np.random.default_rng(3)
+    rows = []
+    for d in [f"20{y:02d}-06-30" for y in range(5, 25)]:
+        for k in range(60):
+            q = float(rng.normal())
+            rows.append({"date": d, "ticker": f"T{k:03d}", "quality": q,
+                         "momentum": float(rng.normal()),
+                         "fwd_ret": 0.02 * q + float(rng.normal()) * 0.05})
+    ti = FP.theme_ic(pd.DataFrame(rows))
+
+    assert "quality" in ti and "momentum" in ti, \
+        f"theme_ic must key by theme at the TOP level, got {sorted(ti)[:6]}"
+    assert "themes" not in ti, \
+        "the `themes` wrapper is added by the results writer, not by theme_ic"
+    for name in ("quality", "momentum"):
+        assert set(ti[name]) >= {"median_ic", "ic_tstat", "coverage", "n_dates"}, \
+            f"{name} block is missing a field X7 reads"
+    # `quality` was built INTO the forward return here, so it must be the stronger of the two.
+    assert ti["quality"]["ic_tstat"] > ti["momentum"]["ic_tstat"]
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

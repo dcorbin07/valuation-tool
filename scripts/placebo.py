@@ -89,9 +89,11 @@ def one_iteration(panel, cols, base, seed, permute=True, costs=True):
         rec = base
 
     qb = FP.quantile_backtest(pl, cols, rec, n_q=10, horizon=HORIZON) or {}
-    # theme_ic nests its per-theme block under "themes"; reading the top level would silently
-    # give an empty t-list and a max-|t| of None on every draw.
-    themes = (FP.theme_ic(pl) or {}).get("themes") or {}
+    # theme_ic returns the per-theme blocks at the TOP level, keyed by theme name. The
+    # "themes" wrapper seen in BACKTEST_RESULTS.json is added by the results writer, not by
+    # this function — reading it here yields {} and a silent max-|t| of None on every draw.
+    themes = FP.theme_ic(pl) or {}
+    themes = themes.get("themes") if isinstance(themes.get("themes"), dict) else themes
     hv = FP.holdout_theme_validate(pl, cols) or {}
 
     bk = {}
