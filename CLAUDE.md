@@ -38,6 +38,45 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE THRESHOLDS ARE NOW CALIBRATED — READ THIS BEFORE QUOTING ANY t, IC OR PBO
+  (2026-08-05, audit X7). Every bar in this project was a CONVENTION until this run; three of
+  the four are too low, and one is at the noise level.** `scripts/placebo.py` shuffles the
+  signal within each rebalance date (block permutation: per-date distribution, missingness
+  pattern and cross-theme correlation all preserved exactly; `fwd_ret`/`marketcap`/`sector`
+  untouched) and pushes 100 draws through the REAL pipeline — CPCV, weight selection,
+  quantile backtest, theme ICs, the held-out gate. The harness reproduces the shipped run
+  exactly (t 2.83606, alpha 0.071741, PBO 0.73333) before any draw, and the equal-weight
+  benchmark is +18.14% on all 100 draws (sd 0.00004), which is the control.
+
+  | bar | as used | CALIBRATED (placebo p95) | how often pure noise clears the OLD bar |
+  |---|---|---|---|
+  | theme IC t | 2.0 | **2.71** (noise max 3.93) | **39%** |
+  | long-short t | 2.0 | **2.14** (noise max 3.44) | 8% |
+  | top-decile alpha margin | 1.0pp | **1.95pp** | 18% |
+  | PBO | <50% | **<19.7%** (placebo p5; noise MEDIAN is 46.7%) | **55%** |
+  | Deflated Sharpe | >0.95 | **STANDS** (noise median 0.28) | 2% |
+
+  **Use these numbers, not the old ones.** They are floors for THIS panel/universe/69 dates,
+  not universal constants — re-measure if the panel changes materially. Three consequences
+  that are easy to get wrong: **(a)** 39% of noise draws produce at least one theme at IC
+  t ≥ 2.0, because EIGHT themes are tested and the bar is applied to whichever looks best —
+  the project has always read that bar as if one theme were being tested; **(b)** the
+  **held-out gate (`holdout_theme_validate`) has a measured ~6% false-positive rate**, and
+  `low_risk` — the theme actually zeroed on its verdict — turned up among the false confirms
+  once in 100 draws, so that decision is not overturned but must be quoted with the rate;
+  **(c)** the real headline is outside the placebo's [2.5, 97.5] interval on alpha (clearly),
+  Deflated Sharpe, monotonicity, max theme IC t (narrowly) and long-short t (narrowly) — and
+  **INSIDE it on PBO**, which is therefore not distinguishable from noise.
+- **CPCV WEIGHT ADOPTION MANUFACTURES ~+1.4 OF LONG-SHORT t OUT OF NOTHING (X7, post-hoc —
+  treat as a strong hypothesis, not a settled result).** Splitting the 100 placebo draws on
+  whether CPCV adopted: when it did NOT (73 draws) mean long-short t is **−0.065** (se 0.119),
+  a textbook null; when it DID (27 draws) mean t is **+1.343** (se 0.184) and mean alpha
+  +0.82pp. It fires on **27% of pure-noise draws**. Mechanism: the adopted weights are chosen
+  on the same panel the headline is then measured on. **The shipped strategy is UNAFFECTED —
+  it does not adopt, it keeps `current-default`** — which is measured support for the existing
+  rule that a CPCV rejection means keep the defaults. But any future run that DOES adopt a
+  CPCV scheme has an optimistically biased headline unless measurement moves off the
+  selection panel. Not pre-registered; wants a pre-registered replication.
 - **CORRECTED 2026-08-03 (audit B9) — TWO OF THE THREE "statistical bars" MEASURE SOMETHING
   NARROWER THAN THE CLAIM THEY SUPPORT. Lead with the long-short t of 3.52 against the
   Harvey–Liu–Zhu hurdle of 3.0. That one is real.** The other two:
@@ -102,9 +141,27 @@ the project's memory and the old versions had been repeated for months.
   Long-short t 2.836, top-decile alpha +7.17%, monotonicity −0.891, PBO 73.3%, over 69
   rebalance dates on a genuine 18.5-year window (2008-01-16 → 2026-07-24).** The equal-weight
   benchmark moved +16.55% → +18.14%, which is the control and confirms the universe itself
-  changed. **Two of the three bars now FAIL: t 2.836 is BELOW the Harvey–Liu–Zhu hurdle of 3.0
-  it used to clear, and PBO 73.3% is far above the <50% bar.** Only the Deflated Sharpe still
-  passes and per B9 that was never the bar to lead with.
+  changed. **CORRECTED 2026-08-05 (audit session 3, X2+X7) — THE "TWO OF THREE BARS FAIL"
+  READING WAS WRONG, IN BOTH DIRECTIONS, AND BOTH ERRORS CAME FROM UNCALIBRATED BARS MEASURED
+  ON ONE ARBITRARY GRID.** It used to say: "t 2.836 is BELOW the Harvey–Liu–Zhu hurdle of 3.0
+  it used to clear, and PBO 73.3% is far above the <50% bar." Both halves are now retired:
+  * **t 2.836 vs the 3.0 hurdle is a GRID ARTEFACT.** X2 re-ran the whole backtest on seven
+    equally valid rebalance grids (offsets 0/5/10/20/30/40/50 trading days; the grid always
+    started at a hard-coded TD=252 and 62 other grids existed that nobody had ever looked at).
+    All seven keep 69 dates over the identical window. **Long-short t ranges 2.703 → 3.517,
+    median 2.926, and CLEARS 3.0 on three of the seven.** Quote **"t 2.7–3.5 depending on
+    grid, straddling the hurdle"** — never one side of 3.0 as a fact.
+  * **PBO <50% IS NOT A BAR AT ALL.** X7's placebo puts the MEDIAN PBO on a definitionally
+    worthless signal at **46.7%**, i.e. the "<50%" bar sits exactly at the noise level and has
+    almost no power. Calibrated bar is the placebo 5th percentile, **19.7%**. PBO is
+    uninformative here in either direction — do not cite it as a pass or a fail.
+  * **Top-decile alpha is the one headline that PASSED its robustness test:** spread across
+    the seven grids is only **1.30pp** (median **+7.52%**, range +6.84% to +8.14%), against an
+    equal-weight benchmark that itself moved 2.08pp across the same grids. The signal-driven
+    number is steadier than the market-driven one it is measured against.
+  Only the Deflated Sharpe still passes as originally stated — and X7 now DEFENDS it
+  (see the calibrated-thresholds bullet below); per B9 the surviving criticism of it is the
+  trial denominator, not the statistic.
   **ATTRIBUTED, one change per run, on the full universe — B6 IS ESSENTIALLY THE WHOLE DROP:**
   reverting B6 alone (B7+B13 still fixed) restores t 3.733, alpha +11.36%, PBO 26.7% at 110
   dates, so **B6 costs t −0.897, alpha −4.18pp and PBO +46.7pp — 100% of the PBO blow-out, 88%
@@ -128,6 +185,12 @@ the project's memory and the old versions had been repeated for months.
   until `python -m scripts.factor_alpha` has been re-run on the corrected panel.** The
   DIRECTION of R1's finding may well survive — the factor loadings are a separate question from
   the level — but every number below is provisional. Re-running R1 is the top audit task.
+  **AND IT NOW HAS A PARTIAL FLOOR TO BE READ AGAINST (2026-08-05, X7): the raw top-decile
+  alpha R1 decomposes is far outside the placebo null ([−1.33pp, +2.38pp] vs a measured
+  +6.84% to +8.14% across grids), so R1 is decomposing something real. X7 does NOT calibrate
+  R1's own FF5+MOM intercept** — that is a different estimator on a different series, and the
+  placebo has not been pushed through `scripts.factor_alpha`. If R1's re-run lands near its
+  threshold, running the placebo series through the factor regression is the first thing to do.
 - **SETTLED 2026-08-04 (audit R1) — THE HEADLINE IS NOT MERELY FACTOR EXPOSURE. The word
   "alpha" is now permitted, as a RANGE and with caveats.** `top_decile_alpha` is still
   `4 × (mean top-decile 63d return − mean equal-weighted universe 63d return)` with no risk
