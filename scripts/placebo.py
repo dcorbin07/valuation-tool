@@ -117,6 +117,12 @@ def one_iteration(panel, cols, base, seed, permute=True, costs=True):
         "n_periods": qb.get("n_periods"),
         "pbo": cpcv.get("pbo"),
         "deflated_sharpe": cpcv.get("deflated_sharpe"),
+        # AUDIT M1 — bank the DSR's INTERNALS, not just its probability. X7's first sweep stored
+        # the scalar only, and when M1 replaced the trial count N=8 with the measured equity
+        # count N=84 the whole 3.4-hour sweep had to be re-run to move one column: DSR depends on
+        # N through `sr0`, and (sharpe, var_sr, n_trials) cannot be recovered from Phi(.) alone.
+        # With these four numbers per draw, any future re-denomination is arithmetic.
+        "deflated_sharpe_detail": cpcv.get("deflated_sharpe_detail"),
         "cpcv_adopt": bool(cpcv.get("adopt")),
         "cpcv_recommend": cpcv.get("recommend"),
         "max_abs_theme_ic_t": (max(t_abs) if t_abs else None),
@@ -200,6 +206,11 @@ def _write(path, real, draws, args, costs=True):
         "n_requested": args.n,
         "seeds": f"{args.seed0}..{args.seed0 + args.n - 1}",
         "panel": args.panel,
+        # AUDIT M1 — which denominator this sweep ran at, stamped on the file. X7's first sweep
+        # was silently N=8 on both sides, and nothing in its output said so; the claim it
+        # supported ("the Deflated Sharpe survives calibration") had to be marked PROVISIONAL a
+        # session later. A sweep that does not record its own N cannot be read afterwards.
+        "trial_count": _trials_stamp(real),
         "real": real,
         "null": {k: _summary([d.get(k) for d in draws]) for k in keys},
         "rates": {
@@ -225,6 +236,21 @@ def _write(path, real, draws, args, costs=True):
     }
     with open(path, "w") as f:
         json.dump(out, f, indent=2)
+
+
+def _trials_stamp(real):
+    """The N the Deflated Sharpe was computed against, read off the run rather than assumed."""
+    d = (real or {}).get("deflated_sharpe_detail") or {}
+    try:
+        from valuation.edge.research_log import detail as _rl
+        log = _rl()
+    except Exception:                                                     # noqa: BLE001
+        log = {"available": False}
+    return {"n_trials_used": d.get("n_trials"),
+            "n_trials_from_weight_schemes": d.get("n_trials_from_weight_schemes"),
+            "n_trials_from_research_log": d.get("n_trials_from_research_log"),
+            "source": d.get("n_trials_source"),
+            "research_log_available": bool(log.get("available"))}
 
 
 def _confirm_counts(draws):
