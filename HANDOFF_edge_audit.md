@@ -1700,3 +1700,254 @@ which number becomes canonical:
    honest number is used and the gap is recorded.
 
 ---
+
+---
+
+## R1 (RE-RUN) — Factor-adjusted alpha on the CORRECTED panel
+
+**Committed threshold:** `HANDOFF_r1.md` section 1, written before any regression was ever run,
+honoured **unchanged**: *the word "alpha" is permitted only if the FF5+MOM intercept is positive
+with Newey–West t > 2.0; an ambiguous result is a NULL, not a judgement call.* The three
+necessary deviations were declared in Part 5 above and pushed in `4f41c9f` before this ran.
+
+**What was run:** `python -m scripts.factor_alpha --corrected-panel`, strategy series regenerated
+from the corrected panel (`panel_grid0.pkl`, the Session-3 offset-0 build). **69 rebalance dates →
+68 non-overlapping 63-trading-day windows, 2009-01-15 → 2025-10-27**, deployed flat 1/7 weights,
+Newey–West lag 1. The prior run's 109 windows over 1998-12-31 → 2026-01-21 are **void**.
+
+**Alignment validation (the check that makes the rest believable):** SPY's own excess return
+regressed on MKT alone gives **beta 0.9327, R² 0.9878**, alpha +0.68%/yr (t 1.58). Windows are
+aligned to the factor calendar.
+
+**Result — the primary object (`top − ew`, which is exactly `top_decile_alpha` / 4), FF5+MOM:**
+
+| spec | n | raw | ALPHA /yr | NW t |
+|---|---|---|---|---|
+| **compound / full (pre-registered primary)** | 68 | +7.13% | **+6.99%** | **+3.984** |
+| compound / first half | 34 | +2.88% | +5.19% | +2.757 |
+| compound / second half | 34 | +11.38% | +10.85% | +3.857 |
+| sum / full (pre-registered robustness) | 68 | +7.13% | +6.79% | +3.751 |
+| sum / first half | 34 | +2.88% | +5.08% | +2.671 |
+| sum / second half | 34 | +11.38% | +10.49% | +3.482 |
+
+**All six specifications are positive with NW t > 2.0.** The pre-registration's veto — "if the
+verdict differs between the specification and either robustness cut, the result is a NULL" — is
+not triggered: there is no disagreement to adjudicate.
+
+Other objects, compound/full: **long-only book in excess of RF** +9.33%/yr (t +4.973);
+**long-short** +14.86%/yr (t +4.184); **the equal-weight universe's own unexplained excess**
++2.34%/yr (t +2.915).
+
+**Verdict: THRESHOLD CLEARED. CLAIM A APPLIES — the word "alpha" is permitted, as a range.**
+Quote **+5.1% to +10.9%/yr depending on subperiod and aggregation, with +6.99% (NW t 3.98) as the
+pre-registered central figure.** The conservative single number is the first half's **+5.19%**.
+
+**Against X7's calibrated floor, as instructed.** X7 does **not** calibrate a factor-regression
+intercept, so there is no placebo floor for R1's *t* and none is invented. What X7 does floor is
+the raw object R1 decomposes, and the pre-commitment was explicit: if the raw top-decile alpha
+fell inside the placebo null **[−1.33pp, +2.38pp]**, R1 would be a NULL whatever its intercept
+did. Measured raw is **+7.13%**, far outside. R1 is decomposing something real.
+
+**Why — and the mechanism has CHANGED, which matters more than the level.** The void run found
+SMB +0.39 (t 3.84), RMW +0.30 (t 4.49) and UMD +0.18 (t 3.49) all loading, with HML (t 1.08) and
+CMA (t 1.08) not. On the corrected panel:
+
+| factor | loading | t | void run |
+|---|---|---|---|
+| HML | **+0.251** | **+2.93** | did NOT load (t 1.08) |
+| UMD | **+0.205** | **+3.65** | loaded (t 3.49) |
+| SMB | +0.208 | +1.39 | **loaded (t 3.84)** |
+| RMW | +0.092 | +0.90 | **loaded (t 4.49)** |
+| CMA | −0.130 | −1.23 | did not load |
+| MKT | +0.019 | +0.28 | — |
+
+**SMB and RMW stop loading and HML starts.** The old reading — "`size`, `quality` and `momentum`
+ARE the standard premia; `value` and `capital_discipline` are not what FF measures" — is
+**reversed on two of its three legs** and must not be repeated. The honest current reading:
+momentum is a genuine standard-premium exposure, the book now has a real value tilt, and the
+size/profitability exposures that dominated the old story were largely an artefact of the
+inverted-universe window B6 removed. `R²` also fell 0.465 → 0.308: the factor models explain
+**less** of this series than they explained of the void one.
+
+The unhedged small-cap tilt that carried the old caveat is much weaker here — SMB +0.208 at
+t 1.39 on `top − ew`, against +0.885 in the void run — though the long-only book still loads
+SMB +0.691 (t 3.89), so the caveat survives for the BOOK even as it weakens for the spread.
+
+**Two things that must travel with the number.**
+1. **The secondary q-factor model does NOT clear on the first half.** q4 gives +6.72% (t 3.193)
+   on the full sample and +11.49% (t 3.838) on the second half, but **+3.17% (t 1.712)** on the
+   first — and q5 gives +1.56% (t 0.702) there. The pre-registered threshold is stated on the
+   FF5+MOM intercept, so this does not trigger the veto, but a reader is entitled to know the
+   early-period result is model-dependent.
+2. **This is still ONE panel.** A regression is a control, not new data. X8's international
+   replication remains the out-of-sample evidence; R1 is not.
+
+**The B7 composite correction, measured as declared.** R1's first run built its composite with the
+pre-B7 non-renormalising rule. Switching to the shipped composite moves individual period returns
+by up to **2.55pp** (top decile) and **3.57pp** (bottom), leaves `ew` unchanged to exactly zero as
+it must, and moves the mean top-decile alpha only **+7.183% → +7.311%**. Consistent with Session
+2's finding that B7 is a null on the headline while being a real mechanism underneath.
+
+**Follow-on.** The +8.81%/yr figure and the "+6.6% to +8.8%" range are now **void and must not be
+quoted anywhere.** Replaced by +6.99% (range +5.1% to +10.9%). Unblocks the product-copy decision
+that P5's second claim was contingent on: CLAIM A's text ships. Does NOT unblock any claim about
+out-of-sample generalisation — that is X8.
+
+---
+
+## R9 — A significance statistic for the headline, and HAC inference for the spread
+
+**Committed threshold:** Part 5 above. Instrumentation, so the commitment was about what gets
+reported and which number becomes canonical — not a keep/reject.
+
+**What was run:** `quantile_backtest` on the corrected full-universe panel, 69 dates.
+
+**Result:**
+
+| quantity | value |
+|---|---|
+| `top_decile_alpha` | +7.17% |
+| **`top_decile_alpha_tstat`** (new) | **+4.517** |
+| **`top_decile_alpha_tstat_nw`** (new) | **+4.376** |
+| `top_decile_alpha_hit` (new) | 71.0% of periods |
+| `long_short_tstat` (naive, incumbent) | +2.836 |
+| **`long_short_tstat_nw`** (new) | **+2.620** |
+| Ljung–Box on the long-short spread | Q 10.25, df 4, **p = 0.036**, lag-1 acf +0.189 |
+| Ljung–Box on the alpha series | Q 10.28, df 4, **p = 0.036**, lag-1 acf +0.081 |
+
+**Verdict: ADOPTED, and the pre-committed consequence fires.** Ljung–Box rejects independence at
+p = 0.036 < 0.05 on both series, so **the Newey–West t is now the number this project quotes** and
+the naive t is retained as a diagnostic only. The long-short headline becomes **2.620, not
+2.836.**
+
+**Why.** The 63-day windows genuinely do not overlap, so the naive t was defensible on the
+*overlap* dimension — which is the dimension the project had thought about. It was never
+defensible on autocorrelation, and nothing anywhere computed a serial-correlation diagnostic. The
+measured lag-1 autocorrelation of +0.189 on the spread is exactly the regime persistence you would
+expect of a factor spread, and it inflates the naive t by about 8%.
+
+The headline alpha's *t* of +4.38 is far stronger than the long-short's — worth noting because the
+project has always led with the long-short as "the real bar". On this panel the long-only object
+is the better-measured one.
+
+**Follow-on.** Every future quotation of the long-short *t* uses the NW figure. Note the
+comparison to X7's calibrated floor of **2.14 is apples-to-oranges**: that floor was measured on
+the *naive* t across 100 placebo draws. Re-deriving the floor on the HAC statistic is open work.
+
+---
+
+## R10 — The uninvestable benchmark, replaced by three alternatives
+
+**Committed threshold:** Part 5 above — all three published side by side whatever they say; the
+alpha versus SPY **expected to be materially LOWER** and published at equal prominence.
+
+**What was run:** `benchmark_panel` on the corrected full-universe panel, 69 dates, deployed
+weights, top decile vs four benchmarks.
+
+**Result:**
+
+| benchmark | benchmark /yr | top decile /yr | EXCESS /yr | t | NW t | hit |
+|---|---|---|---|---|---|---|
+| equal-weight universe (incumbent, cost-free) | +18.14% | +25.31% | **+7.17%** | +4.517 | +4.376 | 71% |
+| equal-weight, charged the strategy's own costs | +16.10% | +25.31% | +9.21% | +5.834 | +5.685 | 75% |
+| cap-weighted panel average | +14.85% | +25.31% | +10.46% | +4.138 | +4.292 | 68% |
+| **SPY total return** | +15.32% | +25.31% | **+9.99%** | +3.638 | +3.770 | 64% |
+
+**Verdict: ADOPTED — and the pre-registered EXPECTATION WAS WRONG, in the strategy's favour.**
+Both the audit ("expect the alpha versus SPY to be considerably lower") and this session's own
+pre-commitment predicted the incumbent benchmark was flattering the product. **It is not. The
+incumbent is the HARDEST of the four.** Excess versus SPY is **+9.99%**, materially *higher* than
+the +7.17% the project has been publishing.
+
+**Why.** Over 2009-01 → 2026-01 the equal-weighted panel returned **+18.14%/yr** against SPY's
+**+15.32%** — the breadth of a ~1,500-name equal-weighted book beat the cap-weighted index over a
+window that began at the post-GFC bottom, when small caps recovered hardest. So the "uninvestable"
+benchmark is uninvestable in the direction of being **too demanding**, not too generous. The
+project has, by accident, been quoting the most conservative of its four available figures.
+
+This does not make the benchmark investable, and the cost asymmetry the audit identified is real
+and now measured: charging the equal-weight book the same market-cap cost table the strategy pays
+costs it **2.04pp/yr** (+18.14% → +16.10%), which is a genuine thumb on the scale that had been
+sitting in the strategy's favour and is now removed.
+
+**Follow-on.** The record may now state the edge survives against an investable benchmark: excess
+over SPY **+9.99%/yr, NW t 3.77**, and over a cap-weighted panel average +10.46% (NW t 4.29).
+**Publish +7.17% as the headline anyway** — it is the most conservative and it is the one every
+historical figure used, so changing it would break comparability for a number that only moves in
+the flattering direction. R10's numbers ship beside it in `benchmarks`.
+
+---
+
+## M1 — The append-only research log and a real trial counter
+
+**Committed threshold:** Part 5 above — most importantly: *if the Deflated Sharpe drops below
+0.95 at the true N, the record states plainly that the edge does NOT clear that bar. No
+re-specification, no reversion to 8, no hedge.*
+
+**What was run:** `RESEARCH_LOG.md` populated retrospectively from the handoff corpus;
+`valuation/edge/research_log.py` parses it; `N` wired into `_deflated_sharpe_detail` and
+`_trials_haircut`; `cpcv_validate` re-run on the corrected panel.
+
+**Result — the trial count:**
+
+| | trials |
+|---|---|
+| **equity** (the family this composite was searched within) | **84** |
+| options | 133 |
+| infra | 1 |
+| **total logged** | **218** |
+| `FIXED` rows, correctly NOT counted | 15 |
+| the audit's estimate | ~146 |
+
+**Result — what the honest denominator does to the statistics:**
+
+| | N = 8 (as shipped) | **N = 84 (measured)** |
+|---|---|---|
+| Deflated Sharpe | 0.9970 | **0.8997** |
+| `sr0_benchmark` | 0.242 | **0.406** |
+| `is_effectively_undeflated` | true | **false** |
+| `metric` self-report | `probabilistic_sharpe_ratio_UNDEFLATED` | **`deflated_sharpe_ratio`** |
+| `_trials_haircut` | 2.04 | **2.977** |
+
+**Verdict: ADOPTED, and the pre-committed consequence fires. THE EDGE DOES NOT CLEAR THE DEFLATED
+SHARPE BAR.** 0.8997 < 0.95. Stated plainly, as committed, with no re-specification.
+
+**Why — and there is a genuine win buried in the failure.** Audit **B9** argued the statistic was
+an undeflated PSR because `sr0` collapsed. With a real N it does not collapse: `sr0` rises from
+0.242 to 0.406 against a per-period Sharpe of 0.550, so the benchmark is now deflating away 74% of
+the Sharpe and the statistic **self-reports as a genuine Deflated Sharpe for the first time.**
+**B9's criticism is resolved by M1, not by argument** — and the price of resolving it is that the
+bar is no longer cleared. That is the correct trade and it was pre-committed.
+
+Separately, `√(2·ln 84) = 2.977` — the multiple-testing haircut at the real N lands within 0.03 of
+the Harvey–Liu–Zhu hurdle of 3.0, exactly as the audit predicted it would.
+
+**Two schema decisions, both of which change the count and both deliberate.**
+1. **A trial counts whether or not it was pre-committed.** The log's original rule counted only
+   pre-committed tests. That is right for judging whether a *result* is credible and wrong for a
+   multiple-testing *denominator*: what inflates the best-looking result is how many times the
+   data was searched, not how well each search was documented. The old rule would have
+   systematically understated N and therefore **overstated** significance — the exact error M1
+   exists to fix. Rows carry `pre = yes | retro`; both count.
+2. **`N` is domain-scoped.** The equity composite is charged the 84 equity trials, not the 218
+   project-wide ones. The options autopsy's 126-feature sweep is a different search over
+   different data for a different product; charging the equity composite for it would
+   over-penalise as surely as charging it for eight weight schemes under-penalises. The log's own
+   schema already forms BH-FDR families within a domain.
+3. A row may represent a pre-registered GRID via `n=<k>` — the lazy-prices 28-cell sweep is one
+   row counted as 28. Writing 28 near-identical rows would be fabricated precision; counting it
+   once would undercount a 28-way search by a factor of 28.
+
+**A missing or unreadable log degrades to N = 8**, i.e. to the OLD behaviour, never to an
+unpenalised one.
+
+**Follow-on — and this one is pre-committed and must not be skipped.** **X7's finding that "the
+Deflated Sharpe survives calibration" is now PROVISIONAL.** That result was measured with N = 8
+inside *both* the real run and all 100 placebo draws. Changing N changes both, so the placebo must
+be re-run at the true N before the claim is repeated. The direction is predictable — both fall —
+so the *relative* comparison may well survive; the *absolute* claim "DSR > 0.95" does not, and no
+part of it may be quoted until the placebo is re-run. The 218-row total is above the audit's ~146
+estimate, so the gap the pre-commitment worried about (recovering fewer than 146) did not
+materialise; the equity-scoped 84 is the operative number and is a measured floor, not a guess.
+
+---

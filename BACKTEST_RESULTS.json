@@ -1,13 +1,13 @@
 {
   "schema_version": 4,
   "errors": [],
-  "generated_at": "2026-08-04T03:20:55",
-  "generated_at_utc": "2026-08-04T07:20:55+00:00",
+  "generated_at": "2026-08-05T12:46:11",
+  "generated_at_utc": "2026-08-05T16:46:11+00:00",
   "git": {
-    "commit": "adcd85ae93c2d970415b11061e058f1d991ccc88",
-    "short": "adcd85a",
+    "commit": "4f41c9f49d5a6e45175d73cd013aacde5af7080a",
+    "short": "4f41c9f",
     "branch": "worktree-options-live",
-    "dirty": false
+    "dirty": true
   },
   "provider": "local export files (Sharadar or CRSP)",
   "survivorship_free": true,
@@ -47,6 +47,7 @@
       "truncation": "shared_calendar",
       "horizon": 63,
       "rebalance_days": 63,
+      "grid_offset": 0,
       "n_rebalance_dates": 69,
       "cross_section_min": 1471,
       "cross_section_median": 1557,
@@ -248,18 +249,21 @@
       "meaning": "probability_of_backtest_overfitting"
     },
     "deflated_sharpe_detail": {
-      "probability": 0.9970164008628362,
+      "probability": 0.8996589404135822,
       "sharpe_per_period": 0.5500328707621251,
-      "sr0_benchmark": 0.23973145456971723,
-      "n_trials": 8,
+      "sr0_benchmark": 0.4056234662323911,
+      "n_trials": 84,
       "var_sr_across_trials": 0.026997967906897496,
       "n_periods": 69,
+      "n_trials_from_weight_schemes": 8,
+      "n_trials_from_research_log": 84,
+      "n_trials_source": "RESEARCH_LOG.md (audit M1)",
       "is_effectively_undeflated": false,
       "metric": "deflated_sharpe_ratio"
     },
     "pbo_scope": "weight_scheme_selection_only",
     "deflated_sharpe": {
-      "value": 0.9970164008628362,
+      "value": 0.8996589404135822,
       "want": ">0.95",
       "meaning": "probability_edge_is_real_after_trials_correction"
     },
@@ -413,11 +417,88 @@
     "equal_weight_ann": 0.18137118752419476,
     "long_short_ann": 0.11038184616720666,
     "long_short_tstat": 2.8360640685320595,
+    "long_short_tstat_nw": 2.6199121240414884,
+    "long_short_ljung_box": {
+      "q": 10.246833575247466,
+      "df": 4,
+      "acf": [
+        0.18904640439716733,
+        0.19417784990598275,
+        -0.03384526016036504,
+        0.253151393593389
+      ],
+      "p_value": 0.03646885945150591,
+      "lag1_autocorr": 0.18904640439716733
+    },
     "long_short_hit": 0.6666666666666666,
     "monotonicity": -0.8909090909090909,
     "monotonicity_want": "negative (-1.0 = perfectly ordered)",
     "top_decile_alpha": 0.07174142332098163,
+    "top_decile_alpha_tstat": 4.517421601141459,
+    "top_decile_alpha_tstat_nw": 4.376230427940328,
+    "top_decile_alpha_ljung_box": {
+      "q": 10.283144878250697,
+      "df": 4,
+      "acf": [
+        0.0812374099819142,
+        0.30621778922644777,
+        0.05347417857880996,
+        0.19063613329897636
+      ],
+      "p_value": 0.03591890098593076,
+      "lag1_autocorr": 0.0812374099819142
+    },
+    "top_decile_alpha_hit": 0.7101449275362319,
     "signal_weighted_top_decile_alpha": 0.08001508891469325
+  },
+  "benchmarks": {
+    "n_periods": 69,
+    "horizon": 63,
+    "ew_turnover_assumed": 1.0,
+    "equal_weight": {
+      "label": "equal-weight universe (incumbent)",
+      "note": "every name in the panel, cost-free \u2014 uninvestable, the number every historical alpha figure in this project used",
+      "n_periods": 69,
+      "benchmark_ann": 0.18137118752419476,
+      "top_decile_ann": 0.2531126108451764,
+      "excess_ann": 0.07174142332098168,
+      "excess_tstat": 4.517421601141459,
+      "excess_tstat_nw": 4.376230427940328,
+      "hit_rate": 0.7101449275362319
+    },
+    "equal_weight_costed": {
+      "label": "equal-weight universe, charged the strategy's costs",
+      "note": "same benchmark, same market-cap cost table the strategy pays; removes a thumb on the scale in the strategy's favour",
+      "n_periods": 69,
+      "benchmark_ann": 0.16099233072590627,
+      "top_decile_ann": 0.2531126108451764,
+      "excess_ann": 0.09212028011927015,
+      "excess_tstat": 5.83390872190287,
+      "excess_tstat_nw": 5.685407772673987,
+      "hit_rate": 0.7536231884057971
+    },
+    "cap_weighted": {
+      "label": "cap-weighted panel average",
+      "note": "closest investable analogue buildable from the panel itself",
+      "n_periods": 69,
+      "benchmark_ann": 0.14854246009728608,
+      "top_decile_ann": 0.2531126108451764,
+      "excess_ann": 0.10457015074789032,
+      "excess_tstat": 4.137670110245667,
+      "excess_tstat_nw": 4.291888862760569,
+      "hit_rate": 0.6811594202898551
+    },
+    "spy": {
+      "label": "SPY total return over the same windows",
+      "note": "what the user's obvious alternative actually returned",
+      "n_periods": 69,
+      "benchmark_ann": 0.15324824347901309,
+      "top_decile_ann": 0.2531126108451764,
+      "excess_ann": 0.09986436736616329,
+      "excess_tstat": 3.6379360028810215,
+      "excess_tstat_nw": 3.769758598721771,
+      "hit_rate": 0.6376811594202898
+    }
   },
   "institutional_dependence": {
     "institutional_weight": 0.143,
@@ -1048,14 +1129,14 @@
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.08119856135218217,
       "net_alpha": 0.06069654078141906,
-      "realised_one_way_bps": 33.35986774800827,
+      "realised_one_way_bps": 33.359867748008256,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",
         "the equal-weight benchmark is charged ZERO cost while the strategy pays, so every 'alpha versus equal-weight' figure compares a book that trades against one that does not"
       ],
       "flat_bps": null,
-      "breakeven_one_way_bps": 134.11280625592718,
+      "breakeven_one_way_bps": 134.11280625592693,
       "curve": [
         {
           "bps": 0.0,
@@ -1084,8 +1165,8 @@
         },
         {
           "bps": 150.0,
-          "net_alpha": -0.009419145738196688,
-          "net_ann": 0.16297386246430667
+          "net_alpha": -0.00941914573819691,
+          "net_ann": 0.16297386246430645
         },
         {
           "bps": 200.0,
@@ -1109,7 +1190,7 @@
       "n_names": 25,
       "top_frac": null,
       "gross_sharpe": 1.1994838740730134,
-      "net_sharpe": 1.1017733621085182,
+      "net_sharpe": 1.101773362108518,
       "net_max_drawdown": -0.26212347635832645,
       "net_vol_ann": 0.2666640308161228,
       "equal_weight_sharpe": 0.9084245982678518,
@@ -1120,7 +1201,7 @@
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.14889205697196717,
       "net_alpha": 0.1163488122989853,
-      "realised_one_way_bps": 41.89480864978,
+      "realised_one_way_bps": 41.894808649779996,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",
@@ -1151,8 +1232,8 @@
         },
         {
           "bps": 100.0,
-          "net_alpha": 0.07211168928402878,
-          "net_ann": 0.24450469748653214
+          "net_alpha": 0.072111689284029,
+          "net_ann": 0.24450469748653236
         },
         {
           "bps": 150.0,
@@ -1279,7 +1360,7 @@
       "rebalance_days": 42,
       "scored_at_horizon": 63,
       "net_alpha": 0.1163488122989853,
-      "net_sharpe": 1.1017733621085182,
+      "net_sharpe": 1.101773362108518,
       "net_max_drawdown": -0.26212347635832645,
       "annual_turnover": 3.1690792919718658,
       "after_tax_alpha": 0.020442996157761906,

@@ -4876,6 +4876,129 @@ def test_theme_ic_returns_theme_keyed_blocks_at_the_top_level():
     assert ti["quality"]["ic_tstat"] > ti["momentum"]["ic_tstat"]
 
 
+def test_audit_r9_the_headline_finally_has_a_significance_statistic():
+    """R9. `top_decile_alpha` is the number on the front of the product and shipped with NO
+    significance statistic of any kind. It now carries a t, a Newey-West t, a Ljung-Box
+    diagnostic and a hit rate, and the long-short carries HAC inference beside its naive t."""
+    import numpy as np
+    import pandas as pd
+
+    from valuation.edge import fundamental_panel as FP
+
+    rng = np.random.default_rng(11)
+    rows = []
+    for di, d in enumerate([f"20{y:02d}-{m:02d}-28" for y in range(6, 24) for m in (3, 9)]):
+        for k in range(80):
+            q = float(rng.normal())
+            rows.append({"date": d, "ticker": f"T{k:03d}", "quality": q, "momentum": float(rng.normal()),
+                         "fwd_ret": 0.03 * q + float(rng.normal()) * 0.06})
+    panel = pd.DataFrame(rows)
+    r = FP.quantile_backtest(panel, ["quality", "momentum"], {"quality": 1.0, "momentum": 0.0})
+
+    for k in ("top_decile_alpha_tstat", "top_decile_alpha_tstat_nw", "top_decile_alpha_hit",
+              "long_short_tstat_nw", "long_short_ljung_box", "top_decile_alpha_ljung_box"):
+        assert k in r, f"R9 must ship {k}"
+    assert r["top_decile_alpha_tstat"] > 2.0, "a built-in signal must register on the new t"
+    # The alpha t must describe the alpha, not the long-short: they are different objects.
+    assert r["top_decile_alpha_tstat"] != r["long_short_tstat"]
+    lb = r["long_short_ljung_box"]
+    assert set(lb) >= {"q", "df", "acf", "p_value", "lag1_autocorr"}
+    assert 0.0 <= lb["p_value"] <= 1.0
+    assert lb["df"] == len(lb["acf"])
+
+
+def test_audit_r9_hac_tstat_falls_when_the_series_is_autocorrelated():
+    """R9. The point of a HAC standard error is that positive serial correlation makes the
+    naive i.i.d. t OVERSTATE significance. On a deliberately autocorrelated series the NW t
+    must come in below the naive one, and Ljung-Box must notice."""
+    import numpy as np
+
+    from valuation.edge import fundamental_panel as FP
+
+    rng = np.random.default_rng(5)
+    x, prev = [], 0.0
+    for _ in range(200):
+        prev = 0.7 * prev + float(rng.normal())          # AR(1), strongly persistent
+        x.append(prev + 0.30)
+    naive, nw = FP._tstat(x), FP._nw_tstat(x, lag=1)
+    assert naive is not None and nw is not None
+    assert nw < naive, f"HAC t ({nw}) must be below the naive t ({naive}) on an AR(1) series"
+    lb = FP._ljung_box(x, lags=4)
+    assert lb["p_value"] < 0.05, "Ljung-Box must reject independence on an AR(1) series"
+    assert lb["lag1_autocorr"] > 0.4
+
+    # ...and on genuinely i.i.d. data the two must agree closely and Ljung-Box must NOT reject.
+    y = list(rng.normal(size=400) + 0.1)
+    assert abs(FP._nw_tstat(y, lag=1) - FP._tstat(y)) < 0.35
+    assert FP._ljung_box(y, lags=4)["p_value"] > 0.01
+
+
+def test_audit_r10_benchmarks_are_published_side_by_side():
+    """R10. Alpha was only ever measured against an equal-weighted average of every name in the
+    panel, charged zero trading cost while the strategy pays. Nobody can hold that. Three
+    investable-or-costed alternatives now ship beside it."""
+    import numpy as np
+    import pandas as pd
+
+    from valuation.edge import fundamental_panel as FP
+
+    rng = np.random.default_rng(19)
+    rows = []
+    for d in [f"20{y:02d}-06-30" for y in range(5, 25)]:
+        for k in range(80):
+            q = float(rng.normal())
+            rows.append({"date": d, "ticker": f"T{k:03d}", "quality": q,
+                         "momentum": float(rng.normal()),
+                         "market_cap": float(10 ** rng.uniform(8, 12)),
+                         "bench_ret": 0.02,
+                         "fwd_ret": 0.03 * q + float(rng.normal()) * 0.05})
+    r = FP.benchmark_panel(pd.DataFrame(rows), ["quality", "momentum"],
+                           {"quality": 1.0, "momentum": 0.0})
+    for k in ("equal_weight", "equal_weight_costed", "cap_weighted", "spy"):
+        assert k in r, f"R10 must ship the {k} benchmark"
+        assert "excess_ann" in r[k] and "excess_tstat_nw" in r[k], f"{k} needs excess + HAC t"
+    # Charging the equal-weight book a cost it never paid must LOWER it, so excess vs it RISES.
+    assert r["equal_weight_costed"]["benchmark_ann"] < r["equal_weight"]["benchmark_ann"]
+    assert r["equal_weight_costed"]["excess_ann"] > r["equal_weight"]["excess_ann"]
+    # SPY here is a flat +2%/period by construction, so it must be recognisably different.
+    assert abs(r["spy"]["benchmark_ann"] - 0.02 * 4.0) < 1e-9
+
+
+def test_audit_m1_the_trial_counter_is_real_and_deflates_more_than_eight():
+    """M1. Every multiple-testing claim was computed against N=8 (the weight schemes) while the
+    project had run scores of trials. N now comes from the append-only research log, scoped to
+    the domain the composite was searched within."""
+    from valuation.edge import fundamental_panel as FP
+    from valuation.edge import research_log as RL
+
+    d = RL.detail()
+    assert d["available"], "RESEARCH_LOG.md must be readable"
+    assert d["trials_logged"] >= 50, f"the log looks unpopulated: {d['trials_logged']}"
+    assert d["by_domain"]["equity"] > 8, "the equity family must exceed the weight-scheme floor"
+    assert d["by_domain"]["options"] > 0, "the options family must be counted separately"
+
+    # Domain scoping is a statistical choice, not a convenience: the equity composite must not
+    # be charged for the options programme's separate search.
+    assert RL.trial_count(domain="equity") < RL.trial_count(domain=None)
+    # A missing log must degrade to the OLD behaviour (8), never to an unpenalised one.
+    assert RL.trial_count(path="does_not_exist.md", use_cache=False) == RL.WEIGHT_SCHEME_TRIALS
+    assert FP._trial_N() == RL.trial_count(domain="equity")
+
+    # The haircut must now be driven by the log even when the immediate comparison is small.
+    assert FP._trials_haircut(8) > 2.5, "8 folds after ~84 trials is not an 8-trial search"
+
+    # And the deflation must actually bite: a bigger N raises sr0, which lowers the probability.
+    import numpy as np
+    rng = np.random.default_rng(3)
+    rets = list(rng.normal(0.02, 0.04, size=80))
+    trials = list(rng.normal(0.4, 0.15, size=8))
+    det = FP._deflated_sharpe_detail(rets, trials)
+    assert det["n_trials"] == FP._trial_N(), "N must come from the log, not len(trials)"
+    assert det["n_trials_from_weight_schemes"] == 8
+    assert det["n_trials_source"].startswith("RESEARCH_LOG"), "the source must be recorded"
+    assert det["sr0_benchmark"] > 0, "with a real N the statistic must actually deflate"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

@@ -56,6 +56,12 @@ the project's memory and the old versions had been repeated for months.
   | PBO | <50% | **<19.7%** (placebo p5; noise MEDIAN is 46.7%) | **55%** |
   | Deflated Sharpe | >0.95 | **STANDS** (noise median 0.28) | 2% |
 
+  **THE DEFLATED SHARPE ROW IS NOW PROVISIONAL (2026-08-05, M1).** X7 measured it with
+  `N = 8` inside BOTH the real run and all 100 placebo draws. M1 replaced `N` with the
+  real equity trial count (84), which changes both sides — so the placebo must be re-run
+  at the true `N` before "the Deflated Sharpe survives calibration" is repeated. The
+  absolute claim is already dead: see the M1 bullet below.
+
   **Use these numbers, not the old ones.** They are floors for THIS panel/universe/69 dates,
   not universal constants — re-measure if the panel changes materially. Three consequences
   that are easy to get wrong: **(a)** 39% of noise draws produce at least one theme at IC
@@ -67,6 +73,62 @@ the project's memory and the old versions had been repeated for months.
   **(c)** the real headline is outside the placebo's [2.5, 97.5] interval on alpha (clearly),
   Deflated Sharpe, monotonicity, max theme IC t (narrowly) and long-short t (narrowly) — and
   **INSIDE it on PBO**, which is therefore not distinguishable from noise.
+- **THE EDGE DOES NOT CLEAR THE DEFLATED SHARPE BAR (2026-08-05, audit M1). The last bar the
+  project claimed to clear fails once the denominator is honest.** Every multiple-testing claim
+  was computed against `N = 8` — the eight weight schemes. `RESEARCH_LOG.md` is now populated and
+  `valuation/edge/research_log.py` feeds the real count into `_deflated_sharpe` and
+  `_trials_haircut`. Measured trial counts: **equity 84, options 133, infra 1, total 218**
+  (against the audit's ~146 estimate; 15 `FIXED` correctness rows correctly do NOT count).
+
+  | | N = 8 (as shipped) | **N = 84 (measured)** |
+  |---|---|---|
+  | Deflated Sharpe | 0.9970 | **0.8997** — FAILS the >0.95 bar |
+  | `sr0_benchmark` | 0.242 | **0.406** |
+  | `metric` self-report | `probabilistic_sharpe_ratio_UNDEFLATED` | **`deflated_sharpe_ratio`** |
+  | `_trials_haircut` | 2.04 | **2.977** |
+
+  **There is a real win inside the failure: audit B9 is RESOLVED by measurement.** B9 argued the
+  statistic was an undeflated PSR because `sr0` collapsed. With a real `N` it does not collapse —
+  `sr0` rises to 0.406 against a per-period Sharpe of 0.550, deflating away 74% of it, and the
+  statistic self-reports as a genuine Deflated Sharpe **for the first time**. The price of fixing
+  it is that the bar is no longer cleared. That trade was pre-committed before the run.
+  Also: **√(2·ln 84) = 2.977**, i.e. the multiple-testing haircut at the real `N` lands within
+  0.03 of the Harvey–Liu–Zhu hurdle of 3.0 — exactly as the audit predicted.
+  **`N` is domain-scoped** (the equity composite is charged the 84 equity trials, not the 218
+  project-wide ones — the options autopsy is a different search for a different product), and a
+  missing log degrades to `N = 8`, i.e. to the OLD behaviour, never to an unpenalised one.
+- **THE HEADLINE NOW HAS A t, AND THE LONG-SHORT t IS 2.620 NOT 2.836 (2026-08-05, audit R9).**
+  `top_decile_alpha` — the number on the front of the product — shipped with **no significance
+  statistic of any kind**. It now carries **t +4.517, HAC t +4.376, hit rate 71.0%**. The
+  long-short's naive i.i.d. t is joined by **HAC t +2.620** and a Ljung–Box diagnostic.
+  **Ljung–Box rejects independence at p = 0.036** (lag-1 autocorrelation +0.189), so per the
+  pre-commitment **the Newey–West t is now the number this project quotes** and the naive t is a
+  diagnostic only. The 63d windows genuinely do not overlap — that dimension was fine — but
+  factor spreads are autocorrelated and nothing anywhere measured it. Note the long-ONLY object
+  is far better measured (t 4.38) than the long-short the project has always led with.
+  Comparing 2.620 to X7's calibrated floor of 2.14 is **apples-to-oranges**: that floor was
+  measured on the NAIVE t across 100 placebo draws. Re-deriving it on the HAC statistic is open.
+- **THE UNINVESTABLE BENCHMARK WAS THE HARDEST ONE — the expectation was WRONG in the strategy's
+  favour (2026-08-05, audit R10).** Alpha had only ever been measured against an equal-weighted
+  average of every name in the panel, charged zero trading cost while the strategy pays. Both the
+  audit and this session's own pre-commitment predicted that flattered the product. It does not:
+
+  | benchmark | benchmark /yr | top-decile EXCESS /yr | HAC t |
+  |---|---|---|---|
+  | equal-weight universe (incumbent, cost-free) | +18.14% | **+7.17%** | +4.376 |
+  | equal-weight, charged the strategy's own costs | +16.10% | +9.21% | +5.685 |
+  | cap-weighted panel average | +14.85% | +10.46% | +4.292 |
+  | **SPY total return** | +15.32% | **+9.99%** | +3.770 |
+
+  Over 2009-01 → 2026-01 the equal-weighted panel returned **+18.14%/yr vs SPY's +15.32%** — a
+  ~1,500-name equal-weighted book beat the cap-weighted index over a window starting at the
+  post-GFC bottom. So the incumbent benchmark is uninvestable in the direction of being **too
+  demanding**. **Keep publishing +7.17% as the headline** — it is the most conservative and the
+  one every historical figure used, so changing it would break comparability for a number that
+  only moves the flattering way. The edge now also survives an INVESTABLE benchmark: +9.99% over
+  SPY (HAC t 3.77). Charging the equal-weight book the strategy's own cost table costs it
+  2.04pp/yr, a genuine thumb on the scale that had sat in the strategy's favour and is now gone.
+  All four ship in the `benchmarks` block on every run.
 - **CPCV WEIGHT ADOPTION MANUFACTURES ~+1.4 OF LONG-SHORT t OUT OF NOTHING (X7, post-hoc —
   treat as a strong hypothesis, not a settled result).** Splitting the 100 placebo draws on
   whether CPCV adopted: when it did NOT (73 draws) mean long-short t is **−0.065** (se 0.119),
@@ -177,20 +239,44 @@ the project's memory and the old versions had been repeated for months.
   bps realised (B11 — the old "37 bps" was an assumption quoted as a measurement). **No shipped
   decision changed:** `low_risk` still `confirmed` in both split directions, `insider` still
   `rejected`. Full three-way A/B in `HANDOFF_edge_audit.md` Part 3.
-- **R1 MUST BE RE-RUN — ITS PANEL NO LONGER EXISTS (flagged 2026-08-04, audit session 2).**
-  Everything in the next bullet was measured over "109 non-overlapping windows, 1998-12-31 →
-  2026-01-21" — i.e. the pre-B6 union calendar, whose first third had the inverted universe.
-  The corrected panel is 69 windows over 2008-01-16 → 2026-07-24, and the raw top-decile alpha
-  R1 was decomposing fell +11.69% → +7.17%. **Do NOT quote +8.81%/yr or the +6.6%–8.8% range
-  until `python -m scripts.factor_alpha` has been re-run on the corrected panel.** The
-  DIRECTION of R1's finding may well survive — the factor loadings are a separate question from
-  the level — but every number below is provisional. Re-running R1 is the top audit task.
-  **AND IT NOW HAS A PARTIAL FLOOR TO BE READ AGAINST (2026-08-05, X7): the raw top-decile
-  alpha R1 decomposes is far outside the placebo null ([−1.33pp, +2.38pp] vs a measured
-  +6.84% to +8.14% across grids), so R1 is decomposing something real. X7 does NOT calibrate
-  R1's own FF5+MOM intercept** — that is a different estimator on a different series, and the
-  placebo has not been pushed through `scripts.factor_alpha`. If R1's re-run lands near its
-  threshold, running the placebo series through the factor regression is the first thing to do.
+- **R1 RE-RUN, DONE 2026-08-05 (audit session 4) — THE THRESHOLD IS CLEARED AGAIN ON THE
+  CORRECTED PANEL, AT A LOWER LEVEL AND WITH A DIFFERENT MECHANISM. CLAIM A STILL APPLIES.**
+  The pre-commitment in `HANDOFF_r1.md` section 1 was honoured unchanged ("alpha" only if the
+  FF5+MOM intercept is positive with NW t > 2.0; ambiguous is a NULL). Re-run on the corrected
+  69-date panel → **68 non-overlapping 63d windows, 2009-01-15 → 2025-10-27**, deployed flat
+  1/7 weights, NW lag 1. Alignment check passes (SPY on MKT: beta 0.933, R² 0.988).
+  * **FF5+MOM alpha +6.99%/yr, NW t +3.984, R² 0.308** on the primary object (`top − ew`).
+    **ALL SIX pre-registered specs are positive with t > 2.0** — compound/sum × full/first
+    half/second half, spanning **+5.08% to +10.85%**. No disagreement, so the pre-registered
+    NULL veto is not triggered. **QUOTE +6.99%/yr (range +5.1% to +10.9%)**; the conservative
+    single number is the first half's +5.19%.
+  * **THE OLD +8.81%/yr AND THE +6.6%–8.8% RANGE ARE VOID. Do not quote them anywhere.**
+  * **THE MECHANISM REVERSED ON TWO OF ITS THREE LEGS — this is the part to re-read.** Now
+    loading: **HML +0.251 (t +2.93)** and **UMD +0.205 (t +3.65)**. NOT loading: **SMB +0.208
+    (t +1.39)** and **RMW +0.092 (t +0.90)**, both of which loaded strongly in the void run
+    (SMB t 3.84, RMW t 4.49). So the old story — "`size`, `quality`, `momentum` ARE the
+    standard premia; `value` and `capital_discipline` are not what FF measures" — is
+    **backwards on size and profitability** and must not be repeated. Current honest reading:
+    momentum is a genuine standard-premium exposure, the book now carries a real VALUE tilt,
+    and the size/profitability exposures that dominated the old story were largely an artefact
+    of the inverted-universe window B6 removed. R² fell 0.465 → 0.308 — the factor models
+    explain LESS of this series than of the void one.
+  * The unhedged small-cap tilt caveat WEAKENS for the spread (SMB +0.208, t 1.39, vs +0.885
+    before) but SURVIVES for the long-only book (SMB +0.691, t 3.89).
+  * Other objects: long-only book in excess of RF **+9.33%/yr (t 4.97)**; long-short
+    **+14.86%/yr (t 4.18)**; the equal-weight universe's own unexplained excess +2.34% (t 2.92).
+  * **CAVEAT THAT MUST TRAVEL: the secondary q-factor model does NOT clear on the first half**
+    (q4 +3.17%, t 1.712; q5 +1.56%, t 0.702), though it clears on the full sample (+6.72%,
+    t 3.19) and the second half (+11.49%, t 3.84). The pre-registered threshold is stated on
+    FF5+MOM so this does not veto, but the early-period result is model-dependent.
+  * Against X7's floor: raw top-decile alpha +7.13% is far outside the placebo null
+    [−1.33pp, +2.38pp], so R1 is decomposing something real. **X7 does NOT calibrate a
+    factor-regression intercept** — no placebo floor exists for R1's own t, and none was
+    invented. Still ONE panel; **X8's international replication is the out-of-sample evidence,
+    R1 is not.** Full entry: `HANDOFF_edge_audit.md` Part 5.
+- **SUPERSEDED 2026-08-05 by the R1 RE-RUN above. Every number in the next bullet was measured
+  on the pre-B6/B7 panel over a window that no longer exists, with a composite no shipped code
+  path uses. Kept only as the record of what was claimed. DO NOT QUOTE IT.**
 - **SETTLED 2026-08-04 (audit R1) — THE HEADLINE IS NOT MERELY FACTOR EXPOSURE. The word
   "alpha" is now permitted, as a RANGE and with caveats.** `top_decile_alpha` is still
   `4 × (mean top-decile 63d return − mean equal-weighted universe 63d return)` with no risk
