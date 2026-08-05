@@ -1273,3 +1273,323 @@ from how much the SIGNAL moved).
    it is worth deploying is **out of scope for this session** and is not decided here.
 
 ---
+
+## X7 — A no-signal placebo through the full pipeline
+
+**Committed threshold (written before the run):** Part 4 above, pushed in `1276e4b` before any
+run was launched. Six numbered interpretations, none revised afterwards.
+
+**What was run:** `python -m scripts.placebo --panel panel_grid0.pkl --n 100 --no-costs`.
+Full universe, 2,827 names requested → 113,945 panel rows, **69 rebalance dates, 2009-01-15 →
+2026-01-28** (the panel's scored dates; the underlying price window is 2008-01-16 → 2026-07-24).
+Eight scored themes — `sentiment` is empty and `growth` is not in the `established` bucket, so
+both drop out of `cols` before any placebo is drawn. **56 signal columns** permuted per date
+(8 themes + 48 `z_*` columns). **N = 100 draws, seeds 1000–1099, all 100 completed.** Per draw:
+`cpcv_validate` → the CPCV verdict chooses the weights exactly as `run_backtests` does →
+`quantile_backtest` → `theme_ic` → `holdout_theme_validate`. ~110 s/draw.
+
+**Harness validation, before any placebo:** the same code path on the UNPERMUTED panel returns
+long-short *t* **2.83606**, top-decile alpha **0.071741**, PBO **0.73333**, Deflated Sharpe
+**0.99702** — identical to the Session-2 shipped numbers. The harness reproduces the shipped
+pipeline, so the null below is the null of the real machinery and not of a stand-in.
+
+**Control:** `equal_weight_ann` = **+18.14% on every one of the 100 draws** (sd 0.00004). The
+benchmark never touches the composite, so this is the proof that the placebo perturbed the
+signal and nothing else.
+
+**Result — the null distribution (N = 100):**
+
+| statistic | p2.5 | p5 | p50 | p95 | p97.5 | max | sd | MC se(mean) |
+|---|---|---|---|---|---|---|---|---|
+| long-short *t* | −1.745 | −1.546 | +0.105 | **+2.144** | +2.729 | **+3.436** | 1.178 | 0.118 |
+| top-decile alpha | −1.33pp | −1.13pp | +0.25pp | **+1.95pp** | +2.38pp | +2.78pp | 0.92pp | 0.09pp |
+| max \|theme IC *t*\| | 0.952 | 1.022 | 1.817 | **+2.707** | 2.946 | **+3.929** | 0.574 | 0.057 |
+| PBO | 0.133 | **0.197** | **0.467** | 0.867 | 0.867 | 0.933 | 0.203 | 0.020 |
+| Deflated Sharpe | 0.001 | 0.002 | **0.280** | 0.857 | 0.904 | 0.979 | 0.282 | 0.028 |
+| monotonicity | −0.789 | −0.770 | −0.097 | +0.458 | +0.709 | +0.794 | 0.379 | 0.038 |
+
+**Rates at which pure noise clears the project's bars:**
+
+| event | rate on noise |
+|---|---|
+| at least one theme at IC *t* ≥ 2.0 | **39%** |
+| long-short *t* ≥ 2.0 | 8% |
+| long-short *t* ≥ 3.0 (the Harvey–Liu–Zhu hurdle) | 1% |
+| top-decile alpha ≥ 1.0pp | 18% |
+| PBO < 50% | **55%** |
+| Deflated Sharpe ≥ 0.95 | 2% |
+| CPCV adopts a weight scheme | **27%** |
+| `holdout_theme_validate` returns `confirmed` for ≥ 1 theme | **6%** |
+| long-short *t* ≥ 2.0 **and** alpha ≥ 1pp jointly | 5% |
+
+Themes falsely `confirmed` by the held-out gate: `insider` ×4, `size` ×1, **`low_risk` ×1**.
+Distribution of themes clearing IC *t* ≥ 2.0 in a draw: 0 in 61 draws, 1 in 33, 2 in 2, 3 in 4.
+
+**Verdict: THREE OF THE PROJECT'S FOUR THRESHOLDS ARE UNCALIBRATED; ONE SURVIVES.** Applying the
+committed rules mechanically:
+
+1. **IC *t* > 2.0 — UNCALIBRATED.** Committed rule: fires if the placebo p95 of max-|theme IC *t*|
+   ≥ 2.0. Measured **2.707**. The calibrated bar is **2.71**, and noise reaches **3.93** — above
+   the real panel's best theme (`quality`, 3.101).
+2. **Long-short *t* > 2.0 — UNCALIBRATED.** Placebo p95 **2.144** ≥ 2.0. Calibrated bar **2.14**.
+3. **PBO < 50% — MEANINGLESS AS STATED.** Committed rule: fires if the placebo MEDIAN PBO < 50%.
+   Measured **46.7%**. The bar re-sets to the placebo 5th percentile, **19.7%**.
+4. **The 1% alpha margin — UNCALIBRATED.** Placebo p95 **+1.95pp** ≥ 1.0pp. Calibrated margin
+   **1.95pp**.
+5. **Deflated Sharpe — SURVIVES.** Committed rule: fires if the placebo MEDIAN ≥ 0.95. Measured
+   **0.280**, and only 2% of noise draws reach 0.95. The statistic discriminates. This is a
+   MEASURED partial defence of the metric item B9 attacked — B9's surviving criticism was about
+   the trial DENOMINATOR (N = 8 against ~146 real trials), which this does not touch.
+6. **The held-out gate — FIRES, marginally.** Committed rule: fires at ≥ 5%. Measured **6.0%**
+   (MC se ≈ 2.4pp, so 6% is not distinguishable from 5% at this N — the trigger is real but the
+   margin is not). The gate is roughly correctly sized, not badly broken. But **`low_risk` — the
+   one theme this project actually zeroed on this gate's verdict — appears among the false
+   confirms.** That does not overturn the `low_risk` decision; it means the decision rests on a
+   gate with a ~6% false-positive rate and must be quoted that way.
+
+**Threshold 7 — is the real result above the floor?** Committed rule: only if it lies outside the
+placebo [p2.5, p97.5].
+
+| statistic | real | placebo [p2.5, p97.5] | above the floor? |
+|---|---|---|---|
+| top-decile alpha | **+7.17%** | [−1.33pp, +2.38pp] | **YES, clearly** |
+| Deflated Sharpe | 0.9970 | [0.001, 0.904] | **YES** (above the placebo max, 0.979) |
+| monotonicity | −0.891 | [−0.789, +0.709] | **YES** |
+| max \|theme IC *t*\| | 3.101 | [0.952, 2.946] | **YES, narrowly** |
+| long-short *t* | 2.836 | [−1.745, +2.729] | **YES, narrowly** |
+| **PBO** | **0.733** | **[0.133, 0.867]** | **NO — inside the null** |
+
+**Why — mechanism, not just the number.**
+
+*Why PBO centres on 50%.* Under a pure null the eight weight schemes are exchangeable, so the
+in-sample best ranks at random out-of-sample and PBO must centre on one half. The measured 46.7%
+IS that theoretical value, recovered empirically. **PBO is behaving exactly as designed — the
+defect is that the project set its bar AT the noise level, which leaves it with almost no power.**
+The corollary is uncomfortable and should not be softened: the real panel's 73.3% is *worse* than
+the noise median, i.e. weight selection on real data generalises less well than on noise. That is
+what you expect when the in-sample winner is chosen on features that do not persist, whereas under
+noise there is nothing to choose on.
+
+*Why 39% of noise draws produce a theme at IC t ≥ 2.0.* Eight themes are tested per run, and the
+bar is a per-theme bar applied to whichever theme looks best. With eight roughly-independent
+tries, one clearing a nominal 5% two-sided bar is close to even odds. The project has always read
+this bar as if one theme were being tested, and it never has been.
+
+*A post-hoc finding, flagged as such.* Splitting the 100 draws on whether CPCV adopted — a
+variable recorded but NOT pre-registered for this test — gives:
+
+| | n | mean long-short *t* | mean alpha |
+|---|---|---|---|
+| CPCV did NOT adopt | 73 | **−0.065** (se 0.119) | +0.04pp |
+| CPCV DID adopt | 27 | **+1.343** (se 0.184) | +0.82pp |
+
+The non-adopting branch is a textbook null. The adopting branch is 7.3 se from zero. **On pure
+noise, the weight-selection step manufactures about +1.4 of long-short *t* whenever it fires, and
+it fires 27% of the time on nothing** — because the adopted weights are chosen on the same panel
+the headline is then measured on. **The mitigating fact that must travel with this: the SHIPPED
+strategy has `cpcv_adopt = False` and keeps `current-default`, so the deployed configuration sits
+in the unbiased branch.** This is measured support for the existing rule in CLAUDE.md that a CPCV
+rejection means keep the defaults. It is post-hoc, so it is a hypothesis with a large effect size
+and a mechanical explanation — not a settled result — and it wants a pre-registered replication.
+
+**Follow-on.**
+- **Every threshold in the project is now calibrated or known to be uncalibrated.** The four
+  numbers to use going forward: theme IC *t* **2.71**, long-short *t* **2.14**, PBO **19.7%**,
+  alpha margin **1.95pp**. These are floors for THIS panel, THIS universe and 69 dates; they are
+  not universal constants and must be re-measured if the panel changes materially.
+- **R1 can now be read against a floor.** This was the stated reason X7 comes first. R1's
+  re-run intercept must clear the placebo's own factor-regression floor, which X7 does not
+  measure — running the placebo series through `scripts.factor_alpha` is the natural extension
+  and is NOT done here.
+- **Forecloses** treating PBO < 50% as evidence, and treating a single theme's IC *t* of 2-ish
+  as a finding.
+- **Does NOT overturn any shipped decision.** The composite's alpha, monotonicity and Deflated
+  Sharpe are all well outside the null; `low_risk` stays zeroed; the weights stay at defaults.
+  What changes is the size of the claims the project is entitled to make.
+
+## X2 — Rebalance-grid offset sensitivity
+
+**Committed threshold (written before the run):** Part 4 above, pushed in `1276e4b` before any
+run was launched. Five numbered interpretations, none revised afterwards.
+
+**What was run:** seven full-universe backtests, identical in every respect except the rebalance
+grid. `EDGE_GRID_OFFSET` ∈ {0, 5, 10, 20, 30, 40, 50} trading days; all seven < `rebalance_days`
+= 63, therefore all distinct grids. `python -m valuation.edge.fundamental_panel --data-dir
+data/backtest --json x2_off<NN>.json`. Full universe, 2,827 names requested. **Every grid retained
+69 rebalance dates over an identical price window, 2008-01-16 → 2026-07-24**, with median
+cross-sections 1,557–1,563 — so the grids differ in WHICH dates are sampled, not in how many or
+over what span. One change per run.
+
+**Result:**
+
+| offset | n | long-short *t* | top-decile alpha | monotonicity | equal-weight | PBO | Deflated Sharpe |
+|---|---|---|---|---|---|---|---|
+| **0** | 69 | 2.836 | +7.17% | −0.891 | +18.14% | 73.3% | 0.9970 |
+| 5 | 69 | 2.850 | +7.74% | −0.915 | +18.13% | 73.3% | 0.9975 |
+| 10 | 69 | 2.926 | +8.14% | −0.976 | +18.05% | 60.0% | 0.9998 |
+| 20 | 69 | **3.517** | +7.57% | −0.952 | +17.72% | 53.3% | 0.9997 |
+| 30 | 69 | 3.410 | +6.84% | −0.927 | +19.20% | 80.0% | 0.9919 |
+| 40 | 69 | 3.374 | +7.52% | −0.903 | +19.79% | 86.7% | 0.9982 |
+| 50 | 69 | **2.703** | +7.08% | −0.903 | +19.73% | 66.7% | 0.9957 |
+| | | **min 2.703 / med 2.926 / max 3.517** | **min +6.84% / med +7.52% / max +8.14%** | | **min +17.72% / max +19.79%** | **min 53.3% / med 73.3% / max 86.7%** | |
+| | | spread **0.814** | spread **1.30pp** | spread 0.085 | spread **2.08pp** | spread **33.3pp** | |
+
+**Verdict: the LEVEL is ROBUST; the SIGNIFICANCE STATISTICS are NOT, and one Session-2 claim is
+overturned as a grid artefact.**
+
+1. **Top-decile alpha — ROBUST (committed rule: spread ≤ 2.0pp).** Measured spread **1.30pp**
+   across seven grids. The point estimate is meaningful and may be quoted as a figure. The
+   honest single number is the **median, +7.52%**, with the range +6.84% to +8.14% available;
+   Session 2's shipped +7.17% sits at the low end of it but well inside.
+2. **Significance is grid-dependent, and this OVERTURNS a Session-2 statement.** Committed rule
+   (a): if long-short *t* falls below 2.0 on any grid, significance is grid-dependent — **it does
+   not**, the minimum across seven grids is 2.703, so the *t* > 2 claim is not fragile. Committed
+   rule (b): if *t* is below the Harvey–Liu–Zhu hurdle of 3.0 on all seven grids, that
+   independently confirms Session 2's finding. **It is below 3.0 on only 4 of 7.** The
+   confirmation therefore FAILS, and the correct reading is the opposite of the one Session 2
+   recorded: **"long-short t 2.836 is BELOW the Harvey–Liu–Zhu hurdle" is a property of the one
+   arbitrary grid it was measured on, not of the strategy.** Three of seven equally valid grids
+   clear 3.0, one reaching 3.517. The defensible statement is that the long-short *t* is
+   **2.7–3.5 depending on grid, straddling the hurdle**, and no single side of 3.0 can be
+   claimed.
+3. **PBO — NOT a grid artefact (committed rule: > 50% on ≥ 4 of 7).** Measured **7 of 7**, median
+   73.3%, minimum 53.3%. Session 2's PBO blow-out is a property of the corrected panel and
+   survives this test cleanly. It is also the widest-spreading statistic here (33.3pp), so any
+   single PBO figure is a weak instrument regardless.
+4. **The offset-0 control — PASSES EXACTLY.** `n` 69, long-short *t* 2.8360640685, top-decile
+   alpha 0.0717414233, PBO 0.7333333 — identical to the Session-2 shipped numbers to every digit
+   quoted. Given the project's known and still-unexplained run-to-run non-reproducibility, this
+   was not a formality, and it is the first clean reproducibility PASS on the corrected panel.
+   It does not resolve the `insider` non-determinism (that is a per-theme IC issue, not a
+   headline one), but it does mean the headline path is deterministic on identical inputs.
+5. **The ensemble — out of scope, as committed.** Not decided here.
+
+**Why — mechanism, not just the number.**
+
+Every grid retains 69 dates over the same 18.5-year window, so this is not a sample-size or
+window effect: it is purely *which* 69 quarterly snapshots get sampled. The equal-weight
+benchmark — which never touches the composite — moves **2.08pp** across grids, MORE than the
+top-decile alpha's 1.30pp. That is the diagnostic that makes the robustness reading credible
+rather than lucky: the market-driven quantity is *less* stable across grids than the
+signal-driven one, so the alpha's stability is not an artefact of the grids being nearly
+identical — they are not.
+
+The *t*-statistic and PBO move much more than the alpha because both are ratios whose
+denominators are estimated from only 69 observations. A ±0.4 swing in *t* on n = 69 is what
+sampling noise in the period-to-period standard deviation buys you; PBO is computed over 15 CPCV
+path-splits, so it moves in visible 6.7pp quanta and has very little resolution to begin with.
+
+**Cross-reference to X7, which is the point of running them in the same session.** The placebo's
+long-short *t* has p97.5 = **2.729**. Of the seven real grids, **six clear that noise floor and
+one — offset 50, *t* 2.703 — does not.** So on one of seven equally valid grids the long-short
+*t* of the real strategy is not distinguishable from what this pipeline produces on a shuffled
+signal. Separately, all seven grids have PBO ≥ 53.3% against a placebo median of 46.7%: **every
+grid's weight selection generalises worse than noise.**
+
+**Follow-on.**
+- **CLAUDE.md and HANDOFF_STATUS.md must stop stating "t 2.836, below the HLZ hurdle of 3.0" as
+  a fact.** The statement is grid-conditional. Replaced with the range.
+- **Top-decile alpha may still be quoted as a figure** — this is the one headline quantity that
+  passed its robustness test outright.
+- **Forecloses** re-deriving any conclusion from a single grid's *t* or PBO without the range.
+- **Enables** the overlapping-cohort ensemble as a strictly lower-variance estimator, deliberately
+  NOT evaluated here.
+- `grid_offset` is now stamped into `panel_window` on every run, so no future result can be
+  silently off-grid.
+
+---
+
+## SESSION 3 — WHAT THE NOISE FLOOR CHANGED
+
+**The four calibrated numbers.** Every threshold in this project was a convention until now.
+Measured against 100 placebo draws through the real pipeline, on the corrected 69-date panel:
+
+| bar | as used | calibrated (placebo p95) | noise clears the old bar |
+|---|---|---|---|
+| theme IC *t* | 2.0 | **2.71** | 39% of draws |
+| long-short *t* | 2.0 | **2.14** | 8% of draws |
+| top-decile alpha margin | 1.0pp | **1.95pp** | 18% of draws |
+| PBO | < 50% | **< 19.7%** (placebo p5) | 55% of draws |
+| Deflated Sharpe | > 0.95 | **stands** | 2% of draws |
+| held-out gate | — | **6% false-positive rate** | — |
+
+These are floors for THIS panel, THIS universe and 69 dates. They are not universal constants and
+must be re-measured if the panel changes materially.
+
+**What the headline is entitled to claim, after both tests.** Top-decile alpha **+7.52% median
+across grids (range +6.84% to +8.14%)**, far outside the placebo's [−1.33pp, +2.38pp] — the
+strongest surviving claim in the project. Long-short ***t* 2.7–3.5 depending on grid**, straddling
+both the Harvey–Liu–Zhu hurdle of 3.0 and, on one grid of seven, the pipeline's own noise floor of
+2.73. **PBO is not usable as evidence in either direction**: it is inside the null on the shipped
+grid, above 50% on all seven grids, and its bar was set at the noise level.
+
+**Two shipped claims are now wrong and are corrected in place.** (1) "Long-short *t* 2.836 is below
+the HLZ hurdle" — grid-conditional, three of seven grids clear 3.0. (2) "PBO 73.3% fails the < 50%
+bar" — the bar itself is meaningless; the honest statement is that PBO is uninformative here.
+
+**No shipped decision changed.** `low_risk` stays zeroed, `insider` stays at 0.125, the weights stay
+at defaults, and the composite's alpha, monotonicity and Deflated Sharpe are all well outside the
+null. What changed is the size of the claims the record is entitled to make.
+
+---
+
+## BUGS FOUND — session 3
+
+- **`theme_ic()`'s return shape is a trap, and I fell into it.** The function keys per-theme blocks
+  at the TOP level; `BACKTEST_RESULTS.json` shows them nested under `per_theme.themes` because the
+  results writer adds that wrapper. Reading `.get("themes")` off the function returns `{}` with no
+  error — the exact silent-absence failure the COVERAGE RULE exists for. It emptied X7's threshold 1
+  on the timing run before the real sweep. Fixed and pinned by
+  `test_theme_ic_returns_theme_keyed_blocks_at_the_top_level`. **No shipped code had this bug** —
+  it was mine, in `scripts/placebo.py`, caught before the sweep — but the shape asymmetry between
+  the function and the file is a live hazard for the next consumer and is now tested.
+- **`run_backtests` did not carry `panel_window` into the `--json` dump** (only into the canonical
+  file, via `cleanups`). Any sweep writing one JSON per configuration therefore had no record of
+  which configuration produced it — directly against B22's intent. Fixed: `out["panel_window"]` is
+  set in `run_backtests`, so both outputs are self-describing.
+- **The rebalance grid was an undeclared free parameter.** `range(TD, ...)` with `TD` hard-coded to
+  252 meant 63 equally valid grids existed and every number in the project's history came off one
+  of them, with nothing in any output recording which. Now `grid_offset`, stamped into
+  `panel_window`. This is the mechanism behind the corrected HLZ claim above, so it was not cosmetic.
+- **Not fixed, flagged for the owner:** on pure noise, CPCV adopting a weight scheme inflates the
+  subsequently-measured long-short *t* by ~+1.4 on average, because the adopted weights are chosen
+  on the same panel the headline is then measured on. It fires on 27% of noise draws. The shipped
+  strategy is unaffected (it does not adopt), but **any future run that DOES adopt a CPCV weight
+  scheme will have an optimistically biased headline** unless the measurement moves off the
+  selection panel. Post-hoc finding — see the caveat in the X7 entry.
+
+## WHAT WAS NOT DONE, AND WHY
+
+- **The placebo was not run through `scripts.factor_alpha`.** X7 calibrates the pipeline's own
+  statistics; it does NOT calibrate R1's factor-regression intercept, which is a different
+  estimator on a different series. R1's re-run therefore still has no floor of its own. This is the
+  natural extension and is the first thing to do if R1's re-run lands near its threshold.
+- **`cost_breakeven_bps` was dropped from the placebo sweep** (`--no-costs`). At ~60s of a ~165s
+  draw it was the single largest per-draw cost and **no committed threshold reads it**. Recorded in
+  the output as `costs_measured: false` so an absent block cannot be mistaken for a measured zero.
+  The cost floor on noise is therefore unmeasured.
+- **N = 100 exactly, as committed** — no percentile here is quoted from a smaller N, and the MC
+  standard error of every mean is shipped in `x7_placebo.json`. The threshold-6 trigger (6.0%
+  against a 5% line) has an MC se of about 2.4pp, so it is stated as "fires, marginally" rather
+  than as a clean failure.
+- **The X2 ensemble was not evaluated**, as pre-committed.
+- **The canonical `BACKTEST_RESULTS.json` was restored from the Session-2 run**, which is
+  numerically identical to this session's offset-0 grid (verified to every digit) but predates the
+  `grid_offset` stamp in `panel_window`. The next full run will add it. Re-running purely to
+  regenerate an identical file was not a good use of 25 minutes, and recording the gap is the
+  alternative RUN_RULES rule 4 asks for.
+
+**PROCESS FAILURE, session 3 — recorded because it corrupted a tracked file:**
+
+- **`git add -A` committed a sweep run as the canonical results file.** Commit `49d98ba` swept up
+  `BACKTEST_RESULTS.json` while the X2 offset-5 grid run had it clobbered, so for three commits the
+  tracked canonical file was an off-grid run (`ls_t` 2.849690, 113,982 rows, `git.dirty: true`,
+  stamped against a commit that was not the run's own) rather than the Session-2 canonical
+  (`ls_t` 2.836064, 113,945 rows). Every full backtest overwrites this tracked file, so ANY
+  `git add -A` during an in-flight run can do this; the project's own memory note warns about
+  exactly this and it happened anyway. **Restored and verified byte-identical to the last good
+  version at `1f86a0d`.** The `git.dirty: true` stamp inside the file is what makes this
+  detectable after the fact — it is the only marker distinguishing a canonical run from an
+  incidental one, and it earned its place here.
+  **Rule for the next session: never `git add -A` while a backtest is running.** Stage explicitly,
+  or restore the canonical file before staging.

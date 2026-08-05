@@ -4,18 +4,103 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-04 (external edge audit, session 2)
+**Session date:** 2026-08-05 (external edge audit, session 3 — X7 + X2, the noise floor)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
-> **FIRST: `RUN_RULES.md` is now in the repo root and CLAUDE.md points every session at it.
-> Read it before starting work. It is non-negotiable for all agents — pushing, handoffs, bug
-> reporting, pre-committed thresholds, never silencing a check.**
+> **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
+> Read it before starting work. Non-negotiable for all agents.**
 
-> **Scope:** newest sections first — audit session 2 (this one), then R1, then audit session 1,
-> then deep research #2, then the EV staleness fix, then PEAD, then options 22b, then P9b/P10,
-> then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`; per-finding status in `CODE_AUDIT.md`.
+> **Scope:** newest sections first — audit session 3 (this one), then audit session 2, then R1,
+> then audit session 1, then deep research #2, then the EV staleness fix, then PEAD, then
+> options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
+> per-finding status in `CODE_AUDIT.md`.
 
 ---
+
+## AUDIT SESSION 3 — EVERY THRESHOLD IN THE PROJECT IS NOW CALIBRATED (2026-08-05)
+
+Full write-up: **`HANDOFF_edge_audit.md` Part 4** (X7 and X2 entries + BUGS FOUND + what was
+not done). Pre-commitments were written and pushed in `1276e4b` **before any run started**.
+
+**Items completed: X7** (placebo through the full pipeline, N = 100) and **X2** (rebalance-grid
+offset, 7 full-universe runs). **199 tests green** across the edge suite.
+
+### The four calibrated numbers — use these, not the old conventions
+
+| bar | as used | calibrated | pure noise clears the OLD bar |
+|---|---|---|---|
+| theme IC t | 2.0 | **2.71** | **39%** of draws |
+| long-short t | 2.0 | **2.14** | 8% |
+| top-decile alpha margin | 1.0pp | **1.95pp** | 18% |
+| PBO | < 50% | **< 19.7%** | **55%** |
+| Deflated Sharpe | > 0.95 | **stands** | 2% |
+| held-out gate | — | **6% false-positive rate** | — |
+
+Floors for THIS panel / universe / 69 dates. Not universal constants.
+
+### Two shipped claims were WRONG and are corrected in CLAUDE.md
+
+1. **"Long-short t 2.836 is below the Harvey–Liu–Zhu hurdle of 3.0" — a GRID ARTEFACT.** The
+   rebalance grid always started at a hard-coded TD = 252; 62 other equally valid grids existed
+   and none had ever been run. Across offsets 0/5/10/20/30/40/50 (all 69 dates, identical
+   window): **t ranges 2.703 → 3.517, median 2.926, and clears 3.0 on three of seven.** Quote
+   **"t 2.7–3.5 depending on grid, straddling the hurdle"** — never one side of 3.0 as a fact.
+2. **"PBO 73.3% fails the < 50% bar" — the BAR is meaningless.** The placebo's MEDIAN PBO on a
+   definitionally worthless signal is **46.7%**, so "< 50%" sits at the noise level. PBO is
+   uninformative here in either direction. (It is, separately, above 50% on 7 of 7 grids, so
+   Session 2's blow-out is a real property of the corrected panel — it just is not evidence.)
+
+### What the headline IS entitled to claim
+
+- **Top-decile alpha is the one headline that passed its robustness test outright:** spread
+  across seven grids only **1.30pp** — median **+7.52%**, range **+6.84% to +8.14%** — against
+  a placebo null of [−1.33pp, +2.38pp]. The equal-weight benchmark moved 2.08pp across the same
+  grids, MORE than the alpha, which is what makes the stability credible rather than lucky.
+- The real result is outside the placebo's [2.5, 97.5] interval on alpha (clearly), Deflated
+  Sharpe, monotonicity, max theme IC t (narrowly) and long-short t (narrowly) — and **inside it
+  on PBO**. On one grid of seven (offset 50, t 2.703) the long-short t is below the placebo's
+  own p97.5 of 2.729.
+- **The Deflated Sharpe SURVIVED calibration** (noise median 0.28, ≥ 0.95 in 2% of draws). That
+  is a measured partial defence of the statistic item B9 attacked; B9's surviving criticism was
+  the trial denominator, which this does not touch.
+
+### The finding that most affects future runs
+
+**On pure noise, CPCV adopting a weight scheme inflates the measured long-short t by ~+1.4.**
+Draws where CPCV did not adopt (73): mean t **−0.065** (se 0.119), a textbook null. Draws where
+it did (27): mean t **+1.343** (se 0.184), mean alpha +0.82pp. It fires on **27%** of noise
+draws. Mechanism: adopted weights are chosen on the same panel the headline is measured on.
+**The shipped strategy is unaffected — it does not adopt** — which is measured support for the
+existing "CPCV rejects → keep defaults" rule. Post-hoc, not pre-registered; wants replication.
+
+### Reproducibility
+
+The offset-0 grid reproduced the Session-2 shipped numbers **to every digit** (t 2.8360640685,
+alpha 0.0717414233, PBO 0.7333333, n 69). Given the project's known run-to-run
+non-reproducibility this was not a formality — it is the first clean reproducibility PASS on the
+corrected panel. It does **not** resolve the `insider` per-theme non-determinism.
+
+### No shipped decision changed
+
+`low_risk` stays zeroed, `insider` stays at 0.125, weights stay at defaults. What changed is the
+size of the claims the record is entitled to make.
+
+### Open, in priority order
+
+1. **Re-run R1 on the corrected panel** — still the top task. It now has a partial floor: the
+   raw alpha it decomposes is far outside the placebo null, so R1 is decomposing something real.
+   X7 does **not** calibrate R1's own FF5+MOM intercept; if the re-run lands near its threshold,
+   push the placebo series through `scripts.factor_alpha` first.
+2. **Find the run-to-run non-reproducibility.** Three runs on identical data gave `insider`
+   median IC −0.00335 / +0.01551 / −0.00339. The headline path is now shown deterministic; the
+   per-theme path is not.
+3. **R2** — the options re-run. B1/B2/B3/B4/B15 all fixed and unmeasured.
+4. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect,
+   still open, still urgent.
+5. **B23** (speed) and the remaining audit sessions: R3/R7, U7/X3, U2/U1/U6, O1 onward.
+
+---
+
 
 ## AUDIT SESSION 2 — THE HEADLINE FELL, AND B6 IS THE WHOLE REASON (2026-08-04)
 
