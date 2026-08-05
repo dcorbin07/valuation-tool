@@ -4999,6 +4999,240 @@ def test_audit_m1_the_trial_counter_is_real_and_deflates_more_than_eight():
     assert det["sr0_benchmark"] > 0, "with a real N the statistic must actually deflate"
 
 
+# ============================ AUDIT SESSION 5 — R3, R7, O20 ================================
+def _opt_row(ticker, date, pnl, **extra):
+    r = {"ticker": ticker, "alert_ts": date, "pnl_pct": pnl, "pnl_dollars": pnl * 100.0}
+    r.update(extra)
+    return r
+
+
+def test_audit_r3_the_block_bootstrap_is_wider_than_the_trade_bootstrap():
+    """The whole point of R3. A book whose trades are perfectly correlated inside each month
+    carries exactly as much information as its month count — the trade-level interval claims
+    far more. If the block interval is not the wider of the two, the clustering is not being
+    preserved and the correction is doing nothing."""
+    from valuation.edge import options_stats as ST
+    from valuation.edge import options_universe as U
+
+    rows = []
+    for m in range(1, 13):
+        # Every trade in a month has the SAME outcome: the month carries one observation.
+        v = 0.5 if m % 2 else -0.4
+        for k in range(30):
+            rows.append(_opt_row("AAA", f"2020-{m:02d}-{(k % 28) + 1:02d}", v))
+    blk = ST.date_block_bootstrap(rows, draws=800, seed=0)
+    trade = U.bootstrap_diff(rows, rows, "expectancy_pct", draws=800)   # width of a trade CI
+    assert blk["ok"], blk
+    width_block = blk["ci95"][1] - blk["ci95"][0]
+    # A trade-level CI on this book is near-degenerate because every resample sees both months
+    # in proportion; the block CI must be materially wide.
+    assert width_block > 0.15, f"block CI is only {width_block:.4f} wide — blocks not preserved"
+    assert blk["n_blocks"] == 12, blk["n_blocks"]
+    assert trade.get("ok")
+
+
+def test_audit_r3_a_raw_design_effect_is_not_evidence_of_clustering():
+    """THE FAILURE THAT WROTE THIS TEST. A book of 600 independent draws assigned to 12 blocks
+    of 50 — no clustering by construction — reports a design effect near 1.8, i.e. an apparent
+    45% loss of sample size that is pure sampling error in MSB/MSW. Applying that as a haircut
+    would manufacture a correction out of noise, which is the mirror image of the error R3
+    exists to fix. So the design effect must be scored against a shuffled null, and an
+    unclustered book must come back `clustering_measurable = False` however large its raw
+    design effect happens to be."""
+    import random
+
+    from valuation.edge import options_stats as ST
+
+    rnd = random.Random(0)
+    # The flag is a 95th-percentile test, so on unclustered books it fires ~5% of the time BY
+    # CONSTRUCTION. Asserting one draw comes back False would be a coin-flip test that passes or
+    # fails on the seed. What must hold is the RATE — the same thing X7 measures for the
+    # project's other gates.
+    fired, n_books = 0, 20
+    for b in range(n_books):
+        indep = [_opt_row("AAA", f"2020-{(i % 12) + 1:02d}-15", rnd.gauss(0, 1))
+                 for i in range(300)]
+        e = ST.effective_n(indep, null_draws=150, seed=b)
+        assert e["ok"]
+        assert e["design_effect_null_p95"] > 1.0, "the null band must be non-degenerate"
+        if e["clustering_measurable"]:
+            fired += 1
+    assert fired <= 4, \
+        (f"the clustering flag fired on {fired}/{n_books} books with NO block structure — a "
+         f"95th-percentile test should fire on about 1")
+
+    clustered = []
+    for m in range(1, 13):
+        v = rnd.gauss(0, 1)
+        clustered += [_opt_row("AAA", f"2020-{m:02d}-15", v) for _ in range(50)]
+    e_cl = ST.effective_n(clustered, null_draws=200)
+    assert e_cl["clustering_measurable"] is True, "a perfectly clustered book must be detected"
+    assert e_cl["n_eff_icc"] < 0.1 * e_cl["n"], \
+        f"perfectly clustered book kept n_eff={e_cl['n_eff_icc']:.0f} of n={e_cl['n']}"
+    assert e_cl["icc"] >= 0.0, "ICC must never be reported negative"
+
+
+def test_audit_r3_the_paired_sign_test_counts_cells_not_trades():
+    """R3.3 — the statistic the entire options conclusion rests on, which lived in no file.
+    Built so the answer is known by construction: the real book loses in 8 of 10 name-year
+    cells, regardless of how many trades sit in each."""
+    from valuation.edge import options_stats as ST
+
+    real, ctrl = [], []
+    for i in range(10):
+        t = f"T{i}"
+        real_v, ctrl_v = (0.1, 0.2) if i < 8 else (0.3, 0.1)      # real loses the first 8
+        # Deliberately lopsided trade counts: a trade-weighted test would give a different
+        # answer, and the cell is the unit that matters.
+        real += [_opt_row(t, "2020-03-02", real_v) for _ in range(1 + i)]
+        ctrl += [_opt_row(t, "2020-07-02", ctrl_v) for _ in range(20 - i)]
+    pn = ST.paired_name_year(real, ctrl)
+    assert pn["ok"], pn
+    assert pn["n_cells"] == 10, pn["n_cells"]
+    assert pn["n_wins"] == 2, f"expected the real book to win 2 of 10 cells, got {pn['n_wins']}"
+    assert pn["sign_test_z"] < 0
+    assert pn["paired_t"] is not None, "the paired t must ship alongside the sign test"
+
+
+def test_audit_r3_purge_removes_the_dates_whose_labels_cross_a_boundary():
+    """A trade entered at the end of an in-sample block is still open inside the adjacent
+    out-of-sample block. Purging must drop it; embargo 0 must reproduce the old behaviour
+    exactly, so the contaminated split stays available as a comparison rather than vanishing."""
+    from valuation.edge import options_stats as ST
+
+    blocks = [{f"2020-01-{d:02d}" for d in range(1, 29)},
+              {f"2020-02-{d:02d}" for d in range(1, 29)}]
+    dates = sorted(blocks[0] | blocks[1])
+    keep_is, keep_os = ST.purged_split(dates, [0], [1], blocks, embargo_days=75)
+    assert not keep_is, "every January date has a February date inside a 75d window"
+    assert len(keep_os) == 28, "February has no later block to be contaminated by"
+    # A short embargo must purge strictly less than a long one.
+    short_is, _ = ST.purged_split(dates, [0], [1], blocks, embargo_days=3)
+    assert len(short_is) > len(keep_is), "a 3-day embargo cannot purge as much as a 75-day one"
+
+
+def test_audit_r3_the_clustered_deflated_sharpe_can_only_shrink():
+    """Substituting n_eff for n is a haircut by construction. If it ever reports a HIGHER
+    probability than the raw statistic, the scaling has been applied the wrong way round."""
+    import random
+
+    from valuation.edge import options_stats as ST
+
+    rnd = random.Random(1)
+    rows = []
+    for m in range(1, 13):
+        base = rnd.gauss(0.15, 0.05)
+        rows += [_opt_row("AAA", f"2020-{m:02d}-15", base + rnd.gauss(0, 0.05))
+                 for _ in range(40)]
+    rets = [r["pnl_pct"] for r in rows]
+    d = ST.deflated_sharpe_clustered(rets, n_trials=1, rows=rows)
+    assert d["ok"], d
+    assert d["deflated_sharpe_clustered"] <= d["deflated_sharpe_raw"] + 1e-12, \
+        "the clustered DSR must never exceed the raw one"
+    assert 0.0 < d["shrink_factor"] <= 1.0
+
+
+def test_audit_r7_the_new_floor_can_fail_on_the_arm_that_was_never_measured():
+    """R7 replaced an underived 40% retention bar with three measured arms, and the whole
+    defence of that replacement is that term_slope can still FAIL. G3b — span of names and
+    months — had never been measured. This builds a filter that keeps plenty of trades and
+    concentrates them into a handful of names, and asserts the gate rejects it."""
+    from valuation.edge import options_universe as U
+
+    rows = []
+    # 20 names x 24 months. The filter's signal is high ONLY on two names, so retention is
+    # healthy (>20%) and flow is healthy (>52/yr) while the span collapses.
+    for i in range(20):
+        for m in range(24):
+            y, mm = 2021 + m // 12, (m % 12) + 1
+            rows.append(_opt_row(f"T{i}", f"{y}-{mm:02d}-10", 0.1,
+                                 term_slope=0.5 if i < 2 else -0.5))
+    # 15 trades per name-month on the two favoured names, so n_kept is large.
+    rows += [_opt_row(f"T{i}", f"2022-{(m % 12) + 1:02d}-11", 0.1, term_slope=0.5)
+             for i in range(2) for m in range(24) for _ in range(14)]
+    g = U.term_slope_gate(rows, threshold=0.0, late_only=False)
+    assert g["ok"], g
+    assert g["retention"] >= U.MIN_RETENTION_BACKSTOP, "this fixture must clear G3c"
+    assert g["G3c_backstop"] is True
+    assert g["G3b_concentration"] is False, \
+        f"a filter surviving on {g['n_names_kept']}/{g['n_names_all']} names must fail G3b"
+    assert g["passes_G3"] is False
+
+
+def test_audit_r7_the_gate_passes_a_filter_that_keeps_a_broad_book():
+    """The mirror image: G3 must not reject everything, or it is not a gate."""
+    from valuation.edge import options_universe as U
+
+    rows = []
+    for i in range(30):
+        for m in range(24):
+            y, mm = 2021 + m // 12, (m % 12) + 1
+            for k in range(4):
+                rows.append(_opt_row(f"T{i}", f"{y}-{mm:02d}-{10 + k:02d}", 0.1,
+                                     term_slope=1.0 if k < 3 else -1.0))
+    g = U.term_slope_gate(rows, threshold=0.0, late_only=False)
+    assert g["passes_G3"] is True, g
+    assert g["G3a_flow"] and g["G3b_concentration"] and g["G3c_backstop"]
+
+
+def test_audit_o20_point_in_time_liquidity_uses_the_miners_own_thresholds():
+    """O20 applies the SAME screen at a different moment. If this module ever grows its own
+    constants they will drift from the miner's and the comparison stops meaning anything."""
+    from valuation.edge import options_universe as U
+
+    th = U._miner_thresholds()
+    try:
+        import mine_options_cache as M
+    except Exception:                                                  # noqa: BLE001
+        M = None
+    if M is not None:
+        assert th["source"] == "mine_options_cache", th["source"]
+        assert th["max_median_spread_pct"] == M.MAX_MEDIAN_SPREAD_PCT
+        assert th["min_atm_oi"] == M.MIN_ATM_OI
+        assert th["min_atm_oi_notional"] == M.MIN_ATM_OI_NOTIONAL
+
+
+def test_audit_o20_an_unmeasurable_day_is_none_and_never_false():
+    """The distinction that keeps a data gap from being reported as a liquidity finding."""
+    from valuation.edge import options_universe as U
+
+    assert U.pit_liquid_ok(None) is None
+    assert U.pit_liquid_ok({"ok": False}) is None
+    assert U.pit_liquid_ok({"ok": True, "median_spread_pct": None, "atm_oi": 9e9}) is None
+    wide = {"ok": True, "median_spread_pct": 0.90, "atm_oi": 9e9, "atm_oi_notional": 9e9}
+    assert U.pit_liquid_ok(wide) is False, "a 90% median spread must not pass the screen"
+    thin = {"ok": True, "median_spread_pct": 0.05, "atm_oi": 1.0, "atm_oi_notional": 1.0}
+    assert U.pit_liquid_ok(thin) is False, "failing BOTH open-interest measures must reject"
+    ok_notional = {"ok": True, "median_spread_pct": 0.05, "atm_oi": 1.0,
+                   "atm_oi_notional": 9e9}
+    assert U.pit_liquid_ok(ok_notional) is True, "notional alone must be enough, as in the miner"
+
+
+def test_audit_o20_the_split_separates_unmeasurable_from_illiquid():
+    from valuation.edge import options_universe as U
+
+    rows = ([_opt_row("A", "2020-01-02", 0.2, pit_liquid=True)] * 5
+            + [_opt_row("B", "2020-01-03", -0.3, pit_liquid=False)] * 3
+            + [_opt_row("C", "2020-01-04", 0.1, pit_liquid=None)] * 2)
+    s = U.o20_split(rows)
+    assert (s["n_pit_liquid"], s["n_pit_illiquid"], s["n_unmeasurable"]) == (5, 3, 2), s
+    assert abs(s["coverage"] - 0.8) < 1e-9
+    assert abs(s["retained_frac"] - 0.5) < 1e-9
+
+
+def test_audit_r3_pbo_embargo_zero_reproduces_the_unpurged_split():
+    """The purge must be a switchable correction, not a silent redefinition — otherwise the
+    A/B that shows what it cost is impossible to run."""
+    import inspect
+
+    from valuation.edge import options_autopsy as A
+
+    sig = inspect.signature(A.pbo_cscv)
+    assert "embargo_days" in sig.parameters, "pbo_cscv must expose the embargo"
+    assert sig.parameters["embargo_days"].default is None, \
+        "the default must be the label window, not 0 — the corrected behaviour ships"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

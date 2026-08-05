@@ -1970,3 +1970,105 @@ therefore showed `top_decile_alpha_tstat: None` next to a correctly-computed 4.5
 dump. Nothing raised. `benchmarks` is now in `RESULT_BLOCKS`, so a future absence is an error
 rather than a silence — but the general hazard remains: **adding a metric to a computation does
 not add it to the canonical file, and the canonical file is what every other agent reads.**
+
+---
+
+# PART 6 — SESSION 5: THE OPTIONS VERDICT (R2, R3, R7, O20)
+
+Written **before any run in this session started**, per RUN_RULES.md Part A rule 6. R2's and
+R7's thresholds were already committed in Part 0 and are **not restated in altered form** here —
+they are quoted and honoured as written. What is new below is R3's and O20's, plus the run
+design, which is itself a choice that can flatter a result and therefore belongs in advance.
+
+## THE RUN DESIGN — pinned universe, and why
+
+The miner is live (`dte_extend.py` was running when this session started) and the cache grows
+between runs. Re-running R2 on "whatever is complete today" would change the corrected code AND
+the universe at the same time, and the headline would move for two reasons with no way to
+separate them. That is exactly the confound the project's **one change per run** rule exists to
+stop.
+
+So R2 runs with `--universe-from` pinned to the previous run's frozen 187-name list. The only
+thing that differs from `HANDOFF_universe_backtest.md` is the code: B1 (price basis), B2 (exit
+censoring), B3 (stale expiry mark), B4 (the −1 open-interest sentinel) and B15 (commission).
+
+**O20 is then a SECOND, declared variable** and is reported as its own partition of the same
+run, never mixed into the headline.
+
+## PRE-COMMITTED THRESHOLDS — R3 (clustered inference)
+
+R3 is an inference correction, not a hypothesis, so most of it has no pass/fail. Three things
+still need committing, because each could be chosen after the fact to flatter a conclusion:
+
+1. **The block is the CALENDAR MONTH**, chosen before seeing any interval. A month is long
+   enough to contain a full volatility episode — the thing that actually clusters entries — and
+   leaves ~118 blocks over the decade, enough for a percentile bootstrap. Week and year are
+   implemented and are diagnostics; **the verdict reads the month.**
+2. **`n_eff` is reported as BOTH the block count and the design-effect estimate**, and neither
+   is presented alone. If they disagree materially that disagreement is the finding and gets
+   stated, not resolved by picking one.
+3. **The embargo is the label window, 75 days** — the maximum a trade can stay open (DTE tops
+   at 75). It is not tuned. `embargo_days=0` reproduces the old unpurged split so the cost of
+   the correction is measurable rather than asserted.
+
+**Committed direction of expectation, so it can be scored against:** the audit predicts every
+options *t*-like quantity shrinks by roughly the square root of the clustering factor, and
+guesses a factor of 2 to 4 — which would move the −5.24 sign-test *z* into the −2.5 to −3.7
+range. **If the measured clustering factor comes in BELOW 2, the audit over-predicted and this
+ledger says so.**
+
+## PRE-COMMITTED THRESHOLD — O20 (point-in-time liquidity)
+
+The audit says: apply the liquidity screen as of each entry date, re-report the headline, and
+**"expect it to fall. That is the correct number."**
+
+**Committed before the run:**
+
+- The screen is the **miner's own** (`MAX_MEDIAN_SPREAD_PCT = 0.15`, and open interest passing
+  on either the contract floor or the $2.5M notional floor), imported from `mine_options_cache`
+  rather than re-declared, and applied to the alert date's chain instead of to the name's first
+  cached year. **Applying a DIFFERENT bar and calling the difference O20 would be a new filter
+  wearing a correction's name.**
+- It is applied to **both arms** of the random-entry control. Screening the real book only would
+  compare two different universes.
+- A day whose chain cannot answer is **`None`, not a failure**. An unmeasurable day excluded as
+  though it were illiquid would report a data gap as a liquidity finding.
+- **If the headline does NOT fall**, that is reported as the audit's expectation being wrong, in
+  the same words the R10 reversal got. It is not evidence the strategy is better than thought.
+
+**And the limit of the repair, committed in advance because it will be tempting to skip:** O20
+cannot fix the dominant selection effect. Verified against `mine_options_cache.py` this session,
+the audit's premise is **half wrong** — see the R2/O20 entries below. Names were ranked into the
+mining pool by **today's market cap**; the *liquidity* screen was already applied to the first
+cached year, not to a present-day chain. So a point-in-time re-screen answers "was this name
+tradeable on the day?" and cannot answer "which names would have been in the pool at all?",
+because the names that failed are not on disk. **The number O20 produces is an upper bound on
+the repair.**
+
+## R2 — QUOTED FROM PART 0, UNCHANGED
+
+> - If the corrected real-versus-control gap **remains negative at conventional significance
+>   under a date-block bootstrap (R3)**: the entry signal is dead, and the record says so plainly.
+> - If the gap **closes to within its confidence interval**: the verdict is **INCONCLUSIVE**, not
+>   vindicated.
+> - If the gap **turns positive at significance**: a genuine reversal, which must additionally
+>   survive the date-block bootstrap and the both-halves split before anything is claimed.
+
+The R3.3 precondition — "the paired name-year sign test and paired *t* must be in the repository
+with a test before this verdict is reported at all" — is satisfied by
+`valuation/edge/options_stats.paired_name_year` and
+`test_audit_r3_the_paired_sign_test_counts_cells_not_trades`.
+
+## R7 — QUOTED FROM PART 0, UNCHANGED
+
+G3a flow ≥ 52 retained alerts/year · G3b span ≥ 60% of names AND ≥ 60% of months · G3c backstop
+retention ≥ 20%. All three, alongside the unchanged G1/G2/G4/G5/G6/G7. **G3b has never been
+measured and is the arm on which the re-score can still fail.**
+
+## CARRIED FORWARD FROM SESSION 4 — the placebo at the true N
+
+X7's "the Deflated Sharpe survives calibration" was measured with **N = 8 inside both the real
+run and all 100 placebo draws**. M1 then made the real run's N = 84. The claim is **PROVISIONAL
+until the placebo is re-run at the true N**, and it is not to be quoted in the meantime. That
+sweep was launched at the start of this session.
+
