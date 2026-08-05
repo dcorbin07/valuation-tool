@@ -1,0 +1,2508 @@
+{
+ "generated": "2026-08-05 11:35:39",
+ "floor": 0.95,
+ "spans": {
+  "ONC-2024": {
+   "before": 0.0,
+   "after": 0.0,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 2,
+   "rows_after": 0,
+   "seconds": 54.3
+  },
+  "CCJ-2016": {
+   "before": 0.184856,
+   "after": 0.184856,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 125638,
+   "rows_after": 125638,
+   "seconds": 69.3
+  },
+  "VST-2017": {
+   "before": 0.197501,
+   "after": 0.197501,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 3681,
+   "rows_after": 3700,
+   "seconds": 19.0
+  },
+  "HPE-2016": {
+   "before": 0.219322,
+   "after": 0.219322,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 138062,
+   "rows_after": 138062,
+   "seconds": 75.5
+  },
+  "HSY-2017": {
+   "before": 0.230527,
+   "after": 0.230527,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 154160,
+   "rows_after": 154160,
+   "seconds": 98.1
+  },
+  "CCJ-2017": {
+   "before": 0.23942,
+   "after": 0.23942,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 100092,
+   "rows_after": 0,
+   "seconds": 95.9
+  },
+  "KKR-2017": {
+   "before": 0.245509,
+   "after": 0.245509,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 72588,
+   "rows_after": 0,
+   "seconds": 72.7
+  },
+  "AEE-2017": {
+   "before": 0.256721,
+   "after": 0.256721,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 12944,
+   "rows_after": 12944,
+   "seconds": 25.4
+  },
+  "ON-2016": {
+   "before": 0.268613,
+   "after": 0.268613,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 21920,
+   "rows_after": 21920,
+   "seconds": 26.9
+  },
+  "CAH-2017": {
+   "before": 0.274155,
+   "after": 0.274155,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 171910,
+   "rows_after": 171910,
+   "seconds": 86.0
+  },
+  "NSC-2016": {
+   "before": 0.276615,
+   "after": 0.276615,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 192314,
+   "rows_after": 192314,
+   "seconds": 95.0
+  },
+  "WMB-2016": {
+   "before": 0.279997,
+   "after": 0.279997,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 167216,
+   "rows_after": 167216,
+   "seconds": 96.0
+  },
+  "EW-2017": {
+   "before": 0.281779,
+   "after": 0.281779,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 145380,
+   "rows_after": 0,
+   "seconds": 102.6
+  },
+  "JBL-2017": {
+   "before": 0.285551,
+   "after": 0.285551,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 87522,
+   "rows_after": 87522,
+   "seconds": 53.9
+  },
+  "BP-2018": {
+   "before": 0.292925,
+   "after": 0.596843,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 101432,
+   "rows_after": 101432,
+   "seconds": 66.7
+  },
+  "GSK-2017": {
+   "before": 0.295136,
+   "after": 0.295136,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 105382,
+   "rows_after": 105382,
+   "seconds": 63.9
+  },
+  "HIG-2018": {
+   "before": 0.302061,
+   "after": 0.302061,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 115980,
+   "rows_after": 115980,
+   "seconds": 64.9
+  },
+  "MRVL-2017": {
+   "before": 0.303891,
+   "after": 0.303891,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 105278,
+   "rows_after": 105278,
+   "seconds": 66.0
+  },
+  "SRE-2017": {
+   "before": 0.306475,
+   "after": 0.306475,
+   "status": "still_failing",
+   "oi_call_faults": 4,
+   "rows_before": 23568,
+   "rows_after": 0,
+   "seconds": 85.8
+  },
+  "CME-2017": {
+   "before": 0.307925,
+   "after": 0.307925,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 155856,
+   "rows_after": 155856,
+   "seconds": 76.7
+  },
+  "ETN-2017": {
+   "before": 0.309694,
+   "after": 0.309694,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 155208,
+   "rows_after": 155208,
+   "seconds": 71.0
+  },
+  "AMAT-2016": {
+   "before": 0.313068,
+   "after": 0.313068,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 135846,
+   "rows_after": 135846,
+   "seconds": 81.9
+  },
+  "NTAP-2016": {
+   "before": 0.315717,
+   "after": 0.315717,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 150752,
+   "rows_after": 150752,
+   "seconds": 77.4
+  },
+  "FLEX-2016": {
+   "before": 0.318166,
+   "after": 0.318166,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 22526,
+   "rows_after": 22526,
+   "seconds": 38.4
+  },
+  "JBL-2018": {
+   "before": 0.326571,
+   "after": 0.326571,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 120170,
+   "rows_after": 0,
+   "seconds": 96.0
+  },
+  "KKR-2018": {
+   "before": 0.330829,
+   "after": 0.330829,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 118312,
+   "rows_after": 118312,
+   "seconds": 68.6
+  },
+  "COR-2016": {
+   "before": 0.333113,
+   "after": 0.333113,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 16610,
+   "rows_after": 16630,
+   "seconds": 23.0
+  },
+  "FLEX-2018": {
+   "before": 0.335579,
+   "after": 0.335579,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 91004,
+   "rows_after": 91004,
+   "seconds": 51.2
+  },
+  "APH-2016": {
+   "before": 0.337487,
+   "after": 0.337487,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 13482,
+   "rows_after": 13482,
+   "seconds": 22.5
+  },
+  "UBS-2017": {
+   "before": 0.338439,
+   "after": 0.338439,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 13450,
+   "rows_after": 13450,
+   "seconds": 21.8
+  },
+  "LYV-2016": {
+   "before": 0.340291,
+   "after": 0.340291,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 25296,
+   "rows_after": 25296,
+   "seconds": 29.2
+  },
+  "CIEN-2017": {
+   "before": 0.342395,
+   "after": 0.342395,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 127020,
+   "rows_after": 127020,
+   "seconds": 68.3
+  },
+  "ACN-2016": {
+   "before": 0.345928,
+   "after": 0.345928,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 156226,
+   "rows_after": 156226,
+   "seconds": 108.0
+  },
+  "SRE-2016": {
+   "before": 0.350346,
+   "after": 0.350346,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 26882,
+   "rows_after": 0,
+   "seconds": 54.4
+  },
+  "AFL-2018": {
+   "before": 0.351395,
+   "after": 0.351395,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 129208,
+   "rows_after": 129208,
+   "seconds": 75.8
+  },
+  "APO-2018": {
+   "before": 0.3552,
+   "after": 0.3552,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 99800,
+   "rows_after": 99800,
+   "seconds": 57.0
+  },
+  "BNS-2017": {
+   "before": 0.357243,
+   "after": 0.357243,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 14290,
+   "rows_after": 14290,
+   "seconds": 24.1
+  },
+  "NTR-2018": {
+   "before": 0.360072,
+   "after": 0.360072,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 119976,
+   "rows_after": 119976,
+   "seconds": 64.3
+  },
+  "AEE-2018": {
+   "before": 0.362645,
+   "after": 0.362645,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 14124,
+   "rows_after": 14124,
+   "seconds": 26.0
+  },
+  "NTAP-2017": {
+   "before": 0.365871,
+   "after": 0.365871,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 146046,
+   "rows_after": 146046,
+   "seconds": 69.8
+  },
+  "MMM-2016": {
+   "before": 0.367136,
+   "after": 0.367136,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 145352,
+   "rows_after": 0,
+   "seconds": 91.3
+  },
+  "NDAQ-2017": {
+   "before": 0.370079,
+   "after": 0.370079,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 23368,
+   "rows_after": 23368,
+   "seconds": 27.4
+  },
+  "AON-2017": {
+   "before": 0.371532,
+   "after": 0.371532,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 24870,
+   "rows_after": 24870,
+   "seconds": 27.5
+  },
+  "GLW-2017": {
+   "before": 0.374098,
+   "after": 0.374098,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 124748,
+   "rows_after": 124748,
+   "seconds": 64.0
+  },
+  "USB-2016": {
+   "before": 0.377206,
+   "after": 0.377206,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 150984,
+   "rows_after": 150984,
+   "seconds": 81.9
+  },
+  "BMO-2018": {
+   "before": 0.379285,
+   "after": 0.379285,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 17620,
+   "rows_after": 17620,
+   "seconds": 24.4
+  },
+  "SU-2018": {
+   "before": 0.380681,
+   "after": 0.380681,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 123032,
+   "rows_after": 123032,
+   "seconds": 71.7
+  },
+  "EIX-2017": {
+   "before": 0.381781,
+   "after": 0.381781,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 23744,
+   "rows_after": 23744,
+   "seconds": 56.7
+  },
+  "ED-2018": {
+   "before": 0.383278,
+   "after": 0.383278,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 132914,
+   "rows_after": 0,
+   "seconds": 83.4
+  },
+  "CL-2017": {
+   "before": 0.384389,
+   "after": 0.384389,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 162554,
+   "rows_after": 162554,
+   "seconds": 77.3
+  },
+  "TRV-2017": {
+   "before": 0.387641,
+   "after": 0.387641,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 26006,
+   "rows_after": 26006,
+   "seconds": 28.6
+  },
+  "GWW-2016": {
+   "before": 0.388633,
+   "after": 0.388633,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 36968,
+   "rows_after": 36968,
+   "seconds": 31.6
+  },
+  "MT-2018": {
+   "before": 0.390602,
+   "after": 0.390602,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 131026,
+   "rows_after": 131026,
+   "seconds": 71.5
+  },
+  "XEL-2018": {
+   "before": 0.391228,
+   "after": 0.391228,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 11400,
+   "rows_after": 11400,
+   "seconds": 18.4
+  },
+  "MMM-2017": {
+   "before": 0.39195,
+   "after": 0.39195,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 155058,
+   "rows_after": 155058,
+   "seconds": 75.0
+  },
+  "NEE-2016": {
+   "before": 0.393403,
+   "after": 0.393403,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 28922,
+   "rows_after": 0,
+   "seconds": 63.8
+  },
+  "ADP-2017": {
+   "before": 0.39556,
+   "after": 0.39556,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 74722,
+   "rows_after": 0,
+   "seconds": 97.8
+  },
+  "TXN-2016": {
+   "before": 0.399304,
+   "after": 0.399304,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 151048,
+   "rows_after": 151053,
+   "seconds": 81.5
+  },
+  "BNS-2018": {
+   "before": 0.400055,
+   "after": 0.400055,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 14468,
+   "rows_after": 14468,
+   "seconds": 23.0
+  },
+  "MET-2017": {
+   "before": 0.401012,
+   "after": 0.401012,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 134844,
+   "rows_after": 134844,
+   "seconds": 61.9
+  },
+  "DB-2017": {
+   "before": 0.402738,
+   "after": 0.402738,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 91084,
+   "rows_after": 91084,
+   "seconds": 53.3
+  },
+  "PFE-2016": {
+   "before": 0.40309,
+   "after": 0.40309,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 146600,
+   "rows_after": 146600,
+   "seconds": 73.6
+  },
+  "USB-2017": {
+   "before": 0.405235,
+   "after": 0.405235,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 117174,
+   "rows_after": 117188,
+   "seconds": 88.5
+  },
+  "PFE-2017": {
+   "before": 0.40699,
+   "after": 0.40699,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 126986,
+   "rows_after": 0,
+   "seconds": 94.2
+  },
+  "PEP-2016": {
+   "before": 0.409295,
+   "after": 0.409295,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 146696,
+   "rows_after": 146696,
+   "seconds": 79.8
+  },
+  "ISRG-2016": {
+   "before": 0.411254,
+   "after": 0.411254,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 264678,
+   "rows_after": 0,
+   "seconds": 131.3
+  },
+  "GSK-2018": {
+   "before": 0.414344,
+   "after": 0.414344,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 89416,
+   "rows_after": 89416,
+   "seconds": 90.7
+  },
+  "ETN-2018": {
+   "before": 0.415277,
+   "after": 0.415277,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 143008,
+   "rows_after": 0,
+   "seconds": 86.3
+  },
+  "MSTR-2017": {
+   "before": 0.416315,
+   "after": 0.416315,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 27938,
+   "rows_after": 27938,
+   "seconds": 30.6
+  },
+  "PH-2016": {
+   "before": 0.417801,
+   "after": 0.417801,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 26010,
+   "rows_after": 26010,
+   "seconds": 25.0
+  },
+  "SRE-2018": {
+   "before": 0.418611,
+   "after": 0.418611,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 22116,
+   "rows_after": 22116,
+   "seconds": 29.4
+  },
+  "AIG-2017": {
+   "before": 0.420441,
+   "after": 0.420441,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 131928,
+   "rows_after": 131970,
+   "seconds": 71.4
+  },
+  "NTES-2016": {
+   "before": 0.421322,
+   "after": 0.421322,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 176948,
+   "rows_after": 176948,
+   "seconds": 92.2
+  },
+  "KMI-2016": {
+   "before": 0.422613,
+   "after": 0.422613,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 139300,
+   "rows_after": 139300,
+   "seconds": 68.9
+  },
+  "PGR-2016": {
+   "before": 0.423268,
+   "after": 0.423268,
+   "status": "still_failing",
+   "oi_call_faults": 5,
+   "rows_before": 23354,
+   "rows_after": 0,
+   "seconds": 73.1
+  },
+  "TECK-2017": {
+   "before": 0.424551,
+   "after": 0.424551,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 124640,
+   "rows_after": 0,
+   "seconds": 69.6
+  },
+  "KO-2016": {
+   "before": 0.425464,
+   "after": 0.425464,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 141998,
+   "rows_after": 141998,
+   "seconds": 69.3
+  },
+  "CFG-2016": {
+   "before": 0.427066,
+   "after": 0.427066,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 9872,
+   "rows_after": 9872,
+   "seconds": 17.8
+  },
+  "APD-2016": {
+   "before": 0.427814,
+   "after": 0.427814,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 28288,
+   "rows_after": 28288,
+   "seconds": 26.5
+  },
+  "ORCL-2016": {
+   "before": 0.430746,
+   "after": 0.430746,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 145132,
+   "rows_after": 145132,
+   "seconds": 68.1
+  },
+  "ADP-2018": {
+   "before": 0.434552,
+   "after": 0.434552,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 140952,
+   "rows_after": 140952,
+   "seconds": 65.7
+  },
+  "NXPI-2016": {
+   "before": 0.436759,
+   "after": 0.436759,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 197578,
+   "rows_after": 0,
+   "seconds": 108.6
+  },
+  "BMO-2016": {
+   "before": 0.438536,
+   "after": 0.438536,
+   "status": "still_failing",
+   "oi_call_faults": 5,
+   "rows_before": 14236,
+   "rows_after": 0,
+   "seconds": 84.9
+  },
+  "CCI-2016": {
+   "before": 0.439841,
+   "after": 0.439841,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 27710,
+   "rows_after": 0,
+   "seconds": 50.9
+  },
+  "MA-2017": {
+   "before": 0.441254,
+   "after": 0.441254,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 161680,
+   "rows_after": 161680,
+   "seconds": 76.0
+  },
+  "MRK-2016": {
+   "before": 0.441764,
+   "after": 0.441764,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 146146,
+   "rows_after": 146150,
+   "seconds": 67.1
+  },
+  "UNH-2016": {
+   "before": 0.443876,
+   "after": 0.443876,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 156886,
+   "rows_after": 156886,
+   "seconds": 76.8
+  },
+  "EA-2017": {
+   "before": 0.444487,
+   "after": 0.444487,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 182606,
+   "rows_after": 182606,
+   "seconds": 107.7
+  },
+  "TXN-2017": {
+   "before": 0.445021,
+   "after": 0.445021,
+   "status": "still_failing",
+   "oi_call_faults": 7,
+   "rows_before": 131178,
+   "rows_after": 0,
+   "seconds": 127.1
+  },
+  "CM-2018": {
+   "before": 0.446177,
+   "after": 0.446177,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 18282,
+   "rows_after": 0,
+   "seconds": 40.4
+  },
+  "MO-2016": {
+   "before": 0.448289,
+   "after": 0.448289,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 152270,
+   "rows_after": 152270,
+   "seconds": 85.6
+  },
+  "CME-2018": {
+   "before": 0.448792,
+   "after": 0.448792,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 122774,
+   "rows_after": 122774,
+   "seconds": 73.3
+  },
+  "NTRS-2017": {
+   "before": 0.449302,
+   "after": 0.449302,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 23768,
+   "rows_after": 23768,
+   "seconds": 27.2
+  },
+  "AEP-2017": {
+   "before": 0.450499,
+   "after": 0.450499,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 23050,
+   "rows_after": 23050,
+   "seconds": 31.7
+  },
+  "GM-2016": {
+   "before": 0.452906,
+   "after": 0.452906,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 138426,
+   "rows_after": 138426,
+   "seconds": 73.0
+  },
+  "DLR-2017": {
+   "before": 0.453179,
+   "after": 0.453179,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 23622,
+   "rows_after": 0,
+   "seconds": 75.8
+  },
+  "D-2017": {
+   "before": 0.453697,
+   "after": 0.453697,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 23800,
+   "rows_after": 0,
+   "seconds": 68.9
+  },
+  "AIG-2016": {
+   "before": 0.454167,
+   "after": 0.454167,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 154397,
+   "rows_after": 154408,
+   "seconds": 82.9
+  },
+  "AXON-2016": {
+   "before": 0.45536,
+   "after": 0.45536,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 12164,
+   "rows_after": 12164,
+   "seconds": 21.0
+  },
+  "NDAQ-2016": {
+   "before": 0.455732,
+   "after": 0.455732,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 21370,
+   "rows_after": 21370,
+   "seconds": 28.6
+  },
+  "DLR-2016": {
+   "before": 0.456913,
+   "after": 0.456913,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 20540,
+   "rows_after": 20540,
+   "seconds": 32.3
+  },
+  "SYY-2017": {
+   "before": 0.458169,
+   "after": 0.458169,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 17714,
+   "rows_after": 17714,
+   "seconds": 41.7
+  },
+  "COF-2016": {
+   "before": 0.459233,
+   "after": 0.459233,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 171096,
+   "rows_after": 171096,
+   "seconds": 90.6
+  },
+  "MNST-2018": {
+   "before": 0.459678,
+   "after": 0.459678,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 131242,
+   "rows_after": 0,
+   "seconds": 1167.4
+  },
+  "CB-2017": {
+   "before": 0.461619,
+   "after": 0.461619,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 21964,
+   "rows_after": 0,
+   "seconds": 6149.3
+  },
+  "EMR-2018": {
+   "before": 0.464193,
+   "after": 0.464193,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 103526,
+   "rows_after": 0,
+   "seconds": 48722.9
+  },
+  "AMGN-2016": {
+   "before": 0.464879,
+   "after": 0.464879,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 155692,
+   "rows_after": 155692,
+   "seconds": 156.8
+  },
+  "TEVA-2016": {
+   "before": 0.466382,
+   "after": 0.466382,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 150514,
+   "rows_after": 0,
+   "seconds": 106.3
+  },
+  "AMGN-2017": {
+   "before": 0.467728,
+   "after": 0.467728,
+   "status": "still_failing",
+   "oi_call_faults": 4,
+   "rows_before": 150008,
+   "rows_after": 0,
+   "seconds": 137.5
+  },
+  "MSTR-2018": {
+   "before": 0.467892,
+   "after": 0.467892,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 26722,
+   "rows_after": 0,
+   "seconds": 64.5
+  },
+  "PSX-2018": {
+   "before": 0.468736,
+   "after": 0.468736,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 144574,
+   "rows_after": 144574,
+   "seconds": 65.8
+  },
+  "WBD-2016": {
+   "before": 0.469696,
+   "after": 0.469696,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 151104,
+   "rows_after": 151104,
+   "seconds": 93.4
+  },
+  "TPR-2017": {
+   "before": 0.473098,
+   "after": 0.473098,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 14646,
+   "rows_after": 14646,
+   "seconds": 20.9
+  },
+  "MA-2016": {
+   "before": 0.474267,
+   "after": 0.474267,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 176194,
+   "rows_after": 176194,
+   "seconds": 110.8
+  },
+  "VALE-2018": {
+   "before": 0.476479,
+   "after": 0.476479,
+   "status": "still_failing",
+   "oi_call_faults": 5,
+   "rows_before": 92130,
+   "rows_after": 0,
+   "seconds": 98.7
+  },
+  "COST-2016": {
+   "before": 0.476918,
+   "after": 0.476918,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 146738,
+   "rows_after": 0,
+   "seconds": 72.4
+  },
+  "ENB-2016": {
+   "before": 0.478317,
+   "after": 0.478317,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 14666,
+   "rows_after": 14666,
+   "seconds": 23.0
+  },
+  "SPG-2016": {
+   "before": 0.481501,
+   "after": 0.481501,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 35786,
+   "rows_after": 35786,
+   "seconds": 30.3
+  },
+  "LYV-2017": {
+   "before": 0.482029,
+   "after": 0.482029,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 25374,
+   "rows_after": 25374,
+   "seconds": 26.2
+  },
+  "ABBV-2017": {
+   "before": 0.483441,
+   "after": 0.483441,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 164560,
+   "rows_after": 164560,
+   "seconds": 72.6
+  },
+  "LITE-2016": {
+   "before": 0.484967,
+   "after": 0.484967,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 14036,
+   "rows_after": 14092,
+   "seconds": 26.2
+  },
+  "DEO-2018": {
+   "before": 0.486499,
+   "after": 0.486499,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 22962,
+   "rows_after": 22962,
+   "seconds": 24.8
+  },
+  "VLO-2017": {
+   "before": 0.487025,
+   "after": 0.487025,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 159456,
+   "rows_after": 159456,
+   "seconds": 81.8
+  },
+  "GLW-2018": {
+   "before": 0.490861,
+   "after": 0.490861,
+   "status": "still_failing",
+   "oi_call_faults": 4,
+   "rows_before": 123640,
+   "rows_after": 0,
+   "seconds": 96.2
+  },
+  "GFI-2017": {
+   "before": 0.492162,
+   "after": 0.492162,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 15310,
+   "rows_after": 0,
+   "seconds": 51.0
+  },
+  "CL-2018": {
+   "before": 0.492434,
+   "after": 0.492434,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 139700,
+   "rows_after": 139700,
+   "seconds": 59.7
+  },
+  "LITE-2018": {
+   "before": 0.494461,
+   "after": 0.494461,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 162850,
+   "rows_after": 162850,
+   "seconds": 71.0
+  },
+  "TRGP-2018": {
+   "before": 0.495341,
+   "after": 0.495341,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 32626,
+   "rows_after": 32626,
+   "seconds": 33.3
+  },
+  "FITB-2016": {
+   "before": 0.49679,
+   "after": 0.49679,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 25548,
+   "rows_after": 25548,
+   "seconds": 30.7
+  },
+  "LVS-2017": {
+   "before": 0.497875,
+   "after": 0.497875,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 133664,
+   "rows_after": 133664,
+   "seconds": 59.8
+  },
+  "ADI-2016": {
+   "before": 0.499177,
+   "after": 0.499177,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 24913,
+   "rows_after": 24950,
+   "seconds": 28.3
+  },
+  "GFI-2016": {
+   "before": 0.499918,
+   "after": 0.499918,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 12134,
+   "rows_after": 12134,
+   "seconds": 31.7
+  },
+  "CP-2017": {
+   "before": 0.500842,
+   "after": 0.500842,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 28510,
+   "rows_after": 0,
+   "seconds": 68.6
+  },
+  "DHR-2016": {
+   "before": 0.501269,
+   "after": 0.501269,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 23638,
+   "rows_after": 23638,
+   "seconds": 32.2
+  },
+  "NTES-2017": {
+   "before": 0.502374,
+   "after": 0.502374,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 224482,
+   "rows_after": 224482,
+   "seconds": 96.9
+  },
+  "DHR-2017": {
+   "before": 0.503203,
+   "after": 0.503203,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 25286,
+   "rows_after": 25286,
+   "seconds": 26.3
+  },
+  "KR-2017": {
+   "before": 0.503427,
+   "after": 0.503427,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 75278,
+   "rows_after": 75278,
+   "seconds": 42.0
+  },
+  "AFL-2016": {
+   "before": 0.504476,
+   "after": 0.504476,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 26025,
+   "rows_after": 26025,
+   "seconds": 27.5
+  },
+  "ED-2016": {
+   "before": 0.505439,
+   "after": 0.505439,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 26844,
+   "rows_after": 26844,
+   "seconds": 30.2
+  },
+  "ED-2017": {
+   "before": 0.506856,
+   "after": 0.506856,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 24796,
+   "rows_after": 24796,
+   "seconds": 27.5
+  },
+  "PG-2016": {
+   "before": 0.50865,
+   "after": 0.50865,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 166938,
+   "rows_after": 166938,
+   "seconds": 100.5
+  },
+  "IBM-2016": {
+   "before": 0.510205,
+   "after": 0.510205,
+   "status": "still_failing",
+   "oi_call_faults": 5,
+   "rows_before": 163932,
+   "rows_after": 0,
+   "seconds": 104.3
+  },
+  "RCL-2017": {
+   "before": 0.510697,
+   "after": 0.510697,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 63942,
+   "rows_after": 63942,
+   "seconds": 41.6
+  },
+  "GE-2017": {
+   "before": 0.512785,
+   "after": 0.512785,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 126636,
+   "rows_after": 126636,
+   "seconds": 59.9
+  },
+  "FCX-2016": {
+   "before": 0.514227,
+   "after": 0.514227,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 137974,
+   "rows_after": 137974,
+   "seconds": 81.2
+  },
+  "LLY-2018": {
+   "before": 0.514858,
+   "after": 0.514858,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 144970,
+   "rows_after": 144970,
+   "seconds": 85.1
+  },
+  "PH-2017": {
+   "before": 0.515405,
+   "after": 0.515405,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 26614,
+   "rows_after": 26614,
+   "seconds": 39.2
+  },
+  "CVS-2017": {
+   "before": 0.516799,
+   "after": 0.516799,
+   "status": "still_failing",
+   "oi_call_faults": 4,
+   "rows_before": 172986,
+   "rows_after": 0,
+   "seconds": 102.6
+  },
+  "COF-2018": {
+   "before": 0.519194,
+   "after": 0.5192,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 149946,
+   "rows_after": 149948,
+   "seconds": 62.8
+  },
+  "PFE-2018": {
+   "before": 0.520798,
+   "after": 0.520798,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 122226,
+   "rows_after": 122226,
+   "seconds": 58.3
+  },
+  "TRGP-2017": {
+   "before": 0.522523,
+   "after": 0.522523,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 32456,
+   "rows_after": 32456,
+   "seconds": 38.5
+  },
+  "NVS-2017": {
+   "before": 0.523429,
+   "after": 0.523429,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 19890,
+   "rows_after": 19890,
+   "seconds": 43.0
+  },
+  "DUK-2016": {
+   "before": 0.524256,
+   "after": 0.524256,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 27828,
+   "rows_after": 27830,
+   "seconds": 34.2
+  },
+  "TEVA-2017": {
+   "before": 0.525093,
+   "after": 0.525093,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 134858,
+   "rows_after": 134858,
+   "seconds": 70.8
+  },
+  "OXY-2018": {
+   "before": 0.528304,
+   "after": 0.528304,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 149910,
+   "rows_after": 0,
+   "seconds": 112.6
+  },
+  "TWLO-2016": {
+   "before": 0.530568,
+   "after": 0.530568,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 75274,
+   "rows_after": 0,
+   "seconds": 51.8
+  },
+  "KKR-2016": {
+   "before": 0.531862,
+   "after": 0.531862,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 25642,
+   "rows_after": 25642,
+   "seconds": 27.8
+  },
+  "EXC-2016": {
+   "before": 0.532873,
+   "after": 0.532873,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 30876,
+   "rows_after": 30876,
+   "seconds": 30.2
+  },
+  "SCCO-2017": {
+   "before": 0.534052,
+   "after": 0.534052,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 36826,
+   "rows_after": 36826,
+   "seconds": 27.8
+  },
+  "NUE-2018": {
+   "before": 0.535674,
+   "after": 0.535674,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 136428,
+   "rows_after": 136428,
+   "seconds": 61.2
+  },
+  "PCAR-2016": {
+   "before": 0.537424,
+   "after": 0.537424,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 24904,
+   "rows_after": 24906,
+   "seconds": 24.2
+  },
+  "EBAY-2017": {
+   "before": 0.539224,
+   "after": 0.539224,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 115210,
+   "rows_after": 115210,
+   "seconds": 53.6
+  },
+  "O-2016": {
+   "before": 0.5397,
+   "after": 0.5397,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 14282,
+   "rows_after": 14282,
+   "seconds": 25.9
+  },
+  "ASML-2017": {
+   "before": 0.540896,
+   "after": 0.540896,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 32766,
+   "rows_after": 32766,
+   "seconds": 38.2
+  },
+  "EXC-2017": {
+   "before": 0.541975,
+   "after": 0.541975,
+   "status": "still_failing",
+   "oi_call_faults": 5,
+   "rows_before": 25110,
+   "rows_after": 0,
+   "seconds": 89.8
+  },
+  "STT-2016": {
+   "before": 0.542926,
+   "after": 0.542926,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 28328,
+   "rows_after": 0,
+   "seconds": 36.9
+  },
+  "BUD-2018": {
+   "before": 0.543214,
+   "after": 0.543214,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 148656,
+   "rows_after": 148656,
+   "seconds": 62.7
+  },
+  "SPG-2017": {
+   "before": 0.544325,
+   "after": 0.544325,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 31224,
+   "rows_after": 31224,
+   "seconds": 33.0
+  },
+  "KR-2018": {
+   "before": 0.545325,
+   "after": 0.545325,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 122978,
+   "rows_after": 122978,
+   "seconds": 59.4
+  },
+  "T-2017": {
+   "before": 0.546544,
+   "after": 0.546544,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 135936,
+   "rows_after": 135936,
+   "seconds": 60.6
+  },
+  "NKE-2017": {
+   "before": 0.547338,
+   "after": 0.547338,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 152392,
+   "rows_after": 152392,
+   "seconds": 66.3
+  },
+  "INTC-2017": {
+   "before": 0.548868,
+   "after": 0.548868,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 141668,
+   "rows_after": 0,
+   "seconds": 105.6
+  },
+  "AU-2016": {
+   "before": 0.55018,
+   "after": 0.55018,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 26604,
+   "rows_after": 0,
+   "seconds": 62.7
+  },
+  "JD-2017": {
+   "before": 0.553711,
+   "after": 0.553711,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 142430,
+   "rows_after": 142430,
+   "seconds": 68.1
+  },
+  "SYY-2016": {
+   "before": 0.553973,
+   "after": 0.553973,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 27236,
+   "rows_after": 27248,
+   "seconds": 52.5
+  },
+  "GOOGL-2017": {
+   "before": 0.556525,
+   "after": 0.556525,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 432374,
+   "rows_after": 432374,
+   "seconds": 196.0
+  },
+  "EOG-2018": {
+   "before": 0.558086,
+   "after": 0.558086,
+   "status": "still_failing",
+   "oi_call_faults": 7,
+   "rows_before": 145664,
+   "rows_after": 0,
+   "seconds": 97.1
+  },
+  "NKE-2016": {
+   "before": 0.560345,
+   "after": 0.560345,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 155622,
+   "rows_after": 0,
+   "seconds": 76.3
+  },
+  "HON-2016": {
+   "before": 0.561705,
+   "after": 0.561705,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 26270,
+   "rows_after": 26270,
+   "seconds": 34.4
+  },
+  "EXPE-2018": {
+   "before": 0.563284,
+   "after": 0.563284,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 155064,
+   "rows_after": 155064,
+   "seconds": 91.5
+  },
+  "PNC-2016": {
+   "before": 0.564855,
+   "after": 0.564855,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 30206,
+   "rows_after": 30206,
+   "seconds": 49.8
+  },
+  "ROST-2016": {
+   "before": 0.566353,
+   "after": 0.566353,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 25500,
+   "rows_after": 25502,
+   "seconds": 43.5
+  },
+  "DXCM-2017": {
+   "before": 0.568101,
+   "after": 0.568101,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 19060,
+   "rows_after": 19060,
+   "seconds": 25.8
+  },
+  "ISRG-2018": {
+   "before": 0.569531,
+   "after": 0.569531,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 288908,
+   "rows_after": 0,
+   "seconds": 141.7
+  },
+  "QCOM-2016": {
+   "before": 0.571782,
+   "after": 0.571782,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 159867,
+   "rows_after": 0,
+   "seconds": 223.0
+  },
+  "VTR-2018": {
+   "before": 0.573222,
+   "after": 0.573222,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 20308,
+   "rows_after": 0,
+   "seconds": 87.4
+  },
+  "SO-2016": {
+   "before": 0.574466,
+   "after": 0.574466,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 26240,
+   "rows_after": 0,
+   "seconds": 92.5
+  },
+  "NVS-2018": {
+   "before": 0.575295,
+   "after": 0.575295,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 20692,
+   "rows_after": 0,
+   "seconds": 42.0
+  },
+  "XOM-2016": {
+   "before": 0.576542,
+   "after": 0.576542,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 176282,
+   "rows_after": 176282,
+   "seconds": 83.4
+  },
+  "WFC-2016": {
+   "before": 0.577529,
+   "after": 0.577529,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 152858,
+   "rows_after": 152859,
+   "seconds": 77.2
+  },
+  "SLB-2016": {
+   "before": 0.57799,
+   "after": 0.57799,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 170830,
+   "rows_after": 170830,
+   "seconds": 87.9
+  },
+  "UAL-2016": {
+   "before": 0.579175,
+   "after": 0.579175,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 170900,
+   "rows_after": 0,
+   "seconds": 106.8
+  },
+  "BIDU-2016": {
+   "before": 0.580779,
+   "after": 0.580779,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 173646,
+   "rows_after": 0,
+   "seconds": 92.7
+  },
+  "WMT-2016": {
+   "before": 0.582136,
+   "after": 0.582136,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 153842,
+   "rows_after": 153842,
+   "seconds": 79.9
+  },
+  "ANET-2018": {
+   "before": 0.583587,
+   "after": 0.583587,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 174776,
+   "rows_after": 174776,
+   "seconds": 81.5
+  },
+  "SBUX-2016": {
+   "before": 0.584129,
+   "after": 0.584129,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 145218,
+   "rows_after": 145222,
+   "seconds": 82.8
+  },
+  "STX-2017": {
+   "before": 0.586266,
+   "after": 0.586266,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 137482,
+   "rows_after": 0,
+   "seconds": 90.5
+  },
+  "PEP-2018": {
+   "before": 0.587481,
+   "after": 0.587481,
+   "status": "still_failing",
+   "oi_call_faults": 4,
+   "rows_before": 135424,
+   "rows_after": 0,
+   "seconds": 94.9
+  },
+  "CSX-2017": {
+   "before": 0.587832,
+   "after": 0.587832,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 84958,
+   "rows_after": 84958,
+   "seconds": 50.9
+  },
+  "UNP-2018": {
+   "before": 0.589412,
+   "after": 0.589412,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 153682,
+   "rows_after": 153682,
+   "seconds": 78.6
+  },
+  "MCD-2018": {
+   "before": 0.591435,
+   "after": 0.591435,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 129020,
+   "rows_after": 129020,
+   "seconds": 69.9
+  },
+  "WDC-2017": {
+   "before": 0.59198,
+   "after": 0.59198,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 195162,
+   "rows_after": 195162,
+   "seconds": 119.2
+  },
+  "BIDU-2017": {
+   "before": 0.593177,
+   "after": 0.593177,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 160726,
+   "rows_after": 0,
+   "seconds": 110.4
+  },
+  "QCOM-2017": {
+   "before": 0.594475,
+   "after": 0.594475,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 135528,
+   "rows_after": 135528,
+   "seconds": 70.3
+  },
+  "TSM-2017": {
+   "before": 0.594745,
+   "after": 0.594745,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 25310,
+   "rows_after": 25310,
+   "seconds": 34.4
+  },
+  "NTES-2018": {
+   "before": 0.595358,
+   "after": 0.595358,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 210344,
+   "rows_after": 210344,
+   "seconds": 116.7
+  },
+  "BMY-2017": {
+   "before": 0.596432,
+   "after": 0.596432,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 129874,
+   "rows_after": 129874,
+   "seconds": 72.8
+  },
+  "TJX-2017": {
+   "before": 0.598223,
+   "after": 0.598223,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 23742,
+   "rows_after": 23742,
+   "seconds": 68.4
+  },
+  "WSM-2016": {
+   "before": 0.599526,
+   "after": 0.599526,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 26596,
+   "rows_after": 0,
+   "seconds": 72.6
+  },
+  "FANG-2017": {
+   "before": 0.600251,
+   "after": 0.600251,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 25506,
+   "rows_after": 25506,
+   "seconds": 27.8
+  },
+  "CP-2018": {
+   "before": 0.602046,
+   "after": 0.602046,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 23460,
+   "rows_after": 23460,
+   "seconds": 24.4
+  },
+  "TGT-2017": {
+   "before": 0.604217,
+   "after": 0.604217,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 135160,
+   "rows_after": 135160,
+   "seconds": 71.8
+  },
+  "DHR-2018": {
+   "before": 0.606102,
+   "after": 0.606102,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 24090,
+   "rows_after": 24090,
+   "seconds": 27.4
+  },
+  "UPS-2018": {
+   "before": 0.608177,
+   "after": 0.608177,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 145114,
+   "rows_after": 145116,
+   "seconds": 72.3
+  },
+  "ADBE-2017": {
+   "before": 0.612984,
+   "after": 0.612984,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 95518,
+   "rows_after": 95518,
+   "seconds": 54.9
+  },
+  "PANW-2018": {
+   "before": 0.613947,
+   "after": 0.613947,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 146138,
+   "rows_after": 0,
+   "seconds": 110.4
+  },
+  "JPM-2017": {
+   "before": 0.615922,
+   "after": 0.615922,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 191120,
+   "rows_after": 0,
+   "seconds": 96.5
+  },
+  "TXN-2018": {
+   "before": 0.619275,
+   "after": 0.619275,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 147130,
+   "rows_after": 147130,
+   "seconds": 72.0
+  },
+  "LVS-2018": {
+   "before": 0.619999,
+   "after": 0.619999,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 116884,
+   "rows_after": 116884,
+   "seconds": 62.1
+  },
+  "ADSK-2018": {
+   "before": 0.621916,
+   "after": 0.621916,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 168100,
+   "rows_after": 168100,
+   "seconds": 78.3
+  },
+  "KHC-2017": {
+   "before": 0.624404,
+   "after": 0.624404,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 25176,
+   "rows_after": 25176,
+   "seconds": 47.1
+  },
+  "IBKR-2016": {
+   "before": 0.627325,
+   "after": 0.627325,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 30002,
+   "rows_after": 30002,
+   "seconds": 52.8
+  },
+  "EA-2018": {
+   "before": 0.629347,
+   "after": 0.629347,
+   "status": "still_failing",
+   "oi_call_faults": 7,
+   "rows_before": 168756,
+   "rows_after": 0,
+   "seconds": 108.4
+  },
+  "C-2016": {
+   "before": 0.630288,
+   "after": 0.630288,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 153352,
+   "rows_after": 153352,
+   "seconds": 75.6
+  },
+  "PRU-2016": {
+   "before": 0.632764,
+   "after": 0.632764,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 31620,
+   "rows_after": 31622,
+   "seconds": 33.8
+  },
+  "LYV-2018": {
+   "before": 0.636486,
+   "after": 0.636486,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 25900,
+   "rows_after": 25900,
+   "seconds": 26.2
+  },
+  "VLO-2018": {
+   "before": 0.637377,
+   "after": 0.637377,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 159838,
+   "rows_after": 159838,
+   "seconds": 72.4
+  },
+  "ALL-2018": {
+   "before": 0.638413,
+   "after": 0.638413,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 23018,
+   "rows_after": 23018,
+   "seconds": 32.8
+  },
+  "TER-2017": {
+   "before": 0.639027,
+   "after": 0.639027,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 27448,
+   "rows_after": 27448,
+   "seconds": 27.6
+  },
+  "CPRT-2018": {
+   "before": 0.640958,
+   "after": 0.640958,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 12940,
+   "rows_after": 12940,
+   "seconds": 25.5
+  },
+  "MSI-2017": {
+   "before": 0.642308,
+   "after": 0.642308,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 20568,
+   "rows_after": 20568,
+   "seconds": 39.9
+  },
+  "ANET-2016": {
+   "before": 0.644179,
+   "after": 0.644179,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 17402,
+   "rows_after": 0,
+   "seconds": 74.5
+  },
+  "ON-2018": {
+   "before": 0.644851,
+   "after": 0.644851,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 25792,
+   "rows_after": 0,
+   "seconds": 53.6
+  },
+  "STLD-2017": {
+   "before": 0.646069,
+   "after": 0.646069,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 32382,
+   "rows_after": 32382,
+   "seconds": 35.4
+  },
+  "ASML-2018": {
+   "before": 0.64968,
+   "after": 0.64968,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 35362,
+   "rows_after": 35362,
+   "seconds": 40.1
+  },
+  "PG-2018": {
+   "before": 0.651156,
+   "after": 0.651156,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 148138,
+   "rows_after": 148138,
+   "seconds": 80.9
+  },
+  "ADSK-2016": {
+   "before": 0.652364,
+   "after": 0.652364,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 27034,
+   "rows_after": 27034,
+   "seconds": 36.5
+  },
+  "COHR-2018": {
+   "before": 0.652868,
+   "after": 0.652868,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 53412,
+   "rows_after": 53412,
+   "seconds": 59.1
+  },
+  "LOW-2018": {
+   "before": 0.655369,
+   "after": 0.655369,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 158346,
+   "rows_after": 0,
+   "seconds": 96.5
+  },
+  "FCX-2018": {
+   "before": 0.656558,
+   "after": 0.656558,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 102454,
+   "rows_after": 0,
+   "seconds": 77.0
+  },
+  "MSFT-2016": {
+   "before": 0.657861,
+   "after": 0.657861,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 160040,
+   "rows_after": 160042,
+   "seconds": 88.9
+  },
+  "COP-2018": {
+   "before": 0.661639,
+   "after": 0.661639,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 117212,
+   "rows_after": 117212,
+   "seconds": 74.1
+  },
+  "AAPL-2017": {
+   "before": 0.663637,
+   "after": 0.663637,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 213124,
+   "rows_after": 213124,
+   "seconds": 118.6
+  },
+  "WBD-2018": {
+   "before": 0.666863,
+   "after": 0.666863,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 132150,
+   "rows_after": 0,
+   "seconds": 100.4
+  },
+  "COST-2018": {
+   "before": 0.668755,
+   "after": 0.668755,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 139812,
+   "rows_after": 139812,
+   "seconds": 75.5
+  },
+  "WFC-2018": {
+   "before": 0.671329,
+   "after": 0.671329,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 139118,
+   "rows_after": 139118,
+   "seconds": 102.2
+  },
+  "DAL-2018": {
+   "before": 0.67792,
+   "after": 0.678046,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 113236,
+   "rows_after": 113280,
+   "seconds": 77.1
+  },
+  "GILD-2016": {
+   "before": 0.681846,
+   "after": 0.681846,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 185184,
+   "rows_after": 185194,
+   "seconds": 129.9
+  },
+  "AMZN-2017": {
+   "before": 0.683135,
+   "after": 0.683135,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 489310,
+   "rows_after": 0,
+   "seconds": 186.3
+  },
+  "TSLA-2016": {
+   "before": 0.685701,
+   "after": 0.685701,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 244624,
+   "rows_after": 244624,
+   "seconds": 162.0
+  },
+  "CSX-2016": {
+   "before": 0.687708,
+   "after": 0.687708,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 28880,
+   "rows_after": 0,
+   "seconds": 70.6
+  },
+  "PH-2018": {
+   "before": 0.690157,
+   "after": 0.690157,
+   "status": "still_failing",
+   "oi_call_faults": 4,
+   "rows_before": 30480,
+   "rows_after": 0,
+   "seconds": 88.9
+  },
+  "WDC-2018": {
+   "before": 0.695256,
+   "after": 0.695256,
+   "status": "still_failing",
+   "oi_call_faults": 4,
+   "rows_before": 167104,
+   "rows_after": 0,
+   "seconds": 97.7
+  },
+  "AMZN-2016": {
+   "before": 0.698446,
+   "after": 0.698446,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 421162,
+   "rows_after": 0,
+   "seconds": 238.2
+  },
+  "ANET-2017": {
+   "before": 0.702429,
+   "after": 0.702429,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 33760,
+   "rows_after": 33760,
+   "seconds": 75.3
+  },
+  "GS-2018": {
+   "before": 0.704426,
+   "after": 0.704426,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 162660,
+   "rows_after": 0,
+   "seconds": 121.3
+  },
+  "BIDU-2018": {
+   "before": 0.708212,
+   "after": 0.708212,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 182228,
+   "rows_after": 182228,
+   "seconds": 100.3
+  },
+  "JPM-2018": {
+   "before": 0.710602,
+   "after": 0.710602,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 145412,
+   "rows_after": 145412,
+   "seconds": 91.3
+  },
+  "TGT-2018": {
+   "before": 0.713085,
+   "after": 0.713085,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 149846,
+   "rows_after": 149846,
+   "seconds": 88.7
+  },
+  "IBKR-2018": {
+   "before": 0.714079,
+   "after": 0.714079,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 17956,
+   "rows_after": 17956,
+   "seconds": 24.1
+  },
+  "BABA-2016": {
+   "before": 0.716653,
+   "after": 0.716653,
+   "status": "still_failing",
+   "oi_call_faults": 2,
+   "rows_before": 194080,
+   "rows_after": 0,
+   "seconds": 122.6
+  },
+  "CAT-2018": {
+   "before": 0.721363,
+   "after": 0.721363,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 172784,
+   "rows_after": 0,
+   "seconds": 104.0
+  },
+  "AXON-2017": {
+   "before": 0.728004,
+   "after": 0.728004,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 17912,
+   "rows_after": 17912,
+   "seconds": 28.9
+  },
+  "GE-2018": {
+   "before": 0.732952,
+   "after": 0.732952,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 98162,
+   "rows_after": 98162,
+   "seconds": 91.8
+  },
+  "NFLX-2016": {
+   "before": 0.734611,
+   "after": 0.734611,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 249924,
+   "rows_after": 249976,
+   "seconds": 155.6
+  },
+  "FTNT-2018": {
+   "before": 0.740974,
+   "after": 0.740974,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 25924,
+   "rows_after": 0,
+   "seconds": 74.9
+  },
+  "VEEV-2018": {
+   "before": 0.74421,
+   "after": 0.74421,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 20552,
+   "rows_after": 20552,
+   "seconds": 32.5
+  },
+  "AEM-2017": {
+   "before": 0.747511,
+   "after": 0.747511,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 32342,
+   "rows_after": 32342,
+   "seconds": 38.8
+  },
+  "BHP-2016": {
+   "before": 0.752649,
+   "after": 0.752649,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 37942,
+   "rows_after": 37942,
+   "seconds": 49.4
+  },
+  "CVNA-2018": {
+   "before": 0.758825,
+   "after": 0.758825,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 40058,
+   "rows_after": 40058,
+   "seconds": 50.3
+  },
+  "WMT-2018": {
+   "before": 0.768061,
+   "after": 0.768061,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 155864,
+   "rows_after": 155864,
+   "seconds": 103.2
+  },
+  "AMAT-2018": {
+   "before": 0.772476,
+   "after": 0.772476,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 115636,
+   "rows_after": 115636,
+   "seconds": 122.3
+  },
+  "TSLA-2018": {
+   "before": 0.778698,
+   "after": 0.778698,
+   "status": "still_failing",
+   "oi_call_faults": 1,
+   "rows_before": 361936,
+   "rows_after": 0,
+   "seconds": 128.6
+  },
+  "ROST-2018": {
+   "before": 0.787792,
+   "after": 0.787792,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 24410,
+   "rows_after": 0,
+   "seconds": 78.4
+  },
+  "AMD-2018": {
+   "before": 0.801184,
+   "after": 0.801184,
+   "status": "still_failing",
+   "oi_call_faults": 3,
+   "rows_before": 130442,
+   "rows_after": 0,
+   "seconds": 98.6
+  },
+  "META-2018": {
+   "before": 0.822846,
+   "after": 0.822846,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 182062,
+   "rows_after": 182062,
+   "seconds": 131.8
+  },
+  "PDD-2018": {
+   "before": 0.852455,
+   "after": 0.852455,
+   "status": "no_source",
+   "oi_call_faults": 0,
+   "rows_before": 3870,
+   "rows_after": 3870,
+   "seconds": 9.9
+  },
+  "NBIS-2024": {
+   "before": 0.928928,
+   "after": 0.928928,
+   "status": "improved",
+   "oi_call_faults": 0,
+   "rows_before": 14014,
+   "rows_after": 14014,
+   "seconds": 15.0
+  }
+ }
+}
