@@ -4,18 +4,102 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-05 (external edge audit, session 3 — X7 + X2, the noise floor)
+**Session date:** 2026-08-05 (external edge audit, session 4 — R1 re-run, R9, R10, M1)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
 > Read it before starting work. Non-negotiable for all agents.**
 
-> **Scope:** newest sections first — audit session 3 (this one), then audit session 2, then R1,
-> then audit session 1, then deep research #2, then the EV staleness fix, then PEAD, then
-> options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
+> **Scope:** newest sections first — audit session 4 (this one), then session 3, then session 2,
+> then R1's original run, then session 1, then deep research #2, then the EV staleness fix, then
+> PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
 > per-finding status in `CODE_AUDIT.md`.
 
 ---
+
+## AUDIT SESSION 4 — THE WORD "ALPHA" SURVIVES; THE DEFLATED SHARPE DOES NOT (2026-08-05)
+
+Full write-up: **`HANDOFF_edge_audit.md` Part 5**. Pre-commitments pushed in `4f41c9f` **before
+any run started**; R1's own pre-commitment (`HANDOFF_r1.md` section 1) was honoured **unchanged**.
+
+**Items completed: R1 (re-run), R9, R10, M1.** All four ship in `BACKTEST_RESULTS.json`.
+
+### The headline, as it now stands
+
+| quantity | value | notes |
+|---|---|---|
+| top-decile alpha | **+7.17%** | now with **t 4.517 / HAC t 4.376**, hit rate 71% (R9) |
+| long-short t | **2.620 (HAC)** | naive 2.836; Ljung–Box p=0.036 rejects independence (R9) |
+| FF5+MOM alpha | **+6.99%/yr, NW t 3.984** | range +5.1% to +10.9% across six specs (R1) |
+| excess vs SPY | **+9.99%/yr, HAC t 3.770** | the investable benchmark (R10) |
+| Deflated Sharpe | **0.8997 at N=84** | **FAILS the >0.95 bar** (M1) |
+| PBO | 73.3% | uninformative — its bar sits at the noise level (session 3) |
+
+### R1 — CLEARED AGAIN, at a lower level and with a REVERSED mechanism
+
+The pre-registered threshold ("alpha" only if the FF5+MOM intercept is positive with NW t > 2.0)
+is met by **all six** specs — compound/sum × full/first half/second half, spanning **+5.08% to
++10.85%**. No disagreement, so the NULL veto does not trigger. **CLAIM A applies; the word
+"alpha" is permitted, as a range.**
+
+**The old +8.81%/yr and the +6.6%–8.8% range are VOID and must not be quoted.**
+
+**The mechanism reversed on two of three legs and this is the part to re-read.** Now loading:
+**HML (t +2.93)** and **UMD (t +3.65)**. NOT loading: **SMB (t +1.39)** and **RMW (t +0.90)** —
+both loaded strongly before (t 3.84, t 4.49). The old story "`size`, `quality`, `momentum` ARE
+the standard premia" is backwards on size and profitability; the book now carries a real VALUE
+tilt, and the size/profitability exposures that dominated the old story were largely an artefact
+of the window B6 removed. R² fell 0.465 → 0.308.
+
+**Caveat that must travel:** the secondary q-factor model does NOT clear on the first half
+(q4 t 1.712, q5 t 0.702) though it clears on the full sample and second half.
+
+### M1 — the last bar the project claimed to clear now fails
+
+Trial counts measured from the populated `RESEARCH_LOG.md`: **equity 84, options 133, infra 1,
+total 218** (audit estimated ~146; 15 `FIXED` correctness rows correctly do not count).
+
+With `N = 84` instead of 8: **Deflated Sharpe 0.9970 → 0.8997**, `sr0` 0.242 → 0.406,
+`_trials_haircut` 2.04 → **2.977** (within 0.03 of the Harvey–Liu–Zhu hurdle of 3.0, as the audit
+predicted). **Pre-committed consequence fires: the edge does NOT clear the Deflated Sharpe bar.**
+
+**Audit B9 is resolved by measurement, not argument.** It argued the statistic was an undeflated
+PSR because `sr0` collapsed. With a real N it does not — the statistic self-reports as a genuine
+`deflated_sharpe_ratio` for the first time. The price of fixing it is failing the bar.
+
+`N` is **domain-scoped** (equity charged 84, not 218 — the options autopsy is a different search
+for a different product). A missing log degrades to `N = 8`, the OLD behaviour, never to zero
+penalty.
+
+### R9 — the product's headline number finally has a significance statistic
+
+`top_decile_alpha` shipped with none at all. Now **t 4.517, HAC t 4.376, 71% hit rate**. The
+long-short gains **HAC t 2.620** and Ljung–Box. **Ljung–Box rejects at p = 0.036**, so the NW t is
+now the number quoted and the naive 2.836 is a diagnostic. The long-ONLY object is far better
+measured than the long-short the project has always led with.
+
+### R10 — the expectation was wrong in the strategy's favour
+
+Both the audit and this session's pre-commitment predicted the uninvestable equal-weight benchmark
+was flattering the product. **It is the hardest of the four.** The equal-weighted panel returned
++18.14%/yr against SPY's +15.32% over 2009-2026, so excess vs SPY is **+9.99%**, higher than the
++7.17% published. **Keep publishing +7.17%** — most conservative, and comparable with history.
+
+### Open, in priority order
+
+1. **Re-run X7's placebo at the true N.** Pre-committed in Part 5 and NOT optional: X7's
+   "Deflated Sharpe survives calibration" was measured with N=8 on both sides. The absolute claim
+   is already dead; the relative comparison is untested. ~3 hours.
+2. **Find the run-to-run non-reproducibility.** `insider` median IC still varies across
+   identical-data runs. The headline path is deterministic; the per-theme path is not.
+3. **R2** — the options re-run. B1/B2/B3/B4/B15 fixed and unmeasured.
+4. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect.
+5. **X8** — the international replication. This is the only out-of-sample evidence available;
+   R1 is a control, not new data, and the project has still only ever seen one panel.
+6. Remaining audit sessions: R3/R7, U7/X3, U2/U1/U6, O1 onward, and B23.
+
+---
+
 
 ## AUDIT SESSION 3 — EVERY THRESHOLD IN THE PROJECT IS NOW CALIBRATED (2026-08-05)
 

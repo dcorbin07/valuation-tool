@@ -1829,6 +1829,88 @@ def _spearman(a, b):
     return float((ar * br).sum() / denom) if denom > 0 else np.nan
 
 
+def _tstat(series):
+    """Naive i.i.d. t-statistic of a series' mean against zero."""
+    s = np.asarray([x for x in series if x is not None and x == x], dtype=float)
+    if len(s) < 2:
+        return None
+    sd = float(np.std(s, ddof=1))
+    return float(np.mean(s) / (sd / np.sqrt(len(s)))) if sd > 0 else None
+
+
+def _nw_tstat(series, lag=1):
+    """AUDIT R9 — Newey-West (Bartlett) HAC t-statistic of the mean against zero.
+
+    The 63-day windows genuinely do not overlap, so the naive i.i.d. t is defensible on the
+    OVERLAP dimension. It is not defensible on autocorrelation: factor spreads are strongly
+    serially correlated and regime-dependent, and the project has never had a serial-correlation
+    diagnostic anywhere. This is the same estimator `scripts/factor_alpha.py` uses for R1, on a
+    mean-only design, so the two lanes report comparable inference.
+    """
+    s = np.asarray([x for x in series if x is not None and x == x], dtype=float)
+    n = len(s)
+    if n < 3:
+        return None
+    e = s - s.mean()                       # residuals of a mean-only regression
+    g0 = float(e @ e) / n
+    S_hac = g0
+    for L in range(1, min(int(lag), n - 1) + 1):
+        gL = float(e[L:] @ e[:-L]) / n
+        S_hac += 2.0 * (1.0 - L / (lag + 1.0)) * gL      # Bartlett kernel
+    if S_hac <= 0:
+        return None
+    se = np.sqrt(S_hac / n)
+    return float(s.mean() / se) if se > 0 else None
+
+
+def _ljung_box(series, lags=4):
+    """AUDIT R9 — Ljung-Box Q on a series, so the independence assumption is VISIBLE.
+
+    Returns Q, its degrees of freedom, the autocorrelations used, and a chi-square p-value.
+    A small p means the series is serially correlated and the naive i.i.d. t overstates
+    significance — which is the whole reason the HAC t above is now reported beside it.
+    """
+    s = np.asarray([x for x in series if x is not None and x == x], dtype=float)
+    n = len(s)
+    lags = int(min(lags, n - 2))
+    if n < 8 or lags < 1:
+        return None
+    e = s - s.mean()
+    denom = float(e @ e)
+    if denom <= 0:
+        return None
+    acf, q = [], 0.0
+    for L in range(1, lags + 1):
+        r = float(e[L:] @ e[:-L]) / denom
+        acf.append(r)
+        q += (r * r) / (n - L)
+    q *= n * (n + 2)
+    return {"q": float(q), "df": lags, "acf": [float(x) for x in acf],
+            "p_value": _chi2_sf(float(q), lags),
+            "lag1_autocorr": (float(acf[0]) if acf else None)}
+
+
+def _chi2_sf(x, k):
+    """Upper-tail chi-square probability. Series expansion for the regularised lower
+    incomplete gamma P(k/2, x/2); adequate at the small dfs used here and avoids a scipy
+    dependency this project does not otherwise carry."""
+    if x <= 0 or k <= 0:
+        return 1.0
+    a, xx = k / 2.0, x / 2.0
+    if xx > a + 40.0:                       # far tail — P ~ 1, report a floor rather than 0.0
+        return 1e-12
+    import math
+    term = 1.0 / math.gamma(a + 1.0)
+    total = term
+    for i in range(1, 512):
+        term *= xx / (a + i)
+        total += term
+        if term < total * 1e-15:
+            break
+    p_lower = total * math.exp(-xx + a * math.log(xx))
+    return float(min(1.0, max(0.0, 1.0 - p_lower)))
+
+
 def _base_weights(cols, bucket):
     src = S.WEIGHTS_ESTABLISHED if bucket == "established" else S.WEIGHTS_SPECULATIVE
     base = {c: src.get(c, 0.0) for c in cols}
@@ -1989,11 +2071,30 @@ def _wf_folds(dates, n_folds=5, min_train=None, embargo=1):
     return folds
 
 
+def _trial_N(domain="equity"):
+    """AUDIT M1 — the project's real trial count, from the append-only research log.
+
+    Returns the weight-scheme floor (8) if the log cannot be read, so a missing or unreadable
+    log degrades to the OLD behaviour rather than to an unpenalised one.
+    """
+    try:
+        from .research_log import trial_count
+        return int(trial_count(domain=domain))
+    except Exception:
+        return 8
+
+
 def _trials_haircut(n_trials):
     """Multiple-testing penalty. Trying N configs inflates the best one by luck; the expected
     max of N standard-normal draws is ≈ sqrt(2·ln N). The winner must clear this × its standard
-    error to be believed — this is what stops us cherry-picking a lucky fold."""
-    return float(np.sqrt(2.0 * np.log(max(2, n_trials))))
+    error to be believed — this is what stops us cherry-picking a lucky fold.
+
+    AUDIT M1 — `n_trials` is now floored at the RESEARCH LOG's count, not just the number of
+    candidates in the immediate comparison. Selecting the best of 8 folds after the project has
+    already run ~84 equity trials is not an 8-trial search, and charging it as one is the same
+    denominator error the Deflated Sharpe had.
+    """
+    return float(np.sqrt(2.0 * np.log(max(2, int(n_trials), _trial_N()))))
 
 
 def walk_forward(panel, cols, base, top_n=25, horizon=63, halflife_days=1260, n_folds=5):
@@ -2170,6 +2271,7 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
     dates = sorted(panel["date"].unique())
     q_rets = [[] for _ in range(n_q)]
     ls, sw_long, ewb = [], [], []
+    alpha_series = []          # AUDIT R9 — per-period top-decile MINUS equal-weight
     for d in dates:
         sub = panel[panel["date"] == d]
         comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
@@ -2185,6 +2287,9 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
                 q_rets[qi].append(float(np.mean(fwd[b])))
         ls.append(float(np.mean(fwd[buckets[0]]) - np.mean(fwd[buckets[-1]])))
         ewb.append(float(np.mean(fwd)))
+        # R9 — the headline's OWN series. `top_decile_alpha` is exactly ppy * mean of this,
+        # and until now it shipped with no significance statistic of any kind.
+        alpha_series.append(float(np.mean(fwd[buckets[0]]) - np.mean(fwd)))
         top = buckets[0]
         wp = np.clip(comp[top], 0.0, None)                  # signal-weighted (∝ positive composite)
         sw_long.append(float(np.sum(wp * fwd[top]) / wp.sum()) if wp.sum() > 0 else float(np.mean(fwd[top])))
@@ -2207,11 +2312,106 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
     return {"n_periods": len(ls), "n_quantiles": n_q, "horizon": horizon,
             "decile_ann_return": decile, "equal_weight_ann": ew_ann,
             "long_short_ann": annmean(ls), "long_short_tstat": tstat(ls),
+            # AUDIT R9 — HAC inference and a visible serial-correlation diagnostic. The naive
+            # t above assumes i.i.d. periods; these say whether that assumption holds. If
+            # `long_short_ljung_box.p_value` < 0.05 the series is autocorrelated and
+            # `long_short_tstat_nw` is the number to quote.
+            "long_short_tstat_nw": _nw_tstat(ls, lag=1),
+            "long_short_ljung_box": _ljung_box(ls, lags=4),
             "long_short_hit": float(np.mean([1.0 if x > 0 else 0.0 for x in ls])),
             "top_decile_alpha": (None if decile[0] is None or ew_ann is None else decile[0] - ew_ann),
+            # AUDIT R9 — the number on the front of the product finally has a significance
+            # statistic. `top_decile_alpha` == ppy * mean(alpha_series) by construction.
+            "top_decile_alpha_tstat": _tstat(alpha_series),
+            "top_decile_alpha_tstat_nw": _nw_tstat(alpha_series, lag=1),
+            "top_decile_alpha_ljung_box": _ljung_box(alpha_series, lags=4),
+            "top_decile_alpha_hit": (float(np.mean([1.0 if x > 0 else 0.0 for x in alpha_series]))
+                                     if alpha_series else None),
             "sw_top_decile_ann": sw_ann,
             "sw_top_decile_alpha": (None if sw_ann is None or ew_ann is None else sw_ann - ew_ann),
             "monotonicity": (None if mono != mono else float(mono))}
+
+
+def benchmark_panel(panel, cols, weights, n_q=10, horizon=63, ew_turnover=1.0):
+    """AUDIT R10 — the top decile against benchmarks a person could actually hold.
+
+    Every alpha figure in this project is measured against the equal-weighted mean forward
+    return of EVERY name in the panel that date — roughly 1,500 names including sub-dollar
+    stocks, re-equal-weighted quarterly, and **charged zero trading cost while the strategy
+    pays**. Nobody can hold that. It is a fine statistical control and a poor benchmark, and
+    the project has only ever published the one number.
+
+    Three benchmarks, side by side, published together whatever they say:
+
+      a. `equal_weight` — the incumbent, unchanged, so nothing silently moves.
+      b. `equal_weight_costed` — the SAME benchmark charged the same market-cap cost table
+         the strategy is charged. Re-equal-weighting a ~1,500-name universe every quarter is
+         not free; assuming it is, is a real thumb on the scale in the strategy's FAVOUR being
+         removed here. Alpha against this should be HIGHER.
+      c. `cap_weighted` — the panel's own cap-weighted average return, the closest investable
+         analogue to "just buy the market" that can be built from the panel itself.
+      d. `spy` — the benchmark's own realised 63d return from `bench_ret`, i.e. what a user
+         would have got in the obvious index fund. Alpha against this should be LOWER.
+
+    `ew_turnover` is the assumed one-way turnover per rebalance of the equal-weight book, used
+    only for (b). 1.0 is deliberately conservative-in-the-strategy's-favour-removing direction:
+    a quarterly re-equal-weight of a changing universe turns over a large fraction of itself.
+    """
+    from ..screener.cross_sectional import zscore
+    dates = sorted(panel["date"].unique())
+    top, ew, capw, spy, ew_cost = [], [], [], [], []
+    for d in dates:
+        sub = panel[panel["date"] == d]
+        comp = composite_from_frame(sub, cols, weights, zscore)
+        fwd = sub["fwd_ret"].values
+        mc = (sub["market_cap"].values if "market_cap" in sub.columns
+              else np.full(len(sub), np.nan))
+        ok = np.isfinite(comp) & np.isfinite(fwd)
+        if int(ok.sum()) < n_q * 3:
+            continue
+        c_, f_, m_ = comp[ok], fwd[ok], mc[ok]
+        order = np.argsort(-c_)
+        b0 = np.array_split(order, n_q)[0]
+        top.append(float(np.mean(f_[b0])))
+        ew.append(float(np.mean(f_)))
+        # (b) the equal-weight book charged the strategy's own cost table, name by name
+        bps = np.array([one_way_cost_bps(x) for x in m_], dtype=float)
+        ew_cost.append(float(np.mean(f_) - float(np.mean(bps)) * 1e-4 * 2.0 * ew_turnover))
+        # (c) cap-weighted — the investable analogue
+        w = np.where(np.isfinite(m_) & (m_ > 0), m_, 0.0)
+        capw.append(float(np.sum(w * f_) / w.sum()) if w.sum() > 0 else float(np.mean(f_)))
+        # (d) SPY over the identical window
+        b = sub["bench_ret"].iloc[0] if "bench_ret" in sub.columns else np.nan
+        spy.append(float(b) if b == b else np.nan)
+    if len(top) < 4:
+        return {"status": "insufficient history for benchmark comparison"}
+    ppy = 252.0 / horizon
+
+    def blk(bench, label, note):
+        pairs = [(t, b) for t, b in zip(top, bench) if b == b]
+        if len(pairs) < 4:
+            return {"status": "no overlapping periods", "label": label}
+        exc = [t - b for t, b in pairs]
+        return {"label": label, "note": note, "n_periods": len(pairs),
+                "benchmark_ann": float(np.mean([b for _, b in pairs]) * ppy),
+                "top_decile_ann": float(np.mean([t for t, _ in pairs]) * ppy),
+                "excess_ann": float(np.mean(exc) * ppy),
+                "excess_tstat": _tstat(exc), "excess_tstat_nw": _nw_tstat(exc, lag=1),
+                "hit_rate": float(np.mean([1.0 if x > 0 else 0.0 for x in exc]))}
+
+    return {
+        "n_periods": len(top), "horizon": horizon, "ew_turnover_assumed": float(ew_turnover),
+        "equal_weight": blk(ew, "equal-weight universe (incumbent)",
+                            "every name in the panel, cost-free — uninvestable, the number "
+                            "every historical alpha figure in this project used"),
+        "equal_weight_costed": blk(ew_cost, "equal-weight universe, charged the strategy's costs",
+                                   "same benchmark, same market-cap cost table the strategy "
+                                   "pays; removes a thumb on the scale in the strategy's favour"),
+        "cap_weighted": blk(capw, "cap-weighted panel average",
+                            "closest investable analogue buildable from the panel itself"),
+        "spy": blk(spy, "SPY total return over the same windows",
+                   "what the user's obvious alternative actually returned"),
+    }
 
 
 def regime_split(panel, cols, weights, n_tiers=3, horizon=63):
@@ -2355,7 +2555,18 @@ def _deflated_sharpe_detail(strategy_rets, all_trial_sr):
                 "var_sr_across_trials": None, "n_periods": int(n),
                 "is_effectively_undeflated": True,
                 "metric": "probabilistic_sharpe_ratio_UNDEFLATED"}
-    N = max(2, len(trials))
+    # AUDIT M1 — N IS THE NUMBER OF TRIALS THE PROJECT HAS RUN, not the number of weight
+    # schemes this one call was handed. `len(trials)` is 8; the research log counts the real
+    # equity family. Bailey-Lopez de Prado's `sr0` grows with N, so a bigger honest N raises
+    # the benchmark the Sharpe must beat and the probability falls. That is the intended
+    # direction: the statistic has been flattering itself by a denominator of 8.
+    #
+    # `var_sr` still comes from the observed trial Sharpes — it is the only cross-trial
+    # variance actually measured — while N comes from the log. Mixing them is what the
+    # formula requires: the variance describes how much trials differ, N describes how many
+    # there were, and only the second was ever wrong.
+    _n_logged = _trial_N()
+    N = max(2, len(trials), _n_logged)
     var_sr = float(np.var(trials, ddof=1))
     emc = 0.5772156649015329                                 # Euler-Mascheroni
     sr0 = (var_sr ** 0.5) * ((1 - emc) * _nppf(1 - 1.0 / N) + emc * _nppf(1 - 1.0 / (N * np.e)))
@@ -2365,6 +2576,11 @@ def _deflated_sharpe_detail(strategy_rets, all_trial_sr):
     z = (sr - sr0) * ((n - 1) ** 0.5) / (denom ** 0.5)
     return {"probability": float(_ncdf(z)), "sharpe_per_period": sr, "sr0_benchmark": float(sr0),
             "n_trials": int(N), "var_sr_across_trials": var_sr, "n_periods": int(n),
+            # AUDIT M1 — where N came from, so a reader can see whether it was 8 or measured.
+            "n_trials_from_weight_schemes": int(len(trials)),
+            "n_trials_from_research_log": int(_n_logged),
+            "n_trials_source": ("RESEARCH_LOG.md (audit M1)" if _n_logged > len(trials)
+                                else "weight schemes only"),
             # AUDIT B9: when sr0 is ~0 the statistic is an UNDEFLATED PSR, not a DSR.
             "is_effectively_undeflated": bool(abs(sr0) < 0.05 * abs(sr) if sr else True),
             "metric": ("probabilistic_sharpe_ratio_UNDEFLATED"
@@ -3975,6 +4191,8 @@ RESULT_BLOCKS = (
     "construction", "regime", "institutional_dependence", "factors_used", "walk_forward",
     "cpcv", "hold_until_exit", "holdout_validation", "costs", "book_configs",
     "no_trade_band", "after_tax",
+    "benchmarks",          # AUDIT R10 — a silently absent benchmark block would leave the
+                           # uninvestable equal-weight figure standing alone again
 )
 
 
@@ -4067,6 +4285,7 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             out["construction_weighting"] = (rec_name if adopted_w else "default")
             out["construction"] = quantile_backtest(panel, cols, rec, n_q=10, horizon=63)
             out["regime"] = regime_split(panel, cols, rec, n_tiers=3, horizon=63)           # where the edge lives
+            out["benchmarks"] = benchmark_panel(panel, cols, rec, n_q=10, horizon=63)       # AUDIT R10
             out["institutional_dependence"] = institutional_dependence(panel, cols, rec, horizon=63)
             out["factors_used"] = cols                                                       # which themes had data
             # Held-out time split: does zeroing a theme still help on data that did NOT

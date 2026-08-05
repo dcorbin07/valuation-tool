@@ -96,3 +96,53 @@ rows when they run.
    A log that only records adoptions is a denominator of 8 with extra steps.
 4. Never edit or delete a row. A superseded result gets a **new** row with verdict `SUPERSEDED`
    pointing at the one that replaced it.
+
+---
+
+## Rows — retrospective reconstruction (added 2026-08-05, audit M1)
+
+**Counting rule (changed 2026-08-05, and the change matters):** a trial counts whether or not its
+threshold was pre-committed. The original rule — "a row is earned when the threshold was committed
+before the run" — is the right test for whether a RESULT is credible and the wrong one for a
+multiple-testing DENOMINATOR. What inflates the best-looking result is how many times the data was
+searched, not how well each search was documented. The old rule would have systematically
+understated `N` and therefore OVERSTATED significance, which is the exact error M1 exists to fix.
+`pre` records `yes` (threshold in writing beforehand) or `retro` (reconstructed from the record).
+`FIXED` rows still do not count. `n=<k>` marks a pre-registered GRID of k cells counted as k.
+
+| id | date | domain | pre | hypothesis | metric | verdict | n | source |
+|---|---|---|---|---|---|---|---|---|
+| P5-1 | 2026-07-30 | equity | yes | Zeroing `low_risk` improves the composite out-of-sample | held-out LS t + alpha, both directions | ADOPTED | n=1 | CLAUDE.md, HANDOFF_STATUS.md |
+| P5-2 | 2026-07-30 | equity | yes | Zeroing `insider` improves the composite out-of-sample | held-out LS t + alpha, both directions | REJECTED | n=1 | CLAUDE.md |
+| P5-3 | 2026-07-30 | equity | retro | `neg_asset_growth` earns its place in capital_discipline | signal IC t | REJECTED | n=1 | CLAUDE.md |
+| P6-1 | 2026-07-31 | equity | yes | The edge survives realistic trading costs | breakeven one-way bps vs cost profile | ADOPTED | n=1 | CLAUDE.md |
+| P6-2 | 2026-07-31 | equity | yes | TTM ROE/ROIC beat quarterly (smoothing beats recency) | signal IC t | REJECTED | n=2 | CLAUDE.md |
+| P6-3 | 2026-07-31 | equity | yes | Median/MAD robust z-scores beat mean/sd | composite LS t | REJECTED | n=1 | CLAUDE.md |
+| P6-4 | 2026-07-31 | equity | yes | momentum and institutional are redundant and should consolidate | composite LS t | REJECTED | n=1 | CLAUDE.md |
+| P3 | 2026-07-29 | equity | retro | SF3 per-manager conviction predicts returns | signal IC t | REJECTED | n=3 | CLAUDE.md (sm_conviction/holders/breadth; breadth kept) |
+| P4-1 | 2026-07-29 | equity | retro | F-Score adds to quality | signal IC t | ADOPTED | n=1 | CLAUDE.md |
+| P4-2 | 2026-07-29 | equity | retro | Accruals add to quality | signal IC t | ADOPTED | n=1 | CLAUDE.md |
+| P4-3 | 2026-07-29 | equity | yes | Classic anomalies replicate on this panel | signal IC t | REJECTED | n=4 | CLAUDE.md (reversal, idio-vol, MAX, low-vol) |
+| P10 | 2026-08-01 | equity | yes | Sector-neutral ranking improves the composite | held-out LS t + alpha | REJECTED | n=1 | HANDOFF_sector_neutral.md |
+| P10-b | 2026-08-02 | equity | yes | Sector-neutral replicates under the deployed weights | held-out LS t + alpha | REJECTED | n=1 | HANDOFF_sector_neutral.md |
+| PEAD-1 | 2026-08-01 | equity | yes | `pead_car` predicts returns incrementally to momentum | residualized IC t | REJECTED | n=1 | HANDOFF_pead.md |
+| PEAD-2 | 2026-08-01 | equity | yes | `pead_drift` predicts returns | signal IC t, coverage floor | REJECTED | n=1 | HANDOFF_pead.md |
+| EV-PIT | 2026-08-03 | equity | yes | Pricing EV at the rebalance date improves the value theme | signal IC + composite | ADOPTED | n=1 | HANDOFF_ev_fix.md |
+| 13F-LAG | 2026-07-28 | equity | yes | The 13F edge is a look-ahead artifact (fresher data = stronger) | LS t + Deflated Sharpe by lag | REJECTED | n=4 | CLAUDE.md (15/45/135/225d) |
+| 13F-DEP | 2026-07-30 | equity | retro | The entire edge is the institutional theme | alpha and LS t with theme stripped | REJECTED | n=1 | CLAUDE.md |
+| LAZY-1 | 2026-07-25 | equity | yes | Year-over-year 10-K language change predicts returns | NW t on long-short | REJECTED | n=28 | HANDOFF_lazy_prices.md (28-cell grid, measures x horizons) |
+| LAZY-2 | 2026-07-26 | equity | retro | Lazy-prices signals survive as an IC on the main panel | signal IC t | REJECTED | n=6 | HANDOFF_lazy_prices_ic.md |
+| X4 | 2026-08-02 | equity | yes | The book beats an investable ETF benchmark | total-return difference | INCONCLUSIVE | n=1 | HANDOFF_free_analysis.md |
+| GROWTH-1 | 2026-07-20 | equity | retro | EV/Sales promotion improves the established value branch | composite metrics | REJECTED | n=1 | HANDOFF_growth_evsales.md |
+| GROWTH-2 | 2026-07-21 | equity | retro | Growth-valuation calibration improves scoring | composite metrics | REJECTED | n=2 | HANDOFF_growth_calibration.md, HANDOFF_growth_valuation.md |
+| XSECT | 2026-07-27 | equity | retro | Cross-sectional exit rules improve the book | book alpha | REJECTED | n=3 | HANDOFF_deep_xsection.md, HANDOFF_deep_exits.md |
+| B21 | 2026-08-04 | equity | yes | A sector cap improves net alpha | net alpha across cap levels | NULL | n=4 | HANDOFF_edge_audit.md (none/25/30/40%) |
+| R1 | 2026-08-05 | equity | yes | The headline survives FF5+MOM (the word "alpha" is earned) | NW t on the intercept | ADOPTED | n=1 | HANDOFF_r1.md, HANDOFF_edge_audit.md Part 5 |
+| X2 | 2026-08-05 | equity | yes | The headline is stable across rebalance grids | spread of top-decile alpha | ADOPTED | n=7 | HANDOFF_edge_audit.md Part 4 (7 grids) |
+| X7 | 2026-08-05 | equity | yes | The project's thresholds are calibrated against the pipeline's noise | placebo percentiles | REJECTED | n=1 | HANDOFF_edge_audit.md Part 4 |
+| R10 | 2026-08-05 | equity | yes | The edge survives an investable benchmark | excess return + NW t | ADOPTED | n=3 | HANDOFF_edge_audit.md Part 5 (costed EW, cap-weighted, SPY) |
+| OPT-ENTRY | 2026-07-22 | options | retro | The options entry signal beats a random-entry control | expectancy gap | REJECTED | n=1 | OPTIONS_BACKTEST_RESULTS.md |
+| OPT-VRP | 2026-07-23 | options | retro | Variance-risk-premium selling is profitable net of costs | expectancy | INCONCLUSIVE | n=1 | HANDOFF_vrp.md, OPTIONS_VRP_RESULTS.md |
+| OPT-AUTOPSY | 2026-07-24 | options | yes | Some option feature separates winners from losers | BH-FDR across the feature family | REJECTED | n=126 | HANDOFF_trade_autopsy.md (126 features, BH-corrected within family) |
+| OPT-TERM | 2026-07-26 | options | yes | `term_slope` retention predicts option outcomes | retention floor + expectancy | INCONCLUSIVE | n=1 | R7_term_slope_retention_floor.md |
+| OPT-GREEK | 2026-07-25 | options | retro | Greeks-based filters improve option selection | expectancy | REJECTED | n=4 | HANDOFF_greeks.md |
