@@ -1593,3 +1593,110 @@ null. What changed is the size of the claims the record is entitled to make.
   incidental one, and it earned its place here.
   **Rule for the next session: never `git add -A` while a backtest is running.** Stage explicitly,
   or restore the canonical file before staging.
+
+---
+
+# PART 5 — SESSION 4: R1 RE-RUN, R9, R10, M1
+
+**R1's pre-commitment is NOT restated, revised or reinterpreted here.** It lives in
+`HANDOFF_r1.md` section 1, was written before any regression was ever run, and is honoured
+unchanged: **the word "alpha" is permitted only if the FF5+MOM intercept is positive with
+Newey–West t > 2.0; an ambiguous result is a NULL.** The pre-written CLAIM A and CLAIM B texts
+stand as written. What follows are the pre-commitments for the *new* work in this session, and
+three disclosures about how R1's re-run necessarily differs from its first run.
+
+**Written and pushed before any Session-4 run was launched** (RUN_RULES.md Part A rule 6).
+
+---
+
+## R1 RE-RUN — three necessary deviations, declared in advance
+
+The first R1 run is **void**: its strategy series came from the pre-B6/B7 panel over a window
+(1998-12-31 → 2026-01-21, 109 windows) that no longer exists. Regenerating it forces three
+changes, none of which touches the threshold:
+
+1. **The composite must change, and this is a correction, not a choice.**
+   `scripts/factor_alpha.py:decile_series` builds its composite as
+   `comp += where(isnan(z), 0, z) * w` — the **pre-B7 non-renormalising convention**, in which a
+   missing theme is read as exactly average. B7 replaced that everywhere with renormalisation by
+   present-weight mass. So R1's first run scored names by a rule no shipped code path uses any
+   more. The re-run uses `fundamental_panel.composite`, the single shipped composite. **Declared
+   now: this is expected to move the series slightly and is NOT a free parameter — there is one
+   composite and R1 must use it.**
+2. **The `ex_b6_first_37` robustness cut no longer exists and cannot be run.** It dropped the 37
+   rebalance dates whose universe was inverted. B6 *removed those dates from the panel entirely*;
+   the corrected panel is 69 dates beginning 2009-01-15. **The pre-registered cut is therefore
+   satisfied by construction, not skipped** — the corrected sample IS the ex-B6 sample. It will be
+   reported as such rather than silently dropped, and a **first-half / second-half subperiod
+   split** is added in its place as a voluntary robustness cut carrying the same veto power: if
+   the verdict differs across the specification and either robustness cut, **the result is a
+   NULL**, exactly as pre-registered.
+3. **The X4 shipped-series reproduction assert must be disabled for this run.** It asserts the
+   regenerated series matches `ETF_BENCHMARK_RESULTS_strategy_series.csv` to 1e-9. That file was
+   produced from the old panel and the old composite; matching it would mean the re-run had
+   failed. **The assert is replaced by an explicit recorded comparison** — how far the corrected
+   series moved from the void one — so the change is measured rather than hidden.
+
+**Reporting against the calibrated floor (session 3, X7), as instructed.** R1's own NW *t* > 2.0
+threshold is honoured as pre-registered and is NOT replaced. Separately, and additionally, the
+result is reported against what X7 measured: **X7 does NOT calibrate a factor-regression
+intercept** — it calibrates the pipeline's own statistics — so there is no placebo floor for R1's
+*t*. What X7 does give is a floor for the raw object R1 decomposes: top-decile alpha's placebo
+null is **[−1.33pp, +2.38pp]**. Committed now: **if the re-run's raw top-decile alpha falls
+inside that interval, the regression is decomposing noise and the R1 verdict is a NULL regardless
+of what its intercept does.**
+
+---
+
+## PRE-COMMITTED THRESHOLDS — R9 (significance statistics for the headline)
+
+R9 is instrumentation, not a keep/reject test, so the commitment is about what gets reported and
+which number becomes canonical:
+
+1. `top_decile_alpha` ships with **no significance statistic at all** — it is the number on the
+   front of the product. A *t*-statistic and a Newey–West *t* will be added and shipped on every
+   run, **whatever they say.**
+2. The long-short *t* is currently naive i.i.d. A **Newey–West HAC *t* (lag 1)** and the
+   **Ljung–Box** statistic on the spread series are added alongside it. Committed now: **if
+   Ljung–Box rejects independence at p < 0.05, the NW *t* becomes the number the project quotes
+   and the naive *t* is retained only as a diagnostic.** If it does not reject, both are reported
+   and the naive *t* stands.
+3. Committed now: **if adding a HAC standard error moves the long-short *t* below 2.0, that is
+   reported as a headline change, not as a footnote.**
+
+---
+
+## PRE-COMMITTED THRESHOLDS — R10 (the uninvestable benchmark)
+
+1. **All three benchmarks are published side by side, whatever they say** — (a) equal-weight
+   universe charged the same cost model the strategy pays, (b) SPY total return over the same
+   windows, (c) a cap-weighted panel average as the closest investable analogue.
+2. Committed now: **the alpha versus SPY is expected to be materially LOWER than the current
+   figure and it gets published at the same prominence.** A benchmark change that flatters the
+   product does not get quoted alone.
+3. Committed now: **if top-decile excess return over the cap-weighted or SPY benchmark is not
+   positive, the record says the edge is measured against an uninvestable benchmark and is not
+   demonstrated against an investable one.**
+
+---
+
+## PRE-COMMITTED THRESHOLDS — M1 (the research log and the real trial counter)
+
+1. The log is **append-only**, one row per pre-registered test, populated retrospectively from the
+   handoff corpus. Its row count `N` is wired into `_deflated_sharpe` and `_trials_haircut`.
+2. **The Deflated Sharpe will fall, and by design.** It is currently computed against `N = 8`
+   when the audit's reconstruction counts roughly 146 real trials. Committed now: **if the
+   Deflated Sharpe drops below 0.95 at the true `N`, the record states plainly that the edge does
+   NOT clear the Deflated Sharpe bar.** No re-specification of `N`, no reversion to 8, no
+   "both figures are informative" hedge. The whole point of M1 is that the denominator has been
+   wrong; the honest consequence of fixing it must be accepted whichever way it goes.
+3. Committed now: **X7's finding that "the Deflated Sharpe survives calibration" was measured
+   with `N = 8` inside both the real run and the placebo.** Changing `N` changes both. Therefore
+   **X7's DSR calibration becomes provisional the moment M1 lands**, and the placebo must be
+   re-run at the true `N` before the "Deflated Sharpe stands" claim is repeated. This is declared
+   now so it cannot be quietly skipped later.
+4. The trial count is a **measured floor, not a guess**: `N` is the number of rows actually in the
+   log. If the retrospective reconstruction recovers fewer than the audit's ~146, the smaller
+   honest number is used and the gap is recorded.
+
+---
