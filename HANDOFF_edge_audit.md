@@ -1951,3 +1951,22 @@ estimate, so the gap the pre-commitment worried about (recovering fewer than 146
 materialise; the equity-scoped 84 is the operative number and is a measured floor, not a guess.
 
 ---
+
+**Note on this session's canonical `BACKTEST_RESULTS.json`, so the next reader does not misapply
+Session 3's own rule.** The file carries `git.dirty: true` and is stamped against `4f41c9f` rather
+than its own commit. Session 3 established that combination as the tell for a file polluted by an
+in-flight run. **It is not one here.** The numbers are the Session-4 full run's; the file was
+re-serialised from that run's own result dict after `results_file.py` was corrected to carry R9's
+new fields and R10's `benchmarks` block, which the writer had been silently dropping (the values
+were computed correctly and thrown away at the schema boundary — a fresh instance of the
+"guard that cannot see" pattern, this time on the OUTPUT side). No number was recomputed: the
+same `res` object went through the fixed writer. The `dirty` flag reflects the uncommitted
+documentation in the tree at re-serialisation time.
+
+**The R9/R10 schema-boundary bug is worth its own line in the record.** `quantile_backtest` and
+`benchmark_panel` both computed their new fields correctly on the first full run, and both were
+dropped because `results_file.build_payload` whitelists what it writes. The canonical file
+therefore showed `top_decile_alpha_tstat: None` next to a correctly-computed 4.517 in the raw
+dump. Nothing raised. `benchmarks` is now in `RESULT_BLOCKS`, so a future absence is an error
+rather than a silence — but the general hazard remains: **adding a metric to a computation does
+not add it to the canonical file, and the canonical file is what every other agent reads.**
