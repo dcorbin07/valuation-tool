@@ -157,8 +157,18 @@ def main():
                     os.replace(bak, path)
                 except OSError as e:
                     log(f"{key}: RESTORE FAILED ({e}) - frame is at {bak}")
-            after = before
-            status = "no_source" if faults == 0 else "still_failing"
+            # MEASURE the restored frame; do NOT report the stale `before` from the audit
+            # snapshot. A span an EARLIER run already recovered is re-attempted here from the
+            # pre-recovery coverage figure, and if this attempt faults, reporting `before` calls
+            # a healthy 99.5%-covered year "still_failing". Measured: AAPL-2020 and FNV-2019
+            # were both logged that way while sitting at 99.51% and 100.00% on disk.
+            after = oi_coverage(load_frame(path)) if os.path.exists(path) else 0.0
+            if after >= args.floor:
+                status = "recovered"
+            elif faults == 0:
+                status = "no_source"
+            else:
+                status = "still_failing"
 
         if status == "no_source":
             try:
