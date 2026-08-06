@@ -13,6 +13,63 @@ file directly.
 
 ---
 
+## D: BACKUP REBUILT — AND THE DRIVE NEEDS ONE ELEVATED COMMAND (2026-08-06, r1 lane)
+
+Full write-up in `HANDOFF_backup.md`. Housekeeping lane, nothing under `valuation/**` touched.
+
+**ACTION REQUIRED FROM DON — this is the only blocker.** The backup drive is now physically
+write-protected: it is FAT32, it was filled twice, and Windows has flagged it
+`OperationalStatus: Full Repair Needed`, dirty, `IsReadOnly: True`. Repairing it needs an
+administrator prompt, which this session does not have. Run as administrator:
+
+```
+diskpart -> list disk -> select disk 1 (CONFIRM it is the 116 GB Lexar) ->
+attributes disk clear readonly -> exit
+chkdsk D: /f
+```
+
+Then say so, and the rest is automatic. **Until then there is no working backup of `.env`, the
+freeze, or the paper track** — the copy on D: is from before 02:00 on 2026-08-06 and cannot be
+updated.
+
+**Cause of the disk filling — not what it looked like.** `/XD` is not broken (verified three
+ways, including a controlled robocopy experiment). There were **two** backup scripts on **two**
+schedules writing to the **same** destination with opposite policies: `backup_now.bat`
+(`ValuationToolBackup`, 08:00) used `/E` so it never deleted, excluded only four directories, and
+had no `/XJ` — so it followed the ten worktree `data` junctions and duplicated the whole 62 GB
+`data\` tree, which is the **61.6 GB of `.claude`** on D:. `backup_to_D.bat` then could not clean
+it up, because **`/MIR` does not purge a directory it is excluding** — it never enumerates that
+tree at all.
+
+**Fixed:** policy is now an allowlist (back up what cannot be recreated, not what is large),
+`/XJ` everywhere, a free-space preflight and a writability probe that both abort in plain English
+before copying, a per-run report of what was backed up and what was skipped with reasons, and
+stray detection for directories that leave the allowlist. `backup_now.bat` is now a shim onto the
+same engine so both scheduled tasks run one policy.
+
+**Numbers:** repo 62.72 GB, `data/` 61.89 GB, backup set **38.01 GB** against a 116 GB drive
+(~76 GB headroom). Biggest exclusion is `data\options_derived` at **16.57 GB** — pure arithmetic
+over `data\options`, "ZERO vendor option calls". Biggest inclusions are `data\options` 17.40 GB
+(45–55 h to re-mine) and `data\backtest_freeze_2026-08` 17.37 GB (the crown jewel: re-downloading
+returns restated data). Three irreplaceable items the original brief missed are now backed up:
+`data\archive` (our own past scans), `valquo_track*` (the live forward paper track, written by
+Cowork, by nothing in this repo), and `app.db` (user/Stripe state).
+
+**Before touching D: I verified it was pure redundancy:** 59,081 files compared path by path
+against C: — exactly 2 distinct files existed only on D:, both rescued to
+`data\_from_D_quarantine\`. Nothing on D: was deleted.
+
+**Tests:** `tests/test_backup_to_D.ps1`, **40/40**. Windows/PowerShell, so the Linux CI job does
+not run them — run by hand after touching the backup. Python suites unaffected: 14/14
+factor-alpha, 13/13 fragility, 191/191 edge.
+
+**Watch this:** the miner projects ~199 GB for a full 1,000-name `data\options`. That will not
+fit, and it is the next thing that breaks the backup. Also, D: is FAT32 with a 4 GB per-file
+ceiling and the backup's largest file is already 3.00 GB — if the drive is ever reformatted,
+use exFAT.
+
+---
+
 ## R1 SETTLED — THE HEADLINE IS NOT JUST FACTOR EXPOSURE (2026-08-04, `r1` lane)
 
 Full write-up: **`HANDOFF_r1.md`** (pre-commitment in section 1, written before any number).

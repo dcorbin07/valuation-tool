@@ -1,49 +1,22 @@
 @echo off
-rem ============================================================
-rem  Backs up this folder to the D: backup drive.
-rem   C:\...\valuation-tool  ->  D:\valuation-tool (Backup)
-rem
-rem  Uses robocopy (built into Windows). It only copies what
-rem  CHANGED, so after the first run it's fast, and it never
-rem  DELETES from the backup - a backup can't lose a file the
-rem  original later drops. Also keeps a dated copy of your data
-rem  + keys so a corrupted file can't overwrite a good backup.
-rem
-rem  Double-click anytime. setup_backup_schedule.bat makes it
-rem  run automatically.
-rem ============================================================
+REM ================================================================
+REM  Backs up this project to the D: drive.
+REM
+REM  2026-08-06: this used to be a SECOND, independent backup with its
+REM  own rules, and it was the reason D: kept filling up. It excluded
+REM  only .venv / __pycache__ / .pytest_cache / node_modules, so it
+REM  copied .git and .claude too -- and .claude holds ten git worktrees,
+REM  each with a junction pointing back at data\. Robocopy follows
+REM  junctions unless told not to, so every worktree duplicated the
+REM  whole 62 GB data\ tree. It also used /E, which never deletes, so
+REM  nothing it copied ever went away again.
+REM
+REM  Two schedules, one destination, opposite policies. Now there is one
+REM  policy: back up what cannot be recreated, not what is large. Both
+REM  scheduled tasks land here.
+REM
+REM  Double-click anytime. Everything real happens in backup_to_D.ps1.
+REM ================================================================
 setlocal
-set "SRC=%~dp0"
-set "DST=D:\valuation-tool (Backup)"
-
-if not exist "D:\" (
-  echo  [!] Backup drive D: was not found. Plug it in, then run this again.
-  echo.
-  if "%~1"=="" pause
-  exit /b 1
-)
-
-rem Skip regenerable junk that would just bloat the backup.
-set XD=/XD ".venv" "__pycache__" ".pytest_cache" "node_modules"
-set XF=/XF "*.pyc" "*.log"
-set OPTS=/E /R:1 /W:1 /NFL /NDL /NP /NJH %XD% %XF%
-
-echo  Backing up valuation-tool  ->  %DST%
-robocopy "%SRC%." "%DST%" %OPTS%
-set RC=%ERRORLEVEL%
-
-rem --- extra safety: a dated copy of the irreplaceable data + keys ---
-set "STAMP=%date:~-4%%date:~4,2%%date:~7,2%"
-set "SNAP=%DST%\daily-data\%STAMP%"
-if not exist "%SNAP%" mkdir "%SNAP%" 2>nul
-if exist "%SRC%data\*.db" copy /Y "%SRC%data\*.db" "%SNAP%\" >nul 2>nul
-if exist "%SRC%.env" copy /Y "%SRC%.env" "%SNAP%\.env" >nul 2>nul
-
-rem robocopy codes below 8 = success (0 = nothing changed, 1 = copied, etc.)
-if %RC% GEQ 8 (
-  echo  [!] Backup finished with errors ^(code %RC%^). Check the drive and try again.
-) else (
-  echo  [OK] Backup complete. Dated data copy: %SNAP%
-)
-echo.
-if "%~1"=="" pause
+call "%~dp0backup_to_D.bat" %*
+exit /b %ERRORLEVEL%
