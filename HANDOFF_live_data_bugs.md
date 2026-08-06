@@ -551,3 +551,62 @@ input or a sub-3pp spread. That quantifies historical exposure, and is the recom
 6. **`DCFResult.terminal_growth` reported the ASSUMED growth, not the effective one.** Now
    reports the effective rate, with `assumed_terminal_growth` and `terminal_multiple` alongside
    — without which "the clamp bound" is invisible to every caller.
+
+---
+
+# PART 3 — the upstream growth defect, the contaminated score, and adopting A (2026-08-05)
+
+## PRE-COMMITMENT — written and committed before any of Part 3's numbers were measured
+
+Committed on its own, ahead of the work, for the same reason as Part 2: two of these items
+have a visible target and I am the person who found them, which is exactly the setup that
+produces a flattering result.
+
+### Item 1 — blast radius of the wrong growth field
+
+The question is how often the positional read (`stockTrend`, earnings growth) differed from the
+correct revenue field *quietly* — i.e. landed inside `[-0.30, 1.00]` and so survived the engine
+rejection shipped in Part 2. Fixed in advance:
+
+- **The measurement is descriptive, not a pass/fail.** I am not predicting a number and I will
+  report whatever it is, including "the quiet failures are rare", which would make my Part 2
+  claim that "there is no reason to think they are rare" wrong. That is a real possible outcome
+  and it will be stated in those words if it happens.
+- **"Differs" means** `abs(old - new) > 0.01` (1pp of growth) where both exist. Names where the
+  positional read is absent and the code already fell back to `revenueGrowth` are NOT
+  contaminated and are excluded from the numerator, but reported.
+- **Do-no-harm bound, same as Part 2:** on names whose growth input does NOT change, median
+  |Δ fair value| must be **0.000%** — this fix is a pure input swap and cannot move them. Any
+  movement there is a bug in my change, not a finding. On names whose input DOES change,
+  movement is the point and is reported unbounded.
+- I will **not** treat "more names moved" as success. The correct field is correct regardless of
+  how many names it moves; the fix ships on correctness.
+
+### Item 2 — what a withheld name's score should be
+
+Committed BEFORE seeing the new distribution, because "which option looks better in the table"
+is not a valid way to choose this:
+
+- **Decision rule: a score is a claim about the name, and every claim must rest on inputs we
+  publish.** Any sub-score derived from a valuation the guard withheld is dropped. The remaining
+  question — partial score vs no score — is decided on whether the surviving sub-scores mean
+  what the score label says, NOT on the resulting numbers.
+- **My prior, stated now: a PARTIAL score from the uncontaminated sub-scores, explicitly marked
+  as such.** Reason: quality, growth, health and momentum are computed from reported financials
+  and price history and are unaffected by the DCF being unpublishable; suppressing them entirely
+  throws away four working measurements because a fifth failed. The precedent is already in this
+  codebase — `compute_score` "already tolerates None (it renormalizes)".
+- **I will abandon that prior if the measurement shows** the renormalised score is not
+  interpretable on the same 1-100 scale as a full score — concretely, if withheld names
+  systematically land in a different part of the distribution than publishable names with
+  similar fundamentals, such that the same number means two different things. That is the
+  falsifier, and it is named before the run.
+- **Do-no-harm: publishable names must be EXACTLY unmoved** (max |Δ score| = 0 across all names
+  the guard does not withhold). This change may only affect withheld names.
+
+### Item 3 — candidate A
+
+Ships as instructed, and will be recorded as **ADOPTED ON COHERENCE, NULL ON PERFORMANCE**. I
+will not restate it as having passed the Part 2 pre-registered test, because it did not. The
+before/after numbers already measured in Part 2 §3 stand and will not be re-derived to look
+better.
