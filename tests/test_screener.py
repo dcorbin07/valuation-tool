@@ -1250,6 +1250,58 @@ def test_unreadable_insider_scores_none_not_fifty():
     assert d["score"] is None, "an unreadable filing must not become a confident 50"
 
 
+def test_net_debt_is_unit_stamped_like_market_cap():
+    """`net_debt` was missing from providers._ABSOLUTE_USD, so it alone came out in the
+    provider's native millions while market_cap / ev / total_debt beside it were scaled to
+    dollars. fairvalue.py then computed `ev = market_cap + net_debt` as dollars + millions,
+    making the net-debt term ~1e-6 of its true size. CHTR's real net debt / market cap is
+    4.68; the lens saw 96,644 against 20.6 billion."""
+    from valuation.data.models import CompanyData
+    from valuation.screener.providers import company_to_metrics, _ABSOLUTE_USD
+    assert "net_debt" in _ABSOLUTE_USD
+    cd = CompanyData(ticker="LEV", currency="USD", price=100.0, shares_diluted=100.0,
+                     market_cap=10_000.0, total_debt=50_000.0, cash_sti=0.0,
+                     revenue=20_000.0, ebit=3_000.0, da=1_000.0)
+    m = company_to_metrics(cd)
+    # ev is mc + nd; all three must live on the same scale or the bridge is meaningless
+    assert abs(m["ev"] - (m["market_cap"] + m["net_debt"])) < 1.0, (
+        m["ev"], m["market_cap"], m["net_debt"])
+    assert m["net_debt"] / m["market_cap"] == pytest_approx(5.0), m["net_debt"] / m["market_cap"]
+
+
+def pytest_approx(x, tol=1e-6):
+    class _A:
+        def __eq__(self, other): return abs(other - x) < tol
+        def __repr__(self): return f"~{x}"
+    return _A()
+
+
+def test_multiples_lens_refuses_above_five_times_price():
+    """The EV bridge reduces to `implied/price = r + (nd/mc)*(r-1)`, so at the 3x re-rate
+    cap a name with 4.68x leverage has a CEILING of 12.4x price. MAX_GROWTH_VALUE was
+    checked inside _growth_value only — the multiples branch had no absolute cap at all,
+    and this lens feeds the PUBLIC /api/hotstocks. One bar now, 5x, matching the valuation
+    page's FV_BAND_HIGH."""
+    from valuation.screener import fairvalue as FV
+    assert FV.MAX_LENS_VALUE == 5.0 and FV.MAX_GROWTH_VALUE == 5.0
+
+    # a heavily levered name whose EV multiple is 3x cheaper than its peers
+    row = {"ticker": "LEV", "sector": "Utilities", "price": 10.0, "market_cap": 1_000.0,
+           "extra": {"ev_sales": 0.5, "net_debt": 4_000.0}}
+    peers = [{"ticker": f"P{i}", "sector": "Utilities", "price": 10.0,
+              "market_cap": 1_000.0, "extra": {"ev_sales": 3.0, "net_debt": 0.0}}
+             for i in range(6)]
+    meds = FV.peer_medians([row] + peers)
+    got = FV._mature_value(row, meds, 10.0)
+    assert got is None, f"published {got} on a $10.00 price — must refuse above 5x"
+
+    # and an ordinary name is untouched
+    ok = {"ticker": "ORD", "sector": "Utilities", "price": 10.0, "market_cap": 1_000.0,
+          "extra": {"ev_sales": 2.5, "net_debt": 0.0}}
+    v = FV._mature_value(ok, FV.peer_medians([ok] + peers), 10.0)
+    assert v is not None and v <= 50.0
+
+
 def _growth_frames():
     """The two frames yfinance actually returns, with GILD's real 2026-08-05 values."""
     import pandas as pd

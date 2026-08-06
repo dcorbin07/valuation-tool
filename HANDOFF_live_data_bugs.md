@@ -842,3 +842,198 @@ not a bar, it is decoration.
 **This ships on coherence, not on measured harm**, exactly as candidate A did in Part 3: the
 measured tail above 5x in the multiples lens is currently **empty**. I am not going to claim it
 prevents something it does not currently prevent.
+
+## PART 4 RESULTS — measured after the pre-commitment above (887981c)
+
+Suites: **20 suites, 699 tests, all green.**
+
+### ITEM 1 — the multiples lens. VERDICT: ADOPTED (units fix on correctness; cap on coherence)
+
+**Which of the two is broken: the assumption, plus a units bug nobody had found.**
+
+The bridge arithmetic is right. `equity = ev*ratio - nd` with `ev = mc + nd` reduces exactly to
+**`implied/price = r + (nd/mc)*(r - 1)`**, and at `r = MAX_RERATE = 3` that is the app lane's
+`3 + 2*(nd/mc)`. Equity is a residual claim and leverage genuinely amplifies it, so the algebra
+is correct. **What is indefensible is the assumption**: applying a uniform 3x enterprise re-rate
+to a name that trades cheap on an enterprise multiple *because* it is levered. That is where a
+3x EV move becomes an 11x equity move.
+
+**But the far bigger finding is that the bridge has not been working at all.** `net_debt` was
+**missing from `providers._ABSOLUTE_USD`**, so it alone was emitted in the provider's native
+millions while `market_cap`, `ev` and `total_debt` beside it were scaled to dollars.
+`screen.py::_rows_from` copies it straight into `extra`, and `fairvalue.py` then computes
+`ev = market_cap + net_debt` as **dollars + millions** — making the net-debt term ~1e-6 of its
+true size and silently collapsing the bridge to a bare re-rate. CHTR's real net debt / market
+cap is **4.68**; the lens saw **96,644 against 20,643,866,624**.
+
+Same class as the P7 currency bug and as everything in Parts 1-3: every column present, every
+column populated, one of them in the wrong unit, no error raised.
+
+**Real exposure — the number nobody had.** Reconstructed a 239-name universe snapshot in the
+production row shape:
+
+| | today (live units bug) | units fixed, no cap |
+|---|---|---|
+| multiples implied/price, median | 1.02 | 1.02 |
+| p90 | 2.11 | 2.20 |
+| **max** | **3.00** (exactly `MAX_RERATE`) | **4.59** (STLA) |
+| **names above 5x price** | **0** | **0** |
+| names above 3x | 2 | 3 |
+
+**Zero names exceed 5x through this lens, before or after the units fix.** The app lane's
+`$330 against a $10 price` required both extreme leverage *and* a full 3x re-rate; on real data
+CHTR lands at 2.72x, not its 12.4x ceiling, because its EV multiples are not 3x cheaper than its
+peers'. True `nd/mc` across the universe: median ~0, p90 ~0.5, **max 4.68 (CHTR)**, with 2 names
+above 2.0. The ceilings are real (CHTR 12.4x, F 7.5x, BNS 6.3x, PCG 6.2x) but nothing reaches them.
+
+**Threshold reconciliation: one bar at 5x.** The valuation page refuses at 5x (`FV_BAND_HIGH`),
+`_growth_value` capped at 20x, the multiples branch had no absolute cap. `MAX_LENS_VALUE = 5.0`
+now bounds both branches. 20x was never a bar — the growth lens tops out at 5.44x on a real
+universe — so it was decoration, not a guard. **Adopted on coherence: the measured tail above 5x
+in the multiples lens is empty, and this is not claimed to prevent anything today.**
+
+**Against the pre-committed bounds:**
+
+| bound | result |
+|---|---|
+| 2 — every name below 5x bit-identical | **PASS** — multiples 239 names, 0 changed; growth 204 names, 0 changed |
+| 3 — predicted 0 multiples / exactly 2 growth suppressed | **PASS** — multiples 0, growth exactly 2 (ELV 5.44x, JD 5.09x) |
+| 1 — 13 control names move < 0.1% | **BREACH — and the bound was invalid. Mine.** |
+
+**On bound 1, plainly: I was told to check a control group existed before committing to one,
+I did check, and my check was still wrong.** I verified that a *proxy* was non-empty
+(13 names with `abs(nd)/mc < 0.01`) instead of verifying the *defining property* — that the
+change cannot move them. It can: the bridge moves a name by up to `2*(nd/mc)`, so a 1%-leverage
+tolerance permits ~2% of movement, and bounding that at 0.1% was arithmetically incoherent from
+the moment I wrote it. Observed max was **1.736% on PANW**, which is `2*(nd/mc)` for PANW to
+five decimal places — the fix operating exactly as the algebra says, not a side effect.
+
+**A true control group does not exist at all: no name in the 239 has net debt of exactly zero.**
+Every name is moved by this fix. So item 1's units change ships on **correctness** — a figure in
+millions was being added to a figure in dollars, which is unambiguous — and not on a do-no-harm
+result. Largest moves: RY +78%, F +78%, STLA +53%, EIX +47%, BBD +46%, TD +41%, TM +40%, GM +35%.
+
+**A latent danger worth stating:** fixing the units *without* the cap would have been the
+dangerous change. The `3 + 2*(nd/mc)` amplification is currently inert only because the net-debt
+term is ~zero; restore it alone and CHTR's ceiling becomes 12.4x on a public endpoint. The two
+changes belong together, and shipping either half by itself would have been worse than shipping
+neither.
+
+### ITEM 2 — CHTR. VERDICT: CLASS DEFECT CONFIRMED, quantified, deliberately NOT fixed
+
+`sales_to_capital` is **not** mis-set, **not** mis-derived and **not** applied to the wrong base.
+CHTR's is 1.5 (Communication Services 2.0, nudged down 0.75x for capex intensity 21.3%) — a
+reasonable number, correctly derived, correctly applied. **The method itself breaks down.**
+
+Reinvestment is modelled as `delta revenue / sales_to_capital`, i.e. **growth capital only**.
+That is the standard Damodaran formulation and it is fine for a company whose capital needs
+scale with growth. It collapses when revenue is flat:
+
+| CHTR year | revenue | modelled reinvestment | FCFF | FCFF/share |
+|---|---|---|---|---|
+| 1 | 54,893 | **-79** | 9,817 | $82.31 |
+| 5 | 59,309 | -1,152 | 9,541 | $79.99 |
+
+CHTR's **observed net capital spend is capex 11,659 - D&A 8,711 = $2,948M/yr**. The model charges
+**$79M in year 1** — an undercharge of $2,869M, and that is why free cash flow can more than
+double on 1.16x revenue at a flat margin.
+
+*(Correcting my own Part 2/3 note: I compared the model's $82.31/share FCFF with CHTR's reported
+$37.04/share FCF as though they were the same measure. They are not — FCFF is unlevered, the
+reported figure is after interest, and CHTR pays roughly $5bn of it. The undercharge is real; the
+2.2x comparison I used to describe it was not apples to apples.)*
+
+**The population, which matters far more than CHTR** — 205 non-financial names with capex and D&A:
+
+- **114** have positive net capital spend (capex > D&A).
+- Undercharge (net capex - modelled reinvestment): median **$141M**, p75 **$2,557M**,
+  p90 **$7,106M**, max **$48,884M**.
+- As a share of revenue: median 0.51%, p75 **7.24%**, p90 **13.57%**, max **57.94%**.
+- **34 names undercharged by more than 5% of revenue; 22 by more than 10%.**
+- Sectors: **Utilities 11, Energy 6, Basic Materials 6**, Technology 4, Communication Services 3,
+  Industrials 2, Healthcare 1, Real Estate 1 — exactly the capex-heavy prediction.
+- Worst: SRE 57.9% of revenue, ORCL 54.7%, D 44.1%, NVO 17.6%, MSFT 14.7% ($48.9bn), E 13.9%.
+- **Several energy names have NEGATIVE modelled reinvestment** (XOM -8,088, TTE -11,108,
+  E -11,016, PBR -7,219): shrinking revenue is credited as *releasing* capital the company is
+  not releasing, so the model adds cash for contracting.
+
+**Not fixed, and the reason is the same one that kept the WACC floor out of Part 2:** changing
+how reinvestment is modelled moves **every** valuation in the product, and it is a modelling
+decision with its own before/after, not a bug fix to slip into a lane about a screener lens.
+**This is now the largest known defect in the valuation engine** — larger than anything in
+Parts 1-3, because it inflates free cash flow for 34 names by more than 5% of revenue each.
+
+What ships instead: `DCFResult` now carries `reinvestment_y1` and `observed_net_capex`, and the
+pipeline emits a warning when the shortfall exceeds 5% of revenue — *"The forecast reinvests
+79 in year 1 against 2,948 of observed net capital spend (capex minus D&A) — a shortfall of 5%
+of revenue. Free cash flow is modelled higher than this company has been able to produce."*
+No published number changes. Verified firing on CHTR (5%), SRE (58%), D (44%), ORCL (55%) and
+staying silent on AAPL. Pinned by
+`test_flat_revenue_capex_heavy_name_flags_its_reinvestment_shortfall`.
+
+### ITEM 3 — a 98%-terminal figure. VERDICT: CONCERN MISPLACED, CLOSED, no fix
+
+Measured first, as instructed. TV as a share of EV across **208 non-financial names**:
+
+| | value |
+|---|---|
+| min | 45.6% |
+| p25 | 70.0% |
+| **median** | **76.7%** |
+| p75 | 83.2% |
+| p90 | 86.5% |
+| above 90% | 13 names (6.2%) |
+| above 95% | 9 names (4.3%) |
+| above 100% | 8 names (3.8%) |
+
+And the population that values **well** (0.5-2.0x price, n=96): median **77.5%**, p75 83.2%,
+p90 **85.1%**, max 117.9%.
+
+**The decisive number: names valuing at more than 5x price (n=3) have a median terminal share of
+82.2% — LOWER than the p90 of the names that value sanely (85.1%).** Terminal share does not
+separate good valuations from bad ones. A threshold on it would fire on healthy mature names and
+miss the pathological ones. CI's 93.5% and JD's 97.9% sit at roughly the 93rd and 96th
+percentile of a distribution whose median is 76.7% — elevated, but not a different species, and
+a DCF of a mature business being three-quarters terminal value is simply what the arithmetic of
+a 5-10 year explicit forecast produces.
+
+**So I am closing this and shipping nothing for it.** My Part 3 caveat that counting CI and JD as
+"resolved" would overstate the result still stands as a caveat, but the stronger claim in this
+prompt — that a 98% terminal share means the number is not a valuation — is not supported by the
+distribution. Recording the measurement so nobody re-opens it on intuition.
+
+**One real thing in the tail:** the 8 names above 100% (F **785%**, BA 385%, SNAP 159%, WELL
+120%, STLA 118%, CPNG 114%, SNOW 107%, KHC 102%). A terminal share above 100% means the explicit
+forecast has *negative* present value — the company burns cash for the whole horizon and the
+entire valuation rests on what happens after it. That is a genuinely different statement from
+"93.5%", and F at 785% is worth someone's attention. Logged in BUGS FOUND, not fixed here.
+
+### What I did NOT do, and why
+
+- **Did not fix the reinvestment model** (item 2) — the largest known defect, deliberately left
+  to its own pre-registered task for the reason above.
+- **Did not add a terminal-share guard** (item 3) — the data says it would not discriminate.
+- **Did not touch** `valuation/web/**` or `valuation/report/**` (the app fixer is guarding the
+  public call site in parallel) or `valuation/edge/**`.
+- **Did not re-tune `MAX_RERATE`.** A leverage-aware re-rate cap is the principled fix for the
+  assumption I called indefensible above; it changes what the lens computes for 226 names and
+  belongs with the reinvestment work, not bolted on here.
+
+## BUGS FOUND (Part 4)
+
+1. **`net_debt` was missing from `providers._ABSOLUTE_USD`** — emitted in millions beside
+   dollar-scaled `market_cap`/`ev`, silently disabling the EV bridge for every levered name.
+   Fixed. **This is the fifth unit/field-mismatch bug in this family** (P7 currency, the `assets`
+   loader allowlist, the SF3 positional arg, the growth field, this).
+2. **The multiples lens had no absolute cap** while the growth branch did and the valuation page
+   refuses at 5x — three bars for one claim, on a public endpoint. Fixed, one bar at 5x.
+3. **Fixing the units without the cap would have been actively dangerous** — the
+   `3 + 2*(nd/mc)` amplification is inert only because net debt is currently ~zero to the lens.
+4. **Reinvestment collapses to near-zero for flat-revenue capex-heavy names** — 34 of 205
+   undercharged by >5% of revenue, 22 by >10%; several energy names are charged *negative*
+   reinvestment. Flagged, not fixed. **Largest open defect in the engine.**
+5. **8 names carry a terminal share above 100% of EV** — F at **785%** — meaning the explicit
+   forecast has negative present value. Not investigated.
+6. **`MAX_GROWTH_VALUE = 20.0` never bound on a real universe** (growth lens max 5.44x). A
+   "sanity cap" that cannot fire is not a sanity cap — the same shape as `dcf.py`'s 0.005
+   terminal floor from Part 2 and `wacc.py`'s beta > 3.0 check.
