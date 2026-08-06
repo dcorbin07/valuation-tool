@@ -2072,3 +2072,272 @@ run and all 100 placebo draws**. M1 then made the real run's N = 84. The claim i
 until the placebo is re-run at the true N**, and it is not to be quoted in the meantime. That
 sweep was launched at the start of this session.
 
+
+---
+
+## R2 — THE CORRECTED OPTIONS RE-RUN · **THE ENTRY SIGNAL IS DEAD, AND THE RECORD SAYS SO**
+
+**Committed threshold:** Part 0, quoted unchanged in Part 6 above. Gap still negative at
+significance under a date-block bootstrap → the signal is dead. Gap closes to within its CI →
+INCONCLUSIVE, not vindicated. Gap positive at significance → reversal.
+
+**What was run:** `optuniv_run.py --workers 5 --aggression 1.0 --universe-from <frozen 187-name
+list> --control --control-draws 2 --refresh-control --autopsy`, plus a second control seed. The
+universe is PINNED to the pre-correction run's frozen list, so the corrected code is the only
+variable. Window 2016-01-01 → 2025-10-15, unchanged. Nothing re-tuned.
+
+### The verdict, mechanically
+
+| | pre-correction | **corrected** |
+|---|---|---|
+| real / control expectancy (seeds pooled) | +5.14% / +13.22% | **+3.41% / +10.88%** |
+| gap | −8.08pp | **−7.47pp** |
+| **date-block CI95 on the gap** | [−11.66pp, −4.51pp] | **[−13.92pp, −2.43pp]** |
+| negative at significance | YES | **YES** |
+| paired name-year cells / wins | 441 / 1,052 = 41.9% | **600 / 1,305 = 46.0%** |
+| sign-test z | −5.185 | **−2.907 (p = 0.0037)** |
+| paired *t* | −2.183 (p = 0.029) | **−1.446 (p = 0.148), NOT significant** |
+
+**VERDICT: the pre-committed condition for "dead" is met.** The corrected gap remains negative at
+conventional significance under the date-block bootstrap. The alert's day-selection subtracts
+value on this universe and window, on corrected data, under clustered inference.
+
+**The finding survives the correction almost intact — the gap moves 0.61pp.** That is the
+headline: five defects were repaired, every level moved, and the conclusion did not. Note the
+paired *t* is no longer significant while the sign test is — exactly the ordering the record
+predicted when it said to lean on the sign test.
+
+### THE SEED INSTABILITY · a finding about the BENCHMARK, and it nearly caused a wrong call
+
+**A single control seed can flip this verdict, and the first one run did.**
+
+| | control expectancy | gap | date-block CI95 | negative at sig |
+|---|---|---|---|---|
+| seed 0 | +6.46% | −3.05pp | [−7.05, +0.95] | **NO** |
+| seed 1 | **+15.34%** | −11.93pp | [−23.17, −4.55] | **YES** |
+| **pooled** | **+10.88%** | **−7.47pp** | **[−13.92, −2.43]** | **YES** |
+
+The same construction on the same book, reseeded, moves the control's own mean by **8.9
+percentage points**. Read on seed 0 alone, this session would have reported INCONCLUSIVE; on seed
+1 alone, dead. **Pooling is what the record did** (its control was 8,417 trades across two
+draws), so pooled is the comparison the verdict reads, and the per-seed spread is published
+beside it rather than averaged away.
+
+The mechanism is measured, not asserted: the control's OWN expectancy carries a date-block CI of
+**[+5.61%, +17.49%]** — a width of 11.9pp on a point estimate of 10.9%. A random-day book's mean
+on a barbell payoff is set by a handful of +600% trades, and which ones a draw catches moves it
+enormously. **Two seeds is not enough for this comparison, and nobody had measured that.**
+Recorded as an open item: run the control at ≥5 seeds, or read the paired sign test only, which
+moved far less across the three readings (z −0.59 / −3.00 / −2.91).
+
+### What the corrections did to the book
+
+**The trade count ROSE 3,042 → 3,885, and this is B1's signature.** Alerts *fell* (5,953 →
+5,614, because the ATM IV now solves and nudges the options component of the score), while
+`no_contract_in_band` rejections fell **2,911 → 1,729**. A split-and-dividend-adjusted spot
+compared against as-traded strikes threw the 0.90–1.20 moneyness prefilter, so **1,182 alerts
+were silently discarded for having no contract in a band that was being measured against the
+wrong price.** Alert→trade conversion 51.1% → 69.2%.
+
+**Two independent confirmations that B1 was real:**
+
+| | pre | post |
+|---|---|---|
+| median entry IV | **1.4200** | **0.2497** |
+| IV coverage | 75.3% | **100.0%** |
+
+142% is not an equity ATM vol; 25% is. `HANDOFF_universe_backtest.md` §8 recorded the 1.28–1.57
+median as an unexplained anomaly and declined to use the field. It was the price basis, and the
+sanity guard added in session 1 would have caught it.
+
+### THE BREADTH CLAIM DOES NOT SURVIVE — the second-largest change
+
+| | pre-correction | **corrected** |
+|---|---|---|
+| 54 baseline names | +6.95% (n 1,241) | **+9.37% (n 1,532), PF 1.263** |
+| 133 new names | +3.90% (n 1,801) | **−0.47% (n 2,353), PF 0.988** |
+
+**The new names are now NEGATIVE.** Every dollar of the book's positive expectancy comes from the
+original 54 megacaps. `HANDOFF_universe_backtest.md`'s headline — *"the edge survives breadth but
+roughly halves"* — is **VOID**. On corrected data the edge does not survive breadth at all; it is
+a megacap phenomenon that a corrupted price basis had made look broader.
+
+The study's own B1 bar still reads **HOLDS**, because the whole book is positive in both held-out
+halves (+4.35% early, +2.59% late). The bar is being met by a book whose composition has
+completely changed — a warning about the bar, not support for the edge.
+
+Cap tiers, corrected: mega +4.71% (n 1,002), large +0.86% (n 2,062), mid +7.65% (n 777),
+small +18.25% (n 44 — still far too few to quote). Mid/small remain the best tiers.
+
+### The statistical comfort is gone
+
+| | pre | post |
+|---|---|---|
+| Deflated Sharpe, unfiltered | 88.13% | **49.59%** |
+| Deflated Sharpe, term_slope-filtered | 95.69% | **80.63%** |
+
+Both are now below the 95% bar; the filtered book used to clear it. The autopsy re-confirms
+unchanged: **64 features, 127 hypotheses, ZERO survivors.** Four hypotheses reach BH discovery in
+one split direction each (`f_d_gex_wall_conc`, `f_dte`, `f_sig_gex_proxy`, `f_spread_frac`) and
+none in both, so nothing passes the gate. Combiner escalation again not warranted.
+
+**Verdict: REJECTED — the entry signal does not beat random entry, on corrected data, under
+clustered inference.** **Follow-on:** the live options alert must not be described as a
+day-selection edge. It is an alert-generation mechanism, in the pre-commitment's own words, and
+the product copy has to say so.
+
+## R3 — CLUSTERED INFERENCE · **SHRINKS EVERY OPTIONS STATISTIC, OVERTURNS NONE**
+
+**Committed threshold:** Part 6 above — month blocks, both `n_eff` estimates reported, 75-day
+embargo, and the audit's predicted clustering factor of 2–4 scored against.
+
+**R3.3 first, because it is the precondition for reporting R2 at all.** The paired name-year sign
+test and paired *t* existed in no file. They do now, and they **reproduce the record exactly**:
+run through `options_stats.paired_name_year`, the pre-correction pooled book returns **441 wins
+of 1,052 cells** against the handoff's "441 of 1,052 = 41.9%", at z −5.185 against its −5.24 (the
+difference is tie handling — ties are excluded from the sign test's denominator here). Seed 0
+alone returns paired *t* **−2.6701** against the record's −2.67. **The two numbers the entire
+options conclusion rested on are now re-derivable from shipped code**, pinned by
+`test_audit_r3_the_paired_sign_test_counts_cells_not_trades`.
+
+### The measured clustering, and a correction to the audit
+
+**Clustering factor 1.85 — BELOW the audit's predicted 2 to 4.** At month blocks the 3,042-trade
+pre-correction book carries 118 blocks, a design effect of **1.848**, and an effective sample of
+**1,646 of 3,042**. Every *t*-like quantity therefore shrinks by √1.85 = **1.36**, not by the
+1.4–2.0 the audit expected. Its worked example — "a *t* of −5.24 moves into the −2.5 to −3.7
+range" — lands about right by coincidence rather than by the mechanism it named: the sign-test z
+did fall to −2.91, but from the DATA CORRECTION, not from the clustering.
+
+**And the correction overturns nothing.** The pre-correction gap's date-block CI is [−11.66pp,
+−4.51pp], still excluding zero. Clustered inference makes every options interval wider and leaves
+every verdict where it was.
+
+### A RAW DESIGN EFFECT IS NOT EVIDENCE OF CLUSTERING · **found by a failing test**
+
+A book of 600 independent draws assigned to 12 blocks of 50 — **no clustering by construction** —
+reports a design effect near **1.8**, an apparent 45% loss of sample size that is pure sampling
+error in MSB/MSW. With `k` blocks that ratio is F(k−1, n−k), whose spread is ≈√(2/(k−1)); at a
+mean block size of 25–50, a 2% wobble in the ICC becomes a 2× design effect.
+
+Applying that as a haircut would **manufacture a correction out of noise — the mirror image of
+the error R3 exists to fix.** So the design effect is now scored against its own shuffled null,
+using the project's established method (X7): outcomes are permuted across blocks, every block
+size preserved exactly, and `clustering_measurable` is true only above the null's 95th
+percentile. On the real book it passes clearly (**deff 1.848 vs null p95 1.266**), so the
+clustering is genuine — but genuine because it was tested, not because the number looked large.
+
+**R3.4, purge and embargo.** `pbo_cscv` now purges dates whose 75-day label window crosses an
+IS/OS boundary; **9.08% of dates are purged** per split. `embargo_days=0` reproduces the old
+unpurged split exactly, so the correction's cost is measurable rather than asserted. The
+corrected run reports PBO **12.86%** against the record's 35.7% — those differ in two ways at
+once, so an A/B varying only `embargo_days` on a single feature pass was run to isolate it.
+
+**R3.5**, the Deflated Sharpe at `n_eff`, ships as `deflated_sharpe_clustered` and carries
+`clustering_measurable` so nobody quotes a haircut that is estimator noise.
+
+**Verdict: ADOPTED as the inference layer of record.** The trade-level bootstrap is retained for
+comparability with every historical figure and is explicitly no longer what decides anything.
+**Follow-on:** every options interval in the corpus is optimistically narrow by ~1.36× and should
+be re-read that way. The seed instability recorded under R2 is the more urgent problem.
+
+## R7 — THE `term_slope` FLOOR · **THE NEW FLOOR PASSES AND THE FILTER FAILS ANYWAY**
+
+**Committed threshold:** Part 0, unchanged. G3a ≥ 52 retained alerts/yr, G3b ≥ 60% of names AND
+≥ 60% of months, G3c ≥ 20% retention, in addition to G1/G2/G4/G5/G6/G7.
+
+**R7's premise was right about the bar and wrong about the filter.** It called this "the thinnest
+rejection in the corpus": the economic arm had replicated almost exactly out of sample (+8.89pp
+against the +8.12pp that got it adopted), and the filter failed on one arbitrary constant. On
+corrected data both halves of that reverse.
+
+| arm, on the B2 scope (new names, late half) | pre-correction | **corrected** |
+|---|---|---|
+| retention | 36.4% | **35.9%** (478/1,333) |
+| **economic gain** (bar: `MIN_LATE_GAIN` = +5.00pp) | **+8.89pp** | **−1.12pp** |
+| expectancy, all → filtered | +4.64% → +13.54% | **+1.84% → +0.71%** |
+| tail retention | 41.2% of winners on 37.3% of trades | **34.0% on 35.9%** |
+| G3a flow | never measured | **95.6/yr ✓** |
+| G3b span | **never measured** | **96.2% of names, 98.2% of months ✓** |
+| G3c backstop | never measured | **35.9% ✓** |
+| **passes G3** | — | **TRUE** |
+| old 40% arm would say | FAIL | FAIL |
+
+**The re-committed floor answers its own question: the 40% constant WAS rejecting a filter that
+is genuinely broad.** G3b — the arm that had never been measured, and the one R7 said the filter
+could still fail on — passes at 96% of names and 98% of months. `term_slope` was never a
+disguised cherry-pick of a handful of names.
+
+**And it no longer matters, because the arm that used to replicate is now the one that fails.**
+On corrected data the filter makes its own out-of-sample book *worse* (+1.84% → +0.71%, a gain of
+−1.12pp against a +5.00pp bar), and it is no longer tail-enriching. The full-sample and
+broad-book readings are positive but far below the bar (+1.35pp, +1.82pp).
+
+**Verdict: `term_slope` REJECTED — B2 FAILS on the economic arm.** The rejection stands, and now
+rests on the quantity that matters rather than on an underived constant. **Follow-on:** the
+retention-floor question is closed; G3a/G3b/G3c replace the single `MIN_RETAINED` arm as the
+shipped gate. The +8.89pp out-of-sample replication that made this look like a live filter worth
+rescuing was a product of the corrupted price basis and **must not be quoted again**.
+
+## O20 — POINT-IN-TIME LIQUIDITY · **THE AUDIT'S EXPECTATION WAS WRONG; THE HEADLINE ROSE**
+
+**Committed threshold:** Part 6 above. The miner's own screen, applied at each entry date, to
+both arms of the control, with unmeasurable days as `None` and never `False`. And, pre-committed:
+if the headline does NOT fall, that is reported as the audit's expectation being wrong.
+
+The audit says: *"Then re-report the headline. Expect it to fall. That is the correct number."*
+
+| slice | n | expectancy | PF |
+|---|---|---|---|
+| whole corrected book | 3,885 | +3.41% | 1.092 |
+| **point-in-time LIQUID** | **3,359 (86.5%)** | **+4.82%** | **1.131** |
+| point-in-time ILLIQUID | 495 (12.7%) | **−7.84%** | 0.800 |
+| unmeasurable | 31 (0.8%) | +30.76% | 2.350 |
+
+**It rose.** Screening out names that were untradeable *on the day the alert fired* removes a
+slice that loses 7.84% per trade, and the surviving book is better than the whole. Coverage is
+**99.2%** — the screen resolves on all but 31 trades. Both held-out halves stay positive (+6.56%
+early, +3.31% late). The mechanism is coherent: point-in-time-illiquid entries are exactly where
+the entry spread is widest, and this is a long-premium strategy paying that spread at both ends.
+It is also **implementable**, unlike the survivorship diagnostic — liquidity as of the entry date
+is knowable at the entry date.
+
+### O20 DOES NOT RESCUE THE SIGNAL — the improvement is a universe effect, not a signal effect
+
+The control was screened by the same rule, and it benefits at least as much:
+
+| slice, seeds pooled | real | control | gap | date-block CI95 | sign-test z |
+|---|---|---|---|---|---|
+| all trades | +3.41% | +10.88% | −7.47pp | [−13.92, −2.43] | −2.907 (p 0.0037) |
+| **PIT-liquid only** | **+4.82%** | **+12.00%** | **−7.18pp** | **[−14.48, −1.71]** | **−3.475 (p 0.0005)** |
+| PIT-illiquid only | −7.84% | +1.44% | −9.28pp | [−17.07, −1.17] | −2.500 (p 0.0124) |
+
+**The signal loses to random entry on the liquid subset too — and by the sign test, more
+decisively than on the whole book.** Restricting to tradeable names lifts BOTH arms. Nothing here
+is evidence for the alert.
+
+### The limit of the repair, and a correction to the audit's premise
+
+Verified against `mine_options_cache.py` this session:
+
+* **The pool order IS hindsight.** Names are ranked for mining by TODAY's market cap
+  (`mine_options_cache.py:15-20`). TRUE, and the larger effect.
+* **The liquidity screen was NOT today's.** `name_is_viable` measures real option tradeability on
+  the name's FIRST CACHED YEAR, not on a present-day chain (`:160`). The audit's "selected by
+  current liquidity" is not accurate for the screen it proposes to fix.
+
+So O20 answers "was this name tradeable on the day?" and **cannot** answer "which names would
+have been in the pool at all in 2016?" — the names that would have failed were never mined, and
+no evaluation-time filter recovers data that is not on disk. `survivorship_probe` remains the
+only read on the part O20 cannot touch.
+
+**Verdict: ADOPTED as a reported partition; the audit's expectation is REFUTED.** Shipped as
+`o20_point_in_time_liquidity` on every run. It is **not** promoted into the headline: the headline
+stays the whole book at aggression 1.0, because that is what every historical figure used, and
+because a filter that improves a result is exactly the kind that needs a second panel before it
+is believed.
+
+**Follow-on:** this is the third time in two sessions (R10, then O20) that a bias the record
+assumed ran in the strategy's favour has run the other way. That is now a pattern worth stating:
+**this project's expectations about the direction of its own biases have been wrong more often
+than right, and should be measured rather than reasoned about.**

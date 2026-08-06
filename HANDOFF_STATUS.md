@@ -4,16 +4,118 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-05 (external edge audit, session 4 — R1 re-run, R9, R10, M1)
+**Session date:** 2026-08-05 (external edge audit, session 5 — R2, R3, R7, O20)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
 > Read it before starting work. Non-negotiable for all agents.**
 
-> **Scope:** newest sections first — audit session 4 (this one), then session 3, then session 2,
+> **Scope:** newest sections first — audit session 5 (this one), then session 4, then session 3, then session 2,
 > then R1's original run, then session 1, then deep research #2, then the EV staleness fix, then
 > PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
 > per-finding status in `CODE_AUDIT.md`.
+
+---
+
+## AUDIT SESSION 5 — THE OPTIONS ENTRY SIGNAL IS DEAD, AND IT SURVIVED THE CORRECTION (2026-08-05)
+
+Full write-up: **`HANDOFF_edge_audit.md` Part 6**. Pre-commitments and run design pushed in
+`c64a6b1` **before any run started**; R2's and R7's bars were already written in Part 0 and were
+quoted unchanged, not restated in altered form.
+
+**Items completed: R2, R3, R7, O20.** `HANDOFF_universe_backtest.md` is now banner-marked
+**SUPERSEDED — do not quote any number in it.**
+
+### The verdict
+
+The 187-name options study was re-run with the universe **pinned** to the previous run's frozen
+name list, so the B1/B2/B3/B4/B15 corrections were the only variable.
+
+| | pre-correction | **corrected** |
+|---|---|---|
+| real / control expectancy | +5.14% / +13.22% | **+3.41% / +10.88%** |
+| gap | −8.08pp | **−7.47pp** |
+| date-block CI95 on the gap | never computed | **[−13.92pp, −2.43pp]** |
+| paired sign-test z | −5.185 | **−2.907 (p 0.0037)** |
+| paired *t* | −2.183 | −1.446 (p 0.148), not significant |
+
+**The gap moved 0.61pp.** Five defects repaired, every level moved, the conclusion did not. Per
+the pre-committed rule, the condition for "the entry signal is dead" is met. **The live options
+alert must not be described as a day-selection edge — it is an alert-generation mechanism.**
+
+### What DID change, and it is large
+
+- **The breadth claim is VOID.** The 133 new names are now **−0.47%/trade (PF 0.988)**, against
+  +3.90% before. All of the book's positive expectancy is the original 54 megacaps (+9.37%). The
+  edge does **not** survive breadth; a corrupted price basis made it look broader.
+- **B1's signature:** trades rose 3,042 → 3,885 because `no_contract_in_band` rejects fell
+  2,911 → 1,729 — an adjusted spot against as-traded strikes was throwing the moneyness
+  prefilter and silently discarding 1,182 alerts. **Median entry IV 1.4200 → 0.2497** at 100%
+  coverage (was 75.3%). The 1.28–1.57 median that §8 of the old handoff recorded as an
+  unexplained anomaly *was* the bug.
+- **Deflated Sharpe fell below 95% on both books:** unfiltered 88.13% → 49.59%,
+  term_slope-filtered 95.69% → 80.63%. Autopsy re-confirms: 64 features, 127 hypotheses, **zero
+  survivors**.
+
+### A SINGLE CONTROL SEED CAN FLIP THIS VERDICT — this is new and it matters
+
+The control's own mean moves **8.9pp** on a reseed (+6.46% vs +15.34%); its own date-block CI is
+[+5.61%, +17.49%]. Seed 0 alone reads INCONCLUSIVE, seed 1 alone reads dead, pooled reads dead.
+Pooling is what the record did, so pooled carries the verdict — but **two seeds is not enough for
+this comparison and nobody had measured that.** Lean on the paired sign test, which moved far
+less. Open item: run the control at ≥5 seeds.
+
+### R7 — the floor passes and the filter fails anyway
+
+`term_slope`'s +8.89pp out-of-sample replication was an artefact. Corrected, the filter makes its
+own out-of-sample book **worse**: gain **−1.12pp** against the +5.00pp bar, and it is no longer
+tail-enriching. It **passes** the re-committed floor (G3a 95.6 alerts/yr, G3b 96.2% of names and
+98.2% of months, G3c 35.9%), so the old 40% constant *was* rejecting a genuinely broad filter —
+but the rejection now rests on economics rather than on an underived number. **REJECTED.**
+
+### R3 — clustered inference, and a trap avoided
+
+`valuation/edge/options_stats.py` adds the date-block bootstrap, `n_eff`, the paired sign test and
+paired *t*, purge/embargo for CSCV, and the DSR at `n_eff`. **Measured clustering factor 1.85 —
+below the audit's predicted 2–4** — so every options *t* shrinks ~1.36× and **no verdict changes.**
+
+The paired sign test and paired *t* the whole options conclusion rested on **existed in no shipped
+file**. They now reproduce the record exactly (441 of 1,052 cells, z −5.185 vs the recorded
+−5.24), pinned by a test.
+
+**A raw design effect is not evidence of clustering** — found by a failing test: 600 independent
+draws in 12 blocks of 50 report a design effect near 1.8, pure sampling error. It is now scored
+against its own shuffled null (the X7 method); the real book passes clearly (1.848 vs p95 1.266).
+**Never quote a design effect without its null.**
+
+### O20 — the audit expected the headline to fall; it rose
+
+PIT-liquid 3,359 trades at **+4.82%** vs PIT-illiquid 495 at **−7.84%**, coverage 99.2%. **It does
+not rescue the signal**: the control is screened by the same rule and benefits too, so on the
+liquid subset the real book loses to random entry *more* decisively (z −3.475, p 0.0005). The
+headline stays the whole book at aggression 1.0.
+
+The audit's premise is half wrong: names were ranked into the mining pool by **today's market
+cap** (true), but the liquidity screen was already applied to the **first cached year**, not to a
+present-day chain. So O20 is an **upper bound** on the repair — names that would have failed in
+2016 were never mined.
+
+**THE PATTERN:** third time in two sessions (R10, then O20) that a bias assumed to run in the
+strategy's favour ran the other way. **This project's expectations about the direction of its own
+biases have been wrong more often than right. Measure them.**
+
+### Open, in priority order
+
+1. **Re-run the control at ≥5 seeds.** A single seed flips R2's verdict. Cheap (~10 min/seed) and
+   it is the weakest link in the strongest negative finding the project has.
+2. **X7's placebo at the true N = 84** — launched this session and still running at the time of
+   writing; the real run's DSR reads 0.8997 inside it, confirming N=84 on both sides. Until it
+   finishes, *"the Deflated Sharpe survives calibration"* stays **PROVISIONAL and unquotable**.
+3. **Find the run-to-run non-reproducibility.** `insider` median IC still varies across
+   identical-data runs.
+4. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect.
+5. **X8** — the international replication. Still the only out-of-sample evidence available.
+6. Remaining audit sessions: U7/X3, U2/U1/U6, O1 onward, B23.
 
 ---
 
