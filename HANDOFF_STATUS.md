@@ -17,6 +17,39 @@ file directly.
 
 ---
 
+## MINER — ~1.00M ROWS OF AT&T OPTIONS WERE CACHED UNDER WBD (2026-08-06)
+
+Full write-up: **`HANDOFF_miner_remine.md`**, item 5 section and BUGS FOUND #7-9.
+Lane: data miner (`theta_bulk.py`, `mine_options_cache.py`, `data/options/**`).
+
+**→ GREEKS LANE, ACTION REQUIRED: re-derive WBD.** `data/options_derived/WBD/WBD-2016..2022.pkl`
+and `WBD-daily.pkl` were built from contaminated source frames, and `GREEKS_COVERAGE.json`
+records WBD `rows_in 1,214,932` across 2016-2025 of which ~1.00M are AT&T's. I did NOT delete
+them — they are another lane's outputs. **`UNIVERSE_RESULTS.json` and `AUTOPSY_BROAD_RESULTS.json`
+are CLEAN (zero occurrences of WBD), so no shipped verdict rests on this.**
+
+**What happened.** `ALIASES["WBD"] = ["T"]` treated Warner Bros Discovery as the continuation of
+AT&T. It is not: WBD continues the DISCOVERY share line, while AT&T merely *distributed* WBD
+shares and kept trading under `T`. The alias fallback fires on any empty span, so every WBD year
+before the April 2022 listing was filled with AT&T's chains — **WBD 2016-2021 byte-identical to T
+(966,790 rows: same keys, same bids), plus 33,964 more in 2022 Jan-Mar.** Corrected to
+`WBD -> DISCA` (probed on the feed: DISCA has 2016-2021 and nothing after, WBD the mirror image —
+disjoint, as a real rename must be); contaminated years purged and re-mined.
+
+**Why it matters beyond WBD.** A wrong alias and a right one are **indistinguishable at the point
+of use** — both return rows, the frames are well-formed, and coverage is high. Hand-checking
+cannot be the control. `alias_overlap_conflicts()` now reports any mapping whose cached years
+OVERLAP its successor's, which a genuine predecessor never does; it fires on the old mapping even
+after the purge, so it would have caught this from the first WBD pull. Alias-supplied years also
+write a `.alias` provenance sidecar, and `mine_status.py` prints both.
+
+**Two further miner bugs, same session:** the probe year was hard-coded to 2024, so eight
+tradeable names that listed later (CRWV, SNDK, VG, FER, CBRS, HONA, MDLN, SUNB) were filed as
+"no data" permanently; and that verdict shared a status with "measured and too illiquid", which is
+what let it hide. Both fixed; `no_data_in_range` is now its own status.
+
+---
+
 ## AUDIT SESSION 2 — THE HEADLINE FELL, AND B6 IS THE WHOLE REASON (2026-08-04)
 
 Full write-up: **`HANDOFF_edge_audit.md` Part 3** (twelve per-item entries + BUGS FOUND).
