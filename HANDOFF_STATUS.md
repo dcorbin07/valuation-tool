@@ -17,6 +17,53 @@ file directly.
 
 ---
 
+## P3 DONE — THE OPTIONS PAYOFF IS NOW SHOWN, NOT JUST DISCLOSED (2026-08-06, app-fixer lane)
+
+Full write-up: **`HANDOFF_appfixes.md`**, Session 16. Landed via `worktree-p3-hitrate`
+(`52f523d`). New `valuation/web/payoff.py` + `tests/test_payoff.py` (30 tests); 23 suites,
+788 tests green. **Two things here are other lanes' business, so they are in this file and not
+only in mine.**
+
+**1. `/methodology` — a PUBLIC page — is publishing three equity numbers this project's own
+record marks VOID. This is the highest-priority thing I found and it is not mine to fix.**
+
+| the live public page says | the record says |
+|---|---|
+| FF5+MOM alpha **+8.81%/yr, t 5.74**, 109 windows, 1998–2026 | **VOID.** CLAUDE.md: "Do not quote them anywhere." Corrected R1: **+6.99%/yr, NW t +3.984**, 68 windows |
+| breakeven **236 bps** vs a **37 bps** cost profile | B11: breakeven **134 bps** vs a **measured 33.4 bps**; the 37 bps "was an assumption quoted as a measurement" |
+| the Deflated Sharpe "is an **undeflated** one … deflating nothing" | B9's mechanism was refuted and M1 superseded it: at N = 84 it self-reports as a genuine Deflated Sharpe of **0.8997**, which **fails** >0.95 while sitting above all 100 placebo draws |
+
+I did **not** change them. The third one's honest form is "fails the conventional bar *and*
+clears the noise floor", and half of that sentence on a public page is worse than the stale
+version — it wants the edge lane's wording, not a display fix smuggled in beside an options
+feature. **→ edge lane.**
+
+**2. The corrected options book's PER-TRADE ROWS ARE GONE.** `r2_state.pkl` (the 3,885-trade
+corrected 187-name book) was a temp file. `data/options_universe/state.pkl` holds only the
+**superseded** 3,042-trade pre-correction rows; `UNIVERSE_RESULTS.json` has aggregates only.
+Session 5's `BANK_MANIFEST.json` guard protects `data/options_universe/` — but that run wrote
+its state outside it, and **a guard on the destination does not help when the run points
+somewhere else.** Anything needing the real alert sequence (U7's join at the alert date, any
+future streak or timing work) has to re-run the book. Stated now rather than discovered later.
+
+**What P3 measured, for the record** (banked artifacts only, no new backtest): the corrected
+book hits **35.3%**, the median trade loses **52.2%** of the premium, **25.0%** at least double
+and those are **86.8%** of everything the winners made. Over 20 trades the typical worst losing
+run is **5** and **44%** of stretches contain a run of 6 or worse. Outcomes **cluster** — monthly
+design effect **2.667** against a shuffled null whose p95 is **1.244** (1,000 shuffles,
+p < 0.001), runs of ≥10 losses appear **58** times against a null median of **21** — so the
+shipped streak rule reads a measured table, not the Bernoulli formula, which at 20 trades would
+put the 95th percentile at 10 against a measured 12 and would cry wolf on ordinary runs.
+
+Also settled: the **37.4% and 35.3% hit rates are not a defect**, they are two universes. Inside
+the corrected book the 54 original megacaps hit **37.27%** and the 132 added names **34.04%**.
+Every surface now quotes "35–37%" from one source.
+
+Nothing shipped implies the options alerts work; the measured **−6.65pp** gap against random
+entry (R2) travels with every payload that carries the shape.
+
+---
+
 ## AUDIT SESSION 5 — CLOSEOUT (2026-08-06). **SESSION 5 IS CLOSED. SESSION 6 MAY OPEN.**
 
 Full write-up: **`HANDOFF_edge_audit.md`**, "SESSION 5 CLOSEOUT". Pre-commitments pushed in
