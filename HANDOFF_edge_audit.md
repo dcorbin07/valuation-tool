@@ -3230,11 +3230,9 @@ number is updated wherever it is quoted.
 
 ---
 
-## RESULTS
-
 ## RESULTS — U7 · the equity composite as an options VETO
 
-**Run:** `python -m scripts.u7_veto --panel panel_s6.pkl --state r2_state.pkl --control ×5`.
+**Run:** `python -m scripts.u7_veto --panel data/free_analysis/panel_corrected_69d.pkl --state data/options_universe/state_r2_corrected.pkl --control data/options_universe/control_r2_seed{0..4}.pkl`.
 Universe: the corrected pinned 187-name options book, **3,885 alerts** 2016-01-19 → 2025-10-15,
 against the **five-seed random-entry control, 29,785 trades** (R2's standing rule: five seeds
 minimum). Panel: the 69-date corrected panel rebuilt this session.
@@ -3360,7 +3358,7 @@ quoted as a finding here.
 
 ## RESULTS — X3 · ablate to the best single signal
 
-**Run:** `python -m scripts.x3_ablation_rerun --panel panel_s6.pkl --leave-one-out`, on a panel
+**Run:** `python -m scripts.x3_ablation_rerun --panel data/free_analysis/panel_corrected_69d.pkl --leave-one-out`, on a panel
 rebuilt from scratch this session with `scripts/dump_panel.py` against
 `data/backtest` — **113,945 rows, 69 dates, 2,531 names**, identical in shape to the cached
 grid-0 panel, which is a free reproducibility check on the panel build itself.
