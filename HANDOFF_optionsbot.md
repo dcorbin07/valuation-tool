@@ -900,6 +900,11 @@ lane's full report.*
 
 ---
 
+<!-- ledger:ignore -->
+<!-- This section WRITES ABOUT the ledger and names item ids without being
+     evidence about them. build_ledger.py skips everything between these
+     markers, so the report cannot feed its own counts back in on refresh. -->
+
 # OUT-OF-BAND — `VALQUO_LEDGER.md`, so nobody reconstructs project state from git again
 
 **Status: infrastructure, not a measurement.** No audit item was executed here and no
@@ -985,14 +990,33 @@ rather than presenting one number.
 An item wrongly marked done stops work happening; one wrongly marked open costs a
 re-check. Where it was ambiguous I left it `OPEN` and put the reason in the note.
 
-- **34 with zero mentions anywhere in the corpus:** S6 S8 S9 S11 S12 S13 S15 S16 S18 S22
-  S24 S25 S28 O10 O11 O14 O16 O17 O18 O19 O21 O22 O23 O24 O25 O26 U3 U8 D2 D4 D6 D8 D9 M4
-- **18 with prose mentions only** (named, never written up): S1 S2 S3 S4 S5 S7 S10 S17
-  S19 S20 S21 O1 O6 O13 P3 D5 M3 M6
-- **4 mentioned only as somebody else's dependency:** S14 S23 S27 P2
+- **37 with zero substantive mentions anywhere in the corpus:** S6 S8 S9 S11 S12 S13 S15
+  S16 S18 S19 S20 S21 S22 S24 S25 S28 O10 O11 O14 O16 O17 O18 O19 O21 O22 O23 O24 O25 O26
+  U3 U8 D2 D4 D6 D8 D9 M4
+- **14 with prose mentions only** (named, never written up): S1 S2 S3 S4 S5 S7 S17 O1 O6
+  O13 P3 D5 M3 M6
+- **5 mentioned only as somebody else's dependency:** S10 S14 S23 S27 P2
 
-The S series is the honest headline: **27 of 28 open, and 13 of those have never been
-mentioned once.** It is the largest untouched block in the audit.
+The remaining 17 open rows were set by hand and carry a specific reason instead.
+
+The S series is the honest headline: **27 of 28 open, and 16 of those have never been
+substantively mentioned once.** It is the largest untouched block in the audit.
+
+**"Substantive" is doing real work in that sentence, and it is a finding of its own.**
+A line that lists many ids — `| 8+ | O1, S20, S21, X1, S2, S19, X8, ... — descending
+value |` in `VALQUO_ACTION_PLAN.md`, or a scope list like "**Scope run:** B2, B4, B5, B6,
+B7, B11, B13, ..." — is a **roll-call, not evidence about any item on it**. The builder
+ignores lines carrying 7+ ids for exactly this reason. Without that rule S19, S20 and S21
+look "mentioned" when the only thing that ever happened to them is being listed in a plan.
+It also stops the ledger becoming self-referential: publishing "these 36 items are never
+mentioned" would otherwise become a mention of all 36, on the next refresh.
+
+There was a second, sharper version of the same loop, and it is fixed rather than
+documented: **this report is itself part of the scanned corpus.** Naming S19/S20/S21 in
+the paragraph above gave them prose mentions, which moved them between categories on the
+next refresh — the counts chased my own prose. This whole section is now wrapped in
+`<!-- ledger:ignore -->` markers that `build_ledger.py` honours, so writing *about* the
+ledger can no longer feed *into* it. Any document can use the same markers.
 
 **Six items are `BLOCKED` rather than open, with the blocker named:** R4, R5, R6, R8 and
 B8 all sit in `valuation/edge/**`, which the pipeline-builder lane holds (per
@@ -1039,3 +1063,5 @@ should `git add` those four files.** I did not, because the prompt restricted me
 creating two new files and these are pre-existing documents I do not own.
 
 *`HANDOFF_STATUS.md` again deliberately NOT overwritten — shared state, parallel lanes.*
+
+<!-- /ledger:ignore -->

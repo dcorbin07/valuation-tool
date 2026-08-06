@@ -198,12 +198,34 @@ def scan_corpus(ids, pat) -> list[Occurrence]:
         except OSError:
             continue
         lines = text.splitlines()
+        ignoring = False
         for n, line in enumerate(lines, 1):
+            # Opt-out markers. A handoff section that WRITES ABOUT the ledger
+            # ("these 36 items are never mentioned", "--evidence S12") names
+            # ids without being evidence about them, and would otherwise feed
+            # its own numbers back in on the next refresh. Wrap such a region in
+            # <!-- ledger:ignore --> ... <!-- /ledger:ignore -->.
+            if "/ledger:ignore" in line:
+                ignoring = False
+                continue
+            if "ledger:ignore" in line:
+                ignoring = True
+                continue
+            if ignoring:
+                continue
             found = {}
             for m in pat.finditer(line):
                 if m.group(1) in ids:
                     found.setdefault(m.group(1), m.start(1))
             if not found:
+                continue
+            # A line that lists many ids is a ROLL-CALL -- a scope list, a
+            # session plan, or this ledger's own report enumerating what is
+            # still open. It says nothing about any individual item, and
+            # counting it makes the ledger self-referential: publishing "these
+            # 34 items are never mentioned" would itself become a mention of
+            # all 34. Inventory is not evidence.
+            if len(found) >= 7:
                 continue
             is_header = bool(re.match(r"\s{0,3}#{1,6}\s", line))
             for item, pos in found.items():
