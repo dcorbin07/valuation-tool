@@ -540,15 +540,41 @@ class SharadarStore:
             (ticker, dimension, as_of.isoformat())).fetchone()
         return json.loads(row["payload"]) if row else None
 
+    # Sharadar's DAILY.marketcap is denominated in MILLIONS of USD. Everything
+    # in this codebase that compares a market cap against a threshold writes
+    # that threshold in dollars (PITUniverseConfig.min_market_cap = 2e9), so the
+    # store normalises here, once, and returns DOLLARS.
+    MARKETCAP_UNITS_PER_USD = 1e6
+
     def marketcap_on(self, ticker: str, as_of: date) -> Optional[float]:
-        """Point-in-time market cap from DAILY — genuinely as-of, unlike
+        """
+        Point-in-time market cap **in USD** from DAILY — genuinely as-of, unlike
         TICKERS.scalemarketcap which is a MAX-OVER-LIFETIME bucket and leaks
-        look-ahead into any universe filtered on it."""
+        look-ahead into any universe filtered on it.
+
+        UNITS. Sharadar stores this column in MILLIONS. Returning it raw made
+        `pit_universe` compare 722571.4 (AAPL, 2015-06-30) against a
+        min_market_cap of 2_000_000_000 — so EVERY name failed the cap gate on
+        EVERY date and the point-in-time universe was empty always. Measured
+        before the fix: 5,945 names listed on 2015-06-30, 2,164 rejected on cap,
+        every remaining one rejected too, final universe size ZERO on all 27
+        tested dates from 2000 to 2026.
+
+        It survived because the module had only ever been exercised against a
+        synthetic 30-name mirror, where the fixture author chose the units and
+        naturally chose dollars. That is the whole reason C5 exists: a synthetic
+        mirror cannot disagree with you about what the real feed means.
+
+        Cross-checked against the project's own record — CLAUDE.md notes "AAPL
+        2015Q2 $722.6B verified" from this same table, and 722571.4e6 = $722.57B.
+        """
         row = self.db.execute(
             "SELECT marketcap FROM daily WHERE ticker=? AND date<=? "
             "AND marketcap IS NOT NULL ORDER BY date DESC LIMIT 1",
             (ticker, as_of.isoformat())).fetchone()
-        return row["marketcap"] if row else None
+        if not row or row["marketcap"] is None:
+            return None
+        return row["marketcap"] * self.MARKETCAP_UNITS_PER_USD
 
 
 # ═══════════════════════════════════════════════════════════════════════════

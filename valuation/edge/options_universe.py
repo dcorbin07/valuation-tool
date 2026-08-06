@@ -242,6 +242,138 @@ def universe(data_root: str = DATA_ROOT) -> list:
     return universe_selection_report(data_root).get("universe") or []
 
 
+# ================================ O20 — point-in-time liquidity =============================
+# AUDIT O20, AND THE AUDIT'S PREMISE IS HALF WRONG — recorded here because the correction
+# changes what this filter can and cannot buy.
+#
+# O20 states: "Names were selected for mining by CURRENT liquidity, and current liquidity is a
+# function of how the company did over the sample." Read against `mine_options_cache.py`, that
+# is two claims and only one of them holds.
+#
+#   * THE POOL ORDER IS HINDSIGHT. Names are ranked for mining by TODAY's market cap from the
+#     Sharadar daily table (`mine_options_cache.py:15-20`). A name that was liquid in 2016 and
+#     has since shrunk or died was never reached, let alone cached. TRUE, and it is the larger
+#     of the two effects.
+#   * THE LIQUIDITY SCREEN IS NOT TODAY'S. `name_is_viable` measures real option tradeability on
+#     the name's FIRST CACHED YEAR — 2016, or the IPO year — not on a present-day chain
+#     (`mine_options_cache.py:160`). So the thin-name cut was already close to point-in-time.
+#
+# WHAT THIS MEANS FOR THE FIX. O20 calls the repair cheap, and it is; it is also only half a
+# repair, and the half it cannot reach is the bigger one. Re-screening on point-in-time
+# liquidity answers "was this name tradeable ON THE DAY the alert fired?" — a name screened in
+# on its 2016 chain may have been untradeable in 2019, and a 2021 IPO is screened on a year in
+# which it did not trade options at all. It CANNOT answer "which names would have been in the
+# pool at all in 2016?", because the names that failed that test are not on disk. No
+# evaluation-time filter can recover data that was never mined.
+#
+# So the number this produces is an upper bound on the repair, and the residual selection is
+# stated rather than implied. `survivorship_probe` remains the diagnostic for the part O20
+# cannot touch.
+#
+# The thresholds below are the MINER'S OWN, imported so the two cannot drift apart. The whole
+# point is to apply the same bar at a different moment, not a different bar.
+def _miner_thresholds() -> dict:
+    """The miner's viability constants, read from the miner. Never re-declared here."""
+    try:
+        import mine_options_cache as M
+        return {"max_median_spread_pct": float(M.MAX_MEDIAN_SPREAD_PCT),
+                "min_atm_oi": float(M.MIN_ATM_OI),
+                "min_atm_oi_notional": float(M.MIN_ATM_OI_NOTIONAL),
+                "spread_min_premium": float(M.SPREAD_MIN_PREMIUM),
+                "source": "mine_options_cache"}
+    except Exception:                                                     # noqa: BLE001
+        # The miner lives at the repo root and is not importable from every entry point. These
+        # are its values as of audit O20; the `source` field makes the fallback visible rather
+        # than letting a stale copy pass for the real thing.
+        return {"max_median_spread_pct": 0.15, "min_atm_oi": 500.0,
+                "min_atm_oi_notional": 2_500_000.0, "spread_min_premium": 0.50,
+                "source": "FALLBACK COPY — mine_options_cache not importable"}
+
+
+def pit_liquidity(chain, as_of=None) -> dict:
+    """The miner's liquidity measures, computed on ONE day's chain instead of on a whole year.
+
+    Mirrors `mine_options_cache.name_is_viable` term for term: near-the-money is approximated by
+    the top decile of open interest (OI concentrates around the money), the strike of those
+    contracts stands in for spot, and the spread is measured only on contracts with a real
+    premium — measuring it across far-OTM lottery tickets reads a one-cent tick on a five-cent
+    mid as 20% and rejects perfectly tradeable names.
+
+    Open interest is a STOCK and is stable within a day; whole-chain volume is a FLOW and one
+    day of it is noisy, so volume is reported but is deliberately NOT a gate here. The miner
+    could use a yearly median; a single alert date cannot.
+    """
+    import pandas as pd
+
+    if chain is None or len(chain) == 0:
+        return {"ok": False}
+    th = _miner_thresholds()
+    bid = pd.to_numeric(chain.get("bid"), errors="coerce").fillna(0)
+    ask = pd.to_numeric(chain.get("ask"), errors="coerce").fillna(0)
+    # AUDIT B4 — -1 is the cache's "the open-interest call failed" sentinel, never a count.
+    oi = pd.to_numeric(chain.get("open_interest"), errors="coerce")
+    oi = oi.where(oi >= 0)
+    vol = pd.to_numeric(chain.get("volume"), errors="coerce").fillna(0)
+    strike = pd.to_numeric(chain.get("strike"), errors="coerce")
+    mid = (bid + ask) / 2.0
+    quoted = (bid > 0) & (ask > bid) & (mid > 0)
+    live = quoted & (oi > 0)
+    live_oi = oi[live]
+    atm_oi = float(live_oi.quantile(0.90)) if len(live_oi.dropna()) else 0.0
+    top = live & (oi >= atm_oi) if atm_oi > 0 else live
+    atm_strike = float(strike[top].median()) if int(top.sum()) else 0.0
+    notional = atm_oi * atm_strike * 100.0
+    mask = quoted & (vol > 0) & (oi >= th["min_atm_oi"]) & (mid >= th["spread_min_premium"])
+    spr = ((ask - bid) / mid)[mask]
+    med_spread = float(spr.median()) if len(spr) else None
+    return {"ok": True, "atm_oi": atm_oi, "atm_oi_notional": notional,
+            "median_spread_pct": med_spread,
+            "chain_volume": float(vol.sum()),
+            "n_spread_sample": int(len(spr))}
+
+
+def pit_liquid_ok(stats: Optional[dict]) -> Optional[bool]:
+    """Would the miner's own screen have admitted this name ON THIS DAY?
+
+    Returns None — not False — when the day's chain cannot answer. An unmeasurable day is not a
+    failed day, and collapsing the two would silently delete trades for a data reason while
+    reporting them as a liquidity finding.
+    """
+    if not stats or not stats.get("ok"):
+        return None
+    th = _miner_thresholds()
+    sp = stats.get("median_spread_pct")
+    if sp is None:
+        return None
+    if sp > th["max_median_spread_pct"]:
+        return False
+    # Open interest passes on EITHER measure, exactly as the miner has it: an expensive name
+    # holds few contracts but large notional, a cheap one the reverse. Only failing BOTH is
+    # genuinely too small to trade.
+    return bool((stats.get("atm_oi") or 0) >= th["min_atm_oi"]
+                or (stats.get("atm_oi_notional") or 0) >= th["min_atm_oi_notional"])
+
+
+def o20_split(rows) -> dict:
+    """Partition a book by whether each trade's name was liquid AS OF its own entry date."""
+    liq = [r for r in rows if r.get("pit_liquid") is True]
+    illiq = [r for r in rows if r.get("pit_liquid") is False]
+    unknown = [r for r in rows if r.get("pit_liquid") is None]
+    n = len(rows)
+    return {"n_total": n, "n_pit_liquid": len(liq), "n_pit_illiquid": len(illiq),
+            "n_unmeasurable": len(unknown),
+            "retained_frac": (len(liq) / n) if n else None,
+            "coverage": ((n - len(unknown)) / n) if n else None,
+            "pit_liquid": tail_stats(liq), "pit_illiquid": tail_stats(illiq),
+            "unmeasurable": tail_stats(unknown),
+            "held_out_pit_liquid": held_out(liq) if liq else None,
+            "thresholds": _miner_thresholds(),
+            "note": "the miner's OWN screen applied at each entry date instead of on the name's "
+                    "first cached year. This cannot repair the pool's hindsight market-cap "
+                    "ranking — those names were never mined — so it is an upper bound on the "
+                    "fix, not the whole of it."}
+
+
 # ================================ point-in-time market cap ==================================
 _DAILY_CACHE = {}
 
@@ -350,6 +482,14 @@ def run_name(prov, ticker: str, bars: dict, start: str = ENTRY_START, end: str =
         mc = cap_at(caps, ticker, d)
         r["marketcap_musd"] = mc
         r["cap_tier"] = tier_of(mc)
+        # AUDIT O20 — was this name tradeable ON THIS DAY, by the miner's own screen? Computed
+        # from the chain already in hand, so it costs nothing and makes the point-in-time
+        # liquidity filter an evaluation-time choice rather than a second scoring pass.
+        _pl = pit_liquidity(chain, day)
+        r["pit_liquid"] = pit_liquid_ok(_pl)
+        r["pit_median_spread_pct"] = _pl.get("median_spread_pct")
+        r["pit_atm_oi"] = _pl.get("atm_oi")
+        r["pit_atm_oi_notional"] = _pl.get("atm_oi_notional")
         if with_signals:
             # Realised vol over the trailing 30 sessions, from ADJUSTED closes (a split is not
             # a move). Feeds `vrp`; term_slope needs no bar input.
@@ -552,6 +692,73 @@ def term_slope_effect(rows, threshold: float = SHIPPED_TERM_THRESHOLD,
                               and filt["n_closed"] >= MIN_TRADES)}
 
 
+# ================================ R7 — the re-committed retention floor =====================
+# AUDIT R7. The 40% retention floor (`MIN_RETAINED`) was never derived. `options_autopsy.py:36`
+# gives G3's purpose as a PRODUCT rationale — "a filter that keeps 8% of alerts has not improved
+# the strategy, it has replaced it with a smaller one" — and the statistical risk it might seem
+# to carry is already held by G4 (`n_kept >= MIN_TRADES`) and G6 (beats a random filter keeping
+# the same count). 40% is a round number; the 55-name run cleared it by 0.6pp and the 187-name
+# run missed it by 3.6pp.
+#
+# A FIXED PERCENTAGE IS THE WRONG UNIT ON A GROWING UNIVERSE. A fixed-threshold filter applied to
+# a broader book is mechanically more selective — more names means more of the distribution's
+# left side — so a constant percentage floor makes ANY filter fail as the universe grows. That is
+# a scale artefact, not a statement about the filter.
+#
+# The percentage was proxying for two distinct things. They are measured directly below, and
+# this replacement was committed in writing (HANDOFF_edge_audit.md Part 0) BEFORE the re-score.
+# It is not a renegotiation of a failed bar: G3b has never been measured, and term_slope can
+# still fail on it.
+MIN_ALERTS_PER_YEAR = 52          # G3a — one per week, the minimum cadence to build a book
+MIN_SPAN_FRAC = 0.60              # G3b — of the unfiltered book's names AND of its months
+MIN_RETENTION_BACKSTOP = 0.20     # G3c — below one in five, the filter IS the strategy
+
+
+def term_slope_gate(rows, threshold: float = SHIPPED_TERM_THRESHOLD,
+                    late_only: bool = True) -> dict:
+    """G3a / G3b / G3c — the re-committed replacement for the single 40% retention arm."""
+    scope = [r for r in rows if str(r["alert_ts"])[:10] >= LATE_START] if late_only else rows
+    has = [r for r in scope if _f(r.get("term_slope")) is not None]
+    if not has:
+        return {"ok": False, "reason": "no term_slope coverage"}
+    keep = [r for r in has if _f(r["term_slope"]) >= threshold]
+
+    def span(rs):
+        return ({str(r.get("ticker") or "?") for r in rs},
+                {str(r["alert_ts"])[:7] for r in rs},
+                {str(r["alert_ts"])[:4] for r in rs})
+
+    n_all, n_keep = len(has), len(keep)
+    names_a, months_a, years_a = span(has)
+    names_k, months_k, years_k = span(keep)
+
+    # G3a is a rate over the years the UNFILTERED book spans, so a filter cannot pass by
+    # surviving in two busy years and vanishing from the rest.
+    per_year = (n_keep / len(years_a)) if years_a else 0.0
+    name_span = (len(names_k) / len(names_a)) if names_a else 0.0
+    month_span = (len(months_k) / len(months_a)) if months_a else 0.0
+    retention = (n_keep / n_all) if n_all else 0.0
+
+    g3a = bool(per_year >= MIN_ALERTS_PER_YEAR)
+    g3b = bool(name_span >= MIN_SPAN_FRAC and month_span >= MIN_SPAN_FRAC)
+    g3c = bool(retention >= MIN_RETENTION_BACKSTOP)
+    return {"ok": True, "scope": "late" if late_only else "full", "threshold": threshold,
+            "n_all": n_all, "n_kept": n_keep, "retention": retention,
+            "G3a_flow": g3a, "alerts_per_year": per_year,
+            "G3a_floor": MIN_ALERTS_PER_YEAR, "n_years_spanned": len(years_a),
+            "G3b_concentration": g3b,
+            "name_span_frac": name_span, "month_span_frac": month_span,
+            "G3b_floor": MIN_SPAN_FRAC,
+            "n_names_all": len(names_a), "n_names_kept": len(names_k),
+            "n_months_all": len(months_a), "n_months_kept": len(months_k),
+            "G3c_backstop": g3c, "G3c_floor": MIN_RETENTION_BACKSTOP,
+            "passes_G3": bool(g3a and g3b and g3c),
+            "old_40pct_arm": bool(retention >= MIN_RETAINED),
+            "note": "G3a/G3b/G3c replace the underived 40% arm (audit R7), committed in writing "
+                    "before this re-score. G3b had never been measured."}
+
+
+
 def random_entry_control(prov, ticker: str, bars: dict, trades: list, draws: int = 2,
                          seed: int = 0, aggression: float = F.DEFAULT_AGGRESSION,
                          caps: Optional[dict] = None) -> list:
@@ -604,28 +811,65 @@ def random_entry_control(prov, ticker: str, bars: dict, trades: list, draws: int
             r["cap_tier"] = tier_of(mc)
             r["entry_spread_pct"] = t.get("entry_spread_pct")
             r["_control_for"] = str(tr["alert_ts"])[:10]
+            # AUDIT O20 — the control is screened by the SAME point-in-time rule. Filtering one
+            # arm and not the other would turn a liquidity correction into a comparison between
+            # two different universes, which is the error the control exists to avoid.
+            _pl = pit_liquidity(chain, day)
+            r["pit_liquid"] = pit_liquid_ok(_pl)
+            r["pit_median_spread_pct"] = _pl.get("median_spread_pct")
+            r["pit_atm_oi"] = _pl.get("atm_oi")
+            r["pit_atm_oi_notional"] = _pl.get("atm_oi_notional")
             out.append(r)
     return out
 
 
 def control_comparison(real_rows, ctrl_rows, seed: int = 0) -> dict:
     """Alert-day book vs random-day book, overall and by tier. The bar is simple: if the alert
-    carries information, the real book must beat its own control."""
+    carries information, the real book must beat its own control.
+
+    AUDIT R3 — the verdict now reads the CLUSTERED statistics, not the trade-level ones. The
+    trade-level bootstrap treats 3,042 trades on 187 correlated names as 3,042 independent draws
+    and produces an interval that is optimistically narrow; it is kept because every historical
+    number was computed with it and dropping it would break comparability, but it is no longer
+    what decides anything. `date_block` (months resampled together, paired across the two arms)
+    and `paired_name_year` (the sign test the whole conclusion rests on, in the repository for
+    the first time) are the statistics of record.
+    """
+    from . import options_stats as ST
+
     def blk(a, b):
         d = bootstrap_diff(a, b, "expectancy_pct", seed=seed)
+        db = ST.date_block_diff(a, b, seed=seed)
+        pn = ST.paired_name_year(a, b)
         return {"real": tail_stats(a), "control": tail_stats(b),
                 "expectancy_diff": d.get("diff"), "ci95": d.get("ci95"),
-                "beats_control": bool(d.get("ok") and d["diff"] > 0 and d["excludes_zero"]),
-                "tail_diff": bootstrap_diff(a, b, "p_tail_win", seed=seed).get("diff")}
+                # Retained for comparability with the record, and explicitly not the verdict.
+                "beats_control_trade_level": bool(d.get("ok") and d["diff"] > 0
+                                                  and d["excludes_zero"]),
+                "tail_diff": bootstrap_diff(a, b, "p_tail_win", seed=seed).get("diff"),
+                # AUDIT R3 — the statistics of record.
+                "date_block": db,
+                "paired_name_year": pn,
+                "effective_n_real": ST.effective_n(a),
+                "effective_n_control": ST.effective_n(b),
+                "beats_control": bool(db.get("ok") and db.get("positive_at_significance")),
+                "loses_to_control": bool(db.get("ok") and db.get("negative_at_significance"))}
     out = {"overall": blk(real_rows, ctrl_rows)}
     for t in TIER_ORDER:
         a = [r for r in real_rows if r.get("cap_tier") == t]
         b = [r for r in ctrl_rows if r.get("cap_tier") == t]
         if len(a) >= MIN_CLOSED_PER_BUCKET and len(b) >= MIN_CLOSED_PER_BUCKET:
             out[t] = blk(a, b)
+    # AUDIT O20 — the same comparison on the point-in-time-liquid subset of BOTH arms. Filtering
+    # one side only would compare two different universes.
+    la = [r for r in real_rows if r.get("pit_liquid") is True]
+    lb = [r for r in ctrl_rows if r.get("pit_liquid") is True]
+    if len(la) >= MIN_CLOSED_PER_BUCKET and len(lb) >= MIN_CLOSED_PER_BUCKET:
+        out["pit_liquid_only"] = blk(la, lb)
     out["note"] = ("control = same ticker, same calendar year, random entry day, identical "
                    "contract/fill/exit rules. Name and year are held fixed, so the only "
-                   "difference is day selection.")
+                   "difference is day selection. The VERDICT keys read the date-block "
+                   "bootstrap (audit R3); the trade-level interval is kept for comparability.")
     return out
 
 
@@ -744,11 +988,30 @@ def sanity(rows, meta: Optional[dict] = None) -> dict:
         flags.append(f"median entry IV {iv_med:.3f} is outside [0.05, 1.00] — implausible as an "
                      f"equity ATM vol; check the underlying price basis (adjusted vs as-traded)")
 
+    # 7. AUDIT B2 — how many days were CENSORED from each trade's exit path. A skipped day is a
+    #    day the stop could have fired on and did not, and the bias is one-sided in the bad
+    #    direction: a loser that dips through -50% on a wide-quote day, is skipped, and then
+    #    recovers gets recorded as a TARGET WIN. This is now measured per trade instead of being
+    #    invisible, so a fill-model regression that starts censoring again is loud.
+    _sk = [(_f(r.get("exit_days_skipped")), _f(r.get("exit_days_used"))) for r in rows]
+    _sk = [(a, b) for a, b in _sk if a is not None and b is not None]
+    skip_rate = None
+    if _sk:
+        tot_sk = sum(a for a, _ in _sk)
+        tot_all = sum(a + b for a, b in _sk)
+        skip_rate = (tot_sk / tot_all) if tot_all else 0.0
+        any_skipped = sum(1 for a, _ in _sk if a > 0) / len(_sk)
+        if skip_rate > 0.02:
+            flags.append(f"{skip_rate:.1%} of exit-path days were censored by the quote filter "
+                         f"({any_skipped:.1%} of trades affected) — a skipped day is a day the "
+                         f"stop could have fired on")
+
     exits = {}
     for r in rows:
         exits[str(r.get("exit_reason") or "?")] = exits.get(str(r.get("exit_reason") or "?"), 0) + 1
 
     out = {"ok": True, "n": n, "settled_at_intrinsic_frac": intrinsic, "iv_median": iv_med,
+           "exit_days_censored_frac": skip_rate,                          # AUDIT B2
            "signal_coverage": cov, "exit_reason_mix": {k: v / n for k, v in sorted(exits.items())},
            "spread_median": _median(sp), "spread_p90": (sorted(sp)[int(0.9 * len(sp))]
                                                         if sp else None),
@@ -878,12 +1141,39 @@ def analyse(rows, seed: int = 0, meta: Optional[dict] = None,
     out["verdict"]["B2_term_slope_generalises"] = bool(ts_oos.get("passes_B2"))
     out["verdict"]["B2_detail"] = ts_oos
 
+    # AUDIT R7 — the re-committed G3a/G3b/G3c floor, scored on the same scope B2 uses (the names
+    # that never informed the threshold) and, separately, on the whole broad book.
+    from . import options_stats as ST
+    out["term_slope_gate_R7"] = {
+        "new_names_late": term_slope_gate(fresh),
+        "new_names_full": term_slope_gate(fresh, late_only=False),
+        "broad_book_late": term_slope_gate(rows),
+        "broad_book_full": term_slope_gate(rows, late_only=False),
+    }
+    out["verdict"]["R7_term_slope_passes_G3"] = bool(
+        out["term_slope_gate_R7"]["new_names_late"].get("passes_G3"))
+
+    # AUDIT O20 — point-in-time liquidity, as an evaluation-time partition.
+    out["o20_point_in_time_liquidity"] = o20_split(rows)
+
+    # AUDIT R3 — clustered inference on the headline itself, not only on the control comparison.
+    out["clustered_inference_R3"] = {
+        "effective_n": ST.effective_n(rows),
+        "expectancy_date_block": ST.date_block_bootstrap(rows, seed=seed),
+        "expectancy_date_block_new_names": ST.date_block_bootstrap(fresh, seed=seed),
+        "note": "the headline expectancy, with months resampled as blocks. Every previously "
+                "published options interval resampled TRADES and is optimistically narrow.",
+    }
+
     ret = [_f(r.get("pnl_pct")) for r in rows]
     # n_trials=1: this is ONE pre-specified strategy re-measured on new names, not a search.
     # The autopsy's own DSR, deflated by 64 features, is the number for the feature sweep.
     out["deflated_sharpe"] = deflated_sharpe([v for v in ret if v is not None], n_trials=1)
     out["deflated_sharpe_new_names"] = deflated_sharpe(
         [v for v in (_f(r.get("pnl_pct")) for r in fresh) if v is not None], n_trials=1)
+    # AUDIT R3.5 — the same statistic at the effective sample size. A shrinkage, never a gain.
+    out["deflated_sharpe_clustered"] = ST.deflated_sharpe_clustered(
+        [v for v in ret if v is not None], n_trials=1, rows=rows)
     return out
 
 

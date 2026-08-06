@@ -115,6 +115,16 @@ def regress(y, F, cols, label, lag=1):
 
 
 # --------------------------------------------------------------------------- factor data
+def set_factor_dir(d):
+    """Point FF5/MOM/Q5 at an absolute directory. A git worktree does not carry `data/`
+    (it is gitignored and lives in the primary checkout), so the module-level relative paths
+    resolve to nothing when this runs from a worktree."""
+    global FF5, MOM, Q5
+    FF5 = os.path.join(d, "ff5_daily.csv")
+    MOM = os.path.join(d, "mom_daily.csv")
+    Q5 = os.path.join(d, "q5_daily.csv")
+
+
 def _load_daily():
     ff = pd.read_csv(FF5, parse_dates=["date"]).rename(columns={"Mkt-RF": "MKT_RF"})
     mo = pd.read_csv(MOM, parse_dates=["date"]).rename(columns={"Mom": "UMD"})
@@ -168,21 +178,32 @@ def factor_windows(grid, how="compound"):
 
 
 # --------------------------------------------------------------------------- strategy data
-def decile_series(panel, weights, frac=0.1):
+def decile_series(panel, weights, frac=0.1, legacy_composite=False):
     """Per-date top-decile, bottom-decile and equal-weight returns.
 
-    `top` and `ew` reproduce X4's shipped series exactly (asserted in main()); `bot` is the
-    extra column R1 needs for the long-short object and is the only thing computed here that
-    X4 did not already ship.
+    COMPOSITE — AUDIT B7 / R1 RE-RUN. This function used to build the composite inline as
+    `comp += where(isnan(z), 0, z) * w`: the PRE-B7 non-renormalising convention, in which a
+    missing theme is read as exactly average. B7 replaced that everywhere with renormalisation
+    by the present-weight mass, and `fundamental_panel.composite` is now the ONE composite used
+    by selection, measurement and live. R1's first run therefore scored names by a rule no
+    shipped code path uses any more, which is one of the reasons that run is void.
+
+    It now calls the shipped composite. `legacy_composite=True` restores the old inline
+    convention and exists ONLY to measure how far the correction moved the series — it is not
+    a supported mode, and R1's verdict is never read off it.
     """
+    from valuation.edge.fundamental_panel import composite as _composite
     from valuation.screener.cross_sectional import zscore
 
+    cols = list(weights)
+    wv = np.array([float(weights[c]) for c in cols], dtype=float)
     rows = []
     for d, sub in panel.groupby("date"):
-        comp = np.zeros(len(sub))
-        for c, w in weights.items():
-            z = zscore(sub[c]).values
-            comp = comp + np.where(np.isnan(z), 0.0, z) * w
+        Z = np.column_stack([zscore(sub[c]).values for c in cols])
+        if legacy_composite:
+            comp = np.nansum(np.where(~np.isnan(Z), Z, 0.0) * wv, axis=1)
+        else:
+            comp = _composite(Z, wv)
         ok = np.isfinite(comp) & np.isfinite(sub["fwd_ret"].values)
         s = sub[ok].assign(_c=comp[ok]).sort_values("_c", ascending=False)
         if len(s) < 30:
@@ -222,7 +243,18 @@ def main(argv=None) -> int:
     ap.add_argument("--strategy-series", default=STRAT)
     ap.add_argument("--json", default="data/free_analysis/FACTOR_ALPHA_RESULTS.json")
     ap.add_argument("--lag", type=int, default=1)
+    ap.add_argument("--factors-dir", default=None,
+                    help="directory holding ff5_daily.csv / mom_daily.csv / q5_daily.csv")
+    ap.add_argument("--corrected-panel", action="store_true",
+                    help="R1 RE-RUN against the post-B6/B7 panel. Disables the X4 shipped-series "
+                         "reproduction assert (that file came from the old panel AND the old "
+                         "composite, so matching it would mean the re-run had failed) and "
+                         "replaces it with a recorded measurement of how far the series moved. "
+                         "Also disables the ex-B6 date cut, which B6 made impossible by removing "
+                         "those dates from the panel outright.")
     args = ap.parse_args(argv)
+    if args.factors_dir:
+        set_factor_dir(args.factors_dir)
 
     from valuation.screener import settings as S
 
@@ -238,12 +270,21 @@ def main(argv=None) -> int:
     # --- reproduce X4's shipped series exactly, so this lane is measuring the SAME object
     shipped = pd.read_csv(args.strategy_series, parse_dates=["date"]).set_index("date")
     j = strat.join(shipped[["top", "ew"]], rsuffix="_x4", how="inner")
-    dtop = float(np.max(np.abs(j["top"] - j["top_x4"])))
-    dew = float(np.max(np.abs(j["ew"] - j["ew_x4"])))
-    print(f"[R1] reproduces X4's shipped series on {len(j)} periods "
-          f"(max |dtop| {dtop:.2e}, max |dew| {dew:.2e})", flush=True)
-    assert len(j) == len(shipped), "did not line up with X4's shipped series"
-    assert dtop < 1e-9 and dew < 1e-9, "does not reproduce X4's shipped top/ew series"
+    dtop = float(np.max(np.abs(j["top"] - j["top_x4"]))) if len(j) else None
+    dew = float(np.max(np.abs(j["ew"] - j["ew_x4"]))) if len(j) else None
+    print(f"[R1] overlap with X4's shipped series: {len(j)} periods "
+          f"(max |dtop| {dtop}, max |dew| {dew})", flush=True)
+    series_move = {"overlap_periods": int(len(j)), "max_abs_dtop": dtop, "max_abs_dew": dew,
+                   "shipped_periods": int(len(shipped)), "regenerated_periods": int(len(strat))}
+    if args.corrected_panel:
+        # The shipped file is X4's, from the PRE-B6/B7 panel and the pre-B7 composite. On the
+        # corrected panel these series MUST differ; asserting equality would assert the re-run
+        # had failed. The divergence is recorded instead of enforced.
+        print("[R1] --corrected-panel: X4 reproduction assert DISABLED by design; "
+              "the divergence above is the measurement, not a failure", flush=True)
+    else:
+        assert len(j) == len(shipped), "did not line up with X4's shipped series"
+        assert dtop < 1e-9 and dew < 1e-9, "does not reproduce X4's shipped top/ew series"
 
     # --- ALIGNMENT VALIDATION -------------------------------------------------------
     # The panel carries SPY's own return over each 63-day window (`bench_ret`). If this
@@ -278,12 +319,28 @@ def main(argv=None) -> int:
             subset=["MKT", "SMB", "HML", "RMW", "CMA", "UMD", "RF"])
         dfq = strat.join(fac, how="inner").dropna(subset=["qMKT_x", "ME", "IA", "ROE", "EG"])
 
-        for cut, lo in (("full", 0), (f"ex_b6_first_{B6_CONTAMINATED}", B6_CONTAMINATED)):
-            d = df.iloc[lo:] if lo else df
+        # AUDIT R1 RE-RUN — the pre-registered `ex_b6_first_37` cut CANNOT be run on the
+        # corrected panel: B6 removed those dates from the panel outright, so the corrected
+        # sample IS the ex-B6 sample and the cut is satisfied by construction rather than
+        # skipped. A first-half / second-half subperiod split replaces it, carrying the same
+        # pre-registered veto power (HANDOFF_edge_audit.md Part 5).
+        if args.corrected_panel:
+            _h = len(df) // 2
+            cuts = (("full", 0, None), ("first_half", 0, _h), ("second_half", _h, None))
+        else:
+            cuts = (("full", 0, None), (f"ex_b6_first_{B6_CONTAMINATED}", B6_CONTAMINATED, None))
+        for cut, lo, hi in cuts:
+            d = df.iloc[lo:hi] if (lo or hi) else df
             # Build the q design in its OWN frame. Renaming qMKT_x -> MKT in place would leave
             # two columns called MKT (the q market and the FF market, correlated 1.000), and
             # pandas would hand both to the regression under one label.
-            dq = (dfq.iloc[lo:] if lo else dfq)
+            #
+            # Slice the q frame BY DATE, not by position. `df` and `dfq` are dropna'd on
+            # different column sets, so they need not have the same length or the same rows —
+            # `dfq.iloc[lo:]` therefore silently applied a DIFFERENT cut to the q model than to
+            # FF5+MOM whenever the two frames diverged. Pre-existing; it affected the original
+            # ex-B6 cut too.
+            dq = dfq.loc[(dfq.index >= d.index.min()) & (dfq.index <= d.index.max())]
             dq = dq.assign(MKT=dq["qMKT_x"]).drop(columns=["qMKT_x"])
             assert not dq.columns.duplicated().any(), "duplicate column in the q design"
 

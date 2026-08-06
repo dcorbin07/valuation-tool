@@ -416,12 +416,19 @@ def test_empty_column_guard_fires():
 
 
 def test_band_max_dte_matches_what_the_miner_actually_caches():
-    """The cache stops at 90 DTE (`theta_bulk.MAX_DTE`). If the miner ever raises that, this
-    fails and whoever raises it gets told that the derived tenors can be widened too."""
+    """The band must track the mining ceiling. Raised 90 -> 200 with O15 so U1 can reach the
+    equity composite's own 63-trading-day (~92 calendar day) horizon.
+
+    TENORS must stay under the LEGACY ceiling, not the new one. The deepening is partial — only
+    the ~100 most liquid names hold 90-200 DTE contracts — so a 180-day tenor would be populated
+    for those and 100% empty for the other ~380 names, which is exactly the mostly-empty-column
+    failure the COVERAGE RULE exists to stop. Widen TENORS when depth_report() says every name
+    is deep, not before.
+    """
     from valuation.edge import theta_bulk
 
     assert G.BAND["max_dte"] == theta_bulk.MAX_DTE, (G.BAND["max_dte"], theta_bulk.MAX_DTE)
-    assert max(G.TENORS) < theta_bulk.MAX_DTE, G.TENORS
+    assert max(G.TENORS) < theta_bulk.LEGACY_MAX_DTE, (G.TENORS, theta_bulk.LEGACY_MAX_DTE)
 
 
 def test_repair_coverage_reraises_a_flag_a_stale_record_lost():

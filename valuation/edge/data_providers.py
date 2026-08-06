@@ -345,7 +345,15 @@ class WRDSProvider(HistoricalDataProvider):
                 if comb is None:
                     return None, None
                 df = comb[comb["ticker"].str.upper() == ticker.upper()]
-            df = df.sort_values("date").tail(days)
+            # AUDIT B6 — `days=None` means the WHOLE series. The caller then truncates the
+            # shared CALENDAR once, so every ticker is cut at the same date. Truncating here
+            # gave each ticker its own last N rows and made the union calendar's early
+            # cross-sections consist only of names that stopped trading before the window
+            # closed. `days` is still honoured when passed, for callers that genuinely want a
+            # per-ticker tail (the live book path), but it is never the panel's route now.
+            df = df.sort_values("date")
+            if days:
+                df = df.tail(days)
             return [str(d) for d in df["date"]], [float(c) for c in df["close"]]
         except Exception:
             return None, None

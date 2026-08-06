@@ -1,0 +1,15 @@
+{
+ "generated": "2026-08-04 14:42:09",
+ "floor": 0.95,
+ "spans": {
+  "AAPL-2020": {
+   "before": 0.0,
+   "after": 0.995061,
+   "status": "recovered",
+   "oi_call_faults": 0,
+   "rows_before": 308141,
+   "rows_after": 309586,
+   "seconds": 189.2
+  }
+ }
+}

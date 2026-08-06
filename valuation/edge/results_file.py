@@ -202,6 +202,12 @@ def build_payload(res: dict, universe_label: str | None = None,
                          "equal_weight_ann": _num(cn.get("equal_weight_ann")),
                          "long_short_ann": _num(cn.get("long_short_ann")),
                          "long_short_tstat": _num(cn.get("long_short_tstat")),
+                         # AUDIT R9 — HAC inference and the serial-correlation diagnostic that
+                         # says whether the naive t above is entitled to be believed. If
+                         # `long_short_ljung_box.p_value` < 0.05 the series is autocorrelated
+                         # and `long_short_tstat_nw` is the number to quote.
+                         "long_short_tstat_nw": _num(cn.get("long_short_tstat_nw")),
+                         "long_short_ljung_box": cn.get("long_short_ljung_box"),
                          "long_short_hit": _num(cn.get("long_short_hit")),
                          # -1.0 = returns fall perfectly from the best decile to the worst
                          # (ideal); +1.0 = the composite is exactly backwards. NEGATIVE IS
@@ -209,7 +215,17 @@ def build_payload(res: dict, universe_label: str | None = None,
                          "monotonicity": _num(cn.get("monotonicity")),
                          "monotonicity_want": "negative (-1.0 = perfectly ordered)",
                          "top_decile_alpha": _num(cn.get("top_decile_alpha")),
+                         # AUDIT R9 — the number on the front of the product had no
+                         # significance statistic of any kind until now.
+                         "top_decile_alpha_tstat": _num(cn.get("top_decile_alpha_tstat")),
+                         "top_decile_alpha_tstat_nw": _num(cn.get("top_decile_alpha_tstat_nw")),
+                         "top_decile_alpha_ljung_box": cn.get("top_decile_alpha_ljung_box"),
+                         "top_decile_alpha_hit": _num(cn.get("top_decile_alpha_hit")),
                          "signal_weighted_top_decile_alpha": _num(cn.get("sw_top_decile_alpha"))},
+
+        # AUDIT R10 — the top decile against benchmarks a person could actually hold, beside
+        # the uninvestable equal-weight universe every historical figure used.
+        "benchmarks": res.get("benchmarks"),
 
         "institutional_dependence": {
             "institutional_weight": _num(idp.get("institutional_weight")),
@@ -383,6 +399,16 @@ def render_md(p: dict) -> str:
     A(f"| PBO (prob. of backtest overfitting) | {_prob(cp['pbo']['value'])} | {cp['pbo']['want']} |")
     A(f"| Deflated Sharpe | {_prob(cp['deflated_sharpe']['value'])} | {cp['deflated_sharpe']['want']} |")
     A(f"| CPCV paths | {cp.get('n_paths')} | — |")
+    _dsd = cp.get("deflated_sharpe_detail") or {}
+    if _dsd.get("n_trials"):
+        A(f"| Deflated Sharpe trial count N | {_dsd.get('n_trials')} "
+          f"({_dsd.get('n_trials_source', 'n/a')}) | the real trial count, audit M1 |")
+    _lb = (cn.get("long_short_ljung_box") or {})
+    if _lb.get("p_value") is not None:
+        A(f"| Long-short HAC t (Newey-West) | {_f2(cn.get('long_short_tstat_nw'))} | "
+          f"quote this one if Ljung-Box rejects |")
+        A(f"| Ljung-Box p on the spread | {_f2(_lb.get('p_value'))} | "
+          f"< 0.05 = autocorrelated, naive t overstates |")
     A(f"| CPCV recommend / adopt | {cp.get('recommend')} / {cp.get('adopt')} | — |")
     A(f"| Walk-forward recommend / adopt | {p['walk_forward'].get('recommend')} / "
       f"{p['walk_forward'].get('adopt')} | — |")
@@ -395,7 +421,8 @@ def render_md(p: dict) -> str:
     A(f"| Benchmark CAGR | {_pct(pf['benchmark_cagr'])} |")
     A(f"| Equal-weight CAGR | {_pct(pf['equal_weight_cagr'])} |")
     A(f"| Alpha vs equal-weight | {_pct(pf['alpha_vs_equal_weight'])} |")
-    A(f"| Top-decile alpha | {_pct(cn['top_decile_alpha'])} |")
+    A(f"| Top-decile alpha | {_pct(cn['top_decile_alpha'])} (t {_f2(cn.get('top_decile_alpha_tstat'))}, "
+      f"HAC t {_f2(cn.get('top_decile_alpha_tstat_nw'))}) |")
     A(f"| Long-short (D1−D10) | {_pct(cn['long_short_ann'])} (t {_f2(cn['long_short_tstat'])}, "
       f"hit {_rate(cn['long_short_hit'])}) |")
     A(f"| Monotonicity (−1 = perfectly ordered D1→D10, +1 = backwards) "

@@ -243,8 +243,17 @@ def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
         f[f["right"].astype(str).str.upper().str.startswith("P")]
     cv = float(pd.to_numeric(calls.get("volume"), errors="coerce").fillna(0).sum())
     pv = float(pd.to_numeric(puts.get("volume"), errors="coerce").fillna(0).sum())
-    coi = float(pd.to_numeric(calls.get("open_interest"), errors="coerce").fillna(0).sum())
-    poi = float(pd.to_numeric(puts.get("open_interest"), errors="coerce").fillna(0).sum())
+    # AUDIT B4 — the ThetaData cache writes -1 for "the open-interest call failed" (11.4% of
+    # rows, 106 of 111 names, all of AAPL 2020). `.fillna(0).sum()` read that as a NUMBER, so
+    # every unknown row SUBTRACTED one from its side's total and poisoned the put/call OI ratio.
+    # `f_d_pc_oi` — one of the closest near-misses in the 64-feature autopsy, rejected on a
+    # permutation p of 0.0545 against a 0.05 bar — is built on exactly this quantity.
+    def _oi_sum(part):
+        v = pd.to_numeric(part.get("open_interest"), errors="coerce")
+        v = v.where(v >= 0)                       # -1 is UNKNOWN, never a count
+        return float(v.sum()), float(v.notna().mean()) if len(v) else 0.0
+    coi, coi_known = _oi_sum(calls)
+    poi, poi_known = _oi_sum(puts)
     # ATM IV only. Enriching the WHOLE front chain solved IV on ~100 contracts to return one
     # number - the dominant cost of the whole backtest. Solve the nearest strike, walking out
     # a few if the closest quote is unusable.
@@ -265,6 +274,9 @@ def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
                 atm_iv = float(v)
                 break
     return {"call_volume": cv, "put_volume": pv, "call_oi": coi, "put_oi": poi,
+            # AUDIT B4: what share of each side had a REAL open-interest figure. An OI
+            # ratio built on 20% coverage is not the same statistic as one on 100%.
+            "call_oi_known_frac": coi_known, "put_oi_known_frac": poi_known,
             "atm_iv": atm_iv}
 
 
@@ -338,14 +350,24 @@ def simulate_trade(provider, ticker: str, entry_row, entry_date, bars: dict,
     # ONE call for the contract's whole life, rather than a chain pull per holding day.
     hist = provider.contract_history(ticker, expiry, strike, right, entry_date, expiry)
     last_q, last_q_day = None, None
+    n_skipped_days = n_exit_days = 0        # AUDIT B2: days censored from the exit path
     if hist is not None and len(hist):
         for _, row in hist.iterrows():
             day = row["date"]
             if day <= entry_date:
                 continue
             q = F.Quote(bid=row.get("bid"), ask=row.get("ask"))
-            if F.quote_reject_reason(q, check_liquidity=False) is not None:
+            # AUDIT B2 — the EXIT tolerance, not the entry one. This used to reject on
+            # `wide_spread` and `thin_premium` as well, and a rejected day was skipped as though
+            # it had never happened. A decaying OTM call quoting 0.25/0.35 is 33% wide, so it
+            # vanished from its own exit path exactly where the -50% stop should fire: losers
+            # that dipped through the stop on a wide-quote day and then recovered were recorded
+            # as TARGET WINS. Now only a quote that is absent, non-positive or crossed is
+            # unusable; a bad price is still a price and gets marked at the bid.
+            if F.exit_reject_reason(q) is not None:
+                n_skipped_days += 1
                 continue
+            n_exit_days += 1
             last_q, last_q_day = q, day
             mark = F.fill_price(q, "sell", aggression)
             ret = mark / entry_fill - 1.0
@@ -362,7 +384,9 @@ def simulate_trade(provider, ticker: str, entry_row, entry_date, bars: dict,
                     return {"ok": False, "reason": f"exit_trigger_unfillable:{t.get('reason')}"}
                 t.update({"exit_date": day.isoformat(), "held_days": (day - entry_date).days,
                           "exit_reason": ("target" if hit_target else
-                                          "stop" if hit_stop else "time_stop")})
+                                          "stop" if hit_stop else "time_stop"),
+                          "exit_days_used": n_exit_days,
+                          "exit_days_skipped": n_skipped_days})   # AUDIT B2
                 return t
     # Never triggered: hold to expiry and settle at intrinsic against the underlying.
     und = None
@@ -379,7 +403,9 @@ def simulate_trade(provider, ticker: str, entry_row, entry_date, bars: dict,
                      aggression=aggression, expired=True, exit_quote_age_days=age)
     if t.get("ok"):
         t.update({"exit_date": expiry.isoformat(), "held_days": (expiry - entry_date).days,
-                  "exit_reason": "expiry"})
+                  "exit_reason": "expiry",
+                  "exit_days_used": n_exit_days,
+                  "exit_days_skipped": n_skipped_days})           # AUDIT B2
     return t
 
 

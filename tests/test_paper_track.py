@@ -269,14 +269,25 @@ def test_a_losing_trade_cannot_sit_open_when_the_exit_is_rejected():
     assert "rejected" in (PT.paper_orders(st)[0]["exit_reason"] or "")
 
 
-def test_dry_run_places_nothing_live():
+def test_dry_run_places_nothing_live_and_does_not_burn_the_alert():
+    """AUDIT B5b. A dry run placed nothing but wrote state='skipped' — and skipped alerts are
+    PERMANENTLY excluded from the live track. So any alert a preview happened to touch could
+    never enter the real book afterwards, silently and forever, in the one instrument the
+    project has that runs on unseen data. A preview is a no-op; the row goes back to the queue."""
     st = _store()
     occ = _alert(st)
     b = FakeBroker(quotes={occ: {"bid": 5.0, "ask": 5.2}})
     b.dry_run = True
     PT.submit_new_alerts(st, b, cfg=_Cfg())
     row = PT.paper_orders(st)[0]
-    assert row["state"] == "skipped" and "dry run" in (row["note"] or "")
+    assert "dry run" in (row["note"] or "")
+    assert row["state"] != "skipped", "a preview must not permanently exclude the alert"
+    assert row["state"] == "pending"
+
+    # and a real run afterwards can still take it
+    b.dry_run = False
+    PT.submit_new_alerts(st, b, cfg=_Cfg())
+    assert PT.paper_orders(st)[0]["state"] in ("claimed", "submitted", "open")
 
 
 # ----------------------------------------------------------------- the index book

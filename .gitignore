@@ -36,3 +36,5 @@ data/
 options-bot/options_backtest/options_backtest_*.json
 options-bot/screener/.cache/
 options-bot/screener/prefetch.*
+options-bot/screener/insider.*
+options-bot/quant_bots/c5_ingest.*

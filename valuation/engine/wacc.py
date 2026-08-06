@@ -55,6 +55,12 @@ class WACCResult:
         return self.__dict__
 
 
+# Blume/Bloomberg "adjusted beta": b_adj = w*b_raw + (1-w)*1.0, w = 0.67. None = off
+# (today's behaviour). Note the existing sanity check above only rejects beta <= 0 or
+# > 3.0 — it has no low-side floor, so a beta of 0.08 passes as plausible.
+BETA_SHRINK = None
+
+
 def compute_wacc(cd: CompanyData, cfg, rf: Optional[float] = None,
                  beta_override: Optional[float] = None,
                  erp_override: Optional[float] = None) -> WACCResult:
@@ -68,6 +74,8 @@ def compute_wacc(cd: CompanyData, cfg, rf: Optional[float] = None,
     if beta is None or beta <= 0 or beta > 3.0:
         beta = 1.10
         notes.append("Beta missing/implausible; used 1.10.")
+    if BETA_SHRINK is not None:
+        beta = BETA_SHRINK * beta + (1.0 - BETA_SHRINK) * 1.0
     ke = rf + beta * erp
 
     # Cost of debt.

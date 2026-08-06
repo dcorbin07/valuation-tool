@@ -44,9 +44,23 @@ class _Mirror(unittest.TestCase):
         self.store.close()
         self.tmp.cleanup()
 
+    # C5. Sharadar's DAILY.marketcap is denominated in MILLIONS of USD, and this
+    # fixture writes straight into the `daily` table, so `cap` in every spec
+    # below is a DOLLAR figure that gets divided by this before insertion.
+    #
+    # It used to be inserted raw, i.e. the synthetic mirror spoke DOLLARS while
+    # the real feed speaks MILLIONS. That single mismatch is why this suite
+    # passed on a module that returned an EMPTY universe on every real date from
+    # 2000 to 2026 — a fixture cannot disagree with you about what the feed
+    # means, and this one silently agreed with the bug. Specs stay in dollars
+    # because that is what the assertions and the config thresholds are written
+    # in; the conversion happens here, once, in the same direction the real
+    # loader converts.
+    MARKETCAP_UNITS_PER_USD = 1e6
+
     def _load(self, specs, wobble=0.0):
         """
-        specs: {ticker: (first_idx, last_idx, price, cap, category, volume)}
+        specs: {ticker: (first_idx, last_idx, price, cap_in_DOLLARS, category, volume)}
 
         `wobble` adds a deterministic zig-zag to the price path. Filter tests
         want flat prices so the level assertions are exact; the strategy
@@ -63,7 +77,9 @@ class _Mirror(unittest.TestCase):
                             "closeadj": px * 1.10,     # dividends added back
                             "closeunadj": px * 4.0,    # pretend a later 4:1 split
                             "lastupdated": d.isoformat()})
-                dly.append({"ticker": t, "date": d.isoformat(), "marketcap": cap, "ev": cap})
+                cap_millions = cap / self.MARKETCAP_UNITS_PER_USD
+                dly.append({"ticker": t, "date": d.isoformat(),
+                            "marketcap": cap_millions, "ev": cap_millions})
             tick.append({"table": "SEP", "ticker": t, "permaticker": t + "P", "name": t,
                          "exchange": "NASDAQ",
                          "isdelisted": "N" if b == len(self.days) - 1 else "Y",

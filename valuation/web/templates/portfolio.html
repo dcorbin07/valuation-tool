@@ -124,7 +124,8 @@
     <p class="eyebrow">Valquo · research method</p>
     <h1>A quantitative equity and options research system, and&nbsp;the&nbsp;record of what it failed to prove.</h1>
     <p>
-      Valquo is a personal research tool: a point-in-time fundamental backtest over 2,710 US
+      Valquo is a personal research project, free and open to anyone: a point-in-time
+      fundamental backtest over 2,710 US
       names and 110 quarterly rebalances from 1998 to 2026, an options study built on a mined
       contract history, and a live Flask app that scores the market daily. This page is about
       how questions get settled inside it — not about a return number.
@@ -387,7 +388,8 @@
       demanding test, but not the test its docstring described.</li>
     <li>The overfitting statistic scores only the <b>weight-selection step</b>, not the ~146
       construction decisions that preceded it.</li>
-    <li>The headline number <b>has never been tested as alpha</b> (below).</li>
+    <li>The headline number <b>had never been tested as alpha</b>. That one is now closed: the
+      regression was pre-registered, run, and it cleared its threshold — see below.</li>
   </ul>
   <p class="src"><code>VALQUO_EDGE_AUDIT.md</code> (134 items),
     <code>VALQUO_AUDIT_DEPENDENCY_MAP.md</code>, <code>check_lanes.py</code>,
@@ -438,24 +440,42 @@
     composite replicates while its composition does not.
   </p>
   <div class="callout warn">
-    <span class="h">What is NOT claimed, and why</span>
+    <span class="h">The threshold that had to be cleared before the word "alpha" was used</span>
     <p>
-      <b>None of this has been established as alpha.</b> The headline is a spread against an
-      equal-weighted universe with no beta adjustment and no factor regression, and the
-      composite is roughly one-seventh each of value, quality, momentum, size, investment and
-      institutional ownership — very nearly the standard factor set. Until a Fama–French
-      five-factor plus momentum regression runs and the intercept clears t &gt; 2, the honest
-      description is <em>efficient factor exposure</em>, and the word "alpha" is kept out of
-      the product copy. That threshold was written down before the test, and the test has not
-      been run yet.
+      The composite is roughly one-seventh each of value, quality, momentum, size, investment
+      and institutional ownership — very nearly the standard factor set — so a spread against
+      an equal-weighted universe could not, on its own, distinguish "we found something" from
+      "we assembled the standard premia". <b>Two claims were written out in full before the
+      regression ran</b>: one to publish if the intercept cleared Newey–West t &gt; 2, and one
+      to publish if it did not, in which case the honest description was <em>efficient factor
+      exposure</em> and the word "alpha" stayed out of the copy entirely. An ambiguous result
+      was pre-declared a null.
     </p>
     <p>
-      Three further limits, all published in the project's own notes: the first third of the
-      panel's calendar has a distorted universe from a data-truncation defect, and the
-      direction of that bias is genuinely unclear; the capacity of the strategy is roughly
-      <span class="num">$23M</span> as an upper bound, so it could never be a managed vehicle;
-      and every equity result comes from one licensed panel that has now been looked at many
-      times.
+      <b>It cleared it.</b> Against Fama–French five factors plus momentum, the headline series
+      carries an intercept of <span class="num">+8.81%/yr</span> with
+      <span class="num">t = 5.74</span> (Newey–West, 109 non-overlapping windows, 1998–2026).
+      The same pipeline run on a passive large-cap ETF returns
+      <span class="num">+0.19%/yr, t 0.45</span>, with a market beta of 0.96 and an R² of 0.99
+      — the placebo control that shows the machinery finds nothing when there is nothing to
+      find. <b>This is a backtest result and nothing more: it is not an expected return, not an
+      achievable return, and not a return anybody earned.</b>
+    </p>
+    <p>
+      The caveats travel with it, in the project's own words. It is still <b>one panel</b> — a
+      factor regression is a control, not new data, and the international replication above is
+      the out-of-sample evidence, not this. The t-statistic is <b>not multiplicity-corrected</b>
+      against the ~146 construction decisions in the ledger (mitigating: the deployed weights
+      are flat one-seventh and were never tuned). Dropping the panel's contaminated early
+      period costs about 2.2 points of it, so <b>+6.6% is the number to prefer</b> when a
+      single conservative figure is wanted. And it does not contradict the null two sections
+      up: beating the factor model is not the same as beating the ETFs a person can actually
+      buy, and that second test was not passed.
+    </p>
+    <p>
+      Two further limits: the capacity of the strategy is roughly <span class="num">$23M</span>
+      as an upper bound, so it could never be a managed vehicle; and the small-cap tilt it
+      carries is real, unhedged, and not costed for market impact at size.
     </p>
   </div>
   <p class="src"><code>BACKTEST_RESULTS.json</code> (schema-versioned, written by every run),
@@ -509,7 +529,7 @@
       score-attribution panel that decomposes each name's rank into the themes that produced
       it (the explanation is computed from the same call as the score, and a test asserts the
       pieces sum to it), and email/Discord recaps.</li>
-    <li><b>597 tests across 17 suites</b>, run before anything merges. A representative
+    <li><b>628 tests across 19 suites</b>, run before anything merges. A representative
       test asserts that a sign convention is read the right way round, because it had been read
       backwards in the notes for months.</li>
     <li><b>Written for the next reader.</b> The project keeps an append-only research log, a

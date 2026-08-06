@@ -4412,6 +4412,849 @@ def test_audit_c7_every_test_suite_gates_the_auto_merge():
     assert "exit $fail" in wf, "one red suite must not be hidden by a later green one"
 
 
+
+def test_audit_b7_the_live_path_and_the_backtest_path_score_identically():
+    """B7, the test the audit asked for by name. THREE composite functions existed and did not
+    agree: selection renormalised by present-weight mass, measurement did not (a missing theme
+    contributed a hard zero, which after z-scoring IS the cross-sectional average, so an
+    incomplete name was dragged to mid-pack), and live renormalised AND added sector-neutral
+    ranking plus residual momentum. `institutional` is missing on 38.6% of rows and `insider` on
+    15%, and both absences track size and coverage — so the extreme deciles were biased toward
+    data-complete names. The top-decile alpha and long-short t were computed under one
+    composite while the weights that produced them were chosen under another.
+
+    No shipped code path reproduced the backtested composite exactly. This pins that it does."""
+    from valuation.edge.fundamental_panel import composite
+    from valuation.screener.cross_sectional import composite_score, zscore
+
+    rng = np.random.RandomState(0)
+    n = 40
+    df = pd.DataFrame({"value": rng.normal(size=n), "quality": rng.normal(size=n),
+                       "institutional": rng.normal(size=n)})
+    df.loc[:14, "institutional"] = np.nan          # ~37.5% missing, like the real panel
+    w = {"value": 0.4, "quality": 0.4, "institutional": 0.2}
+
+    live = composite_score(df, w).values
+    Z = np.column_stack([zscore(df[c]).values for c in w])
+    bt = composite(Z, np.array([w[c] for c in w], dtype=float))
+
+    assert np.array_equal(np.isnan(live), np.isnan(bt)), "the two paths must agree on missing"
+    assert np.nanmax(np.abs(live - bt)) < 1e-12, "live and backtest composites must be identical"
+
+
+def test_audit_b7_a_missing_theme_is_renormalised_away_not_scored_as_average():
+    """B7's mechanism, isolated. Under the old measurement composite a name missing a theme got
+    that theme's weight times zero — and zero is exactly the cross-sectional mean of a z-scored
+    column, so 'no data' was silently scored as 'perfectly average'. Renormalising instead
+    scores the name on what it HAS."""
+    from valuation.edge.fundamental_panel import composite
+
+    wv = np.array([0.5, 0.5])
+    both = composite(np.array([[2.0, 2.0]]), wv)[0]
+    one_missing = composite(np.array([[2.0, np.nan]]), wv)[0]
+    assert abs(both - 2.0) < 1e-12
+    assert abs(one_missing - 2.0) < 1e-12, \
+        "a strong name missing a theme keeps its score; it is not halved toward the mean"
+    # the old behaviour, kept here only to show what it did
+    legacy = float(np.nansum(np.where([[True, False]], [[2.0, 0.0]], 0.0) * wv))
+    assert abs(legacy - 1.0) < 1e-12, "the discarded convention would have scored it 1.0"
+    # and a row with no present weight at all has NO opinion rather than a mid-pack 0.0
+    assert np.isnan(composite(np.array([[np.nan, np.nan]]), wv)[0])
+
+
+def test_audit_b7_the_rejected_interventions_are_no_longer_the_live_default():
+    """B7/G. `screen.py` calls `build_frame(metrics)` with no keyword arguments, so the live hot
+    list inherits CONFIG. Both flags defaulted TRUE while the backtest forced them FALSE.
+    Sector-neutral ranking was tested on the full universe, rejected in both held-out
+    directions, re-run independently on a later panel, and rejected again. The code default was
+    never flipped — so unless SCREENER_SECTOR_NEUTRAL=false was set in the environment, users
+    saw a list scored under the intervention the research eliminated."""
+    import importlib
+
+    from valuation import config as cfgmod
+
+    for var in ("SCREENER_SECTOR_NEUTRAL", "SCREENER_RESIDUAL_MOMENTUM"):
+        os.environ.pop(var, None)
+    importlib.reload(cfgmod)
+    assert cfgmod.CONFIG.sector_neutral is False, "the research rejected this, twice"
+    assert cfgmod.CONFIG.residual_momentum is False
+    # still overridable, so the A/B remains one env var away
+    os.environ["SCREENER_SECTOR_NEUTRAL"] = "true"
+    importlib.reload(cfgmod)
+    assert cfgmod.CONFIG.sector_neutral is True
+    os.environ.pop("SCREENER_SECTOR_NEUTRAL", None)
+    importlib.reload(cfgmod)
+
+
+def test_audit_b6_the_calendar_is_truncated_once_not_per_ticker():
+    """B6. `price_history` ended in `df.sort_values('date').tail(days)`, so EVERY ticker kept its
+    own last N rows and the panel calendar was the UNION of those windows. At a 2001
+    cross-section the only names present were ones that STOPPED TRADING by about 2019, because a
+    name still trading in 2026 had its first decade truncated away — the inverse of classic
+    survivorship bias, and severe enough to make roughly the first 37 of 110 rebalance dates
+    uninterpretable. `days=None` now means the whole series, and the shared calendar is cut once
+    after the frame is built."""
+    import inspect
+
+    from valuation.edge import fundamental_panel as FP
+    from valuation.edge.data_providers import WRDSProvider
+
+    src = inspect.getsource(WRDSProvider.price_history)
+    assert "if days:" in src, "the per-ticker tail must be conditional, never unconditional"
+
+    psrc = inspect.getsource(FP.build_fundamental_panel)
+    assert "provider.price_history(t, days=(_CAL_DAYS if _B6_LEGACY else None))" in psrc, \
+        "the panel must ask for the WHOLE series and cut the calendar itself"
+    # The legacy path survives ONLY as an attribution toggle, and must default to OFF: B6, B7
+    # and B13 landed together, so each needs to be revertible alone to be measured alone.
+    assert 'environ.get("EDGE_AUDIT_B6_LEGACY_TRUNCATION", "").lower() == "true"' in psrc, \
+        "the legacy truncation must be env-gated and off unless explicitly asked for"
+    import os as _o
+    assert _o.environ.get("EDGE_AUDIT_B6_LEGACY_TRUNCATION", "").lower() != "true", \
+        "the test suite must run against the CORRECTED calendar"
+    assert "_CAL_DAYS" in psrc and "frame.iloc[-_CAL_DAYS:]" in psrc
+    # the cut must come BEFORE the ffill, or a name with no data in the window gets filled into it
+    assert psrc.index("frame.iloc[-_CAL_DAYS:]") < psrc.index("frame = frame.ffill()")
+
+
+def test_audit_b6_the_panel_ships_its_window_and_cross_section_sizes():
+    """B6 / B22 / M6. `construction.n_periods` read 110 while `portfolio.n_periods` read 73 in
+    the same JSON, over different and undisclosed windows. And a thin early cross-section
+    counted as one observation of equal weight to a full recent one, with no way to see it."""
+    import inspect
+
+    from valuation.edge import fundamental_panel as FP
+
+    src = inspect.getsource(FP.build_fundamental_panel)
+    for key in ("available_start", "retained_start", "retained_end", "calendar_cut_days",
+                "cross_section_by_date", "cross_section_min", "n_rebalance_dates"):
+        assert key in src, f"panel_window must ship {key}"
+    assert '"truncation": "shared_calendar"' in src
+
+
+def test_theta_cache_root_is_absolute_and_anchored_on_the_primary_checkout():
+    """The miner's cache root was RELATIVE (`data/options`), so it resolved against the cwd.
+
+    `data/` and `.env` are gitignored and therefore exist ONLY in the primary checkout. Run the
+    miner from a git worktree and it mined into a phantom empty `data/options` beside the real
+    16GB cache, while the ThetaData key failed to resolve and every name logged "probe failed".
+    Both failures were silent. Anchor it absolutely or this returns.
+    """
+    import os
+
+    from valuation.edge import theta_bulk as TB
+
+    assert os.path.isabs(TB.CACHE_ROOT), TB.CACHE_ROOT
+    assert os.path.isabs(TB.REPO_ROOT), TB.REPO_ROOT
+    # REPO_ROOT must be a real checkout (has the package), not a worktree's .git pointer target.
+    assert os.path.isdir(os.path.join(TB.REPO_ROOT, "valuation")), TB.REPO_ROOT
+    assert TB.CACHE_ROOT.startswith(TB.REPO_ROOT), (TB.CACHE_ROOT, TB.REPO_ROOT)
+    # A worktree checkout is never the anchor: .git there is a file, not a directory.
+    assert not os.path.isfile(os.path.join(TB.REPO_ROOT, ".git")), (
+        "REPO_ROOT resolved to a worktree, not the primary checkout")
+
+
+def test_oi_coverage_reads_minus_one_as_unknown_not_as_a_quantity():
+    """B4, writer side. -1 is the feed's UNKNOWN sentinel; counting it as data is the defect."""
+    import pandas as pd
+
+    from valuation.edge.theta_bulk import oi_coverage
+
+    assert oi_coverage(pd.DataFrame({"open_interest": [10, 20, 30, 40]})) == 1.0
+    assert oi_coverage(pd.DataFrame({"open_interest": [-1, -1, -1, -1]})) == 0.0
+    assert oi_coverage(pd.DataFrame({"open_interest": [-1, 5, -1, 5]})) == 0.5
+    assert oi_coverage(pd.DataFrame({"open_interest": [0, 0]})) == 1.0     # zero OI is KNOWN
+    assert oi_coverage(None) == 0.0
+    assert oi_coverage(pd.DataFrame({"x": [1]})) == 0.0                    # no column at all
+
+
+def test_degraded_open_interest_year_is_marked_on_disk_not_cached_as_clean():
+    """A year whose OI call faulted used to be written looking identical to a clean one.
+
+    That is exactly how 11.4% of the cache became -1 with nothing to show for it. The frame is
+    still cached (the EOD data is valid and expensive) but the year must carry an `.oi_degraded`
+    sidecar recording the measured coverage, and a clean re-mine must clear it.
+    """
+    import os
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    def _frame(oi):
+        n = len(oi)
+        return pd.DataFrame({"expiration": [dt.date(2020, 6, 19)] * n,
+                             "strike": [100.0] * n, "right": ["C"] * n,
+                             "date": [dt.date(2020, 6, 1)] * n,
+                             "bid": [1.0] * n, "ask": [1.1] * n,
+                             "volume": [5] * n, "open_interest": oi})
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tb = TB.ThetaBulk(api_key="", root=tmp)
+        path = TB.year_path("ZZZ", 2020, tmp)
+
+        tb._fetch_year = lambda s, y: (_frame([-1, -1, -1, -1]), False)
+        assert tb.ensure_year("ZZZ", 2020) is True
+        assert os.path.exists(path), "the EOD data must still be cached"
+        assert os.path.exists(path + ".oi_degraded"), "a degraded year must be visible on disk"
+        assert "coverage 0.000000" in open(path + ".oi_degraded").read()
+
+        os.remove(path)                                   # simulate the re-mine
+        tb._fetch_year = lambda s, y: (_frame([7, 8, 9, 10]), False)
+        assert tb.ensure_year("ZZZ", 2020) is True
+        assert not os.path.exists(path + ".oi_degraded"), "a recovered year must clear the mark"
+
+
+def test_sustained_faults_rebuild_the_grpc_client():
+    """One run pulled 318 names then failed EVERY call from queue position 371 to 826 -- 455
+    names burned -- while a fresh process pulled AAPL in 6.8s. The channel was dead and nothing
+    in the loop ever reset it, so the miner could not recover in-process."""
+    from valuation.edge import theta_bulk as TB
+
+    tb = TB.ThetaBulk(api_key="x", root=".")
+    tb._client = object()
+    for _ in range(TB.CLIENT_RESET_AFTER_FAULTS - 1):
+        tb._note_fault()
+    assert tb._client is not None, "must not reset on a single transient fault"
+    tb._note_fault()
+    assert tb._client is None, "a sustained run of faults must rebuild the channel"
+    # A success in between clears the streak, so slow-but-alive feeds are not churned.
+    tb._client = object()
+    for _ in range(TB.CLIENT_RESET_AFTER_FAULTS - 1):
+        tb._note_fault()
+    tb._note_ok()
+    tb._note_fault()
+    assert tb._client is not None
+
+
+def test_b4_an_orphaned_remine_backup_is_swept_back_not_left_as_a_silent_loss():
+    """`oi_remine` sets the old frame aside at `.bak_oi` BEFORE re-pulling, so a kill in that
+    window leaves the symbol-year existing ONLY as the backup. The `.pkl` is gone, the coverage
+    audit stops counting it, and the loss reads as a span that IMPROVED because it vanished from
+    the scan rather than because anything was fixed. Measured: NXPI-2017 (144,300 rows) was lost
+    exactly that way when a shard was stopped and restarted, and appeared in the before/after
+    diff as one of three 'fixed' spans."""
+    import inspect
+    import os
+
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "oi_remine.py"), encoding="utf-8").read()
+    # The sweep must run BEFORE the re-mine loop, and must never clobber a live frame.
+    assert ".bak_oi" in src and "recovered orphaned backup" in src, \
+        "oi_remine must sweep orphaned .bak_oi files back"
+    assert src.index("recovered orphaned backup") < src.index("for i, (key, before) in"), \
+        "the sweep must happen before any span is re-mined"
+    assert "if os.path.exists(_live):" in src, \
+        "a backup whose .pkl came back is litter, not a restore candidate -- never clobber"
+    del inspect
+
+
+def test_o15_cached_dte_depth_is_recorded_per_symbol_year():
+    """O15. The cache is now mined at two ceilings (90 before, 200 after) and on disk a shallow
+    year and a deep one are the SAME FILE SHAPE. Without a recorded depth, a consumer asking for
+    a 150-DTE contract gets data for some names and silence for others with nothing to explain
+    the difference -- this project's most-repeated bug class."""
+    import os
+    import pickle
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = TB.year_path("ZZZ", 2020, tmp)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        assert TB.cached_dte("ZZZ", 2020, tmp) == 0, "not cached at all must be 0, not a depth"
+        with open(path, "wb") as f:
+            pickle.dump(pd.DataFrame({"strike": [1.0]}), f)
+        # A pre-O15 file has no sidecar. That is not unknown -- MAX_DTE was 90 for its whole
+        # history, so the legacy depth is a recorded fact.
+        assert TB.cached_dte("ZZZ", 2020, tmp) == TB.LEGACY_MAX_DTE == 90
+        with open(path + ".dte", "w", encoding="utf-8") as f:
+            f.write("200 pulled 2026-08-05\n")
+        assert TB.cached_dte("ZZZ", 2020, tmp) == 200
+
+        rep = TB.depth_report(tmp)
+        assert rep["by_depth"] == {"200": 1}, rep
+        assert rep["names_fully_deep"] == ["ZZZ"], rep
+
+
+def test_o15_raising_max_dte_does_not_silently_re_pull_the_whole_cache():
+    """Deepening is OPT-IN. MAX_DTE 90 -> 200 makes all 3,140 cached symbol-years look stale;
+    if that alone triggered a re-pull, the next ordinary breadth-mining run would quietly
+    re-fetch the entire 17GB cache. `prefetch` must consult the SAME rule as `ensure_year` --
+    it used to do its own bare `os.path.exists`, which would have bypassed this completely."""
+    import inspect
+    import os
+    import pickle
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    assert TB.MAX_DTE == 200, "O15 raised the mining ceiling"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = TB.year_path("ZZZ", 2020, tmp)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:                      # a legacy 90-DTE year
+            pickle.dump(pd.DataFrame({"strike": [1.0]}), f)
+
+        plain = TB.ThetaBulk(api_key="x", root=tmp)
+        assert plain.upgrade_depth is False, "deepening must never be the default"
+        assert plain.needs_pull("ZZZ", 2020) is False, "a shallow year is NOT stale by default"
+
+        deep = TB.ThetaBulk(api_key="x", root=tmp, max_dte=200, upgrade_depth=True)
+        assert deep.needs_pull("ZZZ", 2020) is True, "the explicit deepening job must re-pull"
+
+        # ... and once it is deep, even the deepening job leaves it alone.
+        with open(path + ".dte", "w", encoding="utf-8") as f:
+            f.write("200 pulled 2026-08-05\n")
+        assert deep.needs_pull("ZZZ", 2020) is False, "a deep year must not be re-pulled"
+
+        # An exhausted / genuinely-empty year stays skipped: those are answers, not gaps.
+        for marker in (".empty", ".exhausted"):
+            p2 = TB.year_path("QQQ", 2020, tmp)
+            os.makedirs(os.path.dirname(p2), exist_ok=True)
+            with open(p2 + marker, "w", encoding="utf-8") as f:
+                f.write("x\n")
+            assert deep.needs_pull("QQQ", 2020) is False, marker
+            os.remove(p2 + marker)
+
+    assert "needs_pull" in inspect.getsource(TB.ThetaBulk.prefetch), \
+        "prefetch must route through needs_pull, not re-implement the skip rule"
+
+
+def test_o15_a_deeper_pull_may_never_replace_a_frame_with_fewer_rows():
+    """A 200-DTE pull of a span is a strict SUPERSET of the 90-DTE pull of that span. If the
+    deeper frame comes back SMALLER the pull was partial in a way the failure flags missed, and
+    overwriting would trade real, expensive data for less of it."""
+    import os
+    import pickle
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    def _frame(n):
+        return pd.DataFrame({"expiration": [dt.date(2020, 6, 19)] * n,
+                             "strike": [100.0] * n, "right": ["C"] * n,
+                             "date": [dt.date(2020, 6, 1)] * n,
+                             "bid": [1.0] * n, "ask": [1.1] * n,
+                             "volume": [5] * n, "open_interest": [7] * n})
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = TB.year_path("ZZZ", 2020, tmp)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            pickle.dump(_frame(500), f)                   # the cached 90-DTE year
+
+        tb = TB.ThetaBulk(api_key="x", root=tmp, max_dte=200, upgrade_depth=True)
+
+        tb._fetch_year = lambda s, y: (_frame(120), False)      # a thinner "deep" pull
+        assert tb.ensure_year("ZZZ", 2020) is False
+        with open(path, "rb") as f:
+            assert len(pickle.load(f)) == 500, "the shallow frame must survive"
+        assert TB.cached_dte("ZZZ", 2020, tmp) == 90, "a rejected pull must not claim depth"
+
+        tb._fetch_year = lambda s, y: (_frame(640), False)      # a genuine superset
+        assert tb.ensure_year("ZZZ", 2020) is True
+        with open(path, "rb") as f:
+            assert len(pickle.load(f)) == 640
+        assert TB.cached_dte("ZZZ", 2020, tmp) == 200, "a kept pull must record its depth"
+
+
+def test_audit_x2_the_rebalance_grid_is_a_choice_and_is_now_recorded():
+    """X2. The grid was `range(TD, len(cal) - horizon, rebalance_days)` with TD hard-coded to
+    252, so every number this project has ever produced came off ONE of the 63 equally valid
+    grids and nobody had looked at the other 62. `grid_offset` shifts it; the value used is
+    stamped into `panel_window` so no run can be silently off-grid."""
+    import inspect
+
+    from valuation.edge import fundamental_panel as FP
+
+    sig = inspect.signature(FP.build_fundamental_panel)
+    assert "grid_offset" in sig.parameters, "build_fundamental_panel must take grid_offset"
+    assert sig.parameters["grid_offset"].default is None, \
+        "grid_offset must default to None so the env var can supply it"
+
+    src = inspect.getsource(FP.build_fundamental_panel)
+    assert 'environ.get("EDGE_GRID_OFFSET", "0")' in src, \
+        "a sweep must be able to set the grid without editing every call site"
+    assert "_GRID_START = TD + grid_offset" in src
+    # BOTH the count and the loop must use the offset grid, or the progress line lies about
+    # how many dates are coming and the loop silently runs a different grid.
+    assert src.count("range(_GRID_START, len(cal) - horizon, rebalance_days)") == 2, \
+        "the date count and the scoring loop must walk the SAME grid"
+    assert "range(TD, len(cal) - horizon, rebalance_days)" not in src, \
+        "no caller may be left on the hard-coded grid"
+    assert '"grid_offset": int(grid_offset)' in src, \
+        "panel_window must record which grid produced the run"
+
+    # The default must be the historical grid, or every past number silently changes meaning.
+    import os as _o
+    assert int(_o.environ.get("EDGE_GRID_OFFSET", "0") or 0) == 0, \
+        "the test suite must run on the historical grid"
+
+
+def test_audit_x7_placebo_destroys_signal_and_preserves_everything_else():
+    """X7. The placebo is only a valid noise floor if it changes ONE thing. Permuting whole
+    signal rows within a date must leave each theme's per-date distribution, the missingness
+    pattern and the cross-theme correlation structure exactly as they were, and must not touch
+    the forward return, the market cap or the sector."""
+    import numpy as np
+    import pandas as pd
+
+    from valuation.edge import fundamental_panel as FP
+
+    rng = np.random.default_rng(7)
+    n_per_date, dates = 40, ["2020-01-31", "2020-04-30", "2020-07-31"]
+    rows = []
+    for d in dates:
+        for k in range(n_per_date):
+            rows.append({
+                "date": d, "ticker": f"T{k:03d}",
+                "quality": float(rng.normal()), "momentum": float(rng.normal()),
+                "value": (np.nan if k % 7 == 0 else float(rng.normal())),
+                "z_gp_on_capital": float(rng.normal()),
+                "fwd_ret": float(rng.normal()) * 0.1,
+                "marketcap": float(1e9 * (k + 1)), "sector": f"S{k % 4}",
+            })
+    panel = pd.DataFrame(rows)
+
+    cols = FP.placebo_signal_cols(panel)
+    assert set(cols) == {"quality", "momentum", "value", "z_gp_on_capital"}, \
+        f"placebo must permute the themes and the z_ columns and nothing else, got {cols}"
+
+    pl = FP.placebo_panel(panel, seed=11)
+
+    # 1. Nothing outside the signal block moved, at all.
+    for keep in ("date", "ticker", "fwd_ret", "marketcap", "sector"):
+        assert pl[keep].equals(panel[keep]), f"placebo must not touch {keep}"
+
+    for d in dates:
+        a, b = panel[panel["date"] == d], pl[pl["date"] == d]
+        for c in cols:
+            # 2. Exact same numbers, per date — a permutation, not a resample.
+            av = np.sort(a[c].to_numpy()[~np.isnan(a[c].to_numpy())])
+            bv = np.sort(b[c].to_numpy()[~np.isnan(b[c].to_numpy())])
+            assert np.array_equal(av, bv), f"{c} distribution changed on {d}"
+            # 3. Same count of missing values.
+            assert int(a[c].isna().sum()) == int(b[c].isna().sum()), \
+                f"{c} missingness count changed on {d}"
+        # 4. Whole ROWS moved together, so the cross-theme structure is untouched: the
+        #    multiset of signal-row tuples is identical.
+        at = sorted(map(tuple, np.nan_to_num(a[cols].to_numpy(), nan=-9e9).tolist()))
+        bt = sorted(map(tuple, np.nan_to_num(b[cols].to_numpy(), nan=-9e9).tolist()))
+        assert at == bt, f"placebo broke the cross-theme row structure on {d}"
+
+    # 5. It actually shuffled something. (P(identity) for 40 names is 1/40!.)
+    assert not pl["quality"].equals(panel["quality"]), "the placebo did not permute anything"
+
+    # 6. Deterministic in the seed, and different seeds give different draws — a noise floor
+    #    built from a non-reproducible instrument would be worthless.
+    assert FP.placebo_panel(panel, seed=11)["quality"].equals(pl["quality"])
+    assert not FP.placebo_panel(panel, seed=12)["quality"].equals(pl["quality"])
+
+    # 7. The permutation is WITHIN a date, never across one — a cross-date shuffle would leak
+    #    a later date's cross-section into an earlier one and stop being a clean null.
+    assert pl.groupby("date")["quality"].sum().round(9).equals(
+        panel.groupby("date")["quality"].sum().round(9)), "signal leaked across dates"
+
+
+def test_theme_ic_returns_theme_keyed_blocks_at_the_top_level():
+    """The results FILE nests these under `per_theme.themes`; the FUNCTION does not. Reading
+    a "themes" key off `theme_ic()` yields {} silently — no error, no warning, just an empty
+    result — which is exactly the failure mode the coverage rule exists for. X7's calibration
+    of the IC t > 2.0 bar reads its max |t| from here, so the shape is pinned."""
+    import numpy as np
+    import pandas as pd
+
+    from valuation.edge import fundamental_panel as FP
+
+    rng = np.random.default_rng(3)
+    rows = []
+    for d in [f"20{y:02d}-06-30" for y in range(5, 25)]:
+        for k in range(60):
+            q = float(rng.normal())
+            rows.append({"date": d, "ticker": f"T{k:03d}", "quality": q,
+                         "momentum": float(rng.normal()),
+                         "fwd_ret": 0.02 * q + float(rng.normal()) * 0.05})
+    ti = FP.theme_ic(pd.DataFrame(rows))
+
+    assert "quality" in ti and "momentum" in ti, \
+        f"theme_ic must key by theme at the TOP level, got {sorted(ti)[:6]}"
+    assert "themes" not in ti, \
+        "the `themes` wrapper is added by the results writer, not by theme_ic"
+    for name in ("quality", "momentum"):
+        assert set(ti[name]) >= {"median_ic", "ic_tstat", "coverage", "n_dates"}, \
+            f"{name} block is missing a field X7 reads"
+    # `quality` was built INTO the forward return here, so it must be the stronger of the two.
+    assert ti["quality"]["ic_tstat"] > ti["momentum"]["ic_tstat"]
+
+
+def test_audit_r9_the_headline_finally_has_a_significance_statistic():
+    """R9. `top_decile_alpha` is the number on the front of the product and shipped with NO
+    significance statistic of any kind. It now carries a t, a Newey-West t, a Ljung-Box
+    diagnostic and a hit rate, and the long-short carries HAC inference beside its naive t."""
+    import numpy as np
+    import pandas as pd
+
+    from valuation.edge import fundamental_panel as FP
+
+    rng = np.random.default_rng(11)
+    rows = []
+    for di, d in enumerate([f"20{y:02d}-{m:02d}-28" for y in range(6, 24) for m in (3, 9)]):
+        for k in range(80):
+            q = float(rng.normal())
+            rows.append({"date": d, "ticker": f"T{k:03d}", "quality": q, "momentum": float(rng.normal()),
+                         "fwd_ret": 0.03 * q + float(rng.normal()) * 0.06})
+    panel = pd.DataFrame(rows)
+    r = FP.quantile_backtest(panel, ["quality", "momentum"], {"quality": 1.0, "momentum": 0.0})
+
+    for k in ("top_decile_alpha_tstat", "top_decile_alpha_tstat_nw", "top_decile_alpha_hit",
+              "long_short_tstat_nw", "long_short_ljung_box", "top_decile_alpha_ljung_box"):
+        assert k in r, f"R9 must ship {k}"
+    assert r["top_decile_alpha_tstat"] > 2.0, "a built-in signal must register on the new t"
+    # The alpha t must describe the alpha, not the long-short: they are different objects.
+    assert r["top_decile_alpha_tstat"] != r["long_short_tstat"]
+    lb = r["long_short_ljung_box"]
+    assert set(lb) >= {"q", "df", "acf", "p_value", "lag1_autocorr"}
+    assert 0.0 <= lb["p_value"] <= 1.0
+    assert lb["df"] == len(lb["acf"])
+
+
+def test_audit_r9_hac_tstat_falls_when_the_series_is_autocorrelated():
+    """R9. The point of a HAC standard error is that positive serial correlation makes the
+    naive i.i.d. t OVERSTATE significance. On a deliberately autocorrelated series the NW t
+    must come in below the naive one, and Ljung-Box must notice."""
+    import numpy as np
+
+    from valuation.edge import fundamental_panel as FP
+
+    rng = np.random.default_rng(5)
+    x, prev = [], 0.0
+    for _ in range(200):
+        prev = 0.7 * prev + float(rng.normal())          # AR(1), strongly persistent
+        x.append(prev + 0.30)
+    naive, nw = FP._tstat(x), FP._nw_tstat(x, lag=1)
+    assert naive is not None and nw is not None
+    assert nw < naive, f"HAC t ({nw}) must be below the naive t ({naive}) on an AR(1) series"
+    lb = FP._ljung_box(x, lags=4)
+    assert lb["p_value"] < 0.05, "Ljung-Box must reject independence on an AR(1) series"
+    assert lb["lag1_autocorr"] > 0.4
+
+    # ...and on genuinely i.i.d. data the two must agree closely and Ljung-Box must NOT reject.
+    y = list(rng.normal(size=400) + 0.1)
+    assert abs(FP._nw_tstat(y, lag=1) - FP._tstat(y)) < 0.35
+    assert FP._ljung_box(y, lags=4)["p_value"] > 0.01
+
+
+def test_audit_r10_benchmarks_are_published_side_by_side():
+    """R10. Alpha was only ever measured against an equal-weighted average of every name in the
+    panel, charged zero trading cost while the strategy pays. Nobody can hold that. Three
+    investable-or-costed alternatives now ship beside it."""
+    import numpy as np
+    import pandas as pd
+
+    from valuation.edge import fundamental_panel as FP
+
+    rng = np.random.default_rng(19)
+    rows = []
+    for d in [f"20{y:02d}-06-30" for y in range(5, 25)]:
+        for k in range(80):
+            q = float(rng.normal())
+            rows.append({"date": d, "ticker": f"T{k:03d}", "quality": q,
+                         "momentum": float(rng.normal()),
+                         "market_cap": float(10 ** rng.uniform(8, 12)),
+                         "bench_ret": 0.02,
+                         "fwd_ret": 0.03 * q + float(rng.normal()) * 0.05})
+    r = FP.benchmark_panel(pd.DataFrame(rows), ["quality", "momentum"],
+                           {"quality": 1.0, "momentum": 0.0})
+    for k in ("equal_weight", "equal_weight_costed", "cap_weighted", "spy"):
+        assert k in r, f"R10 must ship the {k} benchmark"
+        assert "excess_ann" in r[k] and "excess_tstat_nw" in r[k], f"{k} needs excess + HAC t"
+    # Charging the equal-weight book a cost it never paid must LOWER it, so excess vs it RISES.
+    assert r["equal_weight_costed"]["benchmark_ann"] < r["equal_weight"]["benchmark_ann"]
+    assert r["equal_weight_costed"]["excess_ann"] > r["equal_weight"]["excess_ann"]
+    # SPY here is a flat +2%/period by construction, so it must be recognisably different.
+    assert abs(r["spy"]["benchmark_ann"] - 0.02 * 4.0) < 1e-9
+
+
+def test_audit_m1_the_trial_counter_is_real_and_deflates_more_than_eight():
+    """M1. Every multiple-testing claim was computed against N=8 (the weight schemes) while the
+    project had run scores of trials. N now comes from the append-only research log, scoped to
+    the domain the composite was searched within."""
+    from valuation.edge import fundamental_panel as FP
+    from valuation.edge import research_log as RL
+
+    d = RL.detail()
+    assert d["available"], "RESEARCH_LOG.md must be readable"
+    assert d["trials_logged"] >= 50, f"the log looks unpopulated: {d['trials_logged']}"
+    assert d["by_domain"]["equity"] > 8, "the equity family must exceed the weight-scheme floor"
+    assert d["by_domain"]["options"] > 0, "the options family must be counted separately"
+
+    # Domain scoping is a statistical choice, not a convenience: the equity composite must not
+    # be charged for the options programme's separate search.
+    assert RL.trial_count(domain="equity") < RL.trial_count(domain=None)
+    # A missing log must degrade to the OLD behaviour (8), never to an unpenalised one.
+    assert RL.trial_count(path="does_not_exist.md", use_cache=False) == RL.WEIGHT_SCHEME_TRIALS
+    assert FP._trial_N() == RL.trial_count(domain="equity")
+
+    # The haircut must now be driven by the log even when the immediate comparison is small.
+    assert FP._trials_haircut(8) > 2.5, "8 folds after ~84 trials is not an 8-trial search"
+
+    # And the deflation must actually bite: a bigger N raises sr0, which lowers the probability.
+    import numpy as np
+    rng = np.random.default_rng(3)
+    rets = list(rng.normal(0.02, 0.04, size=80))
+    trials = list(rng.normal(0.4, 0.15, size=8))
+    det = FP._deflated_sharpe_detail(rets, trials)
+    assert det["n_trials"] == FP._trial_N(), "N must come from the log, not len(trials)"
+    assert det["n_trials_from_weight_schemes"] == 8
+    assert det["n_trials_source"].startswith("RESEARCH_LOG"), "the source must be recorded"
+    assert det["sr0_benchmark"] > 0, "with a real N the statistic must actually deflate"
+
+
+# ============================ AUDIT SESSION 5 — R3, R7, O20 ================================
+def _opt_row(ticker, date, pnl, **extra):
+    r = {"ticker": ticker, "alert_ts": date, "pnl_pct": pnl, "pnl_dollars": pnl * 100.0}
+    r.update(extra)
+    return r
+
+
+def test_audit_r3_the_block_bootstrap_is_wider_than_the_trade_bootstrap():
+    """The whole point of R3. A book whose trades are perfectly correlated inside each month
+    carries exactly as much information as its month count — the trade-level interval claims
+    far more. If the block interval is not the wider of the two, the clustering is not being
+    preserved and the correction is doing nothing."""
+    from valuation.edge import options_stats as ST
+    from valuation.edge import options_universe as U
+
+    rows = []
+    for m in range(1, 13):
+        # Every trade in a month has the SAME outcome: the month carries one observation.
+        v = 0.5 if m % 2 else -0.4
+        for k in range(30):
+            rows.append(_opt_row("AAA", f"2020-{m:02d}-{(k % 28) + 1:02d}", v))
+    blk = ST.date_block_bootstrap(rows, draws=800, seed=0)
+    trade = U.bootstrap_diff(rows, rows, "expectancy_pct", draws=800)   # width of a trade CI
+    assert blk["ok"], blk
+    width_block = blk["ci95"][1] - blk["ci95"][0]
+    # A trade-level CI on this book is near-degenerate because every resample sees both months
+    # in proportion; the block CI must be materially wide.
+    assert width_block > 0.15, f"block CI is only {width_block:.4f} wide — blocks not preserved"
+    assert blk["n_blocks"] == 12, blk["n_blocks"]
+    assert trade.get("ok")
+
+
+def test_audit_r3_a_raw_design_effect_is_not_evidence_of_clustering():
+    """THE FAILURE THAT WROTE THIS TEST. A book of 600 independent draws assigned to 12 blocks
+    of 50 — no clustering by construction — reports a design effect near 1.8, i.e. an apparent
+    45% loss of sample size that is pure sampling error in MSB/MSW. Applying that as a haircut
+    would manufacture a correction out of noise, which is the mirror image of the error R3
+    exists to fix. So the design effect must be scored against a shuffled null, and an
+    unclustered book must come back `clustering_measurable = False` however large its raw
+    design effect happens to be."""
+    import random
+
+    from valuation.edge import options_stats as ST
+
+    rnd = random.Random(0)
+    # The flag is a 95th-percentile test, so on unclustered books it fires ~5% of the time BY
+    # CONSTRUCTION. Asserting one draw comes back False would be a coin-flip test that passes or
+    # fails on the seed. What must hold is the RATE — the same thing X7 measures for the
+    # project's other gates.
+    fired, n_books = 0, 20
+    for b in range(n_books):
+        indep = [_opt_row("AAA", f"2020-{(i % 12) + 1:02d}-15", rnd.gauss(0, 1))
+                 for i in range(300)]
+        e = ST.effective_n(indep, null_draws=150, seed=b)
+        assert e["ok"]
+        assert e["design_effect_null_p95"] > 1.0, "the null band must be non-degenerate"
+        if e["clustering_measurable"]:
+            fired += 1
+    assert fired <= 4, \
+        (f"the clustering flag fired on {fired}/{n_books} books with NO block structure — a "
+         f"95th-percentile test should fire on about 1")
+
+    clustered = []
+    for m in range(1, 13):
+        v = rnd.gauss(0, 1)
+        clustered += [_opt_row("AAA", f"2020-{m:02d}-15", v) for _ in range(50)]
+    e_cl = ST.effective_n(clustered, null_draws=200)
+    assert e_cl["clustering_measurable"] is True, "a perfectly clustered book must be detected"
+    assert e_cl["n_eff_icc"] < 0.1 * e_cl["n"], \
+        f"perfectly clustered book kept n_eff={e_cl['n_eff_icc']:.0f} of n={e_cl['n']}"
+    assert e_cl["icc"] >= 0.0, "ICC must never be reported negative"
+
+
+def test_audit_r3_the_paired_sign_test_counts_cells_not_trades():
+    """R3.3 — the statistic the entire options conclusion rests on, which lived in no file.
+    Built so the answer is known by construction: the real book loses in 8 of 10 name-year
+    cells, regardless of how many trades sit in each."""
+    from valuation.edge import options_stats as ST
+
+    real, ctrl = [], []
+    for i in range(10):
+        t = f"T{i}"
+        real_v, ctrl_v = (0.1, 0.2) if i < 8 else (0.3, 0.1)      # real loses the first 8
+        # Deliberately lopsided trade counts: a trade-weighted test would give a different
+        # answer, and the cell is the unit that matters.
+        real += [_opt_row(t, "2020-03-02", real_v) for _ in range(1 + i)]
+        ctrl += [_opt_row(t, "2020-07-02", ctrl_v) for _ in range(20 - i)]
+    pn = ST.paired_name_year(real, ctrl)
+    assert pn["ok"], pn
+    assert pn["n_cells"] == 10, pn["n_cells"]
+    assert pn["n_wins"] == 2, f"expected the real book to win 2 of 10 cells, got {pn['n_wins']}"
+    assert pn["sign_test_z"] < 0
+    assert pn["paired_t"] is not None, "the paired t must ship alongside the sign test"
+
+
+def test_audit_r3_purge_removes_the_dates_whose_labels_cross_a_boundary():
+    """A trade entered at the end of an in-sample block is still open inside the adjacent
+    out-of-sample block. Purging must drop it; embargo 0 must reproduce the old behaviour
+    exactly, so the contaminated split stays available as a comparison rather than vanishing."""
+    from valuation.edge import options_stats as ST
+
+    blocks = [{f"2020-01-{d:02d}" for d in range(1, 29)},
+              {f"2020-02-{d:02d}" for d in range(1, 29)}]
+    dates = sorted(blocks[0] | blocks[1])
+    keep_is, keep_os = ST.purged_split(dates, [0], [1], blocks, embargo_days=75)
+    assert not keep_is, "every January date has a February date inside a 75d window"
+    assert len(keep_os) == 28, "February has no later block to be contaminated by"
+    # A short embargo must purge strictly less than a long one.
+    short_is, _ = ST.purged_split(dates, [0], [1], blocks, embargo_days=3)
+    assert len(short_is) > len(keep_is), "a 3-day embargo cannot purge as much as a 75-day one"
+
+
+def test_audit_r3_the_clustered_deflated_sharpe_can_only_shrink():
+    """Substituting n_eff for n is a haircut by construction. If it ever reports a HIGHER
+    probability than the raw statistic, the scaling has been applied the wrong way round."""
+    import random
+
+    from valuation.edge import options_stats as ST
+
+    rnd = random.Random(1)
+    rows = []
+    for m in range(1, 13):
+        base = rnd.gauss(0.15, 0.05)
+        rows += [_opt_row("AAA", f"2020-{m:02d}-15", base + rnd.gauss(0, 0.05))
+                 for _ in range(40)]
+    rets = [r["pnl_pct"] for r in rows]
+    d = ST.deflated_sharpe_clustered(rets, n_trials=1, rows=rows)
+    assert d["ok"], d
+    assert d["deflated_sharpe_clustered"] <= d["deflated_sharpe_raw"] + 1e-12, \
+        "the clustered DSR must never exceed the raw one"
+    assert 0.0 < d["shrink_factor"] <= 1.0
+
+
+def test_audit_r7_the_new_floor_can_fail_on_the_arm_that_was_never_measured():
+    """R7 replaced an underived 40% retention bar with three measured arms, and the whole
+    defence of that replacement is that term_slope can still FAIL. G3b — span of names and
+    months — had never been measured. This builds a filter that keeps plenty of trades and
+    concentrates them into a handful of names, and asserts the gate rejects it."""
+    from valuation.edge import options_universe as U
+
+    rows = []
+    # 20 names x 24 months. The filter's signal is high ONLY on two names, so retention is
+    # healthy (>20%) and flow is healthy (>52/yr) while the span collapses.
+    for i in range(20):
+        for m in range(24):
+            y, mm = 2021 + m // 12, (m % 12) + 1
+            rows.append(_opt_row(f"T{i}", f"{y}-{mm:02d}-10", 0.1,
+                                 term_slope=0.5 if i < 2 else -0.5))
+    # 15 trades per name-month on the two favoured names, so n_kept is large.
+    rows += [_opt_row(f"T{i}", f"2022-{(m % 12) + 1:02d}-11", 0.1, term_slope=0.5)
+             for i in range(2) for m in range(24) for _ in range(14)]
+    g = U.term_slope_gate(rows, threshold=0.0, late_only=False)
+    assert g["ok"], g
+    assert g["retention"] >= U.MIN_RETENTION_BACKSTOP, "this fixture must clear G3c"
+    assert g["G3c_backstop"] is True
+    assert g["G3b_concentration"] is False, \
+        f"a filter surviving on {g['n_names_kept']}/{g['n_names_all']} names must fail G3b"
+    assert g["passes_G3"] is False
+
+
+def test_audit_r7_the_gate_passes_a_filter_that_keeps_a_broad_book():
+    """The mirror image: G3 must not reject everything, or it is not a gate."""
+    from valuation.edge import options_universe as U
+
+    rows = []
+    for i in range(30):
+        for m in range(24):
+            y, mm = 2021 + m // 12, (m % 12) + 1
+            for k in range(4):
+                rows.append(_opt_row(f"T{i}", f"{y}-{mm:02d}-{10 + k:02d}", 0.1,
+                                     term_slope=1.0 if k < 3 else -1.0))
+    g = U.term_slope_gate(rows, threshold=0.0, late_only=False)
+    assert g["passes_G3"] is True, g
+    assert g["G3a_flow"] and g["G3b_concentration"] and g["G3c_backstop"]
+
+
+def test_audit_o20_point_in_time_liquidity_uses_the_miners_own_thresholds():
+    """O20 applies the SAME screen at a different moment. If this module ever grows its own
+    constants they will drift from the miner's and the comparison stops meaning anything."""
+    from valuation.edge import options_universe as U
+
+    th = U._miner_thresholds()
+    try:
+        import mine_options_cache as M
+    except Exception:                                                  # noqa: BLE001
+        M = None
+    if M is not None:
+        assert th["source"] == "mine_options_cache", th["source"]
+        assert th["max_median_spread_pct"] == M.MAX_MEDIAN_SPREAD_PCT
+        assert th["min_atm_oi"] == M.MIN_ATM_OI
+        assert th["min_atm_oi_notional"] == M.MIN_ATM_OI_NOTIONAL
+
+
+def test_audit_o20_an_unmeasurable_day_is_none_and_never_false():
+    """The distinction that keeps a data gap from being reported as a liquidity finding."""
+    from valuation.edge import options_universe as U
+
+    assert U.pit_liquid_ok(None) is None
+    assert U.pit_liquid_ok({"ok": False}) is None
+    assert U.pit_liquid_ok({"ok": True, "median_spread_pct": None, "atm_oi": 9e9}) is None
+    wide = {"ok": True, "median_spread_pct": 0.90, "atm_oi": 9e9, "atm_oi_notional": 9e9}
+    assert U.pit_liquid_ok(wide) is False, "a 90% median spread must not pass the screen"
+    thin = {"ok": True, "median_spread_pct": 0.05, "atm_oi": 1.0, "atm_oi_notional": 1.0}
+    assert U.pit_liquid_ok(thin) is False, "failing BOTH open-interest measures must reject"
+    ok_notional = {"ok": True, "median_spread_pct": 0.05, "atm_oi": 1.0,
+                   "atm_oi_notional": 9e9}
+    assert U.pit_liquid_ok(ok_notional) is True, "notional alone must be enough, as in the miner"
+
+
+def test_audit_o20_the_split_separates_unmeasurable_from_illiquid():
+    from valuation.edge import options_universe as U
+
+    rows = ([_opt_row("A", "2020-01-02", 0.2, pit_liquid=True)] * 5
+            + [_opt_row("B", "2020-01-03", -0.3, pit_liquid=False)] * 3
+            + [_opt_row("C", "2020-01-04", 0.1, pit_liquid=None)] * 2)
+    s = U.o20_split(rows)
+    assert (s["n_pit_liquid"], s["n_pit_illiquid"], s["n_unmeasurable"]) == (5, 3, 2), s
+    assert abs(s["coverage"] - 0.8) < 1e-9
+    assert abs(s["retained_frac"] - 0.5) < 1e-9
+
+
+def test_audit_r3_pbo_embargo_zero_reproduces_the_unpurged_split():
+    """The purge must be a switchable correction, not a silent redefinition — otherwise the
+    A/B that shows what it cost is impossible to run."""
+    import inspect
+
+    from valuation.edge import options_autopsy as A
+
+    sig = inspect.signature(A.pbo_cscv)
+    assert "embargo_days" in sig.parameters, "pbo_cscv must expose the embargo"
+    assert sig.parameters["embargo_days"].default is None, \
+        "the default must be the label window, not 0 — the corrected behaviour ships"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

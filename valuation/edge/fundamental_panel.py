@@ -377,13 +377,28 @@ def _sf1_to_metrics(ticker, sf1, price, market_cap, ev_point_in_time=None) -> di
         # multiple is not on the same scale as a positive one, so there is no ordering that is
         # right; the honest answer is no observation. ~0.70% of rows.
         "ebit_ev": (ebit_usd / ev) if (ebit_usd is not None and ev and ev > 0) else None,
-        "ev_sales": (ev / rev_usd) if (ev and ev > 0 and rev_usd) else None,
+        "ev_sales": (ev / rev_usd) if (ev and ev > 0 and rev_usd and rev_usd > 0) else None,
         # EV/EBITDA, POSITIVE EBITDA ONLY. A negative denominator flips the multiple negative,
         # which then sorts as "cheapest of all" — the loss-makers would lead the value ranking.
         # Leaving it None instead means the theme simply averages its other inputs for that
         # name (same convention build_frame already uses for a missing input).
-        "ev_ebitda": (ev / ebitda_usd) if (ev and ebitda_usd and ebitda_usd > 0) else None,
-        "ps": (mc / rev_usd) if (mc and rev_usd) else None,
+        # AUDIT B18, completed. The first pass guarded `ebit_ev` and `ev_sales` on `ev > 0` and
+        # left this one on the truthiness test alone, so 414 rows (0.36%) still carried a
+        # negative EV/EBITDA — and the NEW sign check found them on the very next run, which is
+        # what that check was added for. Same convention as its two siblings: missing.
+        "ev_ebitda": (ev / ebitda_usd) if (ev and ev > 0 and ebitda_usd and ebitda_usd > 0)
+        else None,
+        # AUDIT B18, second half. The remaining negatives in `ev_sales` and `ps` are NOT negative
+        # enterprise value — they are negative REVENUE: 538 rows, 0.273% of the export, and the
+        # names are agency mortgage REITs and financial guarantors (DX, NLY, AGNC, MBI, RWT,
+        # FNMA), where a quarter's net interest income after losses genuinely comes out below
+        # zero. A negative sales multiple has exactly the same failure mode as a negative EV one:
+        # negate it and the name sorts as the cheapest in the cross-section. Same answer — a
+        # multiple on a negative denominator is not on the same scale as one on a positive
+        # denominator, so it is no observation rather than an extreme.
+        # (Verified: 746 rows have negative `ev` (0.378%), which is the population behind the
+        # `ev_ebitda` flag; 538 have negative `revenueusd`, which is the `ev_sales`/`ps` one.)
+        "ps": (mc / rev_usd) if (mc and rev_usd and rev_usd > 0) else None,
         # SAME-CURRENCY ratios — local/local, already correct, deliberately untouched.
         "op_margin": (ebit / rev) if (ebit is not None and rev) else _f(sf1, "ebitmargin"),
         "gross_margin": (gp / rev) if (gp is not None and rev) else _f(sf1, "grossmargin"),
@@ -888,17 +903,65 @@ def _inst_accum_at(prep, as_of, lag_days=45):
 
 def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                             lookback_years=6, horizon=63, inst_lag_days=45,
-                            keep_numbers=False, sector_neutral=False) -> pd.DataFrame:
+                            keep_numbers=False, sector_neutral=False,
+                            grid_offset=None) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
     a diagnostic can measure one signal's standalone predictive power instead of only the
     theme it was folded into. Off by default — it widens the frame considerably.
+
+    AUDIT X2 — `grid_offset` shifts the rebalance grid by N trading days. The grid has
+    always started at exactly TD = 252 and every number this project has ever reported was
+    measured on that ONE grid, which is an arbitrary choice: with rebalance_days = 63 there
+    are 63 equally valid grids and nobody has ever looked at the other 62. A signal whose
+    headline moves a lot between them is one draw from a wide distribution, and the honest
+    statement is a range rather than a figure. Defaults to 0 (the historical grid) and can
+    be set per run with EDGE_GRID_OFFSET so a sweep needs no call-site changes.
     """
     TD = 252
+    if grid_offset is None:
+        import os as _os_grid
+        try:
+            grid_offset = int(_os_grid.environ.get("EDGE_GRID_OFFSET", "0") or 0)
+        except ValueError:
+            grid_offset = 0
+    grid_offset = int(grid_offset)
+    if grid_offset < 0:
+        raise ValueError(f"grid_offset must be >= 0, got {grid_offset}")
+    _GRID_START = TD + grid_offset
+    from ..screener.factors import prefilter as _prefilter   # AUDIT B13
+
+    # AUDIT B6 — TRUNCATE THE CALENDAR, NOT EACH TICKER'S SERIES.
+    #
+    # `price_history(days=N)` used to end in `df.sort_values("date").tail(N)`, so every ticker
+    # kept its OWN last N rows and the panel calendar became the UNION of those windows. The
+    # consequence was severe and non-random: at a 2001 cross-section, the only names present
+    # were ones that STOPPED TRADING by about 2019, because a name still trading in 2026 had
+    # its first decade truncated away. That is the inverse of classic survivorship bias — the
+    # early sample contained eventual-delisters and nothing else — and it made roughly the
+    # first 37 of 110 rebalance dates uninterpretable. Those same 37 dates had no benchmark
+    # either (SPY was fetched under the same per-ticker cap), which is why the results file
+    # reported `construction.n_periods = 110` next to `portfolio.n_periods = 73` over two
+    # undisclosed and different windows.
+    #
+    # `days=None` asks the provider for the WHOLE series; the shared calendar is then cut once,
+    # below, after the frame is built — so every ticker is cut at the same DATE by construction
+    # and no ticker can lose its own early history. The full series are already on disk (7,184
+    # rows, 1997-12-31 -> 2026-07-24), so this costs a slightly longer load and no extra frame
+    # memory: the frame was ALWAYS the union calendar, this only stops it being mostly holes.
+    _CAL_DAYS = TD * lookback_years + horizon + 60
+
+    # ATTRIBUTION TOGGLES (default OFF — the shipped behaviour is the corrected one).
+    # B6, B7 and B13 all landed in the same commit and all three move the panel, which
+    # breaks the one-change-per-run rule. These exist so each can be reverted ALONE and
+    # its own contribution to the headline measured. They are diagnostics, not options.
+    import os as _os_attr
+    _B6_LEGACY = _os_attr.environ.get("EDGE_AUDIT_B6_LEGACY_TRUNCATION", "").lower() == "true"
+    _B13_OFF = _os_attr.environ.get("EDGE_AUDIT_B13_PREFILTER", "").lower() == "off"
 
     def series(t):
-        d, c = provider.price_history(t, days=TD * lookback_years + horizon + 60)
+        d, c = provider.price_history(t, days=(_CAL_DAYS if _B6_LEGACY else None))
         return pd.Series(c, index=pd.to_datetime(d)) if (d and c and len(c) > TD) else None
 
     bench = series(benchmark)
@@ -976,7 +1039,17 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         print("[panel] no usable price series for any ticker in the export.", file=sys.stderr)
         return pd.DataFrame()
 
-    frame = pd.DataFrame(px).sort_index().ffill()
+    frame = pd.DataFrame(px).sort_index()
+    # AUDIT B6 — the ONE calendar cut, applied to every ticker at the same date. Taken BEFORE
+    # the ffill below so a name that genuinely had no data in the retained window cannot be
+    # forward-filled into it from outside. `_cal_full` records what was available so the
+    # discarded span is a reported number rather than an invisible default.
+    _cal_full = (str(frame.index[0].date()), str(frame.index[-1].date()), int(len(frame.index)))
+    if _B6_LEGACY:
+        pass                      # legacy: each ticker already truncated itself, union calendar
+    elif _CAL_DAYS and len(frame.index) > _CAL_DAYS:
+        frame = frame.iloc[-_CAL_DAYS:]
+    frame = frame.ffill()
     # Survivorship correction. The ffill() above carries each name's last close to the END
     # of the shared calendar, so a delisted company keeps "trading" flat forever — Merrill
     # Lynch, delisted 2008-12-31 at $11.64, otherwise contributes a fake 0% forward return
@@ -992,6 +1065,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             _delisted = provider.delisted_map() or {}
     except Exception:
         _delisted = {}
+    _pf_rejects = {}          # AUDIT B13: why names were dropped by the live screen
     _masked = 0
     if _delisted:
         for t in frame.columns:
@@ -1038,12 +1112,12 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     benchf = bench.reindex(cal).ffill()
     benchv = benchf.values.tolist()        # for the idiosyncratic-vol regression, computed once
 
-    _n_dates = len(range(TD, len(cal) - horizon, rebalance_days))
+    _n_dates = len(range(_GRID_START, len(cal) - horizon, rebalance_days))
     _prog(f"history loaded: {len(px)} usable tickers, {len(cal)} calendar days "
           f"-> scoring {_n_dates} rebalance dates")
 
     rows = []
-    for _di, i in enumerate(range(TD, len(cal) - horizon, rebalance_days)):
+    for _di, i in enumerate(range(_GRID_START, len(cal) - horizon, rebalance_days)):
         as_of = str(cal[i].date())
         _asof_ts = cal[i]
         _cut1 = str((_asof_ts - pd.Timedelta(days=365)).date())
@@ -1080,6 +1154,19 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             m["sector"] = _md.get("sector") or ""
             m["_country"] = _md.get("country") or ""
             m["_category"] = _md.get("category") or ""
+            # AUDIT B13 — RUN THE LIVE INVESTABILITY SCREEN IN THE BACKTEST TOO. The only
+            # universe test here used to be the $50M point-in-time cap floor above. `prefilter`
+            # — which drops warrant/unit/right suffixes, ETFs and funds, and sub-$1.00 names —
+            # is called in `score_universe_now` and was NEVER called on this path, so the
+            # validated deciles could contain penny stocks and warrant tickers the live book
+            # will not buy. `size` is one-seventh of the composite and points straight at them,
+            # and the 236 bps breakeven was computed on that book.
+            _cat = str(m.get("_category") or "")
+            m["is_fund"] = bool("ETF" in _cat.upper() or "FUND" in _cat.upper())
+            _keep, _why = (True, "") if _B13_OFF else _prefilter(m)
+            if not _keep:
+                _pf_rejects[_why] = _pf_rejects.get(_why, 0) + 1
+                continue
             cl = closes.tolist()
             m.update(_price_factors(cl, i))
             m.update(_price_extras(cl, i, bench=benchv))       # reversal / MAX / idio-vol
@@ -1212,6 +1299,42 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     _out = pd.DataFrame(rows)
     _out.attrs["survivorship_mask_coverage"] = _mask_coverage   # AUDIT B14
     LAST_PANEL_DIAGNOSTICS["survivorship_mask_coverage"] = _mask_coverage
+    # AUDIT B6 / B22 / M6 — stamp the window this panel actually covers, and the SIZE of
+    # each cross-section. Two headline blocks in the results file used to disagree about
+    # their window with no marker, and a thin 1999 cross-section counted as one observation
+    # of equal weight to a full 2024 one. Both are now visible per run.
+    _cs = {}
+    if len(_out) and "date" in _out.columns:
+        _cs = {str(k): int(v) for k, v in _out.groupby("date").size().items()}
+    _sizes = sorted(_cs.values())
+    _win = {
+        "available_start": _cal_full[0], "available_end": _cal_full[1],
+        "available_trading_days": _cal_full[2],
+        "retained_start": str(cal[0].date()) if len(cal) else None,
+        "retained_end": str(cal[-1].date()) if len(cal) else None,
+        "retained_trading_days": int(len(cal)),
+        "calendar_cut_days": int(_CAL_DAYS),
+        "truncation": "shared_calendar",     # AUDIT B6: never per-ticker
+        "horizon": int(horizon), "rebalance_days": int(rebalance_days),
+        # AUDIT X2 — which of the `rebalance_days` possible grids this run used. 0 is the
+        # historical grid every prior number in the project was measured on.
+        "grid_offset": int(grid_offset),
+        "n_rebalance_dates": len(_cs),
+        "cross_section_min": (_sizes[0] if _sizes else None),
+        "cross_section_median": (_sizes[len(_sizes) // 2] if _sizes else None),
+        "cross_section_max": (_sizes[-1] if _sizes else None),
+        "cross_section_by_date": _cs,
+        # AUDIT B13 — what the live investability screen removed, and the one test in
+        # it that STILL cannot bind here.
+        "prefilter_rejects": dict(sorted(_pf_rejects.items(), key=lambda kv: -kv[1])),
+        "prefilter_adv_wired": False,
+        "prefilter_note": ("MIN_AVG_DOLLAR_VOLUME has never bound on this path and "
+                           "still does not: the price export on disk carries date+close "
+                           "only, so avg_dollar_volume cannot be computed here. Wiring "
+                           "it needs SEP volume in the panel loader (audit B13)."),
+    }
+    _out.attrs["panel_window"] = _win
+    LAST_PANEL_DIAGNOSTICS["panel_window"] = _win
     return _out
 
 
@@ -1420,6 +1543,120 @@ def score_universe_now(provider, tickers, benchmark="SPY", lookback_years=3,
     return {"as_of": asof, "rows": rows, "dropped_mc_divergence": dropped_mc}
 
 
+# =============================================================================================
+# AUDIT B7 — THE COMPOSITE. One definition, used by selection, measurement and live.
+# =============================================================================================
+def composite(Z, wv):
+    """Weighted mean of the present z-scores, RENORMALISED by the weight actually present.
+
+    There used to be three of these in the tree and they did not agree.
+
+      * SELECTION (`_weighted_optimize`, `walk_forward`, `cpcv_validate`) renormalised by the
+        present-weight mass — a name missing a theme was scored on what it HAS.
+      * MEASUREMENT (`quantile_backtest`, `_strategy_returns`, `_backtest`, `_backtest_hold`,
+        `regime_split`, `turnover_and_costs`, `after_tax_backtest`) did NOT: a missing theme
+        contributed a hard zero, which after z-scoring is exactly the cross-sectional AVERAGE,
+        so an incomplete name was dragged toward the middle of the ranking.
+      * LIVE (`screen.py` -> `factors.build_frame` -> `cross_sectional.composite_score`)
+        renormalised AND applied sector-neutral ranking and residual momentum.
+
+    That mattered because the missing data is not random. `institutional` is absent on 38.6% of
+    rows and `insider` on 15%, and both absences track size and coverage — so under the
+    measurement composite the extreme deciles were systematically biased toward data-complete
+    names (larger, better covered, institutionally held). **The top-decile alpha and long-short
+    t were computed under one composite while the weights that produced them were chosen under
+    another, and the live product used a third.** No shipped code path reproduced the
+    backtested composite exactly.
+
+    Renormalisation is the convention kept, for two reasons: it is what the SELECTION step
+    already used, so the deployed weights were chosen under it; and scoring a name on the
+    themes it actually has is the defensible answer to missing data, where "treat it as exactly
+    average" quietly rewards coverage instead of merit.
+
+    `Z` is (n_names, n_cols) z-scores with NaN for missing; `wv` is the matching weight vector.
+    A row with no present weight at all returns NaN rather than 0.0 — it has no opinion, and
+    0.0 would place it mid-pack.
+    """
+    present = ~np.isnan(Z)
+    denom = (present * wv).sum(axis=1)
+    denom = np.where(denom == 0, np.nan, denom)
+    return np.nansum(np.where(present, Z, 0.0) * wv, axis=1) / denom
+
+
+def composite_from_frame(sub, cols, weights, zscore):
+    """`composite` over a per-date slice whose columns still need standardising.
+
+    ATTRIBUTION TOGGLE (default OFF): `EDGE_AUDIT_B7_LEGACY_COMPOSITE=true` restores the old
+    MEASUREMENT convention — a plain weighted sum with missing themes read as 0.0, i.e. as
+    exactly average. Selection (`composite` called directly) always renormalised and is left
+    alone, which is precisely the disagreement B7 removed. This exists to measure B7's own
+    contribution to the headline, not as a supported mode.
+    """
+    import os as _os_b7
+    Z = np.column_stack([zscore(sub[c]).values for c in cols])
+    wv = np.array([float(weights.get(c, 0.0)) for c in cols], dtype=float)
+    if _os_b7.environ.get("EDGE_AUDIT_B7_LEGACY_COMPOSITE", "").lower() == "true":
+        return np.nansum(np.where(~np.isnan(Z), Z, 0.0) * wv, axis=1)
+    return composite(Z, wv)
+
+
+def placebo_signal_cols(panel) -> list:
+    """The columns a placebo must destroy: every scored theme, plus the standardized
+    per-number `z_*` columns the per-signal diagnostics read. Everything else — `date`,
+    `ticker`, `fwd_ret`, `marketcap`, `sector` — is deliberately left ALONE, so the
+    cost model, the regime split and the benchmark keep operating on real data and only
+    the signal→return link is broken."""
+    themes = set()
+    for _v in S.BUCKET_FACTORS.values():
+        themes.update(_v)
+    return [c for c in panel.columns if c in themes or str(c).startswith("z_")]
+
+
+def placebo_panel(panel, seed, cols=None):
+    """AUDIT X7 — the same panel with a definitionally worthless signal in it.
+
+    The options bot has a no-edge self-test; the equity pipeline has never had one. Without
+    it, every threshold in this project — the IC *t* > 2.0 bar, the PBO < 50% bar, the 0.25
+    t-gain margin on a held-out split — is a convention rather than a measurement, because
+    nobody has ever asked what those statistics do when the signal is known to be nothing.
+
+    METHOD. Within each rebalance date, permute the signal columns AS A BLOCK across the
+    names present. This is the strongest available null:
+
+      * every theme keeps its exact per-date distribution (it is the same numbers);
+      * the missingness PATTERN is preserved exactly — it travels with the row, so the
+        per-date count of each missing-theme combination is identical;
+      * the cross-theme correlation matrix is preserved exactly, because whole rows move
+        together — so the weight schemes that read Sigma still see a real Sigma;
+      * `fwd_ret`, `marketcap` and `sector` do not move, so the ONLY thing destroyed is
+        the association between the signal and the return.
+
+    Permuting whole rows rather than the final composite matters: it propagates through
+    weight SELECTION as well as measurement, so CPCV, PBO and the Deflated Sharpe are
+    exercised end to end rather than being handed a pre-shuffled score. And because the
+    composite of a permuted row-block IS the permuted composite, it satisfies the
+    catalogue's "shuffled composite" specification as a special case.
+
+    Deterministic in `seed` — a placebo whose own numbers cannot be reproduced would be a
+    poor instrument for calibrating reproducibility thresholds.
+    """
+    cols = placebo_signal_cols(panel) if cols is None else list(cols)
+    if not cols:
+        raise ValueError("placebo_panel: no signal columns found to permute")
+    rng = np.random.default_rng(int(seed))
+    out = panel.copy()
+    vals = {c: panel[c].to_numpy(copy=True) for c in cols}
+    for _d, idx in panel.groupby("date", sort=False).indices.items():
+        if len(idx) < 2:
+            continue
+        perm = idx[rng.permutation(len(idx))]
+        for c in cols:
+            vals[c][idx] = vals[c][perm]      # RHS fancy-indexes to a copy first — safe
+    for c in cols:
+        out[c] = vals[c]
+    return out
+
+
 def _backtest(panel, cols, weights, top_n=20, horizon=252):
     """Top-N-by-composite portfolio vs the benchmark. The panel dates are non-overlapping
     holding periods (rebalance == horizon), so compounding is valid; we report an annualized
@@ -1431,10 +1668,7 @@ def _backtest(panel, cols, weights, top_n=20, horizon=252):
         sub = panel[panel["date"] == d]
         if len(sub) < top_n:
             continue
-        comp = np.zeros(len(sub))
-        for c in cols:
-            z = zscore(sub[c]).values
-            comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
+        comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
         order = np.argsort(-comp)[:top_n]
         s = sub["fwd_ret"].values[order]
         b = sub["bench_ret"].values[order]
@@ -1477,13 +1711,11 @@ def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, h
     dates = sorted(panel["date"].unique())
     by_date = {d: panel[panel["date"] == d] for d in dates}
     held, port, bench, ew, hold_lens = {}, [], [], [], []   # held[t] = [entry_i, cum_factor, peak_factor]
+    held_counts = []                                       # AUDIT B17: realised book size
     for i, d in enumerate(dates):
         sub = by_date[d]
         tickers = sub["ticker"].values
-        comp = np.zeros(len(sub))
-        for c in cols:
-            z = zscore(sub[c]).values
-            comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
+        comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
         order = np.argsort(-comp)
         rank = {tickers[order[r]]: r + 1 for r in range(len(order))}
         fwd = {tickers[j]: sub["fwd_ret"].values[j] for j in range(len(tickers))}
@@ -1513,6 +1745,7 @@ def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, h
             port.append(pr)
             bench.append(bm)
             ew.append(em if em == em else bm)
+            held_counts.append(len(held))      # AUDIT B17
     if not port:
         return None
     tot = float(np.prod([1 + x for x in port]) - 1)
@@ -1528,7 +1761,21 @@ def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, h
             "ew_alpha": (None if (cagr is None or ecagr is None) else cagr - ecagr),
             "total_return": tot, "bench_return": btot,
             "n_periods": len(port), "years": round(years, 1), "hit_rate": hit,
-            "avg_hold_years": round(avg_hold, 1) if avg_hold else None, "exit_rank": exit_rank}
+            "avg_hold_years": round(avg_hold, 1) if avg_hold else None, "exit_rank": exit_rank,
+            # AUDIT B17 — THE REALISED BOOK SIZE, because this is NOT a top-N book. A name is
+            # sold only when it falls below `exit_rank`, which defaults to `top_n * 2`, so with
+            # top_n = 25 the held set converges toward roughly FIFTY positions. The results file
+            # presented the resulting CAGR as the top-25 hold strategy. It also charges NO costs
+            # and NO taxes, unlike every other book in the file — so it is not merely the
+            # noisiest number, it describes a different portfolio measured without the frictions
+            # every other book pays. Both facts now travel with the number.
+            "target_n": int(top_n),
+            "held_median": (int(np.median(held_counts)) if held_counts else None),
+            "held_min": (int(min(held_counts)) if held_counts else None),
+            "held_max": (int(max(held_counts)) if held_counts else None),
+            "charges_costs": False, "charges_taxes": False,
+            "label_warning": ("realised book size is ~exit_rank, NOT top_n; gross of costs and "
+                              "taxes unlike every other book in this file (audit B17)")}
 
 
 def sweep_hold_params(panel, cols, weights, top_n=25, horizon=63):
@@ -1580,6 +1827,88 @@ def _spearman(a, b):
     ar -= ar.mean(); br -= br.mean()
     denom = np.sqrt((ar * ar).sum() * (br * br).sum())
     return float((ar * br).sum() / denom) if denom > 0 else np.nan
+
+
+def _tstat(series):
+    """Naive i.i.d. t-statistic of a series' mean against zero."""
+    s = np.asarray([x for x in series if x is not None and x == x], dtype=float)
+    if len(s) < 2:
+        return None
+    sd = float(np.std(s, ddof=1))
+    return float(np.mean(s) / (sd / np.sqrt(len(s)))) if sd > 0 else None
+
+
+def _nw_tstat(series, lag=1):
+    """AUDIT R9 — Newey-West (Bartlett) HAC t-statistic of the mean against zero.
+
+    The 63-day windows genuinely do not overlap, so the naive i.i.d. t is defensible on the
+    OVERLAP dimension. It is not defensible on autocorrelation: factor spreads are strongly
+    serially correlated and regime-dependent, and the project has never had a serial-correlation
+    diagnostic anywhere. This is the same estimator `scripts/factor_alpha.py` uses for R1, on a
+    mean-only design, so the two lanes report comparable inference.
+    """
+    s = np.asarray([x for x in series if x is not None and x == x], dtype=float)
+    n = len(s)
+    if n < 3:
+        return None
+    e = s - s.mean()                       # residuals of a mean-only regression
+    g0 = float(e @ e) / n
+    S_hac = g0
+    for L in range(1, min(int(lag), n - 1) + 1):
+        gL = float(e[L:] @ e[:-L]) / n
+        S_hac += 2.0 * (1.0 - L / (lag + 1.0)) * gL      # Bartlett kernel
+    if S_hac <= 0:
+        return None
+    se = np.sqrt(S_hac / n)
+    return float(s.mean() / se) if se > 0 else None
+
+
+def _ljung_box(series, lags=4):
+    """AUDIT R9 — Ljung-Box Q on a series, so the independence assumption is VISIBLE.
+
+    Returns Q, its degrees of freedom, the autocorrelations used, and a chi-square p-value.
+    A small p means the series is serially correlated and the naive i.i.d. t overstates
+    significance — which is the whole reason the HAC t above is now reported beside it.
+    """
+    s = np.asarray([x for x in series if x is not None and x == x], dtype=float)
+    n = len(s)
+    lags = int(min(lags, n - 2))
+    if n < 8 or lags < 1:
+        return None
+    e = s - s.mean()
+    denom = float(e @ e)
+    if denom <= 0:
+        return None
+    acf, q = [], 0.0
+    for L in range(1, lags + 1):
+        r = float(e[L:] @ e[:-L]) / denom
+        acf.append(r)
+        q += (r * r) / (n - L)
+    q *= n * (n + 2)
+    return {"q": float(q), "df": lags, "acf": [float(x) for x in acf],
+            "p_value": _chi2_sf(float(q), lags),
+            "lag1_autocorr": (float(acf[0]) if acf else None)}
+
+
+def _chi2_sf(x, k):
+    """Upper-tail chi-square probability. Series expansion for the regularised lower
+    incomplete gamma P(k/2, x/2); adequate at the small dfs used here and avoids a scipy
+    dependency this project does not otherwise carry."""
+    if x <= 0 or k <= 0:
+        return 1.0
+    a, xx = k / 2.0, x / 2.0
+    if xx > a + 40.0:                       # far tail — P ~ 1, report a floor rather than 0.0
+        return 1e-12
+    import math
+    term = 1.0 / math.gamma(a + 1.0)
+    total = term
+    for i in range(1, 512):
+        term *= xx / (a + i)
+        total += term
+        if term < total * 1e-15:
+            break
+    p_lower = total * math.exp(-xx + a * math.log(xx))
+    return float(min(1.0, max(0.0, 1.0 - p_lower)))
 
 
 def _base_weights(cols, bucket):
@@ -1680,10 +2009,7 @@ def _weighted_optimize(panel, cols, base, halflife_days=1260, min_oos_fraction=0
     def comp(sub, w):
         Z = np.column_stack([sub["z_" + c].values for c in cols])
         wv = np.array([w[c] for c in cols], dtype=float)
-        present = ~np.isnan(Z)
-        denom = (present * wv).sum(axis=1)
-        denom[denom == 0] = np.nan
-        return np.nansum(np.where(present, Z, 0.0) * wv, axis=1) / denom
+        return composite(Z, wv)                                   # AUDIT B7
 
     def score(dates_, w, recency):
         num = den = 0.0
@@ -1745,11 +2071,30 @@ def _wf_folds(dates, n_folds=5, min_train=None, embargo=1):
     return folds
 
 
+def _trial_N(domain="equity"):
+    """AUDIT M1 — the project's real trial count, from the append-only research log.
+
+    Returns the weight-scheme floor (8) if the log cannot be read, so a missing or unreadable
+    log degrades to the OLD behaviour rather than to an unpenalised one.
+    """
+    try:
+        from .research_log import trial_count
+        return int(trial_count(domain=domain))
+    except Exception:
+        return 8
+
+
 def _trials_haircut(n_trials):
     """Multiple-testing penalty. Trying N configs inflates the best one by luck; the expected
     max of N standard-normal draws is ≈ sqrt(2·ln N). The winner must clear this × its standard
-    error to be believed — this is what stops us cherry-picking a lucky fold."""
-    return float(np.sqrt(2.0 * np.log(max(2, n_trials))))
+    error to be believed — this is what stops us cherry-picking a lucky fold.
+
+    AUDIT M1 — `n_trials` is now floored at the RESEARCH LOG's count, not just the number of
+    candidates in the immediate comparison. Selecting the best of 8 folds after the project has
+    already run ~84 equity trials is not an 8-trial search, and charging it as one is the same
+    denominator error the Deflated Sharpe had.
+    """
+    return float(np.sqrt(2.0 * np.log(max(2, int(n_trials), _trial_N()))))
 
 
 def walk_forward(panel, cols, base, top_n=25, horizon=63, halflife_days=1260, n_folds=5):
@@ -1774,10 +2119,7 @@ def walk_forward(panel, cols, base, top_n=25, horizon=63, halflife_days=1260, n_
     def comp(sub, w):
         Z = np.column_stack([sub["z_" + c].values for c in cols])
         wv = np.array([w[c] for c in cols], dtype=float)
-        present = ~np.isnan(Z)
-        denom = (present * wv).sum(axis=1)
-        denom[denom == 0] = np.nan
-        return np.nansum(np.where(present, Z, 0.0) * wv, axis=1) / denom
+        return composite(Z, wv)                                   # AUDIT B7
 
     def ic_score(ds, w, recency):
         num = den = 0.0
@@ -1929,12 +2271,10 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
     dates = sorted(panel["date"].unique())
     q_rets = [[] for _ in range(n_q)]
     ls, sw_long, ewb = [], [], []
+    alpha_series = []          # AUDIT R9 — per-period top-decile MINUS equal-weight
     for d in dates:
         sub = panel[panel["date"] == d]
-        comp = np.zeros(len(sub))
-        for c in cols:
-            z = zscore(sub[c]).values
-            comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
+        comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
         fwd = sub["fwd_ret"].values
         ok = np.isfinite(comp) & np.isfinite(fwd)
         comp, fwd = comp[ok], fwd[ok]
@@ -1947,6 +2287,9 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
                 q_rets[qi].append(float(np.mean(fwd[b])))
         ls.append(float(np.mean(fwd[buckets[0]]) - np.mean(fwd[buckets[-1]])))
         ewb.append(float(np.mean(fwd)))
+        # R9 — the headline's OWN series. `top_decile_alpha` is exactly ppy * mean of this,
+        # and until now it shipped with no significance statistic of any kind.
+        alpha_series.append(float(np.mean(fwd[buckets[0]]) - np.mean(fwd)))
         top = buckets[0]
         wp = np.clip(comp[top], 0.0, None)                  # signal-weighted (∝ positive composite)
         sw_long.append(float(np.sum(wp * fwd[top]) / wp.sum()) if wp.sum() > 0 else float(np.mean(fwd[top])))
@@ -1969,11 +2312,106 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
     return {"n_periods": len(ls), "n_quantiles": n_q, "horizon": horizon,
             "decile_ann_return": decile, "equal_weight_ann": ew_ann,
             "long_short_ann": annmean(ls), "long_short_tstat": tstat(ls),
+            # AUDIT R9 — HAC inference and a visible serial-correlation diagnostic. The naive
+            # t above assumes i.i.d. periods; these say whether that assumption holds. If
+            # `long_short_ljung_box.p_value` < 0.05 the series is autocorrelated and
+            # `long_short_tstat_nw` is the number to quote.
+            "long_short_tstat_nw": _nw_tstat(ls, lag=1),
+            "long_short_ljung_box": _ljung_box(ls, lags=4),
             "long_short_hit": float(np.mean([1.0 if x > 0 else 0.0 for x in ls])),
             "top_decile_alpha": (None if decile[0] is None or ew_ann is None else decile[0] - ew_ann),
+            # AUDIT R9 — the number on the front of the product finally has a significance
+            # statistic. `top_decile_alpha` == ppy * mean(alpha_series) by construction.
+            "top_decile_alpha_tstat": _tstat(alpha_series),
+            "top_decile_alpha_tstat_nw": _nw_tstat(alpha_series, lag=1),
+            "top_decile_alpha_ljung_box": _ljung_box(alpha_series, lags=4),
+            "top_decile_alpha_hit": (float(np.mean([1.0 if x > 0 else 0.0 for x in alpha_series]))
+                                     if alpha_series else None),
             "sw_top_decile_ann": sw_ann,
             "sw_top_decile_alpha": (None if sw_ann is None or ew_ann is None else sw_ann - ew_ann),
             "monotonicity": (None if mono != mono else float(mono))}
+
+
+def benchmark_panel(panel, cols, weights, n_q=10, horizon=63, ew_turnover=1.0):
+    """AUDIT R10 — the top decile against benchmarks a person could actually hold.
+
+    Every alpha figure in this project is measured against the equal-weighted mean forward
+    return of EVERY name in the panel that date — roughly 1,500 names including sub-dollar
+    stocks, re-equal-weighted quarterly, and **charged zero trading cost while the strategy
+    pays**. Nobody can hold that. It is a fine statistical control and a poor benchmark, and
+    the project has only ever published the one number.
+
+    Three benchmarks, side by side, published together whatever they say:
+
+      a. `equal_weight` — the incumbent, unchanged, so nothing silently moves.
+      b. `equal_weight_costed` — the SAME benchmark charged the same market-cap cost table
+         the strategy is charged. Re-equal-weighting a ~1,500-name universe every quarter is
+         not free; assuming it is, is a real thumb on the scale in the strategy's FAVOUR being
+         removed here. Alpha against this should be HIGHER.
+      c. `cap_weighted` — the panel's own cap-weighted average return, the closest investable
+         analogue to "just buy the market" that can be built from the panel itself.
+      d. `spy` — the benchmark's own realised 63d return from `bench_ret`, i.e. what a user
+         would have got in the obvious index fund. Alpha against this should be LOWER.
+
+    `ew_turnover` is the assumed one-way turnover per rebalance of the equal-weight book, used
+    only for (b). 1.0 is deliberately conservative-in-the-strategy's-favour-removing direction:
+    a quarterly re-equal-weight of a changing universe turns over a large fraction of itself.
+    """
+    from ..screener.cross_sectional import zscore
+    dates = sorted(panel["date"].unique())
+    top, ew, capw, spy, ew_cost = [], [], [], [], []
+    for d in dates:
+        sub = panel[panel["date"] == d]
+        comp = composite_from_frame(sub, cols, weights, zscore)
+        fwd = sub["fwd_ret"].values
+        mc = (sub["market_cap"].values if "market_cap" in sub.columns
+              else np.full(len(sub), np.nan))
+        ok = np.isfinite(comp) & np.isfinite(fwd)
+        if int(ok.sum()) < n_q * 3:
+            continue
+        c_, f_, m_ = comp[ok], fwd[ok], mc[ok]
+        order = np.argsort(-c_)
+        b0 = np.array_split(order, n_q)[0]
+        top.append(float(np.mean(f_[b0])))
+        ew.append(float(np.mean(f_)))
+        # (b) the equal-weight book charged the strategy's own cost table, name by name
+        bps = np.array([one_way_cost_bps(x) for x in m_], dtype=float)
+        ew_cost.append(float(np.mean(f_) - float(np.mean(bps)) * 1e-4 * 2.0 * ew_turnover))
+        # (c) cap-weighted — the investable analogue
+        w = np.where(np.isfinite(m_) & (m_ > 0), m_, 0.0)
+        capw.append(float(np.sum(w * f_) / w.sum()) if w.sum() > 0 else float(np.mean(f_)))
+        # (d) SPY over the identical window
+        b = sub["bench_ret"].iloc[0] if "bench_ret" in sub.columns else np.nan
+        spy.append(float(b) if b == b else np.nan)
+    if len(top) < 4:
+        return {"status": "insufficient history for benchmark comparison"}
+    ppy = 252.0 / horizon
+
+    def blk(bench, label, note):
+        pairs = [(t, b) for t, b in zip(top, bench) if b == b]
+        if len(pairs) < 4:
+            return {"status": "no overlapping periods", "label": label}
+        exc = [t - b for t, b in pairs]
+        return {"label": label, "note": note, "n_periods": len(pairs),
+                "benchmark_ann": float(np.mean([b for _, b in pairs]) * ppy),
+                "top_decile_ann": float(np.mean([t for t, _ in pairs]) * ppy),
+                "excess_ann": float(np.mean(exc) * ppy),
+                "excess_tstat": _tstat(exc), "excess_tstat_nw": _nw_tstat(exc, lag=1),
+                "hit_rate": float(np.mean([1.0 if x > 0 else 0.0 for x in exc]))}
+
+    return {
+        "n_periods": len(top), "horizon": horizon, "ew_turnover_assumed": float(ew_turnover),
+        "equal_weight": blk(ew, "equal-weight universe (incumbent)",
+                            "every name in the panel, cost-free — uninvestable, the number "
+                            "every historical alpha figure in this project used"),
+        "equal_weight_costed": blk(ew_cost, "equal-weight universe, charged the strategy's costs",
+                                   "same benchmark, same market-cap cost table the strategy "
+                                   "pays; removes a thumb on the scale in the strategy's favour"),
+        "cap_weighted": blk(capw, "cap-weighted panel average",
+                            "closest investable analogue buildable from the panel itself"),
+        "spy": blk(spy, "SPY total return over the same windows",
+                   "what the user's obvious alternative actually returned"),
+    }
 
 
 def regime_split(panel, cols, weights, n_tiers=3, horizon=63):
@@ -1991,10 +2429,7 @@ def regime_split(panel, cols, weights, n_tiers=3, horizon=63):
     for d in dates:
         sub = panel[panel["date"] == d]
         mc = sub["market_cap"].values.astype(float)
-        comp = np.zeros(len(sub))
-        for c in cols:
-            z = zscore(sub[c]).values
-            comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
+        comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
         fwd = sub["fwd_ret"].values
         okmc = np.isfinite(mc)
         if okmc.sum() < n_tiers * 10:
@@ -2096,12 +2531,43 @@ def _deflated_sharpe_detail(strategy_rets, all_trial_sr):
         return None
     sr = float(r.mean() / r.std(ddof=1))                     # per-period Sharpe
     m = r - r.mean()
-    s = r.std(ddof=0)
+    # AUDIT B25 — ddof=1, matching the Sharpe above. This used to be ddof=0 while `sr` used
+    # ddof=1, so the skew/kurtosis correction was computed on a different scale from the
+    # quantity it corrects. It is the entire residual difference between this implementation
+    # and `options_autopsy.deflated_sharpe`: with the same trial vector the two now agree to
+    # floating-point, having previously differed in the fifth decimal for no stated reason.
+    s = r.std(ddof=1)
     skew = float((m ** 3).mean() / s ** 3)
     kurt = float((m ** 4).mean() / s ** 4)                   # non-excess kurtosis
     trials = [x for x in all_trial_sr if x is not None]
-    N = max(2, len(trials))
-    var_sr = float(np.var(trials, ddof=1)) if len(trials) > 1 else 1.0 / n
+    # AUDIT B25 — an EMPTY or single-element trial set does not license a deflation. It used to
+    # fall through to N = 2 and var_sr = 1/n, fabricating a benchmark out of a variance the data
+    # never supplied — a third convention for this statistic inside one module. With no trial
+    # set the honest answer is sr0 = 0, i.e. a plain probabilistic Sharpe ratio, labelled.
+    if len(trials) < 2:
+        sr0 = 0.0
+        denom0 = (1 - skew * sr + (kurt - 1) / 4.0 * sr ** 2)
+        if denom0 <= 0:
+            return None
+        z0 = (sr - sr0) * ((n - 1) ** 0.5) / (denom0 ** 0.5)
+        return {"probability": float(_ncdf(z0)), "sharpe_per_period": sr,
+                "sr0_benchmark": 0.0, "n_trials": len(trials),
+                "var_sr_across_trials": None, "n_periods": int(n),
+                "is_effectively_undeflated": True,
+                "metric": "probabilistic_sharpe_ratio_UNDEFLATED"}
+    # AUDIT M1 — N IS THE NUMBER OF TRIALS THE PROJECT HAS RUN, not the number of weight
+    # schemes this one call was handed. `len(trials)` is 8; the research log counts the real
+    # equity family. Bailey-Lopez de Prado's `sr0` grows with N, so a bigger honest N raises
+    # the benchmark the Sharpe must beat and the probability falls. That is the intended
+    # direction: the statistic has been flattering itself by a denominator of 8.
+    #
+    # `var_sr` still comes from the observed trial Sharpes — it is the only cross-trial
+    # variance actually measured — while N comes from the log. Mixing them is what the
+    # formula requires: the variance describes how much trials differ, N describes how many
+    # there were, and only the second was ever wrong.
+    _n_logged = _trial_N()
+    N = max(2, len(trials), _n_logged)
+    var_sr = float(np.var(trials, ddof=1))
     emc = 0.5772156649015329                                 # Euler-Mascheroni
     sr0 = (var_sr ** 0.5) * ((1 - emc) * _nppf(1 - 1.0 / N) + emc * _nppf(1 - 1.0 / (N * np.e)))
     denom = (1 - skew * sr + (kurt - 1) / 4.0 * sr ** 2)
@@ -2110,6 +2576,11 @@ def _deflated_sharpe_detail(strategy_rets, all_trial_sr):
     z = (sr - sr0) * ((n - 1) ** 0.5) / (denom ** 0.5)
     return {"probability": float(_ncdf(z)), "sharpe_per_period": sr, "sr0_benchmark": float(sr0),
             "n_trials": int(N), "var_sr_across_trials": var_sr, "n_periods": int(n),
+            # AUDIT M1 — where N came from, so a reader can see whether it was 8 or measured.
+            "n_trials_from_weight_schemes": int(len(trials)),
+            "n_trials_from_research_log": int(_n_logged),
+            "n_trials_source": ("RESEARCH_LOG.md (audit M1)" if _n_logged > len(trials)
+                                else "weight schemes only"),
             # AUDIT B9: when sr0 is ~0 the statistic is an UNDEFLATED PSR, not a DSR.
             "is_effectively_undeflated": bool(abs(sr0) < 0.05 * abs(sr) if sr else True),
             "metric": ("probabilistic_sharpe_ratio_UNDEFLATED"
@@ -2171,10 +2642,7 @@ def _strategy_returns(panel, cols, weights, top_frac=0.1):
     out = []
     for d in sorted(panel["date"].unique()):
         sub = panel[panel["date"] == d]
-        comp = np.zeros(len(sub))
-        for c in cols:
-            z = zscore(sub[c]).values
-            comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
+        comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
         fwd = sub["fwd_ret"].values
         ok = np.isfinite(comp) & np.isfinite(fwd)
         comp, fwd = comp[ok], fwd[ok]
@@ -2340,8 +2808,17 @@ def validate_institutional(provider, tickers, lags=INST_LAG_GRID, lookback_years
         ics = [x for x in ics if x == x]
         strat = _strategy_returns(panel, cols, w)
         rr = np.asarray(strat, dtype=float)
-        psr = _deflated_sharpe(strat, [float(rr.mean() / rr.std(ddof=1)) if len(rr) > 2 and rr.std(ddof=1) > 0 else None])
+        # AUDIT B25 — this used to call `_deflated_sharpe(strat, [single_sharpe])`, i.e. a ONE-
+        # element trial vector. That path takes `N = max(2, 1) = 2` and `var_sr = 1/n`, which is
+        # a THIRD convention for the same statistic inside the same module, and one that
+        # deflates against a benchmark built from a variance the data never supplied. There is
+        # no meaningful cross-trial Sharpe vector here — the lags are not competing strategies —
+        # so the honest report is the UNDEFLATED probabilistic Sharpe, labelled as such, rather
+        # than a deflation against a fabricated trial set.
+        _psr_d = _deflated_sharpe_detail(strat, [])
+        psr = None if _psr_d is None else _psr_d["probability"]
         out["lags"][str(lag)] = {
+            "psr_metric": "probabilistic_sharpe_ratio_UNDEFLATED (no trial set; audit B25)",
             "dates": int(panel["date"].nunique()), "names": int(panel["ticker"].nunique()),
             "median_ic": (float(np.median(ics)) if ics else None),
             "top_decile_alpha": q.get("top_decile_alpha"), "long_short_ann": q.get("long_short_ann"),
@@ -2601,14 +3078,14 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
     dates = sorted(panel["date"].unique())
     prev_w, prev_cost = {}, {}
     gross, net, ew, traded_hist = [], [], [], []
+    # AUDIT B11 — turnover-weighted realised cost, in one-element lists so the inner loop can
+    # accumulate without a nonlocal declaration.
+    _bps_num, _bps_den = [0.0], [0.0]
     for d in dates:
         sub = panel[panel["date"] == d]
         if len(sub) < 20:
             continue
-        comp = np.zeros(len(sub))
-        for c in cols:
-            z = zscore(sub[c]).values
-            comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
+        comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
         k = int(top_n) if top_n else max(1, int(len(sub) * top_frac))
         _all_t = sub["ticker"].values
         # Band as a universe FRACTION (exit_frac) or as a multiple of the book size
@@ -2649,6 +3126,14 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
             bps = cur_cost.get(t, prev_cost.get(t, COST_BPS_MICRO))
             turn += dw
             cost += dw * bps * 1e-4
+            # AUDIT B11 — accumulate the TURNOVER-WEIGHTED bps actually charged. The project's
+            # most quotable tradeability claim is "236 bps breakeven against a 37 bps actual
+            # cost profile — a 6.4x margin". The breakeven side is computed, gridded and
+            # shipped; the 37 bps side appeared exactly once, in a handoff, and was never
+            # computed anywhere in the code or regression-tested. Both halves of the ratio are
+            # now under test.
+            _bps_num[0] += dw * bps
+            _bps_den[0] += dw
         g = float(np.mean(rets))
         gross.append(g)
         net.append(g - cost)
@@ -2684,6 +3169,21 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
             "equal_weight_ann": ann_ew,
             "gross_alpha": (None if ann_ew is None else g_ann - ann_ew),
             "net_alpha": (None if ann_ew is None else n_ann - ann_ew),
+            # AUDIT B11 — the OTHER half of "236 bps breakeven vs a 37 bps actual cost profile".
+            # The 37 was never computed anywhere; this is the realised turnover-weighted average
+            # one-way cost the book actually paid, so the 6.4x margin has both of its numbers
+            # under test instead of one.
+            "realised_one_way_bps": ((_bps_num[0] / _bps_den[0]) if _bps_den[0] else None),
+            "realised_cost_basis": ("flat_bps override" if flat_bps is not None
+                                    else "market-cap cost table"),
+            # AUDIT B11, stated rather than left implicit: two limitations of this cost model.
+            "cost_model_limitations": [
+                "keyed on point-in-time market cap ONLY — no spread, no average daily volume, "
+                "no price level, no participation rate",
+                "the equal-weight benchmark is charged ZERO cost while the strategy pays, so "
+                "every 'alpha versus equal-weight' figure compares a book that trades against "
+                "one that does not",
+            ],
             "flat_bps": flat_bps}
 
 
@@ -2746,10 +3246,7 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         sub = panel[panel["date"] == d]
         if len(sub) < 20:
             continue
-        comp = np.zeros(len(sub))
-        for c in cols:
-            z = zscore(sub[c]).values
-            comp = comp + np.where(np.isnan(z), 0.0, z) * weights.get(c, 0.0)
+        comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
         k = int(top_n) if top_n else max(1, int(len(sub) * top_frac))
         _all_t = sub["ticker"].values
         # Band as a universe FRACTION (exit_frac) or as a multiple of the book size
@@ -3641,6 +4138,10 @@ def main(argv=None):
             # series ends early with NO delisting row to explain it.
             "survivorship_mask_coverage":
                 LAST_PANEL_DIAGNOSTICS.get("survivorship_mask_coverage"),
+            # AUDIT B6 / B22 / M6 — the window every block in this file was measured
+            # over, plus the per-date cross-section sizes, so no two blocks can disagree
+            # about their date range without it being visible.
+            "panel_window": LAST_PANEL_DIAGNOSTICS.get("panel_window"),
             "pit_market_cap_from_daily": bool(getattr(prov, "daily_history", None)
                                               and prov.daily_history("AAPL")),
             "sf3_per_manager_inputs": bool(getattr(prov, "sf3_for", None) and prov.sf3_for("AAPL")),
@@ -3660,6 +4161,15 @@ def main(argv=None):
                 _psig = per_signal_ic(_pan)
             except Exception as _pe:
                 print(f"[results] per-signal IC unavailable: {_pe}")
+        # AUDIT B22 — check the schema BEFORE writing, and record any absence in the file
+        # itself. A block that is missing must never look the same as a block that ran.
+        _missing = missing_result_blocks(res)
+        if _missing:
+            res.setdefault("errors", []).append(
+                "INCOMPLETE RUN — these required blocks are absent or empty: "
+                + ", ".join(_missing) + " (audit B22)")
+            print(f"[results] WARNING: {len(_missing)} required block(s) missing: "
+                  f"{', '.join(_missing)}")
         _w = _write_results(res, universe_label=("full" if (args.limit or 0) >= 2000 else "subset"),
                             cleanups=_cleanups, per_signal=_psig)
         print(f"Canonical results  -> {_os.path.basename(_w['json'])} + "
@@ -3673,6 +4183,27 @@ def main(argv=None):
             json.dump(res, f, indent=2)
         print(f"\nFull results → {args.json}")
     return 0
+
+
+# AUDIT B22 / M6 — the blocks a COMPLETE run must contain. A missing block is now an error
+# recorded in the results file rather than an absence nobody can distinguish from "not run".
+RESULT_BLOCKS = (
+    "construction", "regime", "institutional_dependence", "factors_used", "walk_forward",
+    "cpcv", "hold_until_exit", "holdout_validation", "costs", "book_configs",
+    "no_trade_band", "after_tax",
+    "benchmarks",          # AUDIT R10 — a silently absent benchmark block would leave the
+                           # uninvestable equal-weight figure standing alone again
+)
+
+
+def missing_result_blocks(res: dict) -> list:
+    """Which required blocks are absent or empty. Used to fail a run LOUDLY (audit B22)."""
+    out = []
+    for k in RESULT_BLOCKS:
+        v = res.get(k)
+        if v is None or (isinstance(v, (dict, list)) and len(v) == 0):
+            out.append(k)
+    return out
 
 
 def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_n=25,
@@ -3716,6 +4247,11 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
                 print(f"[panel] dump FAILED: {e}", file=_sy.stderr, flush=True)
         # Coverage guard runs BEFORE any validation, so an empty factor is reported even if
         # something downstream fails.
+        # AUDIT B22 / X2 — the window and the rebalance grid this run used, carried in the
+        # result dict itself. It reached the canonical file through `cleanups` but NOT the
+        # --json dump, so a sweep that writes one JSON per configuration had no record of
+        # which configuration produced it.
+        out["panel_window"] = LAST_PANEL_DIAGNOSTICS.get("panel_window")
         out["signal_coverage"] = signal_coverage(panel)
         # Coverage says a factor is PRESENT; this says it is SANE. The currency bug filled
         # every column and was simply wrong, so coverage was blind to it.
@@ -3749,6 +4285,7 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             out["construction_weighting"] = (rec_name if adopted_w else "default")
             out["construction"] = quantile_backtest(panel, cols, rec, n_q=10, horizon=63)
             out["regime"] = regime_split(panel, cols, rec, n_tiers=3, horizon=63)           # where the edge lives
+            out["benchmarks"] = benchmark_panel(panel, cols, rec, n_q=10, horizon=63)       # AUDIT R10
             out["institutional_dependence"] = institutional_dependence(panel, cols, rec, horizon=63)
             out["factors_used"] = cols                                                       # which themes had data
             # Held-out time split: does zeroing a theme still help on data that did NOT
@@ -3804,6 +4341,29 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
                     "after_tax_alpha": _t.get("after_tax_alpha"),
                     "cost_drag_ann": _c.get("cost_drag_ann")}
 
+            # AUDIT B21 — SECTOR CONCENTRATION CAPS, measured for the first time. `_sector_capped`
+            # is fully implemented and `run_backtests` never passed `max_sector_w`, so it had
+            # never once run. This is NOT the sector-neutral intervention that was tested and
+            # rejected twice: neutralising SCORES by sector destroys cross-sector selection,
+            # which is why it sold top-decile alpha. Capping WEIGHTS leaves the selection intact
+            # and only bounds concentration.
+            #
+            # PRE-REGISTERED as a RISK intervention, on the same asymmetric logic as S10: adopt
+            # only if drawdown improves materially for a small alpha give-up. It is NOT adopted
+            # by anything here — this block measures it and ships the numbers.
+            out["sector_caps"] = {"note": "measured, NOT adopted; risk intervention (audit B21)",
+                                  "caps": {}}
+            for _cap in (None, 0.25, 0.30, 0.40):
+                _sc = turnover_and_costs(panel, cols, rec, top_frac=0.10, horizon=63,
+                                         max_sector_w=_cap) or {}
+                out["sector_caps"]["caps"]["none" if _cap is None else f"{_cap:.2f}"] = {
+                    "gross_alpha": _sc.get("gross_alpha"),
+                    "net_alpha": _sc.get("net_alpha"),
+                    "net_max_drawdown": _sc.get("net_max_drawdown"),
+                    "net_sharpe": _sc.get("net_sharpe"),
+                    "annual_turnover": _sc.get("annual_turnover"),
+                    "realised_one_way_bps": _sc.get("realised_one_way_bps")}
+
             # After-tax. ~250%/yr turnover means almost every gain is short-term in a TAXABLE
             # account, and that drag is several times the trading cost.
             out["after_tax"] = {
@@ -3822,11 +4382,17 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
             out["cpcv"] = {"status": "insufficient history"}
             out["regime"] = {"status": "insufficient history"}
     except Exception as e:
-        out["hold_until_exit"] = {"status": f"error: {e}"}
-        out["construction"] = {"status": f"error: {e}"}
-        out["walk_forward"] = {"status": f"error: {e}"}
-        out["cpcv"] = {"status": f"error: {e}"}
-        out["regime"] = {"status": f"error: {e}"}
+        # AUDIT B22 — this used to stamp FIVE keys. The same `try` also produces `costs`,
+        # `holdout_validation`, `book_configs`, `no_trade_band`, `after_tax` and
+        # `institutional_dependence`, so a failure partway through — inside `costs`, say —
+        # discarded the four blocks after it WITH NO STATUS MARKER AT ALL. They were simply
+        # absent from the JSON while `errors` stayed empty, and a reader (human or agent) saw a
+        # clean file with four blocks missing and no signal that anything had gone wrong. Given
+        # that this project's memory IS these files, that is a silent-corruption path into the
+        # record. Every expected block is now stamped, and only if it is not already present.
+        for _k in RESULT_BLOCKS:
+            out.setdefault(_k, {"status": f"error: {e}"})
+        out.setdefault("errors", []).append(f"diagnostics block failed: {type(e).__name__}: {e}")
     return out
 
 

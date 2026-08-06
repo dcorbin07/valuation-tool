@@ -1,5 +1,9 @@
 # CLAUDE.md — Valquo project brief (read every session)
 
+> **FIRST: read `RUN_RULES.md` (repo root) before starting any work. It is short and
+> non-negotiable — it governs pushing, handoffs, bug reporting, pre-committed thresholds, and
+> never silencing a check. Every agent, every run, no exceptions.**
+
 You are picking up **Valquo** (valquo.co), a Python/Flask stock-analysis SaaS owned by Don
 (donniecorbin6@gmail.com). Be honest, concise, and never oversell. Architecture is in section 4 below;
 the optimization/data research roadmap is in `OPTIMIZATION_RESEARCH.md` — read it once for detail.
@@ -34,17 +38,209 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE THRESHOLDS ARE NOW CALIBRATED — READ THIS BEFORE QUOTING ANY t, IC OR PBO
+  (2026-08-05, audit X7). Every bar in this project was a CONVENTION until this run; three of
+  the four are too low, and one is at the noise level.** `scripts/placebo.py` shuffles the
+  signal within each rebalance date (block permutation: per-date distribution, missingness
+  pattern and cross-theme correlation all preserved exactly; `fwd_ret`/`marketcap`/`sector`
+  untouched) and pushes 100 draws through the REAL pipeline — CPCV, weight selection,
+  quantile backtest, theme ICs, the held-out gate. The harness reproduces the shipped run
+  exactly (t 2.83606, alpha 0.071741, PBO 0.73333) before any draw, and the equal-weight
+  benchmark is +18.14% on all 100 draws (sd 0.00004), which is the control.
+
+  | bar | as used | CALIBRATED (placebo p95) | how often pure noise clears the OLD bar |
+  |---|---|---|---|
+  | theme IC t | 2.0 | **2.71** (noise max 3.93) | **39%** |
+  | long-short t | 2.0 | **2.14** (noise max 3.44) | 8% |
+  | top-decile alpha margin | 1.0pp | **1.95pp** | 18% |
+  | PBO | <50% | **<19.7%** (placebo p5; noise MEDIAN is 46.7%) | **55%** |
+  | Deflated Sharpe | >0.95 | **STANDS** (noise median 0.28) | 2% |
+
+  **THE DEFLATED SHARPE ROW IS CONFIRMED AT THE TRUE N (2026-08-06, session 5). The
+  PROVISIONAL marking is LIFTED.** The placebo was re-run at `N = 84` on the identical panel
+  and identical seeds. **The statistic is MORE discriminating at the honest denominator, not
+  less: 0 of 100 noise draws clear 0.95, against 2 at N = 8**, and the calibrated bar (placebo
+  p95) falls 0.8567 → **0.7216**. Every OTHER rate in this table is identical to the last digit
+  across the two sweeps (holdout 6%, ls_t≥2 8%, maxIC_t≥2 39%, PBO<50 55%), which is the
+  harness-reproduction check — so no other calibrated bar was ever in question.
+  **BOTH M1 AND X7 ARE RIGHT AND THEY NEVER CONFLICTED.** The edge's 0.8997 fails the >0.95
+  convention (M1) **and sits above ALL 100 placebo draws** (max 0.8649, empirical p ≤ 0.01),
+  because at the honest N the 0.95 convention is STRICTER than the noise floor requires.
+  **Quote it whole or not at all:** *"Deflated Sharpe 0.8997 at N = 84 — fails the conventional
+  >0.95 bar, while sitting above all 100 placebo draws (calibrated bar 0.72)."* It is the one
+  bar where this strategy is distinguishable from noise and still fails its threshold.
+  **M1 also made the adoption gate harder for noise to pass, as a free side effect:** CPCV
+  adopts on **27% → 21%** of pure-noise draws, one-directional (six draws stopped adopting,
+  none started), because the adopt gate reads the Deflated Sharpe. **This is NOT the run-to-run
+  non-reproducibility** — that remains open; it was briefly mistaken for it before the
+  one-directional pattern was checked.
+
+  **Use these numbers, not the old ones.** They are floors for THIS panel/universe/69 dates,
+  not universal constants — re-measure if the panel changes materially. Three consequences
+  that are easy to get wrong: **(a)** 39% of noise draws produce at least one theme at IC
+  t ≥ 2.0, because EIGHT themes are tested and the bar is applied to whichever looks best —
+  the project has always read that bar as if one theme were being tested; **(b)** the
+  **held-out gate (`holdout_theme_validate`) has a measured ~6% false-positive rate**, and
+  `low_risk` — the theme actually zeroed on its verdict — turned up among the false confirms
+  once in 100 draws, so that decision is not overturned but must be quoted with the rate;
+  **(c)** the real headline is outside the placebo's [2.5, 97.5] interval on alpha (clearly),
+  Deflated Sharpe, monotonicity, max theme IC t (narrowly) and long-short t (narrowly) — and
+  **INSIDE it on PBO**, which is therefore not distinguishable from noise.
+- **THE OPTIONS ENTRY SIGNAL IS DEAD, ON CORRECTED DATA (2026-08-05, audit session 5 / R2). The
+  project's most consequential negative finding was re-derived after five defects were repaired,
+  and it SURVIVED — the gap moved 0.61pp.** Every number in `HANDOFF_universe_backtest.md` was
+  computed against a mis-stated underlying price (B1) plus B2/B3/B4/B15, and that file is now
+  banner-marked SUPERSEDED. Re-run on the identical pinned 187-name universe:
+  **real +3.41%/trade vs a random-entry control's +10.06%, gap −6.65pp, date-block CI95
+  [−11.92pp, −2.13pp], paired sign-test z −4.903 (p < 1e−5)** over 1,334 name-year cells (5
+  control seeds, 29,785 control trades — see the seed note below). The
+  alert's day-selection subtracts value. **Do not describe the live options alert as a
+  day-selection edge; it is an alert-generation mechanism.**
+  * **THE BREADTH CLAIM IS VOID.** "The edge survives breadth but roughly halves" is false. The
+    133 new names are now **−0.47%/trade (PF 0.988)**; all of the book's positive expectancy is
+    the original 54 megacaps (**+9.37%**). It is a megacap phenomenon that a corrupted price
+    basis made look broader.
+  * **B1's signature, for the record:** trades ROSE 3,042 → 3,885 because `no_contract_in_band`
+    rejects fell 2,911 → 1,729 — an adjusted spot against as-traded strikes was throwing the
+    0.90–1.20 moneyness prefilter, silently discarding 1,182 alerts. Median entry IV
+    **1.4200 → 0.2497** at 100% coverage (was 75.3%). 142% was never a vol.
+  * **A SINGLE CONTROL SEED CAN FLIP THIS VERDICT — RUN FIVE, AND READ THE SIGN TEST.** The
+    control's own mean ranges **+6.46% to +15.34%** across five draws. Seed 0 alone reads
+    INCONCLUSIVE and is the most favourable of the five; **all five point estimates are
+    negative and four of five are negative at significance.** A random-day book's mean on a
+    barbell payoff is set by a few +600% trades. **More control draws SHARPEN the test** (2-seed
+    z −2.907 → 5-seed z −4.903), because each name-year cell's control mean averages more draws.
+    The paired *t* ranges +0.162 to −1.835 and is never significant even pooled (−1.227, p 0.22)
+    — it is the wrong statistic here. **Standing rule: five seeds minimum, sign test carries the
+    verdict.**
+  * **`term_slope` is REJECTED on the arm that matters (R7).** Its +8.89pp out-of-sample
+    replication was an artefact; corrected, the filter makes its own out-of-sample book WORSE
+    (gain **−1.12pp** against a +5.00pp bar) and is no longer tail-enriching. It PASSES the
+    re-committed retention floor (G3a 95.6 alerts/yr, G3b 96.2% of names and 98.2% of months,
+    G3c 35.9%) — so the old 40% constant WAS rejecting a genuinely broad filter, and the
+    rejection now rests on economics instead of on an underived number.
+  * **Deflated Sharpe fell below 95% on both books:** unfiltered 88.13% → **49.59%**,
+    term_slope-filtered 95.69% → **80.63%**. The autopsy re-confirms: 64 features, 127
+    hypotheses, **zero survivors**.
+- **OPTIONS STATISTICS ARE CLUSTERED, BUT LESS THAN THE AUDIT PREDICTED (2026-08-05, audit R3).**
+  Every options interval ever published resampled TRADES and is optimistically narrow.
+  `valuation/edge/options_stats.py` adds a date-block bootstrap (calendar months resampled
+  together), `n_eff`, the paired name-year sign test and paired *t*, purge/embargo for the CSCV
+  splits, and the Deflated Sharpe at `n_eff`. **Measured clustering factor 1.85 — BELOW the
+  audit's predicted 2–4** — so every options *t* shrinks by ~1.36×, and **no verdict changes.**
+  * **R3.3 is the one that mattered:** the paired sign test and paired *t* the entire options
+    conclusion rested on existed in NO shipped file. They now reproduce the record exactly
+    (441 of 1,052 cells, z −5.185 against the recorded −5.24; seed-0 paired t −2.6701 against
+    −2.67), pinned by a test.
+  * **A RAW DESIGN EFFECT IS NOT EVIDENCE OF CLUSTERING.** Found by a failing test: 600
+    independent draws in 12 blocks of 50 report a design effect near 1.8 — pure sampling error
+    in MSB/MSW, since that ratio is F(k−1, n−k). Applying it as a haircut would manufacture a
+    correction out of noise. The design effect is now scored against its own shuffled null (the
+    X7 method) and `clustering_measurable` gates it; the real book passes clearly (1.848 vs null
+    p95 1.266). **Never quote a design effect without its null.**
+- **POINT-IN-TIME LIQUIDITY RAISES THE OPTIONS HEADLINE — the audit expected it to fall
+  (2026-08-05, audit O20).** Applying the miner's own screen at each entry date instead of to the
+  name's first cached year: **PIT-liquid 3,359 trades at +4.82% vs PIT-illiquid 495 at −7.84%**,
+  coverage 99.2%. **But it does NOT rescue the signal** — the control is screened by the same
+  rule and benefits too, so on the liquid subset the real book loses to random entry MORE
+  decisively (z −3.475, p 0.0005). The headline stays the whole book at aggression 1.0.
+  **The audit's premise is half wrong and this is the correction:** names were ranked into the
+  mining pool by TODAY's market cap (true), but the liquidity screen was already applied to the
+  FIRST CACHED YEAR, not to a present-day chain (`mine_options_cache.py:160`). So O20 is an
+  UPPER BOUND on the repair — names that would have failed in 2016 were never mined and no
+  evaluation-time filter recovers them.
+  **THE PATTERN WORTH KEEPING:** this is the third time in two sessions (R10, then O20) that a
+  bias the record assumed ran in the strategy's favour ran the other way. **This project's
+  expectations about the direction of its own biases have been wrong more often than right.
+  Measure them; do not reason about them.**
+- **THE EDGE DOES NOT CLEAR THE DEFLATED SHARPE BAR (2026-08-05, audit M1). The last bar the
+  project claimed to clear fails once the denominator is honest.** Every multiple-testing claim
+  was computed against `N = 8` — the eight weight schemes. `RESEARCH_LOG.md` is now populated and
+  `valuation/edge/research_log.py` feeds the real count into `_deflated_sharpe` and
+  `_trials_haircut`. Measured trial counts: **equity 84, options 139, infra 1, total 224** (session 5 added 4 options rows)
+  (against the audit's ~146 estimate; 15 `FIXED` correctness rows correctly do NOT count).
+
+  | | N = 8 (as shipped) | **N = 84 (measured)** |
+  |---|---|---|
+  | Deflated Sharpe | 0.9970 | **0.8997** — FAILS the >0.95 bar |
+  | `sr0_benchmark` | 0.242 | **0.406** |
+  | `metric` self-report | `probabilistic_sharpe_ratio_UNDEFLATED` | **`deflated_sharpe_ratio`** |
+  | `_trials_haircut` | 2.04 | **2.977** |
+
+  **There is a real win inside the failure: audit B9 is RESOLVED by measurement.** B9 argued the
+  statistic was an undeflated PSR because `sr0` collapsed. With a real `N` it does not collapse —
+  `sr0` rises to 0.406 against a per-period Sharpe of 0.550, deflating away 74% of it, and the
+  statistic self-reports as a genuine Deflated Sharpe **for the first time**. The price of fixing
+  it is that the bar is no longer cleared. That trade was pre-committed before the run.
+  Also: **√(2·ln 84) = 2.977**, i.e. the multiple-testing haircut at the real `N` lands within
+  0.03 of the Harvey–Liu–Zhu hurdle of 3.0 — exactly as the audit predicted.
+  **`N` is domain-scoped** (the equity composite is charged the 84 equity trials, not the 218
+  project-wide ones — the options autopsy is a different search for a different product), and a
+  missing log degrades to `N = 8`, i.e. to the OLD behaviour, never to an unpenalised one.
+- **THE HEADLINE NOW HAS A t, AND THE LONG-SHORT t IS 2.620 NOT 2.836 (2026-08-05, audit R9).**
+  `top_decile_alpha` — the number on the front of the product — shipped with **no significance
+  statistic of any kind**. It now carries **t +4.517, HAC t +4.376, hit rate 71.0%**. The
+  long-short's naive i.i.d. t is joined by **HAC t +2.620** and a Ljung–Box diagnostic.
+  **Ljung–Box rejects independence at p = 0.036** (lag-1 autocorrelation +0.189), so per the
+  pre-commitment **the Newey–West t is now the number this project quotes** and the naive t is a
+  diagnostic only. The 63d windows genuinely do not overlap — that dimension was fine — but
+  factor spreads are autocorrelated and nothing anywhere measured it. Note the long-ONLY object
+  is far better measured (t 4.38) than the long-short the project has always led with.
+  Comparing 2.620 to X7's calibrated floor of 2.14 is **apples-to-oranges**: that floor was
+  measured on the NAIVE t across 100 placebo draws. Re-deriving it on the HAC statistic is open.
+- **THE UNINVESTABLE BENCHMARK WAS THE HARDEST ONE — the expectation was WRONG in the strategy's
+  favour (2026-08-05, audit R10).** Alpha had only ever been measured against an equal-weighted
+  average of every name in the panel, charged zero trading cost while the strategy pays. Both the
+  audit and this session's own pre-commitment predicted that flattered the product. It does not:
+
+  | benchmark | benchmark /yr | top-decile EXCESS /yr | HAC t |
+  |---|---|---|---|
+  | equal-weight universe (incumbent, cost-free) | +18.14% | **+7.17%** | +4.376 |
+  | equal-weight, charged the strategy's own costs | +16.10% | +9.21% | +5.685 |
+  | cap-weighted panel average | +14.85% | +10.46% | +4.292 |
+  | **SPY total return** | +15.32% | **+9.99%** | +3.770 |
+
+  Over 2009-01 → 2026-01 the equal-weighted panel returned **+18.14%/yr vs SPY's +15.32%** — a
+  ~1,500-name equal-weighted book beat the cap-weighted index over a window starting at the
+  post-GFC bottom. So the incumbent benchmark is uninvestable in the direction of being **too
+  demanding**. **Keep publishing +7.17% as the headline** — it is the most conservative and the
+  one every historical figure used, so changing it would break comparability for a number that
+  only moves the flattering way. The edge now also survives an INVESTABLE benchmark: +9.99% over
+  SPY (HAC t 3.77). Charging the equal-weight book the strategy's own cost table costs it
+  2.04pp/yr, a genuine thumb on the scale that had sat in the strategy's favour and is now gone.
+  All four ship in the `benchmarks` block on every run.
+- **CPCV WEIGHT ADOPTION MANUFACTURES ~+1.4 OF LONG-SHORT t OUT OF NOTHING (X7, post-hoc —
+  treat as a strong hypothesis, not a settled result).** Splitting the 100 placebo draws on
+  whether CPCV adopted: when it did NOT (73 draws) mean long-short t is **−0.065** (se 0.119),
+  a textbook null; when it DID (27 draws) mean t is **+1.343** (se 0.184) and mean alpha
+  +0.82pp. It fires on **27% of pure-noise draws**. Mechanism: the adopted weights are chosen
+  on the same panel the headline is then measured on. **The shipped strategy is UNAFFECTED —
+  it does not adopt, it keeps `current-default`** — which is measured support for the existing
+  rule that a CPCV rejection means keep the defaults. But any future run that DOES adopt a
+  CPCV scheme has an optimistically biased headline unless measurement moves off the
+  selection panel. Not pre-registered; wants a pre-registered replication.
 - **CORRECTED 2026-08-03 (audit B9) — TWO OF THE THREE "statistical bars" MEASURE SOMETHING
   NARROWER THAN THE CLAIM THEY SUPPORT. Lead with the long-short t of 3.52 against the
   Harvey–Liu–Zhu hurdle of 3.0. That one is real.** The other two:
-  * **"Deflated Sharpe >99.9%" is an UNDEFLATED Probabilistic Sharpe Ratio.** The deflation
-    uses N = 8 trials, and those eight are eight near-identical weightings of the same eight
-    themes (out-of-sample median ICs spanning +0.061 to +0.062). Bailey–López de Prado's
-    benchmark `SR₀` scales with the CROSS-TRIAL VARIANCE of Sharpes; when the trials are
-    indistinguishable that variance is ~0, `SR₀ ≈ 0`, and the statistic collapses to
-    Φ(SR·√(n−1)). It saturates because it is not deflating anything. The run now ships
-    `deflated_sharpe_detail` with `sr0_benchmark`, `n_trials` and a `metric` field that says
-    `probabilistic_sharpe_ratio_UNDEFLATED` when this happens. **Do not quote it as a DSR.**
+  * **The Deflated Sharpe IS deflating — the audit's mechanism for this one is REFUTED by
+    measurement, and only half of its criticism survives.** The audit argued that the eight
+    weight schemes are indistinguishable (out-of-sample median ICs spanning +0.061 to +0.062),
+    so the cross-trial VARIANCE of Sharpes is ~0, `SR₀ ≈ 0`, and the statistic degenerates to
+    Φ(SR·√(n−1)). **Measured on the full-universe run: `var_sr_across_trials` = 0.0276 (sd
+    0.166, not ~0) and `sr0_benchmark` = 0.242 against a per-period Sharpe of 0.606** — the
+    benchmark is deflating away 40% of the Sharpe. The audit inferred near-identical trial
+    SHARPES from near-identical median ICs; those are different quantities, and the Sharpes are
+    genuinely dispersed. It saturates because a per-period Sharpe of 0.61 over 110 periods is
+    a large z, not because nothing is deflated. Every run now ships
+    `deflated_sharpe_detail` (`sr0_benchmark`, `var_sr_across_trials`, `n_trials`) plus a
+    `metric` field that reads `probabilistic_sharpe_ratio_UNDEFLATED` **if** `sr0` ever does
+    collapse — so this is now a measured property of each run rather than an assumption in
+    either direction.
+  * **What DOES survive: `N = 8` is not the number of trials this project has run.** The
+    ledger records of the order of 146 pre-registered tests. That criticism is untouched by
+    the above and is the real one. Until a genuine trial counter exists (audit M1,
+    `RESEARCH_LOG.md`, started but deliberately not wired), the deflated figure is computed
+    against a denominator that is roughly 18x too small.
   * **PBO 6.7% scores the WEIGHT-SCHEME SELECTION STEP ONLY** — "the best of eight nearly
     identical weightings generalises". It says nothing about the ~146 signal-inclusion,
     theme-membership, universe, standardisation and construction decisions in the ledger, and
@@ -63,13 +259,104 @@ the project's memory and the old versions had been repeated for months.
   The measured numbers below are unchanged and still stand; the word "CONFIRMED" was the
   overstatement. Fixing the function (implement the rule, or rename it and its verdict labels)
   is audit item **B8** and is NOT yet done.
-- **The edge clears PBO 13.3% (want <50%), long-short t 3.485 (want >2), top-decile alpha
-  +11.77%.** The single biggest driver was zeroing `low_risk`, which passed the both-halves test
+- **SUPERSEDED 2026-08-04 (audit session 2, B6) — EVERY NUMBER IN THE NEXT TWO BULLETS WAS
+  MEASURED ON A PANEL WHOSE FIRST THIRD HAD AN INVERTED UNIVERSE. The corrected numbers are
+  WORSE and TWO OF THE THREE BARS NOW FAIL. Read the "CORRECTED PANEL" bullet below first;
+  the two bullets that follow are kept only as the record of what the defect was producing.**
+- **CURRENT FULL-UNIVERSE NUMBERS (2026-08-04, after the audit's Part I corrections):
+  long-short t 3.884, top-decile alpha +11.78%, monotonicity −0.988, PBO 13.3%.** Measured
+  against a clean pre-audit baseline re-run on identical data (t 3.520, alpha +11.88%,
+  monotonicity −0.952, PBO 6.7%): the composite sorts BETTER, top-decile alpha is a rounding
+  change, PBO doubles off a low base. The equal-weight benchmark did not move (+16.55% in every
+  run), which is the control. **Thirteen corrections and NOT ONE held-out verdict changed** —
+  the record's decisions were not resting on the defects, and the defects were not hiding a
+  different model. The sanity layer's flag count fell 5 → 2 (the three negative-multiple sign
+  flags cleared). Full A/B in `HANDOFF_edge_audit.md` Part 2.
+- **The edge clears PBO 13.3% (want <50%), long-short t 3.851 (want >2), top-decile alpha
+  +11.69%.** The single biggest driver was zeroing `low_risk`, which passed the both-halves test
   described above (decide on one half, measure on the other, both directions). On the
   pre-registered direction the rule fires on the early half (median IC −0.0308) and, measured
   on the later half, **long-short t goes 0.97 → 2.56 and top-decile alpha +6.09% → +9.30%**; the
   reverse direction agrees more strongly (t 0.55 → 2.57, alpha +6.63% → +14.49%). Do not treat
   the edge as settled — caveats at the end.
+- **CORRECTED PANEL, 2026-08-04 (audit session 2, B6+B7+B13) — THESE ARE THE LIVE NUMBERS.
+  Long-short t 2.836, top-decile alpha +7.17%, monotonicity −0.891, PBO 73.3%, over 69
+  rebalance dates on a genuine 18.5-year window (2008-01-16 → 2026-07-24).** The equal-weight
+  benchmark moved +16.55% → +18.14%, which is the control and confirms the universe itself
+  changed. **CORRECTED 2026-08-05 (audit session 3, X2+X7) — THE "TWO OF THREE BARS FAIL"
+  READING WAS WRONG, IN BOTH DIRECTIONS, AND BOTH ERRORS CAME FROM UNCALIBRATED BARS MEASURED
+  ON ONE ARBITRARY GRID.** It used to say: "t 2.836 is BELOW the Harvey–Liu–Zhu hurdle of 3.0
+  it used to clear, and PBO 73.3% is far above the <50% bar." Both halves are now retired:
+  * **t 2.836 vs the 3.0 hurdle is a GRID ARTEFACT.** X2 re-ran the whole backtest on seven
+    equally valid rebalance grids (offsets 0/5/10/20/30/40/50 trading days; the grid always
+    started at a hard-coded TD=252 and 62 other grids existed that nobody had ever looked at).
+    All seven keep 69 dates over the identical window. **Long-short t ranges 2.703 → 3.517,
+    median 2.926, and CLEARS 3.0 on three of the seven.** Quote **"t 2.7–3.5 depending on
+    grid, straddling the hurdle"** — never one side of 3.0 as a fact.
+  * **PBO <50% IS NOT A BAR AT ALL.** X7's placebo puts the MEDIAN PBO on a definitionally
+    worthless signal at **46.7%**, i.e. the "<50%" bar sits exactly at the noise level and has
+    almost no power. Calibrated bar is the placebo 5th percentile, **19.7%**. PBO is
+    uninformative here in either direction — do not cite it as a pass or a fail.
+  * **Top-decile alpha is the one headline that PASSED its robustness test:** spread across
+    the seven grids is only **1.30pp** (median **+7.52%**, range +6.84% to +8.14%), against an
+    equal-weight benchmark that itself moved 2.08pp across the same grids. The signal-driven
+    number is steadier than the market-driven one it is measured against.
+  Only the Deflated Sharpe still passes as originally stated — and X7 now DEFENDS it
+  (see the calibrated-thresholds bullet below); per B9 the surviving criticism of it is the
+  trial denominator, not the statistic.
+  **ATTRIBUTED, one change per run, on the full universe — B6 IS ESSENTIALLY THE WHOLE DROP:**
+  reverting B6 alone (B7+B13 still fixed) restores t 3.733, alpha +11.36%, PBO 26.7% at 110
+  dates, so **B6 costs t −0.897, alpha −4.18pp and PBO +46.7pp — 100% of the PBO blow-out, 88%
+  of the t drop, 89% of the alpha drop.** **B7 alone is NULL on the headline** (t −0.010, alpha
+  +0.01pp, PBO and equal-weight unchanged to the digit) — a correctness fix with no performance
+  consequence, which is the ideal outcome for one. **B13 alone is small and points both ways**
+  (t +0.122, alpha −0.51pp, EW −0.24pp): dropping 384 penny names helps the long-short and costs
+  the long-only book, consistent with penny names contributing at both ends of the ranking.
+  **What this means: roughly 40% of the top-decile alpha was coming from the 41 early rebalance
+  dates at which every name present was one that had already stopped trading.** State it as a
+  hypothesis, not a finding — a repair's effect on a fitted statistic is not evidence about the
+  repair. Costs still clear comfortably: breakeven 134 bps one-way against a **measured** 33.4
+  bps realised (B11 — the old "37 bps" was an assumption quoted as a measurement). **No shipped
+  decision changed:** `low_risk` still `confirmed` in both split directions, `insider` still
+  `rejected`. Full three-way A/B in `HANDOFF_edge_audit.md` Part 3.
+- **R1 RE-RUN, DONE 2026-08-05 (audit session 4) — THE THRESHOLD IS CLEARED AGAIN ON THE
+  CORRECTED PANEL, AT A LOWER LEVEL AND WITH A DIFFERENT MECHANISM. CLAIM A STILL APPLIES.**
+  The pre-commitment in `HANDOFF_r1.md` section 1 was honoured unchanged ("alpha" only if the
+  FF5+MOM intercept is positive with NW t > 2.0; ambiguous is a NULL). Re-run on the corrected
+  69-date panel → **68 non-overlapping 63d windows, 2009-01-15 → 2025-10-27**, deployed flat
+  1/7 weights, NW lag 1. Alignment check passes (SPY on MKT: beta 0.933, R² 0.988).
+  * **FF5+MOM alpha +6.99%/yr, NW t +3.984, R² 0.308** on the primary object (`top − ew`).
+    **ALL SIX pre-registered specs are positive with t > 2.0** — compound/sum × full/first
+    half/second half, spanning **+5.08% to +10.85%**. No disagreement, so the pre-registered
+    NULL veto is not triggered. **QUOTE +6.99%/yr (range +5.1% to +10.9%)**; the conservative
+    single number is the first half's +5.19%.
+  * **THE OLD +8.81%/yr AND THE +6.6%–8.8% RANGE ARE VOID. Do not quote them anywhere.**
+  * **THE MECHANISM REVERSED ON TWO OF ITS THREE LEGS — this is the part to re-read.** Now
+    loading: **HML +0.251 (t +2.93)** and **UMD +0.205 (t +3.65)**. NOT loading: **SMB +0.208
+    (t +1.39)** and **RMW +0.092 (t +0.90)**, both of which loaded strongly in the void run
+    (SMB t 3.84, RMW t 4.49). So the old story — "`size`, `quality`, `momentum` ARE the
+    standard premia; `value` and `capital_discipline` are not what FF measures" — is
+    **backwards on size and profitability** and must not be repeated. Current honest reading:
+    momentum is a genuine standard-premium exposure, the book now carries a real VALUE tilt,
+    and the size/profitability exposures that dominated the old story were largely an artefact
+    of the inverted-universe window B6 removed. R² fell 0.465 → 0.308 — the factor models
+    explain LESS of this series than of the void one.
+  * The unhedged small-cap tilt caveat WEAKENS for the spread (SMB +0.208, t 1.39, vs +0.885
+    before) but SURVIVES for the long-only book (SMB +0.691, t 3.89).
+  * Other objects: long-only book in excess of RF **+9.33%/yr (t 4.97)**; long-short
+    **+14.86%/yr (t 4.18)**; the equal-weight universe's own unexplained excess +2.34% (t 2.92).
+  * **CAVEAT THAT MUST TRAVEL: the secondary q-factor model does NOT clear on the first half**
+    (q4 +3.17%, t 1.712; q5 +1.56%, t 0.702), though it clears on the full sample (+6.72%,
+    t 3.19) and the second half (+11.49%, t 3.84). The pre-registered threshold is stated on
+    FF5+MOM so this does not veto, but the early-period result is model-dependent.
+  * Against X7's floor: raw top-decile alpha +7.13% is far outside the placebo null
+    [−1.33pp, +2.38pp], so R1 is decomposing something real. **X7 does NOT calibrate a
+    factor-regression intercept** — no placebo floor exists for R1's own t, and none was
+    invented. Still ONE panel; **X8's international replication is the out-of-sample evidence,
+    R1 is not.** Full entry: `HANDOFF_edge_audit.md` Part 5.
+- **SUPERSEDED 2026-08-05 by the R1 RE-RUN above. Every number in the next bullet was measured
+  on the pre-B6/B7 panel over a window that no longer exists, with a composite no shipped code
+  path uses. Kept only as the record of what was claimed. DO NOT QUOTE IT.**
 - **SETTLED 2026-08-04 (audit R1) — THE HEADLINE IS NOT MERELY FACTOR EXPOSURE. The word
   "alpha" is now permitted, as a RANGE and with caveats.** `top_decile_alpha` is still
   `4 × (mean top-decile 63d return − mean equal-weighted universe 63d return)` with no risk
@@ -146,9 +433,26 @@ the project's memory and the old versions had been repeated for months.
 - **CORRECTED — `institutional` coverage is 61.4%**, not the 81.7% previously recorded (that
   came from a smaller universe). It is still empty before 2013-06-30, so any early-period
   comparison involving it is uninformative rather than negative.
-- **Theme ICs (full universe):** quality +3.39, momentum +2.62, capital_discipline +2.25,
-  institutional +1.81, size +1.68, growth +1.45, value +1.34, low_risk +0.71, **insider −0.34**,
-  sentiment empty. `insider` is the only negative theme and still carries 12.5% weight — but
+- **Theme ICs (full universe, CURRENT 2026-08-04):** quality +3.57, momentum +2.62,
+  capital_discipline +2.25, institutional +1.81, size +1.68, value +1.52, growth +1.45,
+  low_risk +0.71, **insider −0.43**, sentiment empty.
+- **A FULL BACKTEST IS NOT REPRODUCIBLE RUN TO RUN, AND THE INSIDER THEME IS WHERE IT SHOWS.
+  Found 2026-08-04; unexplained; do not build on any single run's insider number.** Three
+  full-universe runs on identical data gave `insider` median IC **−0.00335 (t −0.34)**,
+  **+0.01551 (t +2.69)** and **−0.00339 (t −0.43)** at unchanged 85.0% coverage. The first and
+  third bracket the second and agree to four decimals, so the middle run is the anomaly and
+  **audit B26 (the same-day-filing exclusion) is NOT the cause** — an earlier note in this file
+  said it was, and that was wrong. B26's effect was measured directly on 22,975 (ticker, date)
+  score pairs: it alters **3.96% of scores at a level correlation of 0.9975**, consistent with
+  the ~0 IC change between the runs that bracket it. Every other theme is stable to ±0.01 across
+  all three runs. **What this means: `insider`'s IC sits so close to zero that its t-statistic is
+  not a measurable quantity**, which is exactly why zeroing it came back `not_replicated`
+  (Δt +0.08 one direction, −0.09 the other). It is also a reproducibility problem in its own
+  right — a project whose memory is its results files needs its results files to be
+  deterministic. **Next session: find the nondeterminism before trusting any marginal IC.**
+  Audit item **S3** (the `+min(10, 2·buys)` bonus is unconditionally additive; `tanh(net/5e6)`
+  saturates regardless of company size) is the thread that might make this theme measurable.
+- **Historical note:** `insider` is the only negative theme, and still carries 12.5% weight — but
   zeroing it **did NOT replicate** out-of-sample, so it was deliberately left alone.
 - **Theme ICs are NOT stable across time.** `low_risk` flips −0.031 → +0.041 between halves and
   `size` flips t +3.17 → −0.67 (the small-cap premium worked pre-2012, not after). Treat any
@@ -237,16 +541,31 @@ the project's memory and the old versions had been repeated for months.
   only below `exit_rank = top_n × 2`) and pays neither costs nor taxes, unlike every other book
   in the results file — so it is also mislabelled. Weight-tuning itself remains noise-chasing:
   CPCV still adopts no weighting over the defaults.
+- **FIXED 2026-08-04 (audit session 2). The panel is now a genuine 18.5-year window,
+  2008-01-16 → 2026-07-24, 69 rebalance dates, cross-sections 1,471–1,954.** `days=None` means
+  the whole series and the shared calendar is cut ONCE, before the ffill. Each run ships
+  `panel_window` (available vs retained range, the cut, per-date cross-section sizes) so the
+  two-blocks-disagree-about-their-window failure cannot recur silently. **41 of the 110 dates
+  were dropped and the headline fell with them — see the CORRECTED PANEL bullet above; this was
+  the most expensive correction in the audit.** The description below is what the defect WAS:
 - **The panel is 27 YEARS long, not 18, and its first third has an INVERTED universe (audit
-  B6, not yet fixed).** `WRDSProvider.price_history` truncates with `.tail(4659)`, so each
+  B6, FIXED — see above).** `WRDSProvider.price_history` truncates with `.tail(4659)`, so each
   ticker keeps its OWN last 18.5 years and the calendar is the union: 1998-12-31 → 2026-04-22,
   110 rebalance dates over 27.3 years. At a 2001 cross-section every name present is one that
   stopped trading by roughly 2019 — the inverse of classic survivorship bias, and it makes
   roughly the first 37 of 110 periods uninterpretable. Those same 37 dates have no benchmark,
   which is why `construction.n_periods` reads 110 while `portfolio.n_periods` reads 73 in the
   same JSON over undisclosed windows. Direction of the bias is genuinely unclear.
-- **The LIVE product does not score names the way the backtest does (audit B7/G, not yet
-  fixed).** `screen.py:256` calls `build_frame(metrics)` with no keyword arguments, inheriting
+- **FIXED 2026-08-04 (audit session 2, B7/G). There is now ONE composite**, used by selection,
+  measurement and live, and it renormalises by the present-weight mass — the convention
+  SELECTION already used, so the deployed weights were chosen under it. `CONFIG.sector_neutral`
+  and `CONFIG.residual_momentum` now default **false**. **Live and backtest score identically**
+  (max abs difference 0.0), pinned by
+  `test_audit_b7_the_live_path_and_the_backtest_path_score_identically`. Measured effect on the
+  headline: **NULL** (t −0.010, alpha +0.01pp) — the disagreement was real in mechanism but
+  small in magnitude on this panel. The description below is what the defect WAS:
+- **The LIVE product does not score names the way the backtest does (audit B7/G, FIXED — see
+  above).** `screen.py:256` calls `build_frame(metrics)` with no keyword arguments, inheriting
   `CONFIG.sector_neutral` (default **true**) and `CONFIG.residual_momentum` (default **true**),
   while the backtest forces both `False`. Sector-neutral ranking was tested on the full universe
   and rejected in both held-out directions, twice. **Unless `SCREENER_SECTOR_NEUTRAL=false` is
@@ -284,8 +603,10 @@ the project's memory and the old versions had been repeated for months.
 - **"The entire edge is 13F" is now OBSOLETE.** Without the institutional theme, top-decile
   alpha is still +10.6% and long-short t 2.86 (was 0.71). That finding was an artifact of
   quality/low_risk running on half their inputs.
-- **`insider` is now the only negative theme (t −0.34) and still carries 12.5% weight** — the
-  obvious next candidate, deliberately NOT changed.
+- **`insider` is the only negative theme (t −0.34, now −0.43) and still carries 12.5% weight** —
+  the obvious next candidate, deliberately NOT changed. **See the reproducibility note above:
+  one of three identical-data runs returned +2.69, so this theme's t is not a measurable
+  quantity in either direction. The held-out verdict is `rejected` in all three runs.**
 - Real full-universe coverage: `institutional` **61.4%** (not the 81.7% below), `insider`
   85.0%. F-Score is **t +2.74** on the full universe, not +5.66.
 

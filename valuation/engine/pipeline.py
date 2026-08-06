@@ -24,6 +24,25 @@ from .comps import compute_comps, CompsResult
 from .sensitivity import build_sensitivity, SensitivityResult
 from .scoring import compute_score, ScoreResult
 
+# --------------------------------------------------------------------------- #
+# PUBLICATION. The decision itself now lives in `engine/publication.py` — see the module
+# docstring for why (CONSOLIDATE-1: it had five independent implementations that disagreed).
+# `FV_BAND_HIGH` is re-exported here because `valuation/web/withhold.py` imports it from this
+# module; it is the SAME object, not a copy.
+from .publication import (FV_BAND_HIGH, FV_BAND_LOW, decide as decide_publication,
+                          PublicationVerdict)
+
+
+def publication_guard(cd: CompanyData, blend, growth_led: bool = False) -> Optional[str]:
+    """Refuse to publish a fair value we cannot stand behind. Returns the reason, or None.
+
+    Thin wrapper over `publication.decide` kept for the existing callers and tests. It adds
+    no threshold of its own — read the verdict directly in new code.
+    """
+    fv = blend.value if getattr(blend, "valuable", False) else None
+    return decide_publication(fv, getattr(cd, "price", None), cd=cd,
+                              growth_led=growth_led).reason or None
+
 
 @dataclass
 class ValuationResult:
@@ -211,6 +230,17 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
                                maturity, maturity_parts)
     blend.value_low, blend.value_high = fv_scen.get("bear"), fv_scen.get("bull")
 
+    # Refuse to publish before anything downstream consumes the number — the score must
+    # not be computed against a fair value the reader is never shown.
+    refusal = publication_guard(cd, blend, growth_led=getattr(blend, "growth_led", False))
+    if refusal:
+        blend.valuable = False
+        blend.withheld_value = blend.value   # kept for guards only — never published
+        blend.value = None
+        blend.reason = refusal
+        blend.confidence = "low"
+        blend.headline = refusal
+
     # Score against the SAME number the user is shown, so the valuation sub-score and the
     # headline can't disagree. compute_score already tolerates None (it renormalizes).
     score = compute_score(cd, cls, wacc_value,
@@ -233,14 +263,32 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
     fv, px = result.base_fair_value, cd.price
     if fv and px and px > 0:
         ratio = fv / px
-        if ratio > 5 or (ratio < 0.2 and not blend.growth_led):
+        if ratio > FV_BAND_HIGH or (ratio < FV_BAND_LOW and not blend.growth_led):
             result.warnings.insert(0, f"Fair value ${fv:,.2f} is {ratio:.1f}× the ${px:,.2f} price — almost "
                                       f"certainly a data problem (currency or share count), not a real "
                                       f"opportunity. Verify the figures before trusting this valuation.")
-        elif ratio < 0.2:
+        elif ratio < FV_BAND_LOW:
             result.warnings.insert(0, f"Our valuation (${fv:,.2f}) is a fraction of the ${px:,.2f} price. "
                                       f"For a pre-profit growth name that is a disagreement about future "
                                       f"growth, not a data error — see the implied-growth read.")
+
+    # Reinvestment sanity: `delta revenue / sales_to_capital` collapses toward zero when
+    # revenue is flat, so a capex-heavy name is charged almost nothing to stand still.
+    # Measured on a 241-name universe: 34 names are undercharged by more than 5% of
+    # revenue, 22 by more than 10% (worst SRE 57.9%, ORCL 54.7%, D 44.1%), concentrated in
+    # Utilities, Energy and Basic Materials. Flagged, NOT corrected — see the handoff.
+    base_dcf = scenarios.base
+    r_y1, net_capex = getattr(base_dcf, "reinvestment_y1", None), getattr(
+        base_dcf, "observed_net_capex", None)
+    rev0 = getattr(base, "base_revenue", None)
+    if r_y1 is not None and net_capex is not None and rev0 and net_capex > 0:
+        shortfall = (net_capex - r_y1) / rev0
+        if shortfall > 0.05:
+            result.warnings.append(
+                f"The forecast reinvests {r_y1:,.0f} in year 1 against {net_capex:,.0f} of "
+                f"observed net capital spend (capex minus D&A) — a shortfall of "
+                f"{shortfall:.0%} of revenue. Free cash flow is modelled higher than this "
+                f"company has been able to produce; treat the valuation as optimistic.")
 
     if run_ai:
         try:

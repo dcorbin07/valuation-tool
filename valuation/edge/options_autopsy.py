@@ -969,7 +969,7 @@ def _filter_series(rows, feat, rule):
     return out
 
 
-def pbo_cscv(rows, feats, n_blocks: int = 8) -> dict:
+def pbo_cscv(rows, feats, n_blocks: int = 8, embargo_days: Optional[int] = None) -> dict:
     """Probability of Backtest Overfitting, by Combinatorially Symmetric Cross-Validation.
 
     PBO does not score a single strategy — it scores the SELECTION step. The question it answers
@@ -979,11 +979,36 @@ def pbo_cscv(rows, feats, n_blocks: int = 8) -> dict:
     Each feature's rule is fixed once on the FULL sample (a config has to be constant across
     splits for CSCV to mean anything), so this measures the overfitting of CHOOSING among the
     configs, not of fitting each one. That is the standard construction and the relevant one.
+
+    AUDIT R3.4 — PURGE AND EMBARGO. Trades are stamped with their ENTRY date and stay open for
+    up to 75 days, so a trade entered on the last day of an in-sample block is still being
+    resolved by the market well inside the adjacent out-of-sample block. CSCV's whole premise is
+    that the two halves are independent samples of performance; without purging they share the
+    days that decide their boundary trades.
+
+    THE DIRECTION OF THAT BIAS WAS ASSERTED HERE AND THE ASSERTION WAS WRONG. This docstring
+    used to claim the contamination biases PBO DOWNWARD. Measured by A/B on one feature pass with
+    only `embargo_days` varying, purging LOWERS PBO on both books:
+
+        corrected book      embargo 0d -> PBO 17.14%   embargo 75d -> 12.86%   (-4.29pp)
+        pre-correction book embargo 0d -> PBO 48.57%   embargo 75d -> 38.57%   (-10.00pp)
+
+    So the unpurged split was reporting PBO too HIGH, not too low. No mechanism for that is
+    verified. A plausible one — offered as a hypothesis and not as a finding — is that boundary
+    dates are where trades straddle regimes, so removing them makes the in-sample ranking more
+    stable out of sample. Do not repeat it as an explanation without testing it.
+
+    `embargo_days=0` reproduces the old, unpurged behaviour exactly; `None` uses the label window
+    (`options_stats.MAX_HOLD_DAYS`). The count of purged dates ships in the result so a silent
+    revert to the contaminated split is loud.
     """
     import itertools
     import math as _m
 
     import numpy as np
+
+    from .options_stats import MAX_HOLD_DAYS, purged_split
+    emb = MAX_HOLD_DAYS if embargo_days is None else int(embargo_days)
 
     rules = {}
     for f in feats:
@@ -1005,10 +1030,17 @@ def pbo_cscv(rows, feats, n_blocks: int = 8) -> dict:
 
     names = list(rules)
     lam, below = [], 0
+    n_purged, n_total_dates = 0, 0
     combos = list(itertools.combinations(range(n_blocks), n_blocks // 2))
     for c in combos:
-        is_keep = set().union(*[blocks[i] for i in c])
-        os_keep = set().union(*[blocks[i] for i in range(n_blocks) if i not in c])
+        os_c = [i for i in range(n_blocks) if i not in c]
+        if emb > 0:
+            is_keep, os_keep = purged_split(dates, list(c), os_c, blocks, embargo_days=emb)
+        else:
+            is_keep = set().union(*[blocks[i] for i in c])
+            os_keep = set().union(*[blocks[i] for i in os_c])
+        n_total_dates += len(dates)
+        n_purged += len(dates) - len(is_keep) - len(os_keep)
         is_p = {f: perf(f, is_keep) for f in names}
         os_p = {f: perf(f, os_keep) for f in names}
         ok = [f for f in names if is_p[f] is not None and os_p[f] is not None]
@@ -1026,16 +1058,38 @@ def pbo_cscv(rows, feats, n_blocks: int = 8) -> dict:
         return {"ok": False, "reason": "no usable splits"}
     return {"ok": True, "pbo": below / len(lam), "n_splits": len(lam),
             "n_configs": len(names), "median_logit": float(np.median(lam)),
-            "note": "PBO scores the SELECTION among configs, not any single filter."}
+            "embargo_days": emb,                                          # AUDIT R3.4
+            "purged_date_frac": (n_purged / n_total_dates) if n_total_dates else 0.0,
+            "note": "PBO scores the SELECTION among configs, not any single filter. Dates whose "
+                    "label window crosses an IS/OS boundary are purged (AUDIT R3.4)."}
 
 
-def deflated_sharpe(returns, n_trials: int) -> dict:
+def deflated_sharpe(returns, n_trials: int, trial_sharpes=None) -> dict:
     """Deflated Sharpe Ratio on the per-trade return series, adjusted for `n_trials` searched.
 
     Two things to keep in view. The 'Sharpe' here is PER TRADE, not annualised — these are not
     a time series of periodic returns and must not be read as one. And the skew/kurtosis terms
     are load-bearing rather than cosmetic: the return distribution is a barbell with a fat right
     tail, which is precisely the shape a plain Sharpe misprices.
+
+    AUDIT B25 — RECONCILED WITH `fundamental_panel._deflated_sharpe`. The audit reported the two
+    as irreconcilable ("they disagree on the key input, `var_sr` as sampling variance versus
+    cross-trial variance, and will never reconcile"). Worked through, they are **algebraically
+    identical in the test statistic**:
+
+        this module :  stat = (sr - sr0) / sqrt(var_sr),  var_sr = denom / (n - 1)
+        the panel   :  z    = (sr - sr0) * sqrt(n - 1) / sqrt(denom)
+
+    with `denom = 1 - skew*sr + (kurt - 1)/4 * sr^2` in both. Substituting one into the other
+    gives the same expression. The ONLY genuine difference is the variance fed to the `sr0`
+    benchmark, and there Bailey-Lopez de Prado are explicit: `SR0` scales with `V[{SR_n}]`, the
+    variance ACROSS the trials searched — not with the sampling variance of one Sharpe estimate.
+
+    So the panel's convention is the correct one and this module's was an approximation. Pass
+    `trial_sharpes` and the benchmark is computed the paper's way; omit it and the sampling
+    variance is used as before, with `sr0_basis` recording which was done. The 126-feature
+    autopsy has no meaningful cross-trial Sharpe vector (its trials are feature screens, not
+    strategies), which is why the fallback stays rather than being removed.
     """
     import numpy as np
     from math import erf, exp, log, sqrt
@@ -1077,11 +1131,18 @@ def deflated_sharpe(returns, n_trials: int) -> dict:
     var_sr = (1 - g3 * sr + ((g4 - 1) / 4.0) * sr * sr) / (n - 1)
     if var_sr <= 0:
         return {"ok": False, "reason": "non-positive SR variance"}
-    sr0 *= sqrt(var_sr)
+    # AUDIT B25 — the benchmark scales with the variance ACROSS TRIALS when that is knowable.
+    _ts = [v for v in (_f(t) for t in (trial_sharpes or [])) if v is not None]
+    if len(_ts) > 1:
+        _v = float(np.var(_ts, ddof=1))
+        sr0_basis, sr0 = "cross_trial_variance", sr0 * sqrt(_v)
+    else:
+        sr0_basis, sr0 = "sampling_variance_APPROXIMATION", sr0 * sqrt(var_sr)
     stat = (sr - sr0) / sqrt(var_sr)
     dsr = 0.5 * (1 + erf(stat / sqrt(2)))
     return {"ok": True, "n": n, "sharpe_per_trade": sr, "skew": g3, "kurtosis": g4,
             "n_trials": N, "sr0_threshold": sr0, "deflated_sharpe": dsr,
+            "sr0_basis": sr0_basis,                       # AUDIT B25
             "note": "per-TRADE Sharpe, not annualised"}
 
 

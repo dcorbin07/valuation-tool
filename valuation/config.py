@@ -153,10 +153,17 @@ class Config:
     # every uncached name costs 3 requests; without a ceiling a big universe can spend the
     # whole daily quota in a single run. 0 = unlimited.
     fmp_max_calls: int = field(default_factory=lambda: int(_get_float("FMP_MAX_CALLS", 0)))
-    # Score factors relative to sector peers (removes accidental sector bets). Toggle
-    # off (SCREENER_SECTOR_NEUTRAL=false) to A/B against whole-universe scoring.
-    sector_neutral: bool = field(default_factory=lambda: _get("SCREENER_SECTOR_NEUTRAL", "true").lower() != "false")
-    residual_momentum: bool = field(default_factory=lambda: _get("SCREENER_RESIDUAL_MOMENTUM", "true").lower() != "false")
+    # AUDIT B7/G — BOTH OF THESE DEFAULTED **TRUE** WHILE THE BACKTEST FORCED THEM **FALSE**.
+    # `screen.py` calls `build_frame(metrics)` with no keyword arguments, so the live hot list
+    # inherited whatever these say. Sector-neutral ranking was tested on the full universe and
+    # REJECTED in both held-out directions, then independently re-run on a later panel and
+    # rejected again (it buys long-short t and sells top-decile alpha — the wrong trade for a
+    # long-only book; see HANDOFF_sector_neutral.md). The code default was never flipped, so
+    # unless SCREENER_SECTOR_NEUTRAL=false was set in the environment the product scored names
+    # under the one intervention the research eliminated. Defaults now match the research.
+    # Set either env var to "true" to A/B against whole-universe scoring.
+    sector_neutral: bool = field(default_factory=lambda: _get("SCREENER_SECTOR_NEUTRAL", "false").lower() == "true")
+    residual_momentum: bool = field(default_factory=lambda: _get("SCREENER_RESIDUAL_MOMENTUM", "false").lower() == "true")
     soft_bucket: bool = field(default_factory=lambda: _get("SCREENER_SOFT_BUCKET", "true").lower() != "false")
     # Feed EV/Sales + EV/EBITDA into the ESTABLISHED value branch too (they already feed the
     # speculative one). Default OFF pending the full-universe A/B — HANDOFF_growth_evsales.md.
@@ -228,29 +235,49 @@ class Config:
     #                         /demo/<token> gets an instant Premium preview with
     #                         NO signup. Keep it working forever (survives beta);
     #                         set it to something unguessable before you charge.
-    beta_mode: bool = field(default_factory=lambda: _get("BETA_MODE", "true").lower() != "false")
+    # DEFAULT CHANGED TO FALSE (2026-08-04). The strip read "Beta — in active development.
+    # Everything is unlocked free WHILE WE BUILD", which is a promise to a customer: it says
+    # the free part is temporary and a paid product is coming. Neither is true. Valquo is free
+    # to anyone, forever, with nothing for sale, and the header now says exactly that. The
+    # banner and its flag are kept — BETA_MODE=true brings it back if there is ever a beta.
+    beta_mode: bool = field(default_factory=lambda: _get("BETA_MODE", "false").lower() == "true")
     beta_all_premium: bool = field(default_factory=lambda: _get("BETA_ALL_PREMIUM", "true").lower() != "false")
 
-    # PRIVATE_MODE — Valquo is a PERSONAL RESEARCH TOOL for the owner, not a product.
+    # PRIVATE_MODE — the total lockdown: owner-only, nothing served to anyone else.
     #
-    # This is a deliberate licence-compliance posture, not a soft launch. ThetaData's
-    # Individual plan and Sharadar's individual terms are "personal use only, no
-    # redistribution, no business use"; the Business equivalents are an order of magnitude
-    # more expensive. One user, no commercial activity, no third party reading vendor-derived
-    # numbers => those terms are cleanly satisfied. Anything that presents Valquo as a service
-    # to other people — signup, checkout, tier copy, an anonymous visitor reading scores — is
-    # what would break them, so all of it is switched off here rather than trimmed by hand.
+    # DEFAULT CHANGED TO FALSE (2026-08-04). Valquo is now PUBLIC AND FREE TO ANYONE, with the
+    # sensitive half held back by the OWNER SPLIT below rather than by locking the door. The
+    # flag, the policy module and every test are kept intact, so `PRIVATE_MODE=true` restores
+    # the personal-tool posture exactly as it was in one environment variable.
     #
-    # DEFAULT TRUE, and it OVERRIDES open_access / beta_all_premium / signup / billing rather
-    # than being overridden by them: a lockdown that any other flag can silently undo is not a
-    # lockdown. It is read in exactly two kinds of place — the derived properties just below
-    # (which is why no template ever tests `private_mode` directly) and `saas/private.py`,
-    # which owns the request-level policy.
+    # WHY PUBLIC IS STILL LICENCE-CLEAN, so nobody re-litigates it:
+    #   * No commercial activity. Free, no billing, no revenue, no customers — so no "business
+    #     use" trigger under ThetaData Individual or Sharadar's individual terms.
+    #   * The LIVE path runs on FMP + Tradier. Sharadar and ThetaData are BACKTEST-ONLY and
+    #     must never reach a public surface; `saas/surfaces.py` is what enforces that.
+    #   * Derived statistics Don computed are his. Raw vendor rows are not. That line does not
+    #     move, and it is the reason the split below is drawn where it is.
     #
-    # NOTHING IS DELETED. Every tier, route, template and Stripe path stays intact and tested,
-    # so `PRIVATE_MODE=false` restores the public product exactly as it was — see
-    # "Reversing this" in HANDOFF_appfixes.md.
-    private_mode: bool = field(default_factory=lambda: _get("PRIVATE_MODE", "true").lower() != "false")
+    # While it is on, it still OVERRIDES open_access / beta_all_premium / signup / billing: a
+    # lockdown any other flag can silently undo is not a lockdown. Read in exactly two kinds of
+    # place — the derived properties below (which is why no template tests it directly) and
+    # `saas/private.py`, which owns the request-level policy.
+    private_mode: bool = field(default_factory=lambda: _get("PRIVATE_MODE", "false").lower() == "true")
+
+    # OWNER_SPLIT — which surfaces stay owner-only on a PUBLIC instance.
+    #
+    # This is the liability boundary, and it is a different question from private_mode. Public
+    # gets analysis: the valuation tool, the ranking, the methodology, the portfolio page.
+    # Owner-only gets everything that is a PERFORMANCE CLAIM (the forward paper track and its
+    # equity curve, the paper option book), an ACTIONABLE LIVE PICK (the constructed Index
+    # book, live options alerts, the intraday signal feed, the portfolio builder), or
+    # BACKTEST/VENDOR INTERNALS (the Edge Lab, backtest runners, anything Sharadar- or
+    # ThetaData-derived).
+    #
+    # A flag rather than a hard-coded rule so the split is reversible and testable: OFF
+    # restores the everything-public behaviour that preceded it. The path list itself lives in
+    # `saas/surfaces.py`, one entry per surface with its reason and its data vendor.
+    owner_split: bool = field(default_factory=lambda: _get("OWNER_SPLIT", "true").lower() != "false")
 
     # PORTFOLIO_PAGE — the ONE deliberate hole in private mode, and its own flag on purpose.
     #

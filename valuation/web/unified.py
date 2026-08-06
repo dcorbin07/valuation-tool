@@ -173,12 +173,21 @@ def options_for(store, ticker, risk_budget=None) -> dict:
 
 
 def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
-              with_options: bool = True) -> dict:
+              with_options: bool = True, with_book: bool = True) -> dict:
     """Everything the product knows about one name, from what is already stored.
 
-    `with_options=False` is the free tier: the ranking half is public (it is the same ranking
-    the Hot tab serves) but the specific contract is the paid Signals feature, so it is
-    withheld with a reason rather than the whole panel being login-walled.
+    Two independent switches, because this panel spans the public product and two owner-only
+    surfaces and a visitor should still get the half that is theirs:
+
+    * `with_options=False` withholds the specific contract (an actionable live pick).
+    * `with_book=False` withholds where the name sits in the CONSTRUCTED book and in the paper
+      account — a live position and a paper-account record, which are owner-only on a public
+      instance for the reasons in `saas/surfaces.py`.
+
+    The ranking half is public either way: it is the same ranking the Hot tab serves, and
+    refusing it here while publishing it there would be theatre. Both withholdings say so in
+    the payload rather than silently omitting a key — a missing field reads as "no book
+    position", which is a different and false statement.
     """
     ticker = str(ticker or "").strip().upper()
     if not ticker:
@@ -215,6 +224,13 @@ def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
             estimate_fair_values([row], peer_rows=rows)
         except Exception:
             pass
+        # The SECOND public surface fed by that estimator (the first is /api/hotstocks), and
+        # it has to apply the same band or the leak just moves one endpoint over.
+        try:
+            from .withhold import withhold_implausible_fair_values
+            withhold_implausible_fair_values([row])
+        except Exception:
+            pass
         extra = row.get("extra") or {}
         out["stock"] = {
             "in_scan": True, "scan_date": scan_date, "n_scored": len(rows),
@@ -223,9 +239,15 @@ def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
             "composite": _f(row.get("composite")), "price": _f(row.get("price")),
             "fair_value": _f(row.get("fair_value")), "upside": _f(row.get("upside")),
             "fair_value_method": row.get("fair_value_method"),
+            "fair_value_withheld": bool(row.get("fair_value_withheld")),
+            "fair_value_withheld_reason": row.get("fair_value_withheld_reason"),
             "why": extra.get("why") or [], "why_composite": extra.get("why_composite"),
-            "index": _index_membership(rows, ticker, book_config),
-            "paper_position": _paper_stock_position(store, ticker),
+            # The two owner-only halves. `book_withheld` is carried explicitly so the reader
+            # (and _action_lines below) can tell "not published" from "not in the book".
+            "index": (_index_membership(rows, ticker, book_config) if with_book
+                      else {"withheld": True}),
+            "paper_position": (_paper_stock_position(store, ticker) if with_book else None),
+            "book_withheld": not with_book,
         }
         try:
             from ..screener.freshness import status as _freshness
@@ -262,7 +284,14 @@ def _action_lines(view: dict) -> list:
     else:
         idx = s.get("index") or {}
         rank, n = s.get("rank"), s.get("n_scored")
-        if idx.get("in_book"):
+        if s.get("book_withheld"):
+            # Says which, deliberately. "NOT in the Valquo Index" would be a statement about
+            # the book, and we did not look at the book.
+            lines.append({"kind": "stock", "text":
+                          f"It ranks {rank} of {n} in the {s.get('scan_date')} scan. Whether "
+                          f"the model's own book holds it is not published — that is a live "
+                          f"position, and this is an educational tool, not a signal service."})
+        elif idx.get("in_book"):
             w = _f(idx.get("weight"))
             lines.append({"kind": "stock", "text":
                           f"HELD in the Valquo Index ({idx.get('config')}) at "

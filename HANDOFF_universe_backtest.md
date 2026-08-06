@@ -1,5 +1,36 @@
 # HANDOFF — Roadmap 22b: the options edge on the expanded universe
 
+> # SUPERSEDED 2026-08-05 BY AUDIT SESSION 5 (R2). DO NOT QUOTE ANY NUMBER IN THIS FILE.
+>
+> Every figure below was computed against a **mis-stated underlying price** (audit **B1**: a
+> split- and dividend-adjusted spot compared against as-traded strikes), plus four further
+> defects — B2 (exit-path censoring), B3 (stale expiry mark), B4 (the −1 open-interest
+> sentinel) and B15 (commission). The corrected re-run is `HANDOFF_edge_audit.md` **Part 6**.
+>
+> **What changed, and what did not:**
+>
+> * **The central finding SURVIVES.** The alert book still loses to its own random-entry
+>   control: gap **−7.47pp** (was −8.08pp), date-block CI95 **[−13.92pp, −2.43pp]**, sign-test
+>   **z −2.907**. The entry signal is dead, and now that is measured on corrected data under
+>   clustered inference rather than on a corrupted price basis.
+> * **§1's headline is VOID.** "The edge survives breadth but roughly halves" is false. The 133
+>   new names are now **−0.47%/trade (PF 0.988)**; the entire book's positive expectancy comes
+>   from the original 54 megacaps (+9.37%). The edge does **not** survive breadth.
+> * **§6 is VOID.** `term_slope`'s +8.89pp out-of-sample replication was an artefact. On
+>   corrected data the filter makes its own out-of-sample book **worse** (gain **−1.12pp**
+>   against a +5.00pp bar). It passes the re-committed retention floor (R7) and fails anyway.
+> * **§8's unexplained median IV of 1.28–1.57 was the bug.** Corrected, it is **0.2497** at
+>   100% coverage (was 75.3%). That anomaly was the price basis all along.
+> * **The Deflated Sharpes are void**: unfiltered 88.13% → **49.59%**, term_slope-filtered
+>   95.69% → **80.63%**. Neither clears 95% now.
+> * **§4's control statistics are reproduced exactly** by shipped code for the first time
+>   (`options_stats.paired_name_year`: 441 of 1,052 cells, z −5.185 vs the −5.24 recorded here).
+>   But see Part 6 on **seed instability** — the control's own mean moves 8.9pp on a reseed, so
+>   a single seed is not enough to settle this comparison.
+>
+> Kept unedited below as the record of what the defects were producing.
+
+
 Session of 2026-08-03. Options lane. Everything below is the full 187-name run at
 **aggression 1.0 (buy the ask, sell the bid)**, window 2016-01-01 to 2025-10-15.
 
