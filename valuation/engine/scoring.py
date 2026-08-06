@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from ..data.models import CompanyData
+# The band is imported, never restated — see engine/publication.py (CONSOLIDATE-1).
+from .publication import FV_BAND_HIGH, FV_BAND_LOW
 from .classify import Classification
 
 # Regime -> weights for (valuation, quality, growth, health, momentum)
@@ -247,13 +249,13 @@ def compute_score(cd: CompanyData, cls: Classification, wacc: float,
     checked_fv = base_fv if base_fv else getattr(blend, "withheld_value", None)
     if checked_fv and cd.price and cd.price > 0:
         ratio = checked_fv / cd.price
-        if ratio > 5 or (ratio < 0.2 and not growth_led):
+        if ratio > FV_BAND_HIGH or (ratio < FV_BAND_LOW and not growth_led):
             composite = min(composite, 50)
             confidence = "low"
             drivers.insert(0, f"⚠ Model fair value is {ratio:.1f}× the price — implausible; likely a data "
                               f"issue (currency, share count, or a one-off). Capped and flagged unreliable, "
                               f"not a recommendation.")
-        elif ratio < 0.2:
+        elif ratio < FV_BAND_LOW:
             confidence = "low"
             drivers.insert(0, f"Model fair value is {ratio*100:.0f}% of the price. On a growth name that is "
                               f"a disagreement with the market about future growth, not necessarily a data "

@@ -25,58 +25,23 @@ from .sensitivity import build_sensitivity, SensitivityResult
 from .scoring import compute_score, ScoreResult
 
 # --------------------------------------------------------------------------- #
-# PUBLICATION GUARD (2026-08-04).
-#
-# The engine already DETECTED implausible output — it warned "almost certainly a data
-# problem (currency or share count)" — and then published the number anyway. KSPI
-# (Kaspi.kz, statements in KZT, USD ADR price $92.00) shipped a $1,249.16 base fair
-# value at +1,258% upside with that warning attached and "confidence: low". A confident
-# wrong number is worse than no number: the reader sees $1,249, not the caveat.
-#
-# So the same thresholds that produced the warning are now BINDING. Tripping the guard
-# marks the blend not-valuable, which is the state the UI already renders as
-# "Not DCF-valuable" with upside "n/a" — no web-layer change needed.
-#
-# Thresholds are the pre-existing warning bands, deliberately not retuned here.
-#
-# ONLY the high side refuses. A fair value far BELOW the price is not this failure mode:
-# the product is not telling anyone to buy, and suppressing it would hide legitimate
-# "this is expensive" verdicts — including the honest net-cash floor on a revenue-less
-# shell ($0.22 against a $8.00 price), which `test_dcf_still_floors_at_net_cash_when_
-# revenue_is_gone` deliberately requires us to publish. The low side keeps its warning.
-FV_BAND_HIGH = 5.0    # fair value > 5x price -> refuse
+# PUBLICATION. The decision itself now lives in `engine/publication.py` — see the module
+# docstring for why (CONSOLIDATE-1: it had five independent implementations that disagreed).
+# `FV_BAND_HIGH` is re-exported here because `valuation/web/withhold.py` imports it from this
+# module; it is the SAME object, not a copy.
+from .publication import (FV_BAND_HIGH, FV_BAND_LOW, decide as decide_publication,
+                          PublicationVerdict)
 
 
 def publication_guard(cd: CompanyData, blend, growth_led: bool = False) -> Optional[str]:
     """Refuse to publish a fair value we cannot stand behind. Returns the reason, or None.
 
-    Two independent refusals:
-      1. UNRESOLVED CURRENCY — statements in one currency, price in another, and the FX
-         rate could not be fetched. Every monetary input is then in the wrong units by an
-         unknown factor. `yahoo.fetch` sets `fx_unresolved` for exactly this case and
-         nothing downstream had ever acted on it.
-      2. SANITY BAND — the published number is more than 5x the market price. See the
-         note above for why the low side warns rather than refuses.
+    Thin wrapper over `publication.decide` kept for the existing callers and tests. It adds
+    no threshold of its own — read the verdict directly in new code.
     """
-    fin = (getattr(cd, "financial_currency", "") or "").upper()
-    px_ccy = (getattr(cd, "currency", "") or "USD").upper()
-    if getattr(cd, "fx_unresolved", False):
-        return (f"Cannot value this name: the statements are reported in {fin or 'a foreign currency'} "
-                f"but the price is in {px_ccy}, and the exchange rate could not be resolved. "
-                f"Every figure would be wrong by an unknown factor, so no fair value is published.")
-    if fin and fin != px_ccy and getattr(cd, "fx_rate", None) is None:
-        return (f"Cannot value this name: the statements are in {fin} and the price is in {px_ccy}, "
-                f"but no currency conversion was applied. No fair value is published.")
-
     fv = blend.value if getattr(blend, "valuable", False) else None
-    px = getattr(cd, "price", None)
-    if fv and px and px > 0:
-        ratio = fv / px
-        if ratio > FV_BAND_HIGH:
-            return (f"Cannot value this name: the model's ${fv:,.2f} is {ratio:.1f}x the ${px:,.2f} "
-                    f"price. That gap is a data problem (currency or share count), not an "
-                    f"opportunity, so no fair value is published.")
-    return None
+    return decide_publication(fv, getattr(cd, "price", None), cd=cd,
+                              growth_led=growth_led).reason or None
 
 
 @dataclass
@@ -298,11 +263,11 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
     fv, px = result.base_fair_value, cd.price
     if fv and px and px > 0:
         ratio = fv / px
-        if ratio > 5 or (ratio < 0.2 and not blend.growth_led):
+        if ratio > FV_BAND_HIGH or (ratio < FV_BAND_LOW and not blend.growth_led):
             result.warnings.insert(0, f"Fair value ${fv:,.2f} is {ratio:.1f}× the ${px:,.2f} price — almost "
                                       f"certainly a data problem (currency or share count), not a real "
                                       f"opportunity. Verify the figures before trusting this valuation.")
-        elif ratio < 0.2:
+        elif ratio < FV_BAND_LOW:
             result.warnings.insert(0, f"Our valuation (${fv:,.2f}) is a fraction of the ${px:,.2f} price. "
                                       f"For a pre-profit growth name that is a disagreement about future "
                                       f"growth, not a data error — see the implied-growth read.")
