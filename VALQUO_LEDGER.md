@@ -26,7 +26,14 @@ file replaces reconstructing project state from git history.
   verdicts in this vocabulary, so their column is blank and the write-up's own
   word is quoted in the note instead. Blank therefore means *"not measured, or
   measured and reported in different words"* — never *"we don't know"*.
-* **commit** — the sha it landed in, so any claim here is checkable in one step.
+* **commit** — a sha, so any claim here is checkable in one step. It is the
+  commit whose *subject names the item* where one exists; otherwise it is the
+  commit that **introduced the write-up**. Many items landed inside multi-item
+  commits ("eleven Part I corrections") that never name them, so for much of the
+  B series this is *"where it was recorded"*, not *"where it was fixed"* — a
+  weaker claim, and stated here rather than left to be assumed. Unfinished rows
+  carry no sha at all: a commit that merely *mentioned* an item reads as
+  evidence of work done, and is worse than a blank.
 * **handoff** — where the real write-up lives. The ledger is an index, not a
   replacement for it.
 * **src** — `human` = hand-verified against the write-up; `build_ledger.py`
@@ -102,68 +109,68 @@ file replaces reconstructing project state from git history.
 | X6 | X | Structural-break test | DONE | NULL | bd495f5 | HANDOFF_free_analysis.md | 2026-08-03 | human | Structural-break test null under Holm-Bonferroni; the 2012 story is NOT confirmed. |
 | X7 | X | Placebo through the pipeline | DONE |  | 1caacec | HANDOFF_edge_audit.md | 2026-08-06 | human | 3 of the project's 4 thresholds are UNCALIBRATED, 1 survives. Re-run at true N=84 CONFIRMED. |
 | X8 | X | Replicate on JKP / another country | DONE |  | 7edf594 | HANDOFF_free_analysis.md | 2026-08-04 | human | REPLICATES on another vendor's data in another country (JKP, Europe). |
-| S1 | S | Fix value theme inputs | OPEN |  |  |  |  | auto | prose mentions only (7), no section, no commit |
-| S2 | S | Register cash_op_prof | OPEN |  |  |  |  | auto | prose mentions only (7), no section, no commit |
-| S3 | S | Rebuild the insider score | OPEN |  |  |  |  | auto | prose mentions only (4), no section, no commit |
-| S4 | S | Growth theme carries zero weight | OPEN |  |  |  |  | auto | prose mentions only (1), no section, no commit |
-| S5 | S | Hierarchical shrinkage | OPEN |  |  |  |  | auto | prose mentions only (2), no section, no commit |
-| S6 | S | Factor momentum on themes | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| S7 | S | Pre-registered interactions | OPEN |  |  |  |  | auto | prose mentions only (1), no section, no commit |
-| S8 | S | Signal-freshness weighting | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| S9 | S | Data-staleness conditioning | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| S10 | S | Downside-exclusion screen | OPEN |  |  |  |  | auto | prose mentions only (1), no section, no commit |
-| S11 | S | Horizon ensemble | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| S12 | S | Rank within bucket | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| S13 | S | Vol-targeted weighting | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| S14 | S | No-trade band on net alpha | OPEN |  |  |  |  | auto | only forward references (1) -- mentioned as a dependency, never written up |
-| S15 | S | Sector-relative value only | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| S16 | S | Decompose net issuance | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| S17 | S | Decode the rest of EVENTS | OPEN |  |  |  |  | auto | prose mentions only (1), no section, no commit |
-| S18 | S | Short interest as interaction | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| S19 | S | MD&A anomaly left on the table | OPEN |  |  |  |  | auto | prose mentions only (1), no section, no commit |
-| S20 | S | Rank composite, not z-sum | OPEN |  |  |  |  | auto | prose mentions only (1), no section, no commit |
-| S21 | S | Winsorise before standardising | OPEN |  |  |  |  | auto | prose mentions only (1), no section, no commit |
-| S22 | S | Term structure of the signal | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| S23 | S | Exit rule for the equity book | OPEN |  |  |  |  | auto | only forward references (1) -- mentioned as a dependency, never written up |
-| S24 | S | Ensemble across draws | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| S25 | S | Point-in-time sector map | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| S1 | S | Fix value theme inputs | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S2 | S | Register cash_op_prof | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S3 | S | Rebuild the insider score | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S4 | S | Growth theme carries zero weight | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S5 | S | Hierarchical shrinkage | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S6 | S | Factor momentum on themes | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S7 | S | Pre-registered interactions | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S8 | S | Signal-freshness weighting | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S9 | S | Data-staleness conditioning | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S10 | S | Downside-exclusion screen | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S11 | S | Horizon ensemble | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S12 | S | Rank within bucket | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S13 | S | Vol-targeted weighting | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S14 | S | No-trade band on net alpha | OPEN |  |  |  |  | auto | only forward references -- mentioned as a dependency, never written up |
+| S15 | S | Sector-relative value only | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S16 | S | Decompose net issuance | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S17 | S | Decode the rest of EVENTS | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S18 | S | Short interest as interaction | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S19 | S | MD&A anomaly left on the table | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S20 | S | Rank composite, not z-sum | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S21 | S | Winsorise before standardising | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S22 | S | Term structure of the signal | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S23 | S | Exit rule for the equity book | OPEN |  |  |  |  | auto | only forward references -- mentioned as a dependency, never written up |
+| S24 | S | Ensemble across draws | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S25 | S | Point-in-time sector map | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | S26 | S | Read the twenty worst holdings | DONE |  | 6eb5a2f | HANDOFF_free_analysis.md | 2026-08-04 | human | Pattern named, then PARTLY REFUTED and retracted in place. Refines low_risk. |
-| S27 | S | Weight recent observations more | OPEN |  |  |  |  | auto | only forward references (2) -- mentioned as a dependency, never written up |
-| S28 | S | Distribution, not just the mean | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| O1 | O | Exit sweep incl. random entries | OPEN |  |  |  |  | auto | prose mentions only (7), no section, no commit |
+| S27 | S | Weight recent observations more | OPEN |  |  |  |  | auto | only forward references -- mentioned as a dependency, never written up |
+| S28 | S | Distribution, not just the mean | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| O1 | O | Exit sweep incl. random entries | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | O2 | O | Cross-sectional VRP | DONE | REJECTED | bd495f5 | HANDOFF_free_analysis.md | 2026-08-03 | human | Audit of the existing implementation, NOT an independent test. Nothing clears the gate; adopted: []. |
 | O3 | O | Delta-hedged vs idio vol | OPEN |  |  | HANDOFF_free_analysis.md |  | human | Held until R1 returned (HANDOFF_free_analysis:392). R1 has now returned - UNBLOCKED. |
 | O4 | O | Expected idio skewness | OPEN |  |  | HANDOFF_free_analysis.md |  | human | Held until R1 returned (HANDOFF_free_analysis:392). R1 has now returned - UNBLOCKED. |
 | O5 | O | Volatility of volatility | OPEN |  |  | HANDOFF_free_analysis.md |  | human | Held until R1 returned (HANDOFF_free_analysis:392). R1 has now returned - UNBLOCKED. |
-| O6 | O | Cheapest-on-surface selection | OPEN |  |  |  |  | auto | prose mentions only (2), no section, no commit |
+| O6 | O | Cheapest-on-surface selection | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | O7 | O | Earnings straddles | OPEN |  |  | HANDOFF_free_analysis.md |  | human | Held until R1 returned (HANDOFF_free_analysis:392). R1 has now returned - UNBLOCKED. |
 | O8 | O | Index VRP - run existing bt | DONE | INCONCLUSIVE | ce03500 | HANDOFF_optionsbot.md | 2026-08-03 | human | SPY INCONCLUSIVE (excess Sharpe 0.14 vs a 0.50 bar); QQQ and IWM REJECTED. |
 | O9 | O | IV rank as sell-timing | DONE | REJECTED | 22aa0ac | HANDOFF_optionsbot.md | 2026-08-04 | human | Effect flips sign across SPY/QQQ/IWM. Per the audit's pre-registration the short-vol question is CLOSED. |
-| O10 | O | Passive-limit fill model | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| O11 | O | Portfolio layer for single-leg | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| O10 | O | Passive-limit fill model | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| O11 | O | Portfolio layer for single-leg | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | O12 | O | Fractional Kelly / ruin | OPEN |  |  | HANDOFF_edge_audit.md |  | human | Unblocked by B3 (tail and sizing work). No write-up yet. |
-| O13 | O | Anti-signal decomposition | OPEN |  |  |  |  | auto | prose mentions only (1), no section, no commit |
-| O14 | O | Tick flow, alert days only | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| O13 | O | Anti-signal decomposition | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| O14 | O | Tick flow, alert days only | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | O15 | O | Re-mine beyond 90 DTE | DONE |  | 06e44fe | HANDOFF_miner_remine.md | 2026-08-06 | human | Re-mined to 200 DTE, 100 names deep; a silent symbol-year loss was found and fixed. |
-| O16 | O | Is term_slope a front-IV level? | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| O17 | O | Earnings filter for the long arm | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| O18 | O | Spread-conditional cost model | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| O19 | O | Cheap-contract sizing artefact | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| O16 | O | Is term_slope a front-IV level? | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| O17 | O | Earnings filter for the long arm | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| O18 | O | Spread-conditional cost model | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| O19 | O | Cheap-contract sizing artefact | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | O20 | O | PIT option-universe selection | DONE | ADOPTED | 0fb22a8 | HANDOFF_edge_audit.md | 2026-08-05 | human | As a reported partition; the audit's expectation is REFUTED. Does NOT rescue the signal. |
-| O21 | O | Dividends / early exercise | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| O22 | O | Capacity-constrained replay | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| O23 | O | Exits vs the underlying | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| O24 | O | Is term_slope an earnings cal? | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| O25 | O | Sell the wing after the move | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| O26 | O | Raise the per-bucket floor | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| O21 | O | Dividends / early exercise | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| O22 | O | Capacity-constrained replay | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| O23 | O | Exits vs the underlying | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| O24 | O | Is term_slope an earnings cal? | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| O25 | O | Sell the wing after the move | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| O26 | O | Raise the per-bucket floor | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | U1 | U | Stock composite -> options entry | OPEN |  |  | VALQUO_ACTION_PLAN.md |  | human | Session 7 (the unification), after U2. Held until R1 returned - now UNBLOCKED. |
 | U2 | U | Options surface -> stock signals | OPEN |  |  | VALQUO_ACTION_PLAN.md |  | human | Session 7, runs FIRST of the unification. Replaces the dead WRDS lever. |
-| U3 | U | Convex overlay as insurance | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| U3 | U | Convex overlay as insurance | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | U4 | U | One decision object | OPEN |  |  | VALQUO_ACTION_PLAN.md |  | human | Deliberately gated on U1/U2 - do not ship over two disconnected engines. |
 | U5 | U | Tax-aware arm allocation | DONE |  | 7edf594 | HANDOFF_free_analysis.md | 2026-08-04 | human | Decided, and the headline corrected. Roth +17.4% vs taxable +4.86% - a 3.6x lever. |
 | U6 | U | CSPs in, covered calls out | OPEN |  |  | VALQUO_ACTION_PLAN.md |  | human | Session 7 (the unification), after U1. |
 | U7 | U | Composite as an options veto | OPEN |  |  | HANDOFF_free_analysis.md |  | human | Session 6 one-line probe. Held until R1 returned - now UNBLOCKED. |
-| U8 | U | One risk budget across books | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| U8 | U | One risk budget across books | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | C1 | C | Backtest the model that ships | DONE | REJECTED | 6041e8f | HANDOFF_optionsbot.md | 2026-08-04 | human | REJECTED for both models. Found a LIVE bug on the way: Form 4 URLs pointed at XSL views, 597/597 empty. |
 | C2 | C | Universe is inverse of target | DONE | ADOPTED | 6041e8f | HANDOFF_optionsbot.md | 2026-08-04 | human | ADOPTED (correctness). --universe legacy still reproduces the old behaviour. |
 | C3 | C | --bots reversion does nothing | DONE | ADOPTED | f5c5a37 | HANDOFF_optionsbot.md | 2026-08-03 | human | ADOPTED (correctness). --bots reversion did nothing and reported success. 6 tests. |
@@ -172,23 +179,23 @@ file replaces reconstructing project state from git history.
 | C6 | C | Three undeployed fixes | BLOCKED | ADOPTED |  | HANDOFF_optionsbot.md |  | human | ADOPTED-in-repo and still UNDEPLOYED. Blocker: Don must scp quant_bots/data/*.py off the box. |
 | C7 | C | Widen the CI gate | DONE | ADOPTED | a2894a8 | HANDOFF_edge_audit.md | 2026-08-03 | human | Widened the CI gate. Mattered because the pipeline auto-merges to main and Render deploys. |
 | P1 | P | Estimate capacity | DONE |  | 6eb5a2f | HANDOFF_free_analysis.md | 2026-08-04 | human | Capacity ~= $23M, and that is an UPPER bound. |
-| P2 | P | Model user crowding | OPEN |  |  |  |  | auto | only forward references (1) -- mentioned as a dependency, never written up |
-| P3 | P | Design for a 37% hit rate | OPEN |  |  |  |  | auto | prose mentions only (1), no section, no commit |
+| P2 | P | Model user crowding | OPEN |  |  |  |  | auto | only forward references -- mentioned as a dependency, never written up |
+| P3 | P | Design for a 37% hit rate | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | P4 | P | Fix the track's rules | OPEN |  |  |  |  | human | 'Out of band for this audit', flagged not fixed. CLAUDE.md's 'DONE (P4 commit)' is the PHASE P4 - a collision. |
 | P5 | P | Decide the claim before R1 | DONE |  |  | HANDOFF_edge_audit.md |  | human | Pre-committed CLAIM A/B language rule; CLAIM A's text ships. No section of its own - weakest DONE here. |
 | D1 | D | Sharadar direct at $29/mo | OPEN |  |  | VALQUO_ACTION_PLAN.md |  | human | An action for Don: check the Nasdaq Data Link bill against the $29/mo direct bundle. |
-| D2 | D | ThetaData tier + licence | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| D2 | D | ThetaData tier + licence | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | D3 | D | Fetch the free factor datasets | DONE |  | bd495f5 | HANDOFF_free_analysis.md | 2026-08-03 | human | COMPLETE - every dataset R1 requires is present and verified. |
-| D4 | D | Cboe Open-Close Volume Summary | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| D5 | D | ORATS | OPEN |  |  |  |  | auto | prose mentions only (2), no section, no commit |
-| D6 | D | Estimate-revision situation | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| D4 | D | Cboe Open-Close Volume Summary | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| D5 | D | ORATS | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| D6 | D | Estimate-revision situation | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | D7 | D | WRDS reality check | OPEN |  |  | VALQUO_ACTION_PLAN.md |  | human | DISPUTED: the action plan asserts 'dead end (D7)' but no write-up or commit exists anywhere. |
-| D8 | D | What not to buy | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| D9 | D | Options costs are a step change | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| D8 | D | What not to buy | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| D9 | D | Options costs are a step change | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | D10 | D | Freeze verification + legend | DONE | ADOPTED | a2894a8 | HANDOFF_edge_audit.md | 2026-08-03 | human | Adopted as record; all six schema questions settled. Found D10-a, a defect NOT in the audit. |
 | M1 | M | Research log with real N | DONE | ADOPTED | 2f3529b | HANDOFF_edge_audit.md | 2026-08-03 | human | N = 8 (shipped) vs 84 (measured). Consequence fired: the edge does NOT clear the Deflated Sharpe. |
 | M2 | M | Clustered inference default | OPEN |  |  |  |  | human | No genuine mention. HANDOFF_STATUS's 'the audit's M2' is CODE_AUDIT.md's M2 - a different document. |
-| M3 | M | Guards with known-bad fixtures | OPEN |  |  |  |  | auto | prose mentions only (1), no section, no commit |
-| M4 | M | Live-replay harness | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| M3 | M | Guards with known-bad fixtures | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| M4 | M | Live-replay harness | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | M5 | M | Protocol for tail-hedge tests | DONE |  | 7edf594 | HANDOFF_free_analysis.md | 2026-08-04 | human | Protocol WRITTEN, which was the deliverable - it is not an evaluation of any hedge. |
-| M6 | M | Results-file schema assertion | OPEN |  |  |  |  | auto | prose mentions only (1), no section, no commit |
+| M6 | M | Results-file schema assertion | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
