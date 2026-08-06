@@ -479,14 +479,16 @@ still be readable.
   file is `data\backtest_freeze_2026-08\bulk\sep.csv` at **3.00 GB**, and the next freeze will very
   likely exceed 4 GB. FAT32 would refuse it with an error that looks nothing like "out of space".
   NTFS is fine too; exFAT is simpler if the drive ever needs to move between machines.
-- **Any drive letter.** Two lines at the top of `backup_to_D.ps1`:
+- **Any drive letter.** Two lines, `backup_to_D.ps1:38-39`:
   ```powershell
-  $SRC = "C:\Users\donni\Downloads\valuation-tool"
-  $DST = "D:\valuation-tool (Backup)"      # <- change the letter here
-  $LOG = "D:\valquo_backup_log.txt"        # <- and here
+  $SRC        = "C:\Users\donni\Downloads\valuation-tool"   # line 37 - leave alone
+  $DST        = "D:\valuation-tool (Backup)"                # line 38 - change the letter
+  $LOG        = "D:\valquo_backup_log.txt"                  # line 39 - and here
   ```
-  Nothing else is drive-specific. The script derives the volume, free space and summary path from
-  `$DST`.
+  Nothing else is drive-specific: line 50 derives the volume root from `$DST`, and free space, the
+  writability probe and the summary path all follow from that. The 40 tests already run the script
+  against a scratch directory on another path via `-Source`/`-Destination`, so a drive change is a
+  case that is covered.
 - **Size:** 38.01 GB today. **128 GB minimum**, 256 GB comfortable — `HANDOFF_miner.md` projects
   `data\options` reaching ~199 GB for a full 1,000-name mine, which is the growth that will force
   the next decision (§7 item 4).
