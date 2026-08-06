@@ -270,6 +270,7 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
     refusal = publication_guard(cd, blend, growth_led=getattr(blend, "growth_led", False))
     if refusal:
         blend.valuable = False
+        blend.withheld_value = blend.value   # kept for guards only — never published
         blend.value = None
         blend.reason = refusal
         blend.confidence = "low"

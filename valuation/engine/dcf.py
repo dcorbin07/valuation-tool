@@ -30,8 +30,16 @@ from .assumptions import AssumptionSet
 # universe rather than argued about. See HANDOFF_live_data_bugs.md Part 2.
 #
 # MIN_TERMINAL_SPREAD was 0.005 — a 0.5pp floor is a 200x terminal multiple, i.e.
-# nominally a guard and effectively none. It has never bound on a real name.
-MIN_TERMINAL_SPREAD = 0.005
+# nominally a guard and effectively none. It never bound on a real name.
+#
+# 3.0pp = a 33.3x terminal multiple, the generous end of what a mature business supports.
+# ADOPTED ON COHERENCE, NULL ON PERFORMANCE (Don's call, 2026-08-05): measured on the
+# 241-name universe it resolved NONE of the withheld names — it did not pass the
+# pre-registered resolve-the-names test in HANDOFF_live_data_bugs.md Part 2 — but its
+# measured harm is zero (median |delta| 0.000%, 0/128 names moved >25%, 0 pushed out of
+# the guard band). It ships because a floor that has never bound is not a floor, the same
+# way the point-in-time EV fix shipped on correctness rather than performance.
+MIN_TERMINAL_SPREAD = 0.030
 # None = uncapped. A cap of N reads as "we will not assume a business is worth
 # more than N x its terminal free cash flow".
 MAX_TERMINAL_MULTIPLE = None

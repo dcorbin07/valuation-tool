@@ -610,3 +610,182 @@ Ships as instructed, and will be recorded as **ADOPTED ON COHERENCE, NULL ON PER
 will not restate it as having passed the Part 2 pre-registered test, because it did not. The
 before/after numbers already measured in Part 2 §3 stand and will not be re-derived to look
 better.
+
+## PART 3 RESULTS — measured after the pre-commitment above (b671f0f)
+
+All three items shipped. Suites: **20 suites, 692 tests, all green.**
+
+### ITEM 1 — the wrong field. Blast radius: 194 silently-wrong names.
+
+**Measured across the 241-name sweep** (positional read vs a real revenue figure):
+
+| | count |
+|---|---|
+| names swept | 241 |
+| positional read absent (already fell back) | 1 |
+| both values present | 239 |
+| **DIFFER by >1pp** | **202 (84.5%)** |
+| — LOUD (outside `[-0.30, 1.00]`, caught by the Part 2 engine fix) | **8** |
+| — **QUIET (inside the band, still silently wrong)** | **194** |
+
+|difference| median **0.085** (8.5pp of growth), p90 **0.473**, max **15.04**.
+
+**The Part 2 engine rejection caught 8 of 202.** My Part 2 wording — "there is no reason to
+think they are rare" — was right, and it understated it: **80.5% of the universe was using an
+earnings growth rate as a revenue growth rate.** Worst quiet cases: COF (+0.185 vs +11.11),
+ENB (+0.109 vs +0.971), MPC (−0.290 vs +0.545), CVX (−0.183 vs +0.526), DELL, SHEL, PLTR, XOM,
+GOOGL, NVDA (+0.433 vs +0.852).
+
+**Two things the positional read did that are worse than "wrong column":**
+
+- **BRK.B's `growth_estimates` frame has only an `indexTrend` column.** `.iloc[0]` there was
+  taking **the S&P 500's growth estimate** as Berkshire's revenue growth. 239 of 241 frames had
+  `[stockTrend, indexTrend]`; one had `[indexTrend]`. Positional access cannot notice this.
+- **A NaN became a 100% growth forecast.** `min(1.00, nan)` returns **1.0** in Python, so the
+  old blend's clamp turned a missing value into an explicit "100% revenue growth" — which is
+  why **WELL (Welltower, a healthcare REIT) was classified hypergrowth**. Three names came
+  through as NaN (WELL, TM, SONY). The Part 2 band check already rejects NaN; confirmed.
+  This is the **third** instance of the same pattern: a clamp converting garbage into a
+  plausible-looking extreme.
+
+**The fix** (`valuation/data/yahoo.py`): `_analyst_revenue_growth()` reads
+`revenue_estimate.loc["+1y", "growth"]` — a genuinely next-year *revenue* series, **selected by
+name on both axes** — then falls back to `info["revenueGrowth"]`, and **rejects anything outside
+`[-0.30, 1.00]` at the source**, because `revenueGrowth` is not clean either (COF: **11.11**).
+239 of 241 names now resolve a plausible value.
+
+**Effect (isolated: growth input only, everything else held):**
+
+| | before | after |
+|---|---|---|
+| mature | 91 | **113** |
+| growth | 54 | 31 |
+| cyclical | 43 | 52 |
+| **hypergrowth** | **22** | **14** |
+| withheld by the guard | 7 | **5** |
+
+Names whose input changed (n=213): median |Δ fair value| **2.323%**, 10 moved >25%.
+
+**My pre-committed do-no-harm bound for this item could not be evaluated, and I am not going to
+pretend otherwise.** I committed to "on names whose growth input does NOT change, median
+|Δ fair value| must be 0.000%". After the run there were **zero names with a bit-identical
+input** — the correct field differs from the wrong one essentially everywhere, so no control
+group exists. My first attempt to report this bucket was also wrong twice over: it bundled
+items 1–3 into one before/after, and its "unchanged" test (`abs(old-new) > 0.01`) silently
+swallowed the three NaN names, because `nan > 0.01` is False — which is how WELL, a 59% mover,
+landed in the "unchanged" column. Both errors are mine, both are corrected above by re-running
+each item in isolation. **The bound was unmeasurable as written; item 1 ships on correctness —
+the right field, selected by name — not on a do-no-harm result.**
+
+**Pattern sweep (`.iloc` against named-column frames).** `valuation/data/**` and
+`valuation/engine/**`: **exactly one instance, the one fixed here.** Every remaining `.iloc` is
+1-D positional *by intent* — `closes.iloc[-126]` ("126 bars ago"), `benchf.iloc[i]`,
+`share.iloc[0]` read alongside its own `share.index[0]`. No `.columns[N]`, `.iloc[:, N]`,
+`.values[0]` or `.iat[]` anywhere in either tree. Statement rows are picked by label
+(`_pick_row`), correctly.
+
+### ITEM 2 — the score no longer eats the withheld valuation
+
+**Isolated (scoring only; growth input and terminal floor held at their old values):**
+
+- **Fair values identical: max |Δ| `0.00000000%`** — this change touches scores only.
+- **Publishable names (n=234): max |Δ score| = 0.** The pre-committed bound was "EXACTLY
+  unmoved", and it is met exactly.
+
+| name | score | valuation sub-score | confidence |
+|---|---|---|---|
+| KSPI | **93 → 50** | **100.0 → None** | medium → low |
+| JD | **79 → 50** | 99.4 → None | high → low |
+| CI | **71 → 50** | 100.0 → None | high → low |
+| CHTR | **69 → 48** | 100.0 → None | high → low |
+| STLA | 45 → 44 | 49.4 → None | low → low |
+| BRK.B | 58 → 58 | None → None | low → low |
+| HES | 40 → 40 | None → None | low → low |
+
+Both defects are fixed: `compute_score` drops the **entire** valuation sub-score when the blend
+is not valuable (so `mc.prob_undervalued` at 0.30 and `comps_fair_value` at 0.15 cannot rebuild
+it), and the ">5x is a data problem" cap now evaluates against `blend.withheld_value` — a new
+field holding the value the guard suppressed, **for guards only, never published**. KSPI moving
+93 → 50 is that cap firing for the first time on a withheld name.
+
+**The decision, argued as pre-committed: a PARTIAL score from the four uncontaminated
+sub-scores, explicitly labelled.** Quality, growth, financial health and momentum are computed
+from reported financials and price history; none of them depends on the DCF being publishable.
+Suppressing them entirely would discard four working measurements because a fifth failed, and
+`compute_score` already renormalises over missing sub-scores — the machinery and the precedent
+are both already here. Every such score now carries the driver *"Valuation withheld — no
+fair-value, Monte Carlo or comps term contributes to this score. Scored on quality, growth,
+financial health and momentum only."* and confidence is forced to **low**.
+
+**The falsifier I named could not be evaluated, and I am flagging that rather than claiming a
+pass.** I said I would abandon the partial score if withheld names systematically landed in a
+different part of the distribution such that the same number meant two different things. After
+all fixes there are **5 withheld names** (18, 40, 40, 47, 50) against 236 publishable ones
+(min 16, p25 44, median 51, p75 65, max 85). The withheld set does sit lower — but n=5, and
+three of them are pinned at ≤50 by the cap that is *supposed* to pin them. **That is not enough
+evidence to evaluate the falsifier**; the mitigations are that the score is labelled in its
+drivers and forced to low confidence. If the withheld set grows, re-check it.
+→ **For the app lane:** it should render as a partial score, not a full one.
+
+### ITEM 3 — candidate A: ADOPTED ON COHERENCE, NULL ON PERFORMANCE
+
+`MIN_TERMINAL_SPREAD = 0.030` ships. **It did not pass the Part 2 pre-registered test** — that
+test was resolve-the-names and it resolved none — and it is not restated here as though it did.
+It ships because a 0.005 floor is a 200x terminal multiple, i.e. a floor that has never bound
+and therefore is not a floor. Measured harm, isolated: median |Δ| **0.000000%**, **0 of 234
+names moved >25%**, withheld count **7 → 7** (unchanged, exactly the null result Part 2
+predicted). Largest single moves: PCG 16.7%, TTE 15.6%, LMT 13.8%, INFY 13.4%, COP 12.5%,
+VZ 9.5% — all low-WACC names where the old floor let the multiple run.
+
+The pinning test is restored and green:
+`test_low_beta_defensive_name_does_not_degenerate_the_terminal_value`.
+
+**Close-out on CHTR, CI and JD** (all fixes on):
+
+| name | price | regime | terminal multiple | TV as % of EV | DCF | headline | verdict |
+|---|---|---|---|---|---|---|---|
+| CHTR | $153.17 | mature | **56.0 → 33.3** | 83.7% | $2,080 → $1,348 | still **withheld** (8.1x) | **model defect** |
+| CI | $270.50 | mature | 37.1 → 33.3 | **93.5%** | $1,792 → $609 | **publishes $1,013** (3.7x) | fragile |
+| JD | $32.54 | mature | 35.2 → 33.3 | **97.9%** | $237 → $84 | **publishes $109** (3.3x) | fragile |
+
+- **CHTR: A cut the terminal multiple from 56.0x to 33.3x and the DCF from $2,080 to $1,348, and
+  it is still withheld at 8.1x price.** The remaining gap is a **model defect, not a real
+  verdict** — 83.7% of enterprise value is terminal, and BUGS FOUND #5 is unresolved: the
+  forecast still more than doubles free cash flow ($37/share today to $85 in year 5) on 1.16x
+  revenue and a flat margin, which points at `sales_to_capital` under-charging reinvestment for
+  a capex-heavy cable operator. **CHTR is the one name where nothing shipped in Part 3 helps.**
+- **CI and JD now publish — but not because the terminal fix worked.** They publish because
+  item 1 reclassified them from growth to mature. And they publish numbers that are **93.5% and
+  97.9% terminal value**, which is a fragile figure, not a confident one. Counting them as
+  "resolved" would overstate the result.
+
+### What I did NOT do, and why
+
+- **Did not fix the day-to-day reproducibility problem** (MRK swinging from "cannot value" to a
+  91 "Strong Buy" because Yahoo stopped returning one beta field), as instructed. What it would
+  take: a **stated, stable beta fallback** — the current one silently substitutes 1.10, which is
+  what moved MRK's WACC 5.53% → 9.31% overnight — plus a **provenance/staleness stamp** on the
+  inputs a valuation rests on, so a headline that changed because a vendor field vanished is
+  distinguishable from one that changed because the company did. The adjacent half is BUGS FOUND
+  #2, still open: `wacc.py:67` has **no low-side beta floor and no minimum-history check**, so
+  KSPI's 0.08 (30 monthly observations on a 2024 ADR listing) still passes as plausible.
+- **Did not re-tune anything after seeing results.** The `[-0.30, 1.00]` band at the source is
+  the same band the engine already used.
+- **Did not touch** `valuation/edge/**`, `fundamental_panel.py`, `factors.py`, `settings.py`,
+  `screen.py`, `valuation/web/**` or `valuation/report/**`.
+
+## BUGS FOUND (Part 3)
+
+1. **A NaN analyst growth became an explicit 100% growth forecast**, because `min(1.00, nan)`
+   returns `1.0`. It classified **WELL** as hypergrowth. Third instance of "a clamp disguising
+   garbage as a plausible extreme"; already rejected by the Part 2 band check, now also at
+   source.
+2. **`growth_estimates` is not shape-stable across names** — BRK.B's frame has only
+   `indexTrend`. Any positional read of that frame is reading the index, not the company.
+3. **`info["revenueGrowth"]` is itself unreliable** — COF returns **11.11**. Rejected at source.
+4. **CI and JD publish fair values that are 93.5% and 97.9% terminal value.** They pass the 5x
+   guard, so nothing flags them, but a number that is ~all terminal value deserves a
+   confidence marker. No guard currently looks at `tv_pct_of_ev` — `DCFResult` has carried it
+   all along.
+5. **CHTR (BUGS FOUND #5 from Part 2) is still open and is now the single worst remaining
+   name**: 83.7% terminal, FCF/share modelled to more than double on 1.16x revenue.

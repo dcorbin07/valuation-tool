@@ -438,6 +438,57 @@ def test_guard_leaves_a_normal_name_alone():
     assert not any("Cannot value this name" in w for w in r.warnings)
 
 
+def test_withheld_valuation_contributes_nothing_to_the_score():
+    """KSPI printed a valuation sub-score of 100.0/100 and a composite of 93 "Strong Buy"
+    on a name the model had DECLINED to value. Passing base_fv=None dropped only the
+    margin-of-safety term (0.55); `mc.prob_undervalued` (0.30) — the share of Monte Carlo
+    trials OF THE WITHHELD DCF beating the price, 1.00 on KSPI — and `comps_fair_value`
+    (0.15, $326.32 against a $92.19 price) rebuilt it."""
+    from valuation.engine.scoring import compute_score
+    from valuation.engine.blend import FairValueBlend
+
+    cd = build_nike()
+    cls = classify(cd)
+    w = compute_wacc(cd, CONFIG).wacc
+
+    class _MC:      prob_undervalued = 1.0
+    class _Comps:   comps_fair_value = cd.price * 3.5
+
+    withheld = FairValueBlend(value=None, valuable=False,
+                              withheld_value=cd.price * 13.6, reason="Cannot value this name")
+    s = compute_score(cd, cls, w, base_fv=None, mc=_MC(), comps=_Comps(), blend=withheld)
+    assert s.subscores["valuation"] is None, (
+        f"valuation sub-score {s.subscores['valuation']} — nothing derived from a withheld "
+        f"valuation may enter the score")
+    assert not any("of trials value it above the price" in d for d in s.drivers), s.drivers
+    assert not any("Comps imply" in d for d in s.drivers), s.drivers
+    # the four uncontaminated sub-scores still carry a partial score
+    assert s.subscores["quality"] is not None and s.subscores["momentum"] is not None
+    assert 1 <= s.score <= 100
+
+
+def test_absurd_value_cap_still_fires_when_the_value_is_withheld():
+    """The cap read `if base_fv and ...`, so it could not fire once the guard set
+    base_fv=None: PUBLISHING a 13.6x fair value capped KSPI at 50, while WITHHOLDING it let
+    KSPI print 93. A safety check that only works when the unsafe thing is present is worse
+    than no check."""
+    from valuation.engine.scoring import compute_score
+    from valuation.engine.blend import FairValueBlend
+
+    cd = build_nike()
+    cls = classify(cd)
+    w = compute_wacc(cd, CONFIG).wacc
+
+    class _MC:      prob_undervalued = 1.0
+    class _Comps:   comps_fair_value = cd.price * 3.5
+
+    withheld = FairValueBlend(value=None, valuable=False, withheld_value=cd.price * 13.6)
+    s = compute_score(cd, cls, w, base_fv=None, mc=_MC(), comps=_Comps(), blend=withheld)
+    assert s.score <= 50, f"a 13.6x withheld valuation must still cap the score, got {s.score}"
+    assert s.confidence == "low"
+    assert any("implausible" in d.lower() for d in s.drivers), s.drivers
+
+
 def test_implausible_analyst_growth_is_rejected_not_clamped():
     """THE root cause of the $2,471 Merck DCF. `analyst_rev_growth_next` was being fed an
     EARNINGS growth estimate (yahoo.py:293 reads the `stockTrend` column), which explodes
@@ -481,6 +532,34 @@ def test_mature_pharma_is_not_classified_hypergrowth():
     a = build_base_assumptions(cd, cls, cd.risk_free_rate, CONFIG)
     assert a.start_growth < 0.10, a.start_growth
     assert a.n_years <= 7, "a mature name must not get the 10-year hypergrowth runway"
+
+
+def test_low_beta_defensive_name_does_not_degenerate_the_terminal_value():
+    """The MRK/GILD/CI/CHTR shape. A genuinely low-beta defensive large-cap gets a low
+    WACC, and terminal growth is set independently at 3.0% — so `TV = FCF/(WACC - g)` ran
+    on a 1.8-3.1pp denominator and produced $1,700-$2,500 fair values against $128-$282
+    prices. Those betas are REAL (independently re-estimated: GILD 0.336 vs Yahoo 0.336,
+    CHTR 0.678 vs 0.668), so the fix cannot be "assume the beta is wrong".
+
+    Written during the Part 2 investigation and confirmed failing against the 0.005 floor
+    (`terminal spread 2.19%`); restored now that MIN_TERMINAL_SPREAD = 0.030 ships."""
+    from valuation.engine.dcf import run_dcf
+
+    cd = build_nike()
+    cd.beta = 0.21                      # MRK's actual beta
+    w = compute_wacc(cd, CONFIG)
+    a = build_base_assumptions(cd, classify(cd), w.risk_free, CONFIG)
+    r = run_dcf(cd, a, w.wacc)
+
+    spread = r.wacc - r.terminal_growth
+    assert spread >= 0.03 - 1e-9, (
+        f"terminal spread {spread:.2%} — a perpetuity discounted only {spread:.2%} above "
+        f"its own growth rate is a division by near-zero, not a valuation")
+    assert r.terminal_multiple is not None and r.terminal_multiple <= 1 / 0.03 + 1e-6, (
+        f"implied terminal multiple {r.terminal_multiple:.1f}x terminal FCFF")
+    # the effective growth must be reported honestly when the clamp binds
+    if r.assumed_terminal_growth is not None and r.assumed_terminal_growth > r.terminal_growth:
+        assert abs(r.terminal_growth - (r.wacc - 0.03)) < 1e-9
 
 
 def test_healthy_name_is_untouched_by_the_terminal_clamp():

@@ -191,7 +191,21 @@ def _recommendation(score: int) -> str:
 
 def compute_score(cd: CompanyData, cls: Classification, wacc: float,
                   base_fv: Optional[float], mc, comps, blend=None) -> ScoreResult:
-    val, d_val = _valuation_score(cd, base_fv, mc, comps)
+    # A valuation the model REFUSED to publish must not come back in through the side
+    # door. Passing `base_fv=None` only dropped the margin-of-safety term (weight 0.55);
+    # `mc.prob_undervalued` (0.30) is the share of Monte Carlo trials OF THAT SAME
+    # withheld DCF beating the price, and `comps.comps_fair_value` (0.15) is corrupted the
+    # same way. On KSPI those two alone printed a valuation sub-score of 100.0/100 for a
+    # name the model had declined to value, and the composite read 93 "Strong Buy".
+    # So when the headline is withheld, the ENTIRE valuation sub-score is dropped and the
+    # composite renormalizes over the four sub-scores that rest on published inputs.
+    withheld = blend is not None and not getattr(blend, "valuable", False)
+    if withheld:
+        val, d_val = None, ["Valuation withheld — no fair-value, Monte Carlo or comps term "
+                            "contributes to this score. Scored on quality, growth, financial "
+                            "health and momentum only."]
+    else:
+        val, d_val = _valuation_score(cd, base_fv, mc, comps)
     qual, d_qual = _quality_score(cd, wacc)
     grow, d_grow = _growth_score(cd, cls)
     health, d_health = _health_score(cd, cls)
@@ -224,9 +238,15 @@ def compute_score(cd: CompanyData, cls: Classification, wacc: float,
     # years of compounding — that's the thesis, not a data glitch — so the low side of
     # the guard doesn't apply to it. The high side still does: a fair value 5x the price
     # is a currency/share-count smell whatever the archetype.
+    # THE CAP MUST EVALUATE WHEN THE VALUE IS WITHHELD. Written `if base_fv and ...`, it
+    # could not fire once the guard set base_fv=None — so publishing a bad number capped
+    # KSPI at 50, while WITHHOLDING it let KSPI print 93. A safety check that only works
+    # when the unsafe thing is present is worse than no check. It now falls back to the
+    # value the guard suppressed.
     growth_led = bool(getattr(blend, "growth_led", False)) if blend is not None else False
-    if base_fv and cd.price and cd.price > 0:
-        ratio = base_fv / cd.price
+    checked_fv = base_fv if base_fv else getattr(blend, "withheld_value", None)
+    if checked_fv and cd.price and cd.price > 0:
+        ratio = checked_fv / cd.price
         if ratio > 5 or (ratio < 0.2 and not growth_led):
             composite = min(composite, 50)
             confidence = "low"

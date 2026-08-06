@@ -1250,6 +1250,74 @@ def test_unreadable_insider_scores_none_not_fifty():
     assert d["score"] is None, "an unreadable filing must not become a confident 50"
 
 
+def _growth_frames():
+    """The two frames yfinance actually returns, with GILD's real 2026-08-05 values."""
+    import pandas as pd
+    ge = pd.DataFrame({"stockTrend": [-0.1214, 0.1963, -1.0838, 15.0829],
+                       "indexTrend": [0.4471, 0.2290, 0.2919, 0.1438]},
+                      index=["0q", "+1q", "0y", "+1y"])
+    rev = pd.DataFrame({"avg": [1, 2, 3, 32296850630], "growth": [0.0102, 0.0233, 0.0289, 0.0615],
+                        "currency": ["USD"] * 4},
+                       index=["0q", "+1q", "0y", "+1y"])
+    return ge, rev
+
+
+def test_analyst_revenue_growth_reads_the_revenue_series_not_earnings():
+    """THE bug. `growth_estimates.loc["+1y"].iloc[0]` takes `stockTrend` — EARNINGS growth —
+    which off a negative base reads 15.0829 for GILD. Measured across 241 names: the
+    positional read differed from a real revenue figure by >1pp on 202 of 239, and 194 of
+    those sat INSIDE the [-0.30, 1.00] band the engine rejects on, so they were silently
+    wrong. The revenue-estimate frame's NAMED `growth` column is the right source (0.0615)."""
+    from valuation.data.yahoo import _analyst_revenue_growth
+    ge, rev = _growth_frames()
+
+    class _T:
+        growth_estimates = ge
+        revenue_estimate = rev
+
+    got = _analyst_revenue_growth(_T(), {"revenueGrowth": 0.044})
+    assert abs(got - 0.0615) < 1e-9, f"got {got} — must read the revenue series, not stockTrend"
+    assert got != 15.0829 and abs(got - 1.0) > 1e-9, "and must not be the clamped earnings value"
+
+
+def test_analyst_revenue_growth_rejects_out_of_band_at_the_source():
+    """Defence-in-depth: the engine rejects out-of-band values too, but the source must not
+    hand them on. `info["revenueGrowth"]` is not clean either — COF reads 11.11."""
+    from valuation.data.yahoo import _analyst_revenue_growth
+    _, rev = _growth_frames()
+    rev = rev.copy()
+    rev.loc["+1y", "growth"] = 11.11
+
+    class _T:
+        growth_estimates = None
+        revenue_estimate = rev
+
+    assert _analyst_revenue_growth(_T(), {"revenueGrowth": 11.11}) is None, \
+        "an 1111% revenue growth must be refused, not passed on"
+
+    class _NoFrames:
+        growth_estimates = None
+        revenue_estimate = None
+
+    assert _analyst_revenue_growth(_NoFrames(), {"revenueGrowth": 0.044}) == 0.044
+    assert _analyst_revenue_growth(_NoFrames(), {"revenueGrowth": -0.9}) is None
+
+
+def test_analyst_revenue_growth_survives_a_frame_without_the_stock_column():
+    """BRK.B's growth_estimates frame has ONLY an `indexTrend` column, so the positional
+    read was taking the S&P 500's growth estimate as Berkshire's revenue growth. Selecting
+    by name must simply not find a revenue series and fall back."""
+    import pandas as pd
+    from valuation.data.yahoo import _analyst_revenue_growth
+    ge = pd.DataFrame({"indexTrend": [0.4471, 0.1438]}, index=["0q", "+1y"])
+
+    class _T:
+        growth_estimates = ge
+        revenue_estimate = None
+
+    assert _analyst_revenue_growth(_T(), {"revenueGrowth": 0.051}) == 0.051
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

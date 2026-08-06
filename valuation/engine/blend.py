@@ -82,6 +82,11 @@ class FairValueBlend:
     value_high: Optional[float] = None     # bull end
     lenses: dict = field(default_factory=dict)   # name -> {"value":…, "weight":…}
     notes: list = field(default_factory=list)
+    # The value the publication guard SUPPRESSED, kept so downstream sanity checks can
+    # still evaluate it. Without this, scoring.py's ">5x fair value is a data problem"
+    # cap silently stopped firing the moment the guard did its job — a check that only
+    # works when the unsafe thing is present. Never publish this; it is for guards only.
+    withheld_value: Optional[float] = None
 
     def to_dict(self) -> dict:
         return {"value": self.value, "valuable": self.valuable, "reason": self.reason,
@@ -90,7 +95,8 @@ class FairValueBlend:
                 "dcf_meaningful": self.dcf_meaningful, "growth_led": self.growth_led,
                 "headline_mode": self.headline_mode, "headline": self.headline,
                 "confidence": self.confidence, "value_low": self.value_low,
-                "value_high": self.value_high, "lenses": self.lenses, "notes": self.notes}
+                "value_high": self.value_high, "lenses": self.lenses, "notes": self.notes,
+                "withheld_value": self.withheld_value}
 
 
 def _usable(x) -> Optional[float]:
