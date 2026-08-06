@@ -263,3 +263,84 @@ here because `.gitignore` is nobody's declared lane and four agents are running.
   the single knob.
 - `insider_score` returning `None` is a contract change. Only `enrich_insider` consumes it today
   and it stores the `None` deliberately; anything new must not coerce it back to 50.
+
+---
+
+# PART 2 — the terminal-value degeneracy (2026-08-05)
+
+## PRE-COMMITMENT — written and committed BEFORE any number was measured
+
+Git history is the evidence: this section is committed on its own, ahead of any code change or
+measurement, precisely because this change moves every valuation the product has ever produced
+and I am choosing among knobs with a visible target. Everything below is fixed in advance.
+
+### 1. What "fixed" means for the seven currently-withheld names
+
+STLA, KSPI, CHTR, MRK, GILD, CI, JD. Each is a PASS on exactly one of:
+
+- **(a) Published and defensible** — it publishes a fair value inside the existing 5x guard band
+  AND its terminal value is non-degenerate at the fix's own definition (spread at or above the
+  floor / multiple at or below the cap). The number must be publishable *because the degeneracy
+  is gone*, not because it happened to shrink.
+- **(b) Withheld for a stated NON-degenerate reason** — e.g. genuinely unresolved FX, or a >5x
+  value that survives with a healthy spread. I must name the reason per name.
+
+Explicit FAIL conditions: still withheld with the same degenerate spread; or published while the
+spread remains below the floor. **"It got smaller" is not a pass.**
+
+### 2. Do-no-harm bound on the names that value fine today
+
+The bound is enforced on the **non-degenerate population**, defined in advance as names whose
+PRE-fix `WACC − g` spread is **≥ 5.0pp** — comfortably clear of every candidate floor below, so
+these names have no mechanical reason to move. A spread floor should leave them literally
+untouched; a beta floor will not, which is the discriminating power I want from this bound.
+
+A candidate is **REJECTED outright**, whatever it does for the seven, if on that population:
+
+- median |Δ fair value| **> 2%**, or
+- more than **2%** of them move **> 25%**, or
+- **any** name that published before is withheld after (nobody gets pushed out of the band).
+
+Names with a pre-fix spread < 5.0pp are expected to move — that is the intervention — and are
+reported, not bounded.
+
+### 3. The knob, the parameter values, and the anti-tuning rule
+
+Candidate parameters are chosen NOW from stated first-principles or external references, never
+from how the seven names turn out:
+
+- **A — floor on `WACC − g` at 3.0pp**, applied by lowering `g` (not by raising WACC): a Gordon
+  perpetuity with spread `s` implies a terminal multiple of `1/s`, so 3.0pp is already 33.3x
+  terminal FCF, the generous end of what a mature business supports; below it `d(TV)/ds`
+  explodes. `g` is the assumption we control, and a terminal growth within 3pp of the discount
+  rate is economically incoherent regardless of this bug.
+- **B — Blume/Bloomberg adjusted beta**, `β_adj = 0.67·β_raw + 0.33·1.0`. External, published
+  (Blume 1971; the standard Bloomberg "adjusted beta"), chosen for being not-ours. Maps
+  0.08 → 0.387 and 0.211 → 0.474.
+- **C — cap the implied terminal multiple at 25x** terminal FCF (≈ a 4% perpetual FCF yield,
+  equivalent to a 4pp spread). The most interpretable of the three.
+- **A+B combined**, because a spread floor and a beta floor are NOT independent: B raises WACC,
+  which widens the spread on its own and may leave A with nothing to bind on. I will report how
+  much of A's effect survives once B is applied rather than testing either in a vacuum.
+
+**Anti-tuning rule.** Each parameter is used at the value stated above. If a candidate fails at
+its pre-chosen value, it is REJECTED — not retuned. Should I retune anything, the result is
+relabelled exploratory and reported as **NULL**, not adopted.
+
+**KSPI is excluded from the primary decision metric.** It motivated the search and carries the
+most extreme beta (0.08), so judging on it is how a tuned result gets born. The verdict rests on
+the other six (CHTR, MRK, GILD, CI, STLA, JD); KSPI is reported but not decisive.
+
+### 4. Decision rule, in order
+
+1. Any candidate breaching §2 is REJECTED, however well it fixes the seven.
+2. Among survivors, the one resolving the most of the six decisive names under §1.
+3. Tie-break on interpretability (favouring C), since the prompt is right that interpretability
+   is a tiebreaker and not evidence.
+4. If no candidate satisfies §2 while resolving a majority of the six at its pre-chosen
+   parameter, the outcome is **NULL** and nothing ships.
+
+### 5. Untouched by commitment
+
+`publication_guard()` stays; `FV_BAND_HIGH` stays at 5.0; no warning is silenced. If the guard
+fires exactly as often afterwards, that is a null result and will be reported as one.
