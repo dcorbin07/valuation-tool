@@ -4,13 +4,13 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-06 (external edge audit, **session 5 CLOSEOUT** — items 1–5)
+**Session date:** 2026-08-06 (external edge audit, **session 6** — U7 and X3)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
 > Read it before starting work. Non-negotiable for all agents.**
 
-> **Scope:** newest sections first — audit session 5 (this one), then session 4, then session 3, then session 2,
+> **Scope:** newest sections first — audit session 6 (this one), then session 5, then session 4, then session 3, then session 2,
 > then R1's original run, then session 1, then deep research #2, then the EV staleness fix, then
 > PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
 > per-finding status in `CODE_AUDIT.md`.
@@ -19,10 +19,19 @@ file directly.
 
 ## P3 DONE — THE OPTIONS PAYOFF IS NOW SHOWN, NOT JUST DISCLOSED (2026-08-06, app-fixer lane)
 
-Full write-up: **`HANDOFF_appfixes.md`**, Session 16. Landed via `worktree-p3-hitrate`
-(`52f523d`). New `valuation/web/payoff.py` + `tests/test_payoff.py` (30 tests); 23 suites,
-788 tests green. **Two things here are other lanes' business, so they are in this file and not
-only in mine.**
+Full write-up: **`HANDOFF_appfixes.md`**, Session 16. Branch `worktree-p3-hitrate` (`52f523d`),
+landing via CI. New `valuation/web/payoff.py` + `tests/test_payoff.py` (30 tests); **24 suites,
+822/823 green** — the one non-pass is M3's own documented xfail in `test_guards.py`, not mine.
+**Two things here are other lanes' business, so they are in this file and not only in mine.**
+
+> **ON THE AUTO-LAND BLOCKER NOTED BELOW: it resolved, then bit this branch a second time for a
+> different reason.** From this lane's polling, `main` advanced four times in ~40 minutes
+> (`57f63b7` → `729d8dd` → `3fa9520` → `0312426`), so the Action is alive and landing branches.
+> What kept THIS branch out on its second attempt was a genuine **conflict in
+> `HANDOFF_STATUS.md`** — two lanes prepending a section at the same anchor — which makes the
+> Action `git merge --abort` and leave `main` untouched, exactly as designed. **Check
+> `git merge origin/main` locally before assuming the runner is down**; a clean
+> `merge-tree` from an hour ago is not evidence about a `main` that has moved four times since.
 
 **1. `/methodology` — a PUBLIC page — is publishing three equity numbers this project's own
 record marks VOID. This is the highest-priority thing I found and it is not mine to fix.**
@@ -61,6 +70,63 @@ Every surface now quotes "35–37%" from one source.
 
 Nothing shipped implies the options alerts work; the measured **−6.65pp** gap against random
 entry (R2) travels with every payload that carries the shape.
+---
+> **BLOCKER FOR EVERY LANE, NOT JUST THIS ONE (noticed 2026-08-06 ~19:30 ET): the auto-land
+> Action has not merged anything to `main` in over six hours.** `origin/main` is still at
+> `3213668` (13:19 ET) while **five** `worktree-*` branches have pushed since — options-live,
+> p3-hitrate, optionsbot-lane, data-spend, r1 — and none landed. This is not a merge conflict
+> and not a red test: `git merge-tree --write-tree HEAD origin/main` is clean for this branch,
+> the workflow file is identical to `main`'s, and all 22 suites pass locally
+> (`OVERALL_FAIL=0`). **Someone with the GitHub UI needs to look at the Actions tab** — most
+> likely Actions minutes, a disabled workflow, or a stuck `land-main` concurrency group.
+> Until it is fixed, nothing any agent produces reaches Render, and `main` is NOT the current
+> state of the project. Per `RUN_RULES` and the standing note, do **not** merge by hand.
+
+## AUDIT SESSION 6 (2026-08-06) — U7 and X3. **BOTH PROBES REJECTED/NULL. SESSION 7 MAY OPEN.**
+
+Full write-up: **`HANDOFF_edge_audit.md`**, "SESSION 6". Pre-commitments pushed in `a727bea`
+**before any run**, including the expected direction of both probes, so the record can say
+whether the expectation was worth anything. It was not. **242/242 edge tests pass.**
+
+| item | verdict |
+|---|---|
+| **U7** — equity composite as an options VETO | **REJECTED.** Lift −0.57pp (bar was ≥ +1.0pp) at 92.7% retention; all three pre-registered cells negative |
+| **X3** — ablate to the best single signal | **NULL.** Full composite beats its best single signal by +4.51%/yr, CI95 [−0.14%, +9.12%] — includes zero |
+
+**THE TWO THINGS DON WOULD WANT TO KNOW FIRST**
+
+1. **The equity model is useless as an options filter, and now we know why.** Inside the
+   187-name megacap options universe the composite decile is largely a **market-cap sort**
+   (median cap $62.7B at D1 → $133.5B at D9). So the "veto" vetoes a cap bucket — a property of
+   the underlying, not of the alert. Applying the identical veto to the five-seed random-entry
+   control moves it by the same amount: **interaction −0.08pp**. The bottom decile, the one the
+   veto exists to remove, is the **third most profitable** (+10.64%).
+   **Consequence: do NOT run U1 (composite → options entry) as written.** The audit called the
+   veto "strictly the easier bar"; it failed, with a mechanism.
+2. **Two void records were found in the project's own memory and corrected.**
+   * `CLAUDE.md`'s theme IC table was labelled "CURRENT 2026-08-04" but is a **pre-B6
+     measurement** — proven by reproducing it exactly on the old 110-date panel. `size` moves
+     **+1.68 → −0.30**. Against X7's calibrated bar of 2.71, **two of nine themes clear**.
+   * **X3 had already been run** (2026-08-03) and the ledger recorded it DONE with "EARNS ITS
+     COMPLEXITY" — measured on the pre-B6 panel and against a 1.0pp bar that sits *below* X7's
+     1.95pp noise floor. Re-run, it is a NULL.
+
+**THE STRUCTURAL FINDING WORTH CARRYING:** `size` has the **worst** theme IC on the corrected
+panel (−0.30) and **carries the composite's entire statistical significance** — adding it last
+takes top-decile alpha +4.10% → +7.17% and long-short *t* 1.02 → 2.84. Ranking themes by IC and
+adding them greedily measures the wrong thing when a theme's value is its orthogonality. An
+*exploratory* leave-one-out (no verdict, nothing changed on it) says dropping
+`capital_discipline` would *raise* alpha to +8.54%. **Session 7's first item is a
+pre-registered, held-out version of that test.**
+
+**THE COST, PAID:** equity **N 84 → 104** (8 new arms plus 12 from the void run that had never
+been logged). **Deflated Sharpe 0.8997 → 0.8789**, and √(2·ln N) **2.977 → 3.048** — past the
+Harvey–Liu–Zhu hurdle of 3.0 for the first time. Still above X7's calibrated floor of 0.72.
+
+**Fourth in a row:** the pre-committed expectation ("the veto will help, 60/40") was wrong, after
+R10, O20 and the spread toll. Do not reason about the direction of an effect in this project.
+
+**Nothing shipped to the live product.** No weight changed, no live behaviour changed.
 
 ---
 

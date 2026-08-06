@@ -257,18 +257,22 @@ is the answer to "how far did it get"** — it reads the manifest and the cache,
 **To resume: `python mine_options_cache.py`.** It skips every name that already carries a verdict
 and picks up exactly where it stopped; re-running is always safe.
 
-Snapshot at 10h (this is a checkpoint, not the final number):
+Snapshots (checkpoints, not the final number — refresh with `mine_status.py`):
 
-| | at start | at 10h |
-|---|---|---|
-| names judged of 1,000 | 481 | **583** |
-| complete | 314 | **362** |
-| skipped_thin | 163 | 210 |
-| no_data_in_range | 0 (status did not exist) | 8 |
-| cache on disk | 17.3GB | 19.5GB |
-| symbol-years at 200 DTE | 906 | **1,371** |
-| names fully at 200 DTE | 100 | **194** |
-| symbol-years with alias provenance | 0 | 39 |
+| | at start | at 10h | **at 22h** |
+|---|---|---|---|
+| names judged of 1,000 | 481 | 583 | **717** |
+| complete | 314 | 362 | **414** |
+| skipped_thin | 163 | 210 | 286 |
+| no_data_in_range | 0 (status did not exist) | 8 | 14 |
+| cache on disk | 17.3GB | 19.5GB | **21.7GB** |
+| symbol-years at 200 DTE | 906 | 1,371 | **1,923** |
+| names fully at 200 DTE | 100 | 194 | **322** |
+| symbol-years with alias provenance | 0 | 39 | 39 |
+
+Free disk is 261GB, so space is not a constraint; `MIN_FREE_GB = 40` still guards it.
+**The thin rate is climbing with rank exactly as projected** (60–80% in ranks 500–1000 — one
+2-hour window ran 73% thin), which is why the back half is cheaper per name than the front.
 
 **RUNTIME: I PROJECTED 14-24h AND THAT WAS WRONG; measured throughput says ~4.3-6.3 min/name,
 so the full 1,000 is ~40-50h.** The error is worth recording because it is the same one I made
