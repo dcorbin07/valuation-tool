@@ -1765,8 +1765,9 @@ function _renderIndexTrack(d) {
         ${metric("Sharpe", live.sharpe == null ? "—" : num(live.sharpe, 2))}
         ${metric("Days", live.days)}
       </div>
-      <div class="muted" style="font-size:11px;margin-top:6px">Real dated positions since
-        ${esc(d.inception || live.since)}, measured forward. ${d.thin
+      <div class="muted" style="font-size:11px;margin-top:6px">Dated model positions since
+        ${esc(d.inception || live.since)}, priced forward — a model portfolio, not a traded
+        account, and no capital is at risk in it. ${d.thin
           ? `Annualised figures are withheld until ${d.min_live_days} trading days — compounding
              ${live.days} day${live.days === 1 ? "" : "s"} to a yearly rate would invent a number.`
           : "Net of the same cost model as the backtest."}</div>`;
@@ -1775,7 +1776,7 @@ function _renderIndexTrack(d) {
   body.innerHTML = `<div class="grid2" style="margin-top:10px">`
     + card("Backtested", liveLeads ? "reference" : "headline",
            liveLeads ? "spec" : "est", btRows, !liveLeads)
-    + card("Live since inception",
+    + card("Forward, model portfolio",
            d.available ? (d.thin ? `thin — ${live.days}d` : "headline") : "not started",
            d.thin || !d.available ? "spec" : "est", liveRows, liveLeads)
     + `</div>`
@@ -1803,7 +1804,11 @@ function indexChart(d) {
     return;
   }
   el.style.display = "";
-  if (note) note.textContent = `Cumulative return since inception, Valquo Index vs ${d.benchmark || "SPY"}. Net of modelled costs.`;
+  // The caption carries the framing, because a chart travels: this is the one element on the
+  // page most likely to be screenshotted away from every other caveat around it.
+  if (note) note.textContent = `Cumulative return of the MODEL portfolio since inception vs `
+    + `${d.benchmark || "SPY"}, net of modelled costs. No capital is invested — these are `
+    + `closing-price marks, not fills, and not a return anyone received.`;
   STATE.charts.idx = new Chart(el, {
     type: "line",
     data: {

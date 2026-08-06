@@ -409,12 +409,25 @@
   </div>
 
   {% if may_see_owner %}
-  <!-- VALQUO INDEX (owner-only: a live book of positions) -->
+  <!-- VALQUO INDEX — OWNER-ONLY, and deliberately so (decision recorded in
+       HANDOFF_appfixes.md, Session 13). Two independent reasons, either one sufficient:
+       (1) it is a list of names WITH WEIGHTS as of today, which is an allocation rather than
+           an analysis — the line the public/owner split is drawn on; and
+       (2) the card below it is a cumulative-return chart against the S&P, which is a
+           performance-claim SHAPE whatever the caption says, and the public posture is "no
+           performance claims in public".
+       The alternative considered and rejected: publish the curve without the holdings. It
+       fails (2) on its own, so it changes nothing about the risk while giving up the clarity
+       of one rule. Reversing this is one line in saas/surfaces.py — it is Don's call, not a
+       default. -->
   <div id="tab-index" style="display:none">
     <div class="search-card">
-      <div class="section-hint" style="margin-top:0"><b>The book you would actually hold.</b>
-        The same ranking Hot Stocks shows, cut to a validated construction: the top decile of
-        the large-cap tier, score-weighted, capped at 8% per name. Rebuilt after each close.</div>
+      <div class="section-hint" style="margin-top:0"><b>A model portfolio — not a traded
+        account, and not advice.</b> The same ranking Hot Stocks shows, cut to a validated
+        construction: the top decile of the large-cap tier, score-weighted, capped at 8% per
+        name, rebuilt after each close. <b>No money is invested in it.</b> Positions are
+        marked at closing prices, so there are no fills, no slippage beyond the modelled cost
+        and no tax — which is exactly why it is not a return anyone earned.</div>
       <div class="search-row" style="align-items:center;margin-top:10px;flex-wrap:wrap">
         <label class="opt" style="margin:0">Account type
           <select id="bookConfig" class="selin" onchange="loadValquoIndex();loadIndexTrack()">
@@ -430,11 +443,13 @@
 
     <!-- Backtested vs live, side by side. Never blended; see /methodology. -->
     <div class="card" id="indexPerfCard">
-      <h3 style="margin:0 0 6px">Performance — backtested vs live</h3>
+      <h3 style="margin:0 0 6px">Model-portfolio performance — backtested vs forward</h3>
       <div class="section-hint" style="margin-top:0">Two different kinds of evidence, kept
         apart on purpose. The backtest is 18 years of point-in-time history the model was also
-        tuned on. The live track is real money-less trading since inception, and is the only
-        figure nobody could have fitted. <a href="/methodology">How this was tested →</a></div>
+        tuned on. The forward column is the same model book priced daily since inception —
+        <b>no capital, no broker, no fills</b> — and is the only figure nobody could have
+        fitted. Neither is a return anyone received.
+        <a href="/methodology">How this was tested →</a></div>
       <div id="indexPerfBody"></div>
       <div style="margin-top:14px"><canvas id="indexChart" height="190"></canvas></div>
       <div class="note" id="indexChartNote"></div>
