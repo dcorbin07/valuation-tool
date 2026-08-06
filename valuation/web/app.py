@@ -21,6 +21,7 @@ from ..safe_error import log_exception, safe_error
 from ..engine.pipeline import value_ticker
 from ..report import excel as excel_report
 from ..report import pdf as pdf_report
+from . import withhold
 
 app = Flask(__name__)
 
@@ -130,7 +131,14 @@ def api_value():
         result = value_ticker(ticker, CONFIG, overrides=overrides, peers=peers, run_ai=run_ai)
         _LAST[ticker] = result
         payload = result.to_dict()
-        if result.base_fair_value is None:
+        # A refusal and a data gap both leave base_fair_value None, and they need
+        # opposite messages: "check the ticker symbol" is wrong and misleading on a name
+        # the model deliberately declined to value.
+        if withhold.is_withheld(payload):
+            # Nothing downstream of the withheld fair value goes on the wire. The page used
+            # to print the suppressed number back to the reader three cards later.
+            payload = withhold.withhold_derived_figures(payload)
+        elif result.base_fair_value is None:
             payload.setdefault("warnings", []).append(
                 "Could not compute a per-share value (missing shares/price). "
                 "Check the ticker symbol.")
@@ -171,6 +179,20 @@ def _get_or_compute(ticker: str):
     return r
 
 
+def _export_refusal(result):
+    """A download is a publication. If the page refuses to publish this name's valuation,
+    the workbook and the tearsheet — which build the same per-share cone from
+    `scenarios.*.per_share`, e.g. pdf.py:97 — must refuse too, or the withheld number just
+    leaves the building in a file instead of on a screen. Rendering the refusal INSIDE the
+    documents belongs to whoever owns `valuation/report/**`; this lane can only decline."""
+    blend = getattr(result, "fair_value_blend", None)
+    if blend is not None and not getattr(blend, "valuable", True) and result.base_fair_value is None:
+        return jsonify({"error": getattr(blend, "reason", "")
+                        or "No fair value is published for this name.",
+                        "withheld": True}), 409
+    return None
+
+
 @app.route("/api/export/excel")
 def export_excel():
     ticker = (request.args.get("ticker") or "").strip().upper()
@@ -178,6 +200,9 @@ def export_excel():
         return jsonify({"error": "No ticker"}), 400
     try:
         result = _get_or_compute(ticker)
+        refusal = _export_refusal(result)
+        if refusal:
+            return refusal
         tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
         excel_report.build_workbook(result, tmp.name)
         return send_file(tmp.name, as_attachment=True,
@@ -195,6 +220,9 @@ def export_pdf():
         return jsonify({"error": "No ticker"}), 400
     try:
         result = _get_or_compute(ticker)
+        refusal = _export_refusal(result)
+        if refusal:
+            return refusal
         if result.ai is None:
             try:
                 from ..ai.analyst import analyze

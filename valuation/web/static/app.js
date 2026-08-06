@@ -216,24 +216,34 @@ function render(d) {
       : `<span class="${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</span>`) +
     metric("WACC", pct(d.wacc.wacc));
 
-  gauge(score.score, score.recommendation, score.confidence);
+  gauge(score.score, score.recommendation, score.confidence, notValuable, d.withheld);
   fairValueMethod(fvb, d);
-  // Scenarios are drawn from the SAME method as the headline when we have it. Showing
-  // the raw DCF cone under a multiples-based headline is how a growth name ended up
-  // displaying three negative scenario cards beneath a positive fair value.
-  const scen = (fvs.base != null)
-    ? { bear: fvs.bear, base: fvs.base, bull: fvs.bull, method: fvs.method }
-    : { bear: sc.bear_price, base: sc.base_price, bull: sc.bull_price, method: "DCF" };
-  rangebar(scen.bear, scen.base, scen.bull, c.price);
-  scenarioCards(scen, c.price, fvb);
-  fcfChart(sc.base.rows);
-  mcChart(d.montecarlo);
-  scoreBars(score);
-  reverseBox(d.reverse);
-  compsBox(d.comps, c.price, (d.reverse && d.reverse.base_avg_growth != null) ? d.reverse.base_avg_growth : (d.assumptions ? d.assumptions.start_growth : null));
+  // WHEN THE MODEL REFUSES, THE WHOLE PAGE REFUSES (2026-08-05).
+  // The headline said "Not DCF-valuable" and the cards below printed the withheld number
+  // anyway — $1,289.68 at +1299% on KSPI, three inches under the notice withholding it.
+  // Every card downstream of the DCF now refuses with it. The server already strips these
+  // figures from the response (web/withhold.py), so this is the second lock, not the only
+  // one: even if a number arrives, nothing here draws it.
+  if (notValuable) {
+    withheldCards(d);
+  } else {
+    // Scenarios are drawn from the SAME method as the headline when we have it. Showing
+    // the raw DCF cone under a multiples-based headline is how a growth name ended up
+    // displaying three negative scenario cards beneath a positive fair value.
+    const scen = (fvs.base != null)
+      ? { bear: fvs.bear, base: fvs.base, bull: fvs.bull, method: fvs.method }
+      : { bear: sc.bear_price, base: sc.base_price, bull: sc.bull_price, method: "DCF" };
+    rangebar(scen.bear, scen.base, scen.bull, c.price);
+    scenarioCards(scen, c.price, fvb);
+    fcfChart(sc.base.rows);
+    mcChart(d.montecarlo);
+    reverseBox(d.reverse);
+    sensBox(d.sensitivity, c.price);
+  }
+  scoreBars(score, notValuable, d.withheld);
+  compsBox(d.comps, c.price, (d.reverse && d.reverse.base_avg_growth != null) ? d.reverse.base_avg_growth : (d.assumptions ? d.assumptions.start_growth : null), d.withheld);
   assumEditor(d.assumptions);
   document.getElementById("assumNotes").innerHTML = (d.assumptions.notes || []).map(n => "• " + n).join("<br>");
-  sensBox(d.sensitivity, c.price);
   aiBox(d.ai);
   earningsBox(c);
   warnBox(d.warnings);
@@ -244,8 +254,55 @@ function metric(k, v) { return `<div class="m"><div class="k">${k}</div><div cla
 function show(id, on) { document.getElementById(id).classList.toggle("on", on); }
 function errBox(msg) { const e = document.getElementById("err"); e.textContent = msg; e.classList.toggle("on", !!msg); }
 
+/* ---------- the page-wide refusal ----------
+   One place decides what a withheld name shows, so a card cannot be added later that
+   quietly starts drawing the number again: everything here writes a REASON where a figure
+   would have been. Blank space would read as "loading" or "no data"; the reader is owed the
+   same sentence the headline gave them. Copy comes from the server (web/withhold.py) so the
+   wire and the page cannot disagree about why something is missing. */
+const _WITHHELD_FALLBACK = {
+  scenarios: "Bear, base and bull are the same valuation re-run on shifted assumptions, so they are withheld with it.",
+  montecarlo: "The distribution is that same valuation re-run thousands of times, so it is withheld with it.",
+  sensitivity: "The grid is that same valuation at other discount and growth rates, so it is withheld with it.",
+  fcf: "The projection is the forecast the valuation was built from, so it is withheld with it.",
+  comps: "Multiples are ratios and are shown. The per-share values implied by them are not.",
+  reverse: "The market-implied growth read is solved from the same model, so it is withheld with it.",
+  score: "The valuation part of the score is computed from figures that were withheld."
+};
+function _wReason(w, key) { return ((w && w.cards) || {})[key] || _WITHHELD_FALLBACK[key] || ""; }
+function withheldBox(w, key) {
+  return `<div class="nv-box"><b>Not published for this name.</b> ${esc(_wReason(w, key))}</div>`;
+}
+function _canvasCard(id, on) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = on ? "" : "none";
+}
+function withheldCards(d) {
+  const w = d.withheld || {};
+  // Charts are stateful: skipping the draw would leave the PREVIOUS ticker's cone on screen,
+  // which is the same bug with an extra step.
+  killChart("fcf"); killChart("mc");
+  _canvasCard("fcfChart", false); _canvasCard("mcChart", false);
+  setHtml("rangebar", "");
+  setHtml("scenarioCards", withheldBox(w, "scenarios"));
+  setHtml("scenarioNote", "");
+  setHtml("fcfNote", withheldBox(w, "fcf"));
+  setHtml("mcNote", withheldBox(w, "montecarlo"));
+  setHtml("sensBox", withheldBox(w, "sensitivity"));
+  setHtml("reverseBox", withheldBox(w, "reverse"));
+}
+
 /* ---------- gauge ---------- */
-function gauge(s, rec, conf) {
+function gauge(s, rec, conf, notValuable, w) {
+  // A score is a verdict. On a name the model declined to value, the verdict's valuation
+  // input is computed from the withheld figures (see web/withhold.py, SCORE_NOTE), so no
+  // number and no "Strong Buy" is shown — the reason is shown instead.
+  if (notValuable || s == null) {
+    document.getElementById("gauge").innerHTML =
+      `<div class="nv-box" style="text-align:left;max-width:260px">
+         <b>Not rated.</b> ${esc((w && w.score_note) || _WITHHELD_FALLBACK.score)}</div>`;
+    return;
+  }
   const r = 54, circ = 2 * Math.PI * r, off = circ * (1 - s / 100), col = scoreColor(s);
   document.getElementById("gauge").innerHTML = `
     <svg width="140" height="140" viewBox="0 0 140 140">
@@ -340,6 +397,7 @@ function scenarioCards(scen, price, fvb) {
 function killChart(k) { if (STATE.charts[k]) { STATE.charts[k].destroy(); delete STATE.charts[k]; } }
 function fcfChart(rows) {
   killChart("fcf");
+  _canvasCard("fcfChart", true); setHtml("fcfNote", "");
   const ctx = document.getElementById("fcfChart");
   const labels = rows.map(r => "Yr " + r.year);
   STATE.charts.fcf = new Chart(ctx, {
@@ -356,6 +414,7 @@ function fcfChart(rows) {
 }
 function mcChart(mc) {
   killChart("mc");
+  _canvasCard("mcChart", true);
   const ctx = document.getElementById("mcChart");
   const bins = mc.hist_bins || [], counts = mc.hist_counts || [];
   const labels = counts.map((_, i) => money((bins[i] + bins[i + 1]) / 2, 0));
@@ -375,16 +434,20 @@ function mcChart(mc) {
 }
 
 /* ---------- score bars ---------- */
-function scoreBars(score) {
-  document.getElementById("scoreHint").innerHTML =
-    `Weighted for a <b>${STATE.data.classification.regime}</b> company — weights shift by regime so the DCF is trusted less where it's less reliable. Overall confidence: <b>${score.confidence}</b>.`;
+function scoreBars(score, notValuable, wh) {
+  document.getElementById("scoreHint").innerHTML = notValuable
+    ? `<div class="nv-box" style="margin-top:0">${esc((wh && wh.score_note) || _WITHHELD_FALLBACK.score)}</div>`
+    : `Weighted for a <b>${STATE.data.classification.regime}</b> company — weights shift by regime so the DCF is trusted less where it's less reliable. Overall confidence: <b>${score.confidence}</b>.`;
   const order = ["valuation", "quality", "growth", "health", "momentum"];
   let html = "";
   order.forEach(k => {
     const v = score.subscores[k], w = score.weights[k];
     const col = v == null ? "var(--faint)" : scoreColor(v);
+    // "n/a" is the right word for a sub-score that could not be computed and the WRONG word
+    // for one that was computed and then withheld — say which.
+    const lab = v == null ? ((notValuable && k === "valuation") ? "withheld" : "n/a") : v.toFixed(0);
     html += `<div class="sbar"><div class="lab"><span><b>${k[0].toUpperCase() + k.slice(1)}</b> <span class="wt">weight ${pct(w, 0)}</span></span>
-      <span style="font-weight:700;color:${col}">${v == null ? 'n/a' : v.toFixed(0)}</span></div>
+      <span style="font-weight:700;color:${col}">${lab}</span></div>
       <div class="bar"><span style="width:${v == null ? 0 : v}%;background:${col}"></span></div></div>`;
   });
   html += `<div style="margin-top:10px;font-size:12.5px" class="muted">Drivers:</div><ul style="margin:4px 0 0;padding-left:18px;font-size:13px">` +
@@ -465,11 +528,21 @@ function reverseBox(rv) {
         ${metric("Market-implied growth", pct(rv.implied_avg_growth))}
         ${metric("Our base growth", pct(rv.base_avg_growth))}</div>` : "");
 }
-function compsBox(cp, price, growth) {
+function compsBox(cp, price, growth, wh) {
   const m = cp.subject || {}, imp = cp.implied || {};
+  // A multiple is a ratio of two figures in the same currency, so it survives the mismatch
+  // that triggers most refusals. The per-share value implied by it does not — that step
+  // prices a reporting-currency figure against a USD quote, and it is how a $92 stock got a
+  // "$326 implied value". Ratios stay, implied dollars go, and the card says which.
+  const withheld = !!cp.withheld;
   const rows = [["P/E", m.pe, imp.pe], ["EV/EBITDA", m.ev_ebitda, imp.ev_ebitda], ["P/S", m.ps, imp.ps], ["EV/Sales", m.ev_sales, imp.ev_sales]];
-  let html = `<div class="note" style="margin-top:0">${cp.benchmark_source}</div><table><tr><th>Multiple</th><th class="num">Current</th><th class="num">Implied value</th></tr>`;
-  rows.forEach(([lab, cur, iv]) => { html += `<tr><td>${lab}</td><td class="num">${mult(cur)}</td><td class="num">${money(iv)}</td></tr>`; });
+  let html = `<div class="note" style="margin-top:0">${esc(cp.benchmark_source || "")}</div>`;
+  if (withheld) html += withheldBox(wh, "comps");
+  html += `<table><tr><th>Multiple</th><th class="num">Current</th><th class="num">Implied value</th></tr>`;
+  rows.forEach(([lab, cur, iv]) => {
+    const cell = withheld ? '<span class="muted">withheld</span>' : money(iv);
+    html += `<tr><td>${lab}</td><td class="num">${mult(cur)}</td><td class="num">${cell}</td></tr>`;
+  });
   html += `</table>`;
   if (cp.comps_fair_value != null) {
     const u = price ? cp.comps_fair_value / price - 1 : null;

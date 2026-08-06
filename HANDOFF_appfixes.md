@@ -5,6 +5,142 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 12 — 2026-08-05 — When the model refuses to value a name, the whole page refuses
+(PROMPT_scenario_cards_follow_headline.md)
+
+The headline withheld KSPI's fair value and the card three inches below printed it anyway, at
++1299%. That was not one broken card. **Seven** surfaces republished the withheld valuation,
+and the worst of them was the 93/100 "Strong Buy" gauge. All seven now refuse, the figures are
+stripped from the API response rather than merely not drawn, and the refusal states its reason
+where a number used to be.
+
+## What rendered before, and what renders now — all seven withheld names
+
+Measured through the real page (headless Chromium, signed out, live FMP data, 2026-08-05).
+"Implausible tokens" = every `$…` string in the rendered DOM larger than 5× the price, which
+is the guard's own threshold for refusing.
+
+| Name | Price | BEFORE — scenario cards | Other leaks | Score shown | AFTER — implausible tokens on page |
+|---|---|---|---|---|---|
+| KSPI | $92.19 | $620.27 / **$1,289.60** / $2,888.15 (+573% / **+1299%** / +3033%) | MC median $2,335.73, p10–p90 $872.89–$6,340.11, "100% of trials above the price"; sensitivity to $8,632.67; comps implied $326.32 (+254%); reverse "expectations look cheap" | **93 Strong Buy** | **$1,288.94 only — inside the refusal sentence** |
+| STLA | $5.63 | $8.03 / **$125.87** / $406.72 (+43% / **+2136%** / +7124%) | comps implied $73.12 (+1199%) | 45 Reduce | **$125.88 only — the refusal sentence** |
+| CHTR | $153.17 | $1,202.45 / **$1,717.36** / $2,402.64 (+685% / **+1021%** / +1469%) | MC median $2,136.63; sensitivity to $7,876.76; comps $1,007.67 (+558%) | 69 Buy | **$1,717.36 only — the refusal sentence** |
+| GILD | $131.76 | $453.96 / **$961.79** / $2,045.10 (+245% / **+630%** / +1452%) | MC median $2,063.46; sensitivity to $11,409.90 | **87 Strong Buy** | **$961.79 only — the refusal sentence** |
+| CI | $270.50 | $1,008.07 / **$2,001.65** / $3,548.87 (+273% / **+640%** / +1212%) | MC median $1,786.34; comps $2,153.27 (+696%) | 71 Buy | **$2,001.65 only — the refusal sentence** |
+| JD | $32.54 | $105.15 / **$228.10** / $430.43 (+223% / **+601%** / +1223%) | MC median $237.73; sensitivity to $1,331.86; comps $144.18 (+343%) | 79 Buy | **$227.70 only — the refusal sentence** |
+| MRK | $128.33 | — | — | — | **NOT WITHHELD TODAY — see BUGS FOUND #1** |
+
+The one surviving figure on each page is the guard's own sentence — *"the model's $1,288.94 is
+14.0x the $92.19 price"*. That is the **evidence for withholding**, not a valuation, and it is
+deliberately kept: a refusal with no stated cause is worse than the refusal.
+
+Publishable names are untouched — verified on the same harness: AAPL renders cards
+$100.48 / $122.01 / $148.20, the range bar, the Monte Carlo median $92.81, the full sensitivity
+grid, comps implied values and a 51 Hold gauge, exactly as before.
+
+## The 93/100 — it was NOT "everything except the DCF"
+
+The prompt asked whether the score legitimately excludes the withheld DCF. **It does not, and
+this is the more serious half of the bug.** Code path, measured on KSPI:
+
+- `engine/pipeline.py:280` calls `compute_score(..., blend.value if blend.valuable else None, ...)`,
+  so the margin-of-safety term **is** correctly dropped. That much the engine lane had right.
+- `engine/scoring.py:83` then rebuilds it: `mc.prob_undervalued` carries **weight 0.30** of the
+  valuation sub-score, and it is the share of Monte Carlo trials **of the withheld DCF** that
+  beat the price — **1.00 on KSPI**.
+- `engine/scoring.py:86` adds `comps.comps_fair_value` at **weight 0.15** — $326.32 against a
+  $92.19 price, corrupted by the same KZT/USD mismatch that triggered the refusal.
+- Result: the valuation sub-score printed **100.0 / 100** on a name the model had just declined
+  to value, and the composite printed **93 "Strong Buy"**.
+
+It is worse than a leak. `engine/scoring.py:228` holds a sanity cap — *"never surface a >5x fair
+value as a strong buy"*, which forces the composite to 50 — and it is written `if base_fv and …`,
+so **it cannot fire once the guard has set `base_fv = None`**. Publishing the bad number capped
+KSPI at 50. Withholding it let KSPI print 93.
+
+**This lane did not touch the score's definition** — that is the engine lane's, and the prompt
+was explicit about not fixing a display problem by quietly redefining a number. What ships here
+is a refusal to *publish* a figure that is demonstrably contaminated, plus the reason in plain
+words on the page: the gauge reads **"Not rated."**, the valuation bar reads **"withheld"**
+(not "n/a", which would claim it could not be computed), and the four sub-scores with no fair
+value in them — quality, growth, health, momentum — still show.
+
+## How it is enforced (two locks, because this bug was one lock failing)
+
+1. **`valuation/web/withhold.py`** (new, pure) — `withhold_derived_figures(payload)` strips
+   every DCF-derived figure from the `/api/value` response **before it reaches the browser**:
+   the scenario cone, `dcf_per_share`, the per-share/equity values and FCF rows in `scenarios`,
+   the blend's `lenses` / `value_low` / `value_high`, `growth_lens`, all of Monte Carlo
+   including `prob_undervalued`, the sensitivity grid, the reverse-DCF read, comps `implied` +
+   `comps_fair_value`, and the score + recommendation. So the numbers are not in view-source,
+   not in the network tab, and not one console line from being republished.
+   Ratios survive on purpose: **P/E, EV/EBITDA, P/S, EV/Sales are currency-neutral** (a ratio of
+   two same-currency figures), while the per-share values implied *from* them are not — that
+   step is exactly how a $92 stock showed a $326 implied value.
+2. **`static/app.js`** — `render()` branches on the same `notValuable` test the headline uses;
+   every call that draws a DCF-derived figure now sits in the else-branch, and `withheldCards()`
+   writes the reason where each card was. It also **destroys the Chart.js canvases** — skipping
+   a draw would have left the *previous* ticker's cone on screen, which is the same bug with an
+   extra step.
+3. **Downloads refuse too** (`/api/export/pdf`, `/api/export/excel` → **409** with the reason).
+   `report/pdf.py:97` builds the same cone from `scenarios.*.per_share`, so without this the
+   withheld number just left the building in a file instead of on a screen. Rendering the
+   refusal *inside* the documents belongs to whoever owns `valuation/report/**`; this lane can
+   only decline.
+4. A misleading message was removed: `/api/value` used to append *"Could not compute a per-share
+   value (missing shares/price). Check the ticker symbol."* whenever `base_fair_value` was None —
+   which now includes deliberate refusals, where it is simply false.
+
+## The test that pins it — `tests/test_withhold.py` (16 tests, offline)
+
+The fixture is the **real KSPI payload with the real figures that shipped**, so a regression
+reproduces the actual bug rather than a sanitised one. The load-bearing test is the catch-all:
+`test_no_withheld_figure_survives_anywhere_in_the_valuation_blocks` walks **every number in
+every valuation block** and requires it to be within 5× the price — so a card added next year
+that starts republishing the DCF fails without anyone remembering to add it to a list. Around
+it: the cone is gone; MC/sensitivity/reverse are gone; comps keep ratios and lose implied
+dollars; the reason keeps its figure; the score is withheld with its note; a publishable name is
+returned **byte-identical** (`out is payload`); the renderer's risky calls are all inside the
+else-branch and each appears exactly once; the stale-chart path is closed; the live route's JSON
+carries none of it; and both exports 409.
+
+## Suites
+
+**20 suites, 683 tests, all green** (was 667 — this adds 16). edge 221, screener 67, paper_track
+40, ev_multiples 34, engine 33, private 30, saas 30, lazy_prices 28, lazy_prices_ic 24,
+calibration 23, options_greeks 22, security 22, intraday 18, public 16, **withhold 16 (new)**,
+bulk 14, factor_alpha 14, freeze 13, pead 12, sector_neutral 6.
+
+## BUGS FOUND (noticed, not fixed — not this lane)
+
+1. **MRK is no longer withheld, and that is the guard's threshold doing a defect's job.**
+   Today MRK values at **$473.61 against a $128.33 price — 3.7×**, just under the 5× band, so
+   everything publishes: cards **$243.37 / $473.61 / $911.94 (+90% / +269% / +611%)**, a
+   sensitivity grid to **$1,660**, a Monte Carlo median **$896.19** with "100% of trials value it
+   above today's price", and a **91 "Strong Buy"**. The model classifies **Merck as
+   "hypergrowth"** with **~100% forward revenue growth** and **Rule of 40 = 119**. The refusal
+   band is not the problem — the DCF is. → **engine lane** (`PROMPT_dcf_terminal_degeneracy.md`).
+2. **`_valuation_score` re-imports the withheld valuation** (scoring.py:83/86) and the >5× cap
+   at scoring.py:228 is dead whenever the guard fires (`if base_fv and …`). Full argument above.
+   → **engine lane.** Until it is fixed, no composite score is published for a withheld name.
+3. **The PDF and Excel exports build the DCF cone unconditionally** (`report/pdf.py:97-99`).
+   Refused at the route here; the reports themselves should render the refusal instead of
+   erroring out. → **whoever owns `valuation/report/**`.**
+4. **The screener's own fair-value path is separate** and caps at 20× price
+   (`screener/fairvalue.py:69`), where the page refuses at 5×. Two different bars for the same
+   claim on two surfaces. The DCF-enriched rows use `res.base_fair_value`, which is correctly
+   None for withheld names, so nothing leaks today — but the thresholds should agree.
+
+## For Don
+
+Nothing to do. Look up **KSPI** signed out: the headline still says it cannot value the name,
+and now every card below it says the same thing and gives the reason, instead of printing
+"$1,289.68 (+1299%)". The one dollar figure left on the page is inside the sentence explaining
+why there is no dollar figure. The score reads **"Not rated"** rather than "93 Strong Buy" —
+that is deliberate, and the page says why in a sentence.
+
+---
+
 # Session 11 — 2026-08-04 — Public + free, with a hidden owner view (PROMPT_appfixer_public_free.md)
 
 Valquo is now **public and free to anyone, forever**, with the liability-shaped half held back
