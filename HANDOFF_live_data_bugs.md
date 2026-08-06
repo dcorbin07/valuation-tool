@@ -1037,3 +1037,56 @@ entire valuation rests on what happens after it. That is a genuinely different s
 6. **`MAX_GROWTH_VALUE = 20.0` never bound on a real universe** (growth lens max 5.44x). A
    "sanity cap" that cannot fire is not a sanity cap — the same shape as `dcf.py`'s 0.005
    terminal floor from Part 2 and `wacc.py`'s beta > 3.0 check.
+
+---
+
+# PART 5 — CONSOLIDATE-1: one publication decision (2026-08-06)
+
+## PRE-COMMITMENT — committed before any code change
+
+### The control group, checked properly this time
+
+Part 4's bound broke because I verified a *proxy* was non-empty instead of the defining
+property. The defining property is: **a control group is a set the change is mechanically
+incapable of touching.**
+
+Here one genuinely exists, and it is most of the universe. This is a **pure refactor** for every
+name whose fair value is currently publishable: the arithmetic that produces the number is not
+touched at all, only the code path that asks *"may it be shown?"*. For a name whose ratio sits
+inside the band with a resolvable currency, the consolidated decision returns the identical
+verdict by construction — same value, same absent reason, same method tag.
+
+**The comparison boundary is fixed now so it cannot be tuned later:** `ratio > band` refuses,
+`ratio == band` publishes. That matches both existing forms — `pipeline.py`'s
+`ratio > FV_BAND_HIGH` and `fairvalue.py`'s `out <= price * MAX_LENS_VALUE` — so no name sitting
+exactly on 5.0x may change state.
+
+### Bounds
+
+1. **Every name the engine currently PUBLISHES must come out bit-identical** — same fair value,
+   same upside, same method, no new refusal. This is the control group and it is mechanical.
+   **If any such name's number changes, that is a FINDING to report, not noise to absorb.**
+2. **Names the engine currently REFUSES must change, and only in one direction:** the scan row
+   must carry `fair_value = None`, `fair_value_withheld = True`, and a non-empty reason. Today
+   they carry a peer-substituted number. A refused name that still shows a fair value after this
+   change is a failure of the task.
+3. **Exactly one site may own the band after this change.** Every other site imports it. The
+   census below is the before-state; the after-state must have no second definition, no literal
+   `5` or `0.2` restatement, and no independently-worded refusal string in `engine/**`,
+   `screener/**` or `screen.py`. (`valuation/web/**` is another lane's and already imports
+   `FV_BAND_HIGH` rather than copying it — out of scope to edit, in scope to verify.)
+
+### Predicted effect, stated in advance so a surprise is visible
+
+The three names named in the prompt — **KSPI, STLA, CHTR** — plus any other name the engine's
+guard refuses, lose their peer-substituted hot-list fair value and gain a stated refusal. I
+expect the count of newly-withheld hot-list rows to equal the count of names the engine refuses,
+and **no other row to change at all**. If rows change that the engine does not refuse, I will
+investigate before shipping rather than explain it afterwards.
+
+### What I will NOT fold in
+
+The **reproducibility problem** (MRK's vanishing beta, `wacc.py:67`'s missing low-side floor and
+minimum-history check). It changes valuations, and mixing it into a refactor whose whole claim is
+"every published number is bit-identical" would destroy the only bound that makes this
+verifiable. It gets its own task, as instructed.
