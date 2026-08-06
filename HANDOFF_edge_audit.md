@@ -2527,3 +2527,116 @@ LIFTED.** Every other calibrated bar in X7's table is unchanged and was never af
   not mistaken for an oversight.
 - **The seed instability was closed for the CONTROL only.** Every other bootstrap in the options
   lane still runs at a single seed. Whether any of them is similarly seed-sensitive is unmeasured.
+
+---
+
+# SESSION 5 CLOSEOUT — the five items Session 5 declared unfinished
+
+Session 5's own `WHAT WAS NOT DONE` and `BUGS FOUND` are the scope. **This is not Session 6.**
+Everything below was written **before any code was changed and before any run was launched**;
+the results follow underneath, in a separately marked section.
+
+## PRE-COMMITMENTS, written before the work
+
+### Item 1 — stamp the autopsy's derived-data coverage (BUGS FOUND #1, unfixed)
+
+Not a statistical test, so no threshold. **Acceptance criteria, committed:**
+
+1. `options_autopsy.run()` ships a `derived_data` block in its own result dict, so every
+   `AUTOPSY_*.json` carries the state of `data/options_derived/` **at the moment it ran**.
+2. The stamp is a **fingerprint**, not a count — two runs with the same number of names but
+   different contents must not compare equal.
+3. A helper answers the comparability question mechanically, so a cross-session difference either
+   **reconciles or refuses** rather than being adjudicated by a human reading a note.
+4. A test pins it, including the refusal direction.
+
+**Committed in advance:** the stamp is DESCRIPTIVE. It does not gate, block or alter any run.
+A field that can fail a run would get switched off the first time it is inconvenient — which is
+exactly the failure mode `RUN_RULES` §A5 exists for.
+
+### Item 2 — `optuniv_run.py` must refuse to overwrite a banked result (BUGS FOUND #5, unfixed)
+
+**Acceptance criteria, committed:**
+
+1. The refusal fires **before any scoring work**, not after 20 minutes of compute.
+2. Refusal is the DEFAULT. Proceeding requires an explicit flag.
+3. Even with the flag, prior artifacts are **moved aside, never destroyed** — no path through this
+   runner may delete a banked book.
+4. A legitimate **resume** of the same run must NOT be blocked. Resuming is the feature; the
+   defect is a *different* run silently landing on top of a banked one.
+5. Tests pin both directions: a resume is allowed, a parameter change is refused.
+
+### Item 3 — the mid-fill (aggression 0.0) decomposition
+
+**Committed BEFORE the run, and this is the whole point of the pre-commitment:**
+
+* This is a **DIAGNOSTIC, never a headline.** Bar B5 stands. Whatever it returns, the R2 verdict
+  (the entry signal is dead) does not move: it is measured at aggression 1.0 and this run does not
+  touch that book.
+* **It cannot rescue the entry signal and will not be read as if it could.** Aggression 0.0 fills
+  at the mid instead of paying the spread. A book that is profitable only when it does not pay the
+  spread is not a tradeable book — it is a measurement of the toll.
+* The number being replaced is the **−6.59pp spread toll** in `HANDOFF_universe_backtest.md` §2a,
+  which is void along with the rest of that file.
+* **Pre-committed disposition, both branches:** if the run completes on the pinned 187-name
+  universe, the toll is **replaced** with the corrected figure and labelled a diagnostic. If it
+  does not complete or the universe cannot be pinned, the figure is marked **WITHDRAWN** and left
+  withdrawn. It is not left void either way, and no third option is available after seeing the
+  number.
+
+### Item 4 — the four `compute_signals`-touching features, individually
+
+The four are named at `VALQUO_EDGE_AUDIT.md:155`: **`term_slope`, `skew_25d`, `vrp`, `gex_proxy`**
+— the consumers of the mis-stated spot in B1. In the autopsy's namespace: `f_term_slope`,
+`f_skew_25d`, `f_vrp`, `f_gex_proxy`, plus any feature derived from them.
+
+**Committed thresholds — the SAME gate the other 60 features face, no special-casing:**
+
+* A feature is **INFORMATIVE** only if it passes `holdout_feature` in **both** split directions
+  (`passes_both_directions`), which is `MIN_LATE_GAIN` = +5.00pp with the retention and tail
+  floors, at `ALPHA` = 0.05 on the permutation p.
+* A feature that clears the gate in **one** direction only is **NOT_REPLICATED**, not a
+  near-miss to be argued for.
+* **BH-FDR at q = 0.10 across the whole 64-feature sweep is the multiplicity control**, not a
+  per-feature p. A feature with a nominal p < 0.05 that fails FDR is a **null**.
+* **Pre-committed reading of the likely outcome:** the aggregate already returns zero survivors,
+  so the expected answer is that all four are individually uninformative. **That is a complete
+  answer and it closes the item.** If one of the four DOES clear both directions, it is reported
+  as a finding requiring pre-registered replication — it is not adopted here, on this panel,
+  by this session.
+
+### Item 5 — how far the seed instability reaches
+
+**The rule is committed before the measurement, as the prompt requires.**
+
+Define, for a statistic *S* run at seeds 0–4 on the same book:
+`seed_range(S) = max(S) − min(S)`, and `ci_width(S)` = the width of the statistic's own reported
+CI95 at seed 0.
+
+A statistic gets **MULTI-SEED as standing policy** (≥5 seeds, report the median with the range
+beside it) if **either** trigger fires:
+
+* **T1 — DECISION.** Any published boolean derived from *S* (`beats_control`, `passes_B2`,
+  `passes_G3`, `negative_at_significance`, …) takes a different value on any of the five seeds.
+  **Zero tolerance; magnitude is irrelevant.** This is the trigger R2 hit — seed 0 said
+  inconclusive and seed 1 said dead.
+* **T2 — MAGNITUDE.** `seed_range(S) ≥ 0.10 × ci_width(S)`.
+
+Otherwise the statistic **stays single-seed**, and its measured seed range is **published beside
+it once** so nobody has to re-derive it.
+
+**The 0.10 is a CONVENTION and is labelled as one.** Its basis: a bootstrap's Monte Carlo error
+should be small relative to the statistical uncertainty it is estimating, and the range of five
+draws is roughly 2.3 standard deviations, so the trigger fires at a Monte Carlo sd of about 4% of
+the CI width. It is **not** calibrated against a null the way X7's bars are, and it should not be
+quoted as if it were. It errs toward more seeds, which is the direction this project has been
+wrong in before.
+
+**Ambiguity is a NULL and a NULL defaults to the stricter branch (multi-seed).** Committed now,
+so that a statistic sitting on 0.10 cannot be argued down after the fact.
+
+**Scope committed before measuring:** every seeded bootstrap in the options lane that feeds a
+shipped field — `bootstrap_diff` (`home_run`, `control_comparison`), `date_block_bootstrap` and
+`date_block_diff` (`clustered_inference_R3`, `control_comparison`), `effective_n`'s shuffled null,
+and the autopsy's permutation p / `combiner_test`. The random-entry control is **already** at five
+seeds and is the precedent, not a subject.
