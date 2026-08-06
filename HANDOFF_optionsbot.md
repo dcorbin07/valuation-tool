@@ -1065,3 +1065,240 @@ creating two new files and these are pre-existing documents I do not own.
 *`HANDOFF_STATUS.md` again deliberately NOT overwritten — shared state, parallel lanes.*
 
 <!-- /ledger:ignore -->
+
+---
+
+# AUDIT M3 — DONE 2026-08-06, `tests/test_guards.py`
+
+<!-- The heading above is deliberately OUTSIDE the ignore block: it is this lane's completion
+     evidence for M3 and `build_ledger.py` must see it. Everything below is inside, because the
+     write-up CITES R9, R10, O15, B4, B22 and M6 as context — those are mentions, not
+     completions, and feeding them to the scanner is precisely the forward-reference error that
+     produced the bad 68/134 count. -->
+<!-- ledger:ignore -->
+
+**Done 2026-08-06.** Deliverable: `tests/test_guards.py`, 36 tests, **35 pass and 1 XFAIL**.
+No production file was modified. `python tests/test_guards.py` exits 0.
+
+M3 exists because this project has been bitten at least six times by one shape: a check exists,
+the run completes, and the check was not looking. Every one of those had a guard, a test suite or
+an audit nearby. **What none of them had was a test that fed the guard a known-bad input and
+asserted it complained.** A guard that has never fired is indistinguishable from a guard that
+cannot fire, and this project has shipped both.
+
+Two rules the fixtures follow: **use the real failure where one is known** (the KSPI 14.0x fair
+value, the `-1` OI sentinel, the R9 4.517 lost at the schema boundary, the NXPI-2017 symbol-year
+that vanished into its own backup), and **assert the refusal direction too** — every fixture set
+carries a clean input that must NOT trip the guard, because a guard that fires on everything is
+switched off faster than one that fires on nothing.
+
+## THE HEADLINE: the guards are in better shape than the record implies, with two exceptions
+
+**29 of the 30 testable guards fire on the bug they exist to catch.** The exceptions:
+
+1. **`oi_coverage_audit.year_files` cannot see a symbol-year that vanished** — the known-bad
+   fixture is NXPI-2017 and it is not caught. Shipped as XFAIL, routed below.
+2. **There is no field-level schema guard at all.** `missing_result_blocks` guards BLOCK
+   absence; the R9 loss (`top_decile_alpha_tstat` = 4.517 computed correctly and written as
+   `None`) was FIELD-level, and that hole is still open. Not a guard that fails — a guard that
+   was never written.
+
+Everything else complained when it was shown the bug, including several I expected to fail.
+
+## Guard census
+
+`fires?` means: fed a fixture reproducing the failure it exists to catch, does it complain —
+and does it stay quiet on a clean input. **PINNED (M3)** = had no behavioural test before this
+item. **pre-M3** = already had one; re-checked here and listed so the census is complete.
+
+### Tier 1 — between a wrong number and a USER
+
+| guard | file:line | what it catches | fixture | fires? | lane |
+|---|---|---|---|---|---|
+| `publication_guard` / `publication.decide` | `engine/pipeline.py:36`, `engine/publication.py:83` | a fair value more than 5x price | **real KSPI $1,289.60 vs $92.19 = 14.0x** | YES — **PINNED (M3)**, had ZERO tests | app fixer |
+| — its currency leg | `engine/publication.py:66` | statements in KZT, price in USD, no usable rate | fx unresolved at a 1.19x ratio (inside the band) | YES — **PINNED (M3)** | app fixer |
+| — the band boundary | `engine/publication.py:36` | an off-by-one silently re-valuing every borderline name | exactly 5.0x publishes; 5.0x + 0.01 refuses | YES — **PINNED (M3)** | app fixer |
+| `fairvalue._mature_value` band | `screener/fairvalue.py:186` | a levered EV re-rating implying 12.4x per share | **CHTR's 4.68x leverage at the 3x re-rate cap** | YES — **PINNED (M3)** | app fixer |
+| `fairvalue._pos_yield` | `screener/fairvalue.py:92` | pricing off a negative earnings yield | loss-maker at −0.08 vs peers at +0.05 | YES — **PINNED (M3)** | app fixer |
+| `record_refusal` + `estimate_fair_values` | `engine/publication.py:120`, `screener/fairvalue.py:270` | a refusal erased by a peer substitute — how KSPI, STLA, CHTR reached the public hot list | a recorded refusal against a full peer set | YES — **PINNED (M3)** end-to-end | app fixer |
+| `withhold_implausible_fair_values` | `web/withhold.py:168` | any row past the band, **including NaN** | NaN driven through all three steps | YES — **PINNED (M3)**; see the finding below | app fixer |
+| `withhold_derived_figures` | `web/withhold.py:261` | every figure derived from a withheld value | the real KSPI payload | YES — pre-M3 (`test_withhold.py`, 28 tests), re-checked | app fixer |
+| `scoring.py` >5x cap | `engine/scoring.py:228` | the cap that could not fire once `base_fv = None` | pre-M3 (`test_engine.py:499`) | YES — pre-M3 | app fixer |
+
+### Tier 2 — between a wrong number and a RESEARCH VERDICT
+
+| guard | file:line | what it catches | fixture | fires? | lane |
+|---|---|---|---|---|---|
+| `missing_result_blocks` | `edge/fundamental_panel.py:4199` | a validation block that never ran — R10's `benchmarks` | absent / `{}` / `None`, all three | YES — **PINNED (M3)**, had ZERO tests | pipeline builder |
+| `build_payload` errors scan | `edge/results_file.py:123` | a block that raised, reading as "ran and found nothing" | `status: "error: boom"` | YES — **PINNED (M3)** | pipeline builder |
+| the R9/R10 fields | `edge/results_file.py:217-228` | the exact two the writer dropped | `top_decile_alpha_tstat` 4.517, `benchmarks` | YES — **PINNED (M3)** | pipeline builder |
+| **field-level schema** | `edge/results_file.py:74` | a NEW metric added to a computation | a field nobody whitelisted | **NO GUARD EXISTS** — characterised, see BUGS FOUND | pipeline builder |
+| `signal_coverage` | `edge/fundamental_panel.py:3781` | a wired factor non-null in 0 rows | all-null `z_roe`, named **with its theme** | YES — **PINNED (M3)** for the theme attribution; coverage itself pre-M3 | pipeline builder |
+| `sanity_check` (panel) | `edge/fundamental_panel.py:3614` | the currency bug — present but wrong | a 1000x fx divisor, the SK Telecom magnitude | YES — pre-M3 (`test_edge.py:1052`) | pipeline builder |
+| `ev_freshness` | `edge/fundamental_panel.py:3830` | a silent revert of point-in-time EV | pre-M3 (`test_ev_multiples.py:394`) | YES — pre-M3 | pipeline builder |
+| `composite` NaN handling | `edge/fundamental_panel.py:1549` | a name with no themes ranking mid-pack | pre-M3 (`test_edge.py:4453`) | YES — pre-M3 | pipeline builder |
+| `options_vrp.coverage_block` | `edge/options_vrp.py:777` | an options input absent on every trade | `iv_rank = None` on all rows, and on 49 of 50 | YES — **PINNED (M3)**, had ZERO tests | options bot |
+| `options_vrp.sanity_block` | `edge/options_vrp.py:801` | arithmetically impossible trades | −150% loss, credit > width, 0.80 delta, **400 DTE**, one-exit-reason | YES — partly pre-M3 (`test_edge.py:2416`); M3 adds the DTE window and exit dominance | options bot |
+| `options_autopsy.feature_coverage` | `edge/options_autopsy.py:530` | a feature present but non-numeric | `"n/a"` strings on every row | YES — **PINNED (M3)** | options bot |
+| `blackscholes.validate_against_vendor` | `edge/blackscholes.py:252` | a hand-rolled pricer that is quietly wrong | every delta off by −0.20 | YES — **PINNED (M3)**, but **never called anywhere** | greeks lane |
+| `options_stats.clustering_measurable` | `edge/options_stats.py:197` | a design effect quoted without its null | pre-M3 | YES — pre-M3 | options bot |
+
+### Tier 3 — between a wrong number and the DATA ON DISK
+
+| guard | file:line | what it catches | fixture | fires? | lane |
+|---|---|---|---|---|---|
+| `oi_coverage` | `edge/theta_bulk.py:260` | `-1` read as a quantity | pre-M3 (`test_edge.py:4557`) | YES — pre-M3 | options bot |
+| `.oi_degraded` sidecar (writer) | `edge/theta_bulk.py:674-695` | a faulted OI call cached as a complete year | an all-`-1` frame through a stubbed `_fetch_year`, then a clean re-mine | YES both ways — pre-M3, re-checked | options bot |
+| deepening must not lose rows (O15) | `edge/theta_bulk.py:700-705` | a "deeper" pull thinner than the cached one | 30 rows against a cached 160; then a genuine 400-row superset | YES — pre-M3, M3 adds the depth-stamp assertion | options bot |
+| `depth_report` | `edge/theta_bulk.py:285` | a partial deepening reading as uniform | DEEP / MIXED / LEGACY (no `.dte` sidecar) | YES — pre-M3, M3 adds the legacy and empty-root cases | options bot |
+| `alias_overlap_conflicts` | `edge/theta_bulk.py:334` | `WBD -> T`: an "alias" that is a live company | overlapping cached years, and DISCA's clean handover | YES — pre-M3, re-checked | options bot |
+| `oi_coverage_audit.scan_one` | `oi_coverage_audit.py:40` | `-1` vs a genuine 0; unreadable / empty / no-column | all four shapes | YES — **PINNED (M3)**, had ZERO tests | options bot |
+| **`oi_coverage_audit.year_files`** | `oi_coverage_audit.py:57` | a symbol-year that vanished from the cache | **NXPI-2017 as a `.bak_oi` orphan** | **NO — XFAIL** | options bot |
+| `oi_remine` orphan sweep | `oi_remine.py:96-121` | the NXPI-2017 loss (144,300 rows) | an orphan on disk, network stubbed to a keyless client | YES — **PINNED (M3) behaviourally**; the prior test asserted on SOURCE TEXT | options bot |
+| `oi_remine` never-destroy | `oi_remine.py:168-198` | a stale backup restored over a healthy frame | `.bak_oi` beside a live `.pkl` | YES — **PINNED (M3)** | options bot |
+| `oi_remine` no-key refusal | `oi_remine.py:124-126` | marking every span permanently `.oi_nosource` | a keyless client with a span below the floor | YES — **PINNED (M3)** | options bot |
+
+### Could NOT be fixture-tested — recorded, not skipped
+
+| guard | why not | lane |
+|---|---|---|
+| `check_lanes.py` | **NOT IN GIT.** `git ls-files` does not know it; it is not gitignored either, just never added. No worktree and no clean clone can run it, so it cannot be tested from the repo. Same class as the four untracked audit documents. | audit tooling — needs an owner |
+| `theta_bulk._fetch_span` retry/backoff | Needs a live ThetaData subscription; the policy is only observable against a feed that is actually faulting. | options bot |
+| `options_greeks.repair_coverage` | Needs the mined cache (~18GB) plus a live feed to re-pull what it repairs. | greeks lane |
+| `build_fundamental_panel` end-to-end | Needs the licensed Sharadar exports in `data/backtest`. The guards INSIDE it — `signal_coverage`, `sanity_check`, `ev_freshness` — are each pinned separately above. | pipeline builder |
+
+The list is pinned by `test_the_untestable_list_is_specific_rather_than_a_shrug`, which requires
+every entry to name a real blocker — so the row cannot quietly become the place to put guards
+nobody wanted to write.
+
+## BUGS FOUND
+
+**None of these were repaired here.** The fix belongs to the lane that owns the file; repairing
+it in this session would mean the test and the fix land together with nobody having seen the
+test fail.
+
+### 1. `oi_coverage_audit.year_files` is blind to a symbol-year that vanished — XFAIL
+
+`oi_coverage_audit.py:57`. **Owning lane: options bot (this one).** The enumeration is
+`fn.endswith(".pkl")`, so a symbol-year that exists only as a `.bak_oi` orphan is not scanned,
+not counted, and not reported. Its absence reads as a **repair**: the span drops out of
+`below_floor` and the before/after diff calls it fixed.
+
+That is not hypothetical — it is the recorded NXPI-2017 loss (144,300 rows, 6.8MB), which
+appeared in a coverage diff as one of three "fixed" spans after a shard was stopped mid-re-pull.
+
+`oi_remine` sweeps orphans back at the START of its own run, which **mitigates but does not
+close it**: an audit run while a shard is stopped still cannot see the gap, and the sweep only
+runs when someone runs the re-miner. **This wants a decision, not a patch** — either the audit
+counts orphans, or it records the cache's file inventory so a shrinking one is loud. I did not
+pick, because either choice changes what `OI_COVERAGE.json` means and that file is committed and
+quoted.
+
+Test: `test_the_oi_audit_can_see_a_symbol_year_that_vanished_into_its_backup`, registered
+`@known_failure`. It goes green the day the guard is fixed, and the runner prints `XPASS` telling
+whoever fixed it to delete the marker.
+
+### 2. Nothing guards the schema boundary at FIELD level
+
+`edge/results_file.py:74`. **Owning lane: pipeline builder.** `build_payload` whitelists every
+key it writes. The R9 loss was exactly this: `quantile_backtest` computed
+`top_decile_alpha_tstat = 4.517421601141459` correctly and the canonical file recorded `None`
+beside it. Nothing raised. `benchmarks` was added to `RESULT_BLOCKS` afterwards, which closes
+that one BLOCK — it does not close the class.
+
+Measured today: `build_payload({"construction": {"a_brand_new_metric": 1.23}})` returns a
+`construction` block with no such key and no complaint. **Adding a metric to a computation does
+not add it to the canonical file, and the canonical file is what every other agent reads.**
+
+Pinned as a characterisation test (`test_the_schema_boundary_still_drops_a_metric_nobody_
+whitelisted`) whose assertion message says "GOOD NEWS ... delete this" — so it fails loudly the
+day someone closes the hole, rather than sitting as a silent assumption.
+
+### 3. `validate_against_vendor` has no caller anywhere in the tree
+
+`edge/blackscholes.py:252`. **Owning lane: greeks lane.** It exists "because a hand-rolled
+pricer that is subtly wrong would corrupt every signal downstream while every run completed
+normally". It works — M3 pins it against a uniformly-wrong delta — and **it is never invoked**:
+`grep -rn validate_against_vendor` finds the definition and its own docstring, nothing else. The
+purest form of the failure M3 was written for.
+
+Second-order: a no-overlap comparison returns `{"n": 0}` with **no agreement fields at all**, so
+a future caller writing `.get("delta_agree_pct", 1.0)` would read a total miss as a perfect
+score. Both are pinned; the wiring decision is the greeks lane's.
+
+### 4. A NaN fair value is invisible to two of the three guards in its own chain
+
+**Not a bug today — a one-edit-away hazard, recorded so it stays that way.** Measured:
+
+* `publication.decide(NaN, price)` refuses **with an empty reason**, so `record_refusal` is
+  never called and the row is never marked;
+* `estimate_fair_values` reads `fair_value is not None` as "a DCF exists" and tags the row
+  `dcf`, leaving the NaN in place;
+* `withhold_implausible_fair_values` catches it — **only because it is written to CONTINUE when
+  the row is provably fine, rather than to WITHHOLD when it is provably bad.** Every NaN
+  comparison is False in both directions, so the fail-open form (`if ratio > band: withhold`)
+  passes it straight through.
+
+That inversion is the entire defence and it looks like a stylistic choice. Now pinned by
+`test_the_public_row_guard_is_fail_closed_against_a_nan_fair_value`.
+
+### 5. The pre-M3 test for the `oi_remine` orphan sweep asserted on SOURCE TEXT
+
+`tests/test_edge.py:4631`. It reads `oi_remine.py` and checks that `".bak_oi"` and
+`"recovered orphaned backup"` appear in it, in the right order. That is a reasonable static
+check of ordering and it caught a real design requirement — but **it passes just as happily if
+the sweep is commented out**, since the strings survive in a comment. M3 replaces it with a
+behavioural test that puts an orphan on disk, runs `oi_remine.main()` against a temporary cache
+with the network stubbed to a keyless client, and asserts the frame comes back with its rows.
+The old test is left in place (it pins the ordering); no lane action needed.
+
+## How to run it
+
+    python tests/test_guards.py          # exits 0; XFAIL does not turn the suite red
+
+It is picked up automatically by the CI gate (`.github/workflows/land-agent-branch.yml` runs
+every `tests/test_*.py`).
+
+**On the XFAIL mechanism.** This project runs tests as plain scripts, so there is no pytest and
+no `xfail`. `@known_failure(reason, lane)` is this suite's version: a marked test that fails
+prints `XFAIL` with the reason and the owning lane and does **not** turn the suite red — the
+repair is not this lane's, and landing the test with the fix would mean nobody ever saw it fail.
+A marked test that PASSES prints `XPASS` telling you to delete the marker, and also does not
+fail the run, so another lane fixing its own bug never breaks this gate.
+
+**And that mechanism is itself pinned**, because by this item's own argument an untested
+`known_failure` is indistinguishable from a broken one — if it silently swallowed everything,
+the single real finding in this file would read as a pass and nobody would chase it.
+`test_this_files_own_xfail_mechanism_is_not_itself_inert` exercises all four routings against
+**the same `_classify` the runner calls** (not a copy of the rule, which is the mistake this
+file exists to catch), requires every marker to name a live test, a reason over 80 characters
+and an owning lane, and pins that a CRASH is never an XFAIL — a marked test throwing a
+`TypeError` has rotted rather than found something, and filing that under "expected" is how a
+marker outlives its bug. The XPASS path was also driven end-to-end with a deliberately stale
+marker: it prints and the suite stays green.
+
+## A ledger note for whoever owns M6
+
+`VALQUO_LEDGER.md` records **M6 (Results-file schema assertion) as OPEN**. M3's census says that
+is **half wrong and half right**, which is why I did not change someone else's row:
+
+* the BLOCK-level half **exists and works** — `missing_result_blocks` is real, is called at
+  `fundamental_panel.py:4166`, and now has a behavioural test it did not have before;
+* the FIELD-level half **does not exist at all**, and that is the half the R9 loss actually came
+  through (BUGS FOUND item 2).
+
+So M6 is closer to IN PROGRESS than OPEN, and its remaining scope is field-level only. The
+owning lane should set the status; per the ledger's own rule I report the disagreement rather
+than overwrite the row.
+
+## What I deliberately did not do
+
+* **No production file was touched.** `git diff --stat` for this item is one new file.
+* **I did not fix the two real defects** (items 1 and 2 above), per the prompt: a guard that
+  fails its known-bad fixture is the most valuable output of this task, and repairing it here
+  would land the test and the fix together with nobody having seen the test fail.
+* **I did not add the missing field-level schema guard.** It belongs in `results_file.py`, which
+  is the pipeline builder's, and it is a design choice (assert a known key set, or pass unknown
+  numerics through) rather than a patch.
+
+<!-- /ledger:ignore -->
