@@ -249,6 +249,43 @@ The three rejections matter as much as the recoveries: they are the liquidity sc
 real data instead of on a calendar artifact. A fix that made everything pass would be the
 suspicious outcome.
 
+### Breadth progress — RESUMABLE, and the answer is a file
+
+The run is market-cap ordered, so a partial run is a usable universe rather than an alphabetical
+accident, and every name is written to the manifest as it completes. **`python mine_status.py`
+is the answer to "how far did it get"** — it reads the manifest and the cache, not a process.
+**To resume: `python mine_options_cache.py`.** It skips every name that already carries a verdict
+and picks up exactly where it stopped; re-running is always safe.
+
+Snapshot at 10h (this is a checkpoint, not the final number):
+
+| | at start | at 10h |
+|---|---|---|
+| names judged of 1,000 | 481 | **583** |
+| complete | 314 | **362** |
+| skipped_thin | 163 | 210 |
+| no_data_in_range | 0 (status did not exist) | 8 |
+| cache on disk | 17.3GB | 19.5GB |
+| symbol-years at 200 DTE | 906 | **1,371** |
+| names fully at 200 DTE | 100 | **194** |
+| symbol-years with alias provenance | 0 | 39 |
+
+**RUNTIME: I PROJECTED 14-24h AND THAT WAS WRONG; measured throughput says ~4.3-6.3 min/name,
+so the full 1,000 is ~40-50h.** The error is worth recording because it is the same one I made
+on O15: I assumed the tail would be faster because its names are smaller (median 29MB vs 82MB at
+the top), but **wall-clock is set by CALL COUNT, not payload** — every name costs ~120 calls
+(12 monthly spans × 10 years) whatever its size. The historical rate was ~5.4 min/name-decade and
+this run is at ~5.8. The size ranking was real and irrelevant. No attempt was made to speed it
+up: the 4-concurrent-request budget is already saturated within each name, and a second process
+would share the manifest, which is the failure that destroyed a 197-trade result on this project.
+
+**DEPTH IS A PER-SYMBOL-YEAR PROPERTY, NOT A PER-NAME ONE — this now bites in a new way.** New
+names mine at `MAX_DTE = 200` by default, but a name the aborted earlier run had partially cached
+keeps those old years at 90, because `upgrade_depth` is (correctly) off. **WSM is the live
+example: 2016-2019 and 2024 at 90, 2020-2023 and 2025 at 200.** Expect more mixed names as
+breadth proceeds. `cached_dte(sym, year)` is the authority; `depth_report()["names_mixed"]` lists
+them, and `mine_status.py` prints the count.
+
 **Note the mining range still ends at 2025** (`YEARS = 2016..2025`; 2026 is a partial year and was
 deliberately excluded long before this session). So CBRS/HONA/MDLN/SUNB, whose only data is 2026,
 correctly stay out — but they are now labelled `no_data_in_range` rather than "thin", which is the
@@ -332,7 +369,21 @@ honest label and gives a clean re-entry point once 2026 closes.
 
 ## What was NOT done
 
-* **Item 5 (breadth mining) not started**, per instruction to stop after item 4.
+* **Breadth mining is NOT FINISHED — it is a long run, not a blocked one.** See the progress
+  table; resume with `python mine_options_cache.py`, check with `python mine_status.py`.
+* **`probe_range_audit.py` has NOT been run yet.** It needs the ThetaData concurrency budget the
+  miner is currently using, and running both would fault the miner's channel. Run it after the
+  breadth mine stops. Until then, **`no_data_in_range` overstates what was measured** for any
+  name whose history predates the probe window — `UI` is the known case.
+* **The `.alias` provenance sidecar is WRITE-ONLY so far.** `mine_status.py` reports it and
+  `alias_overlap_conflicts()` guards the mapping, but no CONSUMER of the cache reads it. A
+  downstream user still cannot tell from the frame alone that WBD 2016-2021 is Discovery's data
+  legitimately re-keyed. That is a deliberate stopping point, not an oversight.
+* **`data/options_derived/WBD/*` and `GREEKS_COVERAGE.json` were NOT re-derived.** Another
+  lane's outputs; flagged in `HANDOFF_STATUS.md`.
+* **Item 5's original framing — "re-probe the 505 as channel-death damage" — was not done as
+  written**, because the damage had already been repaired: the missing names were a contiguous
+  unmined rank tail. They are being mined, which is the same work under an accurate description.
 * **`TENORS` was NOT widened** past the legacy 90 — see the band section for why.
 * **The derived layer was NOT re-derived** after the band widened. That is the corrections
   agent's call, not mine.
@@ -344,9 +395,16 @@ honest label and gives a clean re-entry point once 2026 closes.
 
 ## Recommended next step
 
-**Item 5 (breadth mining), and it should re-probe the 505 manifest-less names FIRST** — those are
-channel-death damage from bug 3, and the fix for that is now in place and proven over a 16-hour
-run, so they should probe cleanly this time. Closing the `ALIASES` gap behind the 14 empty names
-is a cheap win to fold into the same pass.
+1. **Let the breadth mine finish** (`python mine_options_cache.py` resumes it), then run
+   **`python probe_range_audit.py`** to make the `no_data_in_range` label true.
+2. **→ GREEKS LANE: re-derive WBD.** `data/options_derived/WBD/*` is built from AT&T's chains.
+   This is the only cross-lane action outstanding and it is not optional.
+3. **Consider whether the shared `HANDOFF_STATUS.md` convention is worth keeping as-is.** Every
+   lane prepends a section at the same anchor, so two lanes finishing on the same day is a
+   guaranteed merge conflict — **it has now blocked an auto-land twice** (the B4 commit, and
+   this session's first push). Both were resolved by keeping both sections, which is always the
+   right resolution and therefore a good candidate for a merge driver or a per-lane include.
 
-U1 is unblocked on the data side: the 120-180 DTE band now exists for the 100 most liquid names.
+U1 is unblocked on the data side: the 120-180 DTE band exists for the 194 deepest names and
+grows as breadth proceeds. **Read the depth caveat above before ranking anything in that band** —
+it is a per-symbol-year property, and mixed names now exist.
