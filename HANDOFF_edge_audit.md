@@ -3584,6 +3584,25 @@ pinned by `test_u7_the_fast_block_bootstrap_is_exact`, which replays the identic
 `Random.randrange` sequence and requires the CI endpoints to match to floating point.
 `options_stats` itself is left alone; other lanes read it.
 
+**7. THE CORRECTED OPTIONS BOOK EXISTED ONLY IN A SESSION SCRATCH DIRECTORY. Fixed.**
+`data/options_universe/state.pkl` is the **pre-correction 3,042-trade** book. The corrected
+**3,885-trade** book that R2, the Session-5 closeout and this session all rest on, plus its five
+control seeds, lived only in `~/.claude/jobs/<id>/tmp/` — deleted when the job is deleted. Two
+sessions of options conclusions were one cleanup away from being unreproducible, and the
+Session-5 item-2 guard could not help, because it protects a directory the artifacts were never
+written to. Copied to durable paths (all gitignored, per the hard rule — nothing licensed is
+committed):
+
+| artifact | durable path | verified |
+|---|---|---|
+| corrected book | `data/options_universe/state_r2_corrected.pkl` | 3,885 rows / 187 names |
+| control seeds 0-4 | `data/options_universe/control_r2_seed{0..4}.pkl` | 29,785 trades total |
+| corrected 69-date panel | `data/free_analysis/panel_corrected_69d.pkl` | 113,945 rows / 69 dates |
+
+`data/options_universe/state.pkl` is deliberately **not** overwritten — it is a banked artifact
+and the guard exists to stop exactly that. The next session should decide whether the
+pre-correction book is still worth keeping under a name that does not read like the current one.
+
 ## WHAT WAS NOT DONE, AND WHY
 
 * **X7's calibrated bars were NOT re-derived at N = 92.** Pre-committed as out of scope in
