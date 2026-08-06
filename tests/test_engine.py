@@ -438,6 +438,64 @@ def test_guard_leaves_a_normal_name_alone():
     assert not any("Cannot value this name" in w for w in r.warnings)
 
 
+def test_implausible_analyst_growth_is_rejected_not_clamped():
+    """THE root cause of the $2,471 Merck DCF. `analyst_rev_growth_next` was being fed an
+    EARNINGS growth estimate (yahoo.py:293 reads the `stockTrend` column), which explodes
+    off a negative base: GILD 15.0829, MRK 2.4942. The old blend CLAMPED that to 1.00,
+    which reads as a legitimate 100% revenue forecast — so two mature pharma names were
+    classified HYPERGROWTH and modelled at 60% growth for 10 years (revenue x17.2).
+
+    Garbage must be DISCARDED, not squashed onto the edge of the valid range."""
+    from valuation.engine.classify import _blended_growth
+    cd = build_nike()
+    # MRK's actual reported revenue: 1.3% TTM, 3.1% 3y CAGR
+    cd.revenue = 65011.0
+    cd.revenue_history = [65011.0, 64168.0, 60115.0, 59283.0]
+    cd.fiscal_years = [2025, 2024, 2023, 2022]
+    g3, gt = cd.rev_cagr_3y, cd.rev_growth_ttm
+
+    cd.analyst_rev_growth_next = 2.4942                  # MRK's contaminated value
+    g = _blended_growth(cd)
+    assert g is not None and g < 0.10, (
+        f"blended growth {g:.3f} — a 249% 'revenue growth' must be rejected, not clamped")
+    assert abs(g - (g3 * 0.3 + gt * 0.2) / 0.5) < 1e-9, "must fall back to CAGR+TTM"
+
+    cd.analyst_rev_growth_next = 15.0829                 # GILD's
+    assert _blended_growth(cd) < 0.10
+
+    # ...and a plausible estimate is still used, at its full weight
+    cd.analyst_rev_growth_next = 0.08
+    assert abs(_blended_growth(cd) - (0.08 * 0.5 + g3 * 0.3 + gt * 0.2)) < 1e-9
+
+
+def test_mature_pharma_is_not_classified_hypergrowth():
+    """The consequence the rejection exists to prevent: a 1-3%-growth name must not be
+    handed a hypergrowth regime and a 60% start growth."""
+    cd = build_nike()
+    cd.revenue = 65011.0
+    cd.revenue_history = [65011.0, 64168.0, 60115.0, 59283.0]
+    cd.fiscal_years = [2025, 2024, 2023, 2022]
+    cd.analyst_rev_growth_next = 2.4942
+    cls = classify(cd)
+    assert cls.regime != "hypergrowth", cls.regime
+    a = build_base_assumptions(cd, cls, cd.risk_free_rate, CONFIG)
+    assert a.start_growth < 0.10, a.start_growth
+    assert a.n_years <= 7, "a mature name must not get the 10-year hypergrowth runway"
+
+
+def test_healthy_name_is_untouched_by_the_terminal_clamp():
+    """Do-no-harm: the clamp must not bind on a normal-beta name, or the fix is a
+    universe-wide repricing wearing a bug fix's clothes."""
+    from valuation.engine.dcf import run_dcf
+    from valuation.engine.assumptions import build_base_assumptions
+
+    cd = build_nike()                   # beta ~1
+    w = compute_wacc(cd, CONFIG)
+    a = build_base_assumptions(cd, classify(cd), w.risk_free, CONFIG)
+    r = run_dcf(cd, a, w.wacc)
+    assert r.terminal_growth == a.terminal_growth, "clamp must not bind on a normal name"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
