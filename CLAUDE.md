@@ -126,8 +126,16 @@ the project's memory and the old versions had been repeated for months.
   Every options interval ever published resampled TRADES and is optimistically narrow.
   `valuation/edge/options_stats.py` adds a date-block bootstrap (calendar months resampled
   together), `n_eff`, the paired name-year sign test and paired *t*, purge/embargo for the CSCV
-  splits, and the Deflated Sharpe at `n_eff`. **Measured clustering factor 1.85 — BELOW the
-  audit's predicted 2–4** — so every options *t* shrinks by ~1.36×, and **no verdict changes.**
+  splits, and the Deflated Sharpe at `n_eff`. **CORRECTED 2026-08-06 (session-5 closeout): the
+  clustering factor is 2.212, NOT 1.85, and it is INSIDE the audit's predicted 2–4 — the record
+  said the audit over-predicted and the record was wrong.** The 1.848 (null p95 1.266) was
+  measured on the PRE-CORRECTION 3,042-trade book and never updated; the corrected 3,885-trade
+  book gives **design effect 2.2121 against null p95 1.2037**, which is what
+  `UNIVERSE_RESULTS.json` has always shipped — the artifact was right, the prose was stale.
+  **Every options *t* shrinks by √2.212 = 1.487×, not 1.36×**, and **no verdict changes** (checked,
+  not assumed: R2 rests on the name-year sign test, the date-block intervals embed clustering by
+  construction rather than applying the design effect as a haircut, and
+  `deflated_sharpe_clustered` ships alongside the raw figure rather than replacing it).
   * **R3.3 is the one that mattered:** the paired sign test and paired *t* the entire options
     conclusion rested on existed in NO shipped file. They now reproduce the record exactly
     (441 of 1,052 cells, z −5.185 against the recorded −5.24; seed-0 paired t −2.6701 against
@@ -136,8 +144,10 @@ the project's memory and the old versions had been repeated for months.
     independent draws in 12 blocks of 50 report a design effect near 1.8 — pure sampling error
     in MSB/MSW, since that ratio is F(k−1, n−k). Applying it as a haircut would manufacture a
     correction out of noise. The design effect is now scored against its own shuffled null (the
-    X7 method) and `clustering_measurable` gates it; the real book passes clearly (1.848 vs null
-    p95 1.266). **Never quote a design effect without its null.**
+    X7 method) and `clustering_measurable` gates it; the real book passes clearly (**corrected
+    book: deff 2.2121 vs null p95 1.2037**; the pre-correction book's 1.848 vs 1.266 is what the
+    record used to quote here). **Never quote a design effect without its null — and never
+    without its BOOK: that is exactly how the 1.85 figure travelled out of scope.**
 - **POINT-IN-TIME LIQUIDITY RAISES THE OPTIONS HEADLINE — the audit expected it to fall
   (2026-08-05, audit O20).** Applying the miner's own screen at each entry date instead of to the
   name's first cached year: **PIT-liquid 3,359 trades at +4.82% vs PIT-illiquid 495 at −7.84%**,

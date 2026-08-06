@@ -2213,10 +2213,19 @@ options conclusion rested on are now re-derivable from shipped code**, pinned by
 
 ### The measured clustering, and a correction to the audit
 
-**Clustering factor 1.85 — BELOW the audit's predicted 2 to 4.** At month blocks the 3,042-trade
-pre-correction book carries 118 blocks, a design effect of **1.848**, and an effective sample of
-**1,646 of 3,042**. Every *t*-like quantity therefore shrinks by √1.85 = **1.36**, not by the
-1.4–2.0 the audit expected. Its worked example — "a *t* of −5.24 moves into the −2.5 to −3.7
+> **SCOPE CORRECTION 2026-08-06 (session-5 closeout, item 5). This paragraph is about the
+> PRE-CORRECTION book and says so — but its headline was quoted onward without the scope, into
+> `CLAUDE.md` and into the summary above, as though 1.85 were the project's clustering factor.
+> IT IS NOT. The CORRECTED 3,885-trade book gives design effect 2.2121 against null p95 1.2037,
+> i.e. INSIDE the audit's predicted 2–4, and every options *t* shrinks by √2.212 = 1.487×.
+> `UNIVERSE_RESULTS.json` has always shipped 2.2121 — the artifact was right and only the prose
+> travelled without its scope. No verdict changes; see item 5 below for the check.**
+
+**Clustering factor 1.85 on this book — below the audit's predicted 2 to 4.** At month blocks the
+3,042-trade pre-correction book carries 118 blocks, a design effect of **1.848**, and an effective
+sample of **1,646 of 3,042**. Every *t*-like quantity on THIS book therefore shrinks by
+√1.85 = **1.36**, not by the 1.4–2.0 the audit expected. (On the corrected book it shrinks by
+1.487 and the audit's range was right — see the scope correction above.) Its worked example — "a *t* of −5.24 moves into the −2.5 to −3.7
 range" — lands about right by coincidence rather than by the mechanism it named: the sign-test z
 did fall to −2.91, but from the DATA CORRECTION, not from the clustering.
 
@@ -2866,3 +2875,187 @@ which is a 16pp swing on 44 trades and should be read as noise, not as a finding
 
 **Disposition: `HANDOFF_universe_backtest.md` §2a is edited in place** — the void table replaced,
 the "100% spread" conclusion corrected, and the file's SUPERSEDED banner left standing.
+
+### ITEM 5 — how far the seed instability reaches · **IT DOES NOT REACH THE BOOTSTRAPS AT ALL**
+
+**Rule honoured as pre-committed** (T1 decision-flip, zero tolerance; T2 magnitude at 0.10 × CI
+width; ambiguity → stricter branch). Eight seeded statistics × five seeds on the corrected
+3,885-trade book with the seed-0 control held fixed — because the question is the BOOTSTRAP's
+seed, not the control DRAW's, which Session 5 already closed.
+
+**A correction to my own first measurement, before the result.** The sweep initially scored T2 on
+`bootstrap_diff.diff` and `date_block_bootstrap.point`. Those are computed from the data, not from
+the resample: **they are seed-independent by construction and every seed range read exactly 0.0.**
+T2 would have passed the entire lane trivially. T2 is therefore scored on the **CI endpoints**, the
+seed-dependent published output. This makes the rule stricter, not looser.
+
+| statistic | CI-endpoint seed range ÷ CI width | boolean flips | **policy** |
+|---|---|---|---|
+| `home_run.p_tail_win` | 2.7% | none | single-seed |
+| `home_run.expectancy` | 1.9% | none | single-seed |
+| `control_comparison.expectancy_diff` (trade-level) | 3.4% | none | single-seed |
+| `control_comparison.tail_diff` (trade-level) | 3.0% | none | single-seed |
+| `clustered_R3.expectancy_date_block` | 2.4% | none | single-seed |
+| `…date_block_new_names` | 3.5% | none | single-seed |
+| `control_comparison.date_block` (real − control) | 2.8% | none | single-seed |
+| **`effective_n` shuffled null** | **35.5%** | none | **MULTI-SEED (T2)** |
+
+**Seven of eight are single-seed, comfortably. T1 never fires anywhere** — not one published
+boolean takes a different value on any of the five seeds, including
+`negative_at_significance`, the boolean the R2 verdict is built on. The point estimates are
+identical to the last digit across all five seeds for every statistic, because they are not
+resampled quantities.
+
+**THE ANSWER TO THE QUESTION AS ASKED: the instability was never in the bootstrap. It is in the
+CONTROL DRAW, and it is enormous there.** The two sit side by side on the same statistic:
+
+* **bootstrap seed varied, control fixed** → `date_block` diff −3.05pp on all five seeds,
+  CI95 moving by 0.2pp, `negative_at_significance` **False on all five**
+* **control seed varied** (Session 5) → the control's own mean ranges **+6.46% to +15.34%**, the
+  seed-0 sign test is **z −0.594, p 0.55 (not significant)** and the 5-seed pool is
+  **z −4.903, p < 1e−5**
+
+So Session 5's standing rule — **five control seeds minimum, the sign test carries the verdict** —
+is the correct rule and it is the ONLY place in the options lane where multi-seed changes a
+decision. **No other statistic needs re-running, and none of the record's single-seed intervals is
+called into question by its seed.** Their ranges are published in the table above so nobody has to
+re-derive this.
+
+**The one that fires, and why it does not change a verdict today.** `effective_n`'s shuffled null
+band moves 0.0724 across seeds on a band only 0.2037 wide. `clustering_measurable` is nonetheless
+**True on all five seeds**, because the observed design effect (2.212) sits far above the p95
+(1.17–1.25) — the decision has a large margin. But the BAR itself is only measured to ±0.07 at
+200 null draws, so a book whose design effect landed near 1.2 could be declared clustered or not
+by the seed alone. **Standing policy from now on: `effective_n` is reported at five seeds, or its
+null draws raised.** Raising `null_draws` is the cheaper fix (the case costs ~2 seconds) and is
+the recommended one; it is left to whoever next touches that function rather than changed here,
+because changing it now would make this sweep non-reproducible against the shipped file.
+
+#### `## BUGS FOUND` — **THE CLUSTERING FACTOR OF 1.85 TRAVELLED OUT OF ITS SCOPE**
+
+Found while checking my harness against the shipped file. `CLAUDE.md` records R3's clustering
+factor as **1.848 against a null p95 of 1.266** and concludes *"Measured clustering factor 1.85 —
+**BELOW the audit's predicted 2–4** — so every options t shrinks by ~1.36×."*
+
+**Be precise about whose error this is: Part 6 of this ledger stated the scope correctly** — it
+says "the 3,042-trade **pre-correction** book" in the same sentence. What went wrong is that the
+headline was quoted onward WITHOUT the scope, into `CLAUDE.md` and into Part 6's own summary line,
+where it reads as the project's clustering factor. Verified by direct computation: the
+pre-correction rows give `design_effect` **1.8476**, null p95 **1.2550** — exactly the recorded
+numbers. The **corrected** 3,885-trade book gives **2.2121 and 1.2037**, which is what
+`UNIVERSE_RESULTS.json` has always shipped. My sweep reproduces the shipped file to the last
+digit, so **the artifact was always right; only the prose travelled.**
+
+**Two consequences, and the second is the one to carry:**
+
+1. **Every options *t* shrinks by √2.212 = 1.487×, not 1.36×.**
+2. **"BELOW the audit's predicted 2–4" is FALSE on the corrected book — 2.21 is INSIDE the
+   predicted range. The audit's prediction was right and the record says it was wrong.**
+
+**No verdict changes**, and this is checked rather than assumed: the R2 verdict rests on the
+name-year sign test, which is not a bootstrap statistic; the date-block intervals resample blocks
+and so embed clustering by construction rather than applying the design effect as a haircut; and
+`deflated_sharpe_clustered` ships alongside the raw figure rather than replacing it. The design
+effect is a diagnostic here, not a multiplier applied to anything shipped.
+
+**This is the fourth time in three sessions** (R10, O20, the PBO purge direction, now this) that a
+belief about the direction of one of this project's own biases has been contradicted by measuring
+it. The R3 bullet in `CLAUDE.md` is corrected in place.
+
+## BUGS FOUND — session-5 closeout
+
+1. **A bug in this session's OWN first measurement, caught before it was reported.** The item-5
+   sweep initially scored T2 on `bootstrap_diff.diff` and `date_block_bootstrap.point`. **Those
+   are point estimates computed from the data, not from the resample, and are seed-independent by
+   construction** — so `seed_range` read exactly 0.0 for every statistic and T2 would have passed
+   the whole lane trivially. That is an artefact, not a finding. **Fixed** by scoring T2 on the CI
+   endpoints, which are the seed-dependent published output. The correction makes the rule
+   STRICTER, and it is recorded because "the number came out clean" is exactly when a measurement
+   deserves a second look.
+
+2. **`optuniv_run.py --analyse-only` could still destroy a banked result.** It skips scoring but
+   still calls `U.save()`, so a bare `--analyse-only` on a directory holding another run's results
+   overwrote them. Now covered — the guard runs before the `--analyse-only` branch and refuses.
+   **Fixed** as part of item 2.
+
+3. **`AUTOPSY_*` FDR discovery sets are confounded by the miner in a way individual *p*-values are
+   not.** Benjamini–Hochberg is a step-up procedure, so a feature's discovery STATUS depends on
+   the other 126 hypotheses in the sweep — and 60 of the 64 features read the derived layer.
+   `f_sig_gex_proxy`'s own *p* barely moved (0.0020 → 0.0015) while its FDR status went
+   false → true. **Not a code bug**; a reporting hazard. Recorded so that "N features were
+   discoveries" is never differenced across sessions. Item 1's stamp is what makes it detectable.
+
+4. **`data/options_universe/` still holds an unstamped mixture of two different runs** — a
+   pre-correction `state.pkl` and `state_mid.pkl` (2026-08-03) alongside a corrected
+   `UNIVERSE_RESULTS.json`, `AUTOPSY_BROAD_RESULTS.json` and `control_rows.pkl` (2026-08-05).
+   The new guard refuses to write there, which is correct, but **the directory itself is already
+   inconsistent and no manifest can describe it.** Deliberately NOT cleaned up — deleting or
+   rewriting the record's own artifacts to satisfy a guard I just wrote is precisely the move
+   `RUN_RULES` §A5 forbids. The next run there must use `--out-dir` or `--overwrite` (which
+   archives). **Not fixed, by choice.**
+
+## WHAT WAS NOT DONE, AND WHY — session-5 closeout
+
+- **The autopsy was NOT re-run to produce a stamped baseline artifact.** Item 1 ships the stamp
+  and item 4's numbers come from the banked corrected autopsy, which is the RECORD. Re-running it
+  today would have produced a third set of numbers on a derived layer that has moved again
+  (315 names now), and the honest reading of item 1 is that such a re-run is not differenceable
+  against either banked file — it would add a data point, not a comparison. **The first stamped
+  autopsy will be written by whichever session next runs one**, and that becomes the baseline.
+- **`derived_stamp` is not applied to `AUTOPSY_RESULTS.json` (the 55-name miner-side file).** Only
+  `options_autopsy.run()` stamps, which covers both callers that matter. The miner's own directory
+  is out of this lane.
+- **The item-5 rule's 0.10 constant is a CONVENTION, not a calibrated bar.** It is not scored
+  against a null the way X7's thresholds are. Stated in the pre-commitment and repeated here so it
+  cannot be quoted as calibrated.
+- **Only the options lane's bootstraps were swept.** The equity panel's own seeded machinery
+  (CPCV fold assignment, the placebo's draws) was not, and remains unmeasured for seed
+  sensitivity.
+- **The mid-fill book was not put through the autopsy or a control.** It is a diagnostic; running
+  a feature gate on it would be a new search on a book nobody trades, and would cost trials in
+  `RESEARCH_LOG.md` for nothing.
+
+## IS SESSION 5 CLOSED?
+
+**Yes.** All five items in `PROMPT_edge_session5_closeout.md` are done, and both of Session 5's
+open `BUGS FOUND` (#1 the autopsy stamp, #5 the runner guard) are fixed and pinned by tests. The
+two items Session 5 listed as not-done for scope reasons (the mid-fill decomposition, the four
+`compute_signals` features) are answered. Its third — `n_eff` not fed into the shipped options
+Deflated Sharpe — was explicitly out of scope in this prompt and is untouched, as instructed.
+
+**What remains open from Session 5 is open by design, not by omission:** the run-to-run
+non-reproducibility of the equity panel (the `insider` theme's IC), which is a panel-lane problem
+and was never in this closeout's scope.
+
+## SESSION 6 — first item and its `needs first`
+
+**Session 6's first item is U7 — the equity composite as an options VETO** (audit
+`VALQUO_EDGE_AUDIT.md:2109`), run alongside **X3 — ablate to the best single signal** (`:1751`).
+Both are one-line probes that can kill or promote a much larger item, and U7 should run before U1
+because it is the strictly easier bar.
+
+**U7 `needs first`:**
+
+| dependency | status |
+|---|---|
+| a banked alert log with per-alert dates | **READY** — the corrected 187-name book, 3,885 trades, `r2_state.pkl`; now protected by the item-2 guard |
+| the point-in-time equity composite | **READY** — corrected 69-date panel (B6/B7/B13), one composite for live and backtest |
+| the join: composite decile at the alert date | **NOT BUILT.** Alerts are daily 2016-01 → 2025-10; the panel has 69 quarterly-ish dates. The join must take the most recent rebalance date **≤** the alert date — never the enclosing one, which would be look-ahead |
+| coverage of the 187 options names inside the 2,710-name panel | **UNVERIFIED.** Measure and report it before any verdict; the audit predicts near-complete but predicts are not measurements |
+| the monotonicity figure U7's rationale rests on | **STALE IN THE AUDIT.** It cites −0.95; the corrected panel is **−0.891**. The argument survives, the number must be updated |
+| retention reporting | pre-register it: the audit's own line is that a veto discarding 10% and lifting expectancy is adoptable, one discarding 60% is a different strategy |
+
+**X3 `needs first`:**
+
+| dependency | status |
+|---|---|
+| the full corrected panel | **READY** |
+| **X7's calibrated bars, not the old conventions** | **READY and MANDATORY** — theme IC t **2.71** (not 2.0), long-short t **2.14**, top-decile alpha margin **1.95pp**, PBO **<19.7%**, Deflated Sharpe calibrated **0.72** at N = 84. Scoring an ablation against the retired 2.0/50% conventions would manufacture a survivor |
+| `RESEARCH_LOG.md` trial accounting | **READY, and X3 MUST WRITE TO IT.** Every ablation arm is a trial. N = 84 today; an 8-arm ablation takes it to 92 and lowers the Deflated Sharpe for everything afterwards. That cost is the point of M1 and must not be skipped |
+| the HAC caveat | R9 stands: Ljung–Box rejects independence, so the **Newey–West** *t* is the quoted statistic. X7's 2.14 floor was measured on the NAIVE *t* — comparing a HAC *t* to it is apples-to-oranges and re-deriving the floor on HAC is still open |
+
+**Standing items that outrank both if Don wants them to:** **P4** (`seed_book` never sells names
+that leave the book) is the only *urgent* item in the catalogue — every session the paper track
+accumulates under the wrong rules is a session that has to be thrown away — and **X8**, the
+international replication, is still the only genuinely out-of-sample evidence available to either
+programme.

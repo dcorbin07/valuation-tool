@@ -4,7 +4,7 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-05 (external edge audit, session 5 — R2, R3, R7, O20)
+**Session date:** 2026-08-06 (external edge audit, **session 5 CLOSEOUT** — items 1–5)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
@@ -14,6 +14,89 @@ file directly.
 > then R1's original run, then session 1, then deep research #2, then the EV staleness fix, then
 > PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
 > per-finding status in `CODE_AUDIT.md`.
+
+---
+
+## AUDIT SESSION 5 — CLOSEOUT (2026-08-06). **SESSION 5 IS CLOSED. SESSION 6 MAY OPEN.**
+
+Full write-up: **`HANDOFF_edge_audit.md`**, "SESSION 5 CLOSEOUT". Pre-commitments pushed in
+`416da4b` **before any code changed and before any run started**, including item 3's disposition
+in both branches and item 5's multi-seed rule.
+
+All five items in `PROMPT_edge_session5_closeout.md` are done, and both of session 5's open
+`BUGS FOUND` are fixed and pinned by tests. **220/220 edge tests pass.**
+
+| item | verdict |
+|---|---|
+| 1 · autopsy stamps its derived-data coverage | **DONE** — `derived_stamp()` + `derived_comparable()` |
+| 2 · `optuniv_run.py` refuses to overwrite a banked result | **DONE** — verified on the real directory |
+| 3 · mid-fill (aggression 0.0) decomposition | **DONE** — the void −6.59pp toll is **replaced by −8.28pp** |
+| 4 · the four `compute_signals` features, individually | **DONE** — all four NOT informative |
+| 5 · how far the seed instability reaches | **DONE** — it does not reach the bootstraps at all |
+
+### The three findings worth carrying
+
+1. **THE SPREAD TOLL IS BIGGER THAN THE RECORD SAID: −8.28pp, not −6.59pp.** The market takes
+   **71% of the +11.69% gross edge** at the touch, not 56%. Paired on the 3,764 alerts present in
+   both books: **−8.88pp, date-block CI95 [−9.99pp, −7.74pp], 78.8% of alerts worse at the
+   touch.** B1 was understating the spread the strategy actually pays (median 4.78% → 6.67%).
+   **`HANDOFF_universe_backtest.md` §2a is edited in place** and its claim that *"the old-vs-new
+   gap is 100% spread"* is corrected: at the mid the cohorts are +13.60% and +10.43%, a 3.17pp
+   gross gap, so **spread explains 68% of the gap, not 100% — breadth dilutes signal too.**
+   Still a diagnostic; bar B5 stands and every headline remains at aggression 1.0.
+2. **THE SEED INSTABILITY IS IN THE CONTROL DRAW, NOT THE BOOTSTRAP — and that is now measured
+   rather than assumed.** Eight seeded statistics × five seeds: seven are single-seed-safe (CI
+   endpoints move 1.9%–3.5% of the CI width) and **no published boolean flips on any seed**,
+   including `negative_at_significance`. Hold the control fixed and the bootstrap seed is
+   irrelevant; vary the control seed and the verdict flips (seed 0 alone: z −0.594, p 0.55;
+   5-seed pool: z −4.903). **Session 5's "five control seeds minimum" is the right rule and the
+   only place multi-seed changes a decision.** One statistic fires T2 — `effective_n`'s shuffled
+   null band moves 35.5% of its width across seeds — and is now multi-seed by policy.
+3. **THE CLUSTERING FACTOR OF 1.85 TRAVELLED OUT OF ITS SCOPE. It is 2.212 on the corrected
+   book.** 1.848 was measured on the pre-correction 3,042-trade book; Part 6 said so, but the
+   headline was quoted onward without the scope into `CLAUDE.md`. So **"below the audit's
+   predicted 2–4" is false — 2.21 is inside it, the audit was right**, and every options *t*
+   shrinks by **1.487×, not 1.36×**. `UNIVERSE_RESULTS.json` always shipped 2.2121; only the prose
+   was wrong. **No verdict changes** (checked: R2 rests on the sign test, and the date-block
+   intervals embed clustering by construction rather than applying the design effect as a
+   haircut). Corrected in `CLAUDE.md` and in Part 6.
+
+### Item 4 in one line
+
+None of `f_term_slope` / `f_sig_skew_25d` / `f_sig_vrp` / `f_sig_gex_proxy` passes both split
+directions. `f_sig_gex_proxy` is one of only **four FDR discoveries among 127 hypotheses** — but
+in one direction only, and **the direction that passes SWAPS when B1 is repaired**, as does
+`f_term_slope`'s. That is measured support for the both-directions gate: a single-direction gate
+would have adopted the same feature twice for opposite reasons and called it replication.
+
+### Item 1 in one line — and what it means for old numbers
+
+**No autopsy figure in the record is comparable to any other, because none carries a stamp.** The
+measured damage: the pre-correction book's PBO read **35.71% on 2026-08-03 and 48.57% on
+2026-08-05 — same trades, same code path, a 12.9pp move caused only by the miner growing
+111 → 315 names.** Treat every pre-2026-08-06 PBO, feature *p*-value, FDR set or feature-coverage
+figure as a point-in-time observation quoted with its date, never as a difference against another
+session's. Figures read only off the trade rows (item 4's four features) are exempt.
+
+### SESSION 6 — first item and `needs first`
+
+**U7** (the equity composite as an options **veto**) with **X3** (ablate to the best single
+signal). Full dependency tables are in `HANDOFF_edge_audit.md`. The three that will bite:
+
+- **the alert↔panel join does not exist yet**, and must take the most recent rebalance date **≤**
+  the alert date or it is look-ahead;
+- **coverage of the 187 options names inside the 2,710-name panel is UNVERIFIED** — measure it
+  before any verdict;
+- **X3 must be scored against X7's calibrated bars** (theme IC t 2.71, long-short t 2.14, alpha
+  margin 1.95pp, PBO <19.7%), **and must write its arms into `RESEARCH_LOG.md`** — an 8-arm
+  ablation takes N from 84 to 92 and lowers the Deflated Sharpe for everything after it. That
+  cost is the point of M1.
+
+**Standing items that outrank both if Don wants them to:** **P4** (`seed_book` never sells names
+that leave the book) is the only genuinely urgent item — every session the paper track accumulates
+under the wrong rules has to be thrown away — and **X8**, the international replication, is still
+the only out-of-sample evidence available to either programme. The equity panel's run-to-run
+non-reproducibility (the `insider` IC) also remains open and unexplained.
 
 ---
 
