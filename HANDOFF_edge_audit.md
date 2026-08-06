@@ -2391,6 +2391,93 @@ assumed ran in the strategy's favour has run the other way. That is now a patter
 than right, and should be measured rather than reasoned about.**
 
 
+---
+
+## X7 RE-RUN AT THE TRUE N · **THE DEFLATED SHARPE ROW IS CONFIRMED, AND STRENGTHENED**
+
+**Committed threshold:** carried forward from Session 4 and quoted in Part 6 above. X7's *"the
+Deflated Sharpe survives calibration"* was measured with **N = 8 inside BOTH the real run and all
+100 placebo draws**. M1 then replaced N with the measured equity count of 84, which changes both
+sides. The claim was marked **PROVISIONAL and unquotable** until the placebo was re-run at the
+true N. It has been.
+
+**What was run:** `python -m scripts.placebo --panel panel_grid0.pkl --n 100 --seed0 1000`, the
+identical panel checkpoint and identical seeds (1000–1099) as X7's original sweep, on code where
+`_deflated_sharpe` now reads N from `RESEARCH_LOG.md`. The output stamps its own denominator:
+`n_trials_used = 84`, `n_trials_from_research_log = 84`, source `RESEARCH_LOG.md (audit M1)`.
+
+### The harness reproduces exactly, which is what makes the comparison readable
+
+Every quantity that does NOT depend on N is **identical to the last digit** across the two sweeps:
+
+| rate on pure noise | N = 8 | N = 84 |
+|---|---|---|
+| holdout gate confirms any theme | 6% | **6%** |
+| long-short t ≥ 2.0 | 8% | **8%** |
+| long-short t ≥ 3.0 | 1% | **1%** |
+| max theme IC t ≥ 2.0 | 39% | **39%** |
+| PBO < 50% | 55% | **55%** |
+
+PBO and max-theme-IC-t are identical on all 100 draws individually, not merely in aggregate. **So
+every calibrated bar X7 published stands unchanged** — only the Deflated Sharpe row was ever in
+question.
+
+### The Deflated Sharpe, calibrated at the honest denominator
+
+| | N = 8 (X7 original) | **N = 84 (true)** |
+|---|---|---|
+| real run | 0.9970 | **0.8997** |
+| noise median | 0.2802 | **0.1143** |
+| noise p95 — **the calibrated bar** | 0.8567 | **0.7216** |
+| noise p99 | — | 0.8498 |
+| noise maximum | 0.9788 | **0.8649** |
+| noise draws clearing the 0.95 convention | **2%** | **0%** |
+
+**The row is CONFIRMED and the statistic is MORE discriminating at the true N, not less.** Zero of
+100 definitionally-worthless signals reach 0.95, against two at N = 8. The 0.95 convention is one
+of the few bars in this project that noise essentially never clears.
+
+**And the strategy's 0.8997 exceeds ALL 100 placebo draws** — the highest noise draw is 0.8649, so
+the empirical *p* is at the sweep's resolution floor (≤ 0.01). Against the calibrated bar of
+**0.7216** it clears comfortably.
+
+**BOTH M1 AND X7 ARE RIGHT, AND THEY WERE NEVER IN CONFLICT.** M1's finding stands exactly as
+written: **the edge does not clear the > 0.95 bar.** X7's finding stands too: the Deflated Sharpe
+is a genuinely discriminating statistic. The reconciliation is that **at the honest denominator
+the 0.95 convention is STRICTER than the noise floor requires.** So the Deflated Sharpe is now the
+one bar in this project where the strategy is **distinguishable from noise and still fails its
+conventional threshold**. Report it that way — quoting either half alone misleads:
+
+> Deflated Sharpe **0.8997 at N = 84 — fails the conventional > 0.95 bar, while sitting above all
+> 100 placebo draws (calibrated bar 0.72).**
+
+### A SECOND, UNLOOKED-FOR BENEFIT OF M1 — the adoption gate got harder for noise to pass
+
+**CPCV weight adoption on pure noise fell from 27% to 21% of draws**, and the change is
+one-directional: **six draws stopped adopting and not one started.** All six moved from a
+recommended scheme (`ic-proportional`, `equal-weight`, `positive-equal`, `risk-parity`) to
+`current-default`. PBO was identical on every one of them — only the adopt decision moved.
+
+The mechanism is deterministic, not a tie-break: the adopt gate reads the Deflated Sharpe, and a
+larger N lowers it, so fewer noise draws clear the bar. **This is not the run-to-run
+non-reproducibility the project is chasing** — that remains open and unexplained, and this was
+briefly mistaken for it during this session before the one-directional pattern was checked.
+
+X7's post-hoc finding was that CPCV adoption manufactures ~+1.4 of long-short *t* out of nothing
+and fires on 27% of pure-noise draws. **At the honest denominator it fires on 21%.** Still far too
+often to trust an adopted scheme, and the shipped strategy still does not adopt — but M1 bought a
+measurable improvement in the pipeline's noise resistance as a side effect of fixing a
+denominator, which is worth recording.
+
+**Note on comparability:** X7's original sweep ran with `--no-costs` (`costs_measured: false`);
+this one measured costs, so `breakeven_one_way_bps` exists here and is absent there. No committed
+threshold reads it.
+
+**Verdict: X7's Deflated Sharpe row CONFIRMED at the true N; the PROVISIONAL marking is
+LIFTED.** Every other calibrated bar in X7's table is unchanged and was never affected.
+**Follow-on:** `scripts/placebo.py` now banks `deflated_sharpe_detail` per draw and stamps
+`trial_count` on the output, so the next change to N costs arithmetic rather than another sweep.
+
 ## BUGS FOUND — session 5 (per RUN_RULES.md Part A rule 3)
 
 1. **`AUTOPSY_*` results are not comparable across sessions while the miner is live, and nothing
