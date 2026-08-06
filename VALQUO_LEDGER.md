@@ -195,7 +195,7 @@ file replaces reconstructing project state from git history.
 | D10 | D | Freeze verification + legend | DONE | ADOPTED | a2894a8 | HANDOFF_edge_audit.md | 2026-08-03 | human | Adopted as record; all six schema questions settled. Found D10-a, a defect NOT in the audit. |
 | M1 | M | Research log with real N | DONE | ADOPTED | 2f3529b | HANDOFF_edge_audit.md | 2026-08-03 | human | N = 8 (shipped) vs 84 (measured). Consequence fired: the edge does NOT clear the Deflated Sharpe. |
 | M2 | M | Clustered inference default | OPEN |  |  |  |  | human | No genuine mention. HANDOFF_STATUS's 'the audit's M2' is CODE_AUDIT.md's M2 - a different document. |
-| M3 | M | Guards with known-bad fixtures | DONE | ADOPTED | d0aad64 | HANDOFF_optionsbot.md | 2026-08-06 | human | tests/test_guards.py, 35 tests: 34 pass, 1 XFAIL. Census of 34 guards; 29 of 30 testable ones fire. Two defects found and deliberately NOT fixed (year_files blind to a vanished symbol-year; no field-level schema guard). |
+| M3 | M | Guards with known-bad fixtures | DONE | ADOPTED | d0aad64 | HANDOFF_optionsbot.md | 2026-08-06 | human | tests/test_guards.py, 36 tests: 35 pass, 1 XFAIL. Census of 34 guards; 29 of 30 testable ones fire. Two defects found and deliberately NOT fixed (year_files blind to a vanished symbol-year; no field-level schema guard). |
 | M4 | M | Live-replay harness | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
 | M5 | M | Protocol for tail-hedge tests | DONE |  | 7edf594 | HANDOFF_free_analysis.md | 2026-08-04 | human | Protocol WRITTEN, which was the deliverable - it is not an evaluation of any hedge. |
 | M6 | M | Results-file schema assertion | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
