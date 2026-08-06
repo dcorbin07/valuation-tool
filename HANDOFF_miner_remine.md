@@ -233,6 +233,22 @@ the 2016–2025 mining range gets its own `no_data_in_range` status instead of b
 names that were measured and found untradeable. Those are opposite facts with opposite correct
 responses.
 
+### What the two fixes actually recovered
+
+| fix | recovered into the universe | rejected, on MEASURED grounds |
+|---|---|---|
+| `ALIASES` gap | BNY, FISV, MRSH, XYZ | UI — 0 rows in 2024 under BOTH `UI` and `UBNT` |
+| probe year | **CRWV**, SNDK | VG (18% spread), FER (2 contracts/day), MDLN (8-day chain) |
+| `WBD -> DISCA` | re-mined; was present but contaminated | — |
+
+**CRWV is the SECOND most liquid optionable name in the whole cached universe — 266,175
+contracts/day, behind only PLTR and ahead of COIN, BABA and HOOD — and it was filed as "no
+data".** That single name is the strongest argument that bug 8 was not a bookkeeping nicety.
+
+The three rejections matter as much as the recoveries: they are the liquidity screen working on
+real data instead of on a calendar artifact. A fix that made everything pass would be the
+suspicious outcome.
+
 **Note the mining range still ends at 2025** (`YEARS = 2016..2025`; 2026 is a partial year and was
 deliberately excluded long before this session). So CBRS/HONA/MDLN/SUNB, whose only data is 2026,
 correctly stay out — but they are now labelled `no_data_in_range` rather than "thin", which is the
