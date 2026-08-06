@@ -3059,3 +3059,171 @@ that leave the book) is the only *urgent* item in the catalogue — every sessio
 accumulates under the wrong rules is a session that has to be thrown away — and **X8**, the
 international replication, is still the only genuinely out-of-sample evidence available to either
 programme.
+
+---
+---
+
+# SESSION 6 — U7 (the composite as an options VETO) and X3 (ablate to the best single signal)
+
+Audit session 6. Owner: pipeline builder. Previous session verified complete: YES — Session 5 and
+its closeout are on `origin/main` (`416da4b`, `fdd0064`, `5ea7099`, `cf8230f`, merged at `33a02aa`).
+
+## PRE-COMMITMENTS — written and committed BEFORE any number was produced
+
+Everything below the "RESULTS" heading was measured after this section was committed. Nothing in
+this section was edited afterwards.
+
+### 0. What I expect, written down first
+
+RUN_RULES 6 says the threshold comes first. The Session-5 carry-forward asks for something extra:
+this project's expectations about the direction of its own biases have been wrong more often than
+right (R10, O20, and the spread toll going −6.59pp → −8.28pp), so the expectation goes on the
+record too, and the record gets to say whether it was worth anything.
+
+**U7 — I expect the veto to HELP, and I hold it at about 60/40, not higher.** The case for: a
+long-call book on junk pays for lottery skew, and the composite's bottom decile is exactly that.
+The case against, which is real: a long call is a barbell, low-quality names are more volatile,
+and volatility is what a barbell wants. Both arguments are available *before* the data, which is
+usually the sign that the prior is worth very little.
+
+**X3 — I expect the ablation curve to flatten by three or four themes.** If it does, the
+seven-theme architecture is partly decoration and the honest product description changes.
+
+### 1. U7 — the join, and the test that pins it
+
+The join does not exist and must be built. Alerts are daily 2016-01-19 → 2025-10-15; the panel has
+69 quarterly-ish rebalance dates. **The composite attached to an alert is the one from the most
+recent rebalance date STRICTLY ≤ the alert date.** Taking the *enclosing* date — the rebalance
+that brackets the alert — would use a score computed from filings published after the alert fired.
+That is look-ahead, and it is the failure mode this join is most likely to have, so it gets a test
+that fails on the enclosing-date variant rather than a comment saying it was considered.
+
+An alert before the first rebalance date has NO composite and is **excluded, not imputed**.
+
+### 2. U7 — coverage, reported before any verdict
+
+My own `needs first` table records coverage of the 187 options names inside the 2,710-name panel as
+**UNVERIFIED**, with the note that "the audit predicts near-complete but predicts are not
+measurements". Coverage is therefore measured and stated first, at three levels — names, alerts,
+and alerts-with-a-composite — and if it is materially below the audit's prediction, that is itself
+the finding and the verdict is INCONCLUSIVE regardless of what the expectancy numbers say.
+
+**Floor committed now: below 80% of alerts joined, U7 is INCONCLUSIVE on coverage alone.**
+
+### 3. U7 — the retention rule, committed before the number
+
+The audit's own boundary is that a veto discarding 10% of alerts while lifting expectancy is
+adoptable and one discarding 60% is a different strategy wearing a veto's clothes. Sharpened:
+
+| alerts discarded | consequence, whatever the lift |
+|---|---|
+| ≤ 15% | a veto. Eligible for ADOPTED |
+| 15–40% | **INCONCLUSIVE** — report it, do not adopt it; it materially changes the product |
+| > 40% | **REJECTED** as a different strategy, regardless of how good the lift looks |
+
+### 4. U7 — two verdicts, because they are two different claims
+
+**U7-A (practical — should the live product refuse these alerts?)** ADOPTED requires all three:
+(a) retention ≥ 85%; (b) the veto lifts the real book's mean `pnl_pct` by **≥ +1.0pp**; (c) the
+lift's date-block bootstrap CI95 (calendar-month blocks, the R3 machinery) **excludes zero**. Any
+one of the three ambiguous → **NULL**. A negative lift → **REJECTED**.
+
+**U7-B (mechanism — is the composite improving the ALERT, or just describing the underlying?)**
+The identical veto is applied to the **random-entry control book**, whose alerts are random days on
+the same names. If the composite is only telling us that bad-composite megacaps' options do badly,
+the control lifts too, and the veto has learned nothing about the alert. **The interaction claim is
+upheld only if the real book's lift exceeds the control book's lift with the difference's CI95
+excluding zero.** Otherwise the honest sentence is "a property of the underlying, not of the
+alert" — and U7-A can still pass, because a live product does not care where its improvement comes
+from. This is the R10/O20 lesson applied in advance: the liquidity screen helped the control too,
+and nobody had checked.
+
+**Five control seeds minimum and the sign test carries the verdict** — the standing rule from R2,
+which is not re-opened here.
+
+**Pre-registered grid: 3 cells.** (i) bottom-decile veto, full-panel deciles — PRIMARY; (ii)
+bottom-quintile veto; (iii) bottom-decile veto computed *within the 187-name options universe*
+rather than the full panel, because a 187-name megacap book may not populate the full panel's
+bottom decile at all. Cells (ii) and (iii) are reported whatever they say and cannot rescue (i).
+
+**U7 is logged to `RESEARCH_LOG.md` in the `options` domain, not `unified`.** The `unified` domain
+exists and is empty, and putting U7 there would charge its multiple-testing cost to nobody. If U7
+adopted, the sentence would be quoted as a claim about the options book, so the options family is
+where it belongs.
+
+### 5. X3 — the arms, fixed now
+
+Eight arms. Arm 1 is a single signal; arms 2–8 are the cumulative theme curve, added in order of
+measured theme IC among the seven deployed themes (quality +3.57, momentum +2.62,
+capital_discipline +2.25, institutional +1.81, size +1.68, value +1.52, insider −0.43):
+
+| arm | composite |
+|---|---|
+| 1 | `z_gp_on_capital` alone — the strongest single signal in the model |
+| 2 | `quality` alone |
+| 3 | + `momentum` |
+| 4 | + `capital_discipline` |
+| 5 | + `institutional` |
+| 6 | + `size` |
+| 7 | + `value` |
+| 8 | + `insider` = the deployed seven-theme composite (the incumbent) |
+
+Flat equal weights within each arm, which is what is deployed. No weight is tuned in X3 — tuning
+inside an ablation would make the curve a search rather than a measurement.
+
+### 6. X3 — scored against X7's calibrated bars, never the retired conventions
+
+Theme IC *t* **2.71** (not 2.0), long-short *t* **2.14**, top-decile alpha margin **1.95pp**,
+PBO **< 19.7%**, Deflated Sharpe **0.72** at N = 84. Scoring an ablation against 2.0 / 50% would
+manufacture a survivor, which is the whole reason X7 was run.
+
+Two distinct questions, and they need different bars:
+
+* **"Is this arm distinguishable from noise at all?"** → its own top-decile alpha against the
+  **1.95pp** placebo p95, and its naive long-short *t* against **2.14**. X7 measured both on the
+  NAIVE statistic, so the naive statistic is what gets compared to them; the NW *t* is reported
+  alongside per R9 and is explicitly **not** compared to 2.14 (apples-to-oranges — the same trap
+  flagged for the headline's own 2.620).
+* **"Does the full composite beat this arm?"** → **no calibrated bar exists for a paired nested
+  difference and I am not inventing one.** Pre-registered rule: the per-period alpha series of
+  (full − arm) must have a **CI95 excluding zero** on its period bootstrap, with the NW *t*
+  reported. If it does not, the two are not distinguishable and the shorter model wins on
+  parsimony.
+
+**Pre-registered interpretation, per the audit's own instruction:** if the curve is flat from some
+k < 7 onward — i.e. the full composite does not beat arm k by the rule above — then the honest
+statement is "the model is effectively k themes", it goes in the product description, and S5/S7
+inherit it. If arm 1 or arm 2 alone lands there, the seven-theme architecture is decoration and I
+say so in those words.
+
+### 7. X3 — the cost, which is the entire point of M1
+
+**Every ablation arm is a trial.** Equity N is **84** today. X3 is logged as one row with `n=8`,
+the house convention for a pre-registered grid (X2 `n=7`, OPT-AUTOPSY `n=126`), so equity N
+becomes **92** and the Deflated Sharpe falls for everything measured afterwards, including the
+shipped headline. That is not a side effect to be minimised; it is the reason the trial counter
+exists. The post-X3 N, the shipped edge's Deflated Sharpe recomputed at it, and √(2·ln N) are all
+reported, so Session 7 inherits the honest denominator instead of discovering it.
+
+I am counting **8**, not 7, even though arm 8 is the incumbent rather than a new search. Rounding
+the denominator up is the direction that weakens my own evidence, and that is the direction to
+round in.
+
+### 8. Stale number U7's rationale rests on
+
+The audit's U7 argument cites monotonicity **−0.95**. The corrected panel is **−0.891**. The
+argument survives — the bottom decile still underperforms, which is all a veto needs — but the
+number is updated wherever it is quoted.
+
+### 9. What this session will NOT do, decided in advance
+
+* **Not re-deriving X7's calibrated bars at N = 92.** The placebo is 100 draws through the full
+  pipeline; it is a multi-hour run and it is not what was asked for. The consequence is stated
+  rather than hidden: the 0.72 Deflated Sharpe floor is an N = 84 measurement, and X7 showed the
+  floor FALLS as N rises (0.8567 at N = 8 → 0.7216 at N = 84), so quoting 0.72 at N = 92 is
+  conservative in the direction that makes passing harder, not easier.
+* **Not touching** `valuation/web/**`, `valuation/engine/**`, `valuation/data/**`,
+  `valuation/screener/**`, `theta_bulk.py`, or `data/options/**`.
+* **Not re-opening R2.** U7 sits inside a book that has already been shown to lose to random
+  entry. A veto that improves that book improves a book with a negative day-selection edge, and
+  every U7 number carries that sentence.
