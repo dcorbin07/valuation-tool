@@ -38,12 +38,30 @@ class Classification:
         }
 
 
+# The band a next-year REVENUE growth estimate must fall in to be believed. These are
+# the same numbers the blend has always clamped to — the change is rejecting an input
+# that lands outside them instead of squashing it onto the boundary.
+_PLAUSIBLE_GROWTH = (-0.30, 1.00)
+
+
 def _blended_growth(cd: CompanyData) -> Optional[float]:
     """A robust forward-ish growth estimate: analyst consensus if available,
     otherwise blend of 3y CAGR and latest YoY, bounded to sane values."""
     candidates = []
-    if cd.analyst_rev_growth_next is not None:
-        candidates.append(("analyst", cd.analyst_rev_growth_next, 0.5))
+    # An "analyst revenue growth" outside the plausible band is not an aggressive
+    # forecast, it is the wrong number — DISCARD it rather than clamp it. Clamping was
+    # the actual defect: the bound at the bottom of this function squashed GILD's 15.0829
+    # and MRK's 2.4942 into a tidy-looking 1.00, which then read as a legitimate 100%
+    # growth forecast, classified two mature pharma names as HYPERGROWTH, and handed them
+    # a 60% start growth for 10 years (revenue x17.2). Squashing garbage to the edge of
+    # the valid range disguises it as data; rejecting it lets the 3y CAGR and TTM carry
+    # the estimate, which for those two names is ~3%.
+    # Source of the garbage, upstream and NOT fixed here (different lane): yahoo.py:293
+    # reads `growth_estimates.loc["+1y"].iloc[0]`, which is the `stockTrend` column —
+    # EARNINGS growth, not revenue — and it explodes off a negative base.
+    a_g = cd.analyst_rev_growth_next
+    if a_g is not None and _PLAUSIBLE_GROWTH[0] <= a_g <= _PLAUSIBLE_GROWTH[1]:
+        candidates.append(("analyst", a_g, 0.5))
     if cd.rev_cagr_3y is not None:
         candidates.append(("3y_cagr", cd.rev_cagr_3y, 0.3))
     if cd.rev_growth_ttm is not None:

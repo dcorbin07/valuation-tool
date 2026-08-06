@@ -322,15 +322,35 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
 
 
 def _enrich_with_dcf(rows, cfg):
+    """Attach the real DCF to the rows that get one — and RECORD a refusal as a refusal.
+
+    This function used to write `r["fair_value"] = res.base_fair_value` and nothing else.
+    On a refusal that value is None, and `estimate_fair_values` (below) reads a None fair
+    value as "no DCF computed yet" and substitutes a peer estimate — so the publication
+    guard's decision was silently erased and the name went onto the PUBLIC hot list with a
+    number its own valuation page refuses to show. That is how KSPI, STLA and CHTR were
+    served fair values while their pages said "cannot value this name".
+
+    Recording the refusal fixes it in one place: `estimate_fair_values` skips the row, and
+    `valuation/web/withhold.py` already honours these keys, so the public surface closes
+    with no change on that side.
+    """
     try:
         from ..engine.pipeline import value_ticker
+        from ..engine.publication import record_refusal, ROW_WITHHELD
     except Exception:
         return
     for r in rows:
         try:
             res = value_ticker(r["ticker"], cfg, mc_trials=1500)
-            r["fair_value"] = res.base_fair_value
-            r["upside"] = res.upside
+            blend = res.fair_value_blend
+            reason = (getattr(blend, "reason", "") or "").strip()
+            if res.base_fair_value is None and reason:
+                record_refusal(r, reason)          # a DECISION, not a gap
+            else:
+                r["fair_value"] = res.base_fair_value
+                r["upside"] = res.upside
+                r.pop(ROW_WITHHELD, None)
         except Exception:
             continue
 

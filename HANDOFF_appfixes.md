@@ -5,6 +5,709 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 15 — 2026-08-06 — The untimed result cache behind the exports
+(PROMPT_web_stale_cache.md)
+
+One item, and it was small — stated as small rather than padded. **This lane is now clear;
+what it is waiting on is at the bottom.**
+
+## WHAT `_LAST` ACTUALLY DID WRONG (measured, not inferred)
+
+`web/app.py:42` held `_LAST: dict`, a process-global result cache keyed by ticker, and
+`/api/export/excel` + `/api/export/pdf` served from it through `_get_or_compute`. Nothing
+else read it. Four defects, in order of how much they matter:
+
+**1. The key was the COMPANY, not the QUESTION — and this is the one that bites without
+anything having to go stale.** The cache ignored the assumptions a result was computed
+under, so a visitor who re-ran a name in the assumptions panel left *their* valuation under
+the bare ticker, and the next visitor's plain export was served it. Measured on the NKE
+fixture, offline:
+
+| | fair value | what the next visitor's workbook contained |
+|---|---|---|
+| default assumptions | **$40.15** | — |
+| one visitor overrides `wacc=0.25` | **$22.97** | **$22.97 — a 42.8% error, in someone else's assumptions** |
+
+No staleness required, no market movement required. It fires the moment two people look at
+the same name and one of them touches the panel.
+
+**2. Nothing was stamped, and nothing expired.** No `pop`, no `clear`, no `del`, no TTL, no
+bound anywhere in the file — verified by scanning it. An entry lived until the worker
+process restarted, which on Render means until the next deploy: **days**. Worse, the
+document could not disclose this even in principle, because the only date on it is
+`As of <cd.as_of>` — the **fundamentals** date, which on a live name reads as *today*
+whether the numbers were made a minute ago or last Tuesday. **A stale document was
+indistinguishable from a fresh one, and it asserted freshness.** The project already had
+the right pattern in `data/macro.py:16` — a `ts` and a 600s TTL. The export cache had
+neither.
+
+**3. Two worker processes, so two independent caches — yes, it makes it worse.** Production
+is `runtime: docker`, and the Dockerfile CMD is `--workers ${WEB_CONCURRENCY:-2} --threads 4`,
+so **two** processes. (The `Procfile`'s `-w 4` is not what Render runs — worth knowing before
+anyone reasons from it.) Confirmed directly: a second Python process importing
+`valuation.web.app` sees `_LAST = {}` while the first holds an entry. So a visitor's page and
+their download could be answered by different processes with different answers, and the four
+threads per worker shared one dict with no lock around the read-modify-write.
+
+**4. Unbounded.** Every ticker ever valued stayed resident for the life of the process.
+Measured: ~**8,991 bytes** pickled per `ValuationResult`, so ~9 MB per worker per 1,000
+distinct names, never freed, on a 512 MB box running two of them. Real, monotonic, and the
+smallest of the four — said plainly rather than inflated.
+
+### What production actually showed, including where it did NOT reproduce
+
+Read-only probes against valquo.co (no POSTs, no overrides — GETs a visitor makes):
+
+* **The cache is live and observable:** the first `/api/export/excel?ticker=KO` took **3.0s**,
+  the next identical one **0.2s**.
+* **Every workbook downloaded was stamped `As of 2026-08-06`** — today — with no indication
+  anywhere of when its numbers were computed. That part reproduced exactly.
+* **The document and the page agreed on all five names tested** (AAPL, MSFT, KO, JPM, XOM —
+  export price vs `/api/value` price, 0.00% gap on each). The upstream quote did not move
+  during the observation window, so **the defect was latent at that moment, not firing.**
+  Recorded that way on purpose: I did not observe a live document-vs-page price disagreement
+  and am not going to claim one. Defect 1 above needs no price movement and was measured
+  directly instead.
+* One thing seen and deliberately *not* filed as this bug: `/api/whatdo` reported AAPL at
+  $303.42 while both the live page and the workbook said $311.00. That is the **daily scan
+  snapshot** being older than a live quote — a different, already-labelled surface
+  (`screener/freshness.py`), not the export cache.
+
+## THE FIX
+
+New `valuation/web/resultcache.py` — a plain object, no Flask import, so the policy is
+testable without a request. `web/app.py` now holds `_RESULTS = resultcache.ResultCache()`.
+Same idea as before (serve the page's own result rather than recomputing against a different
+quote), with the three missing properties:
+
+| | before | after |
+|---|---|---|
+| cache key | ticker | ticker + overrides + peer set (`request_key`) |
+| visitor B's plain export, after A overrode | **A's $22.97 model** | **miss → B's own $40.15** |
+| expiry | none — until the worker restarts | **TTL 900s**; served at +899s, recomputed at +901s |
+| bound | none | **256 entries, LRU**; 1,000 names valued → 256 resident |
+| on a miss (other worker / expired) | served whatever was there | **recomputes under the same assumptions** |
+| compute time on the document | nowhere | `Computed 2026-08-06 11:52 UTC` on both formats |
+| compute time on the page | nowhere | same stamp, from `/api/value`'s `computed_at` |
+| thread safety | none (4 threads/worker) | `threading.Lock` around the LRU touch and eviction |
+
+**The assumptions now travel with the download.** `app.js::exportUrl()` puts the overrides
+the page was rendered with into the export query string, and the route rebuilds the same key.
+Without that the export could only ever ask *"the last NKE anyone computed on this worker"*,
+which is a different question from *"the NKE on my screen"* — the fix would have been
+cosmetic. This is what makes a miss safe: the worst case is now a fresh computation, not
+another visitor's answer.
+
+**Why still per-process.** A shared cache means Redis or the database. For a document that
+costs one vendor call to rebuild, that is a much larger change than the problem justifies —
+and once a miss recomputes correctly, two caches are no longer a correctness issue. Stated
+in the module docstring so nobody has to re-derive it.
+
+**`build_workbook`/`build_pdf` take `computed_at=None`** and omit the line entirely when it
+is absent — the CLI renders both formats with no request behind it, and stamping "computed
+now" on numbers loaded from anywhere would be a false claim. Both callers in `cli.py` are
+unchanged and still work.
+
+## THE SECOND DISAGREEMENT, FOUND WHILE FIXING THE FIRST — AND FIXED
+
+The same defect in another costume, and **my own change is what made it reliable**, so it
+belongs in this commit rather than in a bug report.
+
+`overrides["wacc"]` replaces the discount rate at `pipeline.py:217` **without touching the
+`WACCResult`**, which keeps the CAPM build-up. Every discount cell in the exported model
+points at `WACC!B23`, and B23 always held the build-up *formula* — so a visitor who set
+WACC to 25% on the page saw **$22.97**, downloaded the workbook, and got a model that
+repriced itself at the **9.13%** build-up. Measured on the NKE fixture:
+
+| | page | workbook, before | workbook, after |
+|---|---|---|---|
+| discount rate | 25% (user's) | **9.13% (CAPM build-up)** | **25%**, labelled *WACC (overridden on the page)* |
+| tearsheet "WACC" row | — | **9.13%** | **25.0% (overridden)** |
+
+Before this session an overridden export was a coin flip on worker routing; now the
+override always reaches the export, so this would have gone from intermittent to
+**every time**. B23 becomes the literal rate that produced the page's number, with the
+build-up left above it as reference and a note saying how to restore the formula. **With no
+override it stays a live formula** — the point of shipping a model rather than a picture is
+that beta can be edited, and that is pinned by its own test.
+
+## THE TEST
+
+**`tests/test_resultcache.py` — 22 tests, new suite.** The durable ones:
+
+* `test_two_different_questions_never_share_one_answer` — the actual bug, at the cache level.
+* `test_the_export_serves_the_assumptions_the_page_used_not_someone_elses` — the same thing
+  end to end through the real Flask routes, checked on the workbook bytes the visitor gets.
+* `test_a_miss_recomputes_under_the_requested_assumptions_rather_than_falling_back` — pins
+  the multi-worker case, which is the one with no local reproduction.
+* `test_the_export_stamps_the_document_with_the_cached_computation_time` — the route must
+  pass the *entry's* stamp, not the wall clock, or a 14-minute-old document claims to be new.
+* `test_the_bare_dict_cache_is_gone_for_good` — a plain dict was the failure mode, so
+  reintroducing one fails a test rather than a review.
+* `test_the_workbook_discounts_at_the_rate_the_page_actually_used` and
+  `test_an_untouched_valuation_still_exports_a_live_wacc_formula` — the WACC pair above,
+  including the half that protects everyone who did *not* override anything.
+
+`tests/test_withhold.py` updated where it poked `_LAST` directly; its catch-all now strips
+the compute stamp by exact shape (`\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC`) rather than by
+loosening the number rule, so nothing shaped like a dollar figure can hide behind it.
+
+**Suites 20 → 21, tests 709 → 731.** (The prompt's bar said 705; `main` had already moved to
+709 before this session — baseline re-measured, not assumed.)
+
+## BUGS FOUND
+
+1. **`Procfile` and the `Dockerfile` disagree about worker count** — `-w 4` vs
+   `--workers ${WEB_CONCURRENCY:-2}`. Render uses the Dockerfile, so the Procfile's number is
+   inert, but anyone reasoning about concurrency from it gets the wrong answer. Not changed:
+   the Dockerfile comment explains why 2, and 4 workers OOM'd on the 512 MB box. Left as a
+   note rather than a silent edit.
+2. **The exported model ignored a WACC override** — full write-up above. **Fixed here**
+   (`report/**` is this lane's), in both formats, with tests. The underlying asymmetry —
+   `overrides["wacc"]` sets the discount rate but leaves `WACCResult.wacc` at the CAPM
+   build-up (`pipeline.py:217`) — is **left alone deliberately**: it is `engine/**`, it is
+   arguably intended (the build-up is what the WACC sheet is *for*), and the reports now
+   read `scenarios.base.wacc`, which is the rate that actually discounted the cash flows.
+   Worth knowing before anyone reads `result.wacc.wacc` as "the rate this valuation used" —
+   **it is not, whenever an override is in force.**
+3. **`n_years` looked unbounded and is not** — recorded so the next person does not re-run
+   the check. `assumptions.py:182` reads the override with no clamp, and the export now
+   takes overrides on a public GET, so this was worth measuring rather than assuming:
+   `n_years` of 200, 3,000 and 100,000 all resolve to **15**, and the workbook stays ~10 KB.
+   No DoS, no clamp added.
+
+## THIS LANE IS CLEAR. WAITING ON:
+
+1. **The refusal erased by the pipeline — engine lane, owns `screener/**`.** Still open.
+   `_enrich_with_dcf` writes `fair_value = None` on a refusal and records nothing else;
+   `estimate_fair_values` reads that as "not computed yet" and substitutes a peer estimate.
+   **KSPI, STLA and CHTR still sit on the public hot list with fair values while the
+   valuation page refuses them outright.** The guard shipped in Session 14 already honours
+   `fair_value_withheld` the moment the scan starts setting it, so **nothing further is needed
+   on this side.**
+   **The disclosure sentence on the hot list is a STOPGAP, not the fix.** It currently tells
+   the reader the two surfaces disagree and to believe the refusal. **It should come down when
+   the scan starts marking refusals** — otherwise the page will be explaining an inconsistency
+   that no longer exists, which is its own kind of wrong. **Who checks: whoever lands the
+   `_enrich_with_dcf` change**, in the same commit; if that lands elsewhere, this lane removes
+   it on the next pass. The string is in `app.js`, in the hot-list note ("Known inconsistency,
+   stated rather than hidden"), and it names Kaspi.
+2. **CI publishes +275% at HIGH confidence** with a comps lens implying 8.0× price, tripping
+   nothing. → **engine / DCF lane.** Not a guard problem — a valuation problem. Still open.
+
+## THE WITHHELD SET IS THREE, NOT FIVE — AND IT MOVES
+
+Recorded here because it is already stale in earlier notes: **GILD, CI and JD left the
+withheld set after the DCF terminal work.** Today it is **KSPI, STLA, CHTR**. Anything quoting
+"the five withheld names" is out of date. **The set is an output of the engine, so it changes
+whenever the engine does** — do not hard-code it, and re-derive it (`withhold.is_withheld`
+over the names in question) rather than trusting any list in a handoff, including this one.
+
+---
+
+# Session 14 — 2026-08-06 — The public leak is closed at this lane's call site; the score is
+now shown as partial (PROMPT_appfixer_close_the_public_leak.md)
+
+Both items shipped. **The real-snapshot measurement the last session could not get is in this
+one** — and it turned up a second, larger leak that this lane cannot close, recorded with its
+mechanism.
+
+## ITEM 1 — the guard, and what it actually catches
+
+**Where it sits:** `valuation/web/withhold.py::withhold_implausible_fair_values()`, called at
+`web/app.py:411` immediately after `estimate_fair_values` on the rows `/api/hotstocks` is
+about to serve, and at `web/unified.py:227` for `/api/whatdo` — the second public surface fed
+by the same estimator, which would otherwise just move the leak one endpoint over.
+`/api/rank` was already safe (it reads `base_fair_value`) but now carries the partial-score
+flag, below.
+
+**One number, one meaning.** The band is *imported* from `engine.pipeline.FV_BAND_HIGH`, not
+restated — the two surfaces cannot drift into different definitions of "implausible", which
+is exactly how this opened. Pinned by
+`test_the_row_guard_uses_the_valuation_pages_own_band_not_its_own_number`.
+
+**It says why.** The row gets `fair_value = None`, `upside = None`, `fair_value_withheld =
+True` and a sentence: *"No fair value is published for this name: the estimate came out 5.3x
+the price, past the 5x band at which this tool treats a valuation as a data problem (currency
+or share count) rather than an opportunity. The ranking below does not depend on it."* The
+cell renders **withheld**, not an em dash — a blank invites someone to fill it back in.
+
+### THE REAL MEASUREMENT (production, 2026-08-06)
+
+`/api/hotstocks` is public, so the live snapshot is readable without credentials — one GET, no
+Render disk needed. Scan 2026-08-06, 800-name universe, 785 scored, 500 served:
+
+| | before the guard | after |
+|---|---|---|
+| rows carrying a fair value | 499 | 498 |
+| **max fair_value / price** | **5.25× — AEG** | **3.96× — CNC** |
+| rows above the 5× band | **1** | 0 |
+| rows above 20× | 0 | 0 |
+
+The one name: **AEG (Aegon) — fair value $49.91 against a $9.50 price, tagged
+`blended / medium`.** A leveraged insurer, which is the exact mechanism (`3 + 2 × net debt /
+market cap`). Its **hot score 97.86 and rank 18 are untouched** — only the fair value is
+withheld, because the ranking never used it.
+
+So: thin today, unbounded by construction, and now closed on this side.
+
+## ITEM 1b — THE BIGGER LEAK, WHICH THIS GUARD DOES NOT CATCH
+
+Found while measuring, and it matters more than the band:
+
+> **The three names the valuation page refuses outright are served on the public hot list
+> with fair values, because their peer estimate lands *under* 5×.**
+>
+> | name | valuation page | public hot list, today |
+> |---|---|---|
+> | KSPI | **refuses** — "the model's $1,039.92 is 11.3× the $92.19 price" | **$299.16** (3.24×) |
+> | STLA | **refuses** — 6.4× | **$21.09** (3.75×) |
+> | CHTR | **refuses** — 8.1× | **$416.75** (2.72×) |
+
+**Mechanism, exactly:** `screen.py::_enrich_with_dcf` runs the full valuation for the top
+names and writes `r["fair_value"] = res.base_fair_value` — which is `None` when the
+publication guard refuses. It records nothing else. `estimate_fair_values` then reads that
+`None` as *"no DCF yet"* and substitutes a peer-relative estimate. **The refusal is erased by
+the next step in the pipeline.**
+
+**Not fixed here — `screener/**` is another lane's, and the fix is one line in theirs**
+(record the refusal alongside the `None`). Two things were done instead:
+
+1. **The guard already honours it.** `withhold_implausible_fair_values` withholds any row
+   carrying `fair_value_withheld`, whatever its ratio — so the moment the scan starts marking
+   refused names, this surface refuses them with no further change. Pinned by
+   `test_a_row_already_marked_withheld_is_honoured_even_below_the_band`.
+2. **The disagreement is stated on the hot list rather than hidden**, since it is live today:
+   *"Known inconsistency, stated rather than hidden: these two surfaces can still disagree. A
+   name whose full model is refused outright — Kaspi, for one, where the statements and the
+   price are in different currencies — can carry a peer-relative estimate here, because a
+   ratio of two same-currency figures survives the mismatch that breaks the valuation. When
+   they disagree, the Single-valuation page's refusal is the one to believe."*
+
+That last point is not spin: a peer multiple genuinely is currency-neutral, so the estimate
+is not obviously wrong the way the DCF was. But the product must not answer the same question
+two ways without saying so.
+
+## ITEM 1c — the catch-all, extended (the durable part)
+
+`test_no_public_api_response_carries_a_fair_value_past_the_band` walks **every `fair_value`
+that sits next to a `price` anywhere in a public API response body**, recursively, across
+`/api/hotstocks` and three `/api/whatdo` shapes, with a stubbed store containing both the real
+AEG row and the constructed 33× one. A new public list surface fails this the day it starts
+serving a fair value, without anyone remembering to add it anywhere. Session 12's catch-all
+walked `/api/value`; this is the walk that would have caught the leak Session 13 only found by
+reading arithmetic.
+
+## ITEM 2 — the score is rendered as partial, and visibly so
+
+The engine change (greeks lane) is in and measured on this machine: the whole valuation
+sub-score is dropped and the >5× cap now falls back to `blend.withheld_value`. This lane's
+"Not rated." was correct while the number was contaminated and became an understatement the
+moment it was not, so the page now publishes the partial score — marked everywhere it appears.
+
+**Rendered text, signed out, live data, all three names withheld today:**
+
+| | KSPI | STLA | CHTR |
+|---|---|---|---|
+| dial | **PARTIAL / 50 / "/ 100 · 4 of 5 components"** | **PARTIAL / 18** | **PARTIAL / 47** |
+| call | "Hold — partial" | "Avoid — partial" | "Hold — partial" |
+| confidence | low | low | low |
+| valuation bar | **withheld**, "weight 20% — dropped, not reassigned" | **withheld**, weight 40% | **withheld**, weight 40% |
+| the other four | 91 / 86 / 100 / 78 | 8 / 29 / 28 / 13 | 71 / 29 / 46 / 24 |
+
+STLA at 18 and CHTR at 47 are worth noting: **the >5× cap is a ceiling, not a floor** — a
+partial score lands wherever the four surviving components put it.
+
+The distinction is on the dial, not in a tooltip: a dashed amber inner ring, the word
+**PARTIAL** above the number, "4 of 5 components" below it, "— partial" beside the call, the
+missing bar reading **withheld** (not "n/a" — different words, and only one is true) with a
+hatched track and "dropped, not reassigned", and the engine's own sentence printed in the
+panel. The Watchlist marks it in the cell too, because a partial 50 sitting in a column beside
+a full 50 asserts they mean the same thing.
+
+**The caution the greeks lane routed here is carried in the copy**, not implied:
+`SCORE_NOTE` ends *"It is not comparable to a full score at the same number."* Pinned by
+`test_the_score_note_says_partial_and_says_it_is_not_comparable`.
+
+**A regression this file caused in design and caught in test.** The driver filter matched on
+keywords, and the two drivers a withheld name now legitimately carries are *"Valuation
+withheld — no fair-value, **Monte Carlo** or comps term contributes…"* and *"⚠ **Model fair
+value** is 11.3× the price… Capped and flagged unreliable"*. A keyword match deletes both —
+the explanation the page is required to show, and the flag saying the number was capped. The
+filter now matches on the sentence-initial prefixes `_valuation_score` actually writes, and
+`test_the_engines_own_explanation_survives_this_filter` exists to keep it that way.
+
+## Suites
+
+**20 suites, 705 tests, all green** (main was at 696 when this session started). This adds
+**+9 in `test_withhold.py`** (19 → 28).
+
+## BUGS FOUND
+
+1. **THE REFUSAL IS ERASED BY THE PIPELINE** — item 1b above. `_enrich_with_dcf` writes
+   `fair_value = None` on a refusal and `estimate_fair_values` reads it as "not computed yet".
+   KSPI, STLA and CHTR are on the public hot list with fair values today. → **screener lane;
+   this surface already honours the flag the moment it is set.**
+2. **CI publishes +275% at "high" confidence, and its comps lens implies 8.0× the price.**
+   After the DCF-terminal fixes CI is no longer refused ($1,013.47 against $270.50 = 3.75×,
+   under the band), so the whole page publishes: score **74 "Buy", confidence HIGH**, comps
+   fair value **$2,153.27 (+696%)**, sensitivity cells to $3,851.90. Nothing here is withheld
+   because nothing tripped the guard — the guard is not the problem, the valuation is.
+   → **engine / DCF lane.**
+3. **The withheld set is now three, not the five in the prompt.** GILD ($159.00, +21%), CI and
+   JD ($108.74, 3.34×) are no longer refused after the DCF-terminal work. Any future note
+   quoting "the five withheld names" is stale; the set moves whenever the engine changes.
+4. Still open from Session 13: **`_LAST` is an untimed process-global result cache**
+   (`web/app.py:40`) and `/api/export/*` serves from it, so a document's "As of" can disagree
+   with the page's. → **app lane.**
+
+## For Don
+
+The hot list can no longer publish a fair value more than 5× the price — the same bar the
+valuation page uses. On today's live scan that changes exactly one name: **AEG**, which was
+showing $49.91 against a $9.50 price and now shows **withheld** with the reason on hover. Its
+rank is unchanged, because the ranking never used that number.
+
+The score on a refused name now reads **"PARTIAL — 50 / 100, 4 of 5 components"** instead of
+"Not rated": the engine stopped feeding the withheld valuation into it, so the number that is
+left is honest as far as it goes, and the page says exactly how far that is.
+
+**One thing you should know is still true:** open KSPI on the Hot stocks tab and it shows a
+fair value of about $299, while the Single-valuation page refuses to value it at all. That is
+a real inconsistency, it is written on the hot list in plain words, and the fix belongs to the
+scan — not to this surface. Believe the refusal.
+
+---
+
+# Session 13 — 2026-08-05 — Exports refuse in-document; the 5x/20x answer; the Index tab
+(PROMPT_appfixer_exports_and_index_tab.md)
+
+Three items. Item 1 shipped, item 2 is answered definitively and the answer is **worse than
+the prompt supposed**, item 3 turned out to be already built — so what shipped there is the
+decision, the labelling and the sanity check rather than the feature.
+
+## ITEM 1 — the exports render the refusal now, and produce a real file
+
+`/api/export/pdf` and `/api/export/excel` used to return **409** for a withheld name. They now
+return **200 and a document that says the valuation is withheld, with the reason on it**. The
+route-level refusal is gone entirely (`web/app.py`); the refusal lives in the documents.
+
+**PDF** — `report/pdf.py::withheld_pdf_lines()` / `_build_withheld_pdf()`. Sample, generated
+from the real KSPI result and read back out of the rendered file with `pypdf`:
+
+> **Joint Stock Company Kaspi.kz (KSPI)** — Valuation withheld | As of 2026-08-05
+> **No fair value is published for this name**
+> Cannot value this name: the model's $1,289.93 is 14.0x the $92.19 price. That gap is a data
+> problem (currency or share count), not an opportunity, so no fair value is published.
+> This is not a formatting problem or a missing-data error. The model produced a figure,
+> checked it against the market price, and refused to publish it. Everything downstream of
+> that figure — the bear/base/bull cases, the sensitivity grid, the Monte Carlo distribution,
+> the implied values from peer multiples and the opportunity score — is withheld with it…
+> **What is shown** — Price $92.19 · Fair value *not published* · Upside *n/a* · Opportunity
+> score *not rated* · Regime hypergrowth · DCF reliability medium
+> **What would change it** — Most refusals are a currency or share-count mismatch… when the
+> inputs reconcile, the valuation publishes on its own.
+
+Numbers in the rendered PDF larger than 5× the price: **one — $1,289.93, inside the refusal
+sentence.** No `Scenarios`, `Score Breakdown`, `Reverse DCF` or `vs Price` section exists.
+
+**Excel** — the harder case, and it is not the model with holes in it. A blanked summary cell
+would be pointless because **every cell in the normal workbook is a formula**: `C6` is
+`=C41`, the sensitivity grid is 25 live `SUMPRODUCT` per-share formulas, so a "cleared"
+workbook would recompute the withheld figure the moment it opened. So the model sheets are
+**not built at all**. Measured on the generated file:
+
+| | normal (AAPL) | withheld (KSPI) |
+|---|---|---|
+| sheets | DCF Model, Sensitivity, WACC | **Not valued** (one) |
+| non-empty cells | 201 | 19 |
+| **live formulas** | 88 | **0** |
+| cells > 5× price | share counts / revenue / market cap (legitimate model inputs) | **none** |
+
+The one place the withheld figure appears is inside the reason text in `A5`, as on the page.
+
+**Tests** — `tests/test_withhold.py` is 16 → **19**, and the export tests are built on a REAL
+withheld result: `value_from_company(NKE fixture with price=$2.00)` runs the actual
+`publication_guard`, which fires at 37.5×. Offline, no network. `test_the_workbook_has_no_model_in_it`
+walks **every cell** (not the summary) asserting no formulas and nothing above 5× price;
+`test_the_pdf_renders_the_refusal_instead_of_erroring` reads the file back with `pypdf` and
+walks every number in the extracted text; `test_the_export_routes_serve_the_refusal_document`
+re-opens **the bytes the browser receives** and walks those. `test_a_publishable_name_still_
+exports_the_whole_model` keeps the normal workbook at 3 sheets and >50 formulas.
+
+`pypdf>=5.0` was added to `requirements.txt` (test-only, commented as such): CI installs that
+file and nothing else, and checking the code that builds a document is not the same as
+checking the document.
+
+## ITEM 2 — the 5x/20x question. **YES, and the 20x is not the real ceiling.**
+
+**A name can reach a public surface valued far above 5× its price, and it does not need an
+exotic input.** Path, all of it live today:
+
+1. `/api/hotstocks` is PUBLIC (`saas/surfaces.py::PUBLIC_API`).
+2. `web/app.py:407-408` calls `estimate_fair_values(rows, peer_rows=all_rows)` on the rows it
+   is about to serve.
+3. `screener/fairvalue.py:154-165` — `_mature_value`'s EV bridge: `equity = ev*ratio - nd`
+   with `ratio` capped at `MAX_RERATE = 3.0`, then `implied = price * equity / mc`.
+4. `app.js::_fairValCell` renders it with the `(+N%)` chip. No cap anywhere downstream.
+
+Since `ev = mc + nd`, that reduces exactly to
+
+> **implied / price = 3 + 2 × (net debt / market cap)**
+
+which I confirmed numerically through the real function — predicted and actual agree to the
+cent at every leverage level:
+
+| net debt / market cap | 0 | 0.5 | **1.0** | 1.5 | 2 | 3 | 4 | 8 | 15 |
+|---|---|---|---|---|---|---|---|---|---|
+| published fair value ÷ price | 3.0× | 4.0× | **5.0×** | 6.0× | 7.0× | 9.0× | 11.0× | 19.0× | **33.0×** |
+
+So **any name with net debt above 1× its market cap that re-rates the full 3× exceeds the
+valuation page's refusal band**, and the 5x–20x band is not even the limit — the constructed
+case published **$330.00 against a $10.00 price (33×)** tagged `fair_value_method: "multiples"`,
+`fair_value_confidence: "medium"`. Leveraged cable, telecom, utilities, REITs and airlines sit
+in that range routinely; CHTR's own net debt is roughly 4× its market cap.
+
+**The 20× cap does not apply to this.** `MAX_GROWTH_VALUE = 20.0` (`fairvalue.py:69`) is
+checked at `fairvalue.py:222`, inside `_growth_value` only. **The multiples lens has no
+absolute cap at all** — only a cap on the *re-rate*, which stops bounding the *per-share*
+answer as soon as the net-debt bridge divides by a small market cap.
+
+**Not changed, as instructed** — this is `screener/**`. Two things make it actionable rather
+than theoretical: the call site (`web/app.py:407`) is in MY lane, so the guard can be added
+without touching the screener the moment its owner picks the number; and the disagreement is
+not 5 vs 20, it is 5 vs unbounded. I could not measure how often it fires in production: this
+machine's `data/screener.db` holds only a synthetic test row (`TESTX`, scan_date 2099-01-01),
+so the real snapshot lives on Render's disk. **The one-line check for whoever owns it:** on a
+real snapshot, `max(r["fair_value"]/r["price"])` after `estimate_fair_values`.
+
+## ITEM 3 — the Index tab was already built (2026-08-02, commit `5e48a4a`)
+
+Verified rather than claimed: `tab-index`, the cumulative-vs-SPY chart (`indexChart`) and the
+alpha figures already exist, and the live column is genuinely dynamic — `/api/index-track` →
+`screener/index_track.py::summarize()` computes cumulative, excess, annualised alpha and
+Sharpe from the stored series, withholding the annualised figures until `MIN_LIVE_DAYS`. The
+backtested column reads `settings.BOOK_CONFIGS[cfg]["measured"]`, which is a *measured*
+constant from the full-panel backtest and correctly labelled hypothetical. Nothing there was
+a written-in performance figure, so there was nothing to replace.
+
+What was genuinely open — and is what shipped:
+
+**The split decision: the Index STAYS OWNER-ONLY.** Two independent reasons, either
+sufficient: (1) it publishes names **with weights** as of today, which is an allocation rather
+than an analysis — the exact line the split is drawn on; (2) the card above the holdings is a
+cumulative-return chart against the S&P, which is a performance-claim *shape* whatever caption
+sits under it, and the public posture is "no performance claims in public". The middle option
+— publish the curve, withhold the holdings — was considered and **rejected**: it fails (2) on
+its own, so it gives up the clarity of one rule and buys nothing. Reversal is one line in
+`saas/surfaces.py` and is Don's call. Pinned by
+`test_the_index_stays_owner_only_and_says_why_on_its_own_face`.
+
+**The labelling, which was the real gap.** The copy read *"The book you would actually hold"*
+and *"real money-less trading"* — an allocation instruction and a contradiction. Now, on the
+surface itself and not only in the terms:
+
+- tab header: **"A model portfolio — not a traded account, and not advice… No money is
+  invested in it. Positions are marked at closing prices, so there are no fills, no slippage
+  beyond the modelled cost and no tax — which is exactly why it is not a return anyone earned."**
+- card title: "Performance — backtested vs live" → **"Model-portfolio performance — backtested
+  vs forward"**; the live card's badge "Live since inception" → **"Forward, model portfolio"**.
+- the **chart's own caption** now carries it, because a chart is the element most likely to be
+  screenshotted away from every caveat around it: *"Cumulative return of the MODEL portfolio
+  since inception vs SPY… no capital is invested — these are closing-price marks, not fills,
+  and not a return anyone received."*
+- the shared `RISK_DISCLAIMER` said the forward track "is real but short" — now **"is a model
+  portfolio and a sandbox paper account — no money is invested in either, so no figure here is
+  a return anyone received — and it is short."** That string is used on every surface that
+  outputs something recommendation-shaped, so this is the widest-reaching line of the three.
+
+Verified in a browser as the owner: the tab renders, all four framings appear, **no JS errors**.
+
+**The book's sanity: shape confirmed, live names NOT confirmed — and I will not pretend
+otherwise.** The construction was exercised read-only on a synthetic 800-name snapshot through
+the real `build_index`: `roth` → 25 positions, weights sum to 1.000000, max 6.18% (under the 8%
+cap), 11 sectors; `taxable` → 80 positions (the decile), max 2.25%, 11 sectors. That is the
+shape the prompt describes and it is sane. **The live 67-position book with NLY / ARWR / APGE /
+QXO / SYF cannot be checked from here** — the local store has no real scan, and
+`/api/valquo-index` is owner-only in production. → **Don or Cowork: open the Index tab signed
+in and eyeball the first post-800 book.** If a name looks wrong, the ranking is the place to
+look, not the construction.
+
+## Suites
+
+**20 suites, 690 tests, all green.** `main` was at 686 when this session started (the prompt's
+683 bar predates the DCF lane's +3 in `test_engine`). This session adds **+3 withhold**
+(16→19) and **+1 public** (16→17). edge 221, screener 67, paper_track 40, engine 36, ev_multiples
+34, private 30, saas 30, lazy_prices 28, lazy_prices_ic 24, options_greeks 22, security 22,
+calibration 23, **withhold 19**, intraday 18, **public 17**, bulk 14, factor_alpha 14, freeze 13,
+pead 12, sector_neutral 6.
+
+## BUGS FOUND (noticed, not fixed — not this lane)
+
+1. **The screener's multiples lens is unbounded on the public hot list.** Item 2 above:
+   `implied/price = 3 + 2·(net debt / market cap)`, no absolute cap, `fairvalue.py:154-165`.
+   The 20× `MAX_GROWTH_VALUE` guards only the growth lens. → **screener owner.** The public
+   call site is `web/app.py:407` if the guard is better placed there.
+2. **Two thresholds for one claim, still.** The valuation page refuses above 5×; the screener
+   estimate has no ceiling. Whatever number is agreed, it should be one constant read by both.
+3. **`_LAST` is a process-global result cache** (`web/app.py:40`) keyed by ticker with no TTL,
+   and `/api/export/*` serves from it. On a long-lived Render process an export can therefore
+   be built from a result computed hours earlier under different prices while the page shows a
+   fresh one. Not a withholding leak (the guard travels with the cached result), but the
+   document's "As of" and the page's can disagree. → **app lane, next session.**
+4. Still open from Session 12 and unchanged: **MRK publishes +611% at 3.7×** (under the guard
+   band — the DCF is the problem, not the band), and **`_valuation_score` re-imports the
+   withheld valuation** at `scoring.py:83/86` with the >5× cap dead at `scoring.py:228`.
+   → **engine lane.**
+
+## For Don
+
+Ask for a PDF or an Excel model of KSPI (or STLA, CHTR, GILD, CI, JD) and you now get a real
+file that says the valuation is withheld and why, instead of an error — and the workbook has
+no live formulas in it, so there is nothing for Excel to recalculate into the number the site
+refused to show. The Index tab is unchanged in what it does and now says plainly, on itself,
+that it is a model portfolio with no money in it. It stays behind your login; the reasoning
+for that is above if you want to overrule it. **One thing needs your eyes:** the first
+800-name book — open the Index tab signed in and check the holdings look sane.
+
+---
+
+# Session 12 — 2026-08-05 — When the model refuses to value a name, the whole page refuses
+(PROMPT_scenario_cards_follow_headline.md)
+
+The headline withheld KSPI's fair value and the card three inches below printed it anyway, at
++1299%. That was not one broken card. **Seven** surfaces republished the withheld valuation,
+and the worst of them was the 93/100 "Strong Buy" gauge. All seven now refuse, the figures are
+stripped from the API response rather than merely not drawn, and the refusal states its reason
+where a number used to be.
+
+## What rendered before, and what renders now — all seven withheld names
+
+Measured through the real page (headless Chromium, signed out, live FMP data, 2026-08-05).
+"Implausible tokens" = every `$…` string in the rendered DOM larger than 5× the price, which
+is the guard's own threshold for refusing.
+
+| Name | Price | BEFORE — scenario cards | Other leaks | Score shown | AFTER — implausible tokens on page |
+|---|---|---|---|---|---|
+| KSPI | $92.19 | $620.27 / **$1,289.60** / $2,888.15 (+573% / **+1299%** / +3033%) | MC median $2,335.73, p10–p90 $872.89–$6,340.11, "100% of trials above the price"; sensitivity to $8,632.67; comps implied $326.32 (+254%); reverse "expectations look cheap" | **93 Strong Buy** | **$1,288.94 only — inside the refusal sentence** |
+| STLA | $5.63 | $8.03 / **$125.87** / $406.72 (+43% / **+2136%** / +7124%) | comps implied $73.12 (+1199%) | 45 Reduce | **$125.88 only — the refusal sentence** |
+| CHTR | $153.17 | $1,202.45 / **$1,717.36** / $2,402.64 (+685% / **+1021%** / +1469%) | MC median $2,136.63; sensitivity to $7,876.76; comps $1,007.67 (+558%) | 69 Buy | **$1,717.36 only — the refusal sentence** |
+| GILD | $131.76 | $453.96 / **$961.79** / $2,045.10 (+245% / **+630%** / +1452%) | MC median $2,063.46; sensitivity to $11,409.90 | **87 Strong Buy** | **$961.79 only — the refusal sentence** |
+| CI | $270.50 | $1,008.07 / **$2,001.65** / $3,548.87 (+273% / **+640%** / +1212%) | MC median $1,786.34; comps $2,153.27 (+696%) | 71 Buy | **$2,001.65 only — the refusal sentence** |
+| JD | $32.54 | $105.15 / **$228.10** / $430.43 (+223% / **+601%** / +1223%) | MC median $237.73; sensitivity to $1,331.86; comps $144.18 (+343%) | 79 Buy | **$227.70 only — the refusal sentence** |
+| MRK | $128.33 | — | — | — | **NOT WITHHELD TODAY — see BUGS FOUND #1** |
+
+The one surviving figure on each page is the guard's own sentence — *"the model's $1,288.94 is
+14.0x the $92.19 price"*. That is the **evidence for withholding**, not a valuation, and it is
+deliberately kept: a refusal with no stated cause is worse than the refusal.
+
+Publishable names are untouched — verified on the same harness: AAPL renders cards
+$100.48 / $122.01 / $148.20, the range bar, the Monte Carlo median $92.81, the full sensitivity
+grid, comps implied values and a 51 Hold gauge, exactly as before.
+
+## The 93/100 — it was NOT "everything except the DCF"
+
+The prompt asked whether the score legitimately excludes the withheld DCF. **It does not, and
+this is the more serious half of the bug.** Code path, measured on KSPI:
+
+- `engine/pipeline.py:280` calls `compute_score(..., blend.value if blend.valuable else None, ...)`,
+  so the margin-of-safety term **is** correctly dropped. That much the engine lane had right.
+- `engine/scoring.py:83` then rebuilds it: `mc.prob_undervalued` carries **weight 0.30** of the
+  valuation sub-score, and it is the share of Monte Carlo trials **of the withheld DCF** that
+  beat the price — **1.00 on KSPI**.
+- `engine/scoring.py:86` adds `comps.comps_fair_value` at **weight 0.15** — $326.32 against a
+  $92.19 price, corrupted by the same KZT/USD mismatch that triggered the refusal.
+- Result: the valuation sub-score printed **100.0 / 100** on a name the model had just declined
+  to value, and the composite printed **93 "Strong Buy"**.
+
+It is worse than a leak. `engine/scoring.py:228` holds a sanity cap — *"never surface a >5x fair
+value as a strong buy"*, which forces the composite to 50 — and it is written `if base_fv and …`,
+so **it cannot fire once the guard has set `base_fv = None`**. Publishing the bad number capped
+KSPI at 50. Withholding it let KSPI print 93.
+
+**This lane did not touch the score's definition** — that is the engine lane's, and the prompt
+was explicit about not fixing a display problem by quietly redefining a number. What ships here
+is a refusal to *publish* a figure that is demonstrably contaminated, plus the reason in plain
+words on the page: the gauge reads **"Not rated."**, the valuation bar reads **"withheld"**
+(not "n/a", which would claim it could not be computed), and the four sub-scores with no fair
+value in them — quality, growth, health, momentum — still show.
+
+## How it is enforced (two locks, because this bug was one lock failing)
+
+1. **`valuation/web/withhold.py`** (new, pure) — `withhold_derived_figures(payload)` strips
+   every DCF-derived figure from the `/api/value` response **before it reaches the browser**:
+   the scenario cone, `dcf_per_share`, the per-share/equity values and FCF rows in `scenarios`,
+   the blend's `lenses` / `value_low` / `value_high`, `growth_lens`, all of Monte Carlo
+   including `prob_undervalued`, the sensitivity grid, the reverse-DCF read, comps `implied` +
+   `comps_fair_value`, and the score + recommendation. So the numbers are not in view-source,
+   not in the network tab, and not one console line from being republished.
+   Ratios survive on purpose: **P/E, EV/EBITDA, P/S, EV/Sales are currency-neutral** (a ratio of
+   two same-currency figures), while the per-share values implied *from* them are not — that
+   step is exactly how a $92 stock showed a $326 implied value.
+2. **`static/app.js`** — `render()` branches on the same `notValuable` test the headline uses;
+   every call that draws a DCF-derived figure now sits in the else-branch, and `withheldCards()`
+   writes the reason where each card was. It also **destroys the Chart.js canvases** — skipping
+   a draw would have left the *previous* ticker's cone on screen, which is the same bug with an
+   extra step.
+3. **Downloads refuse too** (`/api/export/pdf`, `/api/export/excel` → **409** with the reason).
+   `report/pdf.py:97` builds the same cone from `scenarios.*.per_share`, so without this the
+   withheld number just left the building in a file instead of on a screen. Rendering the
+   refusal *inside* the documents belongs to whoever owns `valuation/report/**`; this lane can
+   only decline.
+4. A misleading message was removed: `/api/value` used to append *"Could not compute a per-share
+   value (missing shares/price). Check the ticker symbol."* whenever `base_fair_value` was None —
+   which now includes deliberate refusals, where it is simply false.
+
+## The test that pins it — `tests/test_withhold.py` (16 tests, offline)
+
+The fixture is the **real KSPI payload with the real figures that shipped**, so a regression
+reproduces the actual bug rather than a sanitised one. The load-bearing test is the catch-all:
+`test_no_withheld_figure_survives_anywhere_in_the_valuation_blocks` walks **every number in
+every valuation block** and requires it to be within 5× the price — so a card added next year
+that starts republishing the DCF fails without anyone remembering to add it to a list. Around
+it: the cone is gone; MC/sensitivity/reverse are gone; comps keep ratios and lose implied
+dollars; the reason keeps its figure; the score is withheld with its note; a publishable name is
+returned **byte-identical** (`out is payload`); the renderer's risky calls are all inside the
+else-branch and each appears exactly once; the stale-chart path is closed; the live route's JSON
+carries none of it; and both exports 409.
+
+## Suites
+
+**20 suites, 683 tests, all green** (was 667 — this adds 16). edge 221, screener 67, paper_track
+40, ev_multiples 34, engine 33, private 30, saas 30, lazy_prices 28, lazy_prices_ic 24,
+calibration 23, options_greeks 22, security 22, intraday 18, public 16, **withhold 16 (new)**,
+bulk 14, factor_alpha 14, freeze 13, pead 12, sector_neutral 6.
+
+## BUGS FOUND (noticed, not fixed — not this lane)
+
+1. **MRK is no longer withheld, and that is the guard's threshold doing a defect's job.**
+   Today MRK values at **$473.61 against a $128.33 price — 3.7×**, just under the 5× band, so
+   everything publishes: cards **$243.37 / $473.61 / $911.94 (+90% / +269% / +611%)**, a
+   sensitivity grid to **$1,660**, a Monte Carlo median **$896.19** with "100% of trials value it
+   above today's price", and a **91 "Strong Buy"**. The model classifies **Merck as
+   "hypergrowth"** with **~100% forward revenue growth** and **Rule of 40 = 119**. The refusal
+   band is not the problem — the DCF is. → **engine lane** (`PROMPT_dcf_terminal_degeneracy.md`).
+2. **`_valuation_score` re-imports the withheld valuation** (scoring.py:83/86) and the >5× cap
+   at scoring.py:228 is dead whenever the guard fires (`if base_fv and …`). Full argument above.
+   → **engine lane.** Until it is fixed, no composite score is published for a withheld name.
+3. **The PDF and Excel exports build the DCF cone unconditionally** (`report/pdf.py:97-99`).
+   Refused at the route here; the reports themselves should render the refusal instead of
+   erroring out. → **whoever owns `valuation/report/**`.**
+4. **The screener's own fair-value path is separate** and caps at 20× price
+   (`screener/fairvalue.py:69`), where the page refuses at 5×. Two different bars for the same
+   claim on two surfaces. The DCF-enriched rows use `res.base_fair_value`, which is correctly
+   None for withheld names, so nothing leaks today — but the thresholds should agree.
+
+## For Don
+
+Nothing to do. Look up **KSPI** signed out: the headline still says it cannot value the name,
+and now every card below it says the same thing and gives the reason, instead of printing
+"$1,289.68 (+1299%)". The one dollar figure left on the page is inside the sentence explaining
+why there is no dollar figure. The score reads **"Not rated"** rather than "93 Strong Buy" —
+that is deliberate, and the page says why in a sentence.
+
+---
+
 # Session 11 — 2026-08-04 — Public + free, with a hidden owner view (PROMPT_appfixer_public_free.md)
 
 Valquo is now **public and free to anyone, forever**, with the liability-shaped half held back

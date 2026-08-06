@@ -70,8 +70,8 @@ window.addEventListener("load", () => {
     b.onclick = () => { document.getElementById("ticker").value = t; runValue(); };
     chips.appendChild(b);
   });
-  document.getElementById("dlExcel").onclick = () => { if (STATE.ticker) window.location = `/api/export/excel?ticker=${STATE.ticker}`; };
-  document.getElementById("dlPdf").onclick = () => { if (STATE.ticker) window.location = `/api/export/pdf?ticker=${STATE.ticker}`; };
+  document.getElementById("dlExcel").onclick = () => { if (STATE.ticker) window.location = exportUrl("excel"); };
+  document.getElementById("dlPdf").onclick = () => { if (STATE.ticker) window.location = exportUrl("pdf"); };
 });
 
 /* ---------- ticker typeahead ----------
@@ -154,6 +154,7 @@ async function runValue(overrides) {
   const ticker = document.getElementById("ticker").value.trim().toUpperCase();
   if (!ticker) return;
   STATE.ticker = ticker;
+  STATE.overrides = overrides || null;   // what the export must reproduce, not guess at
   show("loader", true); show("results", false); errBox("");
   document.getElementById("go").disabled = true;
   document.getElementById("loadmsg").textContent = overrides ? "Re-running with your assumptions…" : `Fetching live data & valuing ${ticker}…`;
@@ -178,12 +179,27 @@ async function runValue(overrides) {
 }
 function resetAssum() { runValue(); }
 
+/* The download has to describe the same thing the screen does, so the assumptions the page
+   was rendered with travel with it. Without them the export could only ask the server for
+   "the last <ticker> anyone computed", which is a different question the moment a visitor
+   touches the assumption panel — and, behind two workers, sometimes a different answer. */
+function exportUrl(kind) {
+  const p = new URLSearchParams({ ticker: STATE.ticker });
+  Object.entries(STATE.overrides || {}).forEach(([k, v]) => p.set(k, v));
+  (STATE.peers || []).forEach(t => p.append("peers", t));
+  return `/api/export/${kind}?${p.toString()}`;
+}
+
 /* ---------- master render ---------- */
 function render(d) {
   const c = d.company, cls = d.classification, sc = d.scenarios, score = d.score;
   document.getElementById("coName").textContent = `${c.name} (${c.ticker})`;
+  // `as_of` is the fundamentals date and reads as today however old the figures are, so it
+  // never told the reader whether the page was current. `computed_at` does, and it is the
+  // same stamp the exported workbook and tearsheet print — so the two can be compared.
   document.getElementById("coSub").textContent =
-    [c.sector, c.industry].filter(Boolean).join(" · ") + (c.as_of ? ` · as of ${c.as_of}` : "");
+    [c.sector, c.industry].filter(Boolean).join(" · ") + (c.as_of ? ` · as of ${c.as_of}` : "")
+    + (d.computed_at ? ` · computed ${d.computed_at}` : "");
 
   // badges
   const rc = { high: "g", medium: "a", low: "r" }[cls.dcf_reliability] || "";
@@ -216,24 +232,34 @@ function render(d) {
       : `<span class="${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</span>`) +
     metric("WACC", pct(d.wacc.wacc));
 
-  gauge(score.score, score.recommendation, score.confidence);
+  gauge(score.score, score.recommendation, score.confidence, notValuable, d.withheld);
   fairValueMethod(fvb, d);
-  // Scenarios are drawn from the SAME method as the headline when we have it. Showing
-  // the raw DCF cone under a multiples-based headline is how a growth name ended up
-  // displaying three negative scenario cards beneath a positive fair value.
-  const scen = (fvs.base != null)
-    ? { bear: fvs.bear, base: fvs.base, bull: fvs.bull, method: fvs.method }
-    : { bear: sc.bear_price, base: sc.base_price, bull: sc.bull_price, method: "DCF" };
-  rangebar(scen.bear, scen.base, scen.bull, c.price);
-  scenarioCards(scen, c.price, fvb);
-  fcfChart(sc.base.rows);
-  mcChart(d.montecarlo);
-  scoreBars(score);
-  reverseBox(d.reverse);
-  compsBox(d.comps, c.price, (d.reverse && d.reverse.base_avg_growth != null) ? d.reverse.base_avg_growth : (d.assumptions ? d.assumptions.start_growth : null));
+  // WHEN THE MODEL REFUSES, THE WHOLE PAGE REFUSES (2026-08-05).
+  // The headline said "Not DCF-valuable" and the cards below printed the withheld number
+  // anyway — $1,289.68 at +1299% on KSPI, three inches under the notice withholding it.
+  // Every card downstream of the DCF now refuses with it. The server already strips these
+  // figures from the response (web/withhold.py), so this is the second lock, not the only
+  // one: even if a number arrives, nothing here draws it.
+  if (notValuable) {
+    withheldCards(d);
+  } else {
+    // Scenarios are drawn from the SAME method as the headline when we have it. Showing
+    // the raw DCF cone under a multiples-based headline is how a growth name ended up
+    // displaying three negative scenario cards beneath a positive fair value.
+    const scen = (fvs.base != null)
+      ? { bear: fvs.bear, base: fvs.base, bull: fvs.bull, method: fvs.method }
+      : { bear: sc.bear_price, base: sc.base_price, bull: sc.bull_price, method: "DCF" };
+    rangebar(scen.bear, scen.base, scen.bull, c.price);
+    scenarioCards(scen, c.price, fvb);
+    fcfChart(sc.base.rows);
+    mcChart(d.montecarlo);
+    reverseBox(d.reverse);
+    sensBox(d.sensitivity, c.price);
+  }
+  scoreBars(score, notValuable, d.withheld);
+  compsBox(d.comps, c.price, (d.reverse && d.reverse.base_avg_growth != null) ? d.reverse.base_avg_growth : (d.assumptions ? d.assumptions.start_growth : null), d.withheld);
   assumEditor(d.assumptions);
   document.getElementById("assumNotes").innerHTML = (d.assumptions.notes || []).map(n => "• " + n).join("<br>");
-  sensBox(d.sensitivity, c.price);
   aiBox(d.ai);
   earningsBox(c);
   warnBox(d.warnings);
@@ -244,9 +270,82 @@ function metric(k, v) { return `<div class="m"><div class="k">${k}</div><div cla
 function show(id, on) { document.getElementById(id).classList.toggle("on", on); }
 function errBox(msg) { const e = document.getElementById("err"); e.textContent = msg; e.classList.toggle("on", !!msg); }
 
+/* ---------- the page-wide refusal ----------
+   One place decides what a withheld name shows, so a card cannot be added later that
+   quietly starts drawing the number again: everything here writes a REASON where a figure
+   would have been. Blank space would read as "loading" or "no data"; the reader is owed the
+   same sentence the headline gave them. Copy comes from the server (web/withhold.py) so the
+   wire and the page cannot disagree about why something is missing. */
+const _WITHHELD_FALLBACK = {
+  scenarios: "Bear, base and bull are the same valuation re-run on shifted assumptions, so they are withheld with it.",
+  montecarlo: "The distribution is that same valuation re-run thousands of times, so it is withheld with it.",
+  sensitivity: "The grid is that same valuation at other discount and growth rates, so it is withheld with it.",
+  fcf: "The projection is the forecast the valuation was built from, so it is withheld with it.",
+  comps: "Multiples are ratios and are shown. The per-share values implied by them are not.",
+  reverse: "The market-implied growth read is solved from the same model, so it is withheld with it.",
+  score: "The valuation part of the score is computed from figures that were withheld."
+};
+function _wReason(w, key) { return ((w && w.cards) || {})[key] || _WITHHELD_FALLBACK[key] || ""; }
+function withheldBox(w, key) {
+  return `<div class="nv-box"><b>Not published for this name.</b> ${esc(_wReason(w, key))}</div>`;
+}
+function _canvasCard(id, on) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = on ? "" : "none";
+}
+function withheldCards(d) {
+  const w = d.withheld || {};
+  // Charts are stateful: skipping the draw would leave the PREVIOUS ticker's cone on screen,
+  // which is the same bug with an extra step.
+  killChart("fcf"); killChart("mc");
+  _canvasCard("fcfChart", false); _canvasCard("mcChart", false);
+  setHtml("rangebar", "");
+  setHtml("scenarioCards", withheldBox(w, "scenarios"));
+  setHtml("scenarioNote", "");
+  setHtml("fcfNote", withheldBox(w, "fcf"));
+  setHtml("mcNote", withheldBox(w, "montecarlo"));
+  setHtml("sensBox", withheldBox(w, "sensitivity"));
+  setHtml("reverseBox", withheldBox(w, "reverse"));
+}
+
 /* ---------- gauge ---------- */
-function gauge(s, rec, conf) {
+function gauge(s, rec, conf, notValuable, w) {
+  if (s == null) {
+    document.getElementById("gauge").innerHTML =
+      `<div class="nv-box" style="text-align:left;max-width:260px">
+         <b>Not rated.</b> ${esc((w && w.score_note) || _WITHHELD_FALLBACK.score)}</div>`;
+    return;
+  }
   const r = 54, circ = 2 * Math.PI * r, off = circ * (1 - s / 100), col = scoreColor(s);
+  // A PARTIAL score is a real number built from four of the five sub-scores — the engine
+  // drops the valuation component entirely for a withheld name — and it must not be dressed
+  // as a complete one. The distinction is on the dial itself (dashed arc, "PARTIAL" over the
+  // number, "4 of 5 components" under it) rather than in a tooltip, because the failure mode
+  // this whole thread is about is a partial thing read as a whole one.
+  if (notValuable) {
+    document.getElementById("gauge").innerHTML = `
+      <svg width="140" height="140" viewBox="0 0 140 140">
+        <circle cx="70" cy="70" r="${r}" fill="none" stroke="var(--border)" stroke-width="13"/>
+        <!-- same geometry as a full gauge so the number and the arc still agree, at 60%
+             opacity, with an amber dashed ring inside it: the dial reads as unfinished
+             at a glance, which is the honest impression. -->
+        <circle cx="70" cy="70" r="${r}" fill="none" stroke="${col}" stroke-width="13" stroke-linecap="round"
+          stroke-dasharray="${circ}" stroke-dashoffset="${off}" opacity=".6"/>
+        <circle cx="70" cy="70" r="${r - 9}" fill="none" stroke="var(--amber)" stroke-width="1.5"
+          stroke-dasharray="4 5" opacity=".85"/>
+      </svg>
+      <div style="margin-top:-104px;text-align:center">
+        <div style="font-size:10.5px;font-weight:800;letter-spacing:.09em;color:var(--amber)">PARTIAL</div>
+        <div class="score-num" style="color:${col};opacity:.85">${s}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:-4px">/ 100 · 4 of 5 components</div>
+      </div>
+      <div class="rec" style="color:var(--muted);margin-top:36px;font-size:15px">${esc(rec || "")}<span
+        style="font-size:11px;font-weight:700;color:var(--amber)"> — partial</span></div>
+      <div class="conf">confidence: ${esc(conf || "low")}</div>
+      <div class="nv-box" style="text-align:left;margin-top:10px;max-width:270px;font-size:12px">
+        <b>Valuation withheld.</b> ${esc((w && w.score_note) || _WITHHELD_FALLBACK.score)}</div>`;
+    return;
+  }
   document.getElementById("gauge").innerHTML = `
     <svg width="140" height="140" viewBox="0 0 140 140">
       <circle cx="70" cy="70" r="${r}" fill="none" stroke="var(--border)" stroke-width="13"/>
@@ -340,6 +439,7 @@ function scenarioCards(scen, price, fvb) {
 function killChart(k) { if (STATE.charts[k]) { STATE.charts[k].destroy(); delete STATE.charts[k]; } }
 function fcfChart(rows) {
   killChart("fcf");
+  _canvasCard("fcfChart", true); setHtml("fcfNote", "");
   const ctx = document.getElementById("fcfChart");
   const labels = rows.map(r => "Yr " + r.year);
   STATE.charts.fcf = new Chart(ctx, {
@@ -356,6 +456,7 @@ function fcfChart(rows) {
 }
 function mcChart(mc) {
   killChart("mc");
+  _canvasCard("mcChart", true);
   const ctx = document.getElementById("mcChart");
   const bins = mc.hist_bins || [], counts = mc.hist_counts || [];
   const labels = counts.map((_, i) => money((bins[i] + bins[i + 1]) / 2, 0));
@@ -375,17 +476,33 @@ function mcChart(mc) {
 }
 
 /* ---------- score bars ---------- */
-function scoreBars(score) {
-  document.getElementById("scoreHint").innerHTML =
-    `Weighted for a <b>${STATE.data.classification.regime}</b> company — weights shift by regime so the DCF is trusted less where it's less reliable. Overall confidence: <b>${score.confidence}</b>.`;
+function scoreBars(score, notValuable, wh) {
+  // On a withheld name the number IS published — it just rests on four components instead of
+  // five. Name the arithmetic (which weight was dropped, what the rest renormalise to) rather
+  // than leaving the reader to infer it from a greyed-out bar.
+  const dropped = notValuable ? (score.weights || {}).valuation : null;
+  document.getElementById("scoreHint").innerHTML = notValuable
+    ? `<div class="nv-box" style="margin-top:0"><b>Partial score — 4 of 5 components.</b>
+         ${esc((wh && wh.score_note) || score.partial_note || _WITHHELD_FALLBACK.score)}
+         ${dropped != null ? `The valuation component normally carries <b>${pct(dropped, 0)}</b>
+         of this score for a <b>${esc(STATE.data.classification.regime)}</b> company; that weight
+         is not reassigned to a substitute, it is removed and the remaining four are
+         renormalised.` : ""}</div>`
+    : `Weighted for a <b>${STATE.data.classification.regime}</b> company — weights shift by regime so the DCF is trusted less where it's less reliable. Overall confidence: <b>${score.confidence}</b>.`;
   const order = ["valuation", "quality", "growth", "health", "momentum"];
   let html = "";
   order.forEach(k => {
     const v = score.subscores[k], w = score.weights[k];
     const col = v == null ? "var(--faint)" : scoreColor(v);
-    html += `<div class="sbar"><div class="lab"><span><b>${k[0].toUpperCase() + k.slice(1)}</b> <span class="wt">weight ${pct(w, 0)}</span></span>
-      <span style="font-weight:700;color:${col}">${v == null ? 'n/a' : v.toFixed(0)}</span></div>
-      <div class="bar"><span style="width:${v == null ? 0 : v}%;background:${col}"></span></div></div>`;
+    // "n/a" is the right word for a sub-score that could not be computed and the WRONG word
+    // for one that was computed and then withheld — say which.
+    const held = notValuable && k === "valuation" && v == null;
+    const lab = v == null ? (held ? "withheld" : "n/a") : v.toFixed(0);
+    const wt = held ? `<span class="wt">weight ${pct(w, 0)} — dropped, not reassigned</span>`
+                    : `<span class="wt">weight ${pct(w, 0)}</span>`;
+    html += `<div class="sbar"><div class="lab"><span><b>${k[0].toUpperCase() + k.slice(1)}</b> ${wt}</span>
+      <span style="font-weight:700;color:${held ? 'var(--amber)' : col}">${lab}</span></div>
+      <div class="bar"${held ? ' style="background:repeating-linear-gradient(90deg,var(--border) 0 4px,transparent 4px 9px)"' : ''}><span style="width:${v == null ? 0 : v}%;background:${col}"></span></div></div>`;
   });
   html += `<div style="margin-top:10px;font-size:12.5px" class="muted">Drivers:</div><ul style="margin:4px 0 0;padding-left:18px;font-size:13px">` +
     (score.drivers || []).map(x => `<li>${x}</li>`).join("") + "</ul>";
@@ -465,11 +582,21 @@ function reverseBox(rv) {
         ${metric("Market-implied growth", pct(rv.implied_avg_growth))}
         ${metric("Our base growth", pct(rv.base_avg_growth))}</div>` : "");
 }
-function compsBox(cp, price, growth) {
+function compsBox(cp, price, growth, wh) {
   const m = cp.subject || {}, imp = cp.implied || {};
+  // A multiple is a ratio of two figures in the same currency, so it survives the mismatch
+  // that triggers most refusals. The per-share value implied by it does not — that step
+  // prices a reporting-currency figure against a USD quote, and it is how a $92 stock got a
+  // "$326 implied value". Ratios stay, implied dollars go, and the card says which.
+  const withheld = !!cp.withheld;
   const rows = [["P/E", m.pe, imp.pe], ["EV/EBITDA", m.ev_ebitda, imp.ev_ebitda], ["P/S", m.ps, imp.ps], ["EV/Sales", m.ev_sales, imp.ev_sales]];
-  let html = `<div class="note" style="margin-top:0">${cp.benchmark_source}</div><table><tr><th>Multiple</th><th class="num">Current</th><th class="num">Implied value</th></tr>`;
-  rows.forEach(([lab, cur, iv]) => { html += `<tr><td>${lab}</td><td class="num">${mult(cur)}</td><td class="num">${money(iv)}</td></tr>`; });
+  let html = `<div class="note" style="margin-top:0">${esc(cp.benchmark_source || "")}</div>`;
+  if (withheld) html += withheldBox(wh, "comps");
+  html += `<table><tr><th>Multiple</th><th class="num">Current</th><th class="num">Implied value</th></tr>`;
+  rows.forEach(([lab, cur, iv]) => {
+    const cell = withheld ? '<span class="muted">withheld</span>' : money(iv);
+    html += `<tr><td>${lab}</td><td class="num">${mult(cur)}</td><td class="num">${cell}</td></tr>`;
+  });
   html += `</table>`;
   if (cp.comps_fair_value != null) {
     const u = price ? cp.comps_fair_value / price - 1 : null;
@@ -614,10 +741,16 @@ async function runRank() {
     rows.forEach((r, i) => {
       if (r.error) { html += `<tr><td>${i + 1}</td><td><b>${r.ticker}</b></td><td colspan="7" class="muted">${r.error}</td></tr>`; return; }
       const up = r.upside;
+      // A partial score sits in the same column as full ones. Mark it in the cell, not in a
+      // footnote — an unmarked 50 beside a full 50 says they mean the same thing.
+      const part = r.score_partial;
       html += `<tr><td>${i + 1}</td><td><b>${r.ticker}</b></td><td>${r.name || ""}</td><td><span class="badge">${r.regime}</span></td>
-        <td class="num">${money(r.price)}</td><td class="num">${money(r.fair_value)}</td>
+        <td class="num">${money(r.price)}</td><td class="num">${part
+          ? `<span class="muted" style="font-weight:700" title="${esc(r.fair_value_withheld_reason || "")}">withheld</span>`
+          : money(r.fair_value)}</td>
         <td class="num ${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</td>
-        <td class="num"><b style="color:${scoreColor(r.score)}">${r.score}</b></td>
+        <td class="num"><b style="color:${scoreColor(r.score)}${part ? ';opacity:.7' : ''}">${r.score}</b>${part
+          ? ` <span style="font-size:10px;font-weight:800;color:var(--amber)" title="Valuation withheld — scored on quality, growth, financial health and momentum only.">PARTIAL</span>` : ""}</td>
         <td><span class="badge ${scoreClass(r.score)}">${r.recommendation}</span></td></tr>`;
     });
     html += "</table>";
@@ -818,7 +951,15 @@ function renderHot(d) {
     use a quick peer-relative estimate (what the stock would be worth on its sector's median earnings / free-cash-flow
     yield) — the full discounted-cash-flow model is far too slow to run on every name, so only the top few carry one.
     Unmarked values are the full DCF. The estimate says "cheap versus peers", which is a rougher claim than the DCF's
-    "worth this much" — open a name in Single valuation for the real model.</div>`;
+    "worth this much" — open a name in Single valuation for the real model.
+    A cell reading <b>withheld</b> is not missing data: the estimate came out past the same band at which the valuation
+    page refuses to publish a fair value (more than 5× the price, which is almost always a currency or share-count
+    problem rather than an opportunity), so it is not published here either. The ranking does not use it.
+    <b>Known inconsistency, stated rather than hidden:</b> these two surfaces can still disagree. A name whose full
+    model is refused outright — Kaspi, for one, where the statements and the price are in different currencies — can
+    carry a peer-relative estimate here, because a ratio of two same-currency figures survives the mismatch that
+    breaks the valuation. <b>When they disagree, the Single-valuation page's refusal is the one to believe</b>, and
+    fixing the disagreement is open work.</div>`;
   // Prefer theme_contributing over theme_coverage: a theme can be 100% "covered" and still be
   // a constant, which standardizes to nothing and drops out of the score entirely. Reporting
   // the presence number here would call such a theme healthy.
@@ -861,6 +1002,12 @@ function renderHot(d) {
 }
 function z(x) { return (x == null || isNaN(x)) ? "—" : (x >= 0 ? "+" : "") + x.toFixed(2); }
 function _fairValCell(r, up) {
+  // A withheld estimate is not a missing one. "—" reads as "we don't have this yet" and
+  // invites someone to fill it back in; this says the number existed and was refused, and
+  // carries the reason with it. See web/withhold.py::withhold_implausible_fair_values.
+  if (r.fair_value_withheld) {
+    return `<span class="muted" style="font-weight:700" title="${esc(r.fair_value_withheld_reason || "")}">withheld</span>`;
+  }
   if (r.fair_value == null) return "—";
   const est = r.fair_value_method === "multiples";
   const mark = est ? `<span class="est-mark" title="Peer-relative estimate, not the full DCF">e</span>` : "";
@@ -1692,8 +1839,9 @@ function _renderIndexTrack(d) {
         ${metric("Sharpe", live.sharpe == null ? "—" : num(live.sharpe, 2))}
         ${metric("Days", live.days)}
       </div>
-      <div class="muted" style="font-size:11px;margin-top:6px">Real dated positions since
-        ${esc(d.inception || live.since)}, measured forward. ${d.thin
+      <div class="muted" style="font-size:11px;margin-top:6px">Dated model positions since
+        ${esc(d.inception || live.since)}, priced forward — a model portfolio, not a traded
+        account, and no capital is at risk in it. ${d.thin
           ? `Annualised figures are withheld until ${d.min_live_days} trading days — compounding
              ${live.days} day${live.days === 1 ? "" : "s"} to a yearly rate would invent a number.`
           : "Net of the same cost model as the backtest."}</div>`;
@@ -1702,7 +1850,7 @@ function _renderIndexTrack(d) {
   body.innerHTML = `<div class="grid2" style="margin-top:10px">`
     + card("Backtested", liveLeads ? "reference" : "headline",
            liveLeads ? "spec" : "est", btRows, !liveLeads)
-    + card("Live since inception",
+    + card("Forward, model portfolio",
            d.available ? (d.thin ? `thin — ${live.days}d` : "headline") : "not started",
            d.thin || !d.available ? "spec" : "est", liveRows, liveLeads)
     + `</div>`
@@ -1730,7 +1878,11 @@ function indexChart(d) {
     return;
   }
   el.style.display = "";
-  if (note) note.textContent = `Cumulative return since inception, Valquo Index vs ${d.benchmark || "SPY"}. Net of modelled costs.`;
+  // The caption carries the framing, because a chart travels: this is the one element on the
+  // page most likely to be screenshotted away from every other caveat around it.
+  if (note) note.textContent = `Cumulative return of the MODEL portfolio since inception vs `
+    + `${d.benchmark || "SPY"}, net of modelled costs. No capital is invested — these are `
+    + `closing-price marks, not fills, and not a return anyone received.`;
   STATE.charts.idx = new Chart(el, {
     type: "line",
     data: {

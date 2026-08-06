@@ -1,31 +1,42 @@
 @echo off
+REM ================================================================
+REM  Valquo -> D: backup.
+REM
+REM  All the logic lives in backup_to_D.ps1 next to this file. This is
+REM  just the double-clickable launcher, so Task Scheduler and Explorer
+REM  keep working.
+REM
+REM  POLICY: back up what cannot be recreated, not what is large.
+REM  It is an ALLOWLIST -- nothing is copied unless backup_to_D.ps1 names
+REM  it. The old version copied everything and tried to exclude the big
+REM  directories; data\ grew faster than the exclusion list and D: filled
+REM  up twice.
+REM
+REM  Pass "auto" (as the scheduled task does) to skip the pause at the end.
+REM  Pass "dryrun" to measure and report without copying anything.
+REM  Pass "prune"  to also delete backup folders that left the allowlist.
+REM ================================================================
 setlocal
-REM ================================================================
-REM  Valquo -> D: backup (mirror of the working project).
-REM  GitHub already backs up code + history via git_push.bat.
-REM  THIS covers the whole working copy INCLUDING the non-git
-REM  essentials that live only on C::  .env (your API keys) and data\.
-REM  First run copies everything (slow over USB if data\ is big);
-REM  every run after is incremental (only changed files).
-REM ================================================================
 
-set "SRC=C:\Users\donni\Downloads\valuation-tool"
-set "DST=D:\valuation-tool (Backup)"
+set "PSFILE=%~dp0backup_to_D.ps1"
+if not exist "%PSFILE%" (
+  echo  [ABORT] backup_to_D.ps1 was not found next to this file.
+  echo          Expected: "%PSFILE%"
+  if "%~1"=="" pause
+  exit /b 1
+)
 
-REM --- safety guards: never mirror from a wrong/empty source ---
-if not exist "%SRC%\CLAUDE.md" ( echo [ABORT] source not found: %SRC% & pause & exit /b 1 )
-if not exist "D:\" ( echo [ABORT] D: not found - plug in the backup USB and re-run. & pause & exit /b 1 )
+set "ARGS="
+if /I "%~1"=="dryrun" set "ARGS=-DryRun"
+if /I "%~1"=="prune"  set "ARGS=-Prune"
 
-echo Backing up Valquo to "%DST%" ...
-echo (excludes transient dirs; includes .env and data\)
-echo.
-
-robocopy "%SRC%" "%DST%" /MIR ^
-  /XD ".git" ".claude" "__pycache__" "node_modules" ".venv" "venv" ^
-  /XF "*.pyc" ".fuse_hidden*" ^
-  /R:1 /W:3 /MT:16 /NP /NDL /TEE /LOG:"D:\valquo_backup_log.txt"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%PSFILE%" %ARGS%
+set "RC=%ERRORLEVEL%"
 
 echo.
-if %ERRORLEVEL% LSS 8 (echo [OK] Backup complete. Log: D:\valquo_backup_log.txt) else (echo [WARN] robocopy reported errors - check D:\valquo_backup_log.txt)
-endlocal
-pause
+REM A plain "pause" here used to HANG the scheduled run forever -- the task passes no
+REM arguments and there is no console to press a key on, so Windows eventually killed it
+REM (last result 0xC000013A). A timeout holds the window open when you double-click and
+REM returns immediately when there is no input to wait on.
+timeout /t 30 >nul 2>&1
+exit /b %RC%

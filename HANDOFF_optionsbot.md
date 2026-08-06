@@ -897,3 +897,171 @@ derived from licensed data, regenerable in ~35 min). Delete it freely.
 are working parallel lanes against this repo and that file is shared project
 state; overwriting it from one lane would clobber the others. This file is this
 lane's full report.*
+
+---
+
+<!-- ledger:ignore -->
+<!-- This section WRITES ABOUT the ledger and names item ids without being
+     evidence about them. build_ledger.py skips everything between these
+     markers, so the report cannot feed its own counts back in on refresh. -->
+
+# OUT-OF-BAND — `VALQUO_LEDGER.md`, so nobody reconstructs project state from git again
+
+**Status: infrastructure, not a measurement.** No audit item was executed here and no
+threshold was pre-registered, because nothing was run. Two new files only:
+`VALQUO_LEDGER.md` and `scripts/build_ledger.py`. Nothing existing was modified —
+not `CLAUDE.md`, not `RUN_RULES.md`, not any other lane's `HANDOFF_*.md`.
+
+## Where we stand — 134 items, one table
+
+| series | DONE | IN PROGRESS | BLOCKED | OPEN | total |
+|---|---|---|---|---|---|
+| B | 23 | 1 | 1 | 1 | 26 |
+| R | 6 | 0 | 4 | 0 | 10 |
+| X | 6 | 0 | 0 | 2 | 8 |
+| S | 1 | 0 | 0 | 27 | 28 |
+| O | 5 | 0 | 0 | 21 | 26 |
+| U | 1 | 0 | 0 | 7 | 8 |
+| C | 6 | 0 | 1 | 0 | 7 |
+| P | 2 | 0 | 0 | 3 | 5 |
+| D | 2 | 0 | 0 | 8 | 10 |
+| M | 2 | 0 | 0 | 4 | 6 |
+| **all** | **54** | **1** | **6** | **73** | **134** |
+
+**78 of the 134 rows are hand-verified** (`src=human`) — I read the write-up before
+setting the status. The other 56 are mechanical proposals marked `src=auto` and should
+be treated as leads, not facts. Every `DONE` row carries a checkable sha except `P5`,
+which is flagged in its own note as the weakest `DONE` in the file.
+
+The two prior counts were 38/134 and 68/134. Neither is right. **54 is the number**, and
+unlike the other two it is per-item and checkable in one step.
+
+## The four traps that produced the wrong counts
+
+These are now encoded in `build_ledger.py` and written into the ledger's header:
+
+1. **A forward reference is not a completion.** "feeds U1", "needed for S12", and
+   critically `## Task 3 — schema conformance (supports D1, ...)` — a forward reference
+   *inside a heading*, which any header-matching rule scores as strong evidence. This is
+   the specific error behind the 68.
+2. **`P1`–`P5` collide with the project's own PHASE labels.** CLAUDE.md's
+   "~~P3 — SF3 smart-money conviction~~ **DONE (P4 commit)**" is phase P4. **Audit item
+   P4 is open** and explicitly "out of band for this audit, flagged in" — the opposite.
+3. **`M2` is a different document's item.** HANDOFF_STATUS.md's "The audit's M2
+   (SanDisk/WDC) does NOT reproduce" is `CODE_AUDIT.md`'s M2. The external audit's M2 is
+   "clustered inference default" and **has never been touched**. It was reading as
+   IN PROGRESS until this was caught.
+4. **`D1`–`D10` collide with DECILE labels** — "long-short (D1-D10)", "D1 22.8% → D10
+   10.7%" — which this project writes constantly.
+
+## Where sources disagree — these are findings, not bookkeeping
+
+1. **B26 — the write-up and the commit log disagree on the outcome.**
+   `HANDOFF_edge_audit.md` says "**Verdict: all FIXED**"; commit `2ded1f3` is
+   "**RETRACTION: B26 did not flip the insider theme — the backtest is not
+   reproducible**". The fix landed; the *effect* claimed for it was retracted. Recorded
+   `DONE` with `DISPUTED` in the note. **Someone who owns the edge lane should confirm
+   which claim stands.**
+2. **M1 — `ADOPTED` in its write-up, but not finished.** `AGENTS.md` lists "**M1's
+   re-run**" among the r1 lane's open items. Recorded `DONE` (the log and the N=8→84
+   recount shipped) with the outstanding re-run named in the note.
+3. **D7 — asserted, never written up.** `VALQUO_ACTION_PLAN.md` states "WRDS is the #1
+   lever" → **dead end (D7)** as settled fact. There is **no write-up and no commit for
+   D7 anywhere in the corpus.** Recorded `OPEN`/`DISPUTED`. Either the conclusion is real
+   and unrecorded, or it is an assumption that has been load-bearing for a while — and
+   `U2` is described as replacing it, so it matters.
+4. **B13 — "PARTIALLY FIXED" was recorded as `IN PROGRESS`, not `DONE`.** The categorical
+   filters bind; `MIN_AVG_DOLLAR_VOLUME` still cannot. It is the only `IN PROGRESS` row
+   in the file and it is a judgement call — flagging it so it can be overruled cheaply.
+5. **C6 (mine) — `BLOCKED`, not `DONE`.** Its own verdict line reads "the three fixes are
+   **ADOPTED-in-repo and still UNDEPLOYED**". Recording that as `DONE` would have hidden
+   a live blocker.
+
+**A meta-finding worth more than any single row: a mechanical verdict scrape is
+unreliable and must not be trusted.** The extractor proposed `INCONCLUSIVE` for R2 (real
+verdict **REJECTED**), `NULL` for R9 and R10 (both **ADOPTED**), `ADOPTED` for O8 (real:
+**INCONCLUSIVE** on SPY, **REJECTED** on QQQ/IWM) and `ADOPTED` for C1 (real:
+**REJECTED**). Cause: it matched verdict words appearing in the *pre-registration* text
+that precedes the result. This is why the ledger separates `human` from `auto` rows
+rather than presenting one number.
+
+## Left OPEN deliberately, for want of evidence
+
+An item wrongly marked done stops work happening; one wrongly marked open costs a
+re-check. Where it was ambiguous I left it `OPEN` and put the reason in the note.
+
+- **37 with zero substantive mentions anywhere in the corpus:** S6 S8 S9 S11 S12 S13 S15
+  S16 S18 S19 S20 S21 S22 S24 S25 S28 O10 O11 O14 O16 O17 O18 O19 O21 O22 O23 O24 O25 O26
+  U3 U8 D2 D4 D6 D8 D9 M4
+- **14 with prose mentions only** (named, never written up): S1 S2 S3 S4 S5 S7 S17 O1 O6
+  O13 P3 D5 M3 M6
+- **5 mentioned only as somebody else's dependency:** S10 S14 S23 S27 P2
+
+The remaining 17 open rows were set by hand and carry a specific reason instead.
+
+The S series is the honest headline: **27 of 28 open, and 16 of those have never been
+substantively mentioned once.** It is the largest untouched block in the audit.
+
+**"Substantive" is doing real work in that sentence, and it is a finding of its own.**
+A line that lists many ids — `| 8+ | O1, S20, S21, X1, S2, S19, X8, ... — descending
+value |` in `VALQUO_ACTION_PLAN.md`, or a scope list like "**Scope run:** B2, B4, B5, B6,
+B7, B11, B13, ..." — is a **roll-call, not evidence about any item on it**. The builder
+ignores lines carrying 7+ ids for exactly this reason. Without that rule S19, S20 and S21
+look "mentioned" when the only thing that ever happened to them is being listed in a plan.
+It also stops the ledger becoming self-referential: publishing "these 36 items are never
+mentioned" would otherwise become a mention of all 36, on the next refresh.
+
+There was a second, sharper version of the same loop, and it is fixed rather than
+documented: **this report is itself part of the scanned corpus.** Naming S19/S20/S21 in
+the paragraph above gave them prose mentions, which moved them between categories on the
+next refresh — the counts chased my own prose. This whole section is now wrapped in
+`<!-- ledger:ignore -->` markers that `build_ledger.py` honours, so writing *about* the
+ledger can no longer feed *into* it. Any document can use the same markers.
+
+**Six items are `BLOCKED` rather than open, with the blocker named:** R4, R5, R6, R8 and
+B8 all sit in `valuation/edge/**`, which the pipeline-builder lane holds (per
+`AGENTS.md`); C6 needs Don to `scp` `quant_bots/data/*.py` off the box.
+
+**Newly unblocked and nobody appears to have noticed:** O3, O4, O5, O7 and U7 were all
+"held until R1 returns". **R1 has returned.** O12 was blocked on B3, which is fixed.
+
+## Refresh — one command
+
+    python scripts/build_ledger.py            # proposal + counts by series/status, writes nothing
+    python scripts/build_ledger.py --write    # refresh src=auto rows ONLY; never touches src=human
+    python scripts/build_ledger.py --evidence S12   # every occurrence, classified, + the commits
+
+`--write` is safe to run repeatedly: it is idempotent, and on a hand-verified row it
+prints a **DISAGREEMENT** line and leaves the row alone rather than clobbering it.
+
+## Two things I did NOT do, deliberately
+
+1. **I did not edit `RUN_RULES.md` or `CLAUDE.md`** — the prompt reserved that. Proposed
+   wording for whichever lane owns `RUN_RULES.md`, to sit beside the existing "code
+   without a handoff entry is not finished work" rule:
+
+   > **A landed audit item with no `VALQUO_LEDGER.md` row is not finished work.** Update
+   > your rows as part of your handoff. The ledger is the answer to "where do we stand";
+   > if it cannot answer, fixing the ledger is the task — never another archaeology dig.
+   > Rows are append-and-amend: a status that changes keeps its history in the note.
+
+2. **I did not add a test pinning the four collision rules**, because the prompt scoped
+   this to two new files. It is the obvious follow-up and it is cheap — this project has
+   been bitten four times by guards going silently inert, and these rules are exactly
+   that kind of guard.
+
+## One infrastructure finding, unrelated but load-bearing
+
+**`valquo_audit_items.json`, `VALQUO_EDGE_AUDIT.md`, `VALQUO_ACTION_PLAN.md` and
+`AGENTS.md` are NOT in git.** They are not gitignored — they were simply never added.
+They exist only in Don's shared checkout at `C:\Users\donni\Downloads\valuation-tool\`.
+
+Consequences: the audit's own source of truth cannot be recovered if that folder is lost,
+it is invisible to every worktree (`build_ledger.py` has to reach up three levels to find
+it), and no agent working from a clean clone can see the item list at all. **Someone
+should `git add` those four files.** I did not, because the prompt restricted me to
+creating two new files and these are pre-existing documents I do not own.
+
+*`HANDOFF_STATUS.md` again deliberately NOT overwritten — shared state, parallel lanes.*
+
+<!-- /ledger:ignore -->

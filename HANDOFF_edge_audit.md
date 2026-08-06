@@ -1273,3 +1273,1257 @@ from how much the SIGNAL moved).
    it is worth deploying is **out of scope for this session** and is not decided here.
 
 ---
+
+## X7 — A no-signal placebo through the full pipeline
+
+**Committed threshold (written before the run):** Part 4 above, pushed in `1276e4b` before any
+run was launched. Six numbered interpretations, none revised afterwards.
+
+**What was run:** `python -m scripts.placebo --panel panel_grid0.pkl --n 100 --no-costs`.
+Full universe, 2,827 names requested → 113,945 panel rows, **69 rebalance dates, 2009-01-15 →
+2026-01-28** (the panel's scored dates; the underlying price window is 2008-01-16 → 2026-07-24).
+Eight scored themes — `sentiment` is empty and `growth` is not in the `established` bucket, so
+both drop out of `cols` before any placebo is drawn. **56 signal columns** permuted per date
+(8 themes + 48 `z_*` columns). **N = 100 draws, seeds 1000–1099, all 100 completed.** Per draw:
+`cpcv_validate` → the CPCV verdict chooses the weights exactly as `run_backtests` does →
+`quantile_backtest` → `theme_ic` → `holdout_theme_validate`. ~110 s/draw.
+
+**Harness validation, before any placebo:** the same code path on the UNPERMUTED panel returns
+long-short *t* **2.83606**, top-decile alpha **0.071741**, PBO **0.73333**, Deflated Sharpe
+**0.99702** — identical to the Session-2 shipped numbers. The harness reproduces the shipped
+pipeline, so the null below is the null of the real machinery and not of a stand-in.
+
+**Control:** `equal_weight_ann` = **+18.14% on every one of the 100 draws** (sd 0.00004). The
+benchmark never touches the composite, so this is the proof that the placebo perturbed the
+signal and nothing else.
+
+**Result — the null distribution (N = 100):**
+
+| statistic | p2.5 | p5 | p50 | p95 | p97.5 | max | sd | MC se(mean) |
+|---|---|---|---|---|---|---|---|---|
+| long-short *t* | −1.745 | −1.546 | +0.105 | **+2.144** | +2.729 | **+3.436** | 1.178 | 0.118 |
+| top-decile alpha | −1.33pp | −1.13pp | +0.25pp | **+1.95pp** | +2.38pp | +2.78pp | 0.92pp | 0.09pp |
+| max \|theme IC *t*\| | 0.952 | 1.022 | 1.817 | **+2.707** | 2.946 | **+3.929** | 0.574 | 0.057 |
+| PBO | 0.133 | **0.197** | **0.467** | 0.867 | 0.867 | 0.933 | 0.203 | 0.020 |
+| Deflated Sharpe | 0.001 | 0.002 | **0.280** | 0.857 | 0.904 | 0.979 | 0.282 | 0.028 |
+| monotonicity | −0.789 | −0.770 | −0.097 | +0.458 | +0.709 | +0.794 | 0.379 | 0.038 |
+
+**Rates at which pure noise clears the project's bars:**
+
+| event | rate on noise |
+|---|---|
+| at least one theme at IC *t* ≥ 2.0 | **39%** |
+| long-short *t* ≥ 2.0 | 8% |
+| long-short *t* ≥ 3.0 (the Harvey–Liu–Zhu hurdle) | 1% |
+| top-decile alpha ≥ 1.0pp | 18% |
+| PBO < 50% | **55%** |
+| Deflated Sharpe ≥ 0.95 | 2% |
+| CPCV adopts a weight scheme | **27%** |
+| `holdout_theme_validate` returns `confirmed` for ≥ 1 theme | **6%** |
+| long-short *t* ≥ 2.0 **and** alpha ≥ 1pp jointly | 5% |
+
+Themes falsely `confirmed` by the held-out gate: `insider` ×4, `size` ×1, **`low_risk` ×1**.
+Distribution of themes clearing IC *t* ≥ 2.0 in a draw: 0 in 61 draws, 1 in 33, 2 in 2, 3 in 4.
+
+**Verdict: THREE OF THE PROJECT'S FOUR THRESHOLDS ARE UNCALIBRATED; ONE SURVIVES.** Applying the
+committed rules mechanically:
+
+1. **IC *t* > 2.0 — UNCALIBRATED.** Committed rule: fires if the placebo p95 of max-|theme IC *t*|
+   ≥ 2.0. Measured **2.707**. The calibrated bar is **2.71**, and noise reaches **3.93** — above
+   the real panel's best theme (`quality`, 3.101).
+2. **Long-short *t* > 2.0 — UNCALIBRATED.** Placebo p95 **2.144** ≥ 2.0. Calibrated bar **2.14**.
+3. **PBO < 50% — MEANINGLESS AS STATED.** Committed rule: fires if the placebo MEDIAN PBO < 50%.
+   Measured **46.7%**. The bar re-sets to the placebo 5th percentile, **19.7%**.
+4. **The 1% alpha margin — UNCALIBRATED.** Placebo p95 **+1.95pp** ≥ 1.0pp. Calibrated margin
+   **1.95pp**.
+5. **Deflated Sharpe — SURVIVES.** Committed rule: fires if the placebo MEDIAN ≥ 0.95. Measured
+   **0.280**, and only 2% of noise draws reach 0.95. The statistic discriminates. This is a
+   MEASURED partial defence of the metric item B9 attacked — B9's surviving criticism was about
+   the trial DENOMINATOR (N = 8 against ~146 real trials), which this does not touch.
+6. **The held-out gate — FIRES, marginally.** Committed rule: fires at ≥ 5%. Measured **6.0%**
+   (MC se ≈ 2.4pp, so 6% is not distinguishable from 5% at this N — the trigger is real but the
+   margin is not). The gate is roughly correctly sized, not badly broken. But **`low_risk` — the
+   one theme this project actually zeroed on this gate's verdict — appears among the false
+   confirms.** That does not overturn the `low_risk` decision; it means the decision rests on a
+   gate with a ~6% false-positive rate and must be quoted that way.
+
+**Threshold 7 — is the real result above the floor?** Committed rule: only if it lies outside the
+placebo [p2.5, p97.5].
+
+| statistic | real | placebo [p2.5, p97.5] | above the floor? |
+|---|---|---|---|
+| top-decile alpha | **+7.17%** | [−1.33pp, +2.38pp] | **YES, clearly** |
+| Deflated Sharpe | 0.9970 | [0.001, 0.904] | **YES** (above the placebo max, 0.979) |
+| monotonicity | −0.891 | [−0.789, +0.709] | **YES** |
+| max \|theme IC *t*\| | 3.101 | [0.952, 2.946] | **YES, narrowly** |
+| long-short *t* | 2.836 | [−1.745, +2.729] | **YES, narrowly** |
+| **PBO** | **0.733** | **[0.133, 0.867]** | **NO — inside the null** |
+
+**Why — mechanism, not just the number.**
+
+*Why PBO centres on 50%.* Under a pure null the eight weight schemes are exchangeable, so the
+in-sample best ranks at random out-of-sample and PBO must centre on one half. The measured 46.7%
+IS that theoretical value, recovered empirically. **PBO is behaving exactly as designed — the
+defect is that the project set its bar AT the noise level, which leaves it with almost no power.**
+The corollary is uncomfortable and should not be softened: the real panel's 73.3% is *worse* than
+the noise median, i.e. weight selection on real data generalises less well than on noise. That is
+what you expect when the in-sample winner is chosen on features that do not persist, whereas under
+noise there is nothing to choose on.
+
+*Why 39% of noise draws produce a theme at IC t ≥ 2.0.* Eight themes are tested per run, and the
+bar is a per-theme bar applied to whichever theme looks best. With eight roughly-independent
+tries, one clearing a nominal 5% two-sided bar is close to even odds. The project has always read
+this bar as if one theme were being tested, and it never has been.
+
+*A post-hoc finding, flagged as such.* Splitting the 100 draws on whether CPCV adopted — a
+variable recorded but NOT pre-registered for this test — gives:
+
+| | n | mean long-short *t* | mean alpha |
+|---|---|---|---|
+| CPCV did NOT adopt | 73 | **−0.065** (se 0.119) | +0.04pp |
+| CPCV DID adopt | 27 | **+1.343** (se 0.184) | +0.82pp |
+
+The non-adopting branch is a textbook null. The adopting branch is 7.3 se from zero. **On pure
+noise, the weight-selection step manufactures about +1.4 of long-short *t* whenever it fires, and
+it fires 27% of the time on nothing** — because the adopted weights are chosen on the same panel
+the headline is then measured on. **The mitigating fact that must travel with this: the SHIPPED
+strategy has `cpcv_adopt = False` and keeps `current-default`, so the deployed configuration sits
+in the unbiased branch.** This is measured support for the existing rule in CLAUDE.md that a CPCV
+rejection means keep the defaults. It is post-hoc, so it is a hypothesis with a large effect size
+and a mechanical explanation — not a settled result — and it wants a pre-registered replication.
+
+**Follow-on.**
+- **Every threshold in the project is now calibrated or known to be uncalibrated.** The four
+  numbers to use going forward: theme IC *t* **2.71**, long-short *t* **2.14**, PBO **19.7%**,
+  alpha margin **1.95pp**. These are floors for THIS panel, THIS universe and 69 dates; they are
+  not universal constants and must be re-measured if the panel changes materially.
+- **R1 can now be read against a floor.** This was the stated reason X7 comes first. R1's
+  re-run intercept must clear the placebo's own factor-regression floor, which X7 does not
+  measure — running the placebo series through `scripts.factor_alpha` is the natural extension
+  and is NOT done here.
+- **Forecloses** treating PBO < 50% as evidence, and treating a single theme's IC *t* of 2-ish
+  as a finding.
+- **Does NOT overturn any shipped decision.** The composite's alpha, monotonicity and Deflated
+  Sharpe are all well outside the null; `low_risk` stays zeroed; the weights stay at defaults.
+  What changes is the size of the claims the project is entitled to make.
+
+## X2 — Rebalance-grid offset sensitivity
+
+**Committed threshold (written before the run):** Part 4 above, pushed in `1276e4b` before any
+run was launched. Five numbered interpretations, none revised afterwards.
+
+**What was run:** seven full-universe backtests, identical in every respect except the rebalance
+grid. `EDGE_GRID_OFFSET` ∈ {0, 5, 10, 20, 30, 40, 50} trading days; all seven < `rebalance_days`
+= 63, therefore all distinct grids. `python -m valuation.edge.fundamental_panel --data-dir
+data/backtest --json x2_off<NN>.json`. Full universe, 2,827 names requested. **Every grid retained
+69 rebalance dates over an identical price window, 2008-01-16 → 2026-07-24**, with median
+cross-sections 1,557–1,563 — so the grids differ in WHICH dates are sampled, not in how many or
+over what span. One change per run.
+
+**Result:**
+
+| offset | n | long-short *t* | top-decile alpha | monotonicity | equal-weight | PBO | Deflated Sharpe |
+|---|---|---|---|---|---|---|---|
+| **0** | 69 | 2.836 | +7.17% | −0.891 | +18.14% | 73.3% | 0.9970 |
+| 5 | 69 | 2.850 | +7.74% | −0.915 | +18.13% | 73.3% | 0.9975 |
+| 10 | 69 | 2.926 | +8.14% | −0.976 | +18.05% | 60.0% | 0.9998 |
+| 20 | 69 | **3.517** | +7.57% | −0.952 | +17.72% | 53.3% | 0.9997 |
+| 30 | 69 | 3.410 | +6.84% | −0.927 | +19.20% | 80.0% | 0.9919 |
+| 40 | 69 | 3.374 | +7.52% | −0.903 | +19.79% | 86.7% | 0.9982 |
+| 50 | 69 | **2.703** | +7.08% | −0.903 | +19.73% | 66.7% | 0.9957 |
+| | | **min 2.703 / med 2.926 / max 3.517** | **min +6.84% / med +7.52% / max +8.14%** | | **min +17.72% / max +19.79%** | **min 53.3% / med 73.3% / max 86.7%** | |
+| | | spread **0.814** | spread **1.30pp** | spread 0.085 | spread **2.08pp** | spread **33.3pp** | |
+
+**Verdict: the LEVEL is ROBUST; the SIGNIFICANCE STATISTICS are NOT, and one Session-2 claim is
+overturned as a grid artefact.**
+
+1. **Top-decile alpha — ROBUST (committed rule: spread ≤ 2.0pp).** Measured spread **1.30pp**
+   across seven grids. The point estimate is meaningful and may be quoted as a figure. The
+   honest single number is the **median, +7.52%**, with the range +6.84% to +8.14% available;
+   Session 2's shipped +7.17% sits at the low end of it but well inside.
+2. **Significance is grid-dependent, and this OVERTURNS a Session-2 statement.** Committed rule
+   (a): if long-short *t* falls below 2.0 on any grid, significance is grid-dependent — **it does
+   not**, the minimum across seven grids is 2.703, so the *t* > 2 claim is not fragile. Committed
+   rule (b): if *t* is below the Harvey–Liu–Zhu hurdle of 3.0 on all seven grids, that
+   independently confirms Session 2's finding. **It is below 3.0 on only 4 of 7.** The
+   confirmation therefore FAILS, and the correct reading is the opposite of the one Session 2
+   recorded: **"long-short t 2.836 is BELOW the Harvey–Liu–Zhu hurdle" is a property of the one
+   arbitrary grid it was measured on, not of the strategy.** Three of seven equally valid grids
+   clear 3.0, one reaching 3.517. The defensible statement is that the long-short *t* is
+   **2.7–3.5 depending on grid, straddling the hurdle**, and no single side of 3.0 can be
+   claimed.
+3. **PBO — NOT a grid artefact (committed rule: > 50% on ≥ 4 of 7).** Measured **7 of 7**, median
+   73.3%, minimum 53.3%. Session 2's PBO blow-out is a property of the corrected panel and
+   survives this test cleanly. It is also the widest-spreading statistic here (33.3pp), so any
+   single PBO figure is a weak instrument regardless.
+4. **The offset-0 control — PASSES EXACTLY.** `n` 69, long-short *t* 2.8360640685, top-decile
+   alpha 0.0717414233, PBO 0.7333333 — identical to the Session-2 shipped numbers to every digit
+   quoted. Given the project's known and still-unexplained run-to-run non-reproducibility, this
+   was not a formality, and it is the first clean reproducibility PASS on the corrected panel.
+   It does not resolve the `insider` non-determinism (that is a per-theme IC issue, not a
+   headline one), but it does mean the headline path is deterministic on identical inputs.
+5. **The ensemble — out of scope, as committed.** Not decided here.
+
+**Why — mechanism, not just the number.**
+
+Every grid retains 69 dates over the same 18.5-year window, so this is not a sample-size or
+window effect: it is purely *which* 69 quarterly snapshots get sampled. The equal-weight
+benchmark — which never touches the composite — moves **2.08pp** across grids, MORE than the
+top-decile alpha's 1.30pp. That is the diagnostic that makes the robustness reading credible
+rather than lucky: the market-driven quantity is *less* stable across grids than the
+signal-driven one, so the alpha's stability is not an artefact of the grids being nearly
+identical — they are not.
+
+The *t*-statistic and PBO move much more than the alpha because both are ratios whose
+denominators are estimated from only 69 observations. A ±0.4 swing in *t* on n = 69 is what
+sampling noise in the period-to-period standard deviation buys you; PBO is computed over 15 CPCV
+path-splits, so it moves in visible 6.7pp quanta and has very little resolution to begin with.
+
+**Cross-reference to X7, which is the point of running them in the same session.** The placebo's
+long-short *t* has p97.5 = **2.729**. Of the seven real grids, **six clear that noise floor and
+one — offset 50, *t* 2.703 — does not.** So on one of seven equally valid grids the long-short
+*t* of the real strategy is not distinguishable from what this pipeline produces on a shuffled
+signal. Separately, all seven grids have PBO ≥ 53.3% against a placebo median of 46.7%: **every
+grid's weight selection generalises worse than noise.**
+
+**Follow-on.**
+- **CLAUDE.md and HANDOFF_STATUS.md must stop stating "t 2.836, below the HLZ hurdle of 3.0" as
+  a fact.** The statement is grid-conditional. Replaced with the range.
+- **Top-decile alpha may still be quoted as a figure** — this is the one headline quantity that
+  passed its robustness test outright.
+- **Forecloses** re-deriving any conclusion from a single grid's *t* or PBO without the range.
+- **Enables** the overlapping-cohort ensemble as a strictly lower-variance estimator, deliberately
+  NOT evaluated here.
+- `grid_offset` is now stamped into `panel_window` on every run, so no future result can be
+  silently off-grid.
+
+---
+
+## SESSION 3 — WHAT THE NOISE FLOOR CHANGED
+
+**The four calibrated numbers.** Every threshold in this project was a convention until now.
+Measured against 100 placebo draws through the real pipeline, on the corrected 69-date panel:
+
+| bar | as used | calibrated (placebo p95) | noise clears the old bar |
+|---|---|---|---|
+| theme IC *t* | 2.0 | **2.71** | 39% of draws |
+| long-short *t* | 2.0 | **2.14** | 8% of draws |
+| top-decile alpha margin | 1.0pp | **1.95pp** | 18% of draws |
+| PBO | < 50% | **< 19.7%** (placebo p5) | 55% of draws |
+| Deflated Sharpe | > 0.95 | **stands** | 2% of draws |
+| held-out gate | — | **6% false-positive rate** | — |
+
+These are floors for THIS panel, THIS universe and 69 dates. They are not universal constants and
+must be re-measured if the panel changes materially.
+
+**What the headline is entitled to claim, after both tests.** Top-decile alpha **+7.52% median
+across grids (range +6.84% to +8.14%)**, far outside the placebo's [−1.33pp, +2.38pp] — the
+strongest surviving claim in the project. Long-short ***t* 2.7–3.5 depending on grid**, straddling
+both the Harvey–Liu–Zhu hurdle of 3.0 and, on one grid of seven, the pipeline's own noise floor of
+2.73. **PBO is not usable as evidence in either direction**: it is inside the null on the shipped
+grid, above 50% on all seven grids, and its bar was set at the noise level.
+
+**Two shipped claims are now wrong and are corrected in place.** (1) "Long-short *t* 2.836 is below
+the HLZ hurdle" — grid-conditional, three of seven grids clear 3.0. (2) "PBO 73.3% fails the < 50%
+bar" — the bar itself is meaningless; the honest statement is that PBO is uninformative here.
+
+**No shipped decision changed.** `low_risk` stays zeroed, `insider` stays at 0.125, the weights stay
+at defaults, and the composite's alpha, monotonicity and Deflated Sharpe are all well outside the
+null. What changed is the size of the claims the record is entitled to make.
+
+---
+
+## BUGS FOUND — session 3
+
+- **`theme_ic()`'s return shape is a trap, and I fell into it.** The function keys per-theme blocks
+  at the TOP level; `BACKTEST_RESULTS.json` shows them nested under `per_theme.themes` because the
+  results writer adds that wrapper. Reading `.get("themes")` off the function returns `{}` with no
+  error — the exact silent-absence failure the COVERAGE RULE exists for. It emptied X7's threshold 1
+  on the timing run before the real sweep. Fixed and pinned by
+  `test_theme_ic_returns_theme_keyed_blocks_at_the_top_level`. **No shipped code had this bug** —
+  it was mine, in `scripts/placebo.py`, caught before the sweep — but the shape asymmetry between
+  the function and the file is a live hazard for the next consumer and is now tested.
+- **`run_backtests` did not carry `panel_window` into the `--json` dump** (only into the canonical
+  file, via `cleanups`). Any sweep writing one JSON per configuration therefore had no record of
+  which configuration produced it — directly against B22's intent. Fixed: `out["panel_window"]` is
+  set in `run_backtests`, so both outputs are self-describing.
+- **The rebalance grid was an undeclared free parameter.** `range(TD, ...)` with `TD` hard-coded to
+  252 meant 63 equally valid grids existed and every number in the project's history came off one
+  of them, with nothing in any output recording which. Now `grid_offset`, stamped into
+  `panel_window`. This is the mechanism behind the corrected HLZ claim above, so it was not cosmetic.
+- **Not fixed, flagged for the owner:** on pure noise, CPCV adopting a weight scheme inflates the
+  subsequently-measured long-short *t* by ~+1.4 on average, because the adopted weights are chosen
+  on the same panel the headline is then measured on. It fires on 27% of noise draws. The shipped
+  strategy is unaffected (it does not adopt), but **any future run that DOES adopt a CPCV weight
+  scheme will have an optimistically biased headline** unless the measurement moves off the
+  selection panel. Post-hoc finding — see the caveat in the X7 entry.
+
+## WHAT WAS NOT DONE, AND WHY
+
+- **The placebo was not run through `scripts.factor_alpha`.** X7 calibrates the pipeline's own
+  statistics; it does NOT calibrate R1's factor-regression intercept, which is a different
+  estimator on a different series. R1's re-run therefore still has no floor of its own. This is the
+  natural extension and is the first thing to do if R1's re-run lands near its threshold.
+- **`cost_breakeven_bps` was dropped from the placebo sweep** (`--no-costs`). At ~60s of a ~165s
+  draw it was the single largest per-draw cost and **no committed threshold reads it**. Recorded in
+  the output as `costs_measured: false` so an absent block cannot be mistaken for a measured zero.
+  The cost floor on noise is therefore unmeasured.
+- **N = 100 exactly, as committed** — no percentile here is quoted from a smaller N, and the MC
+  standard error of every mean is shipped in `x7_placebo.json`. The threshold-6 trigger (6.0%
+  against a 5% line) has an MC se of about 2.4pp, so it is stated as "fires, marginally" rather
+  than as a clean failure.
+- **The X2 ensemble was not evaluated**, as pre-committed.
+- **The canonical `BACKTEST_RESULTS.json` was restored from the Session-2 run**, which is
+  numerically identical to this session's offset-0 grid (verified to every digit) but predates the
+  `grid_offset` stamp in `panel_window`. The next full run will add it. Re-running purely to
+  regenerate an identical file was not a good use of 25 minutes, and recording the gap is the
+  alternative RUN_RULES rule 4 asks for.
+
+**PROCESS FAILURE, session 3 — recorded because it corrupted a tracked file:**
+
+- **`git add -A` committed a sweep run as the canonical results file.** Commit `49d98ba` swept up
+  `BACKTEST_RESULTS.json` while the X2 offset-5 grid run had it clobbered, so for three commits the
+  tracked canonical file was an off-grid run (`ls_t` 2.849690, 113,982 rows, `git.dirty: true`,
+  stamped against a commit that was not the run's own) rather than the Session-2 canonical
+  (`ls_t` 2.836064, 113,945 rows). Every full backtest overwrites this tracked file, so ANY
+  `git add -A` during an in-flight run can do this; the project's own memory note warns about
+  exactly this and it happened anyway. **Restored and verified byte-identical to the last good
+  version at `1f86a0d`.** The `git.dirty: true` stamp inside the file is what makes this
+  detectable after the fact — it is the only marker distinguishing a canonical run from an
+  incidental one, and it earned its place here.
+  **Rule for the next session: never `git add -A` while a backtest is running.** Stage explicitly,
+  or restore the canonical file before staging.
+
+---
+
+# PART 5 — SESSION 4: R1 RE-RUN, R9, R10, M1
+
+**R1's pre-commitment is NOT restated, revised or reinterpreted here.** It lives in
+`HANDOFF_r1.md` section 1, was written before any regression was ever run, and is honoured
+unchanged: **the word "alpha" is permitted only if the FF5+MOM intercept is positive with
+Newey–West t > 2.0; an ambiguous result is a NULL.** The pre-written CLAIM A and CLAIM B texts
+stand as written. What follows are the pre-commitments for the *new* work in this session, and
+three disclosures about how R1's re-run necessarily differs from its first run.
+
+**Written and pushed before any Session-4 run was launched** (RUN_RULES.md Part A rule 6).
+
+---
+
+## R1 RE-RUN — three necessary deviations, declared in advance
+
+The first R1 run is **void**: its strategy series came from the pre-B6/B7 panel over a window
+(1998-12-31 → 2026-01-21, 109 windows) that no longer exists. Regenerating it forces three
+changes, none of which touches the threshold:
+
+1. **The composite must change, and this is a correction, not a choice.**
+   `scripts/factor_alpha.py:decile_series` builds its composite as
+   `comp += where(isnan(z), 0, z) * w` — the **pre-B7 non-renormalising convention**, in which a
+   missing theme is read as exactly average. B7 replaced that everywhere with renormalisation by
+   present-weight mass. So R1's first run scored names by a rule no shipped code path uses any
+   more. The re-run uses `fundamental_panel.composite`, the single shipped composite. **Declared
+   now: this is expected to move the series slightly and is NOT a free parameter — there is one
+   composite and R1 must use it.**
+2. **The `ex_b6_first_37` robustness cut no longer exists and cannot be run.** It dropped the 37
+   rebalance dates whose universe was inverted. B6 *removed those dates from the panel entirely*;
+   the corrected panel is 69 dates beginning 2009-01-15. **The pre-registered cut is therefore
+   satisfied by construction, not skipped** — the corrected sample IS the ex-B6 sample. It will be
+   reported as such rather than silently dropped, and a **first-half / second-half subperiod
+   split** is added in its place as a voluntary robustness cut carrying the same veto power: if
+   the verdict differs across the specification and either robustness cut, **the result is a
+   NULL**, exactly as pre-registered.
+3. **The X4 shipped-series reproduction assert must be disabled for this run.** It asserts the
+   regenerated series matches `ETF_BENCHMARK_RESULTS_strategy_series.csv` to 1e-9. That file was
+   produced from the old panel and the old composite; matching it would mean the re-run had
+   failed. **The assert is replaced by an explicit recorded comparison** — how far the corrected
+   series moved from the void one — so the change is measured rather than hidden.
+
+**Reporting against the calibrated floor (session 3, X7), as instructed.** R1's own NW *t* > 2.0
+threshold is honoured as pre-registered and is NOT replaced. Separately, and additionally, the
+result is reported against what X7 measured: **X7 does NOT calibrate a factor-regression
+intercept** — it calibrates the pipeline's own statistics — so there is no placebo floor for R1's
+*t*. What X7 does give is a floor for the raw object R1 decomposes: top-decile alpha's placebo
+null is **[−1.33pp, +2.38pp]**. Committed now: **if the re-run's raw top-decile alpha falls
+inside that interval, the regression is decomposing noise and the R1 verdict is a NULL regardless
+of what its intercept does.**
+
+---
+
+## PRE-COMMITTED THRESHOLDS — R9 (significance statistics for the headline)
+
+R9 is instrumentation, not a keep/reject test, so the commitment is about what gets reported and
+which number becomes canonical:
+
+1. `top_decile_alpha` ships with **no significance statistic at all** — it is the number on the
+   front of the product. A *t*-statistic and a Newey–West *t* will be added and shipped on every
+   run, **whatever they say.**
+2. The long-short *t* is currently naive i.i.d. A **Newey–West HAC *t* (lag 1)** and the
+   **Ljung–Box** statistic on the spread series are added alongside it. Committed now: **if
+   Ljung–Box rejects independence at p < 0.05, the NW *t* becomes the number the project quotes
+   and the naive *t* is retained only as a diagnostic.** If it does not reject, both are reported
+   and the naive *t* stands.
+3. Committed now: **if adding a HAC standard error moves the long-short *t* below 2.0, that is
+   reported as a headline change, not as a footnote.**
+
+---
+
+## PRE-COMMITTED THRESHOLDS — R10 (the uninvestable benchmark)
+
+1. **All three benchmarks are published side by side, whatever they say** — (a) equal-weight
+   universe charged the same cost model the strategy pays, (b) SPY total return over the same
+   windows, (c) a cap-weighted panel average as the closest investable analogue.
+2. Committed now: **the alpha versus SPY is expected to be materially LOWER than the current
+   figure and it gets published at the same prominence.** A benchmark change that flatters the
+   product does not get quoted alone.
+3. Committed now: **if top-decile excess return over the cap-weighted or SPY benchmark is not
+   positive, the record says the edge is measured against an uninvestable benchmark and is not
+   demonstrated against an investable one.**
+
+---
+
+## PRE-COMMITTED THRESHOLDS — M1 (the research log and the real trial counter)
+
+1. The log is **append-only**, one row per pre-registered test, populated retrospectively from the
+   handoff corpus. Its row count `N` is wired into `_deflated_sharpe` and `_trials_haircut`.
+2. **The Deflated Sharpe will fall, and by design.** It is currently computed against `N = 8`
+   when the audit's reconstruction counts roughly 146 real trials. Committed now: **if the
+   Deflated Sharpe drops below 0.95 at the true `N`, the record states plainly that the edge does
+   NOT clear the Deflated Sharpe bar.** No re-specification of `N`, no reversion to 8, no
+   "both figures are informative" hedge. The whole point of M1 is that the denominator has been
+   wrong; the honest consequence of fixing it must be accepted whichever way it goes.
+3. Committed now: **X7's finding that "the Deflated Sharpe survives calibration" was measured
+   with `N = 8` inside both the real run and the placebo.** Changing `N` changes both. Therefore
+   **X7's DSR calibration becomes provisional the moment M1 lands**, and the placebo must be
+   re-run at the true `N` before the "Deflated Sharpe stands" claim is repeated. This is declared
+   now so it cannot be quietly skipped later.
+4. The trial count is a **measured floor, not a guess**: `N` is the number of rows actually in the
+   log. If the retrospective reconstruction recovers fewer than the audit's ~146, the smaller
+   honest number is used and the gap is recorded.
+
+---
+
+---
+
+## R1 (RE-RUN) — Factor-adjusted alpha on the CORRECTED panel
+
+**Committed threshold:** `HANDOFF_r1.md` section 1, written before any regression was ever run,
+honoured **unchanged**: *the word "alpha" is permitted only if the FF5+MOM intercept is positive
+with Newey–West t > 2.0; an ambiguous result is a NULL, not a judgement call.* The three
+necessary deviations were declared in Part 5 above and pushed in `4f41c9f` before this ran.
+
+**What was run:** `python -m scripts.factor_alpha --corrected-panel`, strategy series regenerated
+from the corrected panel (`panel_grid0.pkl`, the Session-3 offset-0 build). **69 rebalance dates →
+68 non-overlapping 63-trading-day windows, 2009-01-15 → 2025-10-27**, deployed flat 1/7 weights,
+Newey–West lag 1. The prior run's 109 windows over 1998-12-31 → 2026-01-21 are **void**.
+
+**Alignment validation (the check that makes the rest believable):** SPY's own excess return
+regressed on MKT alone gives **beta 0.9327, R² 0.9878**, alpha +0.68%/yr (t 1.58). Windows are
+aligned to the factor calendar.
+
+**Result — the primary object (`top − ew`, which is exactly `top_decile_alpha` / 4), FF5+MOM:**
+
+| spec | n | raw | ALPHA /yr | NW t |
+|---|---|---|---|---|
+| **compound / full (pre-registered primary)** | 68 | +7.13% | **+6.99%** | **+3.984** |
+| compound / first half | 34 | +2.88% | +5.19% | +2.757 |
+| compound / second half | 34 | +11.38% | +10.85% | +3.857 |
+| sum / full (pre-registered robustness) | 68 | +7.13% | +6.79% | +3.751 |
+| sum / first half | 34 | +2.88% | +5.08% | +2.671 |
+| sum / second half | 34 | +11.38% | +10.49% | +3.482 |
+
+**All six specifications are positive with NW t > 2.0.** The pre-registration's veto — "if the
+verdict differs between the specification and either robustness cut, the result is a NULL" — is
+not triggered: there is no disagreement to adjudicate.
+
+Other objects, compound/full: **long-only book in excess of RF** +9.33%/yr (t +4.973);
+**long-short** +14.86%/yr (t +4.184); **the equal-weight universe's own unexplained excess**
++2.34%/yr (t +2.915).
+
+**Verdict: THRESHOLD CLEARED. CLAIM A APPLIES — the word "alpha" is permitted, as a range.**
+Quote **+5.1% to +10.9%/yr depending on subperiod and aggregation, with +6.99% (NW t 3.98) as the
+pre-registered central figure.** The conservative single number is the first half's **+5.19%**.
+
+**Against X7's calibrated floor, as instructed.** X7 does **not** calibrate a factor-regression
+intercept, so there is no placebo floor for R1's *t* and none is invented. What X7 does floor is
+the raw object R1 decomposes, and the pre-commitment was explicit: if the raw top-decile alpha
+fell inside the placebo null **[−1.33pp, +2.38pp]**, R1 would be a NULL whatever its intercept
+did. Measured raw is **+7.13%**, far outside. R1 is decomposing something real.
+
+**Why — and the mechanism has CHANGED, which matters more than the level.** The void run found
+SMB +0.39 (t 3.84), RMW +0.30 (t 4.49) and UMD +0.18 (t 3.49) all loading, with HML (t 1.08) and
+CMA (t 1.08) not. On the corrected panel:
+
+| factor | loading | t | void run |
+|---|---|---|---|
+| HML | **+0.251** | **+2.93** | did NOT load (t 1.08) |
+| UMD | **+0.205** | **+3.65** | loaded (t 3.49) |
+| SMB | +0.208 | +1.39 | **loaded (t 3.84)** |
+| RMW | +0.092 | +0.90 | **loaded (t 4.49)** |
+| CMA | −0.130 | −1.23 | did not load |
+| MKT | +0.019 | +0.28 | — |
+
+**SMB and RMW stop loading and HML starts.** The old reading — "`size`, `quality` and `momentum`
+ARE the standard premia; `value` and `capital_discipline` are not what FF measures" — is
+**reversed on two of its three legs** and must not be repeated. The honest current reading:
+momentum is a genuine standard-premium exposure, the book now has a real value tilt, and the
+size/profitability exposures that dominated the old story were largely an artefact of the
+inverted-universe window B6 removed. `R²` also fell 0.465 → 0.308: the factor models explain
+**less** of this series than they explained of the void one.
+
+The unhedged small-cap tilt that carried the old caveat is much weaker here — SMB +0.208 at
+t 1.39 on `top − ew`, against +0.885 in the void run — though the long-only book still loads
+SMB +0.691 (t 3.89), so the caveat survives for the BOOK even as it weakens for the spread.
+
+**Two things that must travel with the number.**
+1. **The secondary q-factor model does NOT clear on the first half.** q4 gives +6.72% (t 3.193)
+   on the full sample and +11.49% (t 3.838) on the second half, but **+3.17% (t 1.712)** on the
+   first — and q5 gives +1.56% (t 0.702) there. The pre-registered threshold is stated on the
+   FF5+MOM intercept, so this does not trigger the veto, but a reader is entitled to know the
+   early-period result is model-dependent.
+2. **This is still ONE panel.** A regression is a control, not new data. X8's international
+   replication remains the out-of-sample evidence; R1 is not.
+
+**The B7 composite correction, measured as declared.** R1's first run built its composite with the
+pre-B7 non-renormalising rule. Switching to the shipped composite moves individual period returns
+by up to **2.55pp** (top decile) and **3.57pp** (bottom), leaves `ew` unchanged to exactly zero as
+it must, and moves the mean top-decile alpha only **+7.183% → +7.311%**. Consistent with Session
+2's finding that B7 is a null on the headline while being a real mechanism underneath.
+
+**Follow-on.** The +8.81%/yr figure and the "+6.6% to +8.8%" range are now **void and must not be
+quoted anywhere.** Replaced by +6.99% (range +5.1% to +10.9%). Unblocks the product-copy decision
+that P5's second claim was contingent on: CLAIM A's text ships. Does NOT unblock any claim about
+out-of-sample generalisation — that is X8.
+
+---
+
+## R9 — A significance statistic for the headline, and HAC inference for the spread
+
+**Committed threshold:** Part 5 above. Instrumentation, so the commitment was about what gets
+reported and which number becomes canonical — not a keep/reject.
+
+**What was run:** `quantile_backtest` on the corrected full-universe panel, 69 dates.
+
+**Result:**
+
+| quantity | value |
+|---|---|
+| `top_decile_alpha` | +7.17% |
+| **`top_decile_alpha_tstat`** (new) | **+4.517** |
+| **`top_decile_alpha_tstat_nw`** (new) | **+4.376** |
+| `top_decile_alpha_hit` (new) | 71.0% of periods |
+| `long_short_tstat` (naive, incumbent) | +2.836 |
+| **`long_short_tstat_nw`** (new) | **+2.620** |
+| Ljung–Box on the long-short spread | Q 10.25, df 4, **p = 0.036**, lag-1 acf +0.189 |
+| Ljung–Box on the alpha series | Q 10.28, df 4, **p = 0.036**, lag-1 acf +0.081 |
+
+**Verdict: ADOPTED, and the pre-committed consequence fires.** Ljung–Box rejects independence at
+p = 0.036 < 0.05 on both series, so **the Newey–West t is now the number this project quotes** and
+the naive t is retained as a diagnostic only. The long-short headline becomes **2.620, not
+2.836.**
+
+**Why.** The 63-day windows genuinely do not overlap, so the naive t was defensible on the
+*overlap* dimension — which is the dimension the project had thought about. It was never
+defensible on autocorrelation, and nothing anywhere computed a serial-correlation diagnostic. The
+measured lag-1 autocorrelation of +0.189 on the spread is exactly the regime persistence you would
+expect of a factor spread, and it inflates the naive t by about 8%.
+
+The headline alpha's *t* of +4.38 is far stronger than the long-short's — worth noting because the
+project has always led with the long-short as "the real bar". On this panel the long-only object
+is the better-measured one.
+
+**Follow-on.** Every future quotation of the long-short *t* uses the NW figure. Note the
+comparison to X7's calibrated floor of **2.14 is apples-to-oranges**: that floor was measured on
+the *naive* t across 100 placebo draws. Re-deriving the floor on the HAC statistic is open work.
+
+---
+
+## R10 — The uninvestable benchmark, replaced by three alternatives
+
+**Committed threshold:** Part 5 above — all three published side by side whatever they say; the
+alpha versus SPY **expected to be materially LOWER** and published at equal prominence.
+
+**What was run:** `benchmark_panel` on the corrected full-universe panel, 69 dates, deployed
+weights, top decile vs four benchmarks.
+
+**Result:**
+
+| benchmark | benchmark /yr | top decile /yr | EXCESS /yr | t | NW t | hit |
+|---|---|---|---|---|---|---|
+| equal-weight universe (incumbent, cost-free) | +18.14% | +25.31% | **+7.17%** | +4.517 | +4.376 | 71% |
+| equal-weight, charged the strategy's own costs | +16.10% | +25.31% | +9.21% | +5.834 | +5.685 | 75% |
+| cap-weighted panel average | +14.85% | +25.31% | +10.46% | +4.138 | +4.292 | 68% |
+| **SPY total return** | +15.32% | +25.31% | **+9.99%** | +3.638 | +3.770 | 64% |
+
+**Verdict: ADOPTED — and the pre-registered EXPECTATION WAS WRONG, in the strategy's favour.**
+Both the audit ("expect the alpha versus SPY to be considerably lower") and this session's own
+pre-commitment predicted the incumbent benchmark was flattering the product. **It is not. The
+incumbent is the HARDEST of the four.** Excess versus SPY is **+9.99%**, materially *higher* than
+the +7.17% the project has been publishing.
+
+**Why.** Over 2009-01 → 2026-01 the equal-weighted panel returned **+18.14%/yr** against SPY's
+**+15.32%** — the breadth of a ~1,500-name equal-weighted book beat the cap-weighted index over a
+window that began at the post-GFC bottom, when small caps recovered hardest. So the "uninvestable"
+benchmark is uninvestable in the direction of being **too demanding**, not too generous. The
+project has, by accident, been quoting the most conservative of its four available figures.
+
+This does not make the benchmark investable, and the cost asymmetry the audit identified is real
+and now measured: charging the equal-weight book the same market-cap cost table the strategy pays
+costs it **2.04pp/yr** (+18.14% → +16.10%), which is a genuine thumb on the scale that had been
+sitting in the strategy's favour and is now removed.
+
+**Follow-on.** The record may now state the edge survives against an investable benchmark: excess
+over SPY **+9.99%/yr, NW t 3.77**, and over a cap-weighted panel average +10.46% (NW t 4.29).
+**Publish +7.17% as the headline anyway** — it is the most conservative and it is the one every
+historical figure used, so changing it would break comparability for a number that only moves in
+the flattering direction. R10's numbers ship beside it in `benchmarks`.
+
+---
+
+## M1 — The append-only research log and a real trial counter
+
+**Committed threshold:** Part 5 above — most importantly: *if the Deflated Sharpe drops below
+0.95 at the true N, the record states plainly that the edge does NOT clear that bar. No
+re-specification, no reversion to 8, no hedge.*
+
+**What was run:** `RESEARCH_LOG.md` populated retrospectively from the handoff corpus;
+`valuation/edge/research_log.py` parses it; `N` wired into `_deflated_sharpe_detail` and
+`_trials_haircut`; `cpcv_validate` re-run on the corrected panel.
+
+**Result — the trial count:**
+
+| | trials |
+|---|---|
+| **equity** (the family this composite was searched within) | **84** |
+| options | 133 |
+| infra | 1 |
+| **total logged** | **218** |
+| `FIXED` rows, correctly NOT counted | 15 |
+| the audit's estimate | ~146 |
+
+**Result — what the honest denominator does to the statistics:**
+
+| | N = 8 (as shipped) | **N = 84 (measured)** |
+|---|---|---|
+| Deflated Sharpe | 0.9970 | **0.8997** |
+| `sr0_benchmark` | 0.242 | **0.406** |
+| `is_effectively_undeflated` | true | **false** |
+| `metric` self-report | `probabilistic_sharpe_ratio_UNDEFLATED` | **`deflated_sharpe_ratio`** |
+| `_trials_haircut` | 2.04 | **2.977** |
+
+**Verdict: ADOPTED, and the pre-committed consequence fires. THE EDGE DOES NOT CLEAR THE DEFLATED
+SHARPE BAR.** 0.8997 < 0.95. Stated plainly, as committed, with no re-specification.
+
+**Why — and there is a genuine win buried in the failure.** Audit **B9** argued the statistic was
+an undeflated PSR because `sr0` collapsed. With a real N it does not collapse: `sr0` rises from
+0.242 to 0.406 against a per-period Sharpe of 0.550, so the benchmark is now deflating away 74% of
+the Sharpe and the statistic **self-reports as a genuine Deflated Sharpe for the first time.**
+**B9's criticism is resolved by M1, not by argument** — and the price of resolving it is that the
+bar is no longer cleared. That is the correct trade and it was pre-committed.
+
+Separately, `√(2·ln 84) = 2.977` — the multiple-testing haircut at the real N lands within 0.03 of
+the Harvey–Liu–Zhu hurdle of 3.0, exactly as the audit predicted it would.
+
+**Two schema decisions, both of which change the count and both deliberate.**
+1. **A trial counts whether or not it was pre-committed.** The log's original rule counted only
+   pre-committed tests. That is right for judging whether a *result* is credible and wrong for a
+   multiple-testing *denominator*: what inflates the best-looking result is how many times the
+   data was searched, not how well each search was documented. The old rule would have
+   systematically understated N and therefore **overstated** significance — the exact error M1
+   exists to fix. Rows carry `pre = yes | retro`; both count.
+2. **`N` is domain-scoped.** The equity composite is charged the 84 equity trials, not the 218
+   project-wide ones. The options autopsy's 126-feature sweep is a different search over
+   different data for a different product; charging the equity composite for it would
+   over-penalise as surely as charging it for eight weight schemes under-penalises. The log's own
+   schema already forms BH-FDR families within a domain.
+3. A row may represent a pre-registered GRID via `n=<k>` — the lazy-prices 28-cell sweep is one
+   row counted as 28. Writing 28 near-identical rows would be fabricated precision; counting it
+   once would undercount a 28-way search by a factor of 28.
+
+**A missing or unreadable log degrades to N = 8**, i.e. to the OLD behaviour, never to an
+unpenalised one.
+
+**Follow-on — and this one is pre-committed and must not be skipped.** **X7's finding that "the
+Deflated Sharpe survives calibration" is now PROVISIONAL.** That result was measured with N = 8
+inside *both* the real run and all 100 placebo draws. Changing N changes both, so the placebo must
+be re-run at the true N before the claim is repeated. The direction is predictable — both fall —
+so the *relative* comparison may well survive; the *absolute* claim "DSR > 0.95" does not, and no
+part of it may be quoted until the placebo is re-run. The 218-row total is above the audit's ~146
+estimate, so the gap the pre-commitment worried about (recovering fewer than 146) did not
+materialise; the equity-scoped 84 is the operative number and is a measured floor, not a guess.
+
+---
+
+**Note on this session's canonical `BACKTEST_RESULTS.json`, so the next reader does not misapply
+Session 3's own rule.** The file carries `git.dirty: true` and is stamped against `4f41c9f` rather
+than its own commit. Session 3 established that combination as the tell for a file polluted by an
+in-flight run. **It is not one here.** The numbers are the Session-4 full run's; the file was
+re-serialised from that run's own result dict after `results_file.py` was corrected to carry R9's
+new fields and R10's `benchmarks` block, which the writer had been silently dropping (the values
+were computed correctly and thrown away at the schema boundary — a fresh instance of the
+"guard that cannot see" pattern, this time on the OUTPUT side). No number was recomputed: the
+same `res` object went through the fixed writer. The `dirty` flag reflects the uncommitted
+documentation in the tree at re-serialisation time.
+
+**The R9/R10 schema-boundary bug is worth its own line in the record.** `quantile_backtest` and
+`benchmark_panel` both computed their new fields correctly on the first full run, and both were
+dropped because `results_file.build_payload` whitelists what it writes. The canonical file
+therefore showed `top_decile_alpha_tstat: None` next to a correctly-computed 4.517 in the raw
+dump. Nothing raised. `benchmarks` is now in `RESULT_BLOCKS`, so a future absence is an error
+rather than a silence — but the general hazard remains: **adding a metric to a computation does
+not add it to the canonical file, and the canonical file is what every other agent reads.**
+
+---
+
+# PART 6 — SESSION 5: THE OPTIONS VERDICT (R2, R3, R7, O20)
+
+Written **before any run in this session started**, per RUN_RULES.md Part A rule 6. R2's and
+R7's thresholds were already committed in Part 0 and are **not restated in altered form** here —
+they are quoted and honoured as written. What is new below is R3's and O20's, plus the run
+design, which is itself a choice that can flatter a result and therefore belongs in advance.
+
+## THE RUN DESIGN — pinned universe, and why
+
+The miner is live (`dte_extend.py` was running when this session started) and the cache grows
+between runs. Re-running R2 on "whatever is complete today" would change the corrected code AND
+the universe at the same time, and the headline would move for two reasons with no way to
+separate them. That is exactly the confound the project's **one change per run** rule exists to
+stop.
+
+So R2 runs with `--universe-from` pinned to the previous run's frozen 187-name list. The only
+thing that differs from `HANDOFF_universe_backtest.md` is the code: B1 (price basis), B2 (exit
+censoring), B3 (stale expiry mark), B4 (the −1 open-interest sentinel) and B15 (commission).
+
+**O20 is then a SECOND, declared variable** and is reported as its own partition of the same
+run, never mixed into the headline.
+
+## PRE-COMMITTED THRESHOLDS — R3 (clustered inference)
+
+R3 is an inference correction, not a hypothesis, so most of it has no pass/fail. Three things
+still need committing, because each could be chosen after the fact to flatter a conclusion:
+
+1. **The block is the CALENDAR MONTH**, chosen before seeing any interval. A month is long
+   enough to contain a full volatility episode — the thing that actually clusters entries — and
+   leaves ~118 blocks over the decade, enough for a percentile bootstrap. Week and year are
+   implemented and are diagnostics; **the verdict reads the month.**
+2. **`n_eff` is reported as BOTH the block count and the design-effect estimate**, and neither
+   is presented alone. If they disagree materially that disagreement is the finding and gets
+   stated, not resolved by picking one.
+3. **The embargo is the label window, 75 days** — the maximum a trade can stay open (DTE tops
+   at 75). It is not tuned. `embargo_days=0` reproduces the old unpurged split so the cost of
+   the correction is measurable rather than asserted.
+
+**Committed direction of expectation, so it can be scored against:** the audit predicts every
+options *t*-like quantity shrinks by roughly the square root of the clustering factor, and
+guesses a factor of 2 to 4 — which would move the −5.24 sign-test *z* into the −2.5 to −3.7
+range. **If the measured clustering factor comes in BELOW 2, the audit over-predicted and this
+ledger says so.**
+
+## PRE-COMMITTED THRESHOLD — O20 (point-in-time liquidity)
+
+The audit says: apply the liquidity screen as of each entry date, re-report the headline, and
+**"expect it to fall. That is the correct number."**
+
+**Committed before the run:**
+
+- The screen is the **miner's own** (`MAX_MEDIAN_SPREAD_PCT = 0.15`, and open interest passing
+  on either the contract floor or the $2.5M notional floor), imported from `mine_options_cache`
+  rather than re-declared, and applied to the alert date's chain instead of to the name's first
+  cached year. **Applying a DIFFERENT bar and calling the difference O20 would be a new filter
+  wearing a correction's name.**
+- It is applied to **both arms** of the random-entry control. Screening the real book only would
+  compare two different universes.
+- A day whose chain cannot answer is **`None`, not a failure**. An unmeasurable day excluded as
+  though it were illiquid would report a data gap as a liquidity finding.
+- **If the headline does NOT fall**, that is reported as the audit's expectation being wrong, in
+  the same words the R10 reversal got. It is not evidence the strategy is better than thought.
+
+**And the limit of the repair, committed in advance because it will be tempting to skip:** O20
+cannot fix the dominant selection effect. Verified against `mine_options_cache.py` this session,
+the audit's premise is **half wrong** — see the R2/O20 entries below. Names were ranked into the
+mining pool by **today's market cap**; the *liquidity* screen was already applied to the first
+cached year, not to a present-day chain. So a point-in-time re-screen answers "was this name
+tradeable on the day?" and cannot answer "which names would have been in the pool at all?",
+because the names that failed are not on disk. **The number O20 produces is an upper bound on
+the repair.**
+
+## R2 — QUOTED FROM PART 0, UNCHANGED
+
+> - If the corrected real-versus-control gap **remains negative at conventional significance
+>   under a date-block bootstrap (R3)**: the entry signal is dead, and the record says so plainly.
+> - If the gap **closes to within its confidence interval**: the verdict is **INCONCLUSIVE**, not
+>   vindicated.
+> - If the gap **turns positive at significance**: a genuine reversal, which must additionally
+>   survive the date-block bootstrap and the both-halves split before anything is claimed.
+
+The R3.3 precondition — "the paired name-year sign test and paired *t* must be in the repository
+with a test before this verdict is reported at all" — is satisfied by
+`valuation/edge/options_stats.paired_name_year` and
+`test_audit_r3_the_paired_sign_test_counts_cells_not_trades`.
+
+## R7 — QUOTED FROM PART 0, UNCHANGED
+
+G3a flow ≥ 52 retained alerts/year · G3b span ≥ 60% of names AND ≥ 60% of months · G3c backstop
+retention ≥ 20%. All three, alongside the unchanged G1/G2/G4/G5/G6/G7. **G3b has never been
+measured and is the arm on which the re-score can still fail.**
+
+## CARRIED FORWARD FROM SESSION 4 — the placebo at the true N
+
+X7's "the Deflated Sharpe survives calibration" was measured with **N = 8 inside both the real
+run and all 100 placebo draws**. M1 then made the real run's N = 84. The claim is **PROVISIONAL
+until the placebo is re-run at the true N**, and it is not to be quoted in the meantime. That
+sweep was launched at the start of this session.
+
+
+---
+
+## R2 — THE CORRECTED OPTIONS RE-RUN · **THE ENTRY SIGNAL IS DEAD, AND THE RECORD SAYS SO**
+
+**Committed threshold:** Part 0, quoted unchanged in Part 6 above. Gap still negative at
+significance under a date-block bootstrap → the signal is dead. Gap closes to within its CI →
+INCONCLUSIVE, not vindicated. Gap positive at significance → reversal.
+
+**What was run:** `optuniv_run.py --workers 5 --aggression 1.0 --universe-from <frozen 187-name
+list> --control --control-draws 2 --refresh-control --autopsy`, plus a second control seed. The
+universe is PINNED to the pre-correction run's frozen list, so the corrected code is the only
+variable. Window 2016-01-01 → 2025-10-15, unchanged. Nothing re-tuned.
+
+### The verdict, mechanically
+
+| | pre-correction | **corrected** |
+|---|---|---|
+| real / control expectancy | +5.14% / +13.22% (2 seeds) | **+3.41% / +10.06% (5 seeds)** |
+| gap | −8.08pp | **−6.65pp** |
+| **date-block CI95 on the gap** | [−11.66pp, −4.51pp] | **[−11.92pp, −2.13pp]** |
+| negative at significance | YES | **YES** |
+| paired name-year cells / wins | 441 / 1,052 = 41.9% | **577 / 1,334 = 43.3%** |
+| **sign-test z** | −5.185 | **−4.903 (p < 1e−5)** |
+| paired *t* | −2.183 (p = 0.029) | −1.227 (p = 0.220), not significant |
+
+**VERDICT: the pre-committed condition for "dead" is met.** The corrected gap remains negative at
+conventional significance under the date-block bootstrap. The alert's day-selection subtracts
+value on this universe and window, on corrected data, under clustered inference.
+
+**The finding survives the correction almost intact — the gap moves 1.43pp and the sign test moves 0.28.** That is the
+headline: five defects were repaired, every level moved, and the conclusion did not. Note the
+paired *t* is no longer significant while the sign test is decisive — exactly the ordering the
+record predicted when it said to lean on the sign test.
+
+### THE SEED INSTABILITY · a finding about the BENCHMARK, and it nearly caused a wrong call
+
+**A single control seed can flip this verdict, and the first one run did.** The control was
+therefore run at **FIVE seeds** rather than the record's two — the extra three cost ~30 minutes,
+and the strongest negative finding this project owns should not rest on a coin flip.
+
+| seed | control exp | gap | date-block CI95 | neg at sig | sign-test z | paired *t* |
+|---|---|---|---|---|---|---|
+| 0 | +6.46% | −3.05pp | [−7.05, +0.95] | **NO** | −0.594 | +0.162 |
+| 1 | **+15.34%** | −11.93pp | [−23.17, −4.55] | YES | −3.003 | −1.835 |
+| 2 | +11.75% | −8.34pp | [−18.92, −0.87] | YES | −1.700 | −0.975 |
+| 3 | +9.22% | −5.81pp | [−9.91, −1.67] | YES | −2.931 | +0.071 |
+| 4 | +7.54% | −4.13pp | [−8.09, −0.15] | YES | −2.998 | −0.740 |
+| **POOLED (n=29,785)** | **+10.06%** | **−6.65pp** | **[−11.92, −2.13]** | **YES** | **−4.903** | −1.227 |
+
+**Every one of the five seeds has a negative point estimate. Four of five are negative at
+significance individually. Seed 0 — the first one run — is the single most favourable draw.**
+
+**The pooled sign test at five seeds is z = −4.903 (p < 1e−5) over 1,334 name-year cells, 43.3%
+won.** That is very nearly the record's own −5.24, reached on corrected data under clustered
+inference. The two-seed corrected reading (z −2.907) was itself an underestimate: **more control
+draws sharpen the test rather than blur it**, because each name-year cell's control mean is
+averaged over more draws and the paired comparison gets less noisy. The verdict is not marginal.
+
+The mechanism of the spread is measured, not asserted: the control's OWN expectancy carries a
+date-block CI of **[+5.54%, +15.44%]** at five seeds. A random-day book's mean on a barbell
+payoff is set by a handful of +600% trades, and which ones a draw catches moves it enormously.
+
+**Two seeds is not enough for this comparison and nobody had measured that.** The paired *t*
+ranges +0.162 to −1.835 across seeds and is never significant, even pooled (−1.227, p 0.22),
+while the sign test is stable and decisive — exactly the ordering the record predicted when it
+said to lean on the sign test. **Standing rule for this comparison: five seeds minimum, and the
+sign test carries the verdict.**
+
+### What the corrections did to the book
+
+**The trade count ROSE 3,042 → 3,885, and this is B1's signature.** Alerts *fell* (5,953 →
+5,614, because the ATM IV now solves and nudges the options component of the score), while
+`no_contract_in_band` rejections fell **2,911 → 1,729**. A split-and-dividend-adjusted spot
+compared against as-traded strikes threw the 0.90–1.20 moneyness prefilter, so **1,182 alerts
+were silently discarded for having no contract in a band that was being measured against the
+wrong price.** Alert→trade conversion 51.1% → 69.2%.
+
+**Two independent confirmations that B1 was real:**
+
+| | pre | post |
+|---|---|---|
+| median entry IV | **1.4200** | **0.2497** |
+| IV coverage | 75.3% | **100.0%** |
+
+142% is not an equity ATM vol; 25% is. `HANDOFF_universe_backtest.md` §8 recorded the 1.28–1.57
+median as an unexplained anomaly and declined to use the field. It was the price basis, and the
+sanity guard added in session 1 would have caught it.
+
+### THE BREADTH CLAIM DOES NOT SURVIVE — the second-largest change
+
+| | pre-correction | **corrected** |
+|---|---|---|
+| 54 baseline names | +6.95% (n 1,241) | **+9.37% (n 1,532), PF 1.263** |
+| 133 new names | +3.90% (n 1,801) | **−0.47% (n 2,353), PF 0.988** |
+
+**The new names are now NEGATIVE.** Every dollar of the book's positive expectancy comes from the
+original 54 megacaps. `HANDOFF_universe_backtest.md`'s headline — *"the edge survives breadth but
+roughly halves"* — is **VOID**. On corrected data the edge does not survive breadth at all; it is
+a megacap phenomenon that a corrupted price basis had made look broader.
+
+The study's own B1 bar still reads **HOLDS**, because the whole book is positive in both held-out
+halves (+4.35% early, +2.59% late). The bar is being met by a book whose composition has
+completely changed — a warning about the bar, not support for the edge.
+
+Cap tiers, corrected: mega +4.71% (n 1,002), large +0.86% (n 2,062), mid +7.65% (n 777),
+small +18.25% (n 44 — still far too few to quote). Mid/small remain the best tiers.
+
+### The statistical comfort is gone
+
+| | pre | post |
+|---|---|---|
+| Deflated Sharpe, unfiltered | 88.13% | **49.59%** |
+| Deflated Sharpe, term_slope-filtered | 95.69% | **80.63%** |
+
+Both are now below the 95% bar; the filtered book used to clear it. The autopsy re-confirms
+unchanged: **64 features, 127 hypotheses, ZERO survivors.** Four hypotheses reach BH discovery in
+one split direction each (`f_d_gex_wall_conc`, `f_dte`, `f_sig_gex_proxy`, `f_spread_frac`) and
+none in both, so nothing passes the gate. Combiner escalation again not warranted.
+
+**Verdict: REJECTED — the entry signal does not beat random entry, on corrected data, under
+clustered inference.** **Follow-on:** the live options alert must not be described as a
+day-selection edge. It is an alert-generation mechanism, in the pre-commitment's own words, and
+the product copy has to say so.
+
+## R3 — CLUSTERED INFERENCE · **SHRINKS EVERY OPTIONS STATISTIC, OVERTURNS NONE**
+
+**Committed threshold:** Part 6 above — month blocks, both `n_eff` estimates reported, 75-day
+embargo, and the audit's predicted clustering factor of 2–4 scored against.
+
+**R3.3 first, because it is the precondition for reporting R2 at all.** The paired name-year sign
+test and paired *t* existed in no file. They do now, and they **reproduce the record exactly**:
+run through `options_stats.paired_name_year`, the pre-correction pooled book returns **441 wins
+of 1,052 cells** against the handoff's "441 of 1,052 = 41.9%", at z −5.185 against its −5.24 (the
+difference is tie handling — ties are excluded from the sign test's denominator here). Seed 0
+alone returns paired *t* **−2.6701** against the record's −2.67. **The two numbers the entire
+options conclusion rested on are now re-derivable from shipped code**, pinned by
+`test_audit_r3_the_paired_sign_test_counts_cells_not_trades`.
+
+### The measured clustering, and a correction to the audit
+
+**Clustering factor 1.85 — BELOW the audit's predicted 2 to 4.** At month blocks the 3,042-trade
+pre-correction book carries 118 blocks, a design effect of **1.848**, and an effective sample of
+**1,646 of 3,042**. Every *t*-like quantity therefore shrinks by √1.85 = **1.36**, not by the
+1.4–2.0 the audit expected. Its worked example — "a *t* of −5.24 moves into the −2.5 to −3.7
+range" — lands about right by coincidence rather than by the mechanism it named: the sign-test z
+did fall to −2.91, but from the DATA CORRECTION, not from the clustering.
+
+**And the correction overturns nothing.** The pre-correction gap's date-block CI is [−11.66pp,
+−4.51pp], still excluding zero. Clustered inference makes every options interval wider and leaves
+every verdict where it was.
+
+### A RAW DESIGN EFFECT IS NOT EVIDENCE OF CLUSTERING · **found by a failing test**
+
+A book of 600 independent draws assigned to 12 blocks of 50 — **no clustering by construction** —
+reports a design effect near **1.8**, an apparent 45% loss of sample size that is pure sampling
+error in MSB/MSW. With `k` blocks that ratio is F(k−1, n−k), whose spread is ≈√(2/(k−1)); at a
+mean block size of 25–50, a 2% wobble in the ICC becomes a 2× design effect.
+
+Applying that as a haircut would **manufacture a correction out of noise — the mirror image of
+the error R3 exists to fix.** So the design effect is now scored against its own shuffled null,
+using the project's established method (X7): outcomes are permuted across blocks, every block
+size preserved exactly, and `clustering_measurable` is true only above the null's 95th
+percentile. On the real book it passes clearly (**deff 1.848 vs null p95 1.266**), so the
+clustering is genuine — but genuine because it was tested, not because the number looked large.
+
+**R3.4, purge and embargo.** `pbo_cscv` now purges dates whose 75-day label window crosses an
+IS/OS boundary; **9.08% of dates are purged** per split. `embargo_days=0` reproduces the old
+unpurged split exactly, so the correction's cost is measurable rather than asserted. The
+corrected run reports PBO **12.86%** against the record's 35.7%; the isolating A/B is below and
+its result contradicts what this session first asserted about the direction.
+
+### R3.4 ISOLATED — the purge LOWERS PBO, which is the opposite of what this session asserted
+
+The corrected run reports PBO 12.86% against the record's 35.7%, and those differ in two ways at
+once. An A/B was run on a single feature pass per book with **only `embargo_days` varying**:
+
+| book | embargo 0d (old behaviour) | embargo 75d (shipped) | purge effect | dates purged |
+|---|---|---|---|---|
+| corrected | **17.14%** | **12.86%** | **−4.29pp** | 9.08% |
+| pre-correction | **48.57%** | **38.57%** | **−10.00pp** | 9.37% |
+
+**Purging lowers PBO on both books.** The docstring written earlier in this session asserted the
+contamination "biases PBO DOWNWARD" — i.e. that the unpurged figure was too low. It is too
+**high**, by 4 to 10 points. The assertion was reasoning, not measurement, and it is corrected in
+place at `options_autopsy.pbo_cscv`. **No mechanism is verified.** A plausible hypothesis, offered
+as one and not as a finding: boundary dates are where trades straddle regimes, so removing them
+makes the in-sample ranking more stable out of sample. It has not been tested.
+
+### AND A REPRODUCIBILITY PROBLEM THAT IS NOT MINE TO FIX HERE — **`## BUGS FOUND`**
+
+**The pre-correction book's PBO does not reproduce: 48.57% today against the 35.7% recorded on
+2026-08-03, on the same trades and the same code path.** The cause is not the corrections and not
+the purge — the A/B above holds both fixed. It is that **`data/options_derived/` has grown from
+111 names to 317 entries while the miner has been running.** The record's autopsy carried
+greek-stack coverage of 2,030/3,042 (66.7%) and daily-surface coverage of 2,071/3,042 (68.1%);
+the corrected run carries **3,885/3,885 — 100% on both.**
+
+Two consequences, and the second is the one that matters:
+
+1. **Good news:** the 64-feature gate is now tested on the whole book rather than two-thirds of
+   it, and it still returns **zero survivors**. That is a stronger rejection than the record's.
+2. **`AUTOPSY_*` numbers are not comparable across sessions while the miner is live.** Feature
+   coverage changes underneath them, so a PBO or a feature *p*-value quoted from one session
+   cannot be differenced against another's. Nothing warns about this today. The autopsy should
+   stamp its derived-data coverage into its own result file the way the panel stamps
+   `panel_window`, and any cross-session PBO comparison should be treated as invalid until it
+   does. Recorded, not fixed — it is outside this session's items.
+
+**R3.5**, the Deflated Sharpe at `n_eff`, ships as `deflated_sharpe_clustered` and carries
+`clustering_measurable` so nobody quotes a haircut that is estimator noise.
+
+**Verdict: ADOPTED as the inference layer of record.** The trade-level bootstrap is retained for
+comparability with every historical figure and is explicitly no longer what decides anything.
+**Follow-on:** every options interval in the corpus is optimistically narrow by ~1.36× and should
+be re-read that way. The seed instability recorded under R2 is the more urgent problem.
+
+## R7 — THE `term_slope` FLOOR · **THE NEW FLOOR PASSES AND THE FILTER FAILS ANYWAY**
+
+**Committed threshold:** Part 0, unchanged. G3a ≥ 52 retained alerts/yr, G3b ≥ 60% of names AND
+≥ 60% of months, G3c ≥ 20% retention, in addition to G1/G2/G4/G5/G6/G7.
+
+**R7's premise was right about the bar and wrong about the filter.** It called this "the thinnest
+rejection in the corpus": the economic arm had replicated almost exactly out of sample (+8.89pp
+against the +8.12pp that got it adopted), and the filter failed on one arbitrary constant. On
+corrected data both halves of that reverse.
+
+| arm, on the B2 scope (new names, late half) | pre-correction | **corrected** |
+|---|---|---|
+| retention | 36.4% | **35.9%** (478/1,333) |
+| **economic gain** (bar: `MIN_LATE_GAIN` = +5.00pp) | **+8.89pp** | **−1.12pp** |
+| expectancy, all → filtered | +4.64% → +13.54% | **+1.84% → +0.71%** |
+| tail retention | 41.2% of winners on 37.3% of trades | **34.0% on 35.9%** |
+| G3a flow | never measured | **95.6/yr ✓** |
+| G3b span | **never measured** | **96.2% of names, 98.2% of months ✓** |
+| G3c backstop | never measured | **35.9% ✓** |
+| **passes G3** | — | **TRUE** |
+| old 40% arm would say | FAIL | FAIL |
+
+**The re-committed floor answers its own question: the 40% constant WAS rejecting a filter that
+is genuinely broad.** G3b — the arm that had never been measured, and the one R7 said the filter
+could still fail on — passes at 96% of names and 98% of months. `term_slope` was never a
+disguised cherry-pick of a handful of names.
+
+**And it no longer matters, because the arm that used to replicate is now the one that fails.**
+On corrected data the filter makes its own out-of-sample book *worse* (+1.84% → +0.71%, a gain of
+−1.12pp against a +5.00pp bar), and it is no longer tail-enriching. The full-sample and
+broad-book readings are positive but far below the bar (+1.35pp, +1.82pp).
+
+**Verdict: `term_slope` REJECTED — B2 FAILS on the economic arm.** The rejection stands, and now
+rests on the quantity that matters rather than on an underived constant. **Follow-on:** the
+retention-floor question is closed; G3a/G3b/G3c replace the single `MIN_RETAINED` arm as the
+shipped gate. The +8.89pp out-of-sample replication that made this look like a live filter worth
+rescuing was a product of the corrupted price basis and **must not be quoted again**.
+
+## O20 — POINT-IN-TIME LIQUIDITY · **THE AUDIT'S EXPECTATION WAS WRONG; THE HEADLINE ROSE**
+
+**Committed threshold:** Part 6 above. The miner's own screen, applied at each entry date, to
+both arms of the control, with unmeasurable days as `None` and never `False`. And, pre-committed:
+if the headline does NOT fall, that is reported as the audit's expectation being wrong.
+
+The audit says: *"Then re-report the headline. Expect it to fall. That is the correct number."*
+
+| slice | n | expectancy | PF |
+|---|---|---|---|
+| whole corrected book | 3,885 | +3.41% | 1.092 |
+| **point-in-time LIQUID** | **3,359 (86.5%)** | **+4.82%** | **1.131** |
+| point-in-time ILLIQUID | 495 (12.7%) | **−7.84%** | 0.800 |
+| unmeasurable | 31 (0.8%) | +30.76% | 2.350 |
+
+**It rose.** Screening out names that were untradeable *on the day the alert fired* removes a
+slice that loses 7.84% per trade, and the surviving book is better than the whole. Coverage is
+**99.2%** — the screen resolves on all but 31 trades. Both held-out halves stay positive (+6.56%
+early, +3.31% late). The mechanism is coherent: point-in-time-illiquid entries are exactly where
+the entry spread is widest, and this is a long-premium strategy paying that spread at both ends.
+It is also **implementable**, unlike the survivorship diagnostic — liquidity as of the entry date
+is knowable at the entry date.
+
+### O20 DOES NOT RESCUE THE SIGNAL — the improvement is a universe effect, not a signal effect
+
+The control was screened by the same rule, and it benefits at least as much:
+
+| slice, seeds pooled | real | control | gap | date-block CI95 | sign-test z |
+|---|---|---|---|---|---|
+| all trades | +3.41% | +10.88% | −7.47pp | [−13.92, −2.43] | −2.907 (p 0.0037) |
+| **PIT-liquid only** | **+4.82%** | **+12.00%** | **−7.18pp** | **[−14.48, −1.71]** | **−3.475 (p 0.0005)** |
+| PIT-illiquid only | −7.84% | +1.44% | −9.28pp | [−17.07, −1.17] | −2.500 (p 0.0124) |
+
+**The signal loses to random entry on the liquid subset too — and by the sign test, more
+decisively than on the whole book.** Restricting to tradeable names lifts BOTH arms. Nothing here
+is evidence for the alert.
+
+### The limit of the repair, and a correction to the audit's premise
+
+Verified against `mine_options_cache.py` this session:
+
+* **The pool order IS hindsight.** Names are ranked for mining by TODAY's market cap
+  (`mine_options_cache.py:15-20`). TRUE, and the larger effect.
+* **The liquidity screen was NOT today's.** `name_is_viable` measures real option tradeability on
+  the name's FIRST CACHED YEAR, not on a present-day chain (`:160`). The audit's "selected by
+  current liquidity" is not accurate for the screen it proposes to fix.
+
+So O20 answers "was this name tradeable on the day?" and **cannot** answer "which names would
+have been in the pool at all in 2016?" — the names that would have failed were never mined, and
+no evaluation-time filter recovers data that is not on disk. `survivorship_probe` remains the
+only read on the part O20 cannot touch.
+
+**Verdict: ADOPTED as a reported partition; the audit's expectation is REFUTED.** Shipped as
+`o20_point_in_time_liquidity` on every run. It is **not** promoted into the headline: the headline
+stays the whole book at aggression 1.0, because that is what every historical figure used, and
+because a filter that improves a result is exactly the kind that needs a second panel before it
+is believed.
+
+**Follow-on:** this is the third time in two sessions (R10, then O20) that a bias the record
+assumed ran in the strategy's favour has run the other way. That is now a pattern worth stating:
+**this project's expectations about the direction of its own biases have been wrong more often
+than right, and should be measured rather than reasoned about.**
+
+
+---
+
+## X7 RE-RUN AT THE TRUE N · **THE DEFLATED SHARPE ROW IS CONFIRMED, AND STRENGTHENED**
+
+**Committed threshold:** carried forward from Session 4 and quoted in Part 6 above. X7's *"the
+Deflated Sharpe survives calibration"* was measured with **N = 8 inside BOTH the real run and all
+100 placebo draws**. M1 then replaced N with the measured equity count of 84, which changes both
+sides. The claim was marked **PROVISIONAL and unquotable** until the placebo was re-run at the
+true N. It has been.
+
+**What was run:** `python -m scripts.placebo --panel panel_grid0.pkl --n 100 --seed0 1000`, the
+identical panel checkpoint and identical seeds (1000–1099) as X7's original sweep, on code where
+`_deflated_sharpe` now reads N from `RESEARCH_LOG.md`. The output stamps its own denominator:
+`n_trials_used = 84`, `n_trials_from_research_log = 84`, source `RESEARCH_LOG.md (audit M1)`.
+
+### The harness reproduces exactly, which is what makes the comparison readable
+
+Every quantity that does NOT depend on N is **identical to the last digit** across the two sweeps:
+
+| rate on pure noise | N = 8 | N = 84 |
+|---|---|---|
+| holdout gate confirms any theme | 6% | **6%** |
+| long-short t ≥ 2.0 | 8% | **8%** |
+| long-short t ≥ 3.0 | 1% | **1%** |
+| max theme IC t ≥ 2.0 | 39% | **39%** |
+| PBO < 50% | 55% | **55%** |
+
+PBO and max-theme-IC-t are identical on all 100 draws individually, not merely in aggregate. **So
+every calibrated bar X7 published stands unchanged** — only the Deflated Sharpe row was ever in
+question.
+
+### The Deflated Sharpe, calibrated at the honest denominator
+
+| | N = 8 (X7 original) | **N = 84 (true)** |
+|---|---|---|
+| real run | 0.9970 | **0.8997** |
+| noise median | 0.2802 | **0.1143** |
+| noise p95 — **the calibrated bar** | 0.8567 | **0.7216** |
+| noise p99 | — | 0.8498 |
+| noise maximum | 0.9788 | **0.8649** |
+| noise draws clearing the 0.95 convention | **2%** | **0%** |
+
+**The row is CONFIRMED and the statistic is MORE discriminating at the true N, not less.** Zero of
+100 definitionally-worthless signals reach 0.95, against two at N = 8. The 0.95 convention is one
+of the few bars in this project that noise essentially never clears.
+
+**And the strategy's 0.8997 exceeds ALL 100 placebo draws** — the highest noise draw is 0.8649, so
+the empirical *p* is at the sweep's resolution floor (≤ 0.01). Against the calibrated bar of
+**0.7216** it clears comfortably.
+
+**BOTH M1 AND X7 ARE RIGHT, AND THEY WERE NEVER IN CONFLICT.** M1's finding stands exactly as
+written: **the edge does not clear the > 0.95 bar.** X7's finding stands too: the Deflated Sharpe
+is a genuinely discriminating statistic. The reconciliation is that **at the honest denominator
+the 0.95 convention is STRICTER than the noise floor requires.** So the Deflated Sharpe is now the
+one bar in this project where the strategy is **distinguishable from noise and still fails its
+conventional threshold**. Report it that way — quoting either half alone misleads:
+
+> Deflated Sharpe **0.8997 at N = 84 — fails the conventional > 0.95 bar, while sitting above all
+> 100 placebo draws (calibrated bar 0.72).**
+
+### A SECOND, UNLOOKED-FOR BENEFIT OF M1 — the adoption gate got harder for noise to pass
+
+**CPCV weight adoption on pure noise fell from 27% to 21% of draws**, and the change is
+one-directional: **six draws stopped adopting and not one started.** All six moved from a
+recommended scheme (`ic-proportional`, `equal-weight`, `positive-equal`, `risk-parity`) to
+`current-default`. PBO was identical on every one of them — only the adopt decision moved.
+
+The mechanism is deterministic, not a tie-break: the adopt gate reads the Deflated Sharpe, and a
+larger N lowers it, so fewer noise draws clear the bar. **This is not the run-to-run
+non-reproducibility the project is chasing** — that remains open and unexplained, and this was
+briefly mistaken for it during this session before the one-directional pattern was checked.
+
+X7's post-hoc finding was that CPCV adoption manufactures ~+1.4 of long-short *t* out of nothing
+and fires on 27% of pure-noise draws. **At the honest denominator it fires on 21%.** Still far too
+often to trust an adopted scheme, and the shipped strategy still does not adopt — but M1 bought a
+measurable improvement in the pipeline's noise resistance as a side effect of fixing a
+denominator, which is worth recording.
+
+**Note on comparability:** X7's original sweep ran with `--no-costs` (`costs_measured: false`);
+this one measured costs, so `breakeven_one_way_bps` exists here and is absent there. No committed
+threshold reads it.
+
+**Verdict: X7's Deflated Sharpe row CONFIRMED at the true N; the PROVISIONAL marking is
+LIFTED.** Every other calibrated bar in X7's table is unchanged and was never affected.
+**Follow-on:** `scripts/placebo.py` now banks `deflated_sharpe_detail` per draw and stamps
+`trial_count` on the output, so the next change to N costs arithmetic rather than another sweep.
+
+## BUGS FOUND — session 5 (per RUN_RULES.md Part A rule 3)
+
+1. **`AUTOPSY_*` results are not comparable across sessions while the miner is live, and nothing
+   says so.** `data/options_derived/` grew from 111 names to **317 entries** during the audit, so
+   the 64-feature gate's coverage went from 2,030/3,042 (66.7%) to **3,885/3,885 (100%)**. The
+   pre-correction book's PBO therefore reads **48.57%** today against the **35.7%** recorded on
+   2026-08-03 from the same trades and the same code path. **Not fixed** — the autopsy should
+   stamp its derived-data coverage into its own result file the way the panel stamps
+   `panel_window`. Until it does, treat any cross-session PBO or feature *p*-value difference as
+   invalid. `valuation/edge/options_autopsy.py:run`.
+
+2. **A raw ICC design effect was about to be applied as a haircut, and it is mostly estimator
+   noise at these block sizes.** Caught by a failing test rather than by review. 600 independent
+   draws in 12 blocks of 50 report a design effect near 1.8. **Fixed** — `options_stats.effective_n`
+   now scores the design effect against a shuffled null and gates it behind
+   `clustering_measurable`.
+
+3. **`pbo_cscv`'s purge was O(n²) per split** — 70 splits over ~2,500 dates would have added
+   minutes to every autopsy. **Fixed** (bisect), `options_stats.purged_split`.
+
+4. **A mechanism asserted in a docstring this session was wrong in direction.** `pbo_cscv` claimed
+   boundary contamination "biases PBO DOWNWARD"; measured, purging LOWERS PBO by 4–10pp, so the
+   unpurged figure was too HIGH. **Fixed in place**, and no replacement mechanism is claimed. It
+   is recorded because writing a plausible mechanism into a docstring and shipping it *is* the
+   failure mode this project keeps paying for.
+
+5. **`optuniv_run.py` writes its control and results into `data/options_universe/`, overwriting
+   the previous run's artifacts**, with `--state` the only way to preserve a prior trade log. The
+   pre-correction run's `state.pkl`, both control seeds, `UNIVERSE_RESULTS.json` and
+   `AUTOPSY_BROAD_RESULTS.json` had to be copied out by hand before the re-run, or the record's
+   own book would have been destroyed and the A/B in Part 6 would have been impossible.
+   **Not fixed** — the runner should refuse to overwrite a banked result without an explicit flag.
+
+## WHAT WAS NOT DONE, AND WHY — session 5
+
+- **The mid-fill (aggression 0.0) decomposition was NOT re-run.** R2's scope names it. It is a
+  diagnostic, never a headline (bar B5), and the verdict rests on the aggression-1.0 book. The
+  spread toll of −6.59pp recorded in `HANDOFF_universe_backtest.md` §2a is therefore **void along
+  with the rest of that file and has not been replaced.** One command (`--aggression 0.0
+  --universe-from ... --state <new>`), roughly 20 minutes.
+- **The four `compute_signals`-touching autopsy features were not examined individually.** R2
+  names them. The autopsy returns zero survivors overall, so no individual feature changes a
+  verdict, but the audit asked for them specifically.
+- **`n_eff` was not fed into the options Deflated Sharpe on the shipped headline.**
+  `deflated_sharpe_clustered` is computed and shipped alongside, but `deflated_sharpe` remains
+  the raw-n figure so every historical number stays comparable. Deliberate; flagged here so it is
+  not mistaken for an oversight.
+- **The seed instability was closed for the CONTROL only.** Every other bootstrap in the options
+  lane still runs at a single seed. Whether any of them is similarly seed-sensitive is unmeasured.

@@ -1250,6 +1250,217 @@ def test_unreadable_insider_scores_none_not_fifty():
     assert d["score"] is None, "an unreadable filing must not become a confident 50"
 
 
+def test_publication_band_has_exactly_one_definition():
+    """CONSOLIDATE-1's durable half: make copy six fail on the day it is written.
+
+    Four sessions in a row found "a new bug" that was the same decision implemented once
+    more — the valuation page refusing at 5x, the growth lens capping at 20x, the multiples
+    lens capping at nothing, `pipeline.py` and `scoring.py` each restating `ratio > 5 or
+    ratio < 0.2` as literals, and `screen.py` erasing the refusal entirely. Nothing had
+    regressed; there were simply five copies.
+
+    So: exactly ONE module may define the band, and no other file in engine/ or screener/
+    may restate it as a literal. A new surface that invents its own bar fails here.
+    """
+    import re, pathlib
+    root = pathlib.Path(__file__).resolve().parent.parent
+    owner = root / "valuation" / "engine" / "publication.py"
+    assert owner.exists(), "the single owner of the publication decision is missing"
+
+    # The surfaces that answer "may this fair value be published?" — the engine and the
+    # screener. Other lanes (web, report) import the constant and are checked separately;
+    # `intraday` and `edge` have their own unrelated `ratio` variables.
+    scope = sorted(list((root / "valuation" / "engine").rglob("*.py"))
+                   + list((root / "valuation" / "screener").rglob("*.py")))
+    definers, restaters = [], []
+    for path in scope:
+        rel = path.relative_to(root).as_posix()
+        src = path.read_text(encoding="utf-8", errors="replace")
+        # strip comments AND docstrings — prose that quotes the old literals is not a copy
+        src = re.sub(r'"""[\s\S]*?"""', "", src)
+        body = "\n".join(l for l in src.splitlines() if not l.lstrip().startswith("#"))
+        # a DEFINITION assigns the band a numeric literal
+        if re.search(r"^\s*FV_BAND_(HIGH|LOW)\s*=\s*[0-9]", body, re.M):
+            definers.append(rel)
+        # a RESTATEMENT compares a price ratio against a bare number
+        if re.search(r"ratio\s*[<>]=?\s*(?!FV_BAND)[0-9]", body):
+            restaters.append(rel)
+
+    assert definers == ["valuation/engine/publication.py"], (
+        f"the band must be defined in exactly one place, found: {definers}")
+    assert not restaters, (
+        f"these files compare a price ratio against a literal instead of importing "
+        f"FV_BAND_HIGH/FV_BAND_LOW: {restaters}")
+
+
+def test_every_publication_site_resolves_to_the_same_constant():
+    """The other half: every surface that decides must resolve to the one object."""
+    from valuation.engine.publication import FV_BAND_HIGH, decide
+    from valuation.engine import pipeline
+    from valuation.screener import fairvalue as FV
+
+    assert pipeline.FV_BAND_HIGH is FV_BAND_HIGH
+    assert FV.MAX_LENS_VALUE is FV_BAND_HIGH
+    from valuation.engine import scoring
+    assert scoring.FV_BAND_HIGH is FV_BAND_HIGH
+
+    # the web lane is another lane's code, but it must still read OUR constant
+    from valuation.web import withhold
+    assert withhold._band() == float(FV_BAND_HIGH)
+
+    # and the boundary is exactly where it was: == publishes, > refuses
+    assert decide(100.0 * FV_BAND_HIGH, 100.0).publish is True
+    assert decide(100.0 * FV_BAND_HIGH + 0.01, 100.0).publish is False
+
+
+def test_a_refused_row_is_not_re_estimated_from_peers():
+    """The one-line half, and the leak that put KSPI, STLA and CHTR on the public hot list.
+
+    `_enrich_with_dcf` wrote `fair_value = None` on a refusal and recorded nothing, so
+    `estimate_fair_values` read that None as "no DCF computed yet" and substituted a peer
+    estimate. A recorded refusal must survive the estimator untouched."""
+    from valuation.screener.fairvalue import estimate_fair_values
+    from valuation.engine.publication import ROW_WITHHELD, ROW_WITHHELD_REASON, record_refusal
+
+    peers = [{"ticker": f"P{i}", "sector": "Tech", "price": 100.0, "market_cap": 1e9,
+              "extra": {"earnings_yield": 0.05, "net_debt": 0.0}} for i in range(6)]
+    refused = {"ticker": "KSPI", "sector": "Tech", "price": 92.19, "market_cap": 1e9,
+               "extra": {"earnings_yield": 0.30, "net_debt": 0.0}}
+    record_refusal(refused, "Cannot value this name: the model's $1,248.48 is 13.6x the price.")
+
+    estimate_fair_values([refused] + peers, peer_rows=[refused] + peers)
+    assert refused["fair_value"] is None, (
+        f"a refused row was re-estimated to {refused['fair_value']} — the refusal was erased")
+    assert refused[ROW_WITHHELD] is True
+    assert refused[ROW_WITHHELD_REASON]
+    # ...while an ordinary row still gets its estimate
+    assert any(p.get("fair_value") is not None for p in peers)
+
+
+def test_net_debt_is_unit_stamped_like_market_cap():
+    """`net_debt` was missing from providers._ABSOLUTE_USD, so it alone came out in the
+    provider's native millions while market_cap / ev / total_debt beside it were scaled to
+    dollars. fairvalue.py then computed `ev = market_cap + net_debt` as dollars + millions,
+    making the net-debt term ~1e-6 of its true size. CHTR's real net debt / market cap is
+    4.68; the lens saw 96,644 against 20.6 billion."""
+    from valuation.data.models import CompanyData
+    from valuation.screener.providers import company_to_metrics, _ABSOLUTE_USD
+    assert "net_debt" in _ABSOLUTE_USD
+    cd = CompanyData(ticker="LEV", currency="USD", price=100.0, shares_diluted=100.0,
+                     market_cap=10_000.0, total_debt=50_000.0, cash_sti=0.0,
+                     revenue=20_000.0, ebit=3_000.0, da=1_000.0)
+    m = company_to_metrics(cd)
+    # ev is mc + nd; all three must live on the same scale or the bridge is meaningless
+    assert abs(m["ev"] - (m["market_cap"] + m["net_debt"])) < 1.0, (
+        m["ev"], m["market_cap"], m["net_debt"])
+    assert m["net_debt"] / m["market_cap"] == pytest_approx(5.0), m["net_debt"] / m["market_cap"]
+
+
+def pytest_approx(x, tol=1e-6):
+    class _A:
+        def __eq__(self, other): return abs(other - x) < tol
+        def __repr__(self): return f"~{x}"
+    return _A()
+
+
+def test_multiples_lens_refuses_above_five_times_price():
+    """The EV bridge reduces to `implied/price = r + (nd/mc)*(r-1)`, so at the 3x re-rate
+    cap a name with 4.68x leverage has a CEILING of 12.4x price. MAX_GROWTH_VALUE was
+    checked inside _growth_value only — the multiples branch had no absolute cap at all,
+    and this lens feeds the PUBLIC /api/hotstocks. One bar now, 5x, matching the valuation
+    page's FV_BAND_HIGH."""
+    from valuation.screener import fairvalue as FV
+    from valuation.engine.publication import FV_BAND_HIGH
+    # CONSOLIDATE-1: the lens no longer owns a bar. MAX_GROWTH_VALUE (the dead 20x) is gone
+    # and MAX_LENS_VALUE is an alias for the one constant, not a second definition.
+    assert FV.MAX_LENS_VALUE is FV_BAND_HIGH
+    assert not hasattr(FV, "MAX_GROWTH_VALUE"), "the dead 20x bar must not come back"
+
+    # a heavily levered name whose EV multiple is 3x cheaper than its peers
+    row = {"ticker": "LEV", "sector": "Utilities", "price": 10.0, "market_cap": 1_000.0,
+           "extra": {"ev_sales": 0.5, "net_debt": 4_000.0}}
+    peers = [{"ticker": f"P{i}", "sector": "Utilities", "price": 10.0,
+              "market_cap": 1_000.0, "extra": {"ev_sales": 3.0, "net_debt": 0.0}}
+             for i in range(6)]
+    meds = FV.peer_medians([row] + peers)
+    got = FV._mature_value(row, meds, 10.0)
+    assert got is None, f"published {got} on a $10.00 price — must refuse above 5x"
+
+    # and an ordinary name is untouched
+    ok = {"ticker": "ORD", "sector": "Utilities", "price": 10.0, "market_cap": 1_000.0,
+          "extra": {"ev_sales": 2.5, "net_debt": 0.0}}
+    v = FV._mature_value(ok, FV.peer_medians([ok] + peers), 10.0)
+    assert v is not None and v <= 50.0
+
+
+def _growth_frames():
+    """The two frames yfinance actually returns, with GILD's real 2026-08-05 values."""
+    import pandas as pd
+    ge = pd.DataFrame({"stockTrend": [-0.1214, 0.1963, -1.0838, 15.0829],
+                       "indexTrend": [0.4471, 0.2290, 0.2919, 0.1438]},
+                      index=["0q", "+1q", "0y", "+1y"])
+    rev = pd.DataFrame({"avg": [1, 2, 3, 32296850630], "growth": [0.0102, 0.0233, 0.0289, 0.0615],
+                        "currency": ["USD"] * 4},
+                       index=["0q", "+1q", "0y", "+1y"])
+    return ge, rev
+
+
+def test_analyst_revenue_growth_reads_the_revenue_series_not_earnings():
+    """THE bug. `growth_estimates.loc["+1y"].iloc[0]` takes `stockTrend` — EARNINGS growth —
+    which off a negative base reads 15.0829 for GILD. Measured across 241 names: the
+    positional read differed from a real revenue figure by >1pp on 202 of 239, and 194 of
+    those sat INSIDE the [-0.30, 1.00] band the engine rejects on, so they were silently
+    wrong. The revenue-estimate frame's NAMED `growth` column is the right source (0.0615)."""
+    from valuation.data.yahoo import _analyst_revenue_growth
+    ge, rev = _growth_frames()
+
+    class _T:
+        growth_estimates = ge
+        revenue_estimate = rev
+
+    got = _analyst_revenue_growth(_T(), {"revenueGrowth": 0.044})
+    assert abs(got - 0.0615) < 1e-9, f"got {got} — must read the revenue series, not stockTrend"
+    assert got != 15.0829 and abs(got - 1.0) > 1e-9, "and must not be the clamped earnings value"
+
+
+def test_analyst_revenue_growth_rejects_out_of_band_at_the_source():
+    """Defence-in-depth: the engine rejects out-of-band values too, but the source must not
+    hand them on. `info["revenueGrowth"]` is not clean either — COF reads 11.11."""
+    from valuation.data.yahoo import _analyst_revenue_growth
+    _, rev = _growth_frames()
+    rev = rev.copy()
+    rev.loc["+1y", "growth"] = 11.11
+
+    class _T:
+        growth_estimates = None
+        revenue_estimate = rev
+
+    assert _analyst_revenue_growth(_T(), {"revenueGrowth": 11.11}) is None, \
+        "an 1111% revenue growth must be refused, not passed on"
+
+    class _NoFrames:
+        growth_estimates = None
+        revenue_estimate = None
+
+    assert _analyst_revenue_growth(_NoFrames(), {"revenueGrowth": 0.044}) == 0.044
+    assert _analyst_revenue_growth(_NoFrames(), {"revenueGrowth": -0.9}) is None
+
+
+def test_analyst_revenue_growth_survives_a_frame_without_the_stock_column():
+    """BRK.B's growth_estimates frame has ONLY an `indexTrend` column, so the positional
+    read was taking the S&P 500's growth estimate as Berkshire's revenue growth. Selecting
+    by name must simply not find a revenue series and fall back."""
+    import pandas as pd
+    from valuation.data.yahoo import _analyst_revenue_growth
+    ge = pd.DataFrame({"indexTrend": [0.4471, 0.1438]}, index=["0q", "+1y"])
+
+    class _T:
+        growth_estimates = ge
+        revenue_estimate = None
+
+    assert _analyst_revenue_growth(_T(), {"revenueGrowth": 0.051}) == 0.051
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

@@ -66,7 +66,18 @@ GROWTH_DISCOUNT_MATURE = 0.09
 GROWTH_HORIZON_YEARS = 10        # full horizon for a zero-maturity name
 GROWTH_TERMINAL = 0.03           # growth fades to roughly nominal GDP
 GROWTH_START_CAP = 0.60          # nobody compounds faster than this in a forecast
-MAX_GROWTH_VALUE = 20.0          # sanity: never publish >20x the current price
+
+# ONE bar for one claim, and it is not defined here. `engine/publication.py` owns it
+# (CONSOLIDATE-1); this lens imports the decision rather than restating the threshold.
+#
+# History, so nobody re-adds a local cap: the growth branch capped at 20x, the multiples
+# branch capped at nothing, and the valuation page refused at 5x — three bars for the same
+# claim, on a PUBLIC endpoint. 20x was never a bar: measured on a 241-name universe the
+# growth lens tops out at 5.44x and the multiples lens at 4.59x, so it was decoration that
+# read like protection, which is worse than no guard.
+from ..engine.publication import FV_BAND_HIGH, decide as decide_publication
+
+MAX_LENS_VALUE = FV_BAND_HIGH    # alias for readers of this module; NOT a second definition
 
 
 def _num(v):
@@ -164,7 +175,15 @@ def _mature_value(row, meds, price):
             if equity > 0:
                 implied.append(price * equity / mc)
 
-    return median(implied) if implied else None
+    if not implied:
+        return None
+    out = median(implied)
+    # The bridge reduces to `implied/price = r + (nd/mc)*(r - 1)`, so at the 3x re-rate cap
+    # a name with 4.68x leverage (CHTR) has a CEILING of 12.4x price. The arithmetic is
+    # right — equity is a residual claim and leverage amplifies it — but a uniform 3x
+    # enterprise re-rate is not a defensible assumption for a name that trades cheap on an
+    # enterprise multiple BECAUSE it is levered. Nothing bounded the per-share answer.
+    return out if decide_publication(out, price).publish else None
 
 
 def _growth_value(row, price):
@@ -219,7 +238,7 @@ def _growth_value(row, price):
     if equity <= 0:
         return None, maturity
     value = price * equity / mc
-    if value > price * MAX_GROWTH_VALUE:
+    if not decide_publication(value, price).publish:
         return None, maturity                  # implausible; say nothing rather than shout
     return value, maturity
 
@@ -236,11 +255,20 @@ def estimate_fair_values(rows, peer_rows=None) -> int:
     "blended" for which lens carried them, with `fair_value_confidence` marking the
     growth-led ones low.
     """
+    from ..engine.publication import ROW_WITHHELD
+
     meds = peer_medians(peer_rows if peer_rows is not None else rows)
     n = 0
     for r in rows:
         if r.get("fair_value") is not None:
             r.setdefault("fair_value_method", "dcf")
+            continue
+        # A REFUSAL is not a gap. Without this, a row the publication guard declined comes
+        # in with fair_value=None, reads as "no DCF yet", and gets a peer estimate — which
+        # is exactly how a name the valuation page refuses ended up on the public hot list
+        # with a number. `_enrich_with_dcf` records the refusal; this honours it.
+        if r.get(ROW_WITHHELD):
+            r.setdefault("fair_value_method", "withheld")
             continue
         price = _price(r)
         if price is None:

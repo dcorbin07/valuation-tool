@@ -4,16 +4,16 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-04 (external edge audit, session 2)
+**Session date:** 2026-08-05 (external edge audit, session 5 — R2, R3, R7, O20)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
-> **FIRST: `RUN_RULES.md` is now in the repo root and CLAUDE.md points every session at it.
-> Read it before starting work. It is non-negotiable for all agents — pushing, handoffs, bug
-> reporting, pre-committed thresholds, never silencing a check.**
+> **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
+> Read it before starting work. Non-negotiable for all agents.**
 
-> **Scope:** newest sections first — audit session 2 (this one), then R1, then audit session 1,
-> then deep research #2, then the EV staleness fix, then PEAD, then options 22b, then P9b/P10,
-> then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`; per-finding status in `CODE_AUDIT.md`.
+> **Scope:** newest sections first — audit session 5 (this one), then session 4, then session 3, then session 2,
+> then R1's original run, then session 1, then deep research #2, then the EV staleness fix, then
+> PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
+> per-finding status in `CODE_AUDIT.md`.
 
 ---
 
@@ -49,6 +49,342 @@ tradeable names that listed later (CRWV, SNDK, VG, FER, CBRS, HONA, MDLN, SUNB) 
 what let it hide. Both fixed; `no_data_in_range` is now its own status.
 
 ---
+
+## D: BACKUP REBUILT — AND THE DRIVE NEEDS ONE ELEVATED COMMAND (2026-08-06, r1 lane)
+
+Full write-up in `HANDOFF_backup.md`. Housekeeping lane, nothing under `valuation/**` touched.
+
+**ACTION REQUIRED FROM DON — this is the only blocker.** The backup drive is now physically
+write-protected: it is FAT32, it was filled twice, and Windows has flagged it
+`OperationalStatus: Full Repair Needed`, dirty, `IsReadOnly: True`. Repairing it needs an
+administrator prompt, which this session does not have. Run as administrator:
+
+```
+diskpart -> list disk -> select disk 1 (CONFIRM it is the 116 GB Lexar) ->
+attributes disk clear readonly -> exit
+chkdsk D: /f
+```
+
+Then say so, and the rest is automatic. **Until then there is no working backup of `.env`, the
+freeze, or the paper track** — the copy on D: is from before 02:00 on 2026-08-06 and cannot be
+updated.
+
+**Cause of the disk filling — not what it looked like.** `/XD` is not broken (verified three
+ways, including a controlled robocopy experiment). There were **two** backup scripts on **two**
+schedules writing to the **same** destination with opposite policies: `backup_now.bat`
+(`ValuationToolBackup`, 08:00) used `/E` so it never deleted, excluded only four directories, and
+had no `/XJ` — so it followed the ten worktree `data` junctions and duplicated the whole 62 GB
+`data\` tree, which is the **61.6 GB of `.claude`** on D:. `backup_to_D.bat` then could not clean
+it up, because **`/MIR` does not purge a directory it is excluding** — it never enumerates that
+tree at all.
+
+**Fixed:** policy is now an allowlist (back up what cannot be recreated, not what is large),
+`/XJ` everywhere, a free-space preflight and a writability probe that both abort in plain English
+before copying, a per-run report of what was backed up and what was skipped with reasons, and
+stray detection for directories that leave the allowlist. `backup_now.bat` is now a shim onto the
+same engine so both scheduled tasks run one policy.
+
+**Numbers:** repo 62.72 GB, `data/` 61.89 GB, backup set **38.01 GB** against a 116 GB drive
+(~76 GB headroom). Biggest exclusion is `data\options_derived` at **16.57 GB** — pure arithmetic
+over `data\options`, "ZERO vendor option calls". Biggest inclusions are `data\options` 17.40 GB
+(45–55 h to re-mine) and `data\backtest_freeze_2026-08` 17.37 GB (the crown jewel: re-downloading
+returns restated data). Three irreplaceable items the original brief missed are now backed up:
+`data\archive` (our own past scans), `valquo_track*` (the live forward paper track, written by
+Cowork, by nothing in this repo), and `app.db` (user/Stripe state).
+
+**Before touching D: I verified it was pure redundancy:** 59,081 files compared path by path
+against C: — exactly 2 distinct files existed only on D:, both rescued to
+`data\_from_D_quarantine\`. Nothing on D: was deleted.
+
+**Tests:** `tests/test_backup_to_D.ps1`, **40/40**. Windows/PowerShell, so the Linux CI job does
+not run them — run by hand after touching the backup. Python suites unaffected: 14/14
+factor-alpha, 13/13 fragility, 191/191 edge.
+
+**Watch this:** the miner projects ~199 GB for a full 1,000-name `data\options`. That will not
+fit, and it is the next thing that breaks the backup. Also, D: is FAT32 with a 4 GB per-file
+ceiling and the backup's largest file is already 3.00 GB — if the drive is ever reformatted,
+use exFAT.
+
+---
+
+## AUDIT SESSION 5 — THE OPTIONS ENTRY SIGNAL IS DEAD, AND IT SURVIVED THE CORRECTION (2026-08-05)
+
+Full write-up: **`HANDOFF_edge_audit.md` Part 6**. Pre-commitments and run design pushed in
+`c64a6b1` **before any run started**; R2's and R7's bars were already written in Part 0 and were
+quoted unchanged, not restated in altered form.
+
+**Items completed: R2, R3, R7, O20.** `HANDOFF_universe_backtest.md` is now banner-marked
+**SUPERSEDED — do not quote any number in it.**
+
+### The verdict
+
+The 187-name options study was re-run with the universe **pinned** to the previous run's frozen
+name list, so the B1/B2/B3/B4/B15 corrections were the only variable.
+
+| | pre-correction | **corrected** |
+|---|---|---|
+| real / control expectancy | +5.14% / +13.22% (2 seeds) | **+3.41% / +10.06% (5 seeds)** |
+| gap | −8.08pp | **−6.65pp** |
+| date-block CI95 on the gap | never computed | **[−11.92pp, −2.13pp]** |
+| paired sign-test z | −5.185 | **−4.903 (p < 1e−5)** |
+| paired *t* | −2.183 | −1.227 (p 0.220), not significant |
+
+**The gap moved 0.61pp.** Five defects repaired, every level moved, the conclusion did not. Per
+the pre-committed rule, the condition for "the entry signal is dead" is met. **The live options
+alert must not be described as a day-selection edge — it is an alert-generation mechanism.**
+
+### What DID change, and it is large
+
+- **The breadth claim is VOID.** The 133 new names are now **−0.47%/trade (PF 0.988)**, against
+  +3.90% before. All of the book's positive expectancy is the original 54 megacaps (+9.37%). The
+  edge does **not** survive breadth; a corrupted price basis made it look broader.
+- **B1's signature:** trades rose 3,042 → 3,885 because `no_contract_in_band` rejects fell
+  2,911 → 1,729 — an adjusted spot against as-traded strikes was throwing the moneyness
+  prefilter and silently discarding 1,182 alerts. **Median entry IV 1.4200 → 0.2497** at 100%
+  coverage (was 75.3%). The 1.28–1.57 median that §8 of the old handoff recorded as an
+  unexplained anomaly *was* the bug.
+- **Deflated Sharpe fell below 95% on both books:** unfiltered 88.13% → 49.59%,
+  term_slope-filtered 95.69% → 80.63%. Autopsy re-confirms: 64 features, 127 hypotheses, **zero
+  survivors**.
+
+### A SINGLE CONTROL SEED CAN FLIP THIS VERDICT — measured, then closed
+
+The control's own mean ranges **+6.46% to +15.34%** across five draws. Seed 0 alone reads
+INCONCLUSIVE and is the most favourable of the five. So the control was run at **five seeds**
+rather than the record's two:
+
+**All five point estimates are negative; four of five are negative at significance.** Pooled over
+29,785 control trades the sign test is **z −4.903 (p < 1e−5)**, essentially the record's own
+−5.24, reached on corrected data under clustered inference. **More control draws SHARPEN the
+test** (2-seed z −2.907 → 5-seed −4.903) because each name-year cell's control mean averages more
+draws. The paired *t* ranges +0.162 to −1.835 and is never significant even pooled — it is the
+wrong statistic here. **Standing rule: five seeds minimum, and the sign test carries the
+verdict.**
+
+### R7 — the floor passes and the filter fails anyway
+
+`term_slope`'s +8.89pp out-of-sample replication was an artefact. Corrected, the filter makes its
+own out-of-sample book **worse**: gain **−1.12pp** against the +5.00pp bar, and it is no longer
+tail-enriching. It **passes** the re-committed floor (G3a 95.6 alerts/yr, G3b 96.2% of names and
+98.2% of months, G3c 35.9%), so the old 40% constant *was* rejecting a genuinely broad filter —
+but the rejection now rests on economics rather than on an underived number. **REJECTED.**
+
+### R3 — clustered inference, and a trap avoided
+
+`valuation/edge/options_stats.py` adds the date-block bootstrap, `n_eff`, the paired sign test and
+paired *t*, purge/embargo for CSCV, and the DSR at `n_eff`. **Measured clustering factor 1.85 —
+below the audit's predicted 2–4** — so every options *t* shrinks ~1.36× and **no verdict changes.**
+
+The paired sign test and paired *t* the whole options conclusion rested on **existed in no shipped
+file**. They now reproduce the record exactly (441 of 1,052 cells, z −5.185 vs the recorded
+−5.24), pinned by a test.
+
+**A raw design effect is not evidence of clustering** — found by a failing test: 600 independent
+draws in 12 blocks of 50 report a design effect near 1.8, pure sampling error. It is now scored
+against its own shuffled null (the X7 method); the real book passes clearly (1.848 vs p95 1.266).
+**Never quote a design effect without its null.**
+
+### O20 — the audit expected the headline to fall; it rose
+
+PIT-liquid 3,359 trades at **+4.82%** vs PIT-illiquid 495 at **−7.84%**, coverage 99.2%. **It does
+not rescue the signal**: the control is screened by the same rule and benefits too, so on the
+liquid subset the real book loses to random entry *more* decisively (z −3.475, p 0.0005). The
+headline stays the whole book at aggression 1.0.
+
+The audit's premise is half wrong: names were ranked into the mining pool by **today's market
+cap** (true), but the liquidity screen was already applied to the **first cached year**, not to a
+present-day chain. So O20 is an **upper bound** on the repair — names that would have failed in
+2016 were never mined.
+
+**THE PATTERN:** third time in two sessions (R10, then O20) that a bias assumed to run in the
+strategy's favour ran the other way. **This project's expectations about the direction of its own
+biases have been wrong more often than right. Measure them.**
+
+### Open, in priority order
+
+1. ~~X7's placebo at the true N = 84~~ **DONE — the row is CONFIRMED and the PROVISIONAL
+   marking is LIFTED.** Re-run at N=84 on the identical panel and seeds: **0 of 100 noise draws
+   clear 0.95** (was 2 at N=8) and the calibrated bar falls 0.8567 → **0.7216**. The edge's
+   0.8997 fails the >0.95 convention **and exceeds all 100 placebo draws** (max 0.8649) — at the
+   honest N that convention is stricter than the noise floor requires. Every other rate in X7's
+   table is identical across the two sweeps. Free side effect: CPCV adopts on **27% → 21%** of
+   noise draws. Full entry: `HANDOFF_edge_audit.md` Part 6.
+2. **Find the run-to-run non-reproducibility.** `insider` median IC still varies across
+   identical-data runs.
+3. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect.
+4. **X8** — the international replication. Still the only out-of-sample evidence available.
+5. Remaining audit sessions: U7/X3, U2/U1/U6, O1 onward, B23.
+
+---
+
+## AUDIT SESSION 4 — THE WORD "ALPHA" SURVIVES; THE DEFLATED SHARPE DOES NOT (2026-08-05)
+
+Full write-up: **`HANDOFF_edge_audit.md` Part 5**. Pre-commitments pushed in `4f41c9f` **before
+any run started**; R1's own pre-commitment (`HANDOFF_r1.md` section 1) was honoured **unchanged**.
+
+**Items completed: R1 (re-run), R9, R10, M1.** All four ship in `BACKTEST_RESULTS.json`.
+
+### The headline, as it now stands
+
+| quantity | value | notes |
+|---|---|---|
+| top-decile alpha | **+7.17%** | now with **t 4.517 / HAC t 4.376**, hit rate 71% (R9) |
+| long-short t | **2.620 (HAC)** | naive 2.836; Ljung–Box p=0.036 rejects independence (R9) |
+| FF5+MOM alpha | **+6.99%/yr, NW t 3.984** | range +5.1% to +10.9% across six specs (R1) |
+| excess vs SPY | **+9.99%/yr, HAC t 3.770** | the investable benchmark (R10) |
+| Deflated Sharpe | **0.8997 at N=84** | **FAILS the >0.95 bar** (M1) |
+| PBO | 73.3% | uninformative — its bar sits at the noise level (session 3) |
+
+### R1 — CLEARED AGAIN, at a lower level and with a REVERSED mechanism
+
+The pre-registered threshold ("alpha" only if the FF5+MOM intercept is positive with NW t > 2.0)
+is met by **all six** specs — compound/sum × full/first half/second half, spanning **+5.08% to
++10.85%**. No disagreement, so the NULL veto does not trigger. **CLAIM A applies; the word
+"alpha" is permitted, as a range.**
+
+**The old +8.81%/yr and the +6.6%–8.8% range are VOID and must not be quoted.**
+
+**The mechanism reversed on two of three legs and this is the part to re-read.** Now loading:
+**HML (t +2.93)** and **UMD (t +3.65)**. NOT loading: **SMB (t +1.39)** and **RMW (t +0.90)** —
+both loaded strongly before (t 3.84, t 4.49). The old story "`size`, `quality`, `momentum` ARE
+the standard premia" is backwards on size and profitability; the book now carries a real VALUE
+tilt, and the size/profitability exposures that dominated the old story were largely an artefact
+of the window B6 removed. R² fell 0.465 → 0.308.
+
+**Caveat that must travel:** the secondary q-factor model does NOT clear on the first half
+(q4 t 1.712, q5 t 0.702) though it clears on the full sample and second half.
+
+### M1 — the last bar the project claimed to clear now fails
+
+Trial counts measured from the populated `RESEARCH_LOG.md`: **equity 84, options 133, infra 1,
+total 218** (audit estimated ~146; 15 `FIXED` correctness rows correctly do not count).
+
+With `N = 84` instead of 8: **Deflated Sharpe 0.9970 → 0.8997**, `sr0` 0.242 → 0.406,
+`_trials_haircut` 2.04 → **2.977** (within 0.03 of the Harvey–Liu–Zhu hurdle of 3.0, as the audit
+predicted). **Pre-committed consequence fires: the edge does NOT clear the Deflated Sharpe bar.**
+
+**Audit B9 is resolved by measurement, not argument.** It argued the statistic was an undeflated
+PSR because `sr0` collapsed. With a real N it does not — the statistic self-reports as a genuine
+`deflated_sharpe_ratio` for the first time. The price of fixing it is failing the bar.
+
+`N` is **domain-scoped** (equity charged 84, not 218 — the options autopsy is a different search
+for a different product). A missing log degrades to `N = 8`, the OLD behaviour, never to zero
+penalty.
+
+### R9 — the product's headline number finally has a significance statistic
+
+`top_decile_alpha` shipped with none at all. Now **t 4.517, HAC t 4.376, 71% hit rate**. The
+long-short gains **HAC t 2.620** and Ljung–Box. **Ljung–Box rejects at p = 0.036**, so the NW t is
+now the number quoted and the naive 2.836 is a diagnostic. The long-ONLY object is far better
+measured than the long-short the project has always led with.
+
+### R10 — the expectation was wrong in the strategy's favour
+
+Both the audit and this session's pre-commitment predicted the uninvestable equal-weight benchmark
+was flattering the product. **It is the hardest of the four.** The equal-weighted panel returned
++18.14%/yr against SPY's +15.32% over 2009-2026, so excess vs SPY is **+9.99%**, higher than the
++7.17% published. **Keep publishing +7.17%** — most conservative, and comparable with history.
+
+### Open, in priority order
+
+1. **Re-run X7's placebo at the true N.** Pre-committed in Part 5 and NOT optional: X7's
+   "Deflated Sharpe survives calibration" was measured with N=8 on both sides. The absolute claim
+   is already dead; the relative comparison is untested. ~3 hours.
+2. **Find the run-to-run non-reproducibility.** `insider` median IC still varies across
+   identical-data runs. The headline path is deterministic; the per-theme path is not.
+3. **R2** — the options re-run. B1/B2/B3/B4/B15 fixed and unmeasured.
+3. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect.
+4. **X8** — the international replication. This is the only out-of-sample evidence available;
+   R1 is a control, not new data, and the project has still only ever seen one panel.
+6. Remaining audit sessions: R3/R7, U7/X3, U2/U1/U6, O1 onward, and B23.
+
+---
+
+
+## AUDIT SESSION 3 — EVERY THRESHOLD IN THE PROJECT IS NOW CALIBRATED (2026-08-05)
+
+Full write-up: **`HANDOFF_edge_audit.md` Part 4** (X7 and X2 entries + BUGS FOUND + what was
+not done). Pre-commitments were written and pushed in `1276e4b` **before any run started**.
+
+**Items completed: X7** (placebo through the full pipeline, N = 100) and **X2** (rebalance-grid
+offset, 7 full-universe runs). **199 tests green** across the edge suite.
+
+### The four calibrated numbers — use these, not the old conventions
+
+| bar | as used | calibrated | pure noise clears the OLD bar |
+|---|---|---|---|
+| theme IC t | 2.0 | **2.71** | **39%** of draws |
+| long-short t | 2.0 | **2.14** | 8% |
+| top-decile alpha margin | 1.0pp | **1.95pp** | 18% |
+| PBO | < 50% | **< 19.7%** | **55%** |
+| Deflated Sharpe | > 0.95 | **stands** | 2% |
+| held-out gate | — | **6% false-positive rate** | — |
+
+Floors for THIS panel / universe / 69 dates. Not universal constants.
+
+### Two shipped claims were WRONG and are corrected in CLAUDE.md
+
+1. **"Long-short t 2.836 is below the Harvey–Liu–Zhu hurdle of 3.0" — a GRID ARTEFACT.** The
+   rebalance grid always started at a hard-coded TD = 252; 62 other equally valid grids existed
+   and none had ever been run. Across offsets 0/5/10/20/30/40/50 (all 69 dates, identical
+   window): **t ranges 2.703 → 3.517, median 2.926, and clears 3.0 on three of seven.** Quote
+   **"t 2.7–3.5 depending on grid, straddling the hurdle"** — never one side of 3.0 as a fact.
+2. **"PBO 73.3% fails the < 50% bar" — the BAR is meaningless.** The placebo's MEDIAN PBO on a
+   definitionally worthless signal is **46.7%**, so "< 50%" sits at the noise level. PBO is
+   uninformative here in either direction. (It is, separately, above 50% on 7 of 7 grids, so
+   Session 2's blow-out is a real property of the corrected panel — it just is not evidence.)
+
+### What the headline IS entitled to claim
+
+- **Top-decile alpha is the one headline that passed its robustness test outright:** spread
+  across seven grids only **1.30pp** — median **+7.52%**, range **+6.84% to +8.14%** — against
+  a placebo null of [−1.33pp, +2.38pp]. The equal-weight benchmark moved 2.08pp across the same
+  grids, MORE than the alpha, which is what makes the stability credible rather than lucky.
+- The real result is outside the placebo's [2.5, 97.5] interval on alpha (clearly), Deflated
+  Sharpe, monotonicity, max theme IC t (narrowly) and long-short t (narrowly) — and **inside it
+  on PBO**. On one grid of seven (offset 50, t 2.703) the long-short t is below the placebo's
+  own p97.5 of 2.729.
+- **The Deflated Sharpe SURVIVED calibration** (noise median 0.28, ≥ 0.95 in 2% of draws). That
+  is a measured partial defence of the statistic item B9 attacked; B9's surviving criticism was
+  the trial denominator, which this does not touch.
+
+### The finding that most affects future runs
+
+**On pure noise, CPCV adopting a weight scheme inflates the measured long-short t by ~+1.4.**
+Draws where CPCV did not adopt (73): mean t **−0.065** (se 0.119), a textbook null. Draws where
+it did (27): mean t **+1.343** (se 0.184), mean alpha +0.82pp. It fires on **27%** of noise
+draws. Mechanism: adopted weights are chosen on the same panel the headline is measured on.
+**The shipped strategy is unaffected — it does not adopt** — which is measured support for the
+existing "CPCV rejects → keep defaults" rule. Post-hoc, not pre-registered; wants replication.
+
+### Reproducibility
+
+The offset-0 grid reproduced the Session-2 shipped numbers **to every digit** (t 2.8360640685,
+alpha 0.0717414233, PBO 0.7333333, n 69). Given the project's known run-to-run
+non-reproducibility this was not a formality — it is the first clean reproducibility PASS on the
+corrected panel. It does **not** resolve the `insider` per-theme non-determinism.
+
+### No shipped decision changed
+
+`low_risk` stays zeroed, `insider` stays at 0.125, weights stay at defaults. What changed is the
+size of the claims the record is entitled to make.
+
+### Open, in priority order
+
+1. **Re-run R1 on the corrected panel** — still the top task. It now has a partial floor: the
+   raw alpha it decomposes is far outside the placebo null, so R1 is decomposing something real.
+   X7 does **not** calibrate R1's own FF5+MOM intercept; if the re-run lands near its threshold,
+   push the placebo series through `scripts.factor_alpha` first.
+2. **Find the run-to-run non-reproducibility.** Three runs on identical data gave `insider`
+   median IC −0.00335 / +0.01551 / −0.00339. The headline path is now shown deterministic; the
+   per-theme path is not.
+3. **R2** — the options re-run. B1/B2/B3/B4/B15 all fixed and unmeasured.
+3. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect,
+   still open, still urgent.
+5. **B23** (speed) and the remaining audit sessions: R3/R7, U7/X3, U2/U1/U6, O1 onward.
+
+---
+
 
 ## AUDIT SESSION 2 — THE HEADLINE FELL, AND B6 IS THE WHOLE REASON (2026-08-04)
 
@@ -161,7 +497,7 @@ level — but every number in it is provisional.
    is trustworthy, and the project's memory is its results files.
 3. **R2** — the options re-run. B1/B2/B3/B4/B15 are all fixed and unmeasured; no absolute
    options number in the record is citable until it lands.
-4. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect,
+3. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect,
    still open, still urgent.
 5. **B23** (speed) and the remaining audit sessions: X7/X2 noise floor, then R3/R7, U7/X3,
    U2/U1/U6, O1 onward.
@@ -228,6 +564,37 @@ pass says there is a residual worth understanding. Recommended next: **(1) attri
 now that the machinery exists; converts inferred mechanism into measured); **(2) M1, the trial
 ledger** — now the largest unquantified threat to the headline; **(3) the forward paper-track
 vs SPY remains the top overall priority (Cowork's lane)** — R1 adds no out-of-sample evidence.
+
+**FRAGILITY (Part II, same lane, same day) — it SURVIVED a deliberate attempt to break it, on
+all four criteria committed before any cut ran. But two things must travel with the number:**
+
+- **It is WINDOW-DEPENDENT.** Stable-universe window (>=2008, the closest available preview of
+  what B6 will do): **alpha +6.24%, t +3.986, n 73 — DOWN 2.57pp, ~29% of the alpha.** The
+  discarded early period is where the raw spread is biggest (first third raw +21.89%/yr vs
+  +3.53% and +11.02%) — the inverted-universe signature. **Expect the post-B6 headline near
+  +6%. Quote ~+6% when a single number is wanted.**
+- **There is a WEAK DECADE.** A ~10-year rolling window centred on **2009-2019 shows alpha of
+  only +1.66% (t 1.39)**. Alpha is positive in **70 of 70** rolling windows and never reverses
+  sign, but 8 of 70 are not significant. The full-sample t 5.742 averages that decade in with
+  much stronger ones.
+
+The other cuts: no sign flip (halves +8.98%/+5.48%; thirds +13.51/**+4.33 t 2.412, weakest cell
+in the study**/+8.10, all t>2). **Not concentrated** — best 5 of 109 periods carry 23.0% of the
+alpha (38.0% on the stable window, the closest any criterion came to tripping); dropping the
+best 5 leaves +7.28% (t 5.19), dropping the worst 5 gives +10.07%, nearly symmetric, and the
+best 5 span four regimes. **Not specification-dependent** — CAPM +12.99%, FF3 +12.28%,
+FF5-no-MOM +10.03%, FF5+MOM +8.81%, q4 +9.14%, q5 +8.33%, all t>2 on both windows, and FF5+MOM
+is nearly the most conservative of the six. Windows confirmed **genuinely non-overlapping**
+(every one exactly 63 factor days, zero shared days) so no inference correction is needed.
+
+**BINDING RE-RUN CONTRACT — R1 MUST be re-run after B6 and B7 land.** B6 is expected to lower
+alpha to +5.5-7.0% (t 3.5-4.5); B7's direction is genuinely unknown and the two interact, so do
+not attribute the combined change to either alone. **A post-re-run alpha < +4%/yr or full-sample
+t <= 3.0 is a MATERIAL REVISION requiring the headline to be rewritten rather than annotated; a
+stable-window t <= 2.0 withdraws the word "alpha" entirely and CLAIM B applies.** Re-run is
+cheap: `python -m scripts.etf_benchmark` then `factor_alpha` then `factor_alpha_fragility`.
+Full contract in `HANDOFF_r1.md` sections 6-8. Part II adds
+`scripts/factor_alpha_fragility.py` + `tests/test_factor_alpha_fragility.py` (13/13).
 
 New files only, panel untouched (Session 2 owns B6/B7): `scripts/factor_alpha.py`,
 `tests/test_factor_alpha.py` (14/14), `HANDOFF_r1.md`, and output

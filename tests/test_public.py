@@ -202,6 +202,48 @@ def test_the_owner_dashboard_keeps_them():
         _restore(orig)
 
 
+def test_the_index_stays_owner_only_and_says_why_on_its_own_face():
+    """The Valquo Index tab — holdings plus a cumulative-vs-S&P chart — was re-examined in
+    Session 13 and DELIBERATELY left owner-only. Two independent reasons, either sufficient:
+
+      1. it publishes names WITH WEIGHTS as of today, which is an allocation rather than an
+         analysis — the exact line the split is drawn on; and
+      2. the card above the holdings is a cumulative-return chart against the S&P, which is a
+         performance-claim SHAPE whatever caption sits under it, and the public posture is
+         "no performance claims in public".
+
+    The middle option (publish the curve, withhold the holdings) was considered and rejected:
+    it fails (2) on its own, so it gives up the clarity of one rule and buys nothing.
+
+    The second half of this test is the one that matters if the decision is ever reversed:
+    even for the owner, the surface must call itself a MODEL PORTFOLIO on its own face — not
+    only in the terms — because a screenshot travels without the terms.
+    """
+    assert surfaces.is_owner_only("/api/valquo-index")
+    assert surfaces.is_owner_only("/api/index-track")
+    orig = _as_owner()
+    try:
+        with APP.test_client() as c:
+            html = c.get("/app").get_data(as_text=True)
+    finally:
+        _restore(orig)
+    # collapse whitespace: the copy is wrapped in the template, and re-flowing legal-ish
+    # wording to satisfy a substring match is the wrong way round
+    low = re.sub(r"\s+", " ", html.lower())
+    assert "model portfolio" in low, "the Index never calls itself a model portfolio"
+    assert "not a traded account" in low
+    assert "no money is invested" in low or "no capital" in low
+    assert "the book you would actually hold" not in low, \
+        "that copy reads as an allocation the reader should hold"
+    # the chart's own caption has to carry it too — a chart is what gets screenshotted
+    js = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                           "valuation", "web", "static", "app.js"), encoding="utf-8").read()
+    i = js.index("function indexChart(")
+    cap = js[i:js.index("\n}", js.index("STATE.charts.idx", i))]
+    assert "MODEL portfolio" in cap and "not fills" in cap, \
+        "the cumulative chart's caption does not say what it is"
+
+
 def test_the_public_landing_carries_no_forward_track():
     """The landing is the most public surface there is, and the forward track is a sandbox
     paper account. It is not computed for a visitor at all, rather than computed and hidden."""
