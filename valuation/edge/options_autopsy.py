@@ -534,6 +534,118 @@ def feature_coverage(rows: list) -> dict:
     return {k: sum(1 for r in rows if _f(r["_f"].get(k)) is not None) / n for k in names}
 
 
+# ================================ derived-data stamp =======================================
+def derived_stamp(data_root: str = "data", rows: Optional[list] = None) -> dict:
+    """What the derived layer looked like AT THE MOMENT THIS AUTOPSY RAN.
+
+    The panel stamps `panel_window` so that two runs disagreeing about their window cannot do so
+    silently. This is the same idea for `data/options_derived/`, and it exists because the miner
+    is a LIVE process: during audit session 5 the derived layer went 111 names -> 317 entries
+    mid-audit, the 64-feature gate's coverage went 66.7% -> 100%, and the SAME trades under the
+    SAME code reported PBO 48.57% against the 35.7% recorded eight days earlier. Nothing warned.
+    Without this field, every cross-session PBO or feature p-value difference is uninterpretable
+    -- you cannot tell which part is the change you made and which part is the miner.
+
+    The fingerprint is over (relative path, byte size), NOT mtime: a re-write that produces
+    identical bytes is the same data and should compare equal, while a re-mine that changes any
+    file's contents will move its size. Cheap enough to run on every autopsy (one scandir pass).
+
+    DESCRIPTIVE ONLY. This block gates nothing and can fail no run -- a field that can block a
+    run gets switched off the first time it is inconvenient, which is the failure mode RUN_RULES
+    A5 exists for. It answers a question; it does not enforce an answer.
+    """
+    import hashlib
+
+    root = os.path.join(data_root, DERIVED)
+    names, daily_files, year_files, other, total_bytes = [], 0, 0, 0, 0
+    h = hashlib.sha1()
+    if os.path.isdir(root):
+        for name in sorted(os.listdir(root)):
+            d = os.path.join(root, name)
+            if not os.path.isdir(d):
+                continue
+            names.append(name)
+            for fn in sorted(os.listdir(d)):
+                p = os.path.join(d, fn)
+                try:
+                    size = os.path.getsize(p)
+                except OSError:
+                    continue
+                total_bytes += size
+                h.update(f"{name}/{fn}:{size}\n".encode())
+                if fn.endswith("-daily.pkl"):
+                    daily_files += 1
+                elif fn.endswith(".pkl"):
+                    year_files += 1
+                else:
+                    other += 1
+
+    bars_root = os.path.join(data_root, BARS)
+    n_bars = (len([f for f in os.listdir(bars_root) if f.endswith(".pkl")])
+              if os.path.isdir(bars_root) else 0)
+
+    out = {
+        "derived_root": root,
+        "exists": os.path.isdir(root),
+        "n_names": len(names),
+        "n_daily_files": daily_files,
+        "n_contract_year_files": year_files,
+        "n_other_files": other,
+        "total_bytes": total_bytes,
+        "fingerprint": h.hexdigest()[:16],
+        "n_bar_files": n_bars,
+        "regime_version": REGIME_VERSION,
+        "stamped": dt.datetime.now().isoformat(timespec="seconds"),
+        "note": ("The miner writes here while an autopsy reads it. Two AUTOPSY_* files with "
+                 "different fingerprints were measured on DIFFERENT derived data and their PBO "
+                 "and feature p-values are not differenceable -- use derived_comparable()."),
+    }
+    if rows is not None:
+        n = len(rows) or 1
+        tks = {str(r.get("ticker") or "").upper() for r in rows}
+        tks.discard("")
+        on_disk = set(names)
+        out.update({
+            "n_trades": len(rows),
+            "trades_with_contract": sum(1 for r in rows if r.get("_has_contract")),
+            "trades_with_daily": sum(1 for r in rows if r.get("_has_daily")),
+            "contract_coverage": sum(1 for r in rows if r.get("_has_contract")) / n,
+            "daily_coverage": sum(1 for r in rows if r.get("_has_daily")) / n,
+            "n_names_in_trades": len(tks),
+            "n_names_in_trades_with_derived": len(tks & on_disk),
+            "names_in_trades_without_derived": sorted(tks - on_disk)[:50],
+        })
+    return out
+
+
+def derived_comparable(a: dict, b: dict) -> dict:
+    """Do two autopsy runs sit on the same derived layer? -> {comparable, reason, differences}.
+
+    This is the field doing the job a hand-written caveat was doing. If it says False, a PBO or
+    feature p-value difference between the two runs is NOT attributable to whatever changed in
+    the code -- it REFUSES rather than reconciling, which is the whole point.
+    """
+    a = a or {}
+    b = b or {}
+    if not a.get("fingerprint") or not b.get("fingerprint"):
+        return {"comparable": False,
+                "reason": "one or both runs predate the derived-data stamp; comparability is "
+                          "unknowable, not merely unproven",
+                "differences": {}}
+    diffs = {k: [a.get(k), b.get(k)] for k in
+             ("n_names", "n_daily_files", "n_contract_year_files", "total_bytes",
+              "fingerprint", "regime_version")
+             if a.get(k) != b.get(k)}
+    if not diffs:
+        return {"comparable": True,
+                "reason": "identical derived-layer fingerprint", "differences": {}}
+    return {"comparable": False,
+            "reason": ("the derived layer moved between these runs, so any difference in PBO, "
+                       "feature coverage or a feature p-value confounds the code change with "
+                       "the miner"),
+            "differences": diffs}
+
+
 # ================================ univariate machinery =====================================
 def _spearman(xs, ys) -> Optional[float]:
     import numpy as np
@@ -847,6 +959,9 @@ def run(data_root: str = "data", seed: int = 0, min_coverage: float = 0.50,
         "n_trades": len(rows),
         "n_with_contract": sum(1 for r in rows if r["_has_contract"]),
         "n_with_daily": sum(1 for r in rows if r["_has_daily"]),
+        # AUDIT session-5 closeout, item 1. The miner runs while this reads; without this stamp
+        # a cross-session PBO difference confounds the code change with the derived layer.
+        "derived_data": derived_stamp(data_root, rows),
         "overall": overall,
         "overall_stats": _stats(rows),
         "coverage": cov,
