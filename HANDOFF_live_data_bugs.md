@@ -789,3 +789,56 @@ The pinning test is restored and green:
    all along.
 5. **CHTR (BUGS FOUND #5 from Part 2) is still open and is now the single worst remaining
    name**: 83.7% terminal, FCF/share modelled to more than double on 1.16x revenue.
+
+---
+
+# PART 4 — the screener lens, CHTR's reinvestment, and the terminal-share question (2026-08-05)
+
+## PRE-COMMITMENT (item 1 only) — committed before the change is written or measured
+
+Items 2 and 3 do not get one and the reasons are stated rather than assumed: **item 3 ships no
+fix** (it closes on the distribution, which the prompt asked to be measured first), and **item 2
+changes no published number** (diagnosis plus a diagnostic field — I assert fair values come out
+bit-identical as a check, which is a correctness assertion, not a tuned bound).
+
+The exposure measurement (task 1.2) deliberately came *first* and informs the threshold choice
+(task 1.3), as the prompt sequences it. What is committed below is the do-no-harm bound on the
+**effect of my change**, which has not been measured yet.
+
+### Control groups — checked BEFORE committing, having been burned by a bound that had none
+
+| change | control group | size | verified |
+|---|---|---|---|
+| add `net_debt` to `_ABSOLUTE_USD` | names with `abs(nd)/mc < 0.01` — the fix cannot move them | **13** | yes |
+| absolute 5x cap on the lenses | names already below 5x — only names above it may change | **239/239** multiples, **204/206** growth | yes |
+
+**The units control group is 13 names, and that is weak.** It can catch a gross error; it cannot
+catch a subtle one. Saying so now rather than discovering it afterwards.
+
+### The bounds
+
+1. **Units fix.** The 13 control names must move by **< 0.1%** in multiples-lens implied value
+   (pure float noise). The other 226 are expected to move — that is the fix — and are reported
+   without a bound.
+2. **5x cap.** Every name below 5x must be **bit-identical**. Only names above 5x may change, and
+   they may only change to "no value published", never to a different number.
+3. **Predicted effect, stated in advance so a surprise is visible:** with units fixed, the
+   multiples lens tops out at **4.59x**, so the cap should suppress **zero** multiples names; the
+   growth lens has exactly **two** names above 5x (ELV 5.44x, JD 5.09x), so lowering
+   `MAX_GROWTH_VALUE` from 20 to 5 should suppress **exactly those two**. If more than two names
+   are suppressed anywhere, my change has an effect I did not predict and I will investigate
+   before shipping rather than explain it afterwards.
+
+### The threshold, argued
+
+Three bars exist for one claim: the valuation page refuses at **5x** (`FV_BAND_HIGH`),
+`_growth_value` caps at **20x**, and the multiples lens has **no absolute cap at all**.
+**Proposal: one bar, 5x, everywhere.** The screener's hot-list fair value and the valuation
+page's fair value are the same claim about the same company, published by the same product; a
+number the valuation page would refuse to print is not one the public hot-list should print
+either. 20x was never reachable — the growth lens maxes at 5.44x on a real universe — so it is
+not a bar, it is decoration.
+
+**This ships on coherence, not on measured harm**, exactly as candidate A did in Part 3: the
+measured tail above 5x in the multiples lens is currently **empty**. I am not going to claim it
+prevents something it does not currently prevent.
