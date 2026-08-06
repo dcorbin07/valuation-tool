@@ -2640,3 +2640,229 @@ shipped field — `bootstrap_diff` (`home_run`, `control_comparison`), `date_blo
 `date_block_diff` (`clustered_inference_R3`, `control_comparison`), `effective_n`'s shuffled null,
 and the autopsy's permutation p / `combiner_test`. The random-entry control is **already** at five
 seeds and is the precedent, not a subject.
+
+## RESULTS
+
+### ITEM 1 — the autopsy now stamps its own derived-data coverage · **DONE**
+
+**What shipped.** `options_autopsy.derived_stamp()` walks `data/options_derived/` and returns a
+**fingerprint** — a SHA-1 over sorted `(relative path, byte size)` — alongside the name, file and
+byte counts, the bar-cache count and `REGIME_VERSION`. `run()` ships it as `derived_data` on every
+result, so every `AUTOPSY_*.json` written from now on records the state of the derived layer at the
+moment it ran. `derived_comparable(a, b)` answers the cross-session question mechanically and
+returns `{comparable, reason, differences}`.
+
+**Why a fingerprint and not a count.** A count is blind to the case that actually bites: a re-mine
+that replaces a name's contents without changing how many names exist. The fingerprint uses SIZE
+rather than mtime deliberately — a rewrite producing identical bytes IS the same data and must
+compare equal, while any content change moves a pickle's size. Pinned by
+`test_closeout_item1_the_derived_stamp_is_a_fingerprint_not_a_count`, which asserts the name count
+is unchanged before asserting the fingerprint moved.
+
+**It is DESCRIPTIVE and gates nothing** — pre-committed above, and pinned by
+`test_closeout_item1_the_stamp_is_descriptive_and_gates_nothing`, which points it at a
+non-existent directory and requires a stamp rather than an exception. A field that can fail a run
+gets switched off the first time it is inconvenient (`RUN_RULES` §A5).
+
+**Measured live, 2026-08-06:** 315 names, 315 daily files, 2,945 contract-year files,
+17.78 GB, fingerprint `4e8583dfe812f704`, `regime_version` 2.
+
+#### WHICH RECORDED AUTOPSY FIGURES ARE NOW KNOWN NON-COMPARABLE
+
+**The honest answer is the widest one: NO autopsy figure in this project's record is comparable to
+any other, because NOT ONE of them carries a stamp.** `derived_comparable` returns
+`comparable: false` with reason *"comparability is unknowable, not merely unproven"* for every pair
+drawn from the existing record. That is not pedantry — here is the measured damage:
+
+| | banked 2026-08-03 | banked 2026-08-05 (corrected) |
+|---|---|---|
+| trades | 3,042 | 3,885 |
+| greek-stack coverage | **66.7%** | **100.0%** |
+| daily-surface coverage | **68.1%** | **100.0%** |
+| PBO | **35.71%** (no embargo — the field did not exist) | 12.86% (embargo 75d) |
+| Deflated Sharpe, term_slope-filtered | 0.9569 | 0.8063 |
+| Deflated Sharpe, unfiltered | 0.8813 | 0.4959 |
+
+The sharpest single number: **the pre-correction book's PBO re-ran at 48.57% on 2026-08-05 against
+the 35.71% banked on 2026-08-03 — same trades, same unpurged code path, a 12.9pp move produced by
+nothing but the miner.** The A/B in Part 6 held the correction and the embargo fixed, so the only
+remaining variable was the derived layer, which went 111 names → 315.
+
+**What "the comparable version" is, now that the stamp exists.** There is no retrofit: a
+fingerprint cannot be computed for a directory as it stood in the past. So the comparable versions
+are **the ones written from today forward**, and the rule is mechanical — two `AUTOPSY_*.json`
+files may be differenced if and only if `derived_comparable()` on their `derived_data` blocks
+returns true. Concretely:
+
+* **Any PBO, feature *p*-value, FDR discovery set or feature-coverage figure quoted from before
+  2026-08-06 is a POINT-IN-TIME observation, not a comparable measurement.** Quote it with its
+  date and its coverage, never as a difference against another session's.
+* **The four Deflated Sharpe figures in the table above are NOT a before/after pair.** They differ
+  by the B1 correction *and* by a third of the book gaining greek coverage.
+* Figures computed **only from the trade rows** are exempt, and this is the distinction the stamp
+  buys — see item 4, where the four `compute_signals` features are shown to be derived-layer-free
+  and therefore genuinely differenceable across the two books.
+
+### ITEM 2 — `optuniv_run.py` refuses to overwrite a banked result · **DONE**
+
+**The defect was a data-loss risk, not tidiness.** The runner wrote `state.pkl`,
+`control_rows.pkl`, `UNIVERSE_RESULTS.json` and `AUTOPSY_BROAD_RESULTS.json` into
+`data/options_universe/` unconditionally. Session 5 preserved the record's own pre-correction book
+**by hand**; without that copy the Part 6 A/B could not have been run at all.
+
+**What shipped.**
+* A `run_key` — universe SHA-1 + count, aggression, entry window, smoke flag — is written into
+  `BANK_MANIFEST.json` **the moment the guard clears, before any scoring**. Writing it only on
+  success would have made a run killed at minute 12 unable to resume its own state, i.e. the guard
+  would have broken the feature it exists to protect.
+* `guard_bank()` returns one of four actions: `clear` (nothing banked), **`resume`** (manifest
+  run_key matches — resuming is the feature and must not be blocked), **`refuse`** (default), or
+  `archived`.
+* Refusal happens **before any scoring work**. Twenty minutes of compute followed by a refusal
+  would be worse than useless — it would train the next person to pass `--overwrite` blind.
+* `--overwrite` does **not** delete. It **moves** the prior artifacts into
+  `<out-dir>/banked/<timestamp>/`. **No path through this runner destroys a banked book** — a
+  stronger property than "asks first", and pinned by
+  `test_closeout_item2_no_path_through_the_runner_destroys_a_banked_book`, which asserts the
+  archived copy holds the ORIGINAL bytes.
+* `--out-dir` added as the friction-free escape: run a second book somewhere else entirely.
+* **An unstamped directory is REFUSED, not assumed empty.** Every artifact banked before this guard
+  has no manifest, which is precisely the case that cost the hand-copy. `reason` says so:
+  *"UNKNOWABLE, not merely unproven"* — the same standard as item 1.
+
+**Verified against the real record, not only in tests.** Pointed at
+`data/options_universe/` with a mismatched key:
+
+```
+action: refuse
+occupants: ['UNIVERSE_RESULTS.json', 'AUTOPSY_BROAD_RESULTS.json', 'control_rows.pkl', 'state.pkl']
+reason: no BANK_MANIFEST.json -- these artifacts predate the guard, so whether they belong to
+        this run is UNKNOWABLE, not merely unproven
+```
+
+Those are exactly the four files that had to be copied out by hand.
+
+### ITEM 4 — the four `compute_signals` features, individually · **ALL FOUR NOT INFORMATIVE**
+
+The four named at `VALQUO_EDGE_AUDIT.md:155` are the consumers of B1's mis-stated spot:
+`term_slope`, `skew_25d`, `vrp`, `gex_proxy`. In the autopsy's namespace: **`f_term_slope`,
+`f_sig_skew_25d`, `f_sig_vrp`, `f_sig_gex_proxy`**. Scored on the **corrected** 3,885-trade,
+187-name book (`AUTOPSY_BROAD_RESULTS.json`, generated 2026-08-05T20:27), against the same gate
+the other 60 features face — no special-casing, as pre-committed.
+
+| feature | cov | IC (in-sample) | early→late gain / p | late→early gain / p | both dirs | **verdict** |
+|---|---|---|---|---|---|---|
+| `f_term_slope` | 1.000 | +0.0521 | +0.58pp / 0.412 | +4.42pp / **0.016** | **False** | NOT_REPLICATED |
+| `f_sig_skew_25d` | 0.807 | +0.0019 | −2.79pp / 0.862 | −0.54pp / 0.591 | False | **NULL** — wrong sign both ways |
+| `f_sig_vrp` | 1.000 | −0.0156 | +0.26pp / 0.448 | +3.06pp / 0.056 | False | **NULL** |
+| `f_sig_gex_proxy` | 0.936 | +0.0484 | +2.47pp / 0.146 | **+6.89pp / 0.0015** | **False** | NOT_REPLICATED |
+
+**Verdict: none of the four is INFORMATIVE.** Not one passes both split directions, which is the
+pre-registered bar. The aggregate answer (zero survivors of 64) and the narrow answer the audit
+asked for agree.
+
+**`f_sig_gex_proxy` is the one worth writing down, and it is a warning rather than a lead.** It is
+one of only **four FDR discoveries among 127 hypotheses** at q = 0.10 — its late→early half clears
++6.89pp at p = 0.0015 with 50.6% retention and a tail ratio of 1.13, i.e. it passes every floor in
+that direction. It fails the other direction (+2.47pp, p = 0.146). Per the pre-commitment that is
+**NOT_REPLICATED, not a near-miss to be argued for.**
+
+**And here is the finding that closes it — the direction that passes SWAPS when B1 is repaired.**
+Re-scored on the pre-correction book (3,042 trades, banked 2026-08-03):
+
+| feature | book | early→late | late→early |
+|---|---|---|---|
+| `f_sig_gex_proxy` | pre-correction | **PASSES** (+5.31pp, p 0.0020) | fails (−0.10pp, p 0.513) |
+| `f_sig_gex_proxy` | corrected | fails (+2.47pp, p 0.146) | **PASSES** (+6.89pp, p 0.0015) |
+| `f_term_slope` | pre-correction | +4.89pp, p 0.0195 (fails the +5.00pp floor by 0.11pp) | +2.18pp, p 0.152 |
+| `f_term_slope` | corrected | +0.58pp, p 0.412 | +4.42pp, p 0.016 |
+
+**Both features that show any signal at all flip which half of the sample they work on.** A
+property that survives a price-basis correction would not do that. This is direct measured support
+for the both-directions requirement — a gate demanding a single direction would have adopted
+`gex_proxy` in August 2026 on the early half and then adopted it again on the late half for the
+opposite reason, and called that replication.
+
+**This comparison is legitimate, and item 1 is what licenses saying so.** All four features are
+read off the **trade row** (`options_autopsy.py:471-477` maps `compute_signals`' outputs straight
+onto the alert), NOT off `data/options_derived/`. So the derived-layer growth that makes the two
+books' PBO and greek features non-differenceable does **not** touch these four. Two caveats travel
+with it anyway: the two books are **different trade sets** (B1's spot was throwing the 0.90–1.20
+moneyness prefilter, so 3,042 vs 3,885 alerts), and `f_sig_skew_25d`'s coverage moved 0.529 → 0.807
+for the same reason. It is a comparison of two books, not a controlled A/B, and is reported as one.
+
+**One honest note on the FDR count.** The pre-correction book had **zero** FDR discoveries and the
+corrected book has four, but `f_sig_gex_proxy`'s *p* barely moved (0.0020 → 0.0015). Benjamini–
+Hochberg is a **step-up** procedure: a *p* becomes a discovery partly because OTHER hypotheses in
+the sweep got smaller. So the four discoveries are a property of the sweep, not four independent
+findings — **and that part IS confounded by the derived layer**, since the other 60 features draw
+on it. `f_sig_gex_proxy`'s own *p*-value is not confounded; its FDR STATUS is.
+
+**Item closed. No adoption, no follow-up run, and no re-opening without a new reason** — the
+pre-commitment allowed exactly one escalation (a feature clearing both directions) and none did.
+
+### ITEM 3 — the mid-fill (aggression 0.0) decomposition · **THE −6.59pp TOLL IS REPLACED BY −8.28pp**
+
+**Pre-commitment honoured:** the run completed on the pinned universe, so the figure is REPLACED,
+not withdrawn — the disposition was fixed in advance for both branches. **This is a DIAGNOSTIC and
+bar B5 stands:** every headline in this project is quoted at aggression 1.0, and nothing here
+touches the R2 verdict.
+
+**What was run.**
+```
+python optuniv_run.py --data-root <repo>/data --workers 5 --aggression 0.0
+  --state <tmp>/mid_state.pkl
+  --universe-from <tmp>/optuniv_precorrection/state.pkl     # the same frozen 187 names
+  --out-dir <tmp>/optuniv_mid                               # the new item-2 escape hatch
+```
+187 names, window 2016-01-01 → 2025-10-15, **3,815 mid-fill trades** against the corrected
+aggression-1.0 book's 3,885. ~24 minutes. The comparator is the corrected R2 book, not the void
+one.
+
+#### The replacement table
+
+| slice | touch (a=1.0) | mid (a=0.0) | **spread toll** | median entry spread |
+|---|---|---|---|---|
+| **ALL** (n 3,885 / 3,815) | **+3.41%** | **+11.69%** | **−8.28pp** | 6.67% |
+| mega (1,002 / 986) | +4.71% | +10.08% | −5.37pp | 4.65% |
+| large (2,062 / 2,024) | +0.86% | +9.44% | −8.57pp | 7.06% |
+| mid (777 / 760) | +7.65% | +18.53% | −10.88pp | 8.33% |
+| small (44 / 45) | +18.25% | +32.52% | −14.27pp | 8.70% |
+| 54 old names (1,532 / 1,511) | +9.37% | +13.60% | −4.23pp | 4.79% |
+| 133 new names (2,353 / 2,304) | **−0.47%** | +10.43% | **−10.90pp** | 8.16% |
+
+**PAIRED, which the void table never did.** The two books do not contain the same trades —
+aggression changes the entry premium, which changes which alerts clear the floors. Matching on
+(ticker, alert date, expiry, strike) gives **3,764 alerts present in both**:
+
+* paired toll **−8.88pp** (touch +2.80% vs mid +11.68% on the matched set)
+* **date-block CI95 [−9.99pp, −7.74pp]** over 118 monthly blocks — the R3-correct interval, and
+  it excludes zero by a distance
+* **78.8% of individual alerts (2,967/3,764) are worse at the touch**
+* the naive paired *t* is −14.9 and is **not** the number quoted: these are clustered, and R3's
+  standing rule is that the date-block interval carries it
+
+#### What changed against the void table, and what it means
+
+1. **The toll is BIGGER than the record said: −8.28pp against −6.59pp.** The market takes **71% of
+   the gross edge at the touch**, not 56%. The gross number barely moved (+11.73% → +11.69%) — it
+   is the NET that fell (+5.14% → +3.41%) and the measured spread that rose (median 4.78% → 6.67%).
+   **B1 was understating the spread the strategy actually pays.** Same signature as everywhere
+   else in that file: an adjusted spot against as-traded strikes.
+2. **"The old-vs-new gap is 100% spread" is WRONG and is corrected here.** §2a claimed the two
+   cohorts were +11.99% and +11.56% at the mid — a 0.43pp gross gap — and concluded *"breadth does
+   not dilute the signal; it dilutes the fill."* Corrected: at the mid they are **+13.60% and
+   +10.43%, a 3.17pp gross gap**. The net gap is 9.84pp, so **spread explains 6.67pp of it — 68%,
+   not 100%.** Breadth dilutes **both**: roughly two thirds fill, one third signal. This is the
+   mid-fill counterpart of R2's already-recorded finding that the 133 new names are −0.47%/trade.
+3. **The tier ordering SURVIVES.** The toll still tracks the spread ordering exactly — mega −5.4pp
+   at a 4.65% spread through small −14.3pp at 8.70% — and mid/small still finish ahead net
+   (+7.65%, +18.25%) off a much higher gross. Don's "spreads eat it" thesis stays half-right on
+   the corrected data, with the same half right.
+
+**Caveat that must travel:** `small` is 44 and 45 trades. The void file called it "the most
+contaminated cell in the study" and that has not changed — it moved +34.36% → +18.25% at the touch,
+which is a 16pp swing on 44 trades and should be read as noise, not as a finding.
+
+**Disposition: `HANDOFF_universe_backtest.md` §2a is edited in place** — the void table replaced,
+the "100% spread" conclusion corrected, and the file's SUPERSEDED banner left standing.
