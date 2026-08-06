@@ -78,8 +78,9 @@ the project's memory and the old versions had been repeated for months.
   and it SURVIVED — the gap moved 0.61pp.** Every number in `HANDOFF_universe_backtest.md` was
   computed against a mis-stated underlying price (B1) plus B2/B3/B4/B15, and that file is now
   banner-marked SUPERSEDED. Re-run on the identical pinned 187-name universe:
-  **real +3.41%/trade vs a random-entry control's +10.88%, gap −7.47pp, date-block CI95
-  [−13.92pp, −2.43pp], paired sign-test z −2.907 (p 0.0037)** over 1,305 name-year cells. The
+  **real +3.41%/trade vs a random-entry control's +10.06%, gap −6.65pp, date-block CI95
+  [−11.92pp, −2.13pp], paired sign-test z −4.903 (p < 1e−5)** over 1,334 name-year cells (5
+  control seeds, 29,785 control trades — see the seed note below). The
   alert's day-selection subtracts value. **Do not describe the live options alert as a
   day-selection edge; it is an alert-generation mechanism.**
   * **THE BREADTH CLAIM IS VOID.** "The edge survives breadth but roughly halves" is false. The
@@ -90,12 +91,15 @@ the project's memory and the old versions had been repeated for months.
     rejects fell 2,911 → 1,729 — an adjusted spot against as-traded strikes was throwing the
     0.90–1.20 moneyness prefilter, silently discarding 1,182 alerts. Median entry IV
     **1.4200 → 0.2497** at 100% coverage (was 75.3%). 142% was never a vol.
-  * **A SINGLE CONTROL SEED CAN FLIP THIS VERDICT — pool them.** The control's own mean moves
-    **8.9pp** on a reseed (+6.46% vs +15.34%) and its own date-block CI is [+5.61%, +17.49%].
-    Seed 0 alone reads INCONCLUSIVE; seed 1 alone reads dead; pooled (what the record did) reads
-    dead. A random-day book's mean on a barbell payoff is set by a few +600% trades. **Two seeds
-    is not enough and nobody had measured that.** Lean on the paired sign test, which moved far
-    less.
+  * **A SINGLE CONTROL SEED CAN FLIP THIS VERDICT — RUN FIVE, AND READ THE SIGN TEST.** The
+    control's own mean ranges **+6.46% to +15.34%** across five draws. Seed 0 alone reads
+    INCONCLUSIVE and is the most favourable of the five; **all five point estimates are
+    negative and four of five are negative at significance.** A random-day book's mean on a
+    barbell payoff is set by a few +600% trades. **More control draws SHARPEN the test** (2-seed
+    z −2.907 → 5-seed z −4.903), because each name-year cell's control mean averages more draws.
+    The paired *t* ranges +0.162 to −1.835 and is never significant even pooled (−1.227, p 0.22)
+    — it is the wrong statistic here. **Standing rule: five seeds minimum, sign test carries the
+    verdict.**
   * **`term_slope` is REJECTED on the arm that matters (R7).** Its +8.89pp out-of-sample
     replication was an artefact; corrected, the filter makes its own out-of-sample book WORSE
     (gain **−1.12pp** against a +5.00pp bar) and is no longer tail-enriching. It PASSES the
