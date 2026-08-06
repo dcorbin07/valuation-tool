@@ -56,11 +56,24 @@ the project's memory and the old versions had been repeated for months.
   | PBO | <50% | **<19.7%** (placebo p5; noise MEDIAN is 46.7%) | **55%** |
   | Deflated Sharpe | >0.95 | **STANDS** (noise median 0.28) | 2% |
 
-  **THE DEFLATED SHARPE ROW IS NOW PROVISIONAL (2026-08-05, M1).** X7 measured it with
-  `N = 8` inside BOTH the real run and all 100 placebo draws. M1 replaced `N` with the
-  real equity trial count (84), which changes both sides — so the placebo must be re-run
-  at the true `N` before "the Deflated Sharpe survives calibration" is repeated. The
-  absolute claim is already dead: see the M1 bullet below.
+  **THE DEFLATED SHARPE ROW IS CONFIRMED AT THE TRUE N (2026-08-06, session 5). The
+  PROVISIONAL marking is LIFTED.** The placebo was re-run at `N = 84` on the identical panel
+  and identical seeds. **The statistic is MORE discriminating at the honest denominator, not
+  less: 0 of 100 noise draws clear 0.95, against 2 at N = 8**, and the calibrated bar (placebo
+  p95) falls 0.8567 → **0.7216**. Every OTHER rate in this table is identical to the last digit
+  across the two sweeps (holdout 6%, ls_t≥2 8%, maxIC_t≥2 39%, PBO<50 55%), which is the
+  harness-reproduction check — so no other calibrated bar was ever in question.
+  **BOTH M1 AND X7 ARE RIGHT AND THEY NEVER CONFLICTED.** The edge's 0.8997 fails the >0.95
+  convention (M1) **and sits above ALL 100 placebo draws** (max 0.8649, empirical p ≤ 0.01),
+  because at the honest N the 0.95 convention is STRICTER than the noise floor requires.
+  **Quote it whole or not at all:** *"Deflated Sharpe 0.8997 at N = 84 — fails the conventional
+  >0.95 bar, while sitting above all 100 placebo draws (calibrated bar 0.72)."* It is the one
+  bar where this strategy is distinguishable from noise and still fails its threshold.
+  **M1 also made the adoption gate harder for noise to pass, as a free side effect:** CPCV
+  adopts on **27% → 21%** of pure-noise draws, one-directional (six draws stopped adopting,
+  none started), because the adopt gate reads the Deflated Sharpe. **This is NOT the run-to-run
+  non-reproducibility** — that remains open; it was briefly mistaken for it before the
+  one-directional pattern was checked.
 
   **Use these numbers, not the old ones.** They are floors for THIS panel/universe/69 dates,
   not universal constants — re-measure if the panel changes materially. Three consequences

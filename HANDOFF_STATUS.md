@@ -112,9 +112,13 @@ biases have been wrong more often than right. Measure them.**
 
 ### Open, in priority order
 
-1. **X7's placebo at the true N = 84** — launched this session and still running at the time of
-   writing; the real run's DSR reads 0.8997 inside it, confirming N=84 on both sides. Until it
-   finishes, *"the Deflated Sharpe survives calibration"* stays **PROVISIONAL and unquotable**.
+1. ~~X7's placebo at the true N = 84~~ **DONE — the row is CONFIRMED and the PROVISIONAL
+   marking is LIFTED.** Re-run at N=84 on the identical panel and seeds: **0 of 100 noise draws
+   clear 0.95** (was 2 at N=8) and the calibrated bar falls 0.8567 → **0.7216**. The edge's
+   0.8997 fails the >0.95 convention **and exceeds all 100 placebo draws** (max 0.8649) — at the
+   honest N that convention is stricter than the noise floor requires. Every other rate in X7's
+   table is identical across the two sweeps. Free side effect: CPCV adopts on **27% → 21%** of
+   noise draws. Full entry: `HANDOFF_edge_audit.md` Part 6.
 2. **Find the run-to-run non-reproducibility.** `insider` median IC still varies across
    identical-data runs.
 3. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect.
