@@ -4769,6 +4769,152 @@ def test_o15_a_deeper_pull_may_never_replace_a_frame_with_fewer_rows():
         assert TB.cached_dte("ZZZ", 2020, tmp) == 200, "a kept pull must record its depth"
 
 
+def test_alias_wbd_points_at_the_discovery_share_line_not_at_att():
+    """WBD is the continuation of DISCOVERY, not of AT&T. AT&T distributed WBD shares and kept
+    trading under `T` throughout, so `ALIASES["WBD"] = ["T"]` made every pre-listing WBD span
+    fall through to AT&T: WBD 2016-2021 were cached byte-identical to T (966,790 rows, same
+    keys AND same bids) plus 33,964 more in 2022 Jan-Mar. Probed on the feed, DISCA has data
+    2016-2021 and none from 2022, while WBD has none before 2022 - disjoint, as a real rename
+    must be."""
+    from valuation.edge.theta_bulk import ALIASES
+
+    assert ALIASES["WBD"] == ["DISCA"], ALIASES["WBD"]
+    for cur, older in ALIASES.items():
+        assert "T" not in older, f"{cur} must not fall back to AT&T"
+
+
+def test_an_alias_that_still_trades_alongside_its_successor_is_reported():
+    """The generic defect behind the WBD bug: a WRONG alias and a RIGHT one are
+    indistinguishable at the point of use, because both return rows. A genuine predecessor
+    stops when the successor starts, so cached years that OVERLAP are the tell -- and that is
+    exactly what separates `WBD<-T` (four overlapping years) from the correct mappings."""
+    import os
+    import pickle
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    def _write(sym, year, root):
+        p = TB.year_path(sym, year, root)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "wb") as f:
+            pickle.dump(pd.DataFrame({"strike": [1.0]}), f)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        # A clean handover: OLD stops in 2018, NEW starts in 2019.
+        for y in (2016, 2017, 2018):
+            _write("OLD", y, tmp)
+        for y in (2019, 2020):
+            _write("NEW", y, tmp)
+        assert TB.alias_overlap_conflicts({"NEW": ["OLD"]}, tmp) == {}
+
+        # A still-live company wearing the alias slot: it has data in the successor's years.
+        for y in (2019, 2020):
+            _write("LIVE", y, tmp)
+        conflicts = TB.alias_overlap_conflicts({"NEW": ["LIVE"]}, tmp)
+        assert conflicts == {"NEW<-LIVE": [2019, 2020]}, conflicts
+
+        # No cached evidence must not be reported as a clean bill of health.
+        assert TB.alias_overlap_conflicts({"NEW": ["NEVERSEEN"]}, tmp) == {}
+
+
+def test_alias_sourced_rows_record_which_symbol_supplied_them():
+    """`WBD-2018.pkl` gave no hint that it held AT&T's chains. When a fallback fires, the
+    symbol that actually answered is written to a `.alias` sidecar, so a substitution is a
+    fact on disk rather than something to be rediscovered by diffing two caches."""
+    import os
+    import pickle
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    frame = pd.DataFrame({"expiration": [dt.date(2018, 6, 15)], "strike": [30.0],
+                          "right": ["C"], "date": [dt.date(2018, 6, 1)], "bid": [1.0],
+                          "ask": [1.1], "volume": [3], "open_interest": [9]})
+    with tempfile.TemporaryDirectory() as tmp:
+        tb = TB.ThetaBulk(api_key="x", root=tmp)
+
+        def _fetch(sym, year):
+            tb._tl.alias_used = {"DISCA"}          # as _fetch_span_once would have recorded
+            return frame, False
+
+        tb._fetch_year = _fetch
+        assert tb.ensure_year("WBD", 2018) is True
+        side = TB.year_path("WBD", 2018, tmp) + ".alias"
+        assert os.path.exists(side), "an alias-supplied year must say so"
+        assert "DISCA" in open(side, encoding="utf-8").read()
+
+        # A year the name answered for ITSELF must NOT be labelled as borrowed.
+        def _own(sym, year):
+            tb._tl.alias_used = set()
+            return frame, False
+
+        tb._fetch_year = _own
+        assert tb.ensure_year("WBD", 2023) is True
+        assert not os.path.exists(TB.year_path("WBD", 2023, tmp) + ".alias")
+
+
+def test_probe_year_walks_forward_instead_of_burying_names_that_listed_later():
+    """The probe year was hard-coded to 2024, so any name that listed afterwards came back
+    empty and was filed as `skipped_thin, reason "no data"` for good. Eight of the fourteen
+    names carrying that verdict do have option data -- CRWV, SNDK, VG and FER from 2025 -- so
+    the verdict was about the calendar, not the name. 2024 is still tried FIRST so existing
+    verdicts stay comparable, and a name with nothing in range gets its OWN status rather than
+    being pooled with genuinely illiquid ones."""
+    import mine_options_cache as M
+
+    assert M.PROBE_YEARS_TRIED >= 2
+
+    class _TB:
+        def __init__(self, live):
+            self.live, self.asked = live, []
+
+        def ensure_year(self, sym, year):
+            self.asked.append(year)
+
+    def _viable(tb, sym, year):
+        if year not in tb.live:
+            return False, {"reason": "no data"}
+        return True, {"reason": "ok", "rows": 10}
+
+    orig, M.name_is_viable = M.name_is_viable, _viable
+    try:
+        tb = _TB(live={2025})                       # listed in 2025, nothing in 2024
+        year, viable, stats = M.probe_name(tb, "CRWV")
+        assert tb.asked[0] == 2024, "2024 must still be tried first"
+        assert (year, viable) == (2025, True), (year, viable, stats)
+
+        tb = _TB(live=set())                        # nothing anywhere in the mining range
+        year, viable, stats = M.probe_name(tb, "CBRS")
+        assert viable is False
+        assert stats["reason"] == "no data in range", stats
+        assert len(tb.asked) == M.PROBE_YEARS_TRIED, "the search must stay bounded"
+
+        tb = _TB(live={2024})                       # the ordinary case is unchanged
+        year, viable, _ = M.probe_name(tb, "AAPL")
+        assert (year, viable, tb.asked) == (2024, True, [2024])
+    finally:
+        M.name_is_viable = orig
+
+
+def test_no_data_in_range_is_kept_separate_from_too_illiquid():
+    """"We looked and there is nothing to judge" and "we judged it and it is untradeable" are
+    opposite facts with opposite correct responses. Sharing one status is what buried eight
+    tradeable names, so the miner must record and skip them as distinct kinds."""
+    import inspect
+
+    import mine_options_cache as M
+
+    src = inspect.getsource(M.main)
+    assert '"no_data_in_range"' in src
+    assert 'in ("complete", "skipped_thin", "partial", "no_data_in_range")' in src, (
+        "a no-data verdict must be sticky, or every run re-probes it")
+
+
 def test_audit_x2_the_rebalance_grid_is_a_choice_and_is_now_recorded():
     """X2. The grid was `range(TD, len(cal) - horizon, rebalance_days)` with TD hard-coded to
     252, so every number this project has ever produced came off ONE of the 63 equally valid
