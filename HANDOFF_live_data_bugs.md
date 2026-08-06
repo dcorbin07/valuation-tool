@@ -344,3 +344,210 @@ the other six (CHTR, MRK, GILD, CI, STLA, JD); KSPI is reported but not decisive
 
 `publication_guard()` stays; `FV_BAND_HIGH` stays at 5.0; no warning is silenced. If the guard
 fires exactly as often afterwards, that is a null result and will be reported as one.
+
+---
+
+## RESULTS — measured after the pre-commitment above was committed (e36d755)
+
+### Verdict in one line
+
+**A / B / C on the terminal value: NULL — nothing shipped.** The pre-registered candidates
+either failed the do-no-harm bound or resolved none of the decisive names. But the
+investigation found the **actual root cause one level up, and that IS fixed**: an
+"analyst revenue growth" input carrying EARNINGS growth, which classified Merck and Gilead
+as **hypergrowth** and modelled them at 60% revenue growth for a decade.
+
+**Part 1 of this handoff — and this prompt, which inherited its framing — were wrong that
+`TV = FCF/(WACC - g)` is the root cause.** It is the mechanism for three names and a
+downstream symptom for two. Corrected in detail below.
+
+### 1. Every terminal-value path in the tree
+
+| path | formula | protection | degenerates? |
+|---|---|---|---|
+| `dcf.py:99-110` FCFF Gordon | `FCFF/(WACC - g)` | floor `max(WACC - g, 0.005)` | **YES** — a 0.5pp floor is a **200x** terminal multiple, i.e. nominally a guard and effectively none. It has never bound on a real name. |
+| `growth.py:256` `fundamental_sales_multiple` | `margin(1-t)(1-g/ROIC)/(r - g)` | discounts at `mature_discount_rate` (rf+ERP, **not** the company's WACC), floors the spread at 1pp, **and caps the result at `MULTIPLE_CAP = 20.0`** | no |
+| `financials.py:21` `justified_pb` | `(ROE - g)/(Ke - g)` | returns **None** if `Ke - g <= 0.005`, and bounds P/B to `[0.2, 6.0]` | no |
+
+So two of the three terminal paths already have *effective* caps; the FCFF DCF has a nominal
+one. That asymmetry is what this task was really about.
+
+Two further clamps permit the problem *by construction*, neither aware of the other:
+`wacc.py:98` clamps WACC to `[0.04, 0.25]`, and `assumptions.py:151` sets terminal growth to
+`max(0.015, min(cap, rf))` = 3.0%. A **1pp spread is therefore reachable by design**.
+
+### 2. Beta diagnosis — the low betas are REAL, which kills the beta fix on its merits
+
+Re-estimated independently against SPY. The estimator agrees with Yahoo on controls (AAPL
+1.086 vs 1.071, JPM 0.977 vs 1.015, NVDA 2.215 vs 2.214), so disagreements are informative:
+
+| name | Yahoo | my 5y-monthly | 2y-weekly | 1y-daily | read |
+|---|---|---|---|---|---|
+| GILD | 0.336 | 0.304 | 0.349 | 0.342 | **real** |
+| CI | 0.321 | 0.282 | 0.229 | 0.204 | **real** |
+| CHTR | 0.678 | 0.668 | 0.767 | 0.278 | **real** |
+| MRK | (absent today) | 0.181 | 0.247 | 0.122 | **real** |
+| KSPI | 0.080 | 0.897 | 1.134 | 1.028 | **ARTIFACT** (n=30 monthly; ADR listed 2024) |
+
+A genuinely low-beta defensive stock legitimately has a low WACC. Flooring beta would assert
+something false about four of the five. Only KSPI's beta is wrong — and `wacc.py:67` rejects
+beta `<= 0` or `> 3.0` but has **no low-side floor and no minimum-history check**, so 0.08
+sails through.
+
+### 3. Candidate results on the 241-name universe
+
+Non-degenerate population (pre-fix spread >= 5.0pp and publishing today): **128 names**.
+109 names have a pre-fix spread below 5.0pp.
+
+| candidate | median abs delta | moved >25% | pushed out of band | do-no-harm | decisive names resolved (of 6) |
+|---|---|---|---|---|---|
+| A — spread floor 3.0pp | 0.000% | 0/128 | 0 | **PASS** | **0** |
+| C — terminal multiple cap 25x | 0.000% | 0/128 | 0 | **PASS** | **0** |
+| B — Blume adjusted beta | **2.491%** | 3/128 (2.3%) | 0 | **BREACH** | 0 |
+| A+B | **2.491%** | 3/128 (2.3%) | 0 | **BREACH** | 0 |
+
+B and A+B breach the pre-committed 2% median bound — narrowly, at 2.491%. Per the anti-tuning
+rule they are **REJECTED, not retuned**.
+
+A and C are clean but move no name inside the guard band. Best case is C on CHTR: 11.2x price
+down to 5.3x — still outside. GILD 6.0x, CI 6.4x, JD 6.2x, KSPI 9.8x.
+
+**Why capping the terminal value cannot rescue these names:** terminal value is **76-102% of
+EV** even after the caps (JD 102.4%, CI 86.9%, CHTR 76.4%). When the explicit forecast
+contributes almost nothing, no terminal assumption short of destroying the model brings the
+total inside 5x. That is the honest reason A and C fail — and it is what pointed at the
+forecast itself.
+
+Per decision rule 4: **NULL. `MIN_TERMINAL_SPREAD` stays 0.005 and `MAX_TERMINAL_MULTIPLE`
+stays `None`** — they are now named, documented constants instead of a magic number, but the
+shipped behaviour is unchanged.
+
+### 4. THE ACTUAL ROOT CAUSE — found by asking why the forecast was so large
+
+Merck was projected from $65.0bn revenue to **$1,118bn**, and Gilead from $29.4bn to
+**$506bn** — **17.2x in ten years**, a 33% CAGR, for mature pharma. Year-10 FCF per share came
+out at $117 (MRK) and $114 (GILD), roughly equal to their share prices. The chain:
+
+1. `yahoo.py:293` sets `analyst_rev_growth_next` from `growth_estimates.loc["+1y"].iloc[0]`.
+   That DataFrame is indexed by period with columns `stockTrend` / `indexTrend`, so `.iloc[0]`
+   is **`stockTrend` — EARNINGS growth, not revenue** — and it explodes off a negative base
+   (GILD's `0y` is -1.0838, so `+1y` reads **15.0829**; MRK's `0y` is -0.6926, `+1y` =
+   **2.4942**). Yahoo's own `revenueGrowth` field is sane for both: GILD 4.4%, MRK 5.1%.
+2. `classify._blended_growth` gives that input the **highest weight (0.5)** and then
+   **clamped** the blend to `[-0.30, 1.00]`. Both names landed on exactly **1.00** — a tidy
+   number that reads as a legitimate 100% growth forecast.
+3. `gg >= 0.25` -> regime **hypergrowth**.
+4. `assumptions` -> `start_growth = 0.60`, `n_years = 10` -> revenue x17.2.
+5. -> DCF $2,000 (GILD) / $889 (MRK) -> withheld by the guard.
+
+**The clamp was the concealment.** Squashing garbage onto the edge of the valid range
+disguises it as data. 6 of 241 names carried an analyst "revenue growth" above 100% — GILD
+15.08, BA 4.72, MRK 2.49, CPNG 1.81, MU 1.12, WBD 1.02 — every one silently clamped to 1.00.
+**27 of 241 names classified as hypergrowth, including Merck, Gilead, Boeing, Intel and
+Welltower.**
+
+### 5. THE FIX (D) — reject implausible analyst growth instead of clamping it
+
+`classify._blended_growth` now DISCARDS an analyst estimate outside `[-0.30, 1.00]` rather
+than squashing it onto the boundary; the 3y CAGR and TTM then carry the estimate. **No new
+tuned constant** — the band is the function's own pre-existing clamp, reinterpreted as reject.
+
+This was NOT one of the pre-registered candidates: it was found during the work. It carries no
+free parameter fitted to an outcome, which is why it is reported as a bug fix rather than a
+tuned choice — but it did not go through the pre-commitment, and that is stated plainly here
+rather than dressed up as a passing candidate.
+
+Measured before/after on the same 241 names:
+
+- **Do-no-harm: perfect.** On the 226 names whose analyst input was already inside the band,
+  **median |delta| = 0.0000%, 0 moved >25%, 0 pushed out of the band.** The fix cannot touch
+  them by construction.
+- Regimes: hypergrowth **27 -> 22**, mature 88 -> 91, growth 52 -> 54.
+- **The guard fires less: 9 names withheld -> 7.**
+
+| name | regime before -> after | start growth | DCF before -> after | headline before -> after | price |
+|---|---|---|---|---|---|
+| GILD | hypergrowth -> **mature** | 0.600 -> 0.025 | $2,000 -> **$169** | withheld -> **$155** | $131.76 |
+| MRK | hypergrowth -> **mature** | 0.600 -> 0.024 | $889 -> **$83** | $474 -> **$94** | $128.33 |
+| MU | hypergrowth -> growth | 0.600 -> 0.236 | $323 -> $75 | $318 -> $125 | $893.19 |
+| WBD | hypergrowth -> **mature** | 0.508 -> -0.001 | $40 -> $1 | $42 -> $11 | $25.97 |
+| CPNG | hypergrowth -> growth | 0.600 -> 0.169 | $86 -> $10 | withheld -> $13 | $16.00 |
+| BA | hypergrowth (unchanged) | 0.600 -> 0.200 | -$267 -> -$25 | $194 -> $94 | $240.19 |
+| CF / VLO | cyclical (unchanged) | -0.150 -> -0.007 / -0.091 | minor | $168->$196 / $233->$229 | — |
+
+GILD now values at **1.18x its price** and MRK at **0.73x**, from a model that previously
+thought they were worth 15x and 7x. Pinned by
+`test_implausible_analyst_growth_is_rejected_not_clamped` and
+`test_mature_pharma_is_not_classified_hypergrowth`.
+
+CHTR, CI and JD are **unchanged and still withheld** — their analyst inputs were clean, and for
+those three the terminal-spread mechanism from Part 1 really is the story. They remain open.
+
+### 6. Corrections to Part 1 of this handoff
+
+- **"The root cause is `TV = FCF/(WACC - g)`" was wrong.** It is the mechanism for CHTR, CI and
+  JD; for MRK and GILD it was a symptom of the contaminated growth input; for STLA it was never
+  involved at all.
+- **STLA was misattributed.** Its spread is a healthy **10.80%** and its terminal multiple
+  9.3x. Its DCF is **negative** (-$38; TV is -196% of EV); the $125.9 headline came from the
+  multiples/growth lenses, not the DCF. It does not belong in the degenerate group.
+- **MRK left the withheld set by data drift, not by any fix.** Yahoo stopped returning a beta
+  for MRK between 2026-08-04 and 2026-08-05, so it fell back to 1.10, WACC went 5.53% ->
+  9.31%, and it published at $474. The Part 1 table's MRK row is not reproducible today.
+- Part 1's KSPI beta (0.08) stands, but that beta is now shown to be an artifact.
+
+### 7. Can the calibration harness score this?
+
+**It can run it, but it is the wrong instrument for this decision — and the right one for a
+different question.** It rebuilds fair value point-in-time on the Sharadar panel through the
+live engine (so `dcf._project` and `compute_wacc` are exercised) and computes its own
+point-in-time beta (`calibration.py:443`, `_beta_at`, a 120-day regression), so the degeneracy
+is reachable there. But its baseline verdict on the fair-value gap is already **NULL** (median
+IC +0.0092, t +0.99): measuring "did IC improve" against a non-signal cannot separate a better
+model from noise, and this change touches a handful of names. **Deliberately not run for the
+adopt/reject decision.** Where it would earn its keep is a mechanical question it can answer
+exactly — how many point-in-time observations across 18 years carried a contaminated growth
+input or a sub-3pp spread. That quantifies historical exposure, and is the recommended next use.
+
+### 8. What I did NOT do, and why
+
+- **Did not fix `yahoo.py:293`, which is the true upstream defect.** It is in
+  `valuation/data/`, outside this task's declared lane (`valuation/engine/**` + the calibration
+  harness), and Part 1 deferred the same directory. The exact patch is in BUGS FOUND below. The
+  engine-side rejection is defence-in-depth and correct independently, but **the field is still
+  wrong for every name** — whenever `stockTrend` happens to land inside `[-0.30, 1.00]`, an
+  earnings growth rate is still silently used as a revenue growth rate. **This is the single
+  most important open item in this file.**
+- **Did not adopt A or C despite both passing do-no-harm cleanly.** My own criteria said
+  resolve-the-names; they resolved none. Adopting them anyway because they "look safe" is
+  exactly the post-hoc rationalisation the pre-commitment exists to prevent. So a **56x
+  terminal multiple on CHTR is still live.** A is a one-line, zero-measured-harm hardening if
+  Don wants it: `MIN_TERMINAL_SPREAD = 0.030` in `valuation/engine/dcf.py`, evidence in §3.
+- **Did not retune B** after it missed the bound at 2.491% vs 2%.
+- **Did not ship the pinning test the prompt asked for.** It was written and confirmed to fail
+  against current code — `terminal spread 2.19% - a perpetuity discounted only 2.19% above its
+  own growth rate is a division by near-zero, not a valuation` — but the fix it pins was
+  rejected by the pre-committed criteria, so shipping it would mean shipping a red suite. It is
+  recorded here, ready to restore alongside A.
+- **Did not touch `publication_guard` or `FV_BAND_HIGH`**, as instructed.
+
+## BUGS FOUND
+
+1. **`yahoo.py:293` reads earnings growth into a revenue-growth field** (detail in §4). Fix:
+   prefer `info["revenueGrowth"]`, or take the `growth_estimates` value only after confirming
+   the frame is a revenue estimate — and reject out-of-band values at the source.
+   **Not fixed here (lane).**
+2. **`wacc.py:67` has no low-side beta floor and no minimum-history check.** It rejects
+   beta > 3.0 but accepts 0.08 derived from 30 monthly observations on a 2024 ADR listing.
+3. **`dcf.py`'s 0.005 spread floor is a 200x terminal multiple** — a guard that has never
+   bound. Now a named constant; behaviour unchanged pending a decision on A.
+4. **`wacc.py:98` (WACC >= 4%) and `assumptions.py:151` (g = 3%) permit a 1pp spread by
+   construction.** Neither clamp knows about the other; a single invariant `WACC - g >= x`
+   would be the coherent place to enforce it.
+5. **CHTR's forecast more than doubles free cash flow while revenue grows 16%** — year-5 FCFF
+   $85.42/share against $37.04 today, on 1.16x revenue and a flat 22.8% margin. That points at
+   the `sales_to_capital` reinvestment assumption under-charging a capex-heavy cable operator.
+   A lead, not a finding — not investigated further.
+6. **`DCFResult.terminal_growth` reported the ASSUMED growth, not the effective one.** Now
+   reports the effective rate, with `assumed_terminal_growth` and `terminal_multiple` alongside
+   — without which "the clamp bound" is invisible to every caller.

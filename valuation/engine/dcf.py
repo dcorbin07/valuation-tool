@@ -24,6 +24,19 @@ from ..data.models import CompanyData
 from .assumptions import AssumptionSet
 
 
+# --------------------------------------------------------------------------- #
+# TERMINAL-VALUE SANITY KNOBS. Defaults below are the behaviour as of 2026-08-05;
+# they are named constants so a candidate fix can be measured against the live
+# universe rather than argued about. See HANDOFF_live_data_bugs.md Part 2.
+#
+# MIN_TERMINAL_SPREAD was 0.005 — a 0.5pp floor is a 200x terminal multiple, i.e.
+# nominally a guard and effectively none. It has never bound on a real name.
+MIN_TERMINAL_SPREAD = 0.005
+# None = uncapped. A cap of N reads as "we will not assume a business is worth
+# more than N x its terminal free cash flow".
+MAX_TERMINAL_MULTIPLE = None
+
+
 def _terminal_roic(cd: CompanyData, wacc: float) -> float:
     """Terminal return on invested capital. Defaults to a slim moat over WACC,
     nudged by the firm's current ROIC, bounded so terminal value stays sane."""
@@ -50,6 +63,8 @@ class DCFResult:
     shares: Optional[float]
     label: str
     rows: list = field(default_factory=list)
+    terminal_multiple: Optional[float] = None   # TV per unit of terminal FCFF (1/spread)
+    assumed_terminal_growth: Optional[float] = None  # before the spread clamp, if it bound
 
     def to_dict(self) -> dict:
         d = dict(self.__dict__)
@@ -97,14 +112,20 @@ def _project(cd: CompanyData, a: AssumptionSet, wacc: float, troic: float, colle
         last_rev = rev
 
     # Terminal value (Gordon growth) with ROIC-consistent reinvestment.
-    g_term = a.terminal_growth
-    denom = max(wacc - g_term, 0.005)
+    # Terminal growth is held at least MIN_TERMINAL_SPREAD below the discount rate, and
+    # the SAME clamped g feeds the numerator (growth and its reinvestment charge) as the
+    # denominator — flooring only the denominator would price cash flows that grow at a
+    # rate the terminal value refuses to discount for.
+    g_term = min(a.terminal_growth, wacc - MIN_TERMINAL_SPREAD)
+    denom = max(wacc - g_term, MIN_TERMINAL_SPREAD)
     term_margin = a.op_margin_path[-1]
     ebit_next = last_rev * (1 + g_term) * term_margin
     nopat_next = ebit_next * (1 - a.tax_rate)
     reinvest_rate_term = min(0.9, g_term / troic) if troic > 0 else 0.0
     fcff_term = nopat_next * (1 - reinvest_rate_term)
     tv = fcff_term / denom
+    if MAX_TERMINAL_MULTIPLE is not None and fcff_term > 0:
+        tv = min(tv, MAX_TERMINAL_MULTIPLE * fcff_term)
     disc_n = 1.0 / (1.0 + wacc) ** a.n_years
     pv_tv = tv * disc_n
 
@@ -113,7 +134,12 @@ def _project(cd: CompanyData, a: AssumptionSet, wacc: float, troic: float, colle
     equity = ev - net_debt
     shares = cd.shares_diluted
     per_share = (equity / shares) if (shares and shares > 0) else None
-    return per_share, ev, pv_explicit, pv_tv, tv, equity, net_debt, shares, rows
+    # `g_term` is the EFFECTIVE terminal growth actually used, which may be below the
+    # assumption when the spread clamp binds; `tv_multiple` is the implied terminal
+    # multiple (TV per unit of terminal FCFF) — the number this whole defect is about.
+    tv_multiple = (tv / fcff_term) if fcff_term > 0 else None
+    return (per_share, ev, pv_explicit, pv_tv, tv, equity, net_debt, shares, rows,
+            g_term, tv_multiple)
 
 
 def intrinsic_per_share(cd: CompanyData, a: AssumptionSet, wacc: float,
@@ -127,11 +153,12 @@ def intrinsic_per_share(cd: CompanyData, a: AssumptionSet, wacc: float,
 def run_dcf(cd: CompanyData, a: AssumptionSet, wacc: float,
             troic: Optional[float] = None) -> DCFResult:
     troic = troic if troic is not None else _terminal_roic(cd, wacc)
-    (per_share, ev, pv_explicit, pv_tv, tv, equity, net_debt, shares, rows) = _project(
-        cd, a, wacc, troic, collect_rows=True)
+    (per_share, ev, pv_explicit, pv_tv, tv, equity, net_debt, shares, rows,
+     g_eff, tv_multiple) = _project(cd, a, wacc, troic, collect_rows=True)
     return DCFResult(
         per_share=per_share, equity_value=equity, enterprise_value=ev,
         pv_explicit=pv_explicit, pv_terminal=pv_tv, terminal_value=tv,
-        tv_pct_of_ev=(pv_tv / ev if ev else 0.0), wacc=wacc, terminal_growth=a.terminal_growth,
+        tv_pct_of_ev=(pv_tv / ev if ev else 0.0), wacc=wacc, terminal_growth=g_eff,
         terminal_roic=troic, net_debt=net_debt, shares=shares, label=a.label, rows=rows,
+        terminal_multiple=tv_multiple, assumed_terminal_growth=a.terminal_growth,
     )
