@@ -73,6 +73,25 @@ def known_failure(reason: str, lane: str):
     return deco
 
 
+def _classify(fn, marked: bool):
+    """Run one test and decide what it counts as. Returns (verdict, error-or-None).
+
+    THE RUNNER USES THIS, and so does `test_this_files_own_xfail_mechanism_is_not_itself_inert`
+    — deliberately the same function rather than the test checking a copy of the rule, which is
+    the mistake this whole file exists to catch.
+
+    A CRASH is never an XFAIL: a marked test that throws a TypeError has rotted rather than
+    found something, and filing that under "expected" is how a marker outlives its bug.
+    """
+    try:
+        fn()
+    except AssertionError as e:
+        return ("XFAIL" if marked else "FAIL"), e
+    except Exception as e:                                               # noqa: BLE001
+        return "ERROR", e
+    return ("XPASS" if marked else "PASS"), None
+
+
 class _Tmp:
     """`tempfile.TemporaryDirectory` that survives Windows' file locks on teardown."""
 
@@ -873,6 +892,43 @@ UNTESTABLE = {
 }
 
 
+def test_this_files_own_xfail_mechanism_is_not_itself_inert():
+    """M3's thesis, turned on M3. `known_failure` is the guard that keeps a non-firing guard
+    VISIBLE, so if it silently swallowed everything, the one real finding in this file would
+    read as a pass and nobody would ever chase it.
+
+    Both directions are exercised against the real runner state: a marked test that fails must
+    be counted XFAIL (not FAIL), and a marked test that passes must be counted XPASS (not PASS),
+    because a stale marker hides a guard that has since been repaired."""
+    assert _KNOWN_FAILURES, "no test is marked — the mechanism has nothing to prove"
+    for name in _KNOWN_FAILURES:
+        assert name in globals() and callable(globals()[name]), \
+            f"@known_failure marks {name}, which is not a test in this file — a stale marker " \
+            f"would silently downgrade nothing at all"
+        reason, lane = _KNOWN_FAILURES[name]
+        assert len(reason) > 80, f"{name}: an XFAIL without a real reason is just a skip"
+        assert lane and "lane" not in lane.lower()[:4], f"{name}: name the owning lane"
+
+    # The classification itself, run for real: the runner must route a failure by whether the
+    # test is marked, not by anything about the exception.
+    def _boom():
+        raise AssertionError("x")
+
+    def _fine():
+        return None
+
+    def _kaboom():
+        raise ValueError("not an assertion")
+
+    assert _classify(_boom, marked=False)[0] == "FAIL"
+    assert _classify(_boom, marked=True)[0] == "XFAIL"
+    assert _classify(_fine, marked=True)[0] == "XPASS"
+    assert _classify(_fine, marked=False)[0] == "PASS"
+    # A CRASH is never an XFAIL. A marked test that stops importing or throws a TypeError has
+    # rotted, and quietly filing that under "expected" is how the marker outlives its bug.
+    assert _classify(_kaboom, marked=True)[0] == "ERROR"
+
+
 def test_the_untestable_list_is_specific_rather_than_a_shrug():
     """'Needs a live API' is a legitimate reason; absence is not. Each entry must name a real
     blocker, so the row cannot quietly become a place to put guards nobody wanted to write."""
@@ -884,32 +940,28 @@ def test_the_untestable_list_is_specific_rather_than_a_shrug():
 
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
-    passed = failed = xfail = xpass = 0
+    n = {"PASS": 0, "FAIL": 0, "XFAIL": 0, "XPASS": 0, "ERROR": 0}
     for t in tests:
         known = _KNOWN_FAILURES.get(t.__name__)
-        try:
-            t()
-        except AssertionError as e:
-            if known:
-                print(f"  XFAIL {t.__name__}\n         GUARD DOES NOT FIRE: {e}")
-                print(f"         owning lane: {known[1]}")
-                xfail += 1
-            else:
-                print(f"  FAIL  {t.__name__}: {e}")
-                failed += 1
-        except Exception as e:                                           # noqa: BLE001
-            print(f"  ERROR {t.__name__}: {type(e).__name__}: {e}")
-            failed += 1
+        verdict, err = _classify(t, marked=bool(known))
+        n[verdict] += 1
+        if verdict == "PASS":
+            print(f"  PASS  {t.__name__}")
+        elif verdict == "FAIL":
+            print(f"  FAIL  {t.__name__}: {err}")
+        elif verdict == "ERROR":
+            print(f"  ERROR {t.__name__}: {type(err).__name__}: {err}")
+        elif verdict == "XFAIL":
+            print(f"  XFAIL {t.__name__}\n         GUARD DOES NOT FIRE: {err}"
+                  f"\n         owning lane: {known[1]}")
         else:
-            if known:
-                print(f"  XPASS {t.__name__} — the guard now fires; delete its "
-                      f"@known_failure marker and update the M3 census")
-                xpass += 1
-            else:
-                print(f"  PASS  {t.__name__}")
-                passed += 1
-    print(f"\n{passed}/{len(tests)} guard tests passed"
-          f"  ({xfail} xfail, {xpass} xpass, {failed} failed)")
+            print(f"  XPASS {t.__name__} — the guard now fires; delete its "
+                  f"@known_failure marker and update the M3 census")
+    print(f"\n{n['PASS']}/{len(tests)} guard tests passed"
+          f"  ({n['XFAIL']} xfail, {n['XPASS']} xpass, "
+          f"{n['FAIL'] + n['ERROR']} failed)")
+    failed = n["FAIL"] + n["ERROR"]
+    xfail = n["XFAIL"]
     if xfail:
         print("XFAIL = a guard was fed the bug it exists to catch and did NOT complain. "
               "Routed to its owning lane above; see HANDOFF_optionsbot.md '## BUGS FOUND'.")
