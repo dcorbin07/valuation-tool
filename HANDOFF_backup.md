@@ -15,6 +15,35 @@ opposite policies, on two schedules.** That is what filled the disk.
 
 ---
 
+## 0. Status — the three questions, answered (re-checked 2026-08-06, after the merge conflict was resolved)
+
+| question | answer |
+|---|---|
+| **Is D: clear?** | **No.** `D:\valuation-tool (Backup)` is still there: **112.04 GB, 55,934 files**. Nothing on D: has been deleted — the drive will not permit deletion. `Get-Disk -Number 1` still reports `IsReadOnly: True`, `Get-Volume -DriveLetter D` still reports `HealthStatus: Warning` / `OperationalStatus: Full Repair Needed`, and a write probe still fails with "The media is write protected". |
+| **Did the new script run?** | **No — and it refused on purpose, which is the correct behaviour.** Run against D: it prints `[ABORT] Drive D:\ IS NOT WRITABLE` and exits 1 without copying. Run as `backup_to_D.bat dryrun` it gets as far as the space check and exits 1 with `NOT ENOUGH ROOM ON D:\ -- short by 5.07 GB`, naming the folder to delete. Both aborts are the fix working, not the fix failing. |
+| **Projected size vs capacity** | **38.01 GB needed against a 116 GB drive.** |
+
+**The space arithmetic as it stands right now**, straight from the script's own preflight:
+
+```
+free now ..........     2.54 GB
+reused by mirror ..    35.41 GB   (already-backed-up copies of the same subtrees)
+available .........    37.94 GB
+needed ............    43.01 GB   (38.01 GB of data + 5 GB headroom)
+-> short by 5.07 GB
+```
+
+**Once the 112.04 GB stale backup is cleared:** ~114.5 GB free, 38.01 GB used by the new backup,
+**~76 GB headroom.** It fits comfortably — the shortfall above exists only because the old
+wrong-shaped mirror is still occupying the drive and cannot be removed while it is read-only.
+
+Everything that does not depend on the drive is finished: cause diagnosed (§1), sizes measured
+(§2), buckets classified (§3), D: verified to be pure redundancy before anything was attempted
+(§4), script written and **40/40 tests passing** (§5). The single remaining step needs one
+elevated command — **§8**.
+
+---
+
 ## 1. What was actually wrong
 
 ### 1a. `/XD` works. The prompt's hypothesis was reasonable and wrong.
