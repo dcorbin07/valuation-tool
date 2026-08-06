@@ -1,8 +1,26 @@
 # HANDOFF — miner re-mine + DTE extension (audit B4 · O15 · the 158 names)
 
-Session 2026-08-05. Owner: the data-miner terminal. Prompt: `PROMPT_miner_remine.md`.
-Items 1, 2, 3 are **DONE and landed**. Item 4 (O15) is **RUNNING**. Item 5 was **not started**,
-deliberately.
+Session 2026-08-05/06. Owner: the data-miner terminal. Prompt: `PROMPT_miner_remine.md`.
+Items 1, 2, 3, 4 are **DONE and landed**. Item 5 was **not started**, deliberately.
+
+## Final coverage, measured after everything (the authoritative before/after)
+
+| | before | after |
+|---|---|---|
+| symbol-years | 3,140 | 3,140 |
+| rows | 366,424,776 | **397,072,955** (+30,648,179) |
+| rows with KNOWN open interest | 322,959,829 | 352,778,430 |
+| **known fraction** | **88.14%** | **88.84%** |
+| symbol-years below the 95% floor | 834 | 832 |
+| symbol-years with no known OI at all | 2 | 1 |
+| names with at least one bad year | 284 | 284 |
+
+**Only two spans were genuinely fixable: AAPL-2020 and FNV-2019. None became worse.** Coverage
+moved 88.14% → 88.84%, and most of that is the +30.6M new deep rows (which are 97%+ covered)
+rather than repaired old ones. **This is the honest headline of items 1+2: the −1 problem is
+overwhelmingly a SOURCE limitation, not a mining bug, and re-mining cannot fix it.**
+
+Depth after item 4: **913 symbol-years at 200 DTE, 2,227 at 90; 100 names fully deep, 0 mixed.**
 
 Landed commits: `18f77db` (B4 writer side), `3c4ceb7` (shard support), `0e393b8` (merge),
 `dc2bc5b` (O15). All verified present on `origin/main` by content, not by a green push.
@@ -133,10 +151,31 @@ stop. Widen `TENORS` when `depth_report()` says depth is universal.
 over the 90-200 DTE range compares deep names against names that have no such rows at all. Check
 `depth_report()` before ranking on one. A re-derive of the derived layer is your call, not mine.
 
-### Status at time of writing
+### Result — DONE
 
-PID 35664, launched detached. PLTR 6/6 years deep (50→54MB), COIN 5/5 (67→83MB), BABA in
-progress, **zero gRPC faults**. Resumable: re-running picks up any year still below depth.
+**100/100 names fully at 200 DTE; 913 symbol-years deep.** 981 min (16.4h) for the main pass,
+plus a 24 min resume pass.
+
+| | projected before the run | actual |
+|---|---|---|
+| growth | ×1.19-1.30 | **×1.210** |
+| net disk | +1.3-2.0 GB | **+1.40 GB** |
+| runtime | 7-13h (revised to ~15h mid-run) | **16.4h** |
+
+The size projection held tightly. **The RUNTIME estimate was wrong and I revised it publicly
+mid-run**: it was extrapolated from single-span throughput (900-1700 rows/s), which ignored
+per-call overhead and the fact that each span costs TWO calls (EOD + open interest) across ~12
+monthly chunks per year. The per-span measurements were right; scaling them up was not.
+
+**ZERO gRPC faults and ZERO channel rebuilds across 16.4 hours.** That is the fix from bug 3
+holding under precisely the conditions that burned 455 names in one run before it, and is the
+strongest evidence in this session that the miner can now run unattended.
+
+**8 symbol-years across 4 names failed the first pass** (SHOP-2021, MCD-2022/23,
+CMG-2020/21/22/23, RTX-2020). Every one kept its original rows and was marked `.missing`
+(retryable), never `.exhausted` — the never-destroy guard firing 8 separate times. The resume
+pass recovered **all 8 in 24 min**, including CMG's four years, which are the largest in the set
+(229→249MB). Those failures were transient, and keeping the shallow frames cost nothing.
 
 ---
 
@@ -157,7 +196,17 @@ progress, **zero gRPC faults**. Resumable: re-running picks up any year still be
 4. **`prefetch` re-implemented the skip rule** with a bare `os.path.exists`, bypassing everything
    `ensure_year` enforces. Left as-is, the deep re-mine would have skipped every name and
    reported success. Fixed: one `needs_pull()`, pinned by a test.
-5. **`oi_remine.py` reported a stale `before` as the outcome on restore.** When a re-pull faults
+5. **A SYMBOL-YEAR WAS SILENTLY LOST, AND THE LOSS DISGUISED ITSELF AS AN IMPROVEMENT.**
+   `oi_remine` moves the old frame to `.bak_oi` BEFORE re-pulling, so a kill in that window
+   leaves the span existing only as the backup. **NXPI-2017 (144,300 rows, 6.8MB) was lost
+   exactly that way** when a shard was stopped and restarted mid-session. The nasty part: the
+   coverage audit stops counting a span that has no `.pkl`, so NXPI-2017 appeared in the
+   before/after diff as one of three spans that had been FIXED — a data loss reading as a
+   repair. Caught only because the symbol-year COUNT dropped 3,140 → 3,139 and that one row of
+   the diff was chased instead of waved off. Restored in full, and `oi_remine` now sweeps
+   orphaned `.bak_oi` files back before it re-mines anything. Pinned by a test. **The genuinely
+   fixed count is 2 (AAPL-2020, FNV-2019), not 3.**
+6. **`oi_remine.py` reported a stale `before` as the outcome on restore.** When a re-pull faults
    the good frame is correctly restored, but the status was recorded from the audit snapshot
    rather than from the restored file — so AAPL-2020 and FNV-2019 were logged `still_failing`
    while sitting at 99.51% and 100.00% on disk. Fixed: measure the restored frame. **The shard
@@ -165,18 +214,21 @@ progress, **zero gRPC faults**. Resumable: re-running picks up any year still be
 
 ## What was NOT done
 
-* **Item 4's pull has not finished.** Numbers above are the estimate and the first two names.
-* **The post-re-mine coverage audit rescan is PENDING**, deliberately: the deep pull is rewriting
-  the same files right now, so a rescan would measure a moving target. Run
-  `python oi_coverage_audit.py --rescan` once PID 35664 exits — it then covers items 2 and 4 in
-  one pass and is the authoritative before/after.
 * **Item 5 (breadth mining) not started**, per instruction to stop after item 4.
+* **`TENORS` was NOT widened** past the legacy 90 — see the band section for why.
+* **The derived layer was NOT re-derived** after the band widened. That is the corrections
+  agent's call, not mine.
+* **The 832 spans still below the OI floor were NOT re-attempted again.** They are pre-2019 and
+  marked; retrying them is burning budget on data the feed does not have.
 * **505 universe names have no manifest entry** and need re-probing. That is channel-death damage
   (bug 3), not the 158-name bug, and mining them is item 5 work.
 * **The 14 empty names point at an `ALIASES` gap** that was not closed.
 
 ## Recommended next step
 
-Let PID 35664 finish, then `python oi_coverage_audit.py --rescan` for the authoritative coverage,
-and `python -c "from valuation.edge.theta_bulk import depth_report; print(depth_report())"` for
-the depth split. Then item 5, which should re-probe the 505 missing names first.
+**Item 5 (breadth mining), and it should re-probe the 505 manifest-less names FIRST** — those are
+channel-death damage from bug 3, and the fix for that is now in place and proven over a 16-hour
+run, so they should probe cleanly this time. Closing the `ALIASES` gap behind the 14 empty names
+is a cheap win to fold into the same pass.
+
+U1 is unblocked on the data side: the 120-180 DTE band now exists for the 100 most liquid names.

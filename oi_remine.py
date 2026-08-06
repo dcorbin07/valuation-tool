@@ -93,6 +93,33 @@ def main():
         except (OSError, ValueError):
             prior = {}
 
+    # RECOVER ORPHANED BACKUPS FIRST. The re-mine sets the old frame aside at `.bak_oi` BEFORE
+    # re-pulling, so a kill in that window leaves the symbol-year existing only as the backup:
+    # the `.pkl` is gone, the audit stops counting it, and the loss reads as a span that
+    # "improved" because it simply vanished from the scan. Measured: NXPI-2017 (144,300 rows,
+    # 6.8MB) was lost exactly this way when a shard was stopped and restarted, and showed up in
+    # the coverage diff as a FIXED span. Sweep them back before doing anything else.
+    recovered = 0
+    for _sym in sorted(os.listdir(CACHE_ROOT)):
+        _d = os.path.join(CACHE_ROOT, _sym)
+        if not os.path.isdir(_d):
+            continue
+        for _fn in os.listdir(_d):
+            if not _fn.endswith(".bak_oi"):
+                continue
+            _bak = os.path.join(_d, _fn)
+            _live = _bak[: -len(".bak_oi")]
+            if os.path.exists(_live):
+                continue                      # the re-pull completed; the backup is just litter
+            try:
+                os.replace(_bak, _live)
+                recovered += 1
+                log(f"recovered orphaned backup {os.path.basename(_live)}")
+            except OSError as e:
+                log(f"could NOT recover {_bak}: {e}")
+    if recovered:
+        log(f"restored {recovered} symbol-year(s) that existed only as .bak_oi")
+
     tb = ThetaBulk()
     if not tb._key:
         log("NO THETADATA KEY - refusing to run (would mark everything as unrecoverable)")

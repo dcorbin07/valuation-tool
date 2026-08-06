@@ -4628,6 +4628,28 @@ def test_sustained_faults_rebuild_the_grpc_client():
     assert tb._client is not None
 
 
+def test_b4_an_orphaned_remine_backup_is_swept_back_not_left_as_a_silent_loss():
+    """`oi_remine` sets the old frame aside at `.bak_oi` BEFORE re-pulling, so a kill in that
+    window leaves the symbol-year existing ONLY as the backup. The `.pkl` is gone, the coverage
+    audit stops counting it, and the loss reads as a span that IMPROVED because it vanished from
+    the scan rather than because anything was fixed. Measured: NXPI-2017 (144,300 rows) was lost
+    exactly that way when a shard was stopped and restarted, and appeared in the before/after
+    diff as one of three 'fixed' spans."""
+    import inspect
+    import os
+
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "oi_remine.py"), encoding="utf-8").read()
+    # The sweep must run BEFORE the re-mine loop, and must never clobber a live frame.
+    assert ".bak_oi" in src and "recovered orphaned backup" in src, \
+        "oi_remine must sweep orphaned .bak_oi files back"
+    assert src.index("recovered orphaned backup") < src.index("for i, (key, before) in"), \
+        "the sweep must happen before any span is re-mined"
+    assert "if os.path.exists(_live):" in src, \
+        "a backup whose .pkl came back is litter, not a restore candidate -- never clobber"
+    del inspect
+
+
 def test_o15_cached_dte_depth_is_recorded_per_symbol_year():
     """O15. The cache is now mined at two ceilings (90 before, 200 after) and on disk a shallow
     year and a deep one are the SAME FILE SHAPE. Without a recorded depth, a consumer asking for
