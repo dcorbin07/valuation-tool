@@ -198,12 +198,34 @@ def scan_corpus(ids, pat) -> list[Occurrence]:
         except OSError:
             continue
         lines = text.splitlines()
+        ignoring = False
         for n, line in enumerate(lines, 1):
+            # Opt-out markers. A handoff section that WRITES ABOUT the ledger
+            # ("these 36 items are never mentioned", "--evidence S12") names
+            # ids without being evidence about them, and would otherwise feed
+            # its own numbers back in on the next refresh. Wrap such a region in
+            # <!-- ledger:ignore --> ... <!-- /ledger:ignore -->.
+            if "/ledger:ignore" in line:
+                ignoring = False
+                continue
+            if "ledger:ignore" in line:
+                ignoring = True
+                continue
+            if ignoring:
+                continue
             found = {}
             for m in pat.finditer(line):
                 if m.group(1) in ids:
                     found.setdefault(m.group(1), m.start(1))
             if not found:
+                continue
+            # A line that lists many ids is a ROLL-CALL -- a scope list, a
+            # session plan, or this ledger's own report enumerating what is
+            # still open. It says nothing about any individual item, and
+            # counting it makes the ledger self-referential: publishing "these
+            # 34 items are never mentioned" would itself become a mention of
+            # all 34. Inventory is not evidence.
+            if len(found) >= 7:
                 continue
             is_header = bool(re.match(r"\s{0,3}#{1,6}\s", line))
             for item, pos in found.items():
@@ -355,11 +377,16 @@ def propose(items, occ, commits) -> dict:
                 note = (note + "; " if note else "") + "commit = wrote-up-in"
 
         if status == "OPEN" and not note:
+            # Deliberately no occurrence COUNT in the note. The corpus includes
+            # the handoffs, and a handoff that lists open item ids (this
+            # ledger's own report does) bumps every count -- churning every auto
+            # row on refresh for no information. `--evidence <ID>` counts on
+            # demand, which is when the number is actually worth having.
             if fwd and not prose and not headers:
-                note = (f"only forward references ({len(fwd)}) -- mentioned as a "
-                        f"dependency, never written up")
+                note = ("only forward references -- mentioned as a dependency, "
+                        "never written up")
             elif prose:
-                note = f"prose mentions only ({len(prose)}), no section, no commit"
+                note = "prose mentions only, no section, no commit"
             elif not os_:
                 note = "no mention anywhere in the corpus"
 
@@ -457,7 +484,14 @@ file replaces reconstructing project state from git history.
   verdicts in this vocabulary, so their column is blank and the write-up's own
   word is quoted in the note instead. Blank therefore means *"not measured, or
   measured and reported in different words"* — never *"we don't know"*.
-* **commit** — the sha it landed in, so any claim here is checkable in one step.
+* **commit** — a sha, so any claim here is checkable in one step. It is the
+  commit whose *subject names the item* where one exists; otherwise it is the
+  commit that **introduced the write-up**. Many items landed inside multi-item
+  commits ("eleven Part I corrections") that never name them, so for much of the
+  B series this is *"where it was recorded"*, not *"where it was fixed"* — a
+  weaker claim, and stated here rather than left to be assumed. Unfinished rows
+  carry no sha at all: a commit that merely *mentioned* an item reads as
+  evidence of work done, and is worse than a blank.
 * **handoff** — where the real write-up lives. The ledger is an index, not a
   replacement for it.
 * **src** — `human` = hand-verified against the write-up; `build_ledger.py`
