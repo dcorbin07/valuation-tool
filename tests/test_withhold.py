@@ -381,21 +381,183 @@ def test_a_publishable_name_still_gets_its_numbers_through_the_route():
     assert "1289.5983215433105" in body and "2293.6874204966884" in body
 
 
-def test_the_downloads_refuse_too():
-    """A download is a publication. The PDF builds the same cone from
-    `scenarios.*.per_share` (report/pdf.py:97), so a withheld name must not be exportable —
-    otherwise the number just leaves the building in a file instead of on a screen."""
+# --------------------------------------------------------------------------- #
+# The exports — a download is a publication
+# --------------------------------------------------------------------------- #
+# A REAL withheld result, built offline from a synthetic company through the real pipeline,
+# so the guard itself decides — no hand-made "withheld" object that could drift from what
+# the engine actually produces. NKE's inputs against a $2.00 price come out at 37.5x, which
+# is exactly the shape the guard exists for.
+def _withheld_result(mc_trials=300):
+    from valuation.config import CONFIG
+    from valuation.engine.pipeline import value_from_company
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from fixtures import build_nike
+    cd = build_nike()
+    cd.price = 2.0
+    cd.market_cap = 2.0 * cd.shares_diluted
+    r = value_from_company(cd, CONFIG, mc_trials=mc_trials)
+    assert withhold.is_withheld_result(r), "the fixture stopped tripping the guard"
+    return r
+
+
+def _publishable_result(mc_trials=300):
+    from valuation.config import CONFIG
+    from valuation.engine.pipeline import value_from_company
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from fixtures import build_nike
+    r = value_from_company(build_nike(), CONFIG, mc_trials=mc_trials)
+    assert not withhold.is_withheld_result(r)
+    return r
+
+
+def _tmp(suffix):
+    import tempfile
+    f = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    f.close()
+    return f.name
+
+
+#: Numbers a refusal document may legitimately contain: the price itself, a year, and the
+#: figure quoted INSIDE the guard's sentence as the evidence for withholding.
+def _implausible_numbers(text, price, reason):
+    # collapse whitespace first: a PDF wraps the reason across lines, and an un-normalised
+    # comparison would "find" the withheld figure it is allowed to quote
+    text = re.sub(r"\s+", " ", str(text))
+    text = text.replace(re.sub(r"\s+", " ", reason), " ")   # the one permitted quotation
+    out = []
+    for tok in re.findall(r"-?\d[\d,]*\.?\d*", text):
+        try:
+            v = float(tok.replace(",", ""))
+        except ValueError:
+            continue
+        if 1900 < v < 2200 and "." not in tok:            # a year, not money
+            continue
+        if v > price * 5:
+            out.append(tok)
+    return out
+
+
+def test_the_pdf_renders_the_refusal_instead_of_erroring():
+    """A user asking for a tearsheet of a name the model cannot value should get a tearsheet
+    that says so, with the reason. An error would claim the export is broken; the export is
+    fine and the valuation is withheld, and those are different claims."""
+    r = _withheld_result()
+    from valuation.report import pdf as pdf_report
+    path = _tmp(".pdf")
+    pdf_report.build_pdf(r, path)
+    assert os.path.getsize(path) > 800, "no document was produced"
+
+    lines = pdf_report.withheld_pdf_lines(r)
+    flat = " ".join(str(t[1] if k == "kv" else t) if k != "kv" else f"{t[0]} {t[1]}"
+                    for k, t in lines)
+    reason = withhold.refusal_reason(r)
+    assert reason in flat, "the document must state the reason"
+    for phrase in ("not published", "n/a", "not rated"):
+        assert phrase in flat, f"the document never says {phrase!r}"
+    assert not _implausible_numbers(flat, r.company.price, reason)
+
+    try:
+        from pypdf import PdfReader                       # in requirements.txt for this check
+    except ImportError:                                   # pragma: no cover
+        print("      (pypdf missing — checked the lines, not the rendered file)")
+        return
+    text = "\n".join((p.extract_text() or "") for p in PdfReader(path).pages)
+    assert reason.split(".")[0] in text.replace("\n", " ")
+    assert not _implausible_numbers(text, r.company.price, reason), \
+        "a figure derived from the withheld valuation is IN THE RENDERED PDF"
+    # No SECTION of the normal tearsheet survives. Matched on its headings and table
+    # headers, case-sensitively — the refusal's own prose names the withheld cards in
+    # lower case ("the bear/base/bull cases ... the Monte Carlo distribution") on purpose,
+    # since telling the reader what is missing is the job of the document.
+    for banned in ("Score Breakdown", "Reverse DCF", "vs Price", "Base Fair Value",
+                   "Comps fair value", "Scenarios"):
+        assert banned not in text, f"the refusal tearsheet still has a {banned} section"
+
+
+def test_the_workbook_has_no_model_in_it():
+    """The harder case. A spreadsheet of scenario rows is exactly the shape that leaks, and
+    every cell in the normal workbook is a FORMULA — so blanking a summary cell would leave
+    the file recomputing the withheld figure the moment it opened. The refusal workbook is
+    not the model with holes in it: the model sheets are never built. Checked cell by cell."""
+    r = _withheld_result()
+    from valuation.report import excel as excel_report
+    from openpyxl import load_workbook
+    path = _tmp(".xlsx")
+    excel_report.build_workbook(r, path)
+    wb = load_workbook(path)          # formulas as written, not cached values
+    assert wb.sheetnames == ["Not valued"], f"model sheets were built: {wb.sheetnames}"
+
+    reason = withhold.refusal_reason(r)
+    cells, formulas = [], 0
+    for ws in wb.worksheets:
+        for row in ws.iter_rows():
+            for c in row:
+                if c.value is None:
+                    continue
+                cells.append((f"{ws.title}!{c.coordinate}", c.value))
+                if isinstance(c.value, str) and c.value.startswith("="):
+                    formulas += 1
+    assert formulas == 0, "a refusal workbook must not carry a single live formula"
+    assert any(reason in str(v) for _, v in cells), "the reason is not in the workbook"
+    for ref, v in cells:
+        if isinstance(v, (int, float)):
+            assert abs(v) <= r.company.price * 5, f"{ref} = {v} survived"
+        else:
+            assert not _implausible_numbers(str(v), r.company.price, reason), \
+                f"{ref} carries a withheld figure"
+
+
+def test_a_publishable_name_still_exports_the_whole_model():
+    """The refusal must not cost everyone else their workbook."""
+    r = _publishable_result()
+    from valuation.report import excel as excel_report
+    from valuation.report import pdf as pdf_report
+    from openpyxl import load_workbook
+    xp, pp = _tmp(".xlsx"), _tmp(".pdf")
+    excel_report.build_workbook(r, xp)
+    pdf_report.build_pdf(r, pp)
+    wb = load_workbook(xp)
+    assert set(wb.sheetnames) == {"DCF Model", "WACC", "Sensitivity"}
+    formulas = sum(1 for ws in wb.worksheets for row in ws.iter_rows() for c in row
+                   if isinstance(c.value, str) and c.value.startswith("="))
+    assert formulas > 50, "the live model lost its formulas"
+    assert os.path.getsize(pp) > 2000
+
+
+def test_the_export_routes_serve_the_refusal_document():
+    """End to end: 200 and a real file, not a 409. The bytes that reach the browser are
+    re-opened and walked, because that is the artefact the user actually gets."""
     from valuation.web import app as webapp
-    payload = _payload()
-    webapp._LAST["KSPI"] = _stub_result(payload)
+    from openpyxl import load_workbook
+    r = _withheld_result()
+    reason = withhold.refusal_reason(r)
+    webapp._LAST["NKE"] = r
     webapp.app.config["TESTING"] = True
-    with webapp.app.test_client() as c:
-        for url in ("/api/export/pdf?ticker=KSPI", "/api/export/excel?ticker=KSPI"):
-            r = c.get(url)
-            assert r.status_code == 409, f"{url} returned {r.status_code}"
-            j = r.get_json()
-            assert j["withheld"] is True and "no fair value is published" in j["error"]
-    webapp._LAST.pop("KSPI", None)
+    try:
+        with webapp.app.test_client() as c:
+            pdf = c.get("/api/export/pdf?ticker=NKE")
+            assert pdf.status_code == 200, f"pdf returned {pdf.status_code}"
+            assert pdf.mimetype == "application/pdf"
+            assert pdf.get_data()[:5] == b"%PDF-"
+
+            xls = c.get("/api/export/excel?ticker=NKE")
+            assert xls.status_code == 200, f"excel returned {xls.status_code}"
+            path = _tmp(".xlsx")
+            with open(path, "wb") as fh:
+                fh.write(xls.get_data())
+            wb = load_workbook(path)
+            assert wb.sheetnames == ["Not valued"]
+            for ws in wb.worksheets:
+                for row in ws.iter_rows():
+                    for cell in row:
+                        if cell.value is None:
+                            continue
+                        assert not str(cell.value).startswith("="), "live formula shipped"
+                        assert not _implausible_numbers(str(cell.value),
+                                                        r.company.price, reason)
+    finally:
+        webapp._LAST.pop("NKE", None)
 
 
 def _run_all():

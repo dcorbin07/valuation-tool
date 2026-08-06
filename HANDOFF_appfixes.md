@@ -5,6 +5,199 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 13 — 2026-08-05 — Exports refuse in-document; the 5x/20x answer; the Index tab
+(PROMPT_appfixer_exports_and_index_tab.md)
+
+Three items. Item 1 shipped, item 2 is answered definitively and the answer is **worse than
+the prompt supposed**, item 3 turned out to be already built — so what shipped there is the
+decision, the labelling and the sanity check rather than the feature.
+
+## ITEM 1 — the exports render the refusal now, and produce a real file
+
+`/api/export/pdf` and `/api/export/excel` used to return **409** for a withheld name. They now
+return **200 and a document that says the valuation is withheld, with the reason on it**. The
+route-level refusal is gone entirely (`web/app.py`); the refusal lives in the documents.
+
+**PDF** — `report/pdf.py::withheld_pdf_lines()` / `_build_withheld_pdf()`. Sample, generated
+from the real KSPI result and read back out of the rendered file with `pypdf`:
+
+> **Joint Stock Company Kaspi.kz (KSPI)** — Valuation withheld | As of 2026-08-05
+> **No fair value is published for this name**
+> Cannot value this name: the model's $1,289.93 is 14.0x the $92.19 price. That gap is a data
+> problem (currency or share count), not an opportunity, so no fair value is published.
+> This is not a formatting problem or a missing-data error. The model produced a figure,
+> checked it against the market price, and refused to publish it. Everything downstream of
+> that figure — the bear/base/bull cases, the sensitivity grid, the Monte Carlo distribution,
+> the implied values from peer multiples and the opportunity score — is withheld with it…
+> **What is shown** — Price $92.19 · Fair value *not published* · Upside *n/a* · Opportunity
+> score *not rated* · Regime hypergrowth · DCF reliability medium
+> **What would change it** — Most refusals are a currency or share-count mismatch… when the
+> inputs reconcile, the valuation publishes on its own.
+
+Numbers in the rendered PDF larger than 5× the price: **one — $1,289.93, inside the refusal
+sentence.** No `Scenarios`, `Score Breakdown`, `Reverse DCF` or `vs Price` section exists.
+
+**Excel** — the harder case, and it is not the model with holes in it. A blanked summary cell
+would be pointless because **every cell in the normal workbook is a formula**: `C6` is
+`=C41`, the sensitivity grid is 25 live `SUMPRODUCT` per-share formulas, so a "cleared"
+workbook would recompute the withheld figure the moment it opened. So the model sheets are
+**not built at all**. Measured on the generated file:
+
+| | normal (AAPL) | withheld (KSPI) |
+|---|---|---|
+| sheets | DCF Model, Sensitivity, WACC | **Not valued** (one) |
+| non-empty cells | 201 | 19 |
+| **live formulas** | 88 | **0** |
+| cells > 5× price | share counts / revenue / market cap (legitimate model inputs) | **none** |
+
+The one place the withheld figure appears is inside the reason text in `A5`, as on the page.
+
+**Tests** — `tests/test_withhold.py` is 16 → **19**, and the export tests are built on a REAL
+withheld result: `value_from_company(NKE fixture with price=$2.00)` runs the actual
+`publication_guard`, which fires at 37.5×. Offline, no network. `test_the_workbook_has_no_model_in_it`
+walks **every cell** (not the summary) asserting no formulas and nothing above 5× price;
+`test_the_pdf_renders_the_refusal_instead_of_erroring` reads the file back with `pypdf` and
+walks every number in the extracted text; `test_the_export_routes_serve_the_refusal_document`
+re-opens **the bytes the browser receives** and walks those. `test_a_publishable_name_still_
+exports_the_whole_model` keeps the normal workbook at 3 sheets and >50 formulas.
+
+`pypdf>=5.0` was added to `requirements.txt` (test-only, commented as such): CI installs that
+file and nothing else, and checking the code that builds a document is not the same as
+checking the document.
+
+## ITEM 2 — the 5x/20x question. **YES, and the 20x is not the real ceiling.**
+
+**A name can reach a public surface valued far above 5× its price, and it does not need an
+exotic input.** Path, all of it live today:
+
+1. `/api/hotstocks` is PUBLIC (`saas/surfaces.py::PUBLIC_API`).
+2. `web/app.py:407-408` calls `estimate_fair_values(rows, peer_rows=all_rows)` on the rows it
+   is about to serve.
+3. `screener/fairvalue.py:154-165` — `_mature_value`'s EV bridge: `equity = ev*ratio - nd`
+   with `ratio` capped at `MAX_RERATE = 3.0`, then `implied = price * equity / mc`.
+4. `app.js::_fairValCell` renders it with the `(+N%)` chip. No cap anywhere downstream.
+
+Since `ev = mc + nd`, that reduces exactly to
+
+> **implied / price = 3 + 2 × (net debt / market cap)**
+
+which I confirmed numerically through the real function — predicted and actual agree to the
+cent at every leverage level:
+
+| net debt / market cap | 0 | 0.5 | **1.0** | 1.5 | 2 | 3 | 4 | 8 | 15 |
+|---|---|---|---|---|---|---|---|---|---|
+| published fair value ÷ price | 3.0× | 4.0× | **5.0×** | 6.0× | 7.0× | 9.0× | 11.0× | 19.0× | **33.0×** |
+
+So **any name with net debt above 1× its market cap that re-rates the full 3× exceeds the
+valuation page's refusal band**, and the 5x–20x band is not even the limit — the constructed
+case published **$330.00 against a $10.00 price (33×)** tagged `fair_value_method: "multiples"`,
+`fair_value_confidence: "medium"`. Leveraged cable, telecom, utilities, REITs and airlines sit
+in that range routinely; CHTR's own net debt is roughly 4× its market cap.
+
+**The 20× cap does not apply to this.** `MAX_GROWTH_VALUE = 20.0` (`fairvalue.py:69`) is
+checked at `fairvalue.py:222`, inside `_growth_value` only. **The multiples lens has no
+absolute cap at all** — only a cap on the *re-rate*, which stops bounding the *per-share*
+answer as soon as the net-debt bridge divides by a small market cap.
+
+**Not changed, as instructed** — this is `screener/**`. Two things make it actionable rather
+than theoretical: the call site (`web/app.py:407`) is in MY lane, so the guard can be added
+without touching the screener the moment its owner picks the number; and the disagreement is
+not 5 vs 20, it is 5 vs unbounded. I could not measure how often it fires in production: this
+machine's `data/screener.db` holds only a synthetic test row (`TESTX`, scan_date 2099-01-01),
+so the real snapshot lives on Render's disk. **The one-line check for whoever owns it:** on a
+real snapshot, `max(r["fair_value"]/r["price"])` after `estimate_fair_values`.
+
+## ITEM 3 — the Index tab was already built (2026-08-02, commit `5e48a4a`)
+
+Verified rather than claimed: `tab-index`, the cumulative-vs-SPY chart (`indexChart`) and the
+alpha figures already exist, and the live column is genuinely dynamic — `/api/index-track` →
+`screener/index_track.py::summarize()` computes cumulative, excess, annualised alpha and
+Sharpe from the stored series, withholding the annualised figures until `MIN_LIVE_DAYS`. The
+backtested column reads `settings.BOOK_CONFIGS[cfg]["measured"]`, which is a *measured*
+constant from the full-panel backtest and correctly labelled hypothetical. Nothing there was
+a written-in performance figure, so there was nothing to replace.
+
+What was genuinely open — and is what shipped:
+
+**The split decision: the Index STAYS OWNER-ONLY.** Two independent reasons, either
+sufficient: (1) it publishes names **with weights** as of today, which is an allocation rather
+than an analysis — the exact line the split is drawn on; (2) the card above the holdings is a
+cumulative-return chart against the S&P, which is a performance-claim *shape* whatever caption
+sits under it, and the public posture is "no performance claims in public". The middle option
+— publish the curve, withhold the holdings — was considered and **rejected**: it fails (2) on
+its own, so it gives up the clarity of one rule and buys nothing. Reversal is one line in
+`saas/surfaces.py` and is Don's call. Pinned by
+`test_the_index_stays_owner_only_and_says_why_on_its_own_face`.
+
+**The labelling, which was the real gap.** The copy read *"The book you would actually hold"*
+and *"real money-less trading"* — an allocation instruction and a contradiction. Now, on the
+surface itself and not only in the terms:
+
+- tab header: **"A model portfolio — not a traded account, and not advice… No money is
+  invested in it. Positions are marked at closing prices, so there are no fills, no slippage
+  beyond the modelled cost and no tax — which is exactly why it is not a return anyone earned."**
+- card title: "Performance — backtested vs live" → **"Model-portfolio performance — backtested
+  vs forward"**; the live card's badge "Live since inception" → **"Forward, model portfolio"**.
+- the **chart's own caption** now carries it, because a chart is the element most likely to be
+  screenshotted away from every caveat around it: *"Cumulative return of the MODEL portfolio
+  since inception vs SPY… no capital is invested — these are closing-price marks, not fills,
+  and not a return anyone received."*
+- the shared `RISK_DISCLAIMER` said the forward track "is real but short" — now **"is a model
+  portfolio and a sandbox paper account — no money is invested in either, so no figure here is
+  a return anyone received — and it is short."** That string is used on every surface that
+  outputs something recommendation-shaped, so this is the widest-reaching line of the three.
+
+Verified in a browser as the owner: the tab renders, all four framings appear, **no JS errors**.
+
+**The book's sanity: shape confirmed, live names NOT confirmed — and I will not pretend
+otherwise.** The construction was exercised read-only on a synthetic 800-name snapshot through
+the real `build_index`: `roth` → 25 positions, weights sum to 1.000000, max 6.18% (under the 8%
+cap), 11 sectors; `taxable` → 80 positions (the decile), max 2.25%, 11 sectors. That is the
+shape the prompt describes and it is sane. **The live 67-position book with NLY / ARWR / APGE /
+QXO / SYF cannot be checked from here** — the local store has no real scan, and
+`/api/valquo-index` is owner-only in production. → **Don or Cowork: open the Index tab signed
+in and eyeball the first post-800 book.** If a name looks wrong, the ranking is the place to
+look, not the construction.
+
+## Suites
+
+**20 suites, 690 tests, all green.** `main` was at 686 when this session started (the prompt's
+683 bar predates the DCF lane's +3 in `test_engine`). This session adds **+3 withhold**
+(16→19) and **+1 public** (16→17). edge 221, screener 67, paper_track 40, engine 36, ev_multiples
+34, private 30, saas 30, lazy_prices 28, lazy_prices_ic 24, options_greeks 22, security 22,
+calibration 23, **withhold 19**, intraday 18, **public 17**, bulk 14, factor_alpha 14, freeze 13,
+pead 12, sector_neutral 6.
+
+## BUGS FOUND (noticed, not fixed — not this lane)
+
+1. **The screener's multiples lens is unbounded on the public hot list.** Item 2 above:
+   `implied/price = 3 + 2·(net debt / market cap)`, no absolute cap, `fairvalue.py:154-165`.
+   The 20× `MAX_GROWTH_VALUE` guards only the growth lens. → **screener owner.** The public
+   call site is `web/app.py:407` if the guard is better placed there.
+2. **Two thresholds for one claim, still.** The valuation page refuses above 5×; the screener
+   estimate has no ceiling. Whatever number is agreed, it should be one constant read by both.
+3. **`_LAST` is a process-global result cache** (`web/app.py:40`) keyed by ticker with no TTL,
+   and `/api/export/*` serves from it. On a long-lived Render process an export can therefore
+   be built from a result computed hours earlier under different prices while the page shows a
+   fresh one. Not a withholding leak (the guard travels with the cached result), but the
+   document's "As of" and the page's can disagree. → **app lane, next session.**
+4. Still open from Session 12 and unchanged: **MRK publishes +611% at 3.7×** (under the guard
+   band — the DCF is the problem, not the band), and **`_valuation_score` re-imports the
+   withheld valuation** at `scoring.py:83/86` with the >5× cap dead at `scoring.py:228`.
+   → **engine lane.**
+
+## For Don
+
+Ask for a PDF or an Excel model of KSPI (or STLA, CHTR, GILD, CI, JD) and you now get a real
+file that says the valuation is withheld and why, instead of an error — and the workbook has
+no live formulas in it, so there is nothing for Excel to recalculate into the number the site
+refused to show. The Index tab is unchanged in what it does and now says plainly, on itself,
+that it is a model portfolio with no money in it. It stays behind your login; the reasoning
+for that is above if you want to overrule it. **One thing needs your eyes:** the first
+800-name book — open the Index tab signed in and check the holdings look sane.
+
+---
+
 # Session 12 — 2026-08-05 — When the model refuses to value a name, the whole page refuses
 (PROMPT_scenario_cards_follow_headline.md)
 

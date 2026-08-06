@@ -110,6 +110,26 @@ SCORE_NOTE = (
 )
 
 
+def is_withheld_result(result) -> bool:
+    """The same question asked of a ValuationResult object rather than its payload.
+
+    The exports (`valuation/report/**`) never see the JSON — they build straight off the
+    result — so they need this form to apply the identical rule. Both call sites must agree,
+    which is why there is one predicate written twice rather than two definitions of
+    "withheld" that can drift.
+    """
+    blend = getattr(result, "fair_value_blend", None)
+    return (blend is not None and not getattr(blend, "valuable", True)
+            and getattr(result, "base_fair_value", None) is None)
+
+
+def refusal_reason(result) -> str:
+    """The guard's own sentence, for a document that has to state why it is empty."""
+    blend = getattr(result, "fair_value_blend", None)
+    return (getattr(blend, "reason", "") or "").strip() or (
+        "No fair value is published for this name.")
+
+
 def is_withheld(payload: dict) -> bool:
     """True when the publication guard refused to publish a fair value for this name.
 

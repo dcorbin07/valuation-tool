@@ -31,8 +31,10 @@ app = Flask(__name__)
 RISK_DISCLAIMER = (
     "Educational research tool — not investment advice, and not a recommendation to buy or "
     "sell any security. Backtested results are hypothetical, come from one 18-year dataset "
-    "the model was also tuned on, and are not a promise about the future. The live forward "
-    "track is real but short. You can lose money. Do your own research."
+    "the model was also tuned on, and are not a promise about the future. The forward track "
+    "is a model portfolio and a sandbox paper account — no money is invested in either, so "
+    "no figure here is a return anyone received — and it is short. You can lose money. Do "
+    "your own research."
 )
 
 # In-memory cache of the last full result per ticker (local single-user tool),
@@ -179,20 +181,12 @@ def _get_or_compute(ticker: str):
     return r
 
 
-def _export_refusal(result):
-    """A download is a publication. If the page refuses to publish this name's valuation,
-    the workbook and the tearsheet — which build the same per-share cone from
-    `scenarios.*.per_share`, e.g. pdf.py:97 — must refuse too, or the withheld number just
-    leaves the building in a file instead of on a screen. Rendering the refusal INSIDE the
-    documents belongs to whoever owns `valuation/report/**`; this lane can only decline."""
-    blend = getattr(result, "fair_value_blend", None)
-    if blend is not None and not getattr(blend, "valuable", True) and result.base_fair_value is None:
-        return jsonify({"error": getattr(blend, "reason", "")
-                        or "No fair value is published for this name.",
-                        "withheld": True}), 409
-    return None
-
-
+# A download is a publication, so the workbook and the tearsheet obey the same rule as the
+# page: no figure derived from a withheld valuation appears in them. This lane used to
+# DECLINE the request with a 409 because `report/**` was another lane's; it is not any more,
+# and an error was the wrong answer — it says the export is broken, when the export is fine
+# and the valuation is withheld. `report/pdf.py` and `report/excel.py` now build a document
+# that says exactly that, with the reason on it. Nothing is refused at the route.
 @app.route("/api/export/excel")
 def export_excel():
     ticker = (request.args.get("ticker") or "").strip().upper()
@@ -200,9 +194,6 @@ def export_excel():
         return jsonify({"error": "No ticker"}), 400
     try:
         result = _get_or_compute(ticker)
-        refusal = _export_refusal(result)
-        if refusal:
-            return refusal
         tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
         excel_report.build_workbook(result, tmp.name)
         return send_file(tmp.name, as_attachment=True,
@@ -220,9 +211,6 @@ def export_pdf():
         return jsonify({"error": "No ticker"}), 400
     try:
         result = _get_or_compute(ticker)
-        refusal = _export_refusal(result)
-        if refusal:
-            return refusal
         if result.ai is None:
             try:
                 from ..ai.analyst import analyze
