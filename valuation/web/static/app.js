@@ -568,7 +568,13 @@ function renderWhatDo(d) {
     ? `<div class="note">${esc(o.message || "")}</div>`
     : "";
 
-  document.getElementById("whatDoBody").innerHTML = stats + lines + opt + why +
+  // The payoff SHAPE, on the public side too — and on the withheld branch as well, because a
+  // visitor who is told an alert exists but not what it is has the least context of anyone and
+  // is the most likely to read "options signal" as "likely winner". The contract stays hidden;
+  // the distribution is a property of a historical simulation, not a live pick.
+  const shape = payoffCompact(o.payoff);
+
+  document.getElementById("whatDoBody").innerHTML = stats + lines + opt + shape + why +
     (s.freshness ? freshnessBanner(s.freshness) : "");
 }
 
@@ -1591,9 +1597,96 @@ function cacheBanner(id, o) {
 }
 
 // ---------------------------------------------------------------------------------------- //
+// THE DISTRIBUTION, NOT THE AVERAGE.
+//
+// A hit rate and a mean expectancy describe a convex book badly: "35% win, +3.4%/trade" is
+// true and tells a reader nothing about what their own run of trades will feel like. This
+// draws the banked outcome distribution as a single stacked bar, worst outcome on the left,
+// so "most of these lose a little and a few win a lot" is visible instead of asserted.
+//
+// It renders ABOVE the alert table on purpose. An explanation of losing streaks that only
+// appears once someone is down reads as an excuse; the same sentence before they start is an
+// expectation. Numbers come from /api/whatdo's payoff block (valuation/web/payoff.py) — this
+// file computes none of them.
+// ---------------------------------------------------------------------------------------- //
+const PAYOFF_COLOR = {
+  near_total_loss: "#8b1a1a", stopped_out: "#c0392b", small_loss: "#e08e6d",
+  small_win: "#7fb069", big_win: "#2d7a3e",
+};
+
+// One stacked bar. Shared so the public panel and the owner card cannot draw the same
+// distribution two different ways.
+function payoffBar(p, height) {
+  return `<div style="display:flex;height:${height}px;border-radius:4px;overflow:hidden">` +
+    p.buckets.map(b =>
+      `<div title="${esc(b.label)} (${esc(b.detail)}): ${pct(b.share, 1)}"
+            style="width:${(b.share * 100).toFixed(2)}%;background:${PAYOFF_COLOR[b.key] || "#888"}"></div>`
+    ).join("") + `</div>`;
+}
+
+// The public, compact form: the bar, the shape in one sentence, the streak expectation, and
+// the refusal to call any of it evidence. Returns "" when there is no payoff block, so a
+// caller can concatenate it unconditionally.
+function payoffCompact(p) {
+  if (!p || !p.buckets) return "";
+  const s = p.streaks || {};
+  return `<div class="note" style="margin-top:8px">
+    <b>What an options trade here looks like</b>
+    <div style="margin:7px 0">${payoffBar(p, 14)}</div>
+    <div>${esc(p.headline)}</div>
+    <div style="margin-top:6px">${esc(s.expectation || "")}</div>
+    <div class="muted" style="margin-top:6px">${esc(p.not_a_claim || "")}</div>
+  </div>`;
+}
+
+function renderPayoff(p) {
+  const card = document.getElementById("payoffCard");
+  if (!card || !p || !p.buckets) return;
+  card.style.display = "";
+  const bars = payoffBar(p, 22);
+  const legend = p.buckets.slice().reverse().map(b =>
+    `<div style="display:flex;align-items:center;gap:6px;font-size:12px">
+       <span style="width:10px;height:10px;border-radius:2px;flex:none;
+                    background:${PAYOFF_COLOR[b.key] || "#888"}"></span>
+       <b>${pct(b.share, 1)}</b><span class="muted">${esc(b.label)} (${esc(b.detail)})</span>
+     </div>`).join("");
+  const s = p.streaks || {};
+  setHtml("payoffBody",
+    `<div style="margin-bottom:10px">${bars}</div>
+     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:4px 14px;margin-bottom:10px">${legend}</div>
+     <div class="note" style="margin-bottom:8px">${esc(p.headline)}</div>
+     <div class="note" style="margin-bottom:8px"><b>${esc(s.expectation || "")}</b>
+       <br><span class="muted">Independence would predict a worst run of about ${s.iid_p95} at the
+       95th percentile; the measured figure is ${s.p95}, because outcomes cluster in time.
+       ${esc(s.source || "")}.</span></div>
+     <div class="note"><b>This is not a claim that the alerts work.</b> ${esc(p.not_a_claim || "")}
+       <br><span class="muted">${esc(p.source || "")} — ${esc(p.basis || "")}.</span></div>`);
+}
+
+// The realized losing run against that distribution. The only part of this feature that can
+// tell a reader something is genuinely wrong, so it is styled by verdict rather than always
+// reassuring: `ordinary` is quiet, everything else is a warning.
+function renderStreak(st) {
+  if (!st || !st.verdict) { setHtml("optStreak", ""); return; }
+  if (st.verdict === "too_few") {
+    setHtml("optStreak", `<div class="note muted">${esc(st.text)}</div>`);
+    return;
+  }
+  const ok = st.verdict === "ordinary";
+  const live = st.current_loss_run
+    ? ` Currently ${st.current_loss_run} in a row${st.current_is_longest ? " — the longest so far" : ""}.`
+    : "";
+  setHtml("optStreak",
+    `<div class="note" style="${ok ? "" : "border-left:3px solid #c0392b;padding-left:9px"}">
+       ${ok ? "" : "⚠️ "}<b>Losing streak: ${esc(st.verdict.replace(/_/g, " "))}.</b>
+       ${esc(st.text)}${esc(live)}</div>`);
+}
+
+// ---------------------------------------------------------------------------------------- //
 // Scream-buy options expectancy. EXPECTANCY, not "success rate": with a payoff this
 // asymmetric a hit rate on its own is uninformative — a 40%-hit setup whose winners triple
 // beats a 70%-hit one that gives it back. So win/loss size and profit factor sit next to it.
+// It now also renders the payoff shape and the running losing streak, above the table.
 // ---------------------------------------------------------------------------------------- //
 async function loadOptionsScorecard() {
   const box = document.getElementById("optScorecard");
@@ -1602,6 +1695,8 @@ async function loadOptionsScorecard() {
   try {
     d = await (await fetch("/api/options-scorecard")).json();
   } catch (e) { return; }
+  renderPayoff(d && d.payoff);
+  renderStreak(d && d.streak);
   const o = (d && d.overall) || {};
   const n = o.n_closed || 0, open = d.n_open || 0;
   box.style.display = "";

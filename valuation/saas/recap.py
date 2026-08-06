@@ -36,6 +36,7 @@ from typing import Optional
 from ..edge import paper_track as PT
 from ..edge.options_confidence import (FULL_SAMPLE_EXPECTANCY, HIT_RATE,
                                        LATE_HALF_EXPECTANCY)
+from ..web import payoff as _payoff
 from .notify import send_discord
 
 KINDS = ("daily", "weekly")
@@ -60,9 +61,16 @@ _FOOTER = ("_Educational only, not investment advice. Paper account — no real 
 
 # Said in full on the weekly post and in short on the daily one. The hit rate is the number
 # most likely to be misread, so it is never quoted without the shape of the payoff attached.
+#
+# The range and the streak sentence both come from `web.payoff` rather than being written again
+# here. This file previously kept its own copy of the convexity line, so the recap and the web
+# app were two statements of the same fact that could drift — and the range exists precisely
+# because they had already drifted by a point and a half (35.3% broad book vs 37.4% confidence
+# tables). One source, quoted twice.
 _CONVEXITY = (f"Options here are CONVEX, not high-probability: the backtest hits "
-              f"{HIT_RATE:.0%} of the time — most trades lose a little and a few win big. "
-              f"Hit rate alone says nothing about whether this works.")
+              f"{_payoff.HIT_RATE_RANGE} of the time — most trades lose a little and a few win "
+              f"big. Hit rate alone says nothing about whether this works. "
+              + _payoff.expectation_line(20))
 
 
 # ------------------------------------------------------------------ formatting
@@ -152,7 +160,7 @@ def _closed_paper_trades(store) -> list:
     """
     PT.ensure_schema(store)
     sql = """SELECT p.alert_id, p.ticker, p.occ_symbol, p.expiry, p.contracts,
-                    p.entry_premium, p.exit_premium, p.exit_ts, p.exit_reason,
+                    p.entry_ts, p.entry_premium, p.exit_premium, p.exit_ts, p.exit_reason,
                     a.pnl_pct AS pnl_pct, a.pnl_dollars AS pnl_dollars
              FROM paper_option_orders p
              LEFT JOIN option_alerts a ON a.id = p.alert_id
@@ -225,11 +233,22 @@ def collect(store, day=None, window_days: int = WEEK_DAYS) -> dict:
 
     scored = [r for r in closed_week if _f(r.get("pnl_pct")) is not None]
     ranked = sorted(scored, key=lambda r: _f(r.get("pnl_pct")))
+
+    # The losing streak, judged against the banked distribution. Ordered by ENTRY, because the
+    # streak table was measured on an entry-ordered sequence and `_closed_paper_trades` comes
+    # back exit-ordered — different-horizon trades close out of order, so the two sequences are
+    # genuinely different and scoring one against the other's distribution would be wrong.
+    by_entry = sorted(closed, key=lambda r: str(r.get("entry_ts") or r.get("exit_ts") or ""))
+    outcomes = [None if _f(r.get("pnl_pct")) is None else (_f(r.get("pnl_pct")) > 0)
+                for r in by_entry]
+    streak = _payoff.streak_verdict(sum(1 for o in outcomes if o is not None),
+                                    _payoff.longest_loss_run(outcomes))
     return {
         "day": day_iso,
         "since": since,
         "options": {
             "summary": opt,
+            "streak": streak,
             "opened_today": opened_today,
             "closed_today": closed_today,
             "closed_week": closed_week,
@@ -339,6 +358,15 @@ def _options_block(data: dict, weekly: bool = False) -> list:
                 else f"{won} of {n_closed} won (too few to read as a rate)")
         lines.append(f"    hit rate {rate} · avg win {_pct(sc.get('avg_win_pct'))} "
                      f"· avg loss {_pct(sc.get('avg_loss_pct'))}")
+
+    # The losing run, against the record. This is the line that stops a bad week from reading
+    # as a broken model — and, when the run really is long, the line that says so instead. It is
+    # suppressed only when the verdict is `too_few`, where it would be noise on every post for
+    # months; the expectation itself is still set in the convexity footer of every single post.
+    st = (o.get("streak") or {})
+    if st.get("verdict") and st["verdict"] != "too_few":
+        flag = "" if st["verdict"] == "ordinary" else "⚠️ "
+        lines.append(f"• {flag}Losing streak: {st['text']}")
     lines.append(f"• Backtest reference: {FULL_SAMPLE_EXPECTANCY:+.1%}/trade full-sample, "
                  f"{LATE_HALF_EXPECTANCY:+.1%} in the recent half. A reference point, not a "
                  f"target and not a promise.")
