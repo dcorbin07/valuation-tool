@@ -3227,3 +3227,423 @@ number is updated wherever it is quoted.
 * **Not re-opening R2.** U7 sits inside a book that has already been shown to lose to random
   entry. A veto that improves that book improves a book with a negative day-selection edge, and
   every U7 number carries that sentence.
+
+---
+
+## RESULTS
+
+## RESULTS — U7 · the equity composite as an options VETO
+
+**Run:** `python -m scripts.u7_veto --panel panel_s6.pkl --state r2_state.pkl --control ×5`.
+Universe: the corrected pinned 187-name options book, **3,885 alerts** 2016-01-19 → 2025-10-15,
+against the **five-seed random-entry control, 29,785 trades** (R2's standing rule: five seeds
+minimum). Panel: the 69-date corrected panel rebuilt this session.
+
+### The join, built and pinned
+
+It did not exist. It now takes the most recent rebalance date **strictly ≤ the alert date**, and
+`test_u7_the_join_is_backward_looking_only` asserts three things rather than one: that the
+shipped rule never reaches forward, that the look-ahead variant would have picked a *different*
+date on a real alert, and that the two therefore genuinely disagree. Asserting only "never
+forward" would have passed on a join that always returned index 0. An alert before the first
+rebalance is excluded, not imputed — pinned separately, because imputing is the cheap way to
+inflate the coverage figure the adoption rule turns on.
+
+### Coverage, reported before any verdict — the audit's prediction holds, as a measurement
+
+| | measured |
+|---|---|
+| alerts joined | **3,812 / 3,885 = 98.1%** |
+| names joined | **182 / 186 = 97.8%** |
+| never joined | AMAT, RIO, SHEL, UBS |
+| alerts before the first rebalance | 0 |
+
+Comfortably clear of the pre-committed 80% floor. My own `needs first` table called this
+UNVERIFIED with the note "the audit predicts near-complete but predicts are not measurements".
+The prediction was right. It is now measured.
+
+### The monotonicity U7's rationale rests on
+
+The audit argues a veto needs only that the bottom decile underperforms, citing monotonicity
+**−0.95**. Measured on the corrected panel in the same run: **−0.891**. The argument survives;
+the number is updated. It also turns out not to matter, for a reason the argument did not
+anticipate — see below.
+
+### Expectancy by composite decile — the audit's actual instruction
+
+Decile 1 = BEST composite, matching `quantile_backtest`'s convention.
+
+| decile | n | median mkt cap | mean `pnl_pct` | win rate |
+|---|---|---|---|---|
+| D1 | 97 | $62.7B | **+18.74%** | 42.3% |
+| D2 | 181 | $80.5B | **+14.78%** | 40.3% |
+| D3 | 202 | $72.9B | −5.33% | 28.2% |
+| D4 | 314 | $90.4B | +4.92% | 36.0% |
+| D5 | 368 | $94.2B | +2.89% | 35.6% |
+| D6 | 427 | $100.7B | +2.20% | 34.9% |
+| D7 | 550 | $114.9B | −0.07% | 34.9% |
+| D8 | 706 | $130.9B | −0.46% | 33.7% |
+| D9 | 688 | $133.5B | +4.69% | 35.3% |
+| **D10** | **279** | $106.0B | **+10.64%** | **39.1%** |
+
+**The relationship is U-shaped, not monotone, and the bottom decile — the one the veto exists to
+remove — is the third most profitable in the table.** That single row is the whole result: there
+is nothing for a bottom-decile veto to remove.
+
+### The three pre-registered cells
+
+| cell | retention | mean before → after | lift | lift CI95 (118 month-blocks) | control lift | **interaction** |
+|---|---|---|---|---|---|---|
+| **i** bottom decile, full panel (PRIMARY) | 92.7% | +3.36% → +2.78% | **−0.57pp** | [−1.49, +0.32] | −0.49pp | **−0.08pp** [−1.02, +0.82] |
+| **ii** bottom quintile, full panel | 74.6% | +3.36% → +2.32% | −1.04pp | [−2.69, +0.50] | +0.03pp | −1.06pp [−3.23, +0.72] |
+| **iii** bottom decile, within the 187-name universe | 92.9% | +3.36% → +2.91% | −0.44pp | [−1.43, +0.46] | −0.34pp | −0.10pp [−1.03, +0.82] |
+
+### VERDICTS
+
+**U7-A (practical): REJECTED.** The pre-registered bar was a lift of **≥ +1.0pp**; all three
+cells land on the wrong side of zero. Retention was never the binding constraint — 92.7% is
+inside the "eligible for ADOPTED" band, so this is not a case of a good filter failing an
+arbitrary retention rule. It is a filter that does not work. **Stated precisely: the veto does
+not demonstrably HURT either** — every lift CI includes zero. The honest sentence is *"the
+composite's bottom decile carries no information about which alerts to refuse."*
+
+Cell **ii** additionally trips the pre-registered retention band (74.6% retained = 25.4%
+discarded, inside the 15–40% INCONCLUSIVE range), so it could not have been adopted on any
+number. Recorded because the rule was committed in advance and applies whatever the lift said.
+
+**U7-B (mechanism): NO INTERACTION.** In both decile cells the real book's lift and the
+control's lift are within **0.1pp** of each other, with intervals straddling zero. Whatever the
+composite decile does to the options book, it does the same to a book entered on random days.
+**The composite is describing the underlying, not the alert.**
+
+### Mechanism, stated as far as the data supports and no further
+
+Median market cap rises **monotonically** across the deciles, $62.7B at D1 to $133.5B at D9. In a
+187-name megacap universe the other themes are compressed and `size` (= `z_neg_log_mktcap`)
+dominates, so **the composite decile inside this universe is largely a market-cap sort.** A
+market-cap bucket is a property of the underlying, not of the day an alert fired — which is
+exactly why the control tracks the real book to within 0.1pp, and it makes U7-B's null the
+expected outcome once the mechanism is visible rather than a surprise.
+
+**What the data does NOT support:** D10 breaks the size pattern ($106.0B, below D9's $133.5B) and
+its most frequent names are MRVL, GS, NEM. So D10 is *not* simply "the largest names", and no
+claim is made about what else it is. X3 independently found `size` to be the theme carrying the
+composite's significance, which is consistent, but that is one panel and one universe.
+
+### The expectation, and the record's verdict on it
+
+Pre-committed, before any number: *"I expect the veto to HELP, and I hold it at about 60/40."*
+**Wrong.** Every cell is negative, and the mechanism is one the pre-registration did not consider
+at all — that inside a megacap universe the composite is mostly a size sort.
+
+That is now the fourth consecutive time (R10, O20, the spread toll, U7) that this project's
+stated expectation about the direction of its own effect has been wrong. The carry-forward line
+stands and should be strengthened: **do not reason about the direction of an effect in this
+project — measure it. Writing the expectation down first is worth doing precisely because it
+keeps being wrong.**
+
+### What U7 forecloses, and what it does not
+
+**Forecloses:** U1 (the composite as an options ENTRY signal) is now a much worse bet than the
+catalogue assumes. The audit's own argument is that the veto is "strictly the easier bar" — a
+veto needs only that the bottom decile underperform, while an entry signal needs the top decile
+to move enough to beat decay and spread. **The easier bar failed and its failure has a mechanism
+(the composite is a size sort on this universe), so U1 should not be run as written.** It should
+only be reopened with a composite constructed *within* the options universe, where the size
+tilt is not free to dominate.
+
+**Does not foreclose:** D1 and D2 post +18.74% and +14.78% on 97 and 181 trades. That is the
+opposite end of the same table and it is a *positive* selection idea rather than a veto. It was
+not pre-registered, the samples are small, and this session makes no claim about it — but it is
+the one thread in U7 worth a pre-registered test, and it goes to Session 7 rather than being
+quoted as a finding here.
+
+## RESULTS — X3 · ablate to the best single signal
+
+**Run:** `python -m scripts.x3_ablation_rerun --panel panel_s6.pkl --leave-one-out`, on a panel
+rebuilt from scratch this session with `scripts/dump_panel.py` against
+`data/backtest` — **113,945 rows, 69 dates, 2,531 names**, identical in shape to the cached
+grid-0 panel, which is a free reproducibility check on the panel build itself.
+
+### X3 had already been run, and that run is void
+
+`data/free_analysis/ABLATION_RESULTS.json` (2026-08-03) records X3 as **"EARNS ITS COMPLEXITY"**,
+and `VALQUO_LEDGER.md:106` carries it as **DONE**. It is void twice over, and neither reason was
+noticed when the panel corrections landed the next day:
+
+1. **It ran on the pre-B6 panel** — 110 dates, 136,478 rows, full-composite alpha **+11.88%**.
+   The first 41 of those dates carried the inverted universe B6 removed. The corrected alpha is
+   **+7.17%**, so every gain the old verdict rested on was measured across that boundary.
+2. **It scored against bars that X7 later retired** — 2.0pp against the best single signal and
+   **1.0pp** against the best three-theme prefix. X7's calibrated top-decile alpha margin is
+   **1.95pp**. The 1.0pp bar sat *below the noise floor*: a three-theme prefix could clear it on
+   a shuffled signal.
+
+It is also **absent from `RESEARCH_LOG.md`** — roughly a dozen arms were run and never charged
+to `N`. See `## BUGS FOUND`.
+
+### The theme IC table in `CLAUDE.md` was a pre-B6 measurement labelled "CURRENT"
+
+The ablation orders themes by theme IC, so the first thing it needed was the ranking — and the
+ranking did not match the record. **Proven stale rather than assumed stale:** re-running
+`theme_ic` on the old 110-date panel reproduces `CLAUDE.md`'s list to the digit (momentum +2.62,
+capital_discipline +2.25, institutional +1.81, size +1.68, growth +1.45, low_risk +0.71).
+
+| theme | void (110 dates) | **corrected (69 dates)** | move |
+|---|---|---|---|
+| quality | +3.57 | **+3.10** | −0.47 |
+| capital_discipline | +2.25 | **+2.76** | **+0.51 — the only riser** |
+| institutional | +1.81 | **+1.55** | −0.26 |
+| momentum | +2.62 | **+1.31** | −1.31 |
+| value | +1.52 | **+0.84** | −0.68 |
+| growth | +1.45 | **+0.75** | −0.70 |
+| low_risk | +0.71 | **+0.46** | −0.25 |
+| insider | −0.43 | **−0.24** | +0.19 |
+| **size** | **+1.68** | **−0.30** | **−1.98** |
+
+**Against X7's calibrated bar of 2.71, two of nine themes clear: `quality` and
+`capital_discipline`.** `CLAUDE.md` is corrected in place.
+
+### The eight pre-registered arms
+
+Flat weights within each arm, cumulative in descending corrected theme-IC order. Arm 8 is
+asserted in code to be the deployed composite (`last_arm_is_deployed_composite: true`), so the
+curve is compared against what the product actually runs and not against something adjacent.
+
+| arm | top-decile alpha | LS *t* (naive) | LS *t* (NW) | monotonicity | clears 1.95pp |
+|---|---|---|---|---|---|
+| 1 · `gp_on_capital` alone | **+2.67%** | 0.413 | 0.425 | −0.648 | yes |
+| 2 · quality | +1.12% | −0.372 | −0.367 | +0.115 | **no** |
+| 3 · + capital_discipline | +0.96% | −0.192 | −0.194 | +0.309 | **no** |
+| 4 · + institutional | +3.77% | 0.710 | 0.731 | −0.176 | yes |
+| 5 · + momentum | +4.05% | 0.837 | 0.853 | +0.067 | yes |
+| 6 · + value | +3.22% | 0.661 | 0.650 | −0.370 | yes |
+| 7 · + insider | +4.10% | 1.024 | 0.965 | −0.648 | yes |
+| **8 · + size = deployed** | **+7.17%** | **2.836** | **2.620** | **−0.891** | yes |
+
+**Only the full seven-theme composite clears X7's long-short bar of 2.14. No prefix comes
+close** — the best of them reaches *t* 1.02. Two prefixes (quality alone; quality +
+capital_discipline) do not even clear the alpha noise floor, and both have *positive*
+monotonicity, i.e. their deciles are ordered **backwards**.
+
+### The pre-registered verdict, and why it is uncomfortable
+
+The rule committed beforehand: the full composite beats an arm only if the paired per-period
+alpha difference has a CI95 excluding zero.
+
+| comparison | full − arm | CI95 | excludes 0 |
+|---|---|---|---|
+| vs `gp_on_capital` alone | **+4.51%/yr** | **[−0.14%, +9.12%]** | **NO** |
+| vs quality | +6.05%/yr | [+1.36%, +10.87%] | yes |
+| vs quality+capital_discipline | +6.21%/yr | [+1.99%, +10.66%] | yes |
+| vs + institutional | +3.41%/yr | [−0.08%, +6.89%] | no |
+| vs + momentum | +3.13%/yr | [−0.18%, +6.35%] | no |
+| vs + value | +3.96%/yr | [+1.76%, +6.41%] | yes |
+| vs + insider | +3.08%/yr | [+1.27%, +5.04%] | yes |
+
+**VERDICT: NULL — the composite's advantage over its own best single signal is not
+demonstrated.** +4.51%/yr with a lower bound of **−0.14pp**. That is a near miss, and a near
+miss is a null; the pre-commitment says an ambiguous result is not a judgement call.
+
+**But "DECORATION" would be the wrong word and I am not going to use it.** The pre-registered
+statistic is one statistic, and on 69 periods it is underpowered relative to what the arms
+visibly do. `gp_on_capital` alone posts long-short *t* **0.413** against the composite's
+**2.836**, and clears none of X7's bars except the alpha margin. The honest sentence is: *the
+seven-theme composite is the only arm that clears the calibrated long-short bar, and its
+top-decile alpha advantage over the best single signal is +4.5pp/yr but not separable from zero
+on 69 periods.* Both halves travel together.
+
+**The curve does not flatten, and it is not a curve.** Alpha wanders +1.12 → +0.96 → +3.77 →
++4.05 → +3.22 → +4.10 → **+7.17**. My pre-registered expectation was that it would flatten by
+three or four themes. **That expectation was wrong**, and wrong in the direction that favours
+the product — the last theme added does most of the work.
+
+### The finding worth carrying: theme IC does not predict marginal contribution
+
+The theme added last, `size`, is the **worst**-ranked theme on the corrected panel (IC *t*
+−0.30), and adding it moves alpha +4.10% → **+7.17%** and long-short *t* 1.02 → **2.84**. A
+signal that predicts nothing on its own is carrying the composite's entire statistical
+significance.
+
+This is the P6 lesson — "a signal's IC can be flat while the composite built from it moves a
+lot" — in a far starker form, and it means **the prefix ordering this ablation used is the wrong
+ordering**. Ranking by IC and adding greedily measures the wrong thing when the value of a theme
+is its *orthogonality* rather than its standalone predictiveness.
+
+### EXPLORATORY leave-one-out — no verdict, no trial row
+
+Written *after* seeing the prefix curve, so it is a look and not a test. The log's own schema:
+exploratory looks get no claim. It is recorded because it tells Session 7 what to pre-register.
+
+| dropped | its IC *t* | alpha without | LS *t* | full − arm | CI excl 0 |
+|---|---|---|---|---|---|
+| **size** | **−0.30 (worst)** | +4.10% | 1.024 | **+3.08%/yr** | **yes** |
+| institutional | +1.55 | +5.77% | 1.772 | +1.41%/yr | no |
+| value | +0.84 | +7.12% | 2.511 | +0.06%/yr | no |
+| insider | −0.24 | +7.47% | 2.581 | −0.30%/yr | no |
+| momentum | +1.31 | +8.37% | 2.838 | −1.20%/yr | no |
+| quality | +3.10 (best) | +8.42% | 3.304 | −1.25%/yr | no |
+| **capital_discipline** | **+2.76** | **+8.54%** | **3.352** | **−1.37%/yr** | **yes** |
+
+Two of seven move the composite at significance and **the IC ranking puts both at the wrong end
+of the list**: dropping `size` costs 3.08pp/yr, while dropping `capital_discipline` — the
+second-strongest theme by IC and one of only two clearing X7's bar — *improves* the composite by
+1.37pp/yr and lifts long-short *t* to 3.35.
+
+**Read this as a hypothesis with a large multiplicity caveat, not a result.** Seven correlated
+nested comparisons, chosen for report after the fact; two "significant" out of seven is more than
+chance expects but not by much. **Nothing was changed on the strength of it** — the deployed
+weights are untouched, and they should not move until a pre-registered held-out test says so,
+because that is exactly the gate `low_risk` passed and `insider` failed.
+
+### The cost, paid in full
+
+X3 is logged as one row, `n=8`. **The pre-commitment said equity N would go 84 → 92. The
+realised number is 104, and the extra 12 are the void 2026-08-03 run's arms.** Discovering that
+X3 had already been run — twelve arms, never logged — was not foreseeable when the
+pre-commitment was written, and logging them is the direction that weakens this project's own
+evidence, so they are logged. Two things make 104 the right number rather than a choice:
+`research_log.py:73` excludes only `FIXED` rows, so a `SUPERSEDED` search still costs
+multiplicity in the shipped code; and the data genuinely was searched twelve times.
+
+Recomputed exactly on the shipped run's own `deflated_sharpe_detail`, round-trip verified (the
+re-derivation reproduces 0.8997 at N = 84 to four decimals — pinned by
+`test_x3_deflated_sharpe_at_round_trips_and_falls_with_n`):
+
+| | N = 84 (shipped) | N = 92 (pre-committed) | **N = 104 (realised)** |
+|---|---|---|---|
+| `sr0_benchmark` | 0.4056 | 0.4110 | **0.4181** |
+| Deflated Sharpe | 0.8997 | 0.8911 | **0.8789** |
+| √(2·ln N) | 2.977 | 3.007 | **3.048** |
+
+**X3 pushes the project's multiple-testing haircut past the Harvey–Liu–Zhu hurdle of 3.0 for the
+first time — 2.977 → 3.048.** The headline still sits above X7's calibrated floor of 0.7216, and
+since X7 showed that floor *falls* as N rises (0.8567 at N = 8 → 0.7216 at N = 84), quoting 0.72
+at N = 104 is conservative in the direction that makes passing harder.
+
+**Quote it whole:** *"Deflated Sharpe 0.8789 at N = 104 — fails the conventional >0.95 bar, sits
+above all 100 placebo draws (calibrated bar 0.72, measured at N = 84), and the trials haircut is
+now 3.048."*
+
+`BACKTEST_RESULTS.json` still carries 0.8997 at N = 84 and will pick up N = 104 automatically on
+the next full run — `_deflated_sharpe_detail` reads the log. It was not regenerated here.
+
+---
+
+## BUGS FOUND
+
+**1. `CLAUDE.md`'s theme IC table was a pre-B6 measurement labelled "CURRENT 2026-08-04".**
+Proven, not inferred: re-running `theme_ic` on the retained 110-date panel reproduces the
+recorded list to the digit. The corrected values move by up to **1.98 t** (`size` +1.68 →
+**−0.30**), and against X7's calibrated bar of 2.71 only **two of nine** themes clear. Corrected
+in place. *This is the same class of error as B6 itself — a number that outlived the panel it was
+measured on — and it survived two sessions of corrections because nothing re-measures a table
+that is only ever read.*
+
+**2. X3's 2026-08-03 run is void and is recorded as DONE.** `VALQUO_LEDGER.md:106` carries
+"'Earns its complexity' — both bars cleared decisively", measured on the pre-B6 110-date panel
+(alpha +11.88%) and scored against a **1.0pp** three-theme bar that sits *below* X7's calibrated
+1.95pp noise floor. Ledger row amended to SUPERSEDED with the re-run's verdict.
+`test_x3_the_old_ablation_verdict_is_marked_superseded` fails if that row silently reverts.
+
+**3. Trials that were run and never charged to `N`. This one is mine as well as other lanes'.**
+`RESEARCH_LOG.md` has rows for X2, X4, X7 but **none for X3, X5, X6**, nor for the
+capacity / failure-cases / JKP-replication studies that shipped JSON into
+`data/free_analysis/` on 2026-08-03–04. X3 alone was ~12 arms. Separately, **Session 5's own
+closeout items 3, 4 and 5 were pre-registered tests with committed thresholds and I did not log
+them** — added this session as `S5-3`, `S5-4`, `S5-5`.
+**And `RESEARCH_LOG.md` contradicts itself and the code about whether those rows count.** Its
+"## Schema" section says *"Only `ADOPTED` / `REJECTED` / `NULL` / `INCONCLUSIVE` rows are
+trials"*, i.e. `SUPERSEDED` is free; the later section says only `FIXED` does not count; and
+`research_log.py:73` implements the later rule. I checked rather than assumed, and logged the
+void X3 run's 12 arms accordingly — **equity N is 104, not the 92 my own pre-commitment
+predicted.** The code's rule is the right one (a search that happened cost multiplicity whether
+or not its verdict was later withdrawn), so the fix is to delete the stale sentence in the
+Schema section, not to change the code. Left for whoever owns the schema, flagged here, because
+someone reading only that section could legitimately delete a SUPERSEDED row's cost.
+
+**4. `RESEARCH_LOG.md`'s R3 row quotes a design effect out of its scope.** The row reads
+"deff 1.848 vs null p95 1.266", which is the **pre-correction 3,042-trade book**. The corrected
+3,885-trade book is **2.2121 vs null p95 1.2037**. This is the same figure whose travel I
+corrected in `CLAUDE.md` at the Session-5 closeout; the log row was missed then. Rows are
+append-and-amend, so a scope note is appended rather than the number rewritten.
+
+**5. `data/free_analysis/panel.pkl` is a pre-B6 panel with no marking.** 110 dates, dated
+2026-08-03. Anything that reads it — `scripts/ablation.py`, `scripts/breaks.py` and any future
+study that reaches for "the panel pickle" — silently gets the inverted-universe panel. It is
+outside my lane to delete or move (other lanes' scripts default to that path), and it is
+reported here rather than repaired. **The cheap fix is a `panel_window` stamp inside the pickle,
+which is exactly the Session-5 item-1 pattern applied to the equity side.**
+
+**6. Not a bug, a performance defect worth recording.** `options_stats.date_block_diff` rebuilds
+the concatenated trade list on every draw, which on the five-seed control book is ~240M
+Python-level operations per cell; U7 ran for 45 minutes and produced nothing. The mean of a
+concatenation of blocks is exactly `sum(block sums) / sum(block counts)`, so
+`options_veto.fast_block_diff` hoists the per-trade work out and is **exact, not approximate** —
+pinned by `test_u7_the_fast_block_bootstrap_is_exact`, which replays the identical
+`Random.randrange` sequence and requires the CI endpoints to match to floating point.
+`options_stats` itself is left alone; other lanes read it.
+
+## WHAT WAS NOT DONE, AND WHY
+
+* **X7's calibrated bars were NOT re-derived at N = 92.** Pre-committed as out of scope in
+  section 9. The placebo is 100 draws through the full pipeline — hours — and the direction is
+  known and favourable: X7 measured the floor *falling* as N rises (0.8567 at N = 8 → 0.7216 at
+  N = 84), so quoting 0.72 at N = 92 makes passing harder, not easier.
+* **No weight was changed.** The exploratory leave-one-out says dropping `capital_discipline`
+  would raise alpha to +8.54% and long-short *t* to 3.352. It was generated after seeing the
+  prefix curve, it is seven correlated comparisons reported for their extremes, and it has had no
+  held-out test. `low_risk` passed that gate and `insider` failed it; nothing ships without it.
+* **The paired nested difference has no calibrated floor and none was invented.** X7 calibrates
+  the alpha margin, the long-short *t* and the theme IC *t*. It does not calibrate a nested-model
+  comparison. The pre-registered rule was the plain CI-excludes-zero test, which is why X3's
+  headline is a NULL rather than a verdict dressed in a borrowed bar.
+* **U1 was not run**, and U7's result is a reason not to run it as written — see "What U7
+  forecloses".
+* **The four names that never join** (AMAT, RIO, SHEL, UBS) were not chased. 2.2% of names and
+  1.9% of alerts; running them down would not move any verdict here.
+* **`BACKTEST_RESULTS.json` was not regenerated.** N = 92 changes its `deflated_sharpe_detail`
+  on the next full run; the consequence is computed exactly and published here instead of
+  spending 12 minutes to rewrite a tracked artifact this session did not otherwise touch.
+
+## IS SESSION 6 CLOSED?
+
+**Yes.** Both nominated probes ran on the corrected panel, against the calibrated bars, with
+their thresholds committed and pushed before any number existed (`a727bea`). Both returned
+verdicts. Two void records in the project's own memory were found and corrected in passing, and
+the trial ledger now carries the cost of the work.
+
+Neither probe promoted the item it was testing. That is the outcome, not a failure of the
+session: U7 was proposed as the cheap probe that could kill or promote U1, and it killed it as
+written.
+
+## SESSION 7 — first item and its `needs first`
+
+**Session 7's first item is the leave-one-out ablation, PRE-REGISTERED and held out** — because
+X3 produced one genuinely surprising structural result and the only honest way to act on it is a
+test designed before the numbers are seen. Run it alongside **P4**, which remains the only
+*urgent* item in the catalogue.
+
+**LOO-PREREG `needs first`:**
+
+| dependency | status |
+|---|---|
+| the corrected 69-date panel | **READY** — rebuilt this session, `scripts/dump_panel.py`; 113,945 rows, identical in shape to the cached grid-0 panel |
+| the exploratory result to be tested | **READY, and it is EXPLORATORY** — dropping `capital_discipline` gives alpha +8.54% / LS *t* 3.352; dropping `size` costs 3.08pp/yr. Seven correlated comparisons, reported for their extremes. **It must be re-derived on a held-out split, not re-quoted** |
+| `holdout_theme_validate` | **READY but READ B8 FIRST** — its `rule_fired` flag is computed and never read (`fundamental_panel.py:3048`), so it is a both-halves stability check, not an out-of-sample confirmation. B8 is still open. Say which one you ran |
+| the trial cost | **NOT FREE.** Seven LOO arms take equity N 92 → 99. √(2·ln 99) = 3.03. Pre-register the arms and log them, or the result is not quotable |
+| the ordering problem X3 exposed | **UNRESOLVED and it is the real question.** Ranking themes by IC does not predict marginal contribution — `size` has the worst IC and carries the composite's significance. A greedy prefix curve is the wrong instrument; LOO or a Shapley-style decomposition is the right one |
+
+**U7 follow-up, if Don wants the options thread continued:**
+
+| dependency | status |
+|---|---|
+| the join | **READY and PINNED** — `valuation/edge/options_veto.py`, backward-looking only, tested against its own look-ahead variant |
+| the top-decile thread | **NOT PRE-REGISTERED.** D1/D2 post +18.74% / +14.78% on 97 and 181 trades. That is a positive-selection idea, not a veto, and it is the opposite end of the table U7 tested — so it is a NEW hypothesis, and running it on the same book that suggested it is exactly the trap X7 exists to expose |
+| the size confound | **MUST BE HANDLED FIRST.** The composite decile inside 187 megacaps is largely a market-cap sort ($62.7B → $133.5B, monotone D1→D9). Any composite-based options test must either neutralise size or rank *within* the options universe on a composite built for it |
+| U1 as written | **DO NOT RUN.** The strictly easier bar failed with a mechanism |
+
+**Standing, and outranking both if Don says so:** **P4** — `seed_book` never sells names that
+leave the book, so every session the paper track accumulates under the wrong rules is a session
+that has to be thrown away — and **X8**, the international replication, still the only genuinely
+out-of-sample evidence available to either programme.

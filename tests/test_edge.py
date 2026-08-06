@@ -5704,6 +5704,30 @@ def test_x3_the_old_ablation_verdict_is_marked_superseded():
     assert any("SUPERSEDED" in r.upper() or "RE-RUN" in r.upper() for r in rows), \
         "X3's ledger row must record that the 2026-08-03 run was superseded"
 
+
+def test_u7_the_fast_block_bootstrap_is_exact():
+    """The five-seed control book makes the per-trade bootstrap ~240M Python operations per
+    cell. The mean of a concatenation of blocks IS sum(block sums)/sum(block counts), so the
+    fast path is an exact rewrite -- and "exact" is worth nothing unless it is asserted against
+    the implementation it replaces, on the same seed."""
+    from valuation.edge import options_veto as V
+    from valuation.edge import options_stats as OS
+
+    rng = np.random.default_rng(19)
+    a, b = [], []
+    for mth in range(1, 13):
+        for j in range(12):
+            ts = f"2020-{mth:02d}-{1 + j:02d}"
+            a.append({"alert_ts": ts, "pnl_pct": float(rng.normal(0.05, 0.4))})
+            b.append({"alert_ts": ts, "pnl_pct": float(rng.normal(0.00, 0.4))})
+    slow = OS.date_block_diff(a, b, seed=0, draws=500)
+    fast = V.fast_block_diff(a, b, seed=0, draws=500)
+    assert slow["ok"] and fast["ok"]
+    assert abs(slow["diff"] - fast["diff"]) < 1e-12
+    for i in (0, 1):
+        assert abs(slow["ci95"][i] - fast["ci95"][i]) < 1e-12, "CI endpoints must match exactly"
+    assert slow["n_blocks"] == fast["n_blocks"] == 12
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

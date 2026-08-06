@@ -4,16 +4,64 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-06 (external edge audit, **session 5 CLOSEOUT** — items 1–5)
+**Session date:** 2026-08-06 (external edge audit, **session 6** — U7 and X3)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
 > Read it before starting work. Non-negotiable for all agents.**
 
-> **Scope:** newest sections first — audit session 5 (this one), then session 4, then session 3, then session 2,
+> **Scope:** newest sections first — audit session 6 (this one), then session 5, then session 4, then session 3, then session 2,
 > then R1's original run, then session 1, then deep research #2, then the EV staleness fix, then
 > PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
 > per-finding status in `CODE_AUDIT.md`.
+
+---
+
+## AUDIT SESSION 6 (2026-08-06) — U7 and X3. **BOTH PROBES REJECTED/NULL. SESSION 7 MAY OPEN.**
+
+Full write-up: **`HANDOFF_edge_audit.md`**, "SESSION 6". Pre-commitments pushed in `a727bea`
+**before any run**, including the expected direction of both probes, so the record can say
+whether the expectation was worth anything. It was not. **242/242 edge tests pass.**
+
+| item | verdict |
+|---|---|
+| **U7** — equity composite as an options VETO | **REJECTED.** Lift −0.57pp (bar was ≥ +1.0pp) at 92.7% retention; all three pre-registered cells negative |
+| **X3** — ablate to the best single signal | **NULL.** Full composite beats its best single signal by +4.51%/yr, CI95 [−0.14%, +9.12%] — includes zero |
+
+**THE TWO THINGS DON WOULD WANT TO KNOW FIRST**
+
+1. **The equity model is useless as an options filter, and now we know why.** Inside the
+   187-name megacap options universe the composite decile is largely a **market-cap sort**
+   (median cap $62.7B at D1 → $133.5B at D9). So the "veto" vetoes a cap bucket — a property of
+   the underlying, not of the alert. Applying the identical veto to the five-seed random-entry
+   control moves it by the same amount: **interaction −0.08pp**. The bottom decile, the one the
+   veto exists to remove, is the **third most profitable** (+10.64%).
+   **Consequence: do NOT run U1 (composite → options entry) as written.** The audit called the
+   veto "strictly the easier bar"; it failed, with a mechanism.
+2. **Two void records were found in the project's own memory and corrected.**
+   * `CLAUDE.md`'s theme IC table was labelled "CURRENT 2026-08-04" but is a **pre-B6
+     measurement** — proven by reproducing it exactly on the old 110-date panel. `size` moves
+     **+1.68 → −0.30**. Against X7's calibrated bar of 2.71, **two of nine themes clear**.
+   * **X3 had already been run** (2026-08-03) and the ledger recorded it DONE with "EARNS ITS
+     COMPLEXITY" — measured on the pre-B6 panel and against a 1.0pp bar that sits *below* X7's
+     1.95pp noise floor. Re-run, it is a NULL.
+
+**THE STRUCTURAL FINDING WORTH CARRYING:** `size` has the **worst** theme IC on the corrected
+panel (−0.30) and **carries the composite's entire statistical significance** — adding it last
+takes top-decile alpha +4.10% → +7.17% and long-short *t* 1.02 → 2.84. Ranking themes by IC and
+adding them greedily measures the wrong thing when a theme's value is its orthogonality. An
+*exploratory* leave-one-out (no verdict, nothing changed on it) says dropping
+`capital_discipline` would *raise* alpha to +8.54%. **Session 7's first item is a
+pre-registered, held-out version of that test.**
+
+**THE COST, PAID:** equity **N 84 → 104** (8 new arms plus 12 from the void run that had never
+been logged). **Deflated Sharpe 0.8997 → 0.8789**, and √(2·ln N) **2.977 → 3.048** — past the
+Harvey–Liu–Zhu hurdle of 3.0 for the first time. Still above X7's calibrated floor of 0.72.
+
+**Fourth in a row:** the pre-committed expectation ("the veto will help, 60/40") was wrong, after
+R10, O20 and the spread toll. Do not reason about the direction of an effect in this project.
+
+**Nothing shipped to the live product.** No weight changed, no live behaviour changed.
 
 ---
 

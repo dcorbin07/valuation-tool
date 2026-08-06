@@ -239,7 +239,7 @@ def veto_report(real_rows, cut: float, field: str = "u7_pct",
            "lift": None, "lift_boot": None}
     if rep["mean_kept"] is not None and rep["mean_all"] is not None:
         rep["lift"] = rep["mean_kept"] - rep["mean_all"]
-        rep["lift_boot"] = OS.date_block_diff(kept, real_rows, seed=seed, draws=draws)
+        rep["lift_boot"] = fast_block_diff(kept, real_rows, seed=seed, draws=draws)
 
     if control_rows is not None:
         ck, cd = apply_veto(control_rows, cut, field)
@@ -251,8 +251,8 @@ def veto_report(real_rows, cut: float, field: str = "u7_pct",
                           "lift": (None if c_kept is None or c_all is None
                                    else c_kept - c_all)}
         if rep["control"]["lift"] is not None:
-            rep["control"]["lift_boot"] = OS.date_block_diff(ck, control_rows, seed=seed,
-                                                             draws=draws)
+            rep["control"]["lift_boot"] = fast_block_diff(ck, control_rows, seed=seed,
+                                                          draws=draws)
         # U7-B. Bootstrapped as a difference-of-differences on shared months: within a drawn
         # month the real book's lift and the control's lift are computed from the same
         # calendar, so what survives is the interaction and not the market.
@@ -260,6 +260,69 @@ def veto_report(real_rows, cut: float, field: str = "u7_pct",
             rep["interaction"] = _lift_gap_boot(real_rows, kept, control_rows, ck,
                                                 seed=seed, draws=draws)
     return rep
+
+
+def _block_sums(rows) -> tuple:
+    """(keys, sums, counts) — the only two numbers a block contributes to a mean.
+
+    `date_block_bootstrap` rebuilds the concatenated trade list on every draw and re-reads every
+    `pnl_pct`, which on the five-seed control book is ~30,000 Python-level float conversions per
+    draw per book, four books, four thousand draws. The mean of a concatenation of blocks is
+    exactly `sum(block sums) / sum(block counts)`, so the per-trade work is redundant: it can be
+    done once and the bootstrap reduced to adding a few hundred floats per draw.
+
+    This is an EXACT rewrite, not an approximation, and
+    `test_u7_the_fast_block_bootstrap_is_exact` asserts it reproduces `OS.date_block_diff` to
+    floating point on the same seed by replaying the identical `Random.randrange` sequence.
+    """
+    g = OS.group_by_block(rows)
+    keys = sorted(g)
+    sums, counts = {}, {}
+    for k in keys:
+        v = [OS._f(r.get("pnl_pct")) for r in g[k]]
+        v = [x for x in v if x is not None]
+        sums[k], counts[k] = float(sum(v)), len(v)
+    return keys, sums, counts
+
+
+def _mean_from_blocks(picks, sums, counts) -> Optional[float]:
+    s = 0.0
+    n = 0
+    for k in picks:
+        s += sums[k]
+        n += counts[k]
+    return (s / n) if n else None
+
+
+def fast_block_diff(a_rows, b_rows, seed: int = 0, draws: int = OS.BOOTSTRAP_DRAWS) -> dict:
+    """`OS.date_block_diff` with the per-trade work hoisted out. Identical output, same seed."""
+    import random
+    ka, sa, ca = _block_sums(a_rows)
+    kb, sb, cb = _block_sums(b_rows)
+    keys = sorted(set(ka) & set(kb))
+    pa, pb = OS.mean_pnl(a_rows), OS.mean_pnl(b_rows)
+    if pa is None or pb is None or len(keys) < 2:
+        return {"ok": False, "reason": f"{len(keys)} shared blocks"}
+    rnd = random.Random(seed)
+    diffs = []
+    for _ in range(draws):
+        picks = [keys[rnd.randrange(len(keys))] for _ in range(len(keys))]
+        va = _mean_from_blocks(picks, sa, ca)
+        vb = _mean_from_blocks(picks, sb, cb)
+        if va is not None and vb is not None:
+            diffs.append(va - vb)
+    if len(diffs) < 100:
+        return {"ok": False, "reason": "too few usable draws"}
+    diffs.sort()
+    lo = diffs[int(0.025 * len(diffs))]
+    hi = diffs[min(len(diffs) - 1, int(0.975 * len(diffs)))]
+    return {"ok": True, "a": pa, "b": pb, "diff": pa - pb, "ci95": [lo, hi],
+            "draws": len(diffs), "n_blocks": len(keys), "block": OS.DEFAULT_BLOCK,
+            "excludes_zero": bool(lo > 0 or hi < 0),
+            "negative_at_significance": bool(hi < 0),
+            "positive_at_significance": bool(lo > 0),
+            "se": OS._sd(diffs),
+            "note": "paired block bootstrap: a drawn month contributes to BOTH arms."}
 
 
 def _lift_gap_boot(real_all, real_kept, ctrl_all, ctrl_kept, seed=0,
@@ -272,20 +335,16 @@ def _lift_gap_boot(real_all, real_kept, ctrl_all, ctrl_kept, seed=0,
     the interval on a quantity from which the crash largely cancels.
     """
     import random
-    g = [OS.group_by_block(x) for x in (real_all, real_kept, ctrl_all, ctrl_kept)]
-    keys = sorted(set(g[0]) & set(g[1]) & set(g[2]) & set(g[3]))
+    blocks = [_block_sums(x) for x in (real_all, real_kept, ctrl_all, ctrl_kept)]
+    keys = sorted(set(blocks[0][0]) & set(blocks[1][0])
+                  & set(blocks[2][0]) & set(blocks[3][0]))
     if len(keys) < 2:
         return {"ok": False, "reason": f"{len(keys)} shared blocks"}
     rnd = random.Random(seed)
     vals = []
     for _ in range(draws):
         picks = [keys[rnd.randrange(len(keys))] for _ in range(len(keys))]
-        m = []
-        for gi in g:
-            samp = []
-            for k in picks:
-                samp.extend(gi[k])
-            m.append(OS.mean_pnl(samp))
+        m = [_mean_from_blocks(picks, s, c) for _, s, c in blocks]
         if all(x is not None for x in m):
             vals.append((m[1] - m[0]) - (m[3] - m[2]))
     if len(vals) < 100:
