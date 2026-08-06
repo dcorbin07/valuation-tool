@@ -1090,3 +1090,140 @@ The **reproducibility problem** (MRK's vanishing beta, `wacc.py:67`'s missing lo
 minimum-history check). It changes valuations, and mixing it into a refactor whose whole claim is
 "every published number is bit-identical" would destroy the only bound that makes this
 verifiable. It gets its own task, as instructed.
+
+## PART 5 RESULTS — measured after the pre-commitment above (739b478)
+
+Suites: **20 suites, 712 tests, all green.**
+
+### 1. THE CENSUS — every site that answered "may this fair value be published?"
+
+The deliverable even where a site turned out to be fine. **Before** this task:
+
+| # | site | file:line (before) | its bar | verdict |
+|---|---|---|---|---|
+| 1 | valuation page guard | `engine/pipeline.py:47` `FV_BAND_HIGH = 5.0` | 5x | **the survivor** — moved to `engine/publication.py` |
+| 2 | ...and its implementation | `engine/pipeline.py:50-84` `publication_guard` | 5x + FX | folded into `publication.decide` |
+| 3 | screener growth lens | `screener/fairvalue.py:79` `MAX_GROWTH_VALUE = 20.0` | **20x** | **DELETED** — never bound (lens tops out at 5.44x) |
+| 4 | screener multiples lens | `screener/fairvalue.py:185` | **none at all** | now calls `decide` |
+| 5 | growth-lens application | `screener/fairvalue.py:240` | 20x | now calls `decide` |
+| 6 | pipeline's warning | `engine/pipeline.py:301` `ratio > 5 or ratio < 0.2` | **literals** | imports `FV_BAND_HIGH` / `FV_BAND_LOW` |
+| 7 | scoring's cap | `engine/scoring.py:250` `ratio > 5 or ratio < 0.2` | **literals** | imports the constants |
+| 8 | **the scan** | `screener/screen.py::_enrich_with_dcf` | **erased the refusal** | **records it** |
+| 9 | the estimator | `screener/fairvalue.py:227 estimate_fair_values` | read `None` as "not computed" | honours a recorded refusal |
+| 10 | re-rate cap | `screener/fairvalue.py:58` `MAX_RERATE = 3.0` | 3x on the *re-rate* | **not a publication bar** — bounds an input, left alone (see BUGS FOUND) |
+| 11 | web guard | `web/withhold.py:151` | imports `FV_BAND_HIGH` | **already correct** — other lane, verified not copied |
+| 12 | web row fields | `web/app.py:174-175`, `web/unified.py:242-243` | pass-through | fine |
+| 13 | renderer | `web/static/app.js:205, 992` | reads the row flag | fine |
+
+**Seven copies, not five.** Sites 6 and 7 were literal restatements that a constant-name search
+does not find — I only caught them by grepping for `ratio > 5`. That is worth recording: the
+census had to be done twice, by two different searches, and the second one found two more.
+
+### 2. THE DECISION OBJECT — `valuation/engine/publication.py` (new)
+
+```
+decide(value, price, *, cd=None, growth_led=False) -> PublicationVerdict
+    publish, value, withheld_value, ratio, band, reason
+```
+
+One band (`FV_BAND_HIGH = 5.0`), one low-side warning threshold (`FV_BAND_LOW = 0.2`), one
+refusal sentence, one pair of canonical row keys (`ROW_WITHHELD`, `ROW_WITHHELD_REASON`), and
+`record_refusal(row, reason)`.
+
+Consumers, all of which now **import** rather than restate: `pipeline.publication_guard` (a thin
+wrapper kept for existing callers, adding no threshold of its own), `pipeline`'s implausibility
+warning, `scoring`'s >5x cap, `fairvalue._mature_value`, `fairvalue._growth_value`,
+`fairvalue.estimate_fair_values`, `screen._enrich_with_dcf`. `FV_BAND_HIGH` is re-exported from
+`engine/pipeline.py` because `web/withhold.py` imports it from there — the same object, not a
+copy, so that lane needed no change.
+
+### 3. THE SCAN RECORDS THE REFUSAL — the leak, closed
+
+`_enrich_with_dcf` wrote `r["fair_value"] = res.base_fair_value` and nothing else. On a refusal
+that is `None`, and `estimate_fair_values` reads a `None` fair value as *"no DCF computed yet"*
+and substitutes a peer estimate. The publication guard's decision was erased between two lines
+of the same pipeline.
+
+**Measured on real rows, before vs after:**
+
+| name | price | hot-list fair value BEFORE | AFTER | withheld |
+|---|---|---|---|---|
+| CHTR | $153.17 | **$395.09** | — | YES |
+| KSPI | $92.19 | **$290.89** | — | YES |
+| STLA | $5.63 | **$22.12** | — | YES |
+| BRK.B | — | (none) | — | YES |
+| HES | — | (none) | — | YES |
+
+Exactly the three names the prompt named were leaking. BRK.B and HES were refused too but had no
+lens inputs, so they were not publishing anything to erase. Confirmed that `web/withhold.py`
+honours the flag the moment the scan sets it — its `withhold_implausible_fair_values` triggers on
+a pre-marked row, so the public surface closes with no change in that lane.
+
+*(The state-of-play records KSPI's leaked value as $299.16; my snapshot gives $290.89. Same leak,
+different peer medians on a different day — not a discrepancy worth chasing.)*
+
+### 4. AGAINST THE PRE-COMMITTED BOUNDS
+
+| bound | result |
+|---|---|
+| 1 — every currently-publishable name bit-identical | **PASS. 236 publishable names, 0 changed.** Fair value, upside and method all identical. |
+| 2 — refused names lose the substitute and gain a reason | **PASS.** All 5 refused names carry `fair_value = None`, `fair_value_withheld = True` and a non-empty reason; 3 of them were previously publishing a number. |
+| 3 — exactly one site owns the band | **PASS**, enforced by a test rather than by inspection. |
+
+**This is the first bound in this file that passed cleanly on the first attempt**, and the reason
+is that the control group was real: the refactor genuinely cannot touch the arithmetic that
+produces a publishable number, so "236 names unchanged" was a mechanical prediction rather than a
+hope. Part 4's bound failed because it was a proxy; this one is the defining property.
+
+### 5. WHAT WAS DELETED
+
+**`MAX_GROWTH_VALUE = 20.0` is gone**, not aliased. Measured in Part 4, the growth lens tops out
+at **5.44x** and the multiples lens at **4.59x** on a real 241-name universe, so a 20x cap had
+never once fired. **Decoration that reads like a guard is worse than no guard** — the next person
+to audit this counts it as protection. `MAX_LENS_VALUE` survives only as `MAX_LENS_VALUE =
+FV_BAND_HIGH`, an alias for readers of that module, and a test asserts it `is` the same object.
+
+### 6. THE TEST THAT STOPS COPY SIX
+
+`test_publication_band_has_exactly_one_definition` walks `valuation/engine/**` and
+`valuation/screener/**` and asserts (a) exactly one file assigns `FV_BAND_HIGH`/`FV_BAND_LOW` a
+numeric literal, and (b) **no file compares a price ratio against a bare number** — the shape
+that sites 6 and 7 had and that a constant-name search misses. `test_every_publication_site_
+resolves_to_the_same_constant` asserts every surface, including the web lane's `withhold._band()`,
+resolves to the one object, and pins the boundary (`== band` publishes, `> band` refuses).
+`test_a_refused_row_is_not_re_estimated_from_peers` pins the scan leak.
+
+**The guard was verified non-vacuous**, because this project's signature failure is a guard that
+cannot see the thing it guards: I injected a sixth copy (`def _sixth_copy(ratio): return ratio > 5`
+into `fairvalue.py`), confirmed the test fails and names the file, then reverted and confirmed it
+passes. It is not taken on faith.
+
+### What I did NOT do, and why
+
+- **Did not fold in the reproducibility work** (MRK's vanishing beta, `wacc.py:67`'s missing
+  low-side floor and minimum-history check), as instructed. It changes valuations, and mixing it
+  into a refactor whose entire claim is "236 published numbers are bit-identical" would have
+  destroyed the only bound that makes this verifiable.
+- **Did not touch `MAX_RERATE`.** It bounds an *input* (how far a peer multiple may re-rate), not
+  whether the output may be published — a different decision that happens to live in the same
+  file. Conflating them would have re-created the problem this task exists to remove.
+- **Did not edit `valuation/web/**` or `valuation/report/**`** (app-fixer lane) or
+  `valuation/edge/**`. The web guard already imports the constant; verified, not modified.
+
+## BUGS FOUND (Part 5)
+
+1. **The census found SEVEN copies, not the five recorded in the state-of-play.**
+   `engine/pipeline.py:301` and `engine/scoring.py:250` each restated `ratio > 5 or ratio < 0.2`
+   as literals. A search for the constant's *name* cannot see them; only a search for the
+   *number* can. Any future consolidation should search for both.
+2. **`pipeline.py`'s >5x warning has been dead since Part 1.** It reads
+   `result.base_fair_value`, which the publication guard sets to `None` on exactly the names
+   that would trip it — so the high branch can no longer fire and only the `< 0.2` branch is
+   live. Same shape as the `scoring.py` cap fixed in Part 3. Left in place (the low branch is
+   real) but the high branch is now unreachable and should be deleted by whoever next touches
+   that block.
+3. **`MAX_RERATE = 3.0` is the last unbounded-by-construction input in this path** — Part 4
+   showed the bridge implies `implied/price = r + (nd/mc)*(r-1)`, so a uniform 3x re-rate on a
+   4.68x-levered name has a 12.4x ceiling. The 5x publication bar now catches the *output*, but
+   the *assumption* is still that a levered name can re-rate 3x on enterprise value. Flagged in
+   Part 4, still open.

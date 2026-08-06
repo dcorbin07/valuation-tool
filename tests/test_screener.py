@@ -1250,6 +1250,93 @@ def test_unreadable_insider_scores_none_not_fifty():
     assert d["score"] is None, "an unreadable filing must not become a confident 50"
 
 
+def test_publication_band_has_exactly_one_definition():
+    """CONSOLIDATE-1's durable half: make copy six fail on the day it is written.
+
+    Four sessions in a row found "a new bug" that was the same decision implemented once
+    more — the valuation page refusing at 5x, the growth lens capping at 20x, the multiples
+    lens capping at nothing, `pipeline.py` and `scoring.py` each restating `ratio > 5 or
+    ratio < 0.2` as literals, and `screen.py` erasing the refusal entirely. Nothing had
+    regressed; there were simply five copies.
+
+    So: exactly ONE module may define the band, and no other file in engine/ or screener/
+    may restate it as a literal. A new surface that invents its own bar fails here.
+    """
+    import re, pathlib
+    root = pathlib.Path(__file__).resolve().parent.parent
+    owner = root / "valuation" / "engine" / "publication.py"
+    assert owner.exists(), "the single owner of the publication decision is missing"
+
+    # The surfaces that answer "may this fair value be published?" — the engine and the
+    # screener. Other lanes (web, report) import the constant and are checked separately;
+    # `intraday` and `edge` have their own unrelated `ratio` variables.
+    scope = sorted(list((root / "valuation" / "engine").rglob("*.py"))
+                   + list((root / "valuation" / "screener").rglob("*.py")))
+    definers, restaters = [], []
+    for path in scope:
+        rel = path.relative_to(root).as_posix()
+        src = path.read_text(encoding="utf-8", errors="replace")
+        # strip comments AND docstrings — prose that quotes the old literals is not a copy
+        src = re.sub(r'"""[\s\S]*?"""', "", src)
+        body = "\n".join(l for l in src.splitlines() if not l.lstrip().startswith("#"))
+        # a DEFINITION assigns the band a numeric literal
+        if re.search(r"^\s*FV_BAND_(HIGH|LOW)\s*=\s*[0-9]", body, re.M):
+            definers.append(rel)
+        # a RESTATEMENT compares a price ratio against a bare number
+        if re.search(r"ratio\s*[<>]=?\s*(?!FV_BAND)[0-9]", body):
+            restaters.append(rel)
+
+    assert definers == ["valuation/engine/publication.py"], (
+        f"the band must be defined in exactly one place, found: {definers}")
+    assert not restaters, (
+        f"these files compare a price ratio against a literal instead of importing "
+        f"FV_BAND_HIGH/FV_BAND_LOW: {restaters}")
+
+
+def test_every_publication_site_resolves_to_the_same_constant():
+    """The other half: every surface that decides must resolve to the one object."""
+    from valuation.engine.publication import FV_BAND_HIGH, decide
+    from valuation.engine import pipeline
+    from valuation.screener import fairvalue as FV
+
+    assert pipeline.FV_BAND_HIGH is FV_BAND_HIGH
+    assert FV.MAX_LENS_VALUE is FV_BAND_HIGH
+    from valuation.engine import scoring
+    assert scoring.FV_BAND_HIGH is FV_BAND_HIGH
+
+    # the web lane is another lane's code, but it must still read OUR constant
+    from valuation.web import withhold
+    assert withhold._band() == float(FV_BAND_HIGH)
+
+    # and the boundary is exactly where it was: == publishes, > refuses
+    assert decide(100.0 * FV_BAND_HIGH, 100.0).publish is True
+    assert decide(100.0 * FV_BAND_HIGH + 0.01, 100.0).publish is False
+
+
+def test_a_refused_row_is_not_re_estimated_from_peers():
+    """The one-line half, and the leak that put KSPI, STLA and CHTR on the public hot list.
+
+    `_enrich_with_dcf` wrote `fair_value = None` on a refusal and recorded nothing, so
+    `estimate_fair_values` read that None as "no DCF computed yet" and substituted a peer
+    estimate. A recorded refusal must survive the estimator untouched."""
+    from valuation.screener.fairvalue import estimate_fair_values
+    from valuation.engine.publication import ROW_WITHHELD, ROW_WITHHELD_REASON, record_refusal
+
+    peers = [{"ticker": f"P{i}", "sector": "Tech", "price": 100.0, "market_cap": 1e9,
+              "extra": {"earnings_yield": 0.05, "net_debt": 0.0}} for i in range(6)]
+    refused = {"ticker": "KSPI", "sector": "Tech", "price": 92.19, "market_cap": 1e9,
+               "extra": {"earnings_yield": 0.30, "net_debt": 0.0}}
+    record_refusal(refused, "Cannot value this name: the model's $1,248.48 is 13.6x the price.")
+
+    estimate_fair_values([refused] + peers, peer_rows=[refused] + peers)
+    assert refused["fair_value"] is None, (
+        f"a refused row was re-estimated to {refused['fair_value']} — the refusal was erased")
+    assert refused[ROW_WITHHELD] is True
+    assert refused[ROW_WITHHELD_REASON]
+    # ...while an ordinary row still gets its estimate
+    assert any(p.get("fair_value") is not None for p in peers)
+
+
 def test_net_debt_is_unit_stamped_like_market_cap():
     """`net_debt` was missing from providers._ABSOLUTE_USD, so it alone came out in the
     provider's native millions while market_cap / ev / total_debt beside it were scaled to
@@ -1283,7 +1370,11 @@ def test_multiples_lens_refuses_above_five_times_price():
     and this lens feeds the PUBLIC /api/hotstocks. One bar now, 5x, matching the valuation
     page's FV_BAND_HIGH."""
     from valuation.screener import fairvalue as FV
-    assert FV.MAX_LENS_VALUE == 5.0 and FV.MAX_GROWTH_VALUE == 5.0
+    from valuation.engine.publication import FV_BAND_HIGH
+    # CONSOLIDATE-1: the lens no longer owns a bar. MAX_GROWTH_VALUE (the dead 20x) is gone
+    # and MAX_LENS_VALUE is an alias for the one constant, not a second definition.
+    assert FV.MAX_LENS_VALUE is FV_BAND_HIGH
+    assert not hasattr(FV, "MAX_GROWTH_VALUE"), "the dead 20x bar must not come back"
 
     # a heavily levered name whose EV multiple is 3x cheaper than its peers
     row = {"ticker": "LEV", "sector": "Utilities", "price": 10.0, "market_cap": 1_000.0,
