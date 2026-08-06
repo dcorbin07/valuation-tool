@@ -241,35 +241,74 @@ def test_the_reason_keeps_the_number_because_that_is_the_evidence():
 # --------------------------------------------------------------------------- #
 # The score — the second costume, and the more serious one
 # --------------------------------------------------------------------------- #
-def test_the_score_is_withheld_and_the_page_is_told_why():
-    """MEASURED, not assumed. `compute_score` is called with base_fv=None
-    (engine/pipeline.py:280) so the margin-of-safety term does drop — and then
-    `_valuation_score` rebuilds the number from `mc.prob_undervalued` (scoring.py:83, weight
-    0.30 of the sub-score, = 1.00 on KSPI) and `comps.comps_fair_value` (scoring.py:86,
-    weight 0.15). Both are the withheld valuation. The valuation sub-score printed 100.0/100
-    on a name the model had just declined to value, and the >5x cap that would have held the
-    composite to 50 is written `if base_fv and ...` (scoring.py:228) so it cannot fire once
-    the guard has set base_fv to None. Publishing the bad number capped KSPI at 50;
-    withholding it let KSPI print 93 "Strong Buy"."""
+def test_the_score_is_published_as_partial_not_suppressed():
+    """The history matters, because the right answer changed twice.
+
+    `compute_score` used to be handed `base_fv=None`, which dropped only the margin-of-safety
+    term (0.55) while `mc.prob_undervalued` (0.30, = 1.00 on KSPI, trials OF THE WITHHELD DCF)
+    and `comps.comps_fair_value` (0.15) rebuilt it — the valuation sub-score printed 100.0/100
+    on a name the model had declined to value, and the composite read 93 "Strong Buy". This
+    page then refused to show the score at all, which was right while the number was
+    contaminated.
+
+    The engine fixed it (2026-08-06): the ENTIRE valuation sub-score is dropped and the >5x
+    cap now falls back to `blend.withheld_value` instead of being dead. KSPI 93 -> 50. So the
+    number underneath is sound, "Not rated" became an understatement, and what is published
+    now is a PARTIAL score — marked as one everywhere it appears.
+    """
     out = withhold.withhold_derived_figures(_payload())
     s = out["score"]
-    assert s["score"] is None and s["recommendation"] is None
+    assert s["score"] == 93, "the partial score itself must survive — it is not contaminated"
+    assert s["recommendation"], "a partial score still carries its band label"
+    assert s["partial"] is True
     assert s["subscores"]["valuation"] is None
-    # the components with no fair value in them survive — that is the whole reason the score
-    # can be withheld without the page going blank
+    assert sorted(s["partial_of"]) == ["growth", "health", "momentum", "quality"]
+    assert s["confidence"] == "low"
+    # the components with no fair value in them survive — that is what makes a partial score
+    # meaningful rather than a stub
     assert s["subscores"]["quality"] == 90.5 and s["subscores"]["momentum"] == 78.0
-    drivers = " ".join(s["drivers"]).lower()
-    assert "monte carlo" not in drivers and "comps imply" not in drivers
-    assert "roic" in drivers, "drivers with no valuation in them must survive"
-    assert "valuation" in out["withheld"]["score_note"].lower()
 
 
-def test_the_score_note_states_the_defect_rather_than_hiding_it():
-    """This lane must not silently redefine what the score means to fix a display problem.
-    The wording has to say the composite is not shown and why."""
+def test_the_engines_own_explanation_survives_this_filter():
+    """A REGRESSION THIS FILE HAS ALREADY CAUSED ONCE IN DESIGN. The driver filter matched on
+    markers alone, and the two drivers a withheld name now legitimately carries are
+
+        "Valuation withheld — no fair-value, Monte Carlo or comps term contributes ..."
+        "⚠ Model fair value is 11.3× the price — implausible ... Capped and flagged ..."
+
+    A marker-only match deletes BOTH: the explanation the page is required to show, and the
+    flag saying the number was capped. Every leaking driver stated a dollar amount; neither of
+    these does. So the "$" is load-bearing, and this test is the reason it stays.
+    """
+    p = _payload()
+    p["score"]["drivers"] = [
+        "⚠ Model fair value is 11.3× the price — implausible; likely a data issue (currency, "
+        "share count, or a one-off). Capped and flagged unreliable, not a recommendation.",
+        "Valuation withheld — no fair-value, Monte Carlo or comps term contributes to this "
+        "score. Scored on quality, growth, financial health and momentum only.",
+        "Base fair value $1,289.60 vs $92.19 → +1299% margin of safety.",
+        "Monte Carlo: 100% of trials value it above the price.",
+        "Comps imply $326.32 (+254%).",
+        "ROIC 36% vs WACC 5% → +31% value-creation spread.",
+    ]
+    drivers = withhold.withhold_derived_figures(p)["score"]["drivers"]
+    joined = " ".join(drivers)
+    assert "Valuation withheld" in joined, "the engine's explanation was filtered out"
+    assert "Capped and flagged" in joined, "the cap flag was filtered out"
+    assert "ROIC" in joined
+    assert "$1,289.60" not in joined and "$326.32" not in joined
+    assert "of trials value it above the price" not in joined
+    assert len(drivers) == 3
+
+
+def test_the_score_note_says_partial_and_says_it_is_not_comparable():
+    """The greeks lane could not evaluate, on five names, whether a partial score and a full
+    score mean the same thing at the same number. The labelling IS the mitigation, so the
+    wording has to carry it rather than imply it."""
     note = withhold.SCORE_NOTE.lower()
-    assert "not shown" in note
-    assert "declined to publish" in note or "withheld" in note
+    assert "partial" in note
+    assert "not comparable" in note, "the one caveat that was explicitly routed here"
+    assert "contributes nothing" in note or "withheld" in note
     assert "quality" in note and "momentum" in note
 
 
@@ -322,13 +361,22 @@ def test_the_refusal_says_why_rather_than_going_blank():
         assert re.search(rf"\b{key}:\s*\"", src), f"no client fallback reason for {key}"
 
 
-def test_the_gauge_cannot_print_a_recommendation_on_a_withheld_name():
+def test_the_gauge_marks_a_partial_score_on_the_dial_itself():
+    """Not in a tooltip, not in a footnote. The greeks lane could not test whether a partial
+    50 and a full 50 mean the same thing, so the label is the mitigation — it has to be
+    unmissable, and it has to be impossible for the withheld branch to fall through into the
+    full-gauge markup."""
     _, src = _render_body()
     i = src.index("function gauge(")
-    fn = src[i:src.index("\n}", src.index("stroke-dashoffset", i))]
-    assert "if (notValuable || s == null) {" in fn
-    assert fn.index("if (notValuable") < fn.index("scoreColor(s)"), \
-        "the refusal must come before any score styling"
+    fn = src[i:src.index("\n\n/* ---------- how the fair value", i)]
+    assert "if (s == null)" in fn, "a genuinely absent score still refuses"
+    j = fn.index("if (notValuable) {")
+    partial = fn[j:fn.index("return;", j)]
+    for mark in ("PARTIAL", "4 of 5 components", "Valuation withheld", "partial"):
+        assert mark in partial, f"the partial dial never says {mark!r}"
+    assert "score-num" in partial, "the number itself is still shown — it is not contaminated"
+    assert fn.index("if (notValuable) {") < fn.index('class="rec" style="color:${col}'), \
+        "the withheld branch must return before the full-gauge markup"
 
 
 # --------------------------------------------------------------------------- #
@@ -365,7 +413,9 @@ def test_the_api_response_itself_carries_no_withheld_figure():
     assert "1289.5983215433105" not in body
     assert "$1,289.60" in body, "the reason, which quotes it deliberately, must survive"
     compact = re.sub(r"\s+", "", body)
-    assert '"score":null' in compact and '"recommendation":null' in compact
+    # The score is PUBLISHED now (the engine no longer contaminates it) but must arrive
+    # flagged partial, with the valuation component null.
+    assert '"partial":true' in compact and '"valuation":null' in compact
     # the misleading data-gap message must not be attached to a deliberate refusal
     assert "Check the ticker symbol" not in body
 
@@ -379,6 +429,188 @@ def test_a_publishable_name_still_gets_its_numbers_through_the_route():
     finally:
         webapp.value_ticker = orig
     assert "1289.5983215433105" in body and "2293.6874204966884" in body
+
+
+# --------------------------------------------------------------------------- #
+# THE LIST SURFACES — a different code path, the same claim
+#
+# Everything above protects `/api/value` and the documents built from it. `/api/hotstocks` is
+# PUBLIC and reaches a fair value through `estimate_fair_values` instead, which has no
+# ceiling: its EV bridge is `3 + 2 x (net debt / market cap)` times the price. Measured on the
+# real production snapshot (2026-08-06): 499 rows carried a fair value and one — AEG at 5.25x,
+# $49.91 against $9.50, "blended / medium" — cleared the band the valuation page enforces.
+# --------------------------------------------------------------------------- #
+BAND = 5.0
+
+
+def _row(ticker, price, fv, **kw):
+    r = {"ticker": ticker, "price": price, "fair_value": fv, "market_cap": 1e9,
+         "hot_score": 50.0, "sector": "Utilities", "extra": {}}
+    if fv is not None and price:
+        r["upside"] = fv / price - 1.0
+    r.update(kw)
+    return r
+
+
+def test_the_row_guard_uses_the_valuation_pages_own_band_not_its_own_number():
+    """One number, one meaning. The band is imported from `engine.pipeline.FV_BAND_HIGH`
+    rather than restated here, so the list and the page cannot drift into two different
+    definitions of "implausible" — which is exactly how this leak opened."""
+    from valuation.engine.pipeline import FV_BAND_HIGH
+    assert withhold._band() == float(FV_BAND_HIGH) == BAND
+
+
+def test_an_implausible_row_loses_its_fair_value_and_gains_a_reason():
+    rows = [_row("FINE", 10.0, 30.0),                    # 3.0x — published
+            _row("EDGE", 10.0, 50.0),                    # exactly 5.0x — published
+            _row("AEG", 9.50, 49.91),                    # 5.25x — the real one
+            _row("LEV", 10.0, 330.0)]                    # 33x — the constructed one
+    n = withhold.withhold_implausible_fair_values(rows)
+    assert n == 2, "the band is > band, not >= band"
+    assert rows[0]["fair_value"] == 30.0 and rows[1]["fair_value"] == 50.0
+    for r in rows[2:]:
+        assert r["fair_value"] is None and r["upside"] is None
+        assert r["fair_value_withheld"] is True
+        why = r["fair_value_withheld_reason"]
+        # "Say why, don't just blank it" — a silently missing cell reads as a data gap and
+        # invites someone to fill it back in.
+        assert "5x band" in why or "5x" in why
+        assert "no fair value is published" in why.lower()
+    assert f"{49.91 / 9.50:.1f}x" in rows[2]["fair_value_withheld_reason"], \
+        "the reason states the actual ratio, not a generic sentence"
+
+
+def test_a_row_already_marked_withheld_is_honoured_even_below_the_band():
+    """Fail-closed, and forward-compatible with the screener fix. Today
+    `screen.py::_enrich_with_dcf` writes `fair_value = None` when the publication guard
+    REFUSES a name, and `estimate_fair_values` then reads that as "no DCF yet" and substitutes
+    a peer estimate — so KSPI, which the valuation page refuses outright, is served on the
+    public hot list at $299.16 (3.24x). That erasure is the screener lane's to fix; when it
+    starts marking those rows, this surface already refuses them."""
+    rows = [_row("KSPI", 92.19, 299.16, fair_value_withheld=True)]
+    assert withhold.withhold_implausible_fair_values(rows) == 1
+    assert rows[0]["fair_value"] is None and rows[0]["upside"] is None
+
+
+def test_the_guard_survives_junk_rows_without_throwing():
+    rows = [{}, {"price": 0, "fair_value": 5.0}, {"price": None, "fair_value": None},
+            {"price": "n/a", "fair_value": "x"}, _row("OK", 10.0, 12.0)]
+    withhold.withhold_implausible_fair_values(rows)      # must not raise
+    assert rows[-1]["fair_value"] == 12.0
+
+
+class _FakeStore:
+    """The minimum surface `/api/hotstocks` and `/api/whatdo` read."""
+
+    DATE = "2026-08-06"
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    def latest_scan_date(self):
+        return self.DATE
+
+    def load_snapshot(self, date, top=None):
+        import copy
+        rows = copy.deepcopy(self._rows)
+        return rows[:top] if top else rows
+
+    def list_scans(self):
+        return [{"scan_date": self.DATE, "universe_size": len(self._rows),
+                 "scored": len(self._rows), "params": "{}"}]
+
+    def get_meta(self, *a, **k):
+        return {}
+
+
+def _public_rows():
+    """A snapshot shaped like the real one, including the leak. The leveraged row is what
+    `estimate_fair_values` produces for net debt >> market cap; it is written directly here so
+    the test does not depend on the screener lane's arithmetic staying put."""
+    rows = [_row(f"N{i}", 10.0 + i, (10.0 + i) * 1.4) for i in range(8)]
+    rows.append(_row("AEG", 9.50, 49.91, fair_value_method="blended",
+                     fair_value_confidence="medium"))
+    rows.append(_row("LEV", 10.0, 330.0, fair_value_method="multiples",
+                     fair_value_confidence="medium"))
+    return rows
+
+
+def _walk_fair_values(obj, path="", out=None):
+    """Every (path, fair_value, price) pair anywhere in a response body."""
+    out = [] if out is None else out
+    if isinstance(obj, dict):
+        if "fair_value" in obj and "price" in obj:
+            out.append((path, obj.get("fair_value"), obj.get("price"),
+                        obj.get("fair_value_withheld")))
+        for k, v in obj.items():
+            _walk_fair_values(v, f"{path}.{k}", out)
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            _walk_fair_values(v, f"{path}[{i}]", out)
+    return out
+
+
+def test_no_public_api_response_carries_a_fair_value_past_the_band():
+    """THE DURABLE PART. The Session 12 catch-all walked every number in `/api/value`; this
+    walks every fair value in every PUBLICLY SERVED ROW, which is the walk that would have
+    caught this leak. A new public list surface fails here the day it starts serving a
+    `fair_value` next to a `price`, without anyone remembering to add it to a list."""
+    from valuation.web import app as webapp
+    orig = webapp._store
+    webapp._store = lambda: _FakeStore(_public_rows())
+    webapp.app.config["TESTING"] = True
+    try:
+        with webapp.app.test_client() as c:
+            for url in ("/api/hotstocks?top=100", "/api/whatdo?ticker=AEG",
+                        "/api/whatdo?ticker=LEV", "/api/whatdo?ticker=N3"):
+                body = c.get(url).get_json()
+                pairs = _walk_fair_values(body, url)
+                assert pairs, f"{url} served no fair-value rows — the test proved nothing"
+                for path, fv, px, marked in pairs:
+                    if fv is None:
+                        continue
+                    assert px and fv / px <= BAND, \
+                        f"{path} published {fv} against a price of {px} ({fv / px:.1f}x)"
+    finally:
+        webapp._store = orig
+
+
+def test_the_public_list_says_withheld_rather_than_going_quiet():
+    from valuation.web import app as webapp
+    orig = webapp._store
+    webapp._store = lambda: _FakeStore(_public_rows())
+    webapp.app.config["TESTING"] = True
+    try:
+        with webapp.app.test_client() as c:
+            rows = c.get("/api/hotstocks?top=100").get_json()["rows"]
+    finally:
+        webapp._store = orig
+    held = [r for r in rows if r.get("fair_value_withheld")]
+    assert len(held) == 2, f"expected AEG and LEV to be withheld, got {len(held)}"
+    for r in held:
+        assert r["fair_value"] is None and r["upside"] is None
+        assert (r.get("fair_value_withheld_reason") or "").strip(), \
+            f"{r['ticker']} was blanked with no reason attached"
+    assert all(r.get("hot_score") is not None for r in rows), \
+        "the RANKING must be untouched — only the fair value is withheld"
+
+
+def test_the_renderer_shows_a_withheld_row_as_withheld():
+    _, src = _render_body()
+    i = src.index("function _fairValCell(")
+    fn = src[i:src.index("\n}", i)]
+    assert "fair_value_withheld" in fn and "withheld" in fn
+    assert fn.index("fair_value_withheld") < fn.index("r.fair_value == null"), \
+        "a withheld row must not fall through to the missing-data em dash"
+
+
+def test_the_watchlist_marks_a_partial_score_in_the_cell():
+    """`/api/rank` puts a partial score in the same column as full ones. An unmarked 50 beside
+    a full 50 asserts they mean the same thing."""
+    _, src = _render_body()
+    i = src.index("async function runRank(")
+    fn = src[i:src.index("\n}\n", i)]
+    assert "score_partial" in fn and "PARTIAL" in fn
 
 
 # --------------------------------------------------------------------------- #

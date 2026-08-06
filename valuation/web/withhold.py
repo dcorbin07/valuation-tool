@@ -99,15 +99,111 @@ CARD_REASONS = {
 #     KSPI 93 Strong Buy (valuation 100.0) · GILD 87 Strong Buy (80.2) · JD 79 Buy (99.1)
 #     CI 71 Buy (99.6) · CHTR 69 Buy (100.0) · STLA 45 Reduce (48.2)
 #
-# Fixing that belongs to the engine lane and is NOT done here: this module must not quietly
-# redefine what the score means to solve a display problem. What it does instead is refuse to
-# publish a number it can show is contaminated, and say so on the page in those words.
+# FIXED IN THE ENGINE, 2026-08-06 (the greeks lane). `compute_score` now drops the ENTIRE
+# valuation sub-score when the headline is withheld, and the >5x cap — which used to be
+# written `if base_fv and ...`, i.e. dead exactly when the guard had fired — now falls back to
+# `blend.withheld_value`. Measured: KSPI 93 -> 50, JD 79 -> 50, CI 71 -> 50, CHTR 69 -> 48;
+# publishable names moved by exactly 0.
+#
+# So the number underneath is no longer contaminated, and this page's "Not rated." became the
+# opposite error: it understated what exists. What exists is a PARTIAL score — four
+# sub-scores out of five, capped and flagged — and it is now shown as one. The whole thread
+# this work belongs to is about a partial thing being presented as a complete one, so the
+# distinction has to be visible without hovering: the number carries a "partial" mark, the
+# missing sub-score reads "withheld" rather than "n/a", and the engine's own sentence is
+# printed on the surface.
 SCORE_NOTE = (
-    "The overall score is not shown for this name. Its valuation component is computed in "
-    "part from the same figures the model just declined to publish, so the composite would "
-    "not mean what it appears to mean. The components that do not depend on a fair value — "
-    "quality, growth, financial health and momentum — are shown below."
+    "This is a PARTIAL score. The valuation component — fair value, Monte Carlo and comps — "
+    "is computed from figures the model declined to publish for this name, so it contributes "
+    "nothing at all. What is scored is quality, growth, financial health and momentum only, "
+    "renormalised over those four, and capped because the withheld valuation was implausible "
+    "against the price. It is not comparable to a full score at the same number."
 )
+
+
+# --------------------------------------------------------------------------- #
+# THE LIST SURFACES — the leak everything above was defeated by (2026-08-06).
+#
+# Every guard so far protected ONE code path: `/api/value` and the documents built from its
+# result. `/api/hotstocks` is public and reaches a fair value by a completely different
+# route — `estimate_fair_values` (`screener/fairvalue.py`) — which has no ceiling. Its EV
+# bridge reduces exactly to
+#
+#       implied / price = 3 + 2 x (net debt / market cap)
+#
+# so any name with net debt above 1x its market cap that re-rates the full 3x clears the
+# valuation page's own 5x refusal band, on a public surface, tagged "medium" confidence. A
+# constructed case published $330.00 against a $10.00 price.
+#
+# Measured on the REAL production snapshot (2026-08-06, 800-name universe, 785 scored, 500
+# served): 499 rows carried a fair value, ONE cleared the band — AEG at 5.25x, $49.91 against
+# a $9.50 price, "blended / medium". Thin today; unbounded by construction.
+#
+# THE FIX IS NOT HERE. `screener/**` is another lane's and is being fixed in parallel. This is
+# the second lock: it sits at the call site in this lane, so the public surface stops
+# publishing implausible values today rather than when both lanes agree. Two independent
+# locks on one leak is the pattern that worked on the growth input.
+#
+# ONE NUMBER, ONE MEANING: the band is imported from the valuation page's own guard rather
+# than restated, so the two surfaces cannot drift to different definitions of "implausible".
+def _band() -> float:
+    try:
+        from ..engine.pipeline import FV_BAND_HIGH
+        return float(FV_BAND_HIGH)
+    except Exception:                                   # pragma: no cover - import shape only
+        return 5.0
+
+
+ROW_WITHHELD = "fair_value_withheld"
+ROW_WITHHELD_REASON = "fair_value_withheld_reason"
+
+
+def _row_reason(ratio: float, band: float) -> str:
+    return (f"No fair value is published for this name: the estimate came out {ratio:.1f}x the "
+            f"price, past the {band:.0f}x band at which this tool treats a valuation as a data "
+            f"problem (currency or share count) rather than an opportunity. The ranking below "
+            f"does not depend on it.")
+
+
+def withhold_implausible_fair_values(rows, band: float = None) -> int:
+    """Strip the fair value from any row that claims more than `band` x the price. Mutates.
+
+    Returns the number of rows withheld. Two triggers, both fail-closed:
+
+      1. the ratio itself — the same threshold the valuation page enforces; and
+      2. a row that already carries `fair_value_withheld`, so that when the scan starts
+         recording which names the publication guard REFUSED (see BUGS FOUND — today
+         `screen.py::_enrich_with_dcf` writes `fair_value = None` on a refusal, and
+         `estimate_fair_values` then reads that as "no DCF yet" and substitutes a peer
+         estimate, quietly erasing the refusal), this surface already honours it.
+
+    The reason is written onto the row rather than the value merely blanked. A silently
+    missing cell reads as a gap in the data and invites someone to "fix" it later; the
+    valuation page's refusal works precisely because it states its cause.
+    """
+    band = _band() if band is None else float(band)
+    n = 0
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        fv, px = r.get("fair_value"), r.get("price")
+        pre_marked = bool(r.get(ROW_WITHHELD))
+        ratio = None
+        try:
+            if fv is not None and px:
+                ratio = float(fv) / float(px)
+        except (TypeError, ValueError, ZeroDivisionError):
+            ratio = None
+        if not pre_marked and (ratio is None or ratio <= band):
+            continue
+        r["fair_value"] = None
+        r["upside"] = None
+        r[ROW_WITHHELD] = True
+        r.setdefault(ROW_WITHHELD_REASON,
+                     _row_reason(ratio, band) if ratio is not None
+                     else "No fair value is published for this name.")
+        n += 1
+    return n
 
 
 def is_withheld_result(result) -> bool:
@@ -217,16 +313,21 @@ def withhold_derived_figures(payload: dict) -> dict:
     comps[WITHHELD] = True
     out["comps"] = comps
 
-    # 6. The score — contaminated by (2) and (5) through the back door. See SCORE_NOTE.
+    # 6. The score — a PARTIAL score now, not a suppressed one. The engine drops the whole
+    #    valuation sub-score for a withheld name (scoring.py:202-206), so the number that
+    #    survives rests only on quality, growth, health and momentum. It is published, marked
+    #    partial, and the missing sub-score is marked withheld rather than "n/a" — the two
+    #    words mean different things and only one of them is true here.
     score = dict(out.get("score") or {})
     subs = dict(score.get("subscores") or {})
     subs["valuation"] = None
     score["subscores"] = subs
-    score["score"] = None
-    score["recommendation"] = None
     score["confidence"] = "low"
     score["drivers"] = [d for d in (score.get("drivers") or [])
                         if not _quotes_withheld_value(d)]
+    score["partial"] = True
+    score["partial_of"] = [k for k, v in subs.items() if v is not None]
+    score["partial_note"] = SCORE_NOTE
     score[WITHHELD] = True
     out["score"] = score
     return out
@@ -235,14 +336,26 @@ def withhold_derived_figures(payload: dict) -> dict:
 # Driver lines that quote a withheld figure. `_valuation_score` writes exactly three shapes
 # (scoring.py:81/85/90); matching on their wording is brittle by nature, so the test suite
 # pins it against real driver strings rather than trusting this list to stay right.
-_WITHHELD_DRIVER_MARKERS = (
+#
+# MATCH ON THE PREFIX, NOT ON A KEYWORD ANYWHERE IN THE LINE. Since the engine fix, the two
+# drivers a withheld name legitimately carries are
+#     "Valuation withheld — no fair-value, Monte Carlo or comps term contributes ..."
+#     "⚠ Model fair value is 11.3× the price — implausible ... Capped and flagged ..."
+# and a keyword match on "monte carlo" or "model fair value" deletes BOTH: the explanation the
+# page is required to show, and the flag saying the number was capped. `_valuation_score`
+# writes its three leaking shapes sentence-initially (scoring.py:81/85/90), so the prefix is
+# the precise discriminator. The "quotes a dollar amount" rule is kept as a second net for a
+# reworded variant that still states a withheld figure.
+_LEAKING_DRIVER_PREFIXES = (
     "base fair value",          # "Base fair value $X vs $Y -> +N% margin of safety."
-    "monte carlo",              # "Monte Carlo: N% of trials value it above the price."
+    "monte carlo:",             # "Monte Carlo: N% of trials value it above the price."
     "comps imply",              # "Comps imply $X (+N%)."
-    "model fair value",         # the >5x / <0.2x sanity lines
 )
+_WITHHELD_DRIVER_MARKERS = ("base fair value", "monte carlo", "comps imply")
 
 
 def _quotes_withheld_value(line: Any) -> bool:
-    s = str(line or "").lower()
-    return any(m in s for m in _WITHHELD_DRIVER_MARKERS)
+    s = str(line or "").strip().lower()
+    if s.startswith(_LEAKING_DRIVER_PREFIXES):
+        return True
+    return "$" in s and any(m in s for m in _WITHHELD_DRIVER_MARKERS)

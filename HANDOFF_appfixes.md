@@ -5,6 +5,180 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 14 — 2026-08-06 — The public leak is closed at this lane's call site; the score is
+now shown as partial (PROMPT_appfixer_close_the_public_leak.md)
+
+Both items shipped. **The real-snapshot measurement the last session could not get is in this
+one** — and it turned up a second, larger leak that this lane cannot close, recorded with its
+mechanism.
+
+## ITEM 1 — the guard, and what it actually catches
+
+**Where it sits:** `valuation/web/withhold.py::withhold_implausible_fair_values()`, called at
+`web/app.py:411` immediately after `estimate_fair_values` on the rows `/api/hotstocks` is
+about to serve, and at `web/unified.py:227` for `/api/whatdo` — the second public surface fed
+by the same estimator, which would otherwise just move the leak one endpoint over.
+`/api/rank` was already safe (it reads `base_fair_value`) but now carries the partial-score
+flag, below.
+
+**One number, one meaning.** The band is *imported* from `engine.pipeline.FV_BAND_HIGH`, not
+restated — the two surfaces cannot drift into different definitions of "implausible", which
+is exactly how this opened. Pinned by
+`test_the_row_guard_uses_the_valuation_pages_own_band_not_its_own_number`.
+
+**It says why.** The row gets `fair_value = None`, `upside = None`, `fair_value_withheld =
+True` and a sentence: *"No fair value is published for this name: the estimate came out 5.3x
+the price, past the 5x band at which this tool treats a valuation as a data problem (currency
+or share count) rather than an opportunity. The ranking below does not depend on it."* The
+cell renders **withheld**, not an em dash — a blank invites someone to fill it back in.
+
+### THE REAL MEASUREMENT (production, 2026-08-06)
+
+`/api/hotstocks` is public, so the live snapshot is readable without credentials — one GET, no
+Render disk needed. Scan 2026-08-06, 800-name universe, 785 scored, 500 served:
+
+| | before the guard | after |
+|---|---|---|
+| rows carrying a fair value | 499 | 498 |
+| **max fair_value / price** | **5.25× — AEG** | **3.96× — CNC** |
+| rows above the 5× band | **1** | 0 |
+| rows above 20× | 0 | 0 |
+
+The one name: **AEG (Aegon) — fair value $49.91 against a $9.50 price, tagged
+`blended / medium`.** A leveraged insurer, which is the exact mechanism (`3 + 2 × net debt /
+market cap`). Its **hot score 97.86 and rank 18 are untouched** — only the fair value is
+withheld, because the ranking never used it.
+
+So: thin today, unbounded by construction, and now closed on this side.
+
+## ITEM 1b — THE BIGGER LEAK, WHICH THIS GUARD DOES NOT CATCH
+
+Found while measuring, and it matters more than the band:
+
+> **The three names the valuation page refuses outright are served on the public hot list
+> with fair values, because their peer estimate lands *under* 5×.**
+>
+> | name | valuation page | public hot list, today |
+> |---|---|---|
+> | KSPI | **refuses** — "the model's $1,039.92 is 11.3× the $92.19 price" | **$299.16** (3.24×) |
+> | STLA | **refuses** — 6.4× | **$21.09** (3.75×) |
+> | CHTR | **refuses** — 8.1× | **$416.75** (2.72×) |
+
+**Mechanism, exactly:** `screen.py::_enrich_with_dcf` runs the full valuation for the top
+names and writes `r["fair_value"] = res.base_fair_value` — which is `None` when the
+publication guard refuses. It records nothing else. `estimate_fair_values` then reads that
+`None` as *"no DCF yet"* and substitutes a peer-relative estimate. **The refusal is erased by
+the next step in the pipeline.**
+
+**Not fixed here — `screener/**` is another lane's, and the fix is one line in theirs**
+(record the refusal alongside the `None`). Two things were done instead:
+
+1. **The guard already honours it.** `withhold_implausible_fair_values` withholds any row
+   carrying `fair_value_withheld`, whatever its ratio — so the moment the scan starts marking
+   refused names, this surface refuses them with no further change. Pinned by
+   `test_a_row_already_marked_withheld_is_honoured_even_below_the_band`.
+2. **The disagreement is stated on the hot list rather than hidden**, since it is live today:
+   *"Known inconsistency, stated rather than hidden: these two surfaces can still disagree. A
+   name whose full model is refused outright — Kaspi, for one, where the statements and the
+   price are in different currencies — can carry a peer-relative estimate here, because a
+   ratio of two same-currency figures survives the mismatch that breaks the valuation. When
+   they disagree, the Single-valuation page's refusal is the one to believe."*
+
+That last point is not spin: a peer multiple genuinely is currency-neutral, so the estimate
+is not obviously wrong the way the DCF was. But the product must not answer the same question
+two ways without saying so.
+
+## ITEM 1c — the catch-all, extended (the durable part)
+
+`test_no_public_api_response_carries_a_fair_value_past_the_band` walks **every `fair_value`
+that sits next to a `price` anywhere in a public API response body**, recursively, across
+`/api/hotstocks` and three `/api/whatdo` shapes, with a stubbed store containing both the real
+AEG row and the constructed 33× one. A new public list surface fails this the day it starts
+serving a fair value, without anyone remembering to add it anywhere. Session 12's catch-all
+walked `/api/value`; this is the walk that would have caught the leak Session 13 only found by
+reading arithmetic.
+
+## ITEM 2 — the score is rendered as partial, and visibly so
+
+The engine change (greeks lane) is in and measured on this machine: the whole valuation
+sub-score is dropped and the >5× cap now falls back to `blend.withheld_value`. This lane's
+"Not rated." was correct while the number was contaminated and became an understatement the
+moment it was not, so the page now publishes the partial score — marked everywhere it appears.
+
+**Rendered text, signed out, live data, all three names withheld today:**
+
+| | KSPI | STLA | CHTR |
+|---|---|---|---|
+| dial | **PARTIAL / 50 / "/ 100 · 4 of 5 components"** | **PARTIAL / 18** | **PARTIAL / 47** |
+| call | "Hold — partial" | "Avoid — partial" | "Hold — partial" |
+| confidence | low | low | low |
+| valuation bar | **withheld**, "weight 20% — dropped, not reassigned" | **withheld**, weight 40% | **withheld**, weight 40% |
+| the other four | 91 / 86 / 100 / 78 | 8 / 29 / 28 / 13 | 71 / 29 / 46 / 24 |
+
+STLA at 18 and CHTR at 47 are worth noting: **the >5× cap is a ceiling, not a floor** — a
+partial score lands wherever the four surviving components put it.
+
+The distinction is on the dial, not in a tooltip: a dashed amber inner ring, the word
+**PARTIAL** above the number, "4 of 5 components" below it, "— partial" beside the call, the
+missing bar reading **withheld** (not "n/a" — different words, and only one is true) with a
+hatched track and "dropped, not reassigned", and the engine's own sentence printed in the
+panel. The Watchlist marks it in the cell too, because a partial 50 sitting in a column beside
+a full 50 asserts they mean the same thing.
+
+**The caution the greeks lane routed here is carried in the copy**, not implied:
+`SCORE_NOTE` ends *"It is not comparable to a full score at the same number."* Pinned by
+`test_the_score_note_says_partial_and_says_it_is_not_comparable`.
+
+**A regression this file caused in design and caught in test.** The driver filter matched on
+keywords, and the two drivers a withheld name now legitimately carries are *"Valuation
+withheld — no fair-value, **Monte Carlo** or comps term contributes…"* and *"⚠ **Model fair
+value** is 11.3× the price… Capped and flagged unreliable"*. A keyword match deletes both —
+the explanation the page is required to show, and the flag saying the number was capped. The
+filter now matches on the sentence-initial prefixes `_valuation_score` actually writes, and
+`test_the_engines_own_explanation_survives_this_filter` exists to keep it that way.
+
+## Suites
+
+**20 suites, 705 tests, all green** (main was at 696 when this session started). This adds
+**+9 in `test_withhold.py`** (19 → 28).
+
+## BUGS FOUND
+
+1. **THE REFUSAL IS ERASED BY THE PIPELINE** — item 1b above. `_enrich_with_dcf` writes
+   `fair_value = None` on a refusal and `estimate_fair_values` reads it as "not computed yet".
+   KSPI, STLA and CHTR are on the public hot list with fair values today. → **screener lane;
+   this surface already honours the flag the moment it is set.**
+2. **CI publishes +275% at "high" confidence, and its comps lens implies 8.0× the price.**
+   After the DCF-terminal fixes CI is no longer refused ($1,013.47 against $270.50 = 3.75×,
+   under the band), so the whole page publishes: score **74 "Buy", confidence HIGH**, comps
+   fair value **$2,153.27 (+696%)**, sensitivity cells to $3,851.90. Nothing here is withheld
+   because nothing tripped the guard — the guard is not the problem, the valuation is.
+   → **engine / DCF lane.**
+3. **The withheld set is now three, not the five in the prompt.** GILD ($159.00, +21%), CI and
+   JD ($108.74, 3.34×) are no longer refused after the DCF-terminal work. Any future note
+   quoting "the five withheld names" is stale; the set moves whenever the engine changes.
+4. Still open from Session 13: **`_LAST` is an untimed process-global result cache**
+   (`web/app.py:40`) and `/api/export/*` serves from it, so a document's "As of" can disagree
+   with the page's. → **app lane.**
+
+## For Don
+
+The hot list can no longer publish a fair value more than 5× the price — the same bar the
+valuation page uses. On today's live scan that changes exactly one name: **AEG**, which was
+showing $49.91 against a $9.50 price and now shows **withheld** with the reason on hover. Its
+rank is unchanged, because the ranking never used that number.
+
+The score on a refused name now reads **"PARTIAL — 50 / 100, 4 of 5 components"** instead of
+"Not rated": the engine stopped feeding the withheld valuation into it, so the number that is
+left is honest as far as it goes, and the page says exactly how far that is.
+
+**One thing you should know is still true:** open KSPI on the Hot stocks tab and it shows a
+fair value of about $299, while the Single-valuation page refuses to value it at all. That is
+a real inconsistency, it is written on the hot list in plain words, and the fix belongs to the
+scan — not to this surface. Believe the refusal.
+
+---
+
 # Session 13 — 2026-08-05 — Exports refuse in-document; the 5x/20x answer; the Index tab
 (PROMPT_appfixer_exports_and_index_tab.md)
 

@@ -294,16 +294,42 @@ function withheldCards(d) {
 
 /* ---------- gauge ---------- */
 function gauge(s, rec, conf, notValuable, w) {
-  // A score is a verdict. On a name the model declined to value, the verdict's valuation
-  // input is computed from the withheld figures (see web/withhold.py, SCORE_NOTE), so no
-  // number and no "Strong Buy" is shown — the reason is shown instead.
-  if (notValuable || s == null) {
+  if (s == null) {
     document.getElementById("gauge").innerHTML =
       `<div class="nv-box" style="text-align:left;max-width:260px">
          <b>Not rated.</b> ${esc((w && w.score_note) || _WITHHELD_FALLBACK.score)}</div>`;
     return;
   }
   const r = 54, circ = 2 * Math.PI * r, off = circ * (1 - s / 100), col = scoreColor(s);
+  // A PARTIAL score is a real number built from four of the five sub-scores — the engine
+  // drops the valuation component entirely for a withheld name — and it must not be dressed
+  // as a complete one. The distinction is on the dial itself (dashed arc, "PARTIAL" over the
+  // number, "4 of 5 components" under it) rather than in a tooltip, because the failure mode
+  // this whole thread is about is a partial thing read as a whole one.
+  if (notValuable) {
+    document.getElementById("gauge").innerHTML = `
+      <svg width="140" height="140" viewBox="0 0 140 140">
+        <circle cx="70" cy="70" r="${r}" fill="none" stroke="var(--border)" stroke-width="13"/>
+        <!-- same geometry as a full gauge so the number and the arc still agree, at 60%
+             opacity, with an amber dashed ring inside it: the dial reads as unfinished
+             at a glance, which is the honest impression. -->
+        <circle cx="70" cy="70" r="${r}" fill="none" stroke="${col}" stroke-width="13" stroke-linecap="round"
+          stroke-dasharray="${circ}" stroke-dashoffset="${off}" opacity=".6"/>
+        <circle cx="70" cy="70" r="${r - 9}" fill="none" stroke="var(--amber)" stroke-width="1.5"
+          stroke-dasharray="4 5" opacity=".85"/>
+      </svg>
+      <div style="margin-top:-104px;text-align:center">
+        <div style="font-size:10.5px;font-weight:800;letter-spacing:.09em;color:var(--amber)">PARTIAL</div>
+        <div class="score-num" style="color:${col};opacity:.85">${s}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:-4px">/ 100 · 4 of 5 components</div>
+      </div>
+      <div class="rec" style="color:var(--muted);margin-top:36px;font-size:15px">${esc(rec || "")}<span
+        style="font-size:11px;font-weight:700;color:var(--amber)"> — partial</span></div>
+      <div class="conf">confidence: ${esc(conf || "low")}</div>
+      <div class="nv-box" style="text-align:left;margin-top:10px;max-width:270px;font-size:12px">
+        <b>Valuation withheld.</b> ${esc((w && w.score_note) || _WITHHELD_FALLBACK.score)}</div>`;
+    return;
+  }
   document.getElementById("gauge").innerHTML = `
     <svg width="140" height="140" viewBox="0 0 140 140">
       <circle cx="70" cy="70" r="${r}" fill="none" stroke="var(--border)" stroke-width="13"/>
@@ -435,8 +461,17 @@ function mcChart(mc) {
 
 /* ---------- score bars ---------- */
 function scoreBars(score, notValuable, wh) {
+  // On a withheld name the number IS published — it just rests on four components instead of
+  // five. Name the arithmetic (which weight was dropped, what the rest renormalise to) rather
+  // than leaving the reader to infer it from a greyed-out bar.
+  const dropped = notValuable ? (score.weights || {}).valuation : null;
   document.getElementById("scoreHint").innerHTML = notValuable
-    ? `<div class="nv-box" style="margin-top:0">${esc((wh && wh.score_note) || _WITHHELD_FALLBACK.score)}</div>`
+    ? `<div class="nv-box" style="margin-top:0"><b>Partial score — 4 of 5 components.</b>
+         ${esc((wh && wh.score_note) || score.partial_note || _WITHHELD_FALLBACK.score)}
+         ${dropped != null ? `The valuation component normally carries <b>${pct(dropped, 0)}</b>
+         of this score for a <b>${esc(STATE.data.classification.regime)}</b> company; that weight
+         is not reassigned to a substitute, it is removed and the remaining four are
+         renormalised.` : ""}</div>`
     : `Weighted for a <b>${STATE.data.classification.regime}</b> company — weights shift by regime so the DCF is trusted less where it's less reliable. Overall confidence: <b>${score.confidence}</b>.`;
   const order = ["valuation", "quality", "growth", "health", "momentum"];
   let html = "";
@@ -445,10 +480,13 @@ function scoreBars(score, notValuable, wh) {
     const col = v == null ? "var(--faint)" : scoreColor(v);
     // "n/a" is the right word for a sub-score that could not be computed and the WRONG word
     // for one that was computed and then withheld — say which.
-    const lab = v == null ? ((notValuable && k === "valuation") ? "withheld" : "n/a") : v.toFixed(0);
-    html += `<div class="sbar"><div class="lab"><span><b>${k[0].toUpperCase() + k.slice(1)}</b> <span class="wt">weight ${pct(w, 0)}</span></span>
-      <span style="font-weight:700;color:${col}">${lab}</span></div>
-      <div class="bar"><span style="width:${v == null ? 0 : v}%;background:${col}"></span></div></div>`;
+    const held = notValuable && k === "valuation" && v == null;
+    const lab = v == null ? (held ? "withheld" : "n/a") : v.toFixed(0);
+    const wt = held ? `<span class="wt">weight ${pct(w, 0)} — dropped, not reassigned</span>`
+                    : `<span class="wt">weight ${pct(w, 0)}</span>`;
+    html += `<div class="sbar"><div class="lab"><span><b>${k[0].toUpperCase() + k.slice(1)}</b> ${wt}</span>
+      <span style="font-weight:700;color:${held ? 'var(--amber)' : col}">${lab}</span></div>
+      <div class="bar"${held ? ' style="background:repeating-linear-gradient(90deg,var(--border) 0 4px,transparent 4px 9px)"' : ''}><span style="width:${v == null ? 0 : v}%;background:${col}"></span></div></div>`;
   });
   html += `<div style="margin-top:10px;font-size:12.5px" class="muted">Drivers:</div><ul style="margin:4px 0 0;padding-left:18px;font-size:13px">` +
     (score.drivers || []).map(x => `<li>${x}</li>`).join("") + "</ul>";
@@ -687,10 +725,16 @@ async function runRank() {
     rows.forEach((r, i) => {
       if (r.error) { html += `<tr><td>${i + 1}</td><td><b>${r.ticker}</b></td><td colspan="7" class="muted">${r.error}</td></tr>`; return; }
       const up = r.upside;
+      // A partial score sits in the same column as full ones. Mark it in the cell, not in a
+      // footnote — an unmarked 50 beside a full 50 says they mean the same thing.
+      const part = r.score_partial;
       html += `<tr><td>${i + 1}</td><td><b>${r.ticker}</b></td><td>${r.name || ""}</td><td><span class="badge">${r.regime}</span></td>
-        <td class="num">${money(r.price)}</td><td class="num">${money(r.fair_value)}</td>
+        <td class="num">${money(r.price)}</td><td class="num">${part
+          ? `<span class="muted" style="font-weight:700" title="${esc(r.fair_value_withheld_reason || "")}">withheld</span>`
+          : money(r.fair_value)}</td>
         <td class="num ${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</td>
-        <td class="num"><b style="color:${scoreColor(r.score)}">${r.score}</b></td>
+        <td class="num"><b style="color:${scoreColor(r.score)}${part ? ';opacity:.7' : ''}">${r.score}</b>${part
+          ? ` <span style="font-size:10px;font-weight:800;color:var(--amber)" title="Valuation withheld — scored on quality, growth, financial health and momentum only.">PARTIAL</span>` : ""}</td>
         <td><span class="badge ${scoreClass(r.score)}">${r.recommendation}</span></td></tr>`;
     });
     html += "</table>";
@@ -891,7 +935,15 @@ function renderHot(d) {
     use a quick peer-relative estimate (what the stock would be worth on its sector's median earnings / free-cash-flow
     yield) — the full discounted-cash-flow model is far too slow to run on every name, so only the top few carry one.
     Unmarked values are the full DCF. The estimate says "cheap versus peers", which is a rougher claim than the DCF's
-    "worth this much" — open a name in Single valuation for the real model.</div>`;
+    "worth this much" — open a name in Single valuation for the real model.
+    A cell reading <b>withheld</b> is not missing data: the estimate came out past the same band at which the valuation
+    page refuses to publish a fair value (more than 5× the price, which is almost always a currency or share-count
+    problem rather than an opportunity), so it is not published here either. The ranking does not use it.
+    <b>Known inconsistency, stated rather than hidden:</b> these two surfaces can still disagree. A name whose full
+    model is refused outright — Kaspi, for one, where the statements and the price are in different currencies — can
+    carry a peer-relative estimate here, because a ratio of two same-currency figures survives the mismatch that
+    breaks the valuation. <b>When they disagree, the Single-valuation page's refusal is the one to believe</b>, and
+    fixing the disagreement is open work.</div>`;
   // Prefer theme_contributing over theme_coverage: a theme can be 100% "covered" and still be
   // a constant, which standardizes to nothing and drops out of the score entirely. Reporting
   // the presence number here would call such a theme healthy.
@@ -934,6 +986,12 @@ function renderHot(d) {
 }
 function z(x) { return (x == null || isNaN(x)) ? "—" : (x >= 0 ? "+" : "") + x.toFixed(2); }
 function _fairValCell(r, up) {
+  // A withheld estimate is not a missing one. "—" reads as "we don't have this yet" and
+  // invites someone to fill it back in; this says the number existed and was refused, and
+  // carries the reason with it. See web/withhold.py::withhold_implausible_fair_values.
+  if (r.fair_value_withheld) {
+    return `<span class="muted" style="font-weight:700" title="${esc(r.fair_value_withheld_reason || "")}">withheld</span>`;
+  }
   if (r.fair_value == null) return "—";
   const est = r.fair_value_method === "multiples";
   const mark = est ? `<span class="est-mark" title="Peer-relative estimate, not the full DCF">e</span>` : "";
