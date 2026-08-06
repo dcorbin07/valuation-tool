@@ -307,6 +307,24 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
                                       f"For a pre-profit growth name that is a disagreement about future "
                                       f"growth, not a data error — see the implied-growth read.")
 
+    # Reinvestment sanity: `delta revenue / sales_to_capital` collapses toward zero when
+    # revenue is flat, so a capex-heavy name is charged almost nothing to stand still.
+    # Measured on a 241-name universe: 34 names are undercharged by more than 5% of
+    # revenue, 22 by more than 10% (worst SRE 57.9%, ORCL 54.7%, D 44.1%), concentrated in
+    # Utilities, Energy and Basic Materials. Flagged, NOT corrected — see the handoff.
+    base_dcf = scenarios.base
+    r_y1, net_capex = getattr(base_dcf, "reinvestment_y1", None), getattr(
+        base_dcf, "observed_net_capex", None)
+    rev0 = getattr(base, "base_revenue", None)
+    if r_y1 is not None and net_capex is not None and rev0 and net_capex > 0:
+        shortfall = (net_capex - r_y1) / rev0
+        if shortfall > 0.05:
+            result.warnings.append(
+                f"The forecast reinvests {r_y1:,.0f} in year 1 against {net_capex:,.0f} of "
+                f"observed net capital spend (capex minus D&A) — a shortfall of "
+                f"{shortfall:.0%} of revenue. Free cash flow is modelled higher than this "
+                f"company has been able to produce; treat the valuation as optimistic.")
+
     if run_ai:
         try:
             from ..ai.analyst import analyze

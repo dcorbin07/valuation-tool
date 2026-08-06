@@ -438,6 +438,33 @@ def test_guard_leaves_a_normal_name_alone():
     assert not any("Cannot value this name" in w for w in r.warnings)
 
 
+def test_flat_revenue_capex_heavy_name_flags_its_reinvestment_shortfall():
+    """CHTR's forecast reinvests $79M in year 1 against $2,948M of observed net capital
+    spend (capex $11,659M - D&A $8,711M). Reinvestment is modelled as
+    `delta revenue / sales_to_capital`, which collapses toward zero when revenue is flat —
+    so a cable operator is charged almost nothing to stand still. Measured across 241
+    names: 34 are undercharged by >5% of revenue, 22 by >10% (SRE 57.9%, ORCL 54.7%).
+
+    Flagged, NOT corrected — changing how reinvestment is modelled moves every valuation
+    and needs its own pre-registered task. The guard must SAY SO."""
+    cd = build_nike()
+    cd.capex, cd.da = 11_659.0, 1_000.0        # heavy net capex
+    cd.revenue_history = [cd.revenue, cd.revenue, cd.revenue]   # flat -> no growth capital
+    r = value_from_company(cd, CONFIG, mc_trials=200)
+    b = r.scenarios.base
+    assert b.observed_net_capex == 10_659.0
+    assert b.reinvestment_y1 is not None
+    assert b.reinvestment_y1 < b.observed_net_capex, (
+        "flat revenue must reinvest less than observed net capex — that IS the defect")
+    assert any("net capital spend" in w for w in r.warnings), r.warnings
+
+    # a name that already reinvests above its net capex must stay quiet
+    quiet = build_nike()
+    quiet.capex, quiet.da = 500.0, 2_000.0     # D&A exceeds capex -> negative net capex
+    rq = value_from_company(quiet, CONFIG, mc_trials=200)
+    assert not any("net capital spend" in w for w in rq.warnings), rq.warnings
+
+
 def test_withheld_valuation_contributes_nothing_to_the_score():
     """KSPI printed a valuation sub-score of 100.0/100 and a composite of 93 "Strong Buy"
     on a name the model had DECLINED to value. Passing base_fv=None dropped only the

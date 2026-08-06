@@ -56,9 +56,16 @@ METRICS_UNITS = "usd"
 #   2 -> broker fundamentals merged in (sector / beta / ev / book_to_price / roe now expected)
 METRICS_SCHEMA = 2
 
+# `net_debt` was MISSING from this tuple, so it alone was emitted in the provider's native
+# units (millions) while market_cap, ev and total_debt beside it were scaled to dollars.
+# fairvalue.py's EV bridge then computed `ev = market_cap + net_debt` as dollars + millions,
+# which makes the net-debt term ~1e-6 of its true size and silently collapses the bridge to
+# a bare re-rate. CHTR's real net debt / market cap is 4.68; the lens saw 96,644 against
+# 20.6 billion. Same class as the P7 currency bug: every column present, every column
+# populated, one of them in the wrong unit.
 _ABSOLUTE_USD = ("market_cap", "revenue", "net_income", "operating_income", "fcf",
                  "ebitda", "ev", "gross_profit", "total_debt", "total_equity",
-                 "interest_expense")
+                 "interest_expense", "net_debt")
 
 
 def _stamp_units(m: dict, scale: float = 1.0) -> dict:

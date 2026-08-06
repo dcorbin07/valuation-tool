@@ -73,6 +73,14 @@ class DCFResult:
     rows: list = field(default_factory=list)
     terminal_multiple: Optional[float] = None   # TV per unit of terminal FCFF (1/spread)
     assumed_terminal_growth: Optional[float] = None  # before the spread clamp, if it bound
+    # Year-1 modelled reinvestment against the company's OBSERVED net capital spend
+    # (capex - D&A). Reinvestment is modelled as `delta revenue / sales_to_capital`, which
+    # goes to zero when revenue is flat — so a capex-heavy company that must spend billions
+    # simply to stand still is charged almost nothing. Reported, NOT corrected: changing how
+    # reinvestment is modelled moves every valuation in the product and needs its own
+    # pre-registered task. See HANDOFF_live_data_bugs.md Part 4 item 2.
+    reinvestment_y1: Optional[float] = None
+    observed_net_capex: Optional[float] = None
 
     def to_dict(self) -> dict:
         d = dict(self.__dict__)
@@ -169,4 +177,7 @@ def run_dcf(cd: CompanyData, a: AssumptionSet, wacc: float,
         tv_pct_of_ev=(pv_tv / ev if ev else 0.0), wacc=wacc, terminal_growth=g_eff,
         terminal_roic=troic, net_debt=net_debt, shares=shares, label=a.label, rows=rows,
         terminal_multiple=tv_multiple, assumed_terminal_growth=a.terminal_growth,
+        reinvestment_y1=(-rows[0]["reinvestment"] if rows else None),
+        observed_net_capex=((cd.capex - cd.da)
+                            if (cd.capex is not None and cd.da is not None) else None),
     )

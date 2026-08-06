@@ -66,7 +66,17 @@ GROWTH_DISCOUNT_MATURE = 0.09
 GROWTH_HORIZON_YEARS = 10        # full horizon for a zero-maturity name
 GROWTH_TERMINAL = 0.03           # growth fades to roughly nominal GDP
 GROWTH_START_CAP = 0.60          # nobody compounds faster than this in a forecast
-MAX_GROWTH_VALUE = 20.0          # sanity: never publish >20x the current price
+
+# ONE bar for one claim. The valuation page refuses to publish above 5x price
+# (engine/pipeline.py FV_BAND_HIGH); this lens used to cap the growth branch at 20x and
+# the multiples branch not at all. The hot-list fair value and the valuation page's fair
+# value are the same claim about the same company from the same product, and this endpoint
+# is PUBLIC — a number the valuation page would refuse to print must not appear here.
+# 20x was never a bar in practice: measured on a 241-name universe the growth lens tops
+# out at 5.44x and the multiples lens at 4.59x. Adopted on COHERENCE; the tail above 5x in
+# the multiples lens is currently empty, so this is not claimed to prevent anything today.
+MAX_LENS_VALUE = 5.0             # never publish above this multiple of the current price
+MAX_GROWTH_VALUE = MAX_LENS_VALUE   # legacy alias; kept so callers/tests still resolve
 
 
 def _num(v):
@@ -164,7 +174,15 @@ def _mature_value(row, meds, price):
             if equity > 0:
                 implied.append(price * equity / mc)
 
-    return median(implied) if implied else None
+    if not implied:
+        return None
+    out = median(implied)
+    # The bridge reduces to `implied/price = r + (nd/mc)*(r - 1)`, so at the 3x re-rate cap
+    # a name with 4.68x leverage (CHTR) has a CEILING of 12.4x price. The arithmetic is
+    # right — equity is a residual claim and leverage amplifies it — but a uniform 3x
+    # enterprise re-rate is not a defensible assumption for a name that trades cheap on an
+    # enterprise multiple BECAUSE it is levered. Nothing bounded the per-share answer.
+    return out if out <= price * MAX_LENS_VALUE else None
 
 
 def _growth_value(row, price):
