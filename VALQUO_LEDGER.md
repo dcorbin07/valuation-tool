@@ -183,15 +183,15 @@ file replaces reconstructing project state from git history.
 | P3 | P | Design for a 37% hit rate | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | P4 | P | Fix the track's rules | OPEN |  |  |  |  | human | 'Out of band for this audit', flagged not fixed. CLAUDE.md's 'DONE (P4 commit)' is the PHASE P4 - a collision. |
 | P5 | P | Decide the claim before R1 | DONE |  |  | HANDOFF_edge_audit.md |  | human | Pre-committed CLAIM A/B language rule; CLAIM A's text ships. No section of its own - weakest DONE here. |
-| D1 | D | Sharadar direct at $29/mo | OPEN |  |  | VALQUO_ACTION_PLAN.md |  | human | An action for Don: check the Nasdaq Data Link bill against the $29/mo direct bundle. |
-| D2 | D | ThetaData tier + licence | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| D1 | D | Sharadar direct at $29/mo | DONE | REJECTED |  | HANDOFF_data_spend.md | 2026-08-06 | human | DON'T BUY. Bundle is $29/mo verified, but sharadar.com/terms is personal-use only and forbids commercial use of the data 'or any derivation'. The 18 GB freeze already runs the panel keyless, so $29 buys continuation, not the corpus. |
+| D2 | D | ThetaData tier + licence | DONE | REJECTED |  | HANDOFF_data_spend.md | 2026-08-06 | human | DON'T BUY. Individual $40/$80/$160 is 'personal use only, no business use'; lawful commercial starts ~$250/mo + OPRA firm registration. Would replace a greeks layer already built and validated, for a book whose entry signal is dead (R2). |
 | D3 | D | Fetch the free factor datasets | DONE |  | bd495f5 | HANDOFF_free_analysis.md | 2026-08-03 | human | COMPLETE - every dataset R1 requires is present and verified. |
 | D4 | D | Cboe Open-Close Volume Summary | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| D5 | D | ORATS | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
-| D6 | D | Estimate-revision situation | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| D7 | D | WRDS reality check | OPEN |  |  | VALQUO_ACTION_PLAN.md |  | human | DISPUTED: the action plan asserts 'dead end (D7)' but no write-up or commit exists anywhere. |
-| D8 | D | What not to buy | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| D9 | D | Options costs are a step change | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| D5 | D | ORATS | DONE | DEFERRED |  | HANDOFF_data_spend.md | 2026-08-06 | human | DON'T BUY YET. $99/$199/$399 verified; bulk historical quote-only; licence NOT stated on the pricing page (ambiguous, left ambiguous). Gate is O2/O6 and neither has returned anything. |
+| D6 | D | Estimate-revision situation | DONE | REJECTED |  | HANDOFF_data_spend.md | 2026-08-06 | human | STAY PARKED. No retail point-in-time revisions exist at any price. Path is IBES via WRDS, so D6 and D7 are ONE decision, not two. |
+| D7 | D | WRDS reality check | DONE | REJECTED |  | HANDOFF_data_spend.md | 2026-08-06 | human | NOT PURCHASABLE. Verified on WRDS's own page: seven account types, every one requiring affiliation with a subscribing institution. No alumni, no unaffiliated, no corporate. Resolves the DISPUTED note - the action plan's 'dead end' claim is correct. |
+| D8 | D | What not to buy | DONE | ADOPTED |  | HANDOFF_data_spend.md | 2026-08-06 | human | Decline D1, D2, D5, D6, D7. Buy-nothing case is strong: freeze + free factor libraries + the existing options cache cover everything on the critical path; S series is 2 of 28 with none blocked on a purchase. Own-data finding added: the -1 OI sentinel manufactures fake gamma walls, which is what retail GEX vendors infer from. |
+| D9 | D | Options costs are a step change | DONE | ADOPTED |  | HANDOFF_data_spend.md | 2026-08-06 | human | Calibration recorded, nothing to buy. Equity book 37bps vs 236bps breakeven (6.4x) does NOT transfer to options at 4.7-12.6% of premium. Percentages are the audit's literature citations, not measured here. |
 | D10 | D | Freeze verification + legend | DONE | ADOPTED | a2894a8 | HANDOFF_edge_audit.md | 2026-08-03 | human | Adopted as record; all six schema questions settled. Found D10-a, a defect NOT in the audit. |
 | M1 | M | Research log with real N | DONE | ADOPTED | 2f3529b | HANDOFF_edge_audit.md | 2026-08-03 | human | N = 8 (shipped) vs 84 (measured). Consequence fired: the edge does NOT clear the Deflated Sharpe. |
 | M2 | M | Clustered inference default | OPEN |  |  |  |  | human | No genuine mention. HANDOFF_STATUS's 'the audit's M2' is CODE_AUDIT.md's M2 - a different document. |
