@@ -5542,6 +5542,168 @@ def test_closeout_item2_an_unstamped_directory_is_refused_not_assumed_empty():
         assert g["action"] == "refuse" and "UNKNOWABLE" in g["reason"].upper()
 
 
+
+# ============================ SESSION 6 — U7 (veto) and X3 (ablation) =======================
+def _u7_panel(n_dates=8, n_names=40, seed=3):
+    """A tiny synthetic panel with the columns the veto join reads. Deterministic."""
+    rng = np.random.default_rng(seed)
+    dates = [f"20{16 + i // 4}-{1 + 3 * (i % 4):02d}-15" for i in range(n_dates)]
+    rows = []
+    for d in dates:
+        for j in range(n_names):
+            rows.append({"date": d, "ticker": f"T{j:02d}",
+                         "quality": float(rng.normal()), "momentum": float(rng.normal()),
+                         "fwd_ret": float(rng.normal(0, 0.1)),
+                         "market_cap": 1e9 * (j + 1)})
+    return pd.DataFrame(rows)
+
+
+def test_u7_the_join_is_backward_looking_only():
+    """THE defect this join can have. An alert must be scored with the most recent rebalance
+    STRICTLY at or before it; the enclosing rebalance uses filings published after the alert
+    fired, which is up to a quarter of look-ahead and would flatter every U7 number.
+
+    Asserting 'never forward' alone would pass on a join that always returned index 0, so the
+    test also requires the two rules to genuinely DISAGREE on a real date."""
+    from valuation.edge.options_veto import as_of_index, enclosing_index
+
+    reb = ["2016-01-15", "2016-04-15", "2016-07-15", "2016-10-14"]
+    # a day nearer the NEXT rebalance than the previous one — where the two rules must differ
+    alert = "2016-04-10"
+    i_safe, i_look = as_of_index(reb, alert), enclosing_index(reb, alert)
+    assert reb[i_safe] == "2016-01-15", f"as-of must not reach forward, got {reb[i_safe]}"
+    assert reb[i_look] == "2016-04-15", "the enclosing variant should be the look-ahead one"
+    assert i_safe != i_look, "the two rules must actually disagree, or this proves nothing"
+
+    for a in ("2016-01-15", "2016-01-16", "2016-07-14", "2016-12-31"):
+        i = as_of_index(reb, a)
+        assert i is not None and reb[i] <= a, f"{reb[i]} is after {a}"
+
+
+def test_u7_an_alert_before_the_first_rebalance_is_excluded_not_imputed():
+    """Imputing the first rebalance would score a 2016 alert with 2009 fundamentals and count
+    it as coverage — the coverage floor is what the adoption rule turns on, so it must not be
+    inflatable this way."""
+    from valuation.edge.options_veto import as_of_index, join_alerts
+
+    reb = ["2016-01-15", "2016-04-15"]
+    assert as_of_index(reb, "2015-12-31") is None
+
+    by_date = {"2016-01-15": {"AAA": (1.0, 0.9)}, "2016-04-15": {"AAA": (1.0, 0.9)}}
+    rows = [{"ticker": "AAA", "alert_ts": "2015-06-01", "pnl_pct": 0.5},
+            {"ticker": "AAA", "alert_ts": "2016-02-01", "pnl_pct": 0.5}]
+    j = join_alerts(rows, by_date)
+    assert j["coverage"]["n_joined"] == 1
+    assert j["coverage"]["n_unjoined_before_first_rebalance"] == 1
+    assert j["rows"][0]["u7_asof"] == "2016-01-15"
+
+
+def test_u7_a_row_the_composite_cannot_score_is_kept_not_vetoed():
+    """A veto that also discards what it could not score conflates 'the composite says no' with
+    'the composite has no opinion', and retention would then measure coverage."""
+    from valuation.edge.options_veto import apply_veto
+
+    rows = [{"u7_pct": 0.05, "pnl_pct": -0.5}, {"u7_pct": 0.90, "pnl_pct": 0.5},
+            {"pnl_pct": 0.1}]                       # no composite at all
+    kept, dropped = apply_veto(rows, 0.10)
+    assert len(dropped) == 1 and dropped[0]["u7_pct"] == 0.05
+    assert len(kept) == 2 and any("u7_pct" not in r for r in kept)
+
+
+def test_u7_the_decile_table_is_best_composite_first():
+    """Same convention as `quantile_backtest` (buckets ordered best-first). The project has
+    already paid for one sign-reading correction (`monotonicity`); these two objects get read
+    side by side, so they must not be ordered oppositely."""
+    from valuation.edge.options_veto import decile_table
+
+    rows = ([{"u7_pct": 0.95, "pnl_pct": 1.0}] * 5 + [{"u7_pct": 0.05, "pnl_pct": -1.0}] * 5)
+    t = decile_table(rows)
+    assert t[0]["decile"] == 1 and t[0]["n_trades"] == 5 and t[0]["mean_pnl_pct"] == 1.0
+    assert t[-1]["decile"] == 10 and t[-1]["mean_pnl_pct"] == -1.0
+
+
+def test_u7_composite_by_date_uses_the_one_shipped_composite():
+    """B7 left exactly one composite in the tree. If the veto built its own, U7 would be
+    ranking names by an object neither the backtest nor the live screener uses."""
+    from valuation.edge.options_veto import composite_by_date
+    from valuation.edge.fundamental_panel import composite_from_frame
+    from valuation.screener.cross_sectional import zscore
+
+    p = _u7_panel()
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    by_date = composite_by_date(p, cols, w)
+    d = sorted(by_date)[0]
+    sub = p[p["date"] == d]
+    ref = composite_from_frame(sub, cols, w, zscore)
+    for t, c in zip(sub["ticker"].values, ref):
+        assert abs(by_date[d][str(t)][0] - float(c)) < 1e-12
+    # percentile: 0.0 is the WORST composite, 1.0 the best
+    best = max(by_date[d], key=lambda k: by_date[d][k][0])
+    assert abs(by_date[d][best][1] - 1.0) < 1e-9
+
+
+def test_x3_alpha_series_reproduces_quantile_backtest():
+    """The ablation's paired comparison is built on a series `quantile_backtest` does not
+    return. If the two ever measure different objects, the curve stops describing the
+    headline."""
+    from valuation.edge.ablation import alpha_series
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=12, n_names=60, seed=11)
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    r = quantile_backtest(p, cols, w, n_q=10, horizon=63)
+    s = alpha_series(p, cols, w, n_q=10)
+    assert len(s["alpha"]) == r["n_periods"]
+    assert abs(float(np.mean(s["alpha"]) * 4.0) - r["top_decile_alpha"]) < 1e-12
+
+
+def test_x3_deflated_sharpe_at_round_trips_and_falls_with_n():
+    """X3's eight arms raise N, and a higher N must LOWER the Deflated Sharpe. That direction
+    is the entire point of M1; a re-derivation that moved it the other way would be wrong."""
+    from valuation.edge.ablation import deflated_sharpe_at
+
+    detail = {"sharpe_per_period": 0.550, "var_sr_across_trials": 0.0276,
+              "n_periods": 69, "probability": 0.8997, "n_trials": 84}
+    same = deflated_sharpe_at(detail, 84)
+    assert abs(same["probability"] - 0.8997) < 1e-9, "must round-trip at the recorded N"
+    up = deflated_sharpe_at(detail, 92)
+    assert up["sr0_benchmark"] > same["sr0_benchmark"]
+    assert up["probability"] < same["probability"]
+    assert deflated_sharpe_at(detail, 8)["probability"] > same["probability"]
+
+
+def test_x3_paired_diff_is_paired_not_independent():
+    """A shock common to both arms is the market, not the model. If it moved the difference
+    interval, every arm would look indistinguishable from every other and the curve would be
+    unreadable."""
+    from valuation.edge.ablation import paired_diff
+
+    rng = np.random.default_rng(5)
+    base = rng.normal(0, 0.05, 60)
+    a = list(base + 0.01)
+    b = list(base)
+    d1 = paired_diff(a, b, draws=800)
+    shock = rng.normal(0, 0.25, 60)                 # a big COMMON shock
+    d2 = paired_diff(list(np.array(a) + shock), list(np.array(b) + shock), draws=800)
+    assert abs(d1["mean_diff_ann"] - d2["mean_diff_ann"]) < 1e-9
+    w1 = d1["ci95_ann"][1] - d1["ci95_ann"][0]
+    w2 = d2["ci95_ann"][1] - d2["ci95_ann"][0]
+    assert abs(w1 - w2) < 1e-9, "a common shock must cancel out of a PAIRED difference"
+
+
+def test_x3_the_old_ablation_verdict_is_marked_superseded():
+    """The ledger records X3 DONE with 'EARNS ITS COMPLEXITY', measured on the pre-B6 110-date
+    panel and against a 1.0pp bar that X7 later showed sits below the noise floor (1.95pp).
+    A stale DONE row is how a void verdict gets quoted forward."""
+    led = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                       "VALQUO_LEDGER.md")
+    if not os.path.exists(led):
+        return
+    rows = [ln for ln in open(led, encoding="utf-8") if ln.startswith("| X3 |")]
+    assert rows, "X3 row missing from the ledger"
+    assert any("SUPERSEDED" in r.upper() or "RE-RUN" in r.upper() for r in rows), \
+        "X3's ledger row must record that the 2026-08-03 run was superseded"
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

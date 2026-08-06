@@ -443,9 +443,32 @@ the project's memory and the old versions had been repeated for months.
 - **CORRECTED — `institutional` coverage is 61.4%**, not the 81.7% previously recorded (that
   came from a smaller universe). It is still empty before 2013-06-30, so any early-period
   comparison involving it is uninformative rather than negative.
-- **Theme ICs (full universe, CURRENT 2026-08-04):** quality +3.57, momentum +2.62,
-  capital_discipline +2.25, institutional +1.81, size +1.68, value +1.52, growth +1.45,
-  low_risk +0.71, **insider −0.43**, sentiment empty.
+- **THEME ICs — CORRECTED 2026-08-06 (session 6, X3 re-run). THE TABLE THAT SAT HERE WAS A
+  PRE-B6 MEASUREMENT MISLABELLED "CURRENT", AND `size` IS THE ENTRY THAT MOVED MOST.** It read
+  "quality +3.57, momentum +2.62, capital_discipline +2.25, institutional +1.81, size +1.68,
+  value +1.52, growth +1.45, low_risk +0.71, insider −0.43". **Proven stale, not inferred
+  stale:** re-running `theme_ic` on the old 110-date panel reproduces that list to the digit
+  (momentum +2.62, capital_discipline +2.25, institutional +1.81, size +1.68, growth +1.45,
+  low_risk +0.71), so it was measured before the B6/B7/B13 corrections of 2026-08-04 and
+  carried forward with a date that made it look newer than the panel it came from.
+
+  | theme | void (110 dates) | **CORRECTED (69 dates)** | move |
+  |---|---|---|---|
+  | quality | +3.57 | **+3.10** | −0.47 |
+  | capital_discipline | +2.25 | **+2.76** | **+0.51 — the only riser** |
+  | institutional | +1.81 | **+1.55** | −0.26 |
+  | momentum | +2.62 | **+1.31** | −1.31 |
+  | value | +1.52 | **+0.84** | −0.68 |
+  | growth | +1.45 | **+0.75** | −0.70 |
+  | low_risk | +0.71 | **+0.46** | −0.25 |
+  | insider | −0.43 | **−0.24** | +0.19 |
+  | **size** | **+1.68** | **−0.30** | **−1.98** |
+
+  **Against X7's calibrated bar of 2.71, TWO of nine themes clear: `quality` and
+  `capital_discipline`.** Under the retired 2.0 convention the void table showed three, and
+  X7 measured that 39% of pure-noise draws produce at least one theme at t ≥ 2.0. **`size` is
+  now the WORST-ranked theme and the one whose removal costs the most** — see the X3 bullet
+  below. sentiment still empty.
 - **A FULL BACKTEST IS NOT REPRODUCIBLE RUN TO RUN, AND THE INSIDER THEME IS WHERE IT SHOWS.
   Found 2026-08-04; unexplained; do not build on any single run's insider number.** Three
   full-universe runs on identical data gave `insider` median IC **−0.00335 (t −0.34)**,
