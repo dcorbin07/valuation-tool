@@ -43,7 +43,9 @@ The edge **survives breadth but roughly halves**: +12.33%/trade on 55 megacaps b
 profit factor 1.16, both held-out halves positive). Mid/small caps are not the problem — they
 are the *best* tier, and the entire old-vs-new gap turns out to be the **spread**, not the
 signal: marked at the mid the two cohorts are identical (+11.99% vs +11.56%), and crossing the
-spread costs 6.59pp, more than half the surviving edge. But a control this project had never run
+spread costs 6.59pp, more than half the surviving edge. **[VOID — §2a was re-run 2026-08-06: the
+toll is −8.28pp, the cohorts are NOT identical at the mid (+13.60% vs +10.43%), and the gap is
+68% spread rather than 100%. See §2a.]** But a control this project had never run
 before changes what all of that means: **buying the same contract in the same name and the same
 year on a RANDOM day returned +13.22%, against the alert book's +5.14%.** The alert book wins
 only 41.9% of 1,052 name-year cells (sign-test z = −5.24). On this universe, over this decade,
@@ -133,35 +135,52 @@ the 30-trade floor by three. See §5 — it is the most contaminated cell in the
 
 ## 2a. HOW MUCH OF THIS IS THE SPREAD? — a full second pass at mid fills
 
+> **RE-RUN AND REPLACED 2026-08-06 (audit session-5 closeout, item 3).** The original table in
+> this section was computed on the B1-corrupted price basis and every number in it was void. It
+> has been replaced below with a re-run on the identical pinned 187-name universe against the
+> CORRECTED aggression-1.0 book. **The toll is BIGGER than this file claimed (−8.28pp, not
+> −6.59pp) and conclusion 2 below was WRONG.** The rest of this file remains SUPERSEDED.
+
 The whole run was repeated at aggression 0.0 (mark at the mid) on the **same pinned 187 names**,
 so exactly one variable changes. Mid fills are a diagnostic and never a headline — this is the
-decomposition, not a result.
+decomposition, not a result. 3,815 mid trades against the corrected book's 3,885.
 
 ```
 slice                touch (a=1.0)    mid (a=0.0)    spread toll    median entry spread
-ALL                      +5.14%         +11.73%        -6.59pp            4.78%
-  mega                   +6.21%         +11.58%        -5.37pp            3.68%
-  large                  +2.31%          +8.46%        -6.15pp            5.04%
-  mid                    +9.80%         +19.18%        -9.39pp            6.25%
-  small                 +34.36%         +45.32%       -10.96pp            8.28%
-  54 old names           +6.95%         +11.99%        -5.04pp            3.62%
-  133 new names          +3.90%         +11.56%        -7.66pp            5.92%
+ALL                      +3.41%         +11.69%        -8.28pp            6.67%
+  mega                   +4.71%         +10.08%        -5.37pp            4.65%
+  large                  +0.86%          +9.44%        -8.57pp            7.06%
+  mid                    +7.65%         +18.53%       -10.88pp            8.33%
+  small                 +18.25%         +32.52%       -14.27pp            8.70%   (n=44/45 — noise)
+  54 old names           +9.37%         +13.60%        -4.23pp            4.79%
+  133 new names          -0.47%         +10.43%       -10.90pp            8.16%
 ```
 
-Three things fall out, and they answer the mandate's central question directly.
+PAIRED on the 3,764 alerts present in BOTH books (matched on ticker, alert date, expiry, strike —
+the original table never did this, and the two books do not contain the same trades because
+aggression changes which alerts clear the premium floor): **paired toll −8.88pp, date-block CI95
+[−9.99pp, −7.74pp] over 118 monthly blocks, and 78.8% of individual alerts are worse at the
+touch.** The naive paired *t* of −14.9 is deliberately NOT the quoted statistic: these trades are
+clustered and per audit R3 the date-block interval carries it.
 
-1. **Crossing the spread costs 6.59pp — more than half of the surviving 5.14% edge.** The
-   strategy's gross edge is roughly +11.7%/trade and the market takes 56% of it at the touch.
+Three things fall out, and the second one has been corrected.
+
+1. **Crossing the spread costs 8.28pp — 71% of the +11.69% gross edge**, leaving +3.41%. The gross
+   number barely moved from the void run (+11.73%) — it is the NET that fell and the measured
+   spread that rose (4.78% → 6.67%). **B1 was understating the spread the strategy actually
+   pays**, the same adjusted-spot-against-as-traded-strikes signature as everywhere else here.
    This is why every number in this file is quoted at aggression 1.0.
-2. **The old-vs-new gap is 100% spread.** At the mid the two cohorts are +11.99% and +11.56% —
-   a 0.43pp difference on 3,010 trades. At the touch they are +6.95% and +3.90%. The new names
-   have the *same* gross edge and simply pay 5.92% spread against 3.62%. **Breadth does not
-   dilute the signal; it dilutes the fill.**
-3. **Don's "spreads eat it" thesis is half-right, and the half that is right is measurable.**
-   Mid and small caps pay roughly double the toll of megacaps (−9.4pp and −11.0pp vs −5.4pp) —
-   the tier ordering of the toll tracks the tier ordering of the spread exactly. But they start
-   from a gross edge so much higher (+19.2% and +45.3% vs +11.6%) that they still finish ahead
-   net. The spread eats *more* of the mid/small edge; it does not eat *all* of it.
+2. **CORRECTED — "the old-vs-new gap is 100% spread" is FALSE.** This section used to read: *"At
+   the mid the two cohorts are +11.99% and +11.56% — a 0.43pp difference. Breadth does not dilute
+   the signal; it dilutes the fill."* On corrected data the two cohorts at the mid are **+13.60%
+   and +10.43%, a 3.17pp GROSS gap**. The net gap is 9.84pp, so spread explains **6.67pp of it —
+   68%, not 100%. Breadth dilutes BOTH: roughly two thirds fill, one third signal.** Consistent
+   with the corrected headline, where the 133 new names are −0.47%/trade at the touch.
+3. **Don's "spreads eat it" thesis is half-right, and that half SURVIVES the correction.** The
+   tier ordering of the toll still tracks the tier ordering of the spread exactly (mega −5.4pp at
+   a 4.65% spread through small −14.3pp at 8.70%), and mid/small still finish ahead net (+7.65%,
+   +18.25%) off a much higher gross. The spread eats *more* of the mid/small edge; it does not eat
+   *all* of it.
 
 Note this understates the true cost of breadth, because the miner already excluded 55 names as
 too thin to trade. Those are where the toll would have exceeded the edge.
@@ -379,7 +398,7 @@ the same surface and is far better behaved.
 | **B2** term_slope generalises out of sample | **FAIL** — on retention (36.4% vs 40%); the +8.89pp gain arm replicates |
 | **B3** keep the mid/small tier | **PASS** — +11.15% on 600 trades, HHI falls — but on a weak de-concentration test |
 | **B4** home-run thesis | **NOT UPHELD** — P(tail) difference +1.86pp, CI spans zero |
-| **B5** headline at aggression 1.0 | held throughout; mid fills reported only as the §2a decomposition, where they cost 6.59pp |
+| **B5** headline at aggression 1.0 | held throughout; mid fills reported only as the §2a decomposition, where they cost 6.59pp — **re-run 2026-08-06: −8.28pp** |
 
 **And the bar I had not pre-committed, because this project had never run it:** the alert book
 loses to a random-entry control by 8.08pp, in every tier, in 9 of 10 years, in 58% of name-year

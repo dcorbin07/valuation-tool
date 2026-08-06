@@ -8,11 +8,15 @@ usable log rather than nothing. Read-only on the miner's `data/options/` cache.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import json
 import os
 import pickle
+import shutil
 import sys
 import time
 import warnings
+from typing import Optional
 
 warnings.filterwarnings("ignore")
 
@@ -74,6 +78,108 @@ def fetch_bars(names, bars_dir, workers=8):
     return {"fetched": len(missing) - len(failed), "failed": failed}
 
 
+# ============================ banked-result guard (session-5 closeout, item 2) ==============
+# The runner used to write its state, its control and its results straight into
+# `data/options_universe/`, overwriting whatever was there. During audit session 5 the
+# pre-correction `state.pkl`, both control seeds, `UNIVERSE_RESULTS.json` and
+# `AUTOPSY_BROAD_RESULTS.json` had to be copied out BY HAND before the re-run -- otherwise the
+# record's own book would have been destroyed and the Part 6 A/B would have been impossible.
+# That is a data-loss risk, not untidiness: the artifact destroyed is the thing a later session
+# needs in order to check the current one.
+MANIFEST = "BANK_MANIFEST.json"
+BANKED_DIR = "banked"
+GUARDED = ("UNIVERSE_RESULTS.json", "AUTOPSY_BROAD_RESULTS.json",
+           "control_rows.pkl", "state.pkl")
+
+
+def run_key(names, aggression: float, window, smoke: bool) -> dict:
+    """What makes two invocations THE SAME RUN. Resuming one of these is the feature; landing a
+    different one on top of it is the defect, so the key is exactly the set of things that would
+    make the banked trades not belong to this run."""
+    import hashlib
+
+    h = hashlib.sha1("\n".join(sorted(str(n) for n in names)).encode()).hexdigest()[:16]
+    return {"n_universe": len(names), "universe_sha1": h,
+            "aggression": round(float(aggression), 6),
+            "entry_window": [str(window[0]), str(window[1])],
+            "smoke_test": bool(smoke)}
+
+
+def _read_manifest(out_dir: str) -> Optional[dict]:
+    p = os.path.join(out_dir, MANIFEST)
+    if not os.path.exists(p):
+        return None
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _occupants(out_dir: str, state_path: str) -> list:
+    """Banked artifacts this invocation would write over."""
+    found = [n for n in GUARDED if os.path.exists(os.path.join(out_dir, n))]
+    if os.path.exists(state_path) and os.path.dirname(os.path.abspath(state_path)) != \
+            os.path.abspath(out_dir):
+        found.append(state_path)
+    return found
+
+
+def guard_bank(out_dir: str, state_path: str, key: dict, overwrite: bool) -> dict:
+    """Refuse to land on a banked result, BEFORE any scoring work happens.
+
+    Three outcomes: `clear` (nothing banked), `resume` (the manifest says this is the same run),
+    `refuse` (something else is banked here). `--overwrite` converts a refusal into an ARCHIVE:
+    the prior artifacts are MOVED into `banked/<timestamp>/`, never deleted. No path through this
+    runner destroys a banked book -- that is the property being defended, and it is stronger than
+    merely asking first.
+    """
+    occ = _occupants(out_dir, state_path)
+    if not occ:
+        return {"action": "clear", "occupants": [], "archived_to": None}
+    man = _read_manifest(out_dir)
+    if man and man.get("run_key") == key:
+        return {"action": "resume", "occupants": occ, "archived_to": None,
+                "banked_key": man.get("run_key")}
+    why = ("no BANK_MANIFEST.json -- these artifacts predate the guard, so whether they belong "
+           "to this run is UNKNOWABLE, not merely unproven"
+           if not man else "the banked run_key differs from this invocation's")
+    if not overwrite:
+        return {"action": "refuse", "occupants": occ, "reason": why,
+                "banked_key": (man or {}).get("run_key"), "this_key": key,
+                "archived_to": None}
+    stamp = dt.datetime.now().strftime("%Y%m%dT%H%M%S")
+    dest = os.path.join(out_dir, BANKED_DIR, stamp)
+    os.makedirs(dest, exist_ok=True)
+    moved = []
+    for n in occ:
+        src = n if os.path.isabs(n) or os.sep in n else os.path.join(out_dir, n)
+        try:
+            shutil.move(src, os.path.join(dest, os.path.basename(src)))
+            moved.append(os.path.basename(src))
+        except OSError as e:                                             # noqa: BLE001
+            return {"action": "refuse", "occupants": occ,
+                    "reason": f"could not archive {src}: {e}", "archived_to": dest}
+    if man:
+        try:
+            shutil.copy2(os.path.join(out_dir, MANIFEST), os.path.join(dest, MANIFEST))
+        except OSError:
+            pass
+    return {"action": "archived", "occupants": occ, "archived_to": dest, "moved": moved,
+            "reason": why}
+
+
+def write_manifest(out_dir: str, key: dict, artifacts) -> str:
+    p = os.path.join(out_dir, MANIFEST)
+    with open(p, "w", encoding="utf-8") as f:
+        json.dump({"run_key": key, "artifacts": sorted(set(artifacts)),
+                   "written": dt.datetime.now().isoformat(timespec="seconds"),
+                   "note": "Written by optuniv_run.py. Deleting this file does not free the "
+                           "directory -- a missing manifest is treated as UNKNOWN and refused."},
+                  f, indent=1)
+    return p
+
+
 def load_env(repo_root: str):
     """Bars come from Sharadar and need the key. Never printed, never written back."""
     path = os.path.join(repo_root, ".env")
@@ -103,6 +209,12 @@ def main():
                     help="pin the name list to an earlier run's state.pkl, so a second pass "
                          "varies one thing and not two")
     ap.add_argument("--limit", type=int, default=0, help="smoke test only; label it as one")
+    ap.add_argument("--out-dir", default=None,
+                    help="write artifacts somewhere other than data/options_universe -- the "
+                         "clean way to run a second book without touching a banked one")
+    ap.add_argument("--overwrite", action="store_true",
+                    help="proceed onto a banked result. The prior artifacts are MOVED into "
+                         "<out-dir>/banked/<timestamp>/, never deleted.")
     ap.add_argument("--repo-root", default=os.path.dirname(os.path.abspath(__file__)))
     a = ap.parse_args()
 
@@ -110,7 +222,7 @@ def main():
     from valuation.edge import options_universe as U
 
     root = os.path.abspath(a.data_root)
-    out_dir = os.path.join(root, "options_universe")
+    out_dir = os.path.abspath(a.out_dir or os.path.join(root, "options_universe"))
     os.makedirs(out_dir, exist_ok=True)
     state_path = a.state or os.path.join(out_dir, "state.pkl")
 
@@ -134,6 +246,33 @@ def main():
         print(f"[optuniv] SMOKE TEST: {a.limit} names only — not a verdict", flush=True)
     print(f"[optuniv] universe {len(names)} complete names "
           f"({sel['n_skipped']} skipped, {sel['n_skipped_thin']} of them as thin)", flush=True)
+
+    # ---- the banked-result guard, BEFORE any scoring. Twenty minutes of compute then a refusal
+    # would be worse than useless: it would tempt the next person to pass --overwrite blind.
+    key = run_key(names, a.aggression, (U.ENTRY_START, U.ENTRY_END), bool(a.limit))
+    g = guard_bank(out_dir, state_path, key, a.overwrite)
+    if g["action"] == "refuse":
+        print(f"\n[optuniv] REFUSING to write into {out_dir}", flush=True)
+        print(f"[optuniv]   banked here: {', '.join(g['occupants'])}", flush=True)
+        print(f"[optuniv]   why: {g['reason']}", flush=True)
+        if g.get("banked_key"):
+            print(f"[optuniv]   banked run_key: {g['banked_key']}", flush=True)
+        print(f"[optuniv]   this run_key:   {key}", flush=True)
+        print("[optuniv] Either write elsewhere:  --out-dir <new dir>", flush=True)
+        print("[optuniv] or archive and proceed:  --overwrite   "
+              "(moves the above into banked/<timestamp>/, deletes nothing)", flush=True)
+        return 2
+    if g["action"] == "archived":
+        print(f"[optuniv] archived {len(g['moved'])} banked artifact(s) -> {g['archived_to']}",
+              flush=True)
+    elif g["action"] == "resume":
+        print("[optuniv] same run_key as the banked result — resuming, not overwriting",
+              flush=True)
+    # Claim the directory NOW, not at the end. A run killed at minute 12 leaves a state.pkl; if
+    # the manifest only appeared on success, its own resume would then be refused as UNKNOWN and
+    # the guard would have broken the feature it is supposed to protect.
+    write_manifest(out_dir, key,
+                   [n for n in GUARDED if os.path.exists(os.path.join(out_dir, n))])
 
     state = {"rows": [], "done": [], "meta": {}, "selection": sel}
     if os.path.exists(state_path):
@@ -223,8 +362,11 @@ def main():
     res["meta"] = {"n_names": len(state["done"]), "n_trades": len(rows),
                    "aggression": a.aggression,
                    "window": [U.ENTRY_START, U.ENTRY_END],
-                   "smoke_test": bool(a.limit)}
+                   "smoke_test": bool(a.limit),
+                   "run_key": key}
     path = U.save(res, out_dir)
+    write_manifest(out_dir, key,
+                   [n for n in GUARDED if os.path.exists(os.path.join(out_dir, n))])
     _print_headline(res)
     print(f"\nwritten: {path}", flush=True)
     return 0

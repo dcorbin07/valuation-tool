@@ -5401,6 +5401,147 @@ def test_audit_r3_pbo_embargo_zero_reproduces_the_unpurged_split():
         "the default must be the label window, not 0 — the corrected behaviour ships"
 
 
+# ===================== session-5 closeout: items 1 and 2 ====================================
+def _fake_derived(root, names, size=32):
+    """A minimal `data/options_derived/<name>/<name>-daily.pkl` tree."""
+    for i, n in enumerate(names):
+        d = os.path.join(root, "options_derived", n)
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, f"{n}-daily.pkl"), "wb") as f:
+            f.write(b"x" * (size + i))
+
+
+def test_closeout_item1_the_derived_stamp_is_a_fingerprint_not_a_count():
+    """The miner grew the derived layer 111 -> 317 names mid-audit and the SAME trades reported
+    a different PBO. A COUNT would not have caught a re-mine that keeps the name count fixed —
+    the stamp has to move when the CONTENTS move."""
+    import tempfile
+
+    from valuation.edge import options_autopsy as A
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _fake_derived(tmp, ["AAA", "BBB"])
+        a = A.derived_stamp(tmp)
+        assert a["n_names"] == 2 and a["n_daily_files"] == 2
+        b = A.derived_stamp(tmp)
+        assert a["fingerprint"] == b["fingerprint"], "the same tree must fingerprint equal"
+
+        # same NAME COUNT, different contents — the exact case a count is blind to
+        with open(os.path.join(tmp, "options_derived", "AAA", "AAA-daily.pkl"), "wb") as f:
+            f.write(b"y" * 999)
+        c = A.derived_stamp(tmp)
+        assert c["n_names"] == a["n_names"], "precondition: the name count did NOT move"
+        assert c["fingerprint"] != a["fingerprint"], \
+            "a re-mine that keeps the name count must still move the fingerprint"
+
+
+def test_closeout_item1_comparability_refuses_rather_than_reconciles():
+    """A cross-session PBO difference must either reconcile or REFUSE. Refusing on an unstamped
+    run is the point: comparability there is unknowable, not merely unproven."""
+    import tempfile
+
+    from valuation.edge import options_autopsy as A
+
+    with tempfile.TemporaryDirectory() as tmp:
+        _fake_derived(tmp, ["AAA"])
+        a = A.derived_stamp(tmp)
+        assert A.derived_comparable(a, a)["comparable"] is True
+
+        _fake_derived(tmp, ["CCC"])
+        b = A.derived_stamp(tmp)
+        r = A.derived_comparable(a, b)
+        assert r["comparable"] is False and "n_names" in r["differences"], \
+            "a grown derived layer must refuse, and say what moved"
+
+        # the pre-stamp record: no fingerprint at all
+        legacy = A.derived_comparable({"n_names": 111}, b)
+        assert legacy["comparable"] is False and "unknowable" in legacy["reason"], \
+            "an unstamped run must refuse, not be assumed comparable"
+
+
+def test_closeout_item1_the_stamp_is_descriptive_and_gates_nothing():
+    """RUN_RULES A5: a field that can fail a run gets switched off the first time it is
+    inconvenient. This one must never raise, even pointed at a directory that does not exist."""
+    from valuation.edge import options_autopsy as A
+
+    s = A.derived_stamp(os.path.join("nowhere", "at", "all"))
+    assert s["exists"] is False and s["n_names"] == 0
+    assert "fingerprint" in s, "an empty layer still stamps — silence is not an option"
+
+
+def test_closeout_item2_a_different_run_is_refused_but_a_resume_is_not():
+    """The defect was a DIFFERENT run landing on a banked one. Resuming the SAME run is the
+    feature and must survive the fix — a guard that blocks resumes would be traded away."""
+    import tempfile
+
+    import optuniv_run as R
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "options_universe")
+        os.makedirs(out)
+        state = os.path.join(out, "state.pkl")
+        k1 = R.run_key(["AAA", "BBB"], 1.0, ("2016-01-01", "2025-10-15"), False)
+        k2 = R.run_key(["AAA", "BBB"], 0.0, ("2016-01-01", "2025-10-15"), False)
+        assert k1 != k2, "aggression must be part of the run key"
+
+        assert R.guard_bank(out, state, k1, False)["action"] == "clear"
+        with open(state, "wb") as f:
+            f.write(b"banked")
+        R.write_manifest(out, k1, ["state.pkl"])
+
+        assert R.guard_bank(out, state, k1, False)["action"] == "resume", \
+            "the same run must resume, not be refused"
+        g = R.guard_bank(out, state, k2, False)
+        assert g["action"] == "refuse", "a different aggression must be refused"
+        assert "state.pkl" in g["occupants"]
+
+
+def test_closeout_item2_no_path_through_the_runner_destroys_a_banked_book():
+    """Stronger than 'asks first': --overwrite MOVES the prior artifacts aside. The pre-correction
+    book had to be hand-copied to make the Part 6 A/B possible; that must never depend on someone
+    remembering."""
+    import tempfile
+
+    import optuniv_run as R
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "options_universe")
+        os.makedirs(out)
+        state = os.path.join(out, "state.pkl")
+        for n in ("state.pkl", "UNIVERSE_RESULTS.json", "control_rows.pkl"):
+            with open(os.path.join(out, n), "wb") as f:
+                f.write(b"the record's own book")
+        k1 = R.run_key(["AAA"], 1.0, ("2016-01-01", "2025-10-15"), False)
+        R.write_manifest(out, k1, ["state.pkl"])
+        k2 = R.run_key(["AAA"], 0.0, ("2016-01-01", "2025-10-15"), False)
+
+        g = R.guard_bank(out, state, k2, True)
+        assert g["action"] == "archived"
+        for n in ("state.pkl", "UNIVERSE_RESULTS.json", "control_rows.pkl"):
+            assert not os.path.exists(os.path.join(out, n)), f"{n} should have moved"
+            arch = os.path.join(g["archived_to"], n)
+            assert os.path.exists(arch), f"{n} must survive in banked/"
+            assert open(arch, "rb").read() == b"the record's own book", \
+                "the archived copy must be the ORIGINAL bytes, not a stub"
+
+
+def test_closeout_item2_an_unstamped_directory_is_refused_not_assumed_empty():
+    """Every artifact banked before this guard existed has no manifest. Treating that as 'fine'
+    would leave exactly the case that cost the hand-copy unprotected."""
+    import tempfile
+
+    import optuniv_run as R
+
+    with tempfile.TemporaryDirectory() as tmp:
+        out = os.path.join(tmp, "options_universe")
+        os.makedirs(out)
+        with open(os.path.join(out, "UNIVERSE_RESULTS.json"), "w") as f:
+            f.write("{}")
+        k = R.run_key(["AAA"], 1.0, ("2016-01-01", "2025-10-15"), False)
+        g = R.guard_bank(out, os.path.join(out, "state.pkl"), k, False)
+        assert g["action"] == "refuse" and "UNKNOWABLE" in g["reason"].upper()
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

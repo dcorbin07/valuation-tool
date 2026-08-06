@@ -2213,10 +2213,19 @@ options conclusion rested on are now re-derivable from shipped code**, pinned by
 
 ### The measured clustering, and a correction to the audit
 
-**Clustering factor 1.85 — BELOW the audit's predicted 2 to 4.** At month blocks the 3,042-trade
-pre-correction book carries 118 blocks, a design effect of **1.848**, and an effective sample of
-**1,646 of 3,042**. Every *t*-like quantity therefore shrinks by √1.85 = **1.36**, not by the
-1.4–2.0 the audit expected. Its worked example — "a *t* of −5.24 moves into the −2.5 to −3.7
+> **SCOPE CORRECTION 2026-08-06 (session-5 closeout, item 5). This paragraph is about the
+> PRE-CORRECTION book and says so — but its headline was quoted onward without the scope, into
+> `CLAUDE.md` and into the summary above, as though 1.85 were the project's clustering factor.
+> IT IS NOT. The CORRECTED 3,885-trade book gives design effect 2.2121 against null p95 1.2037,
+> i.e. INSIDE the audit's predicted 2–4, and every options *t* shrinks by √2.212 = 1.487×.
+> `UNIVERSE_RESULTS.json` has always shipped 2.2121 — the artifact was right and only the prose
+> travelled without its scope. No verdict changes; see item 5 below for the check.**
+
+**Clustering factor 1.85 on this book — below the audit's predicted 2 to 4.** At month blocks the
+3,042-trade pre-correction book carries 118 blocks, a design effect of **1.848**, and an effective
+sample of **1,646 of 3,042**. Every *t*-like quantity on THIS book therefore shrinks by
+√1.85 = **1.36**, not by the 1.4–2.0 the audit expected. (On the corrected book it shrinks by
+1.487 and the audit's range was right — see the scope correction above.) Its worked example — "a *t* of −5.24 moves into the −2.5 to −3.7
 range" — lands about right by coincidence rather than by the mechanism it named: the sign-test z
 did fall to −2.91, but from the DATA CORRECTION, not from the clustering.
 
@@ -2527,3 +2536,526 @@ LIFTED.** Every other calibrated bar in X7's table is unchanged and was never af
   not mistaken for an oversight.
 - **The seed instability was closed for the CONTROL only.** Every other bootstrap in the options
   lane still runs at a single seed. Whether any of them is similarly seed-sensitive is unmeasured.
+
+---
+
+# SESSION 5 CLOSEOUT — the five items Session 5 declared unfinished
+
+Session 5's own `WHAT WAS NOT DONE` and `BUGS FOUND` are the scope. **This is not Session 6.**
+Everything below was written **before any code was changed and before any run was launched**;
+the results follow underneath, in a separately marked section.
+
+## PRE-COMMITMENTS, written before the work
+
+### Item 1 — stamp the autopsy's derived-data coverage (BUGS FOUND #1, unfixed)
+
+Not a statistical test, so no threshold. **Acceptance criteria, committed:**
+
+1. `options_autopsy.run()` ships a `derived_data` block in its own result dict, so every
+   `AUTOPSY_*.json` carries the state of `data/options_derived/` **at the moment it ran**.
+2. The stamp is a **fingerprint**, not a count — two runs with the same number of names but
+   different contents must not compare equal.
+3. A helper answers the comparability question mechanically, so a cross-session difference either
+   **reconciles or refuses** rather than being adjudicated by a human reading a note.
+4. A test pins it, including the refusal direction.
+
+**Committed in advance:** the stamp is DESCRIPTIVE. It does not gate, block or alter any run.
+A field that can fail a run would get switched off the first time it is inconvenient — which is
+exactly the failure mode `RUN_RULES` §A5 exists for.
+
+### Item 2 — `optuniv_run.py` must refuse to overwrite a banked result (BUGS FOUND #5, unfixed)
+
+**Acceptance criteria, committed:**
+
+1. The refusal fires **before any scoring work**, not after 20 minutes of compute.
+2. Refusal is the DEFAULT. Proceeding requires an explicit flag.
+3. Even with the flag, prior artifacts are **moved aside, never destroyed** — no path through this
+   runner may delete a banked book.
+4. A legitimate **resume** of the same run must NOT be blocked. Resuming is the feature; the
+   defect is a *different* run silently landing on top of a banked one.
+5. Tests pin both directions: a resume is allowed, a parameter change is refused.
+
+### Item 3 — the mid-fill (aggression 0.0) decomposition
+
+**Committed BEFORE the run, and this is the whole point of the pre-commitment:**
+
+* This is a **DIAGNOSTIC, never a headline.** Bar B5 stands. Whatever it returns, the R2 verdict
+  (the entry signal is dead) does not move: it is measured at aggression 1.0 and this run does not
+  touch that book.
+* **It cannot rescue the entry signal and will not be read as if it could.** Aggression 0.0 fills
+  at the mid instead of paying the spread. A book that is profitable only when it does not pay the
+  spread is not a tradeable book — it is a measurement of the toll.
+* The number being replaced is the **−6.59pp spread toll** in `HANDOFF_universe_backtest.md` §2a,
+  which is void along with the rest of that file.
+* **Pre-committed disposition, both branches:** if the run completes on the pinned 187-name
+  universe, the toll is **replaced** with the corrected figure and labelled a diagnostic. If it
+  does not complete or the universe cannot be pinned, the figure is marked **WITHDRAWN** and left
+  withdrawn. It is not left void either way, and no third option is available after seeing the
+  number.
+
+### Item 4 — the four `compute_signals`-touching features, individually
+
+The four are named at `VALQUO_EDGE_AUDIT.md:155`: **`term_slope`, `skew_25d`, `vrp`, `gex_proxy`**
+— the consumers of the mis-stated spot in B1. In the autopsy's namespace: `f_term_slope`,
+`f_skew_25d`, `f_vrp`, `f_gex_proxy`, plus any feature derived from them.
+
+**Committed thresholds — the SAME gate the other 60 features face, no special-casing:**
+
+* A feature is **INFORMATIVE** only if it passes `holdout_feature` in **both** split directions
+  (`passes_both_directions`), which is `MIN_LATE_GAIN` = +5.00pp with the retention and tail
+  floors, at `ALPHA` = 0.05 on the permutation p.
+* A feature that clears the gate in **one** direction only is **NOT_REPLICATED**, not a
+  near-miss to be argued for.
+* **BH-FDR at q = 0.10 across the whole 64-feature sweep is the multiplicity control**, not a
+  per-feature p. A feature with a nominal p < 0.05 that fails FDR is a **null**.
+* **Pre-committed reading of the likely outcome:** the aggregate already returns zero survivors,
+  so the expected answer is that all four are individually uninformative. **That is a complete
+  answer and it closes the item.** If one of the four DOES clear both directions, it is reported
+  as a finding requiring pre-registered replication — it is not adopted here, on this panel,
+  by this session.
+
+### Item 5 — how far the seed instability reaches
+
+**The rule is committed before the measurement, as the prompt requires.**
+
+Define, for a statistic *S* run at seeds 0–4 on the same book:
+`seed_range(S) = max(S) − min(S)`, and `ci_width(S)` = the width of the statistic's own reported
+CI95 at seed 0.
+
+A statistic gets **MULTI-SEED as standing policy** (≥5 seeds, report the median with the range
+beside it) if **either** trigger fires:
+
+* **T1 — DECISION.** Any published boolean derived from *S* (`beats_control`, `passes_B2`,
+  `passes_G3`, `negative_at_significance`, …) takes a different value on any of the five seeds.
+  **Zero tolerance; magnitude is irrelevant.** This is the trigger R2 hit — seed 0 said
+  inconclusive and seed 1 said dead.
+* **T2 — MAGNITUDE.** `seed_range(S) ≥ 0.10 × ci_width(S)`.
+
+Otherwise the statistic **stays single-seed**, and its measured seed range is **published beside
+it once** so nobody has to re-derive it.
+
+**The 0.10 is a CONVENTION and is labelled as one.** Its basis: a bootstrap's Monte Carlo error
+should be small relative to the statistical uncertainty it is estimating, and the range of five
+draws is roughly 2.3 standard deviations, so the trigger fires at a Monte Carlo sd of about 4% of
+the CI width. It is **not** calibrated against a null the way X7's bars are, and it should not be
+quoted as if it were. It errs toward more seeds, which is the direction this project has been
+wrong in before.
+
+**Ambiguity is a NULL and a NULL defaults to the stricter branch (multi-seed).** Committed now,
+so that a statistic sitting on 0.10 cannot be argued down after the fact.
+
+**Scope committed before measuring:** every seeded bootstrap in the options lane that feeds a
+shipped field — `bootstrap_diff` (`home_run`, `control_comparison`), `date_block_bootstrap` and
+`date_block_diff` (`clustered_inference_R3`, `control_comparison`), `effective_n`'s shuffled null,
+and the autopsy's permutation p / `combiner_test`. The random-entry control is **already** at five
+seeds and is the precedent, not a subject.
+
+## RESULTS
+
+### ITEM 1 — the autopsy now stamps its own derived-data coverage · **DONE**
+
+**What shipped.** `options_autopsy.derived_stamp()` walks `data/options_derived/` and returns a
+**fingerprint** — a SHA-1 over sorted `(relative path, byte size)` — alongside the name, file and
+byte counts, the bar-cache count and `REGIME_VERSION`. `run()` ships it as `derived_data` on every
+result, so every `AUTOPSY_*.json` written from now on records the state of the derived layer at the
+moment it ran. `derived_comparable(a, b)` answers the cross-session question mechanically and
+returns `{comparable, reason, differences}`.
+
+**Why a fingerprint and not a count.** A count is blind to the case that actually bites: a re-mine
+that replaces a name's contents without changing how many names exist. The fingerprint uses SIZE
+rather than mtime deliberately — a rewrite producing identical bytes IS the same data and must
+compare equal, while any content change moves a pickle's size. Pinned by
+`test_closeout_item1_the_derived_stamp_is_a_fingerprint_not_a_count`, which asserts the name count
+is unchanged before asserting the fingerprint moved.
+
+**It is DESCRIPTIVE and gates nothing** — pre-committed above, and pinned by
+`test_closeout_item1_the_stamp_is_descriptive_and_gates_nothing`, which points it at a
+non-existent directory and requires a stamp rather than an exception. A field that can fail a run
+gets switched off the first time it is inconvenient (`RUN_RULES` §A5).
+
+**Measured live, 2026-08-06:** 315 names, 315 daily files, 2,945 contract-year files,
+17.78 GB, fingerprint `4e8583dfe812f704`, `regime_version` 2.
+
+#### WHICH RECORDED AUTOPSY FIGURES ARE NOW KNOWN NON-COMPARABLE
+
+**The honest answer is the widest one: NO autopsy figure in this project's record is comparable to
+any other, because NOT ONE of them carries a stamp.** `derived_comparable` returns
+`comparable: false` with reason *"comparability is unknowable, not merely unproven"* for every pair
+drawn from the existing record. That is not pedantry — here is the measured damage:
+
+| | banked 2026-08-03 | banked 2026-08-05 (corrected) |
+|---|---|---|
+| trades | 3,042 | 3,885 |
+| greek-stack coverage | **66.7%** | **100.0%** |
+| daily-surface coverage | **68.1%** | **100.0%** |
+| PBO | **35.71%** (no embargo — the field did not exist) | 12.86% (embargo 75d) |
+| Deflated Sharpe, term_slope-filtered | 0.9569 | 0.8063 |
+| Deflated Sharpe, unfiltered | 0.8813 | 0.4959 |
+
+The sharpest single number: **the pre-correction book's PBO re-ran at 48.57% on 2026-08-05 against
+the 35.71% banked on 2026-08-03 — same trades, same unpurged code path, a 12.9pp move produced by
+nothing but the miner.** The A/B in Part 6 held the correction and the embargo fixed, so the only
+remaining variable was the derived layer, which went 111 names → 315.
+
+**What "the comparable version" is, now that the stamp exists.** There is no retrofit: a
+fingerprint cannot be computed for a directory as it stood in the past. So the comparable versions
+are **the ones written from today forward**, and the rule is mechanical — two `AUTOPSY_*.json`
+files may be differenced if and only if `derived_comparable()` on their `derived_data` blocks
+returns true. Concretely:
+
+* **Any PBO, feature *p*-value, FDR discovery set or feature-coverage figure quoted from before
+  2026-08-06 is a POINT-IN-TIME observation, not a comparable measurement.** Quote it with its
+  date and its coverage, never as a difference against another session's.
+* **The four Deflated Sharpe figures in the table above are NOT a before/after pair.** They differ
+  by the B1 correction *and* by a third of the book gaining greek coverage.
+* Figures computed **only from the trade rows** are exempt, and this is the distinction the stamp
+  buys — see item 4, where the four `compute_signals` features are shown to be derived-layer-free
+  and therefore genuinely differenceable across the two books.
+
+### ITEM 2 — `optuniv_run.py` refuses to overwrite a banked result · **DONE**
+
+**The defect was a data-loss risk, not tidiness.** The runner wrote `state.pkl`,
+`control_rows.pkl`, `UNIVERSE_RESULTS.json` and `AUTOPSY_BROAD_RESULTS.json` into
+`data/options_universe/` unconditionally. Session 5 preserved the record's own pre-correction book
+**by hand**; without that copy the Part 6 A/B could not have been run at all.
+
+**What shipped.**
+* A `run_key` — universe SHA-1 + count, aggression, entry window, smoke flag — is written into
+  `BANK_MANIFEST.json` **the moment the guard clears, before any scoring**. Writing it only on
+  success would have made a run killed at minute 12 unable to resume its own state, i.e. the guard
+  would have broken the feature it exists to protect.
+* `guard_bank()` returns one of four actions: `clear` (nothing banked), **`resume`** (manifest
+  run_key matches — resuming is the feature and must not be blocked), **`refuse`** (default), or
+  `archived`.
+* Refusal happens **before any scoring work**. Twenty minutes of compute followed by a refusal
+  would be worse than useless — it would train the next person to pass `--overwrite` blind.
+* `--overwrite` does **not** delete. It **moves** the prior artifacts into
+  `<out-dir>/banked/<timestamp>/`. **No path through this runner destroys a banked book** — a
+  stronger property than "asks first", and pinned by
+  `test_closeout_item2_no_path_through_the_runner_destroys_a_banked_book`, which asserts the
+  archived copy holds the ORIGINAL bytes.
+* `--out-dir` added as the friction-free escape: run a second book somewhere else entirely.
+* **An unstamped directory is REFUSED, not assumed empty.** Every artifact banked before this guard
+  has no manifest, which is precisely the case that cost the hand-copy. `reason` says so:
+  *"UNKNOWABLE, not merely unproven"* — the same standard as item 1.
+
+**Verified against the real record, not only in tests.** Pointed at
+`data/options_universe/` with a mismatched key:
+
+```
+action: refuse
+occupants: ['UNIVERSE_RESULTS.json', 'AUTOPSY_BROAD_RESULTS.json', 'control_rows.pkl', 'state.pkl']
+reason: no BANK_MANIFEST.json -- these artifacts predate the guard, so whether they belong to
+        this run is UNKNOWABLE, not merely unproven
+```
+
+Those are exactly the four files that had to be copied out by hand.
+
+### ITEM 4 — the four `compute_signals` features, individually · **ALL FOUR NOT INFORMATIVE**
+
+The four named at `VALQUO_EDGE_AUDIT.md:155` are the consumers of B1's mis-stated spot:
+`term_slope`, `skew_25d`, `vrp`, `gex_proxy`. In the autopsy's namespace: **`f_term_slope`,
+`f_sig_skew_25d`, `f_sig_vrp`, `f_sig_gex_proxy`**. Scored on the **corrected** 3,885-trade,
+187-name book (`AUTOPSY_BROAD_RESULTS.json`, generated 2026-08-05T20:27), against the same gate
+the other 60 features face — no special-casing, as pre-committed.
+
+| feature | cov | IC (in-sample) | early→late gain / p | late→early gain / p | both dirs | **verdict** |
+|---|---|---|---|---|---|---|
+| `f_term_slope` | 1.000 | +0.0521 | +0.58pp / 0.412 | +4.42pp / **0.016** | **False** | NOT_REPLICATED |
+| `f_sig_skew_25d` | 0.807 | +0.0019 | −2.79pp / 0.862 | −0.54pp / 0.591 | False | **NULL** — wrong sign both ways |
+| `f_sig_vrp` | 1.000 | −0.0156 | +0.26pp / 0.448 | +3.06pp / 0.056 | False | **NULL** |
+| `f_sig_gex_proxy` | 0.936 | +0.0484 | +2.47pp / 0.146 | **+6.89pp / 0.0015** | **False** | NOT_REPLICATED |
+
+**Verdict: none of the four is INFORMATIVE.** Not one passes both split directions, which is the
+pre-registered bar. The aggregate answer (zero survivors of 64) and the narrow answer the audit
+asked for agree.
+
+**`f_sig_gex_proxy` is the one worth writing down, and it is a warning rather than a lead.** It is
+one of only **four FDR discoveries among 127 hypotheses** at q = 0.10 — its late→early half clears
++6.89pp at p = 0.0015 with 50.6% retention and a tail ratio of 1.13, i.e. it passes every floor in
+that direction. It fails the other direction (+2.47pp, p = 0.146). Per the pre-commitment that is
+**NOT_REPLICATED, not a near-miss to be argued for.**
+
+**And here is the finding that closes it — the direction that passes SWAPS when B1 is repaired.**
+Re-scored on the pre-correction book (3,042 trades, banked 2026-08-03):
+
+| feature | book | early→late | late→early |
+|---|---|---|---|
+| `f_sig_gex_proxy` | pre-correction | **PASSES** (+5.31pp, p 0.0020) | fails (−0.10pp, p 0.513) |
+| `f_sig_gex_proxy` | corrected | fails (+2.47pp, p 0.146) | **PASSES** (+6.89pp, p 0.0015) |
+| `f_term_slope` | pre-correction | +4.89pp, p 0.0195 (fails the +5.00pp floor by 0.11pp) | +2.18pp, p 0.152 |
+| `f_term_slope` | corrected | +0.58pp, p 0.412 | +4.42pp, p 0.016 |
+
+**Both features that show any signal at all flip which half of the sample they work on.** A
+property that survives a price-basis correction would not do that. This is direct measured support
+for the both-directions requirement — a gate demanding a single direction would have adopted
+`gex_proxy` in August 2026 on the early half and then adopted it again on the late half for the
+opposite reason, and called that replication.
+
+**This comparison is legitimate, and item 1 is what licenses saying so.** All four features are
+read off the **trade row** (`options_autopsy.py:471-477` maps `compute_signals`' outputs straight
+onto the alert), NOT off `data/options_derived/`. So the derived-layer growth that makes the two
+books' PBO and greek features non-differenceable does **not** touch these four. Two caveats travel
+with it anyway: the two books are **different trade sets** (B1's spot was throwing the 0.90–1.20
+moneyness prefilter, so 3,042 vs 3,885 alerts), and `f_sig_skew_25d`'s coverage moved 0.529 → 0.807
+for the same reason. It is a comparison of two books, not a controlled A/B, and is reported as one.
+
+**One honest note on the FDR count.** The pre-correction book had **zero** FDR discoveries and the
+corrected book has four, but `f_sig_gex_proxy`'s *p* barely moved (0.0020 → 0.0015). Benjamini–
+Hochberg is a **step-up** procedure: a *p* becomes a discovery partly because OTHER hypotheses in
+the sweep got smaller. So the four discoveries are a property of the sweep, not four independent
+findings — **and that part IS confounded by the derived layer**, since the other 60 features draw
+on it. `f_sig_gex_proxy`'s own *p*-value is not confounded; its FDR STATUS is.
+
+**Item closed. No adoption, no follow-up run, and no re-opening without a new reason** — the
+pre-commitment allowed exactly one escalation (a feature clearing both directions) and none did.
+
+### ITEM 3 — the mid-fill (aggression 0.0) decomposition · **THE −6.59pp TOLL IS REPLACED BY −8.28pp**
+
+**Pre-commitment honoured:** the run completed on the pinned universe, so the figure is REPLACED,
+not withdrawn — the disposition was fixed in advance for both branches. **This is a DIAGNOSTIC and
+bar B5 stands:** every headline in this project is quoted at aggression 1.0, and nothing here
+touches the R2 verdict.
+
+**What was run.**
+```
+python optuniv_run.py --data-root <repo>/data --workers 5 --aggression 0.0
+  --state <tmp>/mid_state.pkl
+  --universe-from <tmp>/optuniv_precorrection/state.pkl     # the same frozen 187 names
+  --out-dir <tmp>/optuniv_mid                               # the new item-2 escape hatch
+```
+187 names, window 2016-01-01 → 2025-10-15, **3,815 mid-fill trades** against the corrected
+aggression-1.0 book's 3,885. ~24 minutes. The comparator is the corrected R2 book, not the void
+one.
+
+#### The replacement table
+
+| slice | touch (a=1.0) | mid (a=0.0) | **spread toll** | median entry spread |
+|---|---|---|---|---|
+| **ALL** (n 3,885 / 3,815) | **+3.41%** | **+11.69%** | **−8.28pp** | 6.67% |
+| mega (1,002 / 986) | +4.71% | +10.08% | −5.37pp | 4.65% |
+| large (2,062 / 2,024) | +0.86% | +9.44% | −8.57pp | 7.06% |
+| mid (777 / 760) | +7.65% | +18.53% | −10.88pp | 8.33% |
+| small (44 / 45) | +18.25% | +32.52% | −14.27pp | 8.70% |
+| 54 old names (1,532 / 1,511) | +9.37% | +13.60% | −4.23pp | 4.79% |
+| 133 new names (2,353 / 2,304) | **−0.47%** | +10.43% | **−10.90pp** | 8.16% |
+
+**PAIRED, which the void table never did.** The two books do not contain the same trades —
+aggression changes the entry premium, which changes which alerts clear the floors. Matching on
+(ticker, alert date, expiry, strike) gives **3,764 alerts present in both**:
+
+* paired toll **−8.88pp** (touch +2.80% vs mid +11.68% on the matched set)
+* **date-block CI95 [−9.99pp, −7.74pp]** over 118 monthly blocks — the R3-correct interval, and
+  it excludes zero by a distance
+* **78.8% of individual alerts (2,967/3,764) are worse at the touch**
+* the naive paired *t* is −14.9 and is **not** the number quoted: these are clustered, and R3's
+  standing rule is that the date-block interval carries it
+
+#### What changed against the void table, and what it means
+
+1. **The toll is BIGGER than the record said: −8.28pp against −6.59pp.** The market takes **71% of
+   the gross edge at the touch**, not 56%. The gross number barely moved (+11.73% → +11.69%) — it
+   is the NET that fell (+5.14% → +3.41%) and the measured spread that rose (median 4.78% → 6.67%).
+   **B1 was understating the spread the strategy actually pays.** Same signature as everywhere
+   else in that file: an adjusted spot against as-traded strikes.
+2. **"The old-vs-new gap is 100% spread" is WRONG and is corrected here.** §2a claimed the two
+   cohorts were +11.99% and +11.56% at the mid — a 0.43pp gross gap — and concluded *"breadth does
+   not dilute the signal; it dilutes the fill."* Corrected: at the mid they are **+13.60% and
+   +10.43%, a 3.17pp gross gap**. The net gap is 9.84pp, so **spread explains 6.67pp of it — 68%,
+   not 100%.** Breadth dilutes **both**: roughly two thirds fill, one third signal. This is the
+   mid-fill counterpart of R2's already-recorded finding that the 133 new names are −0.47%/trade.
+3. **The tier ordering SURVIVES.** The toll still tracks the spread ordering exactly — mega −5.4pp
+   at a 4.65% spread through small −14.3pp at 8.70% — and mid/small still finish ahead net
+   (+7.65%, +18.25%) off a much higher gross. Don's "spreads eat it" thesis stays half-right on
+   the corrected data, with the same half right.
+
+**Caveat that must travel:** `small` is 44 and 45 trades. The void file called it "the most
+contaminated cell in the study" and that has not changed — it moved +34.36% → +18.25% at the touch,
+which is a 16pp swing on 44 trades and should be read as noise, not as a finding.
+
+**Disposition: `HANDOFF_universe_backtest.md` §2a is edited in place** — the void table replaced,
+the "100% spread" conclusion corrected, and the file's SUPERSEDED banner left standing.
+
+### ITEM 5 — how far the seed instability reaches · **IT DOES NOT REACH THE BOOTSTRAPS AT ALL**
+
+**Rule honoured as pre-committed** (T1 decision-flip, zero tolerance; T2 magnitude at 0.10 × CI
+width; ambiguity → stricter branch). Eight seeded statistics × five seeds on the corrected
+3,885-trade book with the seed-0 control held fixed — because the question is the BOOTSTRAP's
+seed, not the control DRAW's, which Session 5 already closed.
+
+**A correction to my own first measurement, before the result.** The sweep initially scored T2 on
+`bootstrap_diff.diff` and `date_block_bootstrap.point`. Those are computed from the data, not from
+the resample: **they are seed-independent by construction and every seed range read exactly 0.0.**
+T2 would have passed the entire lane trivially. T2 is therefore scored on the **CI endpoints**, the
+seed-dependent published output. This makes the rule stricter, not looser.
+
+| statistic | CI-endpoint seed range ÷ CI width | boolean flips | **policy** |
+|---|---|---|---|
+| `home_run.p_tail_win` | 2.7% | none | single-seed |
+| `home_run.expectancy` | 1.9% | none | single-seed |
+| `control_comparison.expectancy_diff` (trade-level) | 3.4% | none | single-seed |
+| `control_comparison.tail_diff` (trade-level) | 3.0% | none | single-seed |
+| `clustered_R3.expectancy_date_block` | 2.4% | none | single-seed |
+| `…date_block_new_names` | 3.5% | none | single-seed |
+| `control_comparison.date_block` (real − control) | 2.8% | none | single-seed |
+| **`effective_n` shuffled null** | **35.5%** | none | **MULTI-SEED (T2)** |
+
+**Seven of eight are single-seed, comfortably. T1 never fires anywhere** — not one published
+boolean takes a different value on any of the five seeds, including
+`negative_at_significance`, the boolean the R2 verdict is built on. The point estimates are
+identical to the last digit across all five seeds for every statistic, because they are not
+resampled quantities.
+
+**THE ANSWER TO THE QUESTION AS ASKED: the instability was never in the bootstrap. It is in the
+CONTROL DRAW, and it is enormous there.** The two sit side by side on the same statistic:
+
+* **bootstrap seed varied, control fixed** → `date_block` diff −3.05pp on all five seeds,
+  CI95 moving by 0.2pp, `negative_at_significance` **False on all five**
+* **control seed varied** (Session 5) → the control's own mean ranges **+6.46% to +15.34%**, the
+  seed-0 sign test is **z −0.594, p 0.55 (not significant)** and the 5-seed pool is
+  **z −4.903, p < 1e−5**
+
+So Session 5's standing rule — **five control seeds minimum, the sign test carries the verdict** —
+is the correct rule and it is the ONLY place in the options lane where multi-seed changes a
+decision. **No other statistic needs re-running, and none of the record's single-seed intervals is
+called into question by its seed.** Their ranges are published in the table above so nobody has to
+re-derive this.
+
+**The one that fires, and why it does not change a verdict today.** `effective_n`'s shuffled null
+band moves 0.0724 across seeds on a band only 0.2037 wide. `clustering_measurable` is nonetheless
+**True on all five seeds**, because the observed design effect (2.212) sits far above the p95
+(1.17–1.25) — the decision has a large margin. But the BAR itself is only measured to ±0.07 at
+200 null draws, so a book whose design effect landed near 1.2 could be declared clustered or not
+by the seed alone. **Standing policy from now on: `effective_n` is reported at five seeds, or its
+null draws raised.** Raising `null_draws` is the cheaper fix (the case costs ~2 seconds) and is
+the recommended one; it is left to whoever next touches that function rather than changed here,
+because changing it now would make this sweep non-reproducible against the shipped file.
+
+#### `## BUGS FOUND` — **THE CLUSTERING FACTOR OF 1.85 TRAVELLED OUT OF ITS SCOPE**
+
+Found while checking my harness against the shipped file. `CLAUDE.md` records R3's clustering
+factor as **1.848 against a null p95 of 1.266** and concludes *"Measured clustering factor 1.85 —
+**BELOW the audit's predicted 2–4** — so every options t shrinks by ~1.36×."*
+
+**Be precise about whose error this is: Part 6 of this ledger stated the scope correctly** — it
+says "the 3,042-trade **pre-correction** book" in the same sentence. What went wrong is that the
+headline was quoted onward WITHOUT the scope, into `CLAUDE.md` and into Part 6's own summary line,
+where it reads as the project's clustering factor. Verified by direct computation: the
+pre-correction rows give `design_effect` **1.8476**, null p95 **1.2550** — exactly the recorded
+numbers. The **corrected** 3,885-trade book gives **2.2121 and 1.2037**, which is what
+`UNIVERSE_RESULTS.json` has always shipped. My sweep reproduces the shipped file to the last
+digit, so **the artifact was always right; only the prose travelled.**
+
+**Two consequences, and the second is the one to carry:**
+
+1. **Every options *t* shrinks by √2.212 = 1.487×, not 1.36×.**
+2. **"BELOW the audit's predicted 2–4" is FALSE on the corrected book — 2.21 is INSIDE the
+   predicted range. The audit's prediction was right and the record says it was wrong.**
+
+**No verdict changes**, and this is checked rather than assumed: the R2 verdict rests on the
+name-year sign test, which is not a bootstrap statistic; the date-block intervals resample blocks
+and so embed clustering by construction rather than applying the design effect as a haircut; and
+`deflated_sharpe_clustered` ships alongside the raw figure rather than replacing it. The design
+effect is a diagnostic here, not a multiplier applied to anything shipped.
+
+**This is the fourth time in three sessions** (R10, O20, the PBO purge direction, now this) that a
+belief about the direction of one of this project's own biases has been contradicted by measuring
+it. The R3 bullet in `CLAUDE.md` is corrected in place.
+
+## BUGS FOUND — session-5 closeout
+
+1. **A bug in this session's OWN first measurement, caught before it was reported.** The item-5
+   sweep initially scored T2 on `bootstrap_diff.diff` and `date_block_bootstrap.point`. **Those
+   are point estimates computed from the data, not from the resample, and are seed-independent by
+   construction** — so `seed_range` read exactly 0.0 for every statistic and T2 would have passed
+   the whole lane trivially. That is an artefact, not a finding. **Fixed** by scoring T2 on the CI
+   endpoints, which are the seed-dependent published output. The correction makes the rule
+   STRICTER, and it is recorded because "the number came out clean" is exactly when a measurement
+   deserves a second look.
+
+2. **`optuniv_run.py --analyse-only` could still destroy a banked result.** It skips scoring but
+   still calls `U.save()`, so a bare `--analyse-only` on a directory holding another run's results
+   overwrote them. Now covered — the guard runs before the `--analyse-only` branch and refuses.
+   **Fixed** as part of item 2.
+
+3. **`AUTOPSY_*` FDR discovery sets are confounded by the miner in a way individual *p*-values are
+   not.** Benjamini–Hochberg is a step-up procedure, so a feature's discovery STATUS depends on
+   the other 126 hypotheses in the sweep — and 60 of the 64 features read the derived layer.
+   `f_sig_gex_proxy`'s own *p* barely moved (0.0020 → 0.0015) while its FDR status went
+   false → true. **Not a code bug**; a reporting hazard. Recorded so that "N features were
+   discoveries" is never differenced across sessions. Item 1's stamp is what makes it detectable.
+
+4. **`data/options_universe/` still holds an unstamped mixture of two different runs** — a
+   pre-correction `state.pkl` and `state_mid.pkl` (2026-08-03) alongside a corrected
+   `UNIVERSE_RESULTS.json`, `AUTOPSY_BROAD_RESULTS.json` and `control_rows.pkl` (2026-08-05).
+   The new guard refuses to write there, which is correct, but **the directory itself is already
+   inconsistent and no manifest can describe it.** Deliberately NOT cleaned up — deleting or
+   rewriting the record's own artifacts to satisfy a guard I just wrote is precisely the move
+   `RUN_RULES` §A5 forbids. The next run there must use `--out-dir` or `--overwrite` (which
+   archives). **Not fixed, by choice.**
+
+## WHAT WAS NOT DONE, AND WHY — session-5 closeout
+
+- **The autopsy was NOT re-run to produce a stamped baseline artifact.** Item 1 ships the stamp
+  and item 4's numbers come from the banked corrected autopsy, which is the RECORD. Re-running it
+  today would have produced a third set of numbers on a derived layer that has moved again
+  (315 names now), and the honest reading of item 1 is that such a re-run is not differenceable
+  against either banked file — it would add a data point, not a comparison. **The first stamped
+  autopsy will be written by whichever session next runs one**, and that becomes the baseline.
+- **`derived_stamp` is not applied to `AUTOPSY_RESULTS.json` (the 55-name miner-side file).** Only
+  `options_autopsy.run()` stamps, which covers both callers that matter. The miner's own directory
+  is out of this lane.
+- **The item-5 rule's 0.10 constant is a CONVENTION, not a calibrated bar.** It is not scored
+  against a null the way X7's thresholds are. Stated in the pre-commitment and repeated here so it
+  cannot be quoted as calibrated.
+- **Only the options lane's bootstraps were swept.** The equity panel's own seeded machinery
+  (CPCV fold assignment, the placebo's draws) was not, and remains unmeasured for seed
+  sensitivity.
+- **The mid-fill book was not put through the autopsy or a control.** It is a diagnostic; running
+  a feature gate on it would be a new search on a book nobody trades, and would cost trials in
+  `RESEARCH_LOG.md` for nothing.
+
+## IS SESSION 5 CLOSED?
+
+**Yes.** All five items in `PROMPT_edge_session5_closeout.md` are done, and both of Session 5's
+open `BUGS FOUND` (#1 the autopsy stamp, #5 the runner guard) are fixed and pinned by tests. The
+two items Session 5 listed as not-done for scope reasons (the mid-fill decomposition, the four
+`compute_signals` features) are answered. Its third — `n_eff` not fed into the shipped options
+Deflated Sharpe — was explicitly out of scope in this prompt and is untouched, as instructed.
+
+**What remains open from Session 5 is open by design, not by omission:** the run-to-run
+non-reproducibility of the equity panel (the `insider` theme's IC), which is a panel-lane problem
+and was never in this closeout's scope.
+
+## SESSION 6 — first item and its `needs first`
+
+**Session 6's first item is U7 — the equity composite as an options VETO** (audit
+`VALQUO_EDGE_AUDIT.md:2109`), run alongside **X3 — ablate to the best single signal** (`:1751`).
+Both are one-line probes that can kill or promote a much larger item, and U7 should run before U1
+because it is the strictly easier bar.
+
+**U7 `needs first`:**
+
+| dependency | status |
+|---|---|
+| a banked alert log with per-alert dates | **READY** — the corrected 187-name book, 3,885 trades, `r2_state.pkl`; now protected by the item-2 guard |
+| the point-in-time equity composite | **READY** — corrected 69-date panel (B6/B7/B13), one composite for live and backtest |
+| the join: composite decile at the alert date | **NOT BUILT.** Alerts are daily 2016-01 → 2025-10; the panel has 69 quarterly-ish dates. The join must take the most recent rebalance date **≤** the alert date — never the enclosing one, which would be look-ahead |
+| coverage of the 187 options names inside the 2,710-name panel | **UNVERIFIED.** Measure and report it before any verdict; the audit predicts near-complete but predicts are not measurements |
+| the monotonicity figure U7's rationale rests on | **STALE IN THE AUDIT.** It cites −0.95; the corrected panel is **−0.891**. The argument survives, the number must be updated |
+| retention reporting | pre-register it: the audit's own line is that a veto discarding 10% and lifting expectancy is adoptable, one discarding 60% is a different strategy |
+
+**X3 `needs first`:**
+
+| dependency | status |
+|---|---|
+| the full corrected panel | **READY** |
+| **X7's calibrated bars, not the old conventions** | **READY and MANDATORY** — theme IC t **2.71** (not 2.0), long-short t **2.14**, top-decile alpha margin **1.95pp**, PBO **<19.7%**, Deflated Sharpe calibrated **0.72** at N = 84. Scoring an ablation against the retired 2.0/50% conventions would manufacture a survivor |
+| `RESEARCH_LOG.md` trial accounting | **READY, and X3 MUST WRITE TO IT.** Every ablation arm is a trial. N = 84 today; an 8-arm ablation takes it to 92 and lowers the Deflated Sharpe for everything afterwards. That cost is the point of M1 and must not be skipped |
+| the HAC caveat | R9 stands: Ljung–Box rejects independence, so the **Newey–West** *t* is the quoted statistic. X7's 2.14 floor was measured on the NAIVE *t* — comparing a HAC *t* to it is apples-to-oranges and re-deriving the floor on HAC is still open |
+
+**Standing items that outrank both if Don wants them to:** **P4** (`seed_book` never sells names
+that leave the book) is the only *urgent* item in the catalogue — every session the paper track
+accumulates under the wrong rules is a session that has to be thrown away — and **X8**, the
+international replication, is still the only genuinely out-of-sample evidence available to either
+programme.
