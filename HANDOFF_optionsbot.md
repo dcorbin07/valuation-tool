@@ -597,7 +597,471 @@ the real number is worse, not better.
 
 ---
 
+---
+
+# ROUND 2 — PRE-REGISTERED THRESHOLDS (C5, O9), written BEFORE either run
+
+Committed first, as before, so neither can be re-derived after seeing a number.
+
+## C5 — the point-in-time universe on REAL data
+
+`core/pit_universe.py` has only ever been verified on a synthetic 30-name mirror
+in which 8 names delist mid-window. No real-data run is recorded anywhere. The
+number the module exists to produce is `pct_invisible_to_a_live_screener`: of the
+names that were genuinely in the universe on a historical date, what share are
+dead today and therefore structurally absent from any screener-built universe.
+
+**Data:** the D10 freeze, `data/backtest_freeze_2026-08/bulk/` —
+`tickers.csv` (78,881 rows / 48,925 tickers), `sep.csv` (3.2 GB), `daily.csv`
+(2.5 GB). Licensed, local, read-only, never committed.
+
+**This is a measurement, not a hypothesis test**, so the pre-registration is about
+what the number will be taken to MEAN, which is the part that can otherwise be
+chosen afterwards:
+
+* **PASS (the module works on real data)** requires all four:
+  1. `PITUniverseBuilder.build()` completes on real data at every tested date;
+  2. delisted names are genuinely present in historical universes
+     (`delisted_included > 0` on pre-2020 dates) — the module's whole purpose;
+  3. universe size is stable and plausible across dates (no date collapsing to
+     near-zero, which would indicate a silent join failure rather than a real
+     universe);
+  4. `AsOfHistory` refuses data after its as-of date **on real data**, not just
+     on the synthetic mirror.
+* **Interpretation of the bias, fixed in advance.** Let *m* = the MEDIAN of
+  `pct_invisible_to_a_live_screener` across the tested dates.
+  * **m < 2%** → the bias the module exists to remove is small; prior
+    today's-universe results are less compromised than the record claims, and
+    that would itself be a correction worth making.
+  * **2% <= m <= 10%** → material but bounded.
+  * **m > 10%** → prior backtests built on a today's-universe screen are
+    artefacts, exactly as the record asserts, and every one of them needs
+    re-running before it is quoted again.
+* Reported **per period**, never as a single aggregate — the audit asks for the
+  per-period figure specifically, and an average over 18 years would hide the
+  fact that the bias necessarily grows with distance into the past.
+* **Anti-cheat, pre-committed:** the run must NOT filter on
+  `TICKERS.scalemarketcap` / `scalerevenue`. Those are max-over-lifetime buckets
+  and using them would leak look-ahead into the very universe being validated.
+  The module refuses to offer them; the run must not reintroduce them.
+
+## O9 — IV rank as a SELL-timing rule, on index options
+
+`iv_rank` has been rejected three times, always as a filter on a LONG-vol
+strategy ("buy calls only when IV rank is low"). That is a different hypothesis
+from "sell premium only when IV rank is high, and otherwise do nothing". The VRP
+arm's `IV_RANK_MIN >= 0.50` was a floor on an always-on strategy, not a switch,
+and its own banding worsens monotonically inside the admitted range
+(0.50-0.65: −6.24%, 0.65-0.80: −8.16%, >=0.80: −9.45%) — informative, but measured
+inside a strategy whose base rate is negative *because of execution*, so it
+cannot separate "high IV rank is bad for short vol" from "high IV rank names have
+wider spreads."
+
+O8 removed that confound: on SPY/QQQ/IWM the spread is not the binding
+constraint, and O8 established the ungated baseline.
+
+**Design.** Same engine, same 2018-01-01→2025-12-31 primary window, same default
+config as O8. Add an entry gate only: **open a new spread only when the index's
+own vol index sits in the TOP TERCILE of its trailing 252-session distribution;
+otherwise hold cash.** Exits are untouched — this is a sell-*timing* rule, not an
+exit rule. IV rank is computed from the vol series alone, strictly from data on
+or before the entry date, so it introduces no look-ahead.
+
+**Baseline for comparison:** the O8 ungated numbers already committed above —
+SPY excess Sharpe **0.14**, QQQ **−0.05**, IWM **−0.56**.
+
+* **ADOPT (short vol stays open as a research question)** requires, on SPY:
+  gated excess Sharpe **>= 0.50** — the same bar O8 used. The gate has to
+  *rescue* the strategy, not merely improve it; "less bad" is not a strategy.
+* **EFFECT PRESENT (reported separately from the verdict, and decided in
+  advance so it cannot be reached for afterwards):** mean P&L per trade in the
+  top IV-rank tercile exceeds that in the bottom two terciles, on SPY, over the
+  primary window. This is the directional test of the hypothesis itself and is
+  independent of the Sharpe bar.
+* **CLOSE THE SHORT-VOL QUESTION PERMANENTLY** — the audit's own
+  pre-registration — if gated SPY excess Sharpe < 0.50 **and** the effect is not
+  present by the definition above.
+* If the effect IS present but the Sharpe bar is not cleared, that is **"effect
+  real, magnitude insufficient"** and is reported as such rather than rounded to
+  either verdict. Honouring the audit's instruction, the question still closes,
+  because the audit conditions closure on the *effect* not appearing where
+  execution is cheap — and an effect too small to clear the bar on the friendliest
+  possible underlying will not survive on single names, which are strictly worse.
+* Also reported: **fraction of time invested** (the audit asks for it explicitly)
+  and the conditional expectancy by tercile.
+
+---
+
+---
+
+# O9 — IV rank as a SELL-timing rule · REJECTED. **The short-vol question is closed.**
+
+Full numbers: `options_backtest/o9_iv_rank_summary.json`. Threshold committed at
+`65b2456`, before the run.
+
+**What was actually tested, and why it was not a re-run.** `iv_rank` had been
+rejected three times, always as a filter on a LONG-vol strategy ("buy calls only
+when IV rank is low"). That asks whether cheap vol predicts good long-option
+outcomes. This asks the opposite question — whether expensive vol predicts good
+SHORT-option outcomes — as an on/off switch rather than as a floor on an
+always-on strategy. O8 is what made it answerable: on index options execution is
+not the binding constraint, so a result here cannot be confounded by "high IV
+rank names have wider spreads", which is exactly what made the single-name
+banding uninterpretable.
+
+**Design.** Same engine, same 2018-2025 window, same config as O8. Open a spread
+only when the index's own vol index sits in the top tercile of its trailing
+252-session distribution; otherwise hold cash. **Entries only** — gating exits
+would hold losers because vol fell, which is a different and much worse strategy,
+and there is a test asserting exits stay ungated.
+
+| | ungated Sharpe | **gated Sharpe** | ann. vol | max DD | trades | time invested |
+|---|---|---|---|---|---|---|
+| **SPY** | +0.14 | **+0.04** | 15.7% → 8.2% | −23.2% → −14.5% | 1,905 → 538 | **27.2%** |
+| QQQ | −0.05 | **−0.28** | 16.0% → 9.1% | −33.3% → −26.2% | 1,907 → 542 | 27.9% |
+| IWM | −0.56 | **+0.12** | 13.8% → 6.6% | −46.8% → −11.8% | 1,892 → 491 | 24.8% |
+
+**ADOPT required SPY gated excess Sharpe >= 0.50. It is 0.04 — and it is WORSE
+than ungated.** The gate roughly halves volatility on every underlying, so it is
+a genuine risk reducer; on the primary underlying it simply cuts return by more
+than it cuts risk (annualised return 4.68% → 2.86%, against a 2.54% risk-free).
+
+## The decisive result is not the Sharpe — the sign flips across underlyings
+
+Ungated mean P&L per trade, by IV-rank tercile (terciles cut on the *observed*
+rank distribution, because IV rank is not uniform on [0,1]):
+
+| | bottom | middle | top | shape |
+|---|---|---|---|---|
+| **SPY** | **$56.73** | $0.16 | $47.34 | non-monotone; **cheapest tercile is best** |
+| **QQQ** | **$68.76** | −$3.83 | −$8.46 | monotone **decreasing** — top is worst |
+| **IWM** | −$35.28 | −$17.69 | **$29.98** | monotone **increasing** — top is best |
+
+My pre-registered "effect present" test — top tercile above the bottom two, on
+SPY — **fires TRUE** ($47.34 vs $28.50). I am reporting that because it was
+pre-registered, but it does not mean what it was written to test: it fires only
+because the middle tercile is ≈$0, and on SPY the **cheapest** vol tercile is the
+best of the three, which is the opposite of the hypothesis. On QQQ the ordering
+is cleanly monotone in the *wrong* direction.
+
+A rule whose sign flips between SPY, QQQ and IWM over the same eight years is not
+a rule. One positive out of three underlyings is what chance looks like. IWM's
+improvement (−0.56 → +0.12) is the single result that superficially supports the
+idea, and it still does not clear the bar.
+
+**Verdict: REJECTED.** Per the audit's own pre-registration — *"if the effect
+does not appear on index options where the spread is small, close the question
+permanently"* — **the short-vol question is closed.** Not "parked": closed. The
+friendliest possible execution environment, the two prior rejections, O8's
+cost decomposition and now this all point the same way, and there is no version
+of this that survives on single names, which are strictly worse on every axis
+that matters.
+
+**What it unblocks.** Nothing further should be spent on short vol —
+re-parameterisation, different deltas, different DTEs, IV-rank variants. If it is
+ever reopened it needs a *new mechanism*, not a new parameter, and a fresh
+pre-registration that says so.
+
+**Two construction notes worth keeping.**
+* `iv_rank_series` computes the **percentile** form (fraction of the trailing
+  window at or below today), not the `(IV − low)/(high − low)` range form. The
+  range form is hostage to two extreme observations, so one 2020-03 print pins it
+  near zero for the following year — switching the rule OFF precisely when
+  premium is richest. That choice would have changed the answer.
+* Days whose trailing window is not yet full get **no signal and do not trade**.
+  Consequently 243 of SPY's 1,905 ungated trades (12.8%) carry no rank and are
+  excluded from the tercile table, which is why the tercile P&L does not sum to
+  the strategy total. The counts are reported (`trades_without_a_rank`) rather
+  than left for a reader to trip over.
+
+13 tests (`options_backtest/test_iv_rank.py`), the important one asserting that
+every rank on or before day K is unchanged when vol after day K is replaced with
+a huge spike — a sell-timing rule that peeks one day forward would look excellent
+and be worthless, and nothing in the equity curve would say so.
+
+---
+
+---
+
+# C5 — the PIT universe on real data · PASSED, after fixing a bug that made it return NOTHING
+
+Per-period numbers: `data/c5_survivorship.json` (gitignored — derived from
+licensed data). Threshold committed at `65b2456`, before the run.
+
+## The first result was an empty universe on all 27 dates
+
+`core/pit_universe.py` had only ever been exercised against a synthetic 30-name
+mirror. Pointed at the D10 freeze it returned **universe size ZERO on every
+annual date from 2000 to 2026**.
+
+**Cause.** Sharadar's `DAILY.marketcap` is denominated in **millions of USD**.
+`PITUniverseConfig.min_market_cap` is written in **dollars** (`2_000_000_000`).
+So AAPL on 2015-06-30 presented as `722571.4` against a `2e9` floor and failed
+the cap gate — as did every company that has ever listed. 5,945 names were listed
+that day; the universe was empty.
+
+Cross-checked before touching anything: `722,571.4 × 1e6 = $722.57B`, which
+matches this project's own recorded *"AAPL 2015Q2 $722.6B verified"* from the
+same table. The main tree already knew the units; this module did not.
+
+**Why the test suite certified it anyway — this is the actual lesson.** The
+synthetic fixture in `tests/test_sharadar.py` wrote market caps in **dollars**
+(`GOOD = 5e9`, `TINY = 1e8`) directly into the `daily` table. The mirror spoke
+dollars; the feed speaks millions. So the suite was green on a module that
+**cannot** return a non-empty universe on real data.
+
+> A synthetic fixture cannot disagree with you about what the real feed means.
+> Its author picks the units, and naturally picks the ones the code expects.
+
+That is precisely why "verified end to end on a synthetic mirror" is not
+verification, and it is the whole reason C5 was worth doing. The audit called C5
+"Effort: S" — it was, and it found a defect that silently disabled the module the
+entire survivorship-bias programme depends on.
+
+**Fixed** in `SharadarStore.marketcap_on` (normalise once, return dollars, named
+constant `MARKETCAP_UNITS_PER_USD`) and in the fixture (specs stay in dollars and
+are converted on insert, in the same direction the real loader converts).
+
+## The C5 deliverable — invisible-name count PER PERIOD
+
+Share of each historical universe that is **dead today**, and therefore
+structurally absent from any universe a live screener could build:
+
+| as-of | universe | delisted since | **invisible** | examples |
+|---|---|---|---|---|
+| 2000-06-30 | 588 | 339 | **57.7%** | WCOEQ (WorldCom), LU1 (Lucent), JAVA1 (Sun), EMC1, DELL1 |
+| 2003-06-30 | 487 | 221 | 45.4% | WYE, WB1, BLS, TFCF |
+| 2007-06-30 | 872 | 384 | 44.0% | MER (Merrill), WB1, DNA1, TWX |
+| 2010-06-30 | 626 | 217 | 34.7% | TWX, DD1, DTV1, ESRX |
+| 2013-06-30 | 819 | 263 | 32.1% | TFCF, MON2, ESRX, EMC1 |
+| 2016-06-30 | 881 | 245 | 27.8% | AGN, RAI, CELG, TWX |
+| 2019-06-30 | 937 | 164 | 17.5% | VMW, CELG, AGN, RTN |
+| 2022-06-30 | 963 | 121 | 12.6% | ATVI, PXD, VMW, HES |
+| 2024-06-30 | 982 | 62 | 6.3% | HES, DFS, ANSS, CTRA |
+| 2026-06-30 | 1,279 | 8 | 0.6% | GTLS, BLD, NUVL, JHG |
+
+**Median 32.1% across 27 periods** (min 0.6%, max 57.7%), declining monotonically
+with recency exactly as it must.
+
+**Pre-registered band: `m > 10%` → prior today's-universe backtests are
+ARTEFACTS.** The median is 32.1%, three times the threshold. This is not a
+marginal call.
+
+Put plainly: a backtest of 2013 built from today's screener is missing **roughly
+a third of the companies that actually existed**, and they are not a random
+third — they are the ones that were acquired or went to zero. The examples are
+the tell: WorldCom in the 2000 universe is precisely the name a
+survivor-built universe deletes.
+
+**All four pre-registered PASS conditions met:**
+1. `build()` completes on every tested date — yes, after the units fix.
+2. Delisted names genuinely present in historical universes — 144 to 384 per
+   pre-2020 date.
+3. Universe sizes plausible and stable — 463 to 1,279, no date collapsing.
+4. `AsOfHistory` refuses post-as-of bars **on real data** — 42 bars returned for
+   XOM around 2013-06-30, **0** after the as-of. PASS.
+5. Anti-cheat: `scalemarketcap`/`scalerevenue` are absent from the schema
+   entirely, so the look-ahead filter is structurally impossible, not merely
+   discouraged. PASS.
+
+## What this does NOT cover, stated plainly
+
+The audit asks to run `scripts/run_sharadar_backtest.py`. **I ran the point-in-time
+universe and the survivorship report — the number the audit actually asks for —
+but not the full bot backtest.** The mirror is date-*windowed* (60 days around
+each of 27 as-of dates) rather than continuous, because a continuous mirror is
+~86M rows and tens of GB. The survivorship report needs only "price then, cap
+then, volume then"; a strategy backtest needs unbroken series for signals.
+
+To run the bots on real data, rebuild with a continuous date range over the
+window of interest and then run the existing script:
+
+```
+python scripts/build_freeze_mirror.py --freeze <freeze>/bulk --db <db> \
+    --dates <every trading date in range>      # or widen --window-days
+python scripts/run_sharadar_backtest.py --bots momentum reversion --years 5
+```
+
+**What it unblocks.** Every prior backtest built on a today's-universe screen now
+has a measured bias figure attached to it, per period, instead of an assertion.
+The momentum result the record flags as "close to fatal" is confirmed as
+artefact-scale: a 2021-2024 window carries 12-17% invisible names, and the
+further back a result reaches the worse it gets.
+
+**Housekeeping:** the mirror is `data/c5_pit_mirror.db` (~1.5 GB, gitignored,
+derived from licensed data, regenerable in ~35 min). Delete it freely.
+
+---
+
 *Note: `HANDOFF_STATUS.md` has deliberately NOT been overwritten. Several agents
 are working parallel lanes against this repo and that file is shared project
 state; overwriting it from one lane would clobber the others. This file is this
 lane's full report.*
+
+---
+
+<!-- ledger:ignore -->
+<!-- This section WRITES ABOUT the ledger and names item ids without being
+     evidence about them. build_ledger.py skips everything between these
+     markers, so the report cannot feed its own counts back in on refresh. -->
+
+# OUT-OF-BAND — `VALQUO_LEDGER.md`, so nobody reconstructs project state from git again
+
+**Status: infrastructure, not a measurement.** No audit item was executed here and no
+threshold was pre-registered, because nothing was run. Two new files only:
+`VALQUO_LEDGER.md` and `scripts/build_ledger.py`. Nothing existing was modified —
+not `CLAUDE.md`, not `RUN_RULES.md`, not any other lane's `HANDOFF_*.md`.
+
+## Where we stand — 134 items, one table
+
+| series | DONE | IN PROGRESS | BLOCKED | OPEN | total |
+|---|---|---|---|---|---|
+| B | 23 | 1 | 1 | 1 | 26 |
+| R | 6 | 0 | 4 | 0 | 10 |
+| X | 6 | 0 | 0 | 2 | 8 |
+| S | 1 | 0 | 0 | 27 | 28 |
+| O | 5 | 0 | 0 | 21 | 26 |
+| U | 1 | 0 | 0 | 7 | 8 |
+| C | 6 | 0 | 1 | 0 | 7 |
+| P | 2 | 0 | 0 | 3 | 5 |
+| D | 2 | 0 | 0 | 8 | 10 |
+| M | 2 | 0 | 0 | 4 | 6 |
+| **all** | **54** | **1** | **6** | **73** | **134** |
+
+**78 of the 134 rows are hand-verified** (`src=human`) — I read the write-up before
+setting the status. The other 56 are mechanical proposals marked `src=auto` and should
+be treated as leads, not facts. Every `DONE` row carries a checkable sha except `P5`,
+which is flagged in its own note as the weakest `DONE` in the file.
+
+The two prior counts were 38/134 and 68/134. Neither is right. **54 is the number**, and
+unlike the other two it is per-item and checkable in one step.
+
+## The four traps that produced the wrong counts
+
+These are now encoded in `build_ledger.py` and written into the ledger's header:
+
+1. **A forward reference is not a completion.** "feeds U1", "needed for S12", and
+   critically `## Task 3 — schema conformance (supports D1, ...)` — a forward reference
+   *inside a heading*, which any header-matching rule scores as strong evidence. This is
+   the specific error behind the 68.
+2. **`P1`–`P5` collide with the project's own PHASE labels.** CLAUDE.md's
+   "~~P3 — SF3 smart-money conviction~~ **DONE (P4 commit)**" is phase P4. **Audit item
+   P4 is open** and explicitly "out of band for this audit, flagged in" — the opposite.
+3. **`M2` is a different document's item.** HANDOFF_STATUS.md's "The audit's M2
+   (SanDisk/WDC) does NOT reproduce" is `CODE_AUDIT.md`'s M2. The external audit's M2 is
+   "clustered inference default" and **has never been touched**. It was reading as
+   IN PROGRESS until this was caught.
+4. **`D1`–`D10` collide with DECILE labels** — "long-short (D1-D10)", "D1 22.8% → D10
+   10.7%" — which this project writes constantly.
+
+## Where sources disagree — these are findings, not bookkeeping
+
+1. **B26 — the write-up and the commit log disagree on the outcome.**
+   `HANDOFF_edge_audit.md` says "**Verdict: all FIXED**"; commit `2ded1f3` is
+   "**RETRACTION: B26 did not flip the insider theme — the backtest is not
+   reproducible**". The fix landed; the *effect* claimed for it was retracted. Recorded
+   `DONE` with `DISPUTED` in the note. **Someone who owns the edge lane should confirm
+   which claim stands.**
+2. **M1 — `ADOPTED` in its write-up, but not finished.** `AGENTS.md` lists "**M1's
+   re-run**" among the r1 lane's open items. Recorded `DONE` (the log and the N=8→84
+   recount shipped) with the outstanding re-run named in the note.
+3. **D7 — asserted, never written up.** `VALQUO_ACTION_PLAN.md` states "WRDS is the #1
+   lever" → **dead end (D7)** as settled fact. There is **no write-up and no commit for
+   D7 anywhere in the corpus.** Recorded `OPEN`/`DISPUTED`. Either the conclusion is real
+   and unrecorded, or it is an assumption that has been load-bearing for a while — and
+   `U2` is described as replacing it, so it matters.
+4. **B13 — "PARTIALLY FIXED" was recorded as `IN PROGRESS`, not `DONE`.** The categorical
+   filters bind; `MIN_AVG_DOLLAR_VOLUME` still cannot. It is the only `IN PROGRESS` row
+   in the file and it is a judgement call — flagging it so it can be overruled cheaply.
+5. **C6 (mine) — `BLOCKED`, not `DONE`.** Its own verdict line reads "the three fixes are
+   **ADOPTED-in-repo and still UNDEPLOYED**". Recording that as `DONE` would have hidden
+   a live blocker.
+
+**A meta-finding worth more than any single row: a mechanical verdict scrape is
+unreliable and must not be trusted.** The extractor proposed `INCONCLUSIVE` for R2 (real
+verdict **REJECTED**), `NULL` for R9 and R10 (both **ADOPTED**), `ADOPTED` for O8 (real:
+**INCONCLUSIVE** on SPY, **REJECTED** on QQQ/IWM) and `ADOPTED` for C1 (real:
+**REJECTED**). Cause: it matched verdict words appearing in the *pre-registration* text
+that precedes the result. This is why the ledger separates `human` from `auto` rows
+rather than presenting one number.
+
+## Left OPEN deliberately, for want of evidence
+
+An item wrongly marked done stops work happening; one wrongly marked open costs a
+re-check. Where it was ambiguous I left it `OPEN` and put the reason in the note.
+
+- **37 with zero substantive mentions anywhere in the corpus:** S6 S8 S9 S11 S12 S13 S15
+  S16 S18 S19 S20 S21 S22 S24 S25 S28 O10 O11 O14 O16 O17 O18 O19 O21 O22 O23 O24 O25 O26
+  U3 U8 D2 D4 D6 D8 D9 M4
+- **14 with prose mentions only** (named, never written up): S1 S2 S3 S4 S5 S7 S17 O1 O6
+  O13 P3 D5 M3 M6
+- **5 mentioned only as somebody else's dependency:** S10 S14 S23 S27 P2
+
+The remaining 17 open rows were set by hand and carry a specific reason instead.
+
+The S series is the honest headline: **27 of 28 open, and 16 of those have never been
+substantively mentioned once.** It is the largest untouched block in the audit.
+
+**"Substantive" is doing real work in that sentence, and it is a finding of its own.**
+A line that lists many ids — `| 8+ | O1, S20, S21, X1, S2, S19, X8, ... — descending
+value |` in `VALQUO_ACTION_PLAN.md`, or a scope list like "**Scope run:** B2, B4, B5, B6,
+B7, B11, B13, ..." — is a **roll-call, not evidence about any item on it**. The builder
+ignores lines carrying 7+ ids for exactly this reason. Without that rule S19, S20 and S21
+look "mentioned" when the only thing that ever happened to them is being listed in a plan.
+It also stops the ledger becoming self-referential: publishing "these 36 items are never
+mentioned" would otherwise become a mention of all 36, on the next refresh.
+
+There was a second, sharper version of the same loop, and it is fixed rather than
+documented: **this report is itself part of the scanned corpus.** Naming S19/S20/S21 in
+the paragraph above gave them prose mentions, which moved them between categories on the
+next refresh — the counts chased my own prose. This whole section is now wrapped in
+`<!-- ledger:ignore -->` markers that `build_ledger.py` honours, so writing *about* the
+ledger can no longer feed *into* it. Any document can use the same markers.
+
+**Six items are `BLOCKED` rather than open, with the blocker named:** R4, R5, R6, R8 and
+B8 all sit in `valuation/edge/**`, which the pipeline-builder lane holds (per
+`AGENTS.md`); C6 needs Don to `scp` `quant_bots/data/*.py` off the box.
+
+**Newly unblocked and nobody appears to have noticed:** O3, O4, O5, O7 and U7 were all
+"held until R1 returns". **R1 has returned.** O12 was blocked on B3, which is fixed.
+
+## Refresh — one command
+
+    python scripts/build_ledger.py            # proposal + counts by series/status, writes nothing
+    python scripts/build_ledger.py --write    # refresh src=auto rows ONLY; never touches src=human
+    python scripts/build_ledger.py --evidence S12   # every occurrence, classified, + the commits
+
+`--write` is safe to run repeatedly: it is idempotent, and on a hand-verified row it
+prints a **DISAGREEMENT** line and leaves the row alone rather than clobbering it.
+
+## Two things I did NOT do, deliberately
+
+1. **I did not edit `RUN_RULES.md` or `CLAUDE.md`** — the prompt reserved that. Proposed
+   wording for whichever lane owns `RUN_RULES.md`, to sit beside the existing "code
+   without a handoff entry is not finished work" rule:
+
+   > **A landed audit item with no `VALQUO_LEDGER.md` row is not finished work.** Update
+   > your rows as part of your handoff. The ledger is the answer to "where do we stand";
+   > if it cannot answer, fixing the ledger is the task — never another archaeology dig.
+   > Rows are append-and-amend: a status that changes keeps its history in the note.
+
+2. **I did not add a test pinning the four collision rules**, because the prompt scoped
+   this to two new files. It is the obvious follow-up and it is cheap — this project has
+   been bitten four times by guards going silently inert, and these rules are exactly
+   that kind of guard.
+
+## One infrastructure finding, unrelated but load-bearing
+
+**`valquo_audit_items.json`, `VALQUO_EDGE_AUDIT.md`, `VALQUO_ACTION_PLAN.md` and
+`AGENTS.md` are NOT in git.** They are not gitignored — they were simply never added.
+They exist only in Don's shared checkout at `C:\Users\donni\Downloads\valuation-tool\`.
+
+Consequences: the audit's own source of truth cannot be recovered if that folder is lost,
+it is invisible to every worktree (`build_ledger.py` has to reach up three levels to find
+it), and no agent working from a clean clone can see the item list at all. **Someone
+should `git add` those four files.** I did not, because the prompt restricted me to
+creating two new files and these are pre-existing documents I do not own.
+
+*`HANDOFF_STATUS.md` again deliberately NOT overwritten — shared state, parallel lanes.*
+
+<!-- /ledger:ignore -->

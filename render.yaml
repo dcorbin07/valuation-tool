@@ -13,25 +13,35 @@ services:
       mountPath: /app/data
       sizeGB: 1
     envVars:
-      # LICENCE POSTURE. Valquo is a PERSONAL research tool: owner-only, no signup, no
-      # checkout, nothing served to an anonymous visitor. That is what keeps it inside the
-      # personal-use terms of the individual ThetaData and Sharadar plans it reads market
-      # data under. It defaults to true in code (valuation/config.py) so a fresh deploy or a
-      # recreated service comes up LOCKED rather than open — declared here as well so it is
-      # visible and flippable in the Render dashboard instead of hidden in a default.
+      # POSTURE (changed 2026-08-04). Valquo is PUBLIC AND FREE TO ANYONE, forever: no
+      # billing, no signup, no customers, no support obligation. The sensitive half is held
+      # back by the OWNER SPLIT rather than by locking the door.
       #
-      # To go commercial: set this to "false" (and see "Reversing this" in
-      # HANDOFF_appfixes.md). Nothing is deleted — every tier, route and Stripe path below is
-      # intact and still tested, which is why the Stripe keys stay configured.
+      # WHY THAT IS STILL LICENCE-CLEAN. No commercial activity means no "business use"
+      # trigger under the individual ThetaData and Sharadar plans. The LIVE path runs on FMP
+      # and Tradier; Sharadar and ThetaData are BACKTEST-ONLY and must never reach a public
+      # surface. Derived statistics Don computed are his; raw vendor rows are not.
+      #
+      # PRIVATE_MODE is the total lockdown (owner-only, nothing served to anyone else). It is
+      # kept, tested, and now defaults to FALSE in code. Set it "true" here to lock the
+      # instance again in one dashboard edit — nothing is deleted and every tier, route and
+      # Stripe path below stays intact, which is why the Stripe keys stay configured.
       - key: PRIVATE_MODE
+        value: "false"
+      # THE LIABILITY BOUNDARY on a public instance, and the one to leave alone. It keeps
+      # performance claims (the sandbox paper track and its equity curve), actionable live
+      # picks (the constructed Index book, live option alerts, the intraday feed, the
+      # portfolio builder) and backtest/vendor internals (the Edge Lab) owner-only, while the
+      # valuation tool, the ranking and the methodology stay open to everyone. The path list
+      # is valuation/saas/surfaces.py, one entry per surface with its reason and its vendor.
+      # OWNER_SPLIT=false publishes all of it — do not set that without reading the Terms.
+      - key: OWNER_SPLIT
         value: "true"
-      # THE ONE DELIBERATE EXCEPTION to the line above, and its own switch on purpose. Don
-      # job-hunts with this project, so one unlisted page describing the RESEARCH METHOD is
-      # readable without logging in. It is static prose plus statistics computed in-house —
-      # it reads no store, calls no API and renders no vendor row, so nothing a ThetaData or
-      # Sharadar licence covers leaves the instance through it. Everything else stays locked.
-      # Set PORTFOLIO_PAGE=false to remove it; PORTFOLIO_PATH moves it to an unguessable URL
-      # without a code change (validated in config.py — a bad value falls back to /work).
+      # The unlisted portfolio page Don puts on a résumé — static prose plus statistics
+      # computed in-house, reading no store and calling no API. It kept its own flag through
+      # the posture change: it survived private mode, and it is independent of the split
+      # above. PORTFOLIO_PATH moves it to an unguessable URL with no code change (validated
+      # in config.py — a bad value falls back to /work); PORTFOLIO_PAGE=false removes it.
       - key: PORTFOLIO_PAGE
         value: "true"
       - key: PORTFOLIO_PATH

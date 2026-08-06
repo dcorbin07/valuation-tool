@@ -120,6 +120,41 @@ def _fx_rate(base: str, quote: str) -> Optional[float]:
     return rate
 
 
+# A next-year revenue growth rate outside this band is not a forecast, it is the wrong
+# number. Rejected AT THE SOURCE so the engine's identical rejection is defence-in-depth
+# rather than the only line — `info["revenueGrowth"]` is not clean either (COF: 11.11).
+REV_GROWTH_BAND = (-0.30, 1.00)
+
+_NEXT_YEAR_LABELS = ("+1y", "1y", "next year")
+
+
+def _analyst_revenue_growth(t, info: dict) -> Optional[float]:
+    """Next-FY REVENUE growth, selected by column NAME, rejected if implausible.
+
+    Order: the analyst revenue-estimate frame's `growth` column, then Yahoo's trailing
+    `revenueGrowth`. Returns None rather than a number we cannot stand behind.
+    """
+    def _ok(v):
+        v = _safe(v)
+        if v is None:
+            return None
+        return v if REV_GROWTH_BAND[0] <= v <= REV_GROWTH_BAND[1] else None
+
+    try:
+        re_ = t.revenue_estimate
+        if re_ is not None and not re_.empty and "growth" in re_.columns:
+            for label in _NEXT_YEAR_LABELS:
+                hit = [i for i in re_.index if str(i).lower() == label]
+                if hit:
+                    v = _ok(re_.loc[hit[0], "growth"])      # BY NAME, both axes
+                    if v is not None:
+                        return v
+                    break
+    except Exception:
+        pass
+    return _ok(info.get("revenueGrowth"))
+
+
 def fetch(ticker: str) -> Optional[CompanyData]:
     """Fetch and normalize a company from Yahoo Finance. Returns None on hard failure."""
     try:
@@ -283,23 +318,21 @@ def fetch(ticker: str) -> Optional[CompanyData]:
         cd.fcf_history = [_mm(v) for v in _history(fcf_row, fc)]
 
     # ---- analyst estimates (best-effort) ----
-    try:
-        ge = t.growth_estimates
-        if ge is not None and not ge.empty:
-            # look for next-year revenue/eps growth
-            for label in ["+1y", "1y", "next year"]:
-                if label in [str(i).lower() for i in ge.index]:
-                    idx = [i for i in ge.index if str(i).lower() == label][0]
-                    val = _safe(ge.loc[idx].iloc[0])
-                    if val is not None:
-                        cd.analyst_rev_growth_next = val
-                        break
-    except Exception:
-        pass
-    if cd.analyst_rev_growth_next is None:
-        rg = _safe(info.get("revenueGrowth"))
-        if rg is not None:
-            cd.analyst_rev_growth_next = rg
+    # `analyst_rev_growth_next` must be a next-year REVENUE growth rate. It used to be read
+    # as `growth_estimates.loc["+1y"].iloc[0]`, and that frame's columns are
+    # `stockTrend` / `indexTrend` — so .iloc[0] took `stockTrend`, which is EARNINGS growth,
+    # and it explodes off a negative base (GILD's 0y is -1.0838, so +1y read 15.0829).
+    # Measured across the 241-name sweep on 2026-08-05: the positional read differed from a
+    # real revenue figure by >1pp on 202 of 239 names, and 194 of those differences sat
+    # INSIDE the [-0.30, 1.00] band the engine rejects on, so they were silently wrong.
+    # Worse, BRK.B's frame has only an `indexTrend` column — .iloc[0] there was reading the
+    # S&P 500's growth estimate as Berkshire's revenue growth.
+    #
+    # `revenue_estimate` is the right source: indexed by period with a NAMED `growth`
+    # column that is genuinely next-year revenue growth (MRK 0.0479, GILD 0.0615).
+    # SELECT BY COLUMN NAME, NEVER BY POSITION — a .iloc[0] against a named-column frame is
+    # the defect itself and must not be reintroduced.
+    cd.analyst_rev_growth_next = _analyst_revenue_growth(t, info)
 
     # ---- price history / momentum (best-effort) ----
     try:

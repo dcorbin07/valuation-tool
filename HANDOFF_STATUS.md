@@ -100,6 +100,63 @@ non-reproducibility (the `insider` IC) also remains open and unexplained.
 
 ---
 
+## D: BACKUP REBUILT — AND THE DRIVE NEEDS ONE ELEVATED COMMAND (2026-08-06, r1 lane)
+
+Full write-up in `HANDOFF_backup.md`. Housekeeping lane, nothing under `valuation/**` touched.
+
+**ACTION REQUIRED FROM DON — this is the only blocker.** The backup drive is now physically
+write-protected: it is FAT32, it was filled twice, and Windows has flagged it
+`OperationalStatus: Full Repair Needed`, dirty, `IsReadOnly: True`. Repairing it needs an
+administrator prompt, which this session does not have. Run as administrator:
+
+```
+diskpart -> list disk -> select disk 1 (CONFIRM it is the 116 GB Lexar) ->
+attributes disk clear readonly -> exit
+chkdsk D: /f
+```
+
+Then say so, and the rest is automatic. **Until then there is no working backup of `.env`, the
+freeze, or the paper track** — the copy on D: is from before 02:00 on 2026-08-06 and cannot be
+updated.
+
+**Cause of the disk filling — not what it looked like.** `/XD` is not broken (verified three
+ways, including a controlled robocopy experiment). There were **two** backup scripts on **two**
+schedules writing to the **same** destination with opposite policies: `backup_now.bat`
+(`ValuationToolBackup`, 08:00) used `/E` so it never deleted, excluded only four directories, and
+had no `/XJ` — so it followed the ten worktree `data` junctions and duplicated the whole 62 GB
+`data\` tree, which is the **61.6 GB of `.claude`** on D:. `backup_to_D.bat` then could not clean
+it up, because **`/MIR` does not purge a directory it is excluding** — it never enumerates that
+tree at all.
+
+**Fixed:** policy is now an allowlist (back up what cannot be recreated, not what is large),
+`/XJ` everywhere, a free-space preflight and a writability probe that both abort in plain English
+before copying, a per-run report of what was backed up and what was skipped with reasons, and
+stray detection for directories that leave the allowlist. `backup_now.bat` is now a shim onto the
+same engine so both scheduled tasks run one policy.
+
+**Numbers:** repo 62.72 GB, `data/` 61.89 GB, backup set **38.01 GB** against a 116 GB drive
+(~76 GB headroom). Biggest exclusion is `data\options_derived` at **16.57 GB** — pure arithmetic
+over `data\options`, "ZERO vendor option calls". Biggest inclusions are `data\options` 17.40 GB
+(45–55 h to re-mine) and `data\backtest_freeze_2026-08` 17.37 GB (the crown jewel: re-downloading
+returns restated data). Three irreplaceable items the original brief missed are now backed up:
+`data\archive` (our own past scans), `valquo_track*` (the live forward paper track, written by
+Cowork, by nothing in this repo), and `app.db` (user/Stripe state).
+
+**Before touching D: I verified it was pure redundancy:** 59,081 files compared path by path
+against C: — exactly 2 distinct files existed only on D:, both rescued to
+`data\_from_D_quarantine\`. Nothing on D: was deleted.
+
+**Tests:** `tests/test_backup_to_D.ps1`, **40/40**. Windows/PowerShell, so the Linux CI job does
+not run them — run by hand after touching the backup. Python suites unaffected: 14/14
+factor-alpha, 13/13 fragility, 191/191 edge.
+
+**Watch this:** the miner projects ~199 GB for a full 1,000-name `data\options`. That will not
+fit, and it is the next thing that breaks the backup. Also, D: is FAT32 with a 4 GB per-file
+ceiling and the backup's largest file is already 3.00 GB — if the drive is ever reformatted,
+use exFAT.
+
+---
+
 ## AUDIT SESSION 5 — THE OPTIONS ENTRY SIGNAL IS DEAD, AND IT SURVIVED THE CORRECTION (2026-08-05)
 
 Full write-up: **`HANDOFF_edge_audit.md` Part 6**. Pre-commitments and run design pushed in
@@ -557,6 +614,37 @@ pass says there is a residual worth understanding. Recommended next: **(1) attri
 now that the machinery exists; converts inferred mechanism into measured); **(2) M1, the trial
 ledger** — now the largest unquantified threat to the headline; **(3) the forward paper-track
 vs SPY remains the top overall priority (Cowork's lane)** — R1 adds no out-of-sample evidence.
+
+**FRAGILITY (Part II, same lane, same day) — it SURVIVED a deliberate attempt to break it, on
+all four criteria committed before any cut ran. But two things must travel with the number:**
+
+- **It is WINDOW-DEPENDENT.** Stable-universe window (>=2008, the closest available preview of
+  what B6 will do): **alpha +6.24%, t +3.986, n 73 — DOWN 2.57pp, ~29% of the alpha.** The
+  discarded early period is where the raw spread is biggest (first third raw +21.89%/yr vs
+  +3.53% and +11.02%) — the inverted-universe signature. **Expect the post-B6 headline near
+  +6%. Quote ~+6% when a single number is wanted.**
+- **There is a WEAK DECADE.** A ~10-year rolling window centred on **2009-2019 shows alpha of
+  only +1.66% (t 1.39)**. Alpha is positive in **70 of 70** rolling windows and never reverses
+  sign, but 8 of 70 are not significant. The full-sample t 5.742 averages that decade in with
+  much stronger ones.
+
+The other cuts: no sign flip (halves +8.98%/+5.48%; thirds +13.51/**+4.33 t 2.412, weakest cell
+in the study**/+8.10, all t>2). **Not concentrated** — best 5 of 109 periods carry 23.0% of the
+alpha (38.0% on the stable window, the closest any criterion came to tripping); dropping the
+best 5 leaves +7.28% (t 5.19), dropping the worst 5 gives +10.07%, nearly symmetric, and the
+best 5 span four regimes. **Not specification-dependent** — CAPM +12.99%, FF3 +12.28%,
+FF5-no-MOM +10.03%, FF5+MOM +8.81%, q4 +9.14%, q5 +8.33%, all t>2 on both windows, and FF5+MOM
+is nearly the most conservative of the six. Windows confirmed **genuinely non-overlapping**
+(every one exactly 63 factor days, zero shared days) so no inference correction is needed.
+
+**BINDING RE-RUN CONTRACT — R1 MUST be re-run after B6 and B7 land.** B6 is expected to lower
+alpha to +5.5-7.0% (t 3.5-4.5); B7's direction is genuinely unknown and the two interact, so do
+not attribute the combined change to either alone. **A post-re-run alpha < +4%/yr or full-sample
+t <= 3.0 is a MATERIAL REVISION requiring the headline to be rewritten rather than annotated; a
+stable-window t <= 2.0 withdraws the word "alpha" entirely and CLAIM B applies.** Re-run is
+cheap: `python -m scripts.etf_benchmark` then `factor_alpha` then `factor_alpha_fragility`.
+Full contract in `HANDOFF_r1.md` sections 6-8. Part II adds
+`scripts/factor_alpha_fragility.py` + `tests/test_factor_alpha_fragility.py` (13/13).
 
 New files only, panel untouched (Session 2 owns B6/B7): `scripts/factor_alpha.py`,
 `tests/test_factor_alpha.py` (14/14), `HANDOFF_r1.md`, and output

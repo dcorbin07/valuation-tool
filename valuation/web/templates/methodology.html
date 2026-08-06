@@ -13,9 +13,12 @@
   value, quality, growth, momentum, size, low-risk, capital discipline, institutional
   positioning and insider activity. Each theme is built from individual numbers, each number
   is standardised across the whole universe that day, and the themes are combined into one
-  composite. The <b>Hot Stocks</b> tab is that ranking. The <b>Valquo Index</b> is a
-  disciplined slice of it: the top decile of the large-cap tier, score-weighted, capped at 8%
-  per name. One ranking, two views — the Index is not a second, competing screen.</p>
+  composite. The <b>Hot Stocks</b> tab is that ranking, and it is open to everyone.</p>
+  <p>The research also constructs a book from that ranking — the top decile of the large-cap
+  tier, score-weighted, capped at 8% per name — and tracks it forward. <b>That book and its
+  record are not published.</b> A ranking is analysis; a current list of positions and a running
+  P&amp;L are a recommendation and a performance claim, and this is a free educational tool that
+  makes neither. What <em>is</em> published is the method below and the evidence behind it.</p>
 
   <h3>Point-in-time, and why it matters more than the score</h3>
   <p>The backtest is built from a point-in-time fundamentals panel: on any historical date the
@@ -52,16 +55,46 @@
       samples systematically flatter results and are used only as smoke tests.</li>
   </ul>
 
+  <h3>The one result that had to clear a threshold written down in advance</h3>
+  <p>The composite is roughly one-seventh each of value, quality, momentum, size, investment
+  discipline and institutional ownership — nearly the standard factor set — so "it beat the
+  average" could not distinguish a real edge from an assembly of known premia. Two write-ups
+  were prepared <i>before</i> the regression ran: one to publish if the intercept cleared
+  Newey–West t &gt; 2, and one saying the honest description was <b>efficient factor
+  exposure</b> if it did not.</p>
+  <p>It cleared it. Against the Fama–French five factors plus momentum, the top-decile spread
+  carries an intercept of <b>+8.81%/yr (t = 5.74)</b> over 109 non-overlapping windows,
+  1998–2026. Run through the same pipeline, a passive large-cap ETF returns
+  <b>+0.19%/yr (t 0.45)</b> — the placebo that shows the machinery reports nothing when there
+  is nothing there.</p>
+  <div class="note" style="margin:12px 0"><b>Read that as a research finding and nothing else.</b>
+  It is measured on a <b>historical simulation</b>, not an account. It is <b>not an expected
+  return, not an achievable return, and not a return anyone earned.</b> It is one panel; the
+  t-statistic is not corrected for the ~146 construction decisions behind it; dropping the
+  panel's known-contaminated early period costs about 2.2 points of it, so <b>+6.6% is the
+  figure to prefer</b> if you want one number. And it does not mean the strategy beats the
+  factor ETFs you can actually buy — that was tested separately and <b>was not demonstrated</b>
+  (a +9.2pp margin at t 1.10, negative in the first half: a null).</div>
+
   <h3>Where it is weak — read this part</h3>
   <ul>
     <li><b>It has seen one dataset.</b> Every backtested figure comes from a single 18-year
       panel that the model was also tuned on. That is the fundamental limit, and no amount of
       internal validation removes it. The live forward track is the only cure, and it is new.</li>
-    <li><b>Deflated Sharpe is saturated.</b> It reads &gt;99.9%, which is a sign the statistic
-      has run out of room, not proof the edge is certain.</li>
+    <li><b>One of our own statistics was mislabelled, and we say so.</b> The figure reported
+      as a "Deflated Sharpe" is an <b>undeflated</b> one: its benchmark scales with the spread
+      of Sharpes across the variants tried, and the eight variants were near-identical, so it
+      saturates at &gt;99.9% because it is deflating nothing. It now labels itself as undeflated
+      in the output. Do not read it as proof of anything.</li>
     <li><b>Some themes are dormant.</b> Sentiment (estimate revisions) has no point-in-time
-      source we trust and contributes nothing today. Sector-relative ranking is currently
-      inert on the live path because the classification source is not wired in yet.</li>
+      source we trust and contributes nothing today.</li>
+    <li><b>The live ranking and the backtested one are not yet the same function.</b> Sector
+      classification is wired and complete, and sector-relative ranking was tested on the full
+      universe and <b>rejected</b> — it buys a statistic the long-only book does not spend and
+      sells the one it does. The research path therefore runs with it off, while the live
+      scoring path still inherits it on unless the environment disables it. That is a known,
+      recorded discrepancy, not a design choice, and it is why no shipped path reproduces the
+      backtested composite exactly.</li>
     <li><b>Concentrated books are noisy.</b> The 25-name construction scores higher in the
       backtest than the decile, but it is the least reliable number in the study — which is
       why breadth is the default.</li>
@@ -75,6 +108,11 @@
   will resemble the backtest. It is a disciplined, auditable ranking with its assumptions and
   its failures written down. If a page here ever shows you a number without telling you
   whether it is backtested or live, that is a bug — please report it.</p>
+  <p><b>It is also not a signal service.</b> There are no live positions, no alerts and no
+  performance figures published here. A forward record does exist — it runs in a <b>broker
+  sandbox on a paper account with no real money</b> — and it is kept private precisely because
+  a paper P&amp;L on a free educational site would read as a performance claim, which is a thing
+  this project will not make. Everything open to you is analysis you can check.</p>
 
   <p style="margin-top:26px"><a class="btn secondary" href="/app">← Back to the app</a></p>
 </div>

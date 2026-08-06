@@ -22,7 +22,7 @@ from ..config import CONFIG
 from ..safe_error import safe_error
 from ..web.app import app as tool_app
 from .models import UserStore
-from . import auth, billing, csrf, gating, private, ratelimit
+from . import auth, billing, csrf, gating, private, ratelimit, surfaces
 
 # NOTE: a PUBLIC_PATHS set used to sit here. It was never referenced anywhere — _guard
 # implements a different and narrower policy — so it read like enforced access control
@@ -115,6 +115,17 @@ def create_saas_app(cfg=CONFIG):
                 # Lets the shared chrome describe what this instance IS, rather than every
                 # template having to reason about a combination of access flags.
                 "private_mode": cfg.private_mode,
+                # THE OWNER SPLIT, in one name every template can test. Performance claims and
+                # live positions render only where this is true; everything else is public.
+                # Injected here rather than passed per-route so a template that forgets it
+                # shows LESS, never more — `{% if may_see_owner %}` around a block that is
+                # never given the variable simply renders nothing.
+                "may_see_owner": surfaces.may_see_owner_surfaces(u, cfg),
+                "owner_split": cfg.owner_split,
+                # Shared chrome (footer, terms) needs these on every page, not just the two
+                # routes that used to pass them by hand.
+                "contact_email": cfg.contact_email,
+                "feedback_url": cfg.resolved_feedback_url,
                 # Every form template renders this into a hidden field; simply rendering a
                 # page with a form is what establishes the token for anonymous visitors.
                 "csrf_token": csrf.token(),
@@ -697,19 +708,42 @@ def create_saas_app(cfg=CONFIG):
                 # The owner is the only one who reaches this line under private mode.
                 return redirect("/app")
 
+        # ---- OWNER SPLIT -----------------------------------------------------------------
+        # On a PUBLIC instance this is the liability boundary: performance claims, actionable
+        # live picks and backtest/vendor internals stay owner-only while the analysis is open
+        # to everyone (saas/surfaces.py names the reason and the vendor for each). It runs
+        # after private mode and before gating for the same reason private mode runs first —
+        # the tier logic below describes a commercial product, and "may this person read a
+        # paper-account P&L" is not a tier question.
+        #
+        # ADMIN TOKEN BYPASSES IT, deliberately: the scan, intraday, paper-track and recap
+        # crons hit these routes with a token and no session, and they are the reason the tool
+        # exists. `_admin_ok` fails closed on an unset token.
+        if surfaces.enabled(cfg) and not _admin_ok():
+            denial = surfaces.check(path, auth.current_user(store), cfg)
+            if denial:
+                if denial["kind"] == "json":
+                    return jsonify(denial["payload"]), denial["status"]
+                return render_template("owner_only.html",
+                                       **denial["payload"]), denial["status"]
+
         # Marketing landing for anonymous visitors at "/". Under open access the landing
         # page still shows (it explains what the tool is), but nothing behind it is
         # locked — /app renders for anonymous visitors too.
         if path == "/":
             if auth.current_user(store):
                 return redirect("/app")
-            # Server-rendered proof: a real cached valuation and the real forward track, read
-            # straight from the screener store. Wrapped because this is the FIRST thing a
-            # visitor sees — a missing sample must cost us a section, never the page.
+            # Server-rendered proof: a real cached valuation, read straight from the screener
+            # store. The live forward track is passed only to the owner — it is a paper-account
+            # performance claim, and the landing page is the most public surface there is.
+            # Wrapped because this is the FIRST thing a visitor sees — a missing sample must
+            # cost us a section, never the page.
             try:
                 from ..screener.store import Store as _ScreenerStore
                 from ..web import showcase
-                ctx = showcase.landing_context(_ScreenerStore())
+                ctx = showcase.landing_context(
+                    _ScreenerStore(),
+                    with_track=surfaces.may_see_owner_surfaces(auth.current_user(store), cfg))
             except Exception:
                 # Swallowed so the page still renders, but never silently: a landing that
                 # quietly loses its only proof looks fine and is the whole problem.
@@ -736,10 +770,12 @@ def create_saas_app(cfg=CONFIG):
             # How many hot-stocks rows this tier may see (free 10 / pro 100 / premium 500).
             _feats = gating.features(gating._active(u))
             g.hotstocks_cap = _feats["hotstocks_top"]
-            # The unified name view spans a public ranking AND the paid Signals feature. Rather
-            # than login-wall the whole panel or leak contract detail, the options half is
-            # switched off per tier and says so, so a free reader still gets the stock half.
-            g.may_see_options = bool(_feats.get("intraday"))
+            # The unified name view spans a public ranking AND two owner-only halves — the
+            # specific option contract, and where the name sits in the constructed book and
+            # the paper account. Rather than refuse the whole panel, each half is switched off
+            # with a reason, so a visitor still gets the ranking they asked about.
+            g.may_see_owner = surfaces.may_see_owner_surfaces(u, cfg)
+            g.may_see_options = bool(_feats.get("intraday")) and g.may_see_owner
             blocked = gating.check_request(path, request.method, body, u, store)
             if blocked:
                 payload, status = blocked

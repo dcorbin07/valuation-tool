@@ -20,9 +20,28 @@ WHAT IS CACHED, AND WHY IT IS SLIM. Only the columns the backtest actually uses 
 (expiration, strike, right, date, bid, ask, volume, open_interest), downcast to float32/int32.
 The full response is ~5x larger and nothing downstream reads the extra columns.
 
-MAX_DTE=90 IS DELIBERATE, NOT ARBITRARY. The strategy needs two things: the FRONT expiry (for
-the put/call ratio and ATM IV, always < ~10 DTE) and the 45-75 DTE band the contract is picked
-from. 90 covers both with margin. Raising it multiplies storage for contracts nothing reads.
+MAX_DTE IS 200, RAISED FROM 90 (audit O15). The original 90 covered what the options strategy
+alone needs: the FRONT expiry (put/call ratio and ATM IV, always < ~10 DTE) and the 45-75 DTE
+band the contract is picked from. What it foreclosed is U1 — the equity composite's horizon is
+63 TRADING days, which is ~92 CALENDAR days, so the natural option tenor for testing the stock
+signal as an options entry sat exactly at, and just past, the old ceiling. It also made
+`atm_iv_180` 100% empty and put LEAPS, calendars and diagonals out of reach entirely.
+
+The old comment claimed raising it "multiplies storage for contracts nothing reads". MEASURED,
+on identical spans (March 2023): rows and bytes go up x1.19 (BKNG) to x1.30 (AAPL), and
+wall-clock is UNCHANGED (x0.90-1.10). Not a multiple — beyond 90 DTE there are no weeklies,
+only monthlies and quarterlies, so the added tenor is sparse, and the call is dominated by the
+server-side scan rather than the payload.
+
+DEPTH IS RECORDED PER SYMBOL-YEAR, AND UPGRADING IS OPT-IN. A cache mined at two different
+ceilings is exactly this project's favourite bug: 90-DTE and 200-DTE years are indistinguishable
+on disk, and a consumer reading a 150-DTE contract would silently get nothing for some names and
+data for others. Every cached year now carries a `.dte` sidecar naming the ceiling that produced
+it (absent = 90, which is what every pre-O15 file is), and `depth_report()` counts them.
+`ensure_year` still SKIPS a shallower cached year by default, so raising this constant does not
+silently trigger a re-pull of all 3,140 cached symbol-years the next time the breadth miner
+runs. Only `ThetaBulk(max_dte=200, upgrade_depth=True)` — what `dte_extend.py` uses — re-pulls
+to deepen.
 
 RESUMABILITY. Each symbol-year is written atomically (temp file then replace) so a kill mid-write
 cannot leave a half-file that later loads as truncated data. `ensure_year` skips anything already
@@ -87,9 +106,40 @@ import threading
 import time
 from typing import Optional
 
-CACHE_ROOT = os.path.join("data", "options")
-MAX_DTE = 90
-WORKERS = 4                    # ThetaData Standard allows 4 concurrent requests
+def _main_repo_root() -> str:
+    """The PRIMARY checkout's root, even when we are running inside a git worktree.
+
+    `data/` is gitignored and therefore exists ONLY in the primary checkout — a worktree gets
+    an empty `data/` of its own. With a RELATIVE cache root, running the miner from a worktree
+    silently mined into a phantom directory next to the real 16GB cache and re-pulled
+    everything, while `.env` (also gitignored, also primary-only) failed to resolve so the
+    ThetaData key came back empty and every name "failed its probe". Both failures are silent.
+    """
+    here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # <repo>/valuation
+    root = os.path.dirname(here)
+    marker = os.path.join(root, ".git")
+    if os.path.isfile(marker):          # a worktree: .git is a FILE pointing at the real gitdir
+        try:
+            with open(marker, encoding="utf-8") as f:
+                gitdir = f.read().split("gitdir:", 1)[1].strip()
+            # <primary>/.git/worktrees/<name>  ->  <primary>
+            parts = gitdir.replace("\\", "/").split("/.git/worktrees/")
+            if len(parts) == 2 and os.path.isdir(parts[0]):
+                return os.path.normpath(parts[0])
+        except (OSError, IndexError):
+            pass
+    return root
+
+
+REPO_ROOT = _main_repo_root()
+# Absolute, and anchored on the PRIMARY checkout. Never make this relative again.
+CACHE_ROOT = os.path.join(REPO_ROOT, "data", "options")
+MAX_DTE = 200                  # audit O15, raised from 90. See the module docstring.
+LEGACY_MAX_DTE = 90            # what every symbol-year cached before O15 was pulled at. A
+                               # cached year with no `.dte` sidecar is assumed to be this, which
+                               # is a fact about the code's history, not a guess: MAX_DTE was 90
+                               # from the first bulk run until 2026-08-05.
+WORKERS = 4                  # ThetaData Standard allows 4 concurrent requests
 CALL_TIMEOUT = 75              # seconds. Was 180, which let ONE pathological symbol-year burn
                                # 8 calls x 3 retries x 180s = 72 minutes, and ten such years
                                # half a day - enough to stall an unattended queue on one name.
@@ -112,6 +162,17 @@ MIN_CHUNK_DAYS = 22            # ~a month; BKNG returns 122,488 rows in 30s at t
 NAME_BUDGET_S = 900            # hard wall-clock ceiling per symbol-year; then give up
 MAX_MISSING_ATTEMPTS = 2       # after this many failed runs a year is EXHAUSTED, not retried
 BACKOFF = 4.0                  # seconds, multiplied by attempt number
+
+# --- open-interest quality (audit B4, writer side) ------------------------------------------
+# B4 fixed the two CONSUMERS of the -1 sentinel (`_oi_sum` masks it, the MIN_OI gate no longer
+# reads it as zero). It did NOT touch this file, so the WRITER still manufactured it: when the
+# separate open-interest call faulted, every row of the span got -1 and the year was cached as
+# COMPLETE, indistinguishable from a year whose contracts genuinely have no OI at source.
+# A symbol-year below this floor now gets an `.oi_degraded` sidecar recording the measured
+# coverage and whether the OI CALL faulted, so the two causes can be told apart and the bad
+# spans can be targeted for re-mine instead of being invisible.
+OI_COVERAGE_FLOOR = 0.95       # pre-committed 2026-08-04, BEFORE the audit was run
+CLIENT_RESET_AFTER_FAULTS = 6  # consecutive faults => the gRPC channel is dead, rebuild it
 KEEP = ["expiration", "strike", "right", "date", "bid", "ask", "volume", "open_interest"]
 
 # Current ticker -> symbols it traded under earlier. Options history is stored under the
@@ -125,21 +186,106 @@ def _log(m):
     print(f"[theta-bulk] {m}", flush=True)
 
 
+def _key_from_repo_env() -> str:
+    """Read THETADATA_API_KEY from the PRIMARY checkout's .env.
+
+    `thetadata_provider._api_key()` looks in `os.getcwd()` and its own repo root; from a
+    worktree both miss, because `.env` is gitignored and primary-only. The value is never
+    logged.
+    """
+    p = os.path.join(REPO_ROOT, ".env")
+    try:
+        with open(p, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if line.strip().startswith("THETADATA_API_KEY") and "=" in line:
+                    return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return ""
+
+
 def year_path(symbol: str, year: int, root: str = CACHE_ROOT) -> str:
     return os.path.join(root, symbol.upper(), f"{symbol.upper()}-{year}.pkl")
+
+
+def oi_coverage(df) -> float:
+    """Fraction of rows whose open interest is KNOWN. -1 is the feed's unknown sentinel."""
+    if df is None or len(df) == 0 or "open_interest" not in df.columns:
+        return 0.0
+    return float((df["open_interest"] >= 0).mean())
+
+
+def cached_dte(symbol: str, year: int, root: str = CACHE_ROOT) -> int:
+    """The DTE ceiling a cached symbol-year was pulled at, or 0 if it is not cached (audit O15).
+
+    A missing `.dte` sidecar beside an existing pickle means LEGACY_MAX_DTE: every file written
+    before O15 was pulled at 90, so this is recorded history rather than an assumption. Without
+    this, a cache mined at two ceilings is indistinguishable on disk and a consumer asking for a
+    150-DTE contract gets data for some names and silence for others, with nothing to show why.
+    """
+    path = year_path(symbol, year, root)
+    if not os.path.exists(path):
+        return 0
+    try:
+        with open(path + ".dte", encoding="utf-8") as f:
+            return int(f.read().strip().split()[0])
+    except (OSError, ValueError, IndexError):
+        return LEGACY_MAX_DTE
+
+
+def depth_report(root: str = CACHE_ROOT) -> dict:
+    """How many cached symbol-years sit at each DTE ceiling, and which names are fully deep.
+
+    The point is that a PARTIAL deepening stays visible. After O15 only the most liquid ~100
+    names are at 200; everything else is still 90, and any claim about term structure has to
+    say which set it is talking about.
+    """
+    by_depth, by_name = {}, {}
+    if not os.path.isdir(root):
+        return {"by_depth": {}, "names_fully_deep": [], "names_mixed": [], "max_dte": MAX_DTE}
+    for sym in sorted(os.listdir(root)):
+        d = os.path.join(root, sym)
+        if not os.path.isdir(d):
+            continue
+        depths = []
+        for fn in sorted(os.listdir(d)):
+            if not (fn.endswith(".pkl") and "-" in fn):
+                continue
+            try:
+                yr = int(fn.rsplit("-", 1)[1][:-4])
+            except ValueError:
+                continue
+            dep = cached_dte(sym, yr, root)
+            depths.append(dep)
+            by_depth[dep] = by_depth.get(dep, 0) + 1
+        if depths:
+            by_name[sym] = depths
+    deep = sorted(s for s, ds in by_name.items() if ds and min(ds) >= MAX_DTE)
+    mixed = sorted(s for s, ds in by_name.items() if ds and min(ds) < MAX_DTE <= max(ds))
+    return {"by_depth": {str(k): v for k, v in sorted(by_depth.items())},
+            "names_fully_deep": deep, "names_mixed": mixed,
+            "n_names": len(by_name), "max_dte": MAX_DTE}
 
 
 class ThetaBulk:
     """Year-chunked option history. Degrades to a no-op with no API key."""
 
     def __init__(self, api_key: Optional[str] = None, root: str = CACHE_ROOT,
-                 max_dte: int = MAX_DTE, max_years_in_memory: int = 6):
+                 max_dte: int = MAX_DTE, max_years_in_memory: int = 6,
+                 upgrade_depth: bool = False):
         from .thetadata_provider import _api_key
 
         self.root = root
         self.max_dte = max_dte
-        self._key = api_key if api_key is not None else _api_key()
+        # OFF by default on purpose (audit O15). Raising MAX_DTE 90 -> 200 would otherwise make
+        # every one of the 3,140 already-cached symbol-years look stale, and the next ordinary
+        # breadth-mining run would silently re-pull the entire 17GB cache. Deepening is a
+        # deliberate job (`dte_extend.py`), not a side effect of a constant changing.
+        self.upgrade_depth = upgrade_depth
+        self._key = api_key if api_key is not None else (_api_key() or _key_from_repo_env())
         self._client = None
+        self._faults = 0               # consecutive faults; resets the channel when sustained
+        self._tl = threading.local()   # per-thread OI-call fault count for the span in flight
         self._err = None if self._key else "no THETADATA_API_KEY"
         self._mem = {}
         self._mem_order = []
@@ -150,7 +296,25 @@ class ThetaBulk:
 
     def status(self) -> dict:
         return {"available": bool(self._key), "reason": self._err, "root": self.root,
-                "max_dte": self.max_dte, "workers": WORKERS}
+                "max_dte": self.max_dte, "upgrade_depth": self.upgrade_depth,
+                "workers": WORKERS}
+
+    def needs_pull(self, symbol: str, year: int) -> bool:
+        """Does this symbol-year still need fetching? The ONE place that decides.
+
+        `prefetch` used to make this call itself with a bare `os.path.exists`, which meant any
+        rule added to `ensure_year` was bypassed by the bulk path — a deep re-mine would have
+        skipped every name and reported success having done nothing.
+        """
+        path = year_path(symbol, year, self.root)
+        if os.path.exists(path + ".exhausted"):
+            # Checked FIRST, and for a cached year too: a year that repeatedly fails to deepen
+            # would otherwise be re-queued on every run forever, since the shallow frame on disk
+            # keeps it looking eligible.
+            return False
+        if os.path.exists(path):
+            return self.upgrade_depth and cached_dte(symbol, year, self.root) < self.max_dte
+        return not os.path.exists(path + ".empty")
 
     def _cli(self):
         # One client, guarded: the gRPC client is shared across the 4 worker threads.
@@ -184,10 +348,30 @@ class ThetaBulk:
                     return None
                 if attempt == RETRIES:
                     _log(f"gave up after {RETRIES}: {type(e).__name__}")
+                    self._note_fault()
                     return "FAILED"
             if attempt < RETRIES:
                 time.sleep(BACKOFF * attempt)
+        self._note_fault()
         return "FAILED"
+
+    def _note_fault(self):
+        """A run of consecutive faults means the gRPC channel itself died; rebuild it.
+
+        Measured: one unattended run pulled 318 names, then EVERY call from queue position 371
+        to 826 failed with `_MultiThreadedRendezvous` — 455 names burned. A fresh process
+        immediately pulled AAPL in 6.8s, so the feed was fine and the CHANNEL was dead. Nothing
+        in the loop ever reset the client, so the miner could not recover from it in-process.
+        """
+        self._faults += 1
+        if self._faults >= CLIENT_RESET_AFTER_FAULTS:
+            with self._client_lock:
+                self._client = None
+            self._faults = 0
+            _log(f"{CLIENT_RESET_AFTER_FAULTS} consecutive faults: rebuilding the client")
+
+    def _note_ok(self):
+        self._faults = 0
 
     def _fetch_span_once(self, symbol: str, start: dt.date, end: dt.date):
         """One EOD + one open-interest call for a span. Returns (frame_or_None, failed_bool)."""
@@ -215,9 +399,16 @@ class ThetaBulk:
         eod = (eod.sort_values("created")
                   .drop_duplicates(subset=["date", "expiration", "strike", "right"],
                                    keep="last"))
+        self._note_ok()                 # the EOD call returned, so the channel is alive
         oi = self._call_with_timeout(cli.option_history_open_interest, start_date=start,
                                      end_date=end, symbol=symbol_used or symbol.upper(),
                                      expiration="*", max_dte=self.max_dte)
+        if isinstance(oi, str):
+            # THE OI CALL FAULTED. Every row of this span is about to get the -1 unknown
+            # sentinel. Record it so `ensure_year` can tell "the call broke" (retryable) from
+            # "these contracts have no OI at source" (not retryable) instead of caching both
+            # as an identical, complete-looking year.
+            self._tl.oi_faults = getattr(self._tl, "oi_faults", 0) + 1
         if oi is not None and not isinstance(oi, str) and len(oi):
             oi = oi.copy()
             oi["date"] = pd.to_datetime(oi["timestamp"]).dt.date
@@ -290,6 +481,7 @@ class ThetaBulk:
         t_start = time.time()
         chunk = self._chunk_days.get(symbol.upper(), DEFAULT_CHUNK_DAYS)
         parts, failed = [], False
+        self._tl.oi_faults = 0         # counts OI-call faults across this year's spans
 
         cur = dt.date(year, 1, 1)
         year_end = min(dt.date(year, 12, 31), today)
@@ -323,7 +515,13 @@ class ThetaBulk:
         """Pull + cache one symbol-year unless already on disk. Atomic write; resumable."""
         path = year_path(symbol, year, self.root)
         if os.path.exists(path):
-            return True
+            if not (self.upgrade_depth
+                    and cached_dte(symbol, year, self.root) < self.max_dte):
+                return True         # cached, and deep enough for what was asked for
+            # Deepening: keep the shallow frame until the deeper pull has proven itself. A bad
+            # network day must never be able to trade good 90-DTE data for nothing.
+            _log(f"{symbol} {year}: deepening "
+                 f"{cached_dte(symbol, year, self.root)} -> {self.max_dte} DTE")
         if os.path.exists(path + ".empty"):
             return True          # genuinely no data (pre-IPO / pre-rename): covered, not a gap
         if os.path.exists(path + ".exhausted"):
@@ -370,12 +568,48 @@ class ThetaBulk:
             except OSError:
                 pass
             return False
+        # OPEN-INTEREST QUALITY GATE (audit B4, writer side). Record the measured coverage and
+        # whether the OI call itself faulted, so a degraded year is visible on disk instead of
+        # looking identical to a clean one. The frame is still cached either way -- the EOD data
+        # is expensive and valid; it is the OI column that is unknown.
+        cov = oi_coverage(df)
+        oi_faults = int(getattr(self._tl, "oi_faults", 0))
+        deg = path + ".oi_degraded"
+        if cov < OI_COVERAGE_FLOOR:
+            try:
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(deg, "w", encoding="utf-8") as f:
+                    f.write(f"coverage {cov:.6f} floor {OI_COVERAGE_FLOOR} "
+                            f"oi_call_faults {oi_faults} {dt.date.today().isoformat()}\n")
+            except OSError:
+                pass
+            _log(f"{symbol} {year}: OI coverage {cov:.1%} < {OI_COVERAGE_FLOOR:.0%} "
+                 f"({oi_faults} OI-call faults)")
+        elif os.path.exists(deg):
+            try:
+                os.remove(deg)          # recovered on re-mine
+            except OSError:
+                pass
+        # DEEPENING MUST NOT LOSE ROWS (audit O15). A 200-DTE pull of a span is a strict
+        # SUPERSET of the 90-DTE pull of that same span, so a deeper frame with FEWER rows means
+        # the pull was partial in some way the failure flags did not catch. Keep the shallow
+        # frame in that case: it is real, expensive data and the deeper one is not proven.
+        if os.path.exists(path):
+            old = self._year_frame(symbol, year)
+            if old is not None and len(old) > len(df):
+                _log(f"{symbol} {year}: deeper pull returned {len(df):,} rows < cached "
+                     f"{len(old):,}; KEEPING the shallow frame")
+                return False
         os.makedirs(os.path.dirname(path), exist_ok=True)
         tmp = path + f".tmp{os.getpid()}"
         try:
             with open(tmp, "wb") as f:
                 pickle.dump(df, f, protocol=5)
             os.replace(tmp, path)                 # atomic: a kill cannot leave a partial file
+            with open(path + ".dte", "w", encoding="utf-8") as f:
+                f.write(f"{self.max_dte} pulled {dt.date.today().isoformat()}\n")
+            with _LOAD_LOCK:
+                self._mem.pop((symbol.upper(), year), None)  # in-memory copy is now stale
         except OSError as e:
             _log(f"write failed {path}: {e}")
             try:
@@ -389,8 +623,7 @@ class ThetaBulk:
         """Bulk pull with the tier's 4 concurrent requests. Skips anything already cached."""
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
-        jobs = [(s, y) for s in symbols for y in years
-                if not os.path.exists(year_path(s, y, self.root))]
+        jobs = [(s, y) for s in symbols for y in years if self.needs_pull(s, y)]
         got = miss = 0
         t0 = time.time()
         if not jobs:

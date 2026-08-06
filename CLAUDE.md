@@ -397,6 +397,31 @@ the project's memory and the old versions had been repeated for months.
   high-variance total-return series (low power) while R1 removes that variance first (high
   power). Full write-up and the pre-commitment (written before any number) in `HANDOFF_r1.md`;
   reproduce with `python -m scripts.factor_alpha`, pinned by `tests/test_factor_alpha.py`.
+- **R1 FRAGILITY (2026-08-04, same lane) — the result SURVIVED a deliberate attempt to break it,
+  but it is WINDOW-DEPENDENT and has a WEAK DECADE, and it is PROVISIONAL until re-run.** Four
+  criteria were committed before any cut ran; all four passed. **(1) Stable-universe window
+  (≥2008, the closest available preview of what B6 will do): alpha +6.24%, t +3.986, n 73 —
+  DOWN 2.57pp, about 29% of the alpha.** The discarded early period is where the raw spread is
+  biggest (first third raw +21.89%/yr vs +3.53% and +11.02%), exactly the inverted-universe
+  signature. **Expect the post-B6 headline near +6%, not +8.8% — quote ~+6% when one number is
+  wanted.** (2) No sign flip: halves +8.98% (t 3.38) / +5.48% (t 3.12); thirds +13.51 (t 3.59) /
+  **+4.33 (t 2.412, the weakest cell in the study)** / +8.10 (t 3.82). (3) **Not concentrated:**
+  the best 5 of 109 periods carry 23.0% of the alpha (38.0% on the stable window, the criterion
+  that came closest to tripping); dropping the best 5 leaves +7.28% (t 5.19), dropping the worst
+  5 gives +10.07% — nearly symmetric, and the best 5 are spread across four regimes. (4) **Not
+  specification-dependent:** CAPM +12.99%, FF3 +12.28%, FF5-no-MOM +10.03%, FF5+MOM +8.81%,
+  q4 +9.14%, q5 +8.33% — all t > 2 on BOTH windows, and **FF5+MOM is nearly the most conservative
+  of the six**, so the headline is quoted from the most demanding pre-registered model, not the
+  most flattering. **THE ONE THING THAT LOOKS BAD: a ~10-year rolling window centred on 2009-2019
+  shows alpha of only +1.66% (t 1.39).** Alpha is positive in 70 of 70 rolling windows and never
+  reverses, but 8 of 70 are not significant — the full-sample t 5.742 averages a weak decade in
+  with strong ones. Windows confirmed **genuinely non-overlapping** (all exactly 63 factor days,
+  zero shared days), so no inference correction is needed. **BINDING: R1 MUST be re-run after B6
+  and B7 land** — B6 is expected to lower alpha to +5.5-7.0%; B7's direction is unknown; a
+  post-re-run alpha < +4%/yr or full-sample t ≤ 3.0 is a MATERIAL REVISION that requires
+  rewriting the headline, and a stable-window t ≤ 2.0 withdraws the word "alpha" entirely. Full
+  contract and every cut in `HANDOFF_r1.md` §6-8; reproduce with
+  `python -m scripts.factor_alpha_fragility`, pinned by `tests/test_factor_alpha_fragility.py`.
 - **Zeroing `insider` was tested the same way and REJECTED — it stays at 0.125.** It helped one
   split direction by a hair (Δt +0.08) and hurt the other (Δt −0.09). Its −0.34 full-sample
   t-stat is not a stable property. Same reasoning as `low_risk`, opposite outcome — which is

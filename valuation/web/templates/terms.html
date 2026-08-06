@@ -1,89 +1,110 @@
+{# Terms of use for the PUBLIC, FREE posture (PROMPT_appfixer_public_free.md).
+ #
+ # The previous version described a paid subscription service and carried nine [bracketed]
+ # placeholders and a public "DRAFT — attorney review required" banner. Every one of those was
+ # wrong on a site with no fees, no subscriptions and no user accounts: terms that describe a
+ # product that does not exist protect nobody, and a public draft banner tells a reader the
+ # disclaimer below it is not meant seriously — which is the opposite of the point.
+ #
+ # So this is rewritten for what Valquo actually is: free, open, no accounts, no obligations.
+ # The paid-product clauses are not "kept behind a flag" here because they were placeholders,
+ # not working text; if billing is ever switched back on, these need writing again for a paid
+ # service (and, then especially, an attorney).
+ #
+ # The attorney-review note is now shown to the OWNER ONLY. It is a to-do for Don, not a
+ # disclosure a visitor needs, and printing it publicly would undermine the clauses it sits
+ # above. This is called out in HANDOFF_appfixes.md so the decision is visible rather than
+ # buried in a template. #}
 {% extends "_saas_base.html" %}
-{% block title %}Terms of Service{% endblock %}
+{% block title %}Terms of Use{% endblock %}
 {% block body %}
 <div class="wrap" style="padding:40px 22px;max-width:820px">
-  {# Kept, not deleted: these terms describe the PUBLIC product and become live again the day
-   # PRIVATE_MODE is turned off. Saying so is more honest than leaving a service agreement
-   # sitting on an instance that has no users and offers no service. #}
   {% if private_mode %}
   <div class="err" style="background:#eaf0fb;color:#1f3864;border-color:#d8e4fb">
     <b>Not in force.</b> Valquo is currently a private research tool for its owner's personal use — there is no
-    service, no user and no subscription for these terms to govern. They are retained for the public product and
-    apply again only if it is offered to anyone.
+    service and no user for these terms to govern. They apply again whenever it is public.
   </div>
-  {% else %}
+  {% elif may_see_owner %}
   <div class="err" style="background:#fbf1e0;color:#8a5a12;border-color:#f0dcb8">
-    ⚠ <b>DRAFT — attorney review required before publishing</b>, especially <b>§3 (what this is NOT)</b> and
-    <b>§8 (liability cap)</b> — the two clauses that matter most for a product that outputs stock signals. Written in
-    plain English on purpose; the attorney can formalize. Replace every <code>[bracketed]</code> item and set the date.
+    ⚠ <b>Owner-only note (not shown to visitors):</b> plain-English terms written for a free, no-account,
+    no-revenue site. §3 and §6 are the two clauses that matter. Worth an attorney's eye if Valquo ever
+    charges, takes accounts, or starts publishing performance.
   </div>
   {% endif %}
-  <h1 style="color:var(--navy)">Terms of Service</h1>
-  <p class="muted"><b>Effective date:</b> [DATE PUBLISHED]</p>
 
-  <h3>1. Who we are</h3>
-  <p>[PRODUCT NAME] ("we," "us") provides a subscription stock-research information service, operated by
-  [COMPANY LLC, a Virginia limited liability company / Donovan Isaiah Corbin, sole proprietor — use whichever is true
-  on the effective date]. Contact: [hello@yourdomain].</p>
+  <h1 style="color:var(--navy)">Terms of Use</h1>
+  <p class="muted"><b>Last updated:</b> 4 August 2026</p>
 
-  <h3>2. What the service is</h3>
-  <p>We generate automated discounted-cash-flow valuations, factor scores, screens, backtests, and (optional) AI-written
-  commentary from third-party financial data, and deliver them through our website and email. The service is
-  <b>information and education only</b>.</p>
+  <p>Valquo is a free, personal, educational project published by Donovan Corbin. By using it you agree to
+  these terms. If you do not agree, please do not use it.</p>
 
-  <h3>3. What the service is NOT — read this section</h3>
+  <h3>1. What this is</h3>
+  <p>Valquo computes automated discounted-cash-flow valuations, factor scores and market-wide rankings from
+  third-party financial data, and publishes written research about how it does so. It is
+  <b>information and education only</b>. It is free: there is nothing to buy, no subscription, no advertising,
+  and no user accounts — you are not asked for an email address and nothing is collected from you in order
+  to use it.</p>
+
+  <h3>2. There is no relationship between us</h3>
   <ul>
-    <li><b>Not investment, financial, legal, or tax advice.</b> We are not a registered investment adviser or
-      broker-dealer and do not act as one. Subscribing creates no advisory or fiduciary relationship.</li>
-    <li><b>Impersonal and general.</b> Fair values, scores, "buy" labels, rankings, and backtests are model outputs of
-      general application. They are <b>not tailored to you</b>, do not account for your finances or goals, and are not
-      recommendations or solicitations to buy or sell any security.</li>
-    <li><b>No guarantee of accuracy.</b> Data comes from third parties that contain errors and change without notice.
-      Model outputs depend on assumptions that can be materially wrong.</li>
-    <li><b>Backtests are hypothetical.</b> Past and backtested performance is <b>not indicative of future results</b> and
-      has inherent limitations (including survivorship and look-ahead bias, which we disclose in the product).</li>
-    <li><b>You alone are responsible</b> for your investment decisions and their outcomes. Verify independently and
-      consider consulting a licensed professional.</li>
+    <li><b>Not investment, financial, legal or tax advice.</b> Donovan Corbin is not a registered investment
+      adviser or broker-dealer and does not act as one. Using this site creates <b>no advisory, fiduciary,
+      client or other relationship</b> of any kind, and no duty of care to you.</li>
+    <li><b>Impersonal and general.</b> Fair values, scores and rankings are model outputs of general
+      application. They are <b>not tailored to you</b>, take no account of your circumstances, objectives or
+      finances, and are <b>not recommendations or solicitations</b> to buy or sell any security.</li>
+    <li><b>You alone are responsible</b> for what you do with any of it, and for verifying anything you rely
+      on against primary sources.</li>
   </ul>
 
-  <h3>4. Accounts and subscriptions</h3>
-  <p>You must be at least 18 and provide accurate information; one subscription is for one person. Paid plans bill
-  [monthly] via Stripe; prices are shown at checkout and may change with [30] days' notice. Cancel anytime, effective at
-  the end of the current billing period. Refunds: [DEFINE — suggest 14-day full refund for first-time subscribers, none
-  thereafter; decide before launch].</p>
+  <h3>3. What the numbers are — read this section</h3>
+  <ul>
+    <li><b>Model output, not fact.</b> Every valuation depends on assumptions that can be materially wrong,
+      and every score is a ranking against other names on one day, not a judgement about a company.</li>
+    <li><b>Third-party data contains errors.</b> Market and fundamental data comes from outside providers,
+      changes without notice, and is sometimes wrong or missing. Nothing here is verified against filings
+      on your behalf.</li>
+    <li><b>Backtested results are a historical simulation.</b> They are hypothetical, carry the benefit of
+      hindsight, and have inherent limitations (including survivorship and look-ahead bias, which are
+      disclosed in the research write-ups). <b>They are not returns that anyone earned.</b></li>
+    <li><b>Any forward "paper" record is a broker sandbox account containing no real money.</b> It represents
+      simulated orders on delayed data. It is not a real account, not real trading, and not a personal
+      return.</li>
+    <li><b>Past and simulated performance does not indicate future results.</b> Markets involve risk,
+      including loss of the entire amount invested.</li>
+  </ul>
 
-  <h3>5. Acceptable use</h3>
-  <p>Use the outputs for your own research. You may <b>not</b> resell, republish, scrape, or systematically redistribute
-  our data or outputs, share login credentials, reverse engineer, or overload the service. We may suspend accounts that do.</p>
+  <h3>4. Acceptable use</h3>
+  <p>Use it for your own research. Please do not scrape, bulk-download, resell, republish or systematically
+  redistribute the data or outputs, or overload the service. Underlying market data belongs to its vendors
+  and is subject to their terms; redistributing it is their line to draw, not mine to give away.</p>
 
-  <h3>6. Intellectual property</h3>
-  <p>The compilation, analysis, formatting, and software are ours. Underlying facts and government filings are public — we
-  claim no ownership of them, only of our value-added work.</p>
+  <h3>5. Availability — no duty to maintain</h3>
+  <p>This is one person's project, run for free. There is <b>no duty to update, correct, maintain or
+  continue it</b>, no service level, no support obligation and no notice period. It may change, break, go
+  offline, or be withdrawn entirely at any time, without warning. Do not build anything on it that would
+  matter if it stopped.</p>
 
-  <h3>7. Third-party services</h3>
-  <p>We rely on providers including Stripe (payments), [email provider], our hosting provider, and market-data vendors
-  (e.g., SEC EDGAR and [FMP]). Their outages and errors are outside our control; §8 applies, and vendor data is subject to
-  vendor terms.</p>
+  <h3>6. No warranty; limitation of liability</h3>
+  <p>THE SITE AND EVERYTHING ON IT ARE PROVIDED <b>"AS IS" AND "AS AVAILABLE," WITHOUT WARRANTIES OF ANY
+  KIND</b>, EXPRESS OR IMPLIED, INCLUDING ANY WARRANTY OF ACCURACY, COMPLETENESS, TIMELINESS,
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT.</p>
+  <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, DONOVAN CORBIN IS <b>NOT LIABLE FOR ANY LOSS OR DAMAGE</b>
+  ARISING FROM YOUR USE OF, OR RELIANCE ON, THIS SITE OR ITS OUTPUTS — INCLUDING TRADING OR INVESTMENT
+  LOSSES, LOST PROFITS, AND ANY INDIRECT, INCIDENTAL, CONSEQUENTIAL OR SPECIAL DAMAGES — WHETHER OR NOT THE
+  POSSIBILITY OF SUCH LOSS WAS KNOWN. <b>NOTHING IS CHARGED FOR THIS SITE</b>, AND ANY TOTAL LIABILITY THAT
+  CANNOT BE EXCLUDED IS LIMITED TO ONE HUNDRED US DOLLARS ($100). Some jurisdictions do not allow certain
+  exclusions; where that is so, the exclusions apply to the fullest extent the law allows.</p>
 
-  <h3>8. Disclaimer of warranties; limitation of liability</h3>
-  <p>THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
-  ACCURACY, MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. TO THE MAXIMUM EXTENT PERMITTED BY
-  LAW, OUR TOTAL LIABILITY FOR ANY CLAIM ARISING FROM THE SERVICE IS LIMITED TO THE FEES YOU PAID US IN THE [12] MONTHS
-  BEFORE THE CLAIM, AND WE ARE NOT LIABLE FOR INDIRECT, INCIDENTAL, CONSEQUENTIAL, OR SPECIAL DAMAGES, INCLUDING LOST
-  PROFITS OR TRADING/INVESTMENT LOSSES. [Attorney: confirm enforceability in VA and add consumer-law carve-outs as required.]</p>
+  <h3>7. Intellectual property</h3>
+  <p>The software, the analysis and the written research are mine. Underlying facts and public filings are
+  not — no ownership is claimed over them.</p>
 
-  <h3>9. Indemnification</h3>
-  <p>You will hold us harmless from claims arising out of your use of the service or the outputs in violation of these
-  terms, including any representations you make to third parties based on our outputs.</p>
+  <h3>8. Changes and governing law</h3>
+  <p>These terms may be updated by replacing this page; continued use is acceptance. Virginia law governs,
+  and the courts of Virginia are the venue for any dispute.</p>
 
-  <h3>10. Changes; termination</h3>
-  <p>We may update these terms with notice by email or site banner; continued use is acceptance. We may discontinue the
-  service with [30] days' notice (pro-rated refunds for prepaid periods).</p>
-
-  <h3>11. Governing law; disputes</h3>
-  <p>Virginia law governs. Venue: the state or federal courts covering [Henrico County], Virginia. [Attorney: confirm
-  venue and whether an arbitration clause is worth it at this scale.]</p>
-
-  <p class="muted" style="margin-top:20px">Contact: [hello@yourdomain].</p>
+  <p class="muted" style="margin-top:20px">Questions: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>.
+  This is a personal project and not a business; there is no support desk.</p>
 </div>
 {% endblock %}

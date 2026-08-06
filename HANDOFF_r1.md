@@ -85,6 +85,18 @@ predicted most of the 11.9% would be absorbed. Most of it was not.
 Read the honest headline as a **range, not a point**: **+6.6% to +8.8%/yr** depending on whether
 the B6-contaminated early period is included, and **+7.9%** net of costs on the full sample.
 
+> **⚠ CARRY THIS WITH THE NUMBER — added by Part II (§7), which tried to break it.**
+> The result is **ROBUST** on all four pre-committed fragility criteria, but with two
+> qualifications that must travel with the +8.81%:
+> 1. **It is window-dependent.** On the stable-universe window (≥2008, the B6 preview) it is
+>    **+6.24% (t 3.986)**, a 29% reduction. **The honest central estimate is ~+6%, not +8.8%,
+>    and B6 is expected to move it there permanently.**
+> 2. **There is a weak decade.** A 10-year rolling window centred on **~2009-2019** shows alpha
+>    of only **+1.66% (t 1.39)**. Alpha is positive in 70 of 70 rolling windows and never
+>    reverses sign, but 8 of 70 are not significant.
+>
+> **R1 is PROVISIONAL until re-run after B6 and B7 land — see the binding contract in §8.**
+
 ### 2a0. Disclosure — one deviation from the cold-session protocol
 
 The prompt says to read X4 and X8 only *after* my own numbers are final. I complied with X8, but
@@ -348,3 +360,256 @@ the entire remaining edge. A pass says the reverse: **there is a residual worth 
 
 Suites: **18 files run, all green except 3 pre-existing `test_paper_track.py` hero failures that
 fail identically on `main` and belong to another lane.** `test_edge.py` 191/191.
+
+---
+---
+
+# PART II — FRAGILITY: trying to break the result
+
+Same `r1` lane, same object, continuation. Prompt: `PROMPT_r1_fragility.md`.
+
+R1 returned the strongest positive finding in the project, and it was produced **before two Part I
+corrections that change its own inputs** — **B6** (panel truncation: the first ~37 of 110 periods
+contain only names that stopped trading by roughly 2019, an inverted universe) and **B7** (three
+composites collapsing to one: the top-decile series comes from the *measurement* composite, which
+does not renormalise for missing themes). Neither invalidates Part I. Both mean **R1 is
+provisional until re-run.** This part measures how fragile it is, using only what already exists.
+
+## 6. PRE-COMMITMENT — written before any fragility number was run
+
+*Written and committed before a single cut was computed. Not revised below.*
+
+> **The R1 headline is FRAGILE if** the FF5+MOM alpha loses significance (NW t ≤ 2.0) under the
+> stable-universe window, **OR** flips sign in either half, **OR** more than half the total alpha
+> is attributable to the ≤5 best periods, **OR** the result depends on a single factor-model
+> specification.
+>
+> **It is ROBUST if** it clears t > 2.0 in every one of those cuts.
+>
+> **An ambiguous cut is recorded as ambiguous, not resolved in the result's favour.**
+
+### 6a. Operational definitions, fixed now so they cannot be chosen to suit the answer
+
+- **"Stable-universe window"** = rebalance dates from 2008-01-01 onward. This is the same
+  `ex_b6_first_37` cut already reported in Part I §2e (it begins 2008-04-10), named here in
+  advance so the test cannot be re-cut afterwards.
+- **"Flips sign in either half"** = the FF5+MOM intercept is negative in the first or second half
+  of the sample by period count.
+- **"Attributable to the ≤5 best periods"** = per-period alpha contribution is defined as
+  `a_t = y_t − β·f_t` (the fitted intercept plus that period's residual). These sum to
+  `n × alpha` by construction, so "share from the best k" is `sum(top-k a_t) / sum(all a_t)`.
+  The criterion trips if the best 5 periods account for **> 50%** of the total.
+- **"Depends on a single specification"** = the intercept clears t > 2.0 under FF5+MOM but fails
+  it under any one of CAPM, FF3, FF5-without-momentum, q4 or q5.
+- **Inference** stays Newey–West lag 1 throughout, as pre-registered in Part I §1b.
+
+### 6b. What I expect, recorded in advance
+
+The stable-universe window will **lower** the alpha — Part I already showed +8.81% → +6.58% on
+that cut, and B6 proper should push in the same direction, because the inverted early universe is
+where the raw spread is largest (+15.40%/yr in the first half vs +8.93% in the second). I expect
+it to stay significant. I expect **concentration to be the cut most likely to trip**, because a
+long-short-style spread over 109 periods with a handful of crisis quarters is exactly the shape
+that hides in a few observations. I expect model sensitivity to be mild, since Part I already ran
+q4 and q5 and both agreed.
+
+## 7. Result — **ROBUST on all four pre-committed criteria**, with two real qualifications
+
+```
+python -m scripts.factor_alpha_fragility     # new file; touches no existing module
+python tests/test_factor_alpha_fragility.py  # 13/13
+```
+
+| pre-committed criterion | measured | verdict |
+|---|---|---|
+| 1. stable-universe window keeps NW t > 2.0 | **t = +3.986** (alpha +6.24%, n 73) | **PASS** |
+| 2. no sign flip in either half | +8.98% and +5.48%, both positive | **PASS** |
+| 3. best 5 periods ≤ 50% of total alpha | **23.0%** full / **38.0%** stable | **PASS** |
+| 4. every factor model keeps t > 2.0 | all six clear it, full **and** stable | **PASS** |
+
+**Verdict: ROBUST.** Nothing was softened; the two qualifications in §7g are recorded as
+qualifications, not as failures, because neither trips a criterion that was committed in advance.
+
+### 7a. Test 6 first — the overlap check, because everything else assumes it
+
+| | measured |
+|---|---|
+| grid dates / windows | 110 / 109 |
+| days per window | **63 to 63** (every window exactly 63) |
+| grid strictly increasing, no duplicates | yes / yes |
+| consecutive windows sharing a day | **0** |
+| `end_i` equals `start_(i+1)` | **true for all** |
+
+The windows are **genuinely non-overlapping**. Window *i* is `(d_i, d_(i+1)]`, so consecutive
+windows are *adjacent* — they touch at an endpoint that belongs to exactly one of them — not
+overlapping. **No inference correction is required**, and Newey–West lag 1 remains conservative
+rather than necessary. This was the cheapest way the whole result could have been wrong, and it
+is not.
+
+### 7b. Test 1 — stable-universe window (the B6 preview). **The alpha moves DOWN.**
+
+| window | n | raw/yr | alpha/yr | NW(1) t |
+|---|--:|--:|--:|--:|
+| full (1998-12-31 → 2026-01-21) | 109 | +12.13% | **+8.81%** | **+5.742** |
+| stable, ≥ 2008-01-01 (2008-01-09 → 2026-01-21) | 73 | +7.32% | **+6.24%** | **+3.986** |
+
+**Direction: LOWER, by −2.57 pp — about 29% of the alpha.** It stays comfortably significant.
+
+**This is the closest available preview of what B6 will do to the headline, and it says B6 will
+reduce it.** The mechanism is visible in the raw column: the discarded early period is where the
+raw spread is largest (first third raw **+21.89%/yr** against +3.53% and +11.02% for the later
+two), which is exactly what an inverted universe of names that all stopped trading would produce.
+**Expect the post-B6 headline to land near +6%, not +8.8%.**
+
+### 7c. Test 2 — subperiod stability. No sign flip anywhere.
+
+| cut | window | n | raw/yr | alpha/yr | NW(1) t |
+|---|---|--:|--:|--:|--:|
+| half 1 | 1998-12-31 → 2012-04-10 | 54 | +15.40% | +8.98% | +3.379 |
+| half 2 | 2012-07-10 → 2026-01-21 | 55 | +8.93% | +5.48% | +3.115 |
+| third 1 | 1998-12-31 → 2007-10-09 | 36 | +21.89% | +13.51% | +3.591 |
+| **third 2** | **2008-01-09 → 2016-10-11** | **36** | **+3.53%** | **+4.33%** | **+2.412** |
+| third 3 | 2017-01-11 → 2026-01-21 | 37 | +11.02% | +8.10% | +3.819 |
+
+Every cut is positive and every cut clears t > 2.0. **The middle third is the weakest cell in the
+entire study at t 2.412** — it clears the bar but is the closest any subperiod comes to it, and it
+is the same 2008-2016 stretch the rolling window flags in §7f. Note it is *not* monotone decay:
+the most recent third (+8.10%, t 3.82) is stronger than the middle one.
+
+### 7d. Test 3 — concentration. The result is **not** carried by a few periods.
+
+| | full sample | stable window |
+|---|--:|--:|
+| share of total alpha from best **1** period | 6.4% | 10.0% |
+| share from best **3** | 16.1% | 26.0% |
+| share from best **5** | **23.0%** | **38.0%** |
+| alpha after dropping best 5 | +7.28% (t +5.186) | +4.41% (t +3.308) |
+| alpha after dropping worst 5 | +10.07% (t +7.025) | +7.58% (t +5.107) |
+
+With 109 periods, 5 periods are 4.6% of the sample; they carry 23.0% of the alpha. That is a mild
+right tail, not a result hiding in a handful of quarters. **The asymmetry is small and points the
+safe way**: dropping the best 5 costs 1.53pp, dropping the worst 5 gains 1.26pp — nearly
+symmetric, so the distribution is not a lottery-ticket shape.
+
+The best 5 periods are **1999-04-05, 2025-04-21, 2024-01-17, 2022-07-15, 2000-03-31** — spread
+across 26 years and four distinct market regimes rather than clustered in one episode, which is
+the more reassuring pattern. On the stable window the best-5 share rises to 38.0%: still under the
+committed 50% limit, but **this is the criterion that came closest to tripping**, and it will be
+worth re-checking after B6 lands, since B6 produces a sample much like this one.
+
+### 7e. Test 4 — model sensitivity. It survives all six, and **FF5+MOM is the most conservative.**
+
+| model | full: alpha/yr | t | R² | stable: alpha/yr | t | R² |
+|---|--:|--:|--:|--:|--:|--:|
+| CAPM | +12.99% | +5.682 | 0.035 | +6.48% | +3.667 | 0.034 |
+| FF3 | +12.28% | +7.201 | 0.269 | +6.84% | +4.571 | 0.130 |
+| FF5 (no momentum) | +10.03% | +6.152 | 0.385 | +6.61% | +4.244 | 0.135 |
+| **FF5+MOM** *(the headline)* | **+8.81%** | **+5.742** | 0.465 | **+6.24%** | **+3.986** | 0.194 |
+| q4 | +9.14% | +5.232 | 0.421 | +5.55% | +3.328 | 0.146 |
+| q5 | +8.33% | +4.366 | 0.431 | +5.86% | +3.032 | 0.150 |
+
+**The result does not depend on one specification — it survives all six, on both windows.** And
+the direction is the honest one: **FF5+MOM produces the SMALLEST full-sample alpha of the six**
+apart from q5, because it has the highest R² and therefore explains the most. Adding factors
+monotonically shrinks the intercept — CAPM +12.99% → FF3 +12.28% → FF5 +10.03% → FF5+MOM +8.81% —
+exactly as it should if the factors are absorbing real exposure. **The headline is quoted from the
+most demanding model that was pre-registered, not the most flattering one.**
+
+### 7f. Test 5 — rolling alpha. **100% of windows positive; one decade is weak.**
+
+40-period (~10-year) rolling window, FF5+MOM, 70 windows:
+
+| | value |
+|---|---|
+| alpha min / median / max | **+1.66%** / +5.98% / +11.85% |
+| windows with positive alpha | **70 of 70 (100%)** |
+| windows with t > 2.0 | 62 of 70 (**89%**) |
+| weakest window | **2009-07-10 → 2019-04-15: alpha +1.66%, t +1.39** |
+
+**The alpha never goes negative in any decade-long window.** But **8 of 70 windows fail t > 2.0**,
+they are scattered rather than contiguous, and within them alpha runs +1.66% to +6.16%. The
+weakest decade is roughly **2009-2019**, the same stretch as the weak middle third in §7c.
+
+**This is the single most important honest finding of Part II:** there is a ten-year period over
+which this strategy's alpha was small and statistically indistinguishable from zero. The
+full-sample t of 5.742 averages that decade together with much stronger ones. Rolling windows
+overlap heavily, so these 70 are nowhere near independent and 89% is not a probability of
+anything — it is a description of shape.
+
+### 7g. The two qualifications, stated plainly
+
+1. **The headline is window-dependent.** +8.81% (full) versus +6.24% (stable universe) is a 29%
+   swing driven entirely by which periods are included, and the discarded periods are the ones
+   B6 says are uninterpretable. **The honest central estimate is ~+6%, not +8.8%.**
+2. **There is a weak decade (~2009-2019)** in which alpha was +1.7% to +4.3% and not significant
+   on its own. The effect is real across the full sample and never reverses sign, but it is not
+   uniform, and anyone quoting the full-sample number should know a third of the sample looks
+   much weaker than it.
+
+Neither is a criterion failure. Both are now recorded in **every place the +8.81% figure lives**
+(`CLAUDE.md`, `HANDOFF_STATUS.md`, and Part I §2 above), so the number cannot travel without them.
+
+---
+
+## 8. THE RE-RUN CONTRACT — binding on the next session
+
+**R1 MUST be re-run after B6 and B7 land.** Part I and Part II both measure a series produced by
+code that is being changed underneath them. This is not optional and not a nice-to-have.
+
+### 8a. How to re-run (it is cheap — no panel rebuild needed beyond the series export)
+
+```
+python -m scripts.etf_benchmark              # regenerates the strategy series from the NEW panel
+python -m scripts.factor_alpha               # Part I: the headline regressions
+python -m scripts.factor_alpha_fragility     # Part II: the four fragility criteria
+```
+
+Both regression scripts **assert** they reproduce X4's shipped series and **assert** the SPY/MKT
+alignment check, so a changed input surfaces as a failed assertion rather than a silently
+different number. If `scripts/etf_benchmark.py` no longer runs after B7, the series it exports is
+the only input that needs recreating — the regression machinery is independent of the panel
+modules.
+
+### 8b. Expected direction of change, recorded in advance
+
+- **B6 (universe truncation): the alpha goes DOWN.** §7b measures the preview at −2.57 pp.
+  Predicted post-B6 full-sample alpha: **+5.5% to +7.0%/yr with t in the 3.5-4.5 range.** If B6
+  instead *raises* the alpha, something is wrong with one of the two — investigate before
+  reporting.
+- **B7 (composite unification): direction genuinely UNKNOWN, magnitude expected small.** The
+  measurement composite does not renormalise for missing themes, so a name missing `institutional`
+  (empty before 2013-06-30) or `sentiment` (empty throughout) is scored on a smaller weight mass
+  and pushed toward the middle of the ranking. Renormalising changes the ranking most in the early
+  period — which B6 is deleting anyway. **These two corrections interact; do not attribute the
+  combined change to either one alone.**
+
+### 8c. What counts as a MATERIAL REVISION — pre-registered now, so it cannot be judged later
+
+| post-B6/B7 result | what it means | required action |
+|---|---|---|
+| alpha ≥ +4%/yr **and** t > 3.0 (full) **and** t > 2.0 (stable) | confirmation | update the range, keep CLAIM A |
+| alpha < +4%/yr **or** full-sample t ≤ 3.0 | **material revision** | rewrite the headline, do not annotate it |
+| **stable-window t ≤ 2.0** | the pre-registered bar in §1 fails | **withdraw CLAIM A, CLAIM B applies**, remove "alpha" from all copy |
+| best-5 share > 50% on the new sample | concentration criterion trips | headline becomes FRAGILE; report it as such |
+| any half flips sign | sign instability | headline becomes FRAGILE |
+
+The Part I threshold (§1) and the Part II criteria (§6) both remain in force on the re-run. **A
+re-run that reports only the full-sample number without the stable-window and concentration cuts
+has not discharged this contract.**
+
+### 8d. Also still open from Part I
+
+- **M1, the trial ledger.** t 5.742 is still not multiplicity-corrected, and Part II does nothing
+  about that — every cut here reuses the same 109 periods, so none of them is independent evidence.
+- **Theme-level attribution** of the residual (Part I §4) is still the highest-value follow-up.
+
+## 9. Files (Part II)
+
+| file | status |
+|---|---|
+| `scripts/factor_alpha_fragility.py` | new — the six fragility tests, verdict against §6 |
+| `tests/test_factor_alpha_fragility.py` | new — 13 tests, all passing |
+| `data/free_analysis/FACTOR_ALPHA_FRAGILITY.json` | new output (gitignored with the rest of `data/`) |
+
+Suites: `tests/test_factor_alpha.py` 14/14, `tests/test_factor_alpha_fragility.py` 13/13, panel
+modules untouched.

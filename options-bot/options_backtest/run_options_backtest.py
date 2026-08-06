@@ -212,6 +212,14 @@ def main() -> int:
     p.add_argument("--rf", type=float, default=None,
                    help="Pin the risk-free rate for the Sharpe (e.g. 0.04). "
                         "Default: average of the ^IRX series over the window.")
+    p.add_argument("--iv-rank-min", type=float, default=None,
+                   help="O9: open a spread ONLY when the vol index is at or "
+                        "above this percentile of its own trailing window "
+                        "(e.g. 0.667 = top tercile). Omit for the always-on "
+                        "O8 baseline. Exits are never gated — this is a "
+                        "sell-TIMING rule, not an exit rule.")
+    p.add_argument("--iv-rank-window", type=int, default=252,
+                   help="Trailing sessions for the IV-rank percentile (default 252).")
     p.add_argument("--slippage", type=float, default=None,
                    help="Slippage per share per leg (default 0.02). The single "
                         "most decision-relevant constant in the model: on the "
@@ -258,6 +266,8 @@ def main() -> int:
         use_vol_scaled_sizing=not args.no_vol_scaling,
         risk_free_rate=args.rf,
         expiration_calendar=args.expiry_calendar,
+        iv_rank_min=args.iv_rank_min,
+        iv_rank_window=args.iv_rank_window,
         **({"slippage_per_share": args.slippage} if args.slippage is not None else {}),
         **({"commission_per_contract": args.commission} if args.commission is not None else {}),
     )
@@ -338,6 +348,43 @@ def _print_report(etf, res, cfg):
     print(f"  Avg loss:            ${s['avg_loss']:,.0f}")
     print(f"  Worst single trade:  ${s['worst_trade']:,.0f}   <- the tail that matters")
     print(f"  Exits by reason:     {s['exits_by_reason']}")
+    ivr = res.get("iv_rank") or {}
+    if ivr:
+        print("-" * 64)
+        print("  O9 — IV RANK AS A SELL-TIMING RULE "
+              f"(trailing {ivr.get('window')} sessions)")
+        if ivr.get("gate_applied"):
+            print(f"    Gate: open only when IV rank >= {ivr['iv_rank_min']:.3f}")
+            fti = ivr.get("fraction_of_time_invested")
+            if fti is not None:
+                print(f"    Fraction of time invested: {fti*100:5.1f}%  "
+                      f"({ivr.get('entry_days_allowed'):,} of "
+                      f"{ivr.get('entry_days_allowed',0)+ivr.get('entry_days_blocked',0):,} "
+                      f"entry opportunities)")
+        else:
+            print("    Gate: OFF (always-on baseline)")
+        bt = ivr.get("by_tercile")
+        if bt:
+            cuts = ivr.get("tercile_cuts", {})
+            print(f"    Terciles cut on the OBSERVED IV-rank distribution "
+                  f"(low<{cuts.get('low',0):.3f}, high>={cuts.get('high',0):.3f}):")
+            for k in ("bottom", "middle", "top"):
+                b = bt.get(k) or {}
+                if b.get("n_trades"):
+                    print(f"      {k:7s} n={b['n_trades']:5,}  "
+                          f"mean P&L ${b['mean_pnl']:8,.2f}  "
+                          f"total ${b['total_pnl']:11,.0f}  "
+                          f"win {b['win_rate']*100:4.1f}%")
+            tvr = ivr.get("top_vs_rest_mean_pnl") or {}
+            if tvr.get("top") is not None and tvr.get("rest") is not None:
+                delta = tvr["top"] - tvr["rest"]
+                verdict = "HIGHER" if delta > 0 else "LOWER"
+                print(f"    Top tercile mean P&L is {verdict} than the rest by "
+                      f"${abs(delta):,.2f}/trade "
+                      f"(${tvr['top']:,.2f} vs ${tvr['rest']:,.2f})")
+                print("      ^ THE directional test of the hypothesis: does "
+                      "expensive vol predict good short-vol outcomes?")
+
     print("-" * 64)
     print("  STRESS PERIODS (where premium-selling gets tested):")
     for label, lo, hi in [

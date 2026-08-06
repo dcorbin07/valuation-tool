@@ -4532,6 +4532,242 @@ def test_audit_b6_the_panel_ships_its_window_and_cross_section_sizes():
     assert '"truncation": "shared_calendar"' in src
 
 
+def test_theta_cache_root_is_absolute_and_anchored_on_the_primary_checkout():
+    """The miner's cache root was RELATIVE (`data/options`), so it resolved against the cwd.
+
+    `data/` and `.env` are gitignored and therefore exist ONLY in the primary checkout. Run the
+    miner from a git worktree and it mined into a phantom empty `data/options` beside the real
+    16GB cache, while the ThetaData key failed to resolve and every name logged "probe failed".
+    Both failures were silent. Anchor it absolutely or this returns.
+    """
+    import os
+
+    from valuation.edge import theta_bulk as TB
+
+    assert os.path.isabs(TB.CACHE_ROOT), TB.CACHE_ROOT
+    assert os.path.isabs(TB.REPO_ROOT), TB.REPO_ROOT
+    # REPO_ROOT must be a real checkout (has the package), not a worktree's .git pointer target.
+    assert os.path.isdir(os.path.join(TB.REPO_ROOT, "valuation")), TB.REPO_ROOT
+    assert TB.CACHE_ROOT.startswith(TB.REPO_ROOT), (TB.CACHE_ROOT, TB.REPO_ROOT)
+    # A worktree checkout is never the anchor: .git there is a file, not a directory.
+    assert not os.path.isfile(os.path.join(TB.REPO_ROOT, ".git")), (
+        "REPO_ROOT resolved to a worktree, not the primary checkout")
+
+
+def test_oi_coverage_reads_minus_one_as_unknown_not_as_a_quantity():
+    """B4, writer side. -1 is the feed's UNKNOWN sentinel; counting it as data is the defect."""
+    import pandas as pd
+
+    from valuation.edge.theta_bulk import oi_coverage
+
+    assert oi_coverage(pd.DataFrame({"open_interest": [10, 20, 30, 40]})) == 1.0
+    assert oi_coverage(pd.DataFrame({"open_interest": [-1, -1, -1, -1]})) == 0.0
+    assert oi_coverage(pd.DataFrame({"open_interest": [-1, 5, -1, 5]})) == 0.5
+    assert oi_coverage(pd.DataFrame({"open_interest": [0, 0]})) == 1.0     # zero OI is KNOWN
+    assert oi_coverage(None) == 0.0
+    assert oi_coverage(pd.DataFrame({"x": [1]})) == 0.0                    # no column at all
+
+
+def test_degraded_open_interest_year_is_marked_on_disk_not_cached_as_clean():
+    """A year whose OI call faulted used to be written looking identical to a clean one.
+
+    That is exactly how 11.4% of the cache became -1 with nothing to show for it. The frame is
+    still cached (the EOD data is valid and expensive) but the year must carry an `.oi_degraded`
+    sidecar recording the measured coverage, and a clean re-mine must clear it.
+    """
+    import os
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    def _frame(oi):
+        n = len(oi)
+        return pd.DataFrame({"expiration": [dt.date(2020, 6, 19)] * n,
+                             "strike": [100.0] * n, "right": ["C"] * n,
+                             "date": [dt.date(2020, 6, 1)] * n,
+                             "bid": [1.0] * n, "ask": [1.1] * n,
+                             "volume": [5] * n, "open_interest": oi})
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tb = TB.ThetaBulk(api_key="", root=tmp)
+        path = TB.year_path("ZZZ", 2020, tmp)
+
+        tb._fetch_year = lambda s, y: (_frame([-1, -1, -1, -1]), False)
+        assert tb.ensure_year("ZZZ", 2020) is True
+        assert os.path.exists(path), "the EOD data must still be cached"
+        assert os.path.exists(path + ".oi_degraded"), "a degraded year must be visible on disk"
+        assert "coverage 0.000000" in open(path + ".oi_degraded").read()
+
+        os.remove(path)                                   # simulate the re-mine
+        tb._fetch_year = lambda s, y: (_frame([7, 8, 9, 10]), False)
+        assert tb.ensure_year("ZZZ", 2020) is True
+        assert not os.path.exists(path + ".oi_degraded"), "a recovered year must clear the mark"
+
+
+def test_sustained_faults_rebuild_the_grpc_client():
+    """One run pulled 318 names then failed EVERY call from queue position 371 to 826 -- 455
+    names burned -- while a fresh process pulled AAPL in 6.8s. The channel was dead and nothing
+    in the loop ever reset it, so the miner could not recover in-process."""
+    from valuation.edge import theta_bulk as TB
+
+    tb = TB.ThetaBulk(api_key="x", root=".")
+    tb._client = object()
+    for _ in range(TB.CLIENT_RESET_AFTER_FAULTS - 1):
+        tb._note_fault()
+    assert tb._client is not None, "must not reset on a single transient fault"
+    tb._note_fault()
+    assert tb._client is None, "a sustained run of faults must rebuild the channel"
+    # A success in between clears the streak, so slow-but-alive feeds are not churned.
+    tb._client = object()
+    for _ in range(TB.CLIENT_RESET_AFTER_FAULTS - 1):
+        tb._note_fault()
+    tb._note_ok()
+    tb._note_fault()
+    assert tb._client is not None
+
+
+def test_b4_an_orphaned_remine_backup_is_swept_back_not_left_as_a_silent_loss():
+    """`oi_remine` sets the old frame aside at `.bak_oi` BEFORE re-pulling, so a kill in that
+    window leaves the symbol-year existing ONLY as the backup. The `.pkl` is gone, the coverage
+    audit stops counting it, and the loss reads as a span that IMPROVED because it vanished from
+    the scan rather than because anything was fixed. Measured: NXPI-2017 (144,300 rows) was lost
+    exactly that way when a shard was stopped and restarted, and appeared in the before/after
+    diff as one of three 'fixed' spans."""
+    import inspect
+    import os
+
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "oi_remine.py"), encoding="utf-8").read()
+    # The sweep must run BEFORE the re-mine loop, and must never clobber a live frame.
+    assert ".bak_oi" in src and "recovered orphaned backup" in src, \
+        "oi_remine must sweep orphaned .bak_oi files back"
+    assert src.index("recovered orphaned backup") < src.index("for i, (key, before) in"), \
+        "the sweep must happen before any span is re-mined"
+    assert "if os.path.exists(_live):" in src, \
+        "a backup whose .pkl came back is litter, not a restore candidate -- never clobber"
+    del inspect
+
+
+def test_o15_cached_dte_depth_is_recorded_per_symbol_year():
+    """O15. The cache is now mined at two ceilings (90 before, 200 after) and on disk a shallow
+    year and a deep one are the SAME FILE SHAPE. Without a recorded depth, a consumer asking for
+    a 150-DTE contract gets data for some names and silence for others with nothing to explain
+    the difference -- this project's most-repeated bug class."""
+    import os
+    import pickle
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = TB.year_path("ZZZ", 2020, tmp)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        assert TB.cached_dte("ZZZ", 2020, tmp) == 0, "not cached at all must be 0, not a depth"
+        with open(path, "wb") as f:
+            pickle.dump(pd.DataFrame({"strike": [1.0]}), f)
+        # A pre-O15 file has no sidecar. That is not unknown -- MAX_DTE was 90 for its whole
+        # history, so the legacy depth is a recorded fact.
+        assert TB.cached_dte("ZZZ", 2020, tmp) == TB.LEGACY_MAX_DTE == 90
+        with open(path + ".dte", "w", encoding="utf-8") as f:
+            f.write("200 pulled 2026-08-05\n")
+        assert TB.cached_dte("ZZZ", 2020, tmp) == 200
+
+        rep = TB.depth_report(tmp)
+        assert rep["by_depth"] == {"200": 1}, rep
+        assert rep["names_fully_deep"] == ["ZZZ"], rep
+
+
+def test_o15_raising_max_dte_does_not_silently_re_pull_the_whole_cache():
+    """Deepening is OPT-IN. MAX_DTE 90 -> 200 makes all 3,140 cached symbol-years look stale;
+    if that alone triggered a re-pull, the next ordinary breadth-mining run would quietly
+    re-fetch the entire 17GB cache. `prefetch` must consult the SAME rule as `ensure_year` --
+    it used to do its own bare `os.path.exists`, which would have bypassed this completely."""
+    import inspect
+    import os
+    import pickle
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    assert TB.MAX_DTE == 200, "O15 raised the mining ceiling"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = TB.year_path("ZZZ", 2020, tmp)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:                      # a legacy 90-DTE year
+            pickle.dump(pd.DataFrame({"strike": [1.0]}), f)
+
+        plain = TB.ThetaBulk(api_key="x", root=tmp)
+        assert plain.upgrade_depth is False, "deepening must never be the default"
+        assert plain.needs_pull("ZZZ", 2020) is False, "a shallow year is NOT stale by default"
+
+        deep = TB.ThetaBulk(api_key="x", root=tmp, max_dte=200, upgrade_depth=True)
+        assert deep.needs_pull("ZZZ", 2020) is True, "the explicit deepening job must re-pull"
+
+        # ... and once it is deep, even the deepening job leaves it alone.
+        with open(path + ".dte", "w", encoding="utf-8") as f:
+            f.write("200 pulled 2026-08-05\n")
+        assert deep.needs_pull("ZZZ", 2020) is False, "a deep year must not be re-pulled"
+
+        # An exhausted / genuinely-empty year stays skipped: those are answers, not gaps.
+        for marker in (".empty", ".exhausted"):
+            p2 = TB.year_path("QQQ", 2020, tmp)
+            os.makedirs(os.path.dirname(p2), exist_ok=True)
+            with open(p2 + marker, "w", encoding="utf-8") as f:
+                f.write("x\n")
+            assert deep.needs_pull("QQQ", 2020) is False, marker
+            os.remove(p2 + marker)
+
+    assert "needs_pull" in inspect.getsource(TB.ThetaBulk.prefetch), \
+        "prefetch must route through needs_pull, not re-implement the skip rule"
+
+
+def test_o15_a_deeper_pull_may_never_replace_a_frame_with_fewer_rows():
+    """A 200-DTE pull of a span is a strict SUPERSET of the 90-DTE pull of that span. If the
+    deeper frame comes back SMALLER the pull was partial in a way the failure flags missed, and
+    overwriting would trade real, expensive data for less of it."""
+    import os
+    import pickle
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    def _frame(n):
+        return pd.DataFrame({"expiration": [dt.date(2020, 6, 19)] * n,
+                             "strike": [100.0] * n, "right": ["C"] * n,
+                             "date": [dt.date(2020, 6, 1)] * n,
+                             "bid": [1.0] * n, "ask": [1.1] * n,
+                             "volume": [5] * n, "open_interest": [7] * n})
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = TB.year_path("ZZZ", 2020, tmp)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as f:
+            pickle.dump(_frame(500), f)                   # the cached 90-DTE year
+
+        tb = TB.ThetaBulk(api_key="x", root=tmp, max_dte=200, upgrade_depth=True)
+
+        tb._fetch_year = lambda s, y: (_frame(120), False)      # a thinner "deep" pull
+        assert tb.ensure_year("ZZZ", 2020) is False
+        with open(path, "rb") as f:
+            assert len(pickle.load(f)) == 500, "the shallow frame must survive"
+        assert TB.cached_dte("ZZZ", 2020, tmp) == 90, "a rejected pull must not claim depth"
+
+        tb._fetch_year = lambda s, y: (_frame(640), False)      # a genuine superset
+        assert tb.ensure_year("ZZZ", 2020) is True
+        with open(path, "rb") as f:
+            assert len(pickle.load(f)) == 640
+        assert TB.cached_dte("ZZZ", 2020, tmp) == 200, "a kept pull must record its depth"
+
 
 def test_audit_x2_the_rebalance_grid_is_a_choice_and_is_now_recorded():
     """X2. The grid was `range(TD, len(cal) - horizon, rebalance_days)` with TD hard-coded to
