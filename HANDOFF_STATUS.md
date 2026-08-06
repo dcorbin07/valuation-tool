@@ -17,24 +17,31 @@ file directly.
 
 ---
 
-## D: BACKUP REBUILT — AND THE DRIVE NEEDS ONE ELEVATED COMMAND (2026-08-06, r1 lane)
+## D: BACKUP REBUILT — THE SCRIPT IS DONE, THE BACKUP DOES NOT EXIST, THE DRIVE IS DEAD (2026-08-06, r1 lane)
 
 Full write-up in `HANDOFF_backup.md`. Housekeeping lane, nothing under `valuation/**` touched.
 
-**ACTION REQUIRED FROM DON — this is the only blocker.** The backup drive is now physically
-write-protected: it is FAT32, it was filled twice, and Windows has flagged it
-`OperationalStatus: Full Repair Needed`, dirty, `IsReadOnly: True`. Repairing it needs an
-administrator prompt, which this session does not have. Run as administrator:
+**Two claims, only the first is true: the rewrite is finished and 40/40 tested; the backup has NOT
+run.** There is no writable target. **The D: drive is at end-of-life — hardware read-only at the
+flash controller, not a software flag and not repairable.** `diskpart` reports
+`Read-only : No` (attribute clear) alongside `Current Read-only State : Yes` (device enforcing it);
+`attributes volume clear readonly` returns "not supported on removable media" and `chkdsk` cannot
+run on a volume it cannot write to. **Do not spend more time trying to repair it.**
 
-```
-diskpart -> list disk -> select disk 1 (CONFIRM it is the 116 GB Lexar) ->
-attributes disk clear readonly -> exit
-chkdsk D: /f
-```
+**ACTION REQUIRED FROM DON — attach a replacement.** An **external SSD**, **exFAT**, any drive
+letter, **128 GB minimum** (256 GB comfortable — the miner projects ~199 GB for `data\options`).
+Then change two lines at the top of `backup_to_D.ps1` (`$DST`, `$LOG`) and run
+`.\backup_to_D.bat dryrun` then `.\backup_to_D.bat`. Nothing else is drive-specific.
 
-Then say so, and the rest is automatic. **Until then there is no working backup of `.env`, the
-freeze, or the paper track** — the copy on D: is from before 02:00 on 2026-08-06 and cannot be
-updated.
+**Until then there is no off-machine backup of `.env`, the freeze, or the paper track** — the copy
+on D: is from before 02:00 on 2026-08-06, is readable but stale, and can never be updated. Keep the
+old drive on a shelf until the replacement completes one successful run.
+
+**Why the drive died, and why the rewrite matters beyond disk space:** `/MIR` over 55,934 files
+twice a day is a write-cycle load a USB flash stick does not survive — consumer NAND has no
+over-provisioning budget for that, and the controller locked the device read-only rather than lose
+data silently. The new allowlist backup writes **20,418 files / 38.01 GB once a day** instead of
+55,934 files / 112.04 GB twice — **~5.5× less write load** on the replacement.
 
 **Cause of the disk filling — not what it looked like.** `/XD` is not broken (verified three
 ways, including a controlled robocopy experiment). There were **two** backup scripts on **two**
@@ -67,10 +74,10 @@ against C: — exactly 2 distinct files existed only on D:, both rescued to
 not run them — run by hand after touching the backup. Python suites unaffected: 14/14
 factor-alpha, 13/13 fragility, 191/191 edge.
 
-**Watch this:** the miner projects ~199 GB for a full 1,000-name `data\options`. That will not
-fit, and it is the next thing that breaks the backup. Also, D: is FAT32 with a 4 GB per-file
-ceiling and the backup's largest file is already 3.00 GB — if the drive is ever reformatted,
-use exFAT.
+**Watch this:** the miner projects ~199 GB for a full 1,000-name `data\options`. That will not fit
+on a 128 GB target and it is the next thing that breaks the backup. Also **format the replacement
+exFAT, never FAT32** — FAT32's 4 GB per-file ceiling is already close (largest backed-up file is
+`sep.csv` at 3.00 GB, and the next freeze will likely exceed 4 GB).
 
 ---
 

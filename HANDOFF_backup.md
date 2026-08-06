@@ -1,13 +1,17 @@
 # HANDOFF — the D: backup (r1 lane, 2026-08-06)
 
-The backup is rewritten, tested 40/40, and correct. **It cannot run yet, because the backup
-drive is now physically read-only** — the filesystem was corrupted by being filled up, and
-Windows remounted it write-protected. Clearing that needs one elevated command from Don. §8 has
-it, in two lines.
+**Two separate claims, and only the first one is true: the script is done, and the backup does not
+exist.** The rewrite is finished, tested 40/40, and dry-run-verified. **There is currently no
+writable target for it. The D: drive is dead** — hardware read-only at the flash controller, not a
+software flag, not repairable from the OS. See §4 and §8.
 
-Everything else is done: the cause of the disk filling is found and fixed, the sizes are measured,
-the three buckets are classified with a reason each, the new script exists and passes a 40-test
-suite, and D: was verified to be pure redundancy before anything was attempted.
+**The backup has NOT run. There is no current backup of `.env`, the freeze, or the paper track.**
+The newest copy on D: predates 02:00 on 2026-08-06 and can never be updated. Do not read "the
+backup is fixed" anywhere in this file as "the data is backed up"; it is not.
+
+Everything that does not need a disk is done: the cause of the disk filling is found and fixed, the
+sizes are measured, the three buckets are classified with a reason each, the new script exists and
+passes a 40-test suite, and D: was verified to be pure redundancy before anything was attempted.
 
 The headline finding is not the one in the prompt. `/XD` is not broken, and `data/` being big was
 only half the problem. **There were two backup scripts writing to the same destination with
@@ -15,13 +19,35 @@ opposite policies, on two schedules.** That is what filled the disk.
 
 ---
 
-## 0. Status — the three questions, answered (re-checked 2026-08-06, after the merge conflict was resolved)
+## 0. Status — the three questions, answered (final, 2026-08-06)
 
 | question | answer |
 |---|---|
-| **Is D: clear?** | **No.** `D:\valuation-tool (Backup)` is still there: **112.04 GB, 55,934 files**. Nothing on D: has been deleted — the drive will not permit deletion. `Get-Disk -Number 1` still reports `IsReadOnly: True`, `Get-Volume -DriveLetter D` still reports `HealthStatus: Warning` / `OperationalStatus: Full Repair Needed`, and a write probe still fails with "The media is write protected". |
-| **Did the new script run?** | **No — and it refused on purpose, which is the correct behaviour.** Run against D: it prints `[ABORT] Drive D:\ IS NOT WRITABLE` and exits 1 without copying. Run as `backup_to_D.bat dryrun` it gets as far as the space check and exits 1 with `NOT ENOUGH ROOM ON D:\ -- short by 5.07 GB`, naming the folder to delete. Both aborts are the fix working, not the fix failing. |
-| **Projected size vs capacity** | **38.01 GB needed against a 116 GB drive.** |
+| **Is D: clear?** | **No, and it never will be. The drive is hardware-locked read-only.** `D:\valuation-tool (Backup)` is still there: **112.04 GB, 55,934 files**. Nothing on D: has been deleted, because nothing on D: *can* be deleted. |
+| **Did the new script run?** | **No. There is no writable target.** Run against D: it prints `[ABORT] Drive D:\ IS NOT WRITABLE` and exits 1 without copying — correct behaviour, but a refusal, not a backup. |
+| **Projected size vs capacity** | **38.01 GB.** Measured and dry-run-verified, but against a drive it cannot write to. It is a projection for the *replacement* drive now, not for D:. |
+
+**The drive is at end-of-life, not in a fixable state.** `diskpart` reports the two flags
+separately and they disagree:
+
+```
+Read-only          : No       <- the software attribute IS clear
+Current Read-only State : Yes  <- the device is enforcing it anyway
+```
+
+That combination means the flash controller itself has gone read-only. It is what NAND controllers
+do when they run out of spare blocks or detect they can no longer guarantee a write. No OS-side
+command reaches it:
+
+| attempted | result |
+|---|---|
+| `attributes disk clear readonly` | flag already clear — no effect |
+| `attributes volume clear readonly` | *"not supported on removable media"* |
+| `chkdsk D: /f` | cannot run — volume is write protected |
+| `Set-Disk -IsReadOnly $false` | no effect (and needs elevation) |
+
+**Stop trying to repair it.** The remaining work is not a disk repair, it is attaching a
+replacement drive — §8.
 
 **The space arithmetic as it stands right now**, straight from the script's own preflight:
 
@@ -33,14 +59,13 @@ needed ............    43.01 GB   (38.01 GB of data + 5 GB headroom)
 -> short by 5.07 GB
 ```
 
-**Once the 112.04 GB stale backup is cleared:** ~114.5 GB free, 38.01 GB used by the new backup,
-**~76 GB headroom.** It fits comfortably — the shortfall above exists only because the old
-wrong-shaped mirror is still occupying the drive and cannot be removed while it is read-only.
+The 5.07 GB shortfall is an artefact of the old wrong-shaped mirror still occupying the drive. On
+any empty target of 64 GB or more, **38.01 GB fits with room to spare** — on a 116 GB drive that is
+~76 GB of headroom.
 
-Everything that does not depend on the drive is finished: cause diagnosed (§1), sizes measured
-(§2), buckets classified (§3), D: verified to be pure redundancy before anything was attempted
-(§4), script written and **40/40 tests passing** (§5). The single remaining step needs one
-elevated command — **§8**.
+Everything that does not depend on a disk is finished: cause diagnosed (§1), sizes measured (§2),
+buckets classified (§3), D: verified to be pure redundancy before anything was attempted (§4),
+script written and **40/40 tests passing** (§5). The remaining step is hardware — **§8**.
 
 ---
 
@@ -216,7 +241,7 @@ are all re-runnable offline. That is where most of the saving comes from.
 
 ---
 
-## 4. D: — verified safe to clear, then found to be read-only
+## 4. D: — verified safe to clear, then found to be dead
 
 D: was **113.5 GB used of 116 GB, 2.5 GB free**. `D:\valuation-tool (Backup)` alone was
 **112.04 GB across 55,934 files** — `.claude` 61.6 GB, `data` 50.3 GB.
@@ -264,19 +289,47 @@ The drive's actual state:
 | `fsutil dirty query D:` | **Volume - D: is Dirty** |
 | `Get-Disk -Number 1` | **`IsReadOnly : True`** |
 
-This is what a FAT32 volume does when it is repeatedly filled to capacity: the filesystem is
-damaged, Windows sets the dirty bit and remounts it read-only to prevent further damage. **The
-disk filling was not just an inconvenience; it broke the drive.**
+My first reading of this was that a FAT32 volume had been damaged by repeated filling and Windows
+had remounted it read-only — a repairable state, needing one elevated `diskpart` + `chkdsk`.
+**That reading was wrong, and the elevated run settled it.** `diskpart` reports:
 
-**I cannot fix it from here.** All three routes need administrator, and this session is not
-elevated:
+```
+Read-only               : No     <- software attribute clear
+Current Read-only State : Yes    <- device enforcing it regardless
+```
 
-- `chkdsk D: /f` → *"Windows cannot run disk checking on this volume because it is write protected."*
-- `Set-Disk -Number 1 -IsReadOnly $false` → *"Access Denied"*
-- `diskpart` → requires elevation
+**The flash controller is enforcing read-only in hardware.** The software flag was never the
+problem, so clearing it changes nothing; `attributes volume clear readonly` returns *"not supported
+on removable media"*; and `chkdsk` cannot run on a volume it cannot write to. There is no OS-side
+command that reaches a controller in this state, because it is not a state the OS put it in.
 
-So the order matters: the read-only flag has to be cleared **before** chkdsk can even run. §8 has
-the two commands.
+This is a flash drive at end-of-life. **The dirty bit and `Full Repair Needed` are symptoms of the
+same failure, not a separate fixable problem.**
+
+### Why it died — and why the rewrite matters beyond disk space
+
+**`/MIR` over 55,000+ files, twice a day, is a write-cycle load a USB flash stick does not
+survive.** Two scripts ran daily against the same target: one mirroring, one `/E`-copying, both
+re-walking and re-writing a tree that had grown to 112 GB by following junctions. Every run
+rewrote directory metadata across tens of thousands of entries; FAT32 concentrates that on a
+small, hot allocation table. Consumer NAND has a finite erase budget and no meaningful
+over-provisioning, so it burned through its spare blocks and the controller locked the device to
+read-only rather than lose data silently.
+
+**The new backup is far gentler on the replacement, and that is a second reason the rewrite was
+worth doing:**
+
+| | old | new |
+|---|---|---|
+| files on the target | **55,934** (measured on D:) | **20,418** (measured on the allowlist) |
+| bytes on the target | 112.04 GB | 38.01 GB |
+| runs per day | 2 — two scripts, two schedules, same destination | 1 policy (the second is now a shim) |
+| junctions followed | yes — duplicated the whole tree | **no** (`/XJ`) |
+| grows as `data/` grows | yes, without bound | **no** — allowlist |
+
+Per day that is roughly **111,900 file touches down to 20,400**, a 5.5× reduction in write volume,
+plus a third of the bytes. The disk-space argument was the visible one; **the wear argument is what
+actually killed the hardware**, and it is a second reason the rewrite mattered.
 
 The other folders on D: — `Trustee Project (Backup)` (0.06 GB), `Trustee Marketing (Backup)`,
 `New_Project (Backup)` and the Lexar utility — were left untouched. Together they are under 0.1 GB.
@@ -394,8 +447,10 @@ The failure mode to avoid is not "the disk fills"; it is "the disk fills **silen
    `data\backtest_freeze_2026-08\bulk\sep.csv`; `sf3.csv` is 2.71 GB and `daily.csv` 2.32 GB. The
    2026-08 freeze is static so those will not grow — but **the next freeze will very likely exceed
    4 GB, and FAT32 will refuse the file outright** with an error that looks nothing like "out of
-   space". If the drive is ever reformatted, format it **exFAT or NTFS**, not FAT32. Worth doing
-   anyway after the repair in §8.
+   space". **Format the replacement exFAT or NTFS, never FAT32** — §8.
+6. **Write volume matters as much as write size.** The old target held 55,934 files and was
+   rewritten twice a day; the allowlist set is 20,418 files written once — ~5.5× less write load.
+   That is the difference between a target that wears out and one that does not (§4).
 
 **Not changed, deliberately:** both scheduled tasks (`Valquo D Backup` 02:00, `ValuationToolBackup`
 08:00) still exist. They now both run the same allowlist backup, so the duplication is harmless —
@@ -410,37 +465,47 @@ now a two-line shim. Nothing under `valuation/**` was touched.
 
 ---
 
-## 8. THE ONE THING BLOCKING THIS — needs an elevated prompt
+## 8. FOR WHOEVER WIRES THE REPLACEMENT DRIVE
 
-The drive is write-protected and I am not running as administrator, so I cannot repair it, clear
-it, or back up to it. **Don: right-click Windows Terminal or Command Prompt → "Run as
-administrator", then:**
+**Do not spend any more time on D:.** It is hardware-locked read-only at the controller (§4). It
+cannot be repaired, cleared, reformatted, or written to. Treat it as a paperweight that happens to
+still be readable.
 
-```
-diskpart
-  list disk
-  select disk 1          (the 116 GB "Lexar USB Flash Drive" — CONFIRM the size before selecting)
-  attributes disk clear readonly
-  exit
+**What to attach:** an **external SSD**, formatted **exFAT**, on **any drive letter**.
 
-chkdsk D: /f
-```
+- **SSD, not a flash stick.** A USB flash drive is what just died, and §4 explains why: it has no
+  meaningful over-provisioning and no wear-levelling budget for a daily mirror. An SSD does.
+- **exFAT, not FAT32.** FAT32's 4 GB per-file ceiling is already close — the backup set's largest
+  file is `data\backtest_freeze_2026-08\bulk\sep.csv` at **3.00 GB**, and the next freeze will very
+  likely exceed 4 GB. FAT32 would refuse it with an error that looks nothing like "out of space".
+  NTFS is fine too; exFAT is simpler if the drive ever needs to move between machines.
+- **Any drive letter.** Two lines at the top of `backup_to_D.ps1`:
+  ```powershell
+  $SRC = "C:\Users\donni\Downloads\valuation-tool"
+  $DST = "D:\valuation-tool (Backup)"      # <- change the letter here
+  $LOG = "D:\valquo_backup_log.txt"        # <- and here
+  ```
+  Nothing else is drive-specific. The script derives the volume, free space and summary path from
+  `$DST`.
+- **Size:** 38.01 GB today. **128 GB minimum**, 256 GB comfortable — `HANDOFF_miner.md` projects
+  `data\options` reaching ~199 GB for a full 1,000-name mine, which is the growth that will force
+  the next decision (§7 item 4).
 
-`select disk 1` is what it was at the time of writing; **check `list disk` and pick the one whose
-size is 116 GB**, because disk numbers move when drives are plugged in.
+**Then, in order:**
 
-Then tell me, and I will do the rest with no further input:
+1. Plug it in, format exFAT, note the letter.
+2. Edit the two lines above.
+3. `.\backup_to_D.bat dryrun` — confirm the measured set and that the space check passes.
+4. `.\backup_to_D.bat` — expect ~38 GB and a plain-English summary of what was copied and what was
+   deliberately skipped.
+5. Point both scheduled tasks at it (they already call the same launcher), or disable the duplicate:
+   `schtasks /Change /TN "ValuationToolBackup" /DISABLE`.
 
-1. Re-verify D: is writable and still pure redundancy.
-2. Clear `D:\valuation-tool (Backup)` (112 GB) with the empty-mirror technique — Explorer cannot,
-   the paths are too deep and too many.
-3. Run the new backup: ~38 GB, leaving ~76 GB free.
-4. Confirm the result and update this file with the actual numbers.
+**About the old drive:** D: still holds a readable 112 GB copy from before 02:00 on 2026-08-06.
+It is stale and shrinking in value by the day, but it is not nothing — leave it on a shelf until
+the replacement has completed one successful run. The two files that existed only on D: were
+already rescued to `data\_from_D_quarantine\` on C: (§4), so nothing is waiting on it.
 
-If `chkdsk` finds serious damage, the better answer is to **reformat the drive as exFAT** — it is
-a backup target holding nothing unique (§4 proves that), FAT32 is the wrong filesystem for 3 GB
-files, and a clean format is more trustworthy than a repaired FAT32 volume. That is Don's call, not
-mine, so I have not done it.
-
-**Until this is cleared there is no working backup of `.env`, the freeze, or the paper track** —
-the copy on D: is from before 02:00 today and cannot be updated. That is the risk, stated plainly.
+**State this plainly to anyone who asks: the script is finished, and the backup does not exist.**
+`.env`, `data\backtest_freeze_2026-08` and the paper track have no current off-machine copy. That
+is the open risk, and it stays open until a replacement drive is attached.
