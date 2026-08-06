@@ -73,6 +73,37 @@ now that the machinery exists; converts inferred mechanism into measured); **(2)
 ledger** — now the largest unquantified threat to the headline; **(3) the forward paper-track
 vs SPY remains the top overall priority (Cowork's lane)** — R1 adds no out-of-sample evidence.
 
+**FRAGILITY (Part II, same lane, same day) — it SURVIVED a deliberate attempt to break it, on
+all four criteria committed before any cut ran. But two things must travel with the number:**
+
+- **It is WINDOW-DEPENDENT.** Stable-universe window (>=2008, the closest available preview of
+  what B6 will do): **alpha +6.24%, t +3.986, n 73 — DOWN 2.57pp, ~29% of the alpha.** The
+  discarded early period is where the raw spread is biggest (first third raw +21.89%/yr vs
+  +3.53% and +11.02%) — the inverted-universe signature. **Expect the post-B6 headline near
+  +6%. Quote ~+6% when a single number is wanted.**
+- **There is a WEAK DECADE.** A ~10-year rolling window centred on **2009-2019 shows alpha of
+  only +1.66% (t 1.39)**. Alpha is positive in **70 of 70** rolling windows and never reverses
+  sign, but 8 of 70 are not significant. The full-sample t 5.742 averages that decade in with
+  much stronger ones.
+
+The other cuts: no sign flip (halves +8.98%/+5.48%; thirds +13.51/**+4.33 t 2.412, weakest cell
+in the study**/+8.10, all t>2). **Not concentrated** — best 5 of 109 periods carry 23.0% of the
+alpha (38.0% on the stable window, the closest any criterion came to tripping); dropping the
+best 5 leaves +7.28% (t 5.19), dropping the worst 5 gives +10.07%, nearly symmetric, and the
+best 5 span four regimes. **Not specification-dependent** — CAPM +12.99%, FF3 +12.28%,
+FF5-no-MOM +10.03%, FF5+MOM +8.81%, q4 +9.14%, q5 +8.33%, all t>2 on both windows, and FF5+MOM
+is nearly the most conservative of the six. Windows confirmed **genuinely non-overlapping**
+(every one exactly 63 factor days, zero shared days) so no inference correction is needed.
+
+**BINDING RE-RUN CONTRACT — R1 MUST be re-run after B6 and B7 land.** B6 is expected to lower
+alpha to +5.5-7.0% (t 3.5-4.5); B7's direction is genuinely unknown and the two interact, so do
+not attribute the combined change to either alone. **A post-re-run alpha < +4%/yr or full-sample
+t <= 3.0 is a MATERIAL REVISION requiring the headline to be rewritten rather than annotated; a
+stable-window t <= 2.0 withdraws the word "alpha" entirely and CLAIM B applies.** Re-run is
+cheap: `python -m scripts.etf_benchmark` then `factor_alpha` then `factor_alpha_fragility`.
+Full contract in `HANDOFF_r1.md` sections 6-8. Part II adds
+`scripts/factor_alpha_fragility.py` + `tests/test_factor_alpha_fragility.py` (13/13).
+
 New files only, panel untouched (Session 2 owns B6/B7): `scripts/factor_alpha.py`,
 `tests/test_factor_alpha.py` (14/14), `HANDOFF_r1.md`, and output
 `data/free_analysis/FACTOR_ALPHA_RESULTS.json`. The script asserts it reproduces X4's shipped
