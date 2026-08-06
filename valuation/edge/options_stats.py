@@ -380,14 +380,19 @@ def purged_split(dates, is_idx, os_idx, blocks, embargo_days: int = MAX_HOLD_DAY
     def _d(s):
         return dt.date.fromisoformat(str(s)[:10])
 
+    import bisect
+
     def purge(keep, other):
+        # Bisect, not a linear scan: CSCV runs C(8,4) = 70 splits over ~2,500 dates, and the
+        # naive membership test is O(n^2) per split — minutes of pure overhead on a function
+        # that is supposed to be a cheap correction.
         oth = sorted(_d(x) for x in other)
         out = set()
         for s in keep:
             d0 = _d(s)
             # Any other-side date strictly after d0 and within the label window contaminates it.
-            lo, hi = d0, d0 + dt.timedelta(days=embargo_days)
-            if not any(lo < o <= hi for o in oth):
+            i = bisect.bisect_right(oth, d0)
+            if i >= len(oth) or oth[i] > d0 + dt.timedelta(days=embargo_days):
                 out.add(s)
         return out
 

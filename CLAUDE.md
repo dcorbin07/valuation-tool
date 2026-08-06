@@ -73,11 +73,74 @@ the project's memory and the old versions had been repeated for months.
   **(c)** the real headline is outside the placebo's [2.5, 97.5] interval on alpha (clearly),
   Deflated Sharpe, monotonicity, max theme IC t (narrowly) and long-short t (narrowly) — and
   **INSIDE it on PBO**, which is therefore not distinguishable from noise.
+- **THE OPTIONS ENTRY SIGNAL IS DEAD, ON CORRECTED DATA (2026-08-05, audit session 5 / R2). The
+  project's most consequential negative finding was re-derived after five defects were repaired,
+  and it SURVIVED — the gap moved 0.61pp.** Every number in `HANDOFF_universe_backtest.md` was
+  computed against a mis-stated underlying price (B1) plus B2/B3/B4/B15, and that file is now
+  banner-marked SUPERSEDED. Re-run on the identical pinned 187-name universe:
+  **real +3.41%/trade vs a random-entry control's +10.88%, gap −7.47pp, date-block CI95
+  [−13.92pp, −2.43pp], paired sign-test z −2.907 (p 0.0037)** over 1,305 name-year cells. The
+  alert's day-selection subtracts value. **Do not describe the live options alert as a
+  day-selection edge; it is an alert-generation mechanism.**
+  * **THE BREADTH CLAIM IS VOID.** "The edge survives breadth but roughly halves" is false. The
+    133 new names are now **−0.47%/trade (PF 0.988)**; all of the book's positive expectancy is
+    the original 54 megacaps (**+9.37%**). It is a megacap phenomenon that a corrupted price
+    basis made look broader.
+  * **B1's signature, for the record:** trades ROSE 3,042 → 3,885 because `no_contract_in_band`
+    rejects fell 2,911 → 1,729 — an adjusted spot against as-traded strikes was throwing the
+    0.90–1.20 moneyness prefilter, silently discarding 1,182 alerts. Median entry IV
+    **1.4200 → 0.2497** at 100% coverage (was 75.3%). 142% was never a vol.
+  * **A SINGLE CONTROL SEED CAN FLIP THIS VERDICT — pool them.** The control's own mean moves
+    **8.9pp** on a reseed (+6.46% vs +15.34%) and its own date-block CI is [+5.61%, +17.49%].
+    Seed 0 alone reads INCONCLUSIVE; seed 1 alone reads dead; pooled (what the record did) reads
+    dead. A random-day book's mean on a barbell payoff is set by a few +600% trades. **Two seeds
+    is not enough and nobody had measured that.** Lean on the paired sign test, which moved far
+    less.
+  * **`term_slope` is REJECTED on the arm that matters (R7).** Its +8.89pp out-of-sample
+    replication was an artefact; corrected, the filter makes its own out-of-sample book WORSE
+    (gain **−1.12pp** against a +5.00pp bar) and is no longer tail-enriching. It PASSES the
+    re-committed retention floor (G3a 95.6 alerts/yr, G3b 96.2% of names and 98.2% of months,
+    G3c 35.9%) — so the old 40% constant WAS rejecting a genuinely broad filter, and the
+    rejection now rests on economics instead of on an underived number.
+  * **Deflated Sharpe fell below 95% on both books:** unfiltered 88.13% → **49.59%**,
+    term_slope-filtered 95.69% → **80.63%**. The autopsy re-confirms: 64 features, 127
+    hypotheses, **zero survivors**.
+- **OPTIONS STATISTICS ARE CLUSTERED, BUT LESS THAN THE AUDIT PREDICTED (2026-08-05, audit R3).**
+  Every options interval ever published resampled TRADES and is optimistically narrow.
+  `valuation/edge/options_stats.py` adds a date-block bootstrap (calendar months resampled
+  together), `n_eff`, the paired name-year sign test and paired *t*, purge/embargo for the CSCV
+  splits, and the Deflated Sharpe at `n_eff`. **Measured clustering factor 1.85 — BELOW the
+  audit's predicted 2–4** — so every options *t* shrinks by ~1.36×, and **no verdict changes.**
+  * **R3.3 is the one that mattered:** the paired sign test and paired *t* the entire options
+    conclusion rested on existed in NO shipped file. They now reproduce the record exactly
+    (441 of 1,052 cells, z −5.185 against the recorded −5.24; seed-0 paired t −2.6701 against
+    −2.67), pinned by a test.
+  * **A RAW DESIGN EFFECT IS NOT EVIDENCE OF CLUSTERING.** Found by a failing test: 600
+    independent draws in 12 blocks of 50 report a design effect near 1.8 — pure sampling error
+    in MSB/MSW, since that ratio is F(k−1, n−k). Applying it as a haircut would manufacture a
+    correction out of noise. The design effect is now scored against its own shuffled null (the
+    X7 method) and `clustering_measurable` gates it; the real book passes clearly (1.848 vs null
+    p95 1.266). **Never quote a design effect without its null.**
+- **POINT-IN-TIME LIQUIDITY RAISES THE OPTIONS HEADLINE — the audit expected it to fall
+  (2026-08-05, audit O20).** Applying the miner's own screen at each entry date instead of to the
+  name's first cached year: **PIT-liquid 3,359 trades at +4.82% vs PIT-illiquid 495 at −7.84%**,
+  coverage 99.2%. **But it does NOT rescue the signal** — the control is screened by the same
+  rule and benefits too, so on the liquid subset the real book loses to random entry MORE
+  decisively (z −3.475, p 0.0005). The headline stays the whole book at aggression 1.0.
+  **The audit's premise is half wrong and this is the correction:** names were ranked into the
+  mining pool by TODAY's market cap (true), but the liquidity screen was already applied to the
+  FIRST CACHED YEAR, not to a present-day chain (`mine_options_cache.py:160`). So O20 is an
+  UPPER BOUND on the repair — names that would have failed in 2016 were never mined and no
+  evaluation-time filter recovers them.
+  **THE PATTERN WORTH KEEPING:** this is the third time in two sessions (R10, then O20) that a
+  bias the record assumed ran in the strategy's favour ran the other way. **This project's
+  expectations about the direction of its own biases have been wrong more often than right.
+  Measure them; do not reason about them.**
 - **THE EDGE DOES NOT CLEAR THE DEFLATED SHARPE BAR (2026-08-05, audit M1). The last bar the
   project claimed to clear fails once the denominator is honest.** Every multiple-testing claim
   was computed against `N = 8` — the eight weight schemes. `RESEARCH_LOG.md` is now populated and
   `valuation/edge/research_log.py` feeds the real count into `_deflated_sharpe` and
-  `_trials_haircut`. Measured trial counts: **equity 84, options 133, infra 1, total 218**
+  `_trials_haircut`. Measured trial counts: **equity 84, options 139, infra 1, total 224** (session 5 added 4 options rows)
   (against the audit's ~146 estimate; 15 `FIXED` correctness rows correctly do NOT count).
 
   | | N = 8 (as shipped) | **N = 84 (measured)** |
