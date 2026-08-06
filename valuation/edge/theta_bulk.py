@@ -96,6 +96,26 @@ waiting for the run to finish.
      This is the same class of problem as the today-snapshot caveats already recorded for the
      P10 sector map and the P24.2 CIK map: an identifier that is correct now is not correct for
      history.
+
+     C. AN ALIAS POINTED AT A DIFFERENT LIVE COMPANY, AND SILENTLY CACHED ITS CHAINS.
+     `ALIASES["WBD"] = ["T"]` was wrong: Warner Bros Discovery is the continuation of the
+     DISCOVERY share line (DISCA), not of AT&T. AT&T distributed WBD shares and went on
+     trading under `T` throughout. Because the fallback fires whenever the current symbol
+     returns an empty span, every WBD year before the April 2022 listing fell through to `T`
+     and cached AT&T's option chains under WBD. Measured: WBD 2016-2021 were byte-identical
+     to T (966,790 rows, identical keys AND identical bids) and WBD 2022 Jan-Mar likewise
+     (33,964 rows) - about 1.00M rows of one company's options filed under another's.
+
+     The generic defect is that a WRONG alias and a RIGHT alias are indistinguishable at the
+     point of use: both return rows. So the mapping is no longer trusted to be hand-checked.
+     A genuine predecessor STOPS trading when the successor starts, so predecessor and
+     successor data must not OVERLAP in time. `alias_overlap_conflicts()` checks exactly that
+     against whatever is on disk, and `WBD -> DISCA` satisfies it (DISCA 2016-2021, WBD
+     2022-2025, disjoint) where `WBD -> T` fails it in four separate years.
+
+     Provenance is also recorded now: when a fallback supplies a span, the symbol-year gets an
+     `.alias` sidecar naming the symbol the rows actually came from, so "these are not this
+     ticker's own rows" is a fact on disk rather than something to be re-derived.
 """
 from __future__ import annotations
 
@@ -177,7 +197,36 @@ KEEP = ["expiration", "strike", "right", "date", "bid", "ask", "volume", "open_i
 
 # Current ticker -> symbols it traded under earlier. Options history is stored under the
 # symbol of the day, so without this a renamed name silently loses its pre-rename history.
-ALIASES = {"META": ["FB"], "GOOGL": ["GOOG"], "RTX": ["UTX"], "WBD": ["T"]}
+#
+# THE ONE RULE: an alias must be a symbol the company ITSELF traded under and has since
+# STOPPED using. It must never be a ticker that is still live as some other company, because
+# the fallback fires on any empty span and cannot tell a correct alias from a wrong one - both
+# return rows. `WBD -> T` broke this rule and cached ~1.00M rows of AT&T chains under WBD
+# (docstring note C). Anything added here must satisfy `alias_overlap_conflicts()`.
+#
+# Every mapping below was verified against the feed on 2026-08-06 by probing a 10-day span in
+# a year on each side of the rename; the predecessor's data ends where the successor's begins.
+ALIASES = {
+    "META": ["FB"],          # renamed 2022-06
+    "GOOGL": ["GOOG"],       # NOTE: both share classes trade concurrently, so this is not a
+                             # rename and the fallback never fires (GOOGL has no empty spans).
+                             # Kept only because removing it is a behaviour change with no
+                             # measured benefit; `alias_overlap_conflicts()` reports it.
+    "RTX": ["UTX"],          # United Technologies -> Raytheon Technologies, 2020-04
+    "WBD": ["DISCA"],        # CORRECTED. Was ["T"], which is a different, still-live company.
+                             # Probed: DISCA 2016:700 2018:460 2021:2208 2022:0 2024:0 rows;
+                             # WBD 2016:0 2018:0 2021:0 2022:6612 2024:2116. Disjoint.
+    "BNY": ["BK"],           # Bank of New York Mellon, BK -> BNY. Probed 2018 BK 5,154 rows.
+    "FISV": ["FI"],          # Fiserv, FISV -> FI (2023). FISV covers <=2023 and is tried
+                             # FIRST, so the 2013-2021 window in which `FI` was an unrelated
+                             # live ticker is never reached - the fallback only fires for
+                             # spans where FISV itself is empty, i.e. 2023-08 onward.
+    "MRSH": ["MMC"],         # Marsh & McLennan, MMC -> MRSH. Probed 2018 MMC 680 rows.
+    "UI": ["UBNT"],          # Ubiquiti, UBNT -> UI (2019). Recovers the early years only:
+                             # probed 2024 returns 0 rows under BOTH symbols, so the recent
+                             # history is genuinely absent from this feed, not mis-keyed.
+    "XYZ": ["SQ"],           # Block, SQ -> XYZ (2025). Probed 2018 SQ 7,388 rows.
+}
 
 _LOAD_LOCK = threading.Lock()
 
@@ -265,6 +314,48 @@ def depth_report(root: str = CACHE_ROOT) -> dict:
     return {"by_depth": {str(k): v for k, v in sorted(by_depth.items())},
             "names_fully_deep": deep, "names_mixed": mixed,
             "n_names": len(by_name), "max_dte": MAX_DTE}
+
+
+def _cached_years(symbol: str, root: str = CACHE_ROOT) -> set:
+    """Years for which `symbol` has a NON-EMPTY cached frame."""
+    d = os.path.join(root, symbol.upper())
+    if not os.path.isdir(d):
+        return set()
+    out = set()
+    for fn in os.listdir(d):
+        if fn.endswith(".pkl") and "-" in fn:
+            try:
+                out.add(int(fn.rsplit("-", 1)[1][:-4]))
+            except ValueError:
+                pass
+    return out
+
+
+def alias_overlap_conflicts(aliases: dict = None, root: str = CACHE_ROOT) -> dict:
+    """Aliases whose predecessor traded CONCURRENTLY with the successor. Empty dict = clean.
+
+    A rename is a handover: the old symbol stops the moment the new one starts, so the two
+    must never both have data for the same year. A ticker that overlaps its "successor" is
+    therefore not a predecessor at all - it is a different, still-live company, and every
+    empty span of the successor will be silently filled with ITS chains.
+
+    That is not hypothetical. `WBD -> T` overlapped in 2022, 2023, 2024 and 2025 and had
+    already written ~1.00M rows of AT&T's options into WBD's cache, byte-identical to T's own
+    frames, before this check existed. Overlap is what distinguishes that case from the four
+    correct mappings, so it is the thing worth testing.
+
+    Judged on CACHED data only - it is an audit of what is on disk, not a network call - so a
+    pair with nothing cached simply returns no evidence rather than a false clean bill.
+    """
+    aliases = ALIASES if aliases is None else aliases
+    out = {}
+    for cur, older in aliases.items():
+        cur_years = _cached_years(cur, root)
+        for old in older:
+            shared = sorted(cur_years & _cached_years(old, root))
+            if shared:
+                out[f"{cur}<-{old}"] = shared
+    return out
 
 
 class ThetaBulk:
@@ -383,6 +474,10 @@ class ThetaBulk:
         tried = [symbol.upper()] + [a for a in ALIASES.get(symbol.upper(), [])]
         eod = None
         for sym in tried:
+            # NOTE the ordering is load-bearing: the CURRENT symbol is always tried first, so a
+            # fallback can only ever fill a span the name itself has no data for. That is what
+            # keeps `FISV -> FI` safe across the years in which `FI` was an unrelated live
+            # ticker. It is NOT enough on its own - see `alias_overlap_conflicts()`.
             eod = self._call_with_timeout(cli.option_history_eod, start_date=start, end_date=end,
                                           symbol=sym, expiration="*", max_dte=self.max_dte)
             if isinstance(eod, str):        # "FAILED" - a fault, not an absence; stop here
@@ -394,6 +489,13 @@ class ThetaBulk:
             symbol_used = None
         if eod is None or len(eod) == 0:
             return None, False              # genuinely empty span, not a failure
+        if symbol_used and symbol_used != symbol.upper():
+            # An ALIAS supplied this span. Record it so the substitution is auditable on disk
+            # instead of being invisible the way the AT&T-under-WBD rows were.
+            try:
+                self._tl.alias_used.add(symbol_used)
+            except AttributeError:
+                self._tl.alias_used = {symbol_used}
         eod = eod.copy()
         eod["date"] = pd.to_datetime(eod["created"]).dt.date
         eod = (eod.sort_values("created")
@@ -482,6 +584,7 @@ class ThetaBulk:
         chunk = self._chunk_days.get(symbol.upper(), DEFAULT_CHUNK_DAYS)
         parts, failed = [], False
         self._tl.oi_faults = 0         # counts OI-call faults across this year's spans
+        self._tl.alias_used = set()    # which symbols actually supplied this year's rows
 
         cur = dt.date(year, 1, 1)
         year_end = min(dt.date(year, 12, 31), today)
@@ -608,6 +711,13 @@ class ThetaBulk:
             os.replace(tmp, path)                 # atomic: a kill cannot leave a partial file
             with open(path + ".dte", "w", encoding="utf-8") as f:
                 f.write(f"{self.max_dte} pulled {dt.date.today().isoformat()}\n")
+            # PROVENANCE. If any span of this year came from an alias, say so on disk. Without
+            # this the AT&T-under-WBD rows were indistinguishable from WBD's own.
+            used = sorted(getattr(self._tl, "alias_used", ()) or ())
+            if used:
+                with open(path + ".alias", "w", encoding="utf-8") as f:
+                    f.write(f"{','.join(used)} supplied rows for {symbol.upper()} {year} "
+                            f"{dt.date.today().isoformat()}\n")
             with _LOAD_LOCK:
                 self._mem.pop((symbol.upper(), year), None)  # in-memory copy is now stale
         except OSError as e:
