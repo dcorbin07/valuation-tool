@@ -38,6 +38,65 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE COMPOSITE'S COMPLEXITY IS NOT DEMONSTRATED, AND THEME IC DOES NOT PREDICT WHICH THEME
+  MATTERS (2026-08-06, session 6, X3 RE-RUN). The 2026-08-03 "EARNS ITS COMPLEXITY" verdict is
+  VOID — it ran on the pre-B6 110-date panel and against a 1.0pp bar that sits BELOW X7's
+  1.95pp noise floor.** Re-run on the corrected 69-date panel against the calibrated bars,
+  8 pre-registered arms, flat weights:
+  * **The full seven-theme composite beats its own best single signal (`gp_on_capital`) by
+    +4.51%/yr, CI95 [−0.14%, +9.12%] — INCLUDES ZERO, so by the pre-registered rule this is a
+    NULL.** A near miss is a null. **But "decoration" is the WRONG word and must not be used:**
+    `gp_on_capital` alone posts long-short *t* **0.413** against the composite's **2.836** and
+    clears none of X7's bars but the alpha margin. Quote both halves: *"the seven-theme
+    composite is the only arm that clears the calibrated long-short bar of 2.14, and its
+    top-decile alpha advantage over the best single signal is +4.5pp/yr but not separable from
+    zero on 69 periods."*
+  * **THE CURVE DOES NOT FLATTEN — IT IS NOT A CURVE.** Alpha by cumulative arm (themes added
+    in descending IC order): +1.12 → +0.96 → +3.77 → +4.05 → +3.22 → +4.10 → **+7.17%**. Two
+    prefixes have POSITIVE monotonicity, i.e. their deciles run backwards. **Only the full arm
+    clears the long-short bar; the best prefix reaches t 1.02.**
+  * **THE FINDING TO CARRY: `size` has the WORST theme IC (−0.30) and carries the composite's
+    entire statistical significance.** Adding it last takes alpha +4.10% → +7.17% and LS *t*
+    1.02 → 2.84. **Ranking themes by IC and adding greedily measures the wrong thing** when a
+    theme's value is its orthogonality. This is the P6 lesson ("a signal's IC can be flat while
+    the composite built from it moves a lot") in a far starker form.
+  * **EXPLORATORY leave-one-out, NO VERDICT, do not act on it:** dropping `capital_discipline`
+    (2nd-best IC, one of only two clearing X7's bar) *raises* alpha to +8.54% and LS *t* to
+    3.352; dropping `size` costs 3.08pp/yr. Seven correlated comparisons reported for their
+    extremes. **Nothing was changed on it.** A pre-registered, held-out LOO is Session 7's
+    first item.
+  * **THE TRIAL COUNT ROSE AND THE HEADLINE PAID FOR IT. Equity N 84 → 104** (8 new arms plus
+    12 from the void run, which had never been logged). **Deflated Sharpe 0.8997 → 0.8789;
+    √(2·ln N) 2.977 → 3.048, past the Harvey–Liu–Zhu hurdle of 3.0 for the first time.** Still
+    above X7's calibrated floor of 0.72. `BACKTEST_RESULTS.json` picks this up automatically on
+    the next full run.
+- **THE EQUITY COMPOSITE IS USELESS AS AN OPTIONS VETO, AND THE REASON IS THAT ON THIS UNIVERSE
+  IT IS MOSTLY A SIZE SORT (2026-08-06, session 6, U7 — REJECTED).** Join built and pinned
+  (most recent rebalance date **strictly ≤** the alert date, tested against its own look-ahead
+  variant). **Coverage measured before any verdict: 98.1% of 3,885 alerts, 97.8% of 186 names.**
+  * **The bottom decile — the one a veto exists to remove — is the THIRD MOST PROFITABLE
+    (+10.64%).** Expectancy by composite decile is U-shaped, not monotone: D1 +18.74%,
+    D2 +14.78%, middle −0.46% to +4.9%, D10 +10.64%.
+  * **All three pre-registered cells go the wrong way:** bottom-decile veto lift **−0.57pp**
+    (CI [−1.49, +0.32], retention 92.7%), bottom-quintile −1.04pp, within-universe decile
+    −0.44pp. Retention was never the binding constraint. **It does not demonstrably HURT
+    either — every CI straddles zero. The honest sentence is that the composite's bottom decile
+    carries no information about which alerts to refuse.**
+  * **NO INTERACTION WITH THE ALERT AT ALL.** The identical veto on the five-seed random-entry
+    control lifts by −0.49pp; real minus control is **−0.08pp** [−1.02, +0.82]. The composite
+    describes the UNDERLYING, not the alert.
+  * **MECHANISM:** median market cap rises monotonically across deciles, **$62.7B (D1) →
+    $133.5B (D9)** — inside 187 megacaps the other themes are compressed and `size` dominates,
+    so the "veto" vetoes a cap bucket, which is a property of the underlying. (D10 sits at
+    $106.0B and breaks the pattern; no claim is made about why.)
+  * **CONSEQUENCE: DO NOT RUN U1 (composite → options ENTRY) AS WRITTEN.** The audit's own
+    argument is that the veto is "strictly the easier bar". The easier bar failed *with a
+    mechanism*. Reopen only with a composite built WITHIN the options universe, or with size
+    neutralised.
+  * **THE PROJECT'S EXPECTATION WAS WRONG AGAIN — FOURTH IN A ROW.** The pre-commitment said
+    "I expect the veto to HELP, 60/40". R10, O20, the spread toll and now U7. **Do not reason
+    about the direction of an effect in this project; measure it. Writing the expectation down
+    first is worth doing precisely because it keeps being wrong.**
 - **THE THRESHOLDS ARE NOW CALIBRATED — READ THIS BEFORE QUOTING ANY t, IC OR PBO
   (2026-08-05, audit X7). Every bar in this project was a CONVENTION until this run; three of
   the four are too low, and one is at the noise level.** `scripts/placebo.py` shuffles the
@@ -443,9 +502,32 @@ the project's memory and the old versions had been repeated for months.
 - **CORRECTED — `institutional` coverage is 61.4%**, not the 81.7% previously recorded (that
   came from a smaller universe). It is still empty before 2013-06-30, so any early-period
   comparison involving it is uninformative rather than negative.
-- **Theme ICs (full universe, CURRENT 2026-08-04):** quality +3.57, momentum +2.62,
-  capital_discipline +2.25, institutional +1.81, size +1.68, value +1.52, growth +1.45,
-  low_risk +0.71, **insider −0.43**, sentiment empty.
+- **THEME ICs — CORRECTED 2026-08-06 (session 6, X3 re-run). THE TABLE THAT SAT HERE WAS A
+  PRE-B6 MEASUREMENT MISLABELLED "CURRENT", AND `size` IS THE ENTRY THAT MOVED MOST.** It read
+  "quality +3.57, momentum +2.62, capital_discipline +2.25, institutional +1.81, size +1.68,
+  value +1.52, growth +1.45, low_risk +0.71, insider −0.43". **Proven stale, not inferred
+  stale:** re-running `theme_ic` on the old 110-date panel reproduces that list to the digit
+  (momentum +2.62, capital_discipline +2.25, institutional +1.81, size +1.68, growth +1.45,
+  low_risk +0.71), so it was measured before the B6/B7/B13 corrections of 2026-08-04 and
+  carried forward with a date that made it look newer than the panel it came from.
+
+  | theme | void (110 dates) | **CORRECTED (69 dates)** | move |
+  |---|---|---|---|
+  | quality | +3.57 | **+3.10** | −0.47 |
+  | capital_discipline | +2.25 | **+2.76** | **+0.51 — the only riser** |
+  | institutional | +1.81 | **+1.55** | −0.26 |
+  | momentum | +2.62 | **+1.31** | −1.31 |
+  | value | +1.52 | **+0.84** | −0.68 |
+  | growth | +1.45 | **+0.75** | −0.70 |
+  | low_risk | +0.71 | **+0.46** | −0.25 |
+  | insider | −0.43 | **−0.24** | +0.19 |
+  | **size** | **+1.68** | **−0.30** | **−1.98** |
+
+  **Against X7's calibrated bar of 2.71, TWO of nine themes clear: `quality` and
+  `capital_discipline`.** Under the retired 2.0 convention the void table showed three, and
+  X7 measured that 39% of pure-noise draws produce at least one theme at t ≥ 2.0. **`size` is
+  now the WORST-ranked theme and the one whose removal costs the most** — see the X3 bullet
+  below. sentiment still empty.
 - **A FULL BACKTEST IS NOT REPRODUCIBLE RUN TO RUN, AND THE INSIDER THEME IS WHERE IT SHOWS.
   Found 2026-08-04; unexplained; do not build on any single run's insider number.** Three
   full-universe runs on identical data gave `insider` median IC **−0.00335 (t −0.34)**,
