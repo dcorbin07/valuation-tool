@@ -179,6 +179,65 @@ pass recovered **all 8 in 24 min**, including CMG's four years, which are the la
 
 ---
 
+## Item 5 — breadth (STEP 4 of the follow-up prompt). IN PROGRESS.
+
+Two of the prompt's premises did not survive contact with the data. Both are stated here
+because the handoff they came from is the thing that will be read next.
+
+**PREMISE 1, CORRECTED: the 505 manifest-less names are a CONTIGUOUS RANK TAIL, not scattered
+channel-death damage.** They occupy universe positions **495–999 by market cap, with no gaps** —
+every name at rank 0–494 already carries a verdict. So the prompt's "these are names the miner
+already tried, and it is the cheapest coverage available" is only half right: `MINING_PROGRESS.txt`
+does still hold `probe failed - will re-probe next run` lines for positions 823–827 from the
+channel-death episode, so part of the tail WAS attempted, but positions 371–494 were evidently
+re-probed successfully by a later run. Operationally it makes no difference — re-running the miner
+probes all of them — but "re-probe the damaged names" and "mine the unmined tail" are not the same
+job, and what remains is overwhelmingly the second.
+
+**PREMISE 2, CORRECTED: only 5 of the 14 empty names were an `ALIASES` gap. The other 9 were a
+different bug.** Resolved from Sharadar `permaticker` (stable across ticker changes) and then
+verified against the feed by probing a 10-day span on each side of the rename, rather than from
+recall:
+
+| kind | names | evidence |
+|---|---|---|
+| genuine rename → alias gap | BNY←BK, FISV←FI, MRSH←MMC, UI←UBNT, XYZ←SQ | predecessor has rows, successor has none, disjoint in time |
+| listed after the probe year | CRWV, SNDK, VG, FER (2025) · CBRS, HONA, MDLN, SUNB (2026) | 0 rows in 2024, thousands later |
+| genuinely absent from the feed | SKHY | 0 rows in 2024, 2025 AND 2026 |
+
+`UI` is a partial win and is recorded as such: `UBNT` recovers the early years, but **2024 returns
+0 rows under BOTH symbols**, so Ubiquiti's recent option history is absent from this feed rather
+than mis-keyed. Do not read a future `UI` gap as an alias failure.
+
+### The alias fix, and why the mapping is no longer trusted to be hand-checked
+
+Closing the gap meant reading `ALIASES` closely, which is how bug 7 below was found — one existing
+mapping was pointing at a **different, still-live company** and had already written ~1.00M of its
+rows into the cache. The lesson generalises: a wrong alias and a right alias are
+**indistinguishable at the point of use**, because both return rows. Hand-checking cannot be the
+control.
+
+So the control is now structural. A genuine predecessor STOPS trading when the successor starts,
+so the two must never both have data for the same year. `alias_overlap_conflicts()` reports any
+mapping that violates it, judged on what is actually cached. On the corrected table it returns
+`{}`; on the old `WBD -> T` mapping it returns `WBD<-T: [2023, 2024, 2025]` **even after the
+contaminated years were purged**, so it would have caught this from the very first WBD pull.
+Alias-supplied years now also write a `.alias` provenance sidecar naming the symbol that answered.
+
+### The probe-year fix
+
+`probe = 2024` was hard-coded, so a name that listed later returned an empty probe and was filed
+`skipped_thin, reason "no data"` permanently. The probe now walks forward — **2024 still first**,
+so every verdict already in the manifest stays comparable — and a name with nothing anywhere in
+the 2016–2025 mining range gets its own `no_data_in_range` status instead of being pooled with
+names that were measured and found untradeable. Those are opposite facts with opposite correct
+responses.
+
+**Note the mining range still ends at 2025** (`YEARS = 2016..2025`; 2026 is a partial year and was
+deliberately excluded long before this session). So CBRS/HONA/MDLN/SUNB, whose only data is 2026,
+correctly stay out — but they are now labelled `no_data_in_range` rather than "thin", which is the
+honest label and gives a clean re-entry point once 2026 closes.
+
 ## BUGS FOUND (RUN_RULES #3)
 
 1. **B4's stated precondition was not actually met.** The prompt gates this job on B4 having
@@ -211,6 +270,49 @@ pass recovered **all 8 in 24 min**, including CMG's four years, which are the la
    rather than from the restored file — so AAPL-2020 and FNV-2019 were logged `still_failing`
    while sitting at 99.51% and 100.00% on disk. Fixed: measure the restored frame. **The shard
    tallies above were produced by the buggy version and understate recovery.**
+7. **AN ALIAS POINTED AT A DIFFERENT LIVE COMPANY AND SILENTLY CACHED ITS OPTION CHAINS. THE
+   WORST BUG IN THIS FILE.** `ALIASES["WBD"] = ["T"]` treated Warner Bros Discovery as the
+   continuation of **AT&T**. It is not — WBD continues the DISCOVERY share line; AT&T
+   *distributed* WBD shares and went on trading under `T` throughout. Because the fallback fires
+   on any empty span, every WBD year before the April 2022 listing fell through to `T`:
+
+   * **WBD 2016–2021 were byte-identical to T** — same row counts, same `(date, expiration,
+     strike, right)` keys, same bids. **966,790 rows.**
+   * **WBD 2022 Jan/Feb/Mar likewise** (33,964 rows); April is the partial listing month and
+     everything from there is real WBD.
+   * ≈ **1.00M rows of one company's options filed under another's ticker.**
+
+   Nothing downstream could have noticed: the frames are well-formed, coverage is high, the
+   sanity layer has no cross-symbol check, and the strike range (median 38/34/29 in 2016–2021)
+   only looks wrong if you happen to know WBD traded near $10–25. Found by reading `ALIASES`
+   while closing the gap behind the 14 empty names — **not** by any check that existed.
+   Corrected to `WBD -> DISCA` (probed: DISCA 2016–2021 has rows and 2022+ has none; WBD is the
+   mirror image — disjoint, as a real rename must be), contaminated years purged and re-mined,
+   and the class is now guarded by `alias_overlap_conflicts()` plus a `.alias` provenance
+   sidecar. Pinned by three tests.
+
+   **BLAST RADIUS — measured, not assumed. ONE ITEM IS IN ANOTHER LANE AND NEEDS ACTION:**
+
+   | artifact | state |
+   |---|---|
+   | `data/options/WBD/*` (miner, mine) | **FIXED** — 2016–2022 purged and re-mined under `DISCA` |
+   | `data/options_derived/WBD/*` | **CONTAMINATED** — `WBD-2016..2022.pkl` and `WBD-daily.pkl` were derived from the AT&T rows. **→ greeks lane: re-derive WBD.** |
+   | `GREEKS_COVERAGE.json` | **CONTAMINATED** — records WBD `rows_in 1,214,932` across 2016–2025, of which ~1.00M are AT&T |
+   | `UNIVERSE_RESULTS.json`, `AUTOPSY_BROAD_RESULTS.json` | **CLEAN** — zero occurrences of WBD; no shipped verdict rests on this |
+
+   I did **not** delete the derived files: `data/options_derived/**` is the greeks lane's output,
+   not mine, and silently removing another lane's artifacts is its own failure mode. They are
+   flagged here and in `HANDOFF_STATUS.md` instead.
+8. **The probe year was hard-coded to 2024, which made the universe hostile to anything that
+   listed later.** An empty 2024 probe wrote `skipped_thin, reason "no data"` and nothing ever
+   revisited it. **Eight of the fourteen names carrying that verdict do have option data** —
+   CRWV returns 11,605 rows in a single 10-day 2025 span, alongside SNDK, VG, FER (2025) and
+   CBRS, HONA, MDLN, SUNB (2026). The verdict was about the calendar, not the names. Fixed: the
+   probe walks forward, bounded, with 2024 still tried first.
+9. **"Nothing to judge" and "judged and untradeable" shared one status.** `skipped_thin` was
+   recorded both for names measured against the liquidity screen and for names with no data to
+   measure — which is what let bug 8 hide, since a 2025 IPO was indistinguishable from a penny
+   stock nobody writes options on. Fixed: `no_data_in_range` is its own status.
 
 ## What was NOT done
 
