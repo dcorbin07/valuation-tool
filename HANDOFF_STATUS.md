@@ -17,6 +17,17 @@ file directly.
 
 ---
 
+> **BLOCKER FOR EVERY LANE, NOT JUST THIS ONE (noticed 2026-08-06 ~19:30 ET): the auto-land
+> Action has not merged anything to `main` in over six hours.** `origin/main` is still at
+> `3213668` (13:19 ET) while **five** `worktree-*` branches have pushed since — options-live,
+> p3-hitrate, optionsbot-lane, data-spend, r1 — and none landed. This is not a merge conflict
+> and not a red test: `git merge-tree --write-tree HEAD origin/main` is clean for this branch,
+> the workflow file is identical to `main`'s, and all 22 suites pass locally
+> (`OVERALL_FAIL=0`). **Someone with the GitHub UI needs to look at the Actions tab** — most
+> likely Actions minutes, a disabled workflow, or a stuck `land-main` concurrency group.
+> Until it is fixed, nothing any agent produces reaches Render, and `main` is NOT the current
+> state of the project. Per `RUN_RULES` and the standing note, do **not** merge by hand.
+
 ## AUDIT SESSION 6 (2026-08-06) — U7 and X3. **BOTH PROBES REJECTED/NULL. SESSION 7 MAY OPEN.**
 
 Full write-up: **`HANDOFF_edge_audit.md`**, "SESSION 6". Pre-commitments pushed in `a727bea`
