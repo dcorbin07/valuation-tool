@@ -46,7 +46,22 @@ def _c(ws, ref, value, font=BLACK, fmt=None, fill=None, align=None, border=False
     return cell
 
 
-def withheld_workbook_rows(result) -> list:
+def provenance(cd, computed_at=None) -> str:
+    """The one line that says where these numbers came from and WHEN they were made.
+
+    `as_of` is the fundamentals date — on a live name it reads as today whether the model
+    ran a minute ago or hours ago, so it never answered "is this document current?".
+    `computed_at` does, and it is the same stamp the page shows, so the two surfaces can be
+    checked against each other by eye. Omitted rather than faked when the caller has no
+    stamp to give (the CLI writes workbooks too).
+    """
+    bits = [f"As of {cd.as_of}", f"Currency: {cd.currency}"]
+    if computed_at:
+        bits.append(f"Computed {computed_at}")
+    return " | ".join(bits)
+
+
+def withheld_workbook_rows(result, computed_at=None) -> list:
     """The whole content of the workbook for a name the model declined to value.
 
     The spreadsheet is the harder case and the likelier leak: the page shows three scenario
@@ -60,7 +75,7 @@ def withheld_workbook_rows(result) -> list:
     from ..web.withhold import refusal_reason
     return [
         ("title", f"{cd.name} ({cd.ticker}) — valuation withheld", None),
-        ("note", f"As of {cd.as_of} | Currency: {cd.currency}", None),
+        ("note", provenance(cd, computed_at), None),
         ("blank", "", None),
         ("head", "No fair value is published for this name", None),
         ("wrap", refusal_reason(result), None),
@@ -83,7 +98,7 @@ def withheld_workbook_rows(result) -> list:
     ]
 
 
-def _build_withheld_workbook(result, path: str) -> str:
+def _build_withheld_workbook(result, path: str, computed_at=None) -> str:
     wb = Workbook()
     ws = wb.active
     ws.title = "Not valued"
@@ -91,7 +106,7 @@ def _build_withheld_workbook(result, path: str) -> str:
     ws.column_dimensions["A"].width = 30
     ws.column_dimensions["B"].width = 96
     r = 1
-    for kind, text, val in withheld_workbook_rows(result):
+    for kind, text, val in withheld_workbook_rows(result, computed_at):
         if kind == "blank":
             r += 1
             continue
@@ -120,11 +135,11 @@ def _build_withheld_workbook(result, path: str) -> str:
     return path
 
 
-def build_workbook(result, path: str) -> str:
+def build_workbook(result, path: str, computed_at=None) -> str:
     # A withheld valuation is withheld in every format it can leave the building in.
     from ..web.withhold import is_withheld_result
     if is_withheld_result(result):
-        return _build_withheld_workbook(result, path)
+        return _build_withheld_workbook(result, path, computed_at)
     cd = result.company
     a = result.assumptions
     w = result.wacc
@@ -148,8 +163,8 @@ def build_workbook(result, path: str) -> str:
 
     # ---- Title ----
     _c(ws, "A1", f"{cd.name} ({cd.ticker}) — Discounted Cash Flow Valuation", TITLE)
-    _c(ws, "A2", f"Regime: {result.classification.regime} | Currency: {cd.currency} | "
-                 f"$ in millions | As of {cd.as_of}", Font(name="Arial", italic=True, size=9))
+    _c(ws, "A2", f"Regime: {result.classification.regime} | $ in millions | "
+                 f"{provenance(cd, computed_at)}", Font(name="Arial", italic=True, size=9))
     _c(ws, "A3", f"Unlevered FCFF / reinvestment method | Reference price: "
                  f"${cd.price:,.2f}" if cd.price else "Reference price: n/a",
        Font(name="Arial", italic=True, size=9))
@@ -285,14 +300,27 @@ def build_workbook(result, path: str) -> str:
     ws["G6"].value = f"={valL}{rows['ev']}"
     ws["G8"].value = f"={valL}{rows['pv_tv']}/{valL}{rows['ev']}"
 
-    _build_wacc_sheet(wb, cd, w)
+    # The rate the model ACTUALLY discounted at, which is not `w.wacc` when the visitor
+    # overrode it on the page. See _build_wacc_sheet.
+    _build_wacc_sheet(wb, cd, w, used_wacc=getattr(base, "wacc", None))
     _build_sensitivity_sheet(wb, cd, a, base, rRev, rM, rF, rN, first, last, n)
 
     wb.save(path)
     return path
 
 
-def _build_wacc_sheet(wb, cd, w):
+def _build_wacc_sheet(wb, cd, w, used_wacc=None):
+    """The CAPM build-up, and — when the page overrode it — the rate actually used.
+
+    `overrides["wacc"]` replaces the discount rate (`pipeline.py:217`) without touching the
+    `WACCResult`, which keeps the build-up. Every discount cell in the model points at
+    B23, so a workbook that always wrote the build-up formula there priced an overridden
+    valuation at the CAPM rate — a document quietly disagreeing with the page it came from,
+    which is the same defect as the stale cache. When an override is in force B23 becomes
+    the literal rate that produced the page's number, and the build-up stays above it as
+    reference with a note saying so. With no override it stays a live formula, because the
+    point of shipping a model rather than a picture is that beta can be edited.
+    """
     ws = wb.create_sheet("WACC")
     ws.sheet_view.showGridLines = False
     ws.column_dimensions["A"].width = 30
@@ -316,7 +344,17 @@ def _build_wacc_sheet(wb, cd, w):
     _c(ws, "A17", "Total capital"); _c(ws, "B17", "=B15+B16", BLACK, CUR)
     _c(ws, "A18", "Weight of equity"); _c(ws, "B18", "=B15/B17", BLACK, PCT)
     _c(ws, "A19", "Weight of debt"); _c(ws, "B19", "=B16/B17", BLACK, PCT)
-    _c(ws, "A23", "WACC", BOLD); _c(ws, "B23", "=B18*B7+B19*B12", BOLD, PCT, fill=YELLOW)
+    overridden = (used_wacc is not None and w.wacc is not None
+                  and abs(float(used_wacc) - float(w.wacc)) > 1e-9)
+    if overridden:
+        _c(ws, "A23", "WACC (overridden on the page)", BOLD)
+        _c(ws, "B23", float(used_wacc), BLUE, PCT, fill=YELLOW)
+        _c(ws, "C23", "This is the rate the valuation you downloaded was discounted at. The "
+                      "CAPM build-up above is shown for reference and is NOT what this model "
+                      "uses; put =B18*B7+B19*B12 back in B23 to return to it.",
+           Font(name="Arial", italic=True, size=9))
+    else:
+        _c(ws, "A23", "WACC", BOLD); _c(ws, "B23", "=B18*B7+B19*B12", BOLD, PCT, fill=YELLOW)
 
 
 def _build_sensitivity_sheet(wb, cd, a, base, rRev, rM, rF, rN, first, last, n):

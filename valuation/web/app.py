@@ -21,7 +21,7 @@ from ..safe_error import log_exception, safe_error
 from ..engine.pipeline import value_ticker
 from ..report import excel as excel_report
 from ..report import pdf as pdf_report
-from . import withhold
+from . import resultcache, withhold
 
 app = Flask(__name__)
 
@@ -37,9 +37,12 @@ RISK_DISCLAIMER = (
     "your own research."
 )
 
-# In-memory cache of the last full result per ticker (local single-user tool),
-# so exports match exactly what's on screen without re-fetching.
-_LAST: dict = {}
+# The exports render the document behind the page the visitor is looking at, so they serve
+# the result the page rendered rather than recomputing it against a different quote. This
+# used to be a bare `_LAST: dict` keyed by ticker with no timestamp, no expiry and no bound
+# — see `resultcache.py` for what that got wrong and what it cost. Same idea, three missing
+# properties added: the key is the whole request, every entry is stamped, and it is bounded.
+_RESULTS = resultcache.ResultCache()
 
 
 def _parse_overrides(src: dict) -> dict:
@@ -131,8 +134,13 @@ def api_value():
     run_ai = bool(data.get("run_ai", False))
     try:
         result = value_ticker(ticker, CONFIG, overrides=overrides, peers=peers, run_ai=run_ai)
-        _LAST[ticker] = result
+        entry = _RESULTS.put(ticker, result, overrides=overrides, peers=peers)
         payload = result.to_dict()
+        # When these numbers were produced. The page prints it and so do the exports, so a
+        # reader can see for themselves that the document and the screen describe the same
+        # moment. `company.as_of` is the FUNDAMENTALS date and reads as today even when the
+        # figures are hours old — it never answered this question.
+        payload["computed_at"] = entry.stamp
         # A refusal and a data gap both leave base_fair_value None, and they need
         # opposite messages: "check the ticker symbol" is wrong and misleading on a name
         # the model deliberately declined to value.
@@ -159,7 +167,7 @@ def api_rank():
     for t in tickers[:25]:
         try:
             r = value_ticker(t, CONFIG, run_ai=run_ai, mc_trials=2000)
-            _LAST[t] = r
+            _RESULTS.put(t, r)
             # A withheld name still returns a score — a PARTIAL one, built on four of the
             # five sub-scores (scoring.py:202). The watchlist puts it in a column beside full
             # scores, so it has to carry the flag or the table silently compares two
@@ -180,13 +188,21 @@ def api_rank():
     return jsonify({"rows": rows})
 
 
-def _get_or_compute(ticker: str):
+def _get_or_compute(ticker: str, overrides: dict = None, peers: list = None):
+    """The result for THIS request — the cached one if it is still fresh, else a new one.
+
+    On a miss it recomputes under the same assumptions the page used, which is the whole
+    point: a miss (different worker, or an entry past its TTL) now costs a computation
+    instead of silently handing back an answer to a different question. Returns the cache
+    entry rather than the result, because the caller has to stamp the document with when
+    the numbers were made.
+    """
     ticker = ticker.upper()
-    if ticker in _LAST:
-        return _LAST[ticker]
-    r = value_ticker(ticker, CONFIG)
-    _LAST[ticker] = r
-    return r
+    hit = _RESULTS.get(ticker, overrides=overrides, peers=peers)
+    if hit is not None:
+        return hit
+    r = value_ticker(ticker, CONFIG, overrides=overrides or {}, peers=peers)
+    return _RESULTS.put(ticker, r, overrides=overrides, peers=peers)
 
 
 # A download is a publication, so the workbook and the tearsheet obey the same rule as the
@@ -201,9 +217,14 @@ def export_excel():
     if not ticker:
         return jsonify({"error": "No ticker"}), 400
     try:
-        result = _get_or_compute(ticker)
+        # The assumptions travel with the download. Without them the export could only ask
+        # "the last NKE anyone computed on this worker", which is a different question from
+        # "the NKE on my screen" whenever the visitor has touched the assumption panel.
+        entry = _get_or_compute(ticker, overrides=_parse_overrides(request.args),
+                                peers=request.args.getlist("peers") or None)
+        result = entry.result
         tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
-        excel_report.build_workbook(result, tmp.name)
+        excel_report.build_workbook(result, tmp.name, computed_at=entry.stamp)
         return send_file(tmp.name, as_attachment=True,
                          download_name=f"{ticker}_DCF_Model.xlsx",
                          mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
@@ -218,7 +239,9 @@ def export_pdf():
     if not ticker:
         return jsonify({"error": "No ticker"}), 400
     try:
-        result = _get_or_compute(ticker)
+        entry = _get_or_compute(ticker, overrides=_parse_overrides(request.args),
+                                peers=request.args.getlist("peers") or None)
+        result = entry.result
         if result.ai is None:
             try:
                 from ..ai.analyst import analyze
@@ -226,7 +249,7 @@ def export_pdf():
             except Exception:
                 pass
         tmp = tempfile.NamedTemporaryFile(suffix=".pdf", delete=False)
-        pdf_report.build_pdf(result, tmp.name)
+        pdf_report.build_pdf(result, tmp.name, computed_at=entry.stamp)
         return send_file(tmp.name, as_attachment=True,
                          download_name=f"{ticker}_Valuation_Report.pdf",
                          mimetype="application/pdf")

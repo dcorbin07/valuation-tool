@@ -5,6 +5,206 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 15 — 2026-08-06 — The untimed result cache behind the exports
+(PROMPT_web_stale_cache.md)
+
+One item, and it was small — stated as small rather than padded. **This lane is now clear;
+what it is waiting on is at the bottom.**
+
+## WHAT `_LAST` ACTUALLY DID WRONG (measured, not inferred)
+
+`web/app.py:42` held `_LAST: dict`, a process-global result cache keyed by ticker, and
+`/api/export/excel` + `/api/export/pdf` served from it through `_get_or_compute`. Nothing
+else read it. Four defects, in order of how much they matter:
+
+**1. The key was the COMPANY, not the QUESTION — and this is the one that bites without
+anything having to go stale.** The cache ignored the assumptions a result was computed
+under, so a visitor who re-ran a name in the assumptions panel left *their* valuation under
+the bare ticker, and the next visitor's plain export was served it. Measured on the NKE
+fixture, offline:
+
+| | fair value | what the next visitor's workbook contained |
+|---|---|---|
+| default assumptions | **$40.15** | — |
+| one visitor overrides `wacc=0.25` | **$22.97** | **$22.97 — a 42.8% error, in someone else's assumptions** |
+
+No staleness required, no market movement required. It fires the moment two people look at
+the same name and one of them touches the panel.
+
+**2. Nothing was stamped, and nothing expired.** No `pop`, no `clear`, no `del`, no TTL, no
+bound anywhere in the file — verified by scanning it. An entry lived until the worker
+process restarted, which on Render means until the next deploy: **days**. Worse, the
+document could not disclose this even in principle, because the only date on it is
+`As of <cd.as_of>` — the **fundamentals** date, which on a live name reads as *today*
+whether the numbers were made a minute ago or last Tuesday. **A stale document was
+indistinguishable from a fresh one, and it asserted freshness.** The project already had
+the right pattern in `data/macro.py:16` — a `ts` and a 600s TTL. The export cache had
+neither.
+
+**3. Two worker processes, so two independent caches — yes, it makes it worse.** Production
+is `runtime: docker`, and the Dockerfile CMD is `--workers ${WEB_CONCURRENCY:-2} --threads 4`,
+so **two** processes. (The `Procfile`'s `-w 4` is not what Render runs — worth knowing before
+anyone reasons from it.) Confirmed directly: a second Python process importing
+`valuation.web.app` sees `_LAST = {}` while the first holds an entry. So a visitor's page and
+their download could be answered by different processes with different answers, and the four
+threads per worker shared one dict with no lock around the read-modify-write.
+
+**4. Unbounded.** Every ticker ever valued stayed resident for the life of the process.
+Measured: ~**8,991 bytes** pickled per `ValuationResult`, so ~9 MB per worker per 1,000
+distinct names, never freed, on a 512 MB box running two of them. Real, monotonic, and the
+smallest of the four — said plainly rather than inflated.
+
+### What production actually showed, including where it did NOT reproduce
+
+Read-only probes against valquo.co (no POSTs, no overrides — GETs a visitor makes):
+
+* **The cache is live and observable:** the first `/api/export/excel?ticker=KO` took **3.0s**,
+  the next identical one **0.2s**.
+* **Every workbook downloaded was stamped `As of 2026-08-06`** — today — with no indication
+  anywhere of when its numbers were computed. That part reproduced exactly.
+* **The document and the page agreed on all five names tested** (AAPL, MSFT, KO, JPM, XOM —
+  export price vs `/api/value` price, 0.00% gap on each). The upstream quote did not move
+  during the observation window, so **the defect was latent at that moment, not firing.**
+  Recorded that way on purpose: I did not observe a live document-vs-page price disagreement
+  and am not going to claim one. Defect 1 above needs no price movement and was measured
+  directly instead.
+* One thing seen and deliberately *not* filed as this bug: `/api/whatdo` reported AAPL at
+  $303.42 while both the live page and the workbook said $311.00. That is the **daily scan
+  snapshot** being older than a live quote — a different, already-labelled surface
+  (`screener/freshness.py`), not the export cache.
+
+## THE FIX
+
+New `valuation/web/resultcache.py` — a plain object, no Flask import, so the policy is
+testable without a request. `web/app.py` now holds `_RESULTS = resultcache.ResultCache()`.
+Same idea as before (serve the page's own result rather than recomputing against a different
+quote), with the three missing properties:
+
+| | before | after |
+|---|---|---|
+| cache key | ticker | ticker + overrides + peer set (`request_key`) |
+| visitor B's plain export, after A overrode | **A's $22.97 model** | **miss → B's own $40.15** |
+| expiry | none — until the worker restarts | **TTL 900s**; served at +899s, recomputed at +901s |
+| bound | none | **256 entries, LRU**; 1,000 names valued → 256 resident |
+| on a miss (other worker / expired) | served whatever was there | **recomputes under the same assumptions** |
+| compute time on the document | nowhere | `Computed 2026-08-06 11:52 UTC` on both formats |
+| compute time on the page | nowhere | same stamp, from `/api/value`'s `computed_at` |
+| thread safety | none (4 threads/worker) | `threading.Lock` around the LRU touch and eviction |
+
+**The assumptions now travel with the download.** `app.js::exportUrl()` puts the overrides
+the page was rendered with into the export query string, and the route rebuilds the same key.
+Without that the export could only ever ask *"the last NKE anyone computed on this worker"*,
+which is a different question from *"the NKE on my screen"* — the fix would have been
+cosmetic. This is what makes a miss safe: the worst case is now a fresh computation, not
+another visitor's answer.
+
+**Why still per-process.** A shared cache means Redis or the database. For a document that
+costs one vendor call to rebuild, that is a much larger change than the problem justifies —
+and once a miss recomputes correctly, two caches are no longer a correctness issue. Stated
+in the module docstring so nobody has to re-derive it.
+
+**`build_workbook`/`build_pdf` take `computed_at=None`** and omit the line entirely when it
+is absent — the CLI renders both formats with no request behind it, and stamping "computed
+now" on numbers loaded from anywhere would be a false claim. Both callers in `cli.py` are
+unchanged and still work.
+
+## THE SECOND DISAGREEMENT, FOUND WHILE FIXING THE FIRST — AND FIXED
+
+The same defect in another costume, and **my own change is what made it reliable**, so it
+belongs in this commit rather than in a bug report.
+
+`overrides["wacc"]` replaces the discount rate at `pipeline.py:217` **without touching the
+`WACCResult`**, which keeps the CAPM build-up. Every discount cell in the exported model
+points at `WACC!B23`, and B23 always held the build-up *formula* — so a visitor who set
+WACC to 25% on the page saw **$22.97**, downloaded the workbook, and got a model that
+repriced itself at the **9.13%** build-up. Measured on the NKE fixture:
+
+| | page | workbook, before | workbook, after |
+|---|---|---|---|
+| discount rate | 25% (user's) | **9.13% (CAPM build-up)** | **25%**, labelled *WACC (overridden on the page)* |
+| tearsheet "WACC" row | — | **9.13%** | **25.0% (overridden)** |
+
+Before this session an overridden export was a coin flip on worker routing; now the
+override always reaches the export, so this would have gone from intermittent to
+**every time**. B23 becomes the literal rate that produced the page's number, with the
+build-up left above it as reference and a note saying how to restore the formula. **With no
+override it stays a live formula** — the point of shipping a model rather than a picture is
+that beta can be edited, and that is pinned by its own test.
+
+## THE TEST
+
+**`tests/test_resultcache.py` — 22 tests, new suite.** The durable ones:
+
+* `test_two_different_questions_never_share_one_answer` — the actual bug, at the cache level.
+* `test_the_export_serves_the_assumptions_the_page_used_not_someone_elses` — the same thing
+  end to end through the real Flask routes, checked on the workbook bytes the visitor gets.
+* `test_a_miss_recomputes_under_the_requested_assumptions_rather_than_falling_back` — pins
+  the multi-worker case, which is the one with no local reproduction.
+* `test_the_export_stamps_the_document_with_the_cached_computation_time` — the route must
+  pass the *entry's* stamp, not the wall clock, or a 14-minute-old document claims to be new.
+* `test_the_bare_dict_cache_is_gone_for_good` — a plain dict was the failure mode, so
+  reintroducing one fails a test rather than a review.
+* `test_the_workbook_discounts_at_the_rate_the_page_actually_used` and
+  `test_an_untouched_valuation_still_exports_a_live_wacc_formula` — the WACC pair above,
+  including the half that protects everyone who did *not* override anything.
+
+`tests/test_withhold.py` updated where it poked `_LAST` directly; its catch-all now strips
+the compute stamp by exact shape (`\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC`) rather than by
+loosening the number rule, so nothing shaped like a dollar figure can hide behind it.
+
+**Suites 20 → 21, tests 709 → 731.** (The prompt's bar said 705; `main` had already moved to
+709 before this session — baseline re-measured, not assumed.)
+
+## BUGS FOUND
+
+1. **`Procfile` and the `Dockerfile` disagree about worker count** — `-w 4` vs
+   `--workers ${WEB_CONCURRENCY:-2}`. Render uses the Dockerfile, so the Procfile's number is
+   inert, but anyone reasoning about concurrency from it gets the wrong answer. Not changed:
+   the Dockerfile comment explains why 2, and 4 workers OOM'd on the 512 MB box. Left as a
+   note rather than a silent edit.
+2. **The exported model ignored a WACC override** — full write-up above. **Fixed here**
+   (`report/**` is this lane's), in both formats, with tests. The underlying asymmetry —
+   `overrides["wacc"]` sets the discount rate but leaves `WACCResult.wacc` at the CAPM
+   build-up (`pipeline.py:217`) — is **left alone deliberately**: it is `engine/**`, it is
+   arguably intended (the build-up is what the WACC sheet is *for*), and the reports now
+   read `scenarios.base.wacc`, which is the rate that actually discounted the cash flows.
+   Worth knowing before anyone reads `result.wacc.wacc` as "the rate this valuation used" —
+   **it is not, whenever an override is in force.**
+3. **`n_years` looked unbounded and is not** — recorded so the next person does not re-run
+   the check. `assumptions.py:182` reads the override with no clamp, and the export now
+   takes overrides on a public GET, so this was worth measuring rather than assuming:
+   `n_years` of 200, 3,000 and 100,000 all resolve to **15**, and the workbook stays ~10 KB.
+   No DoS, no clamp added.
+
+## THIS LANE IS CLEAR. WAITING ON:
+
+1. **The refusal erased by the pipeline — engine lane, owns `screener/**`.** Still open.
+   `_enrich_with_dcf` writes `fair_value = None` on a refusal and records nothing else;
+   `estimate_fair_values` reads that as "not computed yet" and substitutes a peer estimate.
+   **KSPI, STLA and CHTR still sit on the public hot list with fair values while the
+   valuation page refuses them outright.** The guard shipped in Session 14 already honours
+   `fair_value_withheld` the moment the scan starts setting it, so **nothing further is needed
+   on this side.**
+   **The disclosure sentence on the hot list is a STOPGAP, not the fix.** It currently tells
+   the reader the two surfaces disagree and to believe the refusal. **It should come down when
+   the scan starts marking refusals** — otherwise the page will be explaining an inconsistency
+   that no longer exists, which is its own kind of wrong. **Who checks: whoever lands the
+   `_enrich_with_dcf` change**, in the same commit; if that lands elsewhere, this lane removes
+   it on the next pass. The string is in `app.js`, in the hot-list note ("Known inconsistency,
+   stated rather than hidden"), and it names Kaspi.
+2. **CI publishes +275% at HIGH confidence** with a comps lens implying 8.0× price, tripping
+   nothing. → **engine / DCF lane.** Not a guard problem — a valuation problem. Still open.
+
+## THE WITHHELD SET IS THREE, NOT FIVE — AND IT MOVES
+
+Recorded here because it is already stale in earlier notes: **GILD, CI and JD left the
+withheld set after the DCF terminal work.** Today it is **KSPI, STLA, CHTR**. Anything quoting
+"the five withheld names" is out of date. **The set is an output of the engine, so it changes
+whenever the engine does** — do not hard-code it, and re-derive it (`withhold.is_withheld`
+over the names in question) rather than trusting any list in a handoff, including this one.
+
+---
+
 # Session 14 — 2026-08-06 — The public leak is closed at this lane's call site; the score is
 now shown as partial (PROMPT_appfixer_close_the_public_leak.md)
 

@@ -657,6 +657,10 @@ def _implausible_numbers(text, price, reason):
     # comparison would "find" the withheld figure it is allowed to quote
     text = re.sub(r"\s+", " ", str(text))
     text = text.replace(re.sub(r"\s+", " ", reason), " ")   # the one permitted quotation
+    # The compute stamp ("2026-08-06 14:32 UTC") is provenance, not money. Removed by an
+    # exact shape rather than by loosening the number rule, so nothing shaped like a dollar
+    # figure can hide behind it.
+    text = re.sub(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC", " ", text)
     out = []
     for tok in re.findall(r"-?\d[\d,]*\.?\d*", text):
         try:
@@ -764,7 +768,7 @@ def test_the_export_routes_serve_the_refusal_document():
     from openpyxl import load_workbook
     r = _withheld_result()
     reason = withhold.refusal_reason(r)
-    webapp._LAST["NKE"] = r
+    webapp._RESULTS.put("NKE", r)
     webapp.app.config["TESTING"] = True
     try:
         with webapp.app.test_client() as c:
@@ -789,7 +793,7 @@ def test_the_export_routes_serve_the_refusal_document():
                         assert not _implausible_numbers(str(cell.value),
                                                         r.company.price, reason)
     finally:
-        webapp._LAST.pop("NKE", None)
+        webapp._RESULTS.clear()
 
 
 def _run_all():
