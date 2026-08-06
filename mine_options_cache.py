@@ -95,6 +95,9 @@ MIN_DAYS_WITH_CHAIN = 100        # of ~252; below this the name is not continuou
 # a full C: drive during an overnight job is expensive.
 MIN_FREE_GB = 40
 RETRY_ROUNDS = 2         # bounded re-attempts for names that came in partial
+# How many EMPTY probe years to try before concluding a name has no options in the mining
+# range. 2 covers "listed during 2025" without paying a ten-year search for a dead ticker.
+PROBE_YEARS_TRIED = 2
 
 
 def log(msg):
@@ -237,6 +240,38 @@ def name_is_viable(tb, sym: str, year: int) -> tuple:
     return (not fails), stats
 
 
+def probe_name(tb, sym):
+    """Judge a name's liquidity on a year it ACTUALLY TRADED IN. (probe_year, viable, stats).
+
+    The probe year used to be hard-coded to 2024, which quietly made the universe hostile to
+    anything that listed later: the 2024 pull came back empty, the name was recorded as
+    `skipped_thin` with reason "no data", and nothing ever revisited it. Measured on the 14
+    names carrying that verdict, EIGHT of them do have data - CRWV (11,605 rows in a 10-day
+    2025 span), SNDK, VG and FER from 2025, CBRS/HONA/MDLN/SUNB from 2026 - so the verdict was
+    about the calendar, not about the names.
+
+    2024 is still tried FIRST so that every verdict already in the manifest stays comparable;
+    the walk forward only happens for names 2024 says nothing about.
+    """
+    order = [y for y in (2024,) if y in YEARS] + [y for y in YEARS if y != 2024][::-1]
+    seen = []
+    for y in order:
+        tb.ensure_year(sym, y)
+        viable, stats = name_is_viable(tb, sym, y)
+        if viable is None:
+            return y, None, stats              # fetch failed: unknown, re-probe next run
+        if stats.get("reason") != "no data":
+            return y, viable, stats            # a real chain to judge
+        seen.append(y)
+        if len(seen) >= PROBE_YEARS_TRIED:
+            break
+    # No option data anywhere in the mining range. That is NOT the same as "too illiquid to
+    # trade" and must not share a status with it, or a 2025 IPO is indistinguishable from a
+    # penny stock nobody writes options on.
+    return seen[-1] if seen else order[0], False, {"reason": "no data in range",
+                                                   "years_probed": seen}
+
+
 def main():
     import shutil
 
@@ -272,7 +307,7 @@ def main():
         # inline meant a name with genuinely unavailable years was re-attempted on every restart,
         # blocking the queue before any new name was reached - BKNG (2018-2021) cost ~48 minutes
         # per restart that way, and the log gave no clue which name was responsible.
-        if rec.get("status") in ("complete", "skipped_thin", "partial"):
+        if rec.get("status") in ("complete", "skipped_thin", "partial", "no_data_in_range"):
             continue
 
         # Announce BEFORE the pull. Progress was logged only on completion, so a name that took
@@ -282,17 +317,21 @@ def main():
         log(f"-> [{i}/{len(uni)}] {sym} ...")
 
         # Probe year: cache one year, then let REAL liquidity decide whether to continue.
-        probe = 2024 if 2024 in YEARS else YEARS[-1]
-        tb.ensure_year(sym, probe)
-        viable, stats = name_is_viable(tb, sym, probe)
+        probe, viable, stats = probe_name(tb, sym)
+        stats = {"probe_year": probe, **stats}
         if viable is None:
             # Unknown, not thin. Leave it OUT of the manifest so the next run re-probes it
             # rather than inheriting a verdict the data never supported.
             log(f"[{i}/{len(uni)}] {sym}: probe failed - will re-probe next run")
             continue
         if not viable:
-            manifest[sym] = {"status": "skipped_thin", **stats}
-            log(f"[{i}/{len(uni)}] {sym}: SKIP - {stats['reason']}")
+            # `no_data_in_range` is kept SEPARATE from `skipped_thin`. One is a judgement about
+            # liquidity that the data supports; the other is the absence of any data to judge,
+            # and conflating them is what buried eight tradeable names.
+            status = ("no_data_in_range" if stats.get("reason") == "no data in range"
+                      else "skipped_thin")
+            manifest[sym] = {"status": status, **stats}
+            log(f"[{i}/{len(uni)}] {sym}: SKIP ({status}) - {stats['reason']}")
             _save(manifest)
             continue
 
@@ -372,9 +411,12 @@ def main():
     done = sum(1 for v in manifest.values() if v.get("status") in ("complete", "partial"))
     partial = [k for k, v in manifest.items() if v.get("status") == "partial"]
     thin = [k for k, v in manifest.items() if v.get("status") == "skipped_thin"]
+    norange = [k for k, v in manifest.items() if v.get("status") == "no_data_in_range"]
     log(f"FINISHED: {done} of {len(uni)} names cached; {len(partial)} partial"
         + (f" ({', '.join(partial)})" if partial else "")
-        + f"; {len(thin)} skipped as too illiquid")
+        + f"; {len(thin)} skipped as too illiquid"
+        + f"; {len(norange)} with no option data in {YEARS[0]}-{YEARS[-1]}"
+        + (f" ({', '.join(sorted(norange))})" if norange else ""))
 
 
 def _save(manifest):
