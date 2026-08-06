@@ -224,6 +224,13 @@ def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
             estimate_fair_values([row], peer_rows=rows)
         except Exception:
             pass
+        # The SECOND public surface fed by that estimator (the first is /api/hotstocks), and
+        # it has to apply the same band or the leak just moves one endpoint over.
+        try:
+            from .withhold import withhold_implausible_fair_values
+            withhold_implausible_fair_values([row])
+        except Exception:
+            pass
         extra = row.get("extra") or {}
         out["stock"] = {
             "in_scan": True, "scan_date": scan_date, "n_scored": len(rows),
@@ -232,6 +239,8 @@ def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
             "composite": _f(row.get("composite")), "price": _f(row.get("price")),
             "fair_value": _f(row.get("fair_value")), "upside": _f(row.get("upside")),
             "fair_value_method": row.get("fair_value_method"),
+            "fair_value_withheld": bool(row.get("fair_value_withheld")),
+            "fair_value_withheld_reason": row.get("fair_value_withheld_reason"),
             "why": extra.get("why") or [], "why_composite": extra.get("why_composite"),
             # The two owner-only halves. `book_withheld` is carried explicitly so the reader
             # (and _action_lines below) can tell "not published" from "not in the book".

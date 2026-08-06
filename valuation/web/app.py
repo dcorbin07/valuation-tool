@@ -160,11 +160,19 @@ def api_rank():
         try:
             r = value_ticker(t, CONFIG, run_ai=run_ai, mc_trials=2000)
             _LAST[t] = r
+            # A withheld name still returns a score — a PARTIAL one, built on four of the
+            # five sub-scores (scoring.py:202). The watchlist puts it in a column beside full
+            # scores, so it has to carry the flag or the table silently compares two
+            # different things.
+            partial = withhold.is_withheld_result(r)
             rows.append({
                 "ticker": t, "name": r.company.name, "price": r.company.price,
                 "fair_value": r.base_fair_value, "upside": r.upside,
                 "score": r.score.score, "recommendation": r.score.recommendation,
                 "regime": r.classification.regime, "confidence": r.score.confidence,
+                "score_partial": partial,
+                "fair_value_withheld": partial,
+                "fair_value_withheld_reason": withhold.refusal_reason(r) if partial else None,
             })
         except Exception as e:
             rows.append({"ticker": t, "error": safe_error(e)})
@@ -408,6 +416,11 @@ def api_hotstocks():
     # Medians come from the FULL scan, not the displayed slice, so the peer group is stable.
     from ..screener.fairvalue import estimate_fair_values
     estimate_fair_values(rows, peer_rows=all_rows)
+    # ...and nothing implausible goes out with it. This estimator has no ceiling: its EV
+    # bridge is `3 + 2 x (net debt / market cap)` times the price, so a leveraged name can
+    # clear the valuation page's 5x refusal band on this PUBLIC surface while that page is
+    # refusing the very same claim. One number, one meaning — the band is the page's own.
+    withhold.withhold_implausible_fair_values(rows)
     scans = st.list_scans()
     meta = next((s for s in scans if s["scan_date"] == scan_date), {})
     try:
