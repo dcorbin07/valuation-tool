@@ -70,8 +70,8 @@ window.addEventListener("load", () => {
     b.onclick = () => { document.getElementById("ticker").value = t; runValue(); };
     chips.appendChild(b);
   });
-  document.getElementById("dlExcel").onclick = () => { if (STATE.ticker) window.location = `/api/export/excel?ticker=${STATE.ticker}`; };
-  document.getElementById("dlPdf").onclick = () => { if (STATE.ticker) window.location = `/api/export/pdf?ticker=${STATE.ticker}`; };
+  document.getElementById("dlExcel").onclick = () => { if (STATE.ticker) window.location = exportUrl("excel"); };
+  document.getElementById("dlPdf").onclick = () => { if (STATE.ticker) window.location = exportUrl("pdf"); };
 });
 
 /* ---------- ticker typeahead ----------
@@ -154,6 +154,7 @@ async function runValue(overrides) {
   const ticker = document.getElementById("ticker").value.trim().toUpperCase();
   if (!ticker) return;
   STATE.ticker = ticker;
+  STATE.overrides = overrides || null;   // what the export must reproduce, not guess at
   show("loader", true); show("results", false); errBox("");
   document.getElementById("go").disabled = true;
   document.getElementById("loadmsg").textContent = overrides ? "Re-running with your assumptions…" : `Fetching live data & valuing ${ticker}…`;
@@ -178,12 +179,27 @@ async function runValue(overrides) {
 }
 function resetAssum() { runValue(); }
 
+/* The download has to describe the same thing the screen does, so the assumptions the page
+   was rendered with travel with it. Without them the export could only ask the server for
+   "the last <ticker> anyone computed", which is a different question the moment a visitor
+   touches the assumption panel — and, behind two workers, sometimes a different answer. */
+function exportUrl(kind) {
+  const p = new URLSearchParams({ ticker: STATE.ticker });
+  Object.entries(STATE.overrides || {}).forEach(([k, v]) => p.set(k, v));
+  (STATE.peers || []).forEach(t => p.append("peers", t));
+  return `/api/export/${kind}?${p.toString()}`;
+}
+
 /* ---------- master render ---------- */
 function render(d) {
   const c = d.company, cls = d.classification, sc = d.scenarios, score = d.score;
   document.getElementById("coName").textContent = `${c.name} (${c.ticker})`;
+  // `as_of` is the fundamentals date and reads as today however old the figures are, so it
+  // never told the reader whether the page was current. `computed_at` does, and it is the
+  // same stamp the exported workbook and tearsheet print — so the two can be compared.
   document.getElementById("coSub").textContent =
-    [c.sector, c.industry].filter(Boolean).join(" · ") + (c.as_of ? ` · as of ${c.as_of}` : "");
+    [c.sector, c.industry].filter(Boolean).join(" · ") + (c.as_of ? ` · as of ${c.as_of}` : "")
+    + (d.computed_at ? ` · computed ${d.computed_at}` : "");
 
   // badges
   const rc = { high: "g", medium: "a", low: "r" }[cls.dcf_reliability] || "";

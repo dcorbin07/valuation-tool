@@ -41,10 +41,22 @@ def _hx(c):
     return "#" + c.hexval()[2:8]
 
 
+def provenance(cd, computed_at=None) -> str:
+    """Where these numbers came from and WHEN they were made — the tearsheet's version of
+    the same line the workbook and the page carry, so the three can be checked against each
+    other. `as_of` is the fundamentals date and reads as today regardless of how old the
+    figures are; `computed_at` is the one that answers "is this current?". Omitted rather
+    than invented when the caller has no stamp (the CLI renders tearsheets too)."""
+    bits = [f"As of {cd.as_of}"]
+    if computed_at:
+        bits.append(f"Computed {computed_at}")
+    return " &nbsp;|&nbsp; ".join(bits)
+
+
 #: Everything the refusal tearsheet is allowed to say. Kept as a function returning plain
 #: strings so the test can walk EVERY number in the document without needing to parse a PDF —
 #: the file is built from these lines and nothing else, so checking them is checking it.
-def withheld_pdf_lines(result) -> list:
+def withheld_pdf_lines(result, computed_at=None) -> list:
     """The text of the tearsheet for a name the model declined to value.
 
     A download is a publication, so this document obeys the same rule as the page: no figure
@@ -58,7 +70,8 @@ def withheld_pdf_lines(result) -> list:
     return [
         ("title", f"{cd.name} ({cd.ticker})"),
         ("sub", f"Valuation withheld &nbsp;|&nbsp; {cd.sector or ''} "
-                f"{('· ' + cd.industry) if cd.industry else ''} &nbsp;|&nbsp; As of {cd.as_of}"),
+                f"{('· ' + cd.industry) if cd.industry else ''} &nbsp;|&nbsp; "
+                f"{provenance(cd, computed_at)}"),
         ("h2", "No fair value is published for this name"),
         ("body", reason),
         ("body", "This is not a formatting problem or a missing-data error. The model produced "
@@ -89,7 +102,7 @@ def _refusal_reason(result):
     return refusal_reason(result)
 
 
-def _build_withheld_pdf(result, path: str) -> str:
+def _build_withheld_pdf(result, path: str, computed_at=None) -> str:
     styles = getSampleStyleSheet()
     body = ParagraphStyle("body", parent=styles["Normal"], fontName="Helvetica",
                           fontSize=9.5, leading=13.5, textColor=colors.HexColor("#222222"))
@@ -102,7 +115,7 @@ def _build_withheld_pdf(result, path: str) -> str:
                             bottomMargin=0.6 * inch, leftMargin=0.65 * inch,
                             rightMargin=0.65 * inch)
     E, kv = [], []
-    for kind, text in withheld_pdf_lines(result):
+    for kind, text in withheld_pdf_lines(result, computed_at):
         if kind == "kv":
             kv.append([Paragraph(f"<b>{text[0]}</b>", body), Paragraph(str(text[1]), body)])
             continue
@@ -136,11 +149,11 @@ def _kv_table(rows):
     return t
 
 
-def build_pdf(result, path: str) -> str:
+def build_pdf(result, path: str, computed_at=None) -> str:
     # A withheld valuation is withheld in every format it can leave the building in.
     from ..web.withhold import is_withheld_result
     if is_withheld_result(result):
-        return _build_withheld_pdf(result, path)
+        return _build_withheld_pdf(result, path, computed_at)
     cd, sc, a, w = result.company, result.scenarios, result.assumptions, result.wacc
     styles = getSampleStyleSheet()
     body = ParagraphStyle("body", parent=styles["Normal"], fontName="Helvetica",
@@ -159,7 +172,8 @@ def build_pdf(result, path: str) -> str:
                            fontSize=17, textColor=NAVY, spaceAfter=1, alignment=TA_LEFT)
     E.append(Paragraph(f"{cd.name} ({cd.ticker})", title))
     E.append(Paragraph(f"DCF Valuation &amp; Opportunity Score &nbsp;|&nbsp; {cd.sector or ''} "
-                       f"{('· ' + cd.industry) if cd.industry else ''} &nbsp;|&nbsp; As of {cd.as_of}", small))
+                       f"{('· ' + cd.industry) if cd.industry else ''} &nbsp;|&nbsp; "
+                       f"{provenance(cd, computed_at)}", small))
     E.append(Spacer(1, 6))
     E.append(HRFlowable(width="100%", thickness=1.4, color=NAVY, spaceAfter=8))
 
@@ -205,8 +219,16 @@ def build_pdf(result, path: str) -> str:
         ("ALIGN", (1, 0), (-1, -1), "RIGHT"), ("TOPPADDING", (0, 0), (-1, -1), 3),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
     ]))
+    # The rate the valuation was actually discounted at. `w.wacc` is the CAPM build-up, and
+    # an override on the page replaces the discount rate without touching it — so printing
+    # `w.wacc` would state a rate that did not produce the numbers beside it.
+    _used = getattr(sc.base, "wacc", None)
+    _overridden = (_used is not None and w.wacc is not None
+                   and abs(float(_used) - float(w.wacc)) > 1e-9)
     metrics = [
-        ["WACC", _pct(w.wacc)], ["Rev growth (fwd)", _pct(result.classification.blended_growth)],
+        ["WACC" + (" (overridden)" if _overridden else ""),
+         _pct(_used if _overridden else w.wacc)],
+        ["Rev growth (fwd)", _pct(result.classification.blended_growth)],
         ["Op margin → target", f"{_pct(a.current_margin,0)} → {_pct(a.target_margin,0)}"],
         ["Terminal growth", _pct(a.terminal_growth)], ["ROIC", _pct(cd.roic)],
         ["Net debt/EBITDA", (f"{cd.net_debt_to_ebitda:.1f}x" if cd.net_debt_to_ebitda is not None else "n/a")],
