@@ -33,11 +33,11 @@ name list, so the B1/B2/B3/B4/B15 corrections were the only variable.
 
 | | pre-correction | **corrected** |
 |---|---|---|
-| real / control expectancy | +5.14% / +13.22% | **+3.41% / +10.88%** |
-| gap | −8.08pp | **−7.47pp** |
-| date-block CI95 on the gap | never computed | **[−13.92pp, −2.43pp]** |
-| paired sign-test z | −5.185 | **−2.907 (p 0.0037)** |
-| paired *t* | −2.183 | −1.446 (p 0.148), not significant |
+| real / control expectancy | +5.14% / +13.22% (2 seeds) | **+3.41% / +10.06% (5 seeds)** |
+| gap | −8.08pp | **−6.65pp** |
+| date-block CI95 on the gap | never computed | **[−11.92pp, −2.13pp]** |
+| paired sign-test z | −5.185 | **−4.903 (p < 1e−5)** |
+| paired *t* | −2.183 | −1.227 (p 0.220), not significant |
 
 **The gap moved 0.61pp.** Five defects repaired, every level moved, the conclusion did not. Per
 the pre-committed rule, the condition for "the entry signal is dead" is met. **The live options
@@ -57,13 +57,19 @@ alert must not be described as a day-selection edge — it is an alert-generatio
   term_slope-filtered 95.69% → 80.63%. Autopsy re-confirms: 64 features, 127 hypotheses, **zero
   survivors**.
 
-### A SINGLE CONTROL SEED CAN FLIP THIS VERDICT — this is new and it matters
+### A SINGLE CONTROL SEED CAN FLIP THIS VERDICT — measured, then closed
 
-The control's own mean moves **8.9pp** on a reseed (+6.46% vs +15.34%); its own date-block CI is
-[+5.61%, +17.49%]. Seed 0 alone reads INCONCLUSIVE, seed 1 alone reads dead, pooled reads dead.
-Pooling is what the record did, so pooled carries the verdict — but **two seeds is not enough for
-this comparison and nobody had measured that.** Lean on the paired sign test, which moved far
-less. Open item: run the control at ≥5 seeds.
+The control's own mean ranges **+6.46% to +15.34%** across five draws. Seed 0 alone reads
+INCONCLUSIVE and is the most favourable of the five. So the control was run at **five seeds**
+rather than the record's two:
+
+**All five point estimates are negative; four of five are negative at significance.** Pooled over
+29,785 control trades the sign test is **z −4.903 (p < 1e−5)**, essentially the record's own
+−5.24, reached on corrected data under clustered inference. **More control draws SHARPEN the
+test** (2-seed z −2.907 → 5-seed −4.903) because each name-year cell's control mean averages more
+draws. The paired *t* ranges +0.162 to −1.835 and is never significant even pooled — it is the
+wrong statistic here. **Standing rule: five seeds minimum, and the sign test carries the
+verdict.**
 
 ### R7 — the floor passes and the filter fails anyway
 
@@ -106,16 +112,14 @@ biases have been wrong more often than right. Measure them.**
 
 ### Open, in priority order
 
-1. **Re-run the control at ≥5 seeds.** A single seed flips R2's verdict. Cheap (~10 min/seed) and
-   it is the weakest link in the strongest negative finding the project has.
-2. **X7's placebo at the true N = 84** — launched this session and still running at the time of
+1. **X7's placebo at the true N = 84** — launched this session and still running at the time of
    writing; the real run's DSR reads 0.8997 inside it, confirming N=84 on both sides. Until it
    finishes, *"the Deflated Sharpe survives calibration"* stays **PROVISIONAL and unquotable**.
-3. **Find the run-to-run non-reproducibility.** `insider` median IC still varies across
+2. **Find the run-to-run non-reproducibility.** `insider` median IC still varies across
    identical-data runs.
-4. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect.
-5. **X8** — the international replication. Still the only out-of-sample evidence available.
-6. Remaining audit sessions: U7/X3, U2/U1/U6, O1 onward, B23.
+3. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect.
+4. **X8** — the international replication. Still the only out-of-sample evidence available.
+5. Remaining audit sessions: U7/X3, U2/U1/U6, O1 onward, B23.
 
 ---
 
@@ -195,8 +199,8 @@ was flattering the product. **It is the hardest of the four.** The equal-weighte
 2. **Find the run-to-run non-reproducibility.** `insider` median IC still varies across
    identical-data runs. The headline path is deterministic; the per-theme path is not.
 3. **R2** — the options re-run. B1/B2/B3/B4/B15 fixed and unmeasured.
-4. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect.
-5. **X8** — the international replication. This is the only out-of-sample evidence available;
+3. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect.
+4. **X8** — the international replication. This is the only out-of-sample evidence available;
    R1 is a control, not new data, and the project has still only ever seen one panel.
 6. Remaining audit sessions: R3/R7, U7/X3, U2/U1/U6, O1 onward, and B23.
 
@@ -281,7 +285,7 @@ size of the claims the record is entitled to make.
    median IC −0.00335 / +0.01551 / −0.00339. The headline path is now shown deterministic; the
    per-theme path is not.
 3. **R2** — the options re-run. B1/B2/B3/B4/B15 all fixed and unmeasured.
-4. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect,
+3. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect,
    still open, still urgent.
 5. **B23** (speed) and the remaining audit sessions: R3/R7, U7/X3, U2/U1/U6, O1 onward.
 
@@ -399,7 +403,7 @@ level — but every number in it is provisional.
    is trustworthy, and the project's memory is its results files.
 3. **R2** — the options re-run. B1/B2/B3/B4/B15 are all fixed and unmeasured; no absolute
    options number in the record is citable until it lands.
-4. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect,
+3. **P4 / `seed_book` never sells names that leave the book.** Out of band, live-product defect,
    still open, still urgent.
 5. **B23** (speed) and the remaining audit sessions: X7/X2 noise floor, then R3/R7, U7/X3,
    U2/U1/U6, O1 onward.

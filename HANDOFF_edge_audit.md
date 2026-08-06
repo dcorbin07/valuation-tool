@@ -2090,45 +2090,56 @@ variable. Window 2016-01-01 → 2025-10-15, unchanged. Nothing re-tuned.
 
 | | pre-correction | **corrected** |
 |---|---|---|
-| real / control expectancy (seeds pooled) | +5.14% / +13.22% | **+3.41% / +10.88%** |
-| gap | −8.08pp | **−7.47pp** |
-| **date-block CI95 on the gap** | [−11.66pp, −4.51pp] | **[−13.92pp, −2.43pp]** |
+| real / control expectancy | +5.14% / +13.22% (2 seeds) | **+3.41% / +10.06% (5 seeds)** |
+| gap | −8.08pp | **−6.65pp** |
+| **date-block CI95 on the gap** | [−11.66pp, −4.51pp] | **[−11.92pp, −2.13pp]** |
 | negative at significance | YES | **YES** |
-| paired name-year cells / wins | 441 / 1,052 = 41.9% | **600 / 1,305 = 46.0%** |
-| sign-test z | −5.185 | **−2.907 (p = 0.0037)** |
-| paired *t* | −2.183 (p = 0.029) | **−1.446 (p = 0.148), NOT significant** |
+| paired name-year cells / wins | 441 / 1,052 = 41.9% | **577 / 1,334 = 43.3%** |
+| **sign-test z** | −5.185 | **−4.903 (p < 1e−5)** |
+| paired *t* | −2.183 (p = 0.029) | −1.227 (p = 0.220), not significant |
 
 **VERDICT: the pre-committed condition for "dead" is met.** The corrected gap remains negative at
 conventional significance under the date-block bootstrap. The alert's day-selection subtracts
 value on this universe and window, on corrected data, under clustered inference.
 
-**The finding survives the correction almost intact — the gap moves 0.61pp.** That is the
+**The finding survives the correction almost intact — the gap moves 1.43pp and the sign test moves 0.28.** That is the
 headline: five defects were repaired, every level moved, and the conclusion did not. Note the
-paired *t* is no longer significant while the sign test is — exactly the ordering the record
-predicted when it said to lean on the sign test.
+paired *t* is no longer significant while the sign test is decisive — exactly the ordering the
+record predicted when it said to lean on the sign test.
 
 ### THE SEED INSTABILITY · a finding about the BENCHMARK, and it nearly caused a wrong call
 
-**A single control seed can flip this verdict, and the first one run did.**
+**A single control seed can flip this verdict, and the first one run did.** The control was
+therefore run at **FIVE seeds** rather than the record's two — the extra three cost ~30 minutes,
+and the strongest negative finding this project owns should not rest on a coin flip.
 
-| | control expectancy | gap | date-block CI95 | negative at sig |
-|---|---|---|---|---|
-| seed 0 | +6.46% | −3.05pp | [−7.05, +0.95] | **NO** |
-| seed 1 | **+15.34%** | −11.93pp | [−23.17, −4.55] | **YES** |
-| **pooled** | **+10.88%** | **−7.47pp** | **[−13.92, −2.43]** | **YES** |
+| seed | control exp | gap | date-block CI95 | neg at sig | sign-test z | paired *t* |
+|---|---|---|---|---|---|---|
+| 0 | +6.46% | −3.05pp | [−7.05, +0.95] | **NO** | −0.594 | +0.162 |
+| 1 | **+15.34%** | −11.93pp | [−23.17, −4.55] | YES | −3.003 | −1.835 |
+| 2 | +11.75% | −8.34pp | [−18.92, −0.87] | YES | −1.700 | −0.975 |
+| 3 | +9.22% | −5.81pp | [−9.91, −1.67] | YES | −2.931 | +0.071 |
+| 4 | +7.54% | −4.13pp | [−8.09, −0.15] | YES | −2.998 | −0.740 |
+| **POOLED (n=29,785)** | **+10.06%** | **−6.65pp** | **[−11.92, −2.13]** | **YES** | **−4.903** | −1.227 |
 
-The same construction on the same book, reseeded, moves the control's own mean by **8.9
-percentage points**. Read on seed 0 alone, this session would have reported INCONCLUSIVE; on seed
-1 alone, dead. **Pooling is what the record did** (its control was 8,417 trades across two
-draws), so pooled is the comparison the verdict reads, and the per-seed spread is published
-beside it rather than averaged away.
+**Every one of the five seeds has a negative point estimate. Four of five are negative at
+significance individually. Seed 0 — the first one run — is the single most favourable draw.**
 
-The mechanism is measured, not asserted: the control's OWN expectancy carries a date-block CI of
-**[+5.61%, +17.49%]** — a width of 11.9pp on a point estimate of 10.9%. A random-day book's mean
-on a barbell payoff is set by a handful of +600% trades, and which ones a draw catches moves it
-enormously. **Two seeds is not enough for this comparison, and nobody had measured that.**
-Recorded as an open item: run the control at ≥5 seeds, or read the paired sign test only, which
-moved far less across the three readings (z −0.59 / −3.00 / −2.91).
+**The pooled sign test at five seeds is z = −4.903 (p < 1e−5) over 1,334 name-year cells, 43.3%
+won.** That is very nearly the record's own −5.24, reached on corrected data under clustered
+inference. The two-seed corrected reading (z −2.907) was itself an underestimate: **more control
+draws sharpen the test rather than blur it**, because each name-year cell's control mean is
+averaged over more draws and the paired comparison gets less noisy. The verdict is not marginal.
+
+The mechanism of the spread is measured, not asserted: the control's OWN expectancy carries a
+date-block CI of **[+5.54%, +15.44%]** at five seeds. A random-day book's mean on a barbell
+payoff is set by a handful of +600% trades, and which ones a draw catches moves it enormously.
+
+**Two seeds is not enough for this comparison and nobody had measured that.** The paired *t*
+ranges +0.162 to −1.835 across seeds and is never significant, even pooled (−1.227, p 0.22),
+while the sign test is stable and decisive — exactly the ordering the record predicted when it
+said to lean on the sign test. **Standing rule for this comparison: five seeds minimum, and the
+sign test carries the verdict.**
 
 ### What the corrections did to the book
 
@@ -2230,8 +2241,45 @@ clustering is genuine — but genuine because it was tested, not because the num
 **R3.4, purge and embargo.** `pbo_cscv` now purges dates whose 75-day label window crosses an
 IS/OS boundary; **9.08% of dates are purged** per split. `embargo_days=0` reproduces the old
 unpurged split exactly, so the correction's cost is measurable rather than asserted. The
-corrected run reports PBO **12.86%** against the record's 35.7% — those differ in two ways at
-once, so an A/B varying only `embargo_days` on a single feature pass was run to isolate it.
+corrected run reports PBO **12.86%** against the record's 35.7%; the isolating A/B is below and
+its result contradicts what this session first asserted about the direction.
+
+### R3.4 ISOLATED — the purge LOWERS PBO, which is the opposite of what this session asserted
+
+The corrected run reports PBO 12.86% against the record's 35.7%, and those differ in two ways at
+once. An A/B was run on a single feature pass per book with **only `embargo_days` varying**:
+
+| book | embargo 0d (old behaviour) | embargo 75d (shipped) | purge effect | dates purged |
+|---|---|---|---|---|
+| corrected | **17.14%** | **12.86%** | **−4.29pp** | 9.08% |
+| pre-correction | **48.57%** | **38.57%** | **−10.00pp** | 9.37% |
+
+**Purging lowers PBO on both books.** The docstring written earlier in this session asserted the
+contamination "biases PBO DOWNWARD" — i.e. that the unpurged figure was too low. It is too
+**high**, by 4 to 10 points. The assertion was reasoning, not measurement, and it is corrected in
+place at `options_autopsy.pbo_cscv`. **No mechanism is verified.** A plausible hypothesis, offered
+as one and not as a finding: boundary dates are where trades straddle regimes, so removing them
+makes the in-sample ranking more stable out of sample. It has not been tested.
+
+### AND A REPRODUCIBILITY PROBLEM THAT IS NOT MINE TO FIX HERE — **`## BUGS FOUND`**
+
+**The pre-correction book's PBO does not reproduce: 48.57% today against the 35.7% recorded on
+2026-08-03, on the same trades and the same code path.** The cause is not the corrections and not
+the purge — the A/B above holds both fixed. It is that **`data/options_derived/` has grown from
+111 names to 317 entries while the miner has been running.** The record's autopsy carried
+greek-stack coverage of 2,030/3,042 (66.7%) and daily-surface coverage of 2,071/3,042 (68.1%);
+the corrected run carries **3,885/3,885 — 100% on both.**
+
+Two consequences, and the second is the one that matters:
+
+1. **Good news:** the 64-feature gate is now tested on the whole book rather than two-thirds of
+   it, and it still returns **zero survivors**. That is a stronger rejection than the record's.
+2. **`AUTOPSY_*` numbers are not comparable across sessions while the miner is live.** Feature
+   coverage changes underneath them, so a PBO or a feature *p*-value quoted from one session
+   cannot be differenced against another's. Nothing warns about this today. The autopsy should
+   stamp its derived-data coverage into its own result file the way the panel stamps
+   `panel_window`, and any cross-session PBO comparison should be treated as invalid until it
+   does. Recorded, not fixed — it is outside this session's items.
 
 **R3.5**, the Deflated Sharpe at `n_eff`, ships as `deflated_sharpe_clustered` and carries
 `clustering_measurable` so nobody quotes a haircut that is estimator noise.
@@ -2341,3 +2389,54 @@ is believed.
 assumed ran in the strategy's favour has run the other way. That is now a pattern worth stating:
 **this project's expectations about the direction of its own biases have been wrong more often
 than right, and should be measured rather than reasoned about.**
+
+
+## BUGS FOUND — session 5 (per RUN_RULES.md Part A rule 3)
+
+1. **`AUTOPSY_*` results are not comparable across sessions while the miner is live, and nothing
+   says so.** `data/options_derived/` grew from 111 names to **317 entries** during the audit, so
+   the 64-feature gate's coverage went from 2,030/3,042 (66.7%) to **3,885/3,885 (100%)**. The
+   pre-correction book's PBO therefore reads **48.57%** today against the **35.7%** recorded on
+   2026-08-03 from the same trades and the same code path. **Not fixed** — the autopsy should
+   stamp its derived-data coverage into its own result file the way the panel stamps
+   `panel_window`. Until it does, treat any cross-session PBO or feature *p*-value difference as
+   invalid. `valuation/edge/options_autopsy.py:run`.
+
+2. **A raw ICC design effect was about to be applied as a haircut, and it is mostly estimator
+   noise at these block sizes.** Caught by a failing test rather than by review. 600 independent
+   draws in 12 blocks of 50 report a design effect near 1.8. **Fixed** — `options_stats.effective_n`
+   now scores the design effect against a shuffled null and gates it behind
+   `clustering_measurable`.
+
+3. **`pbo_cscv`'s purge was O(n²) per split** — 70 splits over ~2,500 dates would have added
+   minutes to every autopsy. **Fixed** (bisect), `options_stats.purged_split`.
+
+4. **A mechanism asserted in a docstring this session was wrong in direction.** `pbo_cscv` claimed
+   boundary contamination "biases PBO DOWNWARD"; measured, purging LOWERS PBO by 4–10pp, so the
+   unpurged figure was too HIGH. **Fixed in place**, and no replacement mechanism is claimed. It
+   is recorded because writing a plausible mechanism into a docstring and shipping it *is* the
+   failure mode this project keeps paying for.
+
+5. **`optuniv_run.py` writes its control and results into `data/options_universe/`, overwriting
+   the previous run's artifacts**, with `--state` the only way to preserve a prior trade log. The
+   pre-correction run's `state.pkl`, both control seeds, `UNIVERSE_RESULTS.json` and
+   `AUTOPSY_BROAD_RESULTS.json` had to be copied out by hand before the re-run, or the record's
+   own book would have been destroyed and the A/B in Part 6 would have been impossible.
+   **Not fixed** — the runner should refuse to overwrite a banked result without an explicit flag.
+
+## WHAT WAS NOT DONE, AND WHY — session 5
+
+- **The mid-fill (aggression 0.0) decomposition was NOT re-run.** R2's scope names it. It is a
+  diagnostic, never a headline (bar B5), and the verdict rests on the aggression-1.0 book. The
+  spread toll of −6.59pp recorded in `HANDOFF_universe_backtest.md` §2a is therefore **void along
+  with the rest of that file and has not been replaced.** One command (`--aggression 0.0
+  --universe-from ... --state <new>`), roughly 20 minutes.
+- **The four `compute_signals`-touching autopsy features were not examined individually.** R2
+  names them. The autopsy returns zero survivors overall, so no individual feature changes a
+  verdict, but the audit asked for them specifically.
+- **`n_eff` was not fed into the options Deflated Sharpe on the shipped headline.**
+  `deflated_sharpe_clustered` is computed and shipped alongside, but `deflated_sharpe` remains
+  the raw-n figure so every historical number stays comparable. Deliberate; flagged here so it is
+  not mistaken for an oversight.
+- **The seed instability was closed for the CONTROL only.** Every other bootstrap in the options
+  lane still runs at a single seed. Whether any of them is similarly seed-sensitive is unmeasured.

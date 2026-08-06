@@ -984,11 +984,23 @@ def pbo_cscv(rows, feats, n_blocks: int = 8, embargo_days: Optional[int] = None)
     up to 75 days, so a trade entered on the last day of an in-sample block is still being
     resolved by the market well inside the adjacent out-of-sample block. CSCV's whole premise is
     that the two halves are independent samples of performance; without purging they share the
-    days that decide their boundary trades, which biases PBO DOWNWARD — the out-of-sample rank
-    of the in-sample winner is partly determined by the same trades that made it the winner.
-    `embargo_days=0` reproduces the old, unpurged behaviour exactly; `None` uses the label
-    window (`options_stats.MAX_HOLD_DAYS`). The count of purged dates ships in the result so a
-    silent revert to the contaminated split is loud.
+    days that decide their boundary trades.
+
+    THE DIRECTION OF THAT BIAS WAS ASSERTED HERE AND THE ASSERTION WAS WRONG. This docstring
+    used to claim the contamination biases PBO DOWNWARD. Measured by A/B on one feature pass with
+    only `embargo_days` varying, purging LOWERS PBO on both books:
+
+        corrected book      embargo 0d -> PBO 17.14%   embargo 75d -> 12.86%   (-4.29pp)
+        pre-correction book embargo 0d -> PBO 48.57%   embargo 75d -> 38.57%   (-10.00pp)
+
+    So the unpurged split was reporting PBO too HIGH, not too low. No mechanism for that is
+    verified. A plausible one — offered as a hypothesis and not as a finding — is that boundary
+    dates are where trades straddle regimes, so removing them makes the in-sample ranking more
+    stable out of sample. Do not repeat it as an explanation without testing it.
+
+    `embargo_days=0` reproduces the old, unpurged behaviour exactly; `None` uses the label window
+    (`options_stats.MAX_HOLD_DAYS`). The count of purged dates ships in the result so a silent
+    revert to the contaminated split is loud.
     """
     import itertools
     import math as _m
