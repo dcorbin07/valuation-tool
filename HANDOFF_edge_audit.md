@@ -4114,6 +4114,16 @@ wrong code.
   (0.8789 → 0.8721) rather than spending 12 minutes rewriting a tracked artifact this session did
   not otherwise touch — and the round trip reproducing session 6's 0.8789 at N = 104 is the check
   that the arithmetic is sound.
+* **`BACKTEST_RESULTS.md` STILL CARRIES THE OVERSTATED HEADING, and this is the one place B8
+  survives.** Line 194 of the tracked rendered artifact reads "## Held-out confirmation — does
+  zeroing a theme still help out-of-sample?", because it was rendered by a previous run. The
+  renderer is fixed; the *output* is regenerated only by a full backtest. I did not run one:
+  a full run overwrites the canonical `BACKTEST_RESULTS.json` that other lanes are reading
+  mid-audit, and session 6 set the precedent of computing the consequence instead. **Re-rendering
+  from the existing JSON was considered and rejected** — that JSON predates the fix and has no
+  `oos_verdicts`, so every OOS cell would render `n/a` and the .md would silently disagree with
+  the .json it is supposed to describe. **The next full backtest fixes it with no further work;
+  until then, do not quote that section of `BACKTEST_RESULTS.md`.**
 * **U1 was not run.** U7 foreclosed it as written and nothing this session reopens it.
 * **P4's migration has not run against the live paper-track database.** It is
   `CREATE TABLE IF NOT EXISTS` plus an additive read path, so it applies on the next
