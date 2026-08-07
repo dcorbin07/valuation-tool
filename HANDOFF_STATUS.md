@@ -316,6 +316,48 @@ non-reproducibility (the `insider` IC) also remains open and unexplained.
 
 ---
 
+## MINER — SIX CACHED NAMES HOLD TWO COMPANIES EACH; MAY-2022 IS A NON-ISSUE (2026-08-07)
+
+Full write-up: **`HANDOFF_miner_remine.md`**, items 6-8.
+Lane: data miner (`theta_bulk.py`, `mine_options_cache.py`, `data/options/**`).
+
+**The May-2022 source defect is CLOSED and cost nothing.** Verified with the miner stopped: it
+no longer reproduces (22 of 22 probes succeed, including the two names that failed
+deterministically twice the day before). It was a transient upstream outage, **not** a permanent
+source limitation like the −1 open-interest problem, and the miner needed no repair — its
+existing retry rule refilled every affected year unaided. **2022 now has 486 cached year-files,
+more than 2021, exactly one interior hole, and every cached 2022 contains all 21 May trading
+days.** Net permanent loss: zero. My own "~15 names affected" figure was inflated by stale
+`.missing` markers left on years that had already recovered; that is fixed.
+
+**→ GREEKS LANE, ACTION REQUIRED, and this now extends beyond WBD: re-derive AXON, COR and
+SNOW.** `data/options_derived/` holds derived frames and blended `-daily.pkl` files for names
+whose source cache contains **two different companies**. `COR` is CoreSite Realty until 2021 and
+Cencora from 2023; `AXON`, `SNOW`, `SN`, `FIG` and `SNDK` are the same shape. Confirmed by
+strike range (AXON steps 10.4 → 275.0 across its gap). Not deleted — another lane's outputs.
+**`UNIVERSE_RESULTS.json` and `AUTOPSY_BROAD_RESULTS.json` are CLEAN (zero occurrences of all
+nine names checked), so no shipped verdict rests on this.**
+
+**Why it is not just more of the WBD bug, and why no alias table can fix it.** No alias is
+involved: the miner asks the feed for a ticker and the feed answers for whoever HELD it that
+year. `alias_overlap_conflicts()` is structurally blind to this, **and the fallback can never
+repair it, because an alias only fires on an EMPTY span and a reused ticker returns the wrong
+company's data instead of nothing.** `META` is the worst case and has no gap at all to catch it:
+`META-2021` holds a ~$15 company's chains (9,398 rows, strikes 8-22) between years of 247k and
+172k rows at strikes 130-350 — **Facebook's real 2021 was never fetched.** Two screens now ship
+and print on every `mine_status.py` run; the fix (per-symbol validity windows) is the miner
+lane's #1 next step.
+
+**Also corrected: the "0 faults" reading, for a second reason.** `MINING_PROGRESS.txt` carries
+only `[mine]` lines and has never contained a single `[theta-bulk]` line, so the statistic was
+quoted from a stream that cannot report it. The real logs show **81 give-ups, 18 chunk halvings,
+3 timeouts and 2 client rebuilds** — the run was not fault-free, and the detector was blind to
+hangs specifically rather than broken (it fired twice on ordinary errors). The `CALL_TIMEOUT`
+fix is confirmed against a live pull (65.3s call bounded to 10.0s with faults counted) but has
+**never fired in production** — all three hangs predate it by one minute.
+
+---
+
 ## MINER — ~1.00M ROWS OF AT&T OPTIONS WERE CACHED UNDER WBD (2026-08-06)
 
 Full write-up: **`HANDOFF_miner_remine.md`**, item 5 section and BUGS FOUND #7-9.

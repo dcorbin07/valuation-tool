@@ -1,0 +1,124 @@
+{
+ "findings": {
+  "AXON": {
+   "hole": [
+    2020
+   ],
+   "median_strike_after": 275.0,
+   "median_strike_before": 10.38,
+   "screen": "interior_hole",
+   "step": 26.51,
+   "verdict": "suspected_two_companies"
+  },
+  "COR": {
+   "hole": [
+    2022
+   ],
+   "median_strike_after": 195.0,
+   "median_strike_before": 103.33,
+   "screen": "interior_hole",
+   "step": 1.89,
+   "verdict": "suspected_two_companies"
+  },
+  "DD": {
+   "hole": [
+    2018
+   ],
+   "median_strike_after": 69.0,
+   "median_strike_before": 71.5,
+   "screen": "interior_hole",
+   "step": 0.97,
+   "verdict": "continuous_underlying"
+  },
+  "DOW": {
+   "hole": [
+    2018
+   ],
+   "median_strike_after": 49.0,
+   "median_strike_before": 56.0,
+   "screen": "interior_hole",
+   "step": 0.88,
+   "verdict": "continuous_underlying"
+  },
+  "FIG": {
+   "hole": [
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024
+   ],
+   "median_strike_after": 64.5,
+   "median_strike_before": 6.5,
+   "screen": "interior_hole",
+   "step": 9.92,
+   "verdict": "suspected_two_companies"
+  },
+  "META": {
+   "collapsed_years": [
+    {
+     "mb": 0.44,
+     "next_mb": 8.08,
+     "prev_mb": 11.62,
+     "year": 2021
+    }
+   ],
+   "screen": "collapsed_year"
+  },
+  "PHM": {
+   "collapsed_years": [
+    {
+     "mb": 1.07,
+     "next_mb": 5.53,
+     "prev_mb": 5.75,
+     "year": 2022
+    }
+   ],
+   "screen": "collapsed_year"
+  },
+  "SN": {
+   "hole": [
+    2020,
+    2021,
+    2022
+   ],
+   "median_strike_after": 73.33,
+   "median_strike_before": 6.5,
+   "screen": "interior_hole",
+   "step": 11.28,
+   "verdict": "suspected_two_companies"
+  },
+  "SNDK": {
+   "hole": [
+    2017,
+    2018,
+    2019,
+    2020,
+    2021,
+    2022,
+    2023,
+    2024
+   ],
+   "median_strike_after": 141.0,
+   "median_strike_before": 72.5,
+   "screen": "interior_hole",
+   "step": 1.94,
+   "verdict": "suspected_two_companies"
+  },
+  "SNOW": {
+   "hole": [
+    2018,
+    2019
+   ],
+   "median_strike_after": 205.83,
+   "median_strike_before": 13.75,
+   "screen": "interior_hole",
+   "step": 14.97,
+   "verdict": "suspected_two_companies"
+  }
+ },
+ "generated": "2026-08-07",
+ "step_threshold": 1.5
+}
