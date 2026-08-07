@@ -95,9 +95,19 @@ MIN_DAYS_WITH_CHAIN = 100        # of ~252; below this the name is not continuou
 # a full C: drive during an overnight job is expensive.
 MIN_FREE_GB = 40
 RETRY_ROUNDS = 2         # bounded re-attempts for names that came in partial
-# How many EMPTY probe years to try before concluding a name has no options in the mining
-# range. 2 covers "listed during 2025" without paying a ten-year search for a dead ticker.
-PROBE_YEARS_TRIED = 2
+# How many EMPTY probe years to try before concluding a name has no options in the mining range.
+#
+# This was 2, on the reasoning that 2 covers "listed during 2025" without paying a ten-year
+# search for a dead ticker. Measured against reality, 2 is too few and the saving is imaginary:
+# of the 20 names the bounded probe condemned, `probe_range_audit.py` found **UI has 8 of 10
+# years** (2016-2023, via UBNT), ECHO 6, P 3, PS and TLK 2, IHG 1. Their history simply sits
+# outside the probe window, so the verdict was about the window, not the name.
+#
+# Raising it to the full range costs at most ~10 short pulls for a name with nothing anywhere,
+# and only 14 of 1,000 names are in that state -- a few minutes, once, against silently
+# dropping eight years of a real name. Years already probed leave `.empty` markers and return
+# immediately, so a re-run pays nothing.
+PROBE_YEARS_TRIED = len(YEARS)
 
 
 def log(msg):

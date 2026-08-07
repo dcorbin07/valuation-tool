@@ -1,0 +1,145 @@
+{
+ "confirmed_empty": {
+  "ARXS": {},
+  "BSP": {},
+  "CBRS": {},
+  "FDXF": {},
+  "HONA": {},
+  "INIO": {},
+  "MAIR": {},
+  "MICC": {},
+  "PAYP": {},
+  "QNT": {},
+  "RNAM": {},
+  "SKHY": {},
+  "SUNB": {},
+  "TELFY": {}
+ },
+ "generated": "2026-08-07",
+ "withdrawn": {
+  "ECHO": {
+   "was": "no_data_in_range",
+   "withdrawn_on": "2026-08-07",
+   "years_with_data": {
+    "2016": {
+     "rows_in_probe": 448,
+     "symbol": "ECHO"
+    },
+    "2017": {
+     "rows_in_probe": 504,
+     "symbol": "ECHO"
+    },
+    "2018": {
+     "rows_in_probe": 504,
+     "symbol": "ECHO"
+    },
+    "2019": {
+     "rows_in_probe": 392,
+     "symbol": "ECHO"
+    },
+    "2020": {
+     "rows_in_probe": 864,
+     "symbol": "ECHO"
+    },
+    "2021": {
+     "rows_in_probe": 684,
+     "symbol": "ECHO"
+    }
+   }
+  },
+  "IHG": {
+   "was": "no_data_in_range",
+   "withdrawn_on": "2026-08-07",
+   "years_with_data": {
+    "2018": {
+     "rows_in_probe": 408,
+     "symbol": "IHG"
+    }
+   }
+  },
+  "P": {
+   "was": "no_data_in_range",
+   "withdrawn_on": "2026-08-07",
+   "years_with_data": {
+    "2016": {
+     "rows_in_probe": 7804,
+     "symbol": "P"
+    },
+    "2017": {
+     "rows_in_probe": 4722,
+     "symbol": "P"
+    },
+    "2018": {
+     "rows_in_probe": 4186,
+     "symbol": "P"
+    }
+   }
+  },
+  "PS": {
+   "was": "no_data_in_range",
+   "withdrawn_on": "2026-08-07",
+   "years_with_data": {
+    "2019": {
+     "rows_in_probe": 532,
+     "symbol": "PS"
+    },
+    "2020": {
+     "rows_in_probe": 792,
+     "symbol": "PS"
+    }
+   }
+  },
+  "TLK": {
+   "was": "no_data_in_range",
+   "withdrawn_on": "2026-08-07",
+   "years_with_data": {
+    "2016": {
+     "rows_in_probe": 400,
+     "symbol": "TLK"
+    },
+    "2017": {
+     "rows_in_probe": 384,
+     "symbol": "TLK"
+    }
+   }
+  },
+  "UI": {
+   "was": "no_data_in_range",
+   "withdrawn_on": "2026-08-07",
+   "years_with_data": {
+    "2016": {
+     "rows_in_probe": 1514,
+     "symbol": "UBNT"
+    },
+    "2017": {
+     "rows_in_probe": 552,
+     "symbol": "UBNT"
+    },
+    "2018": {
+     "rows_in_probe": 744,
+     "symbol": "UBNT"
+    },
+    "2019": {
+     "rows_in_probe": 2408,
+     "symbol": "UBNT"
+    },
+    "2020": {
+     "rows_in_probe": 2132,
+     "symbol": "UI"
+    },
+    "2021": {
+     "rows_in_probe": 2988,
+     "symbol": "UI"
+    },
+    "2022": {
+     "rows_in_probe": 2432,
+     "symbol": "UI"
+    },
+    "2023": {
+     "rows_in_probe": 1078,
+     "symbol": "UI"
+    }
+   }
+  }
+ }
+}

@@ -249,6 +249,33 @@ The three rejections matter as much as the recoveries: they are the liquidity sc
 real data instead of on a calendar artifact. A fix that made everything pass would be the
 suspicious outcome.
 
+### BREADTH IS COMPLETE — 1,000 of 1,000 names judged, 0 partial
+
+| | at start | **final** |
+|---|---|---|
+| names judged of 1,000 | 481 | **1,000** |
+| complete (cached, all 10 years) | 314 | **502** |
+| skipped_thin (measured, untradeable) | 163 | 484 |
+| no_data_in_range (measured, nothing anywhere) | 0 | 14 |
+| **partial** | 3 | **0** |
+| cache on disk | 17.3GB | **25.1GB** (259GB free) |
+| year-files | 3,143 | **5,073** |
+| symbol-years at 200 DTE | 906 | **2,836** |
+| names fully at 200 DTE | 100 | **604** |
+
+**`partial` is 0**, which is the number worth dwelling on: every cached name has all ten years.
+That includes the ~15 names caught by the May-2022 source defect — the bounded retry pass
+recovered every one, exactly as the "it self-heals" analysis predicted, so the defect cost time
+and no data.
+
+**Every label in the manifest is now true**, which took one more pass than expected. See BUGS
+FOUND #12: the bounded probe had condemned 20 names as `no_data_in_range`, and measuring the
+full range found **UI has 8 of 10 years**, ECHO 6, P 3, PS/TLK 2, IHG 1. All six were re-judged
+on a year they actually traded in (UI on 2023, ECHO on 2021, P on 2019, TLK on 2018) and all six
+are genuinely thin — so the universe does not change, but it is now excluded for a measured
+reason instead of a calendar artifact. The remaining 14 were confirmed empty at 0/10 years with
+the evidence recorded in `PROBE_RANGE_AUDIT.json`.
+
 ### Breadth progress — RESUMABLE, and the answer is a file
 
 The run is market-cap ordered, so a partial run is a usable universe rather than an alphabetical
@@ -450,6 +477,35 @@ honest label and gives a clean re-entry point once 2026 closes.
    **Deliberately NOT changed:** caching partial years with a gap record would fix the waste,
    but it changes the contract every consumer relies on ("a `.pkl` exists ⇒ that year is
    complete"). That is not a call to make unilaterally, mid-run, in the miner's lane.
+12. **THE BOUNDED PROBE CONDEMNED 20 NAMES ON TWO YEARS OF EVIDENCE, AND UI HAS EIGHT.** The
+   probe-year fix (#8) walked forward from 2024 but stopped after `PROBE_YEARS_TRIED = 2` empty
+   years, on the reasoning that two covers "listed during 2025" without paying a ten-year
+   search for a dead ticker. `probe_range_audit.py` measured the whole range for all 20 names
+   it had condemned:
+
+   | name | years with data | the label said |
+   |---|---|---|
+   | **UI** | **8/10** (2016-2023, via `UBNT` and `UI`) | no data in range |
+   | ECHO | 6/10 (2016-2021) | no data in range |
+   | P | 3/10 (2016-2018) | no data in range |
+   | PS, TLK | 2/10 | no data in range |
+   | IHG | 1/10 | no data in range |
+   | 14 others | **0/10 — correct** | no data in range |
+
+   So the saving was imaginary and the label was false for six names. `PROBE_YEARS_TRIED` now
+   covers the whole range: it costs ~10 short pulls for a name with nothing anywhere, only 14
+   of 1,000 names are in that state, and years already probed leave `.empty` markers that
+   return immediately.
+
+   **A churn bug was caught in the fix before it ran, not after.** Withdrawing the verdict on a
+   name whose history is entirely historical (ECHO ends 2021, UI ends 2023) would have made the
+   miner re-probe 2024/2025, find them empty and re-apply the identical verdict — forever,
+   every run. Raising the probe bound is what makes withdrawal safe, so the two changes only
+   work together. That is also why `MIN_YEARS_TO_PROMOTE` is 1: which names are worth keeping is
+   the LIQUIDITY SCREEN's call on measured data, not a round number's.
+
+   Outcome: all six were re-judged on a year they actually traded and all six are genuinely
+   thin. **The universe is unchanged; the reason for it is now measured.**
 10. **"Nothing to judge" and "judged and untradeable" shared one status.** `skipped_thin` was
    recorded both for names measured against the liquidity screen and for names with no data to
    measure — which is what let bug 8 hide, since a 2025 IPO was indistinguishable from a penny
@@ -457,12 +513,15 @@ honest label and gives a clean re-entry point once 2026 closes.
 
 ## What was NOT done
 
-* **Breadth mining is NOT FINISHED — it is a long run, not a blocked one.** See the progress
-  table; resume with `python mine_options_cache.py`, check with `python mine_status.py`.
-* **`probe_range_audit.py` has NOT been run yet.** It needs the ThetaData concurrency budget the
-  miner is currently using, and running both would fault the miner's channel. Run it after the
-  breadth mine stops. Until then, **`no_data_in_range` overstates what was measured** for any
-  name whose history predates the probe window — `UI` is the known case.
+* **`TENORS` still NOT widened.** Depth is now 604 of 986 names fully at 200 DTE — much better
+  than the 100 it started at, but still not universal, and 4 names are MIXED. The 90-200 band
+  is not safe to rank on across the whole universe yet.
+* **The OI coverage audit was NOT re-run after breadth.** `OI_COVERAGE.json` still describes the
+  3,140-symbol-year cache; the cache is now 5,073 year-files. Re-run `oi_coverage_audit.py
+  --rescan` before quoting any coverage figure. It was skipped here because it is a long
+  read-only pass and the mining was the deliverable.
+* **The 14 `no_data_in_range` names were not re-attempted at 2026.** Four of them (CBRS, HONA,
+  SUNB, and MDLN's cohort) have 2026 data; the mining range deliberately ends at 2025.
 * **The `.alias` provenance sidecar is WRITE-ONLY so far.** `mine_status.py` reports it and
   `alias_overlap_conflicts()` guards the mapping, but no CONSUMER of the cache reads it. A
   downstream user still cannot tell from the frame alone that WBD 2016-2021 is Discovery's data
@@ -483,8 +542,9 @@ honest label and gives a clean re-entry point once 2026 closes.
 
 ## Recommended next step
 
-1. **Let the breadth mine finish** (`python mine_options_cache.py` resumes it), then run
-   **`python probe_range_audit.py`** to make the `no_data_in_range` label true.
+1. **Re-run `python oi_coverage_audit.py --rescan`.** The cache grew 3,143 → 5,073 year-files
+   and every coverage figure in this file predates that. Nothing should quote OI coverage until
+   it has been re-measured.
 2. **→ GREEKS LANE: re-derive WBD.** `data/options_derived/WBD/*` is built from AT&T's chains.
    This is the only cross-lane action outstanding and it is not optional.
 3. **Consider whether the shared `HANDOFF_STATUS.md` convention is worth keeping as-is.** Every

@@ -40,9 +40,16 @@ MANIFEST = os.path.join(CACHE_ROOT, "cache_manifest.json")
 AUDIT_JSON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "PROBE_RANGE_AUDIT.json")
 YEARS = list(range(2016, 2026))
 PROBE_DAYS = 10
-# A name is worth re-mining if it has a real run of history, not one stray year. Three years is
-# the shortest window any of this project's option studies uses.
-MIN_YEARS_TO_PROMOTE = 3
+# ANY year of real data is enough to withdraw the verdict. The threshold used to be 3, on the
+# reasoning that one stray year is not a usable history -- but that is the LIQUIDITY SCREEN's
+# call to make, on measured data, not this tool's to pre-empt with a round number. The audit's
+# job is only to establish that there is something to judge.
+#
+# This is only safe because `mine_options_cache.PROBE_YEARS_TRIED` now covers the whole range.
+# While the probe was bounded at two years, promoting a name whose history is entirely
+# historical (ECHO's ends in 2021, UI's in 2023) made the miner re-probe 2024/2025, find them
+# empty, and re-apply the identical verdict -- an infinite churn across runs.
+MIN_YEARS_TO_PROMOTE = 1
 
 
 def log(m):
