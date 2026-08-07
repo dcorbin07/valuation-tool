@@ -4090,6 +4090,25 @@ inside `_band_select` — an unrelated function. The real site was `:3545`. Harm
 the symbol name was also given, but a citation that silently rots points the next reader at the
 wrong code.
 
+**7. MY OWN TEST SWEEP HAD A GATE THAT COULD NOT FAIL — and the same question had to be asked
+of CI.** The scratch sweep used by sessions 6 and 7 ran
+`out=$(python "$f" 2>&1 | tail -2 | tr '
+' ' ')` and then tested `$?`. **After a pipeline `$?`
+is the LAST command's status**, i.e. `tr`'s, which is always 0 — so the exit code was never
+consulted and the verdict rested entirely on grepping the output for "fail". That heuristic then
+fired on another lane's `1 xfail, 0 xpass, 0 failed` line and reported `OVERALL_FAIL=1` for a
+suite that exits 0. **Both directions are bad: it cried wolf here, and it would have stayed
+silent for a suite that crashed without printing the word "fail".** Re-verified by exit code
+alone: **24 suites, all 0**.
+
+**The important half is what this prompted:** the same flaw in `.github/workflows/land-agent-branch.yml`
+would mean the auto-land gate could never block a bad merge. **Checked — it is CORRECT.** It runs
+`python "$f" || { echo "::error::$f FAILED"; fail=1; }`, taking the raw exit status with no
+pipeline in between, and `exit $fail` at the end. The workflow's own header comment flags this as
+the thing to verify on first run ("test_edge.py must EXIT non-zero on failure for the gate to be
+real"), and it does. **The gate is real; only my scratch harness was broken.** Recorded because
+"the harness that checks the checks" is exactly the kind of thing that goes unexamined for months.
+
 ## 5. WHAT WAS NOT DONE, AND WHY
 
 * **No weight was changed, and none was going to be.** The pre-registration says a weight change

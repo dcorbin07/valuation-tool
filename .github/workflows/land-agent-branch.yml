@@ -30,7 +30,25 @@ on:
   push:
     branches: ['worktree-*']
 
-concurrency: land-main          # serialize so two pushes can't race main
+# CONCURRENCY — 2026-08-07. This used to be a single repo-wide group, `land-main`,
+# "to serialize so two pushes can't race main". It did serialize, and it also SILENTLY
+# DROPPED BRANCHES, which is worse than the race it prevented.
+#
+# GitHub allows only ONE pending run per concurrency group: queue a third run while one
+# is running and one is pending, and the PENDING one is cancelled outright. With every
+# `worktree-*` push sharing one group and five or six lanes pushing, a branch that lost
+# the pending slot never ran at all -- no failure, no red X, nothing to notice. Measured
+# case: worktree-r1 @3fb0809 pushed 21:46 UTC never landed while three other branches
+# landed at 22:59, 23:13 and 23:18; an empty re-trigger push at 00:20 landed in under a
+# minute. That is a dropped run, not a conflict and not an outage.
+#
+# Now scoped per branch, so one lane's push can never cancel another lane's queued run.
+# Within a branch, a newer push still supersedes an older queued one -- correct, since
+# the newer commit contains the older. The main-races-main problem the old group was
+# solving is now handled where it belongs, in the land step's re-merge-and-retest loop.
+concurrency:
+  group: land-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   land:
@@ -39,42 +57,89 @@ jobs:
       contents: write           # allow pushing to main
     steps:
       - name: Checkout main (full history)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Merge the pushed branch into main
-        run: |
-          git config user.name  "valquo-ci"
-          git config user.email "ci@valquo.co"
-          BR="${GITHUB_REF#refs/heads/}"
-          echo "Landing $BR into main..."
-          git fetch origin "$BR"
-          git merge --no-edit "origin/$BR" || { echo "::error::Merge conflict on $BR — main left untouched"; git merge --abort; exit 1; }
-
+      # Branches now land in parallel (see the concurrency note above), so two runs can finish
+      # at the same moment and both try to push `main`; the loser is rejected as non-fast-forward.
+      # Retrying the PUSH alone would ship a tree that never passed the gate in that combination,
+      # so the whole merge -> test -> push cycle retries against the new tip. Every commit that
+      # reaches `main` is therefore a tree that passed every suite exactly as it stands.
+      #
       # AUDIT C7 — the gate used to run tests/test_edge.py ONLY. Fourteen other suites did not
       # gate a deploy, while agent branches routinely edit options_universe.py, paper_track.py,
       # factors.py and screen.py, which that suite does not cover. Every suite runs now; the
       # loop keeps going so one red suite does not hide the others, and the job fails if any
       # failed. Longer CI is cheaper than an auto-merged regression reaching production.
-      - name: Test gate — every suite must pass
+      - name: Land — merge, test, push (retries only if main moved under us)
         run: |
-          fail=0
-          for f in tests/test_*.py; do
-            echo "::group::$f"
-            python "$f" || { echo "::error::$f FAILED"; fail=1; }
-            echo "::endgroup::"
-          done
-          exit $fail
+          git config user.name  "valquo-ci"
+          git config user.email "ci@valquo.co"
+          BR="${GITHUB_REF#refs/heads/}"
+          git fetch origin "$BR"
 
-      - name: Push main (triggers Render deploy)
-        run: git push origin HEAD:main
+          # Did anything that can affect a test result land between two commits? Markdown and
+          # .gitattributes cannot change what `python tests/test_*.py` does, and this repo's
+          # churn is overwhelmingly markdown handoffs. Anything else counts as code.
+          code_changed() {
+            [ -n "$(git diff --name-only "$1" "$2" -- . ':(exclude)*.md' ':(exclude).gitattributes')" ]
+          }
+
+          need_test=1
+          for attempt in 1 2 3; do
+            echo "::group::Attempt $attempt — merging $BR into main"
+            git fetch origin main
+            git checkout -B landing origin/main
+            git merge --no-edit "origin/$BR" || {
+              echo "::error::Merge conflict on $BR — main left untouched"
+              git merge --abort || true
+              exit 1
+            }
+            echo "::endgroup::"
+
+            if [ "$need_test" -eq 1 ]; then
+              fail=0
+              for f in tests/test_*.py; do
+                echo "::group::$f"
+                python "$f" || { echo "::error::$f FAILED"; fail=1; }
+                echo "::endgroup::"
+              done
+              # `exit $fail` verbatim: tests/test_edge.py's C7 test asserts this exact string,
+              # so that one red suite can never be hidden by a later green one. Keep the literal.
+              if [ "$fail" -ne 0 ]; then exit $fail; fi
+            else
+              echo "Only documentation landed under us, so the code in this tree is byte-identical"
+              echo "to the tree that just passed every suite. Not re-running the gate."
+            fi
+
+            before=$(git rev-parse origin/main)
+            if git push origin HEAD:main; then
+              echo "Landed $BR on main (attempt $attempt) — Render deploys from here."
+              exit 0
+            fi
+
+            # Lost the race. Whether we must pay for the full gate again depends entirely on
+            # WHAT landed under us -- with a 24-suite gate taking ~20 minutes and main moving
+            # every ~10, re-testing for a handoff edit is what makes a branch livelock.
+            git fetch origin main
+            if code_changed "$before" origin/main; then
+              need_test=1
+              echo "::warning::main moved with CODE changes — re-merging and re-running the full gate"
+            else
+              need_test=0
+              echo "::warning::main moved with documentation only — re-merging and pushing without re-testing"
+            fi
+          done
+
+          echo "::error::Could not land $BR after 3 attempts; main moved every time. Push again to retry."
+          exit 1

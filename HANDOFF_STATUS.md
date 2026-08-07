@@ -17,11 +17,57 @@ file directly.
 
 ---
 
+## CI — THE AUTO-LAND ACTION WAS SILENTLY DROPPING BRANCHES (2026-08-07, r1 lane)
+
+Full write-up in `HANDOFF_ci.md`. Infrastructure lane; nothing under `valuation/**` touched.
+
+**Two things every lane should know:**
+
+1. **You no longer need to hand-resolve `HANDOFF_STATUS.md`.** The repo had no `.gitattributes` at
+   all; there is one now, giving this file, `RESEARCH_LOG.md` and `HANDOFF_*.md` a **union merge**.
+   Conflicting hunks keep BOTH sides automatically — the answer every one of these conflicts was
+   resolved with by hand. Measured: this file took 29 commits from many lanes in three days and
+   every lane prepends at the *same* lines, so the collisions were structural, not bad luck.
+   **`VALQUO_LEDGER.md` and `CLAUDE.md` are deliberately NOT union** — the ledger is a keyed table
+   where union would silently produce two rows with the same id, and CLAUDE.md's corrections are
+   meant to *replace*, not sit beside the claim they correct. Reasoning is written into
+   `.gitattributes` itself so nobody "tidies" them in later.
+
+2. **`concurrency: land-main` was cancelling queued runs, and a cancelled queue slot looks exactly
+   like nothing happening.** GitHub allows only ONE pending run per concurrency group; a third
+   arrival cancels the pending one with no failure, no red X, no annotation. Every `worktree-*`
+   push shared that one group. **If you have ever pushed and watched `main` not move for an hour,
+   this is why.** Now scoped per branch, so one lane's push can never cancel another lane's queued
+   run.
+
+**The "auto-land Action is down repo-wide" note (`21fbe46`) is REFUTED — please do not repeat it.**
+The Action was healthy the whole time and landed four other branches during the window it describes.
+Exactly one branch was ever silently dropped (`worktree-r1` @`3fb0809`, 2h34m). The symptom was
+real; the diagnosis was not. **Before recording an outage, check whether anything else landed.**
+
+**Two consequences to expect, both self-healing:**
+- Other lanes still carry `concurrency: land-main` in *their* copy of the workflow until they merge
+  `main`, so they can still cancel each other's queued runs for a little longer.
+- Lands may now take longer when contested. The gate is 24 suites (~20 min) while `main` moves
+  every ~10, so the merge→test→push cycle retries up to 3 times. It **skips the gate when only
+  markdown landed under us** (the code is then byte-identical to the tree that just passed), which
+  is what keeps that from livelocking. A `.yml` counts as code and never skips.
+
+**The gate is NOT weakened.** Every commit reaching `main` is still a tree whose code passed every
+suite; conflicts still stop the land with `main` untouched.
+
+**Also flagged (`HANDOFF_ci.md` → BUGS FOUND):** `param_search.py` — "an honest parameter-search
+protocol", 47 commits on `worktree-honest-param-search` from 2026-07-28 — **does not exist anywhere
+on `main`**. It predates the Action, so it is not a CI drop, but it looks like real research work
+stranded in the manual-merge era. Someone should decide whether to rescue or delete it.
+
+---
+
 ## AUDIT SESSION 7 (2026-08-06) — B8 FIXED, HELD-OUT LOO IS **NULL**, P4 SHIPPED
 
 Full write-up: **`HANDOFF_edge_audit.md`**, "SESSION 7". Pre-commitment pushed in `5a27ea1`
-**before any LOO number existed**, including the expected direction. **All 22 suites green,
-`OVERALL_FAIL=0`** (248/248 edge, 45/45 paper-track).
+**before any LOO number existed**, including the expected direction. **All 24 suites exit 0** (248/248 edge, 45/45 paper-track),
+verified by exit code rather than by parsing output — see BUGS FOUND 7.
 
 | item | verdict |
 |---|---|

@@ -1,0 +1,68 @@
+# ============================================================================
+#  Valquo — merge behaviour for the files that several agent lanes edit at once
+#
+#  WHY THIS FILE EXISTS: five or six Claude Code lanes run in parallel and each
+#  pushes a `worktree-*` branch that the land Action merges into `main`. Where
+#  two lanes edit the same lines, the merge fails and the branch does not land.
+#  Measured over 2026-08-04..06: HANDOFF_STATUS.md took 29 commits from many
+#  lanes in three days, and EVERY conflict so far was resolved by hand with the
+#  same answer -- keep both sides. `merge=union` is git doing that itself.
+#
+#  WHAT UNION DOES: on a conflicting hunk it keeps BOTH sides' lines instead of
+#  writing conflict markers. It never fails. That is right for append-per-lane
+#  files and wrong for anything where one side is meant to REPLACE the other --
+#  see the "deliberately NOT union" list below, which is the important half.
+# ============================================================================
+
+# Append-per-lane. Every session prepends its own section; nothing is ever meant
+# to overwrite another lane's write-up, so "keep both" is always the right call.
+HANDOFF_STATUS.md   merge=union
+
+# Append-only by design (its own first line says so): one row per pre-registered
+# test, new rows added at the end. Two lanes appending different rows is the
+# normal case and union handles it exactly.
+#
+# The failure mode is a duplicate id inflating the trial count, because
+# valuation/edge/research_log.py:_parse counts every table row and does not
+# dedupe. That direction is SELF-PENALISING -- a larger N raises sr0_benchmark
+# and LOWERS the Deflated Sharpe, i.e. it makes the project's own bar harder,
+# never easier. A union artefact here cannot flatter a result.
+RESEARCH_LOG.md     merge=union
+
+# Per-lane handoffs: one owner each, so they should not conflict at all. Union
+# is set as a backstop for the case where two sessions share a lane name -- the
+# cost of a duplicated paragraph is far below the cost of a branch not landing.
+HANDOFF_*.md        merge=union
+
+# ---------------------------------------------------------------------------
+# DELIBERATELY NOT UNION -- do not "tidy" these by adding them above.
+#
+#   VALQUO_LEDGER.md  A keyed table with a one-row-per-audit-item contract (134
+#                     items). Union's failure mode is TWO rows with the same id
+#                     and no rule for which wins -- silently breaking the only
+#                     guarantee the file makes, in a file whose whole purpose is
+#                     to be the authoritative answer to "where do we stand".
+#                     Its edits are also spread across 134 distinct rows, so an
+#                     ordinary 3-way merge already resolves most of them; a
+#                     conflict means two lanes touched the SAME row, which is
+#                     exactly when someone should look. And it is regenerable:
+#                     `python scripts/build_ledger.py` reconciles it and will
+#                     not overwrite `src=human` rows, only report disagreement.
+#
+#   CLAUDE.md         Corrections are made IN PLACE ("this claim was wrong, here
+#                     is the right number"). Union would keep the old and the new
+#                     claim side by side in the project brief -- the one file
+#                     every session reads as fact. A conflict is much cheaper.
+#
+#   RUN_RULES.md      Same reasoning, and it barely changes (1 commit in 3 days).
+#
+#   *.py, *.json      Never union code or data. Union produces files that are
+#                     syntactically broken or silently wrong, and it would defeat
+#                     the test gate's purpose.
+# ---------------------------------------------------------------------------
+
+# NOT SET, deliberately: `* text=auto`. It is the usual first line of a
+# .gitattributes, but this repo has CRLF working copies and enabling it would
+# renormalise line endings across the whole tree -- a diff touching nearly every
+# file, which would conflict with every branch currently open. That is precisely
+# the churn this file exists to reduce.
