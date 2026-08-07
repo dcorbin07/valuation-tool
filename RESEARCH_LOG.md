@@ -56,8 +56,23 @@ diagnostics do **not** get rows; they get no claim either.
 
 `FIXED` marks a correctness repair rather than a hypothesis test. **`FIXED` rows do NOT count
 toward `N`** — repairing a bug is not a search over the data, and inflating the denominator with
-bug fixes would understate the evidence rather than overstate it. Only `ADOPTED` / `REJECTED` /
-`NULL` / `INCONCLUSIVE` rows are trials.
+bug fixes would understate the evidence rather than overstate it.
+
+**`SUPERSEDED` ROWS DO COUNT. Resolved 2026-08-06, session 7.** This paragraph used to end
+"Only `ADOPTED` / `REJECTED` / `NULL` / `INCONCLUSIVE` rows are trials", which excluded
+`SUPERSEDED` — and `research_log.py` has never implemented that, because `_parse` skips `FIXED`
+and nothing else. The prose and the counter disagreed, and it was not academic: the void X3 run
+carries `n=12`, so the reading decides whether equity `N` is 92 or 104. Session 6 hit the
+discrepancy, took the harsher number, and referred the rule here rather than settling it while
+looking at its own results.
+
+**The counter is right and the prose was wrong.** `N` is a multiple-testing denominator, and what
+inflates the best-looking result is how many times the data was searched — not how the search was
+labelled afterwards. A superseded search still happened, and what it found still shaped what was
+run next. `SUPERSEDED` judges the validity of a RESULT; it says nothing about whether the data was
+interrogated. This is the same argument the module's own docstring already makes for counting
+trials that were never pre-committed, applied consistently. It is also the conservative reading:
+it makes `N` larger and every threshold harder to clear.
 
 ---
 
@@ -153,6 +168,9 @@ understated `N` and therefore OVERSTATED significance, which is the exact error 
 | S5-3 | 2026-08-06 | options | yes | The old-vs-new options gap is spread, not signal dilution | mid-fill vs touch-fill toll, paired date-block | ADOPTED | n=1 | HANDOFF_edge_audit.md session-5 closeout item 3 (toll -8.28pp, replaces the void -6.59pp; 68% spread, not 100%) |
 | S5-4 | 2026-08-06 | options | yes | The four B1-touching autopsy features are informative | per-feature p, both directions | REJECTED | n=4 | HANDOFF_edge_audit.md session-5 closeout item 4 (none informative; the passing direction SWAPS when B1 is repaired) |
 | S5-5 | 2026-08-06 | options | yes | Published options statistics are single-control-seed safe | CI-endpoint movement as a share of CI width | ADOPTED | n=8 | HANDOFF_edge_audit.md session-5 closeout item 5 (7 of 8 safe; effective_n multi-seed by policy; no published boolean flips) |
-| X3-VOID | 2026-08-03 | equity | yes | The 7-theme composite beats its best single signal (pre-B6 panel, retired bars) | top-decile alpha gain | SUPERSEDED | n=12 | data/free_analysis/ABLATION_RESULTS.json — 110-date pre-B6 panel, alpha +11.88%, 1.0pp bar below X7's 1.95pp noise floor. NOT counted toward N per the schema; see BUGS FOUND 3 |
+| X3-VOID | 2026-08-03 | equity | yes | The 7-theme composite beats its best single signal (pre-B6 panel, retired bars) | top-decile alpha gain | SUPERSEDED | n=12 | data/free_analysis/ABLATION_RESULTS.json — 110-date pre-B6 panel, alpha +11.88%, 1.0pp bar below X7's 1.95pp noise floor. COUNTS toward N (12 of equity's 111); the earlier note here said it did not, which the counter has never implemented — schema corrected session 7 |
 | X3 | 2026-08-06 | equity | yes | The 7-theme composite beats its own best single signal on the corrected panel | paired per-period alpha difference, CI95 excludes zero | NULL | n=8 | HANDOFF_edge_audit.md session 6 (+4.51%/yr, CI95 [-0.14%, +9.12%]; only the full arm clears X7's LS bar of 2.14) |
 | U7 | 2026-08-06 | options | yes | Refusing alerts on bottom-composite-decile names lifts the options book | mean pnl_pct lift, date-block CI95 | REJECTED | n=3 | HANDOFF_edge_audit.md session 6 (lift -0.57pp / -1.04pp / -0.44pp; interaction vs control -0.08pp; bottom decile is the 3rd BEST) |
+| LOO | 2026-08-06 | equity | yes | Choosing a theme to drop by its own leave-one-out effect on a decide half improves the composite on a held-out half | measure-half top-decile alpha gain and long-short t gain vs MIN_HOLDOUT margins (100bps, 0.25) | NULL | n=7 | HANDOFF_edge_audit.md session 7 (drop momentum: -1.30%/-0.706; drop capital_discipline: +0.20%/-0.201; different theme selected each direction; 4 of 7 arms change sign between halves) |
+| B8 | 2026-08-06 | equity | n/a | holdout_theme_validate computed rule_fired and never read it, so its verdict was a both-halves stability check named as an out-of-sample confirmation | oos_verdicts added, verdicts semantics frozen | FIXED | n=1 | HANDOFF_edge_audit.md session 7 (neither shipped decision changes; low_risk confirmed_oos in 1 of 2 directions, not 2) |
+| P4 | 2026-08-06 | infra | n/a | seed_book never sold names that left the exported book, so the paper index was an ever-growing union of everything ever held | departed names closed into paper_index_closed, not deleted | FIXED | n=1 | HANDOFF_edge_audit.md session 7 (45/45 paper-track tests; guard refuses to act on a truncated export) |

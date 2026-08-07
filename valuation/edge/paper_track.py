@@ -119,6 +119,26 @@ def ensure_schema(store) -> None:
         c.execute("""CREATE TABLE IF NOT EXISTS paper_index_holdings (
             ticker TEXT PRIMARY KEY, weight REAL, entry_price REAL, bench_entry_price REAL,
             entry_date TEXT, shares REAL, order_id TEXT, note TEXT)""")
+        # AUDIT P4 — a name that LEAVES the exported book must be sold. `seed_book` only ever
+        # inserted, so the paper index was an ever-growing union of everything the screener had
+        # ever liked: it stopped being the Valquo Index the day the first name dropped out, and
+        # every session after that accumulated under rules no backtest describes.
+        #
+        # Departed names are CLOSED INTO THIS TABLE, never deleted. Deleting them would be the
+        # more obvious repair and it would be reverse survivorship bias: names leave this book
+        # when their composite decays, so erasing them removes disproportionately the ones that
+        # did badly and silently flatters the track.
+        #
+        # A SEPARATE TABLE rather than a `status` column on the holdings, for one concrete
+        # reason: `paper_index_holdings.ticker` is a PRIMARY KEY and the insert is
+        # INSERT OR IGNORE, so a closed row left in place would make a name that RE-ENTERS the
+        # book silently un-addable. Keying history on (ticker, entry_date) also lets one name
+        # hold several separate stints, which is what a real book does.
+        c.execute("""CREATE TABLE IF NOT EXISTS paper_index_closed (
+            ticker TEXT, weight REAL, entry_price REAL, bench_entry_price REAL,
+            entry_date TEXT, exit_price REAL, exit_bench_price REAL, exit_date TEXT,
+            shares REAL, order_id TEXT, note TEXT,
+            PRIMARY KEY (ticker, entry_date))""")
         c.execute("""CREATE TABLE IF NOT EXISTS paper_index_track (
             as_of TEXT PRIMARY KEY, index_ret REAL, bench_ret REAL, active_ret REAL,
             n_positions INTEGER, n_priced INTEGER, inception TEXT, detail TEXT)""")
@@ -537,13 +557,75 @@ def _bench_price(broker: PaperBroker, symbol: str = "SPY") -> Optional[float]:
     return _f((q or {}).get("last")) or PaperBroker.mark_from_quote(q)
 
 
+# A book that has shrunk below this fraction of the current open holdings is treated as a
+# FAILED EXPORT rather than a real rebalance, and closes nothing. Deliberately loose: real
+# book sizes move with the universe, and the job of this number is to catch a truncated file,
+# not to police ordinary turnover.
+MIN_BOOK_RETENTION = 0.5
+
+
+def _close_departed(store, broker: PaperBroker, gone, day: str) -> dict:
+    """Mark names that have left the book as sold, at today's price and today's benchmark.
+
+    The exit legs are stored so a closed position keeps a COMPLETE record — entry price, entry
+    benchmark, exit price, exit benchmark — and its realised return against SPY over its own
+    window stays computable forever. A row with no exit price would be indistinguishable from
+    an open one after the fact.
+    """
+    quotes = broker.quotes(list(gone))
+    bench = _bench_price(broker)
+    closed, unpriced = [], []
+    for t in gone:
+        px = _f((quotes.get(t) or {}).get("last")) or PaperBroker.mark_from_quote(quotes.get(t))
+        if px is None or px <= 0:
+            # Left OPEN on purpose. Closing at an unknown price would either invent a number or
+            # write a NULL exit that silently reads as a zero return later; it closes on the
+            # next run that can price it.
+            unpriced.append(t)
+            continue
+        with store._conn() as c:
+            cur = c.execute("SELECT * FROM paper_index_holdings WHERE ticker = ?", (t,))
+            row = cur.fetchone()
+            if not row:
+                continue
+            h = dict(zip([d[0] for d in cur.description], row))
+            # Insert the history row BEFORE dropping the live one, so a crash between the two
+            # leaves a name double-counted rather than erased. An over-counted position is
+            # visible in the next reconciliation; a vanished one is not recoverable.
+            c.execute("""INSERT OR REPLACE INTO paper_index_closed
+                (ticker, weight, entry_price, bench_entry_price, entry_date, exit_price,
+                 exit_bench_price, exit_date, shares, order_id, note)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                      (t, h.get("weight"), h.get("entry_price"), h.get("bench_entry_price"),
+                       h.get("entry_date"), px, bench, day, h.get("shares"), h.get("order_id"),
+                       (h.get("note") or "") + f" | left the book {day}"))
+            c.execute("DELETE FROM paper_index_holdings WHERE ticker = ?", (t,))
+        closed.append(t)
+    return {"closed": len(closed), "closed_tickers": closed, "close_unpriced": unpriced}
+
+
 def seed_book(store, broker: PaperBroker, book: dict, place_equity: bool = False,
-              capital: float = 100000.0, today=None) -> dict:
+              capital: float = 100000.0, today=None, close_exits: bool = True) -> dict:
     """Take the exported Valquo Index and hold it in the paper account.
 
     Names already held are LEFT ALONE — a re-run must not reset an entry price and wipe the
     accrued return. New names enter at today's price with today's SPY as their benchmark
     entry, so each position is compared with SPY over its own window.
+
+    NAMES THAT HAVE LEFT THE BOOK ARE SOLD [AUDIT P4]. Until this was fixed the function only
+    ever inserted, so a name entered once and was held forever: the paper index drifted into an
+    ever-growing union of everything the screener had ever liked, which is not the strategy any
+    backtest describes. Exits are CLOSED, not deleted — see `ensure_schema` for why deleting
+    them would be reverse survivorship bias.
+
+    `close_exits=False` restores the old accumulate-only behaviour for anyone who needs to
+    reproduce a historical run. It is not the default, because the old behaviour is the bug.
+
+    THE GUARD ON THE CLOSE. A truncated or failed export is indistinguishable from a genuinely
+    smaller book at this layer, and acting on one would liquidate a real track. So a book that
+    has shrunk to less than `MIN_BOOK_RETENTION` of the current open holdings closes NOTHING
+    and says so in `close_refused`. That is a sanity check, not a silenced one: the run reports
+    the refusal and the reason rather than proceeding quietly.
 
     `place_equity` mirrors the book as sandbox equity orders. Off by default: the index is a
     weights-and-returns claim, and whole-share rounding on an 8%-capped 86-name book adds
@@ -552,7 +634,8 @@ def seed_book(store, broker: PaperBroker, book: dict, place_equity: bool = False
     ensure_schema(store)
     day = (_d(today) or _dt.date.today()).isoformat()
     positions = (book or {}).get("positions") or []
-    out = {"held": 0, "added": 0, "unpriced": [], "orders": 0, "place_equity": place_equity}
+    out = {"held": 0, "added": 0, "unpriced": [], "orders": 0, "place_equity": place_equity,
+           "closed": 0, "closed_tickers": [], "close_refused": None}
     if not positions:
         out["error"] = "the exported book has no positions"
         return out
@@ -560,6 +643,18 @@ def seed_book(store, broker: PaperBroker, book: dict, place_equity: bool = False
     with store._conn() as c:
         existing = {r[0] for r in c.execute("SELECT ticker FROM paper_index_holdings")}
     out["held"] = len(existing)
+    target = {p["ticker"] for p in positions if p.get("ticker")}
+
+    if close_exits:
+        gone = sorted(existing - target)
+        if gone and len(target) < MIN_BOOK_RETENTION * len(existing):
+            out["close_refused"] = (
+                f"exported book has {len(target)} names against {len(existing)} open holdings "
+                f"(<{MIN_BOOK_RETENTION:.0%}); a truncated export looks exactly like a shrunken "
+                f"book here, so nothing was closed")
+        elif gone:
+            out.update(_close_departed(store, broker, gone, day))
+
     fresh = [p for p in positions if p.get("ticker") and p["ticker"] not in existing]
     if not fresh:
         return out
@@ -627,9 +722,22 @@ def index_point(store, broker: PaperBroker, today=None) -> dict:
         return {"ok": False, "reason": "no position could be priced against the benchmark"}
 
     idx_ret, bench_ret = num_i / wsum, num_b / wsum
-    inception = min((h.get("entry_date") or day) for h in holds)
+    # AUDIT P4 — inception spans CLOSED stints too. Taking the minimum over open holdings only
+    # would walk the track's start date forward every time the oldest position left the book,
+    # so a record would appear to get younger the longer it ran.
+    with store._conn() as c:
+        _first_closed = c.execute(
+            "SELECT MIN(entry_date) FROM paper_index_closed").fetchone()[0]
+    inception = min([h.get("entry_date") or day for h in holds]
+                    + ([_first_closed] if _first_closed else []))
     detail = {"weight_priced": round(wsum, 4), "n_holdings": len(holds),
-              "bench": "SPY", "data_caveat": DATA_CAVEAT}
+              "bench": "SPY", "data_caveat": DATA_CAVEAT,
+              # The daily point is a snapshot of OPEN holdings. A closed stint's realised
+              # return is preserved in `paper_index_closed` and reported by index_summary, but
+              # it does not feed this series — stated here so the limitation travels with the
+              # number rather than being inferred from the schema. Chaining realised stints
+              # into the series is a construction change, not a bug fix, and was not made.
+              "scope": "open holdings only; closed stints in index_summary.realized"}
     with store._conn() as c:
         c.execute("""INSERT INTO paper_index_track
             (as_of, index_ret, bench_ret, active_ret, n_positions, n_priced, inception, detail)
@@ -661,12 +769,31 @@ def index_summary(store) -> dict:
         keys = [d[0] for d in cur.description]
         rows = [dict(zip(keys, r)) for r in cur.fetchall()]
         n_hold = c.execute("SELECT COUNT(*) FROM paper_index_holdings").fetchone()[0]
+        cur = c.execute("SELECT * FROM paper_index_closed")
+        ckeys = [d[0] for d in cur.description]
+        closed = [dict(zip(ckeys, r)) for r in cur.fetchall()]
+    # AUDIT P4 — names that have LEFT the book. Before the fix they were held forever and this
+    # block was always empty because nothing could ever leave. Reported rather than discarded:
+    # a name exits when its composite decays, so dropping these stints from the record would
+    # remove disproportionately the ones that did badly.
+    real = {"n_closed": len(closed), "mean_active_ret": None, "n_priced": 0}
+    if closed:
+        act = [(_f(h.get("exit_price")) / _f(h.get("entry_price")) - 1.0)
+               - (_f(h.get("exit_bench_price")) / _f(h.get("bench_entry_price")) - 1.0)
+               for h in closed
+               if _f(h.get("entry_price")) and _f(h.get("exit_price"))
+               and _f(h.get("bench_entry_price")) and _f(h.get("exit_bench_price"))]
+        real["n_priced"] = len(act)
+        real["mean_active_ret"] = (sum(act) / len(act)) if act else None
+        real["note"] = ("realised vs SPY over each stint's own window; NOT chained into the "
+                        "daily series, which is a snapshot of open holdings")
     if not rows:
-        return {"started": False, "n_holdings": int(n_hold), "n_days": 0,
+        return {"started": False, "n_holdings": int(n_hold), "n_days": 0, "realized": real,
                 "label": _label(None, 0, 0)}
     last, first = rows[-1], rows[0]
     return {"started": True, "inception": last.get("inception") or first["as_of"],
             "as_of": last["as_of"], "n_days": len(rows), "n_holdings": int(n_hold),
+            "realized": real,
             "index_ret": last.get("index_ret"), "bench_ret": last.get("bench_ret"),
             "active_ret": last.get("active_ret"), "n_priced": last.get("n_priced"),
             "meaningful": len(rows) >= MIN_DAYS_FOR_MEANING,

@@ -3839,3 +3839,286 @@ statistic and re-evaluates at the new `N`.
 placebo is 100 draws through the full pipeline — hours). The direction is known and unfavourable
 to me, which is why quoting the old bar is safe: X7 measured the floor *falling* as N rises
 (0.8567 at N = 8 → 0.7216 at N = 84), so holding 0.7216 at N = 111 makes passing harder.
+
+## 2. RESULTS — the pre-registered held-out leave-one-out
+
+**Run:** `python -m scripts.loo_prereg --panel panel_corrected_69d.pkl --json LOO_HOLDOUT_RESULTS.json`.
+Panel: the corrected 69-date panel, **113,945 rows, 2,531 names**, seven deployed themes, flat
+weights. `flat_weights_are_the_deployed_weights: true` — asserted in the script, not assumed,
+because a silent mismatch would make every number below describe a composite nobody trades.
+Split 34 / 34 with **2017-07-20 embargoed**.
+
+### VERDICT: NULL
+
+Neither direction's selected arm clears either margin.
+
+| direction | selected on the decide half | decide gain | **measure-half Δalpha** (bar +1.00%) | **measure-half Δ LS t** (bar +0.250) | clears |
+|---|---|---|---|---|---|
+| decide early → measure late | drop **`momentum`** | +3.68% | **−1.30%** | **−0.706** | no / no |
+| decide late → measure early | drop **`capital_discipline`** | +2.20% | **+0.20%** | **−0.201** | no / no |
+
+`null` rather than `rejected`, on the pre-registered rule: direction 2's alpha is *positive*
+(+0.20%), just an order of magnitude below the 100bps bar. Per RUN_RULES 6 an ambiguous result
+against its own threshold is a null, not a judgement call.
+
+**Different themes were selected in each direction** — pre-registered as a thing to report
+either way. That is the weaker of the two outcomes and it is the one that happened.
+
+### The expectation, and the record's verdict on it
+
+Pre-committed at `5a27ea1`: *"I expect a NULL, and I hold it at about 70/30."* **Right** — for
+the stated reason, that the maximum of seven correlated comparisons is biased upward by
+construction. That breaks a four-run streak of wrong directional calls (R10, O20, the spread
+toll, U7). One correct call after four wrong ones is not evidence the reasoning improved; the
+standing rule to measure rather than reason still holds.
+
+### WHY it is null — the decide-half ranking is not stable, and this is the real finding
+
+The two directions share their data: direction 1's measure half **is** direction 2's decide
+half. So there are only two independent sets of seven numbers, and laying them side by side is
+the whole diagnosis.
+
+| dropped theme | **early half** Δalpha | **late half** Δalpha | stable? |
+|---|---|---|---|
+| momentum | **+3.68%** (best) | −1.30% (5th) | **sign flip** |
+| capital_discipline | +0.20% (3rd) | **+2.20%** (best) | same sign, rank moves 3 → 1 |
+| insider | −1.39% (6th) | +1.94% (2nd) | **sign flip** |
+| value | −1.01% (5th) | +0.63% (4th) | **sign flip** |
+| institutional | −0.89% (4th) | −1.90% (6th) | stable, both negative |
+| **quality** | **+1.06%** (2nd) | **+1.30%** (3rd) | **stable, both positive** |
+| **size** | **−2.64%** (worst) | **−3.46%** (worst) | **stable, worst in both** |
+
+**Four of seven arms change sign between halves.** The full-sample exploratory result session 6
+reported — "dropping `capital_discipline` raises alpha to +8.54%" — is the average of +0.20%
+and +2.20%, i.e. it is carried by the late half and is not a property of the panel. That is
+exactly the failure mode a held-out split exists to expose, and it is why the session-6 numbers
+were labelled EXPLORATORY and left unacted-on.
+
+### `size` is corroborated, and this is the one durable thing the run produced
+
+**Dropping `size` is the WORST arm in both halves independently, by a wide margin (−2.64% and
+−3.46%).** It is the only theme whose leave-one-out effect is both large and stable. X3 found
+`size` has the worst theme IC (−0.30) while carrying the composite's entire significance; this
+is that finding surviving a time split, in the only out-of-sample sense available on one panel.
+
+**Stated with its limit:** this is not a pre-registered test of `size` — the pre-registered
+object was the SELECTED arm, and `size` was never selected because the rule selects the
+maximum. It is the most stable cell in a table that carries no verdict. It is strong enough to
+say *"do not drop `size`, and stop treating its low IC as evidence against it"*, and not strong
+enough to be quoted as a confirmed result.
+
+### The one thing I will NOT claim, and why it is the interesting part
+
+`quality` clears **both** margins on **both** halves (+1.06% / +1.30% alpha, +0.306 / +0.257 on
+long-short t). It is the only theme that does. It was selected in **neither** direction, because
+the pre-registered decide rule takes the **maximum** decide-half gain and in each half some
+noisier arm ranked above it.
+
+**So the pre-registered selection rule picked the noisiest arm rather than the most consistent
+one** — the maximum is precisely the statistic most inflated by noise, which is the same
+mechanism that made session 6's exploratory result look strong.
+
+**This CANNOT be promoted now.** Noticing that a stability-based selection rule would have found
+`quality` *after* seeing which rule works is selecting the rule on the results — the exact error
+this session's design exists to avoid, one level up. It goes to session 8 as a pre-registration
+or not at all. Recorded here in full so that nobody has to rediscover it, and so that if it is
+ever run, the record shows it was generated post-hoc.
+
+### Trial cost — computed, not estimated
+
+| | before | after |
+|---|---|---|
+| equity `N` | 104 | **111** |
+| `sr0_benchmark` | 0.4181 | **0.4218** |
+| **Deflated Sharpe** | 0.8789 | **0.8721** |
+| `√(2·ln N)` | 3.0478 | **3.0690** |
+
+Computed with `ablation.deflated_sharpe_at` off the recorded `deflated_sharpe_detail`
+(`sharpe_per_period` 0.5500, `var_sr_across_trials` 0.02700, 69 periods). The round trip
+reproduces session 6's recorded 0.8789 at N = 104 exactly, which is the check that the
+extrapolation is arithmetic rather than a re-fit.
+
+**Still above X7's calibrated floor of 0.7216; still below the 0.95 convention.** Quote it
+whole, as the record requires: *"Deflated Sharpe 0.8721 at N = 111 — fails the conventional
+>0.95 bar, while sitting above all 100 placebo draws (calibrated bar 0.72)."*
+
+The task brief's "92 → 99, √(2·ln 99) = 3.03" was stale by one session; the correction is in
+§1 above and the realised figure is **3.069**.
+
+## 3. RESULTS — P4, the paper track's rules
+
+**The bug, restated from the code:** `seed_book` (`paper_track.py`) computed `fresh = [names not
+already held]` and inserted them. There was no other write path. **A name entered the book once
+and was held forever**, so the paper index became an ever-growing union of everything the
+screener had ever liked — it stopped being the Valquo Index the day the first name dropped out,
+and every session since accumulated under rules no backtest describes. This is why the item was
+carried as *urgent*: the cost is not a wrong number, it is that the elapsed track has to be
+thrown away.
+
+### The fix, and the two things that made it non-obvious
+
+Departed names are now **closed** — sold at the day's price with the day's SPY — and moved to a
+new `paper_index_closed` table.
+
+1. **Closed, never deleted.** Deleting is the obvious repair and it is **reverse survivorship
+   bias**: names leave this book when their composite decays, so erasing them removes
+   disproportionately the ones that did badly and silently flatters the record. The full
+   entry/exit legs, both price and benchmark, are kept so each stint's realised return against
+   SPY stays computable forever.
+2. **A separate table, not a `status` column** — and this was a defect in my own first
+   implementation, caught by writing the re-entry test. `paper_index_holdings.ticker` is a
+   `PRIMARY KEY` and the insert is `INSERT OR IGNORE`, so a closed row left in that table makes
+   a name that **re-enters** the book silently un-addable. That is the original bug's mirror
+   image and just as quiet. Keying history on `(ticker, entry_date)` also lets one name hold
+   several separate stints, which is what a real book does.
+
+**The guard.** A truncated export and a genuinely smaller book are indistinguishable at this
+layer, and acting on the wrong one liquidates a live track. A book that has shrunk below
+`MIN_BOOK_RETENTION = 0.5` of current holdings closes nothing and reports `close_refused` with
+the reason. It refuses loudly rather than proceeding — not a silenced check.
+
+**Two consequences that had to be handled or they would have been new bugs:**
+
+* **`inception` now spans closed stints.** Taking the minimum entry date over open holdings only
+  would walk the track's start date forward every time its oldest position left, so the record
+  would appear to get *younger* the longer it ran.
+* **Closed stints are reported, not dropped.** `index_summary` gains a `realized` block —
+  count, priced count, and mean active return vs SPY over each stint's own window.
+
+### What P4 does NOT fix, stated because the flag has to ship with the number
+
+The daily point remains a **snapshot of open holdings**. A closed stint's realised return is
+preserved and reported but is **not chained into the daily series**. Chaining realised stints
+into a continuously-compounded index is a **construction change**, not a bug fix — it would
+break the deliberate correspondence with `edge/track.py`'s methodology that makes the two
+records comparable — so it was not made. The limitation ships inside the payload as
+`detail.scope`, so it travels with the number instead of having to be inferred from the schema.
+
+**Nothing about the live track was reset**, and no historical row was rewritten. `close_exits`
+defaults to `True` because the accumulate-only behaviour is the bug; `close_exits=False`
+reproduces a historical run.
+
+Pinned by five tests in `tests/test_paper_track.py` (45/45, up from 40), one per failure mode:
+the close keeps the record, a closed name stops moving the index and can re-enter, a truncated
+export closes nothing while an ordinary rebalance is not refused, and inception does not walk
+forward.
+
+## 4. BUGS FOUND
+
+**1. The trial-counting schema contradicted its own counter, and it decided the headline `N`.**
+`RESEARCH_LOG.md`'s schema read "Only `ADOPTED` / `REJECTED` / `NULL` / `INCONCLUSIVE` rows are
+trials", which excludes `SUPERSEDED`. `research_log.py:73` has never implemented that — `_parse`
+skips `FIXED` and nothing else. Not academic: the void X3 row carries `n=12`, so the reading
+decides whether equity `N` is **92 or 104**. Session 6 hit the discrepancy, took the harsher
+number, and explicitly referred the rule to this session rather than settling it while looking at
+its own results — which was the right call. **Resolved in favour of the counter and the prose
+rewritten:** a superseded search still happened and still shaped what was run next; `SUPERSEDED`
+judges a RESULT's validity, not whether the data was interrogated. It is also the conservative
+reading, since it makes `N` larger.
+
+**2. The X3-VOID log row asserted the opposite of what the counter does.** Its `source` cell read
+"NOT counted toward N per the schema", while contributing 12 of equity's count. Session 6 rewrote
+the handoff's cost table when it discovered this and missed the log row itself. Corrected in
+place; the row now states its actual contribution.
+
+**3. `theme_ic` returns `{}` for any panel whose columns are not in `S.FACTORS_ALL`, silently.**
+It iterates the known theme list and skips anything absent, so a synthetic panel with arbitrary
+column names produces an empty dict, no warning, and a completed run. **This made the first
+version of my own B8 test pass for the wrong reason** — every theme came back `not_flagged`
+because `median_ic` was `None`, not because the decide rule declined to fire. It was caught only
+because a second assertion in the same test expected the *opposite* verdict on a deliberately
+anti-predictive theme and failed. This is the same shape as the four coverage bugs in this
+project's history: the function is wired, raises nothing, and returns empty. Any future study or
+test that builds a panel with its own column names hits it. **The existing
+`test_holdout_theme_validate_protocol` uses columns `good` and `junk` and is therefore exercising
+a code path where every IC is `None`** — it still tests what it claims about split geometry, but
+not what it implies about IC-driven behaviour. Not fixed: `theme_ic` is read by other lanes and a
+coverage-style warning there is their call, not mine.
+
+**4. A latent bug in my own first P4 implementation, recorded because it is the fix's mirror
+image.** Marking departed names with a `status` column and leaving them in
+`paper_index_holdings` looks correct and is not: that table's `ticker` is a `PRIMARY KEY` and the
+insert is `INSERT OR IGNORE`, so a name that **re-enters** the book would have been silently
+refused — the same failure mode as the bug being repaired, in the opposite direction, and equally
+invisible. Found by writing the re-entry test before believing the implementation. Fixed by
+moving closed stints to `paper_index_closed` keyed on `(ticker, entry_date)`.
+
+**5. A second consequence of P4 that would have been a new bug.** `index_point` computed
+`inception` as the minimum entry date over open holdings. Once names can leave, that walks the
+track's start date forward every time its oldest position is sold — the record would appear to
+get *younger* the longer it ran. Now spans closed stints.
+
+**6. The audit's cited line number for B8 has drifted.** `VALQUO_EDGE_AUDIT.md`,
+`HANDOFF_STATUS.md:812` and `CLAUDE.md:323` all cite `fundamental_panel.py:3048`, which now sits
+inside `_band_select` — an unrelated function. The real site was `:3545`. Harmless here because
+the symbol name was also given, but a citation that silently rots points the next reader at the
+wrong code.
+
+## 5. WHAT WAS NOT DONE, AND WHY
+
+* **No weight was changed, and none was going to be.** The pre-registration says a weight change
+  needs its own gate on top of an `adopted_eligible` verdict; the verdict was NULL, so the
+  question never arose. `low_risk` stays zeroed, `insider` stays at 0.125, the seven deployed
+  themes stay flat 1/7.
+* **The `quality` observation was NOT promoted, and this is the most important omission.**
+  `quality` clears both margins on both halves and was selected in neither direction. Acting on
+  it — or switching to a stability-based selection rule — after seeing which rule would have
+  worked is selecting the rule on the results. That is the same error as session 6's exploratory
+  LOO, one level up. Session 8 pre-registers it or nobody quotes it.
+* **X7's calibrated bars were NOT re-derived at N = 111.** Same reasoning as session 6, and the
+  direction is known and unfavourable to me: X7 measured the floor *falling* as N rises (0.8567 at
+  N = 8 → 0.7216 at N = 84), so continuing to quote 0.7216 makes passing harder, not easier.
+* **No Shapley-style decomposition.** Session 6's `needs first` table offered "LOO or a
+  Shapley-style decomposition" for the ordering problem. LOO is 7 arms; Shapley over seven themes
+  is 2⁷ = 128 subsets, i.e. a search an order of magnitude larger than everything this project has
+  logged in the equity domain to date. It would roughly **double** equity `N` on its own. Worth
+  doing only with that cost pre-registered and accepted in advance.
+* **`BACKTEST_RESULTS.json` was not regenerated.** `N = 111` changes its
+  `deflated_sharpe_detail` on the next full run. The consequence is computed exactly above
+  (0.8789 → 0.8721) rather than spending 12 minutes rewriting a tracked artifact this session did
+  not otherwise touch — and the round trip reproducing session 6's 0.8789 at N = 104 is the check
+  that the arithmetic is sound.
+* **U1 was not run.** U7 foreclosed it as written and nothing this session reopens it.
+* **P4's migration has not run against the live paper-track database.** It is
+  `CREATE TABLE IF NOT EXISTS` plus an additive read path, so it applies on the next
+  `paper_track_run.py`; no live row was touched from here, and the first real run will report
+  `closed: N` for however many names have accumulated wrongly since the track started. **That
+  number is worth reading when it appears** — it is the size of the bug.
+
+## 6. IS SESSION 7 CLOSED?
+
+**Yes.** B8 was resolved before any LOO number existed, and the resolution changed the LOO's
+design rather than merely unblocking it. The LOO ran against thresholds committed in a pushed
+commit (`5a27ea1`) and returned a verdict. P4 shipped with its remaining limitation flagged
+rather than hidden. The trial cost is logged and the denominator moved.
+
+**The session produced no promotion, and one durable negative plus one durable positive:** the
+full-sample leave-one-out ranking is not stable across a time split (four of seven arms change
+sign), and `size` is the worst arm to drop in both halves independently.
+
+## 7. SESSION 8 — first item and its `needs first`
+
+**Session 8's first item is a pre-registered test of the SELECTION RULE, not of another theme.**
+This session's result is that the decide-half argmax is not the right instrument: it picked
+`momentum` and `capital_discipline`, both of which flip sign across halves, while the one theme
+stable on both halves was never selected. That is a question about the rule, and it is testable
+without touching a weight.
+
+| dependency | status |
+|---|---|
+| the corrected 69-date panel | **READY** — `data/free_analysis/panel_corrected_69d.pkl`, 113,945 rows, 2,531 names, reproduces the shipped headline |
+| the LOO machinery | **READY and PINNED** — `valuation/edge/loo_holdout.py`, `scripts/loo_prereg.py`, 4 tests |
+| the hypothesis | **READY, and it is POST-HOC** — a stability-based decide rule (require the same sign in both halves, then take the largest) would have selected `quality`. **Generated after seeing which rule worked.** It must be pre-registered and run against a *third* thing to be evidence, not re-derived on the same two halves |
+| the honest problem with it | **UNRESOLVED and it is the real obstacle.** With only two halves, "stable across halves" is measured on the same data the measurement half provides. A genuine test needs either a third block (23/23/23 dates, thinner still) or the X8 international panel. **On one panel this may simply not be answerable** — say so rather than running it thin |
+| the trial cost | **NOT FREE.** A second 7-arm sweep takes equity N 111 → 118, √(2·ln 118) = 3.09. Pre-register or do not run |
+| B8 | **RESOLVED** — `oos_verdicts` vs `stability_verdicts`, both shipping, scopes in words |
+
+**Standing, and outranking the above if Don says so:** **X8**, the international replication —
+still the only genuinely out-of-sample evidence available to either programme, and now doubly so,
+because this session's answer to "can we settle the ordering question on one panel?" is *probably
+not*.
+
+**Do not re-open:** U1 as written (U7 foreclosed it, with a mechanism); the full-sample
+leave-one-out as a source of verdicts (it does not survive a time split); `sector_neutral`,
+PEAD, TTM ROE/ROIC, robust z-scores, momentum/institutional consolidation (all rejected, all
+with numbers).

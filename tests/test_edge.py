@@ -5728,6 +5728,143 @@ def test_u7_the_fast_block_bootstrap_is_exact():
         assert abs(slow["ci95"][i] - fast["ci95"][i]) < 1e-12, "CI endpoints must match exactly"
     assert slow["n_blocks"] == fast["n_blocks"] == 12
 
+
+
+# ------------------------------------------------- AUDIT B8 / session 7: the two verdicts
+def _b8_panel(n_dates=24, n_names=60, seed=11):
+    """A panel with one theme that is predictive in BOTH halves and one that is anti-predictive
+    in both, so the decide-half rule (`median IC <= 0`) fires deterministically on exactly one
+    of them and the gating can be pinned without relying on which way noise fell.
+    """
+    rng = np.random.default_rng(seed)
+    rows = []
+    for d in range(n_dates):
+        for i in range(n_names):
+            fwd = float(rng.normal(0, 0.08))
+            rows.append({"date": f"20{20 + d // 12:02d}-{d % 12 + 1:02d}-01", "ticker": f"T{i}",
+                         "fwd_ret": fwd, "bench_ret": 0.01,
+                         "quality": fwd + float(rng.normal(0, 0.02)),      # IC strongly positive
+                         "size": -fwd + float(rng.normal(0, 0.02))})     # IC strongly negative
+    return pd.DataFrame(rows)
+
+
+def test_b8_rule_fired_is_now_read_and_gates_the_out_of_sample_verdict():
+    """THE REGRESSION THIS EXISTS FOR. `rule_fired` was computed and never read, so a theme
+    could read `confirmed` in a direction whose decide half never flagged it — a both-halves
+    stability check wearing the name of an out-of-sample confirmation.
+
+    A theme with positive IC on both halves is never a candidate, so NO out-of-sample test of
+    it was run and it must say so rather than borrowing the stability verdict.
+    """
+    import valuation.edge.fundamental_panel as F
+    r = F.holdout_theme_validate(_b8_panel(), ["quality", "size"], horizon=63)
+
+    assert r["oos_directions_tested"]["quality"] == 0, "the rule fired on a positive-IC theme"
+    assert r["oos_verdicts"]["quality"] == "not_flagged", r["oos_verdicts"]
+    assert r["oos_directions_tested"]["size"] == 2, "the rule missed a negative-IC theme"
+
+    # Where the rule fires in BOTH directions the gate is a no-op, so the two verdicts must
+    # agree. If they ever diverge there, the gating is dropping evidence it should keep.
+    assert r["oos_verdicts"]["size"] == r["verdicts"]["size"] + "_oos", (
+        r["verdicts"]["size"], r["oos_verdicts"]["size"])
+
+    for c in ("quality", "size"):
+        fired = sum(bool(r["splits"][s]["themes"][c]["rule_fired"]) for s in r["splits"])
+        assert r["oos_directions_tested"][c] == fired
+
+
+def test_b8_the_stability_verdict_keeps_frozen_semantics():
+    """`scripts/placebo.py` reads `verdicts`, and X7's measured ~6% false-positive rate of the
+    held-out gate was calibrated against that exact object across 100 placebo draws.
+    Redefining it in place would leave that figure describing a gate that no longer exists —
+    the same class of defect as the stale theme IC table found in session 6.
+    """
+    import valuation.edge.fundamental_panel as F
+    r = F.holdout_theme_validate(_b8_panel(), ["quality", "size"], horizon=63)
+
+    assert r["stability_verdicts"] == r["verdicts"], "the honest alias drifted from the object"
+    assert all(v in ("confirmed", "not_replicated", "rejected") for v in r["verdicts"].values())
+    assert all(v in ("confirmed_oos", "not_replicated_oos", "rejected_oos", "not_flagged")
+               for v in r["oos_verdicts"].values())
+    # Both scopes ship in words, so a reader of the results file cannot take one for the other.
+    assert "NOT applied" in r["verdicts_scope"] and "B8" in r["verdicts_scope"]
+    assert "out-of-sample" in r["oos_verdicts_scope"]
+
+    from valuation.edge.results_file import build_payload
+    p = build_payload({"holdout_validation": r, "horizons": {}, "cpcv": {}, "construction": {}})
+    assert p["holdout_validation"]["verdicts"] == r["verdicts"]
+
+
+# --------------------------------------- session 7: the pre-registered held-out leave-one-out
+def test_loo_selection_uses_the_decide_half_only_and_embargoes_the_boundary():
+    """One selection, one degree of freedom, and the measure half never informs it.
+
+    Pins the two things that make the test honest rather than a re-quote of session 6's
+    exploratory arms: the selected arm IS the decide half's argmax, and the boundary date --
+    the only one whose 63d forward window can straddle a 63d-rebalance split -- is in neither
+    half.
+    """
+    from valuation.edge import loo_holdout as L
+    panel = _b8_panel(n_dates=30, n_names=60, seed=5)
+    panel["value"] = panel["fwd_ret"] * 0.3 + np.random.default_rng(7).normal(0, 0.05, len(panel))
+    r = L.loo_holdout(panel, ["quality", "size", "value"], min_dates=8)
+
+    dates = sorted(panel["date"].unique())
+    assert r["boundary_date_embargoed"] == str(dates[len(dates) // 2])
+    assert r["n_dates"]["early"] + r["n_dates"]["late"] == len(dates) - 1, "boundary not dropped"
+
+    for s in L.DIRECTIONS:
+        b = r["splits"][s]
+        best = max(b["decide_ranking"], key=lambda x: x["d_top_decile_alpha"])
+        assert b["selected"] == best["dropped"], "selection did not come from the decide half"
+        assert abs(b["selected_decide_gain"] - best["d_top_decile_alpha"]) < 1e-12
+        # The full spread is reported alongside and carries no verdict.
+        assert len(b["measure_all_arms"]) == 3
+
+
+def test_loo_verdict_follows_the_committed_margins_and_an_ambiguous_result_is_a_null():
+    """RUN_RULES 6: a result ambiguous against its own threshold IS a null, not a judgement
+    call. Pinned as an invariant over whatever the panel happens to produce, so the rule cannot
+    be quietly relaxed later to rescue a near miss.
+    """
+    from valuation.edge import loo_holdout as L
+    from valuation.edge.fundamental_panel import (MIN_HOLDOUT_ALPHA_GAIN,
+                                                  MIN_HOLDOUT_TSTAT_GAIN)
+    panel = _b8_panel(n_dates=30, n_names=60, seed=9)
+    panel["value"] = panel["fwd_ret"] * 0.2 + np.random.default_rng(3).normal(0, 0.06, len(panel))
+    r = L.loo_holdout(panel, ["quality", "size", "value"], min_dates=8)
+    assert r["min_alpha_gain"] == MIN_HOLDOUT_ALPHA_GAIN
+    assert r["min_tstat_gain"] == MIN_HOLDOUT_TSTAT_GAIN
+
+    good = [r["splits"][s]["improves"] for s in L.DIRECTIONS]
+    neg = [r["splits"][s]["negative"] for s in L.DIRECTIONS]
+    expect = ("adopted_eligible" if all(good) else "rejected" if all(neg) else "null")
+    assert r["verdict"] == expect, (r["verdict"], good, neg)
+
+    for s in L.DIRECTIONS:
+        b = r["splits"][s]
+        da = (b["measure_selected"] or {}).get("d_top_decile_alpha")
+        dt = (b["measure_selected"] or {}).get("d_long_short_tstat")
+        # `improves` requires BOTH margins. Clearing one is not clearing the bar.
+        assert b["improves"] == bool(da is not None and dt is not None
+                                     and da >= MIN_HOLDOUT_ALPHA_GAIN
+                                     and dt >= MIN_HOLDOUT_TSTAT_GAIN)
+
+
+def test_loo_arms_drop_a_theme_and_renormalise_rather_than_leaving_a_hole():
+    """The deployed composite is flat 1/7 and was never tuned, so a dropped-theme arm is flat
+    1/6. Leaving a zero in place would ask a different question -- "six sevenths of the
+    composite" -- and would make the arms incomparable with the full composite they are scored
+    against.
+    """
+    from valuation.edge import loo_holdout as L
+    cols = ["a", "b", "c", "d"]
+    w = L.flat(cols)
+    assert abs(sum(w.values()) - 1.0) < 1e-12 and all(abs(v - 0.25) < 1e-12 for v in w.values())
+    rest = L.flat([c for c in cols if c != "b"])
+    assert abs(sum(rest.values()) - 1.0) < 1e-12, "the arm does not renormalise"
+    assert "b" not in rest and all(abs(v - 1 / 3) < 1e-12 for v in rest.values())
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
