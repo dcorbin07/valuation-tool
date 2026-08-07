@@ -1227,3 +1227,108 @@ passes. It is not taken on faith.
    4.68x-levered name has a 12.4x ceiling. The 5x publication bar now catches the *output*, but
    the *assumption* is still that a levered name can re-rate 3x on enterprise value. Flagged in
    Part 4, still open.
+
+---
+
+# Part 6 — Close the public fair-value leak for real (Bug A + Bug B)
+
+## PRE-COMMITMENT — written and committed BEFORE any outcome was measured
+
+This section is committed on its own so its ordering is provable in git. Everything below the
+`RESULTS` heading was written after. Two things were checked *before* this was written, because
+committing to a bound that turns out unmeasurable is the mistake this lane has made twice:
+
+**(i) Can the model even be run here?** Yes — `value_ticker` runs locally against the live feed.
+**(ii) Does a control group exist?** Yes for both bugs, and they are named below. This was
+checked first, not assumed.
+
+### What I already know before measuring (facts, not outcomes)
+
+Captured from **live production** (`GET https://valquo.co/api/hotstocks?top=500`, signed out,
+2026-08-07) before touching anything:
+
+- The served list is **399 rows**, scan_date 2026-08-07, universe 800, provider FMP.
+- **Exactly 12 rows carry `fair_value_method = "dcf"`** — `STT, DB, UNVGY, ADBE, ACGL, HIG,
+  NTAP, EC, BCS, ALL, MFC, RVMD`. That is `SCAN_DCF_TOP=12`, confirmed from the outside.
+- **386 rows carry a peer estimate** (`blended` 325, `multiples` 60, `growth` 1). **398 of 399
+  rows publish a fair value.**
+- **0 rows carry `fair_value_withheld`.** Consistent with both "no refusal happened today" and
+  "the flag cannot survive the database". The A/B below distinguishes them.
+- KSPI, STLA and CHTR are **not in today's snapshot at all**, so the three names the bug was
+  originally found on cannot be used as the proof today. The mechanism is what I must prove,
+  on whatever names production is actually serving. I will say so plainly rather than quietly
+  substituting different tickers and presenting them as the same evidence.
+
+One measurement that changes the shape of Bug B, taken before the pre-commitment because it is
+a cost fact rather than an outcome: on five real names outside the DCF window, the **Monte Carlo
+costs 0.03–0.08s and the fetch costs 1.1–6.6s**, and `base_fair_value` is **identical at
+`mc_trials=1500` and `mc_trials=1`**. The refusal is computed from `blend`, which the Monte
+Carlo never feeds. **So the price of asking "would the model refuse this name?" is the fetch,
+not the simulation.**
+
+### Bug A — the refusal must survive the snapshot
+
+**Success:** a row that `_enrich_with_dcf` refused comes back out of
+`save_snapshot → load_snapshot → estimate_fair_values → withhold_implausible_fair_values` as
+`fair_value=None, fair_value_method="withheld"`, with its reason string intact.
+
+**CONTROL GROUP: exists, and it is every row that was never refused — all 399 today.**
+**Bound: their served `fair_value` must be BIT-IDENTICAL before and after, not merely close.**
+This change adds two columns and alters no arithmetic, so any movement at all on a non-refused
+row is a defect in my change, not a judgement call. Committing to exact equality is only
+honest because I checked first that the comparison is actually runnable.
+
+**Migration:** old snapshots have no such columns. I commit in advance to reading a missing
+column as **not withheld** — i.e. exactly today's behaviour for rows written before the fix —
+and to stating in the report that this means **the leak stays open on already-stored snapshots
+until the next scan overwrites them**. The alternative (treating unknown as withheld) would
+blank fair values across the stored history on no evidence. I will not present a one-scan delay
+as if it were instant.
+
+### Bug B — the ~386 names that never get a DCF
+
+Three options. I commit to the decision rule now, not the decision:
+
+- **(a) Raise `dcf_top` to cover the served list.** Closes the leak — and also **replaces the
+  published fair value on ~386 names** with a different model's number. That is a product
+  change, not a leak fix.
+- **(b) Ask the model only for its REFUSAL, and leave a non-refused name's published peer
+  estimate exactly as it is.** Closes the leak; changes nothing else.
+- **(c) Stop publishing peer fair values for un-valued names.** Closes the leak by deleting the
+  feature for 386 of 399 names.
+
+**I commit to (b) unless the measurement contradicts it**, for a reason I am fixing in writing
+now so it cannot be retro-fitted: the defect is *publishing a number the model refuses*, and
+(b) is the smallest change that removes exactly that. **(a) is available at identical cost** —
+the fetch is the whole price and (b) pays it too — so if Don wants DCF coverage on the whole
+list, it is one constant away. **That is his call, not mine to make inside a bug fix.**
+
+**CONTROL GROUP for (b): exists — every name the model does NOT refuse.**
+**Bound: their published fair value must be BIT-IDENTICAL before and after.** Under (a) no
+control group would exist, because every served name's number would change route; under (c)
+the same. **That a control group exists at all is a reason to prefer (b), and I am recording
+that as part of the reason rather than discovering it afterwards.**
+
+**Cost bar, fixed now:** adopt (b) only if the added scan time is **under 20 minutes** at the
+scan's existing concurrency. If it exceeds that, I fall back to gating the check to the served
+window rather than the whole universe, and I report the number either way — including if it
+lands somewhere I would rather it did not.
+
+**What I will NOT do:** invent a cheap proxy for the refusal (a ratio heuristic, a currency
+sniff). `valuation/engine/publication.py` exists precisely because this decision had five
+independent implementations. A sixth, cheaper, approximate copy in the screener would be the
+same bug wearing a performance argument. If the real decision is too expensive, the honest
+answer is to narrow its scope, not to approximate it.
+
+### The verification bar, agreed in advance
+
+**Production, not the suite.** The catch-all test walks *ratios* and every name in this class
+sits under the band — it provably cannot catch this, and a green suite is necessary and not
+sufficient. I commit to reporting the live production response before and after, and to saying
+so explicitly if the three original names are still absent from the list when I check.
+
+### What would make me report a failure rather than a fix
+
+- Any non-refused name's fair value moving by any amount.
+- The round-trip test passing in memory but not through a real `Store` on disk.
+- The refusal surviving the DB but not the serve-time re-estimation.
