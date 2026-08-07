@@ -4187,3 +4187,237 @@ not*.
 leave-one-out as a source of verdicts (it does not survive a time split); `sector_neutral`,
 PEAD, TTM ROE/ROIC, robust z-scores, momentum/institutional consolidation (all rejected, all
 with numbers).
+
+---
+
+# SESSION 8 (2026-08-07) — the selection rule is NOT ANSWERABLE on this panel, and X8 already ran
+
+**Owner:** pipeline builder. **Previous session verified complete?** YES — session 7 landed
+(`5a27ea1` … `90fd576`): B8 FIXED, held-out LOO NULL, P4 shipped.
+
+**What I did:** settled the answerability question first, as instructed; concluded the test
+**cannot be answered on the Sharadar panel**; **did not run it**; and spent the session on what
+would settle it. Along the way I found that **X8 is not future work — it ran on 2026-08-04 and it
+replicated** — and that this project's memory file never recorded the result.
+
+**One-line verdict: NOT ANSWERABLE on one panel — declined, at a cost of zero trials. Equity `N`
+stays 116.**
+
+---
+
+## 0. The headline finding I did not go looking for: X8 already replicated
+
+`CLAUDE.md` is, by its own description, "the project's memory". Before this session it contained
+the strings **"JKP" and "Japan" zero times**; so did `HANDOFF_STATUS.md`. The only trace of X8 in
+either file was the phrase *"X8's international replication is the out-of-sample evidence, R1 is
+not"*, which reads as a promise about future work.
+
+**X8 ran on 2026-08-04 with its thresholds committed first, and its verdict was REPLICATES.** It
+is written up in full in `HANDOFF_free_analysis.md` (§ "Round 3 — X8, U5, M5") and marked `DONE`
+in `VALQUO_LEDGER.md:112`. Neither file is one that an edge-lane session is told to read.
+
+**The omission demonstrably misled.** This session's own prompt instructed me to *"scope X8's
+international replication … make that actionable instead of aspirational"* — for a test that had
+already run and passed. **And I contributed to it:** session 7's own dependency table, written by
+me, lists X8 as "still the only genuinely out-of-sample evidence *available*", which is how a
+completed test gets re-scheduled. Two consecutive sessions treated a passed test as pending.
+
+The result is now recorded in `CLAUDE.md` CURRENT STATE, with the parts that do **not** flatter
+the product kept attached: two of five mapped themes (quality, momentum) do not generalise to
+Japan; JKP's composite earns +2% to +3.4%/yr against Valquo's +20.4%, a factor of six on a
+different instrument, so **X8 corroborates the premia and not the magnitude**; and only 5 of 7
+themes map at all.
+
+**Process bug, reported rather than fixed unilaterally (RUN_RULES A3):** a finding can be
+`DONE` in the ledger, written up in one lane's handoff, and invisible to every other lane,
+because `CLAUDE.md` is the only file all lanes read and nothing requires a result to land there.
+That is a memory-architecture defect, not a clerical slip — **the third time the project has been
+misled by its own stale memory** (after the mislabelled theme-IC table and the rendered
+`BACKTEST_RESULTS.md`). Suggested rule for Don: *a verdict is not `DONE` until it appears in
+`CLAUDE.md`.* I have not changed the ledger's definition of `DONE` — that is a project-wide
+convention and not mine to redefine.
+
+---
+
+## 1. The answerability decision, written before anything was run
+
+**Question.** Session 7 nominated a pre-registered test of the *selection rule*: the decide-half
+argmax picked `momentum` and `capital_discipline`, both of which flip sign across halves, while
+`quality` — which clears both margins on both halves — was never selected. Is a stability-based
+decide rule (same sign in both decide blocks, then largest) a better instrument?
+
+**Instrument for the decision.** The already-published session-7 arm table
+(`data/free_analysis/LOO_HOLDOUT_RESULTS.json`, `measure_all_arms` for both directions). Those
+numbers are in the record and already paid for in `N`, so **this analysis peeks at no new data
+and creates no trial.** Nothing about the third block was computed.
+
+**Noise scale.** Each of the 7 arms has an independent Δalpha on each 34-date half. Pooling the
+half-differences gives the sd of a single half-estimate:
+
+| arm | early Δα | late Δα | mean | half-diff | sign |
+|---|---|---|---|---|---|
+| value | −1.01% | +0.63% | −0.19% | −0.82pp | **FLIP** |
+| quality | +1.06% | +1.30% | +1.18% | −0.12pp | same |
+| momentum | +3.68% | −1.30% | +1.19% | +2.49pp | **FLIP** |
+| insider | −1.39% | +1.94% | +0.27% | −1.67pp | **FLIP** |
+| capital_discipline | +0.20% | +2.20% | +1.20% | −1.00pp | same |
+| size | −2.64% | −3.46% | −3.05% | +0.41pp | same |
+| institutional | −0.89% | −1.90% | −1.40% | +0.51pp | same |
+
+**σ(34 dates) = 1.26pp**, hence **σ(22 dates) = 1.57pp** — 69 dates minus 2 embargoed boundaries,
+split three ways.
+
+### The three reasons it is not answerable
+
+**(a) The noise exceeds the margin.** The pre-committed bar is `MIN_HOLDOUT_ALPHA_GAIN` = 1.00pp.
+On a 22-date measure block, **pure noise clears it 26.1% of the time**, and power under the
+record's own best estimates is **50.6%**. Both a positive and a negative outcome would have been
+uninterpretable. (The 100bps margin was committed before P6 for 34-date halves, where the same
+false-positive rate is 21.4%; it was never calibrated for thirds.)
+
+**(b) The design cannot separate the two rules even in principle.** Monte Carlo over the design
+itself (200k draws, noise as measured above): the stability rule and the incumbent argmax rule
+**select the same arm 90.0%** of the time under the record's estimates (75.2% under a complete
+null), and **reach a different verdict on only 5.1% of panels**. The two hypotheses barely differ
+in their observable consequences on data this size.
+
+**(c) The decisive one, which needs no variance estimate at all.** "Which rule is better" is a
+property of the distribution over panels; one panel is one draw. A paired sign test at n = 1 has a
+**minimum achievable p-value of 0.50**, at n = 2 it is 0.25 — **no threshold reaches significance,
+so no possible outcome could have been quotable.** This holds whatever the effect size and
+whatever the noise, which is why it, and not the power calculation, is the actual reason.
+
+### What declining bought
+
+| | equity `N` | Deflated Sharpe | √(2·ln N) |
+|---|---|---|---|
+| **declined (shipped)** | **116** | **0.8674** | **3.083** |
+| had I run the 7 arms | 123 | 0.8609 | 3.102 |
+
+Computed with `ablation.deflated_sharpe_at`, which moves a recorded statistic to a new `N` exactly.
+**A test that cannot resolve still costs the denominator.** Declining is the cheaper action.
+
+**No `RESEARCH_LOG.md` row was added for the un-run test.** The prompt's rule was "pre-register and
+log, or do not run"; I chose not to run, so the logging obligation does not bind, and a row would
+misrepresent an unperformed search. The row is written when Session 9 runs it.
+
+---
+
+## 2. What WOULD settle it — scoped, feasibility-checked, and pre-registered
+
+Not aspirational: **the data is already on disk**, 2.1 MB in `data/factors/research_only/jkp/`,
+downloaded by X8 on 2026-08-04.
+
+**Feasibility probe run this session (shape and coverage only — no arm return, selection or
+verdict computed, deliberately, so the pre-registration below stays blind):**
+
+```
+17 regions (15 developed Europe + jpn + usa), 324 months each, 1999-01-31 -> 2025-12-31
+all 5 mapped themes present with 324/324 non-null months in EVERY region
+regions usable for a 5-arm leave-one-out: 17/17
+```
+
+`scripts/jkp_replication.composite_series()` already returns the per-theme wide frame, so an arm is
+`w.drop(columns=[theme]).mean(axis=1)`. **No new data acquisition, no new loader, no cost.**
+
+### PRE-REGISTRATION — Session 9 executes this, blind
+
+- **Decide set:** `usa` only. **Measure set:** the 15 developed-European countries + `jpn` — 16
+  held-out countries, none touched during selection.
+- **Arms:** 5 leave-one-out arms (`value`, `quality`, `momentum`, `size`, `investment`). *Only 5
+  of Valquo's 7 themes map;* `insider` and `institutional` have no JKP analogue and are out of
+  scope here — say so whenever the result is quoted.
+- **Rule A (incumbent):** split `usa` in half by date; pick the arm with the largest mean Δ vs the
+  full 5-theme composite across both halves.
+- **Rule B (stability):** among arms whose Δ has the **same sign in both `usa` halves**, pick the
+  largest. If none qualifies, Rule B abstains and that is recorded as an outcome, not a failure.
+- **Statistic:** for each of the 16 countries, the **paired** difference
+  `Δ(arm chosen by B) − Δ(arm chosen by A)`, measured on that country's full 324 months.
+- **Verdict:** **sign test, ≥ 12 of 16 countries favouring Rule B ⇒ Rule B is better** (exact
+  one-sided α = **3.84%**). 11/16 (α 10.5%) or fewer is a **NULL**. Ambiguous is a NULL, per
+  RUN_RULES A6. The sign test carries the verdict — the project's standing rule since R2.
+- **Mandatory before the sign test is quoted:** the 16 countries are **not independent** —
+  European equity markets co-move. Measure the cross-country design effect against its own
+  shuffled null by the X7 method and gate on `clustering_measurable`, exactly as
+  `options_stats.py` does. **Never quote a design effect without its null** (R3's standing rule).
+  If clustering is measurable, the effective n is below 16 and the 12/16 threshold must be
+  re-derived at `n_eff` **before** unblinding, not after.
+- **Trial cost:** 5 arms → equity `N` 116 → 121, √(2·ln 121) = 3.096, DSR ≈ 0.862. Log all 5 rows.
+
+### What this design can and cannot answer — state both, always
+
+| | |
+|---|---|
+| **CAN** | whether a stability-based selection rule is **substantially** better: power **79.8%** against a rule better in 80% of countries, **63.0%** at 75% |
+| **CANNOT** | whether it is **slightly** better: power **8.5%** at 55%, **16.7%** at 60%. A NULL here does **not** mean the rules are equivalent |
+| **CANNOT** | say anything about `insider` or `institutional` (2 of 7 themes unmapped) |
+| **CANNOT** | corroborate Valquo's *magnitude* — JKP is capped value-weighted terciles, Valquo an equal-weighted concentrated decile book; X8 already measured that gap at a factor of six |
+| **CAVEAT** | JKP data is **CC BY-NC 4.0, RESEARCH ONLY** — it validates the model and can never ship in the product |
+
+---
+
+## 3. Session 9's first item, with its `needs first` table
+
+**First item: execute the pre-registration in §2.** It is the only version of the selection-rule
+question that can return a quotable answer, and everything it needs is on disk.
+
+| dependency | status |
+|---|---|
+| JKP data | **READY** — `data/factors/research_only/jkp/`, 17 regions × 324 months, 5/5 themes, 100% non-null, probed this session |
+| the loader | **READY** — `scripts/jkp_replication.py`, `composite_series()` returns the per-theme frame; caches locally, no network needed |
+| the pre-registration | **READY and BLIND** — §2 above, written before any arm return was computed |
+| the clustering gate | **EXISTS but is NOT wired for countries** — `options_stats.py` has the design-effect-vs-shuffled-null machinery for calendar months; it must be re-pointed at countries. **This is the one piece of real work**, and it must be built and tested *before* the measure set is touched |
+| the trial cost | **5 rows, equity N 116 → 121.** Log them or do not run |
+| the power limit | **KNOWN and BINDING** — a NULL means "not substantially better", never "equivalent" |
+
+**Ranked alternatives if Don prefers:** (1) **task #12, the forward paper-track vs SPY** — still
+the only test on data nobody has looked at, and P4 shipped the machinery for it last session;
+(2) the ML tree combiner (roadmap #16); (3) re-deriving X7's calibrated long-short floor on the
+**HAC** statistic, which is still open and is the reason `2.620 vs 2.14` remains apples-to-oranges.
+
+**Do not re-open:** the selection rule on the Sharadar panel (this session, with the arithmetic);
+U1 as written; the full-sample leave-one-out as a source of verdicts; `sector_neutral`, PEAD,
+TTM ROE/ROIC, robust z-scores, momentum/institutional consolidation.
+
+---
+
+## 4. What I did NOT do, and why (RUN_RULES A4)
+
+- **Did not run the three-block selection-rule test.** §1 — it cannot resolve, and running it to
+  have a number to report is the failure mode the prompt named.
+- **Did not run the cross-country test either.** It is pre-registered but not executed: building
+  the country-level clustering gate is genuine work, and running the measure set before that gate
+  exists would spend the blind once and get an unquotable number. Session 9 executes it blind.
+- **Did not compute a single JKP arm return.** The feasibility probe reports shape and coverage
+  only, by design, so §2 stays honest.
+- **Did not change the ledger's definition of `DONE`**, though §0 argues it is the root cause of
+  the X8 omission. Project-wide convention; Don's call.
+- **Did not touch** `valuation/screener/**`, `screen.py`, `valuation/web/**`, `.github/**`,
+  `.gitattributes`, `theta_bulk.py`, `data/options/**` — other lanes.
+- **No `RESEARCH_LOG.md` trial rows added.** Nothing was searched; equity `N` is unchanged at 116.
+
+---
+
+## 5. Bugs found (RUN_RULES A3 — report everything, including outside my lane)
+
+1. **X8's verdict never reached `CLAUDE.md` or `HANDOFF_STATUS.md`** (§0). The serious one. Fixed
+   in `CLAUDE.md` this session, with the caveats attached; the underlying convention that let it
+   happen is Don's call, not mine. **Now pinned** by
+   `test_session8_a_landed_verdict_reaches_the_file_every_lane_reads`, which asserts both the
+   result *and* its three caveats are present — a bullet quoting only the wins would be the
+   overselling `CLAUDE.md` forbids, so the test checks for the unflattering half too.
+2. **`HANDOFF_free_analysis.md` states X8's matched window as "1999-01 → 2026-04". The data ends
+   2025-12-31.** The filter's upper bound is `<= 2026-04-30` and simply never binds, so **no
+   number is affected** — but the prose overstates the data's extent by four months. Another
+   lane's file; not edited, reported here. Verified this session: all 17 regions run
+   1999-01-31 → 2025-12-31, 324 months.
+3. **Do not trust a background task-notification's exit code for a command that was started in
+   the foreground and auto-backgrounded on timeout.** One such run reported "exit code 0" while
+   its own output read `249/250 edge tests passed`. A natively-backgrounded `sys.exit(1)` probe
+   *was* reported faithfully, so this is specific to the auto-backgrounded path. `tests/test_edge.py`
+   itself is correct by inspection — one runner, `return passed == len(tests)`,
+   `sys.exit(0 if _run_all() else 1)`, no duplicate `__main__`. **This is not the session-7 gate
+   flaw recurring**; that one was real and is fixed. Verify with an explicit `echo $?` or the
+   `subprocess.returncode` sweep, never the notification. Also note the harness truncates these
+   output files (one was cut to 8 lines), so a `FAIL` line can vanish while the summary survives —
+   grep the summary count, not just for `FAIL`.

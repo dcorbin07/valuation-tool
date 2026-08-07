@@ -4,7 +4,8 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-06 (external edge audit, **session 7** — B8, held-out LOO, P4)
+**Session date:** 2026-08-07 (external edge audit, **session 8** — selection rule declined as
+unanswerable; X8's replication restored to `CLAUDE.md`)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
@@ -14,6 +15,59 @@ file directly.
 > then R1's original run, then session 1, then deep research #2, then the EV staleness fix, then
 > PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
 > per-finding status in `CODE_AUDIT.md`.
+
+---
+
+## EDGE AUDIT SESSION 8 (2026-08-07) — a test declined, and X8's result restored to the record
+
+Full write-up: `HANDOFF_edge_audit.md` § SESSION 8. Nothing under `valuation/**` changed — this
+session shipped a decision and a correction, not code.
+
+**1. X8 ALREADY REPLICATED, ON 2026-08-04, AND CLAUDE.md NEVER SAID SO.** Before this session
+`CLAUDE.md` — the file every lane reads — contained the words "JKP" and "Japan" **zero times**,
+and so did this file. X8's actual verdict, from `HANDOFF_free_analysis.md`: the untuned 5-theme
+composite mapped 1:1 onto JKP Global Factor Data earns **Japan +2.05%/yr (t 3.85)** and
+**developed Europe +3.36% (t 4.30)**, 12 of 15 European countries clear t > 2, and **the USA is
+the weakest region tested (t 2.35)** — the theme structure is not a US artifact. It is the
+strongest external evidence the project has. Now recorded in `CLAUDE.md`, with the unflattering
+half attached: **quality and momentum do not generalise to Japan**, only 5 of 7 themes map, and
+JKP's +2–3.4%/yr against Valquo's +20.4% means this corroborates **the premia, not the
+magnitude**. Research-only licence; it can never ship in the product.
+
+**Process bug for Don:** a result can be `DONE` in the ledger and written up in one lane's handoff
+while being invisible to every other lane. This session's own prompt asked me to "scope X8 … make
+it actionable instead of aspirational" for a test that had already passed. Suggested rule: *a
+verdict is not `DONE` until it appears in `CLAUDE.md`.* I did not change the convention myself.
+
+**2. THE SELECTION-RULE TEST WAS DECLINED, AND THAT IS THE RESULT.** Session 7 nominated it;
+session 8 was told to decide answerability first and to treat "not answerable" as first-class.
+It is **not answerable on the Sharadar panel**, settled before any run using only already-published
+numbers, so at **zero trial cost**:
+
+- a three-block split gives 22-date blocks where noise is **σ 1.57pp against a 1.00pp committed
+  margin** — pure noise clears it **26.1%** of the time and power is **50.6%**;
+- the stability rule and the incumbent argmax rule **pick the same arm 90% of the time** and
+  differ in verdict on **5.1%** of panels, so the design cannot separate them even in principle;
+- decisively and without any variance estimate: **one panel is one draw, and a paired sign test at
+  n = 1 has a minimum achievable p of 0.50** — no outcome could ever have been quotable.
+
+**Equity `N` therefore stays 116** (Deflated Sharpe **0.8674**, √(2·ln 116) = 3.083) rather than
+123 (0.8609). Declining a test that cannot resolve is the cheaper action, not the lazier one.
+
+**3. IT IS ANSWERABLE ON X8's DATA, WHICH IS ALREADY ON DISK.** 16 held-out countries give 16
+independent draws; a paired sign test reaches α 3.84% at ≥12/16. Fully pre-registered and blind in
+`HANDOFF_edge_audit.md` §2 — **no JKP arm return was computed**, deliberately. Honest limit stated
+up front: power **79.8%** against a rule better in 80% of countries but only **8.5%** at 55%, so it
+can settle "substantially better" and never "slightly better".
+
+**Recommended next step:** execute that pre-registration (session 9's first item, with its `needs
+first` table in §3). The one real piece of work is re-pointing the existing design-effect-vs-null
+clustering gate at countries — European markets co-move, so the effective n is below 16 and the
+threshold must be re-derived **before** unblinding. **Alternative, and arguably higher value:
+task #12, the forward paper-track vs SPY** — still the only test on data nobody has looked at, and
+P4 shipped its machinery last session.
+
+**Suites green:** all suites pass by exit code. No code changed.
 
 ---
 

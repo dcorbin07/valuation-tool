@@ -4418,6 +4418,31 @@ def test_audit_c7_every_test_suite_gates_the_auto_merge():
     assert "exit $fail" in wf, "one red suite must not be hidden by a later green one"
 
 
+def test_session8_a_landed_verdict_reaches_the_file_every_lane_reads():
+    """Session 8. X8 -- the international replication, the strongest external evidence this
+    project has -- passed on 2026-08-04, was written up in `HANDOFF_free_analysis.md` and marked
+    DONE in the ledger, and `CLAUDE.md` still contained the words "JKP" and "Japan" ZERO times
+    three days later. Two consecutive sessions then treated a passed test as pending work, and
+    session 8's own prompt asked for it to be "scoped".
+
+    `CLAUDE.md` is the only file every lane reads. A verdict that lands solely in one lane's
+    handoff is invisible to the others, which is a memory-architecture defect and not a clerical
+    slip -- the same class as the mislabelled theme-IC table and the stale rendered results file.
+    This pins the repair so it cannot silently regress, and it deliberately checks for the
+    CAVEATS too: a bullet that quotes only the wins would be the overselling CLAUDE.md forbids."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    brief = open(os.path.join(root, "CLAUDE.md"), encoding="utf-8").read()
+    for token in ("JKP", "Japan"):
+        assert token in brief, f"CLAUDE.md must record X8's result; {token!r} missing"
+    # the result itself
+    assert "t 3.85" in brief and "t 4.30" in brief, "X8's Japan/Europe t-stats must be quoted"
+    # and the three things that stop it being oversold
+    assert "weakest region" in brief.lower(), "the US control is the point of X8; keep it"
+    assert "does not corroborate" in brief.lower() and "magnitude" in brief.lower(), \
+        "X8 corroborates the premia, NOT Valquo's magnitude -- that caveat must travel"
+    assert "RESEARCH ONLY" in brief, "JKP is CC BY-NC 4.0; it can never ship in the product"
+
+
 
 def test_audit_b7_the_live_path_and_the_backtest_path_score_identically():
     """B7, the test the audit asked for by name. THREE composite functions existed and did not
