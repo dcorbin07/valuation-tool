@@ -408,6 +408,28 @@ honest label and gives a clean re-entry point once 2026 closes.
    Every other month of 2022 returns normally, for both names. The failure is fast and
    deterministic, i.e. a server rejection of that partition, not a timeout or a load effect.
 
+   **VERIFIED WITH THE MINER STOPPED, because the first version of this finding was not safe
+   to trust.** ThetaData Standard allows **4 concurrent requests** and `WORKERS = 4` already
+   saturates it, so every diagnostic probe run alongside the miner is a 5th request whose
+   rejection can land on either party. Worse, in both month-by-month probes May was the *5th
+   call of the burst*, which is exactly what a token-bucket rate limiter would reject — so the
+   evidence was equally consistent with "I caused this and am blaming the vendor". Re-run with
+   the miner paused and no other load:
+
+   | | |
+   |---|---|
+   | AGI 2022-04 | 804 rows, 1.0s OK |
+   | **AGI 2022-05** | **`_MultiThreadedRendezvous`, 0.2s** |
+   | AGI 2022-06 | 1,916 rows, 1.3s OK |
+   | **AGI 2022-05 (repeat)** | **`_MultiThreadedRendezvous`, 0.2s** |
+   | **W 2022-05** | **`_MultiThreadedRendezvous`, 2.2s** |
+
+   So the source defect is real. **Two lessons for whoever mines next: (a) do not run probes
+   while the miner is running — you are the 5th request and you will manufacture the failures
+   you are investigating; (b) the wider multi-year gaps in this window (NIO lost 3 years, MGM
+   4) were probably MY added load, not the source, and should be re-pulled rather than
+   believed.**
+
    **Two hypotheses tested and REFUTED, so they do not get repeated as folklore:** it is not a
    general 2022 outage (DPZ 2022 returns 40,000 rows in 5.6s), and it does **not** poison the
    gRPC channel — on one client, good → bad → good → good all succeed except the bad one, and
