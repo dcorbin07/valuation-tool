@@ -20,8 +20,8 @@ file directly.
 ## AUDIT SESSION 7 (2026-08-06) — B8 FIXED, HELD-OUT LOO IS **NULL**, P4 SHIPPED
 
 Full write-up: **`HANDOFF_edge_audit.md`**, "SESSION 7". Pre-commitment pushed in `5a27ea1`
-**before any LOO number existed**, including the expected direction. **All 22 suites green,
-`OVERALL_FAIL=0`** (248/248 edge, 45/45 paper-track).
+**before any LOO number existed**, including the expected direction. **All 24 suites exit 0** (248/248 edge, 45/45 paper-track),
+verified by exit code rather than by parsing output — see BUGS FOUND 7.
 
 | item | verdict |
 |---|---|
