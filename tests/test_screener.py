@@ -1337,6 +1337,146 @@ def test_a_refused_row_is_not_re_estimated_from_peers():
     assert any(p.get("fair_value") is not None for p in peers)
 
 
+def test_a_recorded_refusal_survives_the_snapshot_round_trip():
+    """THE test for this class of bug, and the one whose absence kept the leak live.
+
+    `test_a_refused_row_is_not_re_estimated_from_peers` above was GREEN the entire time
+    production was publishing refused names, because it exercises the estimator IN MEMORY and
+    the database sits between the scan and the serve. `store.save_snapshot` wrote a fixed
+    18-column INSERT that did not name `fair_value_withheld`, so the refusal was recorded
+    correctly, discarded by the writer, and read back as a bare `fair_value = None` — which
+    `estimate_fair_values` treats as "no DCF yet" and replaces with a peer estimate.
+
+    Reproduced on the real 399-row production snapshot before the fix: refusing rank-1 STT and
+    serving it through the round trip republished $386.68083192601813 as "blended".
+
+    Note what this test asserts and the ratio-walking catch-all cannot: the catch-all checks
+    that no PUBLISHED value exceeds the 5x band, and a refused 11x model replaced by a 3.2x
+    peer estimate sits comfortably UNDER the band. No ratio test can see this. The invariant
+    is about the DECISION surviving persistence, so the test has to cross the same boundary
+    the decision does.
+    """
+    import tempfile
+    from valuation.screener.store import Store
+    from valuation.screener.fairvalue import estimate_fair_values
+    from valuation.engine.publication import ROW_WITHHELD, ROW_WITHHELD_REASON, record_refusal
+
+    rows = [{"ticker": f"P{i}", "sector": "Tech", "price": 100.0, "market_cap": 1e9, "rank": i + 2,
+             "extra": {"earnings_yield": 0.05, "net_debt": 0.0, "revenue": 5e8}} for i in range(6)]
+    refused = {"ticker": "KSPI", "sector": "Tech", "price": 92.19, "market_cap": 1e9, "rank": 1,
+               "extra": {"earnings_yield": 0.30, "net_debt": 0.0, "revenue": 5e8}}
+    reason = "Cannot value this name: the model's $1,248.48 is 13.6x the price."
+    record_refusal(refused, reason)
+
+    st = Store(os.path.join(tempfile.mkdtemp(), "roundtrip.db"))
+    st.save_snapshot("2026-08-07", [refused] + rows, "test", {})
+    back = st.load_snapshot("2026-08-07")
+
+    got = next(r for r in back if r["ticker"] == "KSPI")
+    assert got.get(ROW_WITHHELD) is True, (
+        "the database dropped the refusal — this is the leak: the scan recorded it and the "
+        "writer discarded it")
+    assert got.get(ROW_WITHHELD_REASON) == reason, "a blanked cell must still say why"
+
+    # ...and it must still be honoured by the SERVE path that runs on the rows read back.
+    estimate_fair_values(back, peer_rows=back)
+    got = next(r for r in back if r["ticker"] == "KSPI")
+    assert got.get("fair_value") is None, (
+        f"a refused row came back out of the database and was re-estimated to "
+        f"{got.get('fair_value')} — exactly what valquo.co was serving")
+    assert got.get("fair_value_method") == "withheld"
+    # a row that was never refused still gets its estimate, and carries neither key
+    ordinary = next(r for r in back if r["ticker"] == "P0")
+    assert ROW_WITHHELD not in ordinary and ROW_WITHHELD_REASON not in ordinary
+
+
+def test_not_dcf_valuable_is_not_a_refusal():
+    """The mirror-image defect, found while measuring Bug B and live in this lane's code.
+
+    `_enrich_with_dcf` refused on `base_fair_value is None and reason`, which is ALSO true of a
+    name the model simply cannot value — no free cash flow, no revenue, an ADR bank whose
+    P/B–ROE inputs are missing. Nothing has been refused about those names and a peer multiple
+    is the right tool for them, but they were blanked and told "no fair value is published".
+
+    Measured on the real production list: 17 of 387 served names report a "not DCF-valuable"
+    reason and NONE of them is a genuine refusal. Running the old expression over NVS, SAP and
+    TD suppressed ordinary peer estimates of $185.41, $364.97 and $79.73.
+
+    The test is the VERDICT from `publication.decide`, not the presence of a reason string."""
+    from valuation.screener import screen as screen_mod
+    from valuation.engine import pipeline as pipeline_mod
+    from valuation.engine.publication import ROW_WITHHELD
+
+    class _Blend:
+        def __init__(self, value, withheld, reason):
+            self.value, self.withheld_value, self.reason = value, withheld, reason
+            self.growth_led = False
+
+    class _Res:
+        def __init__(self, blend, price, base):
+            self.fair_value_blend, self.base_fair_value, self.upside = blend, base, None
+            self.company = type("CD", (), {"price": price})()
+
+    cases = {
+        # not valuable: the model never produced a number. NOT a refusal.
+        "NVS": _Res(_Blend(None, None, "Not DCF-valuable: the company doesn't generate "
+                                       "positive free cash flow."), 153.67, None),
+        # genuine refusal: the model DID produce a number and it is 14x the price.
+        "KSPI": _Res(_Blend(None, 1289.60, "Cannot value this name: ..."), 92.11, None),
+    }
+    orig = pipeline_mod.value_ticker
+    pipeline_mod.value_ticker = lambda t, cfg, mc_trials=None: cases[t]
+    try:
+        rows = [{"ticker": "NVS", "price": 153.67}, {"ticker": "KSPI", "price": 92.11}]
+        from valuation.config import CONFIG as _CFG
+        screen_mod._enrich_with_dcf(rows, _CFG, refusal_only=True)
+    finally:
+        pipeline_mod.value_ticker = orig
+
+    assert not rows[0].get(ROW_WITHHELD), (
+        "a name the model merely cannot value was recorded as REFUSED — that suppresses a "
+        "perfectly ordinary peer estimate and tells the reader a refusal happened")
+    assert rows[1].get(ROW_WITHHELD) is True, (
+        "a genuine >5x refusal was not recorded — this is the leak")
+
+
+def test_snapshot_migration_adds_the_withheld_columns_and_reads_old_rows_as_not_withheld():
+    """A database written before the columns existed must migrate in place, and its existing
+    rows have no opinion about refusals — so they must read as NOT withheld. The alternative
+    (unknown => withheld) would blank fair values across the stored history on no evidence.
+
+    The honest consequence, stated here so it is not lost: an already-stored snapshot keeps
+    serving whatever it stored until the next scan overwrites its date."""
+    import sqlite3, tempfile
+    from valuation.screener.store import Store
+    from valuation.engine.publication import ROW_WITHHELD, record_refusal
+
+    path = os.path.join(tempfile.mkdtemp(), "old.db")
+    con = sqlite3.connect(path)
+    con.executescript("""
+        CREATE TABLE snapshot_rows (
+            scan_date TEXT, ticker TEXT, name TEXT, sector TEXT, bucket TEXT,
+            price REAL, market_cap REAL, hot_score REAL, composite REAL, rank INTEGER,
+            z_value REAL, z_quality REAL, z_growth REAL, z_momentum REAL, z_insider REAL,
+            fair_value REAL, upside REAL, extra TEXT, PRIMARY KEY (scan_date, ticker));
+        INSERT INTO snapshot_rows (scan_date,ticker,price,fair_value,rank,extra)
+            VALUES ('2026-08-01','OLD',10.0,42.0,1,'{}');""")
+    con.commit(); con.close()
+
+    st = Store(path)                                   # opening it runs the migration
+    cols = {r[1] for r in sqlite3.connect(path)
+            .execute("PRAGMA table_info(snapshot_rows)").fetchall()}
+    assert {"fair_value_withheld", "fair_value_withheld_reason"} <= cols
+
+    old = st.load_snapshot("2026-08-01")[0]
+    assert old["fair_value"] == 42.0 and ROW_WITHHELD not in old
+
+    fresh = {"ticker": "NEW", "price": 10.0, "rank": 1, "extra": {}}
+    record_refusal(fresh, "Cannot value this name: the model's $140.00 is 14.0x the price.")
+    st.save_snapshot("2026-08-02", [fresh], "test", {})
+    assert st.load_snapshot("2026-08-02")[0].get(ROW_WITHHELD) is True
+
+
 def test_net_debt_is_unit_stamped_like_market_cap():
     """`net_debt` was missing from providers._ABSOLUTE_USD, so it alone came out in the
     provider's native millions while market_cap / ev / total_debt beside it were scaled to

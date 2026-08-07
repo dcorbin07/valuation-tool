@@ -1332,3 +1332,254 @@ so explicitly if the three original names are still absent from the list when I 
 - Any non-refused name's fair value moving by any amount.
 - The round-trip test passing in memory but not through a real `Store` on disk.
 - The refusal surviving the DB but not the serve-time re-estimation.
+
+## RESULTS — measured after the pre-commitment above (1f6ad92)
+
+Both bugs are fixed. **The most consequential thing this session found was not either of them:
+it was a defect pointing the OTHER WAY, in the CONSOLIDATE-1 fix I shipped, which suppresses
+fair values on names nothing ever refused.** I hit it because my own first measurement made the
+identical mistake.
+
+Two numbers to hold onto before the detail:
+
+- **Bug A was live and is now closed.** Reproduced on the real production rows, not inferred.
+- **Bug B is a real structural hole whose live blast radius today is ZERO.** Asked the model
+  about all 387 served names it never valued: **0 genuine refusals.** My fix therefore removes
+  **no** published number from today's list. Saying otherwise would be the easy sentence and
+  the wrong one.
+
+### BUG A — the refusal did not survive the snapshot. REPRODUCED, then FIXED.
+
+`store.save_snapshot` wrote a fixed 18-column INSERT and `snapshot_rows` had no column for
+either refusal key, so the scan recorded the decision and the database discarded it.
+
+Reproduced through a **real `Store` on disk**, on the **real 399-row production snapshot**,
+refusing the rank-1 name exactly as KSPI (rank 3) was refused:
+
+```
+after record_refusal:   STT withheld=True  fair_value=None
+A: serve WITHOUT the snapshot round-trip    -> fair_value=None  method=withheld   (correct)
+B: read back from the DB                    -> withheld=None
+B: serve THROUGH the snapshot, as prod does -> fair_value=386.68083192601813  method=blended
+```
+
+**`$386.68083192601813` is what the public list publishes for a name the model refused.** The
+mechanism is not inferred.
+
+**The fix:** two columns on `snapshot_rows`, an in-place `ALTER TABLE` migration matching the
+one already used for `positions`, both keys named in the INSERT, and a reader that converts
+SQLite's `0/1/NULL` to a bool. The key names are imported from `engine/publication.py` rather
+than restated, so the scan, the database and the web surface cannot drift to different
+spellings of one decision.
+
+One reader detail that is easy to get wrong and would have caused a second bug: a row that was
+never refused comes back carrying **neither key**, not a key set to `None`.
+`withhold_implausible_fair_values` uses `setdefault` on the reason, which would happily keep a
+present-but-`None` reason and blank a cell **without saying why** — the exact failure an
+existing test (`test_guards.py:224`) forbids.
+
+**After the fix, same harness:** `B: serve THROUGH the snapshot -> fair_value=None
+method=withheld`.
+
+**Pre-registered control bound: HELD.** All **399** rows, saved+loaded+served through the new
+store with no refusal anywhere, reproduce the fair values production actually served
+**bit-identically — 0 differences** — and **0** unrefused rows gained either new key.
+
+**Migration, verified against a database built under the old schema:** 18 → 20 columns, the
+two added, pre-existing rows read as **not withheld** (as committed in advance), and a fresh
+refusal round-trips in the migrated database.
+
+**The migration's honest cost, stated because it is a real gap and not a rounding error:** an
+**already-stored** snapshot has no opinion about which of its rows were refused, so it keeps
+serving what it stored **until the next scan overwrites its date**. Scans run daily, so that is
+one scan — not a backfill, and not instant. Treating "unknown" as "withheld" would have blanked
+fair values across the stored history on no evidence, which is worse.
+
+### BUG B — the ~387 names that never get a DCF. FIXED, and the leak measured EMPTY today.
+
+Confirmed from outside: **exactly 12 served rows carry `fair_value_method="dcf"`**
+(`STT, DB, UNVGY, ADBE, ACGL, HIG, NTAP, EC, BCS, ALL, MFC, RVMD`) — `SCAN_DCF_TOP=12`, visible
+in the public response. **387 of 399 served names publish a peer estimate that nothing has ever
+checked against the valuation page's verdict.**
+
+I then asked the real model about all 387.
+
+| | |
+|---|---|
+| names asked | **387** |
+| **genuine refusals** (`publication.decide` said no to a real number) | **0** |
+| of which >5x band / currency | 0 / 0 |
+| errored, no answer at all | **0** |
+| wall clock, 6 workers | **3.0–3.8 min** (two runs) |
+| per name | median **2.51s**, p90 **3.81s** |
+
+**So the hole is structural and real, and nothing is currently falling through it.** The fix
+changes no published number on today's list. I am stating that rather than quoting the "17
+refusals" my first pass produced, which were not refusals at all — see the next section.
+
+**The decision: option (b), refusal-only.** Ask the model solely *"would you refuse this
+name?"*, and leave every non-refused row exactly as it was.
+
+**The trade, named as the brief asked.** Raising `dcf_top` to cover the list costs **the same**
+— the fetch is the entire price (1.1–6.6s, against 0.03–0.08s for the Monte Carlo, which is not
+an input to the refusal at all) — but it would also **replace the published fair value on ~387
+names** with a different model's number. That is a product decision, not a leak fix, and it is
+**one constant away** (`SCAN_DCF_TOP=500`) if Don wants it. **Option (b) is also the only one of
+the three that leaves a control group in existence**, which is part of why I chose it and was
+recorded in the pre-commitment before any of this was measured.
+
+**Pre-registered bound for Bug B: HELD.** The real `_screen_refusals` was run over the real
+production rows and then through the real database and serve path: **387 screened, 0 refused,
+399 rows compared, 0 not bit-identical, 0 moved without being refused.** Wall clock 4.2 min.
+With zero refusals the control group is the entire list, which is the weakest possible version
+of that bound — it demonstrates the change is inert on this data, not that it discriminates.
+**The discrimination is demonstrated by the unit test, not by this run**, and pretending
+otherwise would be the flattering reading.
+
+**Cost against the pre-committed bar of 20 minutes: 3.0–3.8 min. Passes.** Wired as
+`SCAN_REFUSAL_SCREEN` (default 500 = the public cap), defaulting to **0 in-process** so tests,
+ad-hoc scans and the web rescan button do not silently start making hundreds of network calls.
+Every scan now ships a `refusal_screen: {screened, refused}` block in the health panel —
+`screened: 0` on a scan that served hundreds of names is the tell that Bug B is back.
+
+**Fail-open on a fetch error, deliberately, and this was NOT in the pre-commitment.** A fetch
+that fails tells us nothing about whether the model would refuse. The upstream feed here is
+free and rate-limited — a Yahoo `401 Invalid Crumb` appeared during the 387-name run — and
+failing closed would blank hundreds of fair values on a bad upstream day. **The cost of failing
+open is that a name we cannot reach keeps its unchecked peer estimate.** I am flagging this as
+an implementation choice surfaced by the measurement rather than a threshold I moved: it
+changes no verdict above.
+
+### THE DEFECT POINTING THE OTHER WAY — and it is live in this lane's code
+
+**`_enrich_with_dcf` treated "the model cannot value this name" as "the model REFUSED this
+name".** It refused on `base_fair_value is None and reason`, which is also true when the model
+never produced a number at all — no free cash flow, no revenue, an ADR bank whose P/B–ROE
+inputs are missing. Nothing has been refused about those names, and a peer multiple is exactly
+the right tool for them.
+
+**I made the identical mistake in my own first measurement**, which is how I found it: pass 1
+reported "17 refusals (4.4%)" and every single reason read *"Not DCF-valuable"* or *"the inputs
+a DCF or a multiple would need are missing"* — on **NVS, SAP, SPOT, TD, SMFG, ING, SAN, NGG,
+TRI, BN, NU**: banks, utilities and ADRs. Not one was a data problem. `publication_guard`
+returns `decide(...).reason or None`, and `decide` returns an **empty** reason when there is no
+value — so those strings came from `blended_fair_value`, never from the guard.
+
+Demonstrated on three real names that today publish ordinary peer estimates, by running the old
+expression as if they had ranked inside `dcf_top`:
+
+| name | price | published today | under the OLD code |
+|---|---|---|---|
+| NVS | $153.67 | **$185.41** blended | **SUPPRESSED**, "Not DCF-valuable" |
+| SAP | $189.65 | **$364.97** blended | **SUPPRESSED**, "Not DCF-valuable" |
+| TD | $121.15 | **$79.73** blended | **SUPPRESSED**, "Not DCF-valuable" |
+
+**And the affected population is unstable run to run.** The identical expression over the
+identical 387 names counted **17** in one run and **77** in another about 2.5 hours later, with
+the slower run showing more upstream throttling. So under load, *more* names get mislabelled as
+refused — the failure gets worse exactly when the feed is worst.
+
+**Fixed by asking for the VERDICT rather than the presence of a reason string:** call
+`publication.decide` on the value the model actually held (`blend.withheld_value` before the
+guard blanked it) and refuse only when it gives a reason. That reads the one decision instead of
+restating its threshold, which is the rule `publication.py` exists to enforce. Pinned by
+`test_not_dcf_valuable_is_not_a_refusal`.
+
+### Do any other writers in this lane drop fields the same way?
+
+Measured, not read off the source: every producer's row was pushed through its persister, read
+back, and the key sets diffed.
+
+| writer | dropped | live? |
+|---|---|---|
+| `save_snapshot` | *(the two refusal keys — fixed)* | **was live** |
+| `save_intraday` | `fair_value`, **`fair_value_withheld`**, `name`, `sector` | **LATENT** — the intraday path never computes a fair value today, so nothing is being lost now. It would bite silently the day someone adds one. |
+| `save_track_picks` | `price`, `fair_value` | No — that table is `(source, run_date, ticker, rank)` by design. |
+| `archive_scan` (**edge lane, not mine**) | names 10 keys explicitly; stores `fair_value` but **not** the refusal flag or reason | A refused row archives as a bare `None`, so no number is published — but *why* it was blank is lost from the permanent record. Reported, not touched. |
+
+**So yes: `save_intraday` has the same shape.** Same fixed column list, same silent discard,
+same field name. It is one producer away from being the same bug.
+
+### VERIFICATION — production, not the suite
+
+The brief is right that a green suite is not evidence here, and the reason is worth restating:
+**the catch-all walks ratios**, and a refused 11x model replaced by a 3.2x peer estimate sits
+comfortably *under* the 5x band. No ratio test can see this class. It was built for the AEG case
+(5.25x) and still guards that correctly.
+
+**The verification I could do, and the one I could not:**
+
+- **KSPI, STLA and CHTR are not in today's production list at all.** Today's scan served 399
+  rows from an 800-name universe and none of the three is among them. **I could not verify the
+  fix on the three original names, and I am not substituting different tickers and presenting
+  them as the same evidence.** The three `/api/whatdo` responses carry no fair-value block for
+  them either — the only `withheld` field in each is `options.withheld`, which is the options
+  surface, not this one.
+- **What I did instead:** reproduced and fixed the mechanism on the **real production rows
+  themselves**, including the round trip through a real database, and on the names production is
+  actually serving. That is stronger than three tickers and weaker than a live re-probe.
+- **The live re-probe is not possible from here and must not be claimed.** Nothing is deployed
+  until Don pushes, and the fix only reaches the public surface on the **next scheduled scan**,
+  because the flag is written at scan time. **The honest status is: fixed and verified locally
+  against real production data; unverified on the live site until the next scan runs.**
+
+### The new test that would have caught this class
+
+`test_a_recorded_refusal_survives_the_snapshot_round_trip` — and the point is *where* it runs.
+`test_a_refused_row_is_not_re_estimated_from_peers` has been **green the entire time production
+was leaking**, because it exercises the estimator **in memory** and the database sits between
+the scan and the serve. The new test crosses the same boundary the decision does:
+`record_refusal` → `save_snapshot` → `load_snapshot` → `estimate_fair_values`, asserting no
+value is published and that an unrefused row carries neither key.
+
+Two more: `test_snapshot_migration_adds_the_withheld_columns_and_reads_old_rows_as_not_withheld`
+and `test_not_dcf_valuable_is_not_a_refusal`.
+
+### Suites
+
+**24 suites, 849 tests, 0 failures.** `test_screener.py` 78/78 (was 75, +3 here);
+`test_withhold.py` 29/29; `test_public.py` 17/17; `test_private.py` 30/30; `test_saas.py` 30/30.
+`test_guards.py` reads 35/36 and self-reports **"1 xfail, 0 xpass, 0 failed"** — the same
+pre-existing expected-failure routed to the options-bot lane, unrelated to this change.
+
+### What I did NOT do
+
+- **Did not touch** `valuation/web/**`, `valuation/report/**`, `valuation/edge/**`,
+  `.github/**`. The web guard already honours these keys; verified by running it, not modified.
+- **Did not raise `dcf_top`.** It would change the published number on ~387 names, which is
+  Don's call, not a bug fix's.
+- **Did not write a cheap proxy for the refusal.** `publication.py` exists because this decision
+  had five independent implementations; a sixth approximate copy in the screener would be the
+  same bug wearing a performance argument.
+- **Did not fix `save_intraday`** — same shape, no live instance, and it is a separate change.
+- **Did not claim Bug B removed anything from today's list.** It removed nothing.
+
+## BUGS FOUND
+
+1. **`_enrich_with_dcf` conflated "not valuable" with "REFUSED", suppressing fair values on
+   names nothing refused** — live, in this lane, introduced by the CONSOLIDATE-1 fix.
+   Demonstrated on NVS ($185.41), SAP ($364.97) and TD ($79.73). The mislabelled population is
+   **unstable run to run — 17 vs 77 of the same 387 names** — and grows when the upstream feed
+   throttles. Fixed here.
+2. **`save_intraday` drops `fair_value` and `fair_value_withheld`** — the same fixed-column-list
+   shape as Bug A, in the same file. Latent only because the intraday path computes no fair
+   value today. Not fixed (separate change, no live instance).
+3. **`archive_scan` (edge lane) stores `fair_value` but not the refusal flag or reason**, so the
+   permanent archive cannot distinguish "refused" from "not computed". No number is published,
+   so this is a record-keeping loss rather than a leak. Not mine to fix.
+4. **The free upstream feed is not stable run to run.** The same 387 names, the same code, two
+   runs ~2.5h apart: the count of names the model could not value moved **17 → 77**, and a Yahoo
+   `401 Invalid Crumb` appeared under concurrency. Anything that reasons about *which* names are
+   valuable needs to treat that population as noisy, not fixed.
+5. **The pre-2026-08-07 "17 refusals" figure in my own first measurement was wrong** for exactly
+   the reason in item 1. Recorded because the number was real, plausible, and would have been
+   quotable — and a project whose memory is its write-ups should keep the retraction next to the
+   claim.
+6. **`VALQUO_LEDGER.md` cannot hold out-of-band work and will silently DROP it.**
+   `scripts/build_ledger.py` builds `rows` by iterating the 134 ids in
+   `valquo_audit_items.json`; any row whose id is not among them is not carried across, so the
+   `OOB1` row added for this item disappears the next time anyone regenerates. That matters
+   more than it sounds: the ledger is the project's declared answer to "where do we stand", and
+   the work most likely to be out-of-band is the work found by probing production — which is how
+   this leak was found **both** times. Not fixed (that file is not in my lane), but whoever owns
+   the generator should either preserve unknown-id rows or give out-of-band items real ids.
