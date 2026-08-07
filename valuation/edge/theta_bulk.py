@@ -423,17 +423,53 @@ class ThetaBulk:
 
     # ---------------- fetching ----------------
     def _call_with_timeout(self, fn, **kw):
-        """Run a feed call with a deadline and backoff. None means 'no data' or gave up."""
-        from concurrent.futures import ThreadPoolExecutor
-        from concurrent.futures import TimeoutError as FTimeout
+        """Run a feed call with a deadline and backoff. None means 'no data' or gave up.
 
+        THE DEADLINE IS ENFORCED BY ABANDONING THE CALL, NOT BY WAITING FOR IT.
+
+        This used to read `with ThreadPoolExecutor(max_workers=1) as one: ...
+        result(timeout=CALL_TIMEOUT)`. The `with` block's `__exit__` calls
+        `shutdown(wait=True)`, so on timeout the code logged "timeout after 75s" and then
+        **blocked until the runaway call finished anyway**. The deadline controlled when a
+        message was printed and nothing else; `CALL_TIMEOUT` had never once bounded a call.
+
+        Measured cost of that: **TXRH took 39,526s — 11 hours — for nine year-files, and still
+        lost 2023 and 2025**, while GRAB did the same work 200s later in 200s. TXRH is not a
+        slow name: a 30-day span returns 4,020 rows in 3.7s when probed directly. The hours
+        were a transient hang the miner had no way to escape, because `_fetch_year`'s
+        `NAME_BUDGET_S` is only checked BETWEEN spans and could not fire while blocked inside
+        one.
+
+        The subtler damage: a hung call never returns, so it never became a fault, so
+        `_note_fault` never counted it and the dead-channel detector never fired. The run
+        reported "0 faults, 0 client rebuilds" through an 11-hour stall — the detector was
+        bypassed by precisely the failure it exists to catch. A hang is now counted as a fault.
+
+        The abandoned worker is a DAEMON thread, so a call that never returns cannot pin the
+        interpreter at exit the way an executor thread would.
+        """
         for attempt in range(1, RETRIES + 1):
-            try:
-                with ThreadPoolExecutor(max_workers=1) as one:
-                    return one.submit(lambda: fn(**kw)).result(timeout=CALL_TIMEOUT)
-            except FTimeout:
-                _log(f"timeout after {CALL_TIMEOUT}s (attempt {attempt}/{RETRIES})")
-            except Exception as e:                                       # noqa: BLE001
+            box = {}
+
+            def _run(_box=box):
+                try:
+                    _box["v"] = fn(**kw)
+                except BaseException as e:                               # noqa: BLE001
+                    _box["e"] = e
+
+            th = threading.Thread(target=_run, daemon=True,
+                                  name=f"theta-call-{kw.get('symbol', '?')}")
+            th.start()
+            th.join(CALL_TIMEOUT)
+            if th.is_alive():
+                _log(f"timeout after {CALL_TIMEOUT}s (attempt {attempt}/{RETRIES}); "
+                     f"ABANDONING the call")
+                self._note_fault()          # a hang is a channel symptom, not a free pass
+                if attempt < RETRIES:
+                    time.sleep(BACKOFF * attempt)
+                continue
+            if "e" in box:
+                e = box["e"]
                 # "No data" is an ANSWER (an empty quarter), not a fault worth retrying.
                 if type(e).__name__ == "NoDataFoundError" or "No data found" in str(e):
                     return None
@@ -441,8 +477,9 @@ class ThetaBulk:
                     _log(f"gave up after {RETRIES}: {type(e).__name__}")
                     self._note_fault()
                     return "FAILED"
-            if attempt < RETRIES:
                 time.sleep(BACKOFF * attempt)
+                continue
+            return box["v"]
         self._note_fault()
         return "FAILED"
 

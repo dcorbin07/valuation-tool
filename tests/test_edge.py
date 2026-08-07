@@ -4775,6 +4775,49 @@ def test_o15_a_deeper_pull_may_never_replace_a_frame_with_fewer_rows():
         assert TB.cached_dte("ZZZ", 2020, tmp) == 200, "a kept pull must record its depth"
 
 
+def test_a_hung_feed_call_is_abandoned_at_the_deadline_not_waited_out():
+    """`CALL_TIMEOUT` had never bounded a single call. The old code ran the call inside
+    `with ThreadPoolExecutor(...)`, whose __exit__ does `shutdown(wait=True)`, so on timeout it
+    logged "timeout after 75s" and then blocked until the runaway call finished anyway.
+
+    Measured cost: TXRH burned 39,526s (11 hours) on nine year-files and still lost two of
+    them, while a direct probe returns a 30-day span in 3.7s. `NAME_BUDGET_S` could not save
+    it -- that is only checked BETWEEN spans, never while blocked inside one.
+
+    And a hung call never returned, so it never became a fault, so the dead-channel detector
+    never saw it: the run reported 0 faults through an 11-hour stall."""
+    import threading
+    import time
+
+    from valuation.edge import theta_bulk as TB
+
+    tb = TB.ThetaBulk(api_key="x")
+    release = threading.Event()
+    started = threading.Event()
+
+    def _hangs(**kw):
+        started.set()
+        release.wait(30)                      # far longer than the deadline below
+        return "should never be used"
+
+    original, TB.CALL_TIMEOUT = TB.CALL_TIMEOUT, 0.25
+    original_backoff, TB.BACKOFF = TB.BACKOFF, 0.0
+    try:
+        t0 = time.time()
+        out = tb._call_with_timeout(_hangs, symbol="TXRH")
+        elapsed = time.time() - t0
+    finally:
+        release.set()
+        TB.CALL_TIMEOUT, TB.BACKOFF = original, original_backoff
+
+    assert started.is_set(), "the call must actually have been attempted"
+    assert out == "FAILED", out
+    # RETRIES attempts x the deadline, plus slack -- emphatically NOT the 30s the call blocks
+    # for. This is the whole point: the deadline must bound the wait.
+    assert elapsed < 5, f"the deadline did not bound the call: {elapsed:.1f}s"
+    assert tb._faults > 0, "a hang must count as a fault so the channel detector can see it"
+
+
 def test_alias_wbd_points_at_the_discovery_share_line_not_at_att():
     """WBD is the continuation of DISCOVERY, not of AT&T. AT&T distributed WBD shares and kept
     trading under `T` throughout, so `ALIASES["WBD"] = ["T"]` made every pre-listing WBD span
