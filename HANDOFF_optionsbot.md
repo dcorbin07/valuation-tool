@@ -1077,7 +1077,7 @@ creating two new files and these are pre-existing documents I do not own.
      produced the bad 68/134 count. -->
 <!-- ledger:ignore -->
 
-**Done 2026-08-06.** Deliverable: `tests/test_guards.py`, 35 tests, **34 pass and 1 XFAIL**.
+**Done 2026-08-06.** Deliverable: `tests/test_guards.py`, 36 tests, **35 pass and 1 XFAIL**.
 No production file was modified. `python tests/test_guards.py` exits 0.
 
 M3 exists because this project has been bitten at least six times by one shape: a check exists,
@@ -1265,6 +1265,17 @@ prints `XFAIL` with the reason and the owning lane and does **not** turn the sui
 repair is not this lane's, and landing the test with the fix would mean nobody ever saw it fail.
 A marked test that PASSES prints `XPASS` telling you to delete the marker, and also does not
 fail the run, so another lane fixing its own bug never breaks this gate.
+
+**And that mechanism is itself pinned**, because by this item's own argument an untested
+`known_failure` is indistinguishable from a broken one — if it silently swallowed everything,
+the single real finding in this file would read as a pass and nobody would chase it.
+`test_this_files_own_xfail_mechanism_is_not_itself_inert` exercises all four routings against
+**the same `_classify` the runner calls** (not a copy of the rule, which is the mistake this
+file exists to catch), requires every marker to name a live test, a reason over 80 characters
+and an owning lane, and pins that a CRASH is never an XFAIL — a marked test throwing a
+`TypeError` has rotted rather than found something, and filing that under "expected" is how a
+marker outlives its bug. The XPASS path was also driven end-to-end with a deliberately stale
+marker: it prints and the suite stays green.
 
 ## A ledger note for whoever owns M6
 

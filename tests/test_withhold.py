@@ -31,6 +31,25 @@ from valuation.web import withhold                      # noqa: E402
 APP_JS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                       "valuation", "web", "static", "app.js")
 
+# ===========================================================================================
+#  known_failure — the same mechanism `tests/test_guards.py` uses, for the same reason.
+#
+#  A test that encodes a bug owned by ANOTHER lane cannot be allowed to turn this suite red:
+#  the gate auto-merges to main, so a red suite here would block every unrelated lane. But
+#  landing the test only once the fix arrives means nobody ever sees it fail, and the leak
+#  goes back to being found by a production probe. XFAIL is the compromise — the bug is
+#  encoded, executable, and visible on every run, and it flips to XPASS (printed loudly) the
+#  day the owning lane fixes it.
+# ===========================================================================================
+_KNOWN_FAILURES = {}
+
+
+def known_failure(reason: str, lane: str):
+    def deco(fn):
+        _KNOWN_FAILURES[fn.__name__] = (reason, lane)
+        return fn
+    return deco
+
 PRICE = 92.19
 REASON = ("Cannot value this name: the model's $1,289.60 is 14.0x the $92.19 price. That gap "
           "is a data problem (currency or share count), not an opportunity, so no fair value "
@@ -575,6 +594,63 @@ def test_no_public_api_response_carries_a_fair_value_past_the_band():
         webapp._store = orig
 
 
+@known_failure(
+    reason=("save_snapshot writes a FIXED 18-column INSERT and fair_value_withheld is not one "
+            "of them, so the refusal CONSOLIDATE-1 records during the scan is discarded when "
+            "the row is persisted. estimate_fair_values then reads the surviving "
+            "fair_value=None as 'no DCF yet' and substitutes a peer estimate — the original "
+            "leak, one layer further down. Measured on production 2026-08-06: KSPI serves at "
+            "$299.155 (3.24x) while its valuation page refuses it at 11.2x."),
+    lane="screener (valuation/screener/store.py)")
+def test_a_refusal_recorded_by_the_scan_survives_to_the_public_surface():
+    """The half of the leak that the band catch-all CANNOT see, by construction.
+
+    `test_no_public_api_response_carries_a_fair_value_past_the_band` walks ratios, and every
+    name in this class sits UNDER the band — a refused DCF of 11x is replaced by a peer
+    estimate of 3.2x, which is exactly why the catch-all stays green while the leak is open.
+    This test asserts the other property: a refusal RECORDED by the scan must still be a
+    refusal by the time the public surface reads the row back.
+
+    It uses a real `Store` on a temp file rather than `_FakeStore`, because the defect is in
+    persistence and a fake that carries the dict through would prove the opposite of the truth.
+    """
+    import tempfile
+
+    from valuation.engine.publication import ROW_WITHHELD, record_refusal
+    from valuation.screener.fairvalue import estimate_fair_values
+    from valuation.screener.store import Store
+
+    rows = _public_rows()
+    target = rows[0]
+    target["fair_value"] = None
+    record_refusal(target, "the model's $1,032.49 is 11.2x the $91.80 price")
+    assert target[ROW_WITHHELD] is True, "the fixture did not record a refusal"
+
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    try:
+        st = Store(path)
+        st.save_snapshot("2026-08-06", rows, provider="test")
+        loaded = st.load_snapshot("2026-08-06")
+        back = next(r for r in loaded if r["ticker"] == target["ticker"])
+
+        assert back.get(ROW_WITHHELD), (
+            f"the refusal did not survive the snapshot: {target['ticker']} came back with "
+            f"{ROW_WITHHELD}={back.get(ROW_WITHHELD)!r}, so the public surface cannot honour it")
+
+        estimate_fair_values(loaded, peer_rows=loaded)
+        withhold.withhold_implausible_fair_values(loaded)
+        served = next(r for r in loaded if r["ticker"] == target["ticker"])
+        assert served.get("fair_value") is None, (
+            f"a name the valuation page REFUSES is published at "
+            f"{served.get('fair_value')} on the public list")
+    finally:
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
 def test_the_public_list_says_withheld_rather_than_going_quiet():
     from valuation.web import app as webapp
     orig = webapp._store
@@ -798,16 +874,38 @@ def test_the_export_routes_serve_the_refusal_document():
 
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
-    passed = 0
+    passed = failed = xfail = xpass = 0
     for t in tests:
+        marked = t.__name__ in _KNOWN_FAILURES
         try:
-            t(); print(f"  PASS  {t.__name__}"); passed += 1
+            t()
         except AssertionError as e:
-            print(f"  FAIL  {t.__name__}: {e}")
+            if marked:
+                xfail += 1
+                reason, lane = _KNOWN_FAILURES[t.__name__]
+                print(f"  XFAIL {t.__name__}\n         {e}\n         OWNED BY: {lane}")
+            else:
+                failed += 1
+                print(f"  FAIL  {t.__name__}: {e}")
         except Exception as e:
+            # A crash is never an XFAIL — a marked test that throws has rotted rather than
+            # found something, and filing that under "expected" is how a marker outlives
+            # its bug.
+            failed += 1
             print(f"  ERROR {t.__name__}: {type(e).__name__}: {e}")
-    print(f"\n{passed}/{len(tests)} withholding tests passed")
-    return passed == len(tests)
+        else:
+            if marked:
+                xpass += 1
+                print(f"  XPASS {t.__name__} — the bug it encodes is FIXED; delete the marker")
+            else:
+                passed += 1
+                print(f"  PASS  {t.__name__}")
+    print(f"\n{passed + xfail + xpass}/{len(tests)} withholding tests passed"
+          f"  ({xfail} xfail, {xpass} xpass, {failed} failed)")
+    if xfail:
+        print("XFAIL = a leak this suite can describe but whose repair belongs to another "
+              "lane; see HANDOFF_appfixes.md '## BUGS FOUND'.")
+    return failed == 0
 
 
 if __name__ == "__main__":

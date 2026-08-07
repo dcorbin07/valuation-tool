@@ -4,16 +4,186 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-06 (external edge audit, **session 5 CLOSEOUT** — items 1–5)
+**Session date:** 2026-08-06 (external edge audit, **session 7** — B8, held-out LOO, P4)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
 > Read it before starting work. Non-negotiable for all agents.**
 
-> **Scope:** newest sections first — audit session 5 (this one), then session 4, then session 3, then session 2,
+> **Scope:** newest sections first — audit session 6 (this one), then session 5, then session 4, then session 3, then session 2,
 > then R1's original run, then session 1, then deep research #2, then the EV staleness fix, then
 > PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
 > per-finding status in `CODE_AUDIT.md`.
+
+---
+
+## AUDIT SESSION 7 (2026-08-06) — B8 FIXED, HELD-OUT LOO IS **NULL**, P4 SHIPPED
+
+Full write-up: **`HANDOFF_edge_audit.md`**, "SESSION 7". Pre-commitment pushed in `5a27ea1`
+**before any LOO number existed**, including the expected direction. **All 22 suites green,
+`OVERALL_FAIL=0`** (248/248 edge, 45/45 paper-track).
+
+| item | verdict |
+|---|---|
+| **B8** — holdout rule vs documentation | **FIXED.** `rule_fired` was computed and never read. Both verdicts now ship, separately named. **Neither shipped decision changes.** |
+| **LOO** — pre-registered held-out leave-one-out | **NULL.** Neither direction's selected arm clears either committed margin; different theme selected each way |
+| **P4** — the paper track's rules | **FIXED.** Departed names are now sold, not held forever |
+
+**B8, and why it was done first.** `holdout_theme_validate` computed `rule_fired` and no line
+read it, so its verdict was a **both-halves stability check wearing the name of an out-of-sample
+confirmation**. Fixed rather than renamed — but *not* by gating the existing key, because
+`scripts/placebo.py` reads `verdicts` and **X7's ~6% false-positive rate was calibrated against
+that exact object**. So `verdicts` keeps frozen semantics (alias `stability_verdicts`) and a new
+`oos_verdicts` enforces the documented rule. **`low_risk` stays zeroed and `insider` stays at
+0.125 — but `low_risk` is confirmed out-of-sample in ONE of two split directions, not two.**
+Quote it whole from now on.
+
+**LOO — NULL, and the reason is the finding.** Select the best of seven leave-one-out arms on a
+decide half, measure only that arm on the held-out half, both directions:
+
+* decide-early → drop `momentum` (decide +3.68%) → measure **−1.30%**, LS *t* **−0.706**
+* decide-late → drop `capital_discipline` (decide +2.20%) → measure **+0.20%**, LS *t* **−0.201**
+
+**Four of seven arms change sign between halves.** Session 6's exploratory "+8.54% from dropping
+`capital_discipline`" is carried by the late half and is not a property of the panel. **Do not
+quote a full-sample ablation arm as a finding.** One thing survives: **`size` is the worst arm to
+drop in BOTH halves independently** (−2.64%, −3.46%) — corroborated, though it was never
+*selected*, so it carries no verdict of its own. **`quality` clears both margins on both halves
+and was selected in neither direction** — deliberately NOT promoted, because switching to the
+rule that would have found it, after seeing that it works, is session 6's error one level up.
+
+**P4 — the paper track was not tracking the index.** `seed_book` only ever inserted, so a name
+entered once and was **held forever**; the paper index had become an ever-growing union of
+everything the screener ever liked. Departed names are now **closed** into a new
+`paper_index_closed` table — never deleted, because deleting them is reverse survivorship bias.
+A truncated export closes nothing and says so. **The first live run will report `closed: N` for
+however many names accumulated wrongly — that number is the size of the bug and is worth
+reading.**
+
+**Trial cost.** This session's 7 arms take equity `N` 104 → 111; a concurrent lane's 5 equity
+trials merged at close-out take it to **116**. **Deflated Sharpe 0.8674, √(2·ln 116) = 3.083** —
+still far above X7's calibrated 0.7216 floor, still below the 0.95 convention. Also settled:
+**`SUPERSEDED` rows DO count toward `N`** (the schema prose said otherwise; `research_log.py`
+never implemented it — the counter is right and the prose is fixed).
+
+**Recommended next step:** **X8, the international replication.** Session 7's answer to "can the
+theme-ordering question be settled on one panel?" is *probably not* — with only two halves,
+"stable across halves" is measured on the same data that provides the measurement half. Session
+8's nominal first item (pre-registering a stability-based selection rule) is written up, but it
+is thin on one panel and says so.
+
+---
+
+## P3 DONE — THE OPTIONS PAYOFF IS NOW SHOWN, NOT JUST DISCLOSED (2026-08-06, app-fixer lane)
+
+Full write-up: **`HANDOFF_appfixes.md`**, Session 16. Branch `worktree-p3-hitrate` (`52f523d`),
+landing via CI. New `valuation/web/payoff.py` + `tests/test_payoff.py` (30 tests); **24 suites,
+822/823 green** — the one non-pass is M3's own documented xfail in `test_guards.py`, not mine.
+**Two things here are other lanes' business, so they are in this file and not only in mine.**
+
+> **ON THE AUTO-LAND BLOCKER NOTED BELOW: it resolved, then bit this branch a second time for a
+> different reason.** From this lane's polling, `main` advanced four times in ~40 minutes
+> (`57f63b7` → `729d8dd` → `3fa9520` → `0312426`), so the Action is alive and landing branches.
+> What kept THIS branch out on its second attempt was a genuine **conflict in
+> `HANDOFF_STATUS.md`** — two lanes prepending a section at the same anchor — which makes the
+> Action `git merge --abort` and leave `main` untouched, exactly as designed. **Check
+> `git merge origin/main` locally before assuming the runner is down**; a clean
+> `merge-tree` from an hour ago is not evidence about a `main` that has moved four times since.
+
+**1. `/methodology` — a PUBLIC page — is publishing three equity numbers this project's own
+record marks VOID. This is the highest-priority thing I found and it is not mine to fix.**
+
+| the live public page says | the record says |
+|---|---|
+| FF5+MOM alpha **+8.81%/yr, t 5.74**, 109 windows, 1998–2026 | **VOID.** CLAUDE.md: "Do not quote them anywhere." Corrected R1: **+6.99%/yr, NW t +3.984**, 68 windows |
+| breakeven **236 bps** vs a **37 bps** cost profile | B11: breakeven **134 bps** vs a **measured 33.4 bps**; the 37 bps "was an assumption quoted as a measurement" |
+| the Deflated Sharpe "is an **undeflated** one … deflating nothing" | B9's mechanism was refuted and M1 superseded it: at N = 84 it self-reports as a genuine Deflated Sharpe of **0.8997**, which **fails** >0.95 while sitting above all 100 placebo draws |
+
+I did **not** change them. The third one's honest form is "fails the conventional bar *and*
+clears the noise floor", and half of that sentence on a public page is worse than the stale
+version — it wants the edge lane's wording, not a display fix smuggled in beside an options
+feature. **→ edge lane.**
+
+**2. The corrected options book's PER-TRADE ROWS ARE GONE.** `r2_state.pkl` (the 3,885-trade
+corrected 187-name book) was a temp file. `data/options_universe/state.pkl` holds only the
+**superseded** 3,042-trade pre-correction rows; `UNIVERSE_RESULTS.json` has aggregates only.
+Session 5's `BANK_MANIFEST.json` guard protects `data/options_universe/` — but that run wrote
+its state outside it, and **a guard on the destination does not help when the run points
+somewhere else.** Anything needing the real alert sequence (U7's join at the alert date, any
+future streak or timing work) has to re-run the book. Stated now rather than discovered later.
+
+**What P3 measured, for the record** (banked artifacts only, no new backtest): the corrected
+book hits **35.3%**, the median trade loses **52.2%** of the premium, **25.0%** at least double
+and those are **86.8%** of everything the winners made. Over 20 trades the typical worst losing
+run is **5** and **44%** of stretches contain a run of 6 or worse. Outcomes **cluster** — monthly
+design effect **2.667** against a shuffled null whose p95 is **1.244** (1,000 shuffles,
+p < 0.001), runs of ≥10 losses appear **58** times against a null median of **21** — so the
+shipped streak rule reads a measured table, not the Bernoulli formula, which at 20 trades would
+put the 95th percentile at 10 against a measured 12 and would cry wolf on ordinary runs.
+
+Also settled: the **37.4% and 35.3% hit rates are not a defect**, they are two universes. Inside
+the corrected book the 54 original megacaps hit **37.27%** and the 132 added names **34.04%**.
+Every surface now quotes "35–37%" from one source.
+
+Nothing shipped implies the options alerts work; the measured **−6.65pp** gap against random
+entry (R2) travels with every payload that carries the shape.
+---
+> **BLOCKER FOR EVERY LANE, NOT JUST THIS ONE (noticed 2026-08-06 ~19:30 ET): the auto-land
+> Action has not merged anything to `main` in over six hours.** `origin/main` is still at
+> `3213668` (13:19 ET) while **five** `worktree-*` branches have pushed since — options-live,
+> p3-hitrate, optionsbot-lane, data-spend, r1 — and none landed. This is not a merge conflict
+> and not a red test: `git merge-tree --write-tree HEAD origin/main` is clean for this branch,
+> the workflow file is identical to `main`'s, and all 22 suites pass locally
+> (`OVERALL_FAIL=0`). **Someone with the GitHub UI needs to look at the Actions tab** — most
+> likely Actions minutes, a disabled workflow, or a stuck `land-main` concurrency group.
+> Until it is fixed, nothing any agent produces reaches Render, and `main` is NOT the current
+> state of the project. Per `RUN_RULES` and the standing note, do **not** merge by hand.
+
+## AUDIT SESSION 6 (2026-08-06) — U7 and X3. **BOTH PROBES REJECTED/NULL. SESSION 7 MAY OPEN.**
+
+Full write-up: **`HANDOFF_edge_audit.md`**, "SESSION 6". Pre-commitments pushed in `a727bea`
+**before any run**, including the expected direction of both probes, so the record can say
+whether the expectation was worth anything. It was not. **242/242 edge tests pass.**
+
+| item | verdict |
+|---|---|
+| **U7** — equity composite as an options VETO | **REJECTED.** Lift −0.57pp (bar was ≥ +1.0pp) at 92.7% retention; all three pre-registered cells negative |
+| **X3** — ablate to the best single signal | **NULL.** Full composite beats its best single signal by +4.51%/yr, CI95 [−0.14%, +9.12%] — includes zero |
+
+**THE TWO THINGS DON WOULD WANT TO KNOW FIRST**
+
+1. **The equity model is useless as an options filter, and now we know why.** Inside the
+   187-name megacap options universe the composite decile is largely a **market-cap sort**
+   (median cap $62.7B at D1 → $133.5B at D9). So the "veto" vetoes a cap bucket — a property of
+   the underlying, not of the alert. Applying the identical veto to the five-seed random-entry
+   control moves it by the same amount: **interaction −0.08pp**. The bottom decile, the one the
+   veto exists to remove, is the **third most profitable** (+10.64%).
+   **Consequence: do NOT run U1 (composite → options entry) as written.** The audit called the
+   veto "strictly the easier bar"; it failed, with a mechanism.
+2. **Two void records were found in the project's own memory and corrected.**
+   * `CLAUDE.md`'s theme IC table was labelled "CURRENT 2026-08-04" but is a **pre-B6
+     measurement** — proven by reproducing it exactly on the old 110-date panel. `size` moves
+     **+1.68 → −0.30**. Against X7's calibrated bar of 2.71, **two of nine themes clear**.
+   * **X3 had already been run** (2026-08-03) and the ledger recorded it DONE with "EARNS ITS
+     COMPLEXITY" — measured on the pre-B6 panel and against a 1.0pp bar that sits *below* X7's
+     1.95pp noise floor. Re-run, it is a NULL.
+
+**THE STRUCTURAL FINDING WORTH CARRYING:** `size` has the **worst** theme IC on the corrected
+panel (−0.30) and **carries the composite's entire statistical significance** — adding it last
+takes top-decile alpha +4.10% → +7.17% and long-short *t* 1.02 → 2.84. Ranking themes by IC and
+adding them greedily measures the wrong thing when a theme's value is its orthogonality. An
+*exploratory* leave-one-out (no verdict, nothing changed on it) says dropping
+`capital_discipline` would *raise* alpha to +8.54%. **Session 7's first item is a
+pre-registered, held-out version of that test.**
+
+**THE COST, PAID:** equity **N 84 → 104** (8 new arms plus 12 from the void run that had never
+been logged). **Deflated Sharpe 0.8997 → 0.8789**, and √(2·ln N) **2.977 → 3.048** — past the
+Harvey–Liu–Zhu hurdle of 3.0 for the first time. Still above X7's calibrated floor of 0.72.
+
+**Fourth in a row:** the pre-committed expectation ("the veto will help, 60/40") was wrong, after
+R10, O20 and the spread toll. Do not reason about the direction of an effect in this project.
+
+**Nothing shipped to the live product.** No weight changed, no live behaviour changed.
 
 ---
 
@@ -133,24 +303,31 @@ what let it hide. Both fixed; `no_data_in_range` is now its own status.
 
 ---
 
-## D: BACKUP REBUILT — AND THE DRIVE NEEDS ONE ELEVATED COMMAND (2026-08-06, r1 lane)
+## D: BACKUP REBUILT — THE SCRIPT IS DONE, THE BACKUP DOES NOT EXIST, THE DRIVE IS DEAD (2026-08-06, r1 lane)
 
 Full write-up in `HANDOFF_backup.md`. Housekeeping lane, nothing under `valuation/**` touched.
 
-**ACTION REQUIRED FROM DON — this is the only blocker.** The backup drive is now physically
-write-protected: it is FAT32, it was filled twice, and Windows has flagged it
-`OperationalStatus: Full Repair Needed`, dirty, `IsReadOnly: True`. Repairing it needs an
-administrator prompt, which this session does not have. Run as administrator:
+**Two claims, only the first is true: the rewrite is finished and 40/40 tested; the backup has NOT
+run.** There is no writable target. **The D: drive is at end-of-life — hardware read-only at the
+flash controller, not a software flag and not repairable.** `diskpart` reports
+`Read-only : No` (attribute clear) alongside `Current Read-only State : Yes` (device enforcing it);
+`attributes volume clear readonly` returns "not supported on removable media" and `chkdsk` cannot
+run on a volume it cannot write to. **Do not spend more time trying to repair it.**
 
-```
-diskpart -> list disk -> select disk 1 (CONFIRM it is the 116 GB Lexar) ->
-attributes disk clear readonly -> exit
-chkdsk D: /f
-```
+**ACTION REQUIRED FROM DON — attach a replacement.** An **external SSD**, **exFAT**, any drive
+letter, **128 GB minimum** (256 GB comfortable — the miner projects ~199 GB for `data\options`).
+Then change two lines at the top of `backup_to_D.ps1` (`$DST`, `$LOG`) and run
+`.\backup_to_D.bat dryrun` then `.\backup_to_D.bat`. Nothing else is drive-specific.
 
-Then say so, and the rest is automatic. **Until then there is no working backup of `.env`, the
-freeze, or the paper track** — the copy on D: is from before 02:00 on 2026-08-06 and cannot be
-updated.
+**Until then there is no off-machine backup of `.env`, the freeze, or the paper track** — the copy
+on D: is from before 02:00 on 2026-08-06, is readable but stale, and can never be updated. Keep the
+old drive on a shelf until the replacement completes one successful run.
+
+**Why the drive died, and why the rewrite matters beyond disk space:** `/MIR` over 55,934 files
+twice a day is a write-cycle load a USB flash stick does not survive — consumer NAND has no
+over-provisioning budget for that, and the controller locked the device read-only rather than lose
+data silently. The new allowlist backup writes **20,418 files / 38.01 GB once a day** instead of
+55,934 files / 112.04 GB twice — **~5.5× less write load** on the replacement.
 
 **Cause of the disk filling — not what it looked like.** `/XD` is not broken (verified three
 ways, including a controlled robocopy experiment). There were **two** backup scripts on **two**
@@ -183,10 +360,10 @@ against C: — exactly 2 distinct files existed only on D:, both rescued to
 not run them — run by hand after touching the backup. Python suites unaffected: 14/14
 factor-alpha, 13/13 fragility, 191/191 edge.
 
-**Watch this:** the miner projects ~199 GB for a full 1,000-name `data\options`. That will not
-fit, and it is the next thing that breaks the backup. Also, D: is FAT32 with a 4 GB per-file
-ceiling and the backup's largest file is already 3.00 GB — if the drive is ever reformatted,
-use exFAT.
+**Watch this:** the miner projects ~199 GB for a full 1,000-name `data\options`. That will not fit
+on a 128 GB target and it is the next thing that breaks the backup. Also **format the replacement
+exFAT, never FAT32** — FAT32's 4 GB per-file ceiling is already close (largest backed-up file is
+`sep.csv` at 3.00 GB, and the next freeze will likely exceed 4 GB).
 
 ---
 

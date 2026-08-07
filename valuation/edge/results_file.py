@@ -547,20 +547,31 @@ def render_md(p: dict) -> str:
     hvp = p.get("holdout_validation") or {}
     if hvp.get("splits"):
         A("")
-        A("## Held-out confirmation — does zeroing a theme still help out-of-sample?\n")
-        A("Dates split in half by time; the theme is judged on one half and the effect")
-        A("measured on the other, both directions. **confirmed** = zeroing it improved BOTH")
-        A("long-short t and top-decile alpha in BOTH directions. This is the only check here")
-        A("that covers choosing a theme *after* seeing its IC — CPCV does not.\n")
-        A("| theme | verdict | ΔLS t (early→late) | Δtop-dec (early→late) | ΔLS t (late→early) "
-          "| Δtop-dec (late→early) |")
-        A("|---|---|---|---|---|---|")
+        # AUDIT B8 — this section used to be headed "Held-out confirmation ... out-of-sample"
+        # and to describe a protocol the code did not run. `stability` is the demanding
+        # both-halves check (the decide-half rule is NOT consulted); `OOS` is the rule-gated
+        # verdict, and `not_flagged` there means no out-of-sample test of that theme was run at
+        # all. Both ship, because reading one as the other is the error B8 exists to stop.
+        A("## Held-out theme checks — stability, and the rule-gated out-of-sample verdict\n")
+        A("Dates split in half by time, boundary date embargoed, both directions.\n")
+        A("**stability** = zeroing the theme improved BOTH long-short t and top-decile alpha in")
+        A("BOTH directions. Demanding, and it is what every shipped decision here rested on —")
+        A("but it is a both-halves check on the full sample, NOT an out-of-sample confirmation.\n")
+        A("**OOS** applies the pre-specified decide-half rule (median IC ≤ 0) as a gate, so a")
+        A("direction counts only where the rule actually flagged the theme. `not_flagged` means")
+        A("no out-of-sample test was run — which is not the same as a negative result.\n")
+        A("| theme | stability | OOS | dirs | ΔLS t (early→late) | Δtop-dec (early→late) | "
+          "ΔLS t (late→early) | Δtop-dec (late→early) |")
+        A("|---|---|---|---|---|---|---|---|")
         a_s = (hvp["splits"].get("decide_early_measure_late") or {}).get("themes") or {}
         b_s = (hvp["splits"].get("decide_late_measure_early") or {}).get("themes") or {}
+        oos = hvp.get("oos_verdicts") or {}
+        dirs = hvp.get("oos_directions_tested") or {}
         for t, v in sorted((hvp.get("verdicts") or {}).items(),
                            key=lambda kv: {"confirmed": 0, "not_replicated": 1}.get(kv[1], 2)):
             a, b = a_s.get(t) or {}, b_s.get(t) or {}
-            A(f"| {t} | **{v}** | {_f2(a.get('delta_long_short_tstat'))} | "
+            A(f"| {t} | **{v}** | {oos.get(t, 'n/a')} | {dirs.get(t, '-')} | "
+              f"{_f2(a.get('delta_long_short_tstat'))} | "
               f"{_pct(a.get('delta_top_decile_alpha'))} | "
               f"{_f2(b.get('delta_long_short_tstat'))} | "
               f"{_pct(b.get('delta_top_decile_alpha'))} |")

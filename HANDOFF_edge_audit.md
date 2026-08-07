@@ -3059,3 +3059,1112 @@ that leave the book) is the only *urgent* item in the catalogue — every sessio
 accumulates under the wrong rules is a session that has to be thrown away — and **X8**, the
 international replication, is still the only genuinely out-of-sample evidence available to either
 programme.
+
+---
+---
+
+# SESSION 6 — U7 (the composite as an options VETO) and X3 (ablate to the best single signal)
+
+Audit session 6. Owner: pipeline builder. Previous session verified complete: YES — Session 5 and
+its closeout are on `origin/main` (`416da4b`, `fdd0064`, `5ea7099`, `cf8230f`, merged at `33a02aa`).
+
+## PRE-COMMITMENTS — written and committed BEFORE any number was produced
+
+Everything below the "RESULTS" heading was measured after this section was committed. Nothing in
+this section was edited afterwards.
+
+### 0. What I expect, written down first
+
+RUN_RULES 6 says the threshold comes first. The Session-5 carry-forward asks for something extra:
+this project's expectations about the direction of its own biases have been wrong more often than
+right (R10, O20, and the spread toll going −6.59pp → −8.28pp), so the expectation goes on the
+record too, and the record gets to say whether it was worth anything.
+
+**U7 — I expect the veto to HELP, and I hold it at about 60/40, not higher.** The case for: a
+long-call book on junk pays for lottery skew, and the composite's bottom decile is exactly that.
+The case against, which is real: a long call is a barbell, low-quality names are more volatile,
+and volatility is what a barbell wants. Both arguments are available *before* the data, which is
+usually the sign that the prior is worth very little.
+
+**X3 — I expect the ablation curve to flatten by three or four themes.** If it does, the
+seven-theme architecture is partly decoration and the honest product description changes.
+
+### 1. U7 — the join, and the test that pins it
+
+The join does not exist and must be built. Alerts are daily 2016-01-19 → 2025-10-15; the panel has
+69 quarterly-ish rebalance dates. **The composite attached to an alert is the one from the most
+recent rebalance date STRICTLY ≤ the alert date.** Taking the *enclosing* date — the rebalance
+that brackets the alert — would use a score computed from filings published after the alert fired.
+That is look-ahead, and it is the failure mode this join is most likely to have, so it gets a test
+that fails on the enclosing-date variant rather than a comment saying it was considered.
+
+An alert before the first rebalance date has NO composite and is **excluded, not imputed**.
+
+### 2. U7 — coverage, reported before any verdict
+
+My own `needs first` table records coverage of the 187 options names inside the 2,710-name panel as
+**UNVERIFIED**, with the note that "the audit predicts near-complete but predicts are not
+measurements". Coverage is therefore measured and stated first, at three levels — names, alerts,
+and alerts-with-a-composite — and if it is materially below the audit's prediction, that is itself
+the finding and the verdict is INCONCLUSIVE regardless of what the expectancy numbers say.
+
+**Floor committed now: below 80% of alerts joined, U7 is INCONCLUSIVE on coverage alone.**
+
+### 3. U7 — the retention rule, committed before the number
+
+The audit's own boundary is that a veto discarding 10% of alerts while lifting expectancy is
+adoptable and one discarding 60% is a different strategy wearing a veto's clothes. Sharpened:
+
+| alerts discarded | consequence, whatever the lift |
+|---|---|
+| ≤ 15% | a veto. Eligible for ADOPTED |
+| 15–40% | **INCONCLUSIVE** — report it, do not adopt it; it materially changes the product |
+| > 40% | **REJECTED** as a different strategy, regardless of how good the lift looks |
+
+### 4. U7 — two verdicts, because they are two different claims
+
+**U7-A (practical — should the live product refuse these alerts?)** ADOPTED requires all three:
+(a) retention ≥ 85%; (b) the veto lifts the real book's mean `pnl_pct` by **≥ +1.0pp**; (c) the
+lift's date-block bootstrap CI95 (calendar-month blocks, the R3 machinery) **excludes zero**. Any
+one of the three ambiguous → **NULL**. A negative lift → **REJECTED**.
+
+**U7-B (mechanism — is the composite improving the ALERT, or just describing the underlying?)**
+The identical veto is applied to the **random-entry control book**, whose alerts are random days on
+the same names. If the composite is only telling us that bad-composite megacaps' options do badly,
+the control lifts too, and the veto has learned nothing about the alert. **The interaction claim is
+upheld only if the real book's lift exceeds the control book's lift with the difference's CI95
+excluding zero.** Otherwise the honest sentence is "a property of the underlying, not of the
+alert" — and U7-A can still pass, because a live product does not care where its improvement comes
+from. This is the R10/O20 lesson applied in advance: the liquidity screen helped the control too,
+and nobody had checked.
+
+**Five control seeds minimum and the sign test carries the verdict** — the standing rule from R2,
+which is not re-opened here.
+
+**Pre-registered grid: 3 cells.** (i) bottom-decile veto, full-panel deciles — PRIMARY; (ii)
+bottom-quintile veto; (iii) bottom-decile veto computed *within the 187-name options universe*
+rather than the full panel, because a 187-name megacap book may not populate the full panel's
+bottom decile at all. Cells (ii) and (iii) are reported whatever they say and cannot rescue (i).
+
+**U7 is logged to `RESEARCH_LOG.md` in the `options` domain, not `unified`.** The `unified` domain
+exists and is empty, and putting U7 there would charge its multiple-testing cost to nobody. If U7
+adopted, the sentence would be quoted as a claim about the options book, so the options family is
+where it belongs.
+
+### 5. X3 — the arms, fixed now
+
+Eight arms. Arm 1 is a single signal; arms 2–8 are the cumulative theme curve, added in order of
+measured theme IC among the seven deployed themes (quality +3.57, momentum +2.62,
+capital_discipline +2.25, institutional +1.81, size +1.68, value +1.52, insider −0.43):
+
+| arm | composite |
+|---|---|
+| 1 | `z_gp_on_capital` alone — the strongest single signal in the model |
+| 2 | `quality` alone |
+| 3 | + `momentum` |
+| 4 | + `capital_discipline` |
+| 5 | + `institutional` |
+| 6 | + `size` |
+| 7 | + `value` |
+| 8 | + `insider` = the deployed seven-theme composite (the incumbent) |
+
+Flat equal weights within each arm, which is what is deployed. No weight is tuned in X3 — tuning
+inside an ablation would make the curve a search rather than a measurement.
+
+### 6. X3 — scored against X7's calibrated bars, never the retired conventions
+
+Theme IC *t* **2.71** (not 2.0), long-short *t* **2.14**, top-decile alpha margin **1.95pp**,
+PBO **< 19.7%**, Deflated Sharpe **0.72** at N = 84. Scoring an ablation against 2.0 / 50% would
+manufacture a survivor, which is the whole reason X7 was run.
+
+Two distinct questions, and they need different bars:
+
+* **"Is this arm distinguishable from noise at all?"** → its own top-decile alpha against the
+  **1.95pp** placebo p95, and its naive long-short *t* against **2.14**. X7 measured both on the
+  NAIVE statistic, so the naive statistic is what gets compared to them; the NW *t* is reported
+  alongside per R9 and is explicitly **not** compared to 2.14 (apples-to-oranges — the same trap
+  flagged for the headline's own 2.620).
+* **"Does the full composite beat this arm?"** → **no calibrated bar exists for a paired nested
+  difference and I am not inventing one.** Pre-registered rule: the per-period alpha series of
+  (full − arm) must have a **CI95 excluding zero** on its period bootstrap, with the NW *t*
+  reported. If it does not, the two are not distinguishable and the shorter model wins on
+  parsimony.
+
+**Pre-registered interpretation, per the audit's own instruction:** if the curve is flat from some
+k < 7 onward — i.e. the full composite does not beat arm k by the rule above — then the honest
+statement is "the model is effectively k themes", it goes in the product description, and S5/S7
+inherit it. If arm 1 or arm 2 alone lands there, the seven-theme architecture is decoration and I
+say so in those words.
+
+### 7. X3 — the cost, which is the entire point of M1
+
+**Every ablation arm is a trial.** Equity N is **84** today. X3 is logged as one row with `n=8`,
+the house convention for a pre-registered grid (X2 `n=7`, OPT-AUTOPSY `n=126`), so equity N
+becomes **92** and the Deflated Sharpe falls for everything measured afterwards, including the
+shipped headline. That is not a side effect to be minimised; it is the reason the trial counter
+exists. The post-X3 N, the shipped edge's Deflated Sharpe recomputed at it, and √(2·ln N) are all
+reported, so Session 7 inherits the honest denominator instead of discovering it.
+
+I am counting **8**, not 7, even though arm 8 is the incumbent rather than a new search. Rounding
+the denominator up is the direction that weakens my own evidence, and that is the direction to
+round in.
+
+### 8. Stale number U7's rationale rests on
+
+The audit's U7 argument cites monotonicity **−0.95**. The corrected panel is **−0.891**. The
+argument survives — the bottom decile still underperforms, which is all a veto needs — but the
+number is updated wherever it is quoted.
+
+### 9. What this session will NOT do, decided in advance
+
+* **Not re-deriving X7's calibrated bars at N = 92.** The placebo is 100 draws through the full
+  pipeline; it is a multi-hour run and it is not what was asked for. The consequence is stated
+  rather than hidden: the 0.72 Deflated Sharpe floor is an N = 84 measurement, and X7 showed the
+  floor FALLS as N rises (0.8567 at N = 8 → 0.7216 at N = 84), so quoting 0.72 at N = 92 is
+  conservative in the direction that makes passing harder, not easier.
+* **Not touching** `valuation/web/**`, `valuation/engine/**`, `valuation/data/**`,
+  `valuation/screener/**`, `theta_bulk.py`, or `data/options/**`.
+* **Not re-opening R2.** U7 sits inside a book that has already been shown to lose to random
+  entry. A veto that improves that book improves a book with a negative day-selection edge, and
+  every U7 number carries that sentence.
+
+---
+
+## RESULTS — U7 · the equity composite as an options VETO
+
+**Run:** `python -m scripts.u7_veto --panel data/free_analysis/panel_corrected_69d.pkl --state data/options_universe/state_r2_corrected.pkl --control data/options_universe/control_r2_seed{0..4}.pkl`.
+Universe: the corrected pinned 187-name options book, **3,885 alerts** 2016-01-19 → 2025-10-15,
+against the **five-seed random-entry control, 29,785 trades** (R2's standing rule: five seeds
+minimum). Panel: the 69-date corrected panel rebuilt this session.
+
+### The join, built and pinned
+
+It did not exist. It now takes the most recent rebalance date **strictly ≤ the alert date**, and
+`test_u7_the_join_is_backward_looking_only` asserts three things rather than one: that the
+shipped rule never reaches forward, that the look-ahead variant would have picked a *different*
+date on a real alert, and that the two therefore genuinely disagree. Asserting only "never
+forward" would have passed on a join that always returned index 0. An alert before the first
+rebalance is excluded, not imputed — pinned separately, because imputing is the cheap way to
+inflate the coverage figure the adoption rule turns on.
+
+### Coverage, reported before any verdict — the audit's prediction holds, as a measurement
+
+| | measured |
+|---|---|
+| alerts joined | **3,812 / 3,885 = 98.1%** |
+| names joined | **182 / 186 = 97.8%** |
+| never joined | AMAT, RIO, SHEL, UBS |
+| alerts before the first rebalance | 0 |
+
+Comfortably clear of the pre-committed 80% floor. My own `needs first` table called this
+UNVERIFIED with the note "the audit predicts near-complete but predicts are not measurements".
+The prediction was right. It is now measured.
+
+### The monotonicity U7's rationale rests on
+
+The audit argues a veto needs only that the bottom decile underperforms, citing monotonicity
+**−0.95**. Measured on the corrected panel in the same run: **−0.891**. The argument survives;
+the number is updated. It also turns out not to matter, for a reason the argument did not
+anticipate — see below.
+
+### Expectancy by composite decile — the audit's actual instruction
+
+Decile 1 = BEST composite, matching `quantile_backtest`'s convention.
+
+| decile | n | median mkt cap | mean `pnl_pct` | win rate |
+|---|---|---|---|---|
+| D1 | 97 | $62.7B | **+18.74%** | 42.3% |
+| D2 | 181 | $80.5B | **+14.78%** | 40.3% |
+| D3 | 202 | $72.9B | −5.33% | 28.2% |
+| D4 | 314 | $90.4B | +4.92% | 36.0% |
+| D5 | 368 | $94.2B | +2.89% | 35.6% |
+| D6 | 427 | $100.7B | +2.20% | 34.9% |
+| D7 | 550 | $114.9B | −0.07% | 34.9% |
+| D8 | 706 | $130.9B | −0.46% | 33.7% |
+| D9 | 688 | $133.5B | +4.69% | 35.3% |
+| **D10** | **279** | $106.0B | **+10.64%** | **39.1%** |
+
+**The relationship is U-shaped, not monotone, and the bottom decile — the one the veto exists to
+remove — is the third most profitable in the table.** That single row is the whole result: there
+is nothing for a bottom-decile veto to remove.
+
+### The three pre-registered cells
+
+| cell | retention | mean before → after | lift | lift CI95 (118 month-blocks) | control lift | **interaction** |
+|---|---|---|---|---|---|---|
+| **i** bottom decile, full panel (PRIMARY) | 92.7% | +3.36% → +2.78% | **−0.57pp** | [−1.49, +0.32] | −0.49pp | **−0.08pp** [−1.02, +0.82] |
+| **ii** bottom quintile, full panel | 74.6% | +3.36% → +2.32% | −1.04pp | [−2.69, +0.50] | +0.03pp | −1.06pp [−3.23, +0.72] |
+| **iii** bottom decile, within the 187-name universe | 92.9% | +3.36% → +2.91% | −0.44pp | [−1.43, +0.46] | −0.34pp | −0.10pp [−1.03, +0.82] |
+
+### VERDICTS
+
+**U7-A (practical): REJECTED.** The pre-registered bar was a lift of **≥ +1.0pp**; all three
+cells land on the wrong side of zero. Retention was never the binding constraint — 92.7% is
+inside the "eligible for ADOPTED" band, so this is not a case of a good filter failing an
+arbitrary retention rule. It is a filter that does not work. **Stated precisely: the veto does
+not demonstrably HURT either** — every lift CI includes zero. The honest sentence is *"the
+composite's bottom decile carries no information about which alerts to refuse."*
+
+Cell **ii** additionally trips the pre-registered retention band (74.6% retained = 25.4%
+discarded, inside the 15–40% INCONCLUSIVE range), so it could not have been adopted on any
+number. Recorded because the rule was committed in advance and applies whatever the lift said.
+
+**U7-B (mechanism): NO INTERACTION.** In both decile cells the real book's lift and the
+control's lift are within **0.1pp** of each other, with intervals straddling zero. Whatever the
+composite decile does to the options book, it does the same to a book entered on random days.
+**The composite is describing the underlying, not the alert.**
+
+### Mechanism, stated as far as the data supports and no further
+
+Median market cap rises **monotonically** across the deciles, $62.7B at D1 to $133.5B at D9. In a
+187-name megacap universe the other themes are compressed and `size` (= `z_neg_log_mktcap`)
+dominates, so **the composite decile inside this universe is largely a market-cap sort.** A
+market-cap bucket is a property of the underlying, not of the day an alert fired — which is
+exactly why the control tracks the real book to within 0.1pp, and it makes U7-B's null the
+expected outcome once the mechanism is visible rather than a surprise.
+
+**What the data does NOT support:** D10 breaks the size pattern ($106.0B, below D9's $133.5B) and
+its most frequent names are MRVL, GS, NEM. So D10 is *not* simply "the largest names", and no
+claim is made about what else it is. X3 independently found `size` to be the theme carrying the
+composite's significance, which is consistent, but that is one panel and one universe.
+
+### The expectation, and the record's verdict on it
+
+Pre-committed, before any number: *"I expect the veto to HELP, and I hold it at about 60/40."*
+**Wrong.** Every cell is negative, and the mechanism is one the pre-registration did not consider
+at all — that inside a megacap universe the composite is mostly a size sort.
+
+That is now the fourth consecutive time (R10, O20, the spread toll, U7) that this project's
+stated expectation about the direction of its own effect has been wrong. The carry-forward line
+stands and should be strengthened: **do not reason about the direction of an effect in this
+project — measure it. Writing the expectation down first is worth doing precisely because it
+keeps being wrong.**
+
+### What U7 forecloses, and what it does not
+
+**Forecloses:** U1 (the composite as an options ENTRY signal) is now a much worse bet than the
+catalogue assumes. The audit's own argument is that the veto is "strictly the easier bar" — a
+veto needs only that the bottom decile underperform, while an entry signal needs the top decile
+to move enough to beat decay and spread. **The easier bar failed and its failure has a mechanism
+(the composite is a size sort on this universe), so U1 should not be run as written.** It should
+only be reopened with a composite constructed *within* the options universe, where the size
+tilt is not free to dominate.
+
+**Does not foreclose:** D1 and D2 post +18.74% and +14.78% on 97 and 181 trades. That is the
+opposite end of the same table and it is a *positive* selection idea rather than a veto. It was
+not pre-registered, the samples are small, and this session makes no claim about it — but it is
+the one thread in U7 worth a pre-registered test, and it goes to Session 7 rather than being
+quoted as a finding here.
+
+## RESULTS — X3 · ablate to the best single signal
+
+**Run:** `python -m scripts.x3_ablation_rerun --panel data/free_analysis/panel_corrected_69d.pkl --leave-one-out`, on a panel
+rebuilt from scratch this session with `scripts/dump_panel.py` against
+`data/backtest` — **113,945 rows, 69 dates, 2,531 names**, identical in shape to the cached
+grid-0 panel, which is a free reproducibility check on the panel build itself.
+
+### X3 had already been run, and that run is void
+
+`data/free_analysis/ABLATION_RESULTS.json` (2026-08-03) records X3 as **"EARNS ITS COMPLEXITY"**,
+and `VALQUO_LEDGER.md:106` carries it as **DONE**. It is void twice over, and neither reason was
+noticed when the panel corrections landed the next day:
+
+1. **It ran on the pre-B6 panel** — 110 dates, 136,478 rows, full-composite alpha **+11.88%**.
+   The first 41 of those dates carried the inverted universe B6 removed. The corrected alpha is
+   **+7.17%**, so every gain the old verdict rested on was measured across that boundary.
+2. **It scored against bars that X7 later retired** — 2.0pp against the best single signal and
+   **1.0pp** against the best three-theme prefix. X7's calibrated top-decile alpha margin is
+   **1.95pp**. The 1.0pp bar sat *below the noise floor*: a three-theme prefix could clear it on
+   a shuffled signal.
+
+It is also **absent from `RESEARCH_LOG.md`** — roughly a dozen arms were run and never charged
+to `N`. See `## BUGS FOUND`.
+
+### The theme IC table in `CLAUDE.md` was a pre-B6 measurement labelled "CURRENT"
+
+The ablation orders themes by theme IC, so the first thing it needed was the ranking — and the
+ranking did not match the record. **Proven stale rather than assumed stale:** re-running
+`theme_ic` on the old 110-date panel reproduces `CLAUDE.md`'s list to the digit (momentum +2.62,
+capital_discipline +2.25, institutional +1.81, size +1.68, growth +1.45, low_risk +0.71).
+
+| theme | void (110 dates) | **corrected (69 dates)** | move |
+|---|---|---|---|
+| quality | +3.57 | **+3.10** | −0.47 |
+| capital_discipline | +2.25 | **+2.76** | **+0.51 — the only riser** |
+| institutional | +1.81 | **+1.55** | −0.26 |
+| momentum | +2.62 | **+1.31** | −1.31 |
+| value | +1.52 | **+0.84** | −0.68 |
+| growth | +1.45 | **+0.75** | −0.70 |
+| low_risk | +0.71 | **+0.46** | −0.25 |
+| insider | −0.43 | **−0.24** | +0.19 |
+| **size** | **+1.68** | **−0.30** | **−1.98** |
+
+**Against X7's calibrated bar of 2.71, two of nine themes clear: `quality` and
+`capital_discipline`.** `CLAUDE.md` is corrected in place.
+
+### The eight pre-registered arms
+
+Flat weights within each arm, cumulative in descending corrected theme-IC order. Arm 8 is
+asserted in code to be the deployed composite (`last_arm_is_deployed_composite: true`), so the
+curve is compared against what the product actually runs and not against something adjacent.
+
+| arm | top-decile alpha | LS *t* (naive) | LS *t* (NW) | monotonicity | clears 1.95pp |
+|---|---|---|---|---|---|
+| 1 · `gp_on_capital` alone | **+2.67%** | 0.413 | 0.425 | −0.648 | yes |
+| 2 · quality | +1.12% | −0.372 | −0.367 | +0.115 | **no** |
+| 3 · + capital_discipline | +0.96% | −0.192 | −0.194 | +0.309 | **no** |
+| 4 · + institutional | +3.77% | 0.710 | 0.731 | −0.176 | yes |
+| 5 · + momentum | +4.05% | 0.837 | 0.853 | +0.067 | yes |
+| 6 · + value | +3.22% | 0.661 | 0.650 | −0.370 | yes |
+| 7 · + insider | +4.10% | 1.024 | 0.965 | −0.648 | yes |
+| **8 · + size = deployed** | **+7.17%** | **2.836** | **2.620** | **−0.891** | yes |
+
+**Only the full seven-theme composite clears X7's long-short bar of 2.14. No prefix comes
+close** — the best of them reaches *t* 1.02. Two prefixes (quality alone; quality +
+capital_discipline) do not even clear the alpha noise floor, and both have *positive*
+monotonicity, i.e. their deciles are ordered **backwards**.
+
+### The pre-registered verdict, and why it is uncomfortable
+
+The rule committed beforehand: the full composite beats an arm only if the paired per-period
+alpha difference has a CI95 excluding zero.
+
+| comparison | full − arm | CI95 | excludes 0 |
+|---|---|---|---|
+| vs `gp_on_capital` alone | **+4.51%/yr** | **[−0.14%, +9.12%]** | **NO** |
+| vs quality | +6.05%/yr | [+1.36%, +10.87%] | yes |
+| vs quality+capital_discipline | +6.21%/yr | [+1.99%, +10.66%] | yes |
+| vs + institutional | +3.41%/yr | [−0.08%, +6.89%] | no |
+| vs + momentum | +3.13%/yr | [−0.18%, +6.35%] | no |
+| vs + value | +3.96%/yr | [+1.76%, +6.41%] | yes |
+| vs + insider | +3.08%/yr | [+1.27%, +5.04%] | yes |
+
+**VERDICT: NULL — the composite's advantage over its own best single signal is not
+demonstrated.** +4.51%/yr with a lower bound of **−0.14pp**. That is a near miss, and a near
+miss is a null; the pre-commitment says an ambiguous result is not a judgement call.
+
+**But "DECORATION" would be the wrong word and I am not going to use it.** The pre-registered
+statistic is one statistic, and on 69 periods it is underpowered relative to what the arms
+visibly do. `gp_on_capital` alone posts long-short *t* **0.413** against the composite's
+**2.836**, and clears none of X7's bars except the alpha margin. The honest sentence is: *the
+seven-theme composite is the only arm that clears the calibrated long-short bar, and its
+top-decile alpha advantage over the best single signal is +4.5pp/yr but not separable from zero
+on 69 periods.* Both halves travel together.
+
+**The curve does not flatten, and it is not a curve.** Alpha wanders +1.12 → +0.96 → +3.77 →
++4.05 → +3.22 → +4.10 → **+7.17**. My pre-registered expectation was that it would flatten by
+three or four themes. **That expectation was wrong**, and wrong in the direction that favours
+the product — the last theme added does most of the work.
+
+### The finding worth carrying: theme IC does not predict marginal contribution
+
+The theme added last, `size`, is the **worst**-ranked theme on the corrected panel (IC *t*
+−0.30), and adding it moves alpha +4.10% → **+7.17%** and long-short *t* 1.02 → **2.84**. A
+signal that predicts nothing on its own is carrying the composite's entire statistical
+significance.
+
+This is the P6 lesson — "a signal's IC can be flat while the composite built from it moves a
+lot" — in a far starker form, and it means **the prefix ordering this ablation used is the wrong
+ordering**. Ranking by IC and adding greedily measures the wrong thing when the value of a theme
+is its *orthogonality* rather than its standalone predictiveness.
+
+### EXPLORATORY leave-one-out — no verdict, no trial row
+
+Written *after* seeing the prefix curve, so it is a look and not a test. The log's own schema:
+exploratory looks get no claim. It is recorded because it tells Session 7 what to pre-register.
+
+| dropped | its IC *t* | alpha without | LS *t* | full − arm | CI excl 0 |
+|---|---|---|---|---|---|
+| **size** | **−0.30 (worst)** | +4.10% | 1.024 | **+3.08%/yr** | **yes** |
+| institutional | +1.55 | +5.77% | 1.772 | +1.41%/yr | no |
+| value | +0.84 | +7.12% | 2.511 | +0.06%/yr | no |
+| insider | −0.24 | +7.47% | 2.581 | −0.30%/yr | no |
+| momentum | +1.31 | +8.37% | 2.838 | −1.20%/yr | no |
+| quality | +3.10 (best) | +8.42% | 3.304 | −1.25%/yr | no |
+| **capital_discipline** | **+2.76** | **+8.54%** | **3.352** | **−1.37%/yr** | **yes** |
+
+Two of seven move the composite at significance and **the IC ranking puts both at the wrong end
+of the list**: dropping `size` costs 3.08pp/yr, while dropping `capital_discipline` — the
+second-strongest theme by IC and one of only two clearing X7's bar — *improves* the composite by
+1.37pp/yr and lifts long-short *t* to 3.35.
+
+**Read this as a hypothesis with a large multiplicity caveat, not a result.** Seven correlated
+nested comparisons, chosen for report after the fact; two "significant" out of seven is more than
+chance expects but not by much. **Nothing was changed on the strength of it** — the deployed
+weights are untouched, and they should not move until a pre-registered held-out test says so,
+because that is exactly the gate `low_risk` passed and `insider` failed.
+
+### The cost, paid in full
+
+X3 is logged as one row, `n=8`. **The pre-commitment said equity N would go 84 → 92. The
+realised number is 104, and the extra 12 are the void 2026-08-03 run's arms.** Discovering that
+X3 had already been run — twelve arms, never logged — was not foreseeable when the
+pre-commitment was written, and logging them is the direction that weakens this project's own
+evidence, so they are logged. Two things make 104 the right number rather than a choice:
+`research_log.py:73` excludes only `FIXED` rows, so a `SUPERSEDED` search still costs
+multiplicity in the shipped code; and the data genuinely was searched twelve times.
+
+Recomputed exactly on the shipped run's own `deflated_sharpe_detail`, round-trip verified (the
+re-derivation reproduces 0.8997 at N = 84 to four decimals — pinned by
+`test_x3_deflated_sharpe_at_round_trips_and_falls_with_n`):
+
+| | N = 84 (shipped) | N = 92 (pre-committed) | **N = 104 (realised)** |
+|---|---|---|---|
+| `sr0_benchmark` | 0.4056 | 0.4110 | **0.4181** |
+| Deflated Sharpe | 0.8997 | 0.8911 | **0.8789** |
+| √(2·ln N) | 2.977 | 3.007 | **3.048** |
+
+**X3 pushes the project's multiple-testing haircut past the Harvey–Liu–Zhu hurdle of 3.0 for the
+first time — 2.977 → 3.048.** The headline still sits above X7's calibrated floor of 0.7216, and
+since X7 showed that floor *falls* as N rises (0.8567 at N = 8 → 0.7216 at N = 84), quoting 0.72
+at N = 104 is conservative in the direction that makes passing harder.
+
+**Quote it whole:** *"Deflated Sharpe 0.8789 at N = 104 — fails the conventional >0.95 bar, sits
+above all 100 placebo draws (calibrated bar 0.72, measured at N = 84), and the trials haircut is
+now 3.048."*
+
+`BACKTEST_RESULTS.json` still carries 0.8997 at N = 84 and will pick up N = 104 automatically on
+the next full run — `_deflated_sharpe_detail` reads the log. It was not regenerated here.
+
+---
+
+## BUGS FOUND
+
+**1. `CLAUDE.md`'s theme IC table was a pre-B6 measurement labelled "CURRENT 2026-08-04".**
+Proven, not inferred: re-running `theme_ic` on the retained 110-date panel reproduces the
+recorded list to the digit. The corrected values move by up to **1.98 t** (`size` +1.68 →
+**−0.30**), and against X7's calibrated bar of 2.71 only **two of nine** themes clear. Corrected
+in place. *This is the same class of error as B6 itself — a number that outlived the panel it was
+measured on — and it survived two sessions of corrections because nothing re-measures a table
+that is only ever read.*
+
+**2. X3's 2026-08-03 run is void and is recorded as DONE.** `VALQUO_LEDGER.md:106` carries
+"'Earns its complexity' — both bars cleared decisively", measured on the pre-B6 110-date panel
+(alpha +11.88%) and scored against a **1.0pp** three-theme bar that sits *below* X7's calibrated
+1.95pp noise floor. Ledger row amended to SUPERSEDED with the re-run's verdict.
+`test_x3_the_old_ablation_verdict_is_marked_superseded` fails if that row silently reverts.
+
+**3. Trials that were run and never charged to `N`. This one is mine as well as other lanes'.**
+`RESEARCH_LOG.md` has rows for X2, X4, X7 but **none for X3, X5, X6**, nor for the
+capacity / failure-cases / JKP-replication studies that shipped JSON into
+`data/free_analysis/` on 2026-08-03–04. X3 alone was ~12 arms. Separately, **Session 5's own
+closeout items 3, 4 and 5 were pre-registered tests with committed thresholds and I did not log
+them** — added this session as `S5-3`, `S5-4`, `S5-5`.
+**And `RESEARCH_LOG.md` contradicts itself and the code about whether those rows count.** Its
+"## Schema" section says *"Only `ADOPTED` / `REJECTED` / `NULL` / `INCONCLUSIVE` rows are
+trials"*, i.e. `SUPERSEDED` is free; the later section says only `FIXED` does not count; and
+`research_log.py:73` implements the later rule. I checked rather than assumed, and logged the
+void X3 run's 12 arms accordingly — **equity N is 104, not the 92 my own pre-commitment
+predicted.** The code's rule is the right one (a search that happened cost multiplicity whether
+or not its verdict was later withdrawn), so the fix is to delete the stale sentence in the
+Schema section, not to change the code. Left for whoever owns the schema, flagged here, because
+someone reading only that section could legitimately delete a SUPERSEDED row's cost.
+
+**4. `RESEARCH_LOG.md`'s R3 row quotes a design effect out of its scope.** The row reads
+"deff 1.848 vs null p95 1.266", which is the **pre-correction 3,042-trade book**. The corrected
+3,885-trade book is **2.2121 vs null p95 1.2037**. This is the same figure whose travel I
+corrected in `CLAUDE.md` at the Session-5 closeout; the log row was missed then. Rows are
+append-and-amend, so a scope note is appended rather than the number rewritten.
+
+**5. `data/free_analysis/panel.pkl` is a pre-B6 panel with no marking.** 110 dates, dated
+2026-08-03. Anything that reads it — `scripts/ablation.py`, `scripts/breaks.py` and any future
+study that reaches for "the panel pickle" — silently gets the inverted-universe panel. It is
+outside my lane to delete or move (other lanes' scripts default to that path), and it is
+reported here rather than repaired. **The cheap fix is a `panel_window` stamp inside the pickle,
+which is exactly the Session-5 item-1 pattern applied to the equity side.**
+
+**6. Not a bug, a performance defect worth recording.** `options_stats.date_block_diff` rebuilds
+the concatenated trade list on every draw, which on the five-seed control book is ~240M
+Python-level operations per cell; U7 ran for 45 minutes and produced nothing. The mean of a
+concatenation of blocks is exactly `sum(block sums) / sum(block counts)`, so
+`options_veto.fast_block_diff` hoists the per-trade work out and is **exact, not approximate** —
+pinned by `test_u7_the_fast_block_bootstrap_is_exact`, which replays the identical
+`Random.randrange` sequence and requires the CI endpoints to match to floating point.
+`options_stats` itself is left alone; other lanes read it.
+
+**7. THE CORRECTED OPTIONS BOOK EXISTED ONLY IN A SESSION SCRATCH DIRECTORY. Fixed.**
+`data/options_universe/state.pkl` is the **pre-correction 3,042-trade** book. The corrected
+**3,885-trade** book that R2, the Session-5 closeout and this session all rest on, plus its five
+control seeds, lived only in `~/.claude/jobs/<id>/tmp/` — deleted when the job is deleted. Two
+sessions of options conclusions were one cleanup away from being unreproducible, and the
+Session-5 item-2 guard could not help, because it protects a directory the artifacts were never
+written to. Copied to durable paths (all gitignored, per the hard rule — nothing licensed is
+committed):
+
+| artifact | durable path | verified |
+|---|---|---|
+| corrected book | `data/options_universe/state_r2_corrected.pkl` | 3,885 rows / 187 names |
+| control seeds 0-4 | `data/options_universe/control_r2_seed{0..4}.pkl` | 29,785 trades total |
+| corrected 69-date panel | `data/free_analysis/panel_corrected_69d.pkl` | 113,945 rows / 69 dates |
+
+`data/options_universe/state.pkl` is deliberately **not** overwritten — it is a banked artifact
+and the guard exists to stop exactly that. The next session should decide whether the
+pre-correction book is still worth keeping under a name that does not read like the current one.
+
+## WHAT WAS NOT DONE, AND WHY
+
+* **X7's calibrated bars were NOT re-derived at N = 92.** Pre-committed as out of scope in
+  section 9. The placebo is 100 draws through the full pipeline — hours — and the direction is
+  known and favourable: X7 measured the floor *falling* as N rises (0.8567 at N = 8 → 0.7216 at
+  N = 84), so quoting 0.72 at N = 92 makes passing harder, not easier.
+* **No weight was changed.** The exploratory leave-one-out says dropping `capital_discipline`
+  would raise alpha to +8.54% and long-short *t* to 3.352. It was generated after seeing the
+  prefix curve, it is seven correlated comparisons reported for their extremes, and it has had no
+  held-out test. `low_risk` passed that gate and `insider` failed it; nothing ships without it.
+* **The paired nested difference has no calibrated floor and none was invented.** X7 calibrates
+  the alpha margin, the long-short *t* and the theme IC *t*. It does not calibrate a nested-model
+  comparison. The pre-registered rule was the plain CI-excludes-zero test, which is why X3's
+  headline is a NULL rather than a verdict dressed in a borrowed bar.
+* **U1 was not run**, and U7's result is a reason not to run it as written — see "What U7
+  forecloses".
+* **The four names that never join** (AMAT, RIO, SHEL, UBS) were not chased. 2.2% of names and
+  1.9% of alerts; running them down would not move any verdict here.
+* **`BACKTEST_RESULTS.json` was not regenerated.** N = 92 changes its `deflated_sharpe_detail`
+  on the next full run; the consequence is computed exactly and published here instead of
+  spending 12 minutes to rewrite a tracked artifact this session did not otherwise touch.
+
+## IS SESSION 6 CLOSED?
+
+**Yes.** Both nominated probes ran on the corrected panel, against the calibrated bars, with
+their thresholds committed and pushed before any number existed (`a727bea`). Both returned
+verdicts. Two void records in the project's own memory were found and corrected in passing, and
+the trial ledger now carries the cost of the work.
+
+Neither probe promoted the item it was testing. That is the outcome, not a failure of the
+session: U7 was proposed as the cheap probe that could kill or promote U1, and it killed it as
+written.
+
+## SESSION 7 — first item and its `needs first`
+
+**Session 7's first item is the leave-one-out ablation, PRE-REGISTERED and held out** — because
+X3 produced one genuinely surprising structural result and the only honest way to act on it is a
+test designed before the numbers are seen. Run it alongside **P4**, which remains the only
+*urgent* item in the catalogue.
+
+**LOO-PREREG `needs first`:**
+
+| dependency | status |
+|---|---|
+| the corrected 69-date panel | **READY** — rebuilt this session, `scripts/dump_panel.py`; 113,945 rows, identical in shape to the cached grid-0 panel |
+| the exploratory result to be tested | **READY, and it is EXPLORATORY** — dropping `capital_discipline` gives alpha +8.54% / LS *t* 3.352; dropping `size` costs 3.08pp/yr. Seven correlated comparisons, reported for their extremes. **It must be re-derived on a held-out split, not re-quoted** |
+| `holdout_theme_validate` | **READY but READ B8 FIRST** — its `rule_fired` flag is computed and never read (`fundamental_panel.py:3048`), so it is a both-halves stability check, not an out-of-sample confirmation. B8 is still open. Say which one you ran |
+| the trial cost | **NOT FREE.** Seven LOO arms take equity N 92 → 99. √(2·ln 99) = 3.03. Pre-register the arms and log them, or the result is not quotable |
+| the ordering problem X3 exposed | **UNRESOLVED and it is the real question.** Ranking themes by IC does not predict marginal contribution — `size` has the worst IC and carries the composite's significance. A greedy prefix curve is the wrong instrument; LOO or a Shapley-style decomposition is the right one |
+
+**U7 follow-up, if Don wants the options thread continued:**
+
+| dependency | status |
+|---|---|
+| the join | **READY and PINNED** — `valuation/edge/options_veto.py`, backward-looking only, tested against its own look-ahead variant |
+| the top-decile thread | **NOT PRE-REGISTERED.** D1/D2 post +18.74% / +14.78% on 97 and 181 trades. That is a positive-selection idea, not a veto, and it is the opposite end of the table U7 tested — so it is a NEW hypothesis, and running it on the same book that suggested it is exactly the trap X7 exists to expose |
+| the size confound | **MUST BE HANDLED FIRST.** The composite decile inside 187 megacaps is largely a market-cap sort ($62.7B → $133.5B, monotone D1→D9). Any composite-based options test must either neutralise size or rank *within* the options universe on a composite built for it |
+| U1 as written | **DO NOT RUN.** The strictly easier bar failed with a mechanism |
+
+**Standing, and outranking both if Don says so:** **P4** — `seed_book` never sells names that
+leave the book, so every session the paper track accumulates under the wrong rules is a session
+that has to be thrown away — and **X8**, the international replication, still the only genuinely
+out-of-sample evidence available to either programme.
+
+---
+
+# SESSION 7 — B8, then the PRE-REGISTERED held-out leave-one-out, plus P4
+
+Owner: pipeline builder. Audit session 7. Previous session verified complete: YES (session 6
+closed at `21fbe46`, six commits, both probes returned verdicts).
+
+**Order is forced by the `needs first` table session 6 wrote: B8 is resolved FIRST, because a
+leave-one-out run on an unresolved B8 produces a result nobody can label honestly.**
+
+## 0. B8 — RESOLVED BEFORE ANY LOO NUMBER EXISTED
+
+### What was actually wrong
+
+`holdout_theme_validate`'s docstring described a four-step protocol: split by time, **decide on
+one half with a pre-specified rule**, measure on the other half only, run both directions.
+Step 2 was never implemented. `rule_fired` was computed (now `fundamental_panel.py:3545`; the
+audit's cited `:3048` had drifted) and **no line of code ever read it**. The verdict was
+`all(improves)` across both directions — a demanding test, and a legitimate one, but a
+**both-halves stability check on the full sample**, not an out-of-sample confirmation. The
+project has been calling it the latter since P5.
+
+### FIXED, not renamed — and the distinction is load-bearing
+
+The naive repair is to gate `verdicts` on `rule_fired`. **That would have been a silent error.**
+`scripts/placebo.py:108` reads `verdicts`, and X7's measured **~6% false-positive rate of the
+held-out gate** was calibrated against that exact object across 100 placebo draws. Redefining
+`verdicts` in place would leave that 6% figure attached to a gate that no longer exists, with
+nothing anywhere recording the substitution — the same class of defect as the stale theme IC
+table found in session 6.
+
+So both objects now ship, each named for what it is:
+
+| key | question it answers | status |
+|---|---|---|
+| `verdicts` (alias `stability_verdicts`) | does zeroing this theme improve the measure half in BOTH directions? | **semantics frozen** — X7's 6% FPR still applies to it |
+| `oos_verdicts` (NEW) | ...restricted to directions where the decide-half rule actually flagged the theme | the protocol the docstring always described |
+| `oos_directions_tested` (NEW) | how many of the two directions carried any evidence at all | 0 means **no out-of-sample test was run** |
+
+`verdicts_scope` and `oos_verdicts_scope` strings ship alongside, so a reader of
+`BACKTEST_RESULTS.json` cannot mistake one for the other.
+
+### Measured on the corrected 69-date panel — the shipped decisions HOLD, on thinner evidence
+
+`python -m scripts.b8_holdout_scope --panel panel_corrected_69d.pkl`, 113,945 rows, 69 dates,
+boundary date 2017-07-20 embargoed, eight themes.
+
+| theme | stability verdict | **OOS verdict** | directions tested |
+|---|---|---|---|
+| **low_risk** | confirmed | **confirmed_oos** | **1 of 2** |
+| **insider** | rejected | **rejected_oos** | 1 of 2 |
+| value | rejected | rejected_oos | 1 |
+| momentum | not_replicated | rejected_oos | 1 |
+| size | rejected | rejected_oos | 1 |
+| quality | rejected | **not_flagged** | **0** |
+| capital_discipline | not_replicated | **not_flagged** | **0** |
+| institutional | rejected | **not_flagged** | **0** |
+
+**Neither shipped decision changes.** `low_risk` (zeroed live) is confirmed under the honest
+protocol; `insider` (kept at 0.125) is rejected under it. Nothing needs reverting, and no weight
+was touched.
+
+**But the evidence for `low_risk` is exactly half what the record claims.** The rule fires only
+on the early decide half; on the late half `low_risk`'s median IC is positive, so it is not a
+candidate at all in that direction. CLAUDE.md's B8 correction inferred this from reading the
+code — it is now measured. The honest sentence is: *"zeroing `low_risk` is confirmed
+out-of-sample in one of two split directions, and passes a both-halves stability check in both."*
+Not "confirmed out-of-sample", full stop.
+
+### The finding that changes the LOO design, and it is not a small one
+
+**Three themes are `not_flagged`: the decide-half rule never fires on them in either
+direction.** The rule is `median IC <= 0`, and `quality` (+3.10), `capital_discipline` (+2.76)
+and `institutional` (+1.55) all have comfortably positive IC.
+
+**`capital_discipline` is the theme session 6's exploratory leave-one-out said was worth
+dropping** (dropping it raised alpha to +8.54% and long-short *t* to 3.352). Under
+`holdout_theme_validate`'s rule it is not a candidate for dropping and never can be.
+
+That is not a bug in the rule. It is X3's central finding arriving a second time: **an IC-based
+selection rule cannot express the hypothesis, because X3's whole result is that theme IC does
+not predict marginal contribution** — `size` has the worst IC (−0.30) and carries the
+composite's entire significance. Gating LOO candidacy on `median IC <= 0` would reproduce, as
+the test's own design, the exact error the test exists to check.
+
+**Consequence, and it is pre-registered below rather than discovered later: the LOO decide rule
+must be the LOO effect itself, measured on the decide half — not an IC rule.**
+`holdout_theme_validate` is therefore used for B8's own verdicts and is NOT the instrument for
+the LOO; a purpose-built split with the same embargo discipline is.
+
+## 1. PRE-COMMITMENT — written and committed BEFORE any LOO number existed
+
+### The hypothesis under test
+
+Session 6's leave-one-out was **exploratory**: seven correlated comparisons on the full sample,
+reported for their extremes, generated after seeing the prefix curve. It said dropping
+`capital_discipline` raises top-decile alpha +7.17% → +8.54% and long-short *t* 2.836 → 3.352,
+and that dropping `size` costs 3.08pp/yr. **Re-quoting those numbers is not a test of them.**
+
+The question is narrower and answerable: **does choosing a theme to drop, by its own
+leave-one-out effect on data you are allowed to look at, improve the composite on data you are
+not?**
+
+### Protocol, fixed in advance
+
+1. Split the 69 rebalance dates in half **by time**; **embargo the boundary date** (rebalance ==
+   horizon == 63d, so only that date's forward window can straddle the split). Identical
+   machinery and identical embargo to `holdout_theme_validate`.
+2. **DECIDE half:** run all **seven** leave-one-out arms — the flat 7-theme composite with one
+   theme dropped, re-normalised to flat 1/6 — and rank them by the decide-half **top-decile
+   alpha gain** vs the full composite. **Select the single best arm.** One selection, one degree
+   of freedom.
+3. **MEASURE half:** measure that one selected arm against the full composite. The measure half
+   informs nothing about which arm was chosen.
+4. **Both directions** (decide-early/measure-late and decide-late/measure-early), so no verdict
+   rests on one arbitrary split.
+
+### Thresholds — reusing the project's existing committed margins, not new ones
+
+`MIN_HOLDOUT_ALPHA_GAIN = 0.01` (100bps/yr, an economic bar: an improvement smaller than the
+cost of implementing it is not an improvement) and `MIN_HOLDOUT_TSTAT_GAIN = 0.25` (a noise
+floor). These were committed before the P6 runs and are already in the codebase; inventing a
+fresh pair after seeing session 6's exploratory numbers would be threshold-shopping.
+
+* **ADOPTED-eligible** — the selected arm clears **both** margins in **both** directions.
+  (Eligible, not adopted: a weight change additionally needs its own gate. Nothing ships this
+  session regardless of outcome.)
+* **NULL** — anything else: mixed directions, or clears sign but not margin. Per RUN_RULES 6, a
+  result ambiguous against its own threshold **is a null, not a judgement call**.
+* **REJECTED** — the selected arm is negative on the measure half in both directions.
+
+**Reported but carrying NO verdict** (stated now so it cannot be promoted later): all seven
+arms' measure-half effects, as the distribution the selected arm has to be read against; and
+whether the same theme is selected in both directions. A single theme surviving selection in
+both directions is a materially stronger result than two different themes, and I am committing
+in advance to say which happened.
+
+### The expectation, written down first
+
+The carry-forward rule says to state the direction expected before running, precisely because
+this project keeps getting it wrong (R10, O20, the spread toll, U7 — four in a row).
+
+**I expect a NULL, and I hold it at about 70/30.** Session 6's exploratory result is the maximum
+of seven correlated comparisons on 69 dates; the maximum of seven noisy draws is biased upward
+by construction, and half-sample statistics here are noisier still. If it replicates on a
+held-out split in both directions, that is genuinely surprising and worth acting on. **The
+project's expectations have been wrong four consecutive times, so this one is a prediction, not
+a prior to lean on.**
+
+### The trial cost, and a correction to the number in the task
+
+**Seven arms are seven trials.** They are logged to `RESEARCH_LOG.md` as one pre-registered grid
+row, `n=7`, in the `equity` domain.
+
+The task brief says equity `N` goes **92 → 99**, `√(2·ln 99) = 3.03`. **That is stale by one
+session.** Session 6's realised count was **104**, not 92 — the pre-commitment predicted 92 and
+the run overshot it, because the previously-unlogged void X3 run was logged as `SUPERSEDED` with
+`n=12` and `research_log.py:73` excludes only `FIXED` rows, so `SUPERSEDED` rows count. Verified
+this session: `python -m valuation.edge.research_log` reports `equity: 104`.
+
+| | before | after 7 LOO arms |
+|---|---|---|
+| equity `N` | **104** | **111** |
+| `√(2·ln N)` — the Harvey–Liu–Zhu haircut | 3.048 | **3.069** |
+
+So the haircut moves **past the 3.0 hurdle by more**, not up to it. The Deflated Sharpe
+consequence is computed exactly in the results below rather than estimated, using
+`ablation.deflated_sharpe_at`, which backs the skew/kurtosis denominator out of the recorded
+statistic and re-evaluates at the new `N`.
+
+**Out of scope, stated in advance:** X7's calibrated bars are NOT re-derived at N = 111 (the
+placebo is 100 draws through the full pipeline — hours). The direction is known and unfavourable
+to me, which is why quoting the old bar is safe: X7 measured the floor *falling* as N rises
+(0.8567 at N = 8 → 0.7216 at N = 84), so holding 0.7216 at N = 111 makes passing harder.
+
+## 2. RESULTS — the pre-registered held-out leave-one-out
+
+**Run:** `python -m scripts.loo_prereg --panel panel_corrected_69d.pkl --json LOO_HOLDOUT_RESULTS.json`.
+Panel: the corrected 69-date panel, **113,945 rows, 2,531 names**, seven deployed themes, flat
+weights. `flat_weights_are_the_deployed_weights: true` — asserted in the script, not assumed,
+because a silent mismatch would make every number below describe a composite nobody trades.
+Split 34 / 34 with **2017-07-20 embargoed**.
+
+### VERDICT: NULL
+
+Neither direction's selected arm clears either margin.
+
+| direction | selected on the decide half | decide gain | **measure-half Δalpha** (bar +1.00%) | **measure-half Δ LS t** (bar +0.250) | clears |
+|---|---|---|---|---|---|
+| decide early → measure late | drop **`momentum`** | +3.68% | **−1.30%** | **−0.706** | no / no |
+| decide late → measure early | drop **`capital_discipline`** | +2.20% | **+0.20%** | **−0.201** | no / no |
+
+`null` rather than `rejected`, on the pre-registered rule: direction 2's alpha is *positive*
+(+0.20%), just an order of magnitude below the 100bps bar. Per RUN_RULES 6 an ambiguous result
+against its own threshold is a null, not a judgement call.
+
+**Different themes were selected in each direction** — pre-registered as a thing to report
+either way. That is the weaker of the two outcomes and it is the one that happened.
+
+### The expectation, and the record's verdict on it
+
+Pre-committed at `5a27ea1`: *"I expect a NULL, and I hold it at about 70/30."* **Right** — for
+the stated reason, that the maximum of seven correlated comparisons is biased upward by
+construction. That breaks a four-run streak of wrong directional calls (R10, O20, the spread
+toll, U7). One correct call after four wrong ones is not evidence the reasoning improved; the
+standing rule to measure rather than reason still holds.
+
+### WHY it is null — the decide-half ranking is not stable, and this is the real finding
+
+The two directions share their data: direction 1's measure half **is** direction 2's decide
+half. So there are only two independent sets of seven numbers, and laying them side by side is
+the whole diagnosis.
+
+| dropped theme | **early half** Δalpha | **late half** Δalpha | stable? |
+|---|---|---|---|
+| momentum | **+3.68%** (best) | −1.30% (5th) | **sign flip** |
+| capital_discipline | +0.20% (3rd) | **+2.20%** (best) | same sign, rank moves 3 → 1 |
+| insider | −1.39% (6th) | +1.94% (2nd) | **sign flip** |
+| value | −1.01% (5th) | +0.63% (4th) | **sign flip** |
+| institutional | −0.89% (4th) | −1.90% (6th) | stable, both negative |
+| **quality** | **+1.06%** (2nd) | **+1.30%** (3rd) | **stable, both positive** |
+| **size** | **−2.64%** (worst) | **−3.46%** (worst) | **stable, worst in both** |
+
+**Four of seven arms change sign between halves.** The full-sample exploratory result session 6
+reported — "dropping `capital_discipline` raises alpha to +8.54%" — is the average of +0.20%
+and +2.20%, i.e. it is carried by the late half and is not a property of the panel. That is
+exactly the failure mode a held-out split exists to expose, and it is why the session-6 numbers
+were labelled EXPLORATORY and left unacted-on.
+
+### `size` is corroborated, and this is the one durable thing the run produced
+
+**Dropping `size` is the WORST arm in both halves independently, by a wide margin (−2.64% and
+−3.46%).** It is the only theme whose leave-one-out effect is both large and stable. X3 found
+`size` has the worst theme IC (−0.30) while carrying the composite's entire significance; this
+is that finding surviving a time split, in the only out-of-sample sense available on one panel.
+
+**Stated with its limit:** this is not a pre-registered test of `size` — the pre-registered
+object was the SELECTED arm, and `size` was never selected because the rule selects the
+maximum. It is the most stable cell in a table that carries no verdict. It is strong enough to
+say *"do not drop `size`, and stop treating its low IC as evidence against it"*, and not strong
+enough to be quoted as a confirmed result.
+
+### The one thing I will NOT claim, and why it is the interesting part
+
+`quality` clears **both** margins on **both** halves (+1.06% / +1.30% alpha, +0.306 / +0.257 on
+long-short t). It is the only theme that does. It was selected in **neither** direction, because
+the pre-registered decide rule takes the **maximum** decide-half gain and in each half some
+noisier arm ranked above it.
+
+**So the pre-registered selection rule picked the noisiest arm rather than the most consistent
+one** — the maximum is precisely the statistic most inflated by noise, which is the same
+mechanism that made session 6's exploratory result look strong.
+
+**This CANNOT be promoted now.** Noticing that a stability-based selection rule would have found
+`quality` *after* seeing which rule works is selecting the rule on the results — the exact error
+this session's design exists to avoid, one level up. It goes to session 8 as a pre-registration
+or not at all. Recorded here in full so that nobody has to rediscover it, and so that if it is
+ever run, the record shows it was generated post-hoc.
+
+### Trial cost — computed, not estimated
+
+| | before | after |
+|---|---|---|
+| equity `N` | 104 | **111** |
+| `sr0_benchmark` | 0.4181 | **0.4218** |
+| **Deflated Sharpe** | 0.8789 | **0.8721** |
+| `√(2·ln N)` | 3.0478 | **3.0690** |
+
+Computed with `ablation.deflated_sharpe_at` off the recorded `deflated_sharpe_detail`
+(`sharpe_per_period` 0.5500, `var_sr_across_trials` 0.02700, 69 periods). The round trip
+reproduces session 6's recorded 0.8789 at N = 104 exactly, which is the check that the
+extrapolation is arithmetic rather than a re-fit.
+
+**Still above X7's calibrated floor of 0.7216; still below the 0.95 convention.** Quote it
+whole, as the record requires: *"Deflated Sharpe 0.8721 at N = 111 — fails the conventional
+>0.95 bar, while sitting above all 100 placebo draws (calibrated bar 0.72)."*
+
+The task brief's "92 → 99, √(2·ln 99) = 3.03" was stale by one session; the correction is in
+§1 above and the realised figure is **3.069**.
+
+### POST-MERGE CORRECTION — the denominator moved again while this session ran
+
+`origin/main` was merged into this branch at close-out and a concurrent lane
+(`HANDOFF_signals.md`: S4, S4b, S1a, S1b, S2) had landed **five more equity trials**. `N` is a
+PROJECT-level quantity, not a session-level one, so the honest final figure is not the one this
+session predicted:
+
+| | equity `N` | `sr0` | Deflated Sharpe | `√(2·ln N)` |
+|---|---|---|---|---|
+| before session 7 | 104 | 0.4181 | 0.8789 | 3.0478 |
+| **+ this session's 7 LOO arms** | **111** | 0.4218 | 0.8721 | 3.0690 |
+| **+ the signals lane's 5, post-merge** | **116** | **0.4243** | **0.8674** | **3.0834** |
+
+**Quote 116 and 0.8674, not 111 and 0.8721.** This session's own *cost* is the 7 arms; the
+denominator the headline is charged is whatever has landed. That distinction is exactly why M1
+put the counter in a file instead of a constant — and it is the second session running in which
+the realised `N` overshot its own pre-commitment, for a different reason each time (session 6:
+`SUPERSEDED` rows count; session 7: a parallel lane landed mid-run).
+
+**No verdict moves.** 0.8674 is still far above X7's calibrated floor of 0.7216 and still below
+the 0.95 convention, which is the same sentence as before at a slightly worse number.
+
+## 3. RESULTS — P4, the paper track's rules
+
+**The bug, restated from the code:** `seed_book` (`paper_track.py`) computed `fresh = [names not
+already held]` and inserted them. There was no other write path. **A name entered the book once
+and was held forever**, so the paper index became an ever-growing union of everything the
+screener had ever liked — it stopped being the Valquo Index the day the first name dropped out,
+and every session since accumulated under rules no backtest describes. This is why the item was
+carried as *urgent*: the cost is not a wrong number, it is that the elapsed track has to be
+thrown away.
+
+### The fix, and the two things that made it non-obvious
+
+Departed names are now **closed** — sold at the day's price with the day's SPY — and moved to a
+new `paper_index_closed` table.
+
+1. **Closed, never deleted.** Deleting is the obvious repair and it is **reverse survivorship
+   bias**: names leave this book when their composite decays, so erasing them removes
+   disproportionately the ones that did badly and silently flatters the record. The full
+   entry/exit legs, both price and benchmark, are kept so each stint's realised return against
+   SPY stays computable forever.
+2. **A separate table, not a `status` column** — and this was a defect in my own first
+   implementation, caught by writing the re-entry test. `paper_index_holdings.ticker` is a
+   `PRIMARY KEY` and the insert is `INSERT OR IGNORE`, so a closed row left in that table makes
+   a name that **re-enters** the book silently un-addable. That is the original bug's mirror
+   image and just as quiet. Keying history on `(ticker, entry_date)` also lets one name hold
+   several separate stints, which is what a real book does.
+
+**The guard.** A truncated export and a genuinely smaller book are indistinguishable at this
+layer, and acting on the wrong one liquidates a live track. A book that has shrunk below
+`MIN_BOOK_RETENTION = 0.5` of current holdings closes nothing and reports `close_refused` with
+the reason. It refuses loudly rather than proceeding — not a silenced check.
+
+**Two consequences that had to be handled or they would have been new bugs:**
+
+* **`inception` now spans closed stints.** Taking the minimum entry date over open holdings only
+  would walk the track's start date forward every time its oldest position left, so the record
+  would appear to get *younger* the longer it ran.
+* **Closed stints are reported, not dropped.** `index_summary` gains a `realized` block —
+  count, priced count, and mean active return vs SPY over each stint's own window.
+
+### What P4 does NOT fix, stated because the flag has to ship with the number
+
+The daily point remains a **snapshot of open holdings**. A closed stint's realised return is
+preserved and reported but is **not chained into the daily series**. Chaining realised stints
+into a continuously-compounded index is a **construction change**, not a bug fix — it would
+break the deliberate correspondence with `edge/track.py`'s methodology that makes the two
+records comparable — so it was not made. The limitation ships inside the payload as
+`detail.scope`, so it travels with the number instead of having to be inferred from the schema.
+
+**Nothing about the live track was reset**, and no historical row was rewritten. `close_exits`
+defaults to `True` because the accumulate-only behaviour is the bug; `close_exits=False`
+reproduces a historical run.
+
+Pinned by five tests in `tests/test_paper_track.py` (45/45, up from 40), one per failure mode:
+the close keeps the record, a closed name stops moving the index and can re-enter, a truncated
+export closes nothing while an ordinary rebalance is not refused, and inception does not walk
+forward.
+
+## 4. BUGS FOUND
+
+**1. The trial-counting schema contradicted its own counter, and it decided the headline `N`.**
+`RESEARCH_LOG.md`'s schema read "Only `ADOPTED` / `REJECTED` / `NULL` / `INCONCLUSIVE` rows are
+trials", which excludes `SUPERSEDED`. `research_log.py:73` has never implemented that — `_parse`
+skips `FIXED` and nothing else. Not academic: the void X3 row carries `n=12`, so the reading
+decides whether equity `N` is **92 or 104**. Session 6 hit the discrepancy, took the harsher
+number, and explicitly referred the rule to this session rather than settling it while looking at
+its own results — which was the right call. **Resolved in favour of the counter and the prose
+rewritten:** a superseded search still happened and still shaped what was run next; `SUPERSEDED`
+judges a RESULT's validity, not whether the data was interrogated. It is also the conservative
+reading, since it makes `N` larger.
+
+**2. The X3-VOID log row asserted the opposite of what the counter does.** Its `source` cell read
+"NOT counted toward N per the schema", while contributing 12 of equity's count. Session 6 rewrote
+the handoff's cost table when it discovered this and missed the log row itself. Corrected in
+place; the row now states its actual contribution.
+
+**3. `theme_ic` returns `{}` for any panel whose columns are not in `S.FACTORS_ALL`, silently.**
+It iterates the known theme list and skips anything absent, so a synthetic panel with arbitrary
+column names produces an empty dict, no warning, and a completed run. **This made the first
+version of my own B8 test pass for the wrong reason** — every theme came back `not_flagged`
+because `median_ic` was `None`, not because the decide rule declined to fire. It was caught only
+because a second assertion in the same test expected the *opposite* verdict on a deliberately
+anti-predictive theme and failed. This is the same shape as the four coverage bugs in this
+project's history: the function is wired, raises nothing, and returns empty. Any future study or
+test that builds a panel with its own column names hits it. **The existing
+`test_holdout_theme_validate_protocol` uses columns `good` and `junk` and is therefore exercising
+a code path where every IC is `None`** — it still tests what it claims about split geometry, but
+not what it implies about IC-driven behaviour. Not fixed: `theme_ic` is read by other lanes and a
+coverage-style warning there is their call, not mine.
+
+**4. A latent bug in my own first P4 implementation, recorded because it is the fix's mirror
+image.** Marking departed names with a `status` column and leaving them in
+`paper_index_holdings` looks correct and is not: that table's `ticker` is a `PRIMARY KEY` and the
+insert is `INSERT OR IGNORE`, so a name that **re-enters** the book would have been silently
+refused — the same failure mode as the bug being repaired, in the opposite direction, and equally
+invisible. Found by writing the re-entry test before believing the implementation. Fixed by
+moving closed stints to `paper_index_closed` keyed on `(ticker, entry_date)`.
+
+**4b. B8 REACHED THE PRODUCT-FACING FILE, AND FIXING THE FUNCTION ONLY FIXED HALF OF IT.**
+`results_file.render_md` headed this section **"Held-out confirmation — does zeroing a theme
+still help out-of-sample?"** and told the reader "the theme is judged on one half and the effect
+measured on the other" — a description of the protocol the code did **not** run, rendered into
+the artifact a human actually reads. I had already fixed `holdout_theme_validate` and would have
+shipped the session with the overstatement intact, because the fix and the label live in
+different files and only the function was in the audit item. Found by reading the renderer to
+check nothing downstream broke. The section is now headed "Held-out theme checks — stability,
+and the rule-gated out-of-sample verdict", carries **both** verdicts plus the
+directions-tested count, and says in words that the stability column is *not* an out-of-sample
+confirmation. `test_holdout_theme_validate_protocol` now asserts the old heading is **absent**,
+so it cannot come back quietly. **The general lesson: an audit item scoped to a function is not
+discharged until the strings that describe it are checked too.**
+
+**5. A second consequence of P4 that would have been a new bug.** `index_point` computed
+`inception` as the minimum entry date over open holdings. Once names can leave, that walks the
+track's start date forward every time its oldest position is sold — the record would appear to
+get *younger* the longer it ran. Now spans closed stints.
+
+**6. The audit's cited line number for B8 has drifted.** `VALQUO_EDGE_AUDIT.md`,
+`HANDOFF_STATUS.md:812` and `CLAUDE.md:323` all cite `fundamental_panel.py:3048`, which now sits
+inside `_band_select` — an unrelated function. The real site was `:3545`. Harmless here because
+the symbol name was also given, but a citation that silently rots points the next reader at the
+wrong code.
+
+## 5. WHAT WAS NOT DONE, AND WHY
+
+* **No weight was changed, and none was going to be.** The pre-registration says a weight change
+  needs its own gate on top of an `adopted_eligible` verdict; the verdict was NULL, so the
+  question never arose. `low_risk` stays zeroed, `insider` stays at 0.125, the seven deployed
+  themes stay flat 1/7.
+* **The `quality` observation was NOT promoted, and this is the most important omission.**
+  `quality` clears both margins on both halves and was selected in neither direction. Acting on
+  it — or switching to a stability-based selection rule — after seeing which rule would have
+  worked is selecting the rule on the results. That is the same error as session 6's exploratory
+  LOO, one level up. Session 8 pre-registers it or nobody quotes it.
+* **X7's calibrated bars were NOT re-derived at N = 111.** Same reasoning as session 6, and the
+  direction is known and unfavourable to me: X7 measured the floor *falling* as N rises (0.8567 at
+  N = 8 → 0.7216 at N = 84), so continuing to quote 0.7216 makes passing harder, not easier.
+* **No Shapley-style decomposition.** Session 6's `needs first` table offered "LOO or a
+  Shapley-style decomposition" for the ordering problem. LOO is 7 arms; Shapley over seven themes
+  is 2⁷ = 128 subsets, i.e. a search an order of magnitude larger than everything this project has
+  logged in the equity domain to date. It would roughly **double** equity `N` on its own. Worth
+  doing only with that cost pre-registered and accepted in advance.
+* **`BACKTEST_RESULTS.json` was not regenerated.** `N = 111` changes its
+  `deflated_sharpe_detail` on the next full run. The consequence is computed exactly above
+  (0.8789 → 0.8721) rather than spending 12 minutes rewriting a tracked artifact this session did
+  not otherwise touch — and the round trip reproducing session 6's 0.8789 at N = 104 is the check
+  that the arithmetic is sound.
+* **`BACKTEST_RESULTS.md` STILL CARRIES THE OVERSTATED HEADING, and this is the one place B8
+  survives.** Line 194 of the tracked rendered artifact reads "## Held-out confirmation — does
+  zeroing a theme still help out-of-sample?", because it was rendered by a previous run. The
+  renderer is fixed; the *output* is regenerated only by a full backtest. I did not run one:
+  a full run overwrites the canonical `BACKTEST_RESULTS.json` that other lanes are reading
+  mid-audit, and session 6 set the precedent of computing the consequence instead. **Re-rendering
+  from the existing JSON was considered and rejected** — that JSON predates the fix and has no
+  `oos_verdicts`, so every OOS cell would render `n/a` and the .md would silently disagree with
+  the .json it is supposed to describe. **The next full backtest fixes it with no further work;
+  until then, do not quote that section of `BACKTEST_RESULTS.md`.**
+* **U1 was not run.** U7 foreclosed it as written and nothing this session reopens it.
+* **P4's migration has not run against the live paper-track database.** It is
+  `CREATE TABLE IF NOT EXISTS` plus an additive read path, so it applies on the next
+  `paper_track_run.py`; no live row was touched from here, and the first real run will report
+  `closed: N` for however many names have accumulated wrongly since the track started. **That
+  number is worth reading when it appears** — it is the size of the bug.
+
+## 6. IS SESSION 7 CLOSED?
+
+**Yes.** B8 was resolved before any LOO number existed, and the resolution changed the LOO's
+design rather than merely unblocking it. The LOO ran against thresholds committed in a pushed
+commit (`5a27ea1`) and returned a verdict. P4 shipped with its remaining limitation flagged
+rather than hidden. The trial cost is logged and the denominator moved.
+
+**The session produced no promotion, and one durable negative plus one durable positive:** the
+full-sample leave-one-out ranking is not stable across a time split (four of seven arms change
+sign), and `size` is the worst arm to drop in both halves independently.
+
+## 7. SESSION 8 — first item and its `needs first`
+
+**Session 8's first item is a pre-registered test of the SELECTION RULE, not of another theme.**
+This session's result is that the decide-half argmax is not the right instrument: it picked
+`momentum` and `capital_discipline`, both of which flip sign across halves, while the one theme
+stable on both halves was never selected. That is a question about the rule, and it is testable
+without touching a weight.
+
+| dependency | status |
+|---|---|
+| the corrected 69-date panel | **READY** — `data/free_analysis/panel_corrected_69d.pkl`, 113,945 rows, 2,531 names, reproduces the shipped headline |
+| the LOO machinery | **READY and PINNED** — `valuation/edge/loo_holdout.py`, `scripts/loo_prereg.py`, 4 tests |
+| the hypothesis | **READY, and it is POST-HOC** — a stability-based decide rule (require the same sign in both halves, then take the largest) would have selected `quality`. **Generated after seeing which rule worked.** It must be pre-registered and run against a *third* thing to be evidence, not re-derived on the same two halves |
+| the honest problem with it | **UNRESOLVED and it is the real obstacle.** With only two halves, "stable across halves" is measured on the same data the measurement half provides. A genuine test needs either a third block (23/23/23 dates, thinner still) or the X8 international panel. **On one panel this may simply not be answerable** — say so rather than running it thin |
+| the trial cost | **NOT FREE.** A second 7-arm sweep takes equity N 111 → 118, √(2·ln 118) = 3.09. Pre-register or do not run |
+| B8 | **RESOLVED** — `oos_verdicts` vs `stability_verdicts`, both shipping, scopes in words |
+
+**Standing, and outranking the above if Don says so:** **X8**, the international replication —
+still the only genuinely out-of-sample evidence available to either programme, and now doubly so,
+because this session's answer to "can we settle the ordering question on one panel?" is *probably
+not*.
+
+**Do not re-open:** U1 as written (U7 foreclosed it, with a mechanism); the full-sample
+leave-one-out as a source of verdicts (it does not survive a time split); `sector_neutral`,
+PEAD, TTM ROE/ROIC, robust z-scores, momentum/institutional consolidation (all rejected, all
+with numbers).

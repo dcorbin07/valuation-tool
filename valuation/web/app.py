@@ -112,8 +112,15 @@ def index():
 
 @app.route("/methodology")
 def methodology():
-    """How it works — point-in-time, survivorship, costs, and the weaknesses."""
-    return render_template("methodology.html", disclaimer=RISK_DISCLAIMER)
+    """How it works — point-in-time, survivorship, costs, the payoff shape, and the weaknesses.
+
+    `payoff` is passed rather than hard-coded into the template so the distribution on the public
+    page, the one in `/api/whatdo` and the one on the owner scorecard are the same object. A
+    number typed into a template is a number that drifts.
+    """
+    from . import payoff as _payoff
+    return render_template("methodology.html", disclaimer=RISK_DISCLAIMER,
+                           payoff=_payoff.payoff_summary())
 
 
 @app.route("/api/health")
@@ -340,6 +347,43 @@ def api_index_track():
     return jsonify(out)
 
 
+def _closed_streak(store, payoff):
+    """The realized losing streak, judged against the banked distribution.
+
+    ORDERED BY `alert_ts`, NOT BY EXIT. That is a deliberate choice and it is the one that makes
+    the comparison legitimate: the banked streak table was measured on a sequence ordered by
+    entry date, so ordering the live book by exit date would score one sequence against another
+    sequence's distribution. Trades of different horizons close out of order, so the two really
+    do differ.
+
+    A closed trade with no scoreable return is skipped rather than counted either way — see
+    `payoff.longest_loss_run`.
+    """
+    with store._conn() as c:
+        cur = c.execute("SELECT pnl_pct FROM option_alerts WHERE status='closed' "
+                        "ORDER BY alert_ts")
+        pnl = [r[0] for r in cur.fetchall()]
+    outcomes = [None if p is None else (float(p) > 0) for p in pnl]
+    scored = [o for o in outcomes if o is not None]
+    longest = payoff.longest_loss_run(outcomes)
+
+    # The run still open right now — what the reader is actually living through. The VERDICT is
+    # on the longest, because "longest run inside a stretch" is the statistic the table measures;
+    # quoting the current run against that distribution would compare two different things.
+    current = 0
+    for o in reversed(outcomes):
+        if o is None:
+            continue
+        if o:
+            break
+        current += 1
+
+    out = payoff.streak_verdict(len(scored), longest)
+    out["current_loss_run"] = current
+    out["current_is_longest"] = bool(current and current == longest)
+    return out
+
+
 @app.route("/api/options-scorecard")
 def api_options_scorecard():
     """Expectancy of the scream-buy options alerts, from REAL closed contract outcomes.
@@ -348,13 +392,22 @@ def api_options_scorecard():
     size is uninformative. Outcomes are written back by the external Robinhood job, so early on
     this legitimately reports mostly-open alerts and near-empty statistics — which is the
     honest state, not a bug.
+
+    It also carries the RUNNING LOSING STREAK against the modelled distribution. This is the
+    surface a discouraged reader actually opens, and until now it could tell them their hit rate
+    was 20% without telling them whether that was a bad run or a broken product. `streak` answers
+    exactly that, and it is capable of answering "this is worse than the record" — see
+    `payoff.streak_verdict`.
     """
     from ..edge.options_tracker import scorecard, tuning_candidates
     from ..screener.store import Store
+    from . import payoff
     try:
         st = Store()
         sc = scorecard(st)
         sc["tuning"] = tuning_candidates(st)
+        sc["payoff"] = payoff.payoff_summary()
+        sc["streak"] = _closed_streak(st, payoff)
         return jsonify(sc)
     except Exception as e:
         return jsonify({"error": safe_error(e), "overall": {"n_closed": 0}, "n_open": 0}), 200
