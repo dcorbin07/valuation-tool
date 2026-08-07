@@ -173,8 +173,51 @@ Two changes in `land-agent-branch.yml`, both contained — **no settings change 
    weakened — every commit reaching `main` is still a tree that passed all suites exactly as it
    stands. This replaces the serialization the old group provided, at the layer where it belongs.
 
+3. **The retry skips the gate when only documentation landed under us.** This was NOT in the first
+   version of the fix; it was forced by watching the fix run — see below.
+
 If all 3 attempts lose the race the job fails loudly telling you to push again — a red X, never
 silence. That is the whole point.
+
+### The retry alone was not enough, and the fix's own land is what proved it
+
+Landing this branch exposed a livelock that the design review had missed. **The gate is 24 suites
+and takes ~20 minutes; `main` was landing a new commit roughly every ~10.** So attempt 1 finished,
+found `main` had moved, and started attempt 2 — which was also overtaken. Observed live:
+`0bb4b72` landed during attempt 1, `ff39eb0` during attempt 2. With three attempts each costing a
+full gate, a branch can burn an hour and still fail.
+
+**Removing the global concurrency group trades dropped runs for lost races.** That is the right
+trade — a race fails loudly and a drop does not — but only if a race is cheap to lose.
+
+What made it cheap: **the commits winning those races were markdown handoffs.** `ff39eb0` touches
+`HANDOFF_STATUS.md` and nothing else. If the commits that landed under us contain no code, the
+merged tree's code is byte-identical to the tree that just passed every suite, so re-running the
+gate is provably unnecessary. The loop now checks:
+
+```sh
+code_changed() {
+  [ -n "$(git diff --name-only "$1" "$2" -- . ':(exclude)*.md' ':(exclude).gitattributes')" ]
+}
+```
+
+and re-merges-and-pushes without re-testing when that is empty. Anything not markdown counts as
+code — **including `.yml`**, so a workflow change never skips the gate. Verified against real
+commits in this repo before it went near CI:
+
+| range | expected | got |
+|---|---|---|
+| `ff39eb0~1..ff39eb0` (HANDOFF_STATUS.md only) | docs | **docs** |
+| `f47661c~1..f47661c` (my commit — adds a `.yml`) | code | **code** |
+| empty range | docs | **docs** |
+
+This turns the common retry from ~20 minutes into seconds, which is what makes the concurrency fix
+survivable under this repo's churn. **The gate is still not weakened:** every commit reaching `main`
+is a tree whose *code* passed every suite, and the only thing allowed to differ is markdown.
+
+**Honest note on how this was found:** I proposed it as an optional refinement, then watched my own
+branch lose two races in a row and promoted it to required. The first design was correct and
+impractical; that distinction only showed up by running it.
 
 ---
 
@@ -200,8 +243,24 @@ hopeful one.
 - All three workflow files **parse** (`yaml.safe_load`), and `land-agent-branch.yml` reports
   `concurrency = {group: land-${{ github.ref }}, cancel-in-progress: False}` with the four steps in
   order.
-- **This branch was landed through the modified Action itself** — see §0 status at the top of the
-  file once it lands. A CI fix that has not passed through CI is a claim, not a result.
+- `code_changed()` **executed against real commits** in this repo (table in §3), including the
+  conservative case that a `.yml` change counts as code.
+- **This branch was landed through the modified Action itself.** A CI fix that has not passed
+  through CI is a claim, not a result — and this one earned the distinction: the first version
+  passed review and then livelocked in practice.
+
+**One bootstrap detail worth knowing, because it cuts both ways:**
+
+- **The concurrency fix protected its own land.** For `push` events GitHub runs the workflow file
+  **from the pushed commit**, not from `main` — so this branch's run already used the per-branch
+  group and could not be cancelled by another lane.
+- **The union merge did NOT apply to its own land.** `git merge` reads `.gitattributes` from the
+  working tree, which is `main` — and `main` did not have the file yet. It takes effect for every
+  merge *after* this one.
+- **Other lanes keep the old behaviour until they merge `main`.** Their branches still carry
+  `concurrency: land-main` in their own copy of the workflow, so they can still cancel *each
+  other's* queued runs. This is self-healing — each lane picks up the fix the next time it merges
+  `main` — but it means the drop symptom can recur once or twice more before it stops.
 
 ---
 
@@ -227,7 +286,13 @@ hopeful one.
    collects `ids`, so the check is a few lines. The failure direction is self-penalising (§2), which
    is why this is a nice-to-have rather than a blocker. Not changed here: `valuation/**` is out of
    scope for this lane.
-5. **The old workflow could push an untested combination, and still can in one narrow case.** The
+5. **A 24-suite gate and a busy `main` livelock each other.** Not a bug in anything anyone wrote —
+   an emergent property of gate duration (~20 min) exceeding the interval between lands (~10 min).
+   Any serialization scheme has to survive it. Mitigated here by skipping the gate for docs-only
+   races (§3), which works precisely because this repo's churn is markdown. **If the code churn rate
+   ever rises to match, this comes back**, and the answer then is a faster gate (parallel suites, or
+   only running suites affected by the diff), not more retries.
+6. **The old workflow could push an untested combination, and still can in one narrow case.** The
    job checks out `main`, merges, tests, then pushes. If another lane landed during the test run the
    push was rejected — loudly, so no harm. My retry now re-merges *and re-tests*, closing that. But
    note the general shape: the tested tree and the pushed tree are only identical because the push

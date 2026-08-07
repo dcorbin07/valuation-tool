@@ -88,6 +88,14 @@ jobs:
           BR="${GITHUB_REF#refs/heads/}"
           git fetch origin "$BR"
 
+          # Did anything that can affect a test result land between two commits? Markdown and
+          # .gitattributes cannot change what `python tests/test_*.py` does, and this repo's
+          # churn is overwhelmingly markdown handoffs. Anything else counts as code.
+          code_changed() {
+            [ -n "$(git diff --name-only "$1" "$2" -- . ':(exclude)*.md' ':(exclude).gitattributes')" ]
+          }
+
+          need_test=1
           for attempt in 1 2 3; do
             echo "::group::Attempt $attempt — merging $BR into main"
             git fetch origin main
@@ -99,20 +107,36 @@ jobs:
             }
             echo "::endgroup::"
 
-            fail=0
-            for f in tests/test_*.py; do
-              echo "::group::$f"
-              python "$f" || { echo "::error::$f FAILED"; fail=1; }
-              echo "::endgroup::"
-            done
-            [ "$fail" -eq 0 ] || exit 1
+            if [ "$need_test" -eq 1 ]; then
+              fail=0
+              for f in tests/test_*.py; do
+                echo "::group::$f"
+                python "$f" || { echo "::error::$f FAILED"; fail=1; }
+                echo "::endgroup::"
+              done
+              [ "$fail" -eq 0 ] || exit 1
+            else
+              echo "Only documentation landed under us, so the code in this tree is byte-identical"
+              echo "to the tree that just passed every suite. Not re-running the gate."
+            fi
 
+            before=$(git rev-parse origin/main)
             if git push origin HEAD:main; then
               echo "Landed $BR on main (attempt $attempt) — Render deploys from here."
               exit 0
             fi
 
-            echo "::warning::main moved while the gate was running — re-merging onto the new tip and re-testing"
+            # Lost the race. Whether we must pay for the full gate again depends entirely on
+            # WHAT landed under us -- with a 24-suite gate taking ~20 minutes and main moving
+            # every ~10, re-testing for a handoff edit is what makes a branch livelock.
+            git fetch origin main
+            if code_changed "$before" origin/main; then
+              need_test=1
+              echo "::warning::main moved with CODE changes — re-merging and re-running the full gate"
+            else
+              need_test=0
+              echo "::warning::main moved with documentation only — re-merging and pushing without re-testing"
+            fi
           done
 
           echo "::error::Could not land $BR after 3 attempts; main moved every time. Push again to retry."
