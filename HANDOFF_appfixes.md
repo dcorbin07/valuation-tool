@@ -5,6 +5,326 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 16 — 2026-08-06 — P3: designing for a 37% hit rate
+(PROMPT_p3_design_for_a_37pct_hit_rate.md)
+
+Audit item **P3**. The product disclosed the hit rate and did not design for it. Disclosure
+tells a reader that losses are common; it does not tell them whether **their** run of losses is
+common, and that difference is the whole item. New module `valuation/web/payoff.py`, wired into
+four surfaces, pinned by `tests/test_payoff.py` (30 tests).
+
+---
+
+## 1. THE DISTRIBUTION, MEASURED FIRST — BEFORE ANY DESIGN
+
+Source: `data/options_universe/UNIVERSE_RESULTS.json`, the **B1-corrected 187-name book, 3,885
+closed trades, 2016-01 to 2025-10**. No backtest was run for this session; every figure is read
+off banked artifacts. The superseded 3,042-trade pre-correction book is quoted nowhere.
+
+### The shape
+
+| outcome | share of all trades |
+|---|---|
+| lost almost everything (worse than −90%) | **1.4%** |
+| hit the stop (−45% to −90%) | **58.2%** |
+| small loss (0 to −45%) | 5.0% |
+| small win (up to +100%) | 10.3% |
+| **at least doubled (+100% or better)** | **25.0%** |
+
+| statistic | value |
+|---|---|
+| hit rate | **35.3%** |
+| average win | +114.6% |
+| average loss | −57.3% |
+| **median trade** | **−52.2%** |
+| expectancy / trade | +3.4% |
+| profit factor | 1.09 |
+| **share of ALL winnings made by the ≥+100% trades** | **86.8%** |
+
+The single most useful line for a user: **the middle trade loses more than half the premium, and
+seven eighths of everything the winners made came from the quarter of trades that doubled.**
+
+### The two hit rates reconcile by UNIVERSE, and this was worth checking
+
+The live confidence tables quote **37.4%** (55-name book) while the broad corrected book says
+**35.3%**. The obvious worry is that the older figure is pre-B1 and wrong. **It is not.** The
+corrected book splits cleanly and the megacap half reproduces the published number almost
+exactly:
+
+| slice | n | hit rate | expectancy |
+|---|---|---|---|
+| 54 original megacaps | 1,532 | **37.27%** | +9.37% |
+| 132 names added by the breadth run | 2,353 | 34.04% | −0.47% |
+| whole book | 3,885 | **35.32%** | +3.41% |
+
+So the endpoints mean something specific — 37% is the megacap book, 35% is the broad one — and
+`HIT_RATE_RANGE = "35-37%"` is a measurement, not a hedge. Every surface now quotes the range.
+This also closes a defect I would otherwise have filed: two surfaces of one product quoting hit
+rates 2.1pp apart with nothing on either saying why.
+
+### WHAT DOES NOT EXIST, STATED RATHER THAN ESTIMATED
+
+**The corrected book's per-trade SEQUENCE is not banked.** `HANDOFF_edge_audit.md:3041` names it
+`r2_state.pkl`; it was a temp file and it is gone. `data/options_universe/state.pkl` holds only
+the superseded 3,042-trade pre-correction rows. **So a streak table measured on the real alert
+sequence cannot be computed from anything on disk**, and I did not estimate one.
+
+What IS banked from the corrected era is the **seed-0 random-entry control**
+(`control_rows.pkl`, 6,032 trades, written 2026-08-05, carrying the O20 point-in-time liquidity
+fields that date it to the corrected run). The streak table is measured on that, and the
+substitution is stated on every surface that shows it. **It is conservative in a direction worth
+spelling out: the control hits 37.2% against the book's 35.3%, and a higher hit rate means
+SHORTER losing runs — so this table understates the real book's streaks.** The interface will
+therefore call a genuinely ordinary run unusual slightly too often and never the reverse, which
+is the direction an honest design errs in.
+
+### How long is an ordinary losing run
+
+Measured on that sequence, sliding windows, longest losing run inside each stretch:
+
+| stretch | median | p75 | p90 | p95 | worst | disjoint stretches |
+|---|---|---|---|---|---|---|
+| 10 trades | 4 | 5 | 7 | 9 | 10 | 603 |
+| **20 trades** | **5** | **7** | **10** | **12** | **20** | 301 |
+| 30 trades | 6 | 9 | 12 | 15 | 27 | 201 |
+| 50 trades | 7 | 10 | 15 | 17 | 27 | 120 |
+
+P(some losing run of at least k), by stretch:
+
+| stretch | k=4 | k=5 | **k=6** | k=8 | k=10 |
+|---|---|---|---|---|---|
+| 10 | 54% | 36% | **23%** | 9% | 4% |
+| **20** | 78% | 60% | **44%** | 23% | 14% |
+| 30 | 88% | 74% | **57%** | 33% | 22% |
+| 50 | 97% | 88% | **74%** | 47% | 34% |
+
+**The audit's premise checks out and is if anything understated.** It said six straight losses
+"happens routinely" at roughly 6% — that is the per-position probability (measured 7.3% at
+35.3%). Over a 20-trade stretch, **44% of stretches contain a run of six or worse.** A user who
+sees six losses in a row has seen the median-ish outcome of taking twenty trades.
+
+### OUTCOMES CLUSTER, AND THE COMFORTABLE ARITHMETIC IS THE ONE THAT CRIES WOLF
+
+Losing runs are **longer** than independence predicts, because trades opened near each other in
+time share a market. Scored against its own shuffled null (the X7/R3 method — this project does
+not quote a design effect without one), 1,000 shuffles holding calendar structure fixed:
+
+| statistic | observed | null median | null p95 | p(null ≥ obs) |
+|---|---|---|---|---|
+| monthly design effect | **2.667** | 0.984 | 1.244 | **< 0.001** |
+| longest losing run | 27 | 17 | 23 | 0.007 |
+| runs of ≥ 6 losses | 172 | 137 | 150 | < 0.001 |
+| **runs of ≥ 10 losses** | **58** | **21** | 28 | **< 0.001** |
+
+It clears its null decisively. The consequence drives the design: at 20 trades, **independence
+puts the 95th percentile of the worst run at 10 and the measurement puts it at 12.** Using the
+tidy Bernoulli formula would have labelled a run of 11 or 12 "worse than 19 stretches in 20"
+when the record says it is ordinary. **`test_the_shipped_percentile_is_the_measured_one_and_it_is_the_looser_one`
+fails the suite if that ever inverts.**
+
+---
+
+## 2. WHAT WAS BUILT, AND WHERE IT APPEARS
+
+`valuation/web/payoff.py` — a pure module, no Flask import, the same policy-as-function pattern
+as `saas/private.py`, `saas/surfaces.py` and `web/withhold.py`, so the rules are unit-testable
+without a request. It holds the transcribed constants, `outcome_buckets()`, `streak_verdict()`,
+`longest_loss_run()`, `expectation_line()` and `payoff_summary()`.
+
+| surface | who sees it | what it now shows |
+|---|---|---|
+| `/api/whatdo` → the **Single tab panel** | **public**, incl. the options-withheld branch | the stacked distribution bar, the shape in one sentence, the streak expectation, and the refusal |
+| **`/methodology`** | **public** | a full section: the five buckets worst-first, the median trade, the tail share, the streak table, the clustering vs its null, and that the alerts were tested and do not work |
+| **Signals tab** (`payoffCard`) | owner | the same distribution, rendered **above** the alert table and above the scorecard |
+| **Options scorecard** (`streak`) | owner | the realized longest losing run judged against the banked distribution, plus the run currently open |
+| **Daily + weekly Discord recap** | owner | the streak line when there is a verdict, and the expectation in the footer of **every** post |
+
+**Placement is the substance, not decoration.** The payoff card renders *before* the alerts and
+the expectation sits in the footer of every recap, because an explanation of losing streaks that
+appears only once someone is down reads as an excuse. The same sentence beforehand is an
+expectation. That is P3's item 3 and it is the reason the card is not simply attached to the
+scorecard.
+
+**One thing the withheld branch does deliberately:** a visitor who is told an alert exists but
+not what it is has the least context of anyone and is the most likely to read "options signal"
+as "likely winner". The contract stays hidden; the payoff **shape** does not. A distribution
+from a historical simulation is not a live pick and not a performance claim.
+
+---
+
+## 3. THE "IS THIS STREAK NORMAL" RULE, DERIVED
+
+Read off the measured percentiles for the stretch the reader has actually taken:
+
+| condition | verdict |
+|---|---|
+| fewer than 10 closed trades | **`too_few`** — no verdict at all |
+| run ≤ median | `ordinary` |
+| run ≤ p90 | `ordinary` (inside the usual range) |
+| p90 < run ≤ p95 | **`unusual`** — longer than 9 stretches in 10 |
+| p95 < run ≤ worst measured | **`rare`** — longer than 19 in 20, and it has happened |
+| longer than anything measured | **`beyond_record`** |
+
+Three deliberate properties:
+
+* **It can say no.** `unusual`, `rare` and `beyond_record` are reachable on real inputs and are
+  reached in the end-to-end check below. A design that can only ever say "this is fine" is the
+  failure mode this task was most likely to produce, and
+  `test_the_design_is_not_only_capable_of_reassurance` pins that both halves are reachable.
+* **Under ten closed trades it refuses.** Three losses gets "too few to say", not a comforting
+  number. The floor is the smallest stretch the table measures, not a round number.
+* **The bracket never borrows a longer stretch than the reader has taken.** Judging 12 trades
+  against the 30-trade column would import that column's longer runs and excuse a streak the
+  record does not excuse. The cost is stated in the code: it is discontinuous and errs toward
+  **alarm** (19 trades is judged against 10-trade stretches, so a run of 10 reads `rare` for
+  them and `ordinary` one trade later). That is the direction to err in, and the sentence names
+  the stretch it used so the reader can see it happening.
+
+---
+
+## 4. BEFORE / AFTER, AS RENDERED
+
+**Before** — the entire treatment of a 35% hit rate, one sentence, identical on every surface:
+
+```
+Options here are CONVEX, not high-probability: the backtest hits 37% of the time — most
+trades lose a little and a few win big. A hit rate on its own says nothing about whether
+this works.
+```
+
+**After** — the same slot, `/api/whatdo` and the recap footer:
+
+```
+Options here are CONVEX, not high-probability: the backtest hits 35-37% of the time — most
+trades lose a little and a few win big. A hit rate on its own says nothing about whether
+this works. Expect losing streaks. Over 20 trades the typical worst run is 5 in a row, 44%
+of stretches contain a run of 6 or worse, and the record's worst at this scale is 20.
+```
+
+**After** — the scorecard, run end-to-end against a real sqlite table (all four verdicts
+reachable):
+
+```
+3 losses, brand new book
+  too_few    3 closed trade(s) is too few to say whether a losing run is unusual. The record
+             only measures stretches of 10 trades and up.
+
+20 trades, worst run 5
+  ordinary   5 losses in a row over 20 closed trades: the typical worst run over 20 trades
+             is 5, measured against 20 trades. 60% of measured stretches contain a run this
+             long.
+
+20 trades, worst run 11
+  unusual    11 losses in a row over 20 closed trades: longer than 9 stretches in 10; the
+             95th percentile is 12, measured against 20 trades. 9% of measured stretches
+             contain a run this long.
+
+20 trades, worst run 14
+  rare       14 losses in a row over 20 closed trades: longer than 19 stretches in 20 - it
+             does happen, and the worst in the record at this scale is 20, measured against
+             20 trades. 3% of measured stretches contain a run this long.
+```
+
+**After** — the public methodology page (rendered, tags stripped):
+
+```
+The options side wins about a third of the time, and that is the design
+
+  1.4%  lost almost everything (worse than -90%)
+ 58.2%  hit the stop (-45% to -90%)
+  5.0%  small loss (0 to -45%)
+ 10.3%  small win (up to +100%)
+ 25.0%  at least doubled (+100% or better)
+
+The middle trade loses 52% of the premium. The trades that at least doubled are 87% of
+everything the winners made... How long is an ordinary bad run? Expect losing streaks. Over
+20 trades the typical worst run is 5 in a row, 44% of stretches contain a run of 6 or worse,
+and the record's worst at this scale is 20... the clustering measures 2.667 against a
+shuffled null whose 95th percentile is 1.244 (1,000 shuffles, p < 0.001). Assuming
+independence would put the 95th-percentile worst run at 10 instead of the measured 12 — so
+the tidy arithmetic is the one that would cry wolf.
+
+None of that says the options alerts work — they were tested and they do not. Measured
+against random entry on the same names and dates, the alert's choice of day subtracted
+value: -6.65 percentage points per trade, paired sign test p < 0.00001.
+```
+
+---
+
+## 5. WHAT I CHOSE **NOT** TO SHOW, AND WHY
+
+* **No cumulative equity curve of the backtested options book, and no "$143,723 on one
+  contract".** It is the most persuasive figure available and it is the one that would most
+  read as a performance claim on a free educational site. The distribution answers the user's
+  actual question ("is my run normal?"); a P&L curve answers "how much would I have made",
+  which is a question this product does not answer for a strategy it has measured as dead.
+* **No forward-looking streak prediction.** The table describes stretches that happened. It
+  does not say "expect 5 more losses". A number that looks like a forecast on a payoff this
+  noisy would be the same overreach the confidence badge was already corrected for once.
+* **No per-name streak.** `unified.options_for` still reports a per-ticker record as a COUNT.
+  Two of three winners on one name is not a rate and is not a streak either.
+* **No position-sizing recommendation.** The audit's P3 text asks for O12's sizing to be made
+  prominent, since sizing is the real defence against a 37% hit rate. **I did not do that half**
+  — O12 is not in this lane's record and I could not find a banked sizing result to render, and
+  inventing one to fill a section is exactly what this project's rules forbid. `options_sizing`
+  already returns whole contracts against a fixed risk budget and the whatdo panel already
+  states "0 contracts is a real answer". **Routed: if O12 has a banked recommendation, wiring
+  it next to this payoff card is a small follow-up.**
+* **The confidence badge was left alone.** It lives in `valuation/edge/options_confidence.py`,
+  out of lane, and it was already corrected once to frame expectancy rather than win
+  probability. Nothing here needed it changed.
+
+---
+
+## BUGS FOUND
+
+**1. `/methodology` publishes research numbers this project's own record marks VOID.** Not
+mine to have introduced, and found while adding the options section to the same page. Three,
+all public:
+
+| the page says | the record says |
+|---|---|
+| FF5+MOM alpha **+8.81%/yr, t 5.74**, 109 windows, 1998–2026 | **VOID.** `CLAUDE.md`: "THE OLD +8.81%/yr AND THE +6.6%–8.8% RANGE ARE VOID. Do not quote them anywhere." Corrected R1 re-run: **+6.99%/yr, NW t +3.984**, 68 windows, 2009-01 → 2025-10 |
+| breakeven **236 bps** one-way vs a **37 bps** cost profile | B11: breakeven **134 bps** against a **measured 33.4 bps**; the old 37 bps "was an assumption quoted as a measurement" |
+| the Deflated Sharpe "is an **undeflated** one… saturates at >99.9% because it is deflating nothing" | B9's mechanism was **refuted by measurement** and M1 superseded it: at the real N = 84 the statistic self-reports as a genuine Deflated Sharpe of **0.8997**, which **fails** the >0.95 bar while sitting above all 100 placebo draws |
+
+The third is the one to be careful with — its honest current form is "fails the conventional bar
+**and** clears the noise floor", and half of that sentence on a public page is worse than the
+stale version. **Deliberately not bundled into the P3 commit**; it is a rewrite of equity
+research claims and it wants the edge lane's sign-off on wording, not a display fix smuggled in
+beside an options feature. Flagged here as the highest-priority item this lane found.
+
+**2. The corrected options book's per-trade rows were never banked.** `r2_state.pkl` was a temp
+file; only aggregates survive in `UNIVERSE_RESULTS.json`. That is why this session's streak
+table had to be measured on the control instead of the book. The Session-5 closeout added a
+`BANK_MANIFEST.json` guard so the runner can no longer overwrite a banked book — but the guard
+protects `data/options_universe/`, and this run wrote its state to a temp path outside it.
+**A guard on the destination does not help when the run points somewhere else.** Anything that
+wants the real alert sequence (U7's join, any future streak work) has to re-run the book.
+
+**3. `test_the_constants_are_transcribed_from_the_banked_book_not_invented` silently asserted
+nothing in a worktree, and I nearly shipped it that way.** `data/` is not present three levels
+down, so the file check no-opped and the test still printed PASS. Fixed two ways: the search
+path now also looks at the real checkout (`../../../data/…`, which is where an agent worktree's
+data actually lives), and the constants are additionally frozen in the test file so the suite
+asserts something everywhere. Same class as the `rule_fired` defect in B8 — a test that never
+reaches its assertion is worse than no test.
+
+---
+
+## THIS ITEM IS DONE. WHAT REMAINS, AND WHOSE IT IS
+
+* **P3's sizing half → whoever owns O12.** See section 5; not estimated, not faked.
+* **The methodology page's void equity numbers → edge lane**, per BUG 1.
+* Still open from Session 15, unchanged and re-confirmed: **the refusal erased by the scan**
+  (`_enrich_with_dcf` writes `fair_value = None`, `estimate_fair_values` substitutes a peer
+  estimate, so KSPI/STLA/CHTR carry fair values on the public hot list) → **engine lane**; the
+  disclosure sentence at `app.js:958` is a stopgap and should come down in the same commit that
+  fixes the scan. And **CI publishing +275% at HIGH confidence** with a comps lens implying 8.0x
+  price → **engine/DCF lane**; a valuation problem, not a guard problem.
+
+---
+
 # Session 15 — 2026-08-06 — The untimed result cache behind the exports
 (PROMPT_web_stale_cache.md)
 

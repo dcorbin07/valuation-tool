@@ -500,11 +500,19 @@
           </select>
         </label>
       </div>
+      <!-- THE PAYOFF SHAPE, ABOVE THE ALERTS AND ABOVE THE SCORECARD. Placement is the point:
+           a reader who learns that most of these lose only after they have lost is being handed
+           an excuse, not an expectation. Rendered from the banked distribution by renderPayoff. -->
+      <div id="payoffCard" class="card" style="margin-top:14px;display:none">
+        <h3 style="margin:0 0 8px">Before you read the alerts — the shape of this payoff</h3>
+        <div id="payoffBody"></div>
+      </div>
       <!-- Live expectancy of past scream-buy alerts. Expectancy, not "success rate": with an
            asymmetric payoff a hit rate on its own says nothing about whether the setup pays. -->
       <div id="optScorecard" class="card" style="margin-top:14px;display:none">
         <h3 style="margin:0 0 8px">Scream-buy options — live expectancy</h3>
         <div class="note" id="optScoreNote" style="margin-bottom:10px"></div>
+        <div id="optStreak" style="margin-bottom:10px"></div>
         <div id="optScoreBody"></div>
       </div>
       <div class="search-row" style="align-items:center">

@@ -30,12 +30,24 @@ from typing import Optional
 
 # The one number that has to travel with every options statement on the page.
 from ..edge.options_confidence import HIT_RATE
+from .payoff import expectation_line, payoff_summary, HIT_RATE_RANGE
 
 # Written once, attached everywhere an options figure appears — including the withheld case,
 # where a reader still sees a contract exists and would otherwise fill in "signal = likely".
+#
+# It quotes the RANGE rather than 37%: the confidence tables are calibrated on a 55-name book
+# that hits 37.4% and the broad corrected book hits 35.3%, and picking one of them to be "the"
+# hit rate would make two surfaces of the same product disagree by a point and a half with
+# nothing on either saying so. `payoff.HIT_RATE_RANGE` is the single place that range is written.
+#
+# The second sentence is the part that is new, and it is the whole point of P3: a reader told
+# only that "most trades lose" still has no way to judge their own run of losses. The streak
+# number is measured, and it is stated BEFORE anyone is down rather than offered afterwards as
+# an excuse.
 _CONVEXITY = (f"Options here are CONVEX, not high-probability: the backtest hits "
-              f"{HIT_RATE:.0%} of the time — most trades lose a little and a few win big. "
-              f"A hit rate on its own says nothing about whether this works.")
+              f"{HIT_RATE_RANGE} of the time — most trades lose a little and a few win big. "
+              f"A hit rate on its own says nothing about whether this works. "
+              + expectation_line(20))
 
 
 def _f(x) -> Optional[float]:
@@ -169,6 +181,10 @@ def options_for(store, ticker, risk_budget=None) -> dict:
                         if closed else None),
         "hit_rate_reference": HIT_RATE,
         "convexity": _CONVEXITY,
+        # The distribution, not just the average. A hit rate and a mean expectancy describe a
+        # convex book badly, and the reader who most needs the shape is the one who has just
+        # seen a loss — so it ships on every options payload rather than on request.
+        "payoff": payoff_summary(),
     }
 
 
@@ -258,10 +274,15 @@ def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
     if with_options:
         out["options"] = options_for(store, ticker, risk_budget=risk_budget)
     else:
+        # The CONTRACT is withheld; the payoff SHAPE is not. Withholding the shape would leave a
+        # visitor who can see an alert exists with nothing but "options" to reason from, which
+        # is the exact gap that makes a 35% hit rate read as a broken product. The shape is a
+        # property of a historical simulation, not a live pick and not a performance claim.
         out["options"] = {"withheld": True, "hit_rate_reference": HIT_RATE,
                           "message": ("The specific options contract is part of Signals. The "
                                       "ranking above is the same one the Hot Stocks tab shows."),
-                          "convexity": _CONVEXITY}
+                          "convexity": _CONVEXITY,
+                          "payoff": payoff_summary()}
     out["action"] = _action_lines(out)
     out["disclaimer"] = ("Educational only, not advice, and nothing here is routed to a broker. "
                          "Forward figures are paper.")

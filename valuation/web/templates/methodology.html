@@ -76,6 +76,42 @@
   factor ETFs you can actually buy — that was tested separately and <b>was not demonstrated</b>
   (a +9.2pp margin at t 1.10, negative in the first half: a null).</div>
 
+  <h3>The options side wins about a third of the time, and that is the design</h3>
+  <p>The research also runs an options book, and its hit rate is <b>{{ payoff.hit_rate_range }}</b>
+  depending on which book you measure. That number is the one most likely to be misread, so here
+  is the whole distribution rather than the average. Over
+  <b>{{ "{:,}".format(payoff.n_trades) }} simulated trades</b> on {{ payoff.n_names }} names,
+  {{ payoff.window }}:</p>
+  {# Worst first, deliberately. Leading with "25% at least doubled" is the framing this whole
+     section exists to correct. #}
+  <ul>
+    {% for b in payoff.buckets %}
+    <li><b>{{ "%.1f"|format(b.share * 100) }}%</b> — {{ b.label }} ({{ b.detail }})</li>
+    {% endfor %}
+  </ul>
+  <p>The middle trade loses <b>{{ "%.0f"|format(payoff.median_trade_pct * -100) }}%</b> of the
+  premium. The trades that at least doubled are <b>{{ "%.0f"|format(payoff.tail_share_of_gross_win * 100) }}%</b>
+  of everything the winners made. A book like this is <em>supposed</em> to lose most of the time,
+  and a string of losses is its normal texture rather than a sign it has stopped working.</p>
+  <p><b>How long is an ordinary bad run?</b> {{ payoff.streaks.expectation }} Losing runs are
+  longer than a coin-flip model predicts, because trades opened near each other in time share a
+  market: the clustering measures {{ payoff.clustering.design_effect }} against a shuffled null
+  whose 95th percentile is {{ payoff.clustering.null_p95 }}
+  ({{ "{:,}".format(payoff.clustering.shuffles) }} shuffles, p&nbsp;{{ payoff.clustering.p_value }}). Assuming
+  independence would put the 95th-percentile worst run at
+  {{ payoff.streaks.iid_p95 }} instead of the measured {{ payoff.streaks.p95 }} — so the tidy
+  arithmetic is the one that would cry wolf.</p>
+  <div class="note" style="margin:12px 0"><b>None of that says the options alerts work — they
+  were tested and they do not.</b> Measured against random entry on the same names and dates, the
+  alert's choice of day <b>subtracted</b> value: −6.65 percentage points per trade, paired sign
+  test p&nbsp;&lt;&nbsp;0.00001. We publish the payoff shape so a losing streak is legible, not
+  as evidence of an edge. There is none demonstrated here, and the alerts are an idea generator
+  rather than a signal to act on.
+  {# NOT |capitalize: Jinja's capitalize lower-cases the rest of the string, which quietly
+     destroyed the emphasis on "too SHORT" — the one word that says which way the substitution
+     errs. The source string is written to be quoted verbatim. #}
+  <br><span class="muted">Streaks {{ payoff.streaks.source }}.</span></div>
+
   <h3>Where it is weak — read this part</h3>
   <ul>
     <li><b>It has seen one dataset.</b> Every backtested figure comes from a single 18-year
