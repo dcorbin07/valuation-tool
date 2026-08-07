@@ -17,6 +17,60 @@ file directly.
 
 ---
 
+## P3 DONE — THE OPTIONS PAYOFF IS NOW SHOWN, NOT JUST DISCLOSED (2026-08-06, app-fixer lane)
+
+Full write-up: **`HANDOFF_appfixes.md`**, Session 16. Branch `worktree-p3-hitrate` (`52f523d`),
+landing via CI. New `valuation/web/payoff.py` + `tests/test_payoff.py` (30 tests); **24 suites,
+822/823 green** — the one non-pass is M3's own documented xfail in `test_guards.py`, not mine.
+**Two things here are other lanes' business, so they are in this file and not only in mine.**
+
+> **ON THE AUTO-LAND BLOCKER NOTED BELOW: it resolved, then bit this branch a second time for a
+> different reason.** From this lane's polling, `main` advanced four times in ~40 minutes
+> (`57f63b7` → `729d8dd` → `3fa9520` → `0312426`), so the Action is alive and landing branches.
+> What kept THIS branch out on its second attempt was a genuine **conflict in
+> `HANDOFF_STATUS.md`** — two lanes prepending a section at the same anchor — which makes the
+> Action `git merge --abort` and leave `main` untouched, exactly as designed. **Check
+> `git merge origin/main` locally before assuming the runner is down**; a clean
+> `merge-tree` from an hour ago is not evidence about a `main` that has moved four times since.
+
+**1. `/methodology` — a PUBLIC page — is publishing three equity numbers this project's own
+record marks VOID. This is the highest-priority thing I found and it is not mine to fix.**
+
+| the live public page says | the record says |
+|---|---|
+| FF5+MOM alpha **+8.81%/yr, t 5.74**, 109 windows, 1998–2026 | **VOID.** CLAUDE.md: "Do not quote them anywhere." Corrected R1: **+6.99%/yr, NW t +3.984**, 68 windows |
+| breakeven **236 bps** vs a **37 bps** cost profile | B11: breakeven **134 bps** vs a **measured 33.4 bps**; the 37 bps "was an assumption quoted as a measurement" |
+| the Deflated Sharpe "is an **undeflated** one … deflating nothing" | B9's mechanism was refuted and M1 superseded it: at N = 84 it self-reports as a genuine Deflated Sharpe of **0.8997**, which **fails** >0.95 while sitting above all 100 placebo draws |
+
+I did **not** change them. The third one's honest form is "fails the conventional bar *and*
+clears the noise floor", and half of that sentence on a public page is worse than the stale
+version — it wants the edge lane's wording, not a display fix smuggled in beside an options
+feature. **→ edge lane.**
+
+**2. The corrected options book's PER-TRADE ROWS ARE GONE.** `r2_state.pkl` (the 3,885-trade
+corrected 187-name book) was a temp file. `data/options_universe/state.pkl` holds only the
+**superseded** 3,042-trade pre-correction rows; `UNIVERSE_RESULTS.json` has aggregates only.
+Session 5's `BANK_MANIFEST.json` guard protects `data/options_universe/` — but that run wrote
+its state outside it, and **a guard on the destination does not help when the run points
+somewhere else.** Anything needing the real alert sequence (U7's join at the alert date, any
+future streak or timing work) has to re-run the book. Stated now rather than discovered later.
+
+**What P3 measured, for the record** (banked artifacts only, no new backtest): the corrected
+book hits **35.3%**, the median trade loses **52.2%** of the premium, **25.0%** at least double
+and those are **86.8%** of everything the winners made. Over 20 trades the typical worst losing
+run is **5** and **44%** of stretches contain a run of 6 or worse. Outcomes **cluster** — monthly
+design effect **2.667** against a shuffled null whose p95 is **1.244** (1,000 shuffles,
+p < 0.001), runs of ≥10 losses appear **58** times against a null median of **21** — so the
+shipped streak rule reads a measured table, not the Bernoulli formula, which at 20 trades would
+put the 95th percentile at 10 against a measured 12 and would cry wolf on ordinary runs.
+
+Also settled: the **37.4% and 35.3% hit rates are not a defect**, they are two universes. Inside
+the corrected book the 54 original megacaps hit **37.27%** and the 132 added names **34.04%**.
+Every surface now quotes "35–37%" from one source.
+
+Nothing shipped implies the options alerts work; the measured **−6.65pp** gap against random
+entry (R2) travels with every payload that carries the shape.
+---
 > **BLOCKER FOR EVERY LANE, NOT JUST THIS ONE (noticed 2026-08-06 ~19:30 ET): the auto-land
 > Action has not merged anything to `main` in over six hours.** `origin/main` is still at
 > `3213668` (13:19 ET) while **five** `worktree-*` branches have pushed since — options-live,
@@ -192,24 +246,31 @@ what let it hide. Both fixed; `no_data_in_range` is now its own status.
 
 ---
 
-## D: BACKUP REBUILT — AND THE DRIVE NEEDS ONE ELEVATED COMMAND (2026-08-06, r1 lane)
+## D: BACKUP REBUILT — THE SCRIPT IS DONE, THE BACKUP DOES NOT EXIST, THE DRIVE IS DEAD (2026-08-06, r1 lane)
 
 Full write-up in `HANDOFF_backup.md`. Housekeeping lane, nothing under `valuation/**` touched.
 
-**ACTION REQUIRED FROM DON — this is the only blocker.** The backup drive is now physically
-write-protected: it is FAT32, it was filled twice, and Windows has flagged it
-`OperationalStatus: Full Repair Needed`, dirty, `IsReadOnly: True`. Repairing it needs an
-administrator prompt, which this session does not have. Run as administrator:
+**Two claims, only the first is true: the rewrite is finished and 40/40 tested; the backup has NOT
+run.** There is no writable target. **The D: drive is at end-of-life — hardware read-only at the
+flash controller, not a software flag and not repairable.** `diskpart` reports
+`Read-only : No` (attribute clear) alongside `Current Read-only State : Yes` (device enforcing it);
+`attributes volume clear readonly` returns "not supported on removable media" and `chkdsk` cannot
+run on a volume it cannot write to. **Do not spend more time trying to repair it.**
 
-```
-diskpart -> list disk -> select disk 1 (CONFIRM it is the 116 GB Lexar) ->
-attributes disk clear readonly -> exit
-chkdsk D: /f
-```
+**ACTION REQUIRED FROM DON — attach a replacement.** An **external SSD**, **exFAT**, any drive
+letter, **128 GB minimum** (256 GB comfortable — the miner projects ~199 GB for `data\options`).
+Then change two lines at the top of `backup_to_D.ps1` (`$DST`, `$LOG`) and run
+`.\backup_to_D.bat dryrun` then `.\backup_to_D.bat`. Nothing else is drive-specific.
 
-Then say so, and the rest is automatic. **Until then there is no working backup of `.env`, the
-freeze, or the paper track** — the copy on D: is from before 02:00 on 2026-08-06 and cannot be
-updated.
+**Until then there is no off-machine backup of `.env`, the freeze, or the paper track** — the copy
+on D: is from before 02:00 on 2026-08-06, is readable but stale, and can never be updated. Keep the
+old drive on a shelf until the replacement completes one successful run.
+
+**Why the drive died, and why the rewrite matters beyond disk space:** `/MIR` over 55,934 files
+twice a day is a write-cycle load a USB flash stick does not survive — consumer NAND has no
+over-provisioning budget for that, and the controller locked the device read-only rather than lose
+data silently. The new allowlist backup writes **20,418 files / 38.01 GB once a day** instead of
+55,934 files / 112.04 GB twice — **~5.5× less write load** on the replacement.
 
 **Cause of the disk filling — not what it looked like.** `/XD` is not broken (verified three
 ways, including a controlled robocopy experiment). There were **two** backup scripts on **two**
@@ -242,10 +303,10 @@ against C: — exactly 2 distinct files existed only on D:, both rescued to
 not run them — run by hand after touching the backup. Python suites unaffected: 14/14
 factor-alpha, 13/13 fragility, 191/191 edge.
 
-**Watch this:** the miner projects ~199 GB for a full 1,000-name `data\options`. That will not
-fit, and it is the next thing that breaks the backup. Also, D: is FAT32 with a 4 GB per-file
-ceiling and the backup's largest file is already 3.00 GB — if the drive is ever reformatted,
-use exFAT.
+**Watch this:** the miner projects ~199 GB for a full 1,000-name `data\options`. That will not fit
+on a 128 GB target and it is the next thing that breaks the backup. Also **format the replacement
+exFAT, never FAT32** — FAT32's 4 GB per-file ceiling is already close (largest backed-up file is
+`sep.csv` at 3.00 GB, and the next freeze will likely exceed 4 GB).
 
 ---
 

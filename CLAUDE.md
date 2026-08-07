@@ -366,8 +366,11 @@ the project's memory and the old versions had been repeated for months.
   * **The expectation was written down first and was RIGHT** (NULL at 70/30), breaking a
     four-run streak of wrong directional calls. One correct call after four wrong ones does not
     license reasoning about direction; keep measuring.
-  * **Equity `N` 104 → 111. Deflated Sharpe 0.8789 → 0.8721** (still above X7's 0.7216 floor,
-    still below the 0.95 convention); **√(2·ln 111) = 3.069.** Also settled this session:
+  * **Equity `N` 104 → 111 from this session's 7 arms, then → 116 once a concurrent lane's 5
+    equity trials merged. QUOTE 116: Deflated Sharpe 0.8674, √(2·ln 116) = 3.083** (still far
+    above X7's 0.7216 floor, still below the 0.95 convention). **`N` is a PROJECT quantity, not
+    a session one** — it is now two sessions running that the realised count overshot its own
+    pre-commitment, for a different reason each time. Also settled this session:
     **`SUPERSEDED` rows DO count toward `N`** — the schema prose said otherwise and
     `research_log.py` never implemented it; the counter is right and the prose is fixed.
 - **SUPERSEDED 2026-08-04 (audit session 2, B6) — EVERY NUMBER IN THE NEXT TWO BULLETS WAS

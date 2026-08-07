@@ -3945,6 +3945,28 @@ whole, as the record requires: *"Deflated Sharpe 0.8721 at N = 111 — fails the
 The task brief's "92 → 99, √(2·ln 99) = 3.03" was stale by one session; the correction is in
 §1 above and the realised figure is **3.069**.
 
+### POST-MERGE CORRECTION — the denominator moved again while this session ran
+
+`origin/main` was merged into this branch at close-out and a concurrent lane
+(`HANDOFF_signals.md`: S4, S4b, S1a, S1b, S2) had landed **five more equity trials**. `N` is a
+PROJECT-level quantity, not a session-level one, so the honest final figure is not the one this
+session predicted:
+
+| | equity `N` | `sr0` | Deflated Sharpe | `√(2·ln N)` |
+|---|---|---|---|---|
+| before session 7 | 104 | 0.4181 | 0.8789 | 3.0478 |
+| **+ this session's 7 LOO arms** | **111** | 0.4218 | 0.8721 | 3.0690 |
+| **+ the signals lane's 5, post-merge** | **116** | **0.4243** | **0.8674** | **3.0834** |
+
+**Quote 116 and 0.8674, not 111 and 0.8721.** This session's own *cost* is the 7 arms; the
+denominator the headline is charged is whatever has landed. That distinction is exactly why M1
+put the counter in a file instead of a constant — and it is the second session running in which
+the realised `N` overshot its own pre-commitment, for a different reason each time (session 6:
+`SUPERSEDED` rows count; session 7: a parallel lane landed mid-run).
+
+**No verdict moves.** 0.8674 is still far above X7's calibrated floor of 0.7216 and still below
+the 0.95 convention, which is the same sentence as before at a slightly worse number.
+
 ## 3. RESULTS — P4, the paper track's rules
 
 **The bug, restated from the code:** `seed_book` (`paper_track.py`) computed `fresh = [names not
