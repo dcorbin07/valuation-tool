@@ -4065,6 +4065,20 @@ refused — the same failure mode as the bug being repaired, in the opposite dir
 invisible. Found by writing the re-entry test before believing the implementation. Fixed by
 moving closed stints to `paper_index_closed` keyed on `(ticker, entry_date)`.
 
+**4b. B8 REACHED THE PRODUCT-FACING FILE, AND FIXING THE FUNCTION ONLY FIXED HALF OF IT.**
+`results_file.render_md` headed this section **"Held-out confirmation — does zeroing a theme
+still help out-of-sample?"** and told the reader "the theme is judged on one half and the effect
+measured on the other" — a description of the protocol the code did **not** run, rendered into
+the artifact a human actually reads. I had already fixed `holdout_theme_validate` and would have
+shipped the session with the overstatement intact, because the fix and the label live in
+different files and only the function was in the audit item. Found by reading the renderer to
+check nothing downstream broke. The section is now headed "Held-out theme checks — stability,
+and the rule-gated out-of-sample verdict", carries **both** verdicts plus the
+directions-tested count, and says in words that the stability column is *not* an out-of-sample
+confirmation. `test_holdout_theme_validate_protocol` now asserts the old heading is **absent**,
+so it cannot come back quietly. **The general lesson: an audit item scoped to a function is not
+discharged until the strings that describe it are checked too.**
+
 **5. A second consequence of P4 that would have been a new bug.** `index_point` computed
 `inception` as the minimum entry date over open holdings. Once names can leave, that walks the
 track's start date forward every time its oldest position is sold — the record would appear to

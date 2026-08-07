@@ -1613,7 +1613,13 @@ def test_holdout_theme_validate_protocol():
     from valuation.edge.results_file import build_payload, render_md
     p = build_payload({"holdout_validation": r, "horizons": {}, "cpcv": {}, "construction": {}})
     assert p["holdout_validation"]["verdicts"] == r["verdicts"]
-    assert "Held-out confirmation" in render_md(p)
+    md = render_md(p)
+    # AUDIT B8 — the RENDERED file used to head this section "Held-out confirmation ...
+    # out-of-sample" over a verdict that is a both-halves stability check. Fixing the
+    # function while leaving the product-facing label wrong would have fixed half of B8.
+    assert "Held-out theme checks" in md
+    assert "Held-out confirmation" not in md, "the overstated heading came back"
+    assert "NOT an out-of-sample confirmation" in md
 
 
 def test_monotonicity_sign_convention():
