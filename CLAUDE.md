@@ -5,7 +5,9 @@
 > never silencing a check. Every agent, every run, no exceptions.**
 
 You are picking up **Valquo** (valquo.co), a Python/Flask stock-analysis SaaS owned by Don
-(donniecorbin6@gmail.com). Be honest, concise, and never oversell. Architecture is in section 4 below;
+(donniecorbin6@gmail.com). Be honest, concise, and never oversell. Architecture is under
+**"Core file"** below (CORRECTED 2026-08-07, claims audit: this used to say "section 4 below" —
+there are no numbered sections in this file and never have been, so the pointer led nowhere);
 the optimization/data research roadmap is in `OPTIMIZATION_RESEARCH.md` — read it once for detail.
 
 ## What it is
@@ -16,7 +18,11 @@ purely-statistical, out-of-sample-gated self-learning loop re-tunes weights.
 ## How to run (you can run these directly — Don cannot / will not)
 - Full backtest: `python -m valuation.edge.fundamental_panel --data-dir data/backtest --json data/backtest/last_result.json` (or `run_backtest.bat`). Reads licensed Sharadar exports in `data/backtest`. Takes 20-40 min.
 - 13F due-diligence: `python -m valuation.edge.fundamental_panel --data-dir data/backtest --validate-institutional` (or `validate_13f.bat`).
-- Tests (keep green, currently 16/16): `python tests/test_edge.py`.
+- Tests (keep green, **currently 249/249**): `python tests/test_edge.py`. **CORRECTED 2026-08-07
+  (claims audit): this line read "currently 16/16" — measured today it is 249/249, exit 0.** It is
+  also not the whole gate: `tests/` holds **24** suites and the auto-land Action runs EVERY one of
+  them (audit C7), so verify with a loop over `tests/test_*.py` before pushing, not with
+  `test_edge.py` alone.
 - Deploy: Don runs `git_push.bat` himself (pushes to GitHub -> Render; Actions run the scans).
 
 ## HARD RULES (do not violate)
@@ -97,6 +103,37 @@ the project's memory and the old versions had been repeated for months.
     "I expect the veto to HELP, 60/40". R10, O20, the spread toll and now U7. **Do not reason
     about the direction of an effect in this project; measure it. Writing the expectation down
     first is worth doing precisely because it keeps being wrong.**
+- **X8 HAS LANDED AND IT REPLICATES — THE PROJECT'S ONLY OUT-OF-SAMPLE EVIDENCE, AND THIS FILE
+  RECORDED IT NOWHERE UNTIL NOW (added 2026-08-07 by the claims audit; landed 2026-08-04,
+  `7edf594`, ledger X8 DONE, write-up in `HANDOFF_free_analysis.md`).** Two bullets below still
+  say "still ONE panel; **X8's international replication is the out-of-sample evidence, R1 is
+  not**" — written as though X8 were pending. It ran. Untuned 5-theme equal-weighted composite,
+  themes mapped 1:1 with **no tuning**, on Global Factor Data (JKP), monthly `vw_cap`, matched
+  window 1999-01 → 2026-04, bar committed in writing first (NW t > 2.0, 12 lags, in **both**
+  Japan and developed Europe):
+  * **VERDICT: REPLICATES. Japan +2.05%/yr (NW t 3.85), developed Europe +3.36%/yr (t 4.30),
+    world ex-US +3.37% (t 5.03).** Europe is not one country: **all 15 positive, 12 of 15 clear
+    t > 2**.
+  * **THE STRIKING PART IS THE CONTROL: the USA is the WEAKEST region tested (t 2.35)** — weaker
+    than Japan, Europe and world-ex-US. Whatever else is true, **the theme structure is not a US
+    artefact.** It is out-of-sample in vendor, country, construction and period simultaneously.
+  * **WHAT IT DOES NOT ESTABLISH — carry this with it: MAGNITUDE.** The JKP composite earns
+    **+2% to +3.4%/yr** long-short at `vw_cap`; Valquo's own long-short is **+11.04%/yr**
+    (`construction.long_short_ann`, corrected panel). Not comparable instruments (capped
+    value-weighted broad factors vs an equal-weighted concentrated decile book), but the gap is
+    a factor of 3-5 and **nothing in X8 corroborates it.** *(The X8 write-up states the gap as
+    "a factor of six" against a Valquo long-short of +20.4%/yr; that figure does not match the
+    landed corrected panel, which reads 11.04%. Quoted here from the artifact, not the handoff —
+    the direction of the caveat is unchanged either way. Flagged for the free-analysis lane.)*
+  * **The composite replicates while its COMPOSITION does not.** Japan is carried by value
+    (+2.27) and size (+1.81); quality is **−0.12** and momentum +0.88 there. The US control is
+    nearly the mirror image (quality +3.03, momentum +1.69, value +1.01, size +0.87). Momentum
+    failing in Japan is a documented stylised fact, which is evidence the data is real rather
+    than a defect. An equal-weighted blend is the right structure for that world — a quiet
+    vindication of the untuned flat weights.
+  * Secondary arm, reported as measured: JKP publishes **terciles**, not deciles, so monotonicity
+    is across 3 points and is weaker than the pre-registration promised. 5/5 correct-sign in the
+    US, 4/5 in Japan (the exception is `qmj`, consistent with quality's t there).
 - **THE THRESHOLDS ARE NOW CALIBRATED — READ THIS BEFORE QUOTING ANY t, IC OR PBO
   (2026-08-05, audit X7). Every bar in this project was a CONVENTION until this run; three of
   the four are too low, and one is at the noise level.** `scripts/placebo.py` shuffles the
@@ -226,8 +263,13 @@ the project's memory and the old versions had been repeated for months.
   project claimed to clear fails once the denominator is honest.** Every multiple-testing claim
   was computed against `N = 8` — the eight weight schemes. `RESEARCH_LOG.md` is now populated and
   `valuation/edge/research_log.py` feeds the real count into `_deflated_sharpe` and
-  `_trials_haircut`. Measured trial counts: **equity 84, options 139, infra 1, total 224** (session 5 added 4 options rows)
-  (against the audit's ~146 estimate; 15 `FIXED` correctness rows correctly do NOT count).
+  `_trials_haircut`. Trial counts **as of this bullet**: equity 84, options 139, infra 1, total 224
+  (session 5 added 4 options rows), against the audit's ~146 estimate; `FIXED` correctness rows
+  correctly do NOT count. **CORRECTED 2026-08-07 (claims audit): those counts are STALE — measured
+  today `research_log.detail()` reads equity 116, options 155, infra 1, total 272 (51 rows counted,
+  17 `FIXED` rows not counted). `N` is a project quantity that keeps rising; quote the equity 116
+  and the 0.8674 from the session-7 bullet below, not the 84 in the table that follows.** The table
+  is kept as the record of what M1 measured on the day it landed.
 
   | | N = 8 (as shipped) | **N = 84 (measured)** |
   |---|---|---|
@@ -320,8 +362,10 @@ the project's memory and the old versions had been repeated for months.
 - **B8 IS FIXED (2026-08-06, session 7), AND `low_risk` SURVIVES IT ON HALF THE EVIDENCE THE
   RECORD CLAIMED.** `holdout_theme_validate`'s docstring described a clean protocol — flag a
   theme on one half with a pre-specified rule, then measure removal ONLY on the other half — and
-  the code never implemented step 2: `rule_fired` was computed (`fundamental_panel.py:3545`; the
-  long-cited `:3048` had drifted into an unrelated function) and never read. Two verdicts now
+  the code never implemented step 2: `rule_fired` was computed and never read. (Line cite, current
+  2026-08-07: it is set at `fundamental_panel.py:3576` and now READ at `:3594`, which is the fix.
+  This bullet said `:3545` and the long-cited `:3048` had drifted into an unrelated function —
+  **line numbers in this file rot within days; re-resolve before trusting one.**) Two verdicts now
   ship, named for what they are:
   * **`verdicts` / `stability_verdicts` — SEMANTICS DELIBERATELY FROZEN.** This is the
     both-halves check every shipped decision actually rested on, and **X7's measured ~6%
@@ -544,9 +588,14 @@ the project's memory and the old versions had been repeated for months.
   It was dead weight, not actively harmful. It is **−0.352 correlated with `size`** — the
   strongest anticorrelation in the theme matrix — so it was cancelling the small-cap tilt,
   which is why removing it helped so much despite having no signal of its own.
-- **CORRECTED — `institutional` coverage is 61.4%**, not the 81.7% previously recorded (that
-  came from a smaller universe). It is still empty before 2013-06-30, so any early-period
-  comparison involving it is uninformative rather than negative.
+- **CORRECTED AGAIN 2026-08-07 (claims audit) — `institutional` coverage is 71.7%, and `insider`
+  is 83.1%.** This bullet read "**`institutional` coverage is 61.4%**, not the 81.7% previously
+  recorded". 61.4% was measured on the P6-era 110-date panel (that file reads 0.6140 in the same
+  field); the current run reads **0.7172**. It rose for a mechanical reason worth knowing: B6
+  dropped the 41 pre-2008 dates, and the theme is **empty before 2013-06-30**, so removing empty
+  dates raises its coverage without adding any data. Same check on `insider`: **85.0% → 83.1%**
+  (0.8504 → 0.8308). Any early-period comparison involving `institutional` is still uninformative
+  rather than negative.
 - **THEME ICs — CORRECTED 2026-08-06 (session 6, X3 re-run). THE TABLE THAT SAT HERE WAS A
   PRE-B6 MEASUREMENT MISLABELLED "CURRENT", AND `size` IS THE ENTRY THAT MOVED MOST.** It read
   "quality +3.57, momentum +2.62, capital_discipline +2.25, institutional +1.81, size +1.68,
@@ -601,9 +650,17 @@ the project's memory and the old versions had been repeated for months.
   i.e. more conservative than the 45d deadline. Its decay curve is sensible: peaks at Q-1,
   alive at Q-2 (t 1.36), dead by Q-3 (t -0.04).
 - Edge is strongest in **large caps** (regime IC highest there).
-- **P6: THE EDGE SURVIVES TRADING COSTS.** Top-decile breakeven is **236 bps one-way** against
-  a **37 bps** actual cost profile (~6.4x margin); net alpha **+11.41%/yr** after costs on 249%
-  annual turnover. The short side does not break it either — the BOTTOM decile is *larger*-cap
+- **P6: THE EDGE SURVIVES TRADING COSTS — BUT ITS COST PROFILE IS STALE. CORRECTED 2026-08-07
+  (claims audit).** It read: *"Top-decile breakeven is **236 bps one-way** against a
+  **37 bps** actual cost profile (~6.4x margin); net alpha **+11.41%/yr** after costs on 249%
+  annual turnover."* On the corrected 69-date panel the `costs` block reads **breakeven 134.1 bps
+  one-way against a measured 33.4 bps (4.0x margin), net top-decile alpha +6.07%/yr on 261%
+  annual turnover.** (The corrected-panel bullet above already fixed breakeven and the "37 bps was
+  an assumption, not a measurement" point (B11); the net alpha and turnover here were never
+  updated.) **The conclusion is unchanged — a 4.0x margin still clears comfortably.** The
+  bottom-decile figures in the next sentence are P6-era and were NOT re-measured by the claims
+  audit — treat them as unverified, not as corrected. The short
+  side does not break it either — the BOTTOM decile is *larger*-cap
   than the top ($4.50B vs $1.95B median, 29.8 vs 37 bps), so the long-short t does not rest on
   unborrowable micro-caps. Borrow cost is not modelled (affects the long-short statistic, not
   the long-only book). Quote the BREAKEVEN, not the net alpha — it needs no belief in any
@@ -668,16 +725,31 @@ the project's memory and the old versions had been repeated for months.
   agree to 1.6x, the share count is plausible, and the price ran 29.6x over 17 months with zero
   discontinuities (WDC 10.3x, MU 8.5x — the whole storage complex). If it is wrong the error is
   upstream in the PRICE, which both estimates share. Unresolved, not fixed.
-- **Standing caveats, do not drop them:** Deflated Sharpe is a *saturated* 0.9999991 and, per
-  the B9 correction at the top of this section, it is an **undeflated PSR** — not a proof of
-  anything. Both halves of the held-out test come from the same panel and universe, the test is
-  a **both-halves stability check rather than an out-of-sample confirmation** (B8), and the
-  size-cancellation mechanism was hypothesised on the full sample — so neither the decision nor
-  the hypothesis generation is out-of-sample in the strict sense. The concentrated top-25 book
-  is the noisiest number in the file, and per audit **B17** it holds up to FIFTY names (it sells
-  only below `exit_rank = top_n × 2`) and pays neither costs nor taxes, unlike every other book
-  in the results file — so it is also mislabelled. Weight-tuning itself remains noise-chasing:
-  CPCV still adopts no weighting over the defaults.
+- **Standing caveats, do not drop them — TWO OF THEM WERE RETIRED BY MEASUREMENT AND ARE
+  CORRECTED HERE 2026-08-07 (claims audit). This bullet says "do not drop them", so both wrong
+  caveats were being propagated on purpose; that is why they are corrected rather than deleted.**
+  * **The Deflated Sharpe caveat WAS WRONG.** It read: *"Deflated Sharpe is a saturated
+    0.9999991 and, per the B9 correction at the top of this section, it is an **undeflated PSR**
+    — not a proof of anything."* Both halves are void since M1 (2026-08-05): the shipped run is
+    **0.8997 at N = 84 and 0.8674 at the current N = 116** — not saturated — and it self-reports
+    `metric = deflated_sharpe_ratio` with `is_effectively_undeflated = false` (`sr0` 0.406
+    against a per-period Sharpe of 0.550). **The live caveat is the opposite one:** it is a
+    genuine Deflated Sharpe that **FAILS** the >0.95 convention while sitting above all 100
+    placebo draws (X7 floor 0.72). Quote it whole, per the M1 bullet.
+  * **The B8 caveat is STALE.** It read: *"the test is a **both-halves stability check rather
+    than an out-of-sample confirmation** (B8)"*. B8 was fixed in session 7: `oos_verdicts` now
+    enforces the documented rule alongside the frozen `stability_verdicts`, and `low_risk` reads
+    `confirmed_oos`. The surviving caveat is narrower and is stated in the B8 bullet above —
+    **`low_risk` is confirmed out-of-sample in ONE of two split directions, not two.**
+  * Still true, unchanged: both halves come from the same panel and universe, and the
+    size-cancellation mechanism was hypothesised on the full sample — so neither the decision nor
+    the hypothesis generation is out-of-sample in the strict sense. The concentrated top-25 book
+    is the noisiest number in the file, and per audit **B17** it holds up to FIFTY names (it sells
+    only below `exit_rank = top_n × 2`) and pays neither costs nor taxes, unlike every other book
+    in the results file — so it is also mislabelled. Weight-tuning itself remains noise-chasing:
+    CPCV still adopts no weighting over the defaults. (All three re-verified 2026-08-07:
+    `exit_rank = top_n * 2` at `fundamental_panel.py:1710`, which also ships a `label_warning`
+    saying the realised book size is ~`exit_rank`, not `top_n`; `cpcv.adopt = false`.)
 - **FIXED 2026-08-04 (audit session 2). The panel is now a genuine 18.5-year window,
   2008-01-16 → 2026-07-24, 69 rebalance dates, cross-sections 1,471–1,954.** `days=None` means
   the whole series and the shared calendar is cut ONCE, before the ffill. Each run ships
@@ -702,7 +774,9 @@ the project's memory and the old versions had been repeated for months.
   headline: **NULL** (t −0.010, alpha +0.01pp) — the disagreement was real in mechanism but
   small in magnitude on this panel. The description below is what the defect WAS:
 - **The LIVE product does not score names the way the backtest does (audit B7/G, FIXED — see
-  above).** `screen.py:256` calls `build_frame(metrics)` with no keyword arguments, inheriting
+  above).** `screen.py:256` (now **`screen.py:232`**, re-resolved 2026-08-07) calls
+  `build_frame(metrics)` with no keyword arguments — it still does, which is now CORRECT because
+  the CONFIG defaults are false; at the time it inherited
   `CONFIG.sector_neutral` (default **true**) and `CONFIG.residual_momentum` (default **true**),
   while the backtest forces both `False`. Sector-neutral ranking was tested on the full universe
   and rejected in both held-out directions, twice. **Unless `SCREENER_SECTOR_NEUTRAL=false` is
@@ -711,7 +785,16 @@ the project's memory and the old versions had been repeated for months.
   renormalises by present-weight mass, measurement does not, live renormalises AND adds the two
   interventions), so **no shipped code path reproduces the backtested composite exactly.**
 
-**LATEST (2026-07-30) — SUPERSEDES much of CURRENT STATE above. Read this first.**
+**HISTORICAL — P5 era, 2026-07-30. DO NOT READ THIS FIRST; MOST OF IT IS SUPERSEDED BY THE
+BULLETS ABOVE.** **CORRECTED 2026-08-07 (claims audit): this header used to read "LATEST
+(2026-07-30) — SUPERSEDES much of CURRENT STATE above. Read this first." That was true when
+written and is now backwards** — `CURRENT STATE` above carries material through 2026-08-06, so
+the old instruction sent a cold reader to the OLDEST numbers in the file and told them they
+superseded the newest. In particular the "CLEARS both bars for the first time" bullet below
+(PBO 13.3%, Deflated Sharpe ~100%, long-short t 3.485, top-decile alpha +11.77%) is **void** —
+it was measured on the pre-B6 110-date panel. The live numbers are t 2.836 / alpha +7.17% /
+PBO 73.3% / DS 0.8674. The three era headers read newest-to-oldest: **CURRENT STATE (through
+2026-08-06) → this section (2026-07-30) → PREVIOUS (2026-07-29).**
 - **Five wired factors were SILENTLY EMPTY in every run this project has ever done.** The
   Sharadar export is ARQ-only and Sharadar fills its ratio/averaged columns only in ART/ARY:
   `roe`, `roic`, `assetturnover` are non-null in **0 of 197,265 rows**. `beta` was hard-coded
@@ -767,7 +850,16 @@ the project's memory and the old versions had been repeated for months.
   coverage 70.5%→81.7%. STILL PENDING: scoring loop unvectorized; **full 2,827-name run has never completed.**
 
 ## METHODOLOGY RULE (hard — do not violate)
-**Report verdicts ONLY from the full ~2,710-name universe.** 400/800-name subsets systematically
+**CORRECTED 2026-08-07 (claims audit): THE FULL UNIVERSE IS ~2,531 NAMES, NOT ~2,710. This rule
+used to name 2,710 and an agent seeing 2,531 could reasonably think it was looking at a subset
+and withhold a verdict.** 2,710 was the P6-era 110-date panel (`git show b0f70b6:BACKTEST_RESULTS.json`
+= 2,710 names / 110 dates); every run since the B6/B13 corrections of 2026-08-04 reads
+**`universe.n_names` 2,531, `n_dates` 69, `label` "full"**. The rule itself is unchanged and the
+code enforces it: `WRDSProvider.universe` returns the whole export when `limit` is None or >= its
+size, and prints a "SMOKE-TEST SUBSET, not a verdict" banner otherwise (`data_providers.py:388-409`).
+Read "~2,710" as "~2,531" wherever it still appears below.
+
+**Report verdicts ONLY from the full ~2,531-name universe.** 400/800-name subsets systematically
 flatter results (PBO 13% on 800 → 53% on full; `sm_breadth` t 2.37 on 800 is unverified on full).
 **CORRECTED 2026-08-03 (audit B12): the 800-name era was an ALPHABETICAL slice, not the 800
 largest.** `WRDSProvider.universe` returned `sorted(keys)[:limit]`, so those runs were names
@@ -783,7 +875,12 @@ never the number a keep/reject/adopt decision rests on. The full run is now fast
 score), so there is no performance excuse to judge on a subset. If you must screen small first, say
 "smoke test" explicitly and re-run the survivor on the full universe before reporting a verdict.
 
-## IMMEDIATE NEXT TASKS (in order) — updated 2026-07-30
+## IMMEDIATE NEXT TASKS (in order) — item statuses re-checked 2026-08-07 (claims audit)
+> **This list is the least trustworthy section in the file. Of the three OPEN items checked
+> against the tree on 2026-08-07, TWO were already closed** — #16 rejected with numbers on
+> 2026-07-31, #18 shipped — **and #12 had been built in this repo while still routed to Cowork.**
+> The list was stamped "updated 2026-07-30" and has taken landings from several sessions since.
+> **Check `VALQUO_LEDGER.md` and the tree before starting any item here.**
 1. ~~Wire the bulk caches into `build_fundamental_panel`~~ **DONE (2026-07-29 s3)** — PIT market cap from
    DAILY, ACTIONS delisting mask (splits NOT re-applied; SEP already adjusted), SF3 conviction exposed as
    inputs. (Coverage figure in that note was wrong: `institutional` is **61.4%** on the full universe.)
@@ -808,10 +905,15 @@ score), so there is no performance excuse to judge on a subset. If you must scre
 
 **OPEN, in priority order:**
 
-12. **Forward paper-track vs SPY — the top priority.** The edge clears every internal bar and
-    survives costs, but has still only ever seen this ONE 18-year Sharadar panel. A live track
-    starting today is the only thing that tests it on data nobody has looked at.
-    → **Cowork's lane** (tracked "Valquo Index vs SPY"). Tell Don to take it there.
+12. ~~**Forward paper-track vs SPY**~~ **BUILT IN THIS REPO — CORRECTED 2026-08-07 (claims
+    audit).** This item used to read "the top priority … → **Cowork's lane**. Tell Don to take it
+    there." **Do not tell Don that.** It was built in this lane and it is here:
+    `valuation/edge/paper_track.py` (its own docstring: "roadmap #12, the project's #1 remaining
+    validation"), plus `paper_broker.py` (refuses any non-sandbox endpoint), `options_tracker.py`,
+    `track_export.py`, and `tests/test_paper_track.py`. First landed at `cde1579`. The RATIONALE
+    is unchanged and still the strongest open argument in the project — the edge has only ever
+    seen this one Sharadar panel, and a forward track is the only thing that tests it on data
+    nobody has looked at. What remains is elapsed time and reading the track, not building it.
 13. ~~**Industry-relative ranking**~~ **DONE — unblocked (P10), then REJECTED and re-confirmed
     2026-08-02.** Sector is wired from TICKERS at 100% coverage and pinned by
     `tests/test_sector_neutral.py`; sector-neutral ranking fails the held-out gate in both
@@ -837,11 +939,20 @@ score), so there is no performance excuse to judge on a subset. If you must scre
     without naming the book. Both variants stay MEASURED but score in no theme. Point-in-time is
     pinned by `tests/test_pead.py` (12 tests, incl. a tampering test). `HANDOFF_pead.md`.
     Re-open only with real point-in-time earnings surprises (IBES, parked — same blocker as #20).
-16. **ML tree combiner** — clearly worthwhile now: several genuinely real signals exist, and P6
-    showed the linear composite is sensitive to how inputs are scaled.
+16. ~~**ML tree combiner**~~ **DONE — TESTED AND REJECTED 2026-07-31. CORRECTED 2026-08-07
+    (claims audit): this sat in the OPEN list reading "clearly worthwhile now", one day after it
+    had already been rejected with numbers.** Pre-registered results-free at `620e0a5`
+    (`valuation/edge/ml_combiner.py`, protocol and adoption bar fixed before any run), then
+    rejected at `f53b248` — "TESTED AND REJECTED on every criterion". Numbers (`CODE_AUDIT.md:15`):
+    **median OOS IC +0.0531 linear vs +0.0393 GBM; net alpha −8.2pp roth / −4.0pp taxable; fails
+    in BOTH halves.** Judged on the same CPCV paths as the linear candidates. **Closed, not
+    pending — re-open only with materially more data, not a different model.**
 17. **Re-read every past "monotonicity" conclusion with the sign flipped** (see LATEST).
-18. **Social preview:** add Open Graph + Twitter Card meta tags (esp. a 1200×630 `og:image`) so pasted
-    valquo.co links auto-generate a rich card (LinkedIn etc.); re-scrape via LinkedIn Post Inspector after deploy.
+18. ~~**Social preview:** Open Graph + Twitter Card meta tags~~ **SHIPPED — CORRECTED 2026-08-07
+    (claims audit).** `valuation/web/templates/_saas_base.html:34-44` carries `og:title`,
+    `og:image` (+ `secure_url`, `type`, **1200×630**, `alt`) and `twitter:card=summary_large_image`,
+    with a comment that `og:image` must be an ABSOLUTE https URL or LinkedIn/Slack/X silently skip
+    it. Only the manual step is left: re-scrape via LinkedIn Post Inspector after a deploy.
 19. **Later:** gated auto-apply of adopted weights.
 20. **Estimate-revisions sentiment: PARKED** until WRDS/IBES (FMP has no point-in-time revisions at any tier;
     the free `stable/grades` workaround is real but weak and quota-starved). Don't fight the FMP free quota.
@@ -880,18 +991,38 @@ Don runs TWO agents on this project. They do not talk live; they sync through th
 - **Cowork** owns: the Robinhood connector (read-only account data + producing rebalance lists — NEVER
   execute trades), the tracked "Valquo Index vs SPY", scheduled scans/tasks, and phone/mobile sessions.
 
-**Git handoff — do NOT strand work on an unmerged branch (learned the hard way, July 2026).** Commit
-directly to `main` in the primary checkout. If your harness forces a git worktree, you MUST land the work
-on `main` before ending the session (`git checkout main && git merge --ff-only <branch>`) or hand Don the
-exact commands — twice the entire P5 + held-out-confirmation work sat unmerged on a worktree branch while
-`main` stayed on P4, and Don had to run the merge by hand to ship it. Don deploys from `main` with
-`git_push.bat`. On Windows PowerShell that means: paste commands on SEPARATE lines (not joined with `&&`,
-which its old shell rejects) and run the script as `.\git_push.bat`.
+**Git handoff — CORRECTED 2026-08-07 (claims audit). MERGING IS AUTOMATIC. DO NOT MERGE `main`
+BY HAND.** This paragraph used to say: *"Commit directly to `main` in the primary checkout. If your
+harness forces a git worktree, you MUST land the work on `main` before ending the session
+(`git checkout main && git merge --ff-only <branch>`) … Don deploys from `main` with `git_push.bat`."*
+**That instruction is now wrong and acting on it is dangerous** — several agents share the primary
+checkout, `main` moves under you mid-session, and a hand-merge there can clobber another lane.
+It also contradicted `RUN_RULES.md:76` — the file this brief's own header calls non-negotiable —
+which says *"Merging is automatic — the GitHub Action lands any pushed `worktree-*` branch behind
+the test gate."* `.github/workflows/land-agent-branch.yml` states the same in its header: *"No local
+merge, no Vim, no git_push.bat, no you in the loop."*
+
+**The actual close-out is:** commit in your worktree → `git push -u origin worktree-<name>` →
+**verify it landed** (`git fetch origin main -q` then
+`git merge-base --is-ancestor HEAD origin/main`). The Action installs deps and runs all 24 suites,
+so allow time; if it never lands, the gate failed or the merge conflicted and `main` is
+deliberately untouched — do not merge by hand, fix the branch. The original lesson still stands
+and is the reason the Action exists: **do not strand work on an unpushed branch** (twice the P5 +
+held-out work sat unmerged while `main` stayed on P4). On Windows PowerShell, paste commands on
+SEPARATE lines — its old shell rejects `&&`.
 
 When a task needs Cowork, say so plainly, e.g.: **"→ Take this to the Cowork chat — it needs the Robinhood
 connector, which I don't have here."** Cowork will likewise send Don back here for heavy backtests/code.
 After you commit changes, the Cowork agent sees them in the same folder next time Don opens it.
 
 Current handoff state (July 2026): task #1 is **done** — the 13F signal has been fairly tested and is real
-but too weak to trade alone (details in CURRENT STATE). The ball is now on **task #2, estimate revisions**,
-which needs an API key from Don (FMP or Intrinio). Do not spend more effort tuning or re-testing 13F.
+but too weak to trade alone (details in CURRENT STATE). Do not spend more effort tuning or re-testing 13F.
+
+**CORRECTED 2026-08-07 (claims audit): the rest of this paragraph said "The ball is now on task #2,
+estimate revisions, which needs an API key from Don (FMP or Intrinio)." Do NOT ask Don to buy that
+key.** It contradicts roadmap item **#20** in this same file, which is the researched conclusion:
+**FMP has no point-in-time revisions at ANY tier**, so a paid FMP key would not unblock it; the real
+source is IBES, i.e. WRDS. `HANDOFF_data_spend.md` reaches the same verdict independently ("no
+purchasable retail option exists at any price"). The item is **PARKED**, not waiting on a purchase.
+Note also that this paragraph's numbering ("task #2") is its own, and does not match the numbered
+roadmap above — estimate revisions is **#20** there.
