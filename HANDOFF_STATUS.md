@@ -18,6 +18,39 @@ unanswerable; X8's replication restored to `CLAUDE.md`)
 
 ---
 
+## 2026-08-07 — greeks lane, OUT-OF-BAND: the public fair-value leak is closed
+
+Full write-up: `HANDOFF_live_data_bugs.md` Part 6. Ledger row `OOB1`. Landed on `main` as
+`92d2ac8`; pre-commitment `1f6ad92` is a provable ancestor.
+
+- **BUG A (live, now fixed).** `store.save_snapshot` wrote a fixed 18-column INSERT with no
+  column for `fair_value_withheld`, so the scan recorded a refusal and the database threw it
+  away. **Reproduced on the real 399-row production snapshot through a real database on disk:
+  refusing the rank-1 name republished `$386.68083192601813` as "blended".** Fixed with two
+  columns + an in-place migration. **Control bound HELD — all 399 rows bit-identical to what
+  production served.**
+- **BUG B (structural hole, measured EMPTY).** 387 of 399 served names never get a DCF, so
+  nothing checks their peer estimate against the valuation page's verdict. Asked the real model
+  about all 387: **0 genuine refusals, 0 errors, 3.0–3.8 min at 6 workers.** The fix therefore
+  **removes no published number from today's list.** Chose a refusal-only screen over raising
+  `dcf_top` — same cost, but raising it would REPLACE the published number on ~387 names, which
+  is Don's call, not a bug fix's, and is one constant away (`SCAN_DCF_TOP`).
+- **The find that matters most points the OTHER way.** `_enrich_with_dcf` treated *"the model
+  cannot value this name"* as *"the model REFUSED it"*, suppressing ordinary peer estimates —
+  **NVS $185.41, SAP $364.97, TD $79.73**. Found because my own first measurement made the
+  identical mistake. The mislabelled population is **unstable run to run (17 vs 77 of the same
+  387 names)** and grows when the free upstream feed throttles. Fixed.
+- **Two limits that must travel.** KSPI, STLA and CHTR are **not in today's production list**,
+  so the fix could not be re-probed on the three original names and no substitutes are offered
+  as equivalent evidence. And the flag is written at **scan** time, so this reaches the public
+  surface on the **next scheduled scan**, not on deploy. Status: fixed and verified locally
+  against real production data; **unverified on the live site until that scan runs.**
+- Suites **24 / 849 / 0 failures**. New: `test_a_recorded_refusal_survives_the_snapshot_round_trip`
+  (the existing in-memory test was green for the whole leak; a ratio walk provably cannot catch
+  this class), plus a migration test and `test_not_dcf_valuable_is_not_a_refusal`.
+
+---
+
 ## EDGE AUDIT SESSION 8 (2026-08-07) — a test declined, and X8's result restored to the record
 
 Full write-up: `HANDOFF_edge_audit.md` § SESSION 8. Nothing under `valuation/**` changed — this
