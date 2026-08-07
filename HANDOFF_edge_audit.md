@@ -3664,3 +3664,178 @@ test designed before the numbers are seen. Run it alongside **P4**, which remain
 leave the book, so every session the paper track accumulates under the wrong rules is a session
 that has to be thrown away — and **X8**, the international replication, still the only genuinely
 out-of-sample evidence available to either programme.
+
+---
+
+# SESSION 7 — B8, then the PRE-REGISTERED held-out leave-one-out, plus P4
+
+Owner: pipeline builder. Audit session 7. Previous session verified complete: YES (session 6
+closed at `21fbe46`, six commits, both probes returned verdicts).
+
+**Order is forced by the `needs first` table session 6 wrote: B8 is resolved FIRST, because a
+leave-one-out run on an unresolved B8 produces a result nobody can label honestly.**
+
+## 0. B8 — RESOLVED BEFORE ANY LOO NUMBER EXISTED
+
+### What was actually wrong
+
+`holdout_theme_validate`'s docstring described a four-step protocol: split by time, **decide on
+one half with a pre-specified rule**, measure on the other half only, run both directions.
+Step 2 was never implemented. `rule_fired` was computed (now `fundamental_panel.py:3545`; the
+audit's cited `:3048` had drifted) and **no line of code ever read it**. The verdict was
+`all(improves)` across both directions — a demanding test, and a legitimate one, but a
+**both-halves stability check on the full sample**, not an out-of-sample confirmation. The
+project has been calling it the latter since P5.
+
+### FIXED, not renamed — and the distinction is load-bearing
+
+The naive repair is to gate `verdicts` on `rule_fired`. **That would have been a silent error.**
+`scripts/placebo.py:108` reads `verdicts`, and X7's measured **~6% false-positive rate of the
+held-out gate** was calibrated against that exact object across 100 placebo draws. Redefining
+`verdicts` in place would leave that 6% figure attached to a gate that no longer exists, with
+nothing anywhere recording the substitution — the same class of defect as the stale theme IC
+table found in session 6.
+
+So both objects now ship, each named for what it is:
+
+| key | question it answers | status |
+|---|---|---|
+| `verdicts` (alias `stability_verdicts`) | does zeroing this theme improve the measure half in BOTH directions? | **semantics frozen** — X7's 6% FPR still applies to it |
+| `oos_verdicts` (NEW) | ...restricted to directions where the decide-half rule actually flagged the theme | the protocol the docstring always described |
+| `oos_directions_tested` (NEW) | how many of the two directions carried any evidence at all | 0 means **no out-of-sample test was run** |
+
+`verdicts_scope` and `oos_verdicts_scope` strings ship alongside, so a reader of
+`BACKTEST_RESULTS.json` cannot mistake one for the other.
+
+### Measured on the corrected 69-date panel — the shipped decisions HOLD, on thinner evidence
+
+`python -m scripts.b8_holdout_scope --panel panel_corrected_69d.pkl`, 113,945 rows, 69 dates,
+boundary date 2017-07-20 embargoed, eight themes.
+
+| theme | stability verdict | **OOS verdict** | directions tested |
+|---|---|---|---|
+| **low_risk** | confirmed | **confirmed_oos** | **1 of 2** |
+| **insider** | rejected | **rejected_oos** | 1 of 2 |
+| value | rejected | rejected_oos | 1 |
+| momentum | not_replicated | rejected_oos | 1 |
+| size | rejected | rejected_oos | 1 |
+| quality | rejected | **not_flagged** | **0** |
+| capital_discipline | not_replicated | **not_flagged** | **0** |
+| institutional | rejected | **not_flagged** | **0** |
+
+**Neither shipped decision changes.** `low_risk` (zeroed live) is confirmed under the honest
+protocol; `insider` (kept at 0.125) is rejected under it. Nothing needs reverting, and no weight
+was touched.
+
+**But the evidence for `low_risk` is exactly half what the record claims.** The rule fires only
+on the early decide half; on the late half `low_risk`'s median IC is positive, so it is not a
+candidate at all in that direction. CLAUDE.md's B8 correction inferred this from reading the
+code — it is now measured. The honest sentence is: *"zeroing `low_risk` is confirmed
+out-of-sample in one of two split directions, and passes a both-halves stability check in both."*
+Not "confirmed out-of-sample", full stop.
+
+### The finding that changes the LOO design, and it is not a small one
+
+**Three themes are `not_flagged`: the decide-half rule never fires on them in either
+direction.** The rule is `median IC <= 0`, and `quality` (+3.10), `capital_discipline` (+2.76)
+and `institutional` (+1.55) all have comfortably positive IC.
+
+**`capital_discipline` is the theme session 6's exploratory leave-one-out said was worth
+dropping** (dropping it raised alpha to +8.54% and long-short *t* to 3.352). Under
+`holdout_theme_validate`'s rule it is not a candidate for dropping and never can be.
+
+That is not a bug in the rule. It is X3's central finding arriving a second time: **an IC-based
+selection rule cannot express the hypothesis, because X3's whole result is that theme IC does
+not predict marginal contribution** — `size` has the worst IC (−0.30) and carries the
+composite's entire significance. Gating LOO candidacy on `median IC <= 0` would reproduce, as
+the test's own design, the exact error the test exists to check.
+
+**Consequence, and it is pre-registered below rather than discovered later: the LOO decide rule
+must be the LOO effect itself, measured on the decide half — not an IC rule.**
+`holdout_theme_validate` is therefore used for B8's own verdicts and is NOT the instrument for
+the LOO; a purpose-built split with the same embargo discipline is.
+
+## 1. PRE-COMMITMENT — written and committed BEFORE any LOO number existed
+
+### The hypothesis under test
+
+Session 6's leave-one-out was **exploratory**: seven correlated comparisons on the full sample,
+reported for their extremes, generated after seeing the prefix curve. It said dropping
+`capital_discipline` raises top-decile alpha +7.17% → +8.54% and long-short *t* 2.836 → 3.352,
+and that dropping `size` costs 3.08pp/yr. **Re-quoting those numbers is not a test of them.**
+
+The question is narrower and answerable: **does choosing a theme to drop, by its own
+leave-one-out effect on data you are allowed to look at, improve the composite on data you are
+not?**
+
+### Protocol, fixed in advance
+
+1. Split the 69 rebalance dates in half **by time**; **embargo the boundary date** (rebalance ==
+   horizon == 63d, so only that date's forward window can straddle the split). Identical
+   machinery and identical embargo to `holdout_theme_validate`.
+2. **DECIDE half:** run all **seven** leave-one-out arms — the flat 7-theme composite with one
+   theme dropped, re-normalised to flat 1/6 — and rank them by the decide-half **top-decile
+   alpha gain** vs the full composite. **Select the single best arm.** One selection, one degree
+   of freedom.
+3. **MEASURE half:** measure that one selected arm against the full composite. The measure half
+   informs nothing about which arm was chosen.
+4. **Both directions** (decide-early/measure-late and decide-late/measure-early), so no verdict
+   rests on one arbitrary split.
+
+### Thresholds — reusing the project's existing committed margins, not new ones
+
+`MIN_HOLDOUT_ALPHA_GAIN = 0.01` (100bps/yr, an economic bar: an improvement smaller than the
+cost of implementing it is not an improvement) and `MIN_HOLDOUT_TSTAT_GAIN = 0.25` (a noise
+floor). These were committed before the P6 runs and are already in the codebase; inventing a
+fresh pair after seeing session 6's exploratory numbers would be threshold-shopping.
+
+* **ADOPTED-eligible** — the selected arm clears **both** margins in **both** directions.
+  (Eligible, not adopted: a weight change additionally needs its own gate. Nothing ships this
+  session regardless of outcome.)
+* **NULL** — anything else: mixed directions, or clears sign but not margin. Per RUN_RULES 6, a
+  result ambiguous against its own threshold **is a null, not a judgement call**.
+* **REJECTED** — the selected arm is negative on the measure half in both directions.
+
+**Reported but carrying NO verdict** (stated now so it cannot be promoted later): all seven
+arms' measure-half effects, as the distribution the selected arm has to be read against; and
+whether the same theme is selected in both directions. A single theme surviving selection in
+both directions is a materially stronger result than two different themes, and I am committing
+in advance to say which happened.
+
+### The expectation, written down first
+
+The carry-forward rule says to state the direction expected before running, precisely because
+this project keeps getting it wrong (R10, O20, the spread toll, U7 — four in a row).
+
+**I expect a NULL, and I hold it at about 70/30.** Session 6's exploratory result is the maximum
+of seven correlated comparisons on 69 dates; the maximum of seven noisy draws is biased upward
+by construction, and half-sample statistics here are noisier still. If it replicates on a
+held-out split in both directions, that is genuinely surprising and worth acting on. **The
+project's expectations have been wrong four consecutive times, so this one is a prediction, not
+a prior to lean on.**
+
+### The trial cost, and a correction to the number in the task
+
+**Seven arms are seven trials.** They are logged to `RESEARCH_LOG.md` as one pre-registered grid
+row, `n=7`, in the `equity` domain.
+
+The task brief says equity `N` goes **92 → 99**, `√(2·ln 99) = 3.03`. **That is stale by one
+session.** Session 6's realised count was **104**, not 92 — the pre-commitment predicted 92 and
+the run overshot it, because the previously-unlogged void X3 run was logged as `SUPERSEDED` with
+`n=12` and `research_log.py:73` excludes only `FIXED` rows, so `SUPERSEDED` rows count. Verified
+this session: `python -m valuation.edge.research_log` reports `equity: 104`.
+
+| | before | after 7 LOO arms |
+|---|---|---|
+| equity `N` | **104** | **111** |
+| `√(2·ln N)` — the Harvey–Liu–Zhu haircut | 3.048 | **3.069** |
+
+So the haircut moves **past the 3.0 hurdle by more**, not up to it. The Deflated Sharpe
+consequence is computed exactly in the results below rather than estimated, using
+`ablation.deflated_sharpe_at`, which backs the skew/kurtosis denominator out of the recorded
+statistic and re-evaluates at the new `N`.
+
+**Out of scope, stated in advance:** X7's calibrated bars are NOT re-derived at N = 111 (the
+placebo is 100 draws through the full pipeline — hours). The direction is known and unfavourable
+to me, which is why quoting the old bar is safe: X7 measured the floor *falling* as N rises
+(0.8567 at N = 8 → 0.7216 at N = 84), so holding 0.7216 at N = 111 makes passing harder.

@@ -3478,13 +3478,32 @@ def holdout_compare_panels(panel_a, panel_b, cols, label_a="A", label_b="B", n_q
 def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,
                            min_dates=16, min_alpha_gain=MIN_HOLDOUT_ALPHA_GAIN,
                            min_tstat_gain=MIN_HOLDOUT_TSTAT_GAIN) -> dict:
-    """Time-split confirmation that ZEROING a theme helps on data not used to decide it.
+    """Time-split checks that ZEROING a theme helps on data not used to decide it.
 
     CPCV and the Deflated Sharpe correct for the trials inside the *weight search*. Neither
     corrects for a human looking at a theme's IC on the whole panel, deciding to drop it, and
     then measuring the improvement on that same panel — which is how `low_risk` was zeroed.
     This is the missing test, and it is permanent rather than a one-off script so the claim
     keeps being re-checked on every run.
+
+    THIS FUNCTION SHIPS TWO DIFFERENT VERDICTS AND THEY ANSWER DIFFERENT QUESTIONS.
+    [AUDIT B8 — RESOLVED 2026-08-06, session 7.] It used to ship one, `verdicts`, whose
+    docstring described the protocol below while the code ignored step 2 entirely: `rule_fired`
+    was computed and never read, so a theme could read `confirmed` in a direction where the
+    decide half never flagged it. That is a BOTH-HALVES STABILITY CHECK, not an out-of-sample
+    confirmation, and the project called it the latter for months.
+
+    Both are now computed and named for what they are:
+
+    * **`verdicts` (unchanged semantics, honest name `stability_verdicts`)** — "does zeroing
+      this theme improve the measure half, in both split directions?" The decide half is NOT
+      consulted. It is a demanding and legitimate test, it is what every shipped decision in
+      this project actually rested on, and X7's measured ~6% false-positive rate was calibrated
+      against THIS object. Its meaning is deliberately frozen so that figure keeps applying.
+    * **`oos_verdicts` (new — the protocol the docstring always described)** — step 2 is
+      enforced: a theme is a CANDIDATE in a direction only if the pre-specified rule fires on
+      that direction's decide half. Directions where it did not fire are `not_flagged` and
+      contribute no evidence, because nothing selected the theme there.
 
     Protocol, fixed in advance:
       1. Split the rebalance dates in half BY TIME, and EMBARGO the boundary date — with
@@ -3501,13 +3520,25 @@ def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,
     usual fate of noise. Requiring a margin rather than just the right sign is deliberate: the
     sign-only version admitted a +0.01 t-stat move as a confirmation.
 
+    `oos_verdicts` applies the identical margin, but only over directions that flagged the
+    theme: `confirmed_oos` if every flagged direction improves, `rejected_oos` if none does,
+    `not_replicated_oos` if they disagree, and `not_flagged` if the rule never fired — in which
+    case NO out-of-sample test of this theme was run and the stability verdict must not be
+    quoted as though one had been. `oos_directions_tested` reports how many of the two
+    directions carried evidence, because a one-direction confirmation is weaker than a
+    two-direction one and the single word "confirmed" hides that.
+
     Weights are equal across `cols` rather than read from settings, so the comparison is
     "this theme in vs out", not "current live config vs something else".
     """
     out = {"rule": "median IC <= 0 on the decide half",
            "metric": "long_short_tstat and top_decile_alpha, measured on the held-out half",
            "min_alpha_gain": min_alpha_gain, "min_tstat_gain": min_tstat_gain,
-           "splits": {}, "verdicts": {}}
+           "verdicts_scope": "both_halves_stability — the decide-half rule is NOT applied "
+                             "(audit B8); see oos_verdicts for the rule-gated protocol",
+           "oos_verdicts_scope": "rule-gated out-of-sample — only directions whose decide half "
+                                 "flagged the theme carry evidence (audit B8)",
+           "splits": {}, "verdicts": {}, "oos_verdicts": {}, "oos_directions_tested": {}}
     if panel is None or panel.empty or not cols:
         return {**out, "status": "no panel"}
     dates = sorted(panel["date"].unique())
@@ -3554,6 +3585,19 @@ def holdout_theme_validate(panel, cols, n_q=10, horizon=63, base_weight=0.125,
         got = [out["splits"][s]["themes"][c]["improves"] for s in out["splits"]]
         out["verdicts"][c] = ("confirmed" if all(got)
                               else "rejected" if not any(got) else "not_replicated")
+        # AUDIT B8 — the rule-gated protocol the docstring describes. A direction where the
+        # decide half never flagged the theme is dropped rather than counted as evidence: the
+        # measure-half number is real, but nothing SELECTED the theme in that direction, so it
+        # confirms no decision anybody made. This is the whole difference between the two
+        # verdicts, and it is why `rule_fired` had to stop being decorative.
+        flagged = [out["splits"][s]["themes"][c]["improves"] for s in out["splits"]
+                   if out["splits"][s]["themes"][c]["rule_fired"]]
+        out["oos_directions_tested"][c] = len(flagged)
+        out["oos_verdicts"][c] = ("not_flagged" if not flagged
+                                  else "confirmed_oos" if all(flagged)
+                                  else "rejected_oos" if not any(flagged)
+                                  else "not_replicated_oos")
+    out["stability_verdicts"] = out["verdicts"]      # the honest name for the frozen object
     return out
 
 
