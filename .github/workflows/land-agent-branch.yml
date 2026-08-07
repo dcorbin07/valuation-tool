@@ -114,7 +114,9 @@ jobs:
                 python "$f" || { echo "::error::$f FAILED"; fail=1; }
                 echo "::endgroup::"
               done
-              [ "$fail" -eq 0 ] || exit 1
+              # `exit $fail` verbatim: tests/test_edge.py's C7 test asserts this exact string,
+              # so that one red suite can never be hidden by a later green one. Keep the literal.
+              if [ "$fail" -ne 0 ]; then exit $fail; fi
             else
               echo "Only documentation landed under us, so the code in this tree is byte-identical"
               echo "to the tree that just passed every suite. Not re-running the gate."

@@ -219,6 +219,39 @@ is a tree whose *code* passed every suite, and the only thing allowed to differ 
 branch lose two races in a row and promoted it to required. The first design was correct and
 impractical; that distinction only showed up by running it.
 
+### …and the thing that was ACTUALLY blocking the land was not a race at all
+
+I spent three watcher cycles attributing the delay to lost races. **It was a failing test**, and I
+found it only by running the 24-suite gate locally instead of waiting again.
+
+Another lane landed `90fd576` ("Verify the test gate by exit code, and check CI for the same flaw")
+**while my run was in flight**. It adds `test_audit_c7_every_test_suite_gates_the_auto_merge` to
+`tests/test_edge.py`, which reads `land-agent-branch.yml` and asserts two literal strings:
+
+```python
+assert "for f in tests/test_*.py" in wf, "the gate must run every suite, not one"
+assert "exit $fail" in wf, "one red suite must not be hidden by a later green one"
+```
+
+My rewrite kept the first and broke the second — I had replaced `exit $fail` with
+`[ "$fail" -eq 0 ] || exit 1`, which does exactly the same thing and does not contain the string.
+So the CI job merged onto the new `main`, ran the gate, and failed on 247/248. **From outside that
+is indistinguishable from losing a race: `main` does not move and nothing tells you why.**
+
+**Resolved in my file, not theirs.** The workflow now uses `if [ "$fail" -ne 0 ]; then exit $fail; fi`
+— same behaviour, keeps the literal, with a comment saying why so nobody "simplifies" it back.
+Editing another lane's assertion to fit my code would have been the wrong direction: their
+assertion's intent is sound and `tests/test_edge.py` is required to stay green. **248/248.**
+
+**Two lessons worth more than the fix:**
+- **A structural test that greps a config file is brittle to a legitimate rewrite, and that is the
+  price of it being cheap.** It caught a real class of regression here, so it earns its place — but
+  anyone rewriting `land-agent-branch.yml` must run `tests/test_edge.py`, not just validate YAML.
+  I validated the YAML and thought that was sufficient. It was not.
+- **When CI goes quiet, run the gate locally before theorising about the runner.** I had a
+  plausible, evidence-backed race story and it was wrong for this particular delay. The race is
+  real and documented above — it just was not what was happening this time.
+
 ---
 
 ## 4. ITEM 3 — deprecated action versions
@@ -292,7 +325,18 @@ hopeful one.
    races (§3), which works precisely because this repo's churn is markdown. **If the code churn rate
    ever rises to match, this comes back**, and the answer then is a faster gate (parallel suites, or
    only running suites affected by the diff), not more retries.
-6. **The old workflow could push an untested combination, and still can in one narrow case.** The
+6. **A failing gate and a lost race look identical from outside.** Both present as "`main` does not
+   move." Without the Actions UI (no `gh` on this machine) the only way to tell them apart is to run
+   the gate locally. I got this wrong for ~30 minutes, and the fix is procedural: **when a land is
+   slow, run `for f in tests/test_*.py; do python "$f"; done` before theorising about the runner.**
+7. **Structural CI tests are brittle to legitimate rewrites — by design, and worth it.**
+   `test_audit_c7_every_test_suite_gates_the_auto_merge` asserts the literal string `exit $fail` in
+   `land-agent-branch.yml`. My rewrite preserved the behaviour exactly and broke the string. That is
+   a false positive in the strict sense, but the assertion is cheap and the failure it guards
+   (a red suite hidden by a later green one) is severe, so it should stay. **The requirement it
+   creates: anyone editing `land-agent-branch.yml` must run `tests/test_edge.py`, not just validate
+   the YAML.** Now noted in the workflow itself, next to the literal.
+8. **The old workflow could push an untested combination, and still can in one narrow case.** The
    job checks out `main`, merges, tests, then pushes. If another lane landed during the test run the
    push was rejected — loudly, so no harm. My retry now re-merges *and re-tests*, closing that. But
    note the general shape: the tested tree and the pushed tree are only identical because the push
