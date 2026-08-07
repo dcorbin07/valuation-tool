@@ -5,6 +5,166 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 17 — 2026-08-06 — The leak is NOT closed. The stopgap stays up.
+(PROMPT_web_verify_the_leak_is_closed.md)
+
+Verification, not construction, and it took about an hour because the answer was no.
+
+**THE HEADLINE: CONSOLIDATE-1 is correct and it does not reach production. All three names are
+still served on the public hot list with fair values today, and there are TWO independent
+reasons, not one.** The disclosure sentence stays up because the condition it describes still
+holds — removing it would have been the worst available outcome.
+
+## 1. WHAT THE THREE NAMES RENDER TODAY (production, signed out, 2026-08-06)
+
+`GET https://valquo.co/api/hotstocks?top=500`, scan 2026-08-06, 500 rows served:
+
+| name | price | fair value ON THE PUBLIC HOT LIST | ratio | method | rank | `fair_value_withheld` |
+|---|---|---|---|---|---|---|
+| KSPI | $92.19 | **$299.16** | 3.24x | blended | 3 | **None** |
+| STLA | $5.63 | **$21.09** | 3.75x | blended | 468 | **None** |
+| CHTR | $153.17 | **$370.33** | 2.42x | multiples | 225 | **None** |
+
+`GET /api/whatdo?ticker=…` serves the identical numbers **plus an upside**: KSPI **+224%**,
+STLA **+275%**, CHTR **+142%**, all with `fair_value_withheld: false`.
+
+And the valuation engine, run today on live data, **refuses all three**:
+
+| name | price | model | ratio | verdict |
+|---|---|---|---|---|
+| KSPI | $91.80 | $1,032.49 | **11.2x** | REFUSED |
+| STLA | $5.55 | $35.57 | **6.4x** | REFUSED |
+| CHTR | $157.44 | $1,237.96 | **7.9x** | REFUSED |
+
+So the disagreement Session 14 found is intact, unchanged in kind, and live.
+
+## 2. WHY — AND IT IS TWO BUGS, WHICH IS THE PART WORTH READING
+
+**CONSOLIDATE-1 itself is right.** `screen.py::_enrich_with_dcf` now calls
+`publication.record_refusal(r, reason)`, which sets `fair_value_withheld` / `_reason` — the
+exact keys `web/withhold.py` honours — and `fairvalue.estimate_fair_values` skips a row
+carrying that flag. Verified by running the serve path with the flag in memory: the row comes
+out `fair_value=None, method="withheld"`. **That half works.**
+
+### BUG A — the refusal does not survive the snapshot
+
+`store.save_snapshot` writes a **fixed 18-column INSERT** (`scan_date, ticker, name, sector,
+bucket, price, market_cap, hot_score, composite, rank, z_*, fair_value, upside, extra`).
+**`fair_value_withheld` and `fair_value_withheld_reason` are not among them, and the
+`snapshot_rows` table has no column for them.** The scan records the refusal; the database
+throws it away; `load_snapshot` returns `fair_value=None` with no flag; `estimate_fair_values`
+— which runs at **serve** time, in `web/app.py:494`, on the rows read back — reads that as "no
+DCF yet" and substitutes the peer estimate. **The original leak, one layer further down.**
+
+Reproduced on the **real 500 production rows**, same `Store`, same serve path:
+
+```
+after record_refusal:  KSPI withheld=True  fair_value=None
+
+A: serve WITHOUT the snapshot round-trip   -> fair_value=None  method=withheld   (correct)
+B: serve THROUGH the snapshot, as prod does -> after round-trip: withheld=None
+                                            -> fair_value=299.15505668088286
+                                               method=blended  ratio 3.24x
+```
+
+**That is production's number to the last digit** — `$299.15505668088286` is exactly what
+valquo.co serves. The mechanism is not inferred.
+
+### BUG B — two of the three names never get a DCF at all
+
+`_enrich_with_dcf` only runs on `rows[:run_dcf_top]`, and production runs **`dcf_top=12`**
+(`scripts/ci_scan.py:83`, `SCAN_DCF_TOP` default 12). **KSPI is rank 3 — inside. CHTR is rank
+225 and STLA rank 468 — outside.** Those two are never valued during the scan, so no refusal
+is ever *recorded* for them, and fixing Bug A alone would still leave them on the list.
+
+**This is the more structural of the two.** For the ~488 served names that never get a DCF, the
+public hot list publishes a peer estimate with no check against the valuation page's refusal at
+all — only the 5x band guard, which by construction cannot see this class (a refused 11x model
+is replaced by a 3.2x peer estimate, comfortably under the band).
+
+## 3. THE CATCH-ALL — GREEN, AND THAT IS NOT REASSURING
+
+`test_no_public_api_response_carries_a_fair_value_past_the_band` passes, walking
+`/api/hotstocks` and three `/api/whatdo` shapes. Full suite: **24 suites, all exit 0**
+(`test_withhold` 29/29 incl. one new xfail; `test_edge` 243/243).
+
+**The catch-all cannot catch this leak and never could.** It walks *ratios*, and every name in
+this class sits under the band. It was built for the AEG case (5.25x) and it still guards that.
+Saying so plainly matters more than the green tick: **this leak was found by probing production
+both times, and a passing catch-all is not evidence it is closed.**
+
+So the catch-all is now paired with a test that asserts the other property —
+`test_a_refusal_recorded_by_the_scan_survives_to_the_public_surface`, using a **real `Store` on
+a temp file** rather than the fake (a fake that carries the dict through would prove the exact
+opposite of the truth). It is marked `known_failure`, the same mechanism `tests/test_guards.py`
+uses, so it reports **XFAIL** with the owning lane named and does **not** turn the gate red —
+the repair is `screener/store.py`, another lane's file, and the gate auto-merges to main for
+everyone. It flips to a loud XPASS the day that lane fixes it.
+
+## 4. THE STOPGAP STAYS UP
+
+**Not removed, because it is still true.** `app.js:964` still reads *"Known inconsistency,
+stated rather than hidden … when they disagree, the Single-valuation page's refusal is the one
+to believe"*, and it names Kaspi, which is precisely the case still live. A stopgap removed
+while the condition it describes still holds is worse than the stopgap — so nothing was
+touched. **It comes down in the same commit that fixes Bug A and Bug B, not before.**
+
+## 5. TODAY'S REFUSED SET — STILL EXACTLY THREE
+
+Measured today against live data, not carried forward:
+
+| refused | published |
+|---|---|
+| **KSPI (11.2x), STLA (6.4x), CHTR (7.9x)** | GILD 1.20x, CI 3.64x, JD 3.30x |
+
+Unchanged from Session 15's three. GILD, CI and JD are still out of the set.
+**Any figure quoting a fixed count is stale by construction** — this set moves whenever the
+engine changes, it has been five and then three inside a week, and the sweep above is bounded:
+it re-checked the six known candidates, not all 500 names. A name that entered the set today
+without ever having been in it would not appear here. The cheap enumeration is not available
+either — a refused row is only distinguishable by `fair_value_method="withheld"`, and Bug A
+means no row ever carries it.
+
+**CI is worth one line:** still published at **3.64x — $1,002.42 against a $275.25 price**,
+under the band and therefore untouched by every guard in this lane. That is the "+275% at HIGH
+confidence" item already routed to the engine/DCF lane; it has not moved.
+
+## 6. SIDE EFFECTS ON OTHER SURFACES — NONE FOUND
+
+Checked every public surface that consumes a fair value or a score: `/api/hotstocks`,
+`/api/whatdo` (three shapes), `/api/rank` (reads `base_fair_value`, unaffected), `/api/regime`,
+`/api/health`, the exports, the partial-score render, the Watchlist cell and the Index tab —
+all still behave as Sessions 13–15 left them, and all 24 suites are green. **The two
+consolidations changed the engine and the scan; they did not move anything else on the web
+side.**
+
+## BUGS FOUND
+
+1. **`store.save_snapshot` silently discards `fair_value_withheld` / `_reason`** — the fixed
+   column list has no place for them and `snapshot_rows` has no column. This is what keeps the
+   public leak open for KSPI. **→ screener lane.** One row-shaped fix: add the two columns, or
+   stash both keys inside the `extra` JSON blob that is already persisted and rehydrated.
+   Encoded as an XFAIL in `tests/test_withhold.py` so it is visible on every run.
+2. **`dcf_top=12` means a refusal can only ever be recorded for twelve names.** CHTR (rank 225)
+   and STLA (rank 468) are outside it, so Bug A's fix does not reach them. **→ screener /
+   engine lanes**, and it is a policy question, not a typo: either the hot list stops publishing
+   a peer estimate for names the DCF has not vetted, or the refusal has to be derivable without
+   running a full DCF on 500 names.
+3. **A passing catch-all was read as evidence the surface was safe.** It was mine, from
+   Session 14, and it walks ratios only — so it is structurally blind to a refusal replaced by
+   an in-band estimate. Now paired with the round-trip test above. Recorded because the lesson
+   generalises: *this suite's green tick covers the band, not the refusal.*
+
+## LEDGER
+
+**No row updated, and that is not an omission.** `VALQUO_LEDGER.md` is one row per external-audit
+item from `valquo_audit_items.json`; this work came from a PROMPT file and has no audit id
+(grep for leak / fair value / publication / consolidate returns nothing). Inventing a row would
+break the file's own contract. My last audit row, **P3**, was updated in Session 16 and is
+unchanged.
+
+---
+
 # Session 16 — 2026-08-06 — P3: designing for a 37% hit rate
 (PROMPT_p3_design_for_a_37pct_hit_rate.md)
 
