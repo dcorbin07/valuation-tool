@@ -366,7 +366,33 @@ honest label and gives a clean re-entry point once 2026 closes.
    CRWV returns 11,605 rows in a single 10-day 2025 span, alongside SNDK, VG, FER (2025) and
    CBRS, HONA, MDLN, SUNB (2026). The verdict was about the calendar, not the names. Fixed: the
    probe walks forward, bounded, with 2024 still tried first.
-9. **"Nothing to judge" and "judged and untradeable" shared one status.** `skipped_thin` was
+9. **`CALL_TIMEOUT` HAD NEVER BOUNDED A SINGLE CALL, AND THE DEAD-CHANNEL DETECTOR WAS BLIND
+   TO HANGS.** `_call_with_timeout` ran the feed call inside
+   `with ThreadPoolExecutor(max_workers=1) as one: ... result(timeout=CALL_TIMEOUT)`. That
+   context manager's `__exit__` calls `shutdown(wait=True)`, so on timeout the code logged
+   `timeout after 75s` and then **blocked until the runaway call finished anyway**. The
+   deadline controlled when a message was printed and nothing else — which is why the file's
+   own comment promising that a timeout stops "ONE pathological symbol-year burning 72
+   minutes" had never been true.
+
+   **Measured cost: TXRH took 39,526s — 11 hours, 45% of the run to that point — for nine
+   year-files, and still lost 2023 and 2025.** GRAB did the same work 200s later in 200s.
+   TXRH is not a slow name: probed directly, a 30-day span returns **4,020 rows in 3.7s**. The
+   hours were a transient hang with no escape, because `_fetch_year`'s `NAME_BUDGET_S` is
+   checked only BETWEEN spans and cannot fire while blocked inside one.
+
+   **The subtler damage is worse than the lost time, and it corrects something this handoff
+   was about to claim.** A hung call never returns, so it never became a fault, so
+   `_note_fault` never counted it and the channel-rebuild logic never fired. The run reported
+   **"0 faults, 0 client rebuilds" straight through an 11-hour stall**, and that statistic was
+   being read — by me, in progress reports — as evidence the bug-3 channel fix was holding
+   under load. It is not evidence of that. The detector was bypassed by precisely the failure
+   mode it exists to catch, and any future run's "0 faults" should be read with that in mind.
+
+   Fixed: the deadline is enforced by ABANDONING the call on a daemon thread (so a call that
+   never returns cannot pin the interpreter at exit), and a hang now counts as a fault. Pinned
+   by a test that completes in 0.53s where the old path waited out a 30s hang twice.
+10. **"Nothing to judge" and "judged and untradeable" shared one status.** `skipped_thin` was
    recorded both for names measured against the liquidity screen and for names with no data to
    measure — which is what let bug 8 hide, since a 2025 IPO was indistinguishable from a penny
    stock nobody writes options on. Fixed: `no_data_in_range` is its own status.
