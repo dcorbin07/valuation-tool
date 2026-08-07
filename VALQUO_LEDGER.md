@@ -109,10 +109,10 @@ file replaces reconstructing project state from git history.
 | X6 | X | Structural-break test | DONE | NULL | bd495f5 | HANDOFF_free_analysis.md | 2026-08-03 | human | Structural-break test null under Holm-Bonferroni; the 2012 story is NOT confirmed. |
 | X7 | X | Placebo through the pipeline | DONE |  | 1caacec | HANDOFF_edge_audit.md | 2026-08-06 | human | 3 of the project's 4 thresholds are UNCALIBRATED, 1 survives. Re-run at true N=84 CONFIRMED. |
 | X8 | X | Replicate on JKP / another country | DONE |  | 7edf594 | HANDOFF_free_analysis.md | 2026-08-04 | human | REPLICATES on another vendor's data in another country (JKP, Europe). |
-| S1 | S | Fix value theme inputs | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
-| S2 | S | Register cash_op_prof | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S1 | S | Fix value theme inputs | DONE | REJECTED |  | HANDOFF_signals.md | 2026-08-06 | human | Both arms REJECTED on the full 69-date panel. Dropping book_to_price RAISES the value theme IC t 0.84->1.57 and makes the composite WORSE in both directions (-0.207/-0.079 t); swapping for neg_ev_ebitda likewise. Third instance of the P6 rule: a theme's IC and the composite it feeds move opposite ways. |
+| S2 | S | Register cash_op_prof | DONE | NULL |  | HANDOFF_signals.md | 2026-08-06 | human | Audit premise WRONG: not untested (settings.py already recorded t +0.22) and not empty (95.3% coverage). Full-universe re-run replicates the rejection: median IC +0.0026, t +0.84 vs X7 calibrated 2.71; corr 0.27-0.44 so distinct yet uninformative. SHIPPED as measured-not-scored (roe_ttm precedent); composite bit-identical either way. |
 | S3 | S | Rebuild the insider score | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
-| S4 | S | Growth theme carries zero weight | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
+| S4 | S | Growth theme carries zero weight | DONE | NULL |  | HANDOFF_signals.md | 2026-08-06 | human | Observation TRUE (no growth key in WEIGHTS_ESTABLISHED) but adding it fails the pre-registered both-directions rule: zeroing growth costs -0.263 t one way and HELPS +0.549 t the other. Speculative branch: no evidence to remove it either. Book argues against too: only 15/25 names kept, median cap $1.09B->$1.73B, tilting to momentum/thematic. Now a tested decision, not an omission. |
 | S5 | S | Hierarchical shrinkage | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | S6 | S | Factor momentum on themes | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
 | S7 | S | Pre-registered interactions | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |

@@ -193,10 +193,26 @@ NUMBER_THEME = {
     # Kept: f_score
     # (median IC +0.061, IC t +5.66 - the strongest single number in the panel),
     # accruals_q (+0.026, t +3.08, newly populated) and inst_breadth (+0.024, t +2.71).
-    # Rejected and deliberately NOT listed: cash_op_prof (t +0.22, no signal) and the
-    # short-horizon price anomalies neg_ret_1m / neg_max_ret / neg_idio_vol (all wrong-
-    # signed here). Adding a name back here is all it takes to re-test one.
+    # Rejected and deliberately NOT listed: the short-horizon price anomalies
+    # neg_ret_1m / neg_max_ret / neg_idio_vol (all wrong-signed here). Adding a name back
+    # here is all it takes to re-test one.
     "f_score": "quality", "inst_breadth": "institutional",
+    # S2 (2026-08-06) — cash-based operating profitability. TESTED AND REJECTED, twice, and
+    # now LISTED so it stays MEASURED, exactly like roe_ttm/roic_ttm below: registering a
+    # number here gives it a z_ column and puts it in the coverage guard and the per-signal
+    # IC table, but it only SCORES if factors.py names it in a theme mean, and the quality
+    # mean does not. Verified: the composite is bit-identical with it registered
+    # (long-short t 2.8360640685320595 either way).
+    #   400-name run (the original rejection):        t +0.22
+    #   FULL 2,710-name / 69-date re-run, 2026-08-06: median IC +0.0026, t +0.84
+    # Against X7's CALIBRATED bar of 2.71 that is a clear miss, and it is not redundancy —
+    # correlations are only 0.27 (gp_on_capital), 0.31 (fcf_margin), 0.44 (roic), so it is
+    # distinct from what quality already holds and still uninformative. Folding it into the
+    # quality mean LOWERS that theme's IC t from 3.10 to 2.91 and the composite's long-short
+    # t from 2.836 to 2.790. The audit called this "the single cheapest untested signal in
+    # the repository"; it was tested, and the reason to re-run was that the first test was on
+    # 400 names, which this project's own methodology rule calls a smoke test.
+    "cash_op_prof": "quality",
     # SF3 per-manager 13F detail (smart money), 45-day filing lag like the rest of the 13F
     # data. Measured on 800 large caps / 110 rebalances / 63d forward:
     #     sm_breadth       +0.0293  t +2.37   KEPT
