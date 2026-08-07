@@ -392,6 +392,42 @@ honest label and gives a clean re-entry point once 2026 closes.
    Fixed: the deadline is enforced by ABANDONING the call on a daemon thread (so a call that
    never returns cannot pin the interpreter at exit), and a hang now counts as a fault. Pinned
    by a test that completes in 0.53s where the old path waited out a 30s hang twice.
+11. **A BROKEN SOURCE MONTH (MAY 2022) COSTS THE WHOLE YEAR, BECAUSE A PARTIAL YEAR IS
+   DISCARDED. Not a bug in this repo — a design trade-off whose worst case arrived. NOT
+   permanent; it self-heals.** From roughly queue position 852 onward, every name started
+   losing exactly 2022: AGI, IONQ, DPZ, NIO, W. Probed month by month at `max_dte=200`, the
+   cause is unambiguous and is **at source**:
+
+   | | |
+   |---|---|
+   | W 2022-04 | 21,392 rows, 5.5s |
+   | **W 2022-05** | **`_MultiThreadedRendezvous` after 2.1s** |
+   | W 2022-06 | 38,164 rows, 4.9s |
+   | **AGI 2022-05** | **`_MultiThreadedRendezvous` after 0.2s** |
+
+   Every other month of 2022 returns normally, for both names. The failure is fast and
+   deterministic, i.e. a server rejection of that partition, not a timeout or a load effect.
+
+   **Two hypotheses tested and REFUTED, so they do not get repeated as folklore:** it is not a
+   general 2022 outage (DPZ 2022 returns 40,000 rows in 5.6s), and it does **not** poison the
+   gRPC channel — on one client, good → bad → good → good all succeed except the bad one, and
+   a fresh client is no better than the poisoned one.
+
+   The whole-year loss comes from `ensure_year`'s deliberate rule:
+   `if failed: # Partial year: do NOT cache it as if complete`. One bad span discards eleven
+   good months. That rule is defensible — a partial year silently passing as complete is
+   exactly the silent under-sampling this project keeps getting burned by — but its worst case
+   is expensive, and it is worth knowing it exists.
+
+   **It is NOT permanent, and this corrects a worry raised while investigating.** The
+   `.exhausted` counter (`MAX_MISSING_ATTEMPTS`) lives only in the *empty*-result branch; a
+   partial year writes a plain `.missing` and is retried by every future run forever. So once
+   the source repairs May 2022, **a plain re-run of `mine_options_cache.py` fills these years
+   in with no special handling.** The cost meanwhile is recurring wasted work, not lost data.
+
+   **Deliberately NOT changed:** caching partial years with a gap record would fix the waste,
+   but it changes the contract every consumer relies on ("a `.pkl` exists ⇒ that year is
+   complete"). That is not a call to make unilaterally, mid-run, in the miner's lane.
 10. **"Nothing to judge" and "judged and untradeable" shared one status.** `skipped_thin` was
    recorded both for names measured against the liquidity screen and for names with no data to
    measure — which is what let bug 8 hide, since a 2025 IPO was indistinguishable from a penny
