@@ -1,5 +1,18 @@
 # HANDOFF — CI: stop the auto-land churn (r1 lane, 2026-08-07)
 
+## STATUS: LANDED AND VERIFIED ON `main`
+
+Commits `f47661c`, `f11cdec`, `52e1c01`, landed as `343465d`. Confirmed present on `origin/main`:
+`.gitattributes` with 4 union rules; `land-agent-branch.yml` carrying the per-branch concurrency
+group, `code_changed()`, the `exit $fail` literal, `checkout@v5` and `setup-python@v6`.
+`tests/test_edge.py` **249/249**; full 24-suite gate green locally.
+
+**The union merge has already proved itself in practice**, not just in the scratch test: the merge
+of `origin/main` that produced `343465d` pulled in another lane's `HANDOFF_STATUS.md` edits and
+resolved with **zero conflict markers and no hand-editing** — the first such merge since
+`.gitattributes` existed, on the exact file that caused every previous conflict.
+
+
 Out-of-band infrastructure. Nothing under `valuation/**` touched; I own `.gitattributes` (new),
 `.github/workflows/**` and this file.
 
@@ -259,13 +272,22 @@ assertion's intent is sound and `tests/test_edge.py` is required to stay green. 
 `land-agent-branch.yml`: `actions/checkout@v4 → v5`, `actions/setup-python@v5 → v6`. Non-blocking;
 they were being forced onto Node 24 because Node 20 is deprecated.
 
-**`auto-scan.yml` and `track-backup.yml` still carry `checkout@v4` / `setup-python@v5` and I left
-them that way ON PURPOSE, for this pass.** They use the same actions, so the bump is mechanical —
-but `auto-scan.yml` runs the production scans with live secrets, and I am not willing to bump it on
-the assumption that `v5`/`v6` resolve. Landing this branch *proves* they resolve, because the land
-Action is the thing running them. Once green, the other two are a two-line change per file with the
-evidence already in hand. Doing it in that order is the difference between a verified change and a
-hopeful one.
+**`auto-scan.yml` and `track-backup.yml` were deliberately left on the old versions for one land,
+then bumped.** They use the same actions, so the bump is mechanical — but `auto-scan.yml` runs the
+production scans with live secrets, and bumping it on the *assumption* that `v5`/`v6` resolve is
+exactly how you break scheduled scans. Landing this branch proved they resolve, because the land
+Action is the thing that ran them. **Both are now bumped, with evidence rather than hope.** That
+ordering is the whole difference between a verified change and a hopeful one, and it cost one land.
+
+**Left alone: `actions/cache@v4`** in `auto-scan.yml`. The prompt named `checkout` and
+`setup-python`; I have no evidence about the current major for `cache` and did not want to guess at
+a version number inside the production scan workflow. Worth checking separately.
+
+**Still unverified, and stated plainly:** `auto-scan.yml` and `track-backup.yml` are on schedules
+and need live secrets, so **I could not execute them.** What is verified is that the two action
+versions resolve (proved by the land) and that all three files parse. The first scheduled run is
+the real test; if a scan red-Xes, revert those two files to `@v4`/`@v5` — nothing else in this
+change touches them.
 
 ---
 
