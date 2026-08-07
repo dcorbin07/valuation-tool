@@ -4,7 +4,7 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-06 (external edge audit, **session 6** — U7 and X3)
+**Session date:** 2026-08-06 (external edge audit, **session 7** — B8, held-out LOO, P4)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
@@ -14,6 +14,63 @@ file directly.
 > then R1's original run, then session 1, then deep research #2, then the EV staleness fix, then
 > PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
 > per-finding status in `CODE_AUDIT.md`.
+
+---
+
+## AUDIT SESSION 7 (2026-08-06) — B8 FIXED, HELD-OUT LOO IS **NULL**, P4 SHIPPED
+
+Full write-up: **`HANDOFF_edge_audit.md`**, "SESSION 7". Pre-commitment pushed in `5a27ea1`
+**before any LOO number existed**, including the expected direction. **All 22 suites green,
+`OVERALL_FAIL=0`** (248/248 edge, 45/45 paper-track).
+
+| item | verdict |
+|---|---|
+| **B8** — holdout rule vs documentation | **FIXED.** `rule_fired` was computed and never read. Both verdicts now ship, separately named. **Neither shipped decision changes.** |
+| **LOO** — pre-registered held-out leave-one-out | **NULL.** Neither direction's selected arm clears either committed margin; different theme selected each way |
+| **P4** — the paper track's rules | **FIXED.** Departed names are now sold, not held forever |
+
+**B8, and why it was done first.** `holdout_theme_validate` computed `rule_fired` and no line
+read it, so its verdict was a **both-halves stability check wearing the name of an out-of-sample
+confirmation**. Fixed rather than renamed — but *not* by gating the existing key, because
+`scripts/placebo.py` reads `verdicts` and **X7's ~6% false-positive rate was calibrated against
+that exact object**. So `verdicts` keeps frozen semantics (alias `stability_verdicts`) and a new
+`oos_verdicts` enforces the documented rule. **`low_risk` stays zeroed and `insider` stays at
+0.125 — but `low_risk` is confirmed out-of-sample in ONE of two split directions, not two.**
+Quote it whole from now on.
+
+**LOO — NULL, and the reason is the finding.** Select the best of seven leave-one-out arms on a
+decide half, measure only that arm on the held-out half, both directions:
+
+* decide-early → drop `momentum` (decide +3.68%) → measure **−1.30%**, LS *t* **−0.706**
+* decide-late → drop `capital_discipline` (decide +2.20%) → measure **+0.20%**, LS *t* **−0.201**
+
+**Four of seven arms change sign between halves.** Session 6's exploratory "+8.54% from dropping
+`capital_discipline`" is carried by the late half and is not a property of the panel. **Do not
+quote a full-sample ablation arm as a finding.** One thing survives: **`size` is the worst arm to
+drop in BOTH halves independently** (−2.64%, −3.46%) — corroborated, though it was never
+*selected*, so it carries no verdict of its own. **`quality` clears both margins on both halves
+and was selected in neither direction** — deliberately NOT promoted, because switching to the
+rule that would have found it, after seeing that it works, is session 6's error one level up.
+
+**P4 — the paper track was not tracking the index.** `seed_book` only ever inserted, so a name
+entered once and was **held forever**; the paper index had become an ever-growing union of
+everything the screener ever liked. Departed names are now **closed** into a new
+`paper_index_closed` table — never deleted, because deleting them is reverse survivorship bias.
+A truncated export closes nothing and says so. **The first live run will report `closed: N` for
+however many names accumulated wrongly — that number is the size of the bug and is worth
+reading.**
+
+**Trial cost.** This session's 7 arms take equity `N` 104 → 111; a concurrent lane's 5 equity
+trials merged at close-out take it to **116**. **Deflated Sharpe 0.8674, √(2·ln 116) = 3.083** —
+still far above X7's calibrated 0.7216 floor, still below the 0.95 convention. Also settled:
+**`SUPERSEDED` rows DO count toward `N`** (the schema prose said otherwise; `research_log.py`
+never implemented it — the counter is right and the prose is fixed).
+
+**Recommended next step:** **X8, the international replication.** Session 7's answer to "can the
+theme-ordering question be settled on one panel?" is *probably not* — with only two halves,
+"stable across halves" is measured on the same data that provides the measurement half. Session
+8's nominal first item (pre-registering a stability-based selection rule) is written up, but it
+is thin on one panel and says so.
 
 ---
 

@@ -644,6 +644,117 @@ def test_hero_never_raises_and_never_takes_the_page_down():
     assert h["show"] is False and h["may_lead"] is False
 
 
+
+# --------------------------------------------------------------- AUDIT P4: exits are sold
+_BOOK_ONE = {"positions": [{"ticker": "AAA", "weight": 1.0}]}
+
+
+def test_p4_a_name_that_leaves_the_book_is_closed_not_deleted():
+    """The bug: seed_book only ever INSERTED, so the paper index was an ever-growing union of
+    everything the screener had ever liked. The fix must SELL the departed name and must keep
+    its record — deleting it would drop names that left after their composite decayed, which
+    flatters the track in exactly the direction nobody would notice.
+    """
+    st = _store()
+    b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
+                           "SPY": {"last": 500.0}})
+    PT.seed_book(st, b, _BOOK)
+    b._q = {"AAA": {"last": 100.0}, "BBB": {"last": 240.0}, "SPY": {"last": 550.0}}
+    out = PT.seed_book(st, b, _BOOK_ONE)                      # BBB has left the book
+    assert out["closed"] == 1 and out["closed_tickers"] == ["BBB"], out
+
+    with st._conn() as c:
+        assert [r[0] for r in c.execute("SELECT ticker FROM paper_index_holdings")] == ["AAA"]
+        row = c.execute("SELECT ticker, entry_price, exit_price, bench_entry_price, "
+                        "exit_bench_price, exit_date FROM paper_index_closed").fetchall()
+    assert len(row) == 1, "the departed name was deleted instead of closed"
+    t, ep, xp, be, xb, xd = row[0]
+    assert (t, ep, xp, be, xb) == ("BBB", 200.0, 240.0, 500.0, 550.0)
+    assert xd, "a closed stint with no exit date is indistinguishable from an open one"
+
+    # +20% against SPY's +10% = +10pp of realised active return, kept and reported.
+    real = PT.index_summary(st)["realized"]
+    assert real["n_closed"] == 1 and real["n_priced"] == 1
+    assert abs(real["mean_active_ret"] - 0.10) < 1e-9, real
+
+
+def test_p4_a_closed_name_stops_moving_the_index_and_can_re_enter_later():
+    """Two failures in one test, because the second is the trap in the obvious fix.
+
+    A sold name must stop contributing to future points. And it must be able to COME BACK:
+    `paper_index_holdings.ticker` is a PRIMARY KEY and the insert is INSERT OR IGNORE, so
+    parking closed rows in that table would make a re-entering name silently un-addable — the
+    original bug's mirror image, and just as quiet.
+    """
+    st = _store()
+    b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
+                           "SPY": {"last": 500.0}})
+    PT.seed_book(st, b, _BOOK)
+    b._q = {"AAA": {"last": 110.0}, "BBB": {"last": 999.0}, "SPY": {"last": 500.0}}
+    PT.seed_book(st, b, _BOOK_ONE)
+    pt = PT.index_point(st, b)
+    assert pt["n_positions"] == 1 and pt["n_priced"] == 1
+    assert abs(pt["index_ret"] - 0.10) < 1e-9, "the sold name is still moving the index"
+
+    back = PT.seed_book(st, b, _BOOK)                          # BBB returns
+    assert back["added"] == 1, "a re-entering name was silently refused"
+    with st._conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM paper_index_holdings").fetchone()[0] == 2
+        # the earlier stint survives the re-entry rather than being overwritten
+        assert c.execute("SELECT COUNT(*) FROM paper_index_closed").fetchone()[0] == 1
+
+
+def test_p4_a_truncated_export_closes_nothing():
+    """A failed export and a genuinely smaller book are indistinguishable at this layer, and
+    acting on the wrong one liquidates a real track. The guard refuses and SAYS SO — it does
+    not proceed quietly, which would be silencing a check.
+    """
+    st = _store()
+    b = FakeBroker(quotes={f"T{i}": {"last": 100.0} for i in range(10)} | {"SPY": {"last": 500.0}})
+    big = {"positions": [{"ticker": f"T{i}", "weight": 0.1} for i in range(10)]}
+    PT.seed_book(st, b, big)
+    out = PT.seed_book(st, b, {"positions": [{"ticker": "T0", "weight": 1.0}]})
+    assert out["closed"] == 0, "a 90% shrink was treated as a real rebalance"
+    assert out["close_refused"] and "truncated" in out["close_refused"]
+    with st._conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM paper_index_holdings").fetchone()[0] == 10
+
+    # An ordinary rebalance is NOT refused: the guard catches a truncated file, not turnover.
+    ok = PT.seed_book(st, b, {"positions": [{"ticker": f"T{i}", "weight": 0.125}
+                                            for i in range(8)]})
+    assert ok["closed"] == 2 and ok["close_refused"] is None, ok
+
+
+def test_p4_inception_does_not_walk_forward_when_the_oldest_name_is_sold():
+    """Taking the minimum entry date over OPEN holdings only would make the track appear to get
+    younger the longer it ran — the record's start date would follow its oldest survivor.
+    """
+    st = _store()
+    b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
+                           "SPY": {"last": 500.0}})
+    PT.seed_book(st, b, _BOOK, today="2026-01-05")
+    PT.index_point(st, b, today="2026-01-05")
+    first = PT.index_summary(st)["inception"]
+
+    PT.seed_book(st, b, {"positions": [{"ticker": "CCC", "weight": 1.0}]}, today="2026-06-01")
+    b._q = {"CCC": {"last": 50.0}, "SPY": {"last": 500.0}}
+    PT.index_point(st, b, today="2026-06-01")
+    assert PT.index_summary(st)["inception"] == first, "inception followed the surviving names"
+
+
+def test_p4_seed_book_can_still_accumulate_when_asked():
+    """The old behaviour is reachable for reproducing a historical run — but it is not the
+    default, because the old behaviour is the bug.
+    """
+    st = _store()
+    b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
+                           "SPY": {"last": 500.0}})
+    PT.seed_book(st, b, _BOOK)
+    out = PT.seed_book(st, b, _BOOK_ONE, close_exits=False)
+    assert out["closed"] == 0
+    with st._conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM paper_index_holdings").fetchone()[0] == 2
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

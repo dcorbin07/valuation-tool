@@ -317,17 +317,62 @@ the project's memory and the old versions had been repeated for months.
     the model never makes. Now shipped as `pbo_scope`.
   * The honest version of both needs a real trial counter (audit M1, the append-only research
     log). **Not done.** At N ≈ 100+, √(2·ln N) ≈ 3.0 — about the Harvey–Liu–Zhu hurdle.
-- **CORRECTED 2026-08-03 (audit B8) — `low_risk` was NOT "confirmed out-of-sample". It passed a
-  BOTH-HALVES STABILITY TEST.** `holdout_theme_validate`'s docstring describes a clean protocol
-  — flag a theme on one half using a pre-specified rule, then measure the effect of removing it
-  ONLY on the other half. **Verified in the code: `rule_fired` is computed at
-  `fundamental_panel.py:3048` and never read.** The verdict is `all(improves)` across both split
-  directions, which is a demanding test and a legitimate one — but it is a stability check on the
-  full sample, not an out-of-sample confirmation, and `low_risk` reads `confirmed` while
-  `rule_fired = false` in one direction, which is only possible because the flag is ignored.
-  The measured numbers below are unchanged and still stand; the word "CONFIRMED" was the
-  overstatement. Fixing the function (implement the rule, or rename it and its verdict labels)
-  is audit item **B8** and is NOT yet done.
+- **B8 IS FIXED (2026-08-06, session 7), AND `low_risk` SURVIVES IT ON HALF THE EVIDENCE THE
+  RECORD CLAIMED.** `holdout_theme_validate`'s docstring described a clean protocol — flag a
+  theme on one half with a pre-specified rule, then measure removal ONLY on the other half — and
+  the code never implemented step 2: `rule_fired` was computed (`fundamental_panel.py:3545`; the
+  long-cited `:3048` had drifted into an unrelated function) and never read. Two verdicts now
+  ship, named for what they are:
+  * **`verdicts` / `stability_verdicts` — SEMANTICS DELIBERATELY FROZEN.** This is the
+    both-halves check every shipped decision actually rested on, and **X7's measured ~6%
+    false-positive rate was calibrated against this exact object** (`scripts/placebo.py:108`
+    reads this key). Redefining it in place would have left that 6% describing a gate that no
+    longer exists — the same class of error as the stale theme IC table.
+  * **`oos_verdicts` — the documented rule enforced.** A direction counts only if its decide
+    half flagged the theme. `oos_directions_tested = 0` means **no out-of-sample test was run
+    at all**, which is a different statement from a negative result.
+  * **NEITHER SHIPPED DECISION CHANGES:** `low_risk` `confirmed_oos`, `insider` `rejected_oos`.
+    **But `low_risk` is confirmed in ONE of two directions, not two** — the rule fires only on
+    the early half. Quote it whole: *"zeroing `low_risk` is confirmed out-of-sample in one of
+    two split directions, and passes a both-halves stability check in both."*
+  * **THE PART THAT GENERALISES: three themes (`quality`, `capital_discipline`,
+    `institutional`) are `not_flagged` in both directions**, because the rule is `median IC ≤ 0`
+    and their ICs are positive. `capital_discipline` is precisely the theme session 6's
+    exploratory LOO nominated for dropping. **An IC-gated rule cannot express a
+    marginal-contribution hypothesis** — X3's whole finding is that theme IC does not predict
+    marginal contribution. Do not reach for `holdout_theme_validate` to adjudicate an ablation.
+- **THE FULL-SAMPLE LEAVE-ONE-OUT DOES NOT SURVIVE A TIME SPLIT — SESSION 6'S EXPLORATORY
+  RESULT IS NOT A PROPERTY OF THE PANEL (2026-08-06, session 7, LOO — NULL).** Pre-registered
+  at `5a27ea1` before any number existed: select the best of seven leave-one-out arms on a
+  decide half, measure only that arm on the held-out half, both directions, against the
+  MIN_HOLDOUT margins committed before P6 (100bps alpha, 0.25 t).
+  * **Direction 1 selects dropping `momentum` (decide +3.68%) → measure −1.30%, LS t −0.706.
+    Direction 2 selects dropping `capital_discipline` (decide +2.20%) → measure +0.20%,
+    LS t −0.201. Neither clears either margin; different themes selected. VERDICT NULL.**
+  * **FOUR OF SEVEN ARMS CHANGE SIGN BETWEEN HALVES** (`momentum`, `insider`, `value`, and
+    `capital_discipline` moves 3rd → 1st). Session 6's "+8.54% from dropping
+    `capital_discipline`" is the average of +0.20% and +2.20% — carried by the late half.
+    **Do not quote a full-sample ablation arm as a finding.**
+  * **`size` IS CORROBORATED: it is the WORST arm to drop in BOTH halves independently
+    (−2.64%, −3.46%)** — the only theme whose LOO effect is both large and stable. Stated with
+    its limit: `size` was never *selected* (the rule takes the maximum), so this is the most
+    stable cell in a table that carries no verdict, not a pre-registered result. Enough to say
+    **"do not drop `size`, and stop treating its low IC as evidence against it."**
+  * **NOT CLAIMED, DELIBERATELY:** `quality` clears both margins on both halves and was
+    selected in neither direction, because the pre-registered rule takes the maximum and the
+    maximum is the statistic most inflated by noise. Promoting that now would be selecting the
+    RULE on the results — session 6's error one level up. Session 8 pre-registers it or nobody
+    quotes it.
+  * **The expectation was written down first and was RIGHT** (NULL at 70/30), breaking a
+    four-run streak of wrong directional calls. One correct call after four wrong ones does not
+    license reasoning about direction; keep measuring.
+  * **Equity `N` 104 → 111 from this session's 7 arms, then → 116 once a concurrent lane's 5
+    equity trials merged. QUOTE 116: Deflated Sharpe 0.8674, √(2·ln 116) = 3.083** (still far
+    above X7's 0.7216 floor, still below the 0.95 convention). **`N` is a PROJECT quantity, not
+    a session one** — it is now two sessions running that the realised count overshot its own
+    pre-commitment, for a different reason each time. Also settled this session:
+    **`SUPERSEDED` rows DO count toward `N`** — the schema prose said otherwise and
+    `research_log.py` never implemented it; the counter is right and the prose is fixed.
 - **SUPERSEDED 2026-08-04 (audit session 2, B6) — EVERY NUMBER IN THE NEXT TWO BULLETS WAS
   MEASURED ON A PANEL WHOSE FIRST THIRD HAD AN INVERTED UNIVERSE. The corrected numbers are
   WORSE and TWO OF THE THREE BARS NOW FAIL. Read the "CORRECTED PANEL" bullet below first;
