@@ -5485,3 +5485,250 @@ principle, but the adopt curve shows N = 116, 121 and 129 all give the same 20 a
 session 10's 2.1437 / 2.2837 **are** the floors at today's `N`. What is needed is the discipline,
 not a re-run: every future sweep records the `N` it ran at, and no floor is compared across sweeps
 at different `N` without checking the curve.
+
+---
+
+# SESSION 13 (2026-08-08) — the paper-track evaluation contract, drafted and STOPPED for Don; and the stale artifact refreshed
+
+**Owner:** pipeline builder. **Trial cost: ZERO.** Equity `N` stays **129**. A contract is a
+pre-registration and nothing has been registered yet, so the trial is charged **on sign-off** —
+the moment the search is committed to — not now and not at the verdict. Session 14 adds that row
+with the chosen option. Options `N` moved 164 → **169** for a reason belonging to session 12 (§5).
+
+**Headline: item 1 is DONE and DELIBERATELY NOT COMMITTED — `PAPER_TRACK_CONTRACT.md` is a DRAFT
+and needs Don. Item 2 is done. But the session's most important output is neither: the forward
+track that CLAUDE.md calls "the project's #1 remaining validation" is not running, and the
+verdict it is supposed to deliver is not computable from the data either source records today.**
+
+---
+
+## 1. What Don has to decide (the plain-English version)
+
+The draft is `PAPER_TRACK_CONTRACT.md`. Three options; each fixes start date, horizon,
+comparison rule, abort rule and what may be said publicly. **Don picks one line.**
+
+**First, the fact that changes the question.** The track is already running and is **behind
+SPY**: inception **2026-07-30**, five trading days accrued, Valquo **+0.78%** vs SPY **+3.62%**,
+excess **−2.85pp**. That is **−1.8 SD of a five-day window** (two-sided p ≈ 0.08) — an ordinary
+bad week that means nothing about the strategy. It means something about the *decision*, though:
+**Don is choosing the start date knowing the accrued period went against him.** Discarding it is
+the flattering direction and the only choice with a bad look; keeping it costs nothing (5 days is
+0.3% of a five-year window). **All three options therefore keep the existing inception**, and a
+fresh start is offered only so the choice is recorded as his.
+
+**Second, the number that decides everything, and it is arithmetic.** From the artifact's own
+`benchmarks.spy` block the top decile beat SPY by **+9.99%/yr** with a **tracking error of
+11.4pp/yr** — an **information ratio of 0.88/yr**, and that is the *in-sample* figure, measured
+on the panel the model was tuned on. A t-statistic grows as √time, so:
+
+| horizon | expected t | chance of "significant" **even if the edge is entirely real** | smallest detectable edge |
+|---|---|---|---|
+| 3 months | 0.4 | 10% | +69 pp/yr |
+| 6 months | 0.6 | 13% | +49 pp/yr |
+| **12 months** | **0.9** | **18%** | **+34 pp/yr** |
+| 24 months | 1.2 | 27% | +24 pp/yr |
+| **36 months** | **1.5** | **35%** | **+20 pp/yr** |
+| **60 months** | **2.0** | **49%** | **+15 pp/yr** |
+| 120 months | 2.8 | 74% | +11 pp/yr |
+
+(Percentages carry a haircut for month-to-month correlation — the project's only measurement of
+it is R9's lag-1 **+0.189**, which turns 12 calendar months into ~8 independent ones. Applied as
+an illustration, and labelled as one: the monthly excess series does not exist yet to measure.)
+
+**Three consequences, none of them escapable by picking a cleverer statistic:**
+
+1. **A one-year verdict is not a verdict.** At 12 months the test can only detect **+34pp/yr**,
+   more than three times what we claim. If the strategy works exactly as backtested, a 12-month
+   test says "no evidence" **82% of the time.**
+2. **The first horizon where the test is even a coin flip is five years** (49%).
+3. **Refutation takes exactly as long as confirmation** — the test is symmetric. Nobody gets to
+   say a short track disproved this either.
+
+So the contract's deliverable is **the prohibition, not the verdict**: it stops anyone, us
+included, reading three good months as proof. The verdict comes much later than this project has
+been implicitly assuming.
+
+**The options.**
+
+| | **A — RECOMMENDED** | B — earlier decision point | C — add a faster secondary test |
+|---|---|---|---|
+| Start | keep 2026-07-30 | keep 2026-07-30 | keep 2026-07-30 |
+| Operational gate | 6 months | 6 months | 6 months |
+| Statistical verdict | **60 months** | **36 months** | 60m vs SPY **+** ~36m vs a costed equal-weight basket |
+| Power at verdict | 49% | 35% | 49% / 64% |
+| Honest summary | slow, but the only one where the number means what it says | sooner, and will very likely say "no evidence" whatever the truth | best-powered, but the extra benchmark is one nobody can buy, and it has to be built |
+
+**A** splits the job in two: a **6-month operational gate** (does the track actually record
+properly — daily rows, no gaps, costs near the modelled 33.4bps, no B5-class defect outstanding)
+and a **60-month statistical verdict**. The gate has real power because it tests execution rather
+than performance — **and we would fail it today.** SUPPORTED needs positive cumulative excess and
+a one-sided NW(3) t ≥ 1.645 on monthly excess vs SPY total return; UNSUPPORTED is t ≤ −1.645;
+everything else is NULL — **and the contract states in advance that NULL is the single most
+likely outcome even if the strategy is exactly as good as advertised**, so a NULL cannot later be
+spun as either failure or vindication.
+
+**Abort rule**, precedent audit **B5** (four defects in this very tracker, *every one* of which
+flattered it): a defect that changes a recorded return, a construction change, or a vendor change
+**voids the affected window**, logged when found; back-filling, a discretionary override, or any
+post-inception change to the thresholds **voids the whole run**; sandbox quote delay, rounding, a
+same-week catch-up write and **bad performance** are logged, not voided. No void is ever decided
+after seeing what it does to the answer.
+
+**Public posture**, now a written rule rather than a habit: paper, thin, too early to judge; the
+backtest stays the headline; no annualising a stub, no Sharpe until there is enough history, no
+"since inception" figure without its day count, and no verdict language before the horizon —
+and it binds a **good** quarter exactly as hard as a bad one.
+
+**→ Don replies with one line: "Option A" (or B, C, or "A but start fresh").** On his reply the
+chosen option is committed verbatim with his choice and the date recorded, and the register is
+live from that commit. **Nothing was committed unilaterally.**
+
+---
+
+## 2. Item 2 — the stale artifact, refreshed
+
+`BACKTEST_RESULTS.json` shipped a Deflated Sharpe computed at **`n_trials` = 84**, a denominator
+45 trials out of date, so a reader trusting the file over the brief got the flattering number.
+Re-run on the full universe from the merged tree.
+
+| field | before — 2026-08-05, `4f41c9f`, **`dirty: true`** | after — 2026-08-08, `e83df30`, **`dirty: false`** |
+|---|---|---|
+| `cpcv.deflated_sharpe.value` | **0.8996589404135822** | **0.855607566829599** |
+| `deflated_sharpe_detail.n_trials` | **84** | **129** |
+| `n_trials_from_research_log` | 84 | **129** |
+| `n_trials_from_weight_schemes` | 8 | 8 (unchanged — the degrade path is intact) |
+| `sr0_benchmark` | 0.4056234662323911 | 0.43031816623094016 |
+| `n_trials_source` | `RESEARCH_LOG.md (audit M1)` | identical |
+| `deflated_sharpe.want` | `>0.95` | `>0.95` — **still fails, as the record says** |
+
+**Everything else is bit-identical.** `construction.long_short_tstat` 2.8360640685320595,
+`top_decile_alpha` 0.07174142332098163, `monotonicity` −0.8909090909090909, `universe` 2,531
+names / 69 dates, `cpcv.adopt` false, `cpcv.verdict` unchanged, and every `benchmarks` figure —
+all to the last digit.
+
+**Session 4's wiring confirmed working, not assumed:** `deflated_sharpe_detail.n_trials_source`
+reads `RESEARCH_LOG.md (audit M1)` and `n_trials_from_research_log` now reads **129**, matching
+`research_log.detail()['n_used']` exactly. `n_trials_from_weight_schemes` stays 8, so the
+degrade-to-old-behaviour path is intact.
+
+**"No other number moved beyond expectation" is a measurement, not an impression.** A leaf-by-leaf
+diff of the whole JSON: **15 leaves moved, 32 added, 0 removed.** Of the 15, **five are the
+Deflated Sharpe chain** (`n_trials` ×2, `sr0_benchmark`, and `value`/`probability`) and the other
+**ten moved by 0.000%** — last-digit floating-point on `costs` and `net_sharpe`. Nothing else
+moved at all.
+
+**The known non-reproducibility did not bite, and that is worth recording.** `insider` — the theme
+CLAUDE.md flags as having an unstable IC across identical-data runs — came back **identical to
+sixteen digits** (median IC −0.0051782959605508995, t −0.23616128224391933), as did `low_risk`,
+`size` and `quality`. One clean re-run three days and one merge later is not a fix for that open
+item, but it is a data point in its favour.
+
+**The artifact was stale in more ways than `N`, which nobody had noticed.** The 32 added leaves
+are not cosmetic: the file shipped **no `oos_verdicts` block at all**, because it predated session
+7's B8 fix. A reader trusting it could not see the out-of-sample theme verdicts — only the frozen
+`stability_verdicts` under the old name. It also predated the `cash_op_prof` signal, so that
+signal was missing from `per_signal`, `signal_coverage` and the sanity subgroup check. **Both
+shipped decisions are unchanged on the fresh run: `low_risk` `confirmed_oos`, `insider`
+`rejected_oos`.** The sanity layer still fires exactly the two flags the record says are expected,
+and neither was silenced.
+
+**Provenance repaired as a side effect.** The replaced file carried `git.dirty: true`; this one
+records a clean `e83df30`. The contract draft was deliberately held in scratch until the run had
+written, so the refreshed artifact is reproducible from a named commit.
+
+---
+
+## 3. What I did NOT do, and why
+
+- **I did not commit the contract.** That is the instruction and it is also the point: a
+  contract whose thresholds an agent chose *and* adopted is not a pre-registration.
+- **I did not fix the track.** Every gap in §5 is real and none of it is repaired here. The
+  operational work is only worth doing against a signed horizon, and two of the items (which
+  source is authoritative; whether the series gets chained) are **construction decisions Don's
+  answer determines**, not bug fixes. Doing them first would be choosing the contract by
+  implementation.
+- **I did not touch `RESEARCH_LOG.md`'s O16 row** — already routed to the options lane, and they
+  have since fixed it (§5).
+- **I did not re-derive any placebo floor.** Equity `N` did not move, so nothing recalibrates;
+  session 12 already established that the floors at N = 129 are the floors at N = 121.
+- **I did not edit screener/engine/web**, which are outside this lane, even where §5's findings
+  point at `valuation/screener/index_track.py`. Reported instead.
+
+---
+
+## 4. What Session 14 does
+
+**Blocked until Don replies.** On his reply, in this order:
+
+1. **Commit the chosen option verbatim**, with the choice and date in §5's register, and set
+   the inception into a **tracked** file — §5 bug 1 is that the project's most important
+   pre-registration date currently exists only in a gitignored one.
+2. **Then the operational gate becomes the work**, and it is bigger than "wait": pick the single
+   authoritative source, make it write every trading day, and **build a chained return series
+   that includes closed stints** — without which no verdict under the contract is computable at
+   any horizon.
+
+**`needs first`**
+
+| item | state |
+|---|---|
+| Which of A / B / C | **NOT SET — Don's call.** Everything below waits on it. |
+| Keep inception vs fresh start | **NOT SET — Don's call**, with §1's disclosure that the accrued window is negative |
+| Authoritative source: sandbox engine or Cowork file | **NOT SET.** A track with two possible sources has no fixed start |
+| Whether closed stints are chained into the series | **NOT SET — a construction change**, and the code says so explicitly |
+
+---
+
+## 5. BUGS FOUND
+
+1. **THE INCEPTION DATE OF THE PROJECT'S #1 VALIDATION EXISTS ONLY IN A GITIGNORED FILE.**
+   `2026-07-30` appears in `data/valquo_track.json` and **nowhere in the repository** —
+   not in `HANDOFF_STATUS.md`, not in the audit handoff, not in the ledger. `data/` is
+   gitignored, so on a fresh deploy the start date of the out-of-sample record is simply gone.
+   A pre-registration nobody can produce is not one. **This is the strongest argument for
+   signing the contract**, which puts the date into git.
+2. **THE TRACK CANNOT PRODUCE THE SERIES ANY VERDICT NEEDS, IN EITHER SOURCE.**
+   `paper_index_track` stores a **snapshot of currently-open holdings**, each measured since its
+   own entry — not a chained series; differencing two points is not a monthly return, and a name
+   that leaves the book stops contributing. The code states this and states that chaining closed
+   stints in "is a construction change, not a bug fix, and was not made" (`paper_track.py:735-740`).
+   The Cowork file chains correctly between the rows it has, but is missing days (bug 3), so a
+   four-day gap silently becomes one "daily" return. **Documented ≠ harmless: it blocks the
+   verdict at every horizon.**
+3. **THE DAILY WRITE IS DROPPING DAYS.** `valquo_track_history.csv` holds **two** rows —
+   day 1 (2026-07-31) and day 5 (2026-08-06). Days 2-4 were never written.
+4. **THE ENGINE BUILT FOR THIS HAS NEVER BEEN FED.** `paper_option_orders`,
+   `paper_index_holdings` and `paper_index_track` are **0 rows each**, while 45/45 tests pass.
+   The five accrued days come from an entirely different mechanism. **CLAUDE.md roadmap #12 says
+   "What remains is elapsed time and reading the track, not building it" — that is wrong**, and
+   wrong in the direction that makes the project look further along than it is.
+5. **THE SITE WILL PROMOTE THE PAPER TRACK TO ITS HEADLINE BY ITSELF, ON A DATE ALREADY FIXED,
+   AND NOBODY HAS TO APPROVE IT. THIS IS THE MOST URGENT ITEM IN THE SESSION.**
+   `index_track.py:223-224` reads `out["thin"] = days < MIN_LIVE_DAYS` then
+   `out["headline"] = "backtested" if out["thin"] else "live"`, with `MIN_LIVE_DAYS = 60`. At
+   day 60 the "too early to judge" pill the landing page renders (`index.html:114`) disappears
+   and the headline flips to **live**. **The track is on day 5, so this fires in ~55 trading
+   days — late October 2026 — at 13% power, where the smallest detectable edge is +49pp/yr.**
+   The constant was never pre-committed and does not derive from power; it also disagrees by 2×
+   with `paper_track.MIN_DAYS_FOR_MEANING = 126`, which governs the same track. **Both live in
+   `valuation/screener/index_track.py`, outside this lane — this needs assigning, not just
+   noting**, and it is the concrete reason the contract wants signing before late October rather
+   than whenever.
+6. **THE COMMITTED ARTIFACT WAS WRITTEN FROM A DIRTY TREE.** The `BACKTEST_RESULTS.json` this
+   session replaced carried `git.dirty: true` at `4f41c9f`, so the canonical headline file's
+   provenance was not reproducible — exactly the tell the standing note about this file warns
+   about. This session's replacement was launched from a clean tree deliberately, and the
+   contract draft was held in scratch until the run had written, so the new file records a clean
+   commit.
+7. **THE CANONICAL ARTIFACT WAS STALE IN MORE THAN `N`, AND THE MISSING PART WAS A VERDICT
+   BLOCK.** `BACKTEST_RESULTS.json` predated session 7's B8 fix, so it shipped **no
+   `oos_verdicts` at all** — a reader parsing the canonical file for the out-of-sample theme
+   verdicts would have found only the frozen `stability_verdicts` and could reasonably have read
+   those as the out-of-sample result, which is precisely the confusion B8 was fixed to end. It
+   also predated `cash_op_prof`, which was absent from `per_signal`, `signal_coverage` and the
+   sanity subgroup check. **A results file is a claim with a date on it; this one had drifted
+   three sessions behind the code that writes it.**
+8. **CLOSED, not found here — session 12's routed item is done.** The O16 row's unescaped `|`
+   was repaired by the options lane (rewritten as `abs(...)`), `rows_malformed` is now **empty**,
+   and options `N` corrects **164 → 169** as session 12 predicted — the 4 trials that row was
+   silently losing, plus one new row. The session-12 parser fix is what made the loss visible.

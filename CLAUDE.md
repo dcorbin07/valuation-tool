@@ -44,6 +44,46 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE FORWARD PAPER TRACK CANNOT DELIVER A VERDICT FOR ~5 YEARS, AND IT IS NOT CURRENTLY
+  RUNNING (2026-08-08, session 13). Both halves of roadmap #12's status line were wrong.** That
+  item says the track is built and *"what remains is elapsed time and reading the track, not
+  building it."* Measured: `paper_option_orders`, `paper_index_holdings` and `paper_index_track`
+  hold **0 rows each** while 45/45 of its tests pass — the engine has never been fed, and the
+  five accrued days come from a different mechanism (the Cowork-side `data/valquo_track.json`).
+  * **THE ARITHMETIC IS THE FINDING, and it is not escapable by choosing a better statistic.**
+    From `benchmarks.spy` the top decile beats SPY by **+9.99%/yr at a tracking error of
+    11.4pp/yr** — an **information ratio of 0.88/yr**, and that is the IN-SAMPLE figure. Since
+    t grows as √time, **t = 2.0 arrives at 5.2 years** (7.6 once R9's lag-1 +0.189 is applied as
+    an n_eff haircut). **At 12 months the power is 18% and the minimum detectable edge is
+    +34pp/yr — over three times what the project claims.** If the strategy is exactly as good as
+    backtested, a one-year forward test reports "no evidence" **82% of the time**.
+  * **REFUTATION TAKES EXACTLY AS LONG AS CONFIRMATION** — the test is symmetric. There is no
+    horizon at which bad news is cheap. Nobody may say a short track disproved this either.
+  * **THE TRACK CANNOT PRODUCE THE SERIES A VERDICT NEEDS, IN EITHER SOURCE.**
+    `paper_index_track` stores a **snapshot of currently-open holdings** measured from each
+    name's own entry, not a chained series — differencing two points is not a monthly return, and
+    a departed name stops contributing. `paper_track.py:735-740` says so, and says chaining
+    closed stints in *"is a construction change, not a bug fix, and was not made."* The Cowork
+    file chains correctly but is **missing days** (two rows exist where five were due). **The
+    verdict is not computable at any horizon until one source produces a chained series.**
+  * **THE INCEPTION DATE EXISTS ONLY IN A GITIGNORED FILE.** `2026-07-30` is in
+    `data/valquo_track.json` and **nowhere in the repository**. A pre-registration nobody can
+    produce is not one — which is the strongest argument for signing the contract.
+  * **THE SITE PROMOTES THE TRACK TO ITS HEADLINE BY ITSELF, ON A FIXED DATE, WITH NO APPROVAL
+    STEP — THE ONE ITEM HERE WITH A DEADLINE.** `index_track.py:223-224` is
+    `thin = days < MIN_LIVE_DAYS` then `headline = "backtested" if thin else "live"`, and
+    `MIN_LIVE_DAYS = 60`. At day 60 the *"too early to judge"* pill (`index.html:114`)
+    disappears and the headline flips to **live**. **The track is on day 5: this fires ~55
+    trading days out, late October 2026, at 13% power (minimum detectable edge +49pp/yr).** The
+    constant was never pre-committed, does not derive from power, and disagrees 2× with
+    `paper_track.MIN_DAYS_FOR_MEANING = 126` governing the same track. Both sit in
+    `valuation/screener/index_track.py` — **outside the edge lane; it needs assigning.**
+  * **STATE, as of this bullet: the track is BEHIND — inception 2026-07-30, five days, Valquo
+    +0.78% vs SPY +3.62%, excess −2.85pp.** That is −1.8 SD of a five-day window (p ≈ 0.08),
+    i.e. an ordinary bad week that means nothing about the strategy — **but it means the start
+    date is being chosen with the sign of the accrued period known**, so discarding those days
+    is the flattering direction. `PAPER_TRACK_CONTRACT.md` is a **DRAFT awaiting Don**; zero
+    trial cost, equity `N` stays 129, and the trial is charged on sign-off.
 - **X8 REPLICATED ON 2026-08-04 AND THIS FILE NEVER RECORDED IT — the single strongest piece of
   external evidence the project has, missing from its own memory for three days (found
   2026-08-07, session 8).** Before this bullet, `CLAUDE.md` contained the words "JKP" and "Japan"

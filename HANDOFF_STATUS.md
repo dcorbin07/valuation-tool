@@ -4,8 +4,9 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-08 (external edge audit, **session 12** — the trial counter is repaired,
-`N` does not move, and X7's two-session-old 8-vs-7 discrepancy is diagnosed to a single draw)
+**Session date:** 2026-08-08 (external edge audit, **session 13** — the paper-track evaluation
+contract is DRAFTED AND WAITING ON DON, and the canonical artifact is refreshed off a 45-trial-stale
+denominator. **ACTION REQUIRED FROM DON: pick an option in `PAPER_TRACK_CONTRACT.md`.**)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
@@ -15,6 +16,59 @@ file directly.
 > then R1's original run, then session 1, then deep research #2, then the EV staleness fix, then
 > PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
 > per-finding status in `CODE_AUDIT.md`.
+
+---
+
+## ⛔ WAITING ON DON — THE PAPER-TRACK CONTRACT (2026-08-08, edge audit session 13)
+
+`PAPER_TRACK_CONTRACT.md` is a **DRAFT and binds nothing.** Don picks one line — *"Option A"*,
+B, C, or *"A but start fresh"* — and session 14 commits the chosen option verbatim with his
+choice recorded. Full write-up in `HANDOFF_edge_audit.md` § SESSION 13; ledger rows
+`PT-CONTRACT`, `ARTIFACT-N`.
+
+**The finding that shapes the whole thing, and it is arithmetic on our own published numbers.**
+The Index's top decile beat SPY by **+9.99%/yr at 11.4pp/yr tracking error** — an **information
+ratio of 0.88/yr**, and that is the *in-sample* figure. Since t grows as √time:
+
+| horizon | expected t | chance of "significant" **even if the edge is entirely real** | smallest detectable edge |
+|---|---|---|---|
+| 3 months | 0.4 | 10% | +69 pp/yr |
+| **12 months** | **0.9** | **18%** | **+34 pp/yr** |
+| 36 months | 1.5 | 35% | +20 pp/yr |
+| **60 months** | **2.0** | **49%** | **+15 pp/yr** |
+
+**t = 2.0 arrives at 5.2 years** (7.6 with an n_eff haircut). Refutation is symmetric — bad news
+arrives no faster. **The contract's deliverable is the prohibition on reading a short track, not
+a near-term verdict**, and the project has been implicitly assuming otherwise.
+
+**Five things block the track, and none is repaired here** (two are construction decisions Don's
+answer determines, so fixing them first would choose the contract by implementation):
+
+1. **The inception date exists only in gitignored `data/valquo_track.json`** — `2026-07-30`,
+   nowhere in the repo. On a fresh deploy the start date of the out-of-sample record is gone.
+2. **No verdict is computable at any horizon.** `paper_index_track` stores a snapshot of
+   currently-open holdings, not a chained series; the Cowork file chains but is missing days.
+3. **The daily write dropped days 2-4 of 5.**
+4. **The engine has never been fed** — 0 rows in all three paper tables, 45/45 tests passing.
+   CLAUDE.md roadmap #12's *"what remains is elapsed time … not building it"* is **wrong**.
+5. **⏰ THE SITE WILL PROMOTE THE PAPER TRACK TO ITS HEADLINE BY ITSELF.**
+   `index_track.py:223-224` — `headline = "backtested" if thin else "live"` with
+   `MIN_LIVE_DAYS = 60`. **The track is on day 5; this fires around late October 2026, at 13%
+   power, with no approval step.** In `valuation/screener/`, **outside the edge lane — it needs
+   assigning.**
+
+**State, disclosed because it makes the choice results-contingent:** inception 2026-07-30, five
+days, Valquo **+0.78%** vs SPY **+3.62%**, excess **−2.85pp** — −1.8 SD of a five-day window, an
+ordinary bad week that says nothing about the strategy. But **the start date is being chosen with
+the sign of the accrued period known**, so discarding those days is the flattering direction; all
+three options therefore keep inception.
+
+**Also done this session: `BACKTEST_RESULTS.json` refreshed.** It shipped a Deflated Sharpe at
+`n_trials = 84`, 45 trials stale. Now **0.8556 at N = 129** (was 0.8997 at 84), re-run on the
+full 2,531-name / 69-date universe from a clean tree. **Every other number is bit-identical** —
+15 leaves moved, five of them the DSR chain, ten by 0.000% float. It was also stale in a way
+nobody had noticed: it predated session 7's B8 fix and shipped **no `oos_verdicts` block at all**.
+Equity `N` stays **129**; zero trial cost.
 
 ---
 
