@@ -6097,6 +6097,35 @@ def test_session9_the_country_gate_detects_real_co_movement_and_both_estimators_
     assert res["n_eff_countries"] < 6.0, res["n_eff_countries"]
 
 
+def test_session9_an_arm_pair_difference_is_a_scaled_two_theme_spread():
+    """Δ_a − Δ_b == (x_b − x_a)/4 identically, where Δ_a drops theme a from a 5-theme mean.
+
+    This is why the measured cross-country co-movement is credible rather than an artefact of
+    how the arms were built: the object whose correlation the gate measures is nothing more
+    exotic than a scaled difference of two theme returns, and value-minus-momentum spreads are
+    famously correlated across developed markets. Pinned because the whole SELRULE calibration
+    rests on the identity being exactly this and not approximately it.
+    """
+    import random as _r
+    from scripts.selection_rule_crosscountry import arm_deltas
+    try:
+        import pandas as pd
+    except ImportError:
+        return
+    rnd = _r.Random(4)
+    cols = ["investment", "momentum", "quality", "size", "value"]
+    df = pd.DataFrame({c: [rnd.gauss(0, 0.03) for _ in range(60)] for c in cols})
+    d = arm_deltas(df)
+    worst = 0.0
+    for a in cols:
+        for b in cols:
+            if a >= b:
+                continue
+            lhs = (df[b] - df[a]) / 4.0
+            worst = max(worst, max(abs(lhs[k] - (d[a][k] - d[b][k])) for k in d[a]))
+    assert worst < 1e-12, f"arm-pair difference is not (x_b - x_a)/4; max error {worst:.2e}"
+
+
 def test_session9_clustering_can_only_raise_the_bar_never_lower_it():
     """A correlated null piles probability into the tails, so the critical count must rise with
     rho. A gate that could LOWER the bar would be a licence, not a correction."""

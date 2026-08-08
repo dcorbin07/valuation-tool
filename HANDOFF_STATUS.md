@@ -4,8 +4,8 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-07 (external edge audit, **session 8** — selection rule declined as
-unanswerable; X8's replication restored to `CLAUDE.md`)
+**Session date:** 2026-08-07 (external edge audit, **session 9** — the cross-country design is
+also unanswerable; 16 co-moving countries measure as n_eff 2–4)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
@@ -50,6 +50,68 @@ Full write-up: `HANDOFF_live_data_bugs.md` Part 6. Ledger row `OOB1`. Landed on 
   this class), plus a migration test and `test_not_dcf_valuable_is_not_a_refusal`.
 
 ---
+
+## EDGE AUDIT SESSION 9 (2026-08-07) — 16 countries are worth 2–4 draws, and the design dies
+
+Full write-up: `HANDOFF_edge_audit.md` § SESSION 9. New code: `valuation/edge/cross_country.py`
+and `scripts/selection_rule_crosscountry.py`. Nothing shipped in the product changed.
+
+**Executed session 8's pre-registration in full, in the committed order.** The one blocker
+session 8 named — a clustering gate for countries — was built, tested and committed **before**
+the measure set was touched (`d9ae291`), so blindness is a matter of git history, not of trust.
+
+**RESULT: two independent kills.**
+
+1. **THE DESIGN COULD NEVER HAVE RETURNED A POSITIVE VERDICT.** Session 8 asserted "16 held-out
+   countries give 16 **independent** draws". That word was an assumption, was never measured, and
+   is false. Measured: clustering is measurable on **10 of 10 arm-pairs** (design effects
+   3.97–8.27 against a shuffled-null p95 of ~1.13), **ρ 0.198–0.484**, **n_eff 1.94–4.03
+   countries out of 16**. The calibrated critical count is **17 of 16**; even a unanimous
+   **16/16 gives p = 0.0546** (400k draws, se 0.0004). The rejection region is empty and the
+   design's power at α 5% is **zero**. At the *median* ρ the bar is 16 of 16 — unanimity or
+   nothing — so this is not an artefact of the conservative max-ρ rule.
+   * **The pre-registered 12/16 bar carries a true α of 28.7%, not 3.84% — a 7.5×
+     understatement.** Building the gate first is the only reason this session did not publish a
+     "3.84%" result that was really a 29% one.
+2. **`NO CONTRAST` — both rules select `size` on `usa`**, so every paired difference is
+   identically zero. Pre-registered as an outcome before the run; **not a NULL and not a tie**.
+   Four of five arms are same-sign across both `usa` halves, so the stability constraint does not
+   bind at all. **Hypothesis only, generated on the decide set:** the instability that motivated
+   the whole question (4 of 7 arms flip on Sharadar) may be a property of the 69-date panel's
+   thinness rather than of the rule — 324 monthly observations versus 69.
+
+**X8's own headline is UNAFFECTED.** X8 tests each region's premium separately with NW(12)
+errors and never pooled countries into a count, so it never made the independence assumption this
+refutes. **The gate constrains what is built on top of X8, not X8.** Japan +2.05%/yr (t 3.85),
+developed Europe +3.36% (t 4.30), USA the weakest region (t 2.35) — all unchanged.
+
+**THE SELECTION-RULE QUESTION IS CLOSED ON BOTH AVAILABLE DATASETS.** One panel gives n = 1
+(session 8, a paired sign test's minimum p is 0.50); 16 co-moving countries give n_eff ≈ 2–4.
+That is not an engineering defect to route around — it is the amount of independent evidence that
+exists. **Do not re-open without new data.**
+
+**Trial cost, paid as pre-committed rather than renegotiated after the result:** equity `N`
+116 → **121**, Deflated Sharpe 0.8674 → **0.8628**, √(2·ln N) 3.083 → **3.097**. Still far above
+X7's calibrated floor of 0.7216, still below the 0.95 convention. Two `RESEARCH_LOG.md` rows.
+
+**Tests: 258/258 edge, all suites green by exit code.** Five new tests pin the gate: at ρ = 0 it
+reproduces the exact binomial k = 12; it does *not* flag independent countries (R3's lesson one
+dimension over); it detects planted co-movement with both estimators agreeing; the bar is
+monotone in ρ and can only move up; and the arm-pair difference is exactly a scaled two-theme
+spread (verified to 2.1e-17), which is why the measured co-movement is credible rather than an
+artefact of arm construction.
+
+**Bug worth other lanes' attention:** `research_log.py` tests for a `FIXED` verdict by searching
+the **whole row**, so any row whose free-text note contains the word "fixed" is silently dropped
+from `N` — understating the trial count, which overstates significance. That is the exact error
+M1 exists to prevent, inside M1's own parser. Worked around by wording; **not repaired**, because
+changing the parse without re-verifying all 53 counted rows would be reckless.
+
+**Recommended next: task #12, the forward paper-track vs SPY.** It is the only test that runs on
+data nobody has looked at, and the only honest answer to "n_eff is small" that does not assume the
+problem away — it manufactures independent observations by waiting. Needs a start date, a
+pre-committed horizon and a comparison rule from Don **before** the first print. Note the same
+gate applies: monthly excess returns against SPY are one series, not many.
 
 ## EDGE AUDIT SESSION 8 (2026-08-07) — a test declined, and X8's result restored to the record
 
