@@ -185,6 +185,26 @@ class TheDecompositionArithmeticIsRight(unittest.TestCase):
         self.assertAlmostEqual(fit["intercept"], 1.0, places=9)
         self.assertAlmostEqual(fit["r2"], 1.0, places=9)
 
+    def test_the_block_sums_bootstrap_reproduces_a_direct_fit_exactly(self):
+        """The bootstrap accumulates six additive sums per block instead of re-fitting 400k
+        pairs. That is only legitimate if it is EXACT, so: force every block to be drawn once
+        by giving the data a single block, and the interval must collapse onto the direct R2."""
+        rows = [{"alert_ts": "2024-01-%02d" % (i + 1), "d_und": 0.01 * i,
+                 "d_opt": 0.5 + 0.03 * i + (0.004 if i % 3 else -0.004)} for i in range(40)]
+        direct = XR._ols_r2([r["d_und"] for r in rows], [r["d_opt"] for r in rows])
+        got = XR._bootstrap_r2(rows + [dict(r, alert_ts="2024-02-01") for r in rows[:1]]
+                               + [dict(r, alert_ts="2024-03-01") for r in rows[:1]],
+                               draws=50, seed=0)
+        self.assertIsNotNone(got)
+        one_block = XR._bootstrap_r2([dict(r, alert_ts="2024-01-01") for r in rows] * 1
+                                     + [dict(r, alert_ts="2024-02-01") for r in rows]
+                                     + [dict(r, alert_ts="2024-03-01") for r in rows],
+                                     draws=25, seed=0)
+        # Three identical blocks: every resample is the same data, so every draw must equal the
+        # direct fit to floating-point tolerance.
+        self.assertAlmostEqual(one_block["lo"], direct["r2"], places=9)
+        self.assertAlmostEqual(one_block["hi"], direct["r2"], places=9)
+
     def test_a_constant_series_has_no_r2_rather_than_a_divide_by_zero(self):
         self.assertIsNone(XR._ols_r2([1.0, 1.0, 1.0], [2.0, 3.0, 4.0]))
         self.assertIsNone(XR._ols_r2([1.0, 2.0, 3.0], [5.0, 5.0, 5.0]))
@@ -196,6 +216,44 @@ class TheDecompositionArithmeticIsRight(unittest.TestCase):
         self.assertEqual(XR._und_close(b, "2024-01-16"), 20.0)
         self.assertEqual(XR._und_close(b, "2024-01-14"), None)
         self.assertEqual(XR._und_close(b, "2024-06-01"), 30.0)
+
+
+class TheFastClusteredDiffAgreesWithTheShippedOne(unittest.TestCase):
+    """The block-sum form exists because the literal one does not finish at this scale. It is
+    only allowed to be faster if it is also the SAME, so it is checked against the shipped
+    implementation on data small enough for both."""
+
+    @staticmethod
+    def _rows(policy, base_shift):
+        out = []
+        for m in range(1, 13):
+            for d in range(1, 9):
+                out.append({"alert_ts": "2024-%02d-%02d" % (m, d),
+                            "alert_date": "2024-%02d-%02d" % (m, d),
+                            "ticker": "T%d" % d, "policy": policy,
+                            "pnl_pct": 0.01 * ((m * 7 + d * 3) % 11) - 0.05 + base_shift})
+        return out
+
+    def test_the_point_estimate_matches_date_block_diff_exactly(self):
+        from valuation.edge import options_stats as OS
+        rbp = {EL.BASELINE: self._rows(EL.BASELINE, 0.0), "cand": self._rows("cand", 0.02)}
+        mine = XR.clustered_policy_diff(rbp, "cand", draws=400, seed=0)
+        theirs = OS.date_block_diff(rbp["cand"], rbp[EL.BASELINE], draws=400, seed=0)
+        self.assertAlmostEqual(mine["diff"], theirs["diff"], places=12)
+        self.assertEqual(mine["n_blocks"], theirs["n_blocks"])
+
+    def test_the_interval_matches_date_block_diff_draw_for_draw(self):
+        """Same seed, same block draws, same construction -> the same interval."""
+        from valuation.edge import options_stats as OS
+        rbp = {EL.BASELINE: self._rows(EL.BASELINE, 0.0), "cand": self._rows("cand", 0.02)}
+        mine = XR.clustered_policy_diff(rbp, "cand", draws=400, seed=0)
+        theirs = OS.date_block_diff(rbp["cand"], rbp[EL.BASELINE], draws=400, seed=0)
+        self.assertAlmostEqual(mine["ci95_lo"], theirs["ci95"][0], places=12)
+        self.assertAlmostEqual(mine["ci95_hi"], theirs["ci95"][1], places=12)
+
+    def test_a_policy_with_no_rows_is_not_ok_rather_than_zero(self):
+        self.assertFalse(XR.clustered_policy_diff({EL.BASELINE: self._rows(EL.BASELINE, 0.0)},
+                                                  "missing")["ok"])
 
 
 class TheBarsStampRecordsTheGapItCannotClose(unittest.TestCase):

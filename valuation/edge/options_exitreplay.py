@@ -263,16 +263,66 @@ def pattern_labels(res: dict) -> dict:
 
 def clustered_policy_diff(rows_by_policy: dict, name: str, draws: int = BOOT_DRAWS,
                           seed: int = BOOT_SEED) -> dict:
-    """Date-block (calendar-month) bootstrap of a policy's expectancy difference vs shipped."""
+    """Date-block (calendar-month) bootstrap of a policy's expectancy difference vs shipped.
+
+    SAME CONSTRUCTION AS `options_stats.date_block_diff` -- a drawn month contributes to BOTH
+    arms, which is what removes the common calendar variance from the difference -- but
+    accumulated as per-block (sum, n) pairs so a draw costs O(blocks) instead of O(trades).
+
+    That is not an optimisation for its own sake. The literal version re-extends two ~30k-row
+    lists on every one of 2,000 draws, for 20 policies on each of two entry sets: about 4.8
+    billion list operations, which does not finish. A mean is a ratio of additive sums, so the
+    block-sum form returns the same numbers.
+    """
+    import random
+
     base = rows_by_policy.get(EL.BASELINE) or []
     rows = rows_by_policy.get(name) or []
     if not base or not rows:
         return {"ok": False}
-    d = OS.date_block_diff(rows, base, draws=draws, seed=seed)
-    lo, hi = d.get("ci95") or (None, None)
-    return {"ok": True, "diff": d.get("diff"), "ci95_lo": lo, "ci95_hi": hi,
-            "excludes_zero": bool(lo is not None and hi is not None and (lo > 0 or hi < 0)),
-            "n_blocks": d.get("n_blocks")}
+
+    def agg(rs):
+        g = {}
+        for r in rs:
+            v = r.get("pnl_pct")
+            if v is None:
+                continue
+            k = str(r.get("alert_date") or r.get("alert_ts"))[:7]
+            a = g.get(k)
+            if a is None:
+                a = g[k] = [0.0, 0.0]
+            a[0] += float(v)
+            a[1] += 1.0
+        return g
+
+    ga, gb = agg(rows), agg(base)
+    keys = sorted(set(ga) & set(gb))
+    if len(keys) < 2:
+        return {"ok": False, "reason": "%d shared blocks" % len(keys)}
+    A = [ga[k] for k in keys]
+    B = [gb[k] for k in keys]
+    point = (sum(a[0] for a in A) / sum(a[1] for a in A)
+             - sum(b[0] for b in B) / sum(b[1] for b in B))
+    rng = random.Random(seed)
+    nb = len(keys)
+    diffs = []
+    for _ in range(draws):
+        sa = na = sb = nb_ = 0.0
+        for _ in range(nb):
+            i = rng.randrange(nb)
+            sa += A[i][0]
+            na += A[i][1]
+            sb += B[i][0]
+            nb_ += B[i][1]
+        if na > 0 and nb_ > 0:
+            diffs.append(sa / na - sb / nb_)
+    if len(diffs) < 100:
+        return {"ok": False, "reason": "too few usable draws"}
+    diffs.sort()
+    lo = diffs[int(0.025 * len(diffs))]
+    hi = diffs[min(len(diffs) - 1, int(0.975 * len(diffs)))]
+    return {"ok": True, "diff": point, "ci95_lo": lo, "ci95_hi": hi,
+            "excludes_zero": bool(lo > 0 or hi < 0), "n_blocks": nb, "draws": len(diffs)}
 
 
 # ============================ O23 — the decomposition ======================================
@@ -332,9 +382,11 @@ def decompose_vs_underlying(scored_by_policy: dict, paths_by_key: dict, bars_by_
             b = base.get(k)
             if b is None:
                 continue
-            if str(r.get("exit_date") or "") == str(b.get("exit_date") or ""):
-                continue
-            if r.get("held_days") == b.get("held_days"):
+            # `score_paths` does not emit `exit_date`, so held_days IS the discriminator:
+            # entries are identical by construction, so equal holding periods mean the same
+            # exit day. Testing exit_date first would compare None to None and silently drop
+            # every pair -- the restriction would look applied while scoring nothing.
+            if int(r.get("held_days") or -1) == int(b.get("held_days") or -2):
                 continue
             bars = bars_by_ticker.get(r["ticker"])
             p = paths_by_key.get(k)
@@ -381,30 +433,57 @@ def _exit_day(row, path) -> str:
 
 
 def _bootstrap_r2(rows, draws: int = BOOT_DRAWS, seed: int = BOOT_SEED) -> Optional[dict]:
-    """Date-block (calendar-month) bootstrap of the pooled R2 -- the register's clustered CI."""
+    """Date-block (calendar-month) bootstrap of the pooled R2 -- the register's clustered CI.
+
+    EXACT, AND O(blocks) PER DRAW RATHER THAN O(pairs). An OLS R2 depends on the data only
+    through six sums (n, Sx, Sy, Sxx, Syy, Sxy), and every one of them is ADDITIVE over blocks.
+    So a draw sums six numbers per drawn block instead of re-fitting over ~400k pairs. This is
+    not an approximation and not a subsample -- it returns the number the naive loop would
+    return, which matters because the naive loop would not have finished.
+    """
     import random
 
-    by_block = {}
+    agg = {}
     for r in rows:
-        by_block.setdefault(str(r["alert_ts"])[:7], []).append(r)
-    blocks = list(by_block.values())
+        k = str(r["alert_ts"])[:7]
+        x, y = r["d_und"], r["d_opt"]
+        a = agg.get(k)
+        if a is None:
+            a = agg[k] = [0.0] * 6
+        a[0] += 1.0
+        a[1] += x
+        a[2] += y
+        a[3] += x * x
+        a[4] += y * y
+        a[5] += x * y
+    blocks = list(agg.values())
     if len(blocks) < 3:
         return None
     rng = random.Random(seed)
+    nb = len(blocks)
     vals = []
     for _ in range(draws):
-        xs, ys = [], []
-        for _ in range(len(blocks)):
-            for r in blocks[rng.randrange(len(blocks))]:
-                xs.append(r["d_und"])
-                ys.append(r["d_opt"])
-        f = _ols_r2(xs, ys)
-        if f:
-            vals.append(f["r2"])
+        n = sx = sy = sxx = syy = sxy = 0.0
+        for _ in range(nb):
+            b = blocks[rng.randrange(nb)]
+            n += b[0]
+            sx += b[1]
+            sy += b[2]
+            sxx += b[3]
+            syy += b[4]
+            sxy += b[5]
+        if n < 3:
+            continue
+        vxx = sxx - sx * sx / n
+        vyy = syy - sy * sy / n
+        vxy = sxy - sx * sy / n
+        if vxx <= 0 or vyy <= 0:
+            continue
+        vals.append((vxy * vxy) / (vxx * vyy))
     if not vals:
         return None
     vals.sort()
-    return {"draws": len(vals), "n_blocks": len(blocks),
+    return {"draws": len(vals), "n_blocks": nb,
             "lo": vals[int(0.025 * len(vals))], "hi": vals[min(len(vals) - 1,
                                                                int(0.975 * len(vals)))],
             "median": vals[len(vals) // 2]}
