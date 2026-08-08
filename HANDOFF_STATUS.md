@@ -64,6 +64,36 @@ should check whether those names now clear publication thresholds they previousl
 
 Tests: 24 suites, **859 passing, 0 failures** (engine 51/51). Full write-up:
 `HANDOFF_live_data_bugs.md` Part 7. Ledger row `OOB2`.
+## 2026-08-07 — r1 lane, OUT-OF-BAND: `worktree-ui-polish` triaged (read-only). Nine files, not fifty commits
+
+Full write-up: **`HANDOFF_branch_triage.md`**. Nothing was merged, cherry-picked or deleted.
+
+- **The branch is misnamed.** "UI polish" is 3 of its 50 commits; the rest is the project's early
+  Edge Lab history. It stranded because that work was **squash-landed onto `main` as `8a8c2b8`**
+  (2026-07-28 15:19) when a stray 138 MB licensed export blocked a normal push. `git cherry`
+  shows all 50 as unmerged because a squash changes patch-ids — **that is a trap, not lost work.**
+- **Exactly nine files are unique to the branch.** Four are the `param_search` module
+  (locked hold-out, White/Hansen SPA, plateau+interiority selection) — **VALUABLE**, absent from
+  `main`, and its four engine calls still match `main`'s signatures exactly. Five are a UI theme
+  layer that `main` re-implemented inline eight hours later — **OBSOLETE**.
+- **THE 13F INERT LAG GRID IS NOT LIVE ON `main` — the premise that it might be is wrong.**
+  All three parts of `5da1473` are present: `INST_LAG_GRID = (15, 45, 135, 225)`
+  (`fundamental_panel.py:2780`), the guard test (`tests/test_edge.py:404`), and the UTF-8 stdout
+  reconfigure (`:3967`). No bug to file.
+- **Do not merge it:** a dry-run gives **22 conflicted files**, incl. `add/add` on `CLAUDE.md`
+  (10.6 KB on the branch vs 97 KB on `main` — it predates the whole claims audit).
+- **Pruning must take BOTH refs.** `worktree-honest-param-search` is a strict *ancestor* of
+  `ui-polish` and holds 47 of the 50 commits, including every valuable file.
+
+**Routed to other lanes — decisions deliberately NOT made here:**
+- **→ edge lane:** the parameter search ran **3,584 configs** and appears in `RESEARCH_LOG.md`
+  nowhere (zero mentions). By this project's own precedents (grids expressible via `n_trials`;
+  `SUPERSEDED` rows still count) it looks countable; the real counter-argument is that it searched
+  *construction* params, not signal inclusion. Direction matters: counting them **lowers** the
+  Deflated Sharpe, so it is the self-penalising choice. Currently `N = 116`, DS 0.8674.
+- **→ app/security lane:** `/api/feedback` (table + route + allowlist entry) exists only on the
+  branch. It **is** rate-limited, length-capped and parameterized — I checked. The open question
+  is posture: whether an unauthenticated write endpoint belongs on the post-leak public allowlist.
 
 ---
 
