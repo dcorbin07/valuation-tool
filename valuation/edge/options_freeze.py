@@ -371,7 +371,78 @@ def consumed_pairs(rows) -> set:
     return out
 
 
-def freeze_book(rows, out_path: str, root: str = None, overwrite: bool = False) -> dict:
+def _contract_key(exp, strike, right) -> str:
+    return "%s|%.3f|%s" % (exp, round(float(strike), 3), str(right)[0].upper())
+
+
+def _contract_rows(df, cols, sym: str, contracts) -> list:
+    """Every requested contract's rows, in ONE pass over the year frame.
+
+    WHY THIS IS NOT A LOOP OF MASKS. The first version filtered the frame once PER CONTRACT.
+    That is fine for a 3,885-trade book (19 minutes) and hopeless for the five pooled control
+    seeds: 29,785 contracts x a ~200k-row scan each, which ran for ~45 minutes without
+    producing a row before the process was killed. Keying once and joining turns 29,785 scans
+    into one per symbol-year.
+
+    Each contract keeps its OWN date window rather than a pooled min/max, because a pooled
+    window would freeze rows the book never read — a superset is safe for replay but would
+    misreport what the book actually consumed, and that number is the whole point of the
+    cost measurement.
+    """
+    import pandas as pd
+
+    want = {}
+    for (exp, strike, right, s, e) in contracts:
+        want.setdefault(_contract_key(exp, strike, right), []).append((s, e))
+
+    key = (df["expiration"].astype(str) + "|"
+           + df["strike"].astype(float).round(3).map(lambda v: "%.3f" % v) + "|"
+           + df["right"].astype(str).str[0].str.upper())
+    hit = key.isin(want)
+    if not hit.any():
+        return []
+    sub = df[hit]
+    ks = key[hit]
+
+    # THE SAME CONTRACT CAN BE REQUESTED BY TWO TRADES WITH DISJOINT WINDOWS. Collapsing those
+    # to a single [min, max] span would include the GAP between them — rows the book never read.
+    #
+    # HONEST NOTE ON WHY THIS IS WRITTEN THIS WAY: an interim version did collapse them, and on
+    # the R2 book it produced a frozen copy 14,231 bytes larger, which I first read as evidence
+    # of exactly that over-inclusion. It was not. Checked properly, the two agree at
+    # 2,870,811 rows and are content-identical after sorting — the byte difference is gzip
+    # compressing a different ROW ORDER. So the collapse was harmless HERE and is still unsound
+    # IN GENERAL, and the per-window predicate below is kept because it matches the original
+    # loop exactly rather than by luck of this book's contract mix. The common single-window
+    # case stays fully vectorised; only genuinely multi-window keys pay a loop.
+    single = {k: v[0] for k, v in want.items() if len(v) == 1}
+    multi = {k: v for k, v in want.items() if len(v) > 1}
+
+    is_single = ks.isin(single)
+    keep = is_single & False                       # a False mask of the right index
+    if is_single.any():
+        kk = ks[is_single]
+        lo = kk.map(lambda k: single[k][0])
+        hi = kk.map(lambda k: single[k][1])
+        ok = (sub.loc[is_single, "date"] >= lo) & (sub.loc[is_single, "date"] <= hi)
+        keep = keep | ok.reindex(ks.index, fill_value=False)
+    for k, windows in multi.items():
+        rows_k = ks == k
+        if not rows_k.any():
+            continue
+        d = sub.loc[rows_k, "date"]
+        any_win = None
+        for (s, e) in windows:
+            m = (d >= s) & (d <= e)
+            any_win = m if any_win is None else (any_win | m)
+        keep = keep | any_win.reindex(ks.index, fill_value=False)
+
+    sub = sub[keep]
+    return [sub[cols].assign(symbol=sym)] if len(sub) else []
+
+
+def freeze_book(rows, out_path: str, root: str = None, overwrite: bool = False,
+                progress: bool = False) -> dict:
     """Write the trade-scope frozen copy: every alert-date chain slice + every contract history.
 
     Refuses to overwrite an existing freeze unless asked, on the `optuniv_run.guard_bank`
@@ -395,7 +466,9 @@ def freeze_book(rows, out_path: str, root: str = None, overwrite: bool = False) 
             need[(t, yr)]["contracts"].append(
                 (e, float(r.get("strike")), str(r.get("opt_right"))[0].upper(), a, e))
     frames = []
-    for (sym, yr), job in sorted(need.items()):
+    keys = sorted(need)
+    for n, (sym, yr) in enumerate(keys, 1):
+        job = need[(sym, yr)]
         p = TB.year_path(sym, yr, root)
         if not os.path.exists(p):
             continue
@@ -409,13 +482,11 @@ def freeze_book(rows, out_path: str, root: str = None, overwrite: bool = False) 
             sl = df[df["date"].isin(job["dates"])]
             if len(sl):
                 frames.append(sl[cols].assign(symbol=sym))
-        for (exp, strike, right, s, e) in job["contracts"]:
-            m = df[(df["expiration"] == exp)
-                   & (df["strike"].astype(float).round(3) == round(strike, 3))
-                   & (df["right"].astype(str).str[0] == right)
-                   & (df["date"] >= s) & (df["date"] <= e)]
-            if len(m):
-                frames.append(m[cols].assign(symbol=sym))
+        if job["contracts"]:
+            frames.extend(_contract_rows(df, cols, sym, job["contracts"]))
+        if progress and (n % 100 == 0 or n == len(keys)):
+            print("[freeze] %d/%d symbol-years, %d frames" % (n, len(keys), len(frames)),
+                  flush=True)
     frozen = pd.concat(frames).drop_duplicates().reset_index(drop=True) if frames \
         else pd.DataFrame(columns=KEEP + ["symbol"])
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)

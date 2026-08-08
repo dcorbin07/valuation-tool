@@ -307,6 +307,60 @@ class TheFrozenCopyIsABankedArtifact(FreezeTestBase):
             FZ.freeze_book(self._rows(), out, root=self.root)
         FZ.freeze_book(self._rows(), out, root=self.root, overwrite=True)   # deliberate
 
+    def test_a_contract_is_captured_and_its_date_window_respected(self):
+        """The vectorised contract selection must keep each contract's OWN window, not a
+        pooled min/max -- a superset would misreport what the book consumed."""
+        df = pd.DataFrame({
+            "expiration": [dt.date(2020, 3, 20)] * 4,
+            "strike": [100.0, 100.0, 101.0, 100.0],
+            "right": ["C", "C", "C", "P"],
+            "date": [dt.date(2020, 1, 2), dt.date(2020, 6, 1),
+                     dt.date(2020, 1, 2), dt.date(2020, 1, 2)],
+            "bid": [1.0, 2.0, 3.0, 4.0], "ask": [1.1, 2.1, 3.1, 4.1],
+            "volume": [1, 1, 1, 1], "open_interest": [1, 1, 1, 1],
+        })
+        cols = [c for c in FZ.KEEP if c in df.columns]
+        got = FZ._contract_rows(
+            df, cols, "AAPL",
+            [(dt.date(2020, 3, 20), 100.0, "C", dt.date(2020, 1, 1), dt.date(2020, 2, 1))])
+        self.assertEqual(len(got), 1)
+        out = got[0]
+        self.assertEqual(len(out), 1)                    # only the in-window C@100 row
+        self.assertEqual(float(out["bid"].iloc[0]), 1.0)
+
+    def test_two_disjoint_windows_on_one_contract_do_not_swallow_the_gap(self):
+        """THE CASE THAT DISTINGUISHES per-window FROM a collapsed [min, max] span.
+
+        Two trades on the same contract, months apart. The rows BETWEEN their windows were
+        never read by either trade and must not be frozen. A collapsed span would include them
+        -- harmless for replay, but it would misreport what the book consumed, and that number
+        is the basis of the freeze cost measurement.
+        """
+        days = [dt.date(2020, 1, 2), dt.date(2020, 3, 2), dt.date(2020, 6, 1)]
+        df = pd.DataFrame({
+            "expiration": [dt.date(2020, 9, 18)] * 3,
+            "strike": [100.0] * 3, "right": ["C"] * 3, "date": days,
+            "bid": [1.0, 2.0, 3.0], "ask": [1.1, 2.1, 3.1],
+            "volume": [1, 1, 1], "open_interest": [1, 1, 1],
+        })
+        cols = [c for c in FZ.KEEP if c in df.columns]
+        out = FZ._contract_rows(df, cols, "AAPL", [
+            (dt.date(2020, 9, 18), 100.0, "C", dt.date(2020, 1, 1), dt.date(2020, 1, 31)),
+            (dt.date(2020, 9, 18), 100.0, "C", dt.date(2020, 5, 15), dt.date(2020, 6, 30)),
+        ])
+        self.assertEqual(len(out), 1)
+        kept = sorted(out[0]["date"])
+        self.assertEqual(kept, [dt.date(2020, 1, 2), dt.date(2020, 6, 1)])   # NOT the March row
+
+    def test_no_matching_contract_returns_nothing_rather_than_everything(self):
+        df = _frame()
+        cols = [c for c in FZ.KEEP if c in df.columns]
+        self.assertEqual(
+            FZ._contract_rows(df, cols, "AAPL",
+                              [(dt.date(2031, 1, 1), 999.0, "C",
+                                dt.date(2020, 1, 1), dt.date(2020, 12, 31))]),
+            [])
+
     def test_a_manifest_round_trips(self):
         p = os.path.join(self.root, "MAN.json")
         st = FZ.stamp_years([("AAPL", 2020)], root=self.root)
