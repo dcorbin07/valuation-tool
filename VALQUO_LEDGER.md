@@ -36,9 +36,12 @@ file replaces reconstructing project state from git history.
   evidence of work done, and is worse than a blank.
 * **handoff** — where the real write-up lives. The ledger is an index, not a
   replacement for it.
-* **src** — `human` = hand-verified against the write-up; `build_ledger.py`
-  will NOT overwrite it, only report a disagreement. `auto` = mechanically
-  proposed and not yet read by a person; treat as a lead, not a fact.
+* **src** — `auto` = mechanically proposed and not yet read by a person; treat
+  as a lead, not a fact. **Anything else** (`human`, or a lane name such as
+  `pipeline builder`) = hand-verified against the write-up; `build_ledger.py`
+  will NOT overwrite it, only report a disagreement. The test is *"is it
+  `auto`?"*, not *"is it `human`?"* — it used to be the latter, which quietly
+  demoted every row a lane had signed with its own name.
 
 ## Four traps that already produced wrong counts — do not re-make them
 
@@ -54,8 +57,20 @@ file replaces reconstructing project state from git history.
    "clustered inference default" and has never been touched.
 4. **`D1`–`D10` collide with DECILE labels**, which this project writes
    constantly ("long-short (D1-D10)", "D1 22.8% → D10 10.7%").
+5. **A multi-item commit subject donates one item's verdict to every other id
+   in it.** `275e9af` reads *"O16/O24 RESULTS: O24 is a NULL; O16 stopped at
+   its own reproduction gate"*. The word `NULL` is **O24's** verdict, but the
+   subject names both, so the proposal marks **O16 DONE** — an item that
+   deliberately returned no verdict at all. Found 2026-08-08.
+6. **`DEFERRED` is in the DONE vocabulary, so "deliberately deferred" reads as
+   finished.** B23's own heading is `## B23 — DEFERRED, deliberately` and its
+   body opens *"Not done, and not forgotten."* The proposal says DONE.
+   Found 2026-08-08.
 
-`build_ledger.py` encodes all four. If you add a source file, re-check them.
+`build_ledger.py` encodes traps 1–4. **Traps 5 and 6 are NOT encoded** — both
+were left as reported disagreements rather than fixed, because the fix is a
+guess about commit-subject grammar and the human row already wins. Re-check
+them on every refresh.
 
 ## Ledger accuracy — checked against the tree 2026-08-07 (out-of-band claims audit)
 
@@ -81,11 +96,101 @@ claim about where you looked, not about where the file is.** Nobody had grepped 
 `options-bot/.gitignore:34` (`!handoff/*.zip`) is the line that saved the project, and it should
 not be tidied away.
 
+## Refresh of 2026-08-08 (r1 lane) — counts, and the three ways `--write` was destroying this file
+
+**`--write` had never been run since the out-of-band rows were added, and running it would have
+deleted eight of them.** The refresh was done only after fixing that. All three defects share one
+signature — the script curating content it did not write — against a docstring promising the
+opposite (*"It never silently overwrites a human-verified row"*):
+
+1. **`render()` iterated the 134 audit ids, so any row without an audit id was DROPPED.** That is
+   all eight out-of-band rows: `OOB1`/`OOB2`/`OOB3` and the project's own pre-registered
+   experiments `LOO`, `SELRULE`, `HACFLOOR`, `MLPREREG`, `MLCOMB` — Sessions 7–11 and the public
+   fair-value leak closure. `OOB1`'s note had been carrying the warning *"build_ledger.py
+   regenerates from the 134 audit ids only and will DROP this row"*: the defect was **documented in
+   the data instead of fixed**, so the next person to type `--write` would have lost the rows and
+   the warning together.
+2. **The preserve check was `src == "human"` exactly**, so the seven rows signed
+   `src=pipeline builder` were treated as machine-generated and rewritten from the proposal —
+   `B8` and `P4` lost their `FIXED` verdicts that way. Now anything that is not the literal
+   `auto` is protected, so a new `src` spelling degrades to *protected*, never to *overwrite me*.
+3. **`render()` emitted the hard-coded `LEDGER_HEADER`**, deleting any prose written under it —
+   here the entire "Ledger accuracy" section below, i.e. R3's stale-figure note and the C6 lesson.
+   The header is now read back from the file.
+
+Pinned by `tests/test_build_ledger.py` (**20 assertions**, incl. a round-trip of the real file).
+**After the fix the whole refresh moved one cell**: `D4`'s note, `no mention anywhere` →
+`prose mentions only` (`HANDOFF_data_spend.md:161`, genuine). Status unchanged, still OPEN.
+
+**The fix for defect 3 had a bug of its own, caught by its own test.** The first version split the
+header at the first line starting with `|` — which, once this very counts table was added below,
+truncated the header there and deleted every section after it. The boundary is now the table's
+exact `COLS` header line. The test was strengthened at the same time: it had asserted only that
+the header was non-empty and contained no table rows, **both true of a truncated header**, so it
+now compares the whole prose block byte-for-byte.
+
+### Counts by series and status — 134 external-audit items
+
+| series | OPEN | IN PROGRESS | DONE | BLOCKED | SUPERSEDED | total |
+|---|---|---|---|---|---|---|
+| S | 24 | 0 | 4 | 0 | 0 | 28 |
+| B | 1 | 1 | 24 | 0 | 0 | 26 |
+| O | 19 | 0 | 6 | 1 | 0 | 26 |
+| R | 0 | 0 | 6 | 4 | 0 | 10 |
+| D | 1 | 0 | 9 | 0 | 0 | 10 |
+| X | 2 | 0 | 6 | 0 | 0 | 8 |
+| U | 6 | 0 | 2 | 0 | 0 | 8 |
+| C | 0 | 0 | 7 | 0 | 0 | 7 |
+| M | 3 | 0 | 3 | 0 | 0 | 6 |
+| P | 0 | 0 | 5 | 0 | 0 | 5 |
+| **ALL** | **56** | **1** | **72** | **5** | **0** | **134** |
+
+**72 of 134 DONE (53.7%).** Hand-verified 91/134; 43 rows still `src=auto` (leads, not facts) —
+and **every one of those 43 is OPEN** (S 24, O 14, U 2, M 2, D 1), so the auto rows are entirely
+the untouched backlog rather than unreviewed claims. No `DONE` row anywhere rests on machine
+evidence alone.
+
+**The backlog is lopsided, and the counts are what make it legible:** `S` (4/28 DONE) and `O`
+(6/26) hold **43 of the 56 OPEN items**. What remains is overwhelmingly signal ideas and options
+studies, not corrections — `B` 24/26, `C` 7/7, `D` 9/10 and `P` 5/5 are essentially finished. The
+other 13 OPEN items are spread thinly across `U` (6), `M` (3), `X` (2), `B` (1), `D` (1).
+
+Plus **8 out-of-band rows** (7 DONE, 1 PRE-REGISTERED), counted separately and deliberately: they
+are real work, but folding them in would silently change what "of 134" has always meant.
+
+Landings of the last two days are all present and were verified individually rather than assumed:
+`HACFLOOR` (session 10), `MLPREREG` + `MLCOMB` (session 11), `O16`, `O24`, `P2`, `C6`, `OOB1`
+(the leak closure). **Every one had already been recorded by the lane that did it** — rule 1 of
+the contract is being followed.
+
+### Where sources disagree — 21 items, and the human row wins all 21
+
+The proposal is mechanical and its asymmetry is deliberate (a wrongly-OPEN row costs a re-check;
+a wrongly-DONE row stops work happening). Every disagreement below was checked against the
+write-up. **No status changed.** Four causes:
+
+| cause | items | why the human row is right |
+|---|---|---|
+| **Script proposes DONE, item is not done** | `B13`, `B23`, `O16` | The dangerous direction, and all three are false. `B13` is "PARTIALLY FIXED and labelled so" — `MIN_AVG_DOLLAR_VOLUME` still cannot bind. `B23` is trap 6. `O16` is trap 5 and **stopped at its own reproduction gate with no verdict**. |
+| **Script proposes IN PROGRESS, item is DONE** | `B9`, `O2`, `U5`, `D8`, `D9`, `M5` | "section exists, no completion word found" — the write-ups conclude in words outside `DONE_CUES` (`RELABELLED`, `adopted: []`, "Protocol WRITTEN"). Vocabulary gap, not a status question. |
+| **Script proposes OPEN, item is DONE** | `P2`, `P3`, `P5`, `D1`, `D2`, `D5`, `D6`, `D7` | The collision guards firing as designed. `P2` **has** headers (`HANDOFF_crowding.md:1`, `HANDOFF_STATUS.md:53`) but `P` is a colliding series and neither heading carries an audit cue. `D1`/`D2`/`D5`–`D7` are written up as **table rows** in `HANDOFF_data_spend.md`, not headings, so there is no HEADER evidence to find. |
+| **Script proposes OPEN, item is BLOCKED** | `R4`, `R5`, `R6`, `R8` | Blocked on **lane ownership**, not on evidence: they sit in `valuation/edge/**`, which `AGENTS.md` assigns to the pipeline-builder lane. The script cannot see an ownership boundary. Defensible either way; kept as BLOCKED because that is what a reader needs to know. |
+
+**One row is stale and is still not this lane's to edit:** `R3`'s note reads *"Shrinks every
+options t ~1.36x"*; the corrected figure is **√2.212 = 1.487×** on the 3,885-trade book (1.36×
+came from the pre-correction 3,042-trade book). Carried forward from the 2026-08-07 audit below,
+unedited for the second refresh running. **Owner: whoever owns R3.**
+
 ## Refresh
 
     python scripts/build_ledger.py            # proposal + counts, writes nothing
     python scripts/build_ledger.py --write    # refresh src=auto rows only
     python scripts/build_ledger.py --evidence S12   # show why S12 sits where it does
+
+`VALQUO_LEDGER.md` is deliberately **not** in the scanned corpus (`HANDOFF_*.md` + `CLAUDE.md`,
+`RUN_RULES.md`, `VALQUO_ACTION_PLAN.md`, `AGENTS.md`), so nothing written here feeds back into the
+next proposal. A handoff file that enumerates ids **is** scanned — wrap those regions in
+`<!-- ledger:ignore -->` … `<!-- /ledger:ignore -->`.
 
 | id | series | title | status | verdict | commit | handoff | date | src | note |
 |---|---|---|---|---|---|---|---|---|---|
@@ -134,7 +239,7 @@ not be tidied away.
 | X6 | X | Structural-break test | DONE | NULL | bd495f5 | HANDOFF_free_analysis.md | 2026-08-03 | human | Structural-break test null under Holm-Bonferroni; the 2012 story is NOT confirmed. |
 | X7 | X | Placebo through the pipeline | DONE |  | 1caacec | HANDOFF_edge_audit.md | 2026-08-06 | human | 3 of the project's 4 thresholds are UNCALIBRATED, 1 survives. Re-run at true N=84 CONFIRMED. |
 | X8 | X | Replicate on JKP / another country | DONE | REPLICATES | 7edf594 | HANDOFF_free_analysis.md | 2026-08-04 | human | REPLICATES on another vendor's data in another country. Untuned 5-theme equal-weight composite, JKP Global Factor Data, monthly vw_cap, 1999-01 -> 2025-12, NW(12): Japan +2.05%/yr (t 3.85), developed Europe +3.36% (t 4.30), world ex-US +3.37% (t 5.03); all 15 European countries positive, 12 of 15 clear t>2. THE USA IS THE WEAKEST REGION TESTED (t 2.35) - the theme structure is not a US artifact. Reported not buried: quality (-0.12) and momentum (+0.88) do NOT generalise to Japan, so the composite replicates while its composition does not; only 5 of 7 themes map (insider/institutional have no analogue); JKP earns +2 to +3.4%/yr vs Valquo's +20.4% long-short, a factor of six on a different instrument, so this corroborates the PREMIA and NOT the magnitude. CC BY-NC 4.0 research-only, can never ship. **This result was absent from CLAUDE.md and HANDOFF_STATUS.md until session 8 (2026-08-07) added it; two sessions treated a passed test as pending.** |
-| SELRULE | X | Test the LOO SELECTION RULE (stability vs argmax) | DONE | NOT ANSWERABLE - declined | | HANDOFF_edge_audit.md session 8 | 2026-08-07 | pipeline builder | Session 7 nominated a pre-registered test of the selection rule. Answerability settled BEFORE any run, on the already-published session-7 arm table, so it cost ZERO trials. NOT ANSWERABLE on the Sharadar panel, three reasons: (a) a 3-block split gives 22-date blocks where sigma is 1.57pp against a 1.00pp committed margin - pure noise clears it 26.1% of the time and power is 50.6%; (b) Monte Carlo over the design shows the stability and argmax rules select the SAME arm 90% of the time and reach a different verdict on only 5.1% of panels; (c) DECISIVE and assumption-free - one panel is one draw, and a paired sign test at n=1 has a minimum achievable p of 0.50, so no outcome could ever have been quotable. TEST DELIBERATELY NOT RUN; equity N stays 116 (DSR 0.8674) instead of 123 (0.8609). ANSWERABLE on X8's JKP data, which is already on disk: 16 held-out countries give 16 draws, sign test reaches alpha 3.84% at >=12/16, power 79.8% at p=0.80 but only 8.5% at p=0.55 - can settle "substantially better", never "slightly better". Pre-registered in full, blind; session 9 executes. **SESSION 9 (2026-08-07) EXECUTED IT AND THE ANSWERABILITY CLAIM IN THE PREVIOUS SENTENCE IS VOID - "16 independent draws" was an assumption, never measured, and it is FALSE.** The clustering gate (valuation/edge/cross_country.py) was built, tested and committed BEFORE the measure set was touched. Clustering is measurable on 10 of 10 arm-pairs (design effects 3.97-8.27 vs shuffled-null p95 ~1.13), rho 0.198-0.484, **n_eff 1.94-4.03 countries out of 16**. Calibrated critical count is **17 of 16**; even a unanimous 16/16 gives p 0.0546 (400k draws, se 0.0004), so the rejection region is EMPTY and the design's power at alpha 5% is ZERO. **The pre-registered 12/16 bar carries a true alpha of 28.7%, not 3.84% - a 7.5x understatement caught only because the gate was built first.** Separately: **NO CONTRAST** - both rules select `size` on usa, so every paired difference is identically zero (pre-registered outcome; not a NULL, not a tie); 4 of 5 arms are same-sign across both usa halves so the stability constraint does not bind. X8's own headline is UNAFFECTED - it tests each region separately with NW(12) and never pooled countries into a count. Equity N 116 -> 121 as pre-committed (DSR 0.8628, sqrt(2 ln 121) 3.097). **THE QUESTION IS CLOSED ON BOTH DATASETS; do not re-open without new data.** |
+| SELRULE | X | Test the LOO SELECTION RULE (stability vs argmax) | DONE | NOT ANSWERABLE - declined |  | HANDOFF_edge_audit.md session 8 | 2026-08-07 | pipeline builder | Session 7 nominated a pre-registered test of the selection rule. Answerability settled BEFORE any run, on the already-published session-7 arm table, so it cost ZERO trials. NOT ANSWERABLE on the Sharadar panel, three reasons: (a) a 3-block split gives 22-date blocks where sigma is 1.57pp against a 1.00pp committed margin - pure noise clears it 26.1% of the time and power is 50.6%; (b) Monte Carlo over the design shows the stability and argmax rules select the SAME arm 90% of the time and reach a different verdict on only 5.1% of panels; (c) DECISIVE and assumption-free - one panel is one draw, and a paired sign test at n=1 has a minimum achievable p of 0.50, so no outcome could ever have been quotable. TEST DELIBERATELY NOT RUN; equity N stays 116 (DSR 0.8674) instead of 123 (0.8609). ANSWERABLE on X8's JKP data, which is already on disk: 16 held-out countries give 16 draws, sign test reaches alpha 3.84% at >=12/16, power 79.8% at p=0.80 but only 8.5% at p=0.55 - can settle "substantially better", never "slightly better". Pre-registered in full, blind; session 9 executes. **SESSION 9 (2026-08-07) EXECUTED IT AND THE ANSWERABILITY CLAIM IN THE PREVIOUS SENTENCE IS VOID - "16 independent draws" was an assumption, never measured, and it is FALSE.** The clustering gate (valuation/edge/cross_country.py) was built, tested and committed BEFORE the measure set was touched. Clustering is measurable on 10 of 10 arm-pairs (design effects 3.97-8.27 vs shuffled-null p95 ~1.13), rho 0.198-0.484, **n_eff 1.94-4.03 countries out of 16**. Calibrated critical count is **17 of 16**; even a unanimous 16/16 gives p 0.0546 (400k draws, se 0.0004), so the rejection region is EMPTY and the design's power at alpha 5% is ZERO. **The pre-registered 12/16 bar carries a true alpha of 28.7%, not 3.84% - a 7.5x understatement caught only because the gate was built first.** Separately: **NO CONTRAST** - both rules select `size` on usa, so every paired difference is identically zero (pre-registered outcome; not a NULL, not a tie); 4 of 5 arms are same-sign across both usa halves so the stability constraint does not bind. X8's own headline is UNAFFECTED - it tests each region separately with NW(12) and never pooled countries into a count. Equity N 116 -> 121 as pre-committed (DSR 0.8628, sqrt(2 ln 121) 3.097). **THE QUESTION IS CLOSED ON BOTH DATASETS; do not re-open without new data.** |
 | HACFLOOR | X | Re-derive X7 calibrated long-short floor on the HAC statistic | DONE | CLEARS - headline 2.620 vs a re-derived floor of 2.2837 |  | HANDOFF_edge_audit.md session 10 | 2026-08-07 | pipeline builder | X7 calibrated 2.14 on the NAIVE t; R9 then made the HAC t the number the project quotes (Ljung-Box rejects independence at p 0.036), so a bar and a number from different estimators had been compared ever since. Cause was a WRITER bug: quantile_backtest has computed long_short_tstat_nw on every draw since R9 and scripts/placebo.py never stored it - and X7 raw draws were never saved, so all 100 had to be re-run. Same panel, same seeds 1000-1099, same instrument, costs measured, procedure pre-committed in PREREG_session10_hac_floor.md before launch; sharded across 4 processes with the merge proving bit-for-bit reproduction of the serial draws. RESULT: **HAC floor (p95) 2.2837, shipped HAC t 2.61991 CLEARS at empirical p 0.03.** But BOTH moves go against the strategy - the HAC floor is higher than the naive floor (2.28 vs 2.14) while the real HAC t is lower than the real naive t (2.620 vs 2.836) - so **the margin over the floor falls 0.692 -> 0.336, roughly half. Quote 2.620 vs 2.28, never vs 2.14.** Old mismatch was mild: noise clears 2.14 on the HAC statistic 6% of the time vs the 5% intended. FREE BY-PRODUCT and the stronger number: top-decile alpha HAC t now has a floor (2.2913) and the shipped +4.376 sits ABOVE ALL 100 noise draws (emp p 0.00). Control reproduces X7 p95 2.14 and max 3.44 to the digit; the ls_t>=2.0 rate comes back 7% vs the recorded 8%, one draw, NOT rounding, and unreconcilable because X7 draws do not exist - reported, moves no floor. Trial cost ZERO, equity N stays 121. Artifact data/free_analysis/PLACEBO_HAC.json retains all 100 draws. |
 | MLPREREG | X | ML tree combiner (roadmap #16) - PRE-REGISTERED, not run | PRE-REGISTERED | design committed blind, no training runs | ec6c01d | PREREG_ml_combiner.md | 2026-08-07 | pipeline builder | Design only, committed BEFORE any model was fit. Features: the SEVEN deployed theme z-scores only - NOT the 56 raw signals, NOT low_risk or sentiment (those would be theme-membership changes smuggled in as features). Target: cross-sectional RANK of fwd_ret, 63d, corrected 69-date panel. Selection never touches the measurement set: all 8 grid points scored by CPCV WITHIN a decide half, the single winner refit and measured ONCE on the held-out half, both directions - the direct answer to X7 finding that CPCV adoption manufactures ~+1.4 of long-short t when selection and measurement share a panel. HistGradientBoostingRegressor, grid = max_depth{2,3} x lr{0.03,0.10} x max_iter{100,300} = 8 points, everything else held constant at anti-overfit values. THE GRID IS PRICED UP FRONT: 8 points -> equity N 129, headline DSR 0.8556; 128 points -> N 249, DSR 0.7716; **230 points -> N 351, DSR 0.7213, BELOW X7 calibrated floor of 0.7216** - a grid that size would not test the model, it would destroy the incumbent evidence as a side effect. Scored on calibrated bars only (HAC long-short t vs the session-10 floor, 1.95pp alpha margin); PBO explicitly NOT a criterion. Ambiguous is NULL, no re-runs. Expectation recorded first: NULL 70/30. Trial cost 8 rows is owed WHEN IT RUNS, not now.  **EXECUTED SESSION 11 (2026-08-08) - VERDICT REJECTED.** See the MLCOMB row. |
 | MLCOMB | X | ML tree combiner (roadmap #16) - EXECUTED | DONE | REJECTED |  | HANDOFF_edge_audit.md session 11 | 2026-08-08 | pipeline builder | Register executed UNMODIFIED (PREREG_ml_combiner.md, blind at ec6c01d; execution protocol and executor committed before the run at 9b1abfc). REJECTED by the registered rule - worse on alpha in BOTH directions: decide-early/measure-late tree +1.88% vs linear +11.58% (d -9.70pp, d_HAC_t -2.118); decide-late/measure-early tree -2.66% vs linear +2.82% (d -5.48pp, d_HAC_t -2.877). All three ADOPT criteria fail in both. **THE FINDING IS STRONGER THAN THE VERDICT: the tree monotonicity is +0.382 and +0.842, and negative is well-ordered, so its top decile UNDERPERFORMS its bottom decile out of sample.** The run carries its own control - the linear arm on the IDENTICAL rows through the IDENTICAL quantile_backtest call is well-ordered (-0.903, -0.855) and the equal-weight benchmark matches between arms to four decimals - so it is the model, not the harness. NOT a fitting failure either: all 16 grid x direction cells had POSITIVE decide-half CPCV out-of-sample rank IC (+0.011 to +0.024) across 15 purged paths, so the model generalises inside the decide half and REVERSES across the boundary. The two directions selected OPPOSITE ENDS of the grid, monotonically - capacity helps in one half and hurts in the other. Quote beside the param-search precedent (+8.43%/yr in-search -> -0.04%/yr locked hold-out): selection on this panel does not merely fail to generalise, it can generalise backwards. Does NOT vindicate the flat 1/7 linear form and does NOT close roadmap #16 - a raw-signal or different-model-class variant is a NEW pre-registration inheriting this reversal as its prior. Trial cost paid as registered: equity N 121 -> 129, DSR 0.8628 -> 0.8556, sqrt(2 ln 129) 3.118. |
@@ -215,7 +320,7 @@ not be tidied away.
 | D1 | D | Sharadar direct at $29/mo | DONE | REJECTED |  | HANDOFF_data_spend.md | 2026-08-06 | human | DON'T BUY. Bundle is $29/mo verified, but sharadar.com/terms is personal-use only and forbids commercial use of the data 'or any derivation'. The 18 GB freeze already runs the panel keyless, so $29 buys continuation, not the corpus. |
 | D2 | D | ThetaData tier + licence | DONE | REJECTED |  | HANDOFF_data_spend.md | 2026-08-06 | human | DON'T BUY. Individual $40/$80/$160 is 'personal use only, no business use'; lawful commercial starts ~$250/mo + OPRA firm registration. Would replace a greeks layer already built and validated, for a book whose entry signal is dead (R2). |
 | D3 | D | Fetch the free factor datasets | DONE |  | bd495f5 | HANDOFF_free_analysis.md | 2026-08-03 | human | COMPLETE - every dataset R1 requires is present and verified. |
-| D4 | D | Cboe Open-Close Volume Summary | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| D4 | D | Cboe Open-Close Volume Summary | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
 | D5 | D | ORATS | DONE | DEFERRED |  | HANDOFF_data_spend.md | 2026-08-06 | human | DON'T BUY YET. $99/$199/$399 verified; bulk historical quote-only; licence NOT stated on the pricing page (ambiguous, left ambiguous). Gate is O2/O6 and neither has returned anything. |
 | D6 | D | Estimate-revision situation | DONE | REJECTED |  | HANDOFF_data_spend.md | 2026-08-06 | human | STAY PARKED. No retail point-in-time revisions exist at any price. Path is IBES via WRDS, so D6 and D7 are ONE decision, not two. |
 | D7 | D | WRDS reality check | DONE | REJECTED |  | HANDOFF_data_spend.md | 2026-08-06 | human | NOT PURCHASABLE. Verified on WRDS's own page: seven account types, every one requiring affiliation with a subscribing institution. No alumni, no unaffiliated, no corporate. Resolves the DISPUTED note - the action plan's 'dead end' claim is correct. |
@@ -228,6 +333,6 @@ not be tidied away.
 | M4 | M | Live-replay harness | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
 | M5 | M | Protocol for tail-hedge tests | DONE |  | 7edf594 | HANDOFF_free_analysis.md | 2026-08-04 | human | Protocol WRITTEN, which was the deliverable - it is not an evaluation of any hedge. |
 | M6 | M | Results-file schema assertion | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
-| OOB1 | OOB | Public fair-value leak: the DB drops the refusal, and ~387 served names never get one | DONE | FIXED | | HANDOFF_live_data_bugs.md | 2026-08-07 | human | OUT-OF-BAND, not one of the 134 audit items. Bug A REPRODUCED on the real 399-row production snapshot (refusing rank-1 STT republished $386.68083192601813 as 'blended') and FIXED: two columns + in-place migration; control bound HELD, 399 rows bit-identical. Bug B FIXED structurally but measured EMPTY -- 0 genuine refusals of 387 served names, so it removes no published number today; refusal-only screen chosen over raising dcf_top because that would REPLACE the number on ~387 names. Bigger find: _enrich_with_dcf conflated 'not valuable' with 'REFUSED' and was suppressing ordinary peer estimates (NVS $185.41, SAP $364.97, TD $79.73). NOTE: build_ledger.py regenerates from the 134 audit ids only and will DROP this row. |
-| OOB3 | OOB | Reinvestment undercharge for capex-heavy names (the CHTR class defect) | DONE | REJECTED | | HANDOFF_live_data_bugs.md Part 8 | 2026-08-07 | human | OUT-OF-BAND. Pre-commitment 4f99d8f committed alone; measured offline on the 241-name 2026-08-05 pickle, one process, deterministic. BOTH ARMS REJECTED, nothing behavioural ships (REINVESTMENT_FLOOR_MODE defaults "off"). Control bound HELD perfectly for both arms: 116 names bit-identical, because the gate (capex - D&A > 0) IS the control group. ARM A (decay, explicit years only) passes F1/F2/F3 and fails F4 at +0.0% -- it cannot touch the terminal by construction, and the decisive names carry 80%+ of EV there; three of my four success criteria were YEAR-ONE statistics that a terminal-blind fix passes trivially. ARM B (persistent, terminal floored) passes ALL SIX pre-registered bounds and is still unshippable: 18 negative enterprise values, 16 negative terminal values, 14 names whose DCF is pushed non-positive. The rejection rests on a criterion I did not pre-register -- my bounds asked whether the number moved in the right direction and never whether it was still a number. KEY REFRAMING: the 33-name decisive set is TWO populations -- 14 genuine flat-revenue undercharges and 19 capex-boom names (ORCL net capex is 68.8% of revenue while revenue grows 3.1x) whose spend IS growth capital the revenue path already prices, so charging it double-counts. Part 4's "34 names undercharged" therefore OVERSTATED the defect; the honest count is ~14. Mechanism works where the defect is real: F1 held 8/8 on flat-revenue names. LIVE DEFECT FOUND: 6 names are published today with a NON-POSITIVE DCF (INTC -0.53 -> $34.54, F -31.92 -> $60.25, BA -24.97 -> $94.27, SRE, CCI, IRM) because blend._usable drops a non-positive lens and renormalises -- which is why charging MORE reinvestment moved EQIX +121%, GM +92%, XEL +73% UP. Characterised and pinned, NOT fixed. |
-| OOB2 | OOB | Beta reproducibility: a vendor field vanishing silently rewrote a headline | DONE | FIXED | | HANDOFF_live_data_bugs.md Part 7 | 2026-08-07 | human | OUT-OF-BAND. MRK went from 'cannot value' to a 91 Strong Buy because Yahoo dropped one beta field and wacc.py substituted 1.10; the field is INTERMITTENT (back at 0.211 on 2026-08-07). Shipped: valuation/data/beta.py (5y-monthly vs SPY; 1y-daily was tried first and is WRONG, giving KO -0.286 and XOM -0.484), a stated ladder in wacc.py, constant 1.10 -> 1.0 (market beta by construction), rejection on HISTORY not value (KSPI n=30 < 36; GILD/CI/CHTR/MRK/XOM are genuinely low-beta so a value floor would assert something false), and InputProvenance stamps on beta + risk-free. All four pre-registered bounds (04d9f12) HELD on a 46-name paced sample: control group 37 names 0 moved; MRK vendor-absent swing 0.133pp vs the old code's 3.85pp; KSPI rejected for its 30 observations; 0 published/withheld flips. Trigger insensitive at 0.10/0.15/0.25 (0 betas differ). TWO EARLIER FULL-UNIVERSE RUNS WERE INVALIDATED BY THEIR OWN RATE LIMITING (176 and 297 throttled; run 2 had 302 of 403 names arrive with no vendor beta) and both bounds 2 and 3 'passed' run 1 VACUOUSLY. That exposed the real defect: the first ladder treated 'check failed' as 'history is thin' and pushed 178 of 402 names onto the constant -- the same bug with a new trigger. Also fixed: the plausibility band was applied to the vendor's beta but not to our own (PDD adopted a COMPUTED -0.039, clamping WACC to 4% and turning a $217.82 fair value into a refusal). Also fixed: .gitignore's bare data/ matched valuation/data/, so the new module was unaddable and would have shipped as a runtime ModuleNotFoundError. CAVEAT: 46 names not 403; the fix cannot help a name whose vendor beta is missing AND uncomputable, and it moves fair values systematically UP (ARGX +83%, COP +69%, DTEGY +61%) for names formerly priced at 1.10. |
+| OOB1 | OOB | Public fair-value leak: the DB drops the refusal, and ~387 served names never get one | DONE | FIXED |  | HANDOFF_live_data_bugs.md | 2026-08-07 | human | OUT-OF-BAND, not one of the 134 audit items. Bug A REPRODUCED on the real 399-row production snapshot (refusing rank-1 STT republished $386.68083192601813 as 'blended') and FIXED: two columns + in-place migration; control bound HELD, 399 rows bit-identical. Bug B FIXED structurally but measured EMPTY -- 0 genuine refusals of 387 served names, so it removes no published number today; refusal-only screen chosen over raising dcf_top because that would REPLACE the number on ~387 names. Bigger find: _enrich_with_dcf conflated 'not valuable' with 'REFUSED' and was suppressing ordinary peer estimates (NVS $185.41, SAP $364.97, TD $79.73). NOTE: build_ledger.py regenerates from the 134 audit ids only and will DROP this row. |
+| OOB3 | OOB | Reinvestment undercharge for capex-heavy names (the CHTR class defect) | DONE | REJECTED |  | HANDOFF_live_data_bugs.md Part 8 | 2026-08-07 | human | OUT-OF-BAND. Pre-commitment 4f99d8f committed alone; measured offline on the 241-name 2026-08-05 pickle, one process, deterministic. BOTH ARMS REJECTED, nothing behavioural ships (REINVESTMENT_FLOOR_MODE defaults "off"). Control bound HELD perfectly for both arms: 116 names bit-identical, because the gate (capex - D&A > 0) IS the control group. ARM A (decay, explicit years only) passes F1/F2/F3 and fails F4 at +0.0% -- it cannot touch the terminal by construction, and the decisive names carry 80%+ of EV there; three of my four success criteria were YEAR-ONE statistics that a terminal-blind fix passes trivially. ARM B (persistent, terminal floored) passes ALL SIX pre-registered bounds and is still unshippable: 18 negative enterprise values, 16 negative terminal values, 14 names whose DCF is pushed non-positive. The rejection rests on a criterion I did not pre-register -- my bounds asked whether the number moved in the right direction and never whether it was still a number. KEY REFRAMING: the 33-name decisive set is TWO populations -- 14 genuine flat-revenue undercharges and 19 capex-boom names (ORCL net capex is 68.8% of revenue while revenue grows 3.1x) whose spend IS growth capital the revenue path already prices, so charging it double-counts. Part 4's "34 names undercharged" therefore OVERSTATED the defect; the honest count is ~14. Mechanism works where the defect is real: F1 held 8/8 on flat-revenue names. LIVE DEFECT FOUND: 6 names are published today with a NON-POSITIVE DCF (INTC -0.53 -> $34.54, F -31.92 -> $60.25, BA -24.97 -> $94.27, SRE, CCI, IRM) because blend._usable drops a non-positive lens and renormalises -- which is why charging MORE reinvestment moved EQIX +121%, GM +92%, XEL +73% UP. Characterised and pinned, NOT fixed. |
+| OOB2 | OOB | Beta reproducibility: a vendor field vanishing silently rewrote a headline | DONE | FIXED |  | HANDOFF_live_data_bugs.md Part 7 | 2026-08-07 | human | OUT-OF-BAND. MRK went from 'cannot value' to a 91 Strong Buy because Yahoo dropped one beta field and wacc.py substituted 1.10; the field is INTERMITTENT (back at 0.211 on 2026-08-07). Shipped: valuation/data/beta.py (5y-monthly vs SPY; 1y-daily was tried first and is WRONG, giving KO -0.286 and XOM -0.484), a stated ladder in wacc.py, constant 1.10 -> 1.0 (market beta by construction), rejection on HISTORY not value (KSPI n=30 < 36; GILD/CI/CHTR/MRK/XOM are genuinely low-beta so a value floor would assert something false), and InputProvenance stamps on beta + risk-free. All four pre-registered bounds (04d9f12) HELD on a 46-name paced sample: control group 37 names 0 moved; MRK vendor-absent swing 0.133pp vs the old code's 3.85pp; KSPI rejected for its 30 observations; 0 published/withheld flips. Trigger insensitive at 0.10/0.15/0.25 (0 betas differ). TWO EARLIER FULL-UNIVERSE RUNS WERE INVALIDATED BY THEIR OWN RATE LIMITING (176 and 297 throttled; run 2 had 302 of 403 names arrive with no vendor beta) and both bounds 2 and 3 'passed' run 1 VACUOUSLY. That exposed the real defect: the first ladder treated 'check failed' as 'history is thin' and pushed 178 of 402 names onto the constant -- the same bug with a new trigger. Also fixed: the plausibility band was applied to the vendor's beta but not to our own (PDD adopted a COMPUTED -0.039, clamping WACC to 4% and turning a $217.82 fair value into a refusal). Also fixed: .gitignore's bare data/ matched valuation/data/, so the new module was unaddable and would have shipped as a runtime ModuleNotFoundError. CAVEAT: 46 names not 403; the fix cannot help a name whose vendor beta is missing AND uncomputable, and it moves fair values systematically UP (ARGX +83%, COP +69%, DTEGY +61%) for names formerly priced at 1.10. |

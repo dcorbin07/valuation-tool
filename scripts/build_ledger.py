@@ -15,8 +15,11 @@ WHAT IT DOES
 ------------
 Reads valquo_audit_items.json for id/series/title, scans the handoff corpus and
 the git log for evidence, classifies every occurrence of an item id, and emits a
-PROPOSAL. It never silently overwrites a human-verified row: rows marked
-src=human are authoritative, and a disagreement is REPORTED, not applied.
+PROPOSAL. It never silently overwrites a human-verified row: every row whose
+`src` is anything other than the literal `auto` is authoritative, and a
+disagreement is REPORTED, not applied. Rows whose id is not an audit item at
+all (OOB*, and the project's own pre-registered experiments) are carried
+through verbatim, as is any prose above the table.
 
     python scripts/build_ledger.py                 # proposal + summary, no writes
     python scripts/build_ledger.py --summary       # counts only
@@ -422,17 +425,47 @@ def read_ledger() -> dict:
     return rows
 
 
-def render(items, rows) -> str:
-    head = LEDGER_HEADER
+def existing_header() -> str:
+    """
+    Everything above the LEDGER TABLE in the CURRENT file.
+
+    render() used to emit the hard-coded LEDGER_HEADER unconditionally, so
+    --write silently deleted any prose a human had added underneath it -- on
+    this file that was the whole "Ledger accuracy" section: R3's stale 1.36x
+    note and the C6 "the only copy is on machine X" lesson. Same principle as
+    the row rule: the script proposes rows, it does not curate prose.
+
+    The boundary is the table's exact COLS header line, NOT the first line
+    starting with "|". Splitting on any pipe truncated the header at the first
+    ordinary markdown table in the prose -- the counts-by-series table -- and
+    deleted every section after it. A ledger that documents its own counts is
+    the expected case, so the boundary has to name the one table this script
+    owns.
+
+    Prose BELOW the table is still not preserved; render() appends the table
+    last, so keep narrative above it.
+    """
+    if not LEDGER.exists():
+        return LEDGER_HEADER
+    marker = "| " + " | ".join(COLS) + " |"
+    text = LEDGER.read_text(encoding="utf-8")
+    head, sep, _ = text.partition(marker)
+    if not sep:
+        return LEDGER_HEADER
+    return head or LEDGER_HEADER
+
+
+def render(order, rows) -> str:
+    head = existing_header()
     body = ["| " + " | ".join(COLS) + " |",
             "|" + "|".join(["---"] * len(COLS)) + "|"]
-    for item in items:
+    for item in order:
         r = rows[item]
         body.append("| " + " | ".join(esc(r.get(c, "")) for c in COLS) + " |")
     return head + "\n".join(body) + "\n"
 
 
-def summarise(items, rows, audit) -> str:
+def summarise(items, rows, audit, extra=()) -> str:
     by_series = collections.defaultdict(collections.Counter)
     total = collections.Counter()
     for item in items:
@@ -440,7 +473,7 @@ def summarise(items, rows, audit) -> str:
         st = rows[item]["status"]
         by_series[s][st] += 1
         total[st] += 1
-    lines = ["", "COUNTS BY SERIES", "-" * 74,
+    lines = ["", "COUNTS BY SERIES (the 134 external-audit items)", "-" * 74,
              f"{'series':8s}" + "".join(f"{s:>13s}" for s in STATUSES) + f"{'total':>8s}"]
     for s in sorted(by_series, key=lambda x: -sum(by_series[x].values())):
         c = by_series[s]
@@ -449,10 +482,18 @@ def summarise(items, rows, audit) -> str:
     lines.append("-" * 74)
     lines.append(f"{'ALL':8s}" + "".join(f"{total[st]:13d}" for st in STATUSES)
                  + f"{sum(total.values()):8d}")
-    human = sum(1 for i in items if rows[i].get("src") == "human")
+    human = sum(1 for i in items if rows[i].get("src") != "auto")
     lines.append("")
     lines.append(f"hand-verified rows: {human}/{len(items)}   "
                  f"auto rows: {len(items) - human}")
+    if extra:
+        # Out-of-band rows are real work and are counted separately rather than
+        # folded in, so "72 of 134 DONE" keeps meaning what it has always meant.
+        ec = collections.Counter(rows[k]["status"] for k in extra)
+        lines += ["",
+                  f"OUT-OF-BAND rows (not audit items, preserved verbatim): {len(extra)}",
+                  "  " + "  ".join(f"{k}={v}" for k, v in sorted(ec.items()))
+                  + "   [" + ", ".join(extra) + "]"]
     return "\n".join(lines)
 
 
@@ -570,7 +611,14 @@ def main() -> int:
                         k: p[k] for k in ("status", "verdict", "commit",
                                           "handoff", "date", "note")})
         old = existing.get(item)
-        if old and old.get("src") == "human":
+        # ANY src that is not the literal "auto" is a human-curated row. The
+        # check used to be `== "human"`, which silently demoted the seven rows
+        # a lane had signed `src=pipeline builder` -- they were rewritten from
+        # the mechanical proposal on every --write, losing B8's and P4's FIXED
+        # verdicts. Trusting the one value the script itself writes is the safe
+        # direction: a new src spelling now degrades to "protected", not to
+        # "overwrite me".
+        if old and old.get("src") != "auto":
             rows[item] = old
             if old.get("status") != p["status"]:
                 disagreements.append(
@@ -583,6 +631,17 @@ def main() -> int:
             rows[item] = merged
         else:
             rows[item] = base
+
+    # Rows that are not audit ids at all -- out-of-band findings (OOB*) and the
+    # project's own pre-registered experiments (LOO, SELRULE, HACFLOOR, MLCOMB,
+    # MLPREREG). render() used to iterate the 134 audit ids, so --write DELETED
+    # every one of them; OOB1's own note had to warn readers about it. They are
+    # preserved verbatim and in place: this script proposes, it does not curate.
+    extra = [k for k in existing if k not in set(items)]
+    for k in extra:
+        rows[k] = existing[k]
+    # Existing file order first, so nothing moves; genuinely new ids append.
+    order = list(existing) + [i for i in items if i not in existing]
 
     if args.proposal:
         for item in items:
@@ -600,13 +659,13 @@ def main() -> int:
     elif existing:
         print("\nno disagreements between hand-verified rows and the proposal")
 
-    print(summarise(items, rows, audit))
+    print(summarise(items, rows, audit, extra))
 
     if args.write:
-        n_human = sum(1 for i in items if rows[i].get("src") == "human")
-        LEDGER.write_text(render(items, rows), encoding="utf-8")
-        print(f"\nwrote {LEDGER} ({len(items)} rows, {n_human} preserved as "
-              f"hand-verified)")
+        n_human = sum(1 for i in items if rows[i].get("src") != "auto")
+        LEDGER.write_text(render(order, rows), encoding="utf-8")
+        print(f"\nwrote {LEDGER} ({len(order)} rows = {len(items)} audit + "
+              f"{len(extra)} out-of-band; {n_human} preserved as hand-verified)")
     elif not args.summary:
         print("\n(no files written — pass --write to refresh src=auto rows)")
     return 0
