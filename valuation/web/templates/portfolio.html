@@ -129,8 +129,8 @@
     <h1>A quantitative equity and options research system, and&nbsp;the&nbsp;record of what it failed to prove.</h1>
     <p>
       Valquo is a personal research project, free and open to anyone: a point-in-time
-      fundamental backtest over 2,710 US
-      names and 110 quarterly rebalances from 1998 to 2026, an options study built on a mined
+      fundamental backtest over 2,531 US
+      names and 69 quarterly rebalances from 2008 to 2026, an options study built on a mined
       contract history, and a live Flask app that scores the market daily. This page is about
       how questions get settled inside it — not about a return number.
     </p>
@@ -240,9 +240,11 @@
         <td data-label="How it was tested">Full universe, held-out both split directions — run twice, months apart, on a panel
           that had gained signals in between.</td>
         <td data-label="What killed it"><span class="verdict kill">Rejected twice.</span> It buys long-short
-          <span class="num">t</span> (3.40 → 3.90) and sells the thing the book actually
-          earns (top-decile edge <span class="num">+11.8% → +10.2%</span>), while overfitting
-          probability nearly doubles. The wrong trade for a long-only book.</td>
+          <span class="num">t</span> and sells the thing the book actually earns — the
+          top-decile edge falls — while overfitting probability nearly doubles. The wrong
+          trade for a long-only book. <em>Both runs predate the 2026-08-04 panel corrections
+          and the levels have not been re-measured, so no numbers are quoted here; the
+          direction is what the verdict rests on.</em></td>
       </tr>
       <tr>
         <td class="k">Put-credit spreads<br>(variance risk premium)</td>
@@ -409,8 +411,8 @@
     <li>The one "out-of-sample confirmation" the model rests on is a <b>both-halves stability
       check</b>. The function computed its own pre-specified flag and then never read it — a
       demanding test, but not the test its docstring described.</li>
-    <li>The overfitting statistic scores only the <b>weight-selection step</b>, not the ~146
-      construction decisions that preceded it.</li>
+    <li>The overfitting statistic scores only the <b>weight-selection step</b>, not the
+      <span class="num">116</span> logged equity trials that preceded it.</li>
     <li>The headline number <b>had never been tested as alpha</b>. That one is now closed: the
       regression was pre-registered, run, and it cleared its threshold — see below.</li>
   </ul>
@@ -423,17 +425,25 @@
   <h2>What survives</h2>
   <p class="lede">Three results, each stated at the strength the evidence actually supports.</p>
   <p>
-    <b>The composite's long-short spread has a t-statistic of 3.52</b> on the full 2,710-name,
-    110-date panel — above the 3.0 hurdle Harvey, Liu and Zhu propose for a literature with a
-    multiple-testing problem. Of the project's three internal statistical bars, this is the one
-    that measures what its label claims; the other two are described honestly above.
+    <b>The composite's long-short spread has a t-statistic of 2.84</b> on the full 2,531-name,
+    69-date panel — <b>below</b> the 3.0 hurdle Harvey, Liu and Zhu propose for a literature
+    with a multiple-testing problem. Three things travel with that number, and they point in
+    both directions. An autocorrelation test rejects independence, so the figure this project
+    quotes is the Newey–West one, <span class="num">t 2.62</span> — lower still. The rebalance
+    grid is arbitrary, and re-run on seven equally valid ones the t ranges
+    <span class="num">2.70 to 3.52</span>, straddling the hurdle rather than sitting on either
+    side of it. But the long-<em>short</em> is not the object the Index actually is: the
+    long-only top decile is much better measured, at
+    <span class="num">t 4.38</span> Newey–West.
   </p>
   <p>
-    <b>It survives trading costs with room to spare.</b> The top decile's breakeven is
-    <span class="num">236 bps</span> one-way against a modelled cost profile of
-    <span class="num">37 bps</span>, on 249% annual turnover. The breakeven is the number worth
-    quoting because it requires no belief in any particular cost calibration. Borrow cost is
-    not modelled, which affects the long-short statistic and not the long-only book.
+    <b>It survives trading costs, by about fourfold.</b> The top decile's breakeven is
+    <span class="num">134 bps</span> one-way against a <em>measured</em> cost profile of
+    <span class="num">33 bps</span>, on 261% annual turnover. The breakeven is the number worth
+    quoting because it requires no belief in any particular cost calibration — and the 33 is
+    now measured from the panel's own market-cap cost table rather than assumed, which is not
+    true of every cost figure this project has published. Borrow cost is not modelled, which
+    affects the long-short statistic and not the long-only book.
   </p>
   <p>
     <b>And it replicates abroad, on another vendor's data, untuned.</b> Five themes were mapped
@@ -476,28 +486,33 @@
     </p>
     <p>
       <b>It cleared it.</b> Against Fama–French five factors plus momentum, the headline series
-      carries an intercept of <span class="num">+8.81%/yr</span> with
-      <span class="num">t = 5.74</span> (Newey–West, 109 non-overlapping windows, 1998–2026).
-      The same pipeline run on a passive large-cap ETF returns
-      <span class="num">+0.19%/yr, t 0.45</span>, with a market beta of 0.96 and an R² of 0.99
-      — the placebo control that shows the machinery finds nothing when there is nothing to
-      find. <b>This is a backtest result and nothing more: it is not an expected return, not an
+      carries an intercept of <span class="num">+6.99%/yr</span> with
+      <span class="num">t = 3.98</span> (Newey–West, 68 non-overlapping windows, 2009–2025).
+      All six pre-registered specifications are positive at t &gt; 2, spanning
+      <span class="num">+5.1% to +10.9%</span>. The same pipeline run on a passive large-cap
+      ETF returns <span class="num">+0.68%/yr, t 1.58</span>, with a market beta of 0.93 and an
+      R² of 0.99 — the placebo control that shows the machinery finds nothing significant when
+      there is nothing to find. <b>This is a backtest result and nothing more: it is not an expected return, not an
       achievable return, and not a return anybody earned.</b>
     </p>
     <p>
       The caveats travel with it, in the project's own words. It is still <b>one panel</b> — a
       factor regression is a control, not new data, and the international replication above is
       the out-of-sample evidence, not this. The t-statistic is <b>not multiplicity-corrected</b>
-      against the ~146 construction decisions in the ledger (mitigating: the deployed weights
-      are flat one-seventh and were never tuned). Dropping the panel's contaminated early
-      period costs about 2.2 points of it, so <b>+6.6% is the number to prefer</b> when a
-      single conservative figure is wanted. And it does not contradict the null two sections
+      against the <span class="num">116</span> logged equity trials behind it
+      (<span class="num">272</span> across the whole project), though the deployed weights are
+      flat one-seventh and were never tuned. The panel's contaminated early period is no
+      longer discounted — it was removed from the sample outright — and the conservative
+      single figure is now the first half's <b>+5.19%</b>. And it does not contradict the null
+      two sections
       up: beating the factor model is not the same as beating the ETFs a person can actually
       buy, and that second test was not passed.
     </p>
     <p>
-      Two further limits: the capacity of the strategy is roughly <span class="num">$23M</span>
-      as an upper bound, so it could never be a managed vehicle; and the small-cap tilt it
+      Two further limits: the capacity of the strategy is roughly <span class="num">$4.9M</span>
+      as an upper bound — the same impact model as before, re-solved at the corrected breakeven
+      above, which moved it down by nearly fivefold from the figure this page carried until
+      2026-08-08 — so it could never be a managed vehicle; and the small-cap tilt it
       carries is real, unhedged, and not costed for market impact at size.
     </p>
   </div>

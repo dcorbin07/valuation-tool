@@ -6198,6 +6198,126 @@ def test_session11_the_ml_executor_still_matches_the_register_it_executed():
     assert abs(M.MIN_T_MARGIN - 0.25) < 1e-9, "t-margin must be the standing MIN_HOLDOUT 0.25"
 
 
+def test_session12_the_trial_counter_reads_verdicts_from_the_verdict_column_only():
+    """THE FIXTURE THE REPAIR EXISTS FOR.
+
+    `research_log._parse` used to test `\\bFIXED\\b` against every cell of a row joined together,
+    so a row whose hypothesis, threshold, source or note merely contained the word "fixed" was
+    silently dropped from `N`. An understated `N` OVERSTATES the significance of every DSR-gated
+    claim in the project — M1's own error, committed inside M1's own parser.
+
+    On the log as it stands the defect is LATENT (session 12 measured it: zero rows differ, on all
+    ten historical revisions), so nothing but a fixture can prove the repair does anything. This
+    row set is built so the OLD parser and the NEW one give different answers: prose containing
+    "fixed", "adopted" and "rejected" in every field except the verdict, a grid multiplier that
+    only counts when read from its own column, and a domain word planted in free text.
+    """
+    import tempfile
+    from valuation.edge import research_log as RL
+
+    md = (
+        "# fixture\n\n"
+        "| id | date | domain | pre | hypothesis | metric | verdict | n | source |\n"
+        "|---|---|---|---|---|---|---|---|---|\n"
+        # counts: the note says "fixed" but the VERDICT says REJECTED
+        "| T1 | 2026-08-08 | equity | yes | The defect fixed in session 12 understated N "
+        "| IC t | REJECTED | n=1 | note |\n"
+        # counts: prose full of other verdict words, none of them the verdict
+        "| T2 | 2026-08-08 | equity | yes | Whether the ADOPTED weights beat the rejected ones "
+        "| alpha | NULL | n=3 | a run that fixed nothing |\n"
+        # does NOT count: the verdict column itself says FIXED
+        "| T3 | 2026-08-08 | equity | retro | A real correctness repair | code | FIXED | n=1 "
+        "| adopted nowhere |\n"
+        # does NOT count: the legitimate existing variant value
+        "| T4 | 2026-08-08 | options | retro | Another repair | code | FIXED (relabel only) "
+        "| n=1 | — |\n"
+        # counts, and its DOMAIN must come from the domain column, not the planted word
+        "| T5 | 2026-08-08 | options | yes | Compared against the equity book | PF | ADOPTED "
+        "| n=2 | equity |\n"
+    )
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "RESEARCH_LOG.md")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(md)
+        got = RL._parse(p)
+
+    # --- the repair -------------------------------------------------------------------
+    assert got["rows_counted"] == 3, (
+        f"T1, T2 and T5 are trials; got {got['rows_counted']} rows counted. "
+        "A row is FIXED only when its VERDICT CELL says so.")
+    assert got["rows_fixed"] == 2, f"only T3 and T4 are FIXED; got {got['rows_fixed']}"
+    assert set(got["ids"]) == {"T1", "T2", "T5"}, got["ids"]
+
+    # --- the grid multiplier comes from the `n` column ---------------------------------
+    assert got["trials"] == 1 + 3 + 2, f"expected 6 trials (1+3+2), got {got['trials']}"
+
+    # --- the domain comes from the domain column, not a word planted in free text -------
+    assert got["by_domain"]["equity"] == 4, (
+        f"T1(1)+T2(3) are equity; got {got['by_domain']['equity']}. T5 says `options` in its "
+        "domain column and `equity` in its source — the column wins.")
+    assert got["by_domain"]["options"] == 2, got["by_domain"]
+
+    # --- and the old behaviour really did differ, or this fixture proves nothing --------
+    legacy_counted = 0
+    for ln in md.splitlines():
+        if not ln.startswith("|"):
+            continue
+        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if len(cells) < 4 or cells[0].lower() in ("id",) or set(cells[0]) <= set("-: "):
+            continue
+        if not re.search(r"\bFIXED\b", " ".join(cells).upper()):
+            legacy_counted += 1
+    assert legacy_counted == 1, (
+        f"the fixture must be one the OLD parser got wrong; it counted {legacy_counted} of the "
+        "3 real trials")
+
+
+def test_session12_a_row_with_unescaped_pipes_may_not_silently_lose_its_trials():
+    """FOUND THE HARD WAY, mid-session, by merging another lane.
+
+    O16 writes `|Spearman(term_slope, atm_front)|` for an absolute value inside a markdown table
+    cell. The unescaped `|` splits that cell in two, so every column after it shifts and the row's
+    indices stop meaning what the header says. The column-wise parser then read the `n` field off
+    prose, found no `n=<k>`, and charged the row **1 trial instead of 5** — understating `N`,
+    which is precisely the direction session 12 exists to eliminate. The old whole-line grep was
+    accidentally immune, so the repair would have introduced a regression the defect it replaced
+    did not have.
+
+    A misaligned row therefore resolves toward a LARGER `N` on every field, and is reported in
+    `rows_malformed` rather than silently absorbed.
+    """
+    import tempfile
+    from valuation.edge import research_log as RL
+
+    md = (
+        "| id | date | domain | pre | hypothesis | metric | verdict | n | source |\n"
+        "|---|---|---|---|---|---|---|---|---|\n"
+        # 11 cells, not 9: the metric carries |x| for an absolute value
+        "| O16X | 2026-08-07 | options | yes | a signal is another signal renamed "
+        "| identity arm is |Spearman(a, b)| and var(a)/var(b) | INCONCLUSIVE | n=5 | note |\n"
+        # a well-formed control alongside it, so the guard cannot pass by counting everything
+        "| OKROW | 2026-08-07 | options | yes | something testable | IC t | REJECTED | n=2 "
+        "| note |\n"
+        "| FIXROW | 2026-08-07 | equity | n/a | a repair | code | FIXED | n=1 | note |\n"
+    )
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "RESEARCH_LOG.md")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(md)
+        got = RL._parse(p)
+
+    assert got["trials"] == 7, (
+        f"expected 5 + 2 = 7 trials, got {got['trials']}. A row whose columns are shifted by an "
+        "unescaped `|` must fall back to the whole-line scan and take the LARGER count, never "
+        "silently drop to 1.")
+    assert got["by_domain"]["options"] == 7, got["by_domain"]
+    assert got["rows_fixed"] == 1, "the well-formed FIXED row must still be excluded"
+    mal = got.get("rows_malformed") or []
+    assert [m["id"] for m in mal] == ["O16X"], (
+        f"the misaligned row must be REPORTED, not silently absorbed; got {mal}")
+    assert mal[0]["row_width"] == 11 and mal[0]["header_width"] == 9, mal[0]
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

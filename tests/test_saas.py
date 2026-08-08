@@ -414,9 +414,17 @@ def test_methodology_page_is_public_and_states_the_weaknesses():
     for weakness in ("one 18-year", "saturates", "undeflated", "dormant"):
         assert weakness in body, f"methodology must keep the weakness: {weakness!r}"
     # The alpha figure is permitted (audit R1 cleared its pre-registered threshold) but only
-    # wearing its labels. A page that prints +8.81% without them is the exact failure this
-    # whole posture exists to prevent.
-    if "8.81" in body:
+    # wearing its labels. A page that prints the intercept without them is the exact failure
+    # this whole posture exists to prevent.
+    # UPDATED 2026-08-08 (P2 crowding-memo sweep). The figure is now +6.99%/yr (NW t 3.98,
+    # 68 windows) on the corrected 69-date panel. Two changes, both deliberate:
+    #   1. The void pre-B6 +8.81%/yr is asserted ABSENT. CLAUDE.md: "THE OLD +8.81%/yr ... ARE
+    #      VOID. Do not quote them anywhere." It sat on this public page for four days.
+    #   2. The label guard is re-keyed to the live figure. It was keyed to the literal "8.81",
+    #      so correcting the number would have made this check silently vacuous — the guard
+    #      would still pass while checking nothing.
+    assert "8.81" not in body, "the void pre-B6 alpha figure (+8.81%/yr) is back on /methodology"
+    if "6.99" in body:
         for label in ("historical simulation", "not an expected", "placebo"):
             assert label in body, f"the alpha figure lost its label: {label!r}"
 

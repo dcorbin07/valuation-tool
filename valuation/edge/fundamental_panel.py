@@ -2707,9 +2707,25 @@ def cpcv_validate(panel, cols, base, halflife_days=1260, horizon=63, n_groups=6,
     best = max(chall, key=lambda nm: med[nm], default=None)
     dflt = med["current-default"]
     adopt, verdict = False, "kept the current default weights"
+    _adopt_detail = None
     if best is not None and dflt is not None:
         arr = oos[best]
         se = (float(np.std(arr)) / len(arr) ** 0.5) if len(arr) > 1 else None
+        # SESSION 12 — BANK THE MARGIN, NOT JUST THE DECISION. The adopt gate multiplies `se` by
+        # `_trials_haircut`, which is FLOORED AT THE RESEARCH LOG'S `N` (audit M1). So the same
+        # draw can adopt at one project-wide trial count and not at another, and the adopted
+        # weights then feed `quantile_backtest` — meaning `N` silently moves the long-short t of
+        # any run that sits near this bar. X7's placebo recorded only the boolean, which is why
+        # its 8%-vs-7% `ls_t >= 2.0` discrepancy cost two sessions and a 100-draw re-run to chase.
+        # With (margin, se) banked, the decision at any other `N` is arithmetic.
+        _adopt_detail = {
+            "best": best, "median_oos_ic_best": med[best], "median_oos_ic_default": dflt,
+            "margin": (None if (med[best] is None or dflt is None) else float(med[best] - dflt)),
+            "se": se, "folds_positive": posf[best],
+            "haircut": float(_trials_haircut(len(names))),
+            "n_trials_used": int(max(2, len(names), _trial_N())),
+            "bar": (None if not se else float(_trials_haircut(len(names)) * se)),
+        }
         if se and se > 0 and (med[best] - dflt) > _trials_haircut(len(names)) * se and (posf[best] or 0) >= 0.6 and med[best] > 0:
             adopt = True
             verdict = (f"adopt '{best}': median OOS IC {med[best]:+.3f} vs default {dflt:+.3f} across "
@@ -2737,6 +2753,12 @@ def cpcv_validate(panel, cols, base, halflife_days=1260, horizon=63, n_groups=6,
             "pbo_scope": "weight_scheme_selection_only",
             "deflated_sharpe_detail": _dsr_detail,
             "recommend": recname, "adopt": adopt,
+            "adopt_detail": _adopt_detail,
+            # SESSION 12 — the challenger's weights, exposed WHETHER OR NOT it was adopted. The
+            # shipped path must keep returning `base` on a reject (that is the rule X7 measured),
+            # so this is a separate key: it is what makes "what would this run have scored had the
+            # bar been one haircut lower" answerable without re-running the sweep.
+            "challenger_weights_cols": (dict(all_w[best]) if best in all_w else None),
             "verdict": verdict, "recommended_weights_cols": (all_w[recname] if adopt else dict(base)),
             "candidates": {nm: {"median_oos_ic": med[nm], "folds_positive": posf[nm]} for nm in names}}
 

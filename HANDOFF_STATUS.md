@@ -4,8 +4,8 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-08 (external edge audit, **session 11** — the ML tree combiner is
-REJECTED and its deciles run backwards out of sample)
+**Session date:** 2026-08-08 (external edge audit, **session 12** — the trial counter is repaired,
+`N` does not move, and X7's two-session-old 8-vs-7 discrepancy is diagnosed to a single draw)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
@@ -63,6 +63,45 @@ the re-run was not blind). **Equity N unchanged at 129** — no equity claim mov
 ---
 
 
+## P2's CORRECTED FIGURES SWEPT OFF EVERY SURFACE (2026-08-08, app-fixer lane)
+
+P2 corrected P1's capacity headline (~$23M → **~$4.9M**, overstated 4.72x because
+`scripts/capacity.py` hard-codes the pre-B6 breakeven). This session swept every **rendered**
+surface for the figures P2 corrected and fixed each one. Full detail and the before/after
+table in `HANDOFF_appfixes.md` session 19; ledger row P2 amended.
+
+**Fixed on the public `/work` and `/methodology` pages:** capacity $23M → **$4.9M**; breakeven
+236 bps vs 37 bps → **134 bps vs a measured 33 bps** on 261% turnover; the FF5+MOM alpha
+**+8.81%/yr, t 5.74, 109 windows, 1998–2026 → +6.99%/yr, NW t 3.98, 68 windows, 2009–2025**;
+panel 2,710/110 → **2,531/69**; trial count "~146" → **116 equity (272 project-wide)**.
+`/work` also claimed long-short **t 3.52, "above the 3.0 hurdle"** — corrected to **2.84
+(NW 2.62), which is BELOW it**, with the 2.70–3.52 grid range stated. The Index `method`
+payload (P2 bug 3) and the track export `basis` are corrected too.
+
+**THE SWEEP FOUND WORSE THAN IT WAS SENT FOR, and P2 did not list it because it is not in a
+template: the PUBLIC landing page rendered "Backtested net alpha +17.4%/yr"** — pre-B6 —
+**against a corrected +11.6%**, and the taxable book's after-tax alpha was overstated
+**sixfold (4.86% → 0.81%)**. Both come from `settings.BOOK_CONFIGS[...]["measured"]`, a config
+dict that reaches the page via `index_track.summarize()`. Provenance was matched before
+substituting (identical `label` strings, matching `rebalance_days`).
+
+**The recruiter demo link is clean:** `index.html` — the dashboard, Track Record, Edge Lab and
+Index tab — hard-codes no figures at all; it renders live API data. Verified by rendering
+inside a real demo session.
+
+**Deliberately NOT changed:** the Deflated Sharpe "undeflated / saturates" copy on both pages
+is stale since M1, but correcting it would upgrade a disclaimed statistic into a real one (a
+new performance claim) *and* `test_saas.py:414` pins the stale wording — copy and test must
+move together, in a lane that intends it. The sector-neutral row's "+11.8% → +10.2%" was
+**removed rather than replaced** (no corrected re-run exists; inventing one would be
+fabrication). **`scripts/capacity.py` bugs 4–5 remain OPEN in the free-analysis lane — any
+re-run still reproduces the $23M.**
+
+**Gate:** 885 passed, 0 failed across 25 suites in the CI environment. Two test amendments,
+both cited and both strictly stronger (one guard was keyed to the literal `8.81` and would
+have gone silently vacuous when the figure was corrected). One unreproduced flake reported:
+`test_portfolio_sector_cap_and_weights` failed once in a full sequential run, then passed 6/6
+in isolation.
 ## LEDGER REFRESHED — 72/134 DONE, AND `--write` WAS DESTROYING EIGHT ROWS (2026-08-08, r1 lane)
 
 Full write-up in `HANDOFF_ledger.md`. Counts and the disagreement table are published in
@@ -411,6 +450,109 @@ Full write-up: `HANDOFF_live_data_bugs.md` Part 6. Ledger row `OOB1`. Landed on 
 - Suites **24 / 849 / 0 failures**. New: `test_a_recorded_refusal_survives_the_snapshot_round_trip`
   (the existing in-memory test was green for the whole leak; a ratio walk provably cannot catch
   this class), plus a migration test and `test_not_dcf_valuable_is_not_a_refusal`.
+
+---
+
+## EDGE AUDIT SESSION 12 (2026-08-08) — the trial counter is repaired, N does not move, and X7's discrepancy is closed
+
+Full write-up: `HANDOFF_edge_audit.md` § SESSION 12. Artifacts: `PREREG_session12_recount.md`,
+`scripts/x7_reconcile.py`, `data/free_analysis/X7_RECONCILE.json`. **The live product is unchanged.**
+
+Pre-registered at `21069ac` **before the parser was touched** — a recount that changes `N` changes
+the significance of every DSR-gated claim in the project, so the procedure, the definition of a
+changed verdict, and the rule that **no row's text may be edited to change `N`** were all fixed in
+writing first.
+
+### 1. The parser defect is REAL, and it NEVER FIRED
+
+`research_log._parse` tested `\bFIXED\b` against every cell of a row joined together, so a row whose
+free text merely contained the word "fixed" was dropped from `N`. Understating `N` **overstates**
+the significance of every DSR-gated claim. Two sibling defects of the same class were found by
+reading and fixed with it: the `n=<k>` grid multiplier was grepped from the whole line, and the
+domain was taken from the first cell matching any domain name rather than the domain column.
+
+**RECOUNT: NOTHING MOVES.**
+
+| scope | legacy | corrected |
+|---|---|---|
+| **equity** | **129** | **129** |
+| options / infra / total | 164 / 3 / 296 | 164 / 3 / 296 |
+| rows counted / dropped `FIXED` | 57 / 18 | 57 / 18 |
+
+Verified against the **shipped module itself**, then against **all fifteen historical revisions**
+of `RESEARCH_LOG.md` — identical at every one — and no `fix*` word appears outside a verdict cell
+in any of the 72 data rows as they stood at the recount. **No published `N` was ever wrong.**
+Deflated Sharpe stays **0.8556**, √(2·ln 129) stays **3.1176**. All six named claims re-checked
+mechanically and reproduce to six decimals. The written expectation ("N rises, 60/40") was
+**wrong**.
+
+**THE REPAIR NEARLY SHIPPED THE ERROR IT WAS FIXING.** Merging `origin/main` brought in **O16**,
+which writes `|Spearman(term_slope, atm_front)|` — an absolute value — **inside a markdown table
+cell**. The unescaped `|` gives that row 11 cells against a 9-cell header, so every column after
+the metric shifts; the first-cut column parser read `n` off prose and charged the row **1 trial
+instead of 5, understating options `N` by 4**. The whole-line grep it replaced was accidentally
+immune. Caught only because merging and re-running the recount was written into the procedure.
+Misaligned rows now resolve toward a **larger** `N` and are reported in `rows_malformed`. **The
+O16 row was not edited** (the register forbids it); **its pipes want escaping as `\|` by the lane
+that owns it.**
+
+**Why it never fired is not reassuring:** the last three sessions dodged the word deliberately, and
+the earlier rows avoid it by luck. A denominator protected by authors' word choice is not
+protected. The repair ships with a fixture the old parser fails (3 real trials, of which it counts
+1) and `rows_rescued_by_parser_fix` in `detail()`, so a silent revert would be loud.
+
+### 2. THE X7 7-vs-8 DISCREPANCY IS DIAGNOSED — one draw, seed 1005
+
+Open and called "undiagnosable" for two sessions. **The two sweeps ran at different project trial
+counts, and `N` moves `ls_t`.** `cpcv_validate`'s adopt gate multiplies `se` by `_trials_haircut`,
+which is **floored at the research log's `N`** — and `scripts/placebo.py` feeds the *adopted*
+weights to `quantile_backtest`. X7 ran at N = 84, session 10 at N = 121.
+
+Seed 1005 (margin 0.00287097, se 0.00094470) clears the N = 84 bar and fails the N = 121 bar, so it
+was scored at **naive `ls_t` 2.1273** under the challenger's weights and **1.0454** under base.
+Session 10's retained artifact records **1.0453572947436582** — identical to this session's
+recomputation to sixteen digits.
+
+Substituting the adopted value into session 10's draws gives **exactly 8** at `t ≥ 2.0` (X7's
+figure); the adopt count at N = 84 comes back **21** (M1's recorded 21%); the naive **p95 stays
+2.1437 and max stays 3.436**, which is why session 10's control reproduced X7's percentiles to the
+digit while missing one draw — 2.1273 lands just below the 95th percentile. **One fact explains
+both halves.** It also explains why it looked undiagnosable: seed 1005 did not drift across 2.0, it
+**jumped 1.08 of a t** because its weights changed, so "no draw near the boundary" was the wrong
+thing to look for.
+
+**THE CONSEQUENCE THAT OUTLIVES IT: the calibrated placebo floors are functions of `N`.** Here they
+happened not to move, because the affected draw landed below the percentile — that is luck, not
+design. Every future sweep must record the `N` it ran at, and a floor may not be compared across
+sweeps run at different `N` without checking. **The shipped strategy is unaffected** — it does not
+adopt, it keeps `current-default`, so no haircut touches its `ls_t`; the exposure is to the
+*calibration*, not the headline.
+
+### 3. Also this session
+
+- **`RUN_RULES` Part A gains rule 9 — "store the draws, not just the summary"**, with the bill
+  attached: X7's summary-only sweep cost a 3.4-hour re-run at M1 and two sessions of "undiagnosable".
+- **`CLAUDE.md`'s mechanism for M1's effect on the adopt rate was BACKWARDS** and is corrected:
+  adoption is decided at `fundamental_panel.py:2729`, the Deflated Sharpe computed at `:2744`
+  *downstream* of it. Direction and magnitude were right. Getting the mechanism right is what made
+  the seed-1005 diagnosis findable.
+- **`cpcv_validate` now banks `adopt_detail` and `challenger_weights_cols`**, so "what would this
+  run have scored one haircut lower" is arithmetic rather than a re-run.
+- **Tests: 262/262 edge, 26/26 suites green by exit code** (the suite count rose from 24 — the
+  merge brought `test_build_ledger.py` and `test_term_slope_decomp.py` from other lanes).
+  Equity `N` **129**, DSR bar **0.8556**, HAC long-short floor **2.2837**.
+
+### Recommended next: unchanged — task #12, the forward paper-track vs SPY
+
+Nothing here weakens it and §2 mildly strengthens it: a fourth demonstration that in-panel
+statistics move for reasons that have nothing to do with the market — here, literally the number of
+rows in a markdown file. Still needs a start date, a pre-committed horizon and a comparison rule
+from Don **before** the first print.
+
+**One correction to guard against a wrong inference from §2:** the floors are `N`-dependent in
+principle, but N = 116, 121 and 129 all give the same 20 adopters, so session 10's 2.1437 /
+2.2837 **are** current and need no re-derivation. What is required is the discipline — record the
+`N` a sweep ran at, and never compare floors across sweeps at different `N` without checking.
 
 ---
 

@@ -163,7 +163,9 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
         "after_tax_alpha": measured.get("after_tax_alpha"),
         "after_tax_sharpe": measured.get("after_tax_sharpe"),
         "annual_turnover": measured.get("annual_turnover"),
-        "basis": ("full 2,710-name / 110-date point-in-time panel, ~18 years, net of "
+        # Panel descriptor refreshed 2026-08-08 (P2 crowding memo): this said
+        # "2,710-name / 110-date", the pre-B6 panel, and it ships on the track export.
+        "basis": ("full 2,531-name / 69-date point-in-time panel, ~18 years, net of "
                   "modelled transaction costs"),
     }
 
