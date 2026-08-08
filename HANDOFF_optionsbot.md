@@ -2001,7 +2001,7 @@ best case, not the worst.
 | book | disposition |
 |---|---|
 | R2 corrected | **REFROZEN** — new bank at `data/options_freeze/R2_CORRECTED_2026-08-08/` (`chains.pkl.gz` + `FREEZE_MANIFEST.json`). Never an overwrite: `freeze_book` refuses to land on an existing freeze. |
-| control seeds 0-4 | **REFROZEN together** at `data/options_freeze/R2_CONTROLS_2026-08-08/`. The R2 verdict is a *comparison* carried by the paired name-year sign test, so freezing the real book alone would leave half of it un-replayable. |
+| control seeds 0-4 | **NOT FROZEN — ATTEMPTED AND NOT COMPLETED. Corrected here rather than left standing: an earlier draft of this section claimed they were frozen.** The R2 verdict is a *comparison* carried by the paired name-year sign test, so freezing the real book alone leaves half of it un-replayable, and this remains the top outstanding item. The run (29,785 trades pooled across five seeds, 1,558 symbol-years) was killed by the environment after ~45 minutes before writing anything; because `freeze_book` writes to `.tmp` and `os.replace`s, **no partial or corrupt artifact was left** — the directory is empty. The cause was a real performance defect, now repaired (see below), not a data problem. |
 | pre-correction, `state_mid` | **RETIRED**, annotated: *inputs no longer reproducible; the verdict stands on the frozen summary.* Both were already SUPERSEDED by the B1-B4/B15 corrections — the record's own word — so refreezing would preserve replayability for books nobody may quote. |
 | entry lab, exit lab | **RETIRED**, annotated the same way, at 56.25% / 57.04%. A refreeze remains possible and cheap should either be quoted again; what it would freeze is *today's* store, which is not what those books were scored against. |
 
