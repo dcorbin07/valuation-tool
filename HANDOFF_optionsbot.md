@@ -1321,10 +1321,20 @@ back byte-identical without anyone touching the box — which is fortunate, beca
 
 The earlier C6 write-up (above, "BLOCKER — needs Don, one command") was right about the mechanism
 and wrong about the remedy. Its mechanism still stands and is worth keeping: the repo-root
-`.gitignore:26` is a bare `data/`, a pattern whose only slash is the trailing one matches at every
+`.gitignore` carried a bare `data/`, a pattern whose only slash is the trailing one matches at every
 depth, so it excluded the options bot's **source** package along with the licensed Sharadar
 exports it was written for. That is why a clean clone could not run the options suite, and why
 `deploy.sh` aborted before restarting anything.
+
+> **That root rule changed on 2026-08-07, while this task was in flight, and the change is
+> independent corroboration.** Another lane anchored it to `/data/` because the same unanchored
+> pattern was ALSO silently swallowing `valuation/data/` — application source in the main product,
+> where a new `valuation/data/beta.py` was unaddable and would have shipped as a runtime
+> `ModuleNotFoundError`. **The same one-line gitignore defect bit two different subtrees, weeks
+> apart, and in both cases the symptom was source that silently did not exist.** After that merge
+> the root rule no longer reaches `options-bot/`, so `quant_bots/.gitignore`'s `!data/`
+> re-include is now belt-and-braces rather than load-bearing. Both were re-verified together after
+> the merge: all three source files unignored, all 24 state files still ignored.
 
 Where it went wrong was the sentence "The `data/*.py` sources exist only on the Oracle box."
 Nobody had looked inside the tracked zips. Four copies existed:
