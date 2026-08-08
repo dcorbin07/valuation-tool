@@ -182,12 +182,23 @@ the project's memory and the old versions had been repeated for months.
     (0.0028122) and fails the N = 121 bar (0.0029257). Scored under the challenger's weights its
     naive `ls_t` is **2.1273**; under base weights, **1.0454**. Session 10's retained artifact
     records **1.0453572947436582** — identical to the recomputation to sixteen digits.
+  * **SEED 1005 IS THE ONLY FLIP IN 100 DRAWS**, which is checkable because the gate's other two
+    conditions do not depend on `N`, so adoption is monotone and the search set is the draws that
+    did not adopt at N = 121.
   * **IT REPRODUCES EVERY RECORDED NUMBER ON BOTH SIDES.** Substituting the adopted value into
-    session 10's 100 draws gives **exactly 8** at `t ≥ 2.0` — X7's figure. The adopt count at
-    N = 84 comes back **21**, which is M1's recorded 21%. And the naive **p95 stays 2.1437, max
-    stays 3.436** — which is precisely why session 10's control reproduced X7's percentiles *to
-    the digit* while missing one draw: **2.1273 lands just below the 95th percentile.** One fact
-    explains both halves of what looked like a contradiction.
+    session 10's 100 draws gives **exactly 8** at `t ≥ 2.0` — X7's figure. And the naive **p95
+    stays 2.1437, max stays 3.436** — which is precisely why session 10's control reproduced X7's
+    percentiles *to the digit* while missing one draw: **2.1273 lands just below the 95th
+    percentile.** One fact explains both halves of what looked like a contradiction.
+  * **THE ADOPT CURVE REPRODUCES TWO HISTORICALLY RECORDED RATES THE SCRIPT NEVER SAW.** With
+    `(margin, se)` banked, adoption at any `N` is arithmetic: **N = 8 → 27 draws adopt** (X7's
+    recorded **27%**), **N = 84 → 21** (M1's recorded **21%**), **N = 116/121/129 → 20**
+    (session 10's artifact: **20**), N = 200 → 18, N = 400 → 17. Monotone throughout, and
+    **27 → 21 is six draws stopping with none starting** — exactly the one-directional move this
+    file records for M1, recovered independently from the margins.
+  * **CHECKED, NOT ASSUMED: today's N = 129 still gives 20 adopters, the same as session 10's
+    121, so session 10's published floors (naive 2.1437, HAC 2.2837) are still the floors at the
+    current `N`.**
   * **IT ALSO EXPLAINS WHY IT LOOKED UNDIAGNOSABLE.** Session 10 reasoned that no draw sat near
     2.0 so it could not be a boundary effect. Correct — seed 1005 did not *drift* across the
     boundary, it **jumped 1.08 of a t** because its weights changed. A knife-edge crossing was
@@ -214,12 +225,24 @@ the project's memory and the old versions had been repeated for months.
   parser, carried three sessions. Two sibling defects of the same class were fixed with it: the
   `n=<k>` grid multiplier was grepped from the **whole line**, and the domain came from the first
   cell matching any domain name rather than the domain column.
-  * **THE RECOUNT MOVES NOTHING. Equity `N` 129 → 129**, options 155, infra 3, total 287, 55 rows
-    counted and 17 dropped — identical against the **shipped module itself** and against **all ten
-    historical revisions** of `RESEARCH_LOG.md`. No `fix*` word appears outside a verdict cell in
-    any of the 72 data rows; **zero near-misses. No published `N` was ever wrong.** Deflated
-    Sharpe stays **0.8556**, √(2·ln 129) stays **3.1176**, and all six DSR figures in this file
+  * **THE RECOUNT MOVES NOTHING. Equity `N` 129 → 129**, options 164, infra 3, total 296, 57 rows
+    counted and 18 dropped (merged log) — identical against the **shipped module itself** and
+    against **all fifteen historical revisions** of `RESEARCH_LOG.md`. No `fix*` word appears
+    outside a verdict cell in any of the 72 data rows as they stood at the recount; **zero
+    near-misses. No published `N` was ever wrong.** Deflated Sharpe stays **0.8556**,
+    √(2·ln 129) stays **3.1176**, and all four DSR figures in this file
     (N = 84 → 0.899659, 116 → 0.867360, 121 → 0.862756, 129 → 0.855608) reproduce to six decimals.
+  * **THE REPAIR NEARLY SHIPPED THE ERROR IT WAS FIXING, AND THAT IS THE MOST USEFUL THING HERE.**
+    Merging `origin/main` mid-session brought in **O16**, which writes
+    `|Spearman(term_slope, atm_front)|` — an absolute value — **inside a markdown table cell**.
+    The unescaped `|` gives that row **11 cells against a 9-cell header**, shifting every column
+    after the metric; the first-cut column parser read `n` off prose and charged it **1 trial
+    instead of 5, understating options `N` by 4** — the same harmful direction, in a different
+    column, and **the whole-line grep it replaced was accidentally immune**. It was caught only
+    because merging and re-running the recount was written into the procedure rather than left to
+    the end. Misaligned rows now resolve toward a **larger** `N` and are listed in
+    `rows_malformed`. **The O16 row is NOT edited** (the register forbids it); **its pipes want
+    escaping as `\|` by the lane that owns them** — it is the only malformed row in 74.
   * **WHY IT NEVER FIRED IS NOT REASSURING.** Sessions 9-11 knew about the defect and dodged it
     by choosing synonyms; the earlier rows avoid the word by luck. **A denominator protected by
     authors' word choice is not protected.** The repair is pinned by a fixture the old parser

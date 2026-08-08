@@ -5198,3 +5198,290 @@ Carried forward, unrepaired, for the third session running:
 2. **X7's 100 raw placebo draws were never retained** (session 10 §6), which is why the
    7%-vs-8% `ls_t ≥ 2.0` discrepancy remains undiagnosable. Session 10's sweep retains all 100;
    the general lesson — *store the draws, not just the summary* — has now cost two sessions.
+
+---
+
+# SESSION 12 (2026-08-08) — the trial counter is repaired, `N` does not move, and the X7 discrepancy is closed
+
+Three items, and the two that produced numbers both came back against the session's own written
+expectation. Pre-registered in `PREREG_session12_recount.md`, committed at `21069ac` **before the
+parser was touched**, because a recount that changes `N` changes the significance of every
+DSR-gated claim in the project and must not be steerable by its own consequences.
+
+---
+
+## 0. Headline
+
+| item | result |
+|---|---|
+| the trial-counter defect | **REAL, and it NEVER FIRED.** Fixed, pinned by a fixture |
+| equity `N` | **129 → 129.** Deflated Sharpe **0.8556**, √(2·ln 129) **3.1176** — all unchanged |
+| every published `N` | **correct at the time it was published**, on all fifteen historical revisions |
+| the X7 7-vs-8 discrepancy | **DIAGNOSED. One draw: seed 1005.** No floor moves |
+| new mechanism found | **`N` MOVES `ls_t`** through the CPCV adopt gate — undocumented until now |
+| the repair's own near-miss | it would have **understated options `N` by 4** until a merge exposed it |
+| suites | **26/26 green, 262/262 edge tests** |
+
+---
+
+## 1. The parser: fixed, and it was never live
+
+`research_log._parse` tested `\bFIXED\b` against **every cell of a row joined together**, so a row
+whose hypothesis, threshold, source or note merely contained the word "fixed" was dropped from `N`
+even where its verdict read `REJECTED`. Understating `N` **overstates** the significance of every
+DSR-gated claim — M1's own error, committed inside M1's own parser, and carried three sessions.
+
+**Two sibling defects of the same class were found by reading the code and fixed with it:**
+
+1. the `n=<k>` grid multiplier was `re.search`-ed against the **whole line**, so any prose
+   containing `n=100` (a draw count, a seed count — things this project writes constantly) would
+   have multiplied that row's trial count;
+2. the domain was taken from **the first cell matching any domain name**, not from the domain
+   column — which moves trials between BH-FDR families.
+
+The fix resolves columns **from each table's own header row**. That detail is not cosmetic:
+`RESEARCH_LOG.md` holds **two tables with different layouts** (verdict at index 7 in the original,
+index 6 in the retrospective reconstruction), so any fix that hard-coded an index would have been
+a fourth bug. Unresolvable fields resolve toward a **larger** `N`, the less favourable direction.
+
+### THE RECOUNT: NOTHING MOVES, AND THAT IS A MEASUREMENT
+
+On the merged log (after `origin/main`, which brought the options-bot lane's new rows):
+
+| scope | legacy | corrected | Δ |
+|---|---|---|---|
+| **equity** | **129** | **129** | **0** |
+| options | 164 | 164 | 0 |
+| infra | 3 | 3 | 0 |
+| unified | 0 | 0 | 0 |
+| total | 296 | 296 | 0 |
+| rows counted / dropped as `FIXED` | 57 / 18 | 57 / 18 | 0 |
+
+Checked against the **shipped module itself** (`git show HEAD:…`), not a reimplementation, and
+then against **every one of the fifteen historical revisions of `RESEARCH_LOG.md`** — the two
+parsers agree at every single one. Independently: **no `fix*` word of any form appears outside a
+verdict cell in any of the 72 data rows as they stood at the recount.** Not one near-miss.
+
+### THE REPAIR NEARLY SHIPPED THE ERROR IT WAS FIXING — report this one loudly
+
+The first-cut column parser was **wrong**, and it was wrong in the direction this session exists
+to eliminate. Merging `origin/main` brought in **O16**, which writes
+`|Spearman(term_slope, atm_front)|` for an absolute value **inside a markdown table cell**. The
+unescaped `|` splits that cell in two, so the row carries **11 cells against a 9-cell header** and
+every column after the metric shifts. The column-wise parser then read the `n` field off prose,
+found no `n=<k>`, and charged the row **1 trial instead of 5 — understating options `N` by 4.**
+
+**The whole-line grep it replaced was accidentally immune.** So the repair would have shipped a
+regression the original defect did not have, in a different column, in the same harmful direction.
+It was caught only because merging `origin/main` and re-running the recount was written into the
+pre-registered procedure rather than left to the end.
+
+A misaligned row now resolves toward a **larger** `N` on every field — the verdict cannot drop it,
+and the multiplier falls back to the whole-line scan and takes whichever count is larger — and is
+**reported** in `rows_malformed` rather than absorbed. Pinned by
+`test_session12_a_row_with_unescaped_pipes_may_not_silently_lose_its_trials`. **The O16 row itself
+was not edited**, per the register's no-edits rule; its pipes want escaping as `\|` by the lane
+that owns it.
+
+**So the defect is real, its direction of harm is real, and it never once fired. No published `N`
+was ever wrong, and no DSR-gated claim was ever inflated by it.** The pre-registered expectation
+(`N` rises, 60/40) was **WRONG** — this project's directional calls now stand at five wrong, one
+right, which is the point of writing them down.
+
+**Why it never fired is worth stating precisely, because it is not reassuring.** Sessions 9-11
+knew about the defect and dodged it by choosing synonyms; the rows written *before* it was known
+avoid the word by luck. **A denominator protected by authors' word choice is not protected.**
+That is why the repair ships with a fixture the old parser fails (3 real trials, of which it
+counts 1) and with `rows_rescued_by_parser_fix` in `detail()`, so a silent revert would be loud.
+
+### The six claims re-checked by name (PREREG §5)
+
+`N` did not move, so nothing needed restating — but the check was run mechanically rather than
+asserted, via `ablation.deflated_sharpe_at` on the shipped `deflated_sharpe_detail`:
+
+| claim | stated | reproduced | outcome |
+|---|---|---|---|
+| M1, N = 84 | DSR 0.8997, √ 2.977 | 0.899659, 2.9768 | **survives** |
+| session 7, N = 116 | DSR 0.8674, √ 3.083 | 0.867360, 3.0834 | **survives** |
+| session 9, N = 121 | DSR 0.8628, √ 3.097 | 0.862756, 3.0970 | **survives** |
+| session 11, N = 129 | DSR 0.8556, √ 3.118 | 0.855608, 3.1176 | **survives** |
+| X7 calibrated DSR floor 0.7216 | — | shipped 0.8556 still above | **survives** |
+| session 10 HAC floor 2.2837 | — | see §2 — it is `N`-dependent, and it did not move | **survives, with a new caveat** |
+| Harvey–Liu–Zhu 3.0 | √(2·ln 129) = 3.1176 | above the hurdle | **survives** |
+
+**Every figure reproduces to six decimals.** No wording changed.
+
+---
+
+## 2. THE X7 DISCREPANCY IS CLOSED — one draw, named, with both its values
+
+X7 recorded **8** of 100 pure-noise draws at naive long-short `t ≥ 2.0`. Session 10 re-ran the
+identical panel with the identical seeds and got **7**, with no draw near the boundary (nearest
+1.885 and 2.067), and recorded it as undiagnosable because X7's raw draws were never retained.
+Two sessions have carried it as an open defect.
+
+**THE CAUSE: the two sweeps ran at different project trial counts, and `N` moves `ls_t`.**
+
+`cpcv_validate`'s adopt gate is `(med[best] − med[default]) > _trials_haircut(len(names)) · se`,
+and `_trials_haircut` (`fundamental_panel.py:2097`) is **floored at the research log's `N`**
+(audit M1). X7's sweep ran at **N = 84** (haircut 2.97685); session 10's artifact records
+**N = 121** (haircut 3.09703). `scripts/placebo.py` then feeds the **adopted** weights to
+`quantile_backtest`. So a larger `N` is a larger haircut, adoption is **monotone decreasing in
+`N`**, and a draw that stops adopting is re-scored under different weights.
+
+**Seed 1005 is the draw — and the reconciliation sweep confirms it is the ONLY one of the 100
+whose adopt decision differs between the two haircuts.** Monotonicity is what makes that
+searchable: the gate's other two conditions do not depend on `N`, so a larger `N` can only remove
+adoptions, never add them, and the search set is the draws that did not adopt at N = 121. Its
+margin is **0.00287097** against `se` **0.00094470**:
+
+| | bar | margin clears? | weights used | naive `ls_t` | HAC `ls_t` |
+|---|---|---|---|---|---|
+| **N = 84** (X7) | 2.97685 × se = **0.0028122** | **yes → ADOPTS** | challenger | **2.1273** | 1.9491 |
+| **N = 121** (session 10) | 3.09703 × se = **0.0029257** | **no → keeps default** | base | **1.0454** | 1.1060 |
+
+Session 10's retained artifact records seed 1005's naive `ls_t` as **1.0453572947436582** —
+**identical to this session's base-weight recomputation to all sixteen digits**, which is what
+makes this a reconciliation rather than a story.
+
+**It reproduces every recorded number on both sides:**
+
+- substituting seed 1005's adopted-weights value into session 10's 100 draws gives **exactly 8**
+  at `t ≥ 2.0` — **X7's figure**;
+- the naive p95 stays **2.1437** and the max stays **3.436** under the substitution — which is
+  precisely why session 10's control reproduced X7's percentiles *to the digit* while missing one
+  draw. **2.1273 lands just below the 95th percentile.** One fact explains both halves.
+
+**AND THE ADOPT CURVE REPRODUCES TWO HISTORICALLY RECORDED RATES THAT THIS SCRIPT NEVER SAW.**
+With `(margin, se)` banked, adoption at any `N` is arithmetic, so the whole curve comes free:
+
+| `N` | haircut | draws adopting | matches the record? |
+|---|---|---|---|
+| 8 (pre-M1 floor, = `len(names)` 9) | 2.0963 | **27** | **X7's recorded 27%** |
+| **84** (X7's sweep after M1) | 2.9768 | **21** | **M1's recorded 21%** |
+| 116 / **121** / 129 | 3.083 / **3.097** / 3.118 | 20 / **20** / 20 | session 10's retained artifact: **20** |
+| 200 / 400 | 3.255 / 3.462 | 18 / 17 | — |
+
+**27 → 21 is six draws stopping and none starting** — which is exactly the "one-directional (six
+draws stopped adopting, none started)" that `CLAUDE.md` records for M1, recovered independently
+from the margins. The curve is monotone decreasing throughout, as the mechanism requires.
+
+**A useful corollary: today's `N` = 129 still gives 20 adopters, the same as session 10's 121.**
+So session 10's published floors (naive 2.1437, HAC 2.2837) **are still the floors at the current
+`N`** — checked, not assumed.
+
+**AND IT EXPLAINS THE THING THAT MADE IT LOOK UNDIAGNOSABLE.** Session 10 reasoned that no draw
+sat near 2.0, so it could not be a boundary effect. Correct — and the reason is that seed 1005
+did not *drift* across the boundary, it **jumped 1.08 of a t-statistic** because its weights
+changed. A draw crossing on a knife edge was the wrong thing to look for.
+
+### The consequence that outlives the discrepancy
+
+**THE CALIBRATED FLOORS ARE FUNCTIONS OF `N`, AND NOBODY KNEW.** A placebo floor is a percentile
+of the null `ls_t` distribution; `N` moves individual draws in that distribution through the adopt
+gate; therefore the floor itself depends on the project's trial count at the moment the sweep ran.
+**Here it happened not to move** — 2.1437 naive and 2.2837 HAC at both N — because the one
+affected draw landed below the percentile. **That is luck, not design.** Any future sweep must
+record the `N` it ran at, and a floor may not be compared across sweeps that ran at different `N`
+without checking.
+
+**The shipped strategy is unaffected**, and for a reason already in the record: it does not adopt,
+it keeps `current-default`, so no haircut touches its `ls_t`. The exposure is entirely to the
+*calibration*, not the headline. This is the same class of finding as X7's post-hoc "CPCV adoption
+manufactures ~+1.4 of long-short t" — and it is now a demonstrated mechanism on a named draw
+rather than a split of 100 draws.
+
+**Instrumentation so this is never chased blind again:** `cpcv_validate` now banks
+`adopt_detail` (margin, se, haircut, `n_trials_used`, folds-positive) and `challenger_weights_cols`
+— the challenger's weights **whether or not it was adopted**, which is what makes "what would this
+run have scored one haircut lower" arithmetic. Reproduce with `python -m scripts.x7_reconcile`;
+artifact `data/free_analysis/X7_RECONCILE.json` retains all 100 rows.
+
+**Zero trial cost.** A reconciliation of a recorded rate against retained draws searches nothing.
+
+---
+
+## 3. `RUN_RULES` Part A gains rule 9
+
+> **9. Store the draws, not just the summary.** Any sweep, bootstrap, permutation or grid ships its
+> per-draw rows alongside the percentiles — and banks the *inputs* to every derived statistic, not
+> only the derived number.
+
+The rationale is this project's own bill: X7 kept 100 draws as five summary rates, so
+re-denominating one column cost a whole 3.4-hour re-run (M1), and a one-draw mismatch in a second
+column sat open for two sessions. Session 10 had already half-learned it — the comment above
+`deflated_sharpe_detail` in `scripts/placebo.py` makes exactly this argument for the DSR's
+internals. It is now a rule rather than a comment.
+
+---
+
+## 4. What I did NOT do, and why (RUN_RULES A4)
+
+- **Did not edit a single row of `RESEARCH_LOG.md` to change `N`.** Pre-committed in §4 of the
+  register: the parser is repaired, the log is not rewritten. Had the recount surfaced a
+  mislabelled row it would have been reported and left in place — re-labelling rows while looking
+  at their effect on the denominator is the same error one level up.
+- **Did not re-run the placebo sweep to re-derive the floors at N = 129.** The floors are
+  `N`-dependent (§2) and today's `N` is 129, not the 121 session 10 ran at. The reconciliation
+  shows no draw's adoption differs between 121 and 129, so the published floors still hold — but
+  a *re-derivation* is a separate, pre-registered calibration, not something to slip in here.
+- **Did not repair the run-to-run non-reproducibility** (the `insider` theme's IC moving between
+  identical runs). Still open, still unexplained, and explicitly **not** what §2 diagnoses — the
+  X7 discrepancy is fully accounted for by a deterministic mechanism.
+- **Did not touch** the options carve-out files, `valuation/screener/**`, `valuation/engine/**`,
+  or `valuation/web/**`.
+
+---
+
+## 5. BUGS FOUND (RUN_RULES A3)
+
+1. **`CLAUDE.md`'s stated mechanism for M1's effect on the adopt rate was BACKWARDS** — "because
+   the adopt gate reads the Deflated Sharpe". It cannot: adoption is decided at
+   `fundamental_panel.py:2729` and the DSR is computed at `:2744`, **downstream**, on the returns
+   of whichever scheme adoption just chose. The real mechanism is `_trials_haircut` (`:2097`)
+   being floored at `_trial_N()`. Direction and magnitude were right; the mechanism was wrong, and
+   getting it right is what made §2's diagnosis findable. **Corrected in place.**
+2. **`BACKTEST_RESULTS.json` ships a Deflated Sharpe computed at `n_trials = 84`** — it was last
+   run 2026-08-05 and `N` is now 129. The file reads **0.8997** where the honest current figure is
+   **0.8556**. Not wrong when written, and `CLAUDE.md` says to quote 0.8556, but the artifact is
+   now 45 trials stale and a reader who trusts the file over the brief gets the flattering number.
+   Fixes itself on the next full run; flagged because "next full run" has been pending since.
+3. **`RESEARCH_LOG.md`'s O16 row contains unescaped `|` characters** (`|Spearman(term_slope,
+   atm_front)|`, an absolute value written inside a markdown cell), giving it 11 cells against a
+   9-cell header. Every column after the metric is shifted, so the row is unreadable by column.
+   **Not fixed here — the register forbids editing rows this session** — and the counter now
+   handles it conservatively and reports it. **Owner: whoever owns O16; escape them as `\|`.**
+   Worth noting it is the *only* malformed row in 74.
+4. **My own first-cut fix was wrong, in the harmful direction** (§1). Recorded here rather than
+   quietly corrected, because "the repair introduced the error it was repairing, in a different
+   column" is the most useful thing this session learned about its own method.
+5. **Carried forward, unrepaired for the fourth session: nothing.** The `research_log.py` parser
+   defect that occupied the last three BUGS FOUND lists is the subject of §1 and is closed.
+
+---
+
+## 6. Session 13's first item, with its `needs first`
+
+**Unchanged from session 11's recommendation: task #12, the forward paper-track vs SPY.** Nothing
+this session found weakens it, and §2 mildly strengthens it — a fourth demonstration that
+in-panel statistics move for reasons that have nothing to do with the market (here, literally the
+number of rows in a markdown file).
+
+| dependency | status |
+|---|---|
+| the paper-track engine | **READY** — 45/45 tests |
+| a start date and pre-committed horizon | **NOT SET — Don's call**, committed before the first print |
+| the comparison rule | **NOT WRITTEN.** What beats what, over what window |
+| n_eff discipline | **the session-9 gate applies** — monthly excess vs SPY is one series, not many |
+| `N` for anything scored alongside it | **129**, DSR bar **0.8556**, HAC LS floor **2.2837** |
+
+**Ranked alternatives:** (1) a raw-signal or alternative-model-class combiner as a **new** blind
+pre-registration, inheriting session 11's reversal as its prior; (2) the narrow
+sector-relative-value variant (roadmap #13).
+
+**NOT an alternative, and this is a correction to what §2 first looked like it implied:
+re-deriving the placebo floors at the current `N` is NOT needed.** The floors are `N`-dependent in
+principle, but the adopt curve shows N = 116, 121 and 129 all give the same 20 adopters, so
+session 10's 2.1437 / 2.2837 **are** the floors at today's `N`. What is needed is the discipline,
+not a re-run: every future sweep records the `N` it ran at, and no floor is compared across sweeps
+at different `N` without checking the curve.
