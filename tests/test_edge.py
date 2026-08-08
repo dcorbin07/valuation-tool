@@ -4418,6 +4418,31 @@ def test_audit_c7_every_test_suite_gates_the_auto_merge():
     assert "exit $fail" in wf, "one red suite must not be hidden by a later green one"
 
 
+def test_session8_a_landed_verdict_reaches_the_file_every_lane_reads():
+    """Session 8. X8 -- the international replication, the strongest external evidence this
+    project has -- passed on 2026-08-04, was written up in `HANDOFF_free_analysis.md` and marked
+    DONE in the ledger, and `CLAUDE.md` still contained the words "JKP" and "Japan" ZERO times
+    three days later. Two consecutive sessions then treated a passed test as pending work, and
+    session 8's own prompt asked for it to be "scoped".
+
+    `CLAUDE.md` is the only file every lane reads. A verdict that lands solely in one lane's
+    handoff is invisible to the others, which is a memory-architecture defect and not a clerical
+    slip -- the same class as the mislabelled theme-IC table and the stale rendered results file.
+    This pins the repair so it cannot silently regress, and it deliberately checks for the
+    CAVEATS too: a bullet that quotes only the wins would be the overselling CLAUDE.md forbids."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    brief = open(os.path.join(root, "CLAUDE.md"), encoding="utf-8").read()
+    for token in ("JKP", "Japan"):
+        assert token in brief, f"CLAUDE.md must record X8's result; {token!r} missing"
+    # the result itself
+    assert "t 3.85" in brief and "t 4.30" in brief, "X8's Japan/Europe t-stats must be quoted"
+    # and the three things that stop it being oversold
+    assert "weakest region" in brief.lower(), "the US control is the point of X8; keep it"
+    assert "does not corroborate" in brief.lower() and "magnitude" in brief.lower(), \
+        "X8 corroborates the premia, NOT Valquo's magnitude -- that caveat must travel"
+    assert "RESEARCH ONLY" in brief, "JKP is CC BY-NC 4.0; it can never ship in the product"
+
+
 
 def test_audit_b7_the_live_path_and_the_backtest_path_score_identically():
     """B7, the test the audit asked for by name. THREE composite functions existed and did not
@@ -6021,6 +6046,132 @@ def test_loo_arms_drop_a_theme_and_renormalise_rather_than_leaving_a_hole():
     rest = L.flat([c for c in cols if c != "b"])
     assert abs(sum(rest.values()) - 1.0) < 1e-12, "the arm does not renormalise"
     assert "b" not in rest and all(abs(v - 1 / 3) < 1e-12 for v in rest.values())
+
+def _cc_panel(n_countries, n_dates, rho, seed):
+    """A month-by-country panel with a known common-factor correlation."""
+    import random as _r
+    rnd = _r.Random(seed)
+    a, b = rho ** 0.5, (1.0 - rho) ** 0.5
+    out = {f"c{j}": {} for j in range(n_countries)}
+    for i in range(n_dates):
+        f = rnd.gauss(0, 1)
+        for j in range(n_countries):
+            out[f"c{j}"][i] = a * f + b * rnd.gauss(0, 1)
+    return out
+
+
+def test_session9_the_country_gate_reproduces_the_exact_binomial_at_zero_correlation():
+    """The simulated bar generalises the arithmetic; at rho=0 it must REPRODUCE it.
+
+    12 of 16 is the pre-registered threshold and its exact one-sided alpha is 3.84%. If the
+    simulation drifted off that, every calibrated threshold it produced would be unquotable.
+    """
+    from valuation.edge import cross_country as CC
+    assert abs(CC.exact_binomial_tail(12, 16) - 0.038406) < 1e-5, "12/16 is not 3.84%"
+    assert abs(CC.exact_binomial_tail(11, 16) - 0.105057) < 1e-5, "11/16 is not 10.5%"
+    r = CC.sign_test_critical(16, rho=0.0, alpha=0.05, draws=40000, seed=7)
+    assert r["critical_k"] == 12, f"rho=0 must give the binomial k=12, got {r['critical_k']}"
+    assert abs(r["achieved_alpha"] - 0.038406) < 0.006, r["achieved_alpha"]
+
+
+def test_session9_a_raw_country_design_effect_is_not_evidence_of_clustering():
+    """R3's lesson, one dimension over: independent countries still produce deff > 1 from pure
+    ANOVA sampling noise. The gate must call that NOT measurable, or it manufactures a
+    correction out of nothing."""
+    from valuation.edge import cross_country as CC
+    res = CC.country_design_effect(_cc_panel(16, 324, 0.0, seed=3), null_draws=200, seed=1)
+    assert res["ok"], res
+    assert res["clustering_measurable"] is False, \
+        f"independent countries flagged as clustered: deff {res['design_effect']:.3f} " \
+        f"vs null p95 {res['design_effect_null_p95']:.3f}"
+    assert res["n_eff_countries"] <= res["n_countries"] + 1e-9, "n_eff exceeded n"
+
+
+def test_session9_the_country_gate_detects_real_co_movement_and_both_estimators_agree():
+    from valuation.edge import cross_country as CC
+    res = CC.country_design_effect(_cc_panel(16, 324, 0.30, seed=5), null_draws=200, seed=1)
+    assert res["ok"] and res["clustering_measurable"] is True, res
+    assert abs(res["rho"] - 0.30) < 0.06, f"rho {res['rho']:.3f} off the planted 0.30"
+    assert abs(res["mean_pairwise_corr"] - res["rho"]) < 0.05, \
+        "the ANOVA and the mean-pairwise estimators disagree; quote neither"
+    assert res["n_eff_countries"] < 6.0, res["n_eff_countries"]
+
+
+def test_session9_an_arm_pair_difference_is_a_scaled_two_theme_spread():
+    """Δ_a − Δ_b == (x_b − x_a)/4 identically, where Δ_a drops theme a from a 5-theme mean.
+
+    This is why the measured cross-country co-movement is credible rather than an artefact of
+    how the arms were built: the object whose correlation the gate measures is nothing more
+    exotic than a scaled difference of two theme returns, and value-minus-momentum spreads are
+    famously correlated across developed markets. Pinned because the whole SELRULE calibration
+    rests on the identity being exactly this and not approximately it.
+    """
+    import random as _r
+    from scripts.selection_rule_crosscountry import arm_deltas
+    try:
+        import pandas as pd
+    except ImportError:
+        return
+    rnd = _r.Random(4)
+    cols = ["investment", "momentum", "quality", "size", "value"]
+    df = pd.DataFrame({c: [rnd.gauss(0, 0.03) for _ in range(60)] for c in cols})
+    d = arm_deltas(df)
+    worst = 0.0
+    for a in cols:
+        for b in cols:
+            if a >= b:
+                continue
+            lhs = (df[b] - df[a]) / 4.0
+            worst = max(worst, max(abs(lhs[k] - (d[a][k] - d[b][k])) for k in d[a]))
+    assert worst < 1e-12, f"arm-pair difference is not (x_b - x_a)/4; max error {worst:.2e}"
+
+
+def test_session9_clustering_can_only_raise_the_bar_never_lower_it():
+    """A correlated null piles probability into the tails, so the critical count must rise with
+    rho. A gate that could LOWER the bar would be a licence, not a correction."""
+    from valuation.edge import cross_country as CC
+    ks = [CC.sign_test_critical(16, rho=r, alpha=0.05, draws=20000, seed=11)["critical_k"]
+          for r in (0.0, 0.10, 0.30, 0.60)]
+    assert ks == sorted(ks), f"critical k not monotone in rho: {ks}"
+    assert ks[-1] > ks[0], f"co-movement left the bar unchanged: {ks}"
+
+
+def test_session10_the_placebo_writer_summarises_the_hac_statistic_it_computes():
+    """The bug this pins is a WRITER bug, not a scoring bug, and it cost a whole sweep.
+
+    `quantile_backtest` has computed `long_short_tstat_nw` on every placebo draw since R9, but
+    the placebo recorder never stored it and the summariser never percentiled it. So X7's
+    calibrated long-short floor of 2.14 was derived on the NAIVE t while the project's shipped
+    statistic became the HAC t of 2.620 -- a bar and a number from different estimators, carried
+    as a known defect for days, and only closable by re-running 100 draws because the raw draws
+    could not be recovered.
+
+    A column that is computed and then silently dropped is indistinguishable from one that was
+    never computed. This asserts the round trip: a draw carrying the HAC keys must come out of
+    `_write` with those keys summarised.
+    """
+    import json as _json
+    import tempfile
+    from types import SimpleNamespace
+    from scripts import placebo as PL
+
+    draw = {"long_short_tstat": 1.0, "long_short_tstat_nw": 0.9, "long_short_ljung_box_p": 0.5,
+            "top_decile_alpha": 0.01, "top_decile_alpha_tstat": 1.1,
+            "top_decile_alpha_tstat_nw": 1.0, "monotonicity": -0.5, "pbo": 0.4,
+            "deflated_sharpe": 0.5, "max_abs_theme_ic_t": 1.2, "equal_weight_ann": 0.18,
+            "long_short_ann": 0.05, "breakeven_one_way_bps": 100.0,
+            "n_themes_ic_t_over_2": 0}
+    args = SimpleNamespace(n=2, seed0=1000, panel="dummy.pkl")
+    with tempfile.TemporaryDirectory() as td:
+        p = os.path.join(td, "out.json")
+        PL._write(p, dict(draw), [dict(draw), dict(draw)], args, costs=True)
+        out = _json.load(open(p, encoding="utf-8"))
+    for k in ("long_short_tstat_nw", "top_decile_alpha_tstat_nw", "long_short_ljung_box_p"):
+        assert k in out["null"], f"{k} is computed per draw but never summarised"
+        assert out["null"][k].get("p95") is not None, f"{k} has no p95 -- no floor can be read"
+    for k in ("long_short_t_nw_over_2", "long_short_t_nw_over_2_14"):
+        assert k in out["rates"], f"{k} missing; the HAC bar cannot be scored against noise"
+
 
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

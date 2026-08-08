@@ -4,7 +4,8 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-06 (external edge audit, **session 7** — B8, held-out LOO, P4)
+**Session date:** 2026-08-07 (external edge audit, **session 10** — the HAC floor is measured at
+2.28 and the headline clears it; the ML combiner is pre-registered blind)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
@@ -49,6 +50,466 @@ Two other findings worth carrying:
   all price far below the 46.4% average (24–34%) and four carry a flag caused by the identity
   break, because the bars series belongs to the ticker's *current* occupant. **Do not use those
   six, plus `META`, `DD`, `DOW`, in options research until per-symbol validity windows ship.**
+## P2 — USER CROWDING MODELLED (r1 lane, 2026-08-08) — memo only, no code
+
+Full write-up: **`HANDOFF_crowding.md`**. Ledger rows P1 and P2 updated.
+
+**The answer depends ~700x on which book is published, and the product is already on the safe
+side — by a design choice whose written rationale is factually wrong.**
+
+| book a cohort buys | cohort AUM where slippage cancels the +7.17% alpha | users @ $10k |
+|---|---|---|
+| live Valquo Index (86 names, large-cap, median cap $22.2B) | **$5.1B** | ~506,000 |
+| all-cap top-25 (what P1 modelled) | **$7.4M** | ~740 |
+| all-cap top-10 | **$1.6M** | ~160 |
+
+- **P1's published capacity of ~$23M is overstated 4.72x — the true figure is ~$4.9M.**
+  `scripts/capacity.py:36` hard-codes `BREAKEVEN_BPS = 234.505` (pre-B6); the live measured
+  breakeven is **134.113**. Re-derived from P1's own published cells, which the closed form
+  reproduces to zero residual. **P1's strategic conclusion is unchanged and strengthened.**
+- **Three of P2's four premises are false.** The Index does **not** publish holdings — it is
+  owner-only (`surfaces.py:80`) and pinned by a test. Not 25 names (86). Not small-cap
+  (`LARGE_CAP_MIN = 10e9`).
+- **Slippage is not the binding risk.** At 10,000 users the McLean–Pontiff decay channel is
+  ~3x larger than impact and does not depend on user count at all. Not modellable from
+  anything on disk; no number was invented for it.
+- **Biggest lever after breadth: stagger entry.** Capacity is very nearly linear in days spread
+  (measured 4.97x at 5 days, 20.9x at 21).
+
+**BUGS FOUND (6, none fixed — other lanes).** Highest: the **public** `/work` page
+(`portfolio.html:479-480`) still publishes the **void** `+8.81%/yr, t 5.74, 109 windows, 1998–2026`
+(corrected: +6.99%, NW t 3.984, 68 windows); `valquo_index.py:129-133` ships a description string
+quoting 2,710 names/110 dates/+11.8%/236bps into the live Index JSON; `capacity.py:36` and `:124`
+carry a stale breakeven and the pre-B6 panel. Also: the large-cap floor is justified as "the
+tier where the measured IC was strongest" — measured, large is the **weakest** by IC (0.0287 vs
+small 0.0313), though strongest by long-short. **That floor is load-bearing for crowding, so a
+wrong stated reason is a live risk of it being removed.**
+
+**Equity `N` unchanged at 116** — nothing here searched the return signal, so no
+`RESEARCH_LOG.md` row was added (recorded because the self-penalising direction is to add one).
+
+---
+
+## C6 CLOSED — Oracle box decommissioned; the "lost" sources were in a tracked zip (2026-08-07, options-bot lane)
+
+Full write-up in `HANDOFF_optionsbot.md`. Bot subproject only; **nothing under `valuation/**`
+was touched** and the main tree has **no executable dependency on the box** (checked: 0 imports
+of bot packages across 218 main-tree Python files by AST, 0 references in all 3 `.github/`
+workflow files, 0 service units, 0 state-path reads — every textual hit was prose).
+
+* **The Oracle box `141.148.45.115` is DECOMMISSIONED. Never ssh or scp to it.**
+* **C6's blocker never existed.** The record said `options/data/*.py` lived "only on the Oracle
+  box" and needed Don to `scp` it. It was inside `options-bot/handoff/quant_bots.zip` — **tracked
+  in git the whole time** — recovered byte-identical (sha256) against three other copies. No
+  reconstruction, no judgement calls.
+* **Gates:** options suite **53 collected / 14 errors → 181 passing**; core **172, OK**;
+  `deploy/preflight.py` **exit 0** with all three FIXES.md fixes verified by symbol and behaviour;
+  main tree **24/24 suites green**.
+* **C6 closes on the RECORDED branch** of its own criterion — the service is gone, so "deployed"
+  is permanently n/a, and "fixed in repo, not deployed" stops being a decaying state.
+* State through 2026-07-31 (journals, sim portfolios, equity curves, 9 correlation reports)
+  restored from `quant_data.tgz` into the **gitignored** `quant_bots/data/` tree of the primary
+  checkout; all 24 files verified ignored so none can reach a commit.
+* **Two commit hazards closed:** `quant_data.tgz` and `valuation-tool/options-bot2/` were each
+  untracked *and* unignored — one `git add -A` from committing a state archive and a duplicate
+  copy of the bot tree. Both now ignored.
+* **Do not "tidy" `options-bot/.gitignore:34` (`!handoff/*.zip`).** That negation is the only
+  reason the sources survived. It is now commented to say so.
+## 2026-08-07 — greeks lane, OUT-OF-BAND: the reinvestment undercharge. BOTH CANDIDATES REJECTED
+
+The engine charges reinvestment as `Δrevenue / sales_to_capital` — growth capital only — which
+collapses when revenue is flat, so a capex-heavy name is charged almost nothing to stand still.
+Two pre-chosen candidates were measured against thresholds committed alone at `4f99d8f`, offline
+on the 241-name 2026-08-05 snapshot. **Both REJECTED. Nothing behavioural ships**
+(`REINVESTMENT_FLOOR_MODE` defaults `"off"`).
+
+- **The control bound held perfectly for both arms — 116 names, bit-identical.** The gate
+  (`capex − D&A > 0`) *is* the control group, so this was true by construction.
+- **Arm A** (floor decaying over the explicit forecast) passes three of four success criteria and
+  fixes almost nothing: its terminal change is **+0.0%** because it cannot reach the terminal, and
+  these names carry **80%+ of EV** there. **Three of my four criteria were year-one statistics
+  that a terminal-blind fix passes trivially.**
+- **Arm B** (persistent floor, terminal included) **passes ALL SIX pre-registered bounds and is
+  still unshippable**: 18 negative enterprise values, 16 negative terminal values. **The rejection
+  rests on a criterion I failed to pre-register** — the bounds asked whether the number moved in
+  the right direction, never whether it was still a number.
+
+**The finding that matters, and it corrects my own Part 4 statistic.** The 33-name decisive set is
+**two populations**: 14 genuine flat-revenue undercharges, and 19 **capex-boom** names whose spend
+IS growth capital the revenue path already prices — ORCL's net capex is **68.8% of revenue while
+revenue grows 3.1×**, which is why flooring it drives EV to −884,065. **Part 4's "34 names
+undercharged by >5% of revenue" overstated the defect; the honest count is ~14.** The mechanism
+works exactly where the defect is real (8 of 8 flat-revenue names within ±25% of observed spend).
+Separating the two populations is what a third candidate must do — **not attempted, because
+choosing that gate on these results is the tuning the pre-commitment forbids.**
+
+**A LIVE defect found on the way, unrelated to either arm: six names are published today with a
+NON-POSITIVE DCF** — INTC (−0.53 → **$34.54**), F (−31.92 → **$60.25**), BA (−24.97 → **$94.27**),
+SRE, CCI, IRM. `blend._usable` drops a non-positive lens and renormalises the rest, so **a company
+whose cash-flow model collapses becomes more attractive**: charging MORE reinvestment moved
+EQIX **+121%**, GM **+92%**, XEL **+73%** UP. Characterised and pinned by a test, **not fixed** —
+it changes six published numbers and needs its own bound. **Recommended next task.**
+
+Tests: 24 suites, **872 passing, 0 failures** (engine 56/56). Write-up: `HANDOFF_live_data_bugs.md`
+Part 8. Ledger row `OOB3`.
+
+---
+
+## 2026-08-07 — app-fixer lane: the recruiter master-link now opens the full read-only view
+
+Full write-up: `HANDOFF_appfixes.md` Session 18. Product decision out of
+`PROMPT_recruiter_master_link.md` (Don's, recorded there verbatim); no audit item, ledger
+unchanged.
+
+- **The link did nothing before this.** Measured, not inferred: a valid `/demo/<token>`
+  session saw **exactly** what an anonymous visitor saw — every owner surface refused it,
+  because `saas/surfaces.py` put them behind *owner* and a demo session is not one. The only
+  two differences in the whole probe were a friendlier beta banner and an empty `/account`.
+- **Now a genuine three-way split: anonymous / demo / owner.** A valid demo session reads
+  Track Record, the Index, Signals, the option scorecard and the Edge Lab's learning log, and
+  **may change nothing**. `surfaces.DEMO_DENIED_PATHS` is the enforcement and is deliberately
+  **not gated on `OWNER_SPLIT`** — that flag governs what strangers may READ and must not be
+  able to hand a résumé link the scan trigger as a side effect.
+- **The anonymous surface did not move.** Byte-diffed, not eyeballed: the anonymous `/app`
+  differs from HEAD by **one whitespace line, 7 bytes, zero content**.
+- **No raw vendor rows.** Every newly-visible payload was walked and its row shape printed —
+  all derived (weights, ICs, expectancy, cumulative series, constructed positions). The three
+  `/api/edge/` runners that would compute new ones are denied.
+- **Delivery is a button on `/work`**, built from env server-side at render time. Rotating
+  `DEMO_ACCESS_TOKEN` on Render re-points the button and kills every copied `/demo/<token>`
+  link in one action; clearing it removes the button and shuts `/demo` off. **The résumé link
+  is `https://valquo.co/work`** — the token never goes on the résumé.
+- `test_public.py` **17/17 → 27/27**. The one test that pinned the old posture
+  (`test_the_index_stays_owner_only_and_says_why_on_its_own_face`'s sibling
+  `test_the_split_is_a_flag_that_actually_reverts`) was **amended with a comment citing the
+  prompt and the date**, not deleted, and what replaced it is stricter: demo may read, is
+  still not the owner, and still may not act.
+- **Don must set `DEMO_ACCESS_TOKEN` in Render for the button to appear.** It is not set from
+  this session and the token is not in the repo.
+## 2026-08-07 — greeks lane, OUT-OF-BAND: a vanished vendor field can no longer rewrite a headline
+
+**MRK went from "cannot value this name" to a published 91 "Strong Buy" because Yahoo stopped
+returning one beta field and `wacc.py` silently substituted `1.10`** (WACC 5.53% → 9.31%). The
+field is INTERMITTENT, not gone — it was back at 0.211 the same week. Shipped:
+
+- **`valuation/data/beta.py`** — beta computed from the company's own prices, 5y monthly vs SPY.
+  **A 1y-DAILY window was tried first and is WRONG**: it returns KO −0.286 and XOM −0.484.
+- **A stated ladder in `wacc.py`** — override → an ordinary vendor beta accepted untouched (no
+  extra call; this is the control group) → corroboration against the company's own prices → a
+  stated constant of **1.0** (the market portfolio's beta by construction) replacing the
+  underived `1.10`.
+- **Rejection on HISTORY, not on value.** GILD 0.336, CI 0.321, CHTR 0.678, MRK 0.211 and XOM
+  0.173 are all genuinely low-beta, so flooring the *value* would assert something false about
+  them. Only KSPI's 0.080 is an artifact, and what makes it one is 30 monthly observations on a
+  2024 ADR listing. The value decides who gets **checked**; the observation count decides who
+  gets **rejected**.
+- **`InputProvenance` stamps** on beta and the risk-free rate (source, as-of, n, vendor value,
+  substituted), serialized out through `WACCResult.to_dict` → `PipelineResult.to_dict`.
+
+**All four pre-registered bounds (committed alone at `04d9f12`) HELD** on a 46-name paced sample:
+control group 37 names **0 moved**; **MRK's vendor-absent WACC swing 0.133pp against the old
+code's 3.85pp** (which independently reproduces the reported incident); KSPI rejected at n=30<36,
+i.e. for its history; **0** published/withheld flips. Trigger insensitive at 0.10/0.15/0.25 —
+**0 betas differ**.
+
+**TWO FULL-UNIVERSE RUNS WERE INVALIDATED BY THEIR OWN RATE LIMITING** (176 and 297 throttled
+calls; run 2 had **302 of 403 names arrive with no vendor beta at all**), and in run 1 bounds 2
+and 3 "passed" **vacuously** because both arms landed on the same constant. That exposed the real
+defect: **the first ladder treated "the check failed" as "the history is thin" and pushed 178 of
+402 names onto the constant** — the original bug with a new trigger, on exactly the 500-name burst
+production scans. Corroboration is now best-effort with a failure mode of *no change*.
+
+Two further defects found and fixed: **the plausibility band was applied to the vendor's beta but
+not to our own** (PDD adopted a *computed* −0.039, clamping WACC to 4% and turning a $217.82 fair
+value into a refusal), and **`.gitignore`'s bare `data/` also matched `valuation/data/`**, so the
+new module was unaddable and would have shipped as a runtime `ModuleNotFoundError`.
+
+**Caveats that must travel:** 46 names, not the 403 served. The fix cannot help a name whose
+vendor beta is missing *and* uncomputable, so under a throttled feed the hole is **narrowed, not
+closed**. And it moves fair values systematically **UP** for names formerly priced at 1.10 —
+ARGX +83%, COP +69%, DTEGY +61% — which nobody should read as evidence it is right; **someone
+should check whether those names now clear publication thresholds they previously failed.**
+
+Tests: 24 suites, **859 passing, 0 failures** (engine 51/51). Full write-up:
+`HANDOFF_live_data_bugs.md` Part 7. Ledger row `OOB2`.
+## 2026-08-07 — r1 lane, OUT-OF-BAND: `worktree-ui-polish` triaged (read-only). Nine files, not fifty commits
+
+Full write-up: **`HANDOFF_branch_triage.md`**. Nothing was merged, cherry-picked or deleted.
+
+- **The branch is misnamed.** "UI polish" is 3 of its 50 commits; the rest is the project's early
+  Edge Lab history. It stranded because that work was **squash-landed onto `main` as `8a8c2b8`**
+  (2026-07-28 15:19) when a stray 138 MB licensed export blocked a normal push. `git cherry`
+  shows all 50 as unmerged because a squash changes patch-ids — **that is a trap, not lost work.**
+- **Exactly nine files are unique to the branch.** Four are the `param_search` module
+  (locked hold-out, White/Hansen SPA, plateau+interiority selection) — **VALUABLE**, absent from
+  `main`, and its four engine calls still match `main`'s signatures exactly. Five are a UI theme
+  layer that `main` re-implemented inline eight hours later — **OBSOLETE**.
+- **THE 13F INERT LAG GRID IS NOT LIVE ON `main` — the premise that it might be is wrong.**
+  All three parts of `5da1473` are present: `INST_LAG_GRID = (15, 45, 135, 225)`
+  (`fundamental_panel.py:2780`), the guard test (`tests/test_edge.py:404`), and the UTF-8 stdout
+  reconfigure (`:3967`). No bug to file.
+- **Do not merge it:** a dry-run gives **22 conflicted files**, incl. `add/add` on `CLAUDE.md`
+  (10.6 KB on the branch vs 97 KB on `main` — it predates the whole claims audit).
+- **Pruning must take BOTH refs.** `worktree-honest-param-search` is a strict *ancestor* of
+  `ui-polish` and holds 47 of the 50 commits, including every valuable file.
+
+**Routed to other lanes — decisions deliberately NOT made here:**
+- **→ edge lane:** the parameter search ran **3,584 configs** and appears in `RESEARCH_LOG.md`
+  nowhere (zero mentions). By this project's own precedents (grids expressible via `n_trials`;
+  `SUPERSEDED` rows still count) it looks countable; the real counter-argument is that it searched
+  *construction* params, not signal inclusion. Direction matters: counting them **lowers** the
+  Deflated Sharpe, so it is the self-penalising choice. Currently `N = 116`, DS 0.8674.
+- **→ app/security lane:** `/api/feedback` (table + route + allowlist entry) exists only on the
+  branch. It **is** rate-limited, length-capped and parameterized — I checked. The open question
+  is posture: whether an unauthenticated write endpoint belongs on the post-leak public allowlist.
+
+**DISPOSITION EXECUTED, same session (`HANDOFF_branch_triage.md` PART 2):**
+- **The four `param_search` files are on `main` as `ef4b7a3`** — clean additions, no conflicts,
+  24/24 suites green. **Dormant: nothing imports it, no shipped behaviour changed.** Interface
+  re-verified *after* landing from `origin/main`'s own tree.
+- **Routing note added at `HANDOFF_edge_audit.md` §8.** The sharp point for Session 10:
+  `PREREG_ml_combiner.md` §3 selects "the grid point with the highest mean out-of-sample rank IC"
+  — **argmax of a mean, the exact selector that scored +8.43%/yr in-window and −0.04%/yr on the
+  locked hold-out.** Three amendments proposed; plateau smoothing explicitly NOT recommended
+  (only 8 grid points).
+- **TRAP, FLAGGED NOT HIDDEN:** `param_search.bat` is now in the repo root and **will fail if
+  double-clicked** — it calls `--param-search`, which does not exist until the CLI is wired.
+  Landed verbatim rather than invented. **Wire it or delete it.**
+- **THREE REFS DELETED** after the land verified: `worktree-ui-polish` (`f591961`),
+  `worktree-honest-param-search` (`5da1473`), `worktree-p6-costs-and-robustness` (`428f4de`).
+  SHAs recorded for recovery.
+- **`worktree-p6`'s old prune rationale was WRONG.** It was flagged over a "stale
+  `BACKTEST_RESULTS.json`"; **the commit does not touch that file at all.** Every code change in
+  it (`score_universe_now`, `STALE_PRICE_MAX_DAYS`, the missing-sector guard, the numpy overflow
+  clip now at `attribution.py:46`, both tests) is already on `main`. Its only unique content is
+  **prose quoting the void pre-B6 numbers** (110 dates, +11.8%/yr, 236bps/37bps) inside a
+  user-facing description string — right verdict, wrong reason, and the real failure mode is
+  worse because stale prose in a shipped payload reads as current.
+- **THE STRANDED-BRANCH SCAN IS CLEAN.** Every remote `worktree-*` ref is merged into `main`
+  except `worktree-demo-link` (2 commits, 2026-08-07 20:46, merges cleanly) — another lane's live
+  work, not stranded, untouched.
+- **`VALQUO_LEDGER.md` deliberately not updated:** no audit item covers this housekeeping.
+
+---
+
+## 2026-08-07 — greeks lane, OUT-OF-BAND: the public fair-value leak is closed
+
+Full write-up: `HANDOFF_live_data_bugs.md` Part 6. Ledger row `OOB1`. Landed on `main` as
+`92d2ac8`; pre-commitment `1f6ad92` is a provable ancestor.
+
+- **BUG A (live, now fixed).** `store.save_snapshot` wrote a fixed 18-column INSERT with no
+  column for `fair_value_withheld`, so the scan recorded a refusal and the database threw it
+  away. **Reproduced on the real 399-row production snapshot through a real database on disk:
+  refusing the rank-1 name republished `$386.68083192601813` as "blended".** Fixed with two
+  columns + an in-place migration. **Control bound HELD — all 399 rows bit-identical to what
+  production served.**
+- **BUG B (structural hole, measured EMPTY).** 387 of 399 served names never get a DCF, so
+  nothing checks their peer estimate against the valuation page's verdict. Asked the real model
+  about all 387: **0 genuine refusals, 0 errors, 3.0–3.8 min at 6 workers.** The fix therefore
+  **removes no published number from today's list.** Chose a refusal-only screen over raising
+  `dcf_top` — same cost, but raising it would REPLACE the published number on ~387 names, which
+  is Don's call, not a bug fix's, and is one constant away (`SCAN_DCF_TOP`).
+- **The find that matters most points the OTHER way.** `_enrich_with_dcf` treated *"the model
+  cannot value this name"* as *"the model REFUSED it"*, suppressing ordinary peer estimates —
+  **NVS $185.41, SAP $364.97, TD $79.73**. Found because my own first measurement made the
+  identical mistake. The mislabelled population is **unstable run to run (17 vs 77 of the same
+  387 names)** and grows when the free upstream feed throttles. Fixed.
+- **Two limits that must travel.** KSPI, STLA and CHTR are **not in today's production list**,
+  so the fix could not be re-probed on the three original names and no substitutes are offered
+  as equivalent evidence. And the flag is written at **scan** time, so this reaches the public
+  surface on the **next scheduled scan**, not on deploy. Status: fixed and verified locally
+  against real production data; **unverified on the live site until that scan runs.**
+- Suites **24 / 849 / 0 failures**. New: `test_a_recorded_refusal_survives_the_snapshot_round_trip`
+  (the existing in-memory test was green for the whole leak; a ratio walk provably cannot catch
+  this class), plus a migration test and `test_not_dcf_valuable_is_not_a_refusal`.
+
+---
+
+## EDGE AUDIT SESSION 10 (2026-08-07) — the HAC floor is measured; the headline clears it by half the margin the record implied
+
+Full write-up: `HANDOFF_edge_audit.md` § SESSION 10. Artifacts: `PREREG_session10_hac_floor.md`,
+`PREREG_ml_combiner.md`, `data/free_analysis/PLACEBO_HAC.json` (all 100 draws retained).
+Nothing shipped in the product changed.
+
+### Item 1 — X7's long-short floor, re-derived on the statistic the project actually quotes
+
+X7 calibrated the floor at **2.14** on the **naive** *t*. R9 then made the **HAC** *t* the number
+quoted (Ljung–Box rejects independence at p 0.036), and the two had been compared to each other
+ever since — `CLAUDE.md` carried it as a known open defect. **Closed.**
+
+**The cause was a writer bug, not a scoring bug.** `quantile_backtest` has computed
+`long_short_tstat_nw` on every placebo draw since R9; the recorder never stored it. The floor
+could have been read off X7's own sweep except **X7's raw draws were never saved**, so all 100 had
+to be run again. Same panel, same seeds 1000–1099, same instrument, costs measured, procedure
+pre-committed before launch.
+
+| statistic | calibrated floor (p95) | shipped | verdict |
+|---|---|---|---|
+| long-short *t*, naive (the sweep's own control) | **2.1437** → X7's 2.14 | 2.83606 | clears, emp. p 0.02 |
+| **long-short *t*, HAC** | **2.2837** | **2.61991** | **CLEARS, emp. p 0.03** |
+| **top-decile alpha *t*, HAC** (new, no floor existed) | **2.2913** | **4.37623** | **CLEARS, emp. p 0.00** |
+
+**THE HEADLINE CLEARS — BY LESS THAN THE RECORD IMPLIED, AND BOTH MOVES GO AGAINST THE STRATEGY.**
+The HAC floor is *higher* than the naive floor (2.28 vs 2.14) while the real HAC *t* is *lower*
+than the real naive *t* (2.620 vs 2.836), so **the margin over the floor falls 0.692 → 0.336,
+roughly half. Quote 2.620 against 2.28, never against 2.14.**
+
+**The old mismatch was mild, not wild:** pure noise clears 2.14 on the HAC statistic **6%** of the
+time against the 5% intended. **The by-product is the stronger number:** the top-decile alpha HAC
+*t* — the statistic on the front of the product — now has a floor and sits **above all 100 noise
+draws**. R9 is corroborated in passing: Ljung–Box on noise draws rejects at 7%, near nominal, so
+the real series' autocorrelation is a property of that series and not something the pipeline
+manufactures.
+
+**Reported, not buried:** the control reproduces X7's p95 (2.14) and max (3.44) to the digit, but
+the `ls_t ≥ 2.0` rate comes back **7% against the recorded 8%** — one draw, with nothing near the
+2.0 boundary, so not rounding. **It cannot be reconciled: X7's raw draws do not exist.** It moves
+no floor (every bar is a p95). **Trial cost zero** — a calibration searches nothing; equity `N`
+stays **121**.
+
+### Item 2 — the ML tree combiner is PRE-REGISTERED, and deliberately NOT run
+
+`PREREG_ml_combiner.md`, committed blind at `ec6c01d` before any model was fit. Seven deployed
+theme z-scores as features (**not** the 56 raw signals, **not** `low_risk`/`sentiment` — those
+would be theme-membership changes smuggled in as features); cross-sectional **rank** of `fwd_ret`
+as target; CPCV reused unchanged; **all eight grid points selected inside a decide half, the
+single winner measured once on the held-out half, both directions** — the direct answer to X7's
+finding that CPCV adoption manufactures ~+1.4 of long-short *t* when selection and measurement
+share a panel.
+
+**The grid is priced before registering, which is the item's entire risk:** 8 points → `N` 129,
+DSR 0.8556; 128 → `N` 249, DSR 0.7716; **230 → `N` 351, DSR 0.7213, BELOW X7's calibrated floor of
+0.7216.** A grid that size would not test the model, it would destroy the incumbent's evidence as
+a side effect. Hence eight, costing 0.0072 of DSR. Ambiguous is NULL; no re-runs; expectation
+recorded first as **NULL 70/30**.
+
+### Recorded and NOT pursued
+
+Session 9's hypothesis that the Sharadar panel's 69 dates explain the cross-half instability
+implies a thicker panel / monthly rebalancing. **The rebalance grid is upstream of every published
+statistic**, so it would need a full pre-registered re-run against re-derived bars, not a patch —
+X2 already showed long-short *t* ranges 2.703–3.517 across seven equally valid grids. Queued as an
+open design question; nobody should act on it from the hypothesis alone.
+
+**Tests: 259/259 edge, 24/24 suites green by exit code.**
+
+**Recommended next: execute `PREREG_ml_combiner.md` exactly as written** — it is committed, blind
+and priced, and needs only a training loop. Alternative, and still the only test on data nobody
+has looked at: **task #12, the forward paper-track vs SPY**, which needs a start date and a
+pre-committed comparison rule from Don rather than an agent.
+
+## EDGE AUDIT SESSION 9 (2026-08-07) — 16 countries are worth 2–4 draws, and the design dies
+
+Full write-up: `HANDOFF_edge_audit.md` § SESSION 9. New code: `valuation/edge/cross_country.py`
+and `scripts/selection_rule_crosscountry.py`. Nothing shipped in the product changed.
+
+**Executed session 8's pre-registration in full, in the committed order.** The one blocker
+session 8 named — a clustering gate for countries — was built, tested and committed **before**
+the measure set was touched (`d9ae291`), so blindness is a matter of git history, not of trust.
+
+**RESULT: two independent kills.**
+
+1. **THE DESIGN COULD NEVER HAVE RETURNED A POSITIVE VERDICT.** Session 8 asserted "16 held-out
+   countries give 16 **independent** draws". That word was an assumption, was never measured, and
+   is false. Measured: clustering is measurable on **10 of 10 arm-pairs** (design effects
+   3.97–8.27 against a shuffled-null p95 of ~1.13), **ρ 0.198–0.484**, **n_eff 1.94–4.03
+   countries out of 16**. The calibrated critical count is **17 of 16**; even a unanimous
+   **16/16 gives p = 0.0546** (400k draws, se 0.0004). The rejection region is empty and the
+   design's power at α 5% is **zero**. At the *median* ρ the bar is 16 of 16 — unanimity or
+   nothing — so this is not an artefact of the conservative max-ρ rule.
+   * **The pre-registered 12/16 bar carries a true α of 28.7%, not 3.84% — a 7.5×
+     understatement.** Building the gate first is the only reason this session did not publish a
+     "3.84%" result that was really a 29% one.
+2. **`NO CONTRAST` — both rules select `size` on `usa`**, so every paired difference is
+   identically zero. Pre-registered as an outcome before the run; **not a NULL and not a tie**.
+   Four of five arms are same-sign across both `usa` halves, so the stability constraint does not
+   bind at all. **Hypothesis only, generated on the decide set:** the instability that motivated
+   the whole question (4 of 7 arms flip on Sharadar) may be a property of the 69-date panel's
+   thinness rather than of the rule — 324 monthly observations versus 69.
+
+**X8's own headline is UNAFFECTED.** X8 tests each region's premium separately with NW(12)
+errors and never pooled countries into a count, so it never made the independence assumption this
+refutes. **The gate constrains what is built on top of X8, not X8.** Japan +2.05%/yr (t 3.85),
+developed Europe +3.36% (t 4.30), USA the weakest region (t 2.35) — all unchanged.
+
+**THE SELECTION-RULE QUESTION IS CLOSED ON BOTH AVAILABLE DATASETS.** One panel gives n = 1
+(session 8, a paired sign test's minimum p is 0.50); 16 co-moving countries give n_eff ≈ 2–4.
+That is not an engineering defect to route around — it is the amount of independent evidence that
+exists. **Do not re-open without new data.**
+
+**Trial cost, paid as pre-committed rather than renegotiated after the result:** equity `N`
+116 → **121**, Deflated Sharpe 0.8674 → **0.8628**, √(2·ln N) 3.083 → **3.097**. Still far above
+X7's calibrated floor of 0.7216, still below the 0.95 convention. Two `RESEARCH_LOG.md` rows.
+
+**Tests: 258/258 edge, all suites green by exit code.** Five new tests pin the gate: at ρ = 0 it
+reproduces the exact binomial k = 12; it does *not* flag independent countries (R3's lesson one
+dimension over); it detects planted co-movement with both estimators agreeing; the bar is
+monotone in ρ and can only move up; and the arm-pair difference is exactly a scaled two-theme
+spread (verified to 2.1e-17), which is why the measured co-movement is credible rather than an
+artefact of arm construction.
+
+**Bug worth other lanes' attention:** `research_log.py` tests for a `FIXED` verdict by searching
+the **whole row**, so any row whose free-text note contains the word "fixed" is silently dropped
+from `N` — understating the trial count, which overstates significance. That is the exact error
+M1 exists to prevent, inside M1's own parser. Worked around by wording; **not repaired**, because
+changing the parse without re-verifying all 53 counted rows would be reckless.
+
+**Recommended next: task #12, the forward paper-track vs SPY.** It is the only test that runs on
+data nobody has looked at, and the only honest answer to "n_eff is small" that does not assume the
+problem away — it manufactures independent observations by waiting. Needs a start date, a
+pre-committed horizon and a comparison rule from Don **before** the first print. Note the same
+gate applies: monthly excess returns against SPY are one series, not many.
+
+## EDGE AUDIT SESSION 8 (2026-08-07) — a test declined, and X8's result restored to the record
+
+Full write-up: `HANDOFF_edge_audit.md` § SESSION 8. Nothing under `valuation/**` changed — this
+session shipped a decision and a correction, not code.
+
+**1. X8 ALREADY REPLICATED, ON 2026-08-04, AND CLAUDE.md NEVER SAID SO.** Before this session
+`CLAUDE.md` — the file every lane reads — contained the words "JKP" and "Japan" **zero times**,
+and so did this file. X8's actual verdict, from `HANDOFF_free_analysis.md`: the untuned 5-theme
+composite mapped 1:1 onto JKP Global Factor Data earns **Japan +2.05%/yr (t 3.85)** and
+**developed Europe +3.36% (t 4.30)**, 12 of 15 European countries clear t > 2, and **the USA is
+the weakest region tested (t 2.35)** — the theme structure is not a US artifact. It is the
+strongest external evidence the project has. Now recorded in `CLAUDE.md`, with the unflattering
+half attached: **quality and momentum do not generalise to Japan**, only 5 of 7 themes map, and
+JKP's +2–3.4%/yr against Valquo's +20.4% means this corroborates **the premia, not the
+magnitude**. Research-only licence; it can never ship in the product.
+
+**Process bug for Don:** a result can be `DONE` in the ledger and written up in one lane's handoff
+while being invisible to every other lane. This session's own prompt asked me to "scope X8 … make
+it actionable instead of aspirational" for a test that had already passed. Suggested rule: *a
+verdict is not `DONE` until it appears in `CLAUDE.md`.* I did not change the convention myself.
+
+**2. THE SELECTION-RULE TEST WAS DECLINED, AND THAT IS THE RESULT.** Session 7 nominated it;
+session 8 was told to decide answerability first and to treat "not answerable" as first-class.
+It is **not answerable on the Sharadar panel**, settled before any run using only already-published
+numbers, so at **zero trial cost**:
+
+- a three-block split gives 22-date blocks where noise is **σ 1.57pp against a 1.00pp committed
+  margin** — pure noise clears it **26.1%** of the time and power is **50.6%**;
+- the stability rule and the incumbent argmax rule **pick the same arm 90% of the time** and
+  differ in verdict on **5.1%** of panels, so the design cannot separate them even in principle;
+- decisively and without any variance estimate: **one panel is one draw, and a paired sign test at
+  n = 1 has a minimum achievable p of 0.50** — no outcome could ever have been quotable.
+
+**Equity `N` therefore stays 116** (Deflated Sharpe **0.8674**, √(2·ln 116) = 3.083) rather than
+123 (0.8609). Declining a test that cannot resolve is the cheaper action, not the lazier one.
+
+**3. IT IS ANSWERABLE ON X8's DATA, WHICH IS ALREADY ON DISK.** 16 held-out countries give 16
+independent draws; a paired sign test reaches α 3.84% at ≥12/16. Fully pre-registered and blind in
+`HANDOFF_edge_audit.md` §2 — **no JKP arm return was computed**, deliberately. Honest limit stated
+up front: power **79.8%** against a rule better in 80% of countries but only **8.5%** at 55%, so it
+can settle "substantially better" and never "slightly better".
+
+**Recommended next step:** execute that pre-registration (session 9's first item, with its `needs
+first` table in §3). The one real piece of work is re-pointing the existing design-effect-vs-null
+clustering gate at countries — European markets co-move, so the effective n is below 16 and the
+threshold must be re-derived **before** unblinding. **Alternative, and arguably higher value:
+task #12, the forward paper-track vs SPY** — still the only test on data nobody has looked at, and
+P4 shipped its machinery last session.
+
+**Suites green:** all suites pass by exit code. No code changed.
 
 ---
 

@@ -151,7 +151,13 @@ def test_master_link_route_and_banner():
     assert c.get("/demo/sekret-xyz").headers["Location"].endswith("/app")     # → dashboard
     page = c.get("/app")
     assert page.status_code == 200
-    assert b"get ahead of the beta" in page.data      # inclusive demo banner copy
+    # COPY CHANGED 2026-08-07 (PROMPT_recruiter_master_link.md): the demo banner used to say
+    # "everything unlocked ... get ahead of the beta", which was true while the preview saw
+    # only the public half. It now sees the full OWNER view, so the banner leads with
+    # READ-ONLY — the one place the preview could misdescribe itself. The marker moved to a
+    # phrase that is still unique to the demo branch of _beta_banner.html.
+    assert b"exploring the full app" in page.data     # inclusive demo banner copy
+    assert b"read-only" in page.data.lower(), "the preview must say what it is"
     assert b'href="/register"' in page.data           # + a sign-up call to action
     CONFIG.demo_access_token = ""                     # restore default (M4: no default token)
     CONFIG.beta_mode = False
@@ -166,13 +172,14 @@ def test_demo_signup_converts_to_real_account():
     app = create_saas_app(CONFIG); app.config.update(TESTING=True)
     c = app.test_client()
     c.get("/demo/sekret-xyz")                          # enter the preview
-    assert b"get ahead of the beta" in c.get("/app").data
+    # Marker updated with the banner copy — see the note in the test above.
+    assert b"exploring the full app" in c.get("/app").data
     email = "conv_" + uuid.uuid4().hex[:8] + "@ex.com"
     r = c.post("/register", data={"email": email, "password": "password123",
                                   "agree": "on", "_csrf": _csrf(c)})
     assert r.status_code in (301, 302)                 # redirected to /app as the new user
     after = c.get("/app").data
-    assert b"get ahead of the beta" not in after       # demo flag cleared → generic banner
+    assert b"exploring the full app" not in after      # demo flag cleared → generic banner
     CONFIG.demo_access_token = ""
     CONFIG.beta_mode = False
 

@@ -110,6 +110,18 @@ def one_iteration(panel, cols, base, seed, permute=True, costs=True):
     return {
         "seed": int(seed),
         "long_short_tstat": qb.get("long_short_tstat"),
+        # SESSION 10 — the HAC statistic, scored on every draw. X7 calibrated the long-short
+        # floor at 2.14 on the NAIVE t; R9 then made the Newey-West t the number this project
+        # quotes, because Ljung-Box rejects independence at p 0.036. So the shipped 2.620 was
+        # being compared against a bar derived for a different estimator, and the record has
+        # carried "2.620 vs 2.14 is apples-to-oranges" as a known defect ever since. These are
+        # the columns that close it. `quantile_backtest` already computed all of them on every
+        # draw of the original sweep; only the recorder ever dropped them.
+        "long_short_tstat_nw": qb.get("long_short_tstat_nw"),
+        "long_short_ljung_box_p": ((qb.get("long_short_ljung_box") or {}).get("p_value")
+                                   if isinstance(qb.get("long_short_ljung_box"), dict) else None),
+        "top_decile_alpha_tstat": qb.get("top_decile_alpha_tstat"),
+        "top_decile_alpha_tstat_nw": qb.get("top_decile_alpha_tstat_nw"),
         "long_short_ann": qb.get("long_short_ann"),
         "top_decile_alpha": qb.get("top_decile_alpha"),
         "monotonicity": qb.get("monotonicity"),
@@ -193,9 +205,10 @@ def main(argv=None):
 
 
 def _write(path, real, draws, args, costs=True):
-    keys = ("long_short_tstat", "top_decile_alpha", "monotonicity", "pbo", "deflated_sharpe",
-            "max_abs_theme_ic_t", "equal_weight_ann", "long_short_ann",
-            "breakeven_one_way_bps", "n_themes_ic_t_over_2")
+    keys = ("long_short_tstat", "long_short_tstat_nw", "top_decile_alpha", "monotonicity",
+            "pbo", "deflated_sharpe", "max_abs_theme_ic_t", "equal_weight_ann",
+            "long_short_ann", "breakeven_one_way_bps", "n_themes_ic_t_over_2",
+            "top_decile_alpha_tstat", "top_decile_alpha_tstat_nw", "long_short_ljung_box_p")
     n = len(draws)
     out = {
         "test": "X7 — placebo through the full pipeline",
@@ -222,6 +235,15 @@ def _write(path, real, draws, args, costs=True):
                                         if (d.get("long_short_tstat") or 0) >= 2.0) / n if n else None),
             "long_short_t_over_3": (sum(1 for d in draws
                                         if (d.get("long_short_tstat") or 0) >= 3.0) / n if n else None),
+            # SESSION 10 — the same rates read off the HAC statistic. `..._nw_over_2_14` is the
+            # rate at which pure noise clears the bar the project has BEEN quoting against the
+            # HAC number, which is the size of the apples-to-oranges error, not a new bar.
+            "long_short_t_nw_over_2": (sum(1 for d in draws
+                                           if (d.get("long_short_tstat_nw") or 0) >= 2.0) / n if n else None),
+            "long_short_t_nw_over_2_14": (sum(1 for d in draws
+                                              if (d.get("long_short_tstat_nw") or 0) >= 2.14) / n if n else None),
+            "long_short_t_nw_over_3": (sum(1 for d in draws
+                                           if (d.get("long_short_tstat_nw") or 0) >= 3.0) / n if n else None),
             "max_theme_ic_t_over_2": (sum(1 for d in draws
                                           if (d.get("max_abs_theme_ic_t") or 0) >= 2.0) / n if n else None),
             "pbo_under_50": (sum(1 for d in draws if (d.get("pbo") is not None and d["pbo"] < 0.5))
