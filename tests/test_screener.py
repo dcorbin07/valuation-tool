@@ -603,7 +603,17 @@ def test_live_track_never_annualizes_a_stub_or_leads_with_it():
     assert long["live"]["ann_alpha"] is not None
 
     # Backtested figures always travel with the live ones, never merged into them.
-    assert thin["backtested"]["net_sharpe"] == 1.17
+    # AMENDED 2026-08-08 (P2 crowding-memo sweep). This pinned the literal 1.17, which was the
+    # PRE-B6 2,710-name figure; the corrected 69-date panel reads 1.10 and the settings block
+    # was re-measured, so the literal failed. The claim under test is the PLUMBING — that the
+    # backtested block is populated from the book config and kept separate from the live one —
+    # and the specific number was never what it was asserting. Pointing it at the config keeps
+    # the claim, stops it rotting on every legitimate re-measurement, and the not-None check
+    # stops an empty dict from satisfying it vacuously.
+    from valuation.screener import settings as _S
+    _want = _S.BOOK_CONFIGS["roth"]["measured"]["net_sharpe"]
+    assert _want is not None
+    assert thin["backtested"]["net_sharpe"] == _want
     assert "live" not in (thin["backtested"].get("basis") or "")
 
 

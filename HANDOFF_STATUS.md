@@ -18,6 +18,46 @@ REJECTED and its deciles run backwards out of sample)
 
 ---
 
+## P2's CORRECTED FIGURES SWEPT OFF EVERY SURFACE (2026-08-08, app-fixer lane)
+
+P2 corrected P1's capacity headline (~$23M → **~$4.9M**, overstated 4.72x because
+`scripts/capacity.py` hard-codes the pre-B6 breakeven). This session swept every **rendered**
+surface for the figures P2 corrected and fixed each one. Full detail and the before/after
+table in `HANDOFF_appfixes.md` session 19; ledger row P2 amended.
+
+**Fixed on the public `/work` and `/methodology` pages:** capacity $23M → **$4.9M**; breakeven
+236 bps vs 37 bps → **134 bps vs a measured 33 bps** on 261% turnover; the FF5+MOM alpha
+**+8.81%/yr, t 5.74, 109 windows, 1998–2026 → +6.99%/yr, NW t 3.98, 68 windows, 2009–2025**;
+panel 2,710/110 → **2,531/69**; trial count "~146" → **116 equity (272 project-wide)**.
+`/work` also claimed long-short **t 3.52, "above the 3.0 hurdle"** — corrected to **2.84
+(NW 2.62), which is BELOW it**, with the 2.70–3.52 grid range stated. The Index `method`
+payload (P2 bug 3) and the track export `basis` are corrected too.
+
+**THE SWEEP FOUND WORSE THAN IT WAS SENT FOR, and P2 did not list it because it is not in a
+template: the PUBLIC landing page rendered "Backtested net alpha +17.4%/yr"** — pre-B6 —
+**against a corrected +11.6%**, and the taxable book's after-tax alpha was overstated
+**sixfold (4.86% → 0.81%)**. Both come from `settings.BOOK_CONFIGS[...]["measured"]`, a config
+dict that reaches the page via `index_track.summarize()`. Provenance was matched before
+substituting (identical `label` strings, matching `rebalance_days`).
+
+**The recruiter demo link is clean:** `index.html` — the dashboard, Track Record, Edge Lab and
+Index tab — hard-codes no figures at all; it renders live API data. Verified by rendering
+inside a real demo session.
+
+**Deliberately NOT changed:** the Deflated Sharpe "undeflated / saturates" copy on both pages
+is stale since M1, but correcting it would upgrade a disclaimed statistic into a real one (a
+new performance claim) *and* `test_saas.py:414` pins the stale wording — copy and test must
+move together, in a lane that intends it. The sector-neutral row's "+11.8% → +10.2%" was
+**removed rather than replaced** (no corrected re-run exists; inventing one would be
+fabrication). **`scripts/capacity.py` bugs 4–5 remain OPEN in the free-analysis lane — any
+re-run still reproduces the $23M.**
+
+**Gate:** 885 passed, 0 failed across 25 suites in the CI environment. Two test amendments,
+both cited and both strictly stronger (one guard was keyed to the literal `8.81` and would
+have gone silently vacuous when the figure was corrected). One unreproduced flake reported:
+`test_portfolio_sector_cap_and_weights` failed once in a full sequential run, then passed 6/6
+in isolation.
+
 ## GREEKS — THE DERIVED LAYER GREW 315 → 502 NAMES (2026-08-08, greeks lane)
 
 Full write-up in `HANDOFF_greeks.md`. Pure local compute: zero vendor option calls, and

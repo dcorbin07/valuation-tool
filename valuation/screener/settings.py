@@ -128,15 +128,27 @@ BOOK_CONFIGS = {
         # 42 TRADING days ~= 2 calendar months. Best Sharpe of the cadences tested.
         "top_n": 25, "top_frac": None, "rebalance_days": 42, "horizon": 42,
         "exit_frac": None, "exit_mult": None,          # no band: no tax cost to churning
-        "measured": {"net_alpha": 0.1737, "net_sharpe": 1.17, "annual_turnover": 3.79,
+        # RE-MEASURED 2026-08-08 on the corrected 2,531-name / 69-date panel (P2 sweep).
+        # These were the PRE-B6 2,710-name figures (net_alpha 0.1737, net_sharpe 1.17,
+        # turnover 3.79) and they RENDER PUBLICLY on the landing page via
+        # index_track.backtested -> "Backtested net alpha", so the page was showing
+        # +17.4%/yr against a corrected +11.6%/yr. Source: BACKTEST_RESULTS.json
+        # book_configs.roth (same construction — identical `label`, rebalance_days 42).
+        # `cost_drag_ann` is NOT re-measured here (the results file does not emit it for a
+        # book config) and is not read by the export; it remains a pre-B6 figure.
+        "measured": {"net_alpha": 0.1163, "net_sharpe": 1.10, "annual_turnover": 3.17,
                      "cost_drag_ann": 0.0440},
     },
     "taxable": {
         "label": "Taxable: after-tax-optimal, decile + 20% no-trade band",
         "top_n": None, "top_frac": 0.10, "rebalance_days": 63, "horizon": 63,
         "exit_frac": 0.20, "exit_mult": None,
-        "measured": {"after_tax_alpha": 0.0486, "after_tax_sharpe": 0.89,
-                     "net_alpha": 0.1169, "annual_turnover": 1.72},
+        # RE-MEASURED 2026-08-08, same sweep and same source (book_configs.taxable).
+        # Was: after_tax_alpha 0.0486, after_tax_sharpe 0.89, net_alpha 0.1169,
+        # turnover 1.72. The after-tax alpha moved most — 4.86% -> 0.81%, a sixfold
+        # overstatement — because the pre-B6 panel's inverted early universe carried it.
+        "measured": {"after_tax_alpha": 0.0081, "after_tax_sharpe": 0.90,
+                     "net_alpha": 0.0698, "annual_turnover": 1.84},
     },
 }
 # ADOPTED 2026-07-31 (Don's call): `roth`. Don trades in a Roth, where there is no tax drag,
