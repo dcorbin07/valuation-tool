@@ -2130,3 +2130,111 @@ the brief (CHTR, CI) had already moved before I started (§8.0).
    the revenue path. Mine, and it overstated the largest known defect in the engine.
 5. **`CompanyData` carries no capex history** while carrying revenue, EBIT, FCF and net-income
    histories, so any maintenance-capex estimate rests on one lumpy year.
+
+---
+
+# Part 9 — TERMINAL-SHARE-AWARE CONFIDENCE (PRE-COMMITMENT)
+
+**Written before any outcome was measured, and committed alone.** Status: OUT-OF-BAND, live
+product. Owner: greeks agent (engine lane).
+
+## 9.0 The complaint
+
+The confidence label describes *where the data came from* and *which lens carried the blend*. It
+never asks what the number is MADE OF. A DCF whose terminal value is 93% of enterprise value is a
+statement about year 11-to-infinity wearing a ten-year model's clothes, and the engine will happily
+stamp it "high".
+
+Both rejected reinvestment arms mean the VALUE will not change. The LABEL can still be honest.
+
+## 9.1 The one thing I checked before committing to anything
+
+**A control group exists: 40 of 241 names have no DCF lens in the blend at all** (financials
+valued on P/B-ROE, plus names whose DCF was dropped as non-positive). Terminal share does not
+describe their published number and the change must be mechanically incapable of touching them.
+Part 4's bound 1 was breached because the control was a proxy; Part 8's held because the gate WAS
+the control. Here the gate is again the defining property — `dcf` absent from `blend.lenses`.
+
+## 9.2 The band, argued from the distribution and NOT from CI
+
+Measured first, on the 241-name 2026-08-05 snapshot, printing **only the input distribution** — no
+ticker, no label, no upside, no score. Choosing a threshold after seeing which names it flags is
+the tuning this document exists to prevent, so the step-1 harness (`tv_dist.py`) is written to make
+that impossible rather than to make it unlikely.
+
+Terminal share across the 201 DCF-participating names:
+
+| p1 | p5 | p10 | p25 | p50 | p75 | p90 | p95 | p99 | max |
+|---|---|---|---|---|---|---|---|---|---|
+| 49.9% | 57.0% | 63.0% | 69.4% | **77.7%** | 83.7% | **87.4%** | 90.4% | 119.1% | 227.8% |
+
+**A high terminal share is NORMAL and must not be treated as a defect.** A ten-year DCF on a mature
+business at an ~8% discount rate mathematically puts two-thirds-plus of its value in the terminal;
+the median here is 77.7%. A 70% threshold would flag 73% of the universe, and a label that fires on
+three names in four carries no information. This is the single most important reason to argue the
+band from the distribution instead of from intuition.
+
+The histogram has a shoulder, and the bands sit on it:
+
+```
+  40- 50%    3        70- 80%   62
+  50- 60%   10        80- 90%   69     <- bulk ends here
+  60- 70%   42        90-100%    9     <- density collapses
+                     >=100%      6     <- different object entirely
+```
+
+* **`TV_SHARE_MEDIUM = 0.90` — cap at "medium".** Just past p90 (87.4%); density falls 69 -> 9
+  across the boundary. Economically: **under a tenth of the value comes from the decade we
+  actually model** with company-specific inputs. Expected to bind on 15 of 201 (7.5%).
+* **`TV_SHARE_LOW = 1.00` — cap at "low".** *This is not a calibrated number.* At 100% the
+  terminal exceeds the whole enterprise value, so **PV(explicit forecast) is negative**: the
+  modelled decade destroys value and the terminal pays for all of it plus the shortfall. A sign
+  change needs no threshold argument, which makes it the sturdier of the two bands. Expected: 6.
+
+I record the counterfactual explicitly, because CI is named in the brief at 93.5%: a band at
+**95%** would catch 7 names and would NOT catch CI. I am choosing 90% on the p90-and-shoulder
+argument above. If that argument does not persuade a reader, the honest response is that the band
+is wrong, not that the result is.
+
+## 9.3 What changes, and what may not
+
+Labels only, applied AFTER every value is final:
+
+* `blend.confidence` — the fair-value label.
+* `score.confidence` — the label printed beside the recommendation.
+* Both capped **monotonically downward**. The cap can never raise a label, so it cannot rescue
+  anything, and a name already "low" is untouched.
+* Applied whenever the DCF lens participates (`weight > 0`), without a weight threshold. That is
+  the conservative choice and avoids a second free parameter; names carrying only a sliver of DCF
+  are growth-led and already "low", which C7 tests rather than assumes.
+* `blend.tv_share` and a note are stored so the reason is visible rather than mysterious.
+
+## 9.4 Success criteria — what "fixed" means, with tolerances
+
+* **C1 — VALUE BOUND. Every published fair value bit-identical, all 241 names, exact float
+  equality (`==`, not a tolerance).** Zero value changes is the whole premise.
+* **C2 — SCORE BOUND. Every composite score, recommendation and sub-score bit-identical.** Stops
+  the label leaking into the number.
+* **C3 — CONTROL BOUND. The 40 non-DCF names: confidence labels bit-identical, both fields.**
+* **C4 — MONOTONE. No name's confidence rises, on either field.**
+* **C5 — DO NO HARM. The 186 DCF-participating names below 90%: labels bit-identical.**
+* **C6 — NOT INERT. At least one PUBLISHED name is re-labelled.** If zero move, the change is
+  cosmetic and I report NULL and ship nothing — the Part 8 discipline.
+* **C7 — the low-DCF-weight assumption in 9.3, stated as a bound instead of an argument: no name
+  with `dcf_weight < 0.2` is moved down from "high"** (it should already be "low" via growth-led).
+
+**C1, C2 and C3 must be mechanically impossible to breach, not merely observed to hold.** I have
+been caught twice by bounds that could not fail. Verified before the run: the cap is a pure
+function of `(existing_label, tv_share)` returning a string, invoked after `blend.value`,
+`fv_scen` and `compute_score` are complete, and it writes only to two `confidence` attributes.
+Measurement is confirmation, not the proof.
+
+**Anti-tuning rule, unchanged from Parts 2 and 8: a band failing at its pre-chosen value is
+REJECTED, not retuned.** CI motivated the brief and is therefore excluded from the argument for
+the band, exactly as KSPI was in Part 2 and CHTR in Part 8.
+
+## 9.5 Out of scope, stated in advance
+
+`screener/fairvalue.py` computes its own `fair_value_confidence` — but that path blends multiples
+and the growth lens only, has **no DCF and therefore no terminal value**, and is already capped at
+"medium". Nothing to do there, and I will not invent a proxy for it.
