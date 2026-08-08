@@ -71,7 +71,9 @@ def _header_map(cells):
     low = [c.strip().lower() for c in cells]
     if "id" not in low or "verdict" not in low:
         return None                                   # not a row-table header
-    return {k: low.index(k) for k in ("id", "verdict", "n", "domain") if k in low}
+    m = {k: low.index(k) for k in ("id", "verdict", "n", "domain") if k in low}
+    m["_width"] = len(cells)
+    return m
 
 
 def _cell(cells, hdr, field):
@@ -96,6 +98,7 @@ def _parse(path):
     trials = fixed = counted = 0
     ids = []
     changed = []                                      # rows whose treatment differs from legacy
+    malformed = []                                    # rows whose columns do not line up
     by_domain = {d: 0 for d in DOMAINS}
     try:
         with open(path, encoding="utf-8") as f:
@@ -117,8 +120,19 @@ def _parse(path):
         if not rid or rid.lower() in ("id", "field") or set(rid) <= set("-: "):
             continue                                  # stray header or separator
 
+        # A cell containing an unescaped `|` splits into extra cells and shifts every column
+        # after it, so this row's indices no longer mean what the header says. It is a real
+        # defect in the log (O16 writes `|Spearman(a, b)|` for an absolute value), and it must
+        # NOT be allowed to silently drop trials: a misaligned row resolves toward a LARGER `N`
+        # on every field, which is the less favourable direction.
+        aligned = hdr is not None and len(cells) == hdr.get("_width")
+        if hdr is not None and not aligned:
+            malformed.append({"id": rid, "header_width": hdr.get("_width"),
+                              "row_width": len(cells),
+                              "reason": "unescaped `|` in a cell shifts the columns"})
+
         # --- verdict: THE VERDICT CELL ALONE ---------------------------------------------
-        vcell = _cell(cells, hdr, "verdict")
+        vcell = _cell(cells, hdr, "verdict") if aligned else None
         is_fixed = bool(vcell) and vcell.strip().upper().startswith("FIXED")
         legacy_fixed = bool(re.search(r"\bFIXED\b", " ".join(cells).upper()))
         if is_fixed != legacy_fixed:
@@ -130,11 +144,13 @@ def _parse(path):
             continue
 
         # --- grid multiplier: THE `n` CELL ALONE ------------------------------------------
-        ncell = _cell(cells, hdr, "n")
+        # On a misaligned row the column cannot be located, so fall back to the whole-line
+        # scan and take whichever is LARGER — never the smaller.
+        ncell = _cell(cells, hdr, "n") if aligned else None
         m = re.search(r"\bn=(\d+)\b", ncell) if ncell else None
-        k = int(m.group(1)) if m else 1
         lm = re.search(r"\bn=(\d+)\b", ln)
         lk = int(lm.group(1)) if lm else 1
+        k = int(m.group(1)) if m else (1 if aligned else lk)
         if k != lk:
             changed.append({"id": rid, "field": "n", "was": lk, "now": k, "n_cell": ncell})
 
@@ -143,7 +159,7 @@ def _parse(path):
         ids.append(rid)
 
         # --- domain: THE DOMAIN CELL ALONE ------------------------------------------------
-        dcell = (_cell(cells, hdr, "domain") or "").lower()
+        dcell = ((_cell(cells, hdr, "domain") if aligned else None) or "").lower()
         dom = dcell if dcell in DOMAINS else None
         if dom is None:                               # no domain column: best available guess
             for d in DOMAINS:
@@ -156,7 +172,8 @@ def _parse(path):
         if dom:
             by_domain[dom] += k
     return {"trials": trials, "rows_counted": counted, "rows_fixed": fixed, "ids": ids,
-            "by_domain": by_domain, "rows_changed_by_parser_fix": changed}
+            "by_domain": by_domain, "rows_changed_by_parser_fix": changed,
+            "rows_malformed": malformed}
 
 
 def trial_count(path=None, use_cache=True, domain="equity"):
@@ -200,6 +217,10 @@ def detail(path=None, use_cache=True):
                # revert to the whole-row read would move `N`. Kept visible for that reason.
                "rows_rescued_by_parser_fix": len(parsed.get("rows_changed_by_parser_fix") or []),
                "parser_fix_detail": parsed.get("rows_changed_by_parser_fix") or [],
+               # Rows whose columns do not line up with their table header — an unescaped `|`
+               # inside a cell. Their fields cannot be read by column, so they are counted the
+               # conservative way and listed HERE rather than absorbed silently.
+               "rows_malformed": parsed.get("rows_malformed") or [],
                "n_used": n,
                "weight_scheme_floor": WEIGHT_SCHEME_TRIALS,
                "source": "RESEARCH_LOG.md (audit M1)",

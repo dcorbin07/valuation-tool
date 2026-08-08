@@ -169,6 +169,65 @@ the project's memory and the old versions had been repeated for months.
   * **Trial cost paid as registered: equity `N` 121 → 129, Deflated Sharpe 0.8628 → 0.8556,
     √(2·ln 129) = 3.118.** Every equity claim after this is charged N = 129.
     `data/free_analysis/ML_COMBINER.json`; reproduce with `python -m scripts.ml_combiner`.
+- **`N` MOVES THE LONG-SHORT t, AND THEREFORE MOVES THE CALIBRATED FLOORS. THE X7 8%-vs-7%
+  DISCREPANCY IS CLOSED — IT IS ONE DRAW, SEED 1005 (2026-08-08, session 12).** Two sessions
+  called it undiagnosable because X7's raw draws were never retained. The cause is a coupling
+  nothing in the record described: `cpcv_validate`'s adopt gate is
+  `margin > _trials_haircut(len(names)) · se`, and `_trials_haircut` (`fundamental_panel.py:2097`)
+  is **floored at the research log's `N`** (audit M1); `scripts/placebo.py` then feeds the
+  **adopted** weights to `quantile_backtest`. **Adoption is monotone decreasing in `N`, so raising
+  `N` re-scores a draw under different weights.**
+  * **X7 ran at N = 84 (haircut 2.97685); session 10 ran at N = 121 (haircut 3.09703).** Seed
+    1005's margin is **0.00287097** against `se` **0.00094470**: it clears the N = 84 bar
+    (0.0028122) and fails the N = 121 bar (0.0029257). Scored under the challenger's weights its
+    naive `ls_t` is **2.1273**; under base weights, **1.0454**. Session 10's retained artifact
+    records **1.0453572947436582** — identical to the recomputation to sixteen digits.
+  * **IT REPRODUCES EVERY RECORDED NUMBER ON BOTH SIDES.** Substituting the adopted value into
+    session 10's 100 draws gives **exactly 8** at `t ≥ 2.0` — X7's figure. The adopt count at
+    N = 84 comes back **21**, which is M1's recorded 21%. And the naive **p95 stays 2.1437, max
+    stays 3.436** — which is precisely why session 10's control reproduced X7's percentiles *to
+    the digit* while missing one draw: **2.1273 lands just below the 95th percentile.** One fact
+    explains both halves of what looked like a contradiction.
+  * **IT ALSO EXPLAINS WHY IT LOOKED UNDIAGNOSABLE.** Session 10 reasoned that no draw sat near
+    2.0 so it could not be a boundary effect. Correct — seed 1005 did not *drift* across the
+    boundary, it **jumped 1.08 of a t** because its weights changed. A knife-edge crossing was
+    the wrong thing to look for.
+  * **THE CONSEQUENCE THAT OUTLIVES THE DISCREPANCY: A CALIBRATED PLACEBO FLOOR IS A FUNCTION OF
+    `N`.** The floor is a percentile of the null `ls_t` distribution, and `N` moves individual
+    draws within it. **Here the floors did not move** (2.1437 naive, 2.2837 HAC at both `N`)
+    because the one affected draw landed below the percentile — **that is luck, not design.**
+    Every sweep must record the `N` it ran at, and **a floor may not be compared across sweeps
+    run at different `N` without checking.**
+  * **THE SHIPPED STRATEGY IS UNAFFECTED, for a reason already in the record: it does not adopt,
+    it keeps `current-default`,** so no haircut touches its `ls_t`. The exposure is entirely to
+    the *calibration*, not the headline. Same family as X7's post-hoc "CPCV adoption manufactures
+    ~+1.4 of long-short t" — now a demonstrated mechanism on a named draw rather than a split.
+  * `cpcv_validate` now banks **`adopt_detail`** (margin, se, haircut, `n_trials_used`) and
+    **`challenger_weights_cols`** — the challenger's weights whether or not adopted — so "what
+    would this run have scored one haircut lower" is arithmetic. **Zero trial cost**; equity `N`
+    stays 129. `data/free_analysis/X7_RECONCILE.json`; `python -m scripts.x7_reconcile`.
+- **THE TRIAL COUNTER HAD A REAL DEFECT THAT NEVER FIRED, AND `N` DOES NOT MOVE (2026-08-08,
+  session 12).** `research_log._parse` tested `\bFIXED\b` against **every cell of a row joined
+  together**, so a row whose hypothesis, threshold, source or note merely contained the word
+  "fixed" was dropped from `N` even where its verdict read `REJECTED`. Understating `N`
+  **overstates** the significance of every DSR-gated claim — M1's own error, inside M1's own
+  parser, carried three sessions. Two sibling defects of the same class were fixed with it: the
+  `n=<k>` grid multiplier was grepped from the **whole line**, and the domain came from the first
+  cell matching any domain name rather than the domain column.
+  * **THE RECOUNT MOVES NOTHING. Equity `N` 129 → 129**, options 155, infra 3, total 287, 55 rows
+    counted and 17 dropped — identical against the **shipped module itself** and against **all ten
+    historical revisions** of `RESEARCH_LOG.md`. No `fix*` word appears outside a verdict cell in
+    any of the 72 data rows; **zero near-misses. No published `N` was ever wrong.** Deflated
+    Sharpe stays **0.8556**, √(2·ln 129) stays **3.1176**, and all six DSR figures in this file
+    (N = 84 → 0.899659, 116 → 0.867360, 121 → 0.862756, 129 → 0.855608) reproduce to six decimals.
+  * **WHY IT NEVER FIRED IS NOT REASSURING.** Sessions 9-11 knew about the defect and dodged it
+    by choosing synonyms; the earlier rows avoid the word by luck. **A denominator protected by
+    authors' word choice is not protected.** The repair is pinned by a fixture the old parser
+    fails (3 real trials, of which it counts 1), and `detail()` ships
+    `rows_rescued_by_parser_fix` so a silent revert would be loud.
+  * The pre-registered expectation (`N` rises, 60/40) was **WRONG** — five wrong directional calls
+    to one right. Procedure committed at `21069ac` before the parser was touched, including the
+    rule that **no row's text may be edited to change `N`**: `PREREG_session12_recount.md`.
 - **THE COMPOSITE'S COMPLEXITY IS NOT DEMONSTRATED, AND THEME IC DOES NOT PREDICT WHICH THEME
   MATTERS (2026-08-06, session 6, X3 RE-RUN). The 2026-08-03 "EARNS ITS COMPLEXITY" verdict is
   VOID — it ran on the pre-B6 110-date panel and against a 1.0pp bar that sits BELOW X7's

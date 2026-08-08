@@ -6272,6 +6272,52 @@ def test_session12_the_trial_counter_reads_verdicts_from_the_verdict_column_only
         "3 real trials")
 
 
+def test_session12_a_row_with_unescaped_pipes_may_not_silently_lose_its_trials():
+    """FOUND THE HARD WAY, mid-session, by merging another lane.
+
+    O16 writes `|Spearman(term_slope, atm_front)|` for an absolute value inside a markdown table
+    cell. The unescaped `|` splits that cell in two, so every column after it shifts and the row's
+    indices stop meaning what the header says. The column-wise parser then read the `n` field off
+    prose, found no `n=<k>`, and charged the row **1 trial instead of 5** — understating `N`,
+    which is precisely the direction session 12 exists to eliminate. The old whole-line grep was
+    accidentally immune, so the repair would have introduced a regression the defect it replaced
+    did not have.
+
+    A misaligned row therefore resolves toward a LARGER `N` on every field, and is reported in
+    `rows_malformed` rather than silently absorbed.
+    """
+    import tempfile
+    from valuation.edge import research_log as RL
+
+    md = (
+        "| id | date | domain | pre | hypothesis | metric | verdict | n | source |\n"
+        "|---|---|---|---|---|---|---|---|---|\n"
+        # 11 cells, not 9: the metric carries |x| for an absolute value
+        "| O16X | 2026-08-07 | options | yes | a signal is another signal renamed "
+        "| identity arm is |Spearman(a, b)| and var(a)/var(b) | INCONCLUSIVE | n=5 | note |\n"
+        # a well-formed control alongside it, so the guard cannot pass by counting everything
+        "| OKROW | 2026-08-07 | options | yes | something testable | IC t | REJECTED | n=2 "
+        "| note |\n"
+        "| FIXROW | 2026-08-07 | equity | n/a | a repair | code | FIXED | n=1 | note |\n"
+    )
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "RESEARCH_LOG.md")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(md)
+        got = RL._parse(p)
+
+    assert got["trials"] == 7, (
+        f"expected 5 + 2 = 7 trials, got {got['trials']}. A row whose columns are shifted by an "
+        "unescaped `|` must fall back to the whole-line scan and take the LARGER count, never "
+        "silently drop to 1.")
+    assert got["by_domain"]["options"] == 7, got["by_domain"]
+    assert got["rows_fixed"] == 1, "the well-formed FIXED row must still be excluded"
+    mal = got.get("rows_malformed") or []
+    assert [m["id"] for m in mal] == ["O16X"], (
+        f"the misaligned row must be REPORTED, not silently absorbed; got {mal}")
+    assert mal[0]["row_width"] == 11 and mal[0]["header_width"] == 9, mal[0]
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

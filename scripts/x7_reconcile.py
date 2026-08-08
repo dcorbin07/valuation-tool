@@ -120,6 +120,20 @@ def main():
                 rows += json.load(open(p))["rows"]
         rows.sort(key=lambda r: r["seed"])
         flips = [r for r in rows if r["flips"]]
+
+        # The gate's only N-dependence is the haircut, so with (margin, se) banked the adopt
+        # count at ANY trial count is arithmetic — no re-run. This curve is the check: the
+        # project independently recorded 27% at the pre-M1 N (which floors at len(names)=9)
+        # and 21% at N = 84, and neither figure was available to this script.
+        def _adopts_at(n):
+            h = haircut_at(n, 9)
+            return sum(1 for r in rows
+                       if r["se"] and r["se"] > 0 and r["margin"] is not None
+                       and (r["folds_positive"] or 0) >= 0.6
+                       and (r["median_oos_ic_best"] or 0) > 0
+                       and r["margin"] > h * r["se"])
+        curve = {str(n): {"haircut": haircut_at(n, 9), "n_adopt": _adopts_at(n)}
+                 for n in (8, 84, 116, 121, 129, 200, 400)}
         out = {
             "test": "X7 vs session-10 placebo reconciliation: does the trial count N move ls_t?",
             "panel": PANEL, "seeds": "1000..1099", "n_rows": len(rows),
@@ -127,6 +141,8 @@ def main():
             "haircut_x7": haircut_at(N_X7, 9), "haircut_session10": haircut_at(N_S10, 9),
             "n_adopt_at_x7_N": sum(1 for r in rows if r["adopt_x7"]),
             "n_adopt_at_session10_N": sum(1 for r in rows if r["adopt_s10"]),
+            "n_adopt_as_run": sum(1 for r in rows if r["adopt_as_run"]),
+            "adopt_count_vs_N": curve,
             "flipped_seeds": [r["seed"] for r in flips],
             "flipped": flips,
             "rows": rows,
