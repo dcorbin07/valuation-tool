@@ -1378,7 +1378,10 @@ That is the documented signature to the digit — `deploy/preflight.py`'s docstr
 `ModuleNotFoundError: No module named 'data'`". Restored, the same command runs **181, OK**.
 
 **3. Symbol by symbol.** Every import of the package across the tree resolves — 6 importing files,
-8 import statements, 11 distinct symbols:
+8 import statements, **8 distinct symbol names** (`EarningsCalendar`, `UniverseBuilder`,
+`UniverseConfig`, `UniverseSnapshot`, `UniverseTicker`, `LIQUID_ETF_WHITELIST`,
+`parse_market_cap`, `parse_price`), checked as 11 module-qualified resolutions because several are
+imported both from `data` and from `data.universe`:
 
     orchestrator/jobs.py:36       from data import EarningsCalendar, UniverseBuilder, UniverseConfig
     screener/screener.py:34,35    from data.earnings / data.universe import ...
