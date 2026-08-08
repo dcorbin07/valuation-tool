@@ -327,18 +327,21 @@ def clustered_policy_diff(rows_by_policy: dict, name: str, draws: int = BOOT_DRA
 
 # ============================ O23 — the decomposition ======================================
 def _und_close(bars, day) -> Optional[float]:
-    """As-traded close at or before `day`. Options maths never uses the adjusted series."""
+    """As-traded close at or before `day`. Options maths never uses the adjusted series.
+
+    BISECT, NOT A SCAN. `bars["date"]` is sorted ascending and runs to ~7,200 rows; O23 asks for
+    three closes per (trade, policy) pair, which is 1.8M lookups on the random set. Scanning
+    would be ~12 billion comparisons for a value that a binary search finds in 13.
+    """
     if not bars:
         return None
-    ds, px = bars["date"], (bars.get("raw_close") or bars["close"])
-    d = str(day)[:10]
-    out = None
-    for i, x in enumerate(ds):
-        if x <= d:
-            out = px[i]
-        else:
-            break
-    return out
+    ds = bars["date"]
+    px = bars.get("raw_close") or bars["close"]
+    if not ds:
+        return None
+    from bisect import bisect_right
+    i = bisect_right(ds, str(day)[:10])
+    return px[i - 1] if i > 0 else None
 
 
 def _ols_r2(xs, ys) -> Optional[dict]:
