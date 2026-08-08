@@ -1583,3 +1583,550 @@ pre-existing expected-failure routed to the options-bot lane, unrelated to this 
    the work most likely to be out-of-band is the work found by probing production — which is how
    this leak was found **both** times. Not fixed (that file is not in my lane), but whoever owns
    the generator should either preserve unknown-id rows or give out-of-band items real ids.
+
+---
+
+# Part 7 — The reproducibility fix: beta provenance, a real history check, stamped inputs
+
+## PRE-COMMITMENT — written and committed BEFORE any outcome was measured
+
+Committed on its own so its ordering is provable. Checked **first**, because committing to a
+bound that turns out unmeasurable is the mistake this lane keeps being caught by:
+
+**(i) Is a control group real?** Yes — see the table below. **(ii) Does the instrument
+reproduce?** Yes, to 0.036 worst case against my own earlier column. Both were established
+before any bound below was written.
+
+### Facts established before the pre-commitment (not outcomes)
+
+- **The vendor beta field is INTERMITTENT, not gone.** `HANDOFF_live_data_bugs.md` §6 recorded
+  MRK's beta as *absent* on 2026-08-05, which is what dropped it to the 1.10 fallback and moved
+  WACC 5.53% → 9.31%. **Today it is back at 0.211.** So the defect is a field that comes and
+  goes, and any fix that waits for it to vanish again is untestable. **I will simulate its
+  absence rather than wait.**
+- **My earlier "1y-daily" instinct is wrong and I checked before building on it.** The estimator
+  my handoff validated on controls is **5y-MONTHLY**. Re-run today, 1y-daily returns
+  **KO −0.286 and XOM −0.484** — negative betas for Coca-Cola and Exxon. Had I not re-derived
+  which window was validated, I would have shipped that.
+- **The 5y-monthly estimator reproduces**, worst |Δ| **0.036** (JPM), most within 0.006:
+  AAPL 1.070, JPM 1.013, NVDA 2.217, MRK 0.180, GILD 0.305, CI 0.288, CHTR 0.669, KSPI 0.886.
+- **KSPI comes back with n = 30 monthly observations**, matching the "30 monthly observations,
+  ADR listed 2024" already in the record. **Every other name tested has n = 59.** So a minimum
+  of 36 separates KSPI from the field, and a naive `n >= 60` would flag literally everyone.
+- **Cost: the extra 5y-monthly call is 0.14s per name**, and is paid only when the ladder
+  actually needs it.
+
+### The critical constraint my own evidence imposes on this task
+
+**A low-side beta floor applied to the VALUE alone would assert something false.** §2 of this
+handoff measured GILD (0.336), CI (0.321), CHTR (0.678), MRK (0.211) and XOM (0.173) as
+**genuinely** low-beta. Only KSPI's 0.08 is an artifact, and what makes it an artifact is not
+its size but **the 30 observations behind it**.
+
+So the two halves the brief names are not independent, and I commit to wiring them that way:
+**the low-side value only decides WHO GETS CHECKED; the observation count decides WHO GETS
+REJECTED.** A long-history name is accepted no matter how low its beta. This makes the trigger
+value a low-stakes choice, and I will demonstrate that by re-running the verdict at 0.10 / 0.15
+/ 0.25 rather than asserting it.
+
+### The design being committed to
+
+Vendor-first ladder, each rung stamped:
+
+1. explicit `beta_override` — unchanged, wins.
+2. **vendor beta in (0, 3.0] and above the low trigger → ACCEPTED UNCHANGED**, no extra call.
+3. otherwise corroborate with a 5y-monthly regression vs SPY:
+   * observations ≥ **36** → accept the vendor if it is in range (low betas are real), else use
+     the computed value;
+   * observations < 36 → the vendor value is unsupportable; use the computed value if it has
+     ≥ 24 of its own, else the stated constant.
+4. **stated constant**, named with its derivation, marked `substituted`.
+
+**The constant.** Today's is a bare `1.10` with no derivation anywhere in the repo. I commit to
+naming it and stating that the market portfolio's beta is **1.0 by construction**, and to
+**reporting how many names actually reach rung 4** — the point of the ladder is that a missing
+vendor field now lands on a computed beta rather than a constant, so rung 4 should be nearly
+empty. **I will only change the value from 1.10 to 1.0 if the measured number of names reaching
+it is zero or its effect is fully enumerated name by name.** Changing a constant that silently
+moves valuations is the thing being fixed, not a licence to do it once more.
+
+### BOUNDS
+
+**CONTROL GROUP: exists and is the large majority.** Verified before this was written — all 10
+names in the feasibility sample carry a valid vendor beta. The control is every name whose
+vendor beta is present, in (0, 3.0], and either above the trigger or corroborated by ≥ 36
+observations.
+
+**BOUND 1 (do-no-harm, the hard one): for every control-group name, WACC and fair value must be
+BIT-IDENTICAL, not merely close.** This change adds a ladder in front of an input; for a name
+whose input is unchanged, no arithmetic downstream may move at all. Any movement is a defect in
+my change.
+
+**BOUND 2 (the fix must actually fire): with the vendor beta simulated ABSENT, MRK must resolve
+to a computed beta near 0.18, NOT to the constant** — i.e. the 3.78pp WACC swing that produced
+the "91 Strong Buy" must not reproduce. Committed threshold: **MRK's WACC with the vendor field
+absent must land within 0.50pp of its WACC with the field present.**
+
+**BOUND 3: KSPI's beta must stop being 0.08**, and must be rejected *for its 30 observations*,
+not for its size. If it is rejected by a value rule alone, that is a FAIL of this design even if
+the number looks better.
+
+**BOUND 4: no control-group name may move between published and withheld.**
+
+### What I will report even if it is unflattering
+
+- the count of names reaching each rung, including rung 4;
+- every control-group name that moves at all, if any;
+- whether the verdict survives the trigger at 0.10 / 0.15 / 0.25;
+- if the fix turns out to be inert on today's data — as Bug B was — I will say that plainly
+  rather than quote the mechanism as though it were an effect.
+
+### What I will NOT do
+
+- **Not floor beta on value alone.** My own measurement says that is false for four of five
+  names, and the brief's own framing ("KSPI's 0.08 came from 30 monthly observations") is a
+  history argument, not a size argument.
+- **Not switch every name to a self-computed beta.** It would change every valuation in the
+  product and leave no control group. Vendor-first is chosen partly *because* it leaves one.
+- **Not retune a threshold after seeing which names it catches.**
+
+---
+
+## Part 7 — RESULTS: the beta reproducibility fix, measured
+
+**Verdict: all four pre-registered bounds HELD, on the third attempt.** The first two attempts
+were invalidated by my own measurement and are reported below rather than discarded, because the
+way they failed is the most useful thing in this section.
+
+Pre-commitment: commit `04d9f12`, written and committed alone before any number existed.
+
+### 7.1 Two invalidated runs, and why they are in the record
+
+| run | names | rate-limited corroborations | names arriving with NO vendor beta | reportable |
+|---|---|---|---|---|
+| 1 | 402 | 176 | not recorded | **NO** |
+| 2 | 403 | 297 | 302 | **NO** |
+| 3 | 46, paced, serial | **0** | 3 (genuine) | yes |
+
+Run 1 made 402 corroborating calls in 3.7 minutes and exhausted Yahoo's rolling quota. Run 2 was
+worse: **302 of 403 names arrived with `beta=None` and largely empty `CompanyData`**, so the base
+fetch was degraded too — MRK, GILD, CHTR, CI, KO and XOM all reported WACC 5.26% identically,
+which is the signature of a name with no market cap whose WACC collapses to pure cost of debt.
+
+**Bounds 2 and 3 "passed" in run 1 for a worthless reason: both arms landed on the same constant,
+so the swing was 0.00pp.** A bound satisfied because nothing happened is not satisfied. Run 2 was
+built to detect exactly that and did — it labelled itself contaminated and refused to report.
+Run 3 added a *continuous* check that stops the moment a rate limit appears, rather than
+discovering it at the end.
+
+**The lesson is not about Yahoo.** A measurement that consumes the resource it is measuring will
+report on its own exhaustion and call it a result. The guard that caught this was cheap: count the
+contaminating events, print them *before* the verdict, and make the script refuse.
+
+### 7.2 The defect the invalidated runs exposed — the important finding
+
+Run 1 pushed **178 of 402 names onto the constant**. Not because their history was thin, but
+because the corroborating call *failed*, and the first version of `_resolve_beta` could not tell
+those apart. That is the MRK bug reproduced with a new trigger — and a worse one, because
+**production scans 500 names at a time, which is precisely the burst that provokes throttling.**
+A fix for "a vendor field vanished" that itself turns a busy network into 178 changed valuations
+is not a fix.
+
+Corroboration is now **best-effort with a failure mode of "no change"**: a vendor beta is
+overruled only by positive evidence that its history is short, never by a failed check. The
+invariant, stated so it can be tested: **the constant's population is never wider than it was
+before this change** — it is reached only when the vendor beta is missing or out of band, which is
+exactly the old `1.10` test.
+
+### 7.3 The four bounds, measured (46 names, paced, 0 contaminated)
+
+Sample: the 7 named cases + 5 out-of-band names + every 12th served name — deterministic and
+fixed before any result. It is **a sample, not the 403-name served universe**; that is the price
+paid for validity, and it is stated rather than glossed.
+
+**BOUND 1 — do-no-harm. HELD.** 37 control-group names; **0 moved** in WACC or fair value.
+
+**BOUND 2 — the fix must fire. HELD, and non-vacuously.** With the vendor field simulated absent:
+
+| name | vendor | computed (n) | WACC swing, NEW | WACC swing, OLD |
+|---|---|---|---|---|
+| **MRK** | 0.211 | **0.180** (59) | **0.13pp** | **3.85pp** |
+| KSPI | 0.080 | 0.886 (30) | 0.00pp | 4.82pp |
+| GILD | 0.336 | 0.305 (59) | 0.13pp | 3.32pp |
+| CI | 0.321 | 0.288 (59) | 0.11pp | 2.74pp |
+| CHTR | 0.678 | 0.669 (59) | 0.01pp | 0.37pp |
+| XOM | 0.173 | 0.206 (59) | 0.15pp | 4.34pp |
+| KO | 0.342 | 0.308 (59) | 0.15pp | 3.38pp |
+
+MRK's **0.133pp** clears the pre-committed 0.50pp. The old code's **3.85pp** on the same name
+independently reproduces the reported 5.53% → 9.31% incident — the bug report was accurate.
+
+**BOUND 3 — KSPI. HELD.** Rejected at **n = 30 < 36** and replaced by its own computed 0.886.
+It is rejected **for its history, not its size**, which was the condition that would otherwise
+have made this a FAIL however good the number looked. Its fair value is `None` before and after —
+the name is not published either way, so this is a correctness result, not a headline change.
+
+**BOUND 4 — no published/withheld flips among control names. HELD.** 0 flips.
+
+### 7.4 Rung counts, including rung 4 — enumerated as promised
+
+`vendor` 34 · `vendor_corroborated` 3 · `computed` 4 · `fallback` 5 · `vendor_uncorroborated` 0.
+
+**Five names reach the constant. The pre-commitment said the 1.10 → 1.0 change ships only if that
+count is zero or its effect is enumerated name by name. Enumerated:**
+
+| name | vendor | why the constant | WACC | fair value |
+|---|---|---|---|---|
+| PDD | −0.005 | own beta −0.039, out of band | 10.13% → 9.63% | 217.82 → 227.33 |
+| ALAB | 3.843 | own beta 4.237, out of band | 10.16% → 9.66% | 56.80 → 59.73 |
+| CRDO | 3.233 | own beta 3.412, out of band | 10.16% → 9.66% | 136.26 → 143.98 |
+| BE | 3.832 | own beta 3.824, out of band | 10.40% → 9.92% | 25.65 → 26.48 |
+| KXIAY | none | only 9 observations | 9.97% → 9.50% | 24.79 → 25.91 |
+
+Every one of these already received a constant under the old code. The entire effect on them is
+the **1.10 → 1.0 difference: WACC −0.5pp, fair value +4 to +5%.** Nothing here is a new
+substitution; it is the same substitution with a derived value instead of an underived one.
+
+### 7.5 Trigger sensitivity — pre-committed, and the answer is "none"
+
+| `BETA_LOW_TRIGGER` | rungs | names resolving to a DIFFERENT beta vs 0.25 |
+|---|---|---|
+| 0.10 | vendor 37, computed 4, fallback 5 | **0** |
+| 0.15 | vendor 37, computed 4, fallback 5 | **0** |
+| 0.25 (shipped) | vendor 34, corroborated 3, computed 4, fallback 5 | — |
+
+**The trigger changes no beta at all on this sample.** It moves three names between `vendor` and
+`vendor_corroborated`, which is a difference in whether a network call happens and what the stamp
+says — not in the answer. This is the design claim ("the value decides who gets *checked*; the
+observation count decides who gets *rejected*") measured rather than asserted. KSPI's 0.080 sits
+below all three triggers, so its rejection does not depend on the choice.
+
+### 7.6 What actually changes in the product — including the part that flatters it
+
+**9 of 46 names (19.6%) get a different beta; 4 get a genuinely new number.** The other five are
+the 1.10 → 1.0 shift above.
+
+| name | old | new | WACC | fair value |
+|---|---|---|---|---|
+| KSPI | 0.080 | 0.886 (n=30) | 5.07% → 8.88% | None → None |
+| ARGX | 1.100 | 0.413 (n=59) | 10.16% → 6.73% | 1053.27 → **1929.80** |
+| DTEGY | 1.100 | 0.323 (n=59) | 7.71% → 5.77% | 53.62 → **86.22** |
+| COP | 1.100 | 0.216 (n=59) | 9.31% → 5.52% | 77.47 → **131.18** |
+
+**STATE THIS PLAINLY: this is the first change in this lane that moves published fair values UP,
+and systematically so.** Every name with no usable vendor beta was priced at a beta of 1.10;
+measuring their own gives a lower number, a lower WACC and a higher fair value — ARGX +83%,
+COP +69%, DTEGY +61%. The direction is not evidence the change is right. What supports it is that
+1.10 was never derived from anything, and that COP's computed 0.216 sits alongside XOM's 0.206
+from the same estimator — two large integrated energy names agreeing. **A follow-up should check
+whether these names now clear publication thresholds they previously failed, because a
+systematically upward revision is exactly the kind of change that quietly adds Buy ratings.**
+That check is not in this session's bounds and is not claimed.
+
+### 7.7 Limits that must travel with these numbers
+
+- **46 names, not the 403 served.** Two full-universe attempts were invalidated; a third needs a
+  rate-limit-tolerant path, which is the recommended next step.
+- **Under a throttled vendor feed, both old and new land on a constant for names whose vendor beta
+  is missing.** Fail-open protects a name that *has* a vendor beta; it cannot invent one. Run 2
+  saw 302 such names. Unchanged behaviour, not a regression — but it means the reproducibility
+  hole is **narrowed, not closed**, while the feed is Yahoo.
+- The estimator is 5y-monthly against SPY. **1y-daily was tried first and is wrong** — it returns
+  KO −0.286 and XOM −0.484.
+- `BETA_HIGH_CAP` is inherited, not derived. CRDO's vendor (3.233) and own (3.412) values *agree*
+  the beta exceeds it, which is arguably evidence the cap is too low rather than that the data is
+  bad. Those names sit on the constant exactly as before, so nothing regresses — but pricing a
+  genuinely 3.4-beta company at 1.0 understates its risk. **Moving the cap needs its own bound.**
+
+### 7.8 Tests
+
+`tests/test_engine.py` **51/51**; full sweep **24 suites, 859 tests, 0 failures** (re-run after
+the final change). Eight new tests, none of which touch the network — they stub the estimator, so
+a throttled machine cannot turn them green or red by accident.
+
+The test that would have caught this class:
+`test_a_throttled_corroboration_keeps_the_vendor_beta` — it asserts that a `YFRateLimitError`
+leaves a published beta untouched. The original bug and my near-repeat of it are the same
+sentence: *an input that could not be fetched must not silently become a different number.*
+
+## BUGS FOUND
+
+1. **`_resolve_beta` converted a rate limit into a changed headline (MINE, found and fixed before
+   ship).** "History is thin" and "the check could not run" were the same branch. Measured: 178 of
+   402 names pushed onto the constant. Fixed; two tests pin it.
+2. **The plausibility band was applied to the vendor's beta but not to my own.** **PDD adopted a
+   computed beta of −0.039** — a value the same function refuses from a vendor — pinning WACC to
+   the 4% clamp and turning a $217.82 fair value into a refusal. CRDO (3.412), ALAB (4.237) and
+   KXIAY (6.713, n=9) breached the high cap. Fixed: a number is not more believable because we
+   computed it ourselves.
+3. **`.gitignore`'s bare `data/` also matches `valuation/data/`, which is application source.**
+   `valuation/data/beta.py` was silently unaddable, and since `wacc.py` imports it lazily it would
+   have shipped as a runtime `ModuleNotFoundError` on the one path it was written for. The six
+   older files in that package survive only because ignore rules do not apply to already-tracked
+   files. Anchored to `/data/`; verified `data/backtest`, `data/raw`, `data/bulk` and
+   `data/last_result.json` all remain ignored and no licensed file became visible.
+4. **The risk-free rate has the same silent-substitution shape beta had.** `macro.py` falls back to
+   `cfg.default_risk_free` and nothing downstream could distinguish a live rate from a config
+   constant. Now stamped. **Not measured** — no incident is attributed to it, and none is claimed.
+5. **A measurement that consumes the resource it measures will report its own exhaustion as a
+   result.** Two runs here did. Neither was reportable, and only the second could tell.
+
+---
+
+# Part 8 — The reinvestment undercharge (the CHTR class defect). PRE-COMMITMENT
+
+**Written and committed BEFORE any candidate was run or any after-number existed.** This is my own
+Part 4 item 2, quantified and deliberately left unfixed then; it is the largest known defect in
+the valuation engine.
+
+## 8.0 Two exemplars in the brief have already moved — stated before anything else
+
+Measured on the **same 2026-08-05 pickle Part 4 used**, so this is intervening *code*, not new
+data:
+
+- **CHTR's modelled year-1 reinvestment is no longer −$79M. It is +$1,056M**, against $2,948M of
+  observed net capital spend — a shortfall of **3.5% of revenue, below the 5% flag**. Its FCFF
+  runs **9,104 → 10,188 on 1.124× revenue**, i.e. **+11.9% FCFF on +12.4% revenue. It does not
+  double.** CHTR is currently **withheld** (`fair_value None`).
+- **CI does not publish +275% at HIGH confidence.** It is withheld, `fair_value None`, confidence
+  low, and its net capex is **negative** (−1,563) — it is in the control group, not the treated
+  one.
+
+So the spec's CHTR-specific success criterion ("must no longer double FCF on 1.16× revenue") is
+**already satisfied by the current code** and cannot be used to score a candidate. I am not
+quietly dropping it — I am recording that it no longer discriminates, and scoring on the
+population instead.
+
+**The class defect is untouched and is the real target.** On the 241-name sweep: 205 non-financials
+have capex and D&A; **114 have positive net capital spend; 33 are undercharged by more than 5% of
+revenue and 21 by more than 10%** (worst: ORCL 57.3%, SRE 50.4%, D 46.7%, XEL 41.7%, APD 41.1%,
+AWK 31.1%, GOOGL 22.9%), concentrated in **Utilities 11, Energy 8, Technology 4, Basic Materials
+4**. **XOM (−17,131) and TTE (−12,778) are charged NEGATIVE reinvestment** while spending real
+money — shrinking revenue is credited as releasing capital.
+
+## 8.1 The control group — checked FIRST, and by its defining property
+
+Part 4's bound 1 breached because I verified a *proxy* was non-empty instead of verifying the
+change could not move it. Not repeating that.
+
+Both candidates are gated on **`net_capex = capex − D&A > 0`**. A name failing that gate never
+enters the changed code path, so it is bit-identical **by construction, not by tolerance**.
+Census, measured before committing:
+
+| group | n | can the fix touch it? |
+|---|---|---|
+| financials (out of scope) | 31 | no |
+| non-financial, capex ≤ D&A | **91** | **no — gate not entered** |
+| non-financial, capex or D&A missing | **5** | **no — gate not entered** |
+| non-financial, net capex > 0 | 114 | yes |
+
+**Control group = 96 names, and its defining property is the gate itself.** CI sits in it.
+
+## 8.2 The decisive set, and the motivating name
+
+**Decisive set = the 33 non-financial names undercharged by >5% of revenue.** CHTR motivated the
+search and **is not in the set** — at 3.5% it falls below the threshold on its own, so the
+exclusion the brief asks for is automatic rather than argued. CHTR is reported separately and
+carries no verdict weight, exactly as KSPI was handled in Part 2.
+
+## 8.3 The candidates, parameters fixed now
+
+`nc = capex − D&A` from the latest observed year. **No smoothing is available** — `CompanyData`
+carries `revenue_history`, `ebit_history`, `fcf_history` and `net_income_history` but **no capex
+history** — so a lumpy capex year propagates. Stated as a limitation, not fixed here.
+
+**ARM A — decaying floor, explicit years only.**
+`reinvest_t = max(growth_t, w_t · nc · rev_t/rev_0)` with `w_t = (n−t)/(n−1)`, i.e. full charge in
+year 1 fading linearly to zero in the final year. **Terminal value deliberately UNCHANGED.**
+
+**ARM B — persistent floor, explicit years AND terminal.**
+`reinvest_t = max(growth_t, nc · rev_t/rev_0)` (no decay), and the terminal charge becomes
+`max(g/ROIC · nopat_next, nc · rev_term/rev_0)`.
+
+**How each interacts with the terminal, which is the whole question.** The decisive set carries a
+median terminal share above 80% of EV (CHTR 84.6%, SRE 82.4%, D 81.3%). **Arm A cannot fix more
+than the explicit-forecast fraction of the problem — under a fifth of EV for these names — and it
+is included precisely so that limit is measured rather than asserted.** Arm B is the only arm that
+can reach the terminal.
+
+## 8.4 What "fixed" means — thresholds committed now
+
+- **F1 — flat-revenue names are charged what they spend.** For treated names whose forecast
+  revenue is roughly flat (`|rev_last/rev_1 − 1| ≤ 5%`), modelled year-1 reinvestment must land
+  **within ±25% of observed net capital spend**.
+- **F2 — the population tail closes.** The count of names undercharged by >5% of revenue must fall
+  from **33 to at most 5**.
+- **F3 — nobody is paid to shrink.** The count of treated names with **negative** modelled
+  reinvestment must fall to **0**.
+- **F4 — the terminal is reached.** For the decisive set, terminal FCFF must fall by a median of
+  at least **5%**. Arm A is expected to score ~0 here; that is the point of running it.
+
+## 8.5 Harm bounds
+
+- **H1 — the control group is BIT-IDENTICAL.** All 96 names: fair value, WACC, score, confidence
+  and published flag unchanged to the last digit. Any movement is a defect in my change, not a
+  tolerance to widen.
+- **H2 — published/withheld flips are enumerated name by name** in the treated set, and must be
+  zero in the control.
+- **H3 — the direction must be DOWN.** This charges more, so fair values must fall. **If a
+  candidate RAISES the decisive set's median fair value, that is a red flag to investigate, not a
+  result to ship.**
+
+## 8.6 Anti-tuning, and the expectation written down first
+
+Parameters ship at the values in 8.3. **A candidate that fails at its stated value is REJECTED,
+not retuned.** No threshold moves after seeing which names it catches.
+
+**Expectation, recorded before measuring: Arm A largely fails F4 and F2 because 80%+ of these
+names' value is terminal; Arm B bites hard and its risk is the opposite one — flooring at observed
+net capex double-charges genuinely growing names whose capex IS growth capital (MSFT nc 77,414 vs
+a growth charge of 28,506), which may collapse fair values far beyond the defect. 60/40 that Arm B
+overshoots.** This project's directional calls have been wrong more often than right; the point of
+writing it down is that it keeps being wrong.
+
+---
+
+## Part 8 — RESULTS. VERDICT: **BOTH ARMS REJECTED. Nothing behavioural ships.**
+
+Pre-commitment `4f99d8f`, committed alone before any candidate ran. Measured on the 241-name
+2026-08-05 pickle — **fully offline and deterministic**, one process, one beta memo, so the only
+difference between arms is the floor mode. `REINVESTMENT_FLOOR_MODE` ships **`"off"`**.
+
+### 8.7 The scorecard
+
+| bound | Arm A (decay, explicit only) | Arm B (persistent, + terminal) |
+|---|---|---|
+| **H1** control bit-identical (116 names) | **HELD — 0 moved** | **HELD — 0 moved** |
+| **F1** flat-revenue within ±25% of net capex | HELD 8/8 | HELD 8/8 |
+| **F2** names undercharged >5% of revenue ≤ 5 | HELD — 33 → **0** | HELD — 33 → **0** |
+| **F3** negative modelled reinvestment → 0 | HELD — **0** | HELD — **0** |
+| **F4** decisive-set terminal value ≤ −5% | **VIOLATED — +0.0%** | HELD — −67.4% |
+| **H2** publish/withhold flips, 0 in control | HELD — 0 anywhere | HELD — 0 anywhere |
+| **H3** decisive-set median fair value falls | HELD — −5.1% | HELD — −10.5% |
+
+**The control bound held perfectly for both arms — 116 names, zero movement, bit-identical.** The
+gate *is* the control group, so this was true by construction and the measurement confirms the
+construction. That is the one part of this task that worked exactly as designed.
+
+### 8.8 Arm A — REJECTED, and it fails in the most dangerous way available
+
+**Arm A passes F1, F2 and F3 and still fixes almost nothing.** Its terminal change is **+0.0%,
+exactly**, because it cannot touch the terminal by construction — and the decisive-set names carry
+80%+ of their EV there (CHTR 84.6%, SRE 82.4%, D 81.3%).
+
+**Three of my four success criteria are YEAR-ONE statistics, and a terminal-blind fix passes all
+three trivially.** F1, F2 and F3 all read year 1 only. Had I not written F4, Arm A would have
+scored 3-for-3 on "fixed" while leaving four-fifths of the affected value untouched. **This is the
+brief's own warning — "an undercharge fixed in years 1–10 but not in the terminal fixes a third of
+the problem" — reproduced as a measurement.** Rejected at its stated value, not retuned.
+
+### 8.9 Arm B — REJECTED, and my pre-commitment failed to catch it
+
+**Arm B passes ALL SIX pre-registered bounds and is obviously unshippable.** Stating that plainly
+because it is the most important methodological result here: **the rejection rests on a criterion
+I did not pre-register.**
+
+| harm, none of it covered by a bound | Arm A | Arm B |
+|---|---|---|
+| DCF pushed from positive to non-positive | 4 | **14** |
+| **negative enterprise value** | 1 | **18** |
+| **negative terminal value** | 0 | **16** |
+| fair value moved UP | 4 | 9 |
+| names whose fair value changed at all | 49/241 | 78/241 |
+
+ORCL's enterprise value under Arm B is **−884,065**; XEL **−156,070**; SRE **−132,247**. A
+negative enterprise value is not a conservative valuation, it is not a valuation. **My bounds
+asked whether the number moved in the right direction and never asked whether it was still a
+number.**
+
+### 8.10 The finding that reframes the defect — and corrects my own Part 4 statistic
+
+**The 33-name "decisive set" is two different populations, and only one of them has the defect.**
+
+| | n | names |
+|---|---|---|
+| **flat revenue — must spend to stand still** | **14** | SRE, APD, GOOGL, EOG, BHP, E, PBR, AMZN, MPC, TTE, RIO, NUE, XOM, COP |
+| **capex boom — the spend IS growth capital** | **19** | ORCL, D, XEL, AWK, WEC, PCG, WMB, MSFT, NVO, META, EQIX, SO, AEP, EXC, DUK, MU, TXN, EIX, CNI |
+
+**ORCL is the clearest case: net capex is 68.8% of revenue while revenue grows 3.1× across the
+forecast.** Treating that as a permanent maintenance requirement is why its EV goes to −884,065.
+The model already prices that expansion through the revenue path; charging observed net capex on
+top **double-counts it**. Same for MSFT (1.69× revenue), META (1.64×), MU (1.91×).
+
+**So Part 4's headline — "34 names undercharged by more than 5% of revenue" — conflates two
+things, and I wrote it. The honest count of names with a genuine flat-revenue undercharge is
+about 14, not 34.** The correction matters because the larger number is what made this "the
+largest known defect in the valuation engine."
+
+**The mechanism is right exactly where the defect is real: F1 held 8 of 8** on flat-revenue names
+under both arms. Neither pre-chosen candidate separates the two populations, and **that separation
+is what a third candidate has to do** — either gate the floor on forecast revenue growth, or
+decompose capex into maintenance and growth components rather than using the net figure whole.
+**Not attempted here: choosing that gate after seeing which names it catches is precisely the
+tuning the pre-commitment forbids.** It needs its own pre-registration.
+
+**My recorded expectation was RIGHT on both counts** — Arm A fails on the terminal, Arm B
+overshoots by double-charging growing names, called at 60/40 before measuring. One correct call
+does not license reasoning instead of measuring.
+
+### 8.11 A LIVE defect found on the way, independent of either arm
+
+**Six names are published TODAY with a non-positive DCF**, because `blend._usable` returns `None`
+for any per-share value ≤ 0, silently removing the DCF lens and renormalising the rest:
+
+| name | DCF/share | published | lenses after the drop |
+|---|---|---|---|
+| INTC | −0.53 | **$34.54** | multiples 48%, growth 52% |
+| F | −31.92 | **$60.25** | multiples 100% |
+| BA | −24.97 | **$94.27** | multiples 53%, growth 47% |
+| SRE | −2.69 | **$35.27** | multiples 100% |
+| CCI | −15.01 | **$33.93** | multiples 100% |
+| IRM | −35.10 | **$79.27** | multiples 100% |
+
+All six carry `confidence: low`, but they are published. **This is why charging MORE reinvestment
+moved fair values UP: GM 56.35 → 108.25 (+92%) as its DCF went 2.74 → −3.71, XEL 25.85 → 44.73
+(+73%), EQIX +121%.** A company whose cash-flow model collapses becomes *more* attractive, because
+the collapsing lens leaves the blend.
+
+`_usable`'s reasoning — "a non-positive fair value means the lens doesn't apply to this company" —
+is right for a lens that never applied and wrong for one that applied and then failed. Pinned by
+`test_a_non_positive_dcf_is_dropped_from_the_blend` as a characterisation, **not fixed**: it
+changes six published numbers and needs its own bound.
+
+### 8.12 What ships, and what I did NOT do
+
+**Ships:** `REINVESTMENT_FLOOR_MODE` (default `"off"`, no behaviour change), `_net_capex_floor`,
+the two arms behind it, and 5 tests (engine 51 → 56; 24 suites, **872 passing, 0 failures**).
+The untouched terminal branch keeps its original
+`nopat*(1-r)` expression verbatim — rewriting it as `nopat - nopat*r` differs in the last ulp and
+would have moved every control name for no reason.
+
+- **Did not ship either arm.** Both rejected against thresholds fixed before measurement.
+- **Did not retune.** No parameter moved after seeing which names it caught.
+- **Did not invent a third arm and adopt it** — the growth/maintenance split is the right idea and
+  choosing its gate on these results is the exact error the anti-tuning rule exists to prevent.
+- **Did not fix the blend's negative-DCF drop** (six live names) — same reasoning Part 4 used for
+  this defect itself.
+- **Did not touch** `valuation/edge/**`, `valuation/web/**` or `valuation/saas/**`.
+- **Did not narrow the pipeline's 5%-shortfall warning**, which we now know fires on 19
+  capex-boom false positives out of 33 — narrowing it on this evidence is tuning.
+
+**Limits.** One 2026-08-05 snapshot, 241 names. `CompanyData` has **no capex history**, so `nc` is
+a single lumpy year — a real weakness for a maintenance estimate and unaddressed. Two exemplars in
+the brief (CHTR, CI) had already moved before I started (§8.0).
+
+## BUGS FOUND (Part 8)
+
+1. **A non-positive DCF is silently dropped from the blend and RAISES the published number.**
+   Six names live today (INTC, F, BA, SRE, CCI, IRM). Characterised and pinned, not fixed.
+2. **My own success criteria were mostly year-one statistics.** F1, F2 and F3 all read year 1, and
+   a fix that provably cannot touch the terminal passed all three. Only F4 discriminated. A
+   success criterion that a known-inadequate candidate passes is not a success criterion.
+3. **My pre-commitment never required the output to remain a valuation.** Arm B cleared all six
+   bounds while producing 18 negative enterprise values and 16 negative terminal values. The
+   rejection is correct and is *not* pre-registered — stated rather than smoothed over.
+4. **Part 4's "34 names undercharged by >5% of revenue" conflates two populations** — 14 genuine
+   flat-revenue cases and 19 capex-boom names whose spend is growth capital already priced through
+   the revenue path. Mine, and it overstated the largest known defect in the engine.
+5. **`CompanyData` carries no capex history** while carrying revenue, EBIT, FCF and net-income
+   histories, so any maintenance-capex estimate rests on one lumpy year.

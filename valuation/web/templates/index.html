@@ -364,7 +364,10 @@
         its live record versus the S&amp;P are all there.
         <a href="#" onclick="switchTab('index');return false"><b>Open the Index →</b></a></div>
       {% endif %}
-      {% if may_see_owner %}
+      {# may_act, not may_see_owner: a scan WRITES a snapshot and spends the FMP quota, so
+       # the read-only recruiter preview must not render the trigger. Rendering a button the
+       # API then refuses would read as a broken tool rather than a read-only one. #}
+      {% if may_act %}
       <div class="search-row" style="align-items:center;margin-top:10px">
         <select id="scanScope" class="selin">
           <option value="bundled">Bundled universe (~180 liquid names, fast)</option>
@@ -484,7 +487,9 @@
         technicals (RSI, MACD, 50/200 MA crosses, breakouts, volume) with options context (put/call, IV). Refreshes through
         the day; Claude explains the top 10.</div>
       <div class="search-row" style="align-items:center">
-        <button class="btn" onclick="runSignals()">↻ Refresh signals now</button>
+        {# Writes intraday rows and spends an Anthropic call per run — owner only, so the
+         # read-only preview reads the latest scan instead of being able to start one. #}
+        {% if may_act %}<button class="btn" onclick="runSignals()">↻ Refresh signals now</button>{% endif %}
         <label class="opt" style="margin:0">Direction
           <select id="sigDir" class="selin" onchange="renderSignals(STATE.signals)">
             <option value="bull" selected>Bullish</option>
@@ -536,18 +541,33 @@
   <!-- EDGE LAB (owner-only: the research bench; reads Sharadar-derived output) -->
   <div id="tab-edge" style="display:none">
     <div class="search-card">
-      <div class="section-hint" style="margin-top:0">Private research bench (owner-only). Does following the picks actually beat the S&amp;P?
+      <div class="section-hint" style="margin-top:0">The research bench{% if not may_act %} — read-only here{% endif %}. Does following the picks actually beat the S&amp;P?
         And can the rules be re-tuned <b>without overfitting</b>? Honest by design — it reports no edge when there isn't one.</div>
       <div class="search-row" style="align-items:center;flex-wrap:wrap">
+        {# The three RUNNERS recompute, write, and download price history for the whole
+         # universe — owner only. The self-learning LOG is a read of results already
+         # computed (adopted weights, ICs, the backtest summary block: derived statistics,
+         # never a vendor row) and is what the recruiter preview is here to see. #}
+        {% if may_act %}
         <select id="edgeStrategy" class="selin"><option value="momentum">Momentum strategy</option><option value="technical">Signals (technical) strategy</option></select>
         <input id="edgeLimit" type="number" value="100" style="width:88px" title="universe size">
         <button class="btn" onclick="edgeBacktest()">Backtest vs SPY</button>
         <button class="btn secondary" onclick="edgeOptimize()">Walk-forward optimize</button>
         <button class="btn ghost" onclick="edgeTrack()">Update track record</button>
+        {% endif %}
         <button class="btn ghost" onclick="edgeLearning()">🧠 Self-learning log</button>
       </div>
+      {% if may_act %}
       <div class="note">Network-heavy (downloads price history for the universe). Survivorship caveat applies to the historical backtest;
         the track record accrues survivorship-free going forward.</div>
+      {% else %}
+      <div class="note" id="edgeReadOnlyNote"><b>Read-only preview.</b> The runners that recompute a backtest are the
+        owner's — they download price history for the whole universe and rewrite the record.
+        The self-learning log below shows what they have already produced: the adopted
+        weights, their information coefficients and the fundamental backtest's summary.
+        Survivorship caveat applies to the historical backtest; the track record accrues
+        survivorship-free going forward.</div>
+      {% endif %}
     </div>
     <div class="loader" id="edgeLoader"><div class="spinner"></div><div id="edgeMsg">Working…</div></div>
     <div class="err" id="edgeErr"></div>

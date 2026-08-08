@@ -4903,3 +4903,112 @@ momentum/institutional consolidation.
    Carried over from session 9, **still not repaired**, still for the same reason: it is
    load-bearing for a shipped statistic and repairing it means re-verifying all 54 counted rows in
    the same change. Worked around again this session by wording.
+## 8. INBOUND FROM THE r1 LANE (2026-08-07) — `param_search` is on `main`, and its negative
+## result belongs in `PREREG_ml_combiner.md`
+
+**Prose only; the r1 lane wrote no code in `valuation/edge/**` beyond creating the new module
+file itself.** Full triage in `HANDOFF_branch_triage.md`. Two things need the edge lane.
+
+### 8.1 The CLI wiring needs hand-porting — and `param_search.bat` is INERT until it is
+
+`valuation/edge/param_search.py`, `PARAMETER_SEARCH.md`, `scripts/calibrate_param_search.py` and
+`param_search.bat` were recovered from the stranded `worktree-ui-polish` branch and landed as
+files. **The argparse wiring was deliberately NOT ported** — it edits
+`fundamental_panel.main()`, which pipeline builder holds for Session 10.
+
+What remains, and it is small:
+
+- six flags — `--param-search`, `--fast`, `--permutations`, `--cost-bps`, `--holdout-frac`,
+  `--refresh-panel`
+- a ~20-line dispatch block calling `PS.cached_panel(...)` then `PS.honest_search(...)`
+- five self-contained tests to append to `tests/test_edge.py`:
+  `test_param_search_reality_check_calibration`, `..._plateau_beats_argmax`,
+  `..._interiority_and_ledger`, `..._rejects_a_signal_free_panel`,
+  `..._detects_a_planted_signal`
+
+Source for all of it: `git show origin/worktree-ui-polish:valuation/edge/param_search.py` and that
+branch's `main()`. **Read this before the branch is deleted** — the refs are being pruned this
+session, so recover the wiring from `HANDOFF_branch_triage.md` §4 or from reflog if it is gone.
+
+**CAVEAT THAT MUST NOT BE LOST: `param_search.bat` now sits in the repo root and will FAIL if
+run.** It invokes `python -m valuation.edge.fundamental_panel --param-search ...`, and that flag
+does not exist on `main` until the wiring lands — so it exits on an argparse error. In a project
+where Don runs `.bat` files by double-clicking, that is a live trap. It was landed verbatim rather
+than edited because inventing content during a cherry-pick is worse; **either port the wiring or
+delete the `.bat`.** Do not leave it in this state indefinitely.
+
+The module's engine interface was verified against `main` **after** landing: `_weight_schemes`
+(6 positional), `_pbo` (3 positional), `_spearman`, and `build_fundamental_panel`'s
+`rebalance_days` / `lookback_years` / `horizon` / `inst_lag_days` kwargs all match, and
+`import valuation.edge.param_search` succeeds. It is dormant, not broken.
+
+**Second trial counter warning:** `param_search.py` carries its own persistent `TrialsLedger`,
+written before `research_log.py` existed. **Two counters that disagree is worse than one.** Wire
+it to `research_log.py` or leave it switched off.
+
+### 8.2 `PARAMETER_SEARCH.md`'s negative result is the most relevant in-house evidence for the
+### ML combiner prereg, and it lands on the prereg's selection rule specifically
+
+The recovered protocol ran **3,584 configs × 15 CPCV paths** over 88 rebalances with 22 locked
+away. It selected `ic-proportional, top20, band2.0x, hold3, all`:
+
+| | search window | locked hold-out |
+|---|---|---|
+| **selected** | **+8.43%/yr** (LCB +6.33%) | **−0.04%/yr** |
+| baseline `current-default, top25, band2.0x, hold2, all` | −0.83%/yr (LCB −2.00%) | **+5.12%/yr** |
+
+It was positive in **87% of 15 CPCV paths**, PBO **33%**, and the gain decomposed to +9.15%/yr of
+*selection* against only +0.11%/yr of saved turnover — so not a cost artefact. **It was still
+worth nothing out of sample**, and the permutation null gave **p = 0.077** (signal-free re-runs
+averaged +2.65%/yr; one of 25 draws reached +8.59%/yr).
+
+**Why this is pointed at `PREREG_ml_combiner.md` §3 rather than filed as trivia.** That section's
+load-bearing rule is already right — one frozen spec, measured exactly once on the VERDICT half,
+both directions. The gap is one line: *"the winner is the grid point with the highest mean
+out-of-sample rank IC across that half's paths."* **That is argmax of a mean, which is exactly the
+selector that produced +8.43%/yr and then −0.04%/yr.** Three cheap amendments the prereg does not
+currently contain:
+
+1. **Rank by a lower confidence bound (mean − z·SE) across paths, not the mean.** A grid point
+   that wins on average but is wild across paths should lose to a steadier one.
+2. **Interiority.** With eight enumerated grid points, a winner sitting on an end of an ordered
+   axis is unverified on one side. The recovered run's whole leaderboard piled up at `hold4`, the
+   edge of its grid — *"usually the optimiser walking downhill toward 'trade less', not a genuine
+   optimum."* Pre-commit that a boundary winner is reported as "widen the grid", not adopted.
+3. **A permutation null over the WHOLE selection procedure.** Not the composite — the *procedure*.
+   It is the only check that catches leakage the theory cannot see, and it is what took this
+   result from "clear winner" to p = 0.077.
+
+**Plateau smoothing is offered but NOT recommended here** — it needs several values per ordered
+axis and the combiner grid has eight points total. Say why not, rather than adopting it for
+symmetry.
+
+**On Hansen SPA / White Reality Check: adopt as REPORTED, not as a gate.** The recovered
+`scripts/calibrate_param_search.py` measured SPA firing on **~35% of signal-free panels**, which
+is why its own authors demoted it. Its doctrine — *"a gate whose false-positive rate you have not
+measured is not a gate"* — is X7's, written **eight days earlier** and reached independently.
+**X7's method is strictly stronger** (block-permuting the real panel, preserving missingness and
+cross-theme correlation, vs synthetic no-signal panels), so keep X7's; the value here is the five
+measured gate false-positive rates and the SPA finding, which X7 never covered because SPA is not
+on `main`.
+
+**The honest framing for the prereg, in the source's own words:** *"this is what overfitting looks
+like from the inside — 87% of paths positive, PBO 33%, a large decomposed selection edge, and it
+is still worth nothing out of sample."* That is the argument for the frozen-blind grid, made with
+this project's own data rather than by citation.
+
+**Every number above is from the pre-B6 panel** (88 searched + 22 locked rebalances). The current
+panel is 69 dates. Cite it as *evidence about procedure*, never as a performance figure.
+
+### 8.3 One decision routed, deliberately not made
+
+**Do the search's 3,584 configs enter the equity trial count?** `RESEARCH_LOG.md` has **zero**
+mentions of it. By this project's own precedents it looks countable — `research_log.py:27`
+supports a row representing a pre-registered grid via `n_trials`, and CLAUDE.md settled that
+`SUPERSEDED` rows still count, so "it ran on the pre-B6 panel" is not on its own a reason to
+exclude. The genuine counter-argument is domain: it searched *construction* parameters
+(scheme × top_n × band × min_hold × cap_tier), not the signal-inclusion decisions the equity
+composite is charged for, and `DOMAINS` (`research_log.py:50`) would let it sit elsewhere.
+**Direction, so the stakes are explicit: counting them RAISES `sr0` and LOWERS the Deflated
+Sharpe.** At `N = 116` the figure is 0.8674 with √(2·ln N) = 3.083. **Edge lane's call. Nothing
+was changed.**

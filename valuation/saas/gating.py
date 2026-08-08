@@ -99,7 +99,16 @@ def check_request(path: str, method: str, body: dict, user, store) -> tuple | No
     # Edge Lab stays private even under open access: it's the owner's research bench,
     # not a withheld product feature. Nothing a *user* would want is behind this.
     if path.startswith("/api/edge/"):
-        if not user or user.get("email", "").strip().lower() not in CONFIG.owner_email_set:
+        owner = bool(user) and user.get("email", "").strip().lower() in CONFIG.owner_email_set
+        # A demo/preview session READS the bench (PROMPT_recruiter_master_link.md,
+        # 2026-08-07): the Edge Lab is the most interesting thing a recruiter can be shown,
+        # and it publishes derived statistics Don computed, never a vendor row. The three
+        # POST runners stay shut — they recompute, they write, and they spend the budget.
+        # `surfaces.DEMO_DENIED_PATHS` already refuses them in `_guard` before this runs;
+        # the method test here is the second, independent line of that defence.
+        demo_read = (path == "/api/edge/learning" and method == "GET"
+                     and bool(user) and bool(user.get("is_demo")))
+        if not (owner or demo_read):
             return ({"error": "Owner-only research tools.", "owner_only": True}, 403)
 
     # Private mode: the only caller that gets this far is the owner (see _guard), and the

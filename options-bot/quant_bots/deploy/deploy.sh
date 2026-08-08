@@ -1,5 +1,29 @@
 #!/usr/bin/env bash
 #
+# ############################################################################
+# ##  DECOMMISSIONED 2026-08-07 — THERE IS NO BOX TO DEPLOY TO.             ##
+# ##                                                                        ##
+# ##  The Oracle host 141.148.45.115 is gone. Never ssh or scp to it. The   ##
+# ##  usage line below is kept as the record of how deploys worked; it is   ##
+# ##  not an instruction. This script is NOT modified otherwise: it is a    ##
+# ##  working artifact and `tests/test_deploy_preflight.py` asserts against ##
+# ##  its literal text (that it runs the preflight, that a preflight        ##
+# ##  failure is fatal, that it does so before any restart, and that        ##
+# ##  EXPECTED_CORE_TESTS has not gone stale). Editing it casually breaks   ##
+# ##  four tests.                                                           ##
+# ##                                                                        ##
+# ##  The reason it could never complete is FIXED, for the record: the      ##
+# ##  options suite failed with 14x "No module named 'data'" because        ##
+# ##  options/data/*.py was untracked. Restored 2026-08-07 from             ##
+# ##  handoff/quant_bots.zip; preflight now exits 0 and 353 tests pass.     ##
+# ##                                                                        ##
+# ##  NOTE, not fixed here on purpose: EXPECTED_CORE_TESTS below reads 163  ##
+# ##  while the core suite measured 172 on 2026-08-07. That is a drift of   ##
+# ##  9, inside the 12 the stale-constant test allows, so it passes — but   ##
+# ##  it is drifting again, exactly as it did at 106-vs-148. Bump it if the ##
+# ##  bots are ever revived.                                                ##
+# ############################################################################
+#
 # deploy.sh — pull the latest code from GitHub and restart the bots.
 #
 # This REPLACES the old zip-through-Cloud-Shell-then-scp flow. That flow had

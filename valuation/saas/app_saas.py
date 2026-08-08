@@ -121,6 +121,11 @@ def create_saas_app(cfg=CONFIG):
                 # shows LESS, never more — `{% if may_see_owner %}` around a block that is
                 # never given the variable simply renders nothing.
                 "may_see_owner": surfaces.may_see_owner_surfaces(u, cfg),
+                # ...and whether they may CHANGE anything. Owner yes, demo preview no. A
+                # trigger rendered to a session the API will refuse reads as a broken tool
+                # rather than a read-only one, so every button that writes tests this
+                # instead of `may_see_owner`.
+                "may_act": surfaces.may_act(u, cfg),
                 "owner_split": cfg.owner_split,
                 # Shared chrome (footer, terms) needs these on every page, not just the two
                 # routes that used to pass them by hand.
@@ -612,8 +617,15 @@ def create_saas_app(cfg=CONFIG):
         """
         if not cfg.portfolio_page_enabled:
             abort(404)
+        # The recruiter master-link, built from env at RENDER TIME so rotating
+        # DEMO_ACCESS_TOKEN both re-points this button and invalidates every copied
+        # /demo/<token> deep-link at once (PROMPT_recruiter_master_link.md, 2026-08-07).
+        # Empty token or private mode => no button at all; the template tests for it.
+        token = (cfg.demo_access_token or "").strip()
+        demo_url = f"/demo/{token}" if token and not cfg.private_mode else None
         resp = make_response(render_template("portfolio.html",
-                                             contact_email=cfg.contact_email))
+                                             contact_email=cfg.contact_email,
+                                             demo_url=demo_url))
         # Belt and braces with the <meta> tag and robots.txt. The header is the one of the
         # three that a crawler cannot miss and a scraper cannot ignore by not parsing HTML.
         resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet"
@@ -719,7 +731,12 @@ def create_saas_app(cfg=CONFIG):
         # ADMIN TOKEN BYPASSES IT, deliberately: the scan, intraday, paper-track and recap
         # crons hit these routes with a token and no session, and they are the reason the tool
         # exists. `_admin_ok` fails closed on an unset token.
-        if surfaces.enabled(cfg) and not _admin_ok():
+        #
+        # CALLED UNCONDITIONALLY (2026-08-07): `surfaces.check` reads the flag itself, and it
+        # now carries one rule that is deliberately NOT flag-gated — a demo/preview session is
+        # read-only whatever OWNER_SPLIT says. Testing `enabled(cfg)` here would have made
+        # OWNER_SPLIT=false hand the recruiter link the scan trigger.
+        if not _admin_ok():
             denial = surfaces.check(path, auth.current_user(store), cfg)
             if denial:
                 if denial["kind"] == "json":

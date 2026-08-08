@@ -18,6 +18,208 @@ file directly.
 
 ---
 
+## C6 CLOSED — Oracle box decommissioned; the "lost" sources were in a tracked zip (2026-08-07, options-bot lane)
+
+Full write-up in `HANDOFF_optionsbot.md`. Bot subproject only; **nothing under `valuation/**`
+was touched** and the main tree has **no executable dependency on the box** (checked: 0 imports
+of bot packages across 218 main-tree Python files by AST, 0 references in all 3 `.github/`
+workflow files, 0 service units, 0 state-path reads — every textual hit was prose).
+
+* **The Oracle box `141.148.45.115` is DECOMMISSIONED. Never ssh or scp to it.**
+* **C6's blocker never existed.** The record said `options/data/*.py` lived "only on the Oracle
+  box" and needed Don to `scp` it. It was inside `options-bot/handoff/quant_bots.zip` — **tracked
+  in git the whole time** — recovered byte-identical (sha256) against three other copies. No
+  reconstruction, no judgement calls.
+* **Gates:** options suite **53 collected / 14 errors → 181 passing**; core **172, OK**;
+  `deploy/preflight.py` **exit 0** with all three FIXES.md fixes verified by symbol and behaviour;
+  main tree **24/24 suites green**.
+* **C6 closes on the RECORDED branch** of its own criterion — the service is gone, so "deployed"
+  is permanently n/a, and "fixed in repo, not deployed" stops being a decaying state.
+* State through 2026-07-31 (journals, sim portfolios, equity curves, 9 correlation reports)
+  restored from `quant_data.tgz` into the **gitignored** `quant_bots/data/` tree of the primary
+  checkout; all 24 files verified ignored so none can reach a commit.
+* **Two commit hazards closed:** `quant_data.tgz` and `valuation-tool/options-bot2/` were each
+  untracked *and* unignored — one `git add -A` from committing a state archive and a duplicate
+  copy of the bot tree. Both now ignored.
+* **Do not "tidy" `options-bot/.gitignore:34` (`!handoff/*.zip`).** That negation is the only
+  reason the sources survived. It is now commented to say so.
+## 2026-08-07 — greeks lane, OUT-OF-BAND: the reinvestment undercharge. BOTH CANDIDATES REJECTED
+
+The engine charges reinvestment as `Δrevenue / sales_to_capital` — growth capital only — which
+collapses when revenue is flat, so a capex-heavy name is charged almost nothing to stand still.
+Two pre-chosen candidates were measured against thresholds committed alone at `4f99d8f`, offline
+on the 241-name 2026-08-05 snapshot. **Both REJECTED. Nothing behavioural ships**
+(`REINVESTMENT_FLOOR_MODE` defaults `"off"`).
+
+- **The control bound held perfectly for both arms — 116 names, bit-identical.** The gate
+  (`capex − D&A > 0`) *is* the control group, so this was true by construction.
+- **Arm A** (floor decaying over the explicit forecast) passes three of four success criteria and
+  fixes almost nothing: its terminal change is **+0.0%** because it cannot reach the terminal, and
+  these names carry **80%+ of EV** there. **Three of my four criteria were year-one statistics
+  that a terminal-blind fix passes trivially.**
+- **Arm B** (persistent floor, terminal included) **passes ALL SIX pre-registered bounds and is
+  still unshippable**: 18 negative enterprise values, 16 negative terminal values. **The rejection
+  rests on a criterion I failed to pre-register** — the bounds asked whether the number moved in
+  the right direction, never whether it was still a number.
+
+**The finding that matters, and it corrects my own Part 4 statistic.** The 33-name decisive set is
+**two populations**: 14 genuine flat-revenue undercharges, and 19 **capex-boom** names whose spend
+IS growth capital the revenue path already prices — ORCL's net capex is **68.8% of revenue while
+revenue grows 3.1×**, which is why flooring it drives EV to −884,065. **Part 4's "34 names
+undercharged by >5% of revenue" overstated the defect; the honest count is ~14.** The mechanism
+works exactly where the defect is real (8 of 8 flat-revenue names within ±25% of observed spend).
+Separating the two populations is what a third candidate must do — **not attempted, because
+choosing that gate on these results is the tuning the pre-commitment forbids.**
+
+**A LIVE defect found on the way, unrelated to either arm: six names are published today with a
+NON-POSITIVE DCF** — INTC (−0.53 → **$34.54**), F (−31.92 → **$60.25**), BA (−24.97 → **$94.27**),
+SRE, CCI, IRM. `blend._usable` drops a non-positive lens and renormalises the rest, so **a company
+whose cash-flow model collapses becomes more attractive**: charging MORE reinvestment moved
+EQIX **+121%**, GM **+92%**, XEL **+73%** UP. Characterised and pinned by a test, **not fixed** —
+it changes six published numbers and needs its own bound. **Recommended next task.**
+
+Tests: 24 suites, **872 passing, 0 failures** (engine 56/56). Write-up: `HANDOFF_live_data_bugs.md`
+Part 8. Ledger row `OOB3`.
+
+---
+
+## 2026-08-07 — app-fixer lane: the recruiter master-link now opens the full read-only view
+
+Full write-up: `HANDOFF_appfixes.md` Session 18. Product decision out of
+`PROMPT_recruiter_master_link.md` (Don's, recorded there verbatim); no audit item, ledger
+unchanged.
+
+- **The link did nothing before this.** Measured, not inferred: a valid `/demo/<token>`
+  session saw **exactly** what an anonymous visitor saw — every owner surface refused it,
+  because `saas/surfaces.py` put them behind *owner* and a demo session is not one. The only
+  two differences in the whole probe were a friendlier beta banner and an empty `/account`.
+- **Now a genuine three-way split: anonymous / demo / owner.** A valid demo session reads
+  Track Record, the Index, Signals, the option scorecard and the Edge Lab's learning log, and
+  **may change nothing**. `surfaces.DEMO_DENIED_PATHS` is the enforcement and is deliberately
+  **not gated on `OWNER_SPLIT`** — that flag governs what strangers may READ and must not be
+  able to hand a résumé link the scan trigger as a side effect.
+- **The anonymous surface did not move.** Byte-diffed, not eyeballed: the anonymous `/app`
+  differs from HEAD by **one whitespace line, 7 bytes, zero content**.
+- **No raw vendor rows.** Every newly-visible payload was walked and its row shape printed —
+  all derived (weights, ICs, expectancy, cumulative series, constructed positions). The three
+  `/api/edge/` runners that would compute new ones are denied.
+- **Delivery is a button on `/work`**, built from env server-side at render time. Rotating
+  `DEMO_ACCESS_TOKEN` on Render re-points the button and kills every copied `/demo/<token>`
+  link in one action; clearing it removes the button and shuts `/demo` off. **The résumé link
+  is `https://valquo.co/work`** — the token never goes on the résumé.
+- `test_public.py` **17/17 → 27/27**. The one test that pinned the old posture
+  (`test_the_index_stays_owner_only_and_says_why_on_its_own_face`'s sibling
+  `test_the_split_is_a_flag_that_actually_reverts`) was **amended with a comment citing the
+  prompt and the date**, not deleted, and what replaced it is stricter: demo may read, is
+  still not the owner, and still may not act.
+- **Don must set `DEMO_ACCESS_TOKEN` in Render for the button to appear.** It is not set from
+  this session and the token is not in the repo.
+## 2026-08-07 — greeks lane, OUT-OF-BAND: a vanished vendor field can no longer rewrite a headline
+
+**MRK went from "cannot value this name" to a published 91 "Strong Buy" because Yahoo stopped
+returning one beta field and `wacc.py` silently substituted `1.10`** (WACC 5.53% → 9.31%). The
+field is INTERMITTENT, not gone — it was back at 0.211 the same week. Shipped:
+
+- **`valuation/data/beta.py`** — beta computed from the company's own prices, 5y monthly vs SPY.
+  **A 1y-DAILY window was tried first and is WRONG**: it returns KO −0.286 and XOM −0.484.
+- **A stated ladder in `wacc.py`** — override → an ordinary vendor beta accepted untouched (no
+  extra call; this is the control group) → corroboration against the company's own prices → a
+  stated constant of **1.0** (the market portfolio's beta by construction) replacing the
+  underived `1.10`.
+- **Rejection on HISTORY, not on value.** GILD 0.336, CI 0.321, CHTR 0.678, MRK 0.211 and XOM
+  0.173 are all genuinely low-beta, so flooring the *value* would assert something false about
+  them. Only KSPI's 0.080 is an artifact, and what makes it one is 30 monthly observations on a
+  2024 ADR listing. The value decides who gets **checked**; the observation count decides who
+  gets **rejected**.
+- **`InputProvenance` stamps** on beta and the risk-free rate (source, as-of, n, vendor value,
+  substituted), serialized out through `WACCResult.to_dict` → `PipelineResult.to_dict`.
+
+**All four pre-registered bounds (committed alone at `04d9f12`) HELD** on a 46-name paced sample:
+control group 37 names **0 moved**; **MRK's vendor-absent WACC swing 0.133pp against the old
+code's 3.85pp** (which independently reproduces the reported incident); KSPI rejected at n=30<36,
+i.e. for its history; **0** published/withheld flips. Trigger insensitive at 0.10/0.15/0.25 —
+**0 betas differ**.
+
+**TWO FULL-UNIVERSE RUNS WERE INVALIDATED BY THEIR OWN RATE LIMITING** (176 and 297 throttled
+calls; run 2 had **302 of 403 names arrive with no vendor beta at all**), and in run 1 bounds 2
+and 3 "passed" **vacuously** because both arms landed on the same constant. That exposed the real
+defect: **the first ladder treated "the check failed" as "the history is thin" and pushed 178 of
+402 names onto the constant** — the original bug with a new trigger, on exactly the 500-name burst
+production scans. Corroboration is now best-effort with a failure mode of *no change*.
+
+Two further defects found and fixed: **the plausibility band was applied to the vendor's beta but
+not to our own** (PDD adopted a *computed* −0.039, clamping WACC to 4% and turning a $217.82 fair
+value into a refusal), and **`.gitignore`'s bare `data/` also matched `valuation/data/`**, so the
+new module was unaddable and would have shipped as a runtime `ModuleNotFoundError`.
+
+**Caveats that must travel:** 46 names, not the 403 served. The fix cannot help a name whose
+vendor beta is missing *and* uncomputable, so under a throttled feed the hole is **narrowed, not
+closed**. And it moves fair values systematically **UP** for names formerly priced at 1.10 —
+ARGX +83%, COP +69%, DTEGY +61% — which nobody should read as evidence it is right; **someone
+should check whether those names now clear publication thresholds they previously failed.**
+
+Tests: 24 suites, **859 passing, 0 failures** (engine 51/51). Full write-up:
+`HANDOFF_live_data_bugs.md` Part 7. Ledger row `OOB2`.
+## 2026-08-07 — r1 lane, OUT-OF-BAND: `worktree-ui-polish` triaged (read-only). Nine files, not fifty commits
+
+Full write-up: **`HANDOFF_branch_triage.md`**. Nothing was merged, cherry-picked or deleted.
+
+- **The branch is misnamed.** "UI polish" is 3 of its 50 commits; the rest is the project's early
+  Edge Lab history. It stranded because that work was **squash-landed onto `main` as `8a8c2b8`**
+  (2026-07-28 15:19) when a stray 138 MB licensed export blocked a normal push. `git cherry`
+  shows all 50 as unmerged because a squash changes patch-ids — **that is a trap, not lost work.**
+- **Exactly nine files are unique to the branch.** Four are the `param_search` module
+  (locked hold-out, White/Hansen SPA, plateau+interiority selection) — **VALUABLE**, absent from
+  `main`, and its four engine calls still match `main`'s signatures exactly. Five are a UI theme
+  layer that `main` re-implemented inline eight hours later — **OBSOLETE**.
+- **THE 13F INERT LAG GRID IS NOT LIVE ON `main` — the premise that it might be is wrong.**
+  All three parts of `5da1473` are present: `INST_LAG_GRID = (15, 45, 135, 225)`
+  (`fundamental_panel.py:2780`), the guard test (`tests/test_edge.py:404`), and the UTF-8 stdout
+  reconfigure (`:3967`). No bug to file.
+- **Do not merge it:** a dry-run gives **22 conflicted files**, incl. `add/add` on `CLAUDE.md`
+  (10.6 KB on the branch vs 97 KB on `main` — it predates the whole claims audit).
+- **Pruning must take BOTH refs.** `worktree-honest-param-search` is a strict *ancestor* of
+  `ui-polish` and holds 47 of the 50 commits, including every valuable file.
+
+**Routed to other lanes — decisions deliberately NOT made here:**
+- **→ edge lane:** the parameter search ran **3,584 configs** and appears in `RESEARCH_LOG.md`
+  nowhere (zero mentions). By this project's own precedents (grids expressible via `n_trials`;
+  `SUPERSEDED` rows still count) it looks countable; the real counter-argument is that it searched
+  *construction* params, not signal inclusion. Direction matters: counting them **lowers** the
+  Deflated Sharpe, so it is the self-penalising choice. Currently `N = 116`, DS 0.8674.
+- **→ app/security lane:** `/api/feedback` (table + route + allowlist entry) exists only on the
+  branch. It **is** rate-limited, length-capped and parameterized — I checked. The open question
+  is posture: whether an unauthenticated write endpoint belongs on the post-leak public allowlist.
+
+**DISPOSITION EXECUTED, same session (`HANDOFF_branch_triage.md` PART 2):**
+- **The four `param_search` files are on `main` as `ef4b7a3`** — clean additions, no conflicts,
+  24/24 suites green. **Dormant: nothing imports it, no shipped behaviour changed.** Interface
+  re-verified *after* landing from `origin/main`'s own tree.
+- **Routing note added at `HANDOFF_edge_audit.md` §8.** The sharp point for Session 10:
+  `PREREG_ml_combiner.md` §3 selects "the grid point with the highest mean out-of-sample rank IC"
+  — **argmax of a mean, the exact selector that scored +8.43%/yr in-window and −0.04%/yr on the
+  locked hold-out.** Three amendments proposed; plateau smoothing explicitly NOT recommended
+  (only 8 grid points).
+- **TRAP, FLAGGED NOT HIDDEN:** `param_search.bat` is now in the repo root and **will fail if
+  double-clicked** — it calls `--param-search`, which does not exist until the CLI is wired.
+  Landed verbatim rather than invented. **Wire it or delete it.**
+- **THREE REFS DELETED** after the land verified: `worktree-ui-polish` (`f591961`),
+  `worktree-honest-param-search` (`5da1473`), `worktree-p6-costs-and-robustness` (`428f4de`).
+  SHAs recorded for recovery.
+- **`worktree-p6`'s old prune rationale was WRONG.** It was flagged over a "stale
+  `BACKTEST_RESULTS.json`"; **the commit does not touch that file at all.** Every code change in
+  it (`score_universe_now`, `STALE_PRICE_MAX_DAYS`, the missing-sector guard, the numpy overflow
+  clip now at `attribution.py:46`, both tests) is already on `main`. Its only unique content is
+  **prose quoting the void pre-B6 numbers** (110 dates, +11.8%/yr, 236bps/37bps) inside a
+  user-facing description string — right verdict, wrong reason, and the real failure mode is
+  worse because stale prose in a shipped payload reads as current.
+- **THE STRANDED-BRANCH SCAN IS CLEAN.** Every remote `worktree-*` ref is merged into `main`
+  except `worktree-demo-link` (2 commits, 2026-08-07 20:46, merges cleanly) — another lane's live
+  work, not stranded, untouched.
+- **`VALQUO_LEDGER.md` deliberately not updated:** no audit item covers this housekeeping.
+
+---
+
 ## 2026-08-07 — greeks lane, OUT-OF-BAND: the public fair-value leak is closed
 
 Full write-up: `HANDOFF_live_data_bugs.md` Part 6. Ledger row `OOB1`. Landed on `main` as
