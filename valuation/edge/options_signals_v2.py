@@ -279,6 +279,189 @@ DECOMP_DRAWS = 2000
 DECOMP_SEED = 0
 
 
+# ------------------------------------------------------------------------------------------
+#  Small statistics used by the O16/O24 decomposition.
+#
+#  Hand-rolled rather than pulled from scipy: this module is imported by the live signal path
+#  and by the miner, and adding a scipy import there to serve a one-off study would be a poor
+#  trade. Every one of these is pinned by tests/test_term_slope_decomp.py against worked
+#  examples, including the tie cases that a naive rank implementation gets wrong.
+# ------------------------------------------------------------------------------------------
+
+def _ranks(vals):
+    """Average ranks, ties sharing the mean of the positions they span (1-based)."""
+    order = sorted(range(len(vals)), key=lambda i: vals[i])
+    out = [0.0] * len(vals)
+    i = 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and vals[order[j + 1]] == vals[order[i]]:
+            j += 1
+        avg = (i + j) / 2.0 + 1.0
+        for k in range(i, j + 1):
+            out[order[k]] = avg
+        i = j + 1
+    return out
+
+
+def pearson(xs, ys) -> Optional[float]:
+    """Pearson correlation. None if fewer than 3 usable pairs or either side is constant."""
+    pairs = [(a, b) for a, b in zip(xs, ys) if a is not None and b is not None]
+    if len(pairs) < 3:
+        return None
+    n = len(pairs)
+    mx = sum(a for a, _ in pairs) / n
+    my = sum(b for _, b in pairs) / n
+    sxy = sum((a - mx) * (b - my) for a, b in pairs)
+    sxx = sum((a - mx) ** 2 for a, _ in pairs)
+    syy = sum((b - my) ** 2 for _, b in pairs)
+    if sxx <= 0 or syy <= 0:
+        return None
+    return sxy / (sxx ** 0.5 * syy ** 0.5)
+
+
+def spearman(xs, ys) -> Optional[float]:
+    """Spearman rank correlation, tie-corrected via average ranks."""
+    pairs = [(a, b) for a, b in zip(xs, ys) if a is not None and b is not None]
+    if len(pairs) < 3:
+        return None
+    rx = _ranks([a for a, _ in pairs])
+    ry = _ranks([b for _, b in pairs])
+    return pearson(rx, ry)
+
+
+def ols_fit(ys, xs):
+    """Simple linear regression y = a + b*x. Returns (a, b) or None."""
+    pairs = [(a, b) for a, b in zip(xs, ys) if a is not None and b is not None]
+    if len(pairs) < 3:
+        return None
+    n = len(pairs)
+    mx = sum(a for a, _ in pairs) / n
+    my = sum(b for _, b in pairs) / n
+    sxx = sum((a - mx) ** 2 for a, _ in pairs)
+    if sxx <= 0:
+        return None
+    sxy = sum((a - mx) * (b - my) for a, b in pairs)
+    b = sxy / sxx
+    return (my - b * mx, b)
+
+
+def ols_residuals(ys, xs):
+    """Residuals of y on x, aligned with the inputs; None wherever either input is None."""
+    fit = ols_fit(ys, xs)
+    if fit is None:
+        return [None] * len(ys)
+    a, b = fit
+    return [None if (x is None or y is None) else (y - (a + b * x))
+            for x, y in zip(xs, ys)]
+
+
+def group_mean_r2(ys, groups) -> Optional[float]:
+    """R^2 of the group-mean model — the share of var(y) a categorical alone reconstructs.
+
+    This IS the R^2 of an OLS on a full set of group dummies; computing it as 1 - SSE/SST over
+    group means avoids building a design matrix for what is a one-way layout.
+    """
+    pairs = [(g, y) for g, y in zip(groups, ys) if g is not None and y is not None]
+    if len(pairs) < 3:
+        return None
+    n = len(pairs)
+    gm = sum(y for _, y in pairs) / n
+    sst = sum((y - gm) ** 2 for _, y in pairs)
+    if sst <= 0:
+        return None
+    by = {}
+    for g, y in pairs:
+        by.setdefault(g, []).append(y)
+    sse = 0.0
+    for g, vs in by.items():
+        m = sum(vs) / len(vs)
+        sse += sum((v - m) ** 2 for v in vs)
+    return 1.0 - sse / sst
+
+
+def variance_decomposition(mid, front) -> Optional[dict]:
+    """var(term_slope) = var(mid) + var(front) - 2*cov(mid, front), and each leg's share.
+
+    The shares do NOT sum to 1: the covariance term is the remainder, and it is reported
+    rather than folded into either leg, because 'which leg carries the slope' is exactly the
+    question and hiding the cross term would answer it by construction.
+    """
+    pairs = [(m, f) for m, f in zip(mid, front) if m is not None and f is not None]
+    if len(pairs) < 3:
+        return None
+    n = len(pairs)
+    mm = sum(m for m, _ in pairs) / n
+    mf = sum(f for _, f in pairs) / n
+    vm = sum((m - mm) ** 2 for m, _ in pairs) / (n - 1)
+    vf = sum((f - mf) ** 2 for _, f in pairs) / (n - 1)
+    cov = sum((m - mm) * (f - mf) for m, f in pairs) / (n - 1)
+    vts = vm + vf - 2 * cov
+    if vts <= 0:
+        return None
+    return {"n": n, "var_term_slope": vts, "var_atm_mid": vm, "var_atm_front": vf,
+            "cov": cov, "share_atm_mid": vm / vts, "share_atm_front": vf / vts,
+            "share_minus_2cov": (-2 * cov) / vts}
+
+
+def o16_verdict(rho_front: Optional[float], share_front: Optional[float],
+                share_mid: Optional[float]) -> str:
+    """The committed O16 rule. First match wins; ambiguous is a NULL, not a lean."""
+    if rho_front is None or share_front is None or share_mid is None:
+        return "UNDECIDABLE (missing inputs)"
+    if abs(rho_front) >= O16_LEVEL_RHO and share_front >= O16_LEVEL_VAR_SHARE:
+        return "IS THE LEVEL"
+    if abs(rho_front) < O16_DISTINCT_RHO or share_mid >= share_front:
+        return "IS DISTINCT"
+    return "NULL"
+
+
+def o24_verdict(r2: Optional[float], rho_days: Optional[float],
+                ci_excludes_zero: bool) -> str:
+    """The committed O24 rule. First match wins; ambiguous is a NULL, not a lean."""
+    if r2 is None or rho_days is None:
+        return "UNDECIDABLE (missing inputs)"
+    if r2 >= O24_CALENDAR_R2 and rho_days > 0 and ci_excludes_zero:
+        return "IS THE CALENDAR"
+    if r2 < O24_DISTINCT_R2:
+        return "IS DISTINCT"
+    return "NULL"
+
+
+def reproduction_gate(banked, recomputed, tol: float = None,
+                      min_frac: float = None) -> dict:
+    """The committed O16 gate: can we still reproduce the quantity we are about to decompose?
+
+    Executable rather than prose, for the same reason the verdict rules are: a gate that lives
+    only in a runner script is a gate that gets skipped. It fired for real on 2026-08-07 — the
+    banked options book was 86.4% reproducible, not 99%, because the chain store had been
+    re-mined underneath it. `passed` false means STOP; a decomposition of a quantity we cannot
+    reproduce is not evidence about anything.
+    """
+    tol = O16_REPRO_TOL if tol is None else tol
+    min_frac = O16_REPRO_MIN_FRAC if min_frac is None else min_frac
+    pairs = [(b, r) for b, r in zip(banked, recomputed) if b is not None and r is not None]
+    if not pairs:
+        return {"ok": False, "passed": False, "reason": "nothing comparable",
+                "n": 0, "matched": 0, "frac": 0.0}
+    diffs = sorted(abs(r - b) for b, r in pairs)
+    matched = sum(1 for d in diffs if d <= tol)
+    frac = matched / len(pairs)
+    return {"ok": True, "passed": bool(frac >= min_frac), "n": len(pairs),
+            "matched": matched, "frac": frac, "tol": tol, "min_frac": min_frac,
+            "max_abs_diff": diffs[-1], "median_abs_diff": diffs[len(diffs) // 2]}
+
+
+def earnings_bucket(days: Optional[int]) -> Optional[str]:
+    """Bucket label for days-to-next-earnings, or None if outside the eligible window."""
+    if days is None or days < 0 or days > O24_MAX_DAYS:
+        return None
+    for lo, hi in O24_BUCKETS:
+        if lo <= days <= hi:
+            return f"{lo}-{hi}d"
+    return None
+
+
 def _iv_at_delta(enr, target_delta: float, right: str) -> Optional[float]:
     """IV of the contract closest to a target delta on one expiry. None if nothing qualifies."""
     cand = [r for _, r in enr.iterrows()
@@ -330,6 +513,17 @@ def compute_signals(chain, underlying: float, as_of, iv_history=None,
         if len(near):
             near["_d"] = (near["strike"].astype(float) - underlying).abs()
             atm_mid = float(near.sort_values("_d")["iv"].iloc[0])
+
+    # AUDIT O16 — ship the two LEGS, not just their difference. `term_slope` is
+    # `atm_mid - atm_front`, and every book ever banked kept only the difference, so the
+    # question "is the slope just the front leg moving?" could not be asked of the stored data
+    # at all — it needed a full re-derivation from the chains. Emitting both costs nothing (they
+    # are already computed above) and makes the decomposition a lookup next time. Additive only:
+    # no existing key changes, so no banked result moves.
+    if atm_front is not None:
+        out["atm_front"] = atm_front
+    if atm_mid is not None:
+        out["atm_mid"] = atm_mid
 
     if atm_front is not None and atm_mid is not None:
         out["term_slope"] = atm_mid - atm_front
