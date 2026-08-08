@@ -1,11 +1,152 @@
-# HANDOFF — greeks / GEX derived layer (2026-08-04)
+# HANDOFF — greeks / GEX derived layer (2026-08-04, GROWN 2026-08-08)
 
 **One line:** every fully-mined name has a cached derived layer in `data/options_derived/` —
-**315 names, 164,429,685 of 349,038,639 contract-days priced (47.1%)** across
-**735,226 name-dates**, with implied vol, the full greek stack through third order, GEX by
-strike, zero-gamma, gamma walls, 25-delta skew, ATM-IV term structure, IV rank and put/call
-ratios. Zero vendor option calls, zero writes to the miner's cache. **Nothing has been tested for
-signal — that is the gated #23, and it was deliberately not started.**
+**502 names, 254,049,740 of 547,615,761 contract-days priced (46.4%)** across
+**1,131,698 name-dates / 4,579 name-years**, with implied vol, the full greek stack through third
+order, GEX by strike, zero-gamma, gamma walls, 25-delta skew, ATM-IV term structure, IV rank and
+put/call ratios. Zero vendor option calls, zero writes to the miner's cache. **Nothing has been
+tested for signal — that is the gated #23, and it was deliberately not started.**
+
+---
+
+## 2026-08-08 — THE LAYER GREW 315 → 502 NAMES. READ THIS BEFORE COMPARING ANY AUTOPSY NUMBER.
+
+Breadth mining finished (502 of 1,000 names `complete`), so the enricher was re-run over the whole
+cache. It had last been built when ~100–300 names existed.
+
+| | before (2026-08-04) | **after (2026-08-08)** | change |
+|---|---|---|---|
+| names enriched | 315 | **502** | **+187 (+59.4%)** |
+| contract-days in | 349,038,639 | **547,615,761** | +198,577,122 (+56.9%) |
+| contract-days priced | 164,429,685 | **254,049,740** | +89,620,055 (+54.5%) |
+| IV-solve rate | 47.11% | **46.39%** | −0.72pp |
+| name-dates | 735,226 | **1,131,698** | +396,472 |
+| OI `-1` sentinel share | 12.21% | **11.21%** | −1.00pp |
+| names carrying ≥1 flag | 304 / 315 (96.5%) | **481 / 502 (95.8%)** | — |
+| on disk | 17.8 GB / 3,577 files | **27.5 GB / 5,556 files** | +9.7 GB |
+
+**THE WARNING THIS SECTION EXISTS FOR: any autopsy PBO, feature p-value or Deflated Sharpe
+computed after 2026-08-08 is NOT comparable to any figure banked before it, and the difference is
+NOT a finding.** `options_autopsy.py` reads the derived layer directly — `<SYM>-daily.pkl` at
+`options_autopsy.py:150` and `<SYM>-<YEAR>.pkl` at `:181` — and those feed `build_features` →
+the 64-feature gate → `pbo_cscv` and `deflated_sharpe`. This has already bitten once, and the
+precedent is recorded in `derived_stamp`'s own docstring (`options_autopsy.py:542-545`): when the
+layer went **111 → 317 names mid-audit, the SAME trades under the SAME code reported PBO 48.57%
+against the 35.7% recorded eight days earlier, and nothing warned.** The jump just made is of
+comparable size. Expect the gate's coverage to rise and the PBO to move; neither is evidence
+about the strategy.
+
+**"The autopsies stamp their fingerprint now, so growing the layer is safe" is HALF RIGHT, and
+the conclusion does not follow.** The stamp is real and it works — `derived_stamp()` at
+`options_autopsy.py:538`, shipped as the `derived_data` key at `:964`, a SHA-1 over sorted
+(relative path, byte size) pairs, deliberately size-based rather than mtime-based so an
+identical-bytes rewrite compares equal. But all four of these are true at the same time:
+
+- **It gates nothing.** Self-described at `options_autopsy.py:553-555`: "DESCRIPTIVE ONLY. This
+  block gates nothing and can fail no run." That is a deliberate and correct choice (RUN_RULES
+  A5), but it means the stamp cannot stop a bad comparison — only let a reader notice one.
+- **`derived_comparable(a, b)` (`:621`) has no production caller.** It is referenced at its own
+  definition and in `tests/test_edge.py` only. No script diffs two result files with it.
+- **`UNIVERSE_RESULTS.json` is not stamped at all.** `options_universe.py` contains zero
+  references to `derived_stamp` or `options_derived`, yet it ships its own `deflated_sharpe`.
+  Only the autopsy block inside `AUTOPSY_BROAD_RESULTS.json` carries the field.
+- **No stamped baseline exists yet.** Per `HANDOFF_edge_audit.md`, not one banked autopsy figure
+  in this project carries a stamp; the first stamped run becomes the baseline. **That run has
+  still not happened, so this paragraph is currently the only record of the discontinuity.**
+
+**Recommended: run one autopsy now purely to bank a stamped baseline**, before any research uses
+the layer. It costs one run and it is the only thing that makes the next comparison meaningful.
+
+### What the 413 eligible names actually were — it is NOT 413 new names
+
+Skip-existing is **signature-based, not name-based**: `already_enriched()` compares each source
+year-file's `(size, mtime)` (`options_greeks.py:681`). So the work split three ways:
+
+- **187 never derived** — the genuine breadth growth.
+- **226 re-derived because their source year-files were REWRITTEN IN PLACE**, not extended.
+  1,100 year-files, all rewritten 2026-08-04 → 08-06 (913 grew, 7 shrank, 180 kept an identical
+  size with a new mtime). **Zero new years were added to any of these 226 names.** Re-deriving
+  them is correct, not waste: GEX consumes `open_interest` directly and that is exactly what the
+  OI re-mine changed. The 180 same-size rewrites are probably content-identical and therefore
+  genuinely redundant, but proving that costs an unpickle of each and it is 16% of the files.
+- **89 unchanged** and skipped.
+
+### Run notes
+
+- **All 502 `complete` names are enriched. None missing.** `ALLY` failed its Sharadar bars fetch
+  with a `ReadTimeout` on the first pass and would have been skipped; it recovered on the
+  relaunch (361,003 rows priced). Worth knowing that a transient network error on the bars
+  prefetch silently costs a whole name — it is reported, but only as one line among 502.
+- Ran from the worktree against the main checkout's `data/` via `--data-root`. **The miner's
+  cache was verified untouched afterwards** (zero files under `data/options/` modified since
+  launch), so the read-only rule held.
+- Real Treasury series in use (`2,896 daily observations`), **not** the coarse fallback, so the
+  2022 rate problem described under finding 3 does not apply to this build. `rate_sources` is a
+  single value across all 502 names.
+- Started at 2 workers because another lane was running a 100-draw placebo sweep and the box was
+  pegged at 100%; widened to 5 after that finished. **The restart cost nothing** — 413 eligible
+  became 260 with 153 banked, exactly the completed count. Killing the tree needs `taskkill /T`
+  (a fourth worker was alive that a `Win32_Process` snapshot had missed) and left **zero stray
+  `.tmp` files**, which is a live confirmation that `_atomic_pickle` survives a hard kill.
+
+### Flag census at 502 names — these supersede the per-kind counts in the 2026-08-04 section
+
+Nothing new appeared and nothing was silenced; every kind below is one of the five findings
+already written up further down, now measured on a layer 59% larger.
+
+| flag kind | 2026-08-04 (of 315) | **2026-08-08 (of 502)** |
+|---|---|---|
+| `open interest missing (-1 sentinel)` | 297 | **446** (median 10.8% of a name's rows) |
+| `gamma walls ... may be an OI artifact` | 170 | **240** |
+| `GEX pegged to one strike` | 96 | **160** |
+| `zero-gamma not found` | 26 | **88** |
+| `rows with expiration before quote date` | 14 | **21** (62 rows in 548 million) |
+| `rows had no underlying close` | 1 (`FTI`) | **7** (`AA`, `DOW`, `FIG`, `FTI`, `HUT`, `SN`, `SNDK`) |
+| `no open interest at all on N% of dates` | 2 (`AAPL`, `AXON`) | **3** (`AXON`, `KNX`, `NIO`) |
+
+Two of these move in a way worth naming.
+
+**`AAPL` dropped off the no-OI list, and the repair is real but PARTIAL.** The 2020 OI gap
+described under finding 1 is gone — 2020 now carries 1,529 missing-OI rows of 309,586 (**0.5%**),
+with 2019 and 2021 at exactly **0.0%**. That is the first direct evidence in this file that the OI
+re-mine fixed a specific, previously-documented case. **But it did not reach the early years:**
+AAPL 2016/2017/2018 still sit at **22.8% / 33.6% / 28.0%** missing OI, and that is where the whole
+of AAPL's remaining 9% comes from. Do not read "AAPL's OI gap is fixed" as "AAPL's OI is clean" —
+the fix covers 2019 onward. Whether the early years are unrepairable at source (like the `-1`
+sentinel) or simply were not re-mined is **not established here** and belongs to the miner lane.
+
+**`zero-gamma not found` more than tripled** (26 → 88), faster than the 59% name growth; the
+newly-added names are thinner on average, and a one-sided or sparse book is exactly the condition
+that finding produces. Neither threshold was touched.
+
+### The reuse-contaminated names show up here too, from an independent mechanism
+
+The six names confirmed by strike-step in `TICKER_REUSE_AUDIT.json` to hold **two different
+companies each** all price far below the 46.4% cache average, and four carry a flag caused
+directly by the identity break:
+
+| name | IV-solve rate | flag attributable to the break |
+|---|---|---|
+| `COR` | **24.2%** | — |
+| `SN` | **26.6%** | rows had no underlying close |
+| `FIG` | **26.7%** | rows had no underlying close |
+| `SNDK` | **29.7%** | rows had no underlying close |
+| `AXON` | **34.4%** | no open interest at all on some dates |
+| `SNOW` | 45.2% | — |
+| `DD` (screened, judged continuous) | 42.3% | — |
+| `DOW` (screened, judged continuous) | 38.2% | — |
+| `META` (collapsed 2021, no hole) | 46.8% | — |
+
+**Mechanism:** the bars series is fetched for the ticker's CURRENT occupant, so the PREVIOUS
+company's option rows find no spot and cannot be priced. `SNDK` is the cleanest illustration —
+two year-files spanning 2016–2025, SanDisk having been acquired in 2016 and re-listed in 2025.
+**This is corroboration, not proof:** `AA`, `DOW`, `FTI` and `HUT` carry the same flag from
+ordinary spinoff/merger histories where the bar series simply starts late. **Do not use these
+nine names in any options research until the miner lane ships per-symbol validity windows.**
+
+---
+
+## The 2026-08-04 build (the record below describes the 315-name snapshot)
 
 **The layer is a MOVING TARGET, not a finished artifact.** The miner is still running and still
 completing names; this build is a snapshot as of 2026-08-04. Re-running the enricher with no

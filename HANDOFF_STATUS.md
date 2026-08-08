@@ -17,6 +17,41 @@ file directly.
 
 ---
 
+## GREEKS — THE DERIVED LAYER GREW 315 → 502 NAMES (2026-08-08, greeks lane)
+
+Full write-up in `HANDOFF_greeks.md`. Pure local compute: zero vendor option calls, and
+`data/options/` verified untouched afterwards. Both suites green (252/252 edge, 22/22 greeks).
+
+**502 names, 254,049,740 of 547,615,761 contract-days priced (46.4%), 1,131,698 name-dates,
+27.5 GB.** Was 315 names / 349.0M in / 164.4M priced (47.1%) / 17.8 GB. Every one of the 502
+names the miner marks `complete` now has a derived layer; none is missing.
+
+**THE ONE THING OTHER LANES MUST KNOW: any autopsy PBO, feature p-value or Deflated Sharpe
+computed after today is NOT comparable to any figure banked before today, and the difference is
+NOT a finding.** `options_autopsy.py` reads this layer directly (`:150`, `:181`) and it feeds the
+64-feature gate → `pbo_cscv` and `deflated_sharpe`. Precedent, from `derived_stamp`'s own
+docstring: the layer going **111 → 317 names moved PBO 35.7% → 48.57% under identical trades and
+identical code, and nothing warned.** Today's jump is comparable in size.
+
+**"The autopsies stamp their fingerprint now, so growing the layer is safe" is half right.** The
+stamp exists and works (`options_autopsy.py:538`, shipped as `derived_data` at `:964`), but it
+**gates nothing** by design, `derived_comparable()` has **no production caller**,
+`UNIVERSE_RESULTS.json` is **not stamped at all** while still shipping a Deflated Sharpe, and
+**no stamped baseline has ever been written**. So the stamp makes the discontinuity *detectable
+by a reader who checks the field*; it does not make it safe. **Recommended, cheap, and blocking
+for anyone about to use this layer: run one autopsy purely to bank a stamped baseline.**
+
+Two other findings worth carrying:
+- **Only 187 of the 413 re-derived names were new.** 226 were re-done because their source
+  year-files were **rewritten in place** by the OI re-mine (1,100 files, zero new years added).
+  Skip-existing is signature-based, so this is correct — GEX consumes `open_interest` directly.
+- **The six ticker-reuse names corroborate independently.** `COR`, `SN`, `FIG`, `SNDK`, `AXON`
+  all price far below the 46.4% average (24–34%) and four carry a flag caused by the identity
+  break, because the bars series belongs to the ticker's *current* occupant. **Do not use those
+  six, plus `META`, `DD`, `DOW`, in options research until per-symbol validity windows ship.**
+
+---
+
 ## CI — THE AUTO-LAND ACTION WAS SILENTLY DROPPING BRANCHES (2026-08-07, r1 lane)
 
 Full write-up in `HANDOFF_ci.md`. Infrastructure lane; nothing under `valuation/**` touched.
