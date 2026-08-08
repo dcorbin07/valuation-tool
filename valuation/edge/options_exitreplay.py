@@ -70,6 +70,7 @@ class FrozenChains:
     """
 
     def __init__(self, df):
+        import numpy as np
         import pandas as pd
 
         d = df.copy()
@@ -79,10 +80,26 @@ class FrozenChains:
         d["_date"] = pd.to_datetime(d["date"]).dt.strftime("%Y-%m-%d")
         d["_k"] = (d["_sym"] + "|" + d["_exp"] + "|"
                    + d["strike"].astype(float).round(3).map(lambda x: "%.3f" % x) + "|" + d["_r"])
-        d = d.sort_values(["_k", "_date"], kind="mergesort")
-        self._g = {k: v for k, v in d.groupby("_k", sort=False)}
+        d = d.sort_values(["_k", "_date"], kind="mergesort").reset_index(drop=True)
+
+        # ROW BOUNDS, NOT SUB-FRAMES. `{k: v for k, v in d.groupby(...)}` materialises one
+        # DataFrame OBJECT per contract, and a whole-freeze index is 2.09M contracts: measured
+        # at ~12 GB against 6.6 GB free, i.e. it thrashes rather than fails. The frame is already
+        # sorted by key, so a contract is a contiguous [start, stop) slice and the index costs a
+        # pair of ints per contract. Slices are cut lazily on read.
+        self._d = d
+        ks = d["_k"].to_numpy()
+        self._bounds = {}
+        if len(ks):
+            starts = np.flatnonzero(np.r_[True, ks[1:] != ks[:-1]])
+            stops = np.r_[starts[1:], len(ks)]
+            self._bounds = {ks[s]: (int(s), int(e)) for s, e in zip(starts, stops)}
         self.n_rows = len(d)
-        self.n_contracts = len(self._g)
+        self.n_contracts = len(self._bounds)
+
+    def _slice(self, key):
+        b = self._bounds.get(key)
+        return None if b is None else self._d.iloc[b[0]:b[1]]
 
     @staticmethod
     def key(ticker, expiry, strike, right) -> str:
@@ -93,7 +110,7 @@ class FrozenChains:
         """The signature `options_exitlab.capture_path` calls. Dates are inclusive."""
         import pandas as pd
 
-        sub = self._g.get(self.key(ticker, expiry, strike, right))
+        sub = self._slice(self.key(ticker, expiry, strike, right))
         if sub is None or not len(sub):
             return None
         lo, hi = str(start)[:10], str(end)[:10]
@@ -106,7 +123,7 @@ class FrozenChains:
 
     def quote_on(self, ticker, expiry, strike, right, day) -> Optional[dict]:
         """The alert-day entry quote, from the frozen alert-day chain slice."""
-        sub = self._g.get(self.key(ticker, expiry, strike, right))
+        sub = self._slice(self.key(ticker, expiry, strike, right))
         if sub is None:
             return None
         hit = sub[sub["_date"] == str(day)[:10]]
@@ -139,7 +156,7 @@ def build_paths(rows, chains: FrozenChains, bars_by_ticker: dict) -> tuple:
         strike = float(r.get("strike"))
         right = _right_letter(r.get("opt_right"))
         day = str(r.get("alert_ts"))[:10]
-        if chains.key(tk, exp, strike, right) not in chains._g:
+        if chains.key(tk, exp, strike, right) not in chains._bounds:
             diag["no_contract"] += 1
             continue
         er = chains.quote_on(tk, exp, strike, right, day)
@@ -518,19 +535,26 @@ def greek_attribution(scored_by_policy: dict, paths_by_key: dict, bars_by_ticker
 
     Implied vol is solved at exit dates ONLY, not on every day of every path -- an interval
     attribution needs the endpoints and nothing else, and that is what makes this arm affordable.
+
+    UNITS COME FROM `options_greeks`, NOT FROM CONVENTION. That module returns `vega` per 1.00
+    of vol (NOT per vol point) and `theta` per YEAR (NOT per day), and `implied_vol` returns an
+    (iv, reason) PAIR and is vectorised. Getting any of those wrong silently rescales a whole
+    term; the first draft of this function did two of them and crashed on the third, which is
+    the only reason the other two were caught.
     """
+    import numpy as np
+
     from .options_greeks import greeks, implied_vol
 
     base = {(r["ticker"], str(r["alert_ts"])[:10]): r
             for r in (scored_by_policy.get(EL.BASELINE) or [])}
-    acc = {"delta": 0.0, "gamma": 0.0, "vega": 0.0, "theta": 0.0, "residual": 0.0}
-    absacc = dict(acc)
-    n, skipped = 0, 0
+    V1, V2, S1, S2, K, T1, T2, PUT = [], [], [], [], [], [], [], []
+    skipped = 0
     for name, rows in scored_by_policy.items():
         if name == EL.BASELINE:
             continue
         for r in rows:
-            if n >= max_pairs:
+            if len(V1) >= max_pairs:
                 break
             k = (r["ticker"], str(r["alert_ts"])[:10])
             b, p = base.get(k), paths_by_key.get(k)
@@ -547,39 +571,53 @@ def greek_attribution(scored_by_policy: dict, paths_by_key: dict, bars_by_ticker
             if not (v1 and v2 and s1 and s2):
                 skipped += 1
                 continue
-            exp = p["expiry"]
-            t1 = max(1e-6, _yearfrac(d1, exp))
-            t2 = max(1e-6, _yearfrac(d2, exp))
-            is_put = not str(p["right"]).upper().startswith("C")
-            sig1 = implied_vol(v1, s1, p["strike"], t1, rate, is_put)
-            sig2 = implied_vol(v2, s2, p["strike"], t2, rate, is_put)
-            if not sig1 or not sig2 or sig1 <= 0 or sig2 <= 0:
-                skipped += 1
-                continue
-            g = greeks(s1, p["strike"], t1, rate, sig1, is_put)
-            ds, dsig, dt_ = s2 - s1, sig2 - sig1, -(t2 - t1) * 365.0
-            dv = v2 - v1
-            c_delta = (g.get("delta") or 0) * ds
-            c_gamma = 0.5 * (g.get("gamma") or 0) * ds * ds
-            c_vega = (g.get("vega") or 0) * dsig * 100.0
-            c_theta = (g.get("theta") or 0) * dt_
-            resid = dv - (c_delta + c_gamma + c_vega + c_theta)
-            for kk, vv in (("delta", c_delta), ("gamma", c_gamma), ("vega", c_vega),
-                           ("theta", c_theta), ("residual", resid)):
-                acc[kk] += vv
-                absacc[kk] += abs(vv)
-            n += 1
+            V1.append(v1)
+            V2.append(v2)
+            S1.append(s1)
+            S2.append(s2)
+            K.append(p["strike"])
+            T1.append(max(1e-6, _yearfrac(d1, p["expiry"])))
+            T2.append(max(1e-6, _yearfrac(d2, p["expiry"])))
+            PUT.append(not str(p["right"]).upper().startswith("C"))
+    if not V1:
+        return {"n_pairs": 0, "n_skipped": skipped}
+
+    V1, V2 = np.array(V1), np.array(V2)
+    S1, S2, K = np.array(S1), np.array(S2), np.array(K)
+    T1, T2, PUT = np.array(T1), np.array(T2), np.array(PUT)
+
+    sig1, _ = implied_vol(V1, S1, K, T1, rate, PUT)
+    sig2, _ = implied_vol(V2, S2, K, T2, rate, PUT)
+    g = greeks(S1, K, T1, rate, sig1, PUT)
+
+    ds, dsig = S2 - S1, sig2 - sig1
+    elapsed = T1 - T2                                  # calendar years between the two exits
+    c = {"delta": g["delta"] * ds,
+         "gamma": 0.5 * g["gamma"] * ds * ds,
+         "vega": g["vega"] * dsig,                     # vega is per 1.00 of vol
+         "theta": g["theta"] * elapsed}                # theta is per YEAR
+    c["residual"] = (V2 - V1) - sum(c.values())
+
+    ok = np.isfinite(sig1) & np.isfinite(sig2) & np.isfinite(c["residual"])
+    n = int(ok.sum())
+    skipped += int((~ok).sum())
+    if not n:
+        return {"n_pairs": 0, "n_skipped": skipped}
+    absacc = {k: float(np.abs(v[ok]).sum()) for k, v in c.items()}
     tot = sum(absacc.values()) or 1.0
     return {"n_pairs": n, "n_skipped": skipped, "rate_assumed": rate,
-            "mean_contribution": {k: v / n for k, v in acc.items()} if n else {},
+            "mean_contribution": {k: float(v[ok].sum()) / n for k, v in c.items()},
             "share_of_absolute_movement": {k: v / tot for k, v in absacc.items()},
-            "note": "Greeks at the interval start; vega per 1 vol point; theta per day. "
-                    "Shares are of TOTAL ABSOLUTE movement, so they sum to 1 by construction "
-                    "and a large share means the term moves the mark, not that it helps."}
+            "mean_abs_mark_change": float(np.abs(V2 - V1)[ok].mean()),
+            "note": "Greeks at the interval start, from options_greeks: vega per 1.00 of vol, "
+                    "theta per year, elapsed = T1 - T2 in years. Shares are of TOTAL ABSOLUTE "
+                    "movement, so they sum to 1 by construction -- a large share means the term "
+                    "MOVES the mark, not that it helps."}
 
 
 def _mark_on(chains: FrozenChains, path, day) -> Optional[float]:
-    sub = chains._g.get(chains.key(path["ticker"], path["expiry"], path["strike"], path["right"]))
+    sub = chains._slice(chains.key(path["ticker"], path["expiry"], path["strike"],
+                                   path["right"]))
     if sub is None:
         return None
     hit = sub[sub["_date"] == str(day)[:10]]

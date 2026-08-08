@@ -256,6 +256,36 @@ class TheFastClusteredDiffAgreesWithTheShippedOne(unittest.TestCase):
                                                   "missing")["ok"])
 
 
+class TheGreekAttributionUsesTheModulesOwnUnits(unittest.TestCase):
+    """options_greeks returns vega per 1.00 of vol and theta per YEAR, and implied_vol returns
+    an (iv, reason) PAIR. Assuming the textbook conventions instead silently rescales a term."""
+
+    def test_implied_vol_returns_a_pair_and_greeks_are_vectorised(self):
+        import numpy as np
+        from valuation.edge.options_greeks import bs_price, greeks, implied_vol
+        px = bs_price(100.0, 100.0, 0.25, 0.03, 0.40, False)
+        got = implied_vol(px, 100.0, 100.0, 0.25, 0.03, False)
+        self.assertIsInstance(got, tuple)
+        self.assertAlmostEqual(float(got[0]), 0.40, places=4)
+        g = greeks(np.array([100.0, 110.0]), 100.0, 0.25, 0.03, 0.40, False)
+        self.assertEqual(np.asarray(g["delta"]).shape, (2,))
+
+    def test_vega_is_per_one_full_vol_not_per_point(self):
+        from valuation.edge.options_greeks import bs_price, greeks
+        g = greeks(100.0, 100.0, 0.25, 0.03, 0.40, False)
+        bumped = bs_price(100.0, 100.0, 0.25, 0.03, 0.41, False)
+        base = bs_price(100.0, 100.0, 0.25, 0.03, 0.40, False)
+        # A 1-point bump moves price by vega/100 if vega is per 1.00 of vol.
+        self.assertAlmostEqual(float(bumped - base), float(g["vega"]) / 100.0, places=3)
+
+    def test_theta_is_per_year_not_per_day(self):
+        from valuation.edge.options_greeks import bs_price, greeks
+        g = greeks(100.0, 100.0, 0.25, 0.03, 0.40, False)
+        one_day = bs_price(100.0, 100.0, 0.25 - 1 / 365.0, 0.03, 0.40, False)
+        base = bs_price(100.0, 100.0, 0.25, 0.03, 0.40, False)
+        self.assertAlmostEqual(float(one_day - base), float(g["theta"]) / 365.0, places=3)
+
+
 class TheBarsStampRecordsTheGapItCannotClose(unittest.TestCase):
     """The options freeze does NOT cover the underlying bars cache and O23 depends on it."""
 
