@@ -136,6 +136,39 @@ the project's memory and the old versions had been repeated for months.
     new data.** Equity `N` 116 → **121** (5 arms, paid as pre-committed): **Deflated Sharpe
     0.8628, √(2·ln 121) = 3.097.** Reproduce with
     `python -m scripts.selection_rule_crosscountry`; `data/free_analysis/SELRULE_CROSSCOUNTRY.json`.
+- **THE ML TREE COMBINER IS REJECTED, AND ITS DECILES RUN BACKWARDS OUT OF SAMPLE (2026-08-08,
+  session 11, roadmap #16). The register was executed unmodified.** `PREREG_ml_combiner.md` was
+  committed blind at `ec6c01d` a session before it ran: seven deployed theme z-scores,
+  rank-of-`fwd_ret` target, 63d, the corrected 69-date panel, a FROZEN 8-point
+  `HistGradientBoostingRegressor` grid, all selection confined to a decide half via CPCV, one
+  measurement per direction, both directions.
+  * **WORSE ON ALPHA IN BOTH DIRECTIONS, so REJECTED by the registered rule.** decide-early →
+    measure-late: tree **+1.88%** vs linear **+11.58%**, **Δ −9.70pp**, ΔHAC t −2.118.
+    decide-late → measure-early: tree **−2.66%** vs linear **+2.82%**, **Δ −5.48pp**,
+    ΔHAC t −2.877. All three ADOPT criteria fail in both directions.
+  * **THE FINDING IS STRONGER THAN THE VERDICT: the tree's monotonicity is +0.382 and +0.842**
+    — remember **negative is well-ordered** — so its top decile underperforms its bottom decile
+    out of sample. **The run contains its own control:** the linear arm scored on the IDENTICAL
+    rows through the IDENTICAL `quantile_backtest` call is well-ordered (−0.903, −0.855), and the
+    equal-weight benchmark matches between arms to four decimals. **It is the model, not the
+    harness.**
+  * **IT IS NOT A FITTING FAILURE. All 16 grid × direction cells had a POSITIVE decide-half CPCV
+    out-of-sample rank IC (+0.011 to +0.024).** The model generalises across 15 purged CPCV paths
+    *inside* the decide half and then **reverses across the boundary**. It learns half-specific
+    structure strong enough to invert a ranking rather than merely dilute it.
+  * **THE TWO DIRECTIONS SELECTED OPPOSITE ENDS OF THE GRID, monotonically.** decide-early ranks
+    capacity best-to-worst (most complex wins); decide-late ranks it worst-to-best (least complex
+    wins). **Whether model capacity helps is a property of which half you look at, not of the
+    problem.** Same shape as session 7's LOO.
+  * **QUOTE IT WITH THE PARAM-SEARCH PRECEDENT: +8.43%/yr in-search → −0.04%/yr locked hold-out.**
+    The combiner is that phenomenon with a sharper edge. **Selection on this panel does not merely
+    fail to generalise; it can generalise backwards.**
+  * **WHAT IT DOES NOT SAY:** it does not vindicate the flat 1/7 linear form, it does not close
+    roadmap #16 (a raw-signal or different-model-class variant is a NEW pre-registration, and it
+    inherits this reversal as its prior), and it changes nothing in the live product.
+  * **Trial cost paid as registered: equity `N` 121 → 129, Deflated Sharpe 0.8628 → 0.8556,
+    √(2·ln 129) = 3.118.** Every equity claim after this is charged N = 129.
+    `data/free_analysis/ML_COMBINER.json`; reproduce with `python -m scripts.ml_combiner`.
 - **THE COMPOSITE'S COMPLEXITY IS NOT DEMONSTRATED, AND THEME IC DOES NOT PREDICT WHICH THEME
   MATTERS (2026-08-06, session 6, X3 RE-RUN). The 2026-08-03 "EARNS ITS COMPLEXITY" verdict is
   VOID — it ran on the pre-B6 110-date panel and against a 1.0pp bar that sits BELOW X7's

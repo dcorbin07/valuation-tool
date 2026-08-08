@@ -4,8 +4,8 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-07 (external edge audit, **session 10** — the HAC floor is measured at
-2.28 and the headline clears it; the ML combiner is pre-registered blind)
+**Session date:** 2026-08-08 (external edge audit, **session 11** — the ML tree combiner is
+REJECTED and its deciles run backwards out of sample)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
@@ -252,6 +252,65 @@ Full write-up: `HANDOFF_live_data_bugs.md` Part 6. Ledger row `OOB1`. Landed on 
   this class), plus a migration test and `test_not_dcf_valuable_is_not_a_refusal`.
 
 ---
+
+## EDGE AUDIT SESSION 11 (2026-08-08) — the ML combiner is REJECTED, and its deciles run BACKWARDS
+
+Full write-up: `HANDOFF_edge_audit.md` § SESSION 11. Artifacts: `PREREG_session11_execution_protocol.md`,
+`scripts/ml_combiner.py`, `data/free_analysis/ML_COMBINER.json`. **The live product is unchanged.**
+
+**The register was executed unmodified.** `PREREG_ml_combiner.md` was committed blind at `ec6c01d`
+a session before it ran. Seven deployed theme z-scores, rank-of-`fwd_ret` target, 63d, the
+corrected 69-date panel, a frozen 8-point `HistGradientBoostingRegressor` grid, all selection
+confined to a decide half via CPCV, **one measurement per direction**, both directions. No
+deviations; three register ambiguities resolved in the *less* favourable direction and recorded
+before first touch.
+
+### VERDICT: REJECTED — worse on alpha in both directions
+
+| | decide-early → late | decide-late → early |
+|---|---|---|
+| selected grid point | `d3/lr0.10/it300` (**most complex**) | `d2/lr0.03/it100` (**least complex**) |
+| **tree** alpha | **+1.88%** | **−2.66%** |
+| **linear** alpha | **+11.58%** | **+2.82%** |
+| **Δ alpha** (need ≥ +1.95pp) | **−9.70pp** ✗ | **−5.48pp** ✗ |
+| **Δ LS HAC *t*** (need ≥ +0.25) | **−2.118** ✗ | **−2.877** ✗ |
+| **tree monotonicity** | **+0.382** | **+0.842** |
+| **linear monotonicity** | −0.903 | −0.855 |
+
+**THE FINDING IS STRONGER THAN THE VERDICT. Negative monotonicity is well-ordered, so the tree's
+top decile UNDERPERFORMS its bottom decile out of sample, in both directions.** The run carries its
+own control: the linear arm on the **identical rows through the identical function** is
+well-ordered, and the equal-weight benchmark matches between arms to four decimals. **It is the
+model, not the harness.**
+
+**It is not a fitting failure either. All 16 grid × direction cells had a POSITIVE decide-half CPCV
+out-of-sample rank IC (+0.011 to +0.024)** across 15 purged paths — the model generalises *inside*
+the decide half and **reverses across the boundary**. Corroborating that: **the two directions
+selected opposite ends of the grid, monotonically** — capacity helps in one half and hurts in the
+other, so "does model complexity help" is a property of which half you look at, not of the problem.
+Same shape as session 7's LOO.
+
+**Quote it beside the param-search precedent (+8.43%/yr in-search → −0.04%/yr locked hold-out):
+selection on this panel does not merely fail to generalise; it can generalise backwards.**
+
+**What it does NOT say:** it does not vindicate the flat 1/7 linear form, it does not close roadmap
+#16 (a raw-signal or different-model-class variant is a NEW pre-registration and inherits this
+reversal as its prior), and it changes nothing live.
+
+**Trial cost paid as registered: equity `N` 121 → 129, Deflated Sharpe 0.8628 → 0.8556,
+√(2·ln 129) = 3.118.** Every equity claim after this is charged N = 129.
+
+**Tests: 260/260 edge, 24/24 suites green by exit code.**
+
+### Recommended next: task #12, the forward paper-track vs SPY
+
+Three sessions running, the binding constraint has been *how little independent evidence this panel
+contains* — session 8 (n = 1), session 9 (n_eff 2–4 across 16 countries), session 11 (structure
+that reverses between halves of the same panel). **Every remaining in-panel question is competing
+for the same exhausted evidence.** The paper track is the only test that manufactures new
+observations by waiting. It needs a start date, a pre-committed horizon and a comparison rule from
+Don **before** the first print — not an agent. The session-9 clustering discipline applies to it:
+monthly excess returns against SPY are one series, not many.
 
 ## EDGE AUDIT SESSION 10 (2026-08-07) — the HAC floor is measured; the headline clears it by half the margin the record implied
 
