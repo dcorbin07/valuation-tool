@@ -209,6 +209,101 @@ Full run: see the run log in this session — no suite regressed.
    user with no database row (`store.watchlist(0)` → empty, no error). Harmless before
    because nothing else was unlocked; now explicitly denied.
 
+## 8b. THE LAND GATE FAILED (run #133) — DIAGNOSIS BEFORE THE FIX
+
+**It is neither (a) nor (b). It is a third thing: a test I wrote in this session is
+environment-dependent, and CI is the environment that exposes it.** Recorded here before the
+fix, as required.
+
+**The failing assertion, reproduced verbatim:**
+
+```
+FAIL  test_the_demo_session_reads_every_owner_surface:
+      the preview was refused /api/portfolio (400)
+26/27 public-posture tests passed
+```
+
+**Why it passes here and fails there.** `/api/portfolio` reads the scan snapshot and returns
+**400 "No scan snapshot. Run a scan first."** when there isn't one. `data/` is gitignored, so
+a fresh CI checkout has no `data/screener.db`; this worktree's `data/` is a junction to the
+real populated one. My test asserted a literal **200** on every owner surface, so it was
+really asserting *"a scan snapshot exists"* — which is not a fact about the public/demo/owner
+split at all.
+
+Reproduced deliberately rather than inferred: `tmp/ci_repro.py` points
+`store._DEFAULT_DB` at an empty temp database and runs the module in-process, leaving the
+real `data/` untouched. One failure, the same one, same route, same code.
+
+**Ruling out (b) explicitly, because a green-after-fix suite is worth nothing if the
+regression theory was never tested:**
+
+* Not an owner surface reachable without a token. `test_every_owner_only_api_refuses_a_visitor_outright`
+  passed under the empty store, as did `test_the_dashboard_shows_a_visitor_no_owner_surface_at_all`
+  and `test_the_public_landing_carries_no_forward_track`. The anonymous column is untouched
+  and was separately byte-diffed (§2).
+* Not a demo session able to mutate. `test_the_demo_session_may_not_change_anything` and
+  `test_the_demo_preview_is_read_only_under_every_flag_combination` both passed under the
+  empty store, with the split ON and OFF.
+* A 400 is not a refusal by the split anyway — the split's refusal is **403 + `owner_only`**,
+  which is what every deny path asserts. `/api/portfolio` returned 400 for the *owner* too on
+  that store. The preview was not being held back; there was nothing to build a portfolio from.
+
+**Ruling out (a):** the deliberate amendment the prompt called for was already made in this
+session and is not what broke. `test_the_split_is_a_flag_that_actually_reverts` carries the
+comment citing `PROMPT_recruiter_master_link.md` and 2026-08-07, and it **passed** in the CI
+repro, as did the other nine new tests. The suite's problem was one over-specified assertion
+in a test of mine, not a posture pin that still described the old world.
+
+**The fix, and why it is STRICTER than what it replaces.** The property actually under test is
+*"the preview sees what the owner sees"*. So the test now asks the **owner** and the **demo**
+for each surface on the same store and requires the two answers to agree, plus asserts the
+demo is never refused with `403 owner_only`. On a populated store that is the old assertion
+(owner 200 → demo must be 200) and on an empty one it still has teeth (owner 400 → demo must
+be 400, not 403). It is environment-independent because it no longer encodes an assumption
+about the data; it would now also catch a demo session getting a *different* answer from the
+owner, which the 200-literal version could not. **Nothing was skipped, deleted or loosened**
+(RUN_RULES §A5).
+
+**THE FIX WAS NOT TAKEN ON TRUST — it was mutation-tested, and that found two more things.**
+Green after a fix proves nothing on its own; this is the third time this session a check has
+passed for a reason other than the one claimed. Three mutations were injected into the
+POLICY and the tests were required to fail on each (`tmp/mutation*.py`, run under the empty
+CI store):
+
+| mutation | result |
+|---|---|
+| **M3** one surface answers differently for the preview only (`/api/track` → 503 for demo) | **caught** — and this is precisely the failure the old 200-literal assertion was blind to, so the rewrite bought real coverage rather than just portability |
+| **M2** `may_act` forced true and the denied list emptied | **caught** by the dashboard test ("renders the trigger 'Run scan now'") and by the differential test |
+| **M1** the demo concept removed from the policy (`is_demo → False`, i.e. this session's change reverted) | **caught three ways** — `reads_every_owner_surface` ("the split refused the preview at `/api/edge/learning`"), `dashboard_shows_the_owner_tabs` ("the preview lost `id="tab-index"`") and the amended `split_is_a_flag_that_actually_reverts`. The first attempt was a **bad mutation of mine**, not a blind test — see below |
+
+**Two genuine defects in my own tests, found by mutating rather than by reading:**
+
+1. **`test_the_demo_session_may_not_change_anything` went VACUOUS when
+   `DEMO_DENIED_PATHS` was emptied** — it loops over the very set it is checking, so an empty
+   set is an empty loop and a green test while the preview could reach every trigger.
+   `test_the_demo_preview_is_read_only_under_every_flag_combination` has the same shape.
+   **Verified that something else catches it** rather than assuming:
+   `test_every_route_that_writes_is_on_the_demo_denied_list` fails loudly, listing
+   `/account/alerts`, `/api/backtest/run` and the rest as unclassified. Belt and braces added
+   anyway — the read-only test now **names four critical routes explicitly** (`/api/scan/run`,
+   `/api/signals/run`, `/api/edge/optimize`, `/account/alerts`) so the set cannot be gutted
+   silently.
+2. **My first M1 mutation patched the wrong function.** I patched
+   `surfaces.may_see_owner_surfaces` and the test still passed, which looks like a blind test
+   and is not: **`surfaces.check` never calls that helper** — it tests
+   `is_owner(user, cfg) or is_demo(user)` directly. The helper drives the TEMPLATE, the
+   `check` clause drives API ACCESS, and they are two separate reads of the same decision.
+   That is worth knowing independently of the test: anyone "reverting" this change by editing
+   `may_see_owner_surfaces` alone would remove the tabs from the page and leave every
+   owner-only API open to the preview. Re-run as a true revert (`is_demo → False`) below.
+
+**The general lesson, since this is the third one this session:** BUGS FOUND #3 was a
+verification harness that produced a confident wrong answer from an encoding mismatch; this
+is a test that produced a confident right answer from a data dependency it never declared.
+Both are the same failure — *the check passed for a reason other than the one claimed*. The
+new `tmp/ci_repro.py` makes "does this suite depend on my local data?" a one-line question,
+and every suite is now run through it below.
+
 ## 9. TWO THINGS THIS RUN TURNED UP THAT ARE NOT PART OF THE TASK
 
 1. **Session 17's known-failure now PASSES, and I removed the marker.**

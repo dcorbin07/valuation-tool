@@ -373,19 +373,52 @@ def test_the_name_view_withholds_the_book_and_says_which():
 def test_the_demo_session_reads_every_owner_surface():
     """The point of the change, asserted through the real route on the real app.
 
-    Every owner-only READ returns 200 for a valid preview — not a 200 with the interesting
-    half stripped, which is what the split used to give it (it saw exactly what an anonymous
-    visitor saw, verified before the change).
+    THE PROPERTY IS "the preview sees what the OWNER sees", so it is asserted DIFFERENTIALLY:
+    each surface is fetched as the owner and as the preview, on the same store, and the two
+    answers must agree. Plus the preview must never be turned away by the split itself, which
+    is a 403 carrying `owner_only`.
+
+    IT USED TO ASSERT A LITERAL 200 AND THAT WAS WRONG — CI caught it (run #133, and the
+    diagnosis is in HANDOFF_appfixes.md §8b before the fix). `/api/portfolio` returns 400
+    "No scan snapshot" when there is no snapshot; `data/` is gitignored, so a fresh CI
+    checkout has none and a dev worktree does. The old assertion was therefore really
+    asserting "a scan snapshot exists", which is not a fact about the split.
+
+    The differential form is STRICTER, not looser: on a populated store it still requires
+    owner 200 -> demo 200, on an empty one it requires owner 400 -> demo 400 rather than
+    accepting any non-403, and it newly catches a preview that gets a DIFFERENT answer from
+    the owner — which the 200-literal version could not see at all.
     """
+    paths = [p for p in sorted(surfaces.OWNER_ONLY_PATHS | {"/api/edge/learning"})
+             if p not in surfaces.DEMO_DENIED_PATHS]
+
+    def fetch_all(client):
+        out = {}
+        for p in paths:
+            methods = next(r.methods for r in APP.url_map.iter_rules() if str(r) == p)
+            r = client.open(p, method="GET" if "GET" in methods else "POST", json={})
+            out[p] = (r.status_code, b"owner_only" in r.data)
+        return out
+
+    orig = _as_owner()
+    try:
+        with APP.test_client() as c:
+            as_owner = fetch_all(c)
+    finally:
+        _restore(orig)
     with APP.test_client() as c:
         _open_demo(c)
-        for p in sorted(surfaces.OWNER_ONLY_PATHS | {"/api/edge/learning"}):
-            if p in surfaces.DEMO_DENIED_PATHS:
-                continue
-            methods = next(r.methods for r in APP.url_map.iter_rules() if str(r) == p)
-            r = c.open(p, method="GET" if "GET" in methods else "POST", json={})
-            assert r.status_code == 200, f"the preview was refused {p} ({r.status_code})"
-            assert b"owner_only" not in r.data, f"{p} refused the preview"
+        as_demo = fetch_all(c)
+
+    for p in paths:
+        o_status, o_owner_only = as_owner[p]
+        d_status, d_owner_only = as_demo[p]
+        assert not d_owner_only, f"the split refused the preview at {p}"
+        assert d_status != 403, f"the preview was refused {p} (403)"
+        assert d_status == o_status, (
+            f"{p}: the owner got {o_status} and the preview got {d_status} — the preview is "
+            f"supposed to see what the owner sees")
+        assert not o_owner_only, f"{p} refused the OWNER — fix that first"
 
 
 def test_the_demo_session_may_not_change_anything():
@@ -395,6 +428,16 @@ def test_the_demo_session_may_not_change_anything():
     that the form check happened to fire first — those are different guarantees and only one
     of them is the one being claimed.
     """
+    # NON-VACUITY PIN, added after a mutation check (2026-08-07). This test LOOPS OVER the
+    # very set it is checking, so emptying `DEMO_DENIED_PATHS` made it pass with an empty
+    # loop — measured, not theorised: the mutation run reported it "blind" while the preview
+    # could reach every trigger. Naming the routes here means the set cannot be gutted
+    # without a test saying so, and it is the four that actually spend money or corrupt state.
+    for critical in ("/api/scan/run", "/api/signals/run", "/api/edge/optimize",
+                     "/account/alerts"):
+        assert critical in surfaces.DEMO_DENIED_PATHS, \
+            f"{critical} fell off the demo denied list — the preview can now reach it"
+
     with APP.test_client() as c:
         _open_demo(c)
         with c.session_transaction() as s:
