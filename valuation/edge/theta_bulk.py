@@ -959,7 +959,13 @@ class ThetaBulk:
             want = _REPLAY_PIN.get("%s-%d" % (symbol.upper(), int(year)))
             if want is not None:
                 from .options_freeze import ChainDrift, file_sha256
-                got = file_sha256(path)
+                # use_cache=False deliberately: the `.sha256` sidecar is keyed by
+                # (size, mtime_ns), and a same-size rewrite inside the filesystem's timestamp
+                # granularity collides with its own entry, serving a stale hash. A cached
+                # false negative here is exactly the silent failure the pin exists to stop.
+                # Each symbol-year is hashed once and then memoised below, so this is one
+                # pass per replay rather than one hash per read.
+                got = file_sha256(path, use_cache=False)
                 if got != want:
                     raise ChainDrift(
                         "%s %d has changed since this result was banked (stamp %s..., store "

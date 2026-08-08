@@ -18,6 +18,51 @@ REJECTED and its deciles run backwards out of sample)
 
 ---
 
+## 2026-08-08 — OPTIONS LANE: the chain store is frozen, and O16 finally has a verdict
+
+**Instrument repair, promoted from O16's own finding.** `data/options` is a LIVE 26.98 GB store
+that the miner rewrites in place, so **every banked options verdict was pinned to inputs that no
+longer existed** — the authoritative book measured 86.435% reproducible against it.
+
+- **Design chosen on a measurement the brief demanded first.** A frozen copy of the R2 book's
+  consumed chain rows costs **157.88 MB / 27.44 MB gzipped (banked artifact: 23.30 MB)** against
+  a **26.98 GB** store — **0.585%**. So copying is ADOPTED, not rejected: a book is *sparse* in
+  the store, reading one day in ~250 per symbol-year. Fingerprinting adopted alongside it.
+- **DRIFT IS PROGRESSIVE AND TRACKS AGE, NOT THE BOOK.** All ten banked books reconciled:
+  everything banked 2026-08-03 is ~56% untouched, everything banked 2026-08-05 ~80%. Nothing is
+  lost (0 absent symbol-years) and the store has been quiet since 2026-08-06 04:29.
+- **Frozen:** R2 corrected + its five random-entry controls, under
+  `data/options_freeze/*_2026-08-08/`. **Retired with annotation:** pre-correction, `state_mid`,
+  entry lab, exit lab.
+- **The gate is wired** at `theta_bulk._year_frame` (the single read choke point) and in all
+  three banked-run runners. Descriptive at bank time, blocking only for replays.
+- **BUG FOUND AND REPAIRED IN MY OWN GATE:** the `.sha256` sidecar cache is keyed by
+  `(size, mtime_ns)`, so a same-size rewrite inside the timestamp granularity served a **stale
+  hash** — a false negative in the very check built to catch drift. Blocking paths now bypass the
+  cache; measured cost of doing so is 18.2s for all 1,429 symbol-years.
+
+**O16 — VERDICT: IS DISTINCT** (register `ad66468`, unamended), on the refrozen book: 3,885/3,885
+rows, 186 names, 118 months, 0 drift. Spearman(term_slope, atm_front) **−0.53966**, CI95
+[−0.5740, −0.5022], below the committed 0.60 bar. **QUOTE IT WITH THIS OR NOT AT ALL: Pearson is
+−0.82793, which clears the 0.80 level bar, so the same data under Pearson returns the OPPOSITE
+verdict.** The register named Spearman in advance, which is the only reason the verdict is what
+it is. The predictive arm corroborates: the residual of term_slope on front IV predicts *better*
+(+0.0703) than term_slope itself (+0.0567) while front IV alone predicts nothing.
+
+**O24 — NULL re-confirmed** on the refrozen feature: R² 0.21443 → 0.21555, CI [0.1840, 0.2498]
+still wholly below the 0.25 bar; every bucket mean moves ≤0.0014. The refrozen book differs
+materially **row by row** (13.6%) and **barely at all in aggregate**.
+
+**Downstream:** the live Signals surface is unchanged. **U2 is unblocked on the question it was
+queued behind**, with two conditions: it must not rest on a linear-only treatment (the verdict
+flips under Pearson), and the clearance is for the live/refrozen feature, not the banked book.
+
+**Trials:** options N 164 → **169** (O16 re-charged, because last cycle's exploratory read meant
+the re-run was not blind). **Equity N unchanged at 129** — no equity claim moves.
+
+---
+
+
 ## LEDGER REFRESHED — 72/134 DONE, AND `--write` WAS DESTROYING EIGHT ROWS (2026-08-08, r1 lane)
 
 Full write-up in `HANDOFF_ledger.md`. Counts and the disagreement table are published in

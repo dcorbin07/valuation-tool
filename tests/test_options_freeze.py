@@ -72,17 +72,48 @@ class TheFingerprintNoticesWhatItMustNotice(FreezeTestBase):
         with open(self.p + ".sha256", encoding="utf-8") as f:
             self.assertIn("|", f.read())
 
-    def test_the_sidecar_is_invalidated_when_the_file_changes(self):
-        """The failure this guards against is the whole point: a cached hash that survives a
-        rewrite would report a drifted store as clean."""
+    def test_the_sidecar_is_invalidated_when_the_file_size_changes(self):
+        """The cache key is (size, mtime_ns), so a size change always invalidates it.
+
+        NOTE THE NARROWED CLAIM. This test used to assert that ANY rewrite invalidates the
+        sidecar, using a same-shape frame — and it was passing only because the mtime happened
+        to tick between the two writes. Under load it failed, which is how the false-negative
+        mode below was found. The general claim was simply untrue; this is the part that holds.
+        """
         before = FZ.file_sha256(self.p)
-        self._write(self.p, _frame(bids=(9.0, 9.0, 9.0)))
-        after = FZ.file_sha256(self.p)
-        self.assertNotEqual(before, after)
+        self._write(self.p, _frame(bids=(9.0, 9.0, 9.0, 9.0)))       # 4 rows, not 3
+        self.assertNotEqual(FZ.file_sha256(self.p), before)
 
     def test_the_uncached_path_agrees_with_the_cached_one(self):
         self.assertEqual(FZ.file_sha256(self.p, use_cache=False),
                          FZ.file_sha256(self.p, use_cache=True))
+
+    def test_a_same_size_rewrite_that_keeps_its_mtime_defeats_the_cache(self):
+        """THE CACHE HAS A REAL FALSE-NEGATIVE MODE, and it is pinned here rather than hidden.
+
+        The sidecar key is (size, mtime_ns). A rewrite of identical size landing inside the
+        filesystem's timestamp granularity collides with its own entry and the STALE hash is
+        served. Reproduced deterministically with os.utime. This is why every blocking path
+        (the replay pin, verify_stamp) passes use_cache=False.
+        """
+        st = os.stat(self.p)
+        cached_before = FZ.file_sha256(self.p, use_cache=True)
+        self._write(self.p, _frame(bids=(4.0, 5.0, 6.0)))          # same shape => same size
+        os.utime(self.p, ns=(st.st_atime_ns, st.st_mtime_ns))      # and same mtime
+        self.assertEqual(os.stat(self.p).st_size, st.st_size)      # precondition of the trap
+
+        self.assertEqual(FZ.file_sha256(self.p, use_cache=True), cached_before)   # WRONG
+        self.assertNotEqual(FZ.file_sha256(self.p, use_cache=False), cached_before)  # right
+
+    def test_the_replay_pin_catches_a_rewrite_the_cache_would_miss(self):
+        """The consequence of the above, at the level that matters: the gate must still fire."""
+        st = os.stat(self.p)
+        stamp = FZ.stamp_years([("AAPL", 2020)], root=self.root)
+        self._write(self.p, _frame(bids=(4.0, 5.0, 6.0)))
+        os.utime(self.p, ns=(st.st_atime_ns, st.st_mtime_ns))
+        with FZ.replay_pin(stamp, root=self.root):
+            with self.assertRaises(FZ.ChainDrift):
+                TB.ThetaBulk(api_key="", root=self.root).chain_on("AAPL", dt.date(2020, 1, 2))
 
 
 class TheContentDigestSeparatesARepickleFromADataChange(FreezeTestBase):
@@ -237,7 +268,11 @@ class TheReplayPinBlocksOnlyWhatItShould(FreezeTestBase):
     def test_the_drifted_year_is_not_left_in_the_memory_cache(self):
         """Validating after the unpickle would leave the wrong rows memoised for the process."""
         st = FZ.stamp_years([("AAPL", 2020)], root=self.root)
-        self._write(self.p, _frame(bids=(3.0, 3.0, 3.0)))
+        # A DIFFERENT ROW COUNT, so the file size changes too. The earlier version of this test
+        # used a same-shape frame and passed only by luck: with the cache consulted on the
+        # blocking path it depended on the mtime ticking between writes. That flake was a real
+        # bug and is now pinned directly by the two cache-collision tests above.
+        self._write(self.p, _frame(bids=(3.0, 3.0, 3.0, 3.0, 3.0)))
         b = self._bulk()
         with FZ.replay_pin(st, root=self.root):
             with self.assertRaises(FZ.ChainDrift):

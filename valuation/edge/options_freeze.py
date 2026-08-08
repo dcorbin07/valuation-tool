@@ -32,6 +32,14 @@ was there to check — "freezing chains for 3,885 trades must be huge, the store
 wrong by more than two orders of magnitude, because a book is SPARSE in the store: it reads one
 day out of ~250 per symbol-year, not the year.
 
+THE ARTIFACT ACTUALLY BANKED IS SMALLER STILL: `data/options_freeze/R2_CORRECTED_2026-08-08/`
+is **23,296,080 bytes (23.30 MB) over 2,870,811 rows**, i.e. **0.086% of the store**. It is
+smaller than the 27.44 MB probe despite carrying 732 MORE rows and an extra `symbol` column,
+and the difference is worth knowing rather than glossing: the probe kept the concatenation's
+non-contiguous index (a 2.87M-entry int64 array), `freeze_book` calls `reset_index(drop=True)`
+and drops it. The extra rows come from that same `symbol` column — rows identical across two
+symbols no longer collapse into one another under `drop_duplicates`, which is correct.
+
 **So (a) is NOT rejected. It is adopted, and (b) is adopted alongside it**, because the
 measurement also showed why neither is sufficient alone:
 
@@ -120,11 +128,21 @@ def _sidecar(path: str) -> str:
 
 
 def file_sha256(path: str, use_cache: bool = True) -> Optional[str]:
-    """sha256 of a file's bytes, memoised in a `.sha256` sidecar keyed by (size, mtime_ns).
+    """sha256 of a file's bytes, optionally memoised in a `.sha256` sidecar.
 
-    The cache key is the pair the OS updates on any write, so a rewritten file invalidates its
-    own sidecar. Without the sidecar, stamping a book costs a full re-read of every symbol-year
-    it touched; with it, only files that actually moved are rehashed.
+    THE CACHE IS TRUSTED FOR BULK STAMPING AND NEVER FOR THE BLOCKING CHECK, and that split is
+    a correctness requirement rather than a tuning choice. The sidecar key is (size, mtime_ns),
+    which is what the OS updates on a write — but a rewrite that produces a file of the SAME
+    SIZE within the filesystem's timestamp granularity collides with its own cache entry, and
+    the stale hash is served. A cached-hash false NEGATIVE is precisely the silent failure this
+    module exists to prevent, and it is not hypothetical: it was caught by
+    `test_a_same_size_rewrite_that_keeps_its_mtime_is_still_detected`, which reproduces it
+    deterministically with `os.utime`.
+
+    So: `use_cache=True` where a miss only costs time (stamping 1,429 symbol-years at bank
+    time), `use_cache=False` on every path whose answer decides whether data is trustworthy —
+    the replay pin and `verify_stamp`. Under a pin each symbol-year is hashed once and then
+    memoised by `theta_bulk._year_frame`, so the honest cost is one pass, not one per read.
     """
     try:
         st = os.stat(path)
@@ -251,7 +269,7 @@ def verify_stamp(stamp: dict, root: str = None, deep: bool = True) -> dict:
         if not was and not here:
             res["ok"].append(k)
             continue
-        if file_sha256(p) == rec.get("sha256"):
+        if file_sha256(p, use_cache=False) == rec.get("sha256"):
             res["ok"].append(k)
             continue
         if not deep:
