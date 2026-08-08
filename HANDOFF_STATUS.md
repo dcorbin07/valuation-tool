@@ -4,8 +4,8 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-07 (external edge audit, **session 9** — the cross-country design is
-also unanswerable; 16 co-moving countries measure as n_eff 2–4)
+**Session date:** 2026-08-07 (external edge audit, **session 10** — the HAC floor is measured at
+2.28 and the headline clears it; the ML combiner is pre-registered blind)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
@@ -50,6 +50,79 @@ Full write-up: `HANDOFF_live_data_bugs.md` Part 6. Ledger row `OOB1`. Landed on 
   this class), plus a migration test and `test_not_dcf_valuable_is_not_a_refusal`.
 
 ---
+
+## EDGE AUDIT SESSION 10 (2026-08-07) — the HAC floor is measured; the headline clears it by half the margin the record implied
+
+Full write-up: `HANDOFF_edge_audit.md` § SESSION 10. Artifacts: `PREREG_session10_hac_floor.md`,
+`PREREG_ml_combiner.md`, `data/free_analysis/PLACEBO_HAC.json` (all 100 draws retained).
+Nothing shipped in the product changed.
+
+### Item 1 — X7's long-short floor, re-derived on the statistic the project actually quotes
+
+X7 calibrated the floor at **2.14** on the **naive** *t*. R9 then made the **HAC** *t* the number
+quoted (Ljung–Box rejects independence at p 0.036), and the two had been compared to each other
+ever since — `CLAUDE.md` carried it as a known open defect. **Closed.**
+
+**The cause was a writer bug, not a scoring bug.** `quantile_backtest` has computed
+`long_short_tstat_nw` on every placebo draw since R9; the recorder never stored it. The floor
+could have been read off X7's own sweep except **X7's raw draws were never saved**, so all 100 had
+to be run again. Same panel, same seeds 1000–1099, same instrument, costs measured, procedure
+pre-committed before launch.
+
+| statistic | calibrated floor (p95) | shipped | verdict |
+|---|---|---|---|
+| long-short *t*, naive (the sweep's own control) | **2.1437** → X7's 2.14 | 2.83606 | clears, emp. p 0.02 |
+| **long-short *t*, HAC** | **2.2837** | **2.61991** | **CLEARS, emp. p 0.03** |
+| **top-decile alpha *t*, HAC** (new, no floor existed) | **2.2913** | **4.37623** | **CLEARS, emp. p 0.00** |
+
+**THE HEADLINE CLEARS — BY LESS THAN THE RECORD IMPLIED, AND BOTH MOVES GO AGAINST THE STRATEGY.**
+The HAC floor is *higher* than the naive floor (2.28 vs 2.14) while the real HAC *t* is *lower*
+than the real naive *t* (2.620 vs 2.836), so **the margin over the floor falls 0.692 → 0.336,
+roughly half. Quote 2.620 against 2.28, never against 2.14.**
+
+**The old mismatch was mild, not wild:** pure noise clears 2.14 on the HAC statistic **6%** of the
+time against the 5% intended. **The by-product is the stronger number:** the top-decile alpha HAC
+*t* — the statistic on the front of the product — now has a floor and sits **above all 100 noise
+draws**. R9 is corroborated in passing: Ljung–Box on noise draws rejects at 7%, near nominal, so
+the real series' autocorrelation is a property of that series and not something the pipeline
+manufactures.
+
+**Reported, not buried:** the control reproduces X7's p95 (2.14) and max (3.44) to the digit, but
+the `ls_t ≥ 2.0` rate comes back **7% against the recorded 8%** — one draw, with nothing near the
+2.0 boundary, so not rounding. **It cannot be reconciled: X7's raw draws do not exist.** It moves
+no floor (every bar is a p95). **Trial cost zero** — a calibration searches nothing; equity `N`
+stays **121**.
+
+### Item 2 — the ML tree combiner is PRE-REGISTERED, and deliberately NOT run
+
+`PREREG_ml_combiner.md`, committed blind at `ec6c01d` before any model was fit. Seven deployed
+theme z-scores as features (**not** the 56 raw signals, **not** `low_risk`/`sentiment` — those
+would be theme-membership changes smuggled in as features); cross-sectional **rank** of `fwd_ret`
+as target; CPCV reused unchanged; **all eight grid points selected inside a decide half, the
+single winner measured once on the held-out half, both directions** — the direct answer to X7's
+finding that CPCV adoption manufactures ~+1.4 of long-short *t* when selection and measurement
+share a panel.
+
+**The grid is priced before registering, which is the item's entire risk:** 8 points → `N` 129,
+DSR 0.8556; 128 → `N` 249, DSR 0.7716; **230 → `N` 351, DSR 0.7213, BELOW X7's calibrated floor of
+0.7216.** A grid that size would not test the model, it would destroy the incumbent's evidence as
+a side effect. Hence eight, costing 0.0072 of DSR. Ambiguous is NULL; no re-runs; expectation
+recorded first as **NULL 70/30**.
+
+### Recorded and NOT pursued
+
+Session 9's hypothesis that the Sharadar panel's 69 dates explain the cross-half instability
+implies a thicker panel / monthly rebalancing. **The rebalance grid is upstream of every published
+statistic**, so it would need a full pre-registered re-run against re-derived bars, not a patch —
+X2 already showed long-short *t* ranges 2.703–3.517 across seven equally valid grids. Queued as an
+open design question; nobody should act on it from the hypothesis alone.
+
+**Tests: 259/259 edge, 24/24 suites green by exit code.**
+
+**Recommended next: execute `PREREG_ml_combiner.md` exactly as written** — it is committed, blind
+and priced, and needs only a training loop. Alternative, and still the only test on data nobody
+has looked at: **task #12, the forward paper-track vs SPY**, which needs a start date and a
+pre-committed comparison rule from Don rather than an agent.
 
 ## EDGE AUDIT SESSION 9 (2026-08-07) — 16 countries are worth 2–4 draws, and the design dies
 

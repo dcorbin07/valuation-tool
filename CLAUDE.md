@@ -239,7 +239,8 @@ the project's memory and the old versions had been repeated for months.
   | bar | as used | CALIBRATED (placebo p95) | how often pure noise clears the OLD bar |
   |---|---|---|---|
   | theme IC t | 2.0 | **2.71** (noise max 3.93) | **39%** |
-  | long-short t | 2.0 | **2.14** (noise max 3.44) | 8% |
+  | long-short t (naive) | 2.0 | **2.14** (noise max 3.44) | 8% |
+  | **long-short t (HAC — the one to quote)** | 2.0 | **2.28** (noise max 3.78) | 8% |
   | top-decile alpha margin | 1.0pp | **1.95pp** | 18% |
   | PBO | <50% | **<19.7%** (placebo p5; noise MEDIAN is 46.7%) | **55%** |
   | Deflated Sharpe | >0.95 | **STANDS** (noise median 0.28) | 2% |
@@ -389,8 +390,38 @@ the project's memory and the old versions had been repeated for months.
   diagnostic only. The 63d windows genuinely do not overlap — that dimension was fine — but
   factor spreads are autocorrelated and nothing anywhere measured it. Note the long-ONLY object
   is far better measured (t 4.38) than the long-short the project has always led with.
-  Comparing 2.620 to X7's calibrated floor of 2.14 is **apples-to-oranges**: that floor was
-  measured on the NAIVE t across 100 placebo draws. Re-deriving it on the HAC statistic is open.
+  ~~Comparing 2.620 to X7's calibrated floor of 2.14 is apples-to-oranges~~ — **CLOSED
+  2026-08-07 (session 10). The floor is now measured on the HAC statistic: 2.28, and the
+  headline clears it.** See the next bullet; quote **2.620 vs 2.28**, never 2.620 vs 2.14.
+- **THE LONG-SHORT FLOOR IS NOW CALIBRATED ON THE STATISTIC THE PROJECT ACTUALLY QUOTES —
+  THE HEADLINE STILL CLEARS, AND THE MARGIN ROUGHLY HALVES (2026-08-07, session 10).** X7
+  calibrated 2.14 on the *naive* t; R9 then made the *HAC* t the number quoted, and the two had
+  been compared to each other ever since. Re-run of X7's placebo — **same panel, same seeds
+  1000–1099, same instrument, n = 100, costs measured; the only change is that the recorder now
+  stores the HAC statistic `quantile_backtest` had been computing on every draw since R9 and the
+  writer was silently dropping.**
+  * **CALIBRATED HAC FLOOR (placebo p95) = 2.2837** (noise median 0.121, max 3.783).
+    **Shipped HAC t = 2.61991 → CLEARS**, empirical p **0.03** (3 of 100 noise draws exceed it).
+  * **BOTH MOVES GO AGAINST THE STRATEGY AND THE CUSHION HALVES.** The HAC floor is *higher*
+    than the naive floor (2.28 vs 2.14) while the real HAC t is *lower* than the real naive t
+    (2.620 vs 2.836), so the margin over the floor falls **0.692 → 0.336**. It clears; it clears
+    by less than the record implied.
+  * **THE OLD MISMATCH WAS MILD, NOT WILD: pure noise clears 2.14 on the HAC statistic 6% of
+    the time** against the 5% the bar intends. Worth closing, not a scandal.
+  * **THE CONTROL REPRODUCES X7 TO THE DIGIT:** naive p95 **2.1437** → X7's 2.14, noise max
+    **3.4360** → X7's 3.44. **One discrepancy, reported not buried:** the `ls_t ≥ 2.0` rate comes
+    back **7%** against the recorded **8%** — a single draw, with no draw anywhere near the 2.0
+    boundary (nearest 1.885 and 2.067), so it is not rounding. **It cannot be reconciled because
+    X7's raw draws were never saved.** This sweep saves all 100.
+  * **FREE BY-PRODUCT, and it is the stronger number: the top-decile alpha HAC t now has a floor
+    too — 2.2913 — and the shipped +4.376 sits ABOVE ALL 100 NOISE DRAWS (empirical p 0.00).**
+    The long-ONLY book remains far better measured than the long-short the project leads with.
+  * **R9's autocorrelation finding is corroborated:** Ljung–Box on noise draws has median
+    p 0.406 and rejects at 7%, i.e. near nominal — so the real series' p 0.036 is a property of
+    the real series, not an artefact the pipeline manufactures.
+  * Artifact `data/free_analysis/PLACEBO_HAC.json` (all 100 draws retained); procedure
+    pre-committed in `PREREG_session10_hac_floor.md`; **zero trial cost** — a calibration
+    searches nothing, equity `N` stays 121.
 - **THE UNINVESTABLE BENCHMARK WAS THE HARDEST ONE — the expectation was WRONG in the strategy's
   favour (2026-08-05, audit R10).** Alpha had only ever been measured against an equal-weighted
   average of every name in the panel, charged zero trading cost while the strategy pays. Both the

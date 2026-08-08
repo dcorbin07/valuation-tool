@@ -4669,3 +4669,237 @@ and the measurement respectively); U1 as written; the full-sample LOO as a sourc
    the sign test are all scale-invariant) and it was corrected before any number was recorded,
    but it is logged because a number quoted in the wrong unit is exactly the class of thing this
    file exists to catch.
+
+---
+
+# SESSION 10 (2026-08-07) — the HAC floor is measured and the headline clears it, and the ML combiner is pre-registered blind
+
+Two items, both delivered: **item 1 closes the apples-to-oranges defect the record has carried
+since R9**, and **item 2 commits `PREREG_ml_combiner.md` without fitting a single model.**
+
+---
+
+## 1. ITEM 1 — X7's long-short floor, re-derived on the HAC statistic
+
+### The defect
+
+X7 calibrated the long-short floor at **2.14** as the p95 of 100 block-permuted placebo draws,
+using the **naive i.i.d.** *t*. R9 then measured Ljung–Box on the long-short series, rejected
+independence at **p = 0.036**, and the project's rule became "the Newey–West *t* is the number
+this project quotes". So the shipped **2.620** has been compared against a bar derived for a
+different estimator, and `CLAUDE.md` carried it as a known open defect.
+
+### What was actually wrong, and why it cost a full re-run
+
+**`quantile_backtest` has computed `long_short_tstat_nw` on every placebo draw since R9. The
+recorder never stored it and the summariser never percentiled it.** The floor could have been
+read off X7's own sweep — except **X7's raw draws were never saved**, so the only way to recover
+the column was to run all 100 draws again. A computed column that the writer drops is
+indistinguishable from one that was never computed. **This sweep retains all 100 draws**, and the
+round trip is now pinned by `test_session10_the_placebo_writer_summarises_the_hac_statistic_it_computes`.
+
+### Procedure — pre-committed in `PREREG_session10_hac_floor.md` before launch
+
+Panel `panel_corrected_69d.pkl` (69 dates, 2009-01-15 → 2026-01-28); **X7's own seeds 1000–1099**;
+n = 100; `placebo_panel` unchanged; costs measured; floor = p95. **No scoring logic was touched** —
+which is why the naive floor is the sweep's own control and had to come back at 2.14.
+
+**Reproduction check, run before any draw:** the unpermuted panel returns `ls_t` 2.8360640685
+(record 2.83606), HAC 2.6199121240 (R9's 2.620), alpha 0.0717414233 (record 0.071741),
+alpha HAC *t* 4.3762304 (R9's 4.376), PBO 0.7333333, adopt False. **All match.**
+
+**One implementation note, because it looks like a deviation and is not.** The serial sweep ran at
+208 s/draw (~6 h), so the 100 seeds were sharded across four processes. Each draw depends only on
+its own seed, so this changes nothing about what is computed — **and the merge proves it rather
+than asserting it: the two draws the killed serial run had completed reproduce bit-for-bit under
+sharding, every key.** `--no-costs` would have been ~3× faster and provably cannot affect a
+long-short *t*; it was **not** used, because "this shortcut can't matter" is exactly the reasoning
+a pre-commitment exists to refuse.
+
+### THE RESULT
+
+| statistic | calibrated floor (p95) | noise median | noise max | shipped | verdict |
+|---|---|---|---|---|---|
+| long-short *t*, **naive** (control) | **2.1437** | 0.125 | 3.436 | 2.83606 | clears, emp. p 0.02 |
+| **long-short *t*, HAC** | **2.2837** | 0.121 | 3.783 | **2.61991** | **CLEARS, emp. p 0.03** |
+| top-decile alpha *t*, naive | 2.2352 | 0.318 | 3.448 | — | — |
+| **top-decile alpha *t*, HAC** | **2.2913** | 0.315 | 3.320 | **4.37623** | **CLEARS, emp. p 0.00** |
+
+**THE HEADLINE CLEARS THE RE-DERIVED FLOOR. It clears by less than the record implied, and both
+moves go against the strategy:** the HAC floor is *higher* than the naive floor (2.28 vs 2.14)
+while the real HAC *t* is *lower* than the real naive *t* (2.620 vs 2.836), so **the margin over
+the floor falls from 0.692 to 0.336 — roughly half.** Quote **2.620 against 2.28**, never against
+2.14.
+
+**The size of the old error: pure noise clears 2.14 on the HAC statistic 6% of the time**, against
+the 5% the bar intends. The mismatch was real and mild — worth closing, not a scandal. Rates on
+the HAC statistic: ≥2.0 **8%**, ≥2.14 **6%**, ≥3.0 **1%**.
+
+### The control, including the part that does not reconcile
+
+Naive p95 **2.1437** → X7's recorded **2.14**; noise max **3.4360** → X7's recorded **3.44**. Both
+to the digit. **But the `ls_t ≥ 2.0` rate comes back 7% against the recorded 8%.** It is not a
+rounding or boundary artefact — the nearest draws to 2.0 are 1.885 and 2.067, nothing sits on the
+line. One draw genuinely differs. **It cannot be reconciled, because X7's raw draws were never
+retained**, so no draw-level diff is possible. Reported rather than smoothed over: the
+distribution is otherwise identical on both statistics the floors are read from, and every floor
+in the table above is a p95, which one draw at 2.0 does not move.
+
+### The free by-product, and it is the stronger number
+
+**`top_decile_alpha_tstat_nw` has never had a calibrated floor.** It does now — **2.2913** — and
+the shipped **+4.376 sits above all 100 noise draws (empirical p 0.00)**. The number on the front
+of the product is better separated from noise than the long-short statistic the project has always
+led with, which is the same asymmetry R9 found and is worth leading with more often.
+
+**R9 is corroborated as a side effect:** Ljung–Box on the noise draws has median p **0.406** and
+rejects at **7%** — near nominal. The autocorrelation R9 found in the real series (p 0.036) is a
+property of that series, not something this pipeline manufactures.
+
+**Trial cost: zero.** A calibration of an existing statistic on an existing panel searches nothing;
+equity `N` stays **121**. One `infra` row logged for the recorder change.
+
+---
+
+## 2. ITEM 2 — `PREREG_ml_combiner.md`, committed blind at `ec6c01d`
+
+**Design only. No model was fit, no feature matrix built, no accuracy number exists.** The full
+document is the deliverable; the summary here is an index to it, not a substitute.
+
+- **Question:** does a shallow gradient-boosted tree over the seven deployed theme z-scores beat
+  the flat 1/7 linear composite out-of-sample, by the calibrated bars? Motivated by two *measured*
+  results — X3 (theme IC does not predict marginal contribution; `size` has the worst IC and
+  carries the significance) and P6 (the linear composite is scale-sensitive).
+- **Features:** exactly seven — `z_value z_quality z_momentum z_insider z_capital_discipline
+  z_size z_institutional`, built identically to `cpcv_validate`'s own z-scores, NaN passed through
+  with **no imputation** (imputing would give the tree information the linear arm lacks).
+  **Excluded on the record:** `low_risk` and `sentiment` (that would be a theme-membership change
+  smuggled in as a feature) and the 56 raw `z_*` signals (a different question, 8× the risk — a
+  new pre-registration if wanted, never an amendment).
+- **Target:** cross-sectional **rank** of `fwd_ret` within each date, 63d, non-overlapping —
+  because the book is formed by ranking, and a raw-return target chases outcomes decile formation
+  discards.
+- **Validation:** `_cpcv_paths(dates, 6, 2, embargo=1)` reused unchanged. **Selection never touches
+  the measurement set:** all eight grid points are scored by CPCV *within a decide half*, the
+  single winner is refit and measured **once** on the held-out half, **both directions**. This is
+  the direct answer to X7's finding that CPCV adoption manufactures **~+1.4 of long-short *t*** out
+  of nothing, firing on **27% of pure-noise draws**, when selection and measurement share a panel.
+- **Grid, frozen:** `HistGradientBoostingRegressor`, `max_depth {2,3} × learning_rate {0.03,0.10}
+  × max_iter {100,300}` = **8 points**; `min_samples_leaf=200`, `l2=1.0`, `max_bins=64`,
+  `early_stopping=False`, `random_state=0` held constant, not searched.
+
+### The grid is priced BEFORE registering — this is the item's whole risk
+
+| grid | equity `N` | headline Deflated Sharpe | √(2·ln N) |
+|---|---|---|---|
+| **8 (registered)** | **129** | **0.8556** | 3.118 |
+| 32 | 153 | 0.8356 | 3.172 |
+| 128 | 249 | 0.7716 | 3.322 |
+| **230** | **351** | **0.7213 — BELOW X7's calibrated floor of 0.7216** | 3.444 |
+
+**A 230-point grid would push the shipped headline below the noise floor X7 measured. A grid that
+size does not test the model; it destroys the incumbent's evidence as a side effect.** Hence
+eight, costing the headline **0.0072** of Deflated Sharpe — paid whatever the answer.
+
+- **Scored on:** HAC long-short *t* against **this session's 2.2837 floor** (kill criterion 3
+  depends on item 1, which is why they shared a session), a **1.95pp** alpha margin, and the
+  standing 0.25 *t*-margin. **PBO is explicitly not a criterion** — X7 put its noise median at
+  46.7%.
+- **Kill criteria:** ADOPTED needs all three margins in **both** directions; REJECTED is worse on
+  alpha in both; **everything else is NULL**, including a positive point estimate that misses the
+  margin and a split that disagrees. **No re-runs.** Expectation recorded first: **NULL, 70/30**.
+- **Trial cost owed when it runs, not now:** 8 rows, `N` 121 → 129.
+
+## 3. The design question session 9 raised, recorded and NOT pursued
+
+Session 9 observed that four of five leave-one-out arms are same-sign across both `usa` halves on
+JKP's 324 monthly observations, while **four of seven flip sign across halves on the Sharadar
+panel's 69 dates**, and offered the hypothesis that the cross-half instability motivating the whole
+selection-rule question is a property of the *panel's thinness* rather than of the selection rule.
+
+**If true, the implied change is a thicker panel — monthly rather than quarterly rebalancing, or a
+denser date grid — and it is deliberately not pursued here.** What it would take to test honestly:
+the rebalance grid is upstream of every statistic this project publishes, so changing it **changes
+every historical number at once** — theme ICs, the long-short *t*, top-decile alpha, PBO, the
+Deflated Sharpe, X7's entire calibrated bar table (which is explicitly "a floor for THIS
+panel/universe/69 dates, not a universal constant"), and R1's non-overlapping 63-day window
+construction. It is therefore **a full pre-registered re-run against re-derived bars, not a patch**,
+and it must not be slipped in alongside another test. X2 is the precedent worth reading first: it
+re-ran the whole backtest on seven equally valid rebalance grids and found long-short *t* ranging
+2.703–3.517 across them, which means grid choice already moves the headline by more than most
+findings in the record. **Queued as an open design question. Nobody should act on it from the
+hypothesis alone.**
+
+---
+
+## 4. Session 11's first item, with its `needs first`
+
+**First item: execute `PREREG_ml_combiner.md` exactly as written.** It is committed, blind, and
+priced; the only thing standing between it and a verdict is a training loop.
+
+| dependency | status |
+|---|---|
+| the pre-registration | **READY and BLIND** — `PREREG_ml_combiner.md`, committed at `ec6c01d` before any model was fit |
+| the panel | **READY** — `data/free_analysis/panel_corrected_69d.pkl`, 69 dates, reproduces the shipped run to every digit |
+| `sklearn` | **PRESENT**, 1.9.0; `HistGradientBoostingRegressor` imports |
+| the CPCV splitter | **READY** — `_cpcv_paths(dates, 6, 2, embargo=1)` reused unchanged; no new validation code |
+| **the HAC floor** | **see §1** — kill criterion 3 is stated against it, so it must be quoted from this session's sweep and not from 2.14 |
+| the trial cost | **8 rows, equity `N` 121 → 129, headline DSR 0.8628 → 0.8556.** Log them or do not run |
+| discipline | **no re-runs, no grid changes, ambiguous is NULL.** The registration is void the moment any of the three is relaxed |
+
+**Ranked alternatives:** (1) **task #12, the forward paper-track vs SPY** — still the only test on
+data nobody has looked at, and it needs a start date and a pre-committed comparison rule from Don
+rather than an agent; (2) the narrow sector-relative-value variant (roadmap #13); (3) repairing the
+`research_log.py` parser defect in §6 together with a re-verification of all counted rows.
+
+**Do not re-open:** the selection rule on either dataset (sessions 8 and 9); U1 as written; the
+full-sample LOO as a source of verdicts; `sector_neutral`, PEAD, TTM ROE/ROIC, robust z-scores,
+momentum/institutional consolidation.
+
+---
+
+## 5. What I did NOT do, and why (RUN_RULES A4)
+
+- **Did not run the ML combiner.** The task said design only, and the design is the deliverable.
+  Fitting even one model would have spent the blind.
+- **Did not enlarge the grid past eight points** to make the test "fairer". §2's table is the
+  argument: the grid is the risk, and it is priced before registering rather than defended after.
+- **Did not drop `--no-costs` to make the sweep finish sooner**, even though `cost_breakeven_bps`
+  provably cannot affect a long-short *t*. The procedure was committed with costs measured, and
+  "this shortcut can't matter" is precisely the reasoning a pre-commitment exists to refuse.
+  Sharding the same seeds across four processes was used instead — that changes nothing about what
+  is computed, and the merge **proves** it by reproducing the killed serial run's draws bit for bit.
+- **Did not repair the `research_log.py` parser defect** carried over from session 9 (§6). Still
+  the right call: it is load-bearing for a shipped statistic and repairing it means re-verifying
+  every counted row in the same change.
+- **Did not pursue the monthly-rebalance question** (§3).
+- **Did not touch** `valuation/screener/**`, `screen.py`, `valuation/engine/**`, `valuation/data/**`,
+  `valuation/web/**`, `valuation/saas/**`, `.github/**` — other lanes.
+
+---
+
+## 6. BUGS FOUND (RUN_RULES A3 — report everything, including outside my lane)
+
+1. **The placebo recorder dropped a statistic the pipeline computes** (§1). `quantile_backtest`
+   has returned `long_short_tstat_nw` since R9; `scripts/placebo.py` never stored it, so X7's
+   floor stayed on the naive estimator after the project switched to the HAC one. **Repaired and
+   pinned.** The general form is worth carrying: *a computed column that the writer drops is
+   indistinguishable from one that was never computed*, and it is the same failure shape as the
+   five silently-empty factors of 2026-07-30 and B8's unread `rule_fired`.
+2. **X7's 100 raw placebo draws were never saved**, only the summary. That is why a one-column
+   addition cost a full re-run, and why the 7%-vs-8% discrepancy in §1 **cannot be diagnosed at
+   all** — there is nothing to diff against. The M1 comment inside `placebo.py` already records
+   this lesson for the Deflated Sharpe internals ("with these four numbers per draw, any future
+   re-denomination is arithmetic"); it simply was not applied to the draws themselves.
+   **This sweep retains all 100 draws in `data/free_analysis/PLACEBO_HAC.json`.**
+3. **The `ls_t ≥ 2.0` rate does not reconcile with the record: 7% measured against 8% recorded**
+   (§1), on the same panel, the same seeds and the same instrument, while the p95 and the max both
+   reproduce to the digit. No draw lies near the 2.0 boundary, so it is not rounding. **Unresolved
+   and unresolvable without bug 2's raw draws.** It moves no floor — every calibrated bar is a p95
+   — but the record should not carry "identical to the last digit" for that particular cell.
+4. **`research_log.py` still tests for a `FIXED` verdict by searching the whole row**
+   (`verdict = " ".join(cells).upper()`), so any row whose free-text note contains the word
+   "fixed" is silently dropped from `N` — understating trials, which overstates significance.
+   Carried over from session 9, **still not repaired**, still for the same reason: it is
+   load-bearing for a shipped statistic and repairing it means re-verifying all 54 counted rows in
+   the same change. Worked around again this session by wording.
