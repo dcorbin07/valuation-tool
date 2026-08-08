@@ -18,6 +18,46 @@ REJECTED and its deciles run backwards out of sample)
 
 ---
 
+## P2 — USER CROWDING MODELLED (r1 lane, 2026-08-08) — memo only, no code
+
+Full write-up: **`HANDOFF_crowding.md`**. Ledger rows P1 and P2 updated.
+
+**The answer depends ~700x on which book is published, and the product is already on the safe
+side — by a design choice whose written rationale is factually wrong.**
+
+| book a cohort buys | cohort AUM where slippage cancels the +7.17% alpha | users @ $10k |
+|---|---|---|
+| live Valquo Index (86 names, large-cap, median cap $22.2B) | **$5.1B** | ~506,000 |
+| all-cap top-25 (what P1 modelled) | **$7.4M** | ~740 |
+| all-cap top-10 | **$1.6M** | ~160 |
+
+- **P1's published capacity of ~$23M is overstated 4.72x — the true figure is ~$4.9M.**
+  `scripts/capacity.py:36` hard-codes `BREAKEVEN_BPS = 234.505` (pre-B6); the live measured
+  breakeven is **134.113**. Re-derived from P1's own published cells, which the closed form
+  reproduces to zero residual. **P1's strategic conclusion is unchanged and strengthened.**
+- **Three of P2's four premises are false.** The Index does **not** publish holdings — it is
+  owner-only (`surfaces.py:80`) and pinned by a test. Not 25 names (86). Not small-cap
+  (`LARGE_CAP_MIN = 10e9`).
+- **Slippage is not the binding risk.** At 10,000 users the McLean–Pontiff decay channel is
+  ~3x larger than impact and does not depend on user count at all. Not modellable from
+  anything on disk; no number was invented for it.
+- **Biggest lever after breadth: stagger entry.** Capacity is very nearly linear in days spread
+  (measured 4.97x at 5 days, 20.9x at 21).
+
+**BUGS FOUND (6, none fixed — other lanes).** Highest: the **public** `/work` page
+(`portfolio.html:479-480`) still publishes the **void** `+8.81%/yr, t 5.74, 109 windows, 1998–2026`
+(corrected: +6.99%, NW t 3.984, 68 windows); `valquo_index.py:129-133` ships a description string
+quoting 2,710 names/110 dates/+11.8%/236bps into the live Index JSON; `capacity.py:36` and `:124`
+carry a stale breakeven and the pre-B6 panel. Also: the large-cap floor is justified as "the
+tier where the measured IC was strongest" — measured, large is the **weakest** by IC (0.0287 vs
+small 0.0313), though strongest by long-short. **That floor is load-bearing for crowding, so a
+wrong stated reason is a live risk of it being removed.**
+
+**Equity `N` unchanged at 116** — nothing here searched the return signal, so no
+`RESEARCH_LOG.md` row was added (recorded because the self-penalising direction is to add one).
+
+---
+
 ## C6 CLOSED — Oracle box decommissioned; the "lost" sources were in a tracked zip (2026-08-07, options-bot lane)
 
 Full write-up in `HANDOFF_optionsbot.md`. Bot subproject only; **nothing under `valuation/**`
