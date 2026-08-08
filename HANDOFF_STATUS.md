@@ -95,6 +95,33 @@ Full write-up: **`HANDOFF_branch_triage.md`**. Nothing was merged, cherry-picked
   branch. It **is** rate-limited, length-capped and parameterized — I checked. The open question
   is posture: whether an unauthenticated write endpoint belongs on the post-leak public allowlist.
 
+**DISPOSITION EXECUTED, same session (`HANDOFF_branch_triage.md` PART 2):**
+- **The four `param_search` files are on `main` as `ef4b7a3`** — clean additions, no conflicts,
+  24/24 suites green. **Dormant: nothing imports it, no shipped behaviour changed.** Interface
+  re-verified *after* landing from `origin/main`'s own tree.
+- **Routing note added at `HANDOFF_edge_audit.md` §8.** The sharp point for Session 10:
+  `PREREG_ml_combiner.md` §3 selects "the grid point with the highest mean out-of-sample rank IC"
+  — **argmax of a mean, the exact selector that scored +8.43%/yr in-window and −0.04%/yr on the
+  locked hold-out.** Three amendments proposed; plateau smoothing explicitly NOT recommended
+  (only 8 grid points).
+- **TRAP, FLAGGED NOT HIDDEN:** `param_search.bat` is now in the repo root and **will fail if
+  double-clicked** — it calls `--param-search`, which does not exist until the CLI is wired.
+  Landed verbatim rather than invented. **Wire it or delete it.**
+- **THREE REFS DELETED** after the land verified: `worktree-ui-polish` (`f591961`),
+  `worktree-honest-param-search` (`5da1473`), `worktree-p6-costs-and-robustness` (`428f4de`).
+  SHAs recorded for recovery.
+- **`worktree-p6`'s old prune rationale was WRONG.** It was flagged over a "stale
+  `BACKTEST_RESULTS.json`"; **the commit does not touch that file at all.** Every code change in
+  it (`score_universe_now`, `STALE_PRICE_MAX_DAYS`, the missing-sector guard, the numpy overflow
+  clip now at `attribution.py:46`, both tests) is already on `main`. Its only unique content is
+  **prose quoting the void pre-B6 numbers** (110 dates, +11.8%/yr, 236bps/37bps) inside a
+  user-facing description string — right verdict, wrong reason, and the real failure mode is
+  worse because stale prose in a shipped payload reads as current.
+- **THE STRANDED-BRANCH SCAN IS CLEAN.** Every remote `worktree-*` ref is merged into `main`
+  except `worktree-demo-link` (2 commits, 2026-08-07 20:46, merges cleanly) — another lane's live
+  work, not stranded, untouched.
+- **`VALQUO_LEDGER.md` deliberately not updated:** no audit item covers this housekeeping.
+
 ---
 
 ## 2026-08-07 — greeks lane, OUT-OF-BAND: the public fair-value leak is closed

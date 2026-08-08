@@ -362,3 +362,150 @@ on `main`, delete **both** `worktree-ui-polish` and `worktree-honest-param-searc
 
 Nothing here is urgent — the branch has been stranded for ten days and the only live risk it
 carries is that someone merges it. This file exists so that nobody has to re-derive the answer.
+
+---
+---
+
+# PART 2 — DISPOSITION EXECUTED (2026-08-07, same session)
+
+Everything recommended above has been carried out. **The stranded-branch scan is now clean.**
+
+## A. The cherry-pick — `ef4b7a3`, landed on `main`
+
+Branch `worktree-param-search-reland`, landed as a fast-forward; `origin/main` is `ef4b7a3`.
+
+| file | bytes on `main` |
+|---|---|
+| `valuation/edge/param_search.py` | 50,735 |
+| `PARAMETER_SEARCH.md` | 16,272 |
+| `scripts/calibrate_param_search.py` | 6,061 |
+| `param_search.bat` | 1,973 |
+
+All four staged as clean additions (`A` in `git status`), zero conflicts — the triage's prediction
+held exactly. **The CLI wiring was deliberately not ported** (it edits `fundamental_panel.main()`,
+held by the pipeline lane for Session 10) and the five tests were not appended, both routed
+instead. Gate: **24/24 suites green** locally before the push, `test_edge.py` **258/258**, and the
+CI gate green on the land.
+
+**Nothing imports `param_search`, so no shipped behaviour changed.** It is dormant, not wired.
+
+## B. Post-land interface verification — done AFTER landing, not only before
+
+Re-checked by checking out `origin/main`'s own tree and importing from it, rather than trusting
+the pre-land check:
+
+```
+POST-LAND: import valuation.edge.param_search OK (from origin/main tree)
+POST-LAND: all four engine signatures match param_search call sites
+  build_fundamental_panel kwargs verified: rebalance_days, lookback_years, horizon, inst_lag_days
+```
+
+| call site | `main` today | match |
+|---|---|---|
+| `FP._weight_schemes(mu, vol, Sigma, cols, eq, base)` | `(mu, vol, Sigma, cols, eq, base)` | exact |
+| `FP._pbo(is_mat, oos_mat, keys)` | `(is_mat, oos_mat, names)` | 3 positional |
+| `FP._spearman(a, b)` | `(a, b)` | exact |
+| `FP.build_fundamental_panel(...)` | all four kwargs present | exact |
+
+## C. Routing note — `HANDOFF_edge_audit.md` §8 (on `main`, verified)
+
+Prose only; the r1 lane wrote no code in `valuation/edge/**` beyond creating the new module file.
+Three subsections: **8.1** the CLI wiring to hand-port (six flags, ~20-line dispatch, five tests)
+plus the `.bat` trap below; **8.2** the `PREREG_ml_combiner.md` citation; **8.3** the trial-count
+decision, routed and explicitly not made.
+
+**The substantive find in 8.2, since it is more specific than "cite this":** the prereg's §3 rule
+reads *"the winner is the grid point with the highest mean out-of-sample rank IC across that
+half's paths."* **That is argmax of a mean — the exact selector that produced +8.43%/yr in-window
+and −0.04%/yr on the locked hold-out.** The prereg's one-shot VERDICT-half design is already
+sound; the gap is the selector. Three amendments proposed (LCB over argmax, interiority for a
+boundary winner, a permutation null over the whole procedure), and **plateau smoothing explicitly
+NOT recommended** — it needs several values per ordered axis and the combiner grid has eight
+points total, so adopting it for symmetry would be cargo-culting. SPA/Reality Check routed as
+**reported, not a gate**, on the recovered calibration's own measured ~35% false-positive rate.
+
+## D. `param_search.bat` — a trap landed knowingly, and flagged three times
+
+It invokes `python -m valuation.edge.fundamental_panel --data-dir ... --param-search ...`, and
+**`--param-search` does not exist on `main` until the wiring lands**, so it exits on an argparse
+error. In a project where Don runs `.bat` files by double-clicking, that is live.
+
+Landed **verbatim** rather than edited, because inventing content during a cherry-pick is the
+worse failure. Flagged in the commit message, in `HANDOFF_edge_audit.md` §8.1, and here.
+**Either port the wiring or delete the `.bat` — do not leave it indefinitely.**
+
+## E. Three refs deleted, with the evidence each rests on
+
+Deleted **only after** `ef4b7a3` was verified on `main`. Tip SHAs recorded here so any of them can
+be recovered from GitHub or reflog:
+
+| ref | tip | evidence for deletion |
+|---|---|---|
+| `worktree-ui-polish` | `f591961` | 9 unique files classified (Part 1 §2); the 4 valuable ones are now on `main` at the sizes in §A; the other 5 are a UI theme layer `main` re-implemented inline (16 `:root[data-theme="dark"]` rules in `style.css:278-301`) |
+| `worktree-honest-param-search` | `5da1473` | strict **ancestor** of `ui-polish` (`git merge-base --is-ancestor` → true), carrying 47 of the 50 commits and the same param stack. Deleting only `ui-polish` would have been theatre |
+| `worktree-p6-costs-and-robustness` | `428f4de` | every code change verified present on `main` — see §F |
+
+## F. `worktree-p6-costs-and-robustness` — pruned, and **the old rationale for pruning it was
+## wrong**
+
+It was flagged weeks ago as prune-not-merge *"on the suspicion its stale `BACKTEST_RESULTS.json`
+would regress the record."* **That suspicion is false: the commit does not touch
+`BACKTEST_RESULTS.json` at all.** It touches five files, and it is not a junk commit — it is the
+inception snapshot for the Valquo-vs-SPY forward track.
+
+Applying the same evidence standard as the big triage, **every code change in it is already on
+`main`**:
+
+| content of `428f4de` | on `main` |
+|---|---|
+| `score_universe_now()` | `fundamental_panel.py:1355` |
+| `STALE_PRICE_MAX_DAYS = 10` (stale-price guard) | `fundamental_panel.py:1352`, used as `stale_days=` at `:1356` |
+| missing-sector guard + `sector_data_available` | `valquo_index.py:41-51`, `:140`, `:157` — and **improved** on `main` (adds `.strip()`) |
+| numpy overflow clip on the soft-bucket sigmoid | moved to `attribution.py:46` — `np.clip(-(om / 0.05), -700.0, 700.0)` |
+| `test_index_reports_missing_sector_data_honestly` | `tests/test_edge.py` |
+| `test_index_weights_are_capped_and_sum_to_one` | `tests/test_edge.py` |
+
+**The only content unique to the branch is prose, and that prose is void.** Its
+`valquo_index.py` description string quotes the **pre-B6 panel**: "the full 2,710-name / 110-date
+backtest", "+11.8%/yr over equal-weight gross", "+11.4% net", "breakeven 236bps one-way vs ~37bps
+actual", "top-25 … +20.7% gross alpha". Every one of those is superseded — the current panel is
+**69 dates** with top-decile alpha **+7.17%**, and B11 measured realised costs at **33.4 bps**
+against a **134 bps** breakeven, not 37/236.
+
+**So the conclusion (prune) was right and the stated reason was wrong.** The risk was never a
+stale results file; it was stale *numbers embedded in a user-facing description string* — which is
+a more dangerous failure mode, because a results file is obviously data whereas prose in a shipped
+payload reads as current. Recorded because this project's memory is its handoff files.
+
+## G. The scan is clean
+
+After the three deletions, every remote `worktree-*` ref is fully merged into `main` with one
+exception:
+
+- **`origin/worktree-demo-link`** — 2 commits, both **2026-08-07 20:46** ("The recruiter
+  master-link opens the full read-only view"), and it **merges cleanly** (`git merge-tree` exit 0).
+  That is another lane's work in flight, **not stranded**, and it is not mine to touch. Left alone.
+
+No branch now sits ahead of `main` with stale or conflicting content. The condition that made this
+triage necessary — 50 commits nobody could safely merge or delete — no longer exists.
+
+## H. `VALQUO_LEDGER.md` — not updated, deliberately
+
+Checked: no ledger row covers branch triage, `param_search`, or stranded-branch housekeeping (the
+one grep hit, S4, is the unrelated phrase "speculative branch"). **No audit item was touched, so
+no row was added** — inventing a ledger id for housekeeping would corrupt the one file the project
+uses to answer "is X done?".
+
+## I. What is still open, and who owns it
+
+1. **Edge lane** — hand-port the six argparse flags, the ~20-line dispatch and the five tests;
+   then either that or delete `param_search.bat` (§D).
+2. **Edge lane** — decide whether the 3,584 configs enter the equity `N` (Part 1, BUGS FOUND #1;
+   `HANDOFF_edge_audit.md` §8.3). Counting them **lowers** the Deflated Sharpe.
+3. **Edge lane** — cite `PARAMETER_SEARCH.md` in `PREREG_ml_combiner.md` and adopt or refuse its
+   instruments, with the selector point in §C as the specific hook.
+4. **App/security lane** — `/api/feedback` (Part 1 §2e) is gone from any branch now; the code is
+   recoverable from `f5919612ba83e0e6b3ed829d0fa1050c7387a533` if wanted. It was **not** landed:
+   posture on the post-leak public allowlist is that lane's call, not this one's.
+
+**Nothing in Part 2 changed a shipped number, a weight, or a live code path.**
