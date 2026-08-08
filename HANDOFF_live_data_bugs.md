@@ -1583,3 +1583,109 @@ pre-existing expected-failure routed to the options-bot lane, unrelated to this 
    the work most likely to be out-of-band is the work found by probing production — which is how
    this leak was found **both** times. Not fixed (that file is not in my lane), but whoever owns
    the generator should either preserve unknown-id rows or give out-of-band items real ids.
+
+---
+
+# Part 7 — The reproducibility fix: beta provenance, a real history check, stamped inputs
+
+## PRE-COMMITMENT — written and committed BEFORE any outcome was measured
+
+Committed on its own so its ordering is provable. Checked **first**, because committing to a
+bound that turns out unmeasurable is the mistake this lane keeps being caught by:
+
+**(i) Is a control group real?** Yes — see the table below. **(ii) Does the instrument
+reproduce?** Yes, to 0.036 worst case against my own earlier column. Both were established
+before any bound below was written.
+
+### Facts established before the pre-commitment (not outcomes)
+
+- **The vendor beta field is INTERMITTENT, not gone.** `HANDOFF_live_data_bugs.md` §6 recorded
+  MRK's beta as *absent* on 2026-08-05, which is what dropped it to the 1.10 fallback and moved
+  WACC 5.53% → 9.31%. **Today it is back at 0.211.** So the defect is a field that comes and
+  goes, and any fix that waits for it to vanish again is untestable. **I will simulate its
+  absence rather than wait.**
+- **My earlier "1y-daily" instinct is wrong and I checked before building on it.** The estimator
+  my handoff validated on controls is **5y-MONTHLY**. Re-run today, 1y-daily returns
+  **KO −0.286 and XOM −0.484** — negative betas for Coca-Cola and Exxon. Had I not re-derived
+  which window was validated, I would have shipped that.
+- **The 5y-monthly estimator reproduces**, worst |Δ| **0.036** (JPM), most within 0.006:
+  AAPL 1.070, JPM 1.013, NVDA 2.217, MRK 0.180, GILD 0.305, CI 0.288, CHTR 0.669, KSPI 0.886.
+- **KSPI comes back with n = 30 monthly observations**, matching the "30 monthly observations,
+  ADR listed 2024" already in the record. **Every other name tested has n = 59.** So a minimum
+  of 36 separates KSPI from the field, and a naive `n >= 60` would flag literally everyone.
+- **Cost: the extra 5y-monthly call is 0.14s per name**, and is paid only when the ladder
+  actually needs it.
+
+### The critical constraint my own evidence imposes on this task
+
+**A low-side beta floor applied to the VALUE alone would assert something false.** §2 of this
+handoff measured GILD (0.336), CI (0.321), CHTR (0.678), MRK (0.211) and XOM (0.173) as
+**genuinely** low-beta. Only KSPI's 0.08 is an artifact, and what makes it an artifact is not
+its size but **the 30 observations behind it**.
+
+So the two halves the brief names are not independent, and I commit to wiring them that way:
+**the low-side value only decides WHO GETS CHECKED; the observation count decides WHO GETS
+REJECTED.** A long-history name is accepted no matter how low its beta. This makes the trigger
+value a low-stakes choice, and I will demonstrate that by re-running the verdict at 0.10 / 0.15
+/ 0.25 rather than asserting it.
+
+### The design being committed to
+
+Vendor-first ladder, each rung stamped:
+
+1. explicit `beta_override` — unchanged, wins.
+2. **vendor beta in (0, 3.0] and above the low trigger → ACCEPTED UNCHANGED**, no extra call.
+3. otherwise corroborate with a 5y-monthly regression vs SPY:
+   * observations ≥ **36** → accept the vendor if it is in range (low betas are real), else use
+     the computed value;
+   * observations < 36 → the vendor value is unsupportable; use the computed value if it has
+     ≥ 24 of its own, else the stated constant.
+4. **stated constant**, named with its derivation, marked `substituted`.
+
+**The constant.** Today's is a bare `1.10` with no derivation anywhere in the repo. I commit to
+naming it and stating that the market portfolio's beta is **1.0 by construction**, and to
+**reporting how many names actually reach rung 4** — the point of the ladder is that a missing
+vendor field now lands on a computed beta rather than a constant, so rung 4 should be nearly
+empty. **I will only change the value from 1.10 to 1.0 if the measured number of names reaching
+it is zero or its effect is fully enumerated name by name.** Changing a constant that silently
+moves valuations is the thing being fixed, not a licence to do it once more.
+
+### BOUNDS
+
+**CONTROL GROUP: exists and is the large majority.** Verified before this was written — all 10
+names in the feasibility sample carry a valid vendor beta. The control is every name whose
+vendor beta is present, in (0, 3.0], and either above the trigger or corroborated by ≥ 36
+observations.
+
+**BOUND 1 (do-no-harm, the hard one): for every control-group name, WACC and fair value must be
+BIT-IDENTICAL, not merely close.** This change adds a ladder in front of an input; for a name
+whose input is unchanged, no arithmetic downstream may move at all. Any movement is a defect in
+my change.
+
+**BOUND 2 (the fix must actually fire): with the vendor beta simulated ABSENT, MRK must resolve
+to a computed beta near 0.18, NOT to the constant** — i.e. the 3.78pp WACC swing that produced
+the "91 Strong Buy" must not reproduce. Committed threshold: **MRK's WACC with the vendor field
+absent must land within 0.50pp of its WACC with the field present.**
+
+**BOUND 3: KSPI's beta must stop being 0.08**, and must be rejected *for its 30 observations*,
+not for its size. If it is rejected by a value rule alone, that is a FAIL of this design even if
+the number looks better.
+
+**BOUND 4: no control-group name may move between published and withheld.**
+
+### What I will report even if it is unflattering
+
+- the count of names reaching each rung, including rung 4;
+- every control-group name that moves at all, if any;
+- whether the verdict survives the trigger at 0.10 / 0.15 / 0.25;
+- if the fix turns out to be inert on today's data — as Bug B was — I will say that plainly
+  rather than quote the mechanism as though it were an effect.
+
+### What I will NOT do
+
+- **Not floor beta on value alone.** My own measurement says that is false for four of five
+  names, and the brief's own framing ("KSPI's 0.08 came from 30 monthly observations") is a
+  history argument, not a size argument.
+- **Not switch every name to a self-computed beta.** It would change every valuation in the
+  product and leave no control group. Vendor-first is chosen partly *because* it leaves one.
+- **Not retune a threshold after seeing which names it catches.**
