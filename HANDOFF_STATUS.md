@@ -18,6 +18,64 @@ REJECTED and its deciles run backwards out of sample)
 
 ---
 
+## ENGINE — CONFIDENCE NOW KNOWS WHAT THE VALUATION IS MADE OF (2026-08-08, greeks/engine lane)
+
+Full write-up in `HANDOFF_live_data_bugs.md` **Part 9**; ledger row `OOB4`. Pre-commitment
+committed alone at `2e0730a` before any outcome existed. **ADOPTED — labels only, and every
+published number is bit-identical.**
+
+The confidence label described where the data came from and which lens carried the blend, and
+never what the number was MADE OF. A DCF that is 93% terminal value is a claim about year
+11-to-infinity wearing a ten-year model's clothes, and the engine stamped it "high".
+
+**A HIGH TERMINAL SHARE IS NORMAL — the project had no number for it until now.** Across the 201
+DCF-participating names of the 241-name universe: **median 77.7%, p90 87.4%, max 227.8%.** A 70%
+threshold would flag 73% of the universe. Any future "the terminal is doing all the work" claim
+needs that denominator.
+
+**Bands, argued from the distribution and committed first:** `0.90` caps confidence at "medium"
+(just past p90, where the histogram collapses 69 → 9); `1.00` caps at "low" and is **not a
+calibrated number but a sign change** — TV > EV means the explicit forecast's PV is negative.
+Verified as an exact set equality against the PV(explicit) < 0 names.
+
+**All seven pre-registered criteria HELD**, including the three that matter: every fair value,
+range and upside bit-identical across 241 names (exact float equality); every composite score,
+recommendation and sub-score bit-identical; and the 40-name control group — names with no DCF lens
+in the blend — untouched. As in Part 8, **the gate IS the control group** rather than a proxy for
+one. The bands bound on exactly the 9 and 6 names predicted before the run.
+
+**THE BRIEF'S EXEMPLAR DOES NOT REPRODUCE, for the third time in two parts.** CI was cited as
+publishing +275% at HIGH confidence on a 93.5%-terminal number. Measured: **CI is WITHHELD, its
+terminal share is 90.3%, and both labels already read `low`.** Had the band been tuned to catch
+CI it would have achieved nothing — a cleaner argument for pre-committing than any written in
+advance. Named exemplars in prompts rot within days; check before building to one.
+
+**The real finding that replaces it: ten names publish `score.confidence = "high"` on a DCF more
+than 90% terminal.** Worst is SNAP at **227.8%**. Twelve published names were re-labelled —
+SNAP, WELL, CPNG, SNOW, KHC (to `low`), GM, WMT, KR, SYY, SLB, HAL, COST (to `medium`). Published
+mix: `score.confidence` high **120 → 110**, `blend.confidence` high 96 → 95.
+
+**All 12 moved on `score.confidence` and only 4 on `blend.confidence` — the two labels disagreed
+on 5 names, and the optimistic one is the one printed beside the recommendation.** SNAP read
+`low` on its fair value and `high` on its score simultaneously. Capped together now; the
+divergence between the two definitions is untouched and is a real open item.
+
+Only 3 of the 12 carry positive upside (**KR +75%, SYY +22%, HAL +7%**) — those are where the
+label does work, since confidence is read on a buy.
+
+**Labels-only is structural, not observed:** `terminal_share_cap` is a pure function of
+`(label, share)`, invoked after every value and the score are final.
+`test_the_cap_changes_labels_and_provably_not_values` runs one company with the bands at both
+extremes and asserts the values are bit-identical while the labels differ — it fails the day
+anyone routes confidence back into a number.
+
+**NOT done, stated in advance:** `screener/fairvalue.py` (no DCF, no terminal value, already
+capped at "medium"); no weighting of the cap by the DCF's share of the blend; and the six
+non-positive-DCF names from Part 8 (INTC, F, BA, SRE, CCI, IRM) are still unfixed — the
+recommended next engine item.
+
+---
+
 ## GREEKS — THE DERIVED LAYER GREW 315 → 502 NAMES (2026-08-08, greeks lane)
 
 Full write-up in `HANDOFF_greeks.md`. Pure local compute: zero vendor option calls, and

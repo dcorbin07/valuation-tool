@@ -2238,3 +2238,133 @@ the band, exactly as KSPI was in Part 2 and CHTR in Part 8.
 `screener/fairvalue.py` computes its own `fair_value_confidence` — but that path blends multiples
 and the growth lens only, has **no DCF and therefore no terminal value**, and is already capped at
 "medium". Nothing to do there, and I will not invent a proxy for it.
+
+
+# Part 9 — TERMINAL-SHARE-AWARE CONFIDENCE (RESULTS)
+
+**VERDICT: ADOPTED. Labels only; every published number is bit-identical.** Measured offline on
+the same 241-name 2026-08-05 pickle and disk beta memo as Part 8, one process, deterministic — so
+"bit-identical" is exact float equality on identical inputs rather than a tolerance on a re-fetch.
+
+## 9.6 The brief's exemplar does not reproduce — CI is already withheld
+
+The brief opens with *"CI publishes +275% at HIGH confidence on a number that is 93.5% terminal
+value."* Measured through current code on this snapshot:
+
+**CI is WITHHELD. Its terminal share is 90.3%, not 93.5%, and both its labels already read
+`low`.** It publishes no number and no upside. The publication guard and the Part 7 beta work
+landed between the brief being written and this run; CHTR was stale in Part 8 for the same reason.
+**Third stale exemplar in two parts** — check the named name before building to it.
+
+The band still binds on CI (90.3% ≥ 90%), so it now carries the terminal note; its label cannot
+move because it is already at the floor. **Had I tuned the band to catch CI, I would have achieved
+nothing at all** — which is a cleaner argument for the pre-commitment than any I could have written
+in advance.
+
+**The class of problem is real regardless, and this is the finding that replaces the exemplar:
+ten names published today with `score.confidence = "high"` on a DCF that is more than 90% terminal
+value.** The worst is SNAP at **227.8%**.
+
+## 9.7 All seven pre-registered criteria HELD
+
+| | criterion | result |
+|---|---|---|
+| C1 | every fair value / range / upside bit-identical, 241 names | **HELD** |
+| C2 | composite score, recommendation, sub-scores bit-identical | **HELD** |
+| C3 | control: 40 names with no DCF lens, both labels identical | **HELD** |
+| C4 | monotone — no confidence label rises | **HELD** |
+| C5 | do no harm: 186 DCF names below 90%, labels identical | **HELD** |
+| C6 | not inert: ≥1 published name re-labelled — **12** were | **HELD** |
+| C7 | no `dcf_weight < 0.2` name demoted from "high" | **HELD** |
+
+**The bands bound on exactly the counts predicted before the run: 9 in [90%, 100%) and 6 at
+≥100%.** That is arithmetic from the step-1 distribution rather than a result, but it does confirm
+the band was fixed before the outcome was seen.
+
+**The ≥100% band is exactly the set with PV(explicit forecast) < 0** — checked as a set equality,
+not asserted. That band is a sign change, not a calibration, which is why it needs no defending.
+
+## 9.8 What moved
+
+All 12 moved on `score.confidence`; 4 of those also moved on `blend.confidence`.
+
+| ticker | terminal % | dcf wt | blend | score | upside | published |
+|---|---|---|---|---|---|---|
+| SNAP | **227.8%** | 0.36 | low | **high → low** | −31% | yes |
+| WELL | 132.7% | 0.34 | medium → low | medium → low | −77% | yes |
+| CPNG | 119.1% | 0.44 | medium → low | **high → low** | −16% | yes |
+| SNOW | 104.0% | 0.23 | low | medium → low | −70% | yes |
+| KHC | 102.2% | 0.43 | medium → low | **high → low** | −58% | yes |
+| GM | 97.1% | 0.49 | medium | high → medium | −37% | yes |
+| WMT | 94.5% | 0.53 | medium | high → medium | −40% | yes |
+| KR | 94.1% | 0.50 | medium | high → medium | **+75%** | yes |
+| SYY | 90.6% | 0.52 | medium | high → medium | **+22%** | yes |
+| SLB | 90.4% | 0.60 | high → medium | high → medium | −14% | yes |
+| HAL | 90.4% | 0.58 | medium | high → medium | **+7%** | yes |
+| COST | 90.0% | 0.53 | medium | high → medium | −57% | yes |
+
+Three more sit in a band and keep their label because they are already at or below the ceiling —
+**CI, JD (101.7%, withheld) and PCG** — and now carry the note. The note tracks the fact, not the
+label delta, so a name marked down for two reasons states both.
+
+**Published-name confidence mix:**
+
+| label | before | after |
+|---|---|---|
+| `score.confidence` | high **120** / med 66 / low 48 | high **110** / med 71 / low 53 |
+| `blend.confidence` | high 96 / med 129 / low 9 | high 95 / med 127 / low 12 |
+
+**The two labels were disagreeing, and the optimistic one was the one on the recommendation
+card.** SNAP's fair-value label already said `low` while the score beside it said `high`; WELL,
+KHC, CPNG and SNOW are the same shape. That is the substance of the complaint: `blend.confidence`
+knows which lens carried the blend, `score.confidence` knows only DCF reliability and data
+completeness, and neither knew what the number was made of.
+
+**Only three of the twelve carry positive upside** — KR +75%, SYY +22%, HAL +7%. Those are the
+ones where the label does work, because a buy recommendation is where confidence is read. The
+other nine are already negative-upside names where the marking-down is cheap.
+
+## 9.9 Why this is labels-only by construction, not by luck
+
+`terminal_share_cap(confidence, tv_share) -> (label, note)` is a pure function of a string and a
+number. It cannot see a company, a fair value or a score. It is invoked in `pipeline.py` **after**
+`blend.value`, `fv_scen` and `compute_score` are all final, and writes only two `confidence`
+attributes plus `blend.tv_share` and one note.
+
+`test_the_cap_changes_labels_and_provably_not_values` runs the same company twice with the bands
+at both extremes — cap nothing, then cap everything — and asserts the fair value, the range, the
+composite, the recommendation and every sub-score are bit-identical while the labels differ. That
+fails the day anyone routes confidence back into a number.
+
+## 9.10 What I did NOT do
+
+* **Did not touch `screener/fairvalue.py`.** Pre-registered as out of scope in 9.5: it blends
+  multiples and the growth lens, has no DCF and therefore no terminal value, and already caps at
+  "medium". Inventing a proxy there would be asserting something I have not measured.
+* **Did not weight the cap by DCF share of the blend.** A name at 5% DCF weight and 95% terminal
+  is barely a terminal-driven number; the unweighted rule is the conservative one and avoids a
+  second free parameter. C7 held, so no low-weight name was demoted from "high" anyway.
+* **Did not re-tune after seeing the outcome.** The bands are the pre-committed 0.90 and 1.00.
+* **Did not fix the six non-positive-DCF names** carried over from Part 8's BUGS FOUND. SNAP at
+  227.8% terminal and SNOW at 104% are adjacent to that defect — both have a positive DCF whose
+  explicit decade is negative — but the fix is a different change with different bounds.
+* **Did not change what is published or withheld.** C1 forbids it.
+
+**Limits.** One 2026-08-05 snapshot of 241 names; the bands are floors for THIS universe and would
+want re-measuring if the panel changed materially. Terminal share is read from the BASE scenario
+only — the bear and bull DCFs have their own, unexamined. And the cap marks a valuation down
+without saying whether the terminal assumption is *wrong*; a 95%-terminal DCF on a genuinely
+stable compounder may be perfectly sound, and the label says "judge this on the terminal", not
+"this is broken".
+
+## BUGS FOUND (Part 9)
+
+1. **`score.confidence` and `blend.confidence` disagreed on 5 of the 12 flagged names, and the
+   more optimistic one is the one printed beside the recommendation.** SNAP read `low` on the
+   fair value and `high` on the score simultaneously. Now capped together; the underlying
+   divergence between the two definitions is untouched and is a real open item.
+2. **A high terminal share is normal and the project had no number for it.** Median 77.7%, p90
+   87.4% across 201 DCF-participating names. Any future "the terminal is doing all the work"
+   claim needs that denominator, or it will fire on three names in four.
+3. **The brief's exemplar was stale for the third time in two parts** (CHTR and CI in Part 8, CI
+   again here). Named exemplars in prompts are written against a snapshot and rot within days.

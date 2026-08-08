@@ -208,7 +208,7 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
     # Archetype-adaptive headline value: DCF for established/profitable names, a
     # growth-scaled REVENUE multiple for growth/pre-profit ones, P/B-ROE for financials —
     # and nothing at all rather than a negative DCF figure when no lens genuinely applies.
-    from .blend import blended_fair_value
+    from .blend import blended_fair_value, terminal_share_cap
     from .growth import maturity_from_company, build_growth_scenarios, mature_discount_rate
 
     maturity, maturity_parts = maturity_from_company(cd, growth=cls.blended_growth)
@@ -245,6 +245,22 @@ def value_from_company(cd: CompanyData, cfg=CONFIG, overrides: Optional[dict] = 
     # headline can't disagree. compute_score already tolerates None (it renormalizes).
     score = compute_score(cd, cls, wacc_value,
                           blend.value if blend.valuable else None, mc, comps, blend=blend)
+
+    # Terminal-share honesty (HANDOFF_live_data_bugs.md Part 9). Deliberately LAST: every value,
+    # scenario and sub-score above is already final, so this can only rewrite two label strings.
+    # That ordering is what makes "labels only, zero value changes" structural rather than
+    # something a sweep happened not to catch.
+    #
+    # Gated on the DCF lens being IN the blend — terminal share describes the DCF, and says
+    # nothing about a bank valued on P/B-ROE or a pre-profit name valued on revenue. That gate
+    # is also the control group the change is measured against, so it is the defining property
+    # rather than a proxy for one.
+    if "dcf" in (blend.lenses or {}):
+        blend.tv_share = scenarios.base.tv_pct_of_ev
+        blend.confidence, tv_note = terminal_share_cap(blend.confidence, blend.tv_share)
+        score.confidence, _ = terminal_share_cap(score.confidence, blend.tv_share)
+        if tv_note:
+            blend.notes.append(tv_note)
 
     result = ValuationResult(
         company=cd, classification=cls, wacc=wacc, assumptions=base, scenarios=scenarios,
