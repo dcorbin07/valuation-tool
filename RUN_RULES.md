@@ -41,6 +41,13 @@ its own threshold is a **null**, not a judgement call.
 `VALQUO_EDGE_AUDIT.md` is code-reading hypotheses with file:line citations, not scripture. Where it is wrong,
 prove it and record the correction (B25 is precedent — the two Deflated Sharpe implementations *did* reconcile).
 
+**9. Store the draws, not just the summary.**
+Any sweep, bootstrap, permutation or grid ships its **per-draw rows** alongside the percentiles — and banks the
+*inputs* to every derived statistic, not only the derived number. Cost so far: X7 kept 100 placebo draws as
+five summary rates, so re-denominating one column meant re-running the whole 3.4-hour sweep, and an 8%-vs-7%
+mismatch in a second column sat "undiagnosable" for two sessions. A summary answers the question you had; the
+draws answer the one you get asked later, and you will be asked.
+
 ---
 
 ## PART B — COWORK (the manager). Failure modes, and the rule that closes each.

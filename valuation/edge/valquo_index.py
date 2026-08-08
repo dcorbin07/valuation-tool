@@ -125,12 +125,17 @@ def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
 
     return {
         "name": "Valquo Index",
+        # FIGURES REFRESHED 2026-08-08 (P2 crowding memo, BUGS FOUND #3). Every number in this
+        # string was measured on the pre-B6 2,710-name / 110-date panel and read as current
+        # because it ships inside a payload rather than a results file. Sourced from
+        # BACKTEST_RESULTS.json: construction.top_decile_alpha, costs.top_decile.net_alpha /
+        # .breakeven_one_way_bps / .realised_one_way_bps, portfolio.alpha_vs_equal_weight.
         "method": ("Broad top-decile of the large-cap tier by hot score, score-weighted and "
-                   "capped at 8%. On the full 2,710-name / 110-date backtest the top decile "
-                   "returns +11.8%/yr over equal-weight gross, +11.4% net of modelled "
-                   "transaction costs (breakeven 236bps one-way vs ~37bps actual). Breadth is "
+                   "capped at 8%. On the full 2,531-name / 69-date backtest the top decile "
+                   "returns +7.2%/yr over equal-weight gross, +6.1% net of modelled "
+                   "transaction costs (breakeven 134bps one-way vs 33bps measured). Breadth is "
                    "chosen for robustness, not because concentration underperforms: the "
-                   "top-25 book actually scores higher (+20.7% gross alpha) but is the "
+                   "top-25 book actually scores higher (+16.9% gross alpha) but is the "
                    "noisiest number in the study, so the decile is the honest book to track."),
         "criteria": {"large_cap_min": large_cap_min, "top_decile": top_decile,
                      "top_n": (int(top_n) if top_n else None),
