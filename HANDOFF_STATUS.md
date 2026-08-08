@@ -4,8 +4,8 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-07 (external edge audit, **session 10** — the HAC floor is measured at
-2.28 and the headline clears it; the ML combiner is pre-registered blind)
+**Session date:** 2026-08-08 (external edge audit, **session 11** — the ML tree combiner is
+REJECTED and its deciles run backwards out of sample)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
@@ -15,6 +15,78 @@ file directly.
 > then R1's original run, then session 1, then deep research #2, then the EV staleness fix, then
 > PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
 > per-finding status in `CODE_AUDIT.md`.
+
+---
+
+## GREEKS — THE DERIVED LAYER GREW 315 → 502 NAMES (2026-08-08, greeks lane)
+
+Full write-up in `HANDOFF_greeks.md`. Pure local compute: zero vendor option calls, and
+`data/options/` verified untouched afterwards. Both suites green (252/252 edge, 22/22 greeks).
+
+**502 names, 254,049,740 of 547,615,761 contract-days priced (46.4%), 1,131,698 name-dates,
+27.5 GB.** Was 315 names / 349.0M in / 164.4M priced (47.1%) / 17.8 GB. Every one of the 502
+names the miner marks `complete` now has a derived layer; none is missing.
+
+**THE ONE THING OTHER LANES MUST KNOW: any autopsy PBO, feature p-value or Deflated Sharpe
+computed after today is NOT comparable to any figure banked before today, and the difference is
+NOT a finding.** `options_autopsy.py` reads this layer directly (`:150`, `:181`) and it feeds the
+64-feature gate → `pbo_cscv` and `deflated_sharpe`. Precedent, from `derived_stamp`'s own
+docstring: the layer going **111 → 317 names moved PBO 35.7% → 48.57% under identical trades and
+identical code, and nothing warned.** Today's jump is comparable in size.
+
+**"The autopsies stamp their fingerprint now, so growing the layer is safe" is half right.** The
+stamp exists and works (`options_autopsy.py:538`, shipped as `derived_data` at `:964`), but it
+**gates nothing** by design, `derived_comparable()` has **no production caller**,
+`UNIVERSE_RESULTS.json` is **not stamped at all** while still shipping a Deflated Sharpe, and
+**no stamped baseline has ever been written**. So the stamp makes the discontinuity *detectable
+by a reader who checks the field*; it does not make it safe. **Recommended, cheap, and blocking
+for anyone about to use this layer: run one autopsy purely to bank a stamped baseline.**
+
+Two other findings worth carrying:
+- **Only 187 of the 413 re-derived names were new.** 226 were re-done because their source
+  year-files were **rewritten in place** by the OI re-mine (1,100 files, zero new years added).
+  Skip-existing is signature-based, so this is correct — GEX consumes `open_interest` directly.
+- **The six ticker-reuse names corroborate independently.** `COR`, `SN`, `FIG`, `SNDK`, `AXON`
+  all price far below the 46.4% average (24–34%) and four carry a flag caused by the identity
+  break, because the bars series belongs to the ticker's *current* occupant. **Do not use those
+  six, plus `META`, `DD`, `DOW`, in options research until per-symbol validity windows ship.**
+## P2 — USER CROWDING MODELLED (r1 lane, 2026-08-08) — memo only, no code
+
+Full write-up: **`HANDOFF_crowding.md`**. Ledger rows P1 and P2 updated.
+
+**The answer depends ~700x on which book is published, and the product is already on the safe
+side — by a design choice whose written rationale is factually wrong.**
+
+| book a cohort buys | cohort AUM where slippage cancels the +7.17% alpha | users @ $10k |
+|---|---|---|
+| live Valquo Index (86 names, large-cap, median cap $22.2B) | **$5.1B** | ~506,000 |
+| all-cap top-25 (what P1 modelled) | **$7.4M** | ~740 |
+| all-cap top-10 | **$1.6M** | ~160 |
+
+- **P1's published capacity of ~$23M is overstated 4.72x — the true figure is ~$4.9M.**
+  `scripts/capacity.py:36` hard-codes `BREAKEVEN_BPS = 234.505` (pre-B6); the live measured
+  breakeven is **134.113**. Re-derived from P1's own published cells, which the closed form
+  reproduces to zero residual. **P1's strategic conclusion is unchanged and strengthened.**
+- **Three of P2's four premises are false.** The Index does **not** publish holdings — it is
+  owner-only (`surfaces.py:80`) and pinned by a test. Not 25 names (86). Not small-cap
+  (`LARGE_CAP_MIN = 10e9`).
+- **Slippage is not the binding risk.** At 10,000 users the McLean–Pontiff decay channel is
+  ~3x larger than impact and does not depend on user count at all. Not modellable from
+  anything on disk; no number was invented for it.
+- **Biggest lever after breadth: stagger entry.** Capacity is very nearly linear in days spread
+  (measured 4.97x at 5 days, 20.9x at 21).
+
+**BUGS FOUND (6, none fixed — other lanes).** Highest: the **public** `/work` page
+(`portfolio.html:479-480`) still publishes the **void** `+8.81%/yr, t 5.74, 109 windows, 1998–2026`
+(corrected: +6.99%, NW t 3.984, 68 windows); `valquo_index.py:129-133` ships a description string
+quoting 2,710 names/110 dates/+11.8%/236bps into the live Index JSON; `capacity.py:36` and `:124`
+carry a stale breakeven and the pre-B6 panel. Also: the large-cap floor is justified as "the
+tier where the measured IC was strongest" — measured, large is the **weakest** by IC (0.0287 vs
+small 0.0313), though strongest by long-short. **That floor is load-bearing for crowding, so a
+wrong stated reason is a live risk of it being removed.**
+
+**Equity `N` unchanged at 116** — nothing here searched the return signal, so no
+`RESEARCH_LOG.md` row was added (recorded because the self-penalising direction is to add one).
 
 ---
 
@@ -252,6 +324,65 @@ Full write-up: `HANDOFF_live_data_bugs.md` Part 6. Ledger row `OOB1`. Landed on 
   this class), plus a migration test and `test_not_dcf_valuable_is_not_a_refusal`.
 
 ---
+
+## EDGE AUDIT SESSION 11 (2026-08-08) — the ML combiner is REJECTED, and its deciles run BACKWARDS
+
+Full write-up: `HANDOFF_edge_audit.md` § SESSION 11. Artifacts: `PREREG_session11_execution_protocol.md`,
+`scripts/ml_combiner.py`, `data/free_analysis/ML_COMBINER.json`. **The live product is unchanged.**
+
+**The register was executed unmodified.** `PREREG_ml_combiner.md` was committed blind at `ec6c01d`
+a session before it ran. Seven deployed theme z-scores, rank-of-`fwd_ret` target, 63d, the
+corrected 69-date panel, a frozen 8-point `HistGradientBoostingRegressor` grid, all selection
+confined to a decide half via CPCV, **one measurement per direction**, both directions. No
+deviations; three register ambiguities resolved in the *less* favourable direction and recorded
+before first touch.
+
+### VERDICT: REJECTED — worse on alpha in both directions
+
+| | decide-early → late | decide-late → early |
+|---|---|---|
+| selected grid point | `d3/lr0.10/it300` (**most complex**) | `d2/lr0.03/it100` (**least complex**) |
+| **tree** alpha | **+1.88%** | **−2.66%** |
+| **linear** alpha | **+11.58%** | **+2.82%** |
+| **Δ alpha** (need ≥ +1.95pp) | **−9.70pp** ✗ | **−5.48pp** ✗ |
+| **Δ LS HAC *t*** (need ≥ +0.25) | **−2.118** ✗ | **−2.877** ✗ |
+| **tree monotonicity** | **+0.382** | **+0.842** |
+| **linear monotonicity** | −0.903 | −0.855 |
+
+**THE FINDING IS STRONGER THAN THE VERDICT. Negative monotonicity is well-ordered, so the tree's
+top decile UNDERPERFORMS its bottom decile out of sample, in both directions.** The run carries its
+own control: the linear arm on the **identical rows through the identical function** is
+well-ordered, and the equal-weight benchmark matches between arms to four decimals. **It is the
+model, not the harness.**
+
+**It is not a fitting failure either. All 16 grid × direction cells had a POSITIVE decide-half CPCV
+out-of-sample rank IC (+0.011 to +0.024)** across 15 purged paths — the model generalises *inside*
+the decide half and **reverses across the boundary**. Corroborating that: **the two directions
+selected opposite ends of the grid, monotonically** — capacity helps in one half and hurts in the
+other, so "does model complexity help" is a property of which half you look at, not of the problem.
+Same shape as session 7's LOO.
+
+**Quote it beside the param-search precedent (+8.43%/yr in-search → −0.04%/yr locked hold-out):
+selection on this panel does not merely fail to generalise; it can generalise backwards.**
+
+**What it does NOT say:** it does not vindicate the flat 1/7 linear form, it does not close roadmap
+#16 (a raw-signal or different-model-class variant is a NEW pre-registration and inherits this
+reversal as its prior), and it changes nothing live.
+
+**Trial cost paid as registered: equity `N` 121 → 129, Deflated Sharpe 0.8628 → 0.8556,
+√(2·ln 129) = 3.118.** Every equity claim after this is charged N = 129.
+
+**Tests: 260/260 edge, 24/24 suites green by exit code.**
+
+### Recommended next: task #12, the forward paper-track vs SPY
+
+Three sessions running, the binding constraint has been *how little independent evidence this panel
+contains* — session 8 (n = 1), session 9 (n_eff 2–4 across 16 countries), session 11 (structure
+that reverses between halves of the same panel). **Every remaining in-panel question is competing
+for the same exhausted evidence.** The paper track is the only test that manufactures new
+observations by waiting. It needs a start date, a pre-committed horizon and a comparison rule from
+Don **before** the first print — not an agent. The session-9 clustering discipline applies to it:
+monthly excess returns against SPY are one series, not many.
 
 ## EDGE AUDIT SESSION 10 (2026-08-07) — the HAC floor is measured; the headline clears it by half the margin the record implied
 

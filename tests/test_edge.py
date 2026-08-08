@@ -6173,6 +6173,31 @@ def test_session10_the_placebo_writer_summarises_the_hac_statistic_it_computes()
         assert k in out["rates"], f"{k} missing; the HAC bar cannot be scored against noise"
 
 
+def test_session11_the_ml_executor_still_matches_the_register_it_executed():
+    """`PREREG_ml_combiner.md` is only worth anything if the code that ran it still says what it
+    said. This pins the four things a later session could quietly widen: the grid is EIGHT points
+    (not nine), the features are the SEVEN deployed themes (never `low_risk`, `sentiment`, or the
+    56 raw signals), the anti-overfit hyperparameters are held rather than searched, and the bars
+    are the calibrated ones.
+    """
+    from scripts import ml_combiner as M
+    assert len(M.GRID) == 8, f"the register froze 8 grid points, found {len(M.GRID)}"
+    assert {tuple(sorted(g.items())) for g in M.GRID} == {
+        tuple(sorted({"max_depth": d, "learning_rate": lr, "max_iter": it}.items()))
+        for d in (2, 3) for lr in (0.03, 0.10) for it in (100, 300)}, "grid drifted"
+    assert M.THEMES == ["value", "quality", "momentum", "insider", "capital_discipline",
+                        "size", "institutional"], "feature set drifted from the register"
+    for banned in ("low_risk", "sentiment"):
+        assert banned not in M.THEMES, \
+            f"{banned} is a theme-membership change smuggled in as a feature"
+    assert M.FIXED["min_samples_leaf"] == 200 and M.FIXED["l2_regularization"] == 1.0 and \
+        M.FIXED["early_stopping"] is False and M.FIXED["random_state"] == 0, \
+        "an anti-overfit constant moved; that is a new trial, not a clarification"
+    assert abs(M.LS_HAC_FLOOR - 2.2837) < 1e-9, "LS floor must be session 10's HAC-calibrated bar"
+    assert abs(M.MIN_ALPHA_MARGIN - 0.0195) < 1e-9, "alpha margin must be X7's 1.95pp"
+    assert abs(M.MIN_T_MARGIN - 0.25) < 1e-9, "t-margin must be the standing MIN_HOLDOUT 0.25"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

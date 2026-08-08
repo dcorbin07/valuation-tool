@@ -5012,3 +5012,189 @@ composite is charged for, and `DOMAINS` (`research_log.py:50`) would let it sit 
 **Direction, so the stakes are explicit: counting them RAISES `sr0` and LOWERS the Deflated
 Sharpe.** At `N = 116` the figure is 0.8674 with √(2·ln N) = 3.083. **Edge lane's call. Nothing
 was changed.**
+
+---
+
+# SESSION 11 (2026-08-08) — the ML tree combiner is REJECTED, and its deciles run BACKWARDS out of sample
+
+**The register was executed unmodified.** `PREREG_ml_combiner.md` (committed blind at `ec6c01d`,
+session 10) was run exactly as written: seven theme z-scores, rank-of-`fwd_ret` target, 63d
+horizon, the corrected 69-date panel, `_cpcv_paths(6, 2, embargo=1)` reused unchanged, the frozen
+eight-point grid, selection confined to a decide half, one measurement per direction, both
+directions. **No deviations.** Three register ambiguities were resolved in the *less* favourable
+direction and recorded in `PREREG_session11_execution_protocol.md` **before first touch** (§1).
+
+---
+
+## 0. VERDICT: REJECTED
+
+The registered criterion for REJECTED is "the tree is worse than the linear composite on the alpha
+margin in **both** directions". It is worse in both, by a wide margin, and it fails all three
+ADOPT criteria in both.
+
+| | decide-early → measure-late | decide-late → measure-early |
+|---|---|---|
+| selected grid point | `d3 / lr 0.10 / it 300` (**most complex**) | `d2 / lr 0.03 / it 100` (**least complex**) |
+| decide-half OOS rank IC | +0.01873 | +0.02427 |
+| **tree** top-decile alpha | **+1.88%** | **−2.66%** |
+| **linear** top-decile alpha | **+11.58%** | **+2.82%** |
+| **Δ alpha** (need ≥ +1.95pp) | **−9.70pp** ✗ | **−5.48pp** ✗ |
+| **tree** LS HAC *t* | **+0.0366** | **−1.0113** |
+| **linear** LS HAC *t* | **+2.1547** | **+1.8660** |
+| **Δ HAC *t*** (need ≥ +0.25) | **−2.1180** ✗ | **−2.8773** ✗ |
+| tree clears the 2.2837 floor? | **no** ✗ | **no** ✗ |
+| **tree monotonicity** | **+0.3818** | **+0.8424** |
+| **linear monotonicity** | **−0.9030** | **−0.8545** |
+
+## 1. The finding, which is stronger than the verdict
+
+**THE TREE'S DECILES RUN BACKWARDS OUT OF SAMPLE, IN BOTH DIRECTIONS.** Monotonicity is the
+Spearman correlation between decile index and decile return, and **negative is well-ordered**
+(−1.0 is the ideal; the project has misread this sign before, and it is pinned by
+`test_monotonicity_sign_convention`). The tree returns **+0.38** and **+0.84** — its top decile
+underperforms its bottom decile, systematically, on data it did not select on.
+
+**This is the model, not the harness, and the run contains its own control.** The linear arm was
+scored on the **identical rows** through the **identical `quantile_backtest` call** and came back
+**well-ordered in both directions** (−0.903, −0.855), and the equal-weight benchmark is identical
+between the two arms to four decimals (0.1504 late, 0.2114 early), which is what confirms both
+arms saw the same universe. A sign or orientation defect in the measurement code would have
+inverted the linear arm too.
+
+**It is also not a fitting failure. Every one of the 16 grid × direction cells produced a POSITIVE
+decide-half CPCV out-of-sample rank IC** (+0.011 to +0.024). The model generalises perfectly well
+*inside* the decide half — across 15 purged CPCV paths — and then **reverses across the boundary
+into the other half.** What it learns is half-specific structure, and the half-specific structure
+is strong enough to invert the ranking rather than merely dilute it.
+
+**That reading is corroborated by the grid selection, and the register said to record it
+prominently.** The two directions selected **opposite ends of the grid**, and not marginally:
+
+- decide-**early** ranks the grid **monotonically increasing in capacity** — the *most* complex
+  point (depth 3, lr 0.10, 300 iterations) is best, +0.01873;
+- decide-**late** ranks it **monotonically decreasing in capacity** — the *least* complex point
+  (depth 2, lr 0.03, 100 iterations) is best, +0.02427.
+
+Whether model capacity helps or hurts is not a property of the problem on this panel; it is a
+property of which half you look at. **Session 7's LOO found exactly this shape** — different theme
+selected in each direction, four of seven arms changing sign — and the instability was the finding
+there too.
+
+**The precedent this sits beside, quoted whether it flatters or not (and it does not):** the
+concurrent parameter-search lane measured **+8.43%/yr in-search collapsing to −0.04%/yr on a
+locked hold-out**. The combiner is the same phenomenon with a sharper edge: positive selected-half
+IC, *negative* held-out alpha and a *reversed* decile ordering. **Selection on this panel does not
+merely fail to generalise; it can generalise backwards.**
+
+## 2. What the result does NOT say
+
+- **It does not vindicate the linear composite's functional form.** The tree failing is not
+  evidence the flat 1/7 sum is right; it is evidence that 69 dates and seven correlated features
+  do not support *this* estimator selected *this* way.
+- **It does not close roadmap #16.** It closes **this** pre-registration. A raw-signal variant, a
+  different model class, or a thicker panel are each a NEW pre-registration with their own trial
+  cost — explicitly not an amendment to this one.
+- **It says nothing about `insider` or `institutional` individually**, and nothing about the
+  live product, which is unchanged.
+- **The linear arm's own half-to-half spread is large** (alpha +11.58% late vs +2.82% early), which
+  is the same panel instability seen elsewhere and a reason to read *both* arms' half numbers as
+  noisy.
+
+## 3. Trial cost — paid as registered
+
+| | before | after |
+|---|---|---|
+| equity `N` | 121 | **129** |
+| Deflated Sharpe | 0.8628 | **0.8556** |
+| √(2·ln N) | 3.097 | **3.118** |
+
+**Eight rows, exactly as the register priced them** — running both directions does not double the
+count (session 7's LOO precedent: seven arms across two directions counted seven). Still far above
+X7's calibrated floor of 0.7216, still below the 0.95 convention. **Every subsequent equity claim
+is charged N = 129, and the DSR bar for anything after this is 0.8556.**
+
+## 4. Execution fidelity — what was resolved and how
+
+Recorded in `PREREG_session11_execution_protocol.md`, committed with the executor at `9b1abfc`
+**before** the run:
+
+1. **The boundary date is dropped entirely from both halves** (69 dates → 34 decide + 34 verdict,
+   `2017-07-20` discarded), rather than embargoing only the training side, which would have left
+   35 dates on one side. The stricter reading; the two directions are exact mirrors.
+2. **"Mean out-of-sample rank IC" follows `cpcv_validate.ic_score`'s own convention** —
+   per-test-date Spearman, averaged over the path's test dates, then over the 15 paths — so the
+   tree is selected by the same statistic the linear weight schemes are.
+3. **Grid ties break toward the first (lowest-capacity) point.** No tie occurred.
+
+**Bug-discovery protocol, stated before first touch and honoured:** the executor was first run
+with `--decide-only`, which touches no verdict row, and completed cleanly (15/15 paths scored on
+all 8 grid points, both directions, no failures). **No bug was found, so no direction is
+CONTAMINATED and nothing was re-measured.** Each verdict half was measured exactly once, in a
+single scripted run of a script committed before it ran.
+
+---
+
+## 5. Session 12's first item, with its `needs first`
+
+**First item: task #12, the forward paper-track vs SPY.** After three consecutive sessions in
+which the binding constraint was *how little independent evidence this panel contains* — session 8
+(n = 1), session 9 (n_eff 2–4 across 16 countries), and now session 11 (structure that reverses
+between halves of the same panel) — the case for the one test that manufactures new observations
+by waiting is no longer a preference. **Every remaining in-panel question is competing for the
+same exhausted evidence.**
+
+| dependency | status |
+|---|---|
+| the paper-track engine | **READY** — P4 (session 7) closed the departed-names defect; 45/45 paper-track tests |
+| a start date and pre-committed horizon | **NOT SET — Don's call**, and it must be committed before the first print |
+| the comparison rule | **NOT WRITTEN.** Decide in advance what beats what, over what window; a track without a pre-committed bar becomes a story |
+| n_eff discipline | **the session-9 gate applies** — monthly excess returns against SPY are one series, not many. Do not count months as independent draws |
+| `N` for anything scored alongside it | **129 now**, DSR bar **0.8556** |
+
+**Ranked alternatives:** (1) a raw-signal or alternative-model-class combiner as a **new** blind
+pre-registration, priced the same way — but note it inherits the reversal finding as its prior;
+(2) the narrow sector-relative-value variant (roadmap #13); (3) repairing the `research_log.py`
+parser defect (§7) together with a re-verification of all 55 counted rows.
+
+**Do not re-open:** this pre-registration; the selection rule on either dataset (sessions 8, 9);
+U1 as written; the full-sample LOO as a source of verdicts; `sector_neutral`, PEAD, TTM ROE/ROIC,
+robust z-scores, momentum/institutional consolidation.
+
+---
+
+## 6. What I did NOT do, and why (RUN_RULES A4)
+
+- **Did not amend the register in any way** — no ninth grid point, no feature added after seeing
+  the decide-half ICs, no target change, no split change.
+- **Did not re-measure anything.** No bug was found, but the protocol that would have forced a
+  CONTAMINATED label was in place and committed before the run rather than invented after it.
+- **Did not investigate the reversal further on this panel.** It is a striking result and the
+  temptation to go looking for its mechanism — which themes flip, which dates carry it — is
+  exactly the unregistered search the register exists to prevent. **It is a new pre-registration
+  or it is nothing.**
+- **Did not change the live product, the weights, the themes, or any `EDGE_*` flag.** A REJECTED
+  verdict licenses no change, and neither would an ADOPTED one without its own gate.
+- **Did not touch** the options files carved out to the options-bot lane
+  (`options_signals_v2.py`, `options_universe.py`, `options_backtest.py`, `options_fill.py`,
+  `options_stats.py`, `options_autopsy.py`, `theta_bulk.py`), nor `valuation/screener/**`,
+  `valuation/engine/**`, `valuation/web/**`. The ML work needed none of them.
+
+---
+
+## 7. BUGS FOUND (RUN_RULES A3)
+
+**No new defect was found in the code this session touched**, and the run's own controls (identical
+equal-weight benchmark across arms, well-ordered linear deciles through the same function) are what
+establish that rather than an absence of looking.
+
+Carried forward, unrepaired, for the third session running:
+
+1. **`research_log.py` tests for a `FIXED` verdict by searching the whole row**
+   (`verdict = " ".join(cells).upper()`), so any row whose free-text note contains the word
+   "fixed" is silently dropped from `N` — understating trials, which **overstates significance**.
+   That is the exact error M1 exists to prevent, inside M1's own parser. **Still not repaired**,
+   still for the same reason: it is load-bearing for a shipped statistic and repairing it means
+   re-verifying all 55 counted rows in the same change. Worked around again by wording.
+2. **X7's 100 raw placebo draws were never retained** (session 10 §6), which is why the
+   7%-vs-8% `ls_t ≥ 2.0` discrepancy remains undiagnosable. Session 10's sweep retains all 100;
+   the general lesson — *store the draws, not just the summary* — has now cost two sessions.
