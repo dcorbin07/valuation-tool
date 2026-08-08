@@ -293,7 +293,15 @@ the project's memory and the old versions had been repeated for months.
   bar where this strategy is distinguishable from noise and still fails its threshold.
   **M1 also made the adoption gate harder for noise to pass, as a free side effect:** CPCV
   adopts on **27% → 21%** of pure-noise draws, one-directional (six draws stopped adopting,
-  none started), because the adopt gate reads the Deflated Sharpe. **This is NOT the run-to-run
+  none started). ~~because the adopt gate reads the Deflated Sharpe~~ — **THE MECHANISM WAS
+  BACKWARDS; CORRECTED 2026-08-08 (session 12). The direction and the magnitude are right and
+  the mechanism was not.** The adopt gate cannot read the Deflated Sharpe: adoption is decided
+  at `fundamental_panel.py:2729` and `_dsr_detail` is computed at `:2744`, **downstream of it**,
+  on the returns of whichever scheme adoption just chose. What M1 actually changed is
+  `_trials_haircut` (`:2097`), which is **floored at the research log's `N`** — and the adopt
+  gate multiplies `se` by that haircut. Both the haircut and the DSR read `_trial_N()`; neither
+  reads the other. **This matters beyond pedantry, because it means `N` MOVES `ls_t`** — see the
+  session-12 bullet below. **This is NOT the run-to-run
   non-reproducibility** — that remains open; it was briefly mistaken for it before the
   one-directional pattern was checked.
 
