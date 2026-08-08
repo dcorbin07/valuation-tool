@@ -1689,3 +1689,184 @@ the number looks better.
 - **Not switch every name to a self-computed beta.** It would change every valuation in the
   product and leave no control group. Vendor-first is chosen partly *because* it leaves one.
 - **Not retune a threshold after seeing which names it catches.**
+
+---
+
+## Part 7 — RESULTS: the beta reproducibility fix, measured
+
+**Verdict: all four pre-registered bounds HELD, on the third attempt.** The first two attempts
+were invalidated by my own measurement and are reported below rather than discarded, because the
+way they failed is the most useful thing in this section.
+
+Pre-commitment: commit `04d9f12`, written and committed alone before any number existed.
+
+### 7.1 Two invalidated runs, and why they are in the record
+
+| run | names | rate-limited corroborations | names arriving with NO vendor beta | reportable |
+|---|---|---|---|---|
+| 1 | 402 | 176 | not recorded | **NO** |
+| 2 | 403 | 297 | 302 | **NO** |
+| 3 | 46, paced, serial | **0** | 3 (genuine) | yes |
+
+Run 1 made 402 corroborating calls in 3.7 minutes and exhausted Yahoo's rolling quota. Run 2 was
+worse: **302 of 403 names arrived with `beta=None` and largely empty `CompanyData`**, so the base
+fetch was degraded too — MRK, GILD, CHTR, CI, KO and XOM all reported WACC 5.26% identically,
+which is the signature of a name with no market cap whose WACC collapses to pure cost of debt.
+
+**Bounds 2 and 3 "passed" in run 1 for a worthless reason: both arms landed on the same constant,
+so the swing was 0.00pp.** A bound satisfied because nothing happened is not satisfied. Run 2 was
+built to detect exactly that and did — it labelled itself contaminated and refused to report.
+Run 3 added a *continuous* check that stops the moment a rate limit appears, rather than
+discovering it at the end.
+
+**The lesson is not about Yahoo.** A measurement that consumes the resource it is measuring will
+report on its own exhaustion and call it a result. The guard that caught this was cheap: count the
+contaminating events, print them *before* the verdict, and make the script refuse.
+
+### 7.2 The defect the invalidated runs exposed — the important finding
+
+Run 1 pushed **178 of 402 names onto the constant**. Not because their history was thin, but
+because the corroborating call *failed*, and the first version of `_resolve_beta` could not tell
+those apart. That is the MRK bug reproduced with a new trigger — and a worse one, because
+**production scans 500 names at a time, which is precisely the burst that provokes throttling.**
+A fix for "a vendor field vanished" that itself turns a busy network into 178 changed valuations
+is not a fix.
+
+Corroboration is now **best-effort with a failure mode of "no change"**: a vendor beta is
+overruled only by positive evidence that its history is short, never by a failed check. The
+invariant, stated so it can be tested: **the constant's population is never wider than it was
+before this change** — it is reached only when the vendor beta is missing or out of band, which is
+exactly the old `1.10` test.
+
+### 7.3 The four bounds, measured (46 names, paced, 0 contaminated)
+
+Sample: the 7 named cases + 5 out-of-band names + every 12th served name — deterministic and
+fixed before any result. It is **a sample, not the 403-name served universe**; that is the price
+paid for validity, and it is stated rather than glossed.
+
+**BOUND 1 — do-no-harm. HELD.** 37 control-group names; **0 moved** in WACC or fair value.
+
+**BOUND 2 — the fix must fire. HELD, and non-vacuously.** With the vendor field simulated absent:
+
+| name | vendor | computed (n) | WACC swing, NEW | WACC swing, OLD |
+|---|---|---|---|---|
+| **MRK** | 0.211 | **0.180** (59) | **0.13pp** | **3.85pp** |
+| KSPI | 0.080 | 0.886 (30) | 0.00pp | 4.82pp |
+| GILD | 0.336 | 0.305 (59) | 0.13pp | 3.32pp |
+| CI | 0.321 | 0.288 (59) | 0.11pp | 2.74pp |
+| CHTR | 0.678 | 0.669 (59) | 0.01pp | 0.37pp |
+| XOM | 0.173 | 0.206 (59) | 0.15pp | 4.34pp |
+| KO | 0.342 | 0.308 (59) | 0.15pp | 3.38pp |
+
+MRK's **0.133pp** clears the pre-committed 0.50pp. The old code's **3.85pp** on the same name
+independently reproduces the reported 5.53% → 9.31% incident — the bug report was accurate.
+
+**BOUND 3 — KSPI. HELD.** Rejected at **n = 30 < 36** and replaced by its own computed 0.886.
+It is rejected **for its history, not its size**, which was the condition that would otherwise
+have made this a FAIL however good the number looked. Its fair value is `None` before and after —
+the name is not published either way, so this is a correctness result, not a headline change.
+
+**BOUND 4 — no published/withheld flips among control names. HELD.** 0 flips.
+
+### 7.4 Rung counts, including rung 4 — enumerated as promised
+
+`vendor` 34 · `vendor_corroborated` 3 · `computed` 4 · `fallback` 5 · `vendor_uncorroborated` 0.
+
+**Five names reach the constant. The pre-commitment said the 1.10 → 1.0 change ships only if that
+count is zero or its effect is enumerated name by name. Enumerated:**
+
+| name | vendor | why the constant | WACC | fair value |
+|---|---|---|---|---|
+| PDD | −0.005 | own beta −0.039, out of band | 10.13% → 9.63% | 217.82 → 227.33 |
+| ALAB | 3.843 | own beta 4.237, out of band | 10.16% → 9.66% | 56.80 → 59.73 |
+| CRDO | 3.233 | own beta 3.412, out of band | 10.16% → 9.66% | 136.26 → 143.98 |
+| BE | 3.832 | own beta 3.824, out of band | 10.40% → 9.92% | 25.65 → 26.48 |
+| KXIAY | none | only 9 observations | 9.97% → 9.50% | 24.79 → 25.91 |
+
+Every one of these already received a constant under the old code. The entire effect on them is
+the **1.10 → 1.0 difference: WACC −0.5pp, fair value +4 to +5%.** Nothing here is a new
+substitution; it is the same substitution with a derived value instead of an underived one.
+
+### 7.5 Trigger sensitivity — pre-committed, and the answer is "none"
+
+| `BETA_LOW_TRIGGER` | rungs | names resolving to a DIFFERENT beta vs 0.25 |
+|---|---|---|
+| 0.10 | vendor 37, computed 4, fallback 5 | **0** |
+| 0.15 | vendor 37, computed 4, fallback 5 | **0** |
+| 0.25 (shipped) | vendor 34, corroborated 3, computed 4, fallback 5 | — |
+
+**The trigger changes no beta at all on this sample.** It moves three names between `vendor` and
+`vendor_corroborated`, which is a difference in whether a network call happens and what the stamp
+says — not in the answer. This is the design claim ("the value decides who gets *checked*; the
+observation count decides who gets *rejected*") measured rather than asserted. KSPI's 0.080 sits
+below all three triggers, so its rejection does not depend on the choice.
+
+### 7.6 What actually changes in the product — including the part that flatters it
+
+**9 of 46 names (19.6%) get a different beta; 4 get a genuinely new number.** The other five are
+the 1.10 → 1.0 shift above.
+
+| name | old | new | WACC | fair value |
+|---|---|---|---|---|
+| KSPI | 0.080 | 0.886 (n=30) | 5.07% → 8.88% | None → None |
+| ARGX | 1.100 | 0.413 (n=59) | 10.16% → 6.73% | 1053.27 → **1929.80** |
+| DTEGY | 1.100 | 0.323 (n=59) | 7.71% → 5.77% | 53.62 → **86.22** |
+| COP | 1.100 | 0.216 (n=59) | 9.31% → 5.52% | 77.47 → **131.18** |
+
+**STATE THIS PLAINLY: this is the first change in this lane that moves published fair values UP,
+and systematically so.** Every name with no usable vendor beta was priced at a beta of 1.10;
+measuring their own gives a lower number, a lower WACC and a higher fair value — ARGX +83%,
+COP +69%, DTEGY +61%. The direction is not evidence the change is right. What supports it is that
+1.10 was never derived from anything, and that COP's computed 0.216 sits alongside XOM's 0.206
+from the same estimator — two large integrated energy names agreeing. **A follow-up should check
+whether these names now clear publication thresholds they previously failed, because a
+systematically upward revision is exactly the kind of change that quietly adds Buy ratings.**
+That check is not in this session's bounds and is not claimed.
+
+### 7.7 Limits that must travel with these numbers
+
+- **46 names, not the 403 served.** Two full-universe attempts were invalidated; a third needs a
+  rate-limit-tolerant path, which is the recommended next step.
+- **Under a throttled vendor feed, both old and new land on a constant for names whose vendor beta
+  is missing.** Fail-open protects a name that *has* a vendor beta; it cannot invent one. Run 2
+  saw 302 such names. Unchanged behaviour, not a regression — but it means the reproducibility
+  hole is **narrowed, not closed**, while the feed is Yahoo.
+- The estimator is 5y-monthly against SPY. **1y-daily was tried first and is wrong** — it returns
+  KO −0.286 and XOM −0.484.
+- `BETA_HIGH_CAP` is inherited, not derived. CRDO's vendor (3.233) and own (3.412) values *agree*
+  the beta exceeds it, which is arguably evidence the cap is too low rather than that the data is
+  bad. Those names sit on the constant exactly as before, so nothing regresses — but pricing a
+  genuinely 3.4-beta company at 1.0 understates its risk. **Moving the cap needs its own bound.**
+
+### 7.8 Tests
+
+`tests/test_engine.py` **51/51**; full sweep **24 suites, 859 tests, 0 failures** (re-run after
+the final change). Eight new tests, none of which touch the network — they stub the estimator, so
+a throttled machine cannot turn them green or red by accident.
+
+The test that would have caught this class:
+`test_a_throttled_corroboration_keeps_the_vendor_beta` — it asserts that a `YFRateLimitError`
+leaves a published beta untouched. The original bug and my near-repeat of it are the same
+sentence: *an input that could not be fetched must not silently become a different number.*
+
+## BUGS FOUND
+
+1. **`_resolve_beta` converted a rate limit into a changed headline (MINE, found and fixed before
+   ship).** "History is thin" and "the check could not run" were the same branch. Measured: 178 of
+   402 names pushed onto the constant. Fixed; two tests pin it.
+2. **The plausibility band was applied to the vendor's beta but not to my own.** **PDD adopted a
+   computed beta of −0.039** — a value the same function refuses from a vendor — pinning WACC to
+   the 4% clamp and turning a $217.82 fair value into a refusal. CRDO (3.412), ALAB (4.237) and
+   KXIAY (6.713, n=9) breached the high cap. Fixed: a number is not more believable because we
+   computed it ourselves.
+3. **`.gitignore`'s bare `data/` also matches `valuation/data/`, which is application source.**
+   `valuation/data/beta.py` was silently unaddable, and since `wacc.py` imports it lazily it would
+   have shipped as a runtime `ModuleNotFoundError` on the one path it was written for. The six
+   older files in that package survive only because ignore rules do not apply to already-tracked
+   files. Anchored to `/data/`; verified `data/backtest`, `data/raw`, `data/bulk` and
+   `data/last_result.json` all remain ignored and no licensed file became visible.
+4. **The risk-free rate has the same silent-substitution shape beta had.** `macro.py` falls back to
+   `cfg.default_risk_free` and nothing downstream could distinguish a live rate from a config
+   constant. Now stamped. **Not measured** — no incident is attributed to it, and none is claimed.
+5. **A measurement that consumes the resource it measures will report its own exhaustion as a
+   result.** Two runs here did. Neither was reportable, and only the second could tell.

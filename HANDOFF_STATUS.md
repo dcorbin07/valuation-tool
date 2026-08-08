@@ -18,6 +18,55 @@ unanswerable; X8's replication restored to `CLAUDE.md`)
 
 ---
 
+## 2026-08-07 — greeks lane, OUT-OF-BAND: a vanished vendor field can no longer rewrite a headline
+
+**MRK went from "cannot value this name" to a published 91 "Strong Buy" because Yahoo stopped
+returning one beta field and `wacc.py` silently substituted `1.10`** (WACC 5.53% → 9.31%). The
+field is INTERMITTENT, not gone — it was back at 0.211 the same week. Shipped:
+
+- **`valuation/data/beta.py`** — beta computed from the company's own prices, 5y monthly vs SPY.
+  **A 1y-DAILY window was tried first and is WRONG**: it returns KO −0.286 and XOM −0.484.
+- **A stated ladder in `wacc.py`** — override → an ordinary vendor beta accepted untouched (no
+  extra call; this is the control group) → corroboration against the company's own prices → a
+  stated constant of **1.0** (the market portfolio's beta by construction) replacing the
+  underived `1.10`.
+- **Rejection on HISTORY, not on value.** GILD 0.336, CI 0.321, CHTR 0.678, MRK 0.211 and XOM
+  0.173 are all genuinely low-beta, so flooring the *value* would assert something false about
+  them. Only KSPI's 0.080 is an artifact, and what makes it one is 30 monthly observations on a
+  2024 ADR listing. The value decides who gets **checked**; the observation count decides who
+  gets **rejected**.
+- **`InputProvenance` stamps** on beta and the risk-free rate (source, as-of, n, vendor value,
+  substituted), serialized out through `WACCResult.to_dict` → `PipelineResult.to_dict`.
+
+**All four pre-registered bounds (committed alone at `04d9f12`) HELD** on a 46-name paced sample:
+control group 37 names **0 moved**; **MRK's vendor-absent WACC swing 0.133pp against the old
+code's 3.85pp** (which independently reproduces the reported incident); KSPI rejected at n=30<36,
+i.e. for its history; **0** published/withheld flips. Trigger insensitive at 0.10/0.15/0.25 —
+**0 betas differ**.
+
+**TWO FULL-UNIVERSE RUNS WERE INVALIDATED BY THEIR OWN RATE LIMITING** (176 and 297 throttled
+calls; run 2 had **302 of 403 names arrive with no vendor beta at all**), and in run 1 bounds 2
+and 3 "passed" **vacuously** because both arms landed on the same constant. That exposed the real
+defect: **the first ladder treated "the check failed" as "the history is thin" and pushed 178 of
+402 names onto the constant** — the original bug with a new trigger, on exactly the 500-name burst
+production scans. Corroboration is now best-effort with a failure mode of *no change*.
+
+Two further defects found and fixed: **the plausibility band was applied to the vendor's beta but
+not to our own** (PDD adopted a *computed* −0.039, clamping WACC to 4% and turning a $217.82 fair
+value into a refusal), and **`.gitignore`'s bare `data/` also matched `valuation/data/`**, so the
+new module was unaddable and would have shipped as a runtime `ModuleNotFoundError`.
+
+**Caveats that must travel:** 46 names, not the 403 served. The fix cannot help a name whose
+vendor beta is missing *and* uncomputable, so under a throttled feed the hole is **narrowed, not
+closed**. And it moves fair values systematically **UP** for names formerly priced at 1.10 —
+ARGX +83%, COP +69%, DTEGY +61% — which nobody should read as evidence it is right; **someone
+should check whether those names now clear publication thresholds they previously failed.**
+
+Tests: 24 suites, **859 passing, 0 failures** (engine 51/51). Full write-up:
+`HANDOFF_live_data_bugs.md` Part 7. Ledger row `OOB2`.
+
+---
+
 ## 2026-08-07 — greeks lane, OUT-OF-BAND: the public fair-value leak is closed
 
 Full write-up: `HANDOFF_live_data_bugs.md` Part 6. Ledger row `OOB1`. Landed on `main` as

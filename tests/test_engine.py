@@ -228,6 +228,53 @@ def test_a_throttled_corroboration_still_reaches_the_constant_with_no_vendor_bet
     assert w.beta_provenance.substituted is True
 
 
+def test_a_computed_beta_is_held_to_the_SAME_band_as_the_vendors():
+    """PDD, measured 2026-08-07: vendor beta -0.005 is refused as implausible, and the beta
+    computed from its own prices is -0.039 -- which the first version ADOPTED, pinning WACC to
+    the 4% clamp and turning a $217.82 fair value into a refusal. A number is not more
+    believable because we computed it. CRDO (3.412) and ALAB (4.237) are the high-side pair."""
+    for bad in (-0.039, 4.237):
+        cd, orig, beta_mod = _beta_case(vendor=None, computed=bad, n=59)
+        try:
+            w = compute_wacc(cd, CONFIG)
+        finally:
+            beta_mod.compute_beta = orig
+        assert w.beta == 1.0, f"adopted an out-of-band computed beta {bad}: {w.beta}"
+        assert w.beta_provenance.source == "fallback"
+
+
+def test_the_constants_population_never_widens():
+    """The invariant: the constant is reached only when the VENDOR beta is missing or out of
+    band — exactly the old `1.10` test. A usable vendor beta whose replacement turns out to be
+    unusable is KEPT, never traded for a constant."""
+    cd, orig, beta_mod = _beta_case(vendor=0.08, computed=-0.5, n=30)   # KSPI value, bad estimate
+    try:
+        w = compute_wacc(cd, CONFIG)
+    finally:
+        beta_mod.compute_beta = orig
+    assert abs(w.beta - 0.08) < 1e-9, f"traded a real vendor beta for a constant: {w.beta}"
+    assert w.beta_provenance.source == "vendor_uncorroborated"
+    assert w.beta_provenance.substituted is False
+
+
+def test_the_provenance_stamp_survives_serialization():
+    """A stamp that never leaves the dataclass is decoration.
+
+    `PipelineResult.to_dict` calls `WACCResult.to_dict`, so this is the join that carries the
+    provenance out to anything that reads a valuation. It must also be JSON-clean: a bare
+    dataclass in that dict would raise at the API boundary, not here.
+    """
+    import json
+    from valuation.data.models import CompanyData
+    cd = CompanyData(ticker="TEST", price=100.0, shares_diluted=10.0, market_cap=1000.0,
+                     total_debt=0.0, risk_free_rate=None, beta=1.2)
+    d = compute_wacc(cd, CONFIG).to_dict()
+    assert isinstance(d["beta_provenance"], dict), "provenance did not survive to_dict"
+    assert d["beta_provenance"]["source"] == "vendor"
+    assert d["risk_free_provenance"]["substituted"] is True
+    json.loads(json.dumps(d))          # raises if anything in here is not JSON-clean
+
+
 def test_wacc_matches_nike():
     cd = build_nike()
     w = compute_wacc(cd, CONFIG)

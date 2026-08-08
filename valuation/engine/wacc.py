@@ -184,7 +184,20 @@ def _resolve_beta(cd: CompanyData, beta_override, notes):
             n_observations=est.n_observations, as_of=est.as_of,
             note="low but supported by sufficient history")
 
-    if est.supportable:
+    # THE PLAUSIBILITY BAND APPLIES TO WHATEVER NUMBER IS ADOPTED, NOT ONLY TO THE VENDOR'S.
+    # Measured 2026-08-07: without this, PDD adopts a COMPUTED beta of -0.039 -- a value this
+    # same function refuses outright when a vendor supplies it -- pinning WACC to the 4% clamp
+    # and turning a $217.82 fair value into a refusal. CRDO (3.412) and ALAB (4.237) adopt
+    # betas above the cap the vendor is held to. A number is not more believable because we
+    # computed it ourselves.
+    #
+    # OPEN, DELIBERATELY NOT CHANGED HERE: CRDO's vendor (3.233) and computed (3.412) values
+    # AGREE that the beta is above the cap, which is arguably evidence the cap is too low rather
+    # than that the data is bad. Those names land on the constant, exactly as they did before
+    # this change, so nothing regresses -- but pricing a genuinely 3.4-beta company at 1.0
+    # understates its risk. Moving the cap is a separate decision and needs its own bound.
+    est_in_band = est.value is not None and 0 < est.value <= BETA_HIGH_CAP
+    if est.supportable and est_in_band:
         why = ("vendor beta missing" if vendor is None else
                f"vendor beta {vendor:.3f} rests on only {est.n_observations} monthly "
                f"observations" if in_range else
@@ -195,8 +208,26 @@ def _resolve_beta(cd: CompanyData, beta_override, notes):
             value=float(est.value), source="computed", vendor_value=vendor,
             n_observations=est.n_observations, as_of=est.as_of, substituted=True, note=why)
 
-    notes.append(f"Beta missing/implausible and not computable "
-                 f"(n={est.n_observations}); used the stated market beta {BETA_FALLBACK}.")
+    # No usable replacement. If the VENDOR value is usable, keep it — we have nothing better,
+    # and overruling it now would mean substituting a constant for a real number on the strength
+    # of a computation we just rejected. This keeps a hard invariant worth stating:
+    # THE CONSTANT'S POPULATION IS NEVER WIDER THAN IT WAS BEFORE THIS CHANGE — it is reached
+    # only when the vendor beta is missing or out of band, which is exactly the old `1.10` test.
+    if in_range:
+        notes.append(f"Low beta {vendor:.3f} not corroborated (computed value unusable: "
+                     f"{est.value if est.value is None else round(est.value, 3)}, "
+                     f"n={est.n_observations}); vendor value kept.")
+        return float(vendor), InputProvenance(
+            value=float(vendor), source="vendor_uncorroborated", vendor_value=vendor,
+            n_observations=est.n_observations,
+            note="no usable replacement; vendor value kept")
+
+    why_const = ("not computable" if est.unavailable else
+                 f"computed value {est.value:.3f} outside (0, {BETA_HIGH_CAP}]"
+                 if not est_in_band else
+                 f"computed on only {est.n_observations} observations")
+    notes.append(f"Beta missing/implausible and {why_const}; "
+                 f"used the stated market beta {BETA_FALLBACK}.")
     return BETA_FALLBACK, InputProvenance(
         value=BETA_FALLBACK, source="fallback", vendor_value=vendor,
         n_observations=est.n_observations, substituted=True,
