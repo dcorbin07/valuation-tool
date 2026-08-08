@@ -31,8 +31,10 @@ longer existed** — the authoritative book measured 86.435% reproducible agains
 - **DRIFT IS PROGRESSIVE AND TRACKS AGE, NOT THE BOOK.** All ten banked books reconciled:
   everything banked 2026-08-03 is ~56% untouched, everything banked 2026-08-05 ~80%. Nothing is
   lost (0 absent symbol-years) and the store has been quiet since 2026-08-06 04:29.
-- **Frozen:** R2 corrected + its five random-entry controls, under
-  `data/options_freeze/*_2026-08-08/`. **Retired with annotation:** pre-correction, `state_mid`,
+- **Frozen:** R2 corrected (2,870,811 rows, 23.3 MB) + its five random-entry controls
+  (21,877,728 rows, 168.9 MB), under `data/options_freeze/*_2026-08-08/`. Total 192.2 MB, i.e.
+  **0.71% of the 26.98 GB store**. The R2 copy is validated end to end: 20/20 sampled alerts
+  replay term_slope from the frozen copy alone. **Retired with annotation:** pre-correction, `state_mid`,
   entry lab, exit lab.
 - **The gate is wired** at `theta_bulk._year_frame` (the single read choke point) and in all
   three banked-run runners. Descriptive at bank time, blocking only for replays.

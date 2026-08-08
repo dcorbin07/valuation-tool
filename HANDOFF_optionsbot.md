@@ -2001,7 +2001,7 @@ best case, not the worst.
 | book | disposition |
 |---|---|
 | R2 corrected | **REFROZEN** — new bank at `data/options_freeze/R2_CORRECTED_2026-08-08/` (`chains.pkl.gz` + `FREEZE_MANIFEST.json`). Never an overwrite: `freeze_book` refuses to land on an existing freeze. |
-| control seeds 0-4 | **NOT FROZEN — ATTEMPTED AND NOT COMPLETED. Corrected here rather than left standing: an earlier draft of this section claimed they were frozen.** The R2 verdict is a *comparison* carried by the paired name-year sign test, so freezing the real book alone leaves half of it un-replayable, and this remains the top outstanding item. The run (29,785 trades pooled across five seeds, 1,558 symbol-years) was killed by the environment after ~45 minutes before writing anything; because `freeze_book` writes to `.tmp` and `os.replace`s, **no partial or corrupt artifact was left** — the directory is empty. The cause was a real performance defect, now repaired (see below), not a data problem. |
+| control seeds 0-4 | **REFROZEN**, at `data/options_freeze/R2_CONTROLS_2026-08-08/` — **21,877,728 rows, 168.9 MB**, all five seeds (29,785 trades), 1,558 symbol-years. The R2 verdict is a *comparison* carried by the paired name-year sign test, so freezing the real book alone would leave half of it un-replayable. **It took three attempts and the first two failed; see "A performance defect in my own freeze" below — the intermediate states of this row are recorded there rather than tidied away.** |
 | pre-correction, `state_mid` | **RETIRED**, annotated: *inputs no longer reproducible; the verdict stands on the frozen summary.* Both were already SUPERSEDED by the B1-B4/B15 corrections — the record's own word — so refreezing would preserve replayability for books nobody may quote. |
 | entry lab, exit lab | **RETIRED**, annotated the same way, at 56.25% / 57.04%. A refreeze remains possible and cheap should either be quoted again; what it would freeze is *today's* store, which is not what those books were scored against. |
 
@@ -2253,3 +2253,65 @@ Every sampled alert's `term_slope` recomputed **from the frozen copy** matches t
 recomputed from the store to within `1e-6`. So the R2 book's verdicts can now be re-derived even
 if `data/options` is deleted, re-mined, or moved — which is the property that did not exist
 before today and whose absence is the whole reason O16 stopped.
+
+## A performance defect in my own freeze, and what it cost
+
+**`freeze_book` scanned the whole year frame once PER CONTRACT.** That is tolerable for the R2
+book — 3,885 contracts, 1,153s — and hopeless for the five pooled control seeds: **29,785
+contracts × a ~200k-row scan each**. It ran ~45 minutes without emitting a row and was killed by
+the environment before writing anything.
+
+Two things follow, and the second is the one worth keeping:
+
+1. **Nothing was corrupted.** `freeze_book` writes to `.tmp` and `os.replace`s, so a kill at any
+   point leaves either the previous artifact or nothing. The directory was simply empty. That is
+   the atomic-write discipline `theta_bulk` already applies to the store, applied here.
+2. **This is BUG #2 above biting for real.** I filed "no progress output, so slow is
+   indistinguishable from hung" as cosmetic and deferred it. It was not cosmetic: with no output
+   I could not tell a slow job from a wedged one, and the only reason I knew it was alive was
+   inspecting its resident memory from PowerShell.
+
+**Repaired:** contract selection is now keyed and joined once per symbol-year instead of masked
+per contract (`_contract_rows`), and `freeze_book` takes `progress=True`. Each contract keeps its
+**own** date window rather than a pooled min/max — a pooled window would freeze rows the book
+never read, which is safe for replay but would misreport what the book consumed, and that number
+is the entire basis of the cost measurement above. Two tests pin the window behaviour and the
+no-match case.
+
+**The optimisation was verified to be behaviour-preserving on the real book, not just on
+fixtures:** re-freezing R2 through the new path gives **2,870,811 rows against the banked
+2,870,811**, content-identical after sorting. 707s vs 1,153s — a 1.6× win here, because for a
+book this size *frame loading* dominates; the win scales with contract count, which is where the
+control seeds were dying.
+
+**A CORRECTION TO MY OWN REASONING, recorded because it nearly became documentation.** An interim
+version of the rewrite collapsed a contract's multiple date windows into one `[min, max]` span,
+and the resulting freeze was **14,231 bytes larger** than the banked one. I read that as proof of
+exactly the over-inclusion I had warned against, and started writing it into the code comment as
+a measured fact. **It was not true.** Checked properly, the two row sets are *identical* — gzip
+was simply compressing a different row ORDER. The per-window predicate is kept regardless,
+because it matches the original loop *by construction* rather than by luck of this book's
+contract mix, and a test now pins the disjoint-window case that actually distinguishes them. A
+byte-size difference is not a row-set difference, and I should have checked before concluding.
+
+### The controls freeze took three attempts, and the third worked
+
+| attempt | outcome |
+|---|---|
+| 1 — whole job, per-contract scan | killed by the environment at ~45 min, **0 rows written** |
+| 2 — whole job, vectorised | killed by the environment at 600/1,558 symbol-years |
+| 3 — **six ticker shards, foreground** | **completed**, 129-152s per shard, ~13 min total |
+
+**The operational finding worth carrying: this environment stops long-running background jobs,
+and both failures were that rather than anything wrong with the data.** Sharding by ticker is
+sound here because `freeze_book`'s work is keyed by `(ticker, year)` — no shard can affect
+another's rows — so the shards are independent and their union is exactly the whole freeze.
+`bank_controls_shard.py combine` concatenates, de-duplicates, writes the manifest and deletes the
+shard files.
+
+**Result: 21,877,728 rows, 168,934,527 bytes (168.9 MB).** Note it is **7.6× the R2 book's row
+count** off 7.7× the trades — the controls are random-entry, so their alert dates are spread far
+more widely across the store than the real book's clustered ones.
+
+**Total freeze footprint on disk: 23.3 MB + 168.9 MB = 192.2 MB, against a 26.98 GB store —
+0.71%.** The whole defended set costs under three quarters of one percent of what it defends.
