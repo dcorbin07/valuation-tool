@@ -24,6 +24,15 @@ TWO SCHEMA DECISIONS, both of which change the count and both of which are delib
    denominator with correctness fixes would understate the evidence rather than overstate it,
    which is an error in the opposite direction and just as dishonest.
 
+   **REPAIRED 2026-08-08 (session 12): the verdict is read from THE VERDICT COLUMN, not from the
+   row.** For three sessions this test ran against every cell joined together, so a row whose
+   hypothesis, threshold, source or note merely contained the word "fixed" was dropped from `N`
+   even where its verdict read `REJECTED`. Understating `N` overstates the significance of every
+   DSR-gated claim in the project — M1's own error, inside M1's own parser. Three sessions worked
+   around it by choosing synonyms, which means the shipped denominator was being protected by
+   authors' word choice rather than by code. The grid multiplier and the domain were read the
+   same loose way (whole line / first matching cell) and are fixed with it.
+
 3. **A row may represent a pre-registered GRID via `n_trials`.** The lazy-prices study ran a
    28-cell grid of measures × horizons as ONE pre-registered sweep. Writing 28 near-identical
    rows would be fabricated precision; writing one row and counting it once would undercount a
@@ -50,41 +59,104 @@ _CACHE: dict = {}
 DOMAINS = ("equity", "options", "unified", "infra")
 
 
+def _header_map(cells):
+    """If this row is a table header, return {field: column index}; else None.  [SESSION 12]
+
+    `RESEARCH_LOG.md` holds TWO tables with DIFFERENT column layouts — the original
+    (`id date domain hypothesis universe metric threshold verdict source`, verdict at 7) and the
+    retrospective reconstruction (`id date domain pre hypothesis metric verdict n source`, verdict
+    at 6 and `n` at 7). Any counter that hard-codes an index is wrong on one of them, so each
+    table's columns are resolved from its own header.
+    """
+    low = [c.strip().lower() for c in cells]
+    if "id" not in low or "verdict" not in low:
+        return None                                   # not a row-table header
+    return {k: low.index(k) for k in ("id", "verdict", "n", "domain") if k in low}
+
+
+def _cell(cells, hdr, field):
+    """The named field's own cell, or None if this table has no such column."""
+    i = (hdr or {}).get(field)
+    return cells[i] if i is not None and i < len(cells) else None
+
+
 def _parse(path):
-    """Parse the markdown table. Returns totals plus a per-domain breakdown."""
+    """Parse the markdown tables. Returns totals plus a per-domain breakdown.
+
+    SESSION 12 — every field is read from ITS OWN COLUMN. The previous implementation tested
+    `\\bFIXED\\b` against every cell of the row joined together, so any row whose free-text note
+    happened to contain the word "fixed" was silently dropped from `N`. An understated `N`
+    OVERSTATES the significance of every DSR-gated claim in the project — the exact error M1
+    exists to prevent, committed inside M1's own parser. The grid multiplier (`n=<k>`) and the
+    domain were read the same loose way and are fixed alongside it.
+
+    Where a field cannot be resolved, the row is resolved toward a LARGER `N` (the less
+    favourable direction): an unreadable or absent verdict counts as a trial, never as `FIXED`.
+    """
     trials = fixed = counted = 0
     ids = []
+    changed = []                                      # rows whose treatment differs from legacy
     by_domain = {d: 0 for d in DOMAINS}
     try:
         with open(path, encoding="utf-8") as f:
             lines = f.readlines()
     except OSError:
         return None
+    hdr = None
     for ln in lines:
         if not ln.startswith("|"):
             continue
         cells = [c.strip() for c in ln.strip().strip("|").split("|")]
         if len(cells) < 4:
             continue
+        maybe = _header_map(cells)
+        if maybe is not None:
+            hdr = maybe                               # a new table starts here
+            continue
         rid = cells[0]
         if not rid or rid.lower() in ("id", "field") or set(rid) <= set("-: "):
-            continue                                  # header or separator
-        verdict = " ".join(cells).upper()
-        if re.search(r"\bFIXED\b", verdict):
+            continue                                  # stray header or separator
+
+        # --- verdict: THE VERDICT CELL ALONE ---------------------------------------------
+        vcell = _cell(cells, hdr, "verdict")
+        is_fixed = bool(vcell) and vcell.strip().upper().startswith("FIXED")
+        legacy_fixed = bool(re.search(r"\bFIXED\b", " ".join(cells).upper()))
+        if is_fixed != legacy_fixed:
+            changed.append({"id": rid, "field": "verdict", "was": "FIXED" if legacy_fixed
+                            else "counted", "now": "FIXED" if is_fixed else "counted",
+                            "verdict_cell": vcell})
+        if is_fixed:
             fixed += 1
             continue
-        # `n=<k>` anywhere in the row marks a pre-registered grid of k cells.
-        m = re.search(r"\bn=(\d+)\b", ln)
+
+        # --- grid multiplier: THE `n` CELL ALONE ------------------------------------------
+        ncell = _cell(cells, hdr, "n")
+        m = re.search(r"\bn=(\d+)\b", ncell) if ncell else None
         k = int(m.group(1)) if m else 1
+        lm = re.search(r"\bn=(\d+)\b", ln)
+        lk = int(lm.group(1)) if lm else 1
+        if k != lk:
+            changed.append({"id": rid, "field": "n", "was": lk, "now": k, "n_cell": ncell})
+
         trials += k
         counted += 1
         ids.append(rid)
-        for d in DOMAINS:
-            if any(c.lower() == d for c in cells):
-                by_domain[d] += k
-                break
+
+        # --- domain: THE DOMAIN CELL ALONE ------------------------------------------------
+        dcell = (_cell(cells, hdr, "domain") or "").lower()
+        dom = dcell if dcell in DOMAINS else None
+        if dom is None:                               # no domain column: best available guess
+            for d in DOMAINS:
+                if any(c.lower() == d for c in cells):
+                    dom = d
+                    break
+        legacy_dom = next((d for d in DOMAINS if any(c.lower() == d for c in cells)), None)
+        if dom != legacy_dom:
+            changed.append({"id": rid, "field": "domain", "was": legacy_dom, "now": dom})
+        if dom:
+            by_domain[dom] += k
     return {"trials": trials, "rows_counted": counted, "rows_fixed": fixed, "ids": ids,
-            "by_domain": by_domain}
+            "by_domain": by_domain, "rows_changed_by_parser_fix": changed}
 
 
 def trial_count(path=None, use_cache=True, domain="equity"):
@@ -123,6 +195,11 @@ def detail(path=None, use_cache=True):
                "n_scope": "equity — the family this composite was searched within",
                "rows_counted": parsed["rows_counted"],
                "rows_fixed_not_counted": parsed["rows_fixed"],
+               # Rows the PRE-SESSION-12 parser would have treated differently. Non-zero means
+               # the column-wise read is load-bearing on the log as it stands today, so a silent
+               # revert to the whole-row read would move `N`. Kept visible for that reason.
+               "rows_rescued_by_parser_fix": len(parsed.get("rows_changed_by_parser_fix") or []),
+               "parser_fix_detail": parsed.get("rows_changed_by_parser_fix") or [],
                "n_used": n,
                "weight_scheme_floor": WEIGHT_SCHEME_TRIALS,
                "source": "RESEARCH_LOG.md (audit M1)",

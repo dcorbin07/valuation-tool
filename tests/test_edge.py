@@ -6198,6 +6198,80 @@ def test_session11_the_ml_executor_still_matches_the_register_it_executed():
     assert abs(M.MIN_T_MARGIN - 0.25) < 1e-9, "t-margin must be the standing MIN_HOLDOUT 0.25"
 
 
+def test_session12_the_trial_counter_reads_verdicts_from_the_verdict_column_only():
+    """THE FIXTURE THE REPAIR EXISTS FOR.
+
+    `research_log._parse` used to test `\\bFIXED\\b` against every cell of a row joined together,
+    so a row whose hypothesis, threshold, source or note merely contained the word "fixed" was
+    silently dropped from `N`. An understated `N` OVERSTATES the significance of every DSR-gated
+    claim in the project — M1's own error, committed inside M1's own parser.
+
+    On the log as it stands the defect is LATENT (session 12 measured it: zero rows differ, on all
+    ten historical revisions), so nothing but a fixture can prove the repair does anything. This
+    row set is built so the OLD parser and the NEW one give different answers: prose containing
+    "fixed", "adopted" and "rejected" in every field except the verdict, a grid multiplier that
+    only counts when read from its own column, and a domain word planted in free text.
+    """
+    import tempfile
+    from valuation.edge import research_log as RL
+
+    md = (
+        "# fixture\n\n"
+        "| id | date | domain | pre | hypothesis | metric | verdict | n | source |\n"
+        "|---|---|---|---|---|---|---|---|---|\n"
+        # counts: the note says "fixed" but the VERDICT says REJECTED
+        "| T1 | 2026-08-08 | equity | yes | The defect fixed in session 12 understated N "
+        "| IC t | REJECTED | n=1 | note |\n"
+        # counts: prose full of other verdict words, none of them the verdict
+        "| T2 | 2026-08-08 | equity | yes | Whether the ADOPTED weights beat the rejected ones "
+        "| alpha | NULL | n=3 | a run that fixed nothing |\n"
+        # does NOT count: the verdict column itself says FIXED
+        "| T3 | 2026-08-08 | equity | retro | A real correctness repair | code | FIXED | n=1 "
+        "| adopted nowhere |\n"
+        # does NOT count: the legitimate existing variant value
+        "| T4 | 2026-08-08 | options | retro | Another repair | code | FIXED (relabel only) "
+        "| n=1 | — |\n"
+        # counts, and its DOMAIN must come from the domain column, not the planted word
+        "| T5 | 2026-08-08 | options | yes | Compared against the equity book | PF | ADOPTED "
+        "| n=2 | equity |\n"
+    )
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "RESEARCH_LOG.md")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(md)
+        got = RL._parse(p)
+
+    # --- the repair -------------------------------------------------------------------
+    assert got["rows_counted"] == 3, (
+        f"T1, T2 and T5 are trials; got {got['rows_counted']} rows counted. "
+        "A row is FIXED only when its VERDICT CELL says so.")
+    assert got["rows_fixed"] == 2, f"only T3 and T4 are FIXED; got {got['rows_fixed']}"
+    assert set(got["ids"]) == {"T1", "T2", "T5"}, got["ids"]
+
+    # --- the grid multiplier comes from the `n` column ---------------------------------
+    assert got["trials"] == 1 + 3 + 2, f"expected 6 trials (1+3+2), got {got['trials']}"
+
+    # --- the domain comes from the domain column, not a word planted in free text -------
+    assert got["by_domain"]["equity"] == 4, (
+        f"T1(1)+T2(3) are equity; got {got['by_domain']['equity']}. T5 says `options` in its "
+        "domain column and `equity` in its source — the column wins.")
+    assert got["by_domain"]["options"] == 2, got["by_domain"]
+
+    # --- and the old behaviour really did differ, or this fixture proves nothing --------
+    legacy_counted = 0
+    for ln in md.splitlines():
+        if not ln.startswith("|"):
+            continue
+        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if len(cells) < 4 or cells[0].lower() in ("id",) or set(cells[0]) <= set("-: "):
+            continue
+        if not re.search(r"\bFIXED\b", " ".join(cells).upper()):
+            legacy_counted += 1
+    assert legacy_counted == 1, (
+        f"the fixture must be one the OLD parser got wrong; it counted {legacy_counted} of the "
+        "3 real trials")
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
