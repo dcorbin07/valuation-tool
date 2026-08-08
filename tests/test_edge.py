@@ -6047,6 +6047,95 @@ def test_loo_arms_drop_a_theme_and_renormalise_rather_than_leaving_a_hole():
     assert abs(sum(rest.values()) - 1.0) < 1e-12, "the arm does not renormalise"
     assert "b" not in rest and all(abs(v - 1 / 3) < 1e-12 for v in rest.values())
 
+def _cc_panel(n_countries, n_dates, rho, seed):
+    """A month-by-country panel with a known common-factor correlation."""
+    import random as _r
+    rnd = _r.Random(seed)
+    a, b = rho ** 0.5, (1.0 - rho) ** 0.5
+    out = {f"c{j}": {} for j in range(n_countries)}
+    for i in range(n_dates):
+        f = rnd.gauss(0, 1)
+        for j in range(n_countries):
+            out[f"c{j}"][i] = a * f + b * rnd.gauss(0, 1)
+    return out
+
+
+def test_session9_the_country_gate_reproduces_the_exact_binomial_at_zero_correlation():
+    """The simulated bar generalises the arithmetic; at rho=0 it must REPRODUCE it.
+
+    12 of 16 is the pre-registered threshold and its exact one-sided alpha is 3.84%. If the
+    simulation drifted off that, every calibrated threshold it produced would be unquotable.
+    """
+    from valuation.edge import cross_country as CC
+    assert abs(CC.exact_binomial_tail(12, 16) - 0.038406) < 1e-5, "12/16 is not 3.84%"
+    assert abs(CC.exact_binomial_tail(11, 16) - 0.105057) < 1e-5, "11/16 is not 10.5%"
+    r = CC.sign_test_critical(16, rho=0.0, alpha=0.05, draws=40000, seed=7)
+    assert r["critical_k"] == 12, f"rho=0 must give the binomial k=12, got {r['critical_k']}"
+    assert abs(r["achieved_alpha"] - 0.038406) < 0.006, r["achieved_alpha"]
+
+
+def test_session9_a_raw_country_design_effect_is_not_evidence_of_clustering():
+    """R3's lesson, one dimension over: independent countries still produce deff > 1 from pure
+    ANOVA sampling noise. The gate must call that NOT measurable, or it manufactures a
+    correction out of nothing."""
+    from valuation.edge import cross_country as CC
+    res = CC.country_design_effect(_cc_panel(16, 324, 0.0, seed=3), null_draws=200, seed=1)
+    assert res["ok"], res
+    assert res["clustering_measurable"] is False, \
+        f"independent countries flagged as clustered: deff {res['design_effect']:.3f} " \
+        f"vs null p95 {res['design_effect_null_p95']:.3f}"
+    assert res["n_eff_countries"] <= res["n_countries"] + 1e-9, "n_eff exceeded n"
+
+
+def test_session9_the_country_gate_detects_real_co_movement_and_both_estimators_agree():
+    from valuation.edge import cross_country as CC
+    res = CC.country_design_effect(_cc_panel(16, 324, 0.30, seed=5), null_draws=200, seed=1)
+    assert res["ok"] and res["clustering_measurable"] is True, res
+    assert abs(res["rho"] - 0.30) < 0.06, f"rho {res['rho']:.3f} off the planted 0.30"
+    assert abs(res["mean_pairwise_corr"] - res["rho"]) < 0.05, \
+        "the ANOVA and the mean-pairwise estimators disagree; quote neither"
+    assert res["n_eff_countries"] < 6.0, res["n_eff_countries"]
+
+
+def test_session9_an_arm_pair_difference_is_a_scaled_two_theme_spread():
+    """Δ_a − Δ_b == (x_b − x_a)/4 identically, where Δ_a drops theme a from a 5-theme mean.
+
+    This is why the measured cross-country co-movement is credible rather than an artefact of
+    how the arms were built: the object whose correlation the gate measures is nothing more
+    exotic than a scaled difference of two theme returns, and value-minus-momentum spreads are
+    famously correlated across developed markets. Pinned because the whole SELRULE calibration
+    rests on the identity being exactly this and not approximately it.
+    """
+    import random as _r
+    from scripts.selection_rule_crosscountry import arm_deltas
+    try:
+        import pandas as pd
+    except ImportError:
+        return
+    rnd = _r.Random(4)
+    cols = ["investment", "momentum", "quality", "size", "value"]
+    df = pd.DataFrame({c: [rnd.gauss(0, 0.03) for _ in range(60)] for c in cols})
+    d = arm_deltas(df)
+    worst = 0.0
+    for a in cols:
+        for b in cols:
+            if a >= b:
+                continue
+            lhs = (df[b] - df[a]) / 4.0
+            worst = max(worst, max(abs(lhs[k] - (d[a][k] - d[b][k])) for k in d[a]))
+    assert worst < 1e-12, f"arm-pair difference is not (x_b - x_a)/4; max error {worst:.2e}"
+
+
+def test_session9_clustering_can_only_raise_the_bar_never_lower_it():
+    """A correlated null piles probability into the tails, so the critical count must rise with
+    rho. A gate that could LOWER the bar would be a licence, not a correction."""
+    from valuation.edge import cross_country as CC
+    ks = [CC.sign_test_critical(16, rho=r, alpha=0.05, draws=20000, seed=11)["critical_k"]
+          for r in (0.0, 0.10, 0.30, 0.60)]
+    assert ks == sorted(ks), f"critical k not monotone in rho: {ks}"
+    assert ks[-1] > ks[0], f"co-movement left the bar unchanged: {ks}"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
