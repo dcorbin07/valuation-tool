@@ -1,5 +1,5 @@
 """
-The PUBLIC posture and the owner split (offline, deterministic — no network).
+The PUBLIC posture and the public/demo/owner split (offline, deterministic — no network).
 
     python tests/test_public.py
 
@@ -16,6 +16,13 @@ claims load-bearing, and this file exists to keep both of them true after the ne
    them OUTRIGHT, not with a partial render. This is a liability boundary and a licence
    boundary at once: Sharadar and ThetaData are backtest-only vendors whose individual terms
    forbid redistribution, so their derived output must not reach a public surface.
+
+3. THE MIDDLE SIDE EXISTS AND IS READ-ONLY. Since 2026-08-07 a valid recruiter master-link
+   session (`/demo/<token>`, reached from a button on the portfolio page) reads every owner
+   surface and may change nothing. That is an AUTHORIZED widening — Don's decision, recorded
+   in PROMPT_recruiter_master_link.md — and the tests below pin the new three-way split
+   rather than the old two-way one, so the next auditor sees a decision instead of a posture
+   that quietly weakened. Anonymous-vs-owner is unchanged by it.
 
 The complement is tests/test_private.py, which runs the same app with the lockdown ON. Between
 them both postures are covered, which is what makes "either flag restores the other" testable.
@@ -34,6 +41,11 @@ from valuation.saas import surfaces                   # noqa: E402
 CONFIG.private_mode = False
 CONFIG.owner_split = True
 CONFIG.open_access = True
+#: Explicit for the same reason as the flags above: DEMO_ACCESS_TOKEN comes from env, and a
+#: machine without one would turn every demo assertion below into "the token was empty", i.e.
+#: into a silent skip. A literal here means the demo half of the split is always exercised.
+DEMO_TOKEN = "test-demo-token-not-a-real-one"
+CONFIG.demo_access_token = DEMO_TOKEN
 
 from valuation.saas.app_saas import create_saas_app   # noqa: E402
 
@@ -59,6 +71,21 @@ def _as_owner():
 def _restore(orig):
     from valuation.saas import auth
     auth.current_user = orig
+
+
+def _open_demo(c):
+    """Open a real preview session through the real route, not by forging a cookie.
+
+    Forging `session["demo"] = True` would skip the token comparison, the rate limit and the
+    noindex header — i.e. exactly the three things that make the link's risk manageable. The
+    counter is reset first because the limiter is per-IP and process-global, so a suite that
+    opens twenty sessions from 127.0.0.1 would otherwise start rate-limiting itself.
+    """
+    from valuation.saas import ratelimit
+    ratelimit.reset()
+    r = c.get(f"/demo/{DEMO_TOKEN}")
+    assert r.status_code == 302, f"/demo/<token> -> {r.status_code}, not a session"
+    return r
 
 
 # ============================== the posture ================================================
@@ -134,8 +161,69 @@ def test_the_split_is_a_flag_that_actually_reverts():
     assert surfaces.may_see_owner_surfaces(None, off) is True
     assert surfaces.may_see_owner_surfaces(None, on) is False
     assert surfaces.may_see_owner_surfaces({"email": OWNER}, on) is True
-    assert surfaces.may_see_owner_surfaces({"email": OWNER, "is_demo": True}, on) is False, \
-        "a demo session is not the owner"
+    # AMENDED 2026-08-07 — PROMPT_recruiter_master_link.md. This used to assert that a demo
+    # session may NOT read the owner surfaces. Don's decision reverses that deliberately:
+    # the recruiter master-link opens the full READ-ONLY owner view. What has not changed,
+    # and is asserted right below, is that a demo session is still not an OWNER — it may
+    # read, never act, and `private.is_owner` still refuses it under the licence lockdown.
+    demo = {"email": OWNER, "is_demo": True}
+    assert surfaces.may_see_owner_surfaces(demo, on) is True, \
+        "the recruiter preview reads the owner surfaces (authorized 2026-08-07)"
+    assert surfaces.is_owner(demo, on) is False, "a demo session is still not the owner"
+    assert surfaces.may_act(demo, on) is False, "and it may still not change anything"
+
+
+def test_the_demo_preview_is_read_only_under_every_flag_combination():
+    """The load-bearing property of the whole change.
+
+    The demo gains owner READ access by a blanket rule, so `DEMO_DENIED_PATHS` is the only
+    thing between a link on a résumé and a state change. It is asserted with the split ON and
+    OFF because it is deliberately NOT gated on that flag: OWNER_SPLIT is a decision about
+    what strangers may READ, and flipping it must never hand the preview the scan trigger.
+    """
+    demo = {"email": "preview@valquo.demo", "is_demo": True}
+    for cfg in (Config(private_mode=False, owner_split=True),
+                Config(private_mode=False, owner_split=False)):
+        for path in sorted(surfaces.DEMO_DENIED_PATHS):
+            d = surfaces.check(path, demo, cfg)
+            assert d is not None, f"the preview could reach {path} (owner_split={cfg.owner_split})"
+            assert d["status"] == 403
+            # ...and the owner is unaffected by it.
+            assert surfaces.check(path, {"email": OWNER}, cfg) is None, \
+                f"the demo rule blocked the OWNER at {path}"
+        assert surfaces.may_act(demo, cfg) is False
+
+
+def test_every_route_that_writes_is_on_the_demo_denied_list():
+    """Swept from the app's own URL map, so a new POST route has to be classified.
+
+    The rule (surfaces.py): a route that writes, or spends the owner's vendor/AI budget, or
+    belongs to the account rather than the product, is denied to the preview. POST routes
+    that only COMPUTE are the exception and are named here individually, which is what makes
+    adding one a deliberate act.
+    """
+    COMPUTES_ONLY = {
+        "/api/value",       # the visitor's own DCF — the product's core action
+        "/api/rank",        # scores a watchlist the caller supplied
+        "/api/portfolio",   # builds an allocation from the existing snapshot; writes nothing
+    }
+    EXEMPT_PREFIXES = ("/admin/", "/api/option-alerts/", "/billing/webhook")
+    unclassified = []
+    for rule in APP.url_map.iter_rules():
+        p = str(rule)
+        if "POST" not in rule.methods or "<" in p:
+            continue
+        if p.startswith(EXEMPT_PREFIXES):     # X-Admin-Token / Stripe signature, not sessions
+            continue
+        if p in ("/login", "/register", "/forgot"):   # auth; a demo session bypasses them
+            continue
+        if p in COMPUTES_ONLY or surfaces.is_demo_denied(p):
+            continue
+        unclassified.append(p)
+    assert not unclassified, (
+        f"POST routes reachable by the read-only preview and not classified: "
+        f"{sorted(unclassified)} — add each to surfaces.DEMO_DENIED_PATHS or to "
+        f"COMPUTES_ONLY here, with a reason")
 
 
 # ============================== the split, end to end ======================================
@@ -279,6 +367,161 @@ def test_the_name_view_withholds_the_book_and_says_which():
     joined = " ".join(l["text"] for l in v["action"] if l.get("text"))
     assert "not published" in joined, "the withholding must be stated, not silent"
     assert "HELD in the Valquo Index" not in joined
+
+
+# ============================== the demo preview, end to end ===============================
+def test_the_demo_session_reads_every_owner_surface():
+    """The point of the change, asserted through the real route on the real app.
+
+    Every owner-only READ returns 200 for a valid preview — not a 200 with the interesting
+    half stripped, which is what the split used to give it (it saw exactly what an anonymous
+    visitor saw, verified before the change).
+    """
+    with APP.test_client() as c:
+        _open_demo(c)
+        for p in sorted(surfaces.OWNER_ONLY_PATHS | {"/api/edge/learning"}):
+            if p in surfaces.DEMO_DENIED_PATHS:
+                continue
+            methods = next(r.methods for r in APP.url_map.iter_rules() if str(r) == p)
+            r = c.open(p, method="GET" if "GET" in methods else "POST", json={})
+            assert r.status_code == 200, f"the preview was refused {p} ({r.status_code})"
+            assert b"owner_only" not in r.data, f"{p} refused the preview"
+
+
+def test_the_demo_session_may_not_change_anything():
+    """The other half, and the one that matters if the link travels.
+
+    Asserted with a VALID CSRF token so that a 403 here means the policy refused it, not
+    that the form check happened to fire first — those are different guarantees and only one
+    of them is the one being claimed.
+    """
+    with APP.test_client() as c:
+        _open_demo(c)
+        with c.session_transaction() as s:
+            s["_csrf_token"] = "tok"
+        from valuation.saas import csrf
+        for p in sorted(surfaces.DEMO_DENIED_PATHS):
+            methods = next(r.methods for r in APP.url_map.iter_rules() if str(r) == p)
+            method = "GET" if "GET" in methods else "POST"
+            if csrf.needs_protection(p, method):
+                # `csrf.validate` reads request.form ONLY, so a JSON body would be rejected
+                # at 400 before the policy ever ran and this test would prove nothing.
+                r = c.post(p, data={csrf.FIELD: "tok"})
+            else:
+                r = c.open(p, method=method, json={})
+            assert r.status_code == 403, f"the preview reached {p} ({r.status_code})"
+            body = r.get_data(as_text=True).lower()
+            assert "read-only preview" in body, \
+                f"{p} refused the preview for the wrong reason: {body[:120]!r}"
+
+
+def test_the_demo_dashboard_shows_the_owner_tabs_and_none_of_the_triggers():
+    """Rendered HTML, not policy. A trigger the API will refuse is worse than no trigger:
+    it teaches the reader the tool is broken rather than that the preview is read-only."""
+    with APP.test_client() as c:
+        _open_demo(c)
+        html = c.get("/app").get_data(as_text=True)
+    for owner_ui in ('id="tab-index"', 'id="tab-track"', 'id="tab-signals"', 'id="tab-edge"',
+                     "Portfolio builder", "Self-learning log"):
+        assert owner_ui in html, f"the preview lost {owner_ui!r}"
+    for trigger in ("Run scan now", "Refresh signals now", "Backtest vs SPY",
+                    "Walk-forward optimize", "Update track record"):
+        assert trigger not in html, f"the read-only preview renders the trigger {trigger!r}"
+    # It must also say what it is. "Everything unlocked" was true when the preview saw the
+    # public half; since it sees the owner view, read-only is the honest word.
+    assert "read-only" in html.lower(), "the preview never tells the reader it is read-only"
+
+
+def test_the_demo_view_keeps_every_disclaimer_the_owner_view_carries():
+    """The demo view IS the owner view, so this should hold by construction — which is
+    exactly why it is worth pinning, since 'by construction' is how a caveat goes missing."""
+    with APP.test_client() as c:
+        _open_demo(c)
+        demo = re.sub(r"\s+", " ", c.get("/app").get_data(as_text=True).lower())
+    orig = _as_owner()
+    try:
+        with APP.test_client() as c:
+            owner = re.sub(r"\s+", " ", c.get("/app").get_data(as_text=True).lower())
+    finally:
+        _restore(orig)
+    for phrase in ("not investment advice", "model portfolio", "not a traded account",
+                   "no money is invested", "risk of loss", "not an autotrader"):
+        assert phrase in owner, f"the OWNER view lost {phrase!r} — fix that first"
+        assert phrase in demo, f"the preview path dropped {phrase!r}"
+
+
+def test_the_work_button_carries_the_current_token_and_rotation_kills_old_links():
+    """The whole security model of the button, as three assertions.
+
+    Rotating DEMO_ACCESS_TOKEN on Render must (a) re-point the button with no deploy, (b)
+    invalidate every /demo/<token> URL copied out of it, and (c) remove the button entirely
+    when the token is cleared. If any of those stops holding, the kill switch is gone.
+    """
+    href = re.compile(r'class="demo-cta" href="([^"]*)"')
+    with APP.test_client() as c:
+        m = href.search(c.get(CONFIG.resolved_portfolio_path).get_data(as_text=True))
+    assert m and m.group(1) == f"/demo/{DEMO_TOKEN}", "the button does not carry the token"
+
+    CONFIG.demo_access_token = "rotated-token-value"
+    try:
+        with APP.test_client() as c:
+            m = href.search(c.get(CONFIG.resolved_portfolio_path).get_data(as_text=True))
+            assert m and m.group(1) == "/demo/rotated-token-value", \
+                "rotation did not re-point the button"
+            _open_demo_expect_refusal(c, DEMO_TOKEN)
+        CONFIG.demo_access_token = ""
+        with APP.test_client() as c:
+            body = c.get(CONFIG.resolved_portfolio_path).get_data(as_text=True)
+            assert not href.search(body), "the button survives an empty token"
+            _open_demo_expect_refusal(c, DEMO_TOKEN)
+    finally:
+        CONFIG.demo_access_token = DEMO_TOKEN
+
+
+def _open_demo_expect_refusal(c, token):
+    from valuation.saas import ratelimit
+    ratelimit.reset()
+    c.get(f"/demo/{token}")
+    with c.session_transaction() as s:
+        assert not s.get("demo"), f"a stale /demo/{token[:6]}... link still opened a session"
+
+
+def test_every_demo_response_refuses_indexing_including_the_refusals():
+    """The redirects matter as much as the successes — a 302 with a Location is precisely
+    what a crawler follows, and the link now sits behind a button on a public page."""
+    for token in (DEMO_TOKEN, "wrong-token"):
+        with APP.test_client() as c:
+            from valuation.saas import ratelimit
+            ratelimit.reset()
+            r = c.get(f"/demo/{token}")
+            assert "noindex" in (r.headers.get("X-Robots-Tag") or ""), \
+                f"/demo/{token[:5]}... -> {r.status_code} with no X-Robots-Tag"
+
+
+def test_demo_session_creation_is_rate_limited():
+    """A leaked token should show up as refused traffic rather than being farmed silently."""
+    from valuation.saas import ratelimit
+    ratelimit.reset()
+    limit = ratelimit.LIMITS["demo:session"][0]
+    with APP.test_client() as c:
+        codes = [c.get(f"/demo/{DEMO_TOKEN}").status_code for _ in range(limit + 2)]
+    assert 429 in codes, f"unlimited demo-session creation: {codes}"
+    assert codes[0] == 302, "the limit fired before the first legitimate visit"
+    ratelimit.reset()
+
+
+def test_a_demo_session_is_still_not_the_owner():
+    """The line that must not move. Owner-only-vs-anonymous is untouched by this change, and
+    the licence lockdown still refuses a preview outright."""
+    from valuation.saas import private
+    demo = {"email": OWNER, "is_demo": True}
+    assert private.is_owner(demo, CONFIG) is False
+    assert surfaces.is_owner(demo, CONFIG) is False
+    with APP.test_client() as c:
+        _open_demo(c)
+        # /account is the account surface, not the product: refused even though the
+        # preview may read every performance-shaped surface there is.
+        assert c.get("/account").status_code == 403
 
 
 # ============================== liability copy =============================================

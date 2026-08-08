@@ -5,6 +5,235 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 18 — 2026-08-07 — The recruiter master-link opens the full read-only view
+(PROMPT_recruiter_master_link.md, including its UPDATE: a button on `/work`, not a bare URL)
+
+**THE HEADLINE: the recruiter link did nothing. Before this change, a valid `/demo/<token>`
+session saw EXACTLY what an anonymous visitor saw** — surface for surface, byte for byte
+apart from a beta-banner variant and an `/account` page. Every owner surface refused it,
+because `saas/surfaces.py` (Session 13) put them behind *owner*, which a demo session is
+not, and nothing had revisited the demo path since. So this is not a widening of something
+that was working; it is the first time the link has been worth putting on a résumé.
+
+It is now a genuine **three-way split — anonymous / demo / owner** — and the demo side is
+**read-only, under every flag combination**.
+
+## 1. BEFORE — what `/demo/<token>` rendered (measured, in-process, real guard chain)
+
+Probe: real app, real `/demo/<token>` route, real `_guard`. `demo` column is a valid token.
+
+| surface | anonymous | **demo (before)** | owner |
+|---|---|---|---|
+| `/app` | 200 (public tabs only) | **200 — identical, +47b of banner copy** | 200, all tabs |
+| `/work`, `/methodology`, `/terms`, `/privacy` | 200 | 200 | 200 |
+| `/account` | 302 → login | **200** | 200 |
+| `/api/health`, `/api/hotstocks`, `/api/tickers`, `/api/regime`, `/api/whatdo` | 200 | 200 | 200 |
+| `/api/track` | 403 | **403** | 200 |
+| `/api/index-track` | 403 | **403** | 200 |
+| `/api/options-paper` | 403 | **403** | 200 |
+| `/api/options-scorecard` | 403 | **403** | 200 |
+| `/api/valquo-index` | 403 | **403** | 200 |
+| `/api/options-alerts` | 403 | **403** | 200 |
+| `/api/signals` | 403 | **403** | 200 |
+| `/api/edge/learning` | 403 | **403** | 200 |
+| `/api/portfolio` (POST) | 403 | **403** | 200 |
+| `/api/scan/run`, `/api/signals/run`, `/api/backtest/run` (POST) | 403 | **403** | — |
+| `/api/edge/backtest`, `/edge/optimize`, `/edge/track` (POST) | 403 | **403** | — |
+
+The demo column and the anonymous column differ in exactly two cells. That is the whole
+finding: **the master-link's only effect was a friendlier banner and an empty account page.**
+
+## 2. AFTER — the same probe, same session, after the change
+
+| surface | anonymous | **demo (after)** | owner |
+|---|---|---|---|
+| `/app` | 200, public tabs | **200 — Index, Signals, Track Record, Edge Lab all present** | 200 |
+| `/account` | 302 | **403 — read-only refusal** (was 200) | 200 |
+| `/api/track` | 403 | **200** | 200 |
+| `/api/index-track` | 403 | **200** | 200 |
+| `/api/options-paper` | 403 | **200** | 200 |
+| `/api/options-scorecard` | 403 | **200** | 200 |
+| `/api/valquo-index` | 403 | **200** | 200 |
+| `/api/options-alerts` | 403 | **200** | 200 |
+| `/api/signals` | 403 | **200** | 200 |
+| `/api/edge/learning` | 403 | **200** | 200 |
+| `/api/portfolio` (POST, computes only) | 403 | **200** | 200 |
+| `/api/scan/run` | 403 | **403 read-only** | 200 |
+| `/api/signals/run` | 403 | **403 read-only** | 200 |
+| `/api/backtest/run` | 403 | **403 read-only** | 200 |
+| `/api/edge/backtest` · `/optimize` · `/track` | 403 | **403 read-only** | 200 |
+| `/account`, `/account/alerts`, `/billing/*` | 302/400 | **403 read-only** | 200 |
+
+**The anonymous column did not move.** Verified byte-for-byte, not by inspection: the
+anonymous `/app` rendered from HEAD's templates versus the working tree differs by **one
+line of whitespace, 7 bytes, zero content** (`tmp/diff_anon.py`; the first attempt at this
+diff was wrong — see BUGS FOUND #3).
+
+## 3. THE EXCLUSIONS, AND WHY EACH ONE
+
+`surfaces.DEMO_DENIED_PATHS`. The rule, written down so the next addition is mechanical:
+**a route that writes, spends the owner's vendor/AI budget, or belongs to the account rather
+than the product is denied. A route that only computes and returns is not.**
+
+| excluded | why |
+|---|---|
+| `/api/scan/run` | writes a scan snapshot; 3 FMP requests per uncached name |
+| `/api/signals/run` | writes intraday rows and alerts; one Anthropic call per run |
+| `/api/backtest/run` | CPU-heavy on a 512 MB box — a free DoS lever otherwise |
+| `/api/edge/backtest`, `/api/edge/optimize`, `/api/edge/track` | recompute, write, and download price history for the whole universe |
+| `/account`, `/account/alerts` | account, not product. A demo user has **no database row** (`auth._demo_user` is synthetic, id 0) so the alerts POST would write an opt-in against a user that does not exist — a mutation *and* a corrupt one |
+| `/billing/checkout`, `/billing/portal` | billing is off, but "the preview cannot start a payment" should not depend on a separate flag staying off |
+
+**Deliberately NOT gated on `OWNER_SPLIT`.** `surfaces.check` applies the demo rule before it
+reads the flag, and `app_saas._guard` now calls `check` unconditionally instead of only when
+the split is on. Reason: `OWNER_SPLIT` is a decision about what *strangers may read*; flipping
+it to false must never hand a résumé link the scan trigger as a side effect. Pinned by
+`test_the_demo_preview_is_read_only_under_every_flag_combination`, which runs the whole
+denied list with the flag ON and OFF.
+
+**No raw vendor rows — checked, not assumed.** Every payload the preview newly gains was
+walked and its row shape printed (`tmp/vendor_rows.py`). All of it is derived: adopted
+weights and ICs, the backtest summary block, expectancy and payoff buckets, cumulative-return
+series, constructed positions with a score and a weight. **Nothing under `/api/edge/` returns
+a Sharadar row**, and the three routes that would *compute* new ones are denied above.
+`DEMO_DENIED_VENDOR_ROWS` exists and is empty, so exclusion (2) has an obvious home when the
+next Sharadar-backed read route is added rather than having to be remembered.
+
+**What I chose NOT to exclude, and it is worth Don knowing:** `/api/options-alerts` serves a
+**specific live contract** (strike, expiry, a suggested size). It is not a licence problem —
+the chain comes from Tradier, the live broker feed, not from ThetaData or Sharadar — but it
+is the one element that is an actionable pick rather than a record. The prompt names Signals
+explicitly as part of what the demo sees, so it stays. It carries the payoff card, the 37%
+hit-rate framing and the "not an autotrader" line, all rendered by the same template the
+owner gets. (It was empty in the store at check time, so its row shape is read from the code
+rather than from a live sample.)
+
+## 4. TRIGGERS ARE REMOVED FROM THE DOM, NOT LEFT TO 403
+
+Templates now test **`may_act`** (owner only) rather than `may_see_owner` (owner or demo) for
+anything that writes. A button the API then refuses reads as a broken tool rather than a
+read-only one, so the preview simply does not render: **Run scan now, Refresh signals now,
+Backtest vs SPY, Walk-forward optimize, Update track record.** The Edge Lab keeps
+**Self-learning log** — the one thing on that tab that is a read — and because the tab has no
+autoload for the owner (every button on it is expensive), a read-only session would open it
+empty; `switchTab` now loads the learning log automatically in that case only, keyed off an
+element that renders only for a read-only session.
+
+The beta banner said *"everything unlocked, no sign-up needed"*, which was true when the demo
+saw the public half. It now says **read-only** and names what stays with the owner — that
+banner was the one place the preview could misdescribe itself.
+
+## 5. THE TOKEN — WHERE IT LIVES, AND THE ROTATION SEMANTICS
+
+- **Where Don sets it:** Render → the Valquo service → **Environment** → `DEMO_ACCESS_TOKEN`.
+  Save; Render redeploys and it is live. Nothing else changes, no code deploy.
+- **The button is built server-side at render time** (`app_saas.portfolio_page` passes
+  `demo_url`), so rotating the env var **re-points the button instantly and invalidates every
+  `/demo/<token>` URL ever copied out of it, in the same action.** The button is always
+  current; copied links are always revocable. That asymmetry is the design — the token is
+  never written into the template, and the test below fails if anyone hardcodes it.
+- **Clearing it removes the button entirely** and shuts `/demo` off — the kill switch.
+- Measured, all three: `test_the_work_button_carries_the_current_token_and_rotation_kills_old_links`.
+- **noindex on every `/demo` response including the refusals** — a 302 with a `Location` is
+  precisely what a crawler follows, and the link now sits behind a button on a public page.
+- **Rate-limited and logged.** `demo:session` bucket, 20/hour/IP, applied *before* the token
+  comparison so it covers guessing as well as farming. One stderr line per outcome
+  (`opened` / `rejected` / `rate-limited`) with the IP and **never the token** — same rule as
+  the password-reset route. A leaked link now shows up as traffic in the Render log instead
+  of being invisible.
+- I generated Don a strong token and gave it to him in chat. **It is deliberately not in this
+  file and not in the repo.**
+
+## 6. THE RÉSUMÉ LINK
+
+**`https://valquo.co/work`** — that is the whole thing. It is the existing unlisted page; the
+button on it is what opens the tool. The `/demo/<token>` URL is an implementation detail that
+should not go on the résumé, precisely so that rotating the token never invalidates anything
+already printed.
+
+Don has accepted in writing (prompt §UPDATE.3) that this makes the full read-only view
+effectively public one click deep, with possession of the `/work` URL as the gate. Recorded
+here so the posture history stays coherent rather than looking like drift.
+
+## 7. THE AMENDED TEST — an authorized change, not a silently weakened posture
+
+`test_the_split_is_a_flag_that_actually_reverts` asserted
+`may_see_owner_surfaces({"is_demo": True}) is False`. That assertion is now inverted, **with
+a comment naming this prompt and the date**, and it did not simply go away — what replaced it
+is stricter than what it removed:
+
+```
+assert surfaces.may_see_owner_surfaces(demo, on) is True   # authorized 2026-08-07
+assert surfaces.is_owner(demo, on) is False                # still not the owner
+assert surfaces.may_act(demo, on) is False                 # and may still not act
+```
+
+`private.is_owner` is untouched: the licence lockdown still refuses a demo session outright,
+and `/demo` still refuses under `PRIVATE_MODE` (verified: 401, no session created).
+
+## 8. SUITES
+
+`test_public.py` **17/17 → 27/27**. Ten new tests, all end-to-end through the real `/demo`
+route rather than by forging a session cookie — forging one would skip the token comparison,
+the rate limit and the noindex header, which are the three things that make the risk
+manageable. New coverage: the preview reads every owner surface; may change nothing (asserted
+with a **valid** CSRF token, so a 403 means the policy refused it and not that the form check
+fired first); the dashboard shows the tabs and none of the triggers; every disclaimer the
+owner view carries survives the demo path; the `/work` button's rotation semantics; noindex on
+every `/demo` response; the rate limit; and a sweep asserting **every POST route in the app's
+URL map is either on the denied list or named as compute-only**, so a new write route fails
+the suite until someone classifies it.
+
+Full run: see the run log in this session — no suite regressed.
+
+## BUGS FOUND
+
+1. **`gating.check_request` gates `/api/edge/*` on the owner email independently of
+   `surfaces.py`.** Not a defect, but a second gate nobody would find from the split module:
+   the demo needed allowing there too, or the Edge Lab would have 403'd from a completely
+   different file. Now allows **`/api/edge/learning` on GET only** for a demo session, so the
+   three POST runners are refused twice, by two modules, for two reasons.
+2. **`csrf.validate()` reads `request.form` only.** A JSON POST to any protected path
+   (`/account/alerts`, `/billing/*`) is rejected at 400 *before* any policy runs. My first
+   version of the read-only test posted JSON, got its 403→400, and would have "passed" for
+   the wrong reason on a real regression. Pre-existing behaviour, correct as designed, but it
+   makes CSRF-protected paths easy to test vacuously — the test now branches on
+   `csrf.needs_protection` and sends a form.
+3. **MY OWN HARNESS, recorded because the class of error matters:** the first byte-diff of
+   the anonymous dashboard let `subprocess` decode `git show` with the Windows default
+   (cp1252), which mangled every em dash in the template and manufactured a 77-line diff and
+   a 75-byte "shrink". Decoded as UTF-8 the real answer is **one whitespace line, 7 bytes**.
+   An encoding mismatch in a verification tool produces a *confident wrong* result, not an
+   error — same shape as the P3 test that silently asserted nothing (Session 16 BUG #3).
+4. **`/account` was reachable by a demo session and rendered a working account page** for a
+   user with no database row (`store.watchlist(0)` → empty, no error). Harmless before
+   because nothing else was unlocked; now explicitly denied.
+
+## 9. TWO THINGS THIS RUN TURNED UP THAT ARE NOT PART OF THE TASK
+
+1. **Session 17's known-failure now PASSES, and I removed the marker.**
+   `test_a_refusal_recorded_by_the_scan_survives_to_the_public_surface` was an XFAIL
+   recording that `store.save_snapshot` discarded `fair_value_withheld`. The greeks lane
+   fixed it (ledger `OOB1`, `main` `92d2ac8`) and the test reported **xpass** on this run —
+   which is the signal to promote it. A `known_failure` left in place after the bug is gone
+   stops guarding anything and starts hiding a regression. `test_withhold.py` now reads
+   **29/29, 0 xfail, 0 xpass**.
+2. **The disclosure stopgap in `app.js` is still up and I did NOT take it down.** Session 17's
+   rule was that it comes down in the same commit that fixes *both* leak causes. Cause A is
+   fixed; cause B (`dcf_top=12`, so most served names never get a DCF for a refusal to be
+   recorded against) was measured EMPTY rather than fixed. Removing a stopgap on that basis is
+   a separate, user-visible change that needs its own verification through the real page, and
+   bundling it into a recruiter-link commit would be exactly the kind of scope creep that
+   makes a revert impossible. **Next app-fixer session: re-run the Session 17 production probe
+   on the three names and, if they refuse, remove the sentence in its own commit.**
+
+## LEDGER
+
+No audit item covers this — it is a product decision out of `PROMPT_recruiter_master_link.md`,
+not an audit finding. `VALQUO_LEDGER.md` unchanged; recorded here and in the amended test.
+
+---
+
 # Session 17 — 2026-08-06 — The leak is NOT closed. The stopgap stays up.
 (PROMPT_web_verify_the_leak_is_closed.md)
 
