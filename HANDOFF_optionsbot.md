@@ -1302,3 +1302,223 @@ than overwrite the row.
   numerics through) rather than a patch.
 
 <!-- /ledger:ignore -->
+
+
+---
+
+# C6 CLOSED — the Oracle box is decommissioned, and the blocker it named was never real (2026-08-07)
+
+**Status: DONE.** Ledger row `C6` moved `BLOCKED` → `DONE`, verdict `ADOPTED`, dated 2026-08-07.
+
+## The one-sentence version
+
+The three FIXES.md fixes could not be deployed because `options/data/*.py` was untracked; the
+record said those sources existed "only on the Oracle box"; **they were in
+`options-bot/handoff/quant_bots.zip`, tracked in this repository the entire time**, and they came
+back byte-identical without anyone touching the box — which is fortunate, because the box is gone.
+
+## What the record said, and what was actually true
+
+The earlier C6 write-up (above, "BLOCKER — needs Don, one command") was right about the mechanism
+and wrong about the remedy. Its mechanism still stands and is worth keeping: the repo-root
+`.gitignore` carried a bare `data/`, a pattern whose only slash is the trailing one matches at every
+depth, so it excluded the options bot's **source** package along with the licensed Sharadar
+exports it was written for. That is why a clean clone could not run the options suite, and why
+`deploy.sh` aborted before restarting anything.
+
+> **That root rule changed on 2026-08-07, while this task was in flight, and the change is
+> independent corroboration.** Another lane anchored it to `/data/` because the same unanchored
+> pattern was ALSO silently swallowing `valuation/data/` — application source in the main product,
+> where a new `valuation/data/beta.py` was unaddable and would have shipped as a runtime
+> `ModuleNotFoundError`. **The same one-line gitignore defect bit two different subtrees, weeks
+> apart, and in both cases the symptom was source that silently did not exist.** After that merge
+> the root rule no longer reaches `options-bot/`, so `quant_bots/.gitignore`'s `!data/`
+> re-include is now belt-and-braces rather than load-bearing. Both were re-verified together after
+> the merge: all three source files unignored, all 24 state files still ignored.
+
+Where it went wrong was the sentence "The `data/*.py` sources exist only on the Oracle box."
+Nobody had looked inside the tracked zips. Four copies existed:
+
+| copy | tracked in git? | sha256 (`universe.py`) |
+|---|---|---|
+| `options-bot/handoff/quant_bots.zip` | **yes** | `4bdf8ecafeddaf01` |
+| `options-bot/quant_bots/options/data/` (main checkout, on disk) | no | `4bdf8ecafeddaf01` |
+| `C:\Users\donni\Downloads\options-bot2\...` | no | `4bdf8ecafeddaf01` |
+| restored copy in this worktree | **now yes** | `4bdf8ecafeddaf01` |
+
+All three files (`__init__.py`, `earnings.py`, `universe.py`) are byte-identical across all four.
+**This was relocation of verified code, not reconstruction, and there is no judgement call
+anywhere in it.**
+
+The line that saved the project is `options-bot/.gitignore:34` — `!handoff/*.zip`, a deliberate
+negation re-including the handoff archives. Whoever wrote it made the recovery possible.
+**Do not tidy it away.** It is now commented to say so.
+
+> **The lesson, stated narrowly because it generalises:** *"the only copy is on machine X"* is a
+> claim about where somebody looked, not about where the file is. The zip was 302 KB, in the repo,
+> in `git ls-files`, for the entire period the item sat BLOCKED waiting on a human with an SSH key.
+
+## Verification — what was actually checked, in order
+
+**1. The premise, not assumed.** The brief said the missing symbols come from `quant_bots/data/*`.
+They come from `quant_bots/options/data/*`; `quant_bots/data/` is the *stock* bots' state
+directory and holds no `.py` at all. Those are two different things that collide on the name
+`data`, which is the whole reason the gitignore rule did the damage it did. `core/universe_builder.py`
+*also* defines `UniverseBuilder`/`UniverseConfig`/`UniverseSnapshot`/`UniverseTicker` for the stock
+bots — so "the symbols exist somewhere in the tree" was true and irrelevant. Path equivalence was
+not assumed anywhere.
+
+**2. The failure reproduced exactly, before the fix.** With `options/data/` moved aside:
+
+    cd options && python -m unittest discover
+    Ran 53 tests ... FAILED (errors=14)      # 14x "No module named 'data'"
+
+That is the documented signature to the digit — `deploy/preflight.py`'s docstring and
+`quant_bots/.gitignore`'s comment both say "collects 53 of 181 tests and fails with 14x
+`ModuleNotFoundError: No module named 'data'`". Restored, the same command runs **181, OK**.
+
+**3. Symbol by symbol.** Every import of the package across the tree resolves — 6 importing files,
+8 import statements, 11 distinct symbols:
+
+    orchestrator/jobs.py:36       from data import EarningsCalendar, UniverseBuilder, UniverseConfig
+    screener/screener.py:34,35    from data.earnings / data.universe import ...
+    scripts/build_universe.py:29  from data import UniverseBuilder, UniverseConfig
+    scripts/screen.py:27          from data import EarningsCalendar, UniverseBuilder
+    tests/test_screener.py:8      from data.universe import UniverseSnapshot, UniverseTicker
+    tests/test_universe.py:10,176 from data.universe import LIQUID_ETF_WHITELIST, ... parse_price
+
+**4. Signatures against call sites, not just names.** Every dataclass field set was checked against
+the keyword arguments actually used at every construction site (`UniverseTicker` 7/7 fields match
+at all 8 sites, `UniverseSnapshot` 4/4 at all 4, `UniverseConfig` at all 8), and the two
+non-dataclasses were checked against their `__init__` and method call sites:
+`EarningsCalendar(unknown_means_safe=...)`, `UniverseBuilder(config, tradier)`, `.build()`,
+`.save(snapshot, path)`, `.load(path)`, `.get_next_earnings(symbol)`. **Zero mismatches.** (The
+checker also flagged `.save(1 arg)` calls in `account_state.py`, `sim_portfolio.py` and
+`risk/state.py` — those are unrelated objects that happen to have a `save` method, correctly
+reported as "may be a different object" rather than as a mismatch.)
+
+**5. Git will actually track them this time.** `git check-ignore` returns 1 (not ignored) for all
+three files, and `git status` shows the directory as untracked-and-addable. The `!data/`
+re-include in `quant_bots/.gitignore` works, and `test_bot_state_is_still_excluded` still passes,
+so re-including the source package has not started committing sim books.
+
+## Results
+
+| gate | before | after |
+|---|---|---|
+| `quant_bots/options` suite | 53 collected, **14 errors** | **181 tests, OK** |
+| `quant_bots` core suite | 172, OK | **172, OK** (unchanged) |
+| `deploy/preflight.py` | could not pass — `import data` failed | **exit 0, PREFLIGHT OK** |
+| main Valquo tree | 24 suites green | **24 suites green, 0 failed** |
+
+All three FIXES.md fixes verify individually on every preflight run, by symbol and by behaviour:
+exit orders priced from the full map; an all-oversold cross-section yields 20 longs / 0 shorts;
+`Jobs.sim_positions_view` present. **353 bot tests pass.**
+
+## How C6 closes
+
+Its criterion was *each fix deployed, or recorded*. **Deployed is now permanently n/a** — the
+service is decommissioned, so there is nothing to deploy to. All three are therefore **recorded**,
+and better than the record required: they are re-verified by behaviour on every preflight run
+rather than asserted in a markdown file. "Fixed in repo, not deployed" was flagged by the audit as
+a *decaying* state; with no service it is a stable one.
+
+## State preserved
+
+`quant_data.tgz` (36 entries, **zero `.py` files** — state only, which independently confirms the
+sources question is answered by the zip and not by the tgz) extracted to
+`options-bot/quant_bots/data/` **in the primary checkout**, not this worktree, because the worktree
+is ephemeral and the point was to keep the record on the machine. 24 files:
+
+* `journal/{trend,momentum,reversion}/` — 6 journals, 2026-06 and 2026-07
+* `sim/{trend,momentum,reversion}/` — 3 equity curves + 3 portfolio snapshots, through 2026-07-31
+* `reports/` — 9 weekly correlation reports, 2026-06-07 → 2026-08-02
+* `state/` — 3 account-state files
+
+Extraction validated every member against path traversal, absolute paths and non-regular files
+before writing, and refuses to overwrite differing content. **All 24 are gitignored** (verified
+individually with `git check-ignore`; they match `quant_bots/.gitignore:34` etc.), so none can
+reach a commit.
+
+## Two commit hazards found and closed
+
+* **`quant_data.tgz` was neither tracked nor ignored** — it sat untracked in the primary checkout,
+  one `git add -A` from committing a state archive. `*.tgz` / `*.tar.gz` now ignored in
+  `options-bot/.gitignore`, with a comment explaining why `!handoff/*.zip` above it is the
+  opposite case and must survive.
+* **`valuation-tool/options-bot2/` was neither tracked nor ignored** — a second, older, complete
+  copy of the bot tree *inside the repo folder*, with its own `quant_data.tgz`. Same hazard, larger
+  payload. Now ignored at the repo root. Kept on disk deliberately: it is a third independent copy
+  of the recovered sources.
+
+Pre-existing and deliberately not changed: `handoff/{quant_bots,screener,options_backtest}.zip`
+are tracked, by the `!handoff/*.zip` negation. That is the design that just paid for itself.
+
+## Docs swept
+
+Decommission notices added at the top of each, keeping the documents as the record:
+
+* **`options-bot/DEPLOYMENT.md`** — its recommendation ("Stay on Oracle") is marked **void by
+  events**, fairly: it named reclamation and silent tier cuts as the risks, and it was right about
+  those. It did not anticipate the box vanishing with a source package on it.
+* **`options-bot/FIXES.md`** — records that C6 closes on the *recorded* branch. Its stale count
+  table is **left stale on purpose**, since the paragraph under it argues that a count is a bad
+  freshness proxy; measured values are given in the notice instead.
+* **`options-bot/HANDOFF.md`** and **`options-bot/handoff/HANDOFF.md`** — byte-identical copies
+  (same sha256 before and after); both updated together and re-verified identical. §7's live
+  deployment is marked historical.
+* **`options-bot/quant_bots/deploy/deploy.sh`** — comment banner only. **Its logic is untouched
+  deliberately:** `tests/test_deploy_preflight.py` asserts against this file's literal text in four
+  places, so a casual edit breaks four tests. Re-ran them: 9/9 still pass.
+
+## Nothing in the main tree depended on the box — here is exactly what I checked
+
+362 tracked files outside `options-bot/`, of which 218 are Python and 241 are executable/config:
+
+1. **Box IP / host / `ubuntu@`** — 1 hit, in `HANDOFF_optionsbot.md` (this file, quoting the old
+   scp instruction). Zero in code.
+2. **`ssh` / `scp` / `systemctl`** — 5 hits, all prose in `HANDOFF_optionsbot.md` and the C6 ledger
+   row. Zero in code.
+3. **Imports of the bot packages** — checked by **AST, not grep**, across all 218 main-tree Python
+   files, for `quant_bots` and for the flat names the bots use (`core`, `data`, `broker`,
+   `portfolio`, `risk`, `screener`, `strategy`, `orchestrator`, `trend`, `momentum`, `reversion`,
+   `notify`): **0 real imports.** A regex pass had reported one hit at
+   `valuation/edge/fundamental_panel.py:681`; it is prose inside a docstring — "computed only from
+   data public by `as_of`" — and the AST pass correctly finds nothing.
+4. **Bot service units** (`*-bot`, `daily-summary`, `weekly-report`) — 66 hits, every one either a
+   `.gitignore` path under `options-bot/` or narrative in `HANDOFF_STATUS.md`. No unit files, no
+   invocations.
+5. **Bot state paths** (`quant_bots/data`) — 6 hits, all prose in this file and the ledger row.
+6. **CI** — all 3 files under `.github/` checked for `options-bot`, `quant_bots`, `ssh`, `scp` and
+   the IP: **zero references.** No workflow ever touched the box.
+
+**Conclusion: the main Valquo tree has no executable dependency on the Oracle box.** Valquo runs on
+Render from `main` and never talked to it. Decommissioning costs the main product nothing.
+
+## Findings for other lanes — recorded, not repaired
+
+* **`deploy.sh`'s `EXPECTED_CORE_TESTS` is drifting again.** It reads 163; the core suite measured
+  **172** on 2026-08-07. Drift 9, inside the 12 that `test_expected_core_test_count_has_not_gone_stale`
+  allows, so it passes — but this is the same constant that once sat at 106 against a suite of 148.
+  Noted in the banner, **not bumped**: bumping it is a deploy decision and there is no deploy.
+* **`tests/test_deploy_preflight.py` has a class named
+  `TheOptionsBotCannotBeDeployedFromThisRepo`.** As of today the premise is false — the repo has
+  the sources and the preflight passes. Its two tests are about gitignore behaviour and both still
+  pass, so nothing is broken; the *name* is now misleading. Renaming a test class is the owning
+  lane's call.
+* **`options-bot/FINDINGS.md:13`** still says three bugs "are running right now on the Oracle box."
+  Left alone — it was not in the sweep list and it is a historical findings document, but a reader
+  could take it as current.
+
+## What I deliberately did not do
+
+* **No bot logic was modified.** The only executable file touched is `deploy.sh`, and only its
+  comment header. Everything else is markdown or `.gitignore`.
+* **I did not delete `options-bot2/` or the archives.** Redundant copies of a package that was
+  nearly lost are not clutter; they are why it was recovered. Ignored, not removed.
+* **I did not un-track the handoff zips** despite the instruction not to commit archives. They were
+  committed long before this task, by a deliberate negation rule, and removing them would delete
+  the artifact that made this recovery possible.
+* **I did not reconstruct anything.** Had the zip been absent I would have stopped rather than
+  invent an earnings filter — `EarningsCalendar.unknown_means_safe` decides whether an unknown
+  earnings date lets a trade through, and guessing it wrong fails open.

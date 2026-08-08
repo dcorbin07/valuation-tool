@@ -1,3 +1,25 @@
+> # ⛔ DECOMMISSIONED 2026-08-07 — THE LIVE DEPLOYMENT DESCRIBED HERE NO LONGER EXISTS.
+>
+> **The Oracle box `141.148.45.115` is gone. Never ssh or scp to it.** §7 ("Live
+> deployment — Oracle Cloud") describes a system that is not running. The four bots are
+> not live, in SIM or otherwise. Treat every IP, key path, Cloud Shell step and
+> `systemctl` command in this file as a historical record.
+>
+> Everything else in this document — the architecture, the design decisions, the gotchas,
+> the honest caveats — is still the best description of the codebase and is why the file
+> is kept rather than deleted.
+>
+> **Status of the code as of 2026-08-07:** it all imports and it all passes.
+> `options/data/*.py`, missing from git since the subproject was added, was recovered from
+> `handoff/quant_bots.zip` (tracked here all along) and verified byte-identical against
+> three other copies. `deploy/preflight.py` exits 0; **353 tests pass** (172 `quant_bots`
+> + 181 `quant_bots/options`). Runtime state through 2026-07-31 — journals, sim
+> portfolios, equity curves and nine correlation reports — is restored from
+> `quant_data.tgz` into the gitignored `quant_bots/data/` state tree.
+>
+> **This copy is one of two identical files** (`options-bot/HANDOFF.md` and
+> `options-bot/handoff/HANDOFF.md`, same sha256). Edit both or neither.
+
 # Quant Trading System — Full Handoff for Claude Cowork
 
 This document is a complete migration brief. It captures everything built across

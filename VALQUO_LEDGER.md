@@ -71,6 +71,16 @@ the rows are not this lane's:
 * **`X8` is DONE and `CLAUDE.md` did not know it.** The ledger was right and the brief was wrong —
   which is rule 2 of the contract working exactly as intended. `CLAUDE.md` now records it.
 
+**C6 closed 2026-08-07 (same lane, separate task) — and it is the one row the ledger got wrong,
+in an instructive direction.** The row named a blocker requiring Don and the Oracle box
+("must scp quant_bots/data/*.py off the box"). That blocker was never real: the missing sources
+sat in `options-bot/handoff/quant_bots.zip`, **tracked in this repository the entire time**, and
+were recovered byte-identical without touching the box — which is as well, since the box is now
+decommissioned. **The lesson is narrow and worth stating: "the only copy is on machine X" is a
+claim about where you looked, not about where the file is.** Nobody had grepped the tracked zips.
+`options-bot/.gitignore:34` (`!handoff/*.zip`) is the line that saved the project, and it should
+not be tidied away.
+
 ## Refresh
 
     python scripts/build_ledger.py            # proposal + counts, writes nothing
@@ -192,7 +202,7 @@ the rows are not this lane's:
 | C3 | C | --bots reversion does nothing | DONE | ADOPTED | f5c5a37 | HANDOFF_optionsbot.md | 2026-08-03 | human | ADOPTED (correctness). --bots reversion did nothing and reported success. 6 tests. |
 | C4 | C | Wire the tracking loop | DONE | ADOPTED | f5c5a37 | HANDOFF_optionsbot.md | 2026-08-03 | human | ADOPTED (correctness). 18 tests. run_review now refuses an all-NULL table. |
 | C5 | C | PIT universe on real data | DONE |  | 52091d6 | HANDOFF_edge_audit.md | 2026-08-04 | human | PASSED, after fixing a units bug that returned an EMPTY universe on all 27 dates. Median 32.1% invisible. |
-| C6 | C | Three undeployed fixes | BLOCKED | ADOPTED |  | HANDOFF_optionsbot.md |  | human | ADOPTED-in-repo and still UNDEPLOYED. Blocker: Don must scp quant_bots/data/*.py off the box. |
+| C6 | C | Three undeployed fixes | DONE | ADOPTED |  | HANDOFF_optionsbot.md | 2026-08-07 | human | CLOSED on the RECORDED branch of its own criterion: the Oracle box is decommissioned, so "deployed" is permanently n/a and all three fixes are instead verified by symbol and behaviour on every `deploy/preflight.py` run (exit 0, all three `ok`, measured 2026-08-07). THE BLOCKER WAS MISDIAGNOSED AND NO scp WAS EVER NEEDED: `options/data/*.py` was in `handoff/quant_bots.zip`, TRACKED in this repo the whole time (`options-bot/.gitignore:34` re-includes `handoff/*.zip` on purpose). Restored, byte-identical by sha256 to three other copies. Options suite 53-collected/14-errors -> 181 passing; 353 tests green (172 core + 181 options). State through 2026-07-31 restored from quant_data.tgz into the gitignored data/ tree. Docs swept with decommission notices; `*.tgz` and `options-bot2/` now ignored (both were one `git add -A` from being committed). |
 | C7 | C | Widen the CI gate | DONE | ADOPTED | a2894a8 | HANDOFF_edge_audit.md | 2026-08-03 | human | Widened the CI gate. Mattered because the pipeline auto-merges to main and Render deploys. |
 | P1 | P | Estimate capacity | DONE |  | 6eb5a2f | HANDOFF_free_analysis.md | 2026-08-04 | human | Capacity ~= $23M, and that is an UPPER bound. |
 | P2 | P | Model user crowding | OPEN |  |  |  |  | auto | only forward references -- mentioned as a dependency, never written up |
