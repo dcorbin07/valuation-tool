@@ -2238,3 +2238,18 @@ assumed.**
     python -m scripts.options_freeze_cost            # the (a)-vs-(b) cost measurement
     python tests/test_options_freeze.py              # 40 tests: fingerprints, gate, freeze
     python tests/test_term_slope_decomp.py           # 38 tests: the O16/O24 statistics
+
+## The freeze is validated as USABLE, not merely present
+
+An artifact that exists but cannot actually replay anything is decoration, so this was checked
+rather than assumed. `validate_frozen.py` loads **only** the frozen copy — never the live store —
+and pushes a spread sample of real banked alerts back through `compute_signals`:
+
+    frozen rows 2,870,811   columns [expiration, strike, right, date, bid, ask, volume,
+                                     open_interest, symbol]   distinct symbols 186
+    sampled 20 alerts: 20 reproduce, 0 missing, 0 mismatched     VERDICT: USABLE
+
+Every sampled alert's `term_slope` recomputed **from the frozen copy** matches the value
+recomputed from the store to within `1e-6`. So the R2 book's verdicts can now be re-derived even
+if `data/options` is deleted, re-mined, or moved — which is the property that did not exist
+before today and whose absence is the whole reason O16 stopped.
