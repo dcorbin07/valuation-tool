@@ -1618,3 +1618,302 @@ tracked-eligible.
 * **No file was merged or edited**, because every copy was identical. Had any journal genuinely
   diverged, the right move would have been a union of records rather than "keep the newest file",
   since two partial journals can each hold records the other lacks — that case did not arise.
+
+
+---
+
+# O16 + O24 — PRE-REGISTRATION (committed 2026-08-07, before any number existed)
+
+**This section was committed in its own commit, with no results in the tree.** The thresholds
+below are executable constants in `valuation/edge/options_signals_v2.py`, not prose, so the
+verdict rule cannot drift to meet the numbers.
+
+## The question
+
+`term_slope` = `atm_mid` (~60-DTE ATM IV) − `atm_front` (front-expiry ATM IV), computed at
+`options_signals_v2.py:230`. It was the strongest single feature in the signal stack.
+
+**The entry signal is measured dead (R2) and nothing here re-opens it.** This characterises the
+FEATURE, which still feeds the live Signals surface and is the prerequisite for **U2** (options
+surface → stock signals). Two hypotheses, never tested:
+
+* **O16 — is it a front-IV LEVEL in disguise?** If yes, everywhere both are used double-counts
+  one exposure.
+* **O24 — is it an EARNINGS CALENDAR in disguise?** If yes its information is a date offset, not
+  a vol-surface read.
+
+## Data and inference (banked only, no new mining)
+
+`data/options_universe/state_r2_corrected.pkl` — the **R2 corrected** book, explicitly not
+`state.pkl` (the void 3,042-trade pre-B1 book). **n = 3,885 trades, 186 names, 118 calendar
+months**, `term_slope` coverage 100%. Outcome is `pnl_pct` per trade.
+
+Inference is the options lane's standing method: **date-block bootstrap, block = calendar month**
+(`options_stats.date_block_bootstrap`, 2,000 draws, seed 0). Clustering is reported via
+`effective_n`, i.e. the design effect **always beside its own shuffled null** — per R3 a raw
+design effect is not evidence of clustering.
+
+## The null-vs-null trap, ruled on in advance
+
+R2 measured the entry signal dead, so `term_slope`'s own IC may not be separable from zero here.
+**If the raw feature's IC has a date-block CI95 spanning zero, the PREDICTIVE arm is declared
+UNINFORMATIVE and carries no verdict weight**, and the IDENTITY arm decides. Committed now
+because it would otherwise be tempting to read a null residual IC as "the confound explains it",
+when two nulls cannot discriminate between any hypotheses at all.
+
+## O16 protocol and verdict rule
+
+1. **Blocking reproduction gate.** Recompute `atm_front` / `atm_mid` at every alert through this
+   module's own `compute_signals` path; recomputed `term_slope` must match the banked value
+   within `1e-6` on **≥99%** of rows, or the study stops. Decomposing a quantity we cannot
+   reproduce is not evidence about anything.
+2. **Identity:** Pearson and Spearman of `term_slope` vs `atm_front` and vs `atm_mid`; variance
+   decomposition `var(ts) = var(mid) + var(front) − 2cov`.
+3. **Residual:** OLS `term_slope ~ a + b·atm_front`.
+4. **Predictive:** Spearman IC vs `pnl_pct` for `term_slope`, `−atm_front`, and the residual.
+5. **No-new-data control** (the PEAD template): rank by `−atm_front` alone, keep the top
+   **40.6%** — `term_slope`'s own shipped retention — and compare the uplift via
+   `date_block_diff`.
+
+**Verdict, first match wins:** **IS THE LEVEL** if `|ρ(ts, atm_front)| ≥ 0.80` **and**
+`var(atm_front)/var(ts) ≥ 0.60`; **IS DISTINCT** if `|ρ| < 0.60` **or**
+`var(atm_mid)/var(ts) ≥ var(atm_front)/var(ts)`; **otherwise NULL**. Ambiguous is a NULL, not a
+lean.
+
+## O24 protocol and verdict rule
+
+1. Days-to-next-earnings from **EVENTS code 22** (`data_providers.earnings_dates`) — the same
+   point-in-time source the PEAD study used.
+2. **Eligibility, committed before any outcome was seen:** an alert counts only if its next
+   earnings date is **within 120 days**. EVENTS coverage is partial (157/186 names; 3,495/3,885
+   alerts carry a forward date) and the scoping pass saw an apparent **3,004-day** gap — a hole
+   in the calendar, not an eight-year earnings drought. Scoring those as "far from earnings"
+   would load the test toward *"not a calendar"*, **the answer this lane would find more
+   convenient**. Excluded as UNKNOWN, count reported.
+3. Buckets 0-7 / 8-14 / 15-30 / 31-60 / 61-120 days, with counts.
+4. **Model:** OLS `term_slope ~ bucket dummies`; statistic is **R²**, the share of `term_slope`'s
+   variance the calendar alone reconstructs.
+5. **Direction, pre-committed:** the mechanism requires `term_slope` most negative closest to
+   earnings, i.e. `Spearman(ts, days) > 0`. **A significant wrong-sign slope refutes the
+   mechanism whatever R² says.**
+6. **No-new-data control:** keep only alerts >30d from earnings; does that replicate the
+   `term_slope` filter's book gain?
+
+**Verdict, first match wins:** **IS THE CALENDAR** if `R² ≥ 0.25` **and** `ρ(ts, days) > 0` with
+a date-block CI95 excluding zero; **IS DISTINCT** if `R² < 0.10`; **otherwise NULL**.
+
+## What no outcome here can do
+
+None of this revives the entry signal (R2 stands) and none of it is a claim about live trading.
+A confirmed confound means the feature is redundant with something cheaper; a distinct verdict
+means U2 may treat it as its own read.
+
+**Logged to `RESEARCH_LOG.md`** as O16 (n=5) and O24 (n=4), domain `options`, verdict PENDING.
+Options-domain `N` 155 → **164**; equity `N` unchanged at 121 (`N` is domain-scoped, per M1).
+
+> Read the equity figure as *"these nine trials did not touch it"*, not as a current reading.
+> Measured after merging `origin/main` at the end of this cycle: options **164** (unchanged, as
+> claimed), equity **129**, project total **296** — equity moved because a concurrent lane landed
+> rows, which is exactly the domain scoping working. **`N` is a project quantity that keeps
+> rising; re-measure it rather than quoting a number from a handoff.**
+
+
+---
+
+# O16 + O24 — RESULTS (2026-08-07). One NULL, and one study that stopped at its own gate.
+
+Pre-registration is the section immediately above, committed at `ad66468` with no results in the
+tree. Every threshold quoted below was already in `options_signals_v2.py` before any number
+existed. **Neither outcome re-opens the entry signal; R2 stands.**
+
+| item | verdict | the one-line reason |
+|---|---|---|
+| **O16** — is term_slope a front-IV level? | **STOPPED AT THE REPRODUCTION GATE — no verdict** | the banked book is only 86.4% reproducible, because the chain store moved underneath it |
+| **O24** — is term_slope an earnings calendar? | **NULL** | R² 0.2144, CI95 [0.183, 0.248] — wholly below the committed 0.25 bar — and the pre-committed direction test spans zero |
+
+## O16 — the gate fired, and what it caught is worth more than the hypothesis was
+
+The pre-registration made the reproduction check **blocking**: recompute `term_slope` from the
+banked chains through this module's own `compute_signals`, and require a match within `1e-6` on
+**≥99%** of rows, *"or the study stops — a decomposition of a quantity we cannot reproduce is not
+evidence about anything."*
+
+**Measured: 3,358 of 3,885 rows reproduce, 86.435%. The gate fails. O16 carries no verdict.**
+
+The cause is attributed rather than guessed, and the attribution is unusually clean:
+
+| | reproduced | mismatched | reproduce rate |
+|---|---|---|---|
+| chain file **unchanged** since the book was banked | **3,127** | **0** | **100.00%** |
+| chain file **re-mined** since | 231 | 527 | 30.47% |
+
+**Every single mismatch sits in a re-mined file; not one sits in an unchanged file.** Median
+absolute difference across all rows is exactly 0.0 and the maximum is 0.463. The recompute is
+correct wherever its input is unchanged — what moved is the data, not the code.
+
+### BUG — the authoritative options book is not reproducible from the chain store
+
+`data/options` is a **live** store: `theta_bulk` keeps mining and rewrites `TICKER-YEAR.pkl` in
+place. **19.5% of the alerts' ticker-year files were rewritten after `state_r2_corrected.pkl` was
+banked on 2026-08-05 19:51.** Consequences, in order of how much they should worry someone:
+
+1. **Any recompute-based audit of the corrected book silently disagrees with it on ~13.6% of
+   rows** — and would have looked like a code defect rather than a data-drift one. This study only
+   caught it because the gate was pre-registered as blocking; a softer check would have been
+   waved through as "close enough" and the O16 verdict would have been computed on a mixture of
+   two different chain vintages.
+2. **`term_slope` and the legs would not even be self-consistent within a mismatching record:**
+   the banked `term_slope` comes from the old chain, a recomputed `atm_front`/`atm_mid` from the
+   new one, so `atm_mid − atm_front ≠ term_slope` in the same row.
+3. **The equity side already solved this and the options side did not.** There is a
+   `data/backtest_freeze_2026-08/` with a verified freeze and legend (audit D10). **Option chains
+   have no equivalent pin.** That asymmetry is the actual defect; the drift is its symptom.
+
+**Not repaired here, deliberately** — the fix lives in `theta_bulk.py`, which this cycle's
+carve-out explicitly excludes ("NOT `theta_bulk.py` — the miner is live in it"), and a freeze
+design is a decision for whoever owns the miner, not a patch to smuggle into a study lane. Filed
+with file and figures so it can be actioned.
+
+### EXPLORATORY — no verdict, and it must not be quoted as one
+
+Restricting to the **3,358 rows that reproduce exactly** and running the committed protocol. The
+subset is defined by chain-file mtime, which is independent of `pnl_pct` and of `term_slope`, but
+it is still a post-hoc restriction chosen **after** seeing the gate fail, so it cannot settle a
+pre-registered question. Representativeness was checked rather than assumed — it keeps **all 186
+names** and 117 of 118 months; mean `pnl_pct` 3.57% vs 2.36% on the dropped rows, mean
+`term_slope` −0.0346 vs −0.0387, mean `iv` 0.3073 vs 0.2937.
+
+**Identity.** `Spearman(term_slope, atm_front)` **−0.5405**, date-block CI95 [−0.576, −0.501].
+`Spearman(term_slope, atm_mid)` **−0.0064**. Variance decomposition: `var(ts)` 0.02153,
+`var(atm_front)` 0.04072, `var(atm_mid)` 0.01389, `cov` 0.01654 — shares **1.891 front**, **0.645
+mid**, **−1.536** for the −2cov term. The shares exceed 1 because the legs are strongly
+co-moving (`Spearman(front, mid)` +0.787) and differencing two correlated series leaves less
+variance than either leg carries; that is why the cross term is reported rather than folded into
+a leg.
+
+> **The rule said Spearman and it mattered.** `Pearson(term_slope, atm_front)` is **−0.8167**,
+> which is *past* the 0.80 level bar, while Spearman is −0.5405, which is *below* the 0.60
+> distinct bar. Same data, opposite branch. The pre-registration named Spearman, so Spearman
+> governs — and had the statistic been left to be chosen afterwards, this is precisely where the
+> choice would have been made with the answer visible.
+
+**Predictive — and the pre-registered escape clause did not need to fire.** The pre-registration
+anticipated a null-vs-null trap (R2 having measured the entry signal dead) and ruled in advance
+that a raw IC spanning zero would make this arm uninformative. It does not span zero:
+
+| arm | Spearman IC vs `pnl_pct` | date-block CI95 | excludes 0 |
+|---|---|---|---|
+| `term_slope` | **+0.0645** | [+0.0271, +0.1024] | yes |
+| `−atm_front` | +0.0148 | [−0.0340, +0.0648] | **no** |
+| **residual (ts ⟂ atm_front)** | **+0.0774** | [+0.0344, +0.1192] | yes |
+| `atm_mid` | +0.0368 | [−0.0118, +0.0854] | no |
+
+**The orthogonal remainder predicts BETTER than the raw feature, and the front leg alone predicts
+nothing.** That is the opposite of the confound signature. *(This does not contradict R2: R2
+asked whether the alert's day-selection beats random entry; this is a cross-sectional IC among
+alerts already generated. Different objects, and neither rescues the other.)*
+
+**No-new-data control.** `term_slope ≥ 0.0105` retains 40.5% and lifts mean pnl **+6.02pp**, CI95
+[+1.51, +10.21], excluding zero. The same-sized lowest-front-IV selection lifts **+2.44pp**, CI95
+[−2.49, +7.20], **including** zero. The two selections overlap on only **22.0%** of names.
+
+On this subset the committed rule **would** have returned **IS DISTINCT** (|ρ| 0.5405 < 0.60).
+**That is not the verdict.** O16 needs a pre-registered re-run against pinned chains.
+
+Clustering, reported beside its own shuffled null per R3: design effect **2.032** vs null p95
+**1.224**, `clustering_measurable` true.
+
+## O24 — NULL, and the way it fails is the informative part
+
+**n = 3,458 eligible** (89.0% of the book), 157 names, 118 months. Excluded before any outcome was
+seen: 390 alerts whose name has no EVENTS coverage, 37 whose next earnings is beyond 120 days.
+
+| bucket | n | mean `term_slope` | median | mean pnl |
+|---|---|---|---|---|
+| **0-7d** | 532 | **−0.1916** | −0.0758 | +5.25% |
+| 8-14d | 248 | +0.0098 | +0.0212 | +18.41% |
+| 15-30d | 604 | +0.0172 | +0.0269 | +12.90% |
+| 31-60d | 984 | +0.0038 | +0.0156 | +0.28% |
+| 61-120d | 1090 | −0.0311 | −0.0139 | −2.07% |
+
+* **R² = 0.2144**, date-block CI95 **[0.183, 0.248]** — the **entire interval** lies below the
+  committed 0.25 bar, so this is a clean miss rather than a coin-flip.
+* **Direction: Spearman(term_slope, days) = +0.0018**, CI95 [−0.051, +0.055] — spans zero.
+  (Pearson is +0.1654, which is why the rank statistic being named in advance mattered again.)
+* By the committed rule — R² below 0.25, direction not significant — **NULL**.
+
+**The earnings mechanism is real, and it is a spike rather than a gradient.** `term_slope` in the
+0-7 day bucket is −0.1916, an order of magnitude away from every other bucket, which is exactly
+the predicted pre-earnings front-IV inflation. But it is **non-monotone**: the relationship rises
+to 15-30d and falls again by 61-120d. A monotone rank test is close to blind to that shape, which
+is how R² can nearly clear while the direction test reads zero.
+
+**That is a finding about my own design, not a reason to move the verdict.** The direction test
+was committed before any data was seen; a shape-agnostic direction test (or an explicit
+0-7d-versus-rest contrast) would have been the better instrument, and choosing it *now* would be
+selecting the statistic on the result. **Session 11 pre-registers that contrast or nobody quotes
+it.**
+
+**The no-new-data control runs the other way.** Keeping only alerts >30 days from earnings makes
+the book **worse**: −0.95% against +3.81% on the eligible book, diff **−4.76pp**, CI95 [−7.59,
+−2.10], excluding zero. Near-earnings alerts (≤30d) return **+10.95%**. So the earnings calendar
+is not a cheap redundant copy of `term_slope` — it is a *different* sort, and on this book a
+better one. Clustering: design effect **2.1496** vs null p95 **1.2086**, measurable, and
+consistent with R3's 2.2121 on the full book.
+
+## What each verdict does downstream
+
+* **The live Signals surface** (`options_live.py:37` documents `term_slope` with its 0.0105
+  threshold). **Nothing changes.** O24 is a NULL and O16 has no verdict, so there is no
+  measured basis for removing, reweighting or renaming the feature. The one thing that would
+  have justified action — "it is just the front IV, delete one of them" — is precisely what did
+  not get established.
+* **U2 (options surface → stock signals), which is queued behind this question.** It is **not
+  unblocked**, and the honest statement of why is now sharper than "untested": the earnings-
+  calendar confound is ruled out at the ≥25%-of-variance level (O24), while the front-IV-level
+  confound is **unresolved** and cannot be resolved against a mutable chain store. **U2's real
+  prerequisite is the chain freeze, not another study.**
+* **Anything that recomputes from `data/options`** should treat the chain store as a moving
+  target until it is pinned, and should carry a reproduction gate. That is the transferable
+  part of this cycle.
+
+## BUGS FOUND
+
+1. **The options chain store is mutable and the authoritative book is not reproducible from it**
+   (detail above). 19.5% of alert ticker-years re-mined post-bank; 86.4% reproduction against a
+   99% requirement; 100.00% on unchanged files. **Owner: whoever owns `theta_bulk.py`** — out of
+   this cycle's carve-out by name. The equity side's `data/backtest_freeze_2026-08` + D10 legend
+   is the model to copy.
+2. **`compute_signals` discarded both legs of its own difference.** `atm_front` and `atm_mid`
+   were computed and thrown away, keeping only `term_slope`, so **no banked book has ever
+   carried the inputs to its own strongest feature** — which is the entire reason O16 needed a
+   ~18-minute full re-derivation from chains instead of a lookup. Now emitted additively (no
+   existing key changes, no banked result moves), so the next book carries them.
+3. **A structural zero is indistinguishable from a flat term structure.** `mid_exp` is the expiry
+   nearest 60 DTE *among those after `as_of`*; when the nearest expiry is itself closest to 60,
+   both legs are the same contract and `term_slope` is identically 0.0. **It does not fire on
+   this book (0 of 3,885)**, so nothing is affected — recorded because it is invisible in the
+   stored data and would be indistinguishable from a genuine reading if a sparser universe were
+   ever mined. Pinned by
+   `test_when_the_60_dte_pick_lands_on_the_front_expiry_the_slope_is_zero`.
+
+## What I did NOT do
+
+* **I did not repair the chain drift.** It is `theta_bulk.py`, excluded by name from this
+  cycle's carve-out, and a freeze design is the miner owner's call.
+* **I did not let O16 return a verdict.** The exploratory subset would have said IS DISTINCT and
+  it would have been the *convenient* answer for a lane that wants U2 unblocked. The gate was
+  pre-registered as blocking; honouring it only when it agrees with you is not honouring it.
+* **I did not re-cut O24's direction test** to the shape that fits the effect, though the spike
+  at 0-7d is plain in the table. That is selecting the statistic on the result.
+* **I did not touch `theta_bulk.py`, `valuation/screener|engine|web/**`, or anything outside the
+  six options files this cycle carved out.** `check_lanes.py O16 O24` reports a HARD collision
+  between the two items on `options_signals_v2.py` — irrelevant here because one agent ran both
+  in sequence, and noted so nobody reads the clean landing as evidence the checker was wrong.
+  Both dependencies were verified landed first (O16 needs B1, O24 needs D10; both DONE).
+* **I did not re-run the miner or mine anything new.** Banked data only, as scoped.
+
+## Reproduce
+
+    python tests/test_term_slope_decomp.py        # 38 tests: the statistics, the committed
+                                                  # verdict rules, the reproduction gate

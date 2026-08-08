@@ -18,6 +18,82 @@ REJECTED and its deciles run backwards out of sample)
 
 ---
 
+## LEDGER REFRESHED — 72/134 DONE, AND `--write` WAS DESTROYING EIGHT ROWS (2026-08-08, r1 lane)
+
+Full write-up in `HANDOFF_ledger.md`. Counts and the disagreement table are published in
+`VALQUO_LEDGER.md` itself, which is the place to read them.
+
+**COUNTS: 72 of 134 audit items DONE (53.7%)**, 56 OPEN, 5 BLOCKED, 1 IN PROGRESS, 0 SUPERSEDED;
+hand-verified 91/134. Plus **8 out-of-band rows** (7 DONE, 1 PRE-REGISTERED) counted separately so
+that "of 134" keeps meaning what it always meant. The backlog is lopsided and the counts make it
+legible: **`S` is 4/28 DONE and `O` is 6/26, and those two series hold 43 of the 56 OPEN items** —
+what remains is signal ideas and options studies, not corrections. `B` 24/26, `C` 7/7, `D` 9/10
+and `P` 5/5 are essentially finished.
+
+**THE REFRESH ITSELF MOVED ONE CELL. THE WORK WAS MAKING IT SAFE TO RUN.** `build_ledger.py
+--write` had never been executed since the out-of-band rows were added, and running it as shipped
+would have **deleted eight hand-verified rows** — `OOB1`/`OOB2`/`OOB3` and the pre-registered
+experiments `LOO`, `SELRULE`, `HACFLOOR`, `MLPREREG`, `MLCOMB`, i.e. **Sessions 7–11 and the
+public fair-value leak closure** — plus all prose under the header (R3's stale-figure note, the C6
+lesson) and the `FIXED` verdicts on `B8` and `P4`. Three defects, one signature: the script
+curating content it did not write, against a docstring promising the opposite.
+
+**DEFECT 1 WAS ALREADY KNOWN AND HAD BEEN WRITTEN INTO THE DATA INSTEAD OF FIXED.** `OOB1`'s note
+ended *"NOTE: build_ledger.py regenerates from the 134 audit ids only and will DROP this row"* — a
+warning stored in the row it warns about, deleted by the operation it warns about. Now fixed and
+pinned by `tests/test_build_ledger.py` (20 assertions); `--write` is idempotent.
+
+**ALL 21 DISAGREEMENTS RESOLVE IN FAVOUR OF THE HUMAN ROW; NO STATUS CHANGED.** Two previously
+unrecorded traps were found and added to the file's list: **(5)** a multi-item commit subject
+donates one item's verdict to every id in it — `275e9af` *"O16/O24 RESULTS: O24 is a NULL; O16
+stopped at its own reproduction gate"* marks **O16 DONE** when O16 deliberately returned no
+verdict; **(6)** `DEFERRED` is in the DONE vocabulary, so `## B23 — DEFERRED, deliberately` reads
+as finished while its body says *"Not done, and not forgotten."* Both left unencoded on purpose —
+the fix is a guess about commit-subject grammar and the human row already wins.
+
+**EVERY LANDING OF THE LAST TWO DAYS WAS ALREADY RECORDED BY THE LANE THAT DID IT** (sessions 10
+and 11, O16, O24, P2, C6, the leak closure), so there was nothing to fold in. Contract rule 1 is
+being followed, and this task was a verification rather than a reconstruction.
+
+**ONE ROW STILL WRONG AND NOBODY OWNS IT: `R3`'s note reads "Shrinks every options t ~1.36x"; the
+corrected figure is √2.212 = 1.487× on the 3,885-trade book.** It has now survived two refreshes
+because both flagged it as "not this lane's row". Recommended: let any lane correct a figure that
+is already corrected elsewhere in the project.
+
+---
+
+## GREEKS — THE DERIVED LAYER GREW 315 → 502 NAMES (2026-08-08, greeks lane)
+
+Full write-up in `HANDOFF_greeks.md`. Pure local compute: zero vendor option calls, and
+`data/options/` verified untouched afterwards. Both suites green (252/252 edge, 22/22 greeks).
+
+**502 names, 254,049,740 of 547,615,761 contract-days priced (46.4%), 1,131,698 name-dates,
+27.5 GB.** Was 315 names / 349.0M in / 164.4M priced (47.1%) / 17.8 GB. Every one of the 502
+names the miner marks `complete` now has a derived layer; none is missing.
+
+**THE ONE THING OTHER LANES MUST KNOW: any autopsy PBO, feature p-value or Deflated Sharpe
+computed after today is NOT comparable to any figure banked before today, and the difference is
+NOT a finding.** `options_autopsy.py` reads this layer directly (`:150`, `:181`) and it feeds the
+64-feature gate → `pbo_cscv` and `deflated_sharpe`. Precedent, from `derived_stamp`'s own
+docstring: the layer going **111 → 317 names moved PBO 35.7% → 48.57% under identical trades and
+identical code, and nothing warned.** Today's jump is comparable in size.
+
+**"The autopsies stamp their fingerprint now, so growing the layer is safe" is half right.** The
+stamp exists and works (`options_autopsy.py:538`, shipped as `derived_data` at `:964`), but it
+**gates nothing** by design, `derived_comparable()` has **no production caller**,
+`UNIVERSE_RESULTS.json` is **not stamped at all** while still shipping a Deflated Sharpe, and
+**no stamped baseline has ever been written**. So the stamp makes the discontinuity *detectable
+by a reader who checks the field*; it does not make it safe. **Recommended, cheap, and blocking
+for anyone about to use this layer: run one autopsy purely to bank a stamped baseline.**
+
+Two other findings worth carrying:
+- **Only 187 of the 413 re-derived names were new.** 226 were re-done because their source
+  year-files were **rewritten in place** by the OI re-mine (1,100 files, zero new years added).
+  Skip-existing is signature-based, so this is correct — GEX consumes `open_interest` directly.
+- **The six ticker-reuse names corroborate independently.** `COR`, `SN`, `FIG`, `SNDK`, `AXON`
+  all price far below the 46.4% average (24–34%) and four carry a flag caused by the identity
+  break, because the bars series belongs to the ticker's *current* occupant. **Do not use those
+  six, plus `META`, `DD`, `DOW`, in options research until per-symbol validity windows ship.**
 ## P2 — USER CROWDING MODELLED (r1 lane, 2026-08-08) — memo only, no code
 
 Full write-up: **`HANDOFF_crowding.md`**. Ledger rows P1 and P2 updated.
