@@ -57,6 +57,20 @@ file replaces reconstructing project state from git history.
 
 `build_ledger.py` encodes all four. If you add a source file, re-check them.
 
+## Ledger accuracy — checked against the tree 2026-08-07 (out-of-band claims audit)
+
+The `CLAUDE.md` claims audit (`HANDOFF_claims_audit.md`, options-bot lane) verified every status
+it touched against the commit the row names, not against prose. **The ledger came out well: every
+status it checked — B6, B7, B8, B11, B12, B17, M1, R1, R9, R10, X2, X3, X7, X8, U7 — was
+corroborated by the code or the artifact.** Two things worth carrying, neither edited here because
+the rows are not this lane's:
+
+* **`R3`'s note is stale.** It reads "Shrinks every options t ~1.36x". The corrected figure is
+  **√2.212 = 1.487×** on the 3,885-trade book; 1.36× came from the pre-correction 3,042-trade book
+  and `CLAUDE.md` already carries the correction. **Owner: whoever owns R3.**
+* **`X8` is DONE and `CLAUDE.md` did not know it.** The ledger was right and the brief was wrong —
+  which is rule 2 of the contract working exactly as intended. `CLAUDE.md` now records it.
+
 ## Refresh
 
     python scripts/build_ledger.py            # proposal + counts, writes nothing

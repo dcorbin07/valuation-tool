@@ -4932,6 +4932,114 @@ def test_alias_sourced_rows_record_which_symbol_supplied_them():
         assert not os.path.exists(TB.year_path("WBD", 2023, tmp) + ".alias")
 
 
+def test_a_ticker_that_changed_hands_is_reported_even_though_no_alias_is_involved():
+    """`COR` holds two companies: CoreSite Realty until its 2021 acquisition, then Cencora from
+    2023-08. No alias produced that -- the miner asked the feed for "COR" each year and the feed
+    answered for whoever held the ticker -- so `alias_overlap_conflicts()` is blind to the whole
+    class and a separate screen is needed.
+
+    The interior `.empty` is the load-bearing part. Everywhere else `.empty` means the year is
+    COVERED, and treating it that way here would skip the one name this exists to catch: COR
+    2022 is empty precisely BECAUSE the ticker belonged to nobody that year."""
+    import os
+    import tempfile
+
+    from valuation.edge import theta_bulk as TB
+
+    with tempfile.TemporaryDirectory() as tmp:
+        def touch(sym, year, suffix=""):
+            p = TB.year_path(sym, year, tmp) + suffix
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            open(p, "wb").write(b"x")
+
+        # COR: CoreSite through 2021, nothing in 2022, Cencora from 2023.
+        for y in (2016, 2017, 2018, 2019, 2020, 2021, 2023, 2024, 2025):
+            touch("COR", y)
+        touch("COR", 2022, ".empty")
+        # A clean name with an unbroken run, and one that merely STARTS late (not a handover).
+        for y in range(2016, 2026):
+            touch("AAPL", y)
+        for y in (2021, 2022, 2023, 2024, 2025):
+            touch("RIVN", y)
+        touch("RIVN", 2016, ".empty")          # leading empty: pre-IPO, genuinely covered
+
+        found = TB.reused_ticker_suspects(root=tmp)
+        assert "COR" in found, "an interior hole must be reported even when marked .empty"
+        assert found["COR"]["hole"] == [2022]
+        assert found["COR"]["empty_marked"] == [2022]
+        assert "AAPL" not in found, "an unbroken history is not a suspect"
+        assert "RIVN" not in found, "a late listing is not a handover"
+
+
+def test_a_handover_with_no_gap_year_is_caught_by_the_collapse_screen():
+    """The hole screen cannot see a ticker that changes hands MID-YEAR, because the year is
+    then present, well-formed and wrong rather than absent.
+
+    `META` is the live case and it is a top-ten name. The alias supplies 2016-2020 from `FB`
+    correctly, but through the back half of 2021 the `META` ticker belonged to a ~$15 company
+    and the feed answered with its chains: 9,398 rows between years of 247,139 and 171,788.
+    Facebook's real 2021 was never fetched, and no alias table can fix that -- a fallback only
+    fires on an EMPTY span, and this span was not empty."""
+    import os
+    import tempfile
+
+    from valuation.edge import theta_bulk as TB
+
+    with tempfile.TemporaryDirectory() as tmp:
+        def write(sym, year, nbytes):
+            p = TB.year_path(sym, year, tmp)
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "wb") as f:
+                f.write(b"x" * nbytes)
+
+        for y, mb in ((2019, 9.14), (2020, 11.62), (2021, 0.44), (2022, 8.08), (2023, 17.52)):
+            write("META", y, int(mb * 1_000_000))
+        # A name that simply GROWS steadily must not trip the screen.
+        for y, mb in ((2019, 2.0), (2020, 4.0), (2021, 8.0), (2022, 16.0), (2023, 32.0)):
+            write("NVDA", y, int(mb * 1_000_000))
+
+        found = TB.collapsed_year_suspects(root=tmp)
+        assert "META" in found, "a year far smaller than both neighbours must be reported"
+        assert [x["year"] for x in found["META"]] == [2021]
+        assert "NVDA" not in found, "steady growth is not a collapse"
+
+
+def test_a_year_that_recovers_drops_its_failure_marker():
+    """A `.missing` beside a complete pickle is a lie about the year next to it.
+
+    Five names (CMG, DHI, FNV, MCD, RKLB) carried a `.missing` for 2022 while holding a full
+    2022 frame -- markers left by an attempt that later succeeded. That inflated the apparent
+    May-2022 damage ~5x and, worse, `ensure_year` reads the attempt count back out of that
+    file, so the next genuine failure starts partway to MAX_MISSING_ATTEMPTS and can be retired
+    to `.exhausted` for failures the year had already recovered from."""
+    import os
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    frame = pd.DataFrame({"expiration": [dt.date(2022, 6, 17)], "strike": [50.0],
+                          "right": ["C"], "date": [dt.date(2022, 5, 16)], "bid": [1.0],
+                          "ask": [1.1], "volume": [7], "open_interest": [11]})
+    with tempfile.TemporaryDirectory() as tmp:
+        tb = TB.ThetaBulk(api_key="x", root=tmp)
+        path = TB.year_path("AGI", 2022, tmp)
+
+        # The failing run: a span broke, so the year is refused and marked.
+        tb._fetch_year = lambda s, y: (frame, True)
+        assert tb.ensure_year("AGI", 2022) is False
+        assert os.path.exists(path + ".missing"), "a failed year must be recorded"
+        assert not os.path.exists(path), "a partial year is never cached as complete"
+
+        # The retry run: the source is healthy again and the year completes.
+        tb._fetch_year = lambda s, y: (frame, False)
+        assert tb.ensure_year("AGI", 2022) is True
+        assert os.path.exists(path), "the recovered year must be cached"
+        assert not os.path.exists(path + ".missing"), \
+            "a recovered year must not keep a marker contradicting the pickle beside it"
+
+
 def test_probe_year_walks_forward_instead_of_burying_names_that_listed_later():
     """The probe year was hard-coded to 2024, so any name that listed afterwards came back
     empty and was filed as `skipped_thin, reason "no data"` for good. Eight of the fourteen

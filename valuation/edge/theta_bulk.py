@@ -358,6 +358,98 @@ def alias_overlap_conflicts(aliases: dict = None, root: str = CACHE_ROOT) -> dic
     return out
 
 
+def reused_ticker_suspects(root: str = CACHE_ROOT) -> dict:
+    """Cache directories that may hold MORE THAN ONE COMPANY. Empty dict = clean.
+
+    `alias_overlap_conflicts()` above cannot see this class, because no alias is involved. The
+    miner asks the feed for a ticker in every year and the feed answers for whoever HELD that
+    ticker at the time, so a symbol that changed hands comes back as one continuous-looking
+    history made of two companies.
+
+    `COR` is the live example. CoreSite Realty held it until American Tower acquired the company
+    in 2021-12; Cencora took it in 2023-08 on renaming from AmerisourceBergen. The cache holds
+    CoreSite for 2016-2021 and Cencora for 2023-2025 in one directory, and the median strike
+    steps 130 -> 165 across the join, which is the two underlyings' price levels, not a move.
+
+    THE SIGNATURE IS THE INTERIOR HOLE, and it is worth being precise about why: a listed
+    company does not stop having options for a year and then resume, but a ticker between owners
+    has nothing to answer with. So an uncached year with cached years on BOTH sides is the
+    cheap, specific marker of a handover. It reads filenames only -- no pickles, no network --
+    so it is free enough to run on every status call.
+
+    A MID-HISTORY `.empty` COUNTS AS A HOLE, and getting this backwards would have missed the
+    one name the function exists for. Elsewhere `.empty` means "the feed genuinely has nothing,
+    so the year is COVERED rather than a gap" -- true for LEADING years (pre-IPO, pre-rename)
+    and TRAILING ones (delisted). In the interior it means the opposite: COR-2022 is `.empty`
+    precisely BECAUSE the ticker belonged to nobody that year, which is the handover itself.
+
+    This is a SCREEN, NOT A VERDICT. A hole can also be an ordinary outage (the May-2022 source
+    defect put one in every name it touched until the retry pass filled them), so a hit means
+    "establish which company this is before using the name", not "this data is wrong". The
+    reverse error is the expensive one: a blended two-company series is invisible downstream,
+    because both halves are well-formed and coverage looks complete.
+    """
+    out = {}
+    if not os.path.isdir(root):
+        return out
+    for name in sorted(os.listdir(root)):
+        if not os.path.isdir(os.path.join(root, name)):
+            continue
+        yrs = sorted(_cached_years(name, root))
+        if len(yrs) < 2:
+            continue
+        hole = [y for y in range(yrs[0], yrs[-1] + 1) if y not in yrs]
+        if hole:
+            out[name] = {"cached": yrs, "hole": hole,
+                         "empty_marked": [y for y in hole
+                                          if os.path.exists(year_path(name, y, root) + ".empty")]}
+    return out
+
+
+def collapsed_year_suspects(root: str = CACHE_ROOT, ratio: float = 0.2) -> dict:
+    """Years that hold FAR less data than both neighbours. Empty dict = clean.
+
+    The companion to `reused_ticker_suspects()`, for the handover that leaves NO hole. When a
+    ticker changes hands mid-year the feed answers for the new holder, so the year is neither
+    empty nor missing -- it is present, well-formed, and wrong. Nothing above catches that.
+
+    `META` is the live example, and it is a top-ten name. Facebook renamed to Meta in 2022-06,
+    so `ALIASES["META"] = ["FB"]` supplies 2016-2020 correctly. But through the back half of
+    2021 the `META` ticker belonged to a ~$15 company, and the feed answered with ITS chains:
+    META-2021 holds 9,398 rows over 2021-07-08..12-31 at strikes 8-22, between years of 247,139
+    and 171,788 rows at strikes 130-350. Facebook's actual 2021 was never fetched, because the
+    alias fallback only fires on an EMPTY span and this span was not empty.
+
+    THAT IS THE STRUCTURAL POINT, and it is why a third screen exists rather than a wider alias
+    table: an alias can only rescue a year the current symbol has NOTHING for. Against a reused
+    ticker the current symbol always has something, so no alias mapping can ever fix this class.
+
+    Measured on FILE SIZE, not row counts, so it costs a stat() per file and never unpickles:
+    META-2021 is 0.44MB between 11.62MB and 8.08MB, a 26x collapse that no threshold worth
+    arguing about would miss. A SCREEN, NOT A VERDICT -- a genuinely thin year (a name that
+    briefly lost liquidity) looks the same from here and has to be told apart by looking.
+    """
+    out = {}
+    if not os.path.isdir(root):
+        return out
+    for name in sorted(os.listdir(root)):
+        if not os.path.isdir(os.path.join(root, name)):
+            continue
+        size = {}
+        for y in _cached_years(name, root):
+            try:
+                size[y] = os.path.getsize(year_path(name, y, root))
+            except OSError:
+                continue
+        for y in sorted(size):
+            prev, nxt = size.get(y - 1), size.get(y + 1)
+            if prev and nxt and size[y] < ratio * prev and size[y] < ratio * nxt:
+                out.setdefault(name, []).append(
+                    {"year": y, "mb": round(size[y] / 1e6, 2),
+                     "prev_mb": round(prev / 1e6, 2), "next_mb": round(nxt / 1e6, 2)})
+    return out
+
+
 class ThetaBulk:
     """Year-chunked option history. Degrades to a no-op with no API key."""
 
@@ -441,9 +533,30 @@ class ThetaBulk:
         one.
 
         The subtler damage: a hung call never returns, so it never became a fault, so
-        `_note_fault` never counted it and the dead-channel detector never fired. The run
-        reported "0 faults, 0 client rebuilds" through an 11-hour stall — the detector was
-        bypassed by precisely the failure it exists to catch. A hang is now counted as a fault.
+        `_note_fault` never counted it and the dead-channel detector never fired through an
+        11-hour stall. A hang is now counted as a fault.
+
+        TWO CORRECTIONS TO THAT ACCOUNT, both from re-reading the logs on 2026-08-07 rather
+        than from reasoning:
+
+        * "the detector was bypassed" OVERSTATED IT. It was blind to HANGS specifically, not
+          broken in general — on ordinary gRPC errors it worked and demonstrably fired, twice
+          ("6 consecutive faults: rebuilding the client", `BREADTH_RUN2.log`). Only the hang
+          path was invisible to it.
+        * "the run reported 0 faults" WAS READ OUT OF THE WRONG FILE. `MINING_PROGRESS.txt`
+          carries only `[mine]` lines and has never contained a single `[theta-bulk]` line, so
+          it could not have shown a fault whatever the detector did. The faults were in
+          `BREADTH_RUN*.log` all along: 81 give-ups, 18 chunk halvings, 3 timeouts, 2 client
+          rebuilds, 2 budget exhaustions. **A statistic quoted from a stream that does not
+          carry it is not evidence, and this one was quoted repeatedly.**
+
+        FAULT COUNTING IS DELIBERATELY ASYMMETRIC. A hang counts once per ABANDONED ATTEMPT
+        plus once when the retries run out; an error counts once, only when it gives up. So a
+        fully-hung call contributes 3 faults where a failing one contributes 1, and
+        CLIENT_RESET_AFTER_FAULTS is reached after ~2 hung calls against 6 failing ones. That
+        is intended — a hang is the stronger evidence that the channel is dead, and it is the
+        failure that costs hours rather than seconds — but it was measured, not designed, so it
+        is written down here rather than left to be rediscovered.
 
         The abandoned worker is a DAEMON thread, so a call that never returns cannot pin the
         interpreter at exit the way an executor thread would.
@@ -755,6 +868,22 @@ class ThetaBulk:
                 with open(path + ".alias", "w", encoding="utf-8") as f:
                     f.write(f"{','.join(used)} supplied rows for {symbol.upper()} {year} "
                             f"{dt.date.today().isoformat()}\n")
+            # A SUCCEEDED YEAR MUST NOT KEEP ITS FAILURE MARKER. `.oi_degraded` above is
+            # already cleared on recovery; `.missing`/`.empty` were not, so a year that failed
+            # once and succeeded later kept a marker contradicting the pickle beside it. Five
+            # names (CMG, DHI, FNV, MCD, RKLB) carried a `.missing` for 2022 while holding a
+            # complete 2022 frame, which made the May-2022 damage look ~5x worse than it was.
+            #
+            # It is not only cosmetic: `ensure_year` reads the attempt count out of `.missing`,
+            # so a stale one means the NEXT genuine failure starts partway to
+            # MAX_MISSING_ATTEMPTS and can be retired to `.exhausted` early -- a year given up
+            # on for failures it already recovered from.
+            for stale in (path + ".missing", path + ".empty"):
+                if os.path.exists(stale):
+                    try:
+                        os.remove(stale)
+                    except OSError:
+                        pass
             with _LOAD_LOCK:
                 self._mem.pop((symbol.upper(), year), None)  # in-memory copy is now stale
         except OSError as e:
