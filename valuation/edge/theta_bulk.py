@@ -230,6 +230,25 @@ ALIASES = {
 
 _LOAD_LOCK = threading.Lock()
 
+# --- the replay pin (audit O16 follow-on; see valuation/edge/options_freeze.py) --------------
+# The store is MUTABLE by design: the miner re-pulls faulted years and `dte_extend` deepens
+# them in place. That is correct for mining and wrong for a replay, and the difference had no
+# expression on disk until O16 measured the authoritative book at 86.435% reproducible against
+# the store it was built from.
+#
+# When this is None -- the default, and what every live path and every miner run sees -- the
+# only cost is one `is not None` test per year-frame load. When a replay installs a banked
+# stamp via `options_freeze.replay_pin`, a symbol-year whose bytes differ from the stamp RAISES
+# instead of being served. Blocking only for replays is deliberate: a stamp that could fail a
+# mining run would be switched off within a week.
+_REPLAY_PIN = None
+
+
+def set_replay_pin(mapping):
+    """Install (or clear, with None) the {SYM-YEAR: sha256} map a pinned replay must match."""
+    global _REPLAY_PIN
+    _REPLAY_PIN = mapping
+
 
 def _log(m):
     print(f"[theta-bulk] {m}", flush=True)
@@ -932,6 +951,21 @@ class ThetaBulk:
         path = year_path(symbol, year, self.root)
         if not os.path.exists(path):
             return None
+        # The replay pin, checked BEFORE the frame is unpickled or memoised: serving a drifted
+        # year once and validating later would leave the wrong rows in `self._mem` for the rest
+        # of the process. Absent from the pin means "this replay never read it", which is not a
+        # violation -- only a symbol-year the bank recorded and that has since MOVED is.
+        if _REPLAY_PIN is not None:
+            want = _REPLAY_PIN.get("%s-%d" % (symbol.upper(), int(year)))
+            if want is not None:
+                from .options_freeze import ChainDrift, file_sha256
+                got = file_sha256(path)
+                if got != want:
+                    raise ChainDrift(
+                        "%s %d has changed since this result was banked (stamp %s..., store "
+                        "%s...). The banked verdict's inputs no longer exist in the store; "
+                        "replay from its frozen copy or re-bank deliberately."
+                        % (symbol.upper(), year, str(want)[:12], str(got)[:12]))
         try:
             with open(path, "rb") as f:
                 df = pickle.load(f)
