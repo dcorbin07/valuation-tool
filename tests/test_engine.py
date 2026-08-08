@@ -275,6 +275,95 @@ def test_the_provenance_stamp_survives_serialization():
     json.loads(json.dumps(d))          # raises if anything in here is not JSON-clean
 
 
+def _dcf_under(mode, cd):
+    """Run the base DCF under a given reinvestment-floor mode. Restores the mode."""
+    from valuation.engine import dcf as D
+    was = D.REINVESTMENT_FLOOR_MODE
+    D.REINVESTMENT_FLOOR_MODE = mode
+    try:
+        cls = classify(cd)
+        w = compute_wacc(cd, CONFIG)
+        a = build_base_assumptions(cd, cls, w.risk_free, CONFIG)
+        return run_dcf(cd, a, w.wacc)
+    finally:
+        D.REINVESTMENT_FLOOR_MODE = was
+
+
+def test_the_reinvestment_floor_ships_off():
+    """Part 8 measured both arms and REJECTED both. The mode must stay off until a candidate
+    passes its own pre-registered bounds — a switch that quietly defaults on is a shipped
+    decision nobody made."""
+    from valuation.engine import dcf as D
+    assert D.REINVESTMENT_FLOOR_MODE == "off"
+
+
+def test_the_floor_gate_cannot_touch_a_name_whose_capex_is_below_da():
+    """THE CONTROL GROUP, as a property rather than a sample.
+
+    Both arms are gated on `capex - D&A > 0`. 96 of the 241 names measured in Part 8 fail that
+    gate, and they must be bit-identical under every mode — by construction, not by tolerance.
+    Part 4's bound 1 breached because a control group was verified as a non-empty PROXY instead
+    of by the property that makes it a control.
+    """
+    cd = build_nike()
+    cd.capex, cd.da = 400.0, 900.0          # capex well below D&A: the gate is not entered
+    off = _dcf_under("off", cd)
+    for mode in ("decay", "persistent"):
+        arm = _dcf_under(mode, cd)
+        assert arm.per_share == off.per_share, f"{mode} moved a control name"
+        assert arm.enterprise_value == off.enterprise_value
+        assert arm.terminal_value == off.terminal_value
+        assert arm.reinvestment_y1 == off.reinvestment_y1
+
+
+def test_the_floor_charges_a_flat_revenue_name_what_it_actually_spends():
+    """The mechanism, where the defect is real. Measured: 8 of 8 flat-revenue treated names land
+    within ±25% of observed net capital spend under both arms."""
+    cd = build_nike()
+    cd.capex, cd.da = 3000.0, 800.0          # net capex 2,200 against a flat book
+    cd.revenue_history = [46309, 46200, 46100, 46000, 45900]
+    off = _dcf_under("off", cd)
+    arm = _dcf_under("decay", cd)
+    assert off.reinvestment_y1 < 2200 * 0.5, "fixture is not exhibiting the undercharge"
+    assert abs(arm.reinvestment_y1 - 2200) / 2200 <= 0.25, arm.reinvestment_y1
+
+
+def test_arm_a_provably_cannot_reach_the_terminal():
+    """Arm A's whole failure, pinned. It fixes years 1..n and leaves the terminal untouched —
+    measured median terminal change on the decisive set was +0.0%, and those names carry 80%+
+    of their EV there. Three of the four pre-registered success criteria are YEAR-ONE statistics
+    and Arm A passes all three, which is exactly why F4 had to exist."""
+    cd = build_nike()
+    cd.capex, cd.da = 3000.0, 800.0
+    off, decay, persistent = (_dcf_under(m, cd) for m in ("off", "decay", "persistent"))
+    assert decay.terminal_value == off.terminal_value, "Arm A must not move the terminal"
+    assert decay.reinvestment_y1 > off.reinvestment_y1, "Arm A must move year 1"
+    assert persistent.terminal_value < off.terminal_value, "Arm B must move the terminal"
+
+
+def test_a_non_positive_dcf_is_dropped_from_the_blend():
+    """CHARACTERISATION OF A LIVE DEFECT, not an endorsement of it.
+
+    `blend._usable` returns None for a non-positive per-share value, so a DCF that has gone
+    negative is silently removed and the remaining lenses are renormalised — which RAISES the
+    published number. Measured on the live 241-name sweep: six names are published today with a
+    non-positive DCF (INTC −0.53 → $34.54, F −31.92 → $60.25, BA −24.97 → $94.27, SRE −2.69 →
+    $35.27, CCI −15.01 → $33.93, IRM −35.10 → $79.27). It is why charging MORE reinvestment
+    moved EQIX +121%, GM +92% and XEL +73% UP. Pinned so the behaviour cannot change unnoticed;
+    fixing it needs its own pre-registered bound. See HANDOFF_live_data_bugs.md Part 8.
+    """
+    from valuation.engine.blend import blended_fair_value
+    from valuation.engine.classify import classify as _classify
+    cd = build_nike()
+    cls = _classify(cd)
+    with_dcf = blended_fair_value(cd, cls, dcf_per_share=20.0, comps_fair_value=90.0, quiet=True)
+    without = blended_fair_value(cd, cls, dcf_per_share=-5.0, comps_fair_value=90.0, quiet=True)
+    assert with_dcf.dcf_meaningful is True and without.dcf_meaningful is False
+    assert without.value > with_dcf.value, (
+        "the defect is that dropping a negative DCF RAISES the headline; if this now fails, "
+        "the blend was changed — update Part 8 rather than deleting the test")
+
+
 def test_wacc_matches_nike():
     cd = build_nike()
     w = compute_wacc(cd, CONFIG)
