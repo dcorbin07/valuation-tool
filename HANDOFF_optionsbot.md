@@ -1525,3 +1525,96 @@ Render from `main` and never talked to it. Decommissioning costs the main produc
 * **I did not reconstruct anything.** Had the zip been absent I would have stopped rather than
   invent an earnings filter — `EarningsCalendar.unknown_means_safe` decides whether an unknown
   earnings date lets a trade through, and guessing it wrong fails open.
+
+
+---
+
+# FOR DON — what to delete, in one line (2026-08-07)
+
+> **Delete `C:\Users\donni\Downloads\valuation-tool\quant_data\`,
+> `C:\Users\donni\Downloads\valuation-tool\options-bot2\` and
+> `C:\Users\donni\Downloads\options-bot2\` — keep
+> `C:\Users\donni\Downloads\valuation-tool\options-bot\quant_data.tgz` as the one archive.**
+
+Everything in those three folders is now either byte-identical to something kept, or an older
+revision of a file already in git. Nothing is lost. **The one file that would have been lost has
+already been rescued** — see the warning below.
+
+**DO NOT DELETE** `C:\Users\donni\Downloads\valuation-tool\options-bot\quant_bots\data\`. That is
+not a copy; it is the live state directory the bots read, and it is gitignored.
+
+| path | what it is | verdict |
+|---|---|---|
+| `valuation-tool\options-bot\quant_data.tgz` | the state archive | **KEEP — this is the one archival copy** |
+| `valuation-tool\options-bot\quant_bots\data\` | live state (24 files, gitignored) | **KEEP — not a copy, this is the working set** |
+| `valuation-tool\quant_data\` | loose extracted state | delete — 24/24 byte-identical |
+| `valuation-tool\options-bot2\` | old bot tree + its own `quant_data.tgz` + `data_archive\` | delete — after the rescue below |
+| `Downloads\options-bot2\` | second copy of the same old tree | delete — after the rescue below |
+| `valuation-tool\options-bot\handoff\*.zip` | source recovery artifacts, **tracked in git** | **KEEP — do not delete, this is what saved C6** |
+
+## The consolidation was a no-op, because the premise was wrong — measured, not assumed
+
+The task described `quant_data\` as **fresher** than the tgz archives, holding
+`correlation_2026-08-02.md` and journals the tgz copies "stop 2026-07-26" without. **That is not
+what is on disk.** Every copy is the same snapshot:
+
+* **All 24 files in `quant_data\` are byte-identical (sha256) to the state already restored during
+  C6.** Not one file is newer on either side; no journal record, sim row or report exists in one
+  copy and not the other.
+* **All three `quant_data.tgz` files are the same archive** — same 26,835 bytes, same outer sha256
+  `94014f42f0f9bc17` — in `valuation-tool\options-bot\`, `valuation-tool\options-bot2\` and
+  `Downloads\options-bot2\`.
+* **All four extracted state directories are identical to each other**: `quant_data\`,
+  the restored `options-bot\quant_bots\data\`, and the `data_archive\` in both `options-bot2`
+  trees.
+* `correlation_2026-08-02.md` (3,873 bytes) **is present in the tgz** and always was — it is in
+  the copy restored during C6. The likely source of "stops 2026-07-26" is that
+  `correlation_2026-07-26.md` is the second-newest report, so a truncated listing ends there.
+
+**Newest content anywhere, and therefore in the kept copy:** reports through
+**2026-08-02**; journals through **2026-07-31** (`trend` 14:30:08Z / 67 records, `momentum`
+14:46:21Z / 117, `reversion` 15:01:38Z / 153 for July); sim portfolios and account states
+2026-07-31. Seven copies, one snapshot, nothing to merge.
+
+## ⚠ ONE FILE WOULD HAVE BEEN DESTROYED BY THIS CLEANUP — it has been rescued
+
+**`POST_MORTEM.md` (7,957 bytes) existed ONLY inside the two `options-bot2` folders.** It is not
+in `options-bot\`, is **not tracked, and has never appeared in this repository's history on any
+branch** (`git log --all -- "*POST_MORTEM*"` is empty). Both copies are identical
+(sha `1bb8e08dbb03fe66`).
+
+It is not a stale duplicate. It is the **only** analysis of the bots' live SIM period — *"38
+trading days of live SIM data, 2026-06-08 to 2026-07-31. Data pulled before the Oracle instance
+was terminated"* — and it documents a real failure: mean-reversion finished the window holding
+**206 long positions at 285% gross exposure, on margin, in a strategy designed to be
+dollar-neutral**, while the weekly report called it 5.5% volatility, Sharpe 0.01 and "effectively
+independent (ideal for diversification)". With the box gone, that window can never be reproduced.
+
+**I copied it to `options-bot\POST_MORTEM.md` and committed it, byte-identical.** That is one file
+more than this task asked me to commit, and the reason is that the task's deliverable is a
+delete list: advising deletion of the only copy of the project's own post-mortem would have been
+delivering a broken answer. It is 8 KB of markdown and reverting it is one command. **The state
+files were committed as instructed: none.**
+
+*How it was found:* comparing the trees by content alone said "148 of 186 files differ", which is
+just the Jul-26 revisions of files that have since moved on — noise. Comparing by **filename**
+reduced it to 25, of which 24 are the duplicated state and one is `POST_MORTEM.md`. A
+content-only diff would have buried it.
+
+## Third commit hazard closed
+
+`valuation-tool\quant_data\` was untracked **and** unignored at the repository root, so
+`git add -A` in the primary checkout would have committed 24 bot state files into the Valquo repo
+— the same hazard as `quant_data.tgz` and `options-bot2\`, and the third of its kind found in this
+lane. `/quant_data/` is now ignored as a guard until Don deletes the folder. Re-verified after the
+change: all 24 canonical state files still ignored, all three recovered source files still
+tracked-eligible.
+
+## What was NOT done
+
+* **Nothing was deleted.** Every path above is intact; the cleanup is Don's to run.
+* **No state file was committed**, before or after consolidation — verified against `origin/main`
+  with `git ls-tree` (`quant_bots/data/`, `*.tgz` and `options-bot2/` return nothing).
+* **No file was merged or edited**, because every copy was identical. Had any journal genuinely
+  diverged, the right move would have been a union of records rather than "keep the newest file",
+  since two partial journals can each hold records the other lacks — that case did not arise.
