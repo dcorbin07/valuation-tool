@@ -49,6 +49,111 @@ unchanged.
   still not the owner, and still may not act.
 - **Don must set `DEMO_ACCESS_TOKEN` in Render for the button to appear.** It is not set from
   this session and the token is not in the repo.
+## 2026-08-07 — greeks lane, OUT-OF-BAND: a vanished vendor field can no longer rewrite a headline
+
+**MRK went from "cannot value this name" to a published 91 "Strong Buy" because Yahoo stopped
+returning one beta field and `wacc.py` silently substituted `1.10`** (WACC 5.53% → 9.31%). The
+field is INTERMITTENT, not gone — it was back at 0.211 the same week. Shipped:
+
+- **`valuation/data/beta.py`** — beta computed from the company's own prices, 5y monthly vs SPY.
+  **A 1y-DAILY window was tried first and is WRONG**: it returns KO −0.286 and XOM −0.484.
+- **A stated ladder in `wacc.py`** — override → an ordinary vendor beta accepted untouched (no
+  extra call; this is the control group) → corroboration against the company's own prices → a
+  stated constant of **1.0** (the market portfolio's beta by construction) replacing the
+  underived `1.10`.
+- **Rejection on HISTORY, not on value.** GILD 0.336, CI 0.321, CHTR 0.678, MRK 0.211 and XOM
+  0.173 are all genuinely low-beta, so flooring the *value* would assert something false about
+  them. Only KSPI's 0.080 is an artifact, and what makes it one is 30 monthly observations on a
+  2024 ADR listing. The value decides who gets **checked**; the observation count decides who
+  gets **rejected**.
+- **`InputProvenance` stamps** on beta and the risk-free rate (source, as-of, n, vendor value,
+  substituted), serialized out through `WACCResult.to_dict` → `PipelineResult.to_dict`.
+
+**All four pre-registered bounds (committed alone at `04d9f12`) HELD** on a 46-name paced sample:
+control group 37 names **0 moved**; **MRK's vendor-absent WACC swing 0.133pp against the old
+code's 3.85pp** (which independently reproduces the reported incident); KSPI rejected at n=30<36,
+i.e. for its history; **0** published/withheld flips. Trigger insensitive at 0.10/0.15/0.25 —
+**0 betas differ**.
+
+**TWO FULL-UNIVERSE RUNS WERE INVALIDATED BY THEIR OWN RATE LIMITING** (176 and 297 throttled
+calls; run 2 had **302 of 403 names arrive with no vendor beta at all**), and in run 1 bounds 2
+and 3 "passed" **vacuously** because both arms landed on the same constant. That exposed the real
+defect: **the first ladder treated "the check failed" as "the history is thin" and pushed 178 of
+402 names onto the constant** — the original bug with a new trigger, on exactly the 500-name burst
+production scans. Corroboration is now best-effort with a failure mode of *no change*.
+
+Two further defects found and fixed: **the plausibility band was applied to the vendor's beta but
+not to our own** (PDD adopted a *computed* −0.039, clamping WACC to 4% and turning a $217.82 fair
+value into a refusal), and **`.gitignore`'s bare `data/` also matched `valuation/data/`**, so the
+new module was unaddable and would have shipped as a runtime `ModuleNotFoundError`.
+
+**Caveats that must travel:** 46 names, not the 403 served. The fix cannot help a name whose
+vendor beta is missing *and* uncomputable, so under a throttled feed the hole is **narrowed, not
+closed**. And it moves fair values systematically **UP** for names formerly priced at 1.10 —
+ARGX +83%, COP +69%, DTEGY +61% — which nobody should read as evidence it is right; **someone
+should check whether those names now clear publication thresholds they previously failed.**
+
+Tests: 24 suites, **859 passing, 0 failures** (engine 51/51). Full write-up:
+`HANDOFF_live_data_bugs.md` Part 7. Ledger row `OOB2`.
+## 2026-08-07 — r1 lane, OUT-OF-BAND: `worktree-ui-polish` triaged (read-only). Nine files, not fifty commits
+
+Full write-up: **`HANDOFF_branch_triage.md`**. Nothing was merged, cherry-picked or deleted.
+
+- **The branch is misnamed.** "UI polish" is 3 of its 50 commits; the rest is the project's early
+  Edge Lab history. It stranded because that work was **squash-landed onto `main` as `8a8c2b8`**
+  (2026-07-28 15:19) when a stray 138 MB licensed export blocked a normal push. `git cherry`
+  shows all 50 as unmerged because a squash changes patch-ids — **that is a trap, not lost work.**
+- **Exactly nine files are unique to the branch.** Four are the `param_search` module
+  (locked hold-out, White/Hansen SPA, plateau+interiority selection) — **VALUABLE**, absent from
+  `main`, and its four engine calls still match `main`'s signatures exactly. Five are a UI theme
+  layer that `main` re-implemented inline eight hours later — **OBSOLETE**.
+- **THE 13F INERT LAG GRID IS NOT LIVE ON `main` — the premise that it might be is wrong.**
+  All three parts of `5da1473` are present: `INST_LAG_GRID = (15, 45, 135, 225)`
+  (`fundamental_panel.py:2780`), the guard test (`tests/test_edge.py:404`), and the UTF-8 stdout
+  reconfigure (`:3967`). No bug to file.
+- **Do not merge it:** a dry-run gives **22 conflicted files**, incl. `add/add` on `CLAUDE.md`
+  (10.6 KB on the branch vs 97 KB on `main` — it predates the whole claims audit).
+- **Pruning must take BOTH refs.** `worktree-honest-param-search` is a strict *ancestor* of
+  `ui-polish` and holds 47 of the 50 commits, including every valuable file.
+
+**Routed to other lanes — decisions deliberately NOT made here:**
+- **→ edge lane:** the parameter search ran **3,584 configs** and appears in `RESEARCH_LOG.md`
+  nowhere (zero mentions). By this project's own precedents (grids expressible via `n_trials`;
+  `SUPERSEDED` rows still count) it looks countable; the real counter-argument is that it searched
+  *construction* params, not signal inclusion. Direction matters: counting them **lowers** the
+  Deflated Sharpe, so it is the self-penalising choice. Currently `N = 116`, DS 0.8674.
+- **→ app/security lane:** `/api/feedback` (table + route + allowlist entry) exists only on the
+  branch. It **is** rate-limited, length-capped and parameterized — I checked. The open question
+  is posture: whether an unauthenticated write endpoint belongs on the post-leak public allowlist.
+
+**DISPOSITION EXECUTED, same session (`HANDOFF_branch_triage.md` PART 2):**
+- **The four `param_search` files are on `main` as `ef4b7a3`** — clean additions, no conflicts,
+  24/24 suites green. **Dormant: nothing imports it, no shipped behaviour changed.** Interface
+  re-verified *after* landing from `origin/main`'s own tree.
+- **Routing note added at `HANDOFF_edge_audit.md` §8.** The sharp point for Session 10:
+  `PREREG_ml_combiner.md` §3 selects "the grid point with the highest mean out-of-sample rank IC"
+  — **argmax of a mean, the exact selector that scored +8.43%/yr in-window and −0.04%/yr on the
+  locked hold-out.** Three amendments proposed; plateau smoothing explicitly NOT recommended
+  (only 8 grid points).
+- **TRAP, FLAGGED NOT HIDDEN:** `param_search.bat` is now in the repo root and **will fail if
+  double-clicked** — it calls `--param-search`, which does not exist until the CLI is wired.
+  Landed verbatim rather than invented. **Wire it or delete it.**
+- **THREE REFS DELETED** after the land verified: `worktree-ui-polish` (`f591961`),
+  `worktree-honest-param-search` (`5da1473`), `worktree-p6-costs-and-robustness` (`428f4de`).
+  SHAs recorded for recovery.
+- **`worktree-p6`'s old prune rationale was WRONG.** It was flagged over a "stale
+  `BACKTEST_RESULTS.json`"; **the commit does not touch that file at all.** Every code change in
+  it (`score_universe_now`, `STALE_PRICE_MAX_DAYS`, the missing-sector guard, the numpy overflow
+  clip now at `attribution.py:46`, both tests) is already on `main`. Its only unique content is
+  **prose quoting the void pre-B6 numbers** (110 dates, +11.8%/yr, 236bps/37bps) inside a
+  user-facing description string — right verdict, wrong reason, and the real failure mode is
+  worse because stale prose in a shipped payload reads as current.
+- **THE STRANDED-BRANCH SCAN IS CLEAN.** Every remote `worktree-*` ref is merged into `main`
+  except `worktree-demo-link` (2 commits, 2026-08-07 20:46, merges cleanly) — another lane's live
+  work, not stranded, untouched.
+- **`VALQUO_LEDGER.md` deliberately not updated:** no audit item covers this housekeeping.
+
+---
 
 ## 2026-08-07 — greeks lane, OUT-OF-BAND: the public fair-value leak is closed
 

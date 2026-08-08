@@ -60,6 +60,221 @@ def test_financial_pb_roe_value():
     assert financial_fair_value(cd, ke=0.13, g=0.03) < bvps
 
 
+def _beta_case(vendor, computed, n):
+    """A CompanyData plus a stubbed estimator — these tests must never touch the network."""
+    from valuation.data import beta as beta_mod
+    from valuation.data.models import CompanyData
+    cd = CompanyData(ticker="TEST", price=100.0, shares_diluted=10.0, market_cap=1000.0,
+                     total_debt=0.0, risk_free_rate=0.043, beta=vendor)
+    orig = beta_mod.compute_beta
+    beta_mod.compute_beta = lambda t, closes=None: beta_mod.BetaEstimate(
+        computed, n, as_of="2026-08-01")
+    return cd, orig, beta_mod
+
+
+def test_an_ordinary_vendor_beta_is_accepted_with_no_extra_work():
+    """The control group, and the reason the ladder is vendor-first: a name whose vendor beta
+    is ordinary must be touched by none of this — same number, and no extra network call."""
+    from valuation.data import beta as beta_mod
+    from valuation.data.models import CompanyData
+    cd = CompanyData(ticker="TEST", price=100.0, shares_diluted=10.0, market_cap=1000.0,
+                     total_debt=0.0, risk_free_rate=0.043, beta=1.2)
+    orig = beta_mod.compute_beta
+
+    def _explode(*a, **k):
+        raise AssertionError("an ordinary vendor beta must not trigger a beta computation")
+    beta_mod.compute_beta = _explode
+    try:
+        w = compute_wacc(cd, CONFIG)
+    finally:
+        beta_mod.compute_beta = orig
+    assert w.beta == 1.2
+    assert w.beta_provenance.source == "vendor"
+    assert w.beta_provenance.substituted is False
+
+
+def test_a_vanished_vendor_beta_lands_on_a_computed_beta_not_a_constant():
+    """THE reproducibility bug. Yahoo stopped returning a beta for MRK between 2026-08-04 and
+    2026-08-05; the old code substituted 1.10, WACC went 5.53% -> 9.31%, and the name went from
+    'cannot value this name' to a published 91 'Strong Buy' — because a vendor field vanished,
+    not because anything about Merck changed.
+
+    With the ladder, a missing vendor beta resolves to a beta computed from the company's OWN
+    prices, so the headline no longer moves when the field does."""
+    cd, orig, beta_mod = _beta_case(vendor=None, computed=0.180, n=59)
+    try:
+        w = compute_wacc(cd, CONFIG)
+    finally:
+        beta_mod.compute_beta = orig
+    assert abs(w.beta - 0.180) < 1e-9, f"fell back to a constant instead of computing: {w.beta}"
+    assert w.beta != 1.10
+    assert w.beta_provenance.source == "computed"
+    assert w.beta_provenance.substituted is True, "a computed beta is not the vendor's number"
+    assert w.rests_on_substituted_inputs is True
+
+
+def test_a_low_beta_with_real_history_is_kept():
+    """A low beta is not a bug. GILD 0.336, CI 0.321, CHTR 0.678, MRK 0.211 and XOM 0.173 were
+    all measured GENUINE against five years of monthly returns. Flooring the VALUE would assert
+    something false about every one of them, so a long-history name is kept no matter how low
+    it sits."""
+    cd, orig, beta_mod = _beta_case(vendor=0.173, computed=0.206, n=59)   # the XOM shape
+    try:
+        w = compute_wacc(cd, CONFIG)
+    finally:
+        beta_mod.compute_beta = orig
+    assert w.beta == 0.173, "a corroborated low beta must survive untouched"
+    assert w.beta_provenance.source == "vendor_corroborated"
+    assert w.beta_provenance.n_observations == 59
+
+
+def test_a_low_beta_on_short_history_is_rejected_for_its_HISTORY():
+    """KSPI: a five-year monthly beta of 0.080 with only 30 monthly observations behind it, on
+    an ADR that listed in 2024. It produced a 5.10% WACC and a +1,255% upside.
+
+    The rejection must be driven by the observation count, not by the size of the number —
+    otherwise it would also reject the genuinely low betas in the test above."""
+    cd, orig, beta_mod = _beta_case(vendor=0.080, computed=0.886, n=30)
+    try:
+        w = compute_wacc(cd, CONFIG)
+    finally:
+        beta_mod.compute_beta = orig
+    assert w.beta != 0.080, "KSPI's 30-observation beta was accepted"
+    assert abs(w.beta - 0.886) < 1e-9
+    assert w.beta_provenance.source == "computed"
+    assert w.beta_provenance.n_observations == 30
+    assert "observations" in (w.beta_provenance.note or ""), (
+        "the rejection must be stated as a history problem, not a size problem")
+
+    # ...and the SAME low value with real history behind it is kept — which is what proves the
+    # rule is about history rather than magnitude.
+    cd2, orig2, bm2 = _beta_case(vendor=0.080, computed=0.886, n=59)
+    try:
+        w2 = compute_wacc(cd2, CONFIG)
+    finally:
+        bm2.compute_beta = orig2
+    assert w2.beta == 0.080, "identical value, longer history — must be kept"
+
+
+def test_the_stated_fallback_is_the_market_beta_and_is_marked_substituted():
+    """Only a name with neither a usable vendor beta nor enough price history of its own gets a
+    constant. The old one was a bare 1.10 with no derivation anywhere in the repo; the market
+    portfolio's beta is 1.0 by construction."""
+    from valuation.engine.wacc import BETA_FALLBACK
+    assert BETA_FALLBACK == 1.0
+    cd, orig, beta_mod = _beta_case(vendor=None, computed=None, n=0)
+    try:
+        w = compute_wacc(cd, CONFIG)
+    finally:
+        beta_mod.compute_beta = orig
+    assert w.beta == BETA_FALLBACK
+    assert w.beta_provenance.source == "fallback"
+    assert w.beta_provenance.substituted is True
+    assert w.rests_on_substituted_inputs is True
+
+
+def test_risk_free_fallback_is_stamped_too():
+    """`macro.py` falls back to `cfg.default_risk_free` the same silent way the beta did, and
+    nothing downstream could tell a live rate from a config constant."""
+    from valuation.data.models import CompanyData
+    cd = CompanyData(ticker="TEST", price=100.0, shares_diluted=10.0, market_cap=1000.0,
+                     total_debt=0.0, beta=1.2, risk_free_rate=None)
+    w = compute_wacc(cd, CONFIG)
+    assert w.risk_free_provenance.source == "fallback"
+    assert w.risk_free_provenance.substituted is True
+    cd.risk_free_rate = 0.043
+    assert compute_wacc(cd, CONFIG).risk_free_provenance.source == "vendor"
+
+
+def test_a_throttled_corroboration_keeps_the_vendor_beta():
+    """THE REGRESSION THIS SHIPPED WITH AND ALMOST SHIPPED WITHOUT A TEST.
+
+    The first version of the ladder rejected a low vendor beta whenever `compute_beta` came back
+    empty — without asking WHY it was empty. Measured 2026-08-07 over 402 names: the corroborating
+    calls exhausted Yahoo's quota, 176 returned `YFRateLimitError`, and **178 names were pushed
+    onto the constant**. That is the original MRK bug with a new trigger, and production scans
+    500 names at a time, which is precisely the burst that provokes it.
+
+    A vendor beta may only be overruled by positive evidence that its history is short.
+    """
+    from valuation.data import beta as beta_mod
+    from valuation.data.models import CompanyData
+    cd = CompanyData(ticker="TEST", price=100.0, shares_diluted=10.0, market_cap=1000.0,
+                     total_debt=0.0, risk_free_rate=0.043, beta=0.211)     # the MRK shape
+    orig = beta_mod.compute_beta
+    beta_mod.compute_beta = lambda t, closes=None: beta_mod.BetaEstimate(
+        None, 0, error="YFRateLimitError: Too Many Requests. Rate limited.")
+    try:
+        w = compute_wacc(cd, CONFIG)
+    finally:
+        beta_mod.compute_beta = orig
+    assert abs(w.beta - 0.211) < 1e-9, f"a rate limit moved a published beta: {w.beta}"
+    assert w.beta_provenance.source == "vendor_uncorroborated"
+    assert w.beta_provenance.substituted is False, "the vendor's own number is not a substitution"
+    assert w.rests_on_substituted_inputs is False
+
+
+def test_a_throttled_corroboration_still_reaches_the_constant_with_no_vendor_beta():
+    """Fail-open is not fail-never. With no usable vendor value AND no computation, there is
+    nothing to keep, so the stated constant is correct — and that is exactly the population the
+    OLD code sent to a constant, so this path is not a widening."""
+    cd, orig, beta_mod = _beta_case(vendor=None, computed=None, n=0)
+    try:
+        w = compute_wacc(cd, CONFIG)
+    finally:
+        beta_mod.compute_beta = orig
+    assert w.beta == 1.0
+    assert w.beta_provenance.source == "fallback"
+    assert w.beta_provenance.substituted is True
+
+
+def test_a_computed_beta_is_held_to_the_SAME_band_as_the_vendors():
+    """PDD, measured 2026-08-07: vendor beta -0.005 is refused as implausible, and the beta
+    computed from its own prices is -0.039 -- which the first version ADOPTED, pinning WACC to
+    the 4% clamp and turning a $217.82 fair value into a refusal. A number is not more
+    believable because we computed it. CRDO (3.412) and ALAB (4.237) are the high-side pair."""
+    for bad in (-0.039, 4.237):
+        cd, orig, beta_mod = _beta_case(vendor=None, computed=bad, n=59)
+        try:
+            w = compute_wacc(cd, CONFIG)
+        finally:
+            beta_mod.compute_beta = orig
+        assert w.beta == 1.0, f"adopted an out-of-band computed beta {bad}: {w.beta}"
+        assert w.beta_provenance.source == "fallback"
+
+
+def test_the_constants_population_never_widens():
+    """The invariant: the constant is reached only when the VENDOR beta is missing or out of
+    band — exactly the old `1.10` test. A usable vendor beta whose replacement turns out to be
+    unusable is KEPT, never traded for a constant."""
+    cd, orig, beta_mod = _beta_case(vendor=0.08, computed=-0.5, n=30)   # KSPI value, bad estimate
+    try:
+        w = compute_wacc(cd, CONFIG)
+    finally:
+        beta_mod.compute_beta = orig
+    assert abs(w.beta - 0.08) < 1e-9, f"traded a real vendor beta for a constant: {w.beta}"
+    assert w.beta_provenance.source == "vendor_uncorroborated"
+    assert w.beta_provenance.substituted is False
+
+
+def test_the_provenance_stamp_survives_serialization():
+    """A stamp that never leaves the dataclass is decoration.
+
+    `PipelineResult.to_dict` calls `WACCResult.to_dict`, so this is the join that carries the
+    provenance out to anything that reads a valuation. It must also be JSON-clean: a bare
+    dataclass in that dict would raise at the API boundary, not here.
+    """
+    import json
+    from valuation.data.models import CompanyData
+    cd = CompanyData(ticker="TEST", price=100.0, shares_diluted=10.0, market_cap=1000.0,
+                     total_debt=0.0, risk_free_rate=None, beta=1.2)
+    d = compute_wacc(cd, CONFIG).to_dict()
+    assert isinstance(d["beta_provenance"], dict), "provenance did not survive to_dict"
+    assert d["beta_provenance"]["source"] == "vendor"
+    assert d["risk_free_provenance"]["substituted"] is True
+    json.loads(json.dumps(d))          # raises if anything in here is not JSON-clean
+
+
 def test_wacc_matches_nike():
     cd = build_nike()
     w = compute_wacc(cd, CONFIG)

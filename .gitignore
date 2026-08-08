@@ -23,7 +23,14 @@ __pycache__/
 *.swp
 
 # Backtest exports + local DBs — never commit (huge, and licensed data must not be redistributed)
-data/
+# ANCHORED to the repo root on purpose. An unanchored `data/` also matches `valuation/data/`,
+# which is APPLICATION SOURCE: on 2026-08-07 a new module there (`valuation/data/beta.py`) was
+# silently unaddable, and since `wacc.py` imports it lazily it would have shipped as a runtime
+# ModuleNotFoundError on exactly the path it was written for. The six older files in that
+# package survive only because git ignore rules do not apply to already-tracked files.
+# The licensed Sharadar exports live in the repo-root `data/` and stay fully ignored; `*.db`,
+# `*.zip` and `*.csv.gz` below remain path-independent guards.
+/data/
 *.db
 # Raw vendor bulk downloads. data/ already covers data/raw/, but these are multi-hundred-MB
 # licensed archives, so this is a second, path-independent guard: a zip anywhere in the tree
