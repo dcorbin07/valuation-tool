@@ -17,6 +17,32 @@ file directly.
 
 ---
 
+## C6 CLOSED — Oracle box decommissioned; the "lost" sources were in a tracked zip (2026-08-07, options-bot lane)
+
+Full write-up in `HANDOFF_optionsbot.md`. Bot subproject only; **nothing under `valuation/**`
+was touched** and the main tree has **no executable dependency on the box** (checked: 0 imports
+of bot packages across 218 main-tree Python files by AST, 0 references in all 3 `.github/`
+workflow files, 0 service units, 0 state-path reads — every textual hit was prose).
+
+* **The Oracle box `141.148.45.115` is DECOMMISSIONED. Never ssh or scp to it.**
+* **C6's blocker never existed.** The record said `options/data/*.py` lived "only on the Oracle
+  box" and needed Don to `scp` it. It was inside `options-bot/handoff/quant_bots.zip` — **tracked
+  in git the whole time** — recovered byte-identical (sha256) against three other copies. No
+  reconstruction, no judgement calls.
+* **Gates:** options suite **53 collected / 14 errors → 181 passing**; core **172, OK**;
+  `deploy/preflight.py` **exit 0** with all three FIXES.md fixes verified by symbol and behaviour;
+  main tree **24/24 suites green**.
+* **C6 closes on the RECORDED branch** of its own criterion — the service is gone, so "deployed"
+  is permanently n/a, and "fixed in repo, not deployed" stops being a decaying state.
+* State through 2026-07-31 (journals, sim portfolios, equity curves, 9 correlation reports)
+  restored from `quant_data.tgz` into the **gitignored** `quant_bots/data/` tree of the primary
+  checkout; all 24 files verified ignored so none can reach a commit.
+* **Two commit hazards closed:** `quant_data.tgz` and `valuation-tool/options-bot2/` were each
+  untracked *and* unignored — one `git add -A` from committing a state archive and a duplicate
+  copy of the bot tree. Both now ignored.
+* **Do not "tidy" `options-bot/.gitignore:34` (`!handoff/*.zip`).** That negation is the only
+  reason the sources survived. It is now commented to say so.
+
 ## CI — THE AUTO-LAND ACTION WAS SILENTLY DROPPING BRANCHES (2026-08-07, r1 lane)
 
 Full write-up in `HANDOFF_ci.md`. Infrastructure lane; nothing under `valuation/**` touched.

@@ -1,3 +1,27 @@
+> # ⛔ DECOMMISSIONED 2026-08-07 — THE ORACLE BOX IS GONE. DO NOT SSH OR SCP TO IT.
+>
+> **`141.148.45.115` is dead. Never ssh/scp to it.** Every command, IP, key path and
+> `systemctl` line below is kept as the RECORD of how the bots were deployed, not as
+> instructions. Nothing in this file is runnable today.
+>
+> **This document's recommendation ("Stay on Oracle", §"The verdict") is void by events.**
+> It was the right call on the evidence it had — the risks it named were reclamation and
+> silent tier cuts. It did not anticipate the box simply going away with the only copy of
+> a source package on it, which is the thing that actually happened.
+>
+> **What was lost, and what was not.** No source was lost. `options/data/*.py` — the
+> package whose absence blocked every git-based deploy (C6) — was recovered on
+> 2026-08-07 from `handoff/quant_bots.zip`, which is tracked in this repository, and
+> verified byte-identical (sha256) against three other copies. Runtime state through
+> 2026-07-31 was restored from `quant_data.tgz`. **The `scp`-off-the-box step that C6
+> listed as a blocker was never necessary; the files were already in git, inside a zip.**
+>
+> **If the bots are ever revived**, the migration paragraph below is still the useful
+> part: spin up a box anywhere, clone, restore state from the archives, run
+> `install_services.sh`. Do not restore the *pipeline* described here without first
+> reading `deploy/preflight.py` — the deploy could not complete for months and the
+> reason was mechanical, not operational.
+
 # Deployment — is there something better than Oracle Cloud?
 
 Short answer: **the host isn't your problem, the deploy pipeline is.** Fix that and Oracle is fine. But there are two real Oracle risks worth five minutes each.
