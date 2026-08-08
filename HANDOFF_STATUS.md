@@ -36,7 +36,7 @@ side — by a design choice whose written rationale is factually wrong.**
   breakeven is **134.113**. Re-derived from P1's own published cells, which the closed form
   reproduces to zero residual. **P1's strategic conclusion is unchanged and strengthened.**
 - **Three of P2's four premises are false.** The Index does **not** publish holdings — it is
-  owner-only (`surfaces.py:57`) and pinned by a test. Not 25 names (86). Not small-cap
+  owner-only (`surfaces.py:80`) and pinned by a test. Not 25 names (86). Not small-cap
   (`LARGE_CAP_MIN = 10e9`).
 - **Slippage is not the binding risk.** At 10,000 users the McLean–Pontiff decay channel is
   ~3x larger than impact and does not depend on user count at all. Not modellable from
@@ -45,9 +45,9 @@ side — by a design choice whose written rationale is factually wrong.**
   (measured 4.97x at 5 days, 20.9x at 21).
 
 **BUGS FOUND (6, none fixed — other lanes).** Highest: the **public** `/work` page
-(`portfolio.html:456`) still publishes the **void** `+8.81%/yr, t 5.74, 109 windows, 1998–2026`
-(corrected: +6.99%, NW t 3.984, 68 windows); `valquo_index.py:128` ships a description string
-quoting 2,710 names/110 dates/+11.8%/236bps into the live Index JSON; `capacity.py:36` and `:25`
+(`portfolio.html:479-480`) still publishes the **void** `+8.81%/yr, t 5.74, 109 windows, 1998–2026`
+(corrected: +6.99%, NW t 3.984, 68 windows); `valquo_index.py:129-133` ships a description string
+quoting 2,710 names/110 dates/+11.8%/236bps into the live Index JSON; `capacity.py:36` and `:124`
 carry a stale breakeven and the pre-B6 panel. Also: the large-cap floor is justified as "the
 tier where the measured IC was strongest" — measured, large is the **weakest** by IC (0.0287 vs
 small 0.0313), though strongest by long-short. **That floor is load-bearing for crowding, so a

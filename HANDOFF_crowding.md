@@ -35,9 +35,10 @@ plausible-sounding reason.**
 2. **Three of P2's four factual premises are false** (§2). The Index does not publish holdings —
    it is owner-only and pinned by a test. The book is not 25 names. It is not small-cap.
 3. **Slippage is not the binding crowding risk at any plausible user count.** The
-   McLean–Pontiff decay channel the audit cites in passing is roughly **an order of magnitude
-   larger** and is not modellable from anything on this disk (§6). A memo that answered only the
-   question asked would leave the bigger risk unstated.
+   McLean–Pontiff decay channel the audit cites in passing is roughly **3x larger at 10,000
+   users** — and unlike slippage it does not depend on user count at all. It is not modellable
+   from anything on this disk (§6). A memo that answered only the question asked would leave the
+   bigger risk unstated.
 
 ---
 
@@ -62,7 +63,7 @@ its opening sentence, so the premises were checked before any modelling.
 
 | P2's claim | verdict | evidence |
 |---|---|---|
-| "The Index tab **publishes holdings**" | **FALSE** | `/api/valquo-index` — *"the constructed book: names AND weights, today"* — is in `OWNER_ONLY_PATHS` (`valuation/saas/surfaces.py:57`), reason (2) "actionable live picks". The split is enumerated and pinned by `test_public.py`; a route in neither list fails the suite. |
+| "The Index tab **publishes holdings**" | **FALSE** | `/api/valquo-index` — *"the constructed book: names AND weights, today"* — is in `OWNER_ONLY_PATHS` (`valuation/saas/surfaces.py:80`), reason (2) "actionable live picks". The split is enumerated and pinned by `test_public.py`; a route in neither list fails the suite. |
 | "the same **25** small-cap names" (count) | **FALSE, twice** | The live book is **86 positions** (`data/valquo_index.json`, top decile of 861 eligible). Separately, even the backtest's "top-25" is mislabelled: `exit_rank = top_n * 2` (`fundamental_panel.py:1710`) so the held set converges toward **fifty** — the code ships a `label_warning` saying exactly this (`:1777`). |
 | "the same 25 **small-cap** names" (size) | **FALSE for the live book** | `LARGE_CAP_MIN = 10e9` (`valuation/edge/valquo_index.py:27`). Live book median cap **$22.2B**, min $10.2B. It is TRUE of the book P1 modelled (median cap $1.0B) — which is the research book, not the product. |
 | "on the same quarterly cadence" | **TRUE, with a wrinkle** | `book_configs`: taxable = 63d (quarterly), roth = **42d** (~2-month). Two cadences, user-selectable, so a cohort is already partially split across two schedules. |
@@ -83,7 +84,7 @@ mean cost equals the breakeven. Two of its inputs are stale:
 | input | P1 used | live value | source |
 |---|---|---|---|
 | breakeven one-way bps | **234.505**, hard-coded | **134.113** | `scripts/capacity.py:36` vs `BACKTEST_RESULTS.json` `costs.top_decile` |
-| panel | `data/free_analysis/panel.pkl` — **110 dates, 2,710 names** (pre-B6) | 69 dates, 2,531 names | `scripts/capacity.py:25` default |
+| panel | `data/free_analysis/panel.pkl` — **110 dates, 2,710 names** (pre-B6) | 69 dates, 2,531 names | `scripts/capacity.py:124` default |
 
 234.5bps is the **pre-B6 era** figure (CLAUDE.md records the old profile as "236 bps one-way
 against ~37 bps"; B11 later measured 33.4bps against a **134.1bps** breakeven). P1 ran on
@@ -280,11 +281,11 @@ change and is a different lane's call.**
 
 | # | where | what | severity |
 |---|---|---|---|
-| **1** | `valuation/web/templates/portfolio.html:456` (**public** `/work`) | Quotes FF5+MOM alpha **"+8.81%/yr, t = 5.74, 109 non-overlapping windows, 1998–2026"**. CLAUDE.md: *"THE OLD +8.81%/yr … ARE VOID. Do not quote them anywhere."* Corrected values: **+6.99%/yr, NW t 3.984, 68 windows, 2009-01→2025-10**. | **HIGH — void stats on a public page** |
-| **2** | `valuation/web/templates/portfolio.html:221` (**public**) | Sector-neutral row quotes "+11.8% → +10.2%" — pre-B6 top-decile alpha; corrected headline is +7.17%. | MEDIUM |
-| **3** | `valuation/edge/valquo_index.py:128` → `data/valquo_index.json` `method` | The shipped book's own description string quotes **"full 2,710-name / 110-date backtest", "+11.8%/yr", "+11.4% net", "breakeven 236bps one-way vs ~37bps actual", "top-25 … +20.7%"** — every figure pre-B6/void. Renders on the Index tab and is read by the Cowork side. **Same class as the defect found on `worktree-p6-costs-and-robustness`: stale numbers inside a shipped payload read as current, where a stale results file reads as data.** | **HIGH** |
+| **1** | `valuation/web/templates/portfolio.html:479-480` (**public** `/work`) | Quotes FF5+MOM alpha **"+8.81%/yr, t = 5.74, 109 non-overlapping windows, 1998–2026"**. CLAUDE.md: *"THE OLD +8.81%/yr … ARE VOID. Do not quote them anywhere."* Corrected values: **+6.99%/yr, NW t 3.984, 68 windows, 2009-01→2025-10**. | **HIGH — void stats on a public page** |
+| **2** | `valuation/web/templates/portfolio.html:244` (**public**) | Sector-neutral row quotes "+11.8% → +10.2%" — pre-B6 top-decile alpha; corrected headline is +7.17%. | MEDIUM |
+| **3** | `valuation/edge/valquo_index.py:129-133` → `data/valquo_index.json` `method` | The shipped book's own description string quotes **"full 2,710-name / 110-date backtest", "+11.8%/yr", "+11.4% net", "breakeven 236bps one-way vs ~37bps actual", "top-25 … +20.7%"** — every figure pre-B6/void. Renders on the Index tab and is read by the Cowork side. **Same class as the defect found on `worktree-p6-costs-and-robustness`: stale numbers inside a shipped payload read as current, where a stale results file reads as data.** | **HIGH** |
 | **4** | `scripts/capacity.py:36` | `BREAKEVEN_BPS = 234.505` hard-coded, commented *"the project's own measurement"* — stale by 4.72x in capacity terms. Should read `costs.top_decile.breakeven_one_way_bps` from `BACKTEST_RESULTS.json`. Any re-run silently reproduces the inflated headline. | **HIGH** |
-| **5** | `scripts/capacity.py:25` | Defaults `--panel data/free_analysis/panel.pkl`, which is the **pre-B6 110-date/2,710-name panel**. `panel_corrected_69d.pkl` sits beside it. | MEDIUM |
+| **5** | `scripts/capacity.py:124` | Defaults `--panel data/free_analysis/panel.pkl`, which is the **pre-B6 110-date/2,710-name panel**. `panel_corrected_69d.pkl` sits beside it. | MEDIUM |
 | **6** | `valuation/edge/valquo_index.py:12` and CLAUDE.md | Both state the large-cap tier is where "the measured IC was strongest". Measured: large **0.0287** is the **weakest** of three (small 0.0313, mid 0.0304). Large *is* strongest by long-short (9.63%), so the design is right and the stated reason is wrong. Per §7 this floor is load-bearing for crowding. | MEDIUM — wrong rationale on a load-bearing choice |
 
 Bugs 1–3 are the **app/product lane**. Bugs 4–5 are the **free-analysis lane** (P1's owner).
