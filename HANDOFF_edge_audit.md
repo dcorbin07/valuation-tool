@@ -4421,3 +4421,251 @@ TTM ROE/ROIC, robust z-scores, momentum/institutional consolidation.
    `subprocess.returncode` sweep, never the notification. Also note the harness truncates these
    output files (one was cut to 8 lines), so a `FAIL` line can vanish while the summary survives —
    grep the summary count, not just for `FAIL`.
+
+---
+
+# SESSION 9 (2026-08-07) — X8's cross-country design is ALSO not answerable, and the gate I was told to build is what proved it
+
+**Executed:** the Session 8 §2 pre-registration, in full, in the committed order. **The one piece
+of real work §3 named — the country-level clustering gate — was built, tested and committed
+BEFORE the measure set was touched** (`d9ae291`), so the blindness is a matter of git history
+rather than of my word.
+
+**RESULT: the design returns `NO CONTRAST`, and separately it could never have returned a
+positive verdict at all.** Two independent kills, and the second one voids two claims Session 8
+(me) wrote into `CLAUDE.md`.
+
+---
+
+## 0. The correction first, because Session 8 wrote the error
+
+`CLAUDE.md` and `HANDOFF_edge_audit.md` §2 both said, of the cross-country design:
+
+> "16 held-out countries give 16 **independent** draws instead of 1; a paired sign test then
+> reaches α 3.84% at ≥12/16, with **80% power** against a rule better in 80% of countries."
+
+**The word "independent" was an assumption, it was never measured, and it is false.** Measured
+this session on the 16 countries' own monthly series:
+
+| arm-pair | ρ | design effect | null p95 | measurable | n_eff countries |
+|---|---|---|---|---|---|
+| momentum vs value | **0.4844** | 8.265 | 1.128 | yes | **1.94** |
+| quality vs value | 0.4198 | 7.298 | 1.130 | yes | 2.19 |
+| investment vs momentum | 0.4180 | 7.270 | 1.130 | yes | 2.20 |
+| momentum vs size | 0.4089 | 7.134 | 1.128 | yes | 2.24 |
+| momentum vs quality | 0.3268 | 5.902 | 1.119 | yes | 2.71 |
+| size vs value | 0.2820 | 5.230 | 1.144 | yes | 3.06 |
+| investment vs quality | 0.2742 | 5.113 | 1.128 | yes | 3.13 |
+| investment vs value | 0.2736 | 5.104 | 1.134 | yes | 3.13 |
+| quality vs size | 0.2596 | 4.894 | 1.144 | yes | 3.27 |
+| investment vs size | 0.1983 | 3.974 | 1.138 | yes | 4.03 |
+
+**Clustering is measurable on 10 of 10 arm-pairs**, every observed design effect sitting 3–7×
+above its own shuffled-null p95 of ~1.13. **The 16 countries are worth between 1.9 and 4.0
+independent draws, not 16.**
+
+### What that does to the pre-registered bar
+
+| ρ | critical k of 16 at α 5% | true α of the pre-registered 12/16 bar |
+|---|---|---|
+| 0 (the assumption) | 12 | 3.83% |
+| 0.198 (min measured) | 15 | 16.8% |
+| 0.327 (median measured) | 16 | 22.8% |
+| **0.484 (max measured, pre-committed)** | **17 — of 16** | **28.7%** |
+
+- **THE PRE-REGISTERED 12/16 BAR CARRIES A TRUE FALSE-POSITIVE RATE OF 28.7%, NOT 3.84% — a
+  7.5× understatement.** Had the gate not been built first, this session would have quoted a
+  "3.84%" result that was really a 29% one. That is the entire return on building it.
+- **THE DESIGN IS UNREACHABLE. Even a unanimous 16 of 16 gives calibrated p = 0.0546** (400k
+  draws, simulation se 0.0004, 95% CI [0.0539, 0.0553]) — above 0.05, and not by a margin the
+  simulation noise can explain. **No possible outcome of this experiment was quotable at α 5%.**
+- It is not the max-ρ choice doing the work. At the **median** ρ the critical count is 16 of 16,
+  i.e. the only passing outcome is unanimity, which has essentially no power. Under every
+  measured ρ the bar sits at 15–17 of 16.
+- **The §2 power table (79.8% at p=0.80, 63.0% at 0.75, 8.5% at 0.55) is VOID.** It was computed
+  at independent countries. At α 5% the design's real power is **zero**, because the rejection
+  region is empty.
+
+**So Session 8's headline stands in its own terms and falls in its scope.** "Not answerable on
+one panel" was right and the arithmetic behind it is untouched. "It IS answerable on X8's data"
+was **wrong**, and it was wrong for exactly the reason this project keeps rediscovering: an
+assumption about the data was written down as though it were a measurement. Session 8 declined a
+test on 22-date blocks because σ was too large; it then proposed a replacement whose σ it never
+measured.
+
+---
+
+## 1. The gate — `valuation/edge/cross_country.py`
+
+The re-pointing §3 asked for, stated precisely: **`options_stats` blocks TRADES within a calendar
+month; here the roles swap, and the block is the MONTH with the COUNTRIES inside it.** That makes
+the measured intraclass correlation the average pairwise co-movement, which is the quantity that
+erodes a cross-country sign test. **`_icc_deff` is imported and reused unchanged** — it is a
+one-way random-effects ANOVA and does not care what the blocks mean — so the two gates cannot
+drift apart.
+
+**The design effect is NOT applied as a haircut.** It calibrates the sign test's critical count by
+simulating that test's own null with the measured ρ in it (`z_c = √ρ·F + √(1−ρ)·e_c`), which is a
+calibrated bar in the X7 sense rather than an adjustment to a statistic.
+
+**Five tests pin it** (258/258 edge tests):
+
+1. **At ρ = 0 the simulation reproduces the exact binomial** — critical k = 12, α 3.84%. The bar
+   generalises the arithmetic, so it cannot silently drift away from it.
+2. **Independent countries are NOT flagged as clustered.** R3's lesson one dimension over: a raw
+   design effect is not evidence of clustering, and a gate that cried wolf here would manufacture
+   a correction out of ANOVA sampling noise.
+3. **Planted co-movement is detected and both estimators agree.** The ANOVA ICC and the direct
+   mean-pairwise correlation are computed independently; on the real data they agree to **<0.001
+   on all ten pairs**, which is why the ρ above is quotable.
+4. **The bar is monotone in ρ and can only ever move up.** ρ is clamped at 0 from below and the
+   calibrated k is floored at the independent-countries value, so a measured *lack* of clustering
+   can never buy a weaker bar than the arithmetic already implies.
+5. **The arm-pair difference is exactly a scaled two-theme spread**, `Δ_a − Δ_b ≡ (x_b − x_a)/4`,
+   verified to 2.1e-17 on the real data and pinned synthetically. This is why the measured
+   co-movement is credible rather than an artefact of arm construction: the correlated object is
+   nothing more exotic than a value-minus-momentum spread, and those are famously correlated
+   across developed markets.
+
+---
+
+## 2. STEP 2 — the selection on `usa`, and the second kill
+
+Decide set `usa`, 324 months, split at the midpoint. Δ = mean of the 4 remaining themes − mean of
+all 5, annualised.
+
+| arm | early | late | mean | same sign? |
+|---|---|---|---|---|
+| **size** | **+0.149%/yr** | **+0.636%/yr** | **+0.392** | **YES** |
+| value | −0.241 | −0.060 | −0.150 | YES |
+| quality | −0.019 | −0.247 | −0.133 | YES |
+| investment | +0.018 | +0.149 | +0.083 | YES |
+| momentum | +0.092 | −0.477 | −0.193 | no |
+
+**Rule A (argmax) selects `size`. Rule B (stability) selects `size`. VERDICT: `NO CONTRAST`** —
+the pre-registered outcome, committed in `PREREG_session9_selection_rule.md` before the run.
+Every paired difference is identically zero and the sign test is vacuous. **This is not a NULL
+and not a tie**, and it is explicitly not an invitation to adjust either rule and re-run.
+
+### Two exploratory observations, NO VERDICT, do not act on either
+
+- **The stability constraint does not bind here. Four of five arms are same-sign across both
+  `usa` halves**, so Rule B filters out only `momentum` and leaves the argmax untouched. On the
+  Sharadar panel **four of seven arms change sign between halves** (session 7). **HYPOTHESIS: the
+  instability that motivated this entire question may be a property of the 69-date Sharadar
+  panel's thinness rather than of the selection rule.** 324 monthly observations versus 69. This
+  is a hypothesis generated on the decide set and it is not tested by anything here.
+- **`size` is the best arm to DROP on `usa` (+0.39%/yr), and on the Sharadar panel `size` is the
+  WORST arm to drop** (−2.64% and −3.46% in both halves independently, session 7) and carries the
+  composite's entire statistical significance (X3). **These are not the same object** — JKP `size`
+  is a capped value-weighted long-short factor, Valquo's is a z-scored theme inside an
+  equal-weighted concentrated decile book — so this is not a contradiction, and it is not evidence
+  against `size`. It is recorded because anyone reading the two files side by side will notice it,
+  and should meet the caveat here rather than invent one.
+
+---
+
+## 3. What it cost, and what it bought
+
+**Trial cost paid as pre-committed, not renegotiated after the result.** The five arms were
+evaluated on `usa`, so the search happened and the rows are owed regardless of the verdict.
+
+| | before | after |
+|---|---|---|
+| equity `N` | 116 | **121** |
+| Deflated Sharpe | 0.8674 | **0.8628** |
+| √(2·ln N) | 3.083 | **3.097** |
+
+Recomputed with `ablation.deflated_sharpe_at`, which **reproduces the recorded N = 116 figures to
+four decimals** before being asked for 121 — the helper is validated against the record on every
+use, not trusted. Still far above X7's calibrated floor of 0.7216, still below the 0.95
+convention. `RESEARCH_LOG.md` gains two rows: `SELRULE` (equity, n=5) and `SELRULE-GATE` (infra,
+n=1). Reproduce with `python -m scripts.selection_rule_crosscountry`; result in
+`data/free_analysis/SELRULE_CROSSCOUNTRY.json`.
+
+**What it bought:** a permanent, tested instrument that prices cross-country evidence honestly.
+Any future claim of the form "it replicates in N countries" now has to pass it. **X8's own headline
+is unaffected** — X8 tests whether each region's composite premium is positive, per region, with
+NW(12) errors; it never pooled countries into a count, so it never made the independence
+assumption this gate refutes. **The gate constrains what can be built ON TOP of X8, not X8.**
+
+## 4. The expectation, scored (RUN_RULES A6)
+
+Written first: *"I expect a NULL, 65/35 — most likely because Rule B abstains or selects the same
+arm as Rule A."* **The mechanism named was exactly the one that occurred.** But the same file also
+said clustering would make power "lower" — it made the design *impossible*, which is a different
+statement, and I did not anticipate it. **Direction right, magnitude badly wrong.** Consistent
+with the standing rule: write the expectation down, then measure anyway.
+
+---
+
+## 5. Session 10's first item, with its `needs first`
+
+**The selection-rule question is now closed on both available datasets, and should not be
+re-opened without new data.** One panel gives n = 1; sixteen co-moving countries give n_eff ≈ 2–4.
+Neither is a defect that can be engineered around — it is the amount of independent evidence that
+exists.
+
+**First item: task #12, the forward paper-track vs SPY.** It is the only test in the project that
+runs on data nobody has looked at, and it is the only remaining answer to "n_eff is small" that
+does not require assuming away the problem: it *manufactures* independent observations by waiting.
+P4 shipped its machinery in session 7.
+
+| dependency | status |
+|---|---|
+| the paper-track engine | **READY** — P4 (session 7) closed the departed-names defect; 45/45 paper-track tests |
+| a start date and a pre-committed horizon | **NOT SET.** Don's call, and it must be committed before the first print |
+| the comparison rule | **NOT WRITTEN** — decide in advance what beats what, and over what window; a track without a pre-committed bar becomes a story |
+| n_eff, again | the same gate applies: monthly excess returns against SPY are one series, not many. **Do not count months as independent draws** |
+
+**Ranked alternatives:** (1) the ML tree combiner (roadmap #16); (2) re-deriving X7's calibrated
+long-short floor on the **HAC** statistic, still open and still the reason `2.620 vs 2.14` is
+apples-to-oranges; (3) the narrow sector-relative-value variant (roadmap #13).
+
+**Do not re-open:** the selection rule, on either dataset (sessions 8 and 9, with the arithmetic
+and the measurement respectively); U1 as written; the full-sample LOO as a source of verdicts;
+`sector_neutral`, PEAD, TTM ROE/ROIC, robust z-scores, momentum/institutional consolidation.
+
+---
+
+## 6. What I did NOT do, and why (RUN_RULES A4)
+
+- **Did not re-run the design with a different bar, a different measure set, or a different rule
+  after seeing `NO CONTRAST`.** Every one of those was available and each would have been the
+  pre-registration's whole point discarded at the first unwelcome result.
+- **Did not quote a sign-test p-value.** The rules selected the same arm; there is no statistic
+  to report, and inventing one from an arm that neither rule chose would be fabricating a
+  contrast.
+- **Did not drop `momentum` from anything.** It is the one arm Rule B excludes on `usa`; that is
+  a decide-set observation, not a verdict, and nothing was changed on it.
+- **Did not weaken the max-ρ rule to the median** after seeing that max made the design
+  unreachable. The median makes it *near*-unreachable (k = 16 of 16); the conclusion is the same
+  and the rule was committed in advance either way.
+- **Did not touch** `valuation/screener/**`, `screen.py`, `valuation/web/**`, `.github/**`,
+  `.gitattributes`, `theta_bulk.py`, `data/options/**` — other lanes.
+- **Did not re-run the full backtest.** Nothing here changes the panel; the only shipped number
+  that moves is the Deflated Sharpe via `N`, computed exactly from the recorded detail.
+
+---
+
+## 7. Bugs found (RUN_RULES A3)
+
+1. **Session 8's own §2 asserted country independence without measuring it** (§0). Corrected in
+   `CLAUDE.md` and here. The general lesson is the project's oldest one and it caught the agent
+   that had just written the same warning: **a design's noise must be measured on the data it
+   will run on, not inherited from the design's shape.**
+2. **`research_log.py` reads the WHOLE row when testing for a `FIXED` verdict**
+   (`verdict = " ".join(cells).upper()`), so any row whose free-text note happens to contain the
+   word "fixed" — e.g. "the bar was fixed in advance" — is silently dropped from `N` and
+   **understates the trial count, which overstates significance.** This is the exact error M1
+   exists to prevent, sitting inside M1's own parser. Worked around this session by wording the
+   two new rows to avoid the token. **Not repaired**: the fix is a one-line change to read only
+   the verdict cell, but the counter is load-bearing for a shipped statistic and changing its
+   parse without re-verifying all 53 counted rows would be reckless. Flagged for a session that
+   can re-verify the count.
+3. **`scripts/selection_rule_crosscountry.py` initially reported JKP returns as percent when
+   they are decimal fractions** — a 100× display error, caught by sanity-checking a +0.006%/yr
+   figure against X8's +2–3%/yr composite premia. **No verdict was affected** (argmax, sign and
+   the sign test are all scale-invariant) and it was corrected before any number was recorded,
+   but it is logged because a number quoted in the wrong unit is exactly the class of thing this
+   file exists to catch.

@@ -99,12 +99,43 @@ the project's memory and the old versions had been repeated for months.
     √(2·ln 116) = **3.083**). Running the 7-arm sweep would have made it 123 → DSR 0.8609,
     √(2·ln 123) = 3.102, purchasing a coin flip with a real haircut. **Not running a test that
     cannot resolve is the cheaper action, not the lazier one.**
-  * **IT IS ANSWERABLE ON X8's DATA, WHICH IS ALREADY ON DISK.** 16 held-out countries give 16
-    independent draws instead of 1; a paired sign test then reaches α 3.84% at ≥12/16, with
-    **80% power against a rule better in 80% of countries and only 8.5% against one better in
-    55%.** So the cross-country test can settle "substantially better", never "slightly better" —
-    state that limit whenever it is quoted. Pre-registered in full in `HANDOFF_edge_audit.md`
-    session 8; **it is a trial only once it runs.**
+  * **~~IT IS ANSWERABLE ON X8's DATA~~ — VOID, REFUTED BY MEASUREMENT 2026-08-07 (session 9).
+    THE WORD "INDEPENDENT" WAS AN ASSUMPTION AND IT IS FALSE.** This bullet used to say "16
+    held-out countries give 16 independent draws instead of 1; a paired sign test then reaches
+    α 3.84% at ≥12/16, with 80% power…". Session 9 built the gate and measured it: see the
+    next bullet. **Every number in that sentence is void — the 3.84%, the 80% and the 8.5%.**
+- **16 CO-MOVING COUNTRIES ARE WORTH 2 TO 4 INDEPENDENT DRAWS, NOT 16 — SO A "REPLICATES IN N
+  COUNTRIES" COUNT IS WORTH FAR LESS THAN ITS N SUGGESTS (2026-08-07, session 9, SELRULE).**
+  The cross-country selection-rule test session 8 pre-registered was executed in full. The
+  clustering gate (`valuation/edge/cross_country.py`) was built, tested and committed BEFORE the
+  measure set was touched; it re-points X7's design-effect-vs-shuffled-null machinery so the
+  block is the MONTH and the observations inside it are the COUNTRIES, making the measured ICC
+  the average pairwise co-movement. **Two independent kills:**
+  * **THE DESIGN CANNOT RETURN A POSITIVE VERDICT AT ALL. Clustering is measurable on 10 of 10
+    arm-pairs** (design effects 3.97–8.27 against a shuffled-null p95 of ~1.13), **ρ 0.198–0.484,
+    n_eff 1.94–4.03 countries out of 16.** The calibrated critical count is **17 of 16** at the
+    pre-committed max ρ, and **even a unanimous 16/16 gives p = 0.0546** (400k draws, se 0.0004).
+    At the *median* ρ the bar is 16 of 16 — unanimity or nothing. **The rejection region is
+    empty; the design's power at α 5% is zero.**
+  * **THE PRE-REGISTERED 12/16 BAR CARRIES A TRUE α OF 28.7%, NOT 3.84% — a 7.5×
+    UNDERSTATEMENT.** Building the gate first is the only reason this session did not quote a
+    "3.84%" result that was really a 29% one. **That is what the gate is for, and any future
+    claim of the form "it replicates in N countries" must now pass it.**
+  * **SEPARATELY: `NO CONTRAST` — both rules select `size` on `usa`**, so every paired
+    difference is identically zero. Pre-registered as an outcome before the run. **Not a NULL,
+    not a tie.** Four of five arms are same-sign across both `usa` halves, so the stability
+    constraint does not bind. **HYPOTHESIS ONLY, generated on the decide set: the instability
+    that motivated this whole question (4 of 7 arms flip on Sharadar) may be a property of the
+    69-date panel's thinness, not of the selection rule** — 324 monthly observations vs 69.
+  * **X8's OWN HEADLINE IS UNAFFECTED.** X8 tests each region's premium separately with NW(12)
+    errors and never pooled countries into a count, so it never made the independence assumption
+    this refutes. **The gate constrains what is built ON TOP of X8, not X8.**
+  * **THE SELECTION-RULE QUESTION IS NOW CLOSED ON BOTH AVAILABLE DATASETS.** One panel gives
+    n = 1 (session 8); 16 co-moving countries give n_eff ≈ 2–4. That is not an engineering
+    defect — it is the amount of independent evidence that exists. **Do not re-open it without
+    new data.** Equity `N` 116 → **121** (5 arms, paid as pre-committed): **Deflated Sharpe
+    0.8628, √(2·ln 121) = 3.097.** Reproduce with
+    `python -m scripts.selection_rule_crosscountry`; `data/free_analysis/SELRULE_CROSSCOUNTRY.json`.
 - **THE COMPOSITE'S COMPLEXITY IS NOT DEMONSTRATED, AND THEME IC DOES NOT PREDICT WHICH THEME
   MATTERS (2026-08-06, session 6, X3 RE-RUN). The 2026-08-03 "EARNS ITS COMPLEXITY" verdict is
   VOID — it ran on the pre-B6 110-date panel and against a 1.0pp bar that sits BELOW X7's
