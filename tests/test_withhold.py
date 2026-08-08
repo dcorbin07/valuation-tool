@@ -594,14 +594,18 @@ def test_no_public_api_response_carries_a_fair_value_past_the_band():
         webapp._store = orig
 
 
-@known_failure(
-    reason=("save_snapshot writes a FIXED 18-column INSERT and fair_value_withheld is not one "
-            "of them, so the refusal CONSOLIDATE-1 records during the scan is discarded when "
-            "the row is persisted. estimate_fair_values then reads the surviving "
-            "fair_value=None as 'no DCF yet' and substitutes a peer estimate — the original "
-            "leak, one layer further down. Measured on production 2026-08-06: KSPI serves at "
-            "$299.155 (3.24x) while its valuation page refuses it at 11.2x."),
-    lane="screener (valuation/screener/store.py)")
+# FIXED 2026-08-07 and the marker is REMOVED, which is the whole point of the mechanism.
+#
+# This was a `known_failure` from Session 17: `save_snapshot` wrote a FIXED 18-column INSERT
+# with no column for `fair_value_withheld`, so a refusal recorded during the scan was thrown
+# away when the row was persisted, and `estimate_fair_values` then read the surviving
+# `fair_value=None` as "no DCF yet" and substituted a peer estimate. Measured on production
+# 2026-08-06: KSPI served at $299.155 (3.24x) while its valuation page refused it at 11.2x.
+#
+# The greeks lane fixed it in `valuation/screener/store.py` (ledger OOB1, main `92d2ac8`).
+# This test reported xpass on the next run, which is the signal to promote it — a
+# known_failure left in place after the bug is gone stops guarding anything and starts
+# hiding a regression instead.
 def test_a_refusal_recorded_by_the_scan_survives_to_the_public_surface():
     """The half of the leak that the band catch-all CANNOT see, by construction.
 

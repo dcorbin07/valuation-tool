@@ -58,6 +58,37 @@ Part 8. Ledger row `OOB3`.
 
 ---
 
+## 2026-08-07 — app-fixer lane: the recruiter master-link now opens the full read-only view
+
+Full write-up: `HANDOFF_appfixes.md` Session 18. Product decision out of
+`PROMPT_recruiter_master_link.md` (Don's, recorded there verbatim); no audit item, ledger
+unchanged.
+
+- **The link did nothing before this.** Measured, not inferred: a valid `/demo/<token>`
+  session saw **exactly** what an anonymous visitor saw — every owner surface refused it,
+  because `saas/surfaces.py` put them behind *owner* and a demo session is not one. The only
+  two differences in the whole probe were a friendlier beta banner and an empty `/account`.
+- **Now a genuine three-way split: anonymous / demo / owner.** A valid demo session reads
+  Track Record, the Index, Signals, the option scorecard and the Edge Lab's learning log, and
+  **may change nothing**. `surfaces.DEMO_DENIED_PATHS` is the enforcement and is deliberately
+  **not gated on `OWNER_SPLIT`** — that flag governs what strangers may READ and must not be
+  able to hand a résumé link the scan trigger as a side effect.
+- **The anonymous surface did not move.** Byte-diffed, not eyeballed: the anonymous `/app`
+  differs from HEAD by **one whitespace line, 7 bytes, zero content**.
+- **No raw vendor rows.** Every newly-visible payload was walked and its row shape printed —
+  all derived (weights, ICs, expectancy, cumulative series, constructed positions). The three
+  `/api/edge/` runners that would compute new ones are denied.
+- **Delivery is a button on `/work`**, built from env server-side at render time. Rotating
+  `DEMO_ACCESS_TOKEN` on Render re-points the button and kills every copied `/demo/<token>`
+  link in one action; clearing it removes the button and shuts `/demo` off. **The résumé link
+  is `https://valquo.co/work`** — the token never goes on the résumé.
+- `test_public.py` **17/17 → 27/27**. The one test that pinned the old posture
+  (`test_the_index_stays_owner_only_and_says_why_on_its_own_face`'s sibling
+  `test_the_split_is_a_flag_that_actually_reverts`) was **amended with a comment citing the
+  prompt and the date**, not deleted, and what replaced it is stricter: demo may read, is
+  still not the owner, and still may not act.
+- **Don must set `DEMO_ACCESS_TOKEN` in Render for the button to appear.** It is not set from
+  this session and the token is not in the repo.
 ## 2026-08-07 — greeks lane, OUT-OF-BAND: a vanished vendor field can no longer rewrite a headline
 
 **MRK went from "cannot value this name" to a published 91 "Strong Buy" because Yahoo stopped

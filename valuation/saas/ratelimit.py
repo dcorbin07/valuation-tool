@@ -39,6 +39,11 @@ LIMITS = {
     # Not a path: /api/value is only limited when it asks for the AI layer. The plain
     # valuation is the product's core action and stays unlimited. See bucket_for().
     "ai:value": (20, 3600),
+    # Not a path either: demo-SESSION CREATION (`auth.demo_view`), which costs nothing to
+    # serve but is the one gate on the recruiter master-link. Limiting it means a leaked or
+    # guessed token shows up as refused traffic in the logs instead of being farmed
+    # silently. 20/hour is many more than a human opening a résumé link will ever need.
+    "demo:session": (20, 3600),
 }
 
 # Stop a rotating-IP flood from growing the table without bound. Evicting the
