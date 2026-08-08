@@ -18,6 +18,50 @@ REJECTED and its deciles run backwards out of sample)
 
 ---
 
+## LEDGER REFRESHED — 72/134 DONE, AND `--write` WAS DESTROYING EIGHT ROWS (2026-08-08, r1 lane)
+
+Full write-up in `HANDOFF_ledger.md`. Counts and the disagreement table are published in
+`VALQUO_LEDGER.md` itself, which is the place to read them.
+
+**COUNTS: 72 of 134 audit items DONE (53.7%)**, 56 OPEN, 5 BLOCKED, 1 IN PROGRESS, 0 SUPERSEDED;
+hand-verified 91/134. Plus **8 out-of-band rows** (7 DONE, 1 PRE-REGISTERED) counted separately so
+that "of 134" keeps meaning what it always meant. The backlog is lopsided and the counts make it
+legible: **`S` is 4/28 DONE and `O` is 6/26, and those two series hold 43 of the 56 OPEN items** —
+what remains is signal ideas and options studies, not corrections. `B` 24/26, `C` 7/7, `D` 9/10
+and `P` 5/5 are essentially finished.
+
+**THE REFRESH ITSELF MOVED ONE CELL. THE WORK WAS MAKING IT SAFE TO RUN.** `build_ledger.py
+--write` had never been executed since the out-of-band rows were added, and running it as shipped
+would have **deleted eight hand-verified rows** — `OOB1`/`OOB2`/`OOB3` and the pre-registered
+experiments `LOO`, `SELRULE`, `HACFLOOR`, `MLPREREG`, `MLCOMB`, i.e. **Sessions 7–11 and the
+public fair-value leak closure** — plus all prose under the header (R3's stale-figure note, the C6
+lesson) and the `FIXED` verdicts on `B8` and `P4`. Three defects, one signature: the script
+curating content it did not write, against a docstring promising the opposite.
+
+**DEFECT 1 WAS ALREADY KNOWN AND HAD BEEN WRITTEN INTO THE DATA INSTEAD OF FIXED.** `OOB1`'s note
+ended *"NOTE: build_ledger.py regenerates from the 134 audit ids only and will DROP this row"* — a
+warning stored in the row it warns about, deleted by the operation it warns about. Now fixed and
+pinned by `tests/test_build_ledger.py` (20 assertions); `--write` is idempotent.
+
+**ALL 21 DISAGREEMENTS RESOLVE IN FAVOUR OF THE HUMAN ROW; NO STATUS CHANGED.** Two previously
+unrecorded traps were found and added to the file's list: **(5)** a multi-item commit subject
+donates one item's verdict to every id in it — `275e9af` *"O16/O24 RESULTS: O24 is a NULL; O16
+stopped at its own reproduction gate"* marks **O16 DONE** when O16 deliberately returned no
+verdict; **(6)** `DEFERRED` is in the DONE vocabulary, so `## B23 — DEFERRED, deliberately` reads
+as finished while its body says *"Not done, and not forgotten."* Both left unencoded on purpose —
+the fix is a guess about commit-subject grammar and the human row already wins.
+
+**EVERY LANDING OF THE LAST TWO DAYS WAS ALREADY RECORDED BY THE LANE THAT DID IT** (sessions 10
+and 11, O16, O24, P2, C6, the leak closure), so there was nothing to fold in. Contract rule 1 is
+being followed, and this task was a verification rather than a reconstruction.
+
+**ONE ROW STILL WRONG AND NOBODY OWNS IT: `R3`'s note reads "Shrinks every options t ~1.36x"; the
+corrected figure is √2.212 = 1.487× on the 3,885-trade book.** It has now survived two refreshes
+because both flagged it as "not this lane's row". Recommended: let any lane correct a figure that
+is already corrected elsewhere in the project.
+
+---
+
 ## GREEKS — THE DERIVED LAYER GREW 315 → 502 NAMES (2026-08-08, greeks lane)
 
 Full write-up in `HANDOFF_greeks.md`. Pure local compute: zero vendor option calls, and
