@@ -1711,6 +1711,12 @@ means U2 may treat it as its own read.
 **Logged to `RESEARCH_LOG.md`** as O16 (n=5) and O24 (n=4), domain `options`, verdict PENDING.
 Options-domain `N` 155 → **164**; equity `N` unchanged at 121 (`N` is domain-scoped, per M1).
 
+> Read the equity figure as *"these nine trials did not touch it"*, not as a current reading.
+> Measured after merging `origin/main` at the end of this cycle: options **164** (unchanged, as
+> claimed), equity **129**, project total **296** — equity moved because a concurrent lane landed
+> rows, which is exactly the domain scoping working. **`N` is a project quantity that keeps
+> rising; re-measure it rather than quoting a number from a handoff.**
+
 
 ---
 
