@@ -511,8 +511,225 @@ honest label and gives a clean re-entry point once 2026 closes.
    measure — which is what let bug 8 hide, since a 2025 IPO was indistinguishable from a penny
    stock nobody writes options on. Fixed: `no_data_in_range` is its own status.
 
+## Item 6 — the May-2022 verification, with the miner stopped (2026-08-07). DONE.
+
+Ordered by what was asked. Miner confirmed stopped first (no `python.exe` running), because a
+probe run alongside `WORKERS = 4` is a 5th request against a 4-request tier and the first
+version of the May-2022 finding was nearly an artefact of exactly that.
+
+### 1. THE DEFECT NO LONGER REPRODUCES. IT WAS TRANSIENT, AND IT HAS ALREADY CLEARED.
+
+Yesterday, with the miner stopped, `AGI 2022-05` failed deterministically twice and `W 2022-05`
+once. Today, same conditions, **22 of 22 probes succeed**:
+
+| | |
+|---|---|
+| AGI 2022-05 (31d, max_dte 200) | **790 rows, 0.8s** |
+| W 2022-05 | **25,892 rows, 5.5s** |
+| DPZ / MGM / NIO / AAPL 2022-05 | 18,554 / 11,452 / 13,429 / 25,298 rows, all OK |
+| AGI + W split 15d, 16d, and 4× ~7d | all OK |
+| AGI 2022-05 at max_dte 90 and 200 | both OK |
+
+So the answer to "is it a source limitation like the −1 open-interest problem, or something the
+miner can repair" is **neither, and that possibility was not on the list**: it was a transient
+source-side outage that has since been fixed upstream. **It is not permanent like the −1 OI
+problem** — that one reproduces on demand and no retry escapes it. **And no miner repair is
+owed**, because the miner already recovered from it unaided.
+
+The chunk-splitting probe was run to test the one repair that WOULD have been actionable — if
+May had failed only at large spans, `_fetch_year`'s existing halve-and-retry would be the fix.
+It fails at no span size now, so the question is moot rather than answered.
+
+### 2. HOW MANY SYMBOL-YEARS ARE AFFECTED: **ZERO.** And 2022 is now among the best-covered years.
+
+| year | cached | year | cached |
+|---|---|---|---|
+| 2016 | 401 | 2021 | 483 |
+| 2017 | 408 | **2022** | **486** |
+| 2018 | 420 | 2023 | 494 |
+| 2019 | 441 | 2024 | 960 |
+| 2020 | 454 | 2025 | 516 |
+
+Raw counts conflate "lost its 2022" with "not listed until 2023", so the isolating statistic is
+the SANDWICH — names holding both Y−1 and Y+1 but missing Y. Across the whole cache: **2018 has
+2 such holes, 2020 has 1, 2022 has 1, and every other year has none.** 2022 is not special.
+
+**And the one 2022 hole is not a May casualty at all.** `COR` is `.empty` for 2022 because the
+TICKER was between owners — see item 7. Net permanent loss to the May-2022 defect: **nothing.**
+
+### 3. THE CACHED 2022s ARE GENUINELY COMPLETE — checked against the data, not the code.
+
+`ensure_year` promises this (`if failed: # Partial year: do NOT cache it as if complete`), but a
+promise in the code is not a measurement, and silent under-sampling is the failure class this
+project keeps paying for. Trading days per month inside each cached `SYM-2022.pkl`:
+
+```
+name     1   2   3   4   5   6   7   8   9  10  11  12
+AGI/W/DPZ/NIO/MGM/IONQ/AAPL
+        20  19  23  20  21  21  20  23  21  21  21  21   <- identical for all seven
+```
+
+That is the NYSE 2022 calendar exactly, **21 trading days in May for every one of them.** No
+partial year was cached as complete. The "0 partial" claim holds against the data.
+
+**A second reading of the question, in case "costing every name its 2022" meant thinned rather
+than lost:** median cached size in year Y over the mean of Y−1 and Y+1, across all names —
+2022 scores **1.002**, against 2017 1.000, 2021 1.003, 2024 1.005. **2019 (0.898) and 2023
+(0.949) are thinner than 2022.** By both readings the answer is no.
+
+### 4. CORRECTION TO MY OWN DAMAGE FIGURE — it was inflated by stale markers.
+
+This file said "the ~15 names caught by the May-2022 source defect". Five of the names carrying
+a 2022 `.missing` (CMG, DHI, FNV, MCD, RKLB) **also hold a complete 2022 frame** — the marker is
+left behind by an attempt that later succeeded, because the success path never removed it.
+Fixed, and it is not cosmetic: `ensure_year` reads the attempt count back out of `.missing`, so
+a stale one means the next genuine failure starts partway to `MAX_MISSING_ATTEMPTS` and can be
+retired to `.exhausted` for failures the year had already recovered from.
+
+## Item 7 — CALL_TIMEOUT: the fix holds, and the "zero faults" reading was wrong twice over
+
+### The fix bounds a REAL call, not just a synthetic one
+
+The existing regression test pins the control flow with a fake sleep. That proves the branch,
+not that the deadline fires against a gRPC call genuinely mid-transfer — and the original bug
+was invisible precisely because the call always did eventually return, so nothing looked wrong
+unless you measured WHEN. Re-measured against the live feed:
+
+| | |
+|---|---|
+| natural duration, `W` 2022-01..06 at 200 DTE | **65.3s, 150,182 rows** |
+| identical request, `CALL_TIMEOUT` lowered to 3s | **FAILED in 10.0s, 3 faults counted** |
+| what the OLD code would have done | ~65s, **0 faults** |
+
+10.0s is exactly `RETRIES × 3s + BACKOFF`. **The deadline bounds the call and the hang is
+counted.** Reproduce with `C:\Users\donni\.claude\jobs\7819c8eb\tmp\timeout_realpull.py`.
+
+### But the fix has NEVER FIRED IN PRODUCTION, and I am not going to imply otherwise
+
+The three hangs and TXRH's 11-hour stall are all in `BREADTH_RUN.log`, which ends **08:14**; the
+fix committed at **08:15** (`4575757`). The post-fix runs (`BREADTH_RUN2/3/4.log`, ~8.5h of
+mining) logged **zero hangs**, so the new path was never exercised. Its evidence is the unit
+test and the real-pull measurement above — not production.
+
+### The "zero faults" claim was wrong for a SECOND reason, and this one is worse
+
+The four places recording it already carry the corrected framing (a hang never became a fault,
+so the detector was blind). Two further corrections, both from re-reading logs rather than
+reasoning:
+
+* **THE STATISTIC WAS READ OUT OF A FILE THAT DOES NOT CARRY IT.** `MINING_PROGRESS.txt` holds
+  **3,222 `[mine]` lines and zero `[theta-bulk]` lines** — it has never contained a fault record
+  of any kind, so it could not have shown one whatever the detector did. I re-made this error
+  today: my first fault greps ran against that file, got zeros, and I nearly reported them.
+  **The faults were in `BREADTH_RUN*.log` all along.**
+
+  | event | count across the four run logs |
+  |---|---|
+  | `gave up after 2` | **81** |
+  | `chunk ->` (adaptive halving — the repair firing) | **18** |
+  | `timeout after 75s` | 3 (all pre-fix) |
+  | `6 consecutive faults: rebuilding the client` | **2** |
+  | `budget 900s exhausted` | 2 (both TXRH) |
+
+* **"THE DETECTOR WAS BYPASSED" OVERSTATED IT.** It was blind to HANGS specifically. On ordinary
+  gRPC errors it worked and **demonstrably fired twice** (`BREADTH_RUN2.log`, during NIO). The
+  honest sentence is *"the fault detector worked for errors and could not see hangs"*, not
+  *"the detector never fired"*.
+
+**The run was not fault-free. It was never claimed to be by anything that had measured it.**
+
+### One inconsistency found while measuring, documented rather than silently changed
+
+A fully-hung call contributes **3** faults (one per abandoned attempt, plus one when the retries
+run out); a failing call contributes **1** (only on give-up). So `CLIENT_RESET_AFTER_FAULTS = 6`
+is reached after ~2 hung calls but 6 failing ones. That is defensible — a hang is stronger
+evidence of a dead channel and costs hours rather than seconds — but it was **measured, not
+designed**, so it is now written into the docstring instead of left to be rediscovered.
+
+## Item 8 — SIX NAMES IN THE CACHE HOLD TWO DIFFERENT COMPANIES EACH (found while auditing 2022)
+
+Chasing the one 2022 hole led somewhere larger. **`COR` is CoreSite Realty until American Tower
+acquired it in 2021-12, and Cencora from 2023-08** — two companies in one directory, joined by
+the `.empty` 2022 in which the ticker belonged to nobody. Median strike steps **103 → 195**
+across the hole, which is the two underlyings' price levels, not a move.
+
+**NO ALIAS WAS INVOLVED, AND NO ALIAS COULD FIX IT.** The miner asked the feed for "COR" each
+year and the feed answered for whoever held the ticker. `alias_overlap_conflicts()` — the
+safeguard built last session — is structurally blind to this: it only watches alias↔successor
+overlap. **And the fallback can never repair it either, because an alias only fires on an EMPTY
+span, and a reused ticker answers with the wrong company's chains instead of nothing.**
+
+Two screens now ship, `reused_ticker_suspects()` and `collapsed_year_suspects()`, both reported
+by `mine_status.py`. Adjudicated by strike range, which tracks the underlying's price level and
+cannot be faked by a ticker string:
+
+| name | hole | median strike before → after | verdict |
+|---|---|---|---|
+| **AXON** | 2020 | 10.4 → 275.0 (**26.5x**) | two companies |
+| **SNOW** | 2018-19 | 13.8 → 205.8 (**15.0x**) | two companies |
+| **SN** | 2020-22 | 6.5 → 73.3 (**11.3x**) | two companies |
+| **FIG** | 2018-24 | 6.5 → 64.5 (**9.9x**) | two companies |
+| **SNDK** | 2017-24 | 72.5 → 141.0 (1.9x) | two companies |
+| **COR** | 2022 | 103.3 → 195.0 (1.9x) | two companies |
+| DD | 2018 | 71.5 → 69.0 (0.97x) | **CLEAN** — DowDuPont restructuring, continuous underlying |
+| DOW | 2018 | 56.0 → 49.0 (0.88x) | **CLEAN** — same |
+
+**The screen is a screen: 2 of its 8 hits are benign, and that is the intended trade.** A hole
+can be an ordinary outage — the May-2022 defect put one in every name it touched until the retry
+pass filled them. A false positive costs one look; a miss costs a silently blended two-company
+series that is invisible downstream because both halves are well-formed and coverage reads 100%.
+
+### `META` — the same defect in a top-ten name, with NO hole to catch it
+
+`META-2021` holds **9,398 rows over 2021-07-08..12-31 at strikes 8-22**, between years of
+**247,139** and **171,788** rows at strikes 130-350. Through the back half of 2021 the ticker
+belonged to a ~$15 company and the feed answered with its chains. **Facebook's actual 2021 was
+never fetched** — the alias supplies 2016-2020 from `FB` correctly, then stops mattering,
+because 2021 was not empty. The year is present, well-formed and wrong.
+
+Caught by file size alone (**0.44MB between 11.62 and 8.08**), which costs a `stat()` and never
+unpickles. That screen returns exactly **2 names on the whole 5,073-file cache**: META, and PHM.
+
+**PHM is a genuine thin year, not a contamination, and the difference is worth stating because
+it is the screen's one unexplained hit.** PHM-2022 is complete — 251 trading days, full NYSE
+calendar, strikes 25-75 (right for PulteGroup), same 200 DTE depth as its neighbours. It carries
+**4-5 expirations per month against 12-14 either side, uniformly across all twelve months**, and
+the thin regime runs 2022-01 through 2023-03 before recovering. Uniform rules out a truncated
+fetch. **This looks like a feed-side coverage regime — weeklies absent for 15 months — and it is
+a real source limitation of the kind item 6 went looking for, just not a 2022-wide one.** Not
+chased further.
+
+### Blast radius — research results are CLEAN, the greeks lane is not
+
+**`UNIVERSE_RESULTS.json` and `AUTOPSY_BROAD_RESULTS.json` contain ZERO occurrences of AXON,
+COR, FIG, SN, SNDK, SNOW, META, DD and DOW.** No shipped verdict rests on any of this. Same
+outcome as WBD, and checked the same way rather than assumed.
+
+`GREEKS_COVERAGE.json` names **AXON, COR and SNOW**, and `data/options_derived/` holds derived
+frames plus a blended `-daily.pkl` for each. **Not deleted — another lane's outputs.** Flagged in
+`HANDOFF_STATUS.md`. (`META-2021.pkl` is absent from `data/options_derived/META/`, so the
+contaminated year did not get derived; the other META years and `META-daily.pkl` are fine.)
+
+**One loose thread for whoever picks this up:** `SNDK` is SanDisk, and `CLAUDE.md` carries an
+open item (`CODE_AUDIT.md` M2) about a SanDisk/WDC ~10x market-cap divergence that "does NOT
+reproduce". Ticker reuse is a mechanism that could produce exactly that shape. The equity panel
+keys on Sharadar `permaticker` and may well be immune — **this is a pointer, not a claim.**
+
 ## What was NOT done
 
+* **The six two-company names were NOT purged or re-mined.** WBD was, because DISCA supplied the
+  correct data under a mapping that works. **These cannot be fixed by a mapping** — the fallback
+  only fires on empty spans. Repairing them needs a per-symbol validity window (a "the ticker
+  changed hands in year Y, take everything before it from X" rule), which is a design change to
+  the alias system and not something to bolt on mid-session. **They are detected, reported on
+  every `mine_status.py` run, and left in place.**
+* **`META`'s real 2021 was NOT back-filled from `FB`.** Same blocker, and it is the single
+  highest-value instance of it — a top-ten name missing a year of true history.
+* **PHM's 15-month thin regime was NOT investigated further** than establishing it is uniform,
+  complete-by-date, and therefore source-side rather than a fetch defect.
+* **The `.missing` cleanup was NOT applied retroactively.** The five stale 2022 markers (CMG,
+  DHI, FNV, MCD, RKLB) and any others still sit on disk; the fix prevents new ones. Clearing the
+  old ones is a one-line sweep nobody should run without reading item 6 §4 first.
 * **`TENORS` still NOT widened.** Depth is now 604 of 986 names fully at 200 DTE — much better
   than the 100 it started at, but still not universal, and 4 names are MIXED. The 90-200 band
   is not safe to rank on across the whole universe yet.
@@ -542,12 +759,21 @@ honest label and gives a clean re-entry point once 2026 closes.
 
 ## Recommended next step
 
-1. **Re-run `python oi_coverage_audit.py --rescan`.** The cache grew 3,143 → 5,073 year-files
+1. **Give the miner a per-symbol VALIDITY WINDOW, and fix `META` with it.** This is now the
+   biggest known correctness hole in the cache: six names hold two companies each, `META` is
+   missing Facebook's real 2021, and **no alias mapping can repair any of it** — a fallback only
+   fires on an empty span and a reused ticker is never empty. The shape is a small table
+   (`{"COR": {"before": 2023: "ABC"}, "META": {"before": 2022: "FB"}, ...}`) consulted BEFORE the
+   symbol itself rather than after it fails. `reused_ticker_suspects()` and
+   `collapsed_year_suspects()` already tell you which names need entries, and the strike-range
+   test in item 8 tells you which half of each is wrong.
+2. **Re-run `python oi_coverage_audit.py --rescan`.** The cache grew 3,143 → 5,073 year-files
    and every coverage figure in this file predates that. Nothing should quote OI coverage until
    it has been re-measured.
-2. **→ GREEKS LANE: re-derive WBD.** `data/options_derived/WBD/*` is built from AT&T's chains.
-   This is the only cross-lane action outstanding and it is not optional.
-3. **Consider whether the shared `HANDOFF_STATUS.md` convention is worth keeping as-is.** Every
+3. **→ GREEKS LANE: re-derive WBD, and now also AXON, COR and SNOW.** `data/options_derived/*`
+   holds derived frames and blended `-daily.pkl` files built from two-company sources. This is
+   the only cross-lane action outstanding and it is not optional.
+4. **Consider whether the shared `HANDOFF_STATUS.md` convention is worth keeping as-is.** Every
    lane prepends a section at the same anchor, so two lanes finishing on the same day is a
    guaranteed merge conflict — **it has now blocked an auto-land twice** (the B4 commit, and
    this session's first push). Both were resolved by keeping both sections, which is always the

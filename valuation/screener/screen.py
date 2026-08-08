@@ -150,7 +150,14 @@ def _f(x):
 
 def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
              store: Optional[Store] = None, provider=None, run_dcf_top: int = 0,
-             progress: Optional[Callable] = None, save: bool = True) -> dict:
+             progress: Optional[Callable] = None, save: bool = True,
+             refusal_screen: int = 0) -> dict:
+    """`refusal_screen` = how many ranked names to ASK whether the model refuses them.
+
+    Defaults to 0 so nothing that calls this in-process (tests, ad-hoc scans, the web
+    "rescan" button) starts making hundreds of network calls it did not ask for. The
+    scheduled scan sets it to the size of the served list — see `scripts/ci_scan.py`.
+    """
     store = store or Store()
     provider = provider or get_provider(cfg, store)
 
@@ -259,6 +266,14 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     # Deep-value the top names with the full DCF (optional, network-heavy).
     if run_dcf_top and run_dcf_top > 0:
         _enrich_with_dcf(rows[:run_dcf_top], cfg)
+    # ...and ask every OTHER served name only whether the model REFUSES it. Without this the
+    # names outside the DCF window publish a peer estimate that nothing has ever checked
+    # against the valuation page's verdict (Bug B). Off by default in-process so tests and
+    # ad-hoc scans do not hit the network; the scheduled scan turns it on.
+    if refusal_screen:
+        health_refusals = _screen_refusals(rows[run_dcf_top:refusal_screen], cfg, workers)
+    else:
+        health_refusals = {"screened": 0, "refused": 0, "note": "refusal screen off"}
 
     # Data-health panel — catch silent data rot (a whole theme going missing, coverage
     # cratering) the day it happens, instead of finding out via bad picks weeks later.
@@ -276,6 +291,10 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
         # renormalizes it away, and its 12.5% weight does nothing. This measures the theme
         # AFTER standardization, i.e. what actually reaches the score.
         "theme_contributing": _theme_contribution(scored),
+        # How many served names were actually ASKED whether the model refuses them, and how
+        # many it did. `screened: 0` on a scan that served hundreds of names is the tell that
+        # Bug B is back — a silent zero here is exactly how the gap survived unnoticed.
+        "refusal_screen": health_refusals,
         # Display-field coverage. A blank company name or sector is not a scoring bug, so
         # nothing else would ever report it — and it went unnoticed on the live site for
         # weeks. Measured on the rows that actually ship.
@@ -321,7 +340,7 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
             "scored": len(rows), "provider": provider.name, "filtered": audit, "health": health}
 
 
-def _enrich_with_dcf(rows, cfg):
+def _enrich_with_dcf(rows, cfg, refusal_only: bool = False):
     """Attach the real DCF to the rows that get one — and RECORD a refusal as a refusal.
 
     This function used to write `r["fair_value"] = res.base_fair_value` and nothing else.
@@ -331,28 +350,85 @@ def _enrich_with_dcf(rows, cfg):
     number its own valuation page refuses to show. That is how KSPI, STLA and CHTR were
     served fair values while their pages said "cannot value this name".
 
-    Recording the refusal fixes it in one place: `estimate_fair_values` skips the row, and
-    `valuation/web/withhold.py` already honours these keys, so the public surface closes
-    with no change on that side.
+    A REFUSAL IS NOT THE SAME AS "NOT VALUABLE", and the first version of this fix merged
+    them. It refused on `base_fair_value is None and reason`, which is ALSO true for a name
+    the model simply cannot value — no free cash flow, no revenue, an ADR bank whose P/B–ROE
+    inputs are missing. Nothing has been refused about those names, and a peer multiple is
+    exactly the right tool for them. Measured on the real production list: of 387 served names
+    outside the DCF window, **0** are a genuine refusal, while the count reporting a "not
+    DCF-valuable" reason came out **17 in one run and 77 in another** — the free upstream feed
+    is not stable run to run, so under throttling MORE names get mislabelled as refused.
+    Feeding NVS, SAP or TD through the old expression blanked a perfectly ordinary peer
+    estimate ($185.41, $364.97, $79.73) and told the reader "no fair value is published".
+
+    So the test is the VERDICT, not the presence of a reason string: ask
+    `publication.decide` about the value the model actually had. That reads the one decision
+    rather than restating its threshold, which is the rule that module exists to enforce.
+
+    `refusal_only=True` asks solely "would the model refuse this name?" and never writes a
+    fair value — that is the mode used for names outside the DCF window, where the point is
+    to stop publishing a refused name, not to swap the published number for a different one.
     """
     try:
         from ..engine.pipeline import value_ticker
-        from ..engine.publication import record_refusal, ROW_WITHHELD
+        from ..engine.publication import record_refusal, decide as decide_publication, ROW_WITHHELD
     except Exception:
         return
     for r in rows:
         try:
-            res = value_ticker(r["ticker"], cfg, mc_trials=1500)
+            # The Monte Carlo is not an input to the publication decision (`blend` never sees
+            # it), and it costs 0.03-0.08s against a 1.1-6.6s fetch, so the refusal-only pass
+            # runs it at 1 trial rather than 1500.
+            res = value_ticker(r["ticker"], cfg, mc_trials=(1 if refusal_only else 1500))
             blend = res.fair_value_blend
-            reason = (getattr(blend, "reason", "") or "").strip()
-            if res.base_fair_value is None and reason:
-                record_refusal(r, reason)          # a DECISION, not a gap
-            else:
+            # The number the model HELD before the guard blanked it — that is what was judged.
+            had = blend.withheld_value if blend.withheld_value is not None else blend.value
+            verdict = decide_publication(had, getattr(res.company, "price", None),
+                                         cd=res.company,
+                                         growth_led=getattr(blend, "growth_led", False))
+            if verdict.reason:
+                record_refusal(r, verdict.reason)  # a DECISION, not a gap
+            elif not refusal_only:
                 r["fair_value"] = res.base_fair_value
                 r["upside"] = res.upside
                 r.pop(ROW_WITHHELD, None)
         except Exception:
+            # FAIL OPEN. A fetch that fails tells us nothing about whether the model would
+            # refuse, and the upstream feed is a free, rate-limited one — a 401 was observed
+            # during the 387-name measurement. Failing closed would blank hundreds of fair
+            # values on a bad upstream day. The cost of failing open is stated plainly in the
+            # handoff: a name we could not reach keeps its peer estimate unchecked.
             continue
+
+
+def _screen_refusals(rows, cfg, workers: int = 8) -> dict:
+    """Ask the model, for every name the DCF window does NOT reach, only whether it REFUSES.
+
+    Bug B: `_enrich_with_dcf` ran on `rows[:run_dcf_top]` and production runs `dcf_top=12`, so
+    the other ~387 served names were never valued at all — no refusal could be recorded for
+    them, and the public list published a peer estimate with no check against the valuation
+    page's verdict. The 5x band on the served value cannot catch this class by construction:
+    a refused 11x model is replaced by a 3.2x peer estimate that sits comfortably under it.
+
+    This screens for the refusal ONLY and leaves every non-refused row exactly as it was. The
+    alternative — raising `dcf_top` to cover the list — costs the same (the fetch is the whole
+    price) but would also REPLACE the published fair value on ~387 names with a different
+    model's number. That is a product decision, not a leak fix, and it is one constant away if
+    it is wanted.
+
+    Measured cost: 387 names in 3.0 min at 6 workers, median 2.51s per name.
+    """
+    if not rows:
+        return {"screened": 0, "refused": 0}
+    before = sum(1 for r in rows if r.get("fair_value_withheld"))
+    if workers > 1 and len(rows) > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(lambda r: _enrich_with_dcf([r], cfg, refusal_only=True), rows))
+    else:
+        _enrich_with_dcf(rows, cfg, refusal_only=True)
+    after = sum(1 for r in rows if r.get("fair_value_withheld"))
+    return {"screened": len(rows), "refused": after - before}
 
 
 def _today() -> str:

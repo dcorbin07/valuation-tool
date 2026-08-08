@@ -44,6 +44,98 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **X8 REPLICATED ON 2026-08-04 AND THIS FILE NEVER RECORDED IT — the single strongest piece of
+  external evidence the project has, missing from its own memory for three days (found
+  2026-08-07, session 8).** Before this bullet, `CLAUDE.md` contained the words "JKP" and "Japan"
+  **zero times**, and `HANDOFF_STATUS.md` likewise; the only trace was the phrase "X8's
+  international replication is the out-of-sample evidence, R1 is not", which reads as *future*
+  work. **It is not future work.** The omission demonstrably misled: session 8's own prompt
+  instructed the agent to "scope X8 … make that actionable instead of aspirational" — for a test
+  that had already run and passed. Result, from `HANDOFF_free_analysis.md` (2026-08-04, verdict
+  **REPLICATES**, threshold committed first): the untuned 5-theme equal-weighted composite,
+  mapped 1:1 onto Global Factor Data with **no tuning of any kind**, monthly `vw_cap`,
+  1999-01 → 2025-12, NW(12):
+  * **Japan +2.05%/yr (t 3.85)** and **developed Europe +3.36%/yr (t 4.30)** — both clear the
+    pre-committed t > 2.0. World ex-US +3.37% (t 5.03). **All 15 European countries positive,
+    12 of 15 clear t > 2.**
+  * **THE CONTROL IS THE POINT: the USA is the WEAKEST region tested (t 2.35)** — weaker than
+    Japan, Europe, developed and world-ex-US. The theme structure is **not** a US artifact, and
+    it is out-of-sample in vendor, country, construction and period simultaneously.
+  * **REPORTED, NOT BURIED: the composite replicates while its COMPOSITION does not.** Japan's
+    result is carried by value (t +2.27) and size (+1.81); **quality (−0.12) and momentum
+    (+0.88) contribute nothing there**, the mirror image of the US profile (quality +3.03).
+    Momentum failing in Japan is a documented stylised fact, which is evidence the data is real.
+    Two of five mapped themes do not generalise to Japan.
+  * **IT DOES NOT CORROBORATE VALQUO'S MAGNITUDE, AND MUST NEVER BE QUOTED AS IF IT DOES.** JKP
+    earns **+2% to +3.4%/yr long-short at `vw_cap`**; Valquo's long-short is **+20.4%/yr** — a
+    factor of six, on a different instrument (capped value-weighted broad factors vs an
+    equal-weighted concentrated decile book). **X8 establishes that the premia are real and
+    general; X4 says the margin over what a user can buy is not demonstrable since 2014.**
+    Together: strong evidence for genuine factor exposure, weak evidence for implementation
+    alpha. Only 5 of 7 themes map — `insider` and `institutional` have no analogue, and they are
+    the same two X4 found have no retail ETF analogue.
+  * **LICENCE: CC BY-NC 4.0, RESEARCH ONLY.** It validates the model and can **never ship in the
+    product**. Data lives in `data/factors/research_only/jkp/` (2.1 MB, 17 regions × 324 months,
+    already on disk). Reproduce with `python -m scripts.jkp_replication`.
+- **WHICH SELECTION RULE PICKS A THEME TO DROP IS NOT ANSWERABLE ON THIS PANEL, AND THE TEST WAS
+  DELIBERATELY NOT RUN (2026-08-07, session 8). This is a result, not a skipped task.** Session 7
+  ended by nominating a pre-registered test of the *selection rule* (the decide-half argmax picked
+  `momentum` and `capital_discipline`, both of which flip sign across halves, while `quality` —
+  stable on both halves — was never selected). The answerability question was settled **before**
+  anything was run, on the already-published session-7 arm table, so it cost **zero trials**:
+  * **A three-block design on 69 dates gives 22-date blocks, and the noise on a 22-date block is
+    σ = 1.57pp against a pre-committed margin of 1.00pp.** Pure noise clears that margin **26.1%**
+    of the time; power under the record's own best estimates is **50.6%** — a coin flip in both
+    directions. A positive result and a negative result would have been equally uninterpretable.
+  * **THE DESIGN CANNOT SEPARATE THE TWO RULES EVEN IN PRINCIPLE.** Monte Carlo over the design:
+    the stability rule and the incumbent argmax rule **select the same arm 90% of the time** and
+    reach a **different verdict on only 5.1% of panels**. The experiment is not merely
+    underpowered — it is the wrong shape, because "which rule is better" is a property of the
+    distribution over panels and one panel yields one draw.
+  * **THE DECISIVE FACT, and it needs no variance estimate: with one panel the paired sign test
+    has n = 1, whose smallest achievable p-value is 0.50. No threshold reaches significance, so
+    no possible outcome could have been quotable.**
+  * **DECLINING KEPT THE DENOMINATOR: equity `N` stays 116** (Deflated Sharpe **0.8674**,
+    √(2·ln 116) = **3.083**). Running the 7-arm sweep would have made it 123 → DSR 0.8609,
+    √(2·ln 123) = 3.102, purchasing a coin flip with a real haircut. **Not running a test that
+    cannot resolve is the cheaper action, not the lazier one.**
+  * **~~IT IS ANSWERABLE ON X8's DATA~~ — VOID, REFUTED BY MEASUREMENT 2026-08-07 (session 9).
+    THE WORD "INDEPENDENT" WAS AN ASSUMPTION AND IT IS FALSE.** This bullet used to say "16
+    held-out countries give 16 independent draws instead of 1; a paired sign test then reaches
+    α 3.84% at ≥12/16, with 80% power…". Session 9 built the gate and measured it: see the
+    next bullet. **Every number in that sentence is void — the 3.84%, the 80% and the 8.5%.**
+- **16 CO-MOVING COUNTRIES ARE WORTH 2 TO 4 INDEPENDENT DRAWS, NOT 16 — SO A "REPLICATES IN N
+  COUNTRIES" COUNT IS WORTH FAR LESS THAN ITS N SUGGESTS (2026-08-07, session 9, SELRULE).**
+  The cross-country selection-rule test session 8 pre-registered was executed in full. The
+  clustering gate (`valuation/edge/cross_country.py`) was built, tested and committed BEFORE the
+  measure set was touched; it re-points X7's design-effect-vs-shuffled-null machinery so the
+  block is the MONTH and the observations inside it are the COUNTRIES, making the measured ICC
+  the average pairwise co-movement. **Two independent kills:**
+  * **THE DESIGN CANNOT RETURN A POSITIVE VERDICT AT ALL. Clustering is measurable on 10 of 10
+    arm-pairs** (design effects 3.97–8.27 against a shuffled-null p95 of ~1.13), **ρ 0.198–0.484,
+    n_eff 1.94–4.03 countries out of 16.** The calibrated critical count is **17 of 16** at the
+    pre-committed max ρ, and **even a unanimous 16/16 gives p = 0.0546** (400k draws, se 0.0004).
+    At the *median* ρ the bar is 16 of 16 — unanimity or nothing. **The rejection region is
+    empty; the design's power at α 5% is zero.**
+  * **THE PRE-REGISTERED 12/16 BAR CARRIES A TRUE α OF 28.7%, NOT 3.84% — a 7.5×
+    UNDERSTATEMENT.** Building the gate first is the only reason this session did not quote a
+    "3.84%" result that was really a 29% one. **That is what the gate is for, and any future
+    claim of the form "it replicates in N countries" must now pass it.**
+  * **SEPARATELY: `NO CONTRAST` — both rules select `size` on `usa`**, so every paired
+    difference is identically zero. Pre-registered as an outcome before the run. **Not a NULL,
+    not a tie.** Four of five arms are same-sign across both `usa` halves, so the stability
+    constraint does not bind. **HYPOTHESIS ONLY, generated on the decide set: the instability
+    that motivated this whole question (4 of 7 arms flip on Sharadar) may be a property of the
+    69-date panel's thinness, not of the selection rule** — 324 monthly observations vs 69.
+  * **X8's OWN HEADLINE IS UNAFFECTED.** X8 tests each region's premium separately with NW(12)
+    errors and never pooled countries into a count, so it never made the independence assumption
+    this refutes. **The gate constrains what is built ON TOP of X8, not X8.**
+  * **THE SELECTION-RULE QUESTION IS NOW CLOSED ON BOTH AVAILABLE DATASETS.** One panel gives
+    n = 1 (session 8); 16 co-moving countries give n_eff ≈ 2–4. That is not an engineering
+    defect — it is the amount of independent evidence that exists. **Do not re-open it without
+    new data.** Equity `N` 116 → **121** (5 arms, paid as pre-committed): **Deflated Sharpe
+    0.8628, √(2·ln 121) = 3.097.** Reproduce with
+    `python -m scripts.selection_rule_crosscountry`; `data/free_analysis/SELRULE_CROSSCOUNTRY.json`.
 - **THE COMPOSITE'S COMPLEXITY IS NOT DEMONSTRATED, AND THEME IC DOES NOT PREDICT WHICH THEME
   MATTERS (2026-08-06, session 6, X3 RE-RUN). The 2026-08-03 "EARNS ITS COMPLEXITY" verdict is
   VOID — it ran on the pre-B6 110-date panel and against a 1.0pp bar that sits BELOW X7's

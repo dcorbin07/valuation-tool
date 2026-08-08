@@ -44,6 +44,28 @@ MIN_TERMINAL_SPREAD = 0.030
 # more than N x its terminal free cash flow".
 MAX_TERMINAL_MULTIPLE = None
 
+# --------------------------------------------------------------------------- #
+# REINVESTMENT FLOOR. See HANDOFF_live_data_bugs.md Part 8.
+#
+# Reinvestment is modelled as `delta revenue / sales_to_capital` — GROWTH CAPITAL ONLY. That is
+# the standard Damodaran formulation and it is right when capital needs scale with growth. It
+# collapses when revenue is flat: a capex-heavy company that must spend billions simply to stand
+# still is charged almost nothing, and a SHRINKING one is credited cash it never releases
+# (XOM −17,131, TTE −12,778 against real positive net capital spend).
+#
+# The floor charges at least the company's own observed net capital spend, scaled with revenue:
+#     floor_t = w_t * (capex − D&A) * rev_t / rev_0
+# GATED ON `capex − D&A > 0`, which is what makes a control group exist: a name with capex <= D&A,
+# or missing either input, never enters this path and is bit-identical by construction.
+#
+#   "off"        — the pre-Part-8 behaviour.
+#   "decay"      — ARM A: w_t fades linearly 1 -> 0 across the forecast; terminal UNTOUCHED.
+#   "persistent" — ARM B: w_t = 1 throughout, and the terminal charge is floored too.
+#
+# The terminal is the whole question: the worst-undercharged names carry 80%+ of EV there, so an
+# arm that stops at the explicit forecast cannot fix most of the problem by construction.
+REINVESTMENT_FLOOR_MODE = "off"
+
 
 def _terminal_roic(cd: CompanyData, wacc: float) -> float:
     """Terminal return on invested capital. Defaults to a slim moat over WACC,
@@ -87,8 +109,26 @@ class DCFResult:
         return d
 
 
+def _net_capex_floor(cd: CompanyData, a: AssumptionSet):
+    """`(nc, rev_0)` when the reinvestment floor applies to this name, else `(None, None)`.
+
+    THE GATE IS THE CONTROL GROUP. `capex <= D&A`, or either input missing, returns None and the
+    caller's arithmetic is untouched — bit-identical by construction rather than by tolerance.
+    """
+    if REINVESTMENT_FLOOR_MODE == "off":
+        return None, None
+    if cd.capex is None or cd.da is None:
+        return None, None
+    nc = cd.capex - cd.da
+    rev0 = a.base_revenue
+    if nc <= 0 or not rev0 or rev0 <= 0:
+        return None, None
+    return nc, rev0
+
+
 def _project(cd: CompanyData, a: AssumptionSet, wacc: float, troic: float, collect_rows: bool):
     """Shared projection core. Returns (per_share, ev, pv_explicit, pv_tv, tv, rows)."""
+    nc, rev0_floor = _net_capex_floor(cd, a)
     rev_prev = a.base_revenue
     nol = 0.0
     pv_explicit = 0.0
@@ -112,6 +152,13 @@ def _project(cd: CompanyData, a: AssumptionSet, wacc: float, troic: float, colle
 
         d_rev = rev - rev_prev
         reinvest = d_rev / a.sales_to_capital if a.sales_to_capital else 0.0
+        if nc is not None:
+            # Arm A fades the floor out as growth normalises; Arm B holds it.
+            if REINVESTMENT_FLOOR_MODE == "decay":
+                w = (a.n_years - t) / (a.n_years - 1) if a.n_years > 1 else 1.0
+            else:
+                w = 1.0
+            reinvest = max(reinvest, w * nc * rev / rev0_floor)
         fcff = nopat - reinvest
 
         disc = 1.0 / (1.0 + wacc) ** t
@@ -138,7 +185,18 @@ def _project(cd: CompanyData, a: AssumptionSet, wacc: float, troic: float, colle
     ebit_next = last_rev * (1 + g_term) * term_margin
     nopat_next = ebit_next * (1 - a.tax_rate)
     reinvest_rate_term = min(0.9, g_term / troic) if troic > 0 else 0.0
-    fcff_term = nopat_next * (1 - reinvest_rate_term)
+    if nc is not None and REINVESTMENT_FLOOR_MODE == "persistent":
+        # ARM B ONLY. Without this the fix stops at the explicit forecast, and the worst-
+        # undercharged names carry 80%+ of their EV in the terminal — so leaving it out fixes
+        # a fraction of the problem while looking like a fix.
+        # The untouched branch keeps its ORIGINAL expression verbatim: rewriting
+        # `nopat*(1-r)` as `nopat - nopat*r` differs in the last ulp and would move every
+        # name in the control group for no reason.
+        rev_term = last_rev * (1 + g_term)
+        fcff_term = nopat_next - max(nopat_next * reinvest_rate_term,
+                                     nc * rev_term / rev0_floor)
+    else:
+        fcff_term = nopat_next * (1 - reinvest_rate_term)
     tv = fcff_term / denom
     if MAX_TERMINAL_MULTIPLE is not None and fcff_term > 0:
         tv = min(tv, MAX_TERMINAL_MULTIPLE * fcff_term)

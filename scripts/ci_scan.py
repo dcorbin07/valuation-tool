@@ -81,9 +81,16 @@ def run_hot() -> None:
     scope = os.environ.get("SCAN_SCOPE", "whole_market")
     limit = int(os.environ.get("SCAN_LIMIT", "1500"))
     dcf_top = int(os.environ.get("SCAN_DCF_TOP", "12"))
-    print(f"Running hot scan: scope={scope} limit={limit} dcf_top={dcf_top}")
+    # Every name the PUBLIC list can serve gets asked whether the model refuses it. The web
+    # tier caps `/api/hotstocks` at 500, so 500 is the whole exposed surface. Measured cost:
+    # 387 names in 3.0 min at 6 workers. Set SCAN_REFUSAL_SCREEN=0 to turn it off if the
+    # upstream feed is having a bad day — the scan still completes, it just publishes
+    # unchecked peer estimates again, which is the pre-2026-08-07 behaviour.
+    refusal_screen = int(os.environ.get("SCAN_REFUSAL_SCREEN", "500"))
+    print(f"Running hot scan: scope={scope} limit={limit} dcf_top={dcf_top} "
+          f"refusal_screen={refusal_screen}")
     res = run_scan(scope=scope, limit=limit, cfg=CONFIG, store=_tmp_store(),
-                   run_dcf_top=dcf_top, save=True)
+                   run_dcf_top=dcf_top, save=True, refusal_screen=refusal_screen)
     rows = res.get("rows") or []
     print(f"  scored {len(rows)} names from a universe of {res.get('universe_size')}")
     h = res.get("health") or {}
@@ -95,6 +102,10 @@ def run_hot() -> None:
               + (f" of {b['max_calls']}" if b.get("max_calls") else " (uncapped)")
               + (f", {b['names_skipped_over_budget']} names skipped over budget"
                  if b.get("names_skipped_over_budget") else ""))
+    if h.get("refusal_screen"):
+        rs = h["refusal_screen"]
+        print(f"  refusal screen: asked {rs.get('screened')} names, "
+              f"{rs.get('refused')} refused" + (f" ({rs['note']})" if rs.get("note") else ""))
     if h.get("display_coverage"):
         print(f"  display coverage: {h['display_coverage']}")
     if not rows:

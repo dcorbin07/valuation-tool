@@ -65,7 +65,9 @@ def main():
         import sys
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
         from valuation.edge.theta_bulk import (LEGACY_MAX_DTE, MAX_DTE,
-                                               alias_overlap_conflicts, depth_report)
+                                               alias_overlap_conflicts,
+                                               collapsed_year_suspects, depth_report,
+                                               reused_ticker_suspects)
         rep = depth_report()
         print(f"DEPTH   {rep['by_depth']} symbol-years by DTE ceiling; "
               f"{len(rep['names_fully_deep'])} names fully at {MAX_DTE}, "
@@ -87,6 +89,24 @@ def main():
         if conflicts:
             print("        *** AN ALIAS OVERLAPS ITS SUCCESSOR. That is how ~1.00M rows of "
                   "AT&T were cached under WBD. Investigate before trusting those names. ***")
+        # REUSED TICKERS. Neither check above can see these: no alias is involved, and no
+        # alias could fix them either -- a fallback only fires on an EMPTY span, and a ticker
+        # that changed hands answers with the new holder's chains instead of nothing.
+        reused = reused_ticker_suspects()
+        collapsed = collapsed_year_suspects()
+        hole_bits = ", ".join(f"{k} {v['hole']}" for k, v in sorted(reused.items()))
+        coll_bits = ", ".join(f"{k} {[x['year'] for x in v]}"
+                              for k, v in sorted(collapsed.items()))
+        print(f"REUSE   {len(reused)} name(s) with an interior hole"
+              + (f" ({hole_bits})" if hole_bits else "")
+              + f"; {len(collapsed)} with a collapsed year"
+              + (f" ({coll_bits})" if coll_bits else ""))
+        if reused or collapsed:
+            print("        Both are SCREENS, not verdicts -- a hole can be an outage and a "
+                  "thin year can be real. Confirm by strike range, which tracks the "
+                  "underlying's price level: COR steps 103 -> 195 across its hole (CoreSite "
+                  "Realty -> Cencora) and META-2021 holds a $15 name at 9,398 rows between "
+                  "years of 247k and 172k at strikes 130-350.")
     except Exception as e:                                               # noqa: BLE001
         print(f"DEPTH   unavailable ({type(e).__name__}: {e})")
 

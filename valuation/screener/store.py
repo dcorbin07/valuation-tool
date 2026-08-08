@@ -31,11 +31,20 @@ CREATE TABLE IF NOT EXISTS fundamentals (
 );
 
 -- A dated scan: one row = one ticker's factors + composite on that scan date.
+--
+-- `fair_value_withheld` / `..._reason` are NOT decoration. A blank `fair_value` means "no DCF
+-- computed yet" and invites `estimate_fair_values` to substitute a peer estimate; a RECORDED
+-- REFUSAL means the model declined and must be honoured. Before these columns existed the
+-- scan recorded the refusal correctly and this INSERT dropped it, so the public hot list
+-- published a number the valuation page refused. Reproduced on the real 399-row production
+-- snapshot: refusing rank-1 STT and serving it through the round trip republished
+-- $386.68083192601813 as "blended".
 CREATE TABLE IF NOT EXISTS snapshot_rows (
     scan_date TEXT, ticker TEXT, name TEXT, sector TEXT, bucket TEXT,
     price REAL, market_cap REAL, hot_score REAL, composite REAL, rank INTEGER,
     z_value REAL, z_quality REAL, z_growth REAL, z_momentum REAL, z_insider REAL,
     fair_value REAL, upside REAL, extra TEXT,
+    fair_value_withheld INTEGER, fair_value_withheld_reason TEXT,
     PRIMARY KEY (scan_date, ticker)
 );
 
@@ -91,6 +100,18 @@ class Store:
             for _col, _decl in (("last_seen_date", "TEXT"), ("last_price", "REAL")):
                 if _col not in _pcols:
                     c.execute(f"ALTER TABLE positions ADD COLUMN {_col} {_decl}")
+            # Migration: carry a recorded fair-value REFUSAL through the snapshot. A database
+            # created before these columns existed simply has no opinion about which of its
+            # rows were refused, so a missing column reads as NOT withheld — i.e. exactly the
+            # behaviour that database already had. The alternative (unknown => withheld) would
+            # blank fair values across the stored history on no evidence. The consequence is
+            # honest and worth stating: an ALREADY-STORED snapshot keeps leaking until the next
+            # scan overwrites its date. Scans run daily, so that is one scan, not a backfill.
+            _scols = {r[1] for r in c.execute("PRAGMA table_info(snapshot_rows)").fetchall()}
+            for _col, _decl in (("fair_value_withheld", "INTEGER"),
+                                ("fair_value_withheld_reason", "TEXT")):
+                if _col not in _scols:
+                    c.execute(f"ALTER TABLE snapshot_rows ADD COLUMN {_col} {_decl}")
             # Self-learning audit log + adopted factor weights.
             c.execute("""CREATE TABLE IF NOT EXISTS learned_config (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT, bucket TEXT,
@@ -208,18 +229,24 @@ class Store:
 
     # ---- snapshots ----
     def save_snapshot(self, scan_date, rows, provider="", params=None):
+        # Key names come from the publication module rather than being restated here, so the
+        # scan, the database and the web surface cannot drift to different spellings of the
+        # same decision.
+        from ..engine.publication import ROW_WITHHELD, ROW_WITHHELD_REASON
         with self._conn() as c:
             c.execute("DELETE FROM snapshot_rows WHERE scan_date=?", (scan_date,))
             for r in rows:
                 c.execute("""INSERT OR REPLACE INTO snapshot_rows
                     (scan_date,ticker,name,sector,bucket,price,market_cap,hot_score,composite,rank,
-                     z_value,z_quality,z_growth,z_momentum,z_insider,fair_value,upside,extra)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                     z_value,z_quality,z_growth,z_momentum,z_insider,fair_value,upside,extra,
+                     fair_value_withheld,fair_value_withheld_reason)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (scan_date, r["ticker"], r.get("name"), r.get("sector"), r.get("bucket"),
                      r.get("price"), r.get("market_cap"), r.get("hot_score"), r.get("composite"),
                      r.get("rank"), r.get("z_value"), r.get("z_quality"), r.get("z_growth"),
                      r.get("z_momentum"), r.get("z_insider"), r.get("fair_value"), r.get("upside"),
-                     json.dumps(r.get("extra", {}))))
+                     json.dumps(r.get("extra", {})),
+                     1 if r.get(ROW_WITHHELD) else None, r.get(ROW_WITHHELD_REASON)))
             c.execute("INSERT OR REPLACE INTO scans VALUES (?,?,?,?,?,?)",
                       (scan_date, (params or {}).get("universe_size"), len(rows), provider,
                        json.dumps(params or {}), _dt.datetime.utcnow().isoformat()))
@@ -236,6 +263,7 @@ class Store:
         q = "SELECT * FROM snapshot_rows WHERE scan_date=? ORDER BY rank ASC"
         if top:
             q += f" LIMIT {int(top)}"
+        from ..engine.publication import ROW_WITHHELD, ROW_WITHHELD_REASON
         with self._conn() as c:
             rows = [dict(r) for r in c.execute(q, (scan_date,)).fetchall()]
         for r in rows:
@@ -243,6 +271,19 @@ class Store:
                 r["extra"] = json.loads(r["extra"]) if r.get("extra") else {}
             except Exception:
                 r["extra"] = {}
+            # SQLite hands back 0/1/NULL; downstream reads a BOOL. A row that was never
+            # refused comes back with NEITHER key present, so it is indistinguishable from a
+            # row written before these columns existed — that is what keeps the 398 unrefused
+            # rows bit-identical. Dropping the reason key (rather than leaving it None) also
+            # matters: `withhold_implausible_fair_values` uses `setdefault`, which would keep
+            # a present-but-None reason and blank a cell without saying why.
+            if r.get(ROW_WITHHELD):
+                r[ROW_WITHHELD] = True
+                if not r.get(ROW_WITHHELD_REASON):
+                    r.pop(ROW_WITHHELD_REASON, None)
+            else:
+                r.pop(ROW_WITHHELD, None)
+                r.pop(ROW_WITHHELD_REASON, None)
         return rows
 
     def list_scans(self):

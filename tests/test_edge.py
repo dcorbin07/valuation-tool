@@ -4418,6 +4418,31 @@ def test_audit_c7_every_test_suite_gates_the_auto_merge():
     assert "exit $fail" in wf, "one red suite must not be hidden by a later green one"
 
 
+def test_session8_a_landed_verdict_reaches_the_file_every_lane_reads():
+    """Session 8. X8 -- the international replication, the strongest external evidence this
+    project has -- passed on 2026-08-04, was written up in `HANDOFF_free_analysis.md` and marked
+    DONE in the ledger, and `CLAUDE.md` still contained the words "JKP" and "Japan" ZERO times
+    three days later. Two consecutive sessions then treated a passed test as pending work, and
+    session 8's own prompt asked for it to be "scoped".
+
+    `CLAUDE.md` is the only file every lane reads. A verdict that lands solely in one lane's
+    handoff is invisible to the others, which is a memory-architecture defect and not a clerical
+    slip -- the same class as the mislabelled theme-IC table and the stale rendered results file.
+    This pins the repair so it cannot silently regress, and it deliberately checks for the
+    CAVEATS too: a bullet that quotes only the wins would be the overselling CLAUDE.md forbids."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    brief = open(os.path.join(root, "CLAUDE.md"), encoding="utf-8").read()
+    for token in ("JKP", "Japan"):
+        assert token in brief, f"CLAUDE.md must record X8's result; {token!r} missing"
+    # the result itself
+    assert "t 3.85" in brief and "t 4.30" in brief, "X8's Japan/Europe t-stats must be quoted"
+    # and the three things that stop it being oversold
+    assert "weakest region" in brief.lower(), "the US control is the point of X8; keep it"
+    assert "does not corroborate" in brief.lower() and "magnitude" in brief.lower(), \
+        "X8 corroborates the premia, NOT Valquo's magnitude -- that caveat must travel"
+    assert "RESEARCH ONLY" in brief, "JKP is CC BY-NC 4.0; it can never ship in the product"
+
+
 
 def test_audit_b7_the_live_path_and_the_backtest_path_score_identically():
     """B7, the test the audit asked for by name. THREE composite functions existed and did not
@@ -4905,6 +4930,114 @@ def test_alias_sourced_rows_record_which_symbol_supplied_them():
         tb._fetch_year = _own
         assert tb.ensure_year("WBD", 2023) is True
         assert not os.path.exists(TB.year_path("WBD", 2023, tmp) + ".alias")
+
+
+def test_a_ticker_that_changed_hands_is_reported_even_though_no_alias_is_involved():
+    """`COR` holds two companies: CoreSite Realty until its 2021 acquisition, then Cencora from
+    2023-08. No alias produced that -- the miner asked the feed for "COR" each year and the feed
+    answered for whoever held the ticker -- so `alias_overlap_conflicts()` is blind to the whole
+    class and a separate screen is needed.
+
+    The interior `.empty` is the load-bearing part. Everywhere else `.empty` means the year is
+    COVERED, and treating it that way here would skip the one name this exists to catch: COR
+    2022 is empty precisely BECAUSE the ticker belonged to nobody that year."""
+    import os
+    import tempfile
+
+    from valuation.edge import theta_bulk as TB
+
+    with tempfile.TemporaryDirectory() as tmp:
+        def touch(sym, year, suffix=""):
+            p = TB.year_path(sym, year, tmp) + suffix
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            open(p, "wb").write(b"x")
+
+        # COR: CoreSite through 2021, nothing in 2022, Cencora from 2023.
+        for y in (2016, 2017, 2018, 2019, 2020, 2021, 2023, 2024, 2025):
+            touch("COR", y)
+        touch("COR", 2022, ".empty")
+        # A clean name with an unbroken run, and one that merely STARTS late (not a handover).
+        for y in range(2016, 2026):
+            touch("AAPL", y)
+        for y in (2021, 2022, 2023, 2024, 2025):
+            touch("RIVN", y)
+        touch("RIVN", 2016, ".empty")          # leading empty: pre-IPO, genuinely covered
+
+        found = TB.reused_ticker_suspects(root=tmp)
+        assert "COR" in found, "an interior hole must be reported even when marked .empty"
+        assert found["COR"]["hole"] == [2022]
+        assert found["COR"]["empty_marked"] == [2022]
+        assert "AAPL" not in found, "an unbroken history is not a suspect"
+        assert "RIVN" not in found, "a late listing is not a handover"
+
+
+def test_a_handover_with_no_gap_year_is_caught_by_the_collapse_screen():
+    """The hole screen cannot see a ticker that changes hands MID-YEAR, because the year is
+    then present, well-formed and wrong rather than absent.
+
+    `META` is the live case and it is a top-ten name. The alias supplies 2016-2020 from `FB`
+    correctly, but through the back half of 2021 the `META` ticker belonged to a ~$15 company
+    and the feed answered with its chains: 9,398 rows between years of 247,139 and 171,788.
+    Facebook's real 2021 was never fetched, and no alias table can fix that -- a fallback only
+    fires on an EMPTY span, and this span was not empty."""
+    import os
+    import tempfile
+
+    from valuation.edge import theta_bulk as TB
+
+    with tempfile.TemporaryDirectory() as tmp:
+        def write(sym, year, nbytes):
+            p = TB.year_path(sym, year, tmp)
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "wb") as f:
+                f.write(b"x" * nbytes)
+
+        for y, mb in ((2019, 9.14), (2020, 11.62), (2021, 0.44), (2022, 8.08), (2023, 17.52)):
+            write("META", y, int(mb * 1_000_000))
+        # A name that simply GROWS steadily must not trip the screen.
+        for y, mb in ((2019, 2.0), (2020, 4.0), (2021, 8.0), (2022, 16.0), (2023, 32.0)):
+            write("NVDA", y, int(mb * 1_000_000))
+
+        found = TB.collapsed_year_suspects(root=tmp)
+        assert "META" in found, "a year far smaller than both neighbours must be reported"
+        assert [x["year"] for x in found["META"]] == [2021]
+        assert "NVDA" not in found, "steady growth is not a collapse"
+
+
+def test_a_year_that_recovers_drops_its_failure_marker():
+    """A `.missing` beside a complete pickle is a lie about the year next to it.
+
+    Five names (CMG, DHI, FNV, MCD, RKLB) carried a `.missing` for 2022 while holding a full
+    2022 frame -- markers left by an attempt that later succeeded. That inflated the apparent
+    May-2022 damage ~5x and, worse, `ensure_year` reads the attempt count back out of that
+    file, so the next genuine failure starts partway to MAX_MISSING_ATTEMPTS and can be retired
+    to `.exhausted` for failures the year had already recovered from."""
+    import os
+    import tempfile
+
+    import pandas as pd
+
+    from valuation.edge import theta_bulk as TB
+
+    frame = pd.DataFrame({"expiration": [dt.date(2022, 6, 17)], "strike": [50.0],
+                          "right": ["C"], "date": [dt.date(2022, 5, 16)], "bid": [1.0],
+                          "ask": [1.1], "volume": [7], "open_interest": [11]})
+    with tempfile.TemporaryDirectory() as tmp:
+        tb = TB.ThetaBulk(api_key="x", root=tmp)
+        path = TB.year_path("AGI", 2022, tmp)
+
+        # The failing run: a span broke, so the year is refused and marked.
+        tb._fetch_year = lambda s, y: (frame, True)
+        assert tb.ensure_year("AGI", 2022) is False
+        assert os.path.exists(path + ".missing"), "a failed year must be recorded"
+        assert not os.path.exists(path), "a partial year is never cached as complete"
+
+        # The retry run: the source is healthy again and the year completes.
+        tb._fetch_year = lambda s, y: (frame, False)
+        assert tb.ensure_year("AGI", 2022) is True
+        assert os.path.exists(path), "the recovered year must be cached"
+        assert not os.path.exists(path + ".missing"), \
+            "a recovered year must not keep a marker contradicting the pickle beside it"
 
 
 def test_probe_year_walks_forward_instead_of_burying_names_that_listed_later():
@@ -5913,6 +6046,95 @@ def test_loo_arms_drop_a_theme_and_renormalise_rather_than_leaving_a_hole():
     rest = L.flat([c for c in cols if c != "b"])
     assert abs(sum(rest.values()) - 1.0) < 1e-12, "the arm does not renormalise"
     assert "b" not in rest and all(abs(v - 1 / 3) < 1e-12 for v in rest.values())
+
+def _cc_panel(n_countries, n_dates, rho, seed):
+    """A month-by-country panel with a known common-factor correlation."""
+    import random as _r
+    rnd = _r.Random(seed)
+    a, b = rho ** 0.5, (1.0 - rho) ** 0.5
+    out = {f"c{j}": {} for j in range(n_countries)}
+    for i in range(n_dates):
+        f = rnd.gauss(0, 1)
+        for j in range(n_countries):
+            out[f"c{j}"][i] = a * f + b * rnd.gauss(0, 1)
+    return out
+
+
+def test_session9_the_country_gate_reproduces_the_exact_binomial_at_zero_correlation():
+    """The simulated bar generalises the arithmetic; at rho=0 it must REPRODUCE it.
+
+    12 of 16 is the pre-registered threshold and its exact one-sided alpha is 3.84%. If the
+    simulation drifted off that, every calibrated threshold it produced would be unquotable.
+    """
+    from valuation.edge import cross_country as CC
+    assert abs(CC.exact_binomial_tail(12, 16) - 0.038406) < 1e-5, "12/16 is not 3.84%"
+    assert abs(CC.exact_binomial_tail(11, 16) - 0.105057) < 1e-5, "11/16 is not 10.5%"
+    r = CC.sign_test_critical(16, rho=0.0, alpha=0.05, draws=40000, seed=7)
+    assert r["critical_k"] == 12, f"rho=0 must give the binomial k=12, got {r['critical_k']}"
+    assert abs(r["achieved_alpha"] - 0.038406) < 0.006, r["achieved_alpha"]
+
+
+def test_session9_a_raw_country_design_effect_is_not_evidence_of_clustering():
+    """R3's lesson, one dimension over: independent countries still produce deff > 1 from pure
+    ANOVA sampling noise. The gate must call that NOT measurable, or it manufactures a
+    correction out of nothing."""
+    from valuation.edge import cross_country as CC
+    res = CC.country_design_effect(_cc_panel(16, 324, 0.0, seed=3), null_draws=200, seed=1)
+    assert res["ok"], res
+    assert res["clustering_measurable"] is False, \
+        f"independent countries flagged as clustered: deff {res['design_effect']:.3f} " \
+        f"vs null p95 {res['design_effect_null_p95']:.3f}"
+    assert res["n_eff_countries"] <= res["n_countries"] + 1e-9, "n_eff exceeded n"
+
+
+def test_session9_the_country_gate_detects_real_co_movement_and_both_estimators_agree():
+    from valuation.edge import cross_country as CC
+    res = CC.country_design_effect(_cc_panel(16, 324, 0.30, seed=5), null_draws=200, seed=1)
+    assert res["ok"] and res["clustering_measurable"] is True, res
+    assert abs(res["rho"] - 0.30) < 0.06, f"rho {res['rho']:.3f} off the planted 0.30"
+    assert abs(res["mean_pairwise_corr"] - res["rho"]) < 0.05, \
+        "the ANOVA and the mean-pairwise estimators disagree; quote neither"
+    assert res["n_eff_countries"] < 6.0, res["n_eff_countries"]
+
+
+def test_session9_an_arm_pair_difference_is_a_scaled_two_theme_spread():
+    """Δ_a − Δ_b == (x_b − x_a)/4 identically, where Δ_a drops theme a from a 5-theme mean.
+
+    This is why the measured cross-country co-movement is credible rather than an artefact of
+    how the arms were built: the object whose correlation the gate measures is nothing more
+    exotic than a scaled difference of two theme returns, and value-minus-momentum spreads are
+    famously correlated across developed markets. Pinned because the whole SELRULE calibration
+    rests on the identity being exactly this and not approximately it.
+    """
+    import random as _r
+    from scripts.selection_rule_crosscountry import arm_deltas
+    try:
+        import pandas as pd
+    except ImportError:
+        return
+    rnd = _r.Random(4)
+    cols = ["investment", "momentum", "quality", "size", "value"]
+    df = pd.DataFrame({c: [rnd.gauss(0, 0.03) for _ in range(60)] for c in cols})
+    d = arm_deltas(df)
+    worst = 0.0
+    for a in cols:
+        for b in cols:
+            if a >= b:
+                continue
+            lhs = (df[b] - df[a]) / 4.0
+            worst = max(worst, max(abs(lhs[k] - (d[a][k] - d[b][k])) for k in d[a]))
+    assert worst < 1e-12, f"arm-pair difference is not (x_b - x_a)/4; max error {worst:.2e}"
+
+
+def test_session9_clustering_can_only_raise_the_bar_never_lower_it():
+    """A correlated null piles probability into the tails, so the critical count must rise with
+    rho. A gate that could LOWER the bar would be a licence, not a correction."""
+    from valuation.edge import cross_country as CC
+    ks = [CC.sign_test_critical(16, rho=r, alpha=0.05, draws=20000, seed=11)["critical_k"]
+          for r in (0.0, 0.10, 0.30, 0.60)]
+    assert ks == sorted(ks), f"critical k not monotone in rho: {ks}"
+    assert ks[-1] > ks[0], f"co-movement left the bar unchanged: {ks}"
+
 
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
