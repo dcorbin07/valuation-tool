@@ -16,6 +16,62 @@ file directly.
 > PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
 > per-finding status in `CODE_AUDIT.md`.
 
+
+---
+
+## 2026-08-08 — OPTIONS LANE: O1 + O23, the exits tested against random entries (REJECTED / NULL)
+
+Register `PREREG_o1_o23_exits.md` committed at `dc2c486` before any policy was scored.
+Full write-up in `HANDOFF_optionsbot.md`.
+
+**O1 — the exit sweep: REJECTED. Nothing beats the inherited +100%/-50%/half-DTE exit.**
+21 policies x {3,885 alert entries, 29,785 random entries over FIVE pooled seeds}. PBO 0.000 on
+both sets; the held-out chooser survives in both directions on both sets; no policy clears the
+pre-registered gate.
+
+* **`tp100_only` clears the 10pp expectancy bar (+10.78pp signal, +17.86pp random) and FAILS the
+  statistic that carries the verdict** — paired name-year sign z **-5.76**, winning **41.7% of
+  1,217 decided cells**, median cell **-5.79pp**. It works by turning total losses from **1.39%
+  of trades into 46.87%** while letting winners run (hold 14.5d -> 42.6d). The pre-registered
+  direction rule assigned it p=1.0 rather than a small p, which is the guard firing as designed.
+  On RANDOM entries the same rule genuinely wins (64.5% of cells, z +10.55, stable across all
+  five seeds), so it is CONTROL-ONLY, not an exit effect.
+* **What is BROAD is SMALL: `tp150`/`tp200` are FDR discoveries with positive sign tests on BOTH
+  entry sets, worth only +3.19pp and +3.82pp.** `sl30` is the exact mirror — wins 69.9% of decided
+  cells while LOSING 3.11pp. Mean and median disagree systematically on this payoff.
+
+**O23 — exits vs the underlying: NULL, set-dependent.** Signal pooled R2 **0.53304**
+CI95 [0.48564, 0.58428] (point clears 0.50, lower bound does not); random **0.55737**
+CI95 [0.53112, 0.61686] clears as UNDERLYING-DRIVEN. Sets disagree, so the register downgrades to
+NULL. **The pooled fit understates the per-policy picture** (slopes 6.36-17.45; per-policy median
+R2 ~0.70, 17 of 20 above 0.50). Independent Greek attribution agrees: delta **50.70%**, gamma
+15.57%, theta 14.07%, vega 13.25%, residual 6.41% of absolute mark movement — and the signed means
+say it plainly, **gamma +0.85 and theta -0.77 nearly cancel, leaving delta +0.46**.
+
+**THE FREEZE HELD AND IS NOW PROVEN SUFFICIENT.** First research to run entirely off it, with no
+live-store fallback: 3,885/3,885 and 29,785/29,785 contract histories served from the frozen copy,
+fingerprints 2,987/2,987 clean, and the shipped policy replayed from frozen bytes reproduces the
+banked book at **100.000%** under honest settlement. It also independently reproduces R2's
+published headline — **real +3.41%/trade vs control +10.06%**, control per-seed range **+6.46% to
++15.34%** — numbers the freeze did not write.
+
+**BUG FOUND AND REPAIRED (`4170ad9`): `options_exitlab.capture_path` was never moved to audit
+B2's exit tolerance.** It kept the strict entry filter, so wide-spread and thin-premium days were
+DELETED from every trade's exit path and losers decayed through the -50% stop unstopped. Replay
+fidelity **86.950% -> 99.820%** on one line. The drift hypothesis was tested first and refuted
+(untouched 86.5% vs re-mined 88.7%) before the code was touched. **Consequence: the 2026-08-03
+exit lab scored all 21 policies on paths with days missing, and the bias lands hardest on
+stop-based rules — an independent reason its REJECT is not transferable.**
+
+**Trials: options 169 -> 192** (O1 n=21, O23 n=2). **Equity `N` unchanged at 129, so no equity
+claim moves** (Deflated Sharpe 0.8556). `rows_malformed: []`.
+
+**For Don, in one line:** you win 35.3% of trades and 86.8% of your gains come from trades that
+doubled; we tested 21 ways out against your alerts and against 29,785 random entries, and nothing
+beat the exit you already have — about half of what any exit rule gains or loses is just the stock
+moving, and the convexity you buy by holding longer is almost exactly cancelled by the decay you
+pay for it.
+
 ---
 
 ## ENGINE — CONFIDENCE NOW KNOWS WHAT THE VALUATION IS MADE OF (2026-08-08, greeks/engine lane)

@@ -2315,3 +2315,285 @@ more widely across the store than the real book's clustered ones.
 
 **Total freeze footprint on disk: 23.3 MB + 168.9 MB = 192.2 MB, against a 26.98 GB store —
 0.71%.** The whole defended set costs under three quarters of one percent of what it defends.
+
+---
+
+# 2026-08-08 — O1 + O23: do the exits carry anything, tested against random entries?
+
+**Register:** `PREREG_o1_o23_exits.md`, committed at **`dc2c486` before any policy was scored**.
+**Artifacts:** `data/options_exitlab/EXITLAB_FROZEN_2026-08-08.json`,
+`data/options_exitlab/O23_UNDERLYING_2026-08-08.json`.
+**Verdicts: O1 REJECTED. O23 NULL (set-dependent).**
+
+**The routed hygiene item was already done.** Session 12 asked me to escape the unescaped `|` in
+my O16 row. It was repaired last cycle at `fd36e25` (`|Spearman(...)|` → `abs(Spearman(...))`);
+measured today the parser reads **`rows_malformed: []`** across all 74 rows. No commit was needed
+and none was made — a no-op commit would have looked like work.
+
+---
+
+## 1. THE FREEZE HELD, AND THAT IS THE FIRST THING TO SAY
+
+This is the **first research to run entirely off the chain freeze**, and the register made that
+falsifiable rather than decorative: `FrozenChains` has **no fallback to the live store**, so a gap
+surfaces as a missing path instead of a silent live read.
+
+| gate | signal (R2 book) | random (5 control seeds) |
+|---|---|---|
+| **G0a** contract histories served from the frozen copy | **3,885 / 3,885** | **29,785 / 29,785** |
+| freeze fingerprints re-verified | 1,429 / 1,429 clean | 1,558 / 1,558 clean |
+| **G0b** shipped policy vs the banked book — parity mode | **99.820%** | **99.865%** |
+| **G0b** under honest settlement | **100.000% (3,885/3,885)** | — |
+
+The 7 residuals under parity mode are **exactly the 7 `settled_at_intrinsic` trades**, which is
+the case the parity mode is *defined* to differ on. Nothing is unexplained.
+
+**And the replay reproduces R2's published headline independently, having rebuilt every path from
+frozen bytes rather than copying a number:**
+
+* R2 published **real +3.41%/trade vs control +10.06%** → replay **+3.41% vs +10.06%**.
+* R2 published a control per-seed range of **+6.46% to +15.34%** → replay **+6.46% to +15.34%**.
+
+That is the strongest evidence to date that the freeze is sufficient, and it is worth more than
+the freeze's own self-check because the target was a number the freeze did not write.
+
+---
+
+## 2. O1 — THE EXIT SWEEP. VERDICT: **REJECTED**
+
+21 policies × {3,885 alert entries, 29,785 random entries over five pooled seeds}, gate X1–X5
+imported unamended, date-block (calendar-month) bootstrap at 2,000 draws seed 0, **paired
+name-year sign test carrying the verdict** per the standing R2 rule.
+
+**No policy clears the gate. PBO 0.000 on both entry sets; the held-out chooser survives in both
+directions on both sets.**
+
+### 2.1 The one policy that clears the expectancy bar fails the statistic that decides
+
+`tp100_only` (take-profit at +100%, **no stop, no time stop**) is the only policy to clear the
+pre-committed 10pp signal bar, and on pooled expectancy it looks like the answer:
+
+| | shipped | tp100_only |
+|---|---|---|
+| expectancy / trade (signal) | +3.41% | **+14.19%** (+10.78pp) |
+| expectancy / trade (random) | +10.06% | **+27.92%** (+17.86pp) |
+| clustered CI95 on the signal gain | — | **[+6.26pp, +15.29pp]**, excludes zero |
+| both halves positive, both sets | — | yes |
+| chosen by the held-out selector | — | in **all four** directions |
+
+**And it loses in a majority of name-year cells on the alert book.** Paired sign test:
+**z −5.76**, winning **41.7% of 1,217 decided cells**, **median cell −5.79pp**. The mechanism is
+visible and it is not subtle:
+
+| | shipped | tp100_only |
+|---|---|---|
+| share of trades that are **total losses** | **1.39%** | **46.87%** |
+| median trade | −52.2% | −37.9% |
+| mean holding period | 14.5 d | **42.6 d** |
+| tail share of gross winnings | 86.8% | 92.8% |
+
+Removing the stop converts nearly half the book into zeros and pays for it with a fatter tail.
+The mean rises; the typical name-year gets worse. **The pre-registered direction rule caught it:
+`analyse` assigns p = 1.0 to any policy whose sign z is negative, so a large mean carried by a few
+trades can never enter the FDR pool as a discovery.** That guard was written before this run for
+exactly this failure mode, and this is the first time it has fired on a policy that would
+otherwise have been adopted.
+
+**On the random book the same rule genuinely works** — 64.5% of decided cells, z +10.55, median
++11.13pp, and stable across every seed (+15.9pp to +22.2pp). By the verdict-carrying statistic it
+is **CONTROL-ONLY**, not an exit effect.
+
+### 2.2 The structural finding: what is BROAD is SMALL, what is LARGE is NARROW
+
+| policy | signal gain | signal sign z | signal decided-cell win | random sign z | reading |
+|---|---|---|---|---|---|
+| `tp100_only` | **+10.78pp** | **−5.76** | 41.7% | +10.55 | big mean, loses the cells |
+| `tp150` | +3.19pp | **+7.93** | **66.2%** | **+8.09** | broad on BOTH sets, small |
+| `tp200` | +3.82pp | **+4.57** | 58.8% | **+5.12** | broad on BOTH sets, small |
+| `sl30` | **−3.11pp** | **+13.13** | **69.9%** | −3.94 | wins the cells, loses the mean |
+
+`tp150` and `tp200` — simply **raising the take-profit** — are the only policies that are FDR
+discoveries *and* positive on the sign test on *both* entry sets. They are real and they are
+small: +3.19pp and +3.82pp against a bar of 10pp that was committed before the run. `sl30` is the
+exact mirror image of `tp100_only`: it wins 69.9% of decided cells while *losing* 3.11pp of
+expectancy.
+
+**Mean and median disagree systematically on this payoff, and which exit "wins" depends entirely
+on which statistic you quote.** That is the most transferable thing in this study.
+
+### 2.3 A reporting hazard worth carrying
+
+`paired_cells` returns `win_rate` over **all** cells and `sign_z` computed over **non-tied** cells
+only. Adjacent fields, different denominators — so `tp150` reads "win_rate 0.296" beside "z
++7.93", which looks like a contradiction and is not (740 of 1,338 cells are ties, because raising
+a take-profit only matters on trades that would have hit +100%). **Every win rate in this write-up
+is the tie-excluded one and is labelled "decided-cell".** Quoting the raw `win_rate` next to the
+sign test would publish an apparent contradiction.
+
+### 2.4 The four-way label is asymmetric by inheritance — stated, not hidden
+
+The register's pattern table (both / signal-only / random-only / neither) is applied to the gate's
+own fields, and **X1(a) applies a 10pp bar to the signal set while X1(b) applies only > 0 to
+random**. So "CONTROL-ONLY" in the raw table means *"did not clear 10pp on signal"*, **not** *"hurt
+on signal"*. Recounted symmetrically: **13 of 20 policies are positive on both sets; 1 of 20
+clears 10pp on both.** The asymmetry is inherited from the 2026-08-03 gate, not introduced here,
+and the verdict does not turn on it — but the label would mislead anyone reading the table alone.
+
+---
+
+## 3. O23 — EXITS AGAINST THE UNDERLYING. VERDICT: **NULL** (set-dependent)
+
+Policies share an identical entry and differ only in exit date, so the P&L difference is
+attributable to the two exit dates alone. Regress `Δ_opt` on `Δ_und` over the same two holding
+periods, restricted to trades whose exit actually differs.
+
+| set | pairs | blocks | R² | CI95 | label |
+|---|---|---|---|---|---|
+| signal | 26,851 | 118 | **0.53304** | [0.48564, 0.58428] | **NULL** — point clears 0.50, lower bound does not |
+| random | 210,731 | 118 | **0.55737** | [0.53112, 0.61686] | **UNDERLYING-DRIVEN** |
+
+The register states the verdict on the signal book and **downgrades a disagreement to NULL**. That
+is what is recorded. A near-miss is a NULL, not a "nearly".
+
+**Reported rather than buried, because the NULL alone would mislead: the POOLED fit understates
+the per-policy relationship.** Slopes range **6.36 to 17.45** across policies, and a pooled
+regression over heterogeneous slopes loses R². Per policy on the signal book the **median R² is
+about 0.70 and 17 of 20 exceed 0.50**, from 0.4180 (`tp100_only`) to 0.7542 (`dte21`). The policy
+with the largest expectancy gain is the **least** explained by the underlying — which is what
+holding an all-or-nothing payoff to expiry does to a linear fit.
+
+### 3.1 The Greek attribution agrees by a completely different route
+
+Secondary, **carries no verdict**. Of the total *absolute* mark movement between the two exit
+dates (23,983 pairs, 2,868 skipped, r = 3%):
+
+| term | share of absolute movement | mean **signed** contribution |
+|---|---|---|
+| **delta** | **50.70%** | **+0.4617** |
+| gamma | 15.57% | **+0.8528** |
+| theta | 14.07% | **−0.7708** |
+| vega | 13.25% | +0.2376 |
+| residual (linearisation) | 6.41% | −0.2026 |
+
+Delta alone lands on the **same ~50%** the regression found, by an independent method. Delta +
+gamma is 66.3%.
+
+**The signed column is the sentence worth keeping: gamma +0.85 and theta −0.77 nearly cancel,
+leaving delta +0.46.** Holding a long call longer buys convexity and pays for it in decay at
+almost the same rate; what survives is the direction of the stock.
+
+---
+
+## 4. FOR DON — one plain paragraph, and it answers the 37/63 question
+
+You asked what the winners share and what tricks us in the losers. On the current book you win on
+**35.3% of trades** and lose on 64.7%, and **86.8% of everything you make comes from trades that
+gained 100% or more** — so the book is already a lottery-ticket book, and that is by design, not a
+fault. We tested 21 different ways of getting out, against your real alerts and against 29,785
+random entries picked on the same stocks and the same days. **Nothing beat the exit you already
+have.** The one rule that made the average much better — never stop out, just wait for a double —
+turns out to make *most* individual stock-years **worse**: it wins on 42% of them and turns 47% of
+all trades into total write-offs, versus 1% today. It works by making the lottery more extreme,
+not by picking better. Two small changes look genuinely real on both your alerts and random
+entries — taking profit at +150% or +200% instead of +100% — but they are worth about 3 points a
+trade, and we agreed in writing beforehand not to change anything for less than 10. And the deeper
+answer to "what tricks us": **about half of what any exit rule gains or loses is just the stock
+moving**, and of the option-specific part, the convexity you gain by holding longer is almost
+exactly cancelled by the time decay you pay for it. The exit is not where the money is. **The entry
+is still dead (that has not changed), and the exit is not hiding an edge behind it.**
+
+---
+
+## 5. WHAT I DID NOT DO
+
+* **Did not re-open the entry signal.** R2 stands and was not re-tested.
+* **Did not amend the 21 policies**, add one, or retune one. They are imported from the
+  2026-08-03 register unamended.
+* **Did not cite the 2026-08-03 exit lab's REJECT as corroboration.** It ran on the
+  pre-correction book, with ~2 control draws, through the pre-B2 filter repaired below. Its
+  agreement with this run is not independent and is not claimed as support.
+* **Did not run a run-scope freeze.** The freeze is trade scope, so this study can replay a
+  book's exits but cannot re-derive *which alerts fire*. O1 is an exit study and does not need
+  that; no conclusion here may be extended to entry selection.
+* **Did not freeze the underlying bars store.** O23's headline depends on it. The files consumed
+  are fingerprinted per run (`stamp_bars`), which makes the gap auditable but does not close it.
+* **Did not act on `tp150`/`tp200`.** They are the nearest thing to a positive result and they
+  are below a bar committed before the run. Promoting them now would be selecting on the results.
+* **Did not test exits on the equity book or on spreads.** Long calls only.
+
+## 6. EXPECTATIONS, SCORED
+
+* **O1: I wrote REJECT at 70/30 before the run. Correct.**
+* **O23: I wrote UNDERLYING-DRIVEN at 60/40. The verdict is NULL** — both point estimates clear
+  0.50 and the random book clears outright, but the signal book's interval straddles the bar. Call
+  it wrong: the register asks for a label and the label is NULL.
+
+One right, one wrong. The standing rule holds — do not reason about the direction of an effect in
+this project, measure it.
+
+---
+
+## BUGS FOUND
+
+**1. `options_exitlab.capture_path` was never moved to audit B2's exit tolerance. (REPAIRED,
+`4170ad9`.)** B2 moved `options_backtest.simulate_trade:367` to `F.exit_reject_reason`; the exit
+lab kept the strict `quote_reject_reason(check_liquidity=False)`, so **wide-spread and
+thin-premium days were deleted from every trade's exit path.** That is precisely the failure B2's
+own docstring describes: a bad price is not an absent one, and a loser that decays through the
+−50% stop on a wide-quote day is never stopped. Nothing caught it because nothing had ever
+replayed a *post*-B2 book through the exit lab.
+
+*Localised before it was theorised.* The drift hypothesis was tested **first and refuted** —
+untouched symbol-years matched at 86.5% against re-mined ones at 88.7%, nothing like O16's
+100%/30.5% signature — so the store was exonerated. Entry fills matched 3,885/3,885 and
+`held_days(replay) − held_days(book)` was **never negative**, which put it in the exit day-walk
+and nowhere else. One ABBV contract kept **7 of its 34** quote days. Effect: **86.950% → 99.820%**
+(100.000% honest) on one line. Three tests fail on the old line; the key one returns `time_stop`
+where the fix returns `stop`.
+
+**Consequence beyond this study: the 2026-08-03 exit lab scored all 21 policies on paths with days
+silently removed, and the bias is policy-dependent because it lands hardest on stop-based rules.**
+That is an independent reason its verdict is not transferable, found by measurement.
+
+**2. `paired_cells` reports `win_rate` and `sign_z` on different denominators.** Not a defect —
+the sign test correctly excludes ties — but the two sit adjacent in one dict and invite publishing
+"wins 29.6% of cells, z +7.93". Handled in §2.3; flagged because it is a live trap for anyone
+quoting that dict.
+
+**3. Three defects in my own new code, all found by running it.** Recorded because they were live
+long enough to have produced numbers: **(a)** the frozen frame keeps `strike` as **float32**, and
+merging on the raw float64 cast silently dropped 14 of 3,885 contracts (`140.0` →
+`140.00000762939453`); **(b)** `FrozenChains` built one DataFrame object per contract, which on an
+unfiltered freeze is 2.09M objects — measured at ~12 GB against 6.6 GB free, so it thrashed rather
+than failed; **(c)** `greek_attribution` assumed textbook units, but `options_greeks` returns vega
+per **1.00 of vol** and theta per **year**, and `implied_vol` returns an **(iv, reason) pair**. Two
+of those three would have silently rescaled a term and only the third crashed — which is the only
+reason the other two were caught. Units are now pinned against finite differences of `bs_price`
+rather than against the docstring.
+
+**4. Two of my own statistics would not have finished as written.** The register's 2,000-draw
+clustered intervals are ~4.8 billion list operations for the policy diffs, and a re-fit over
+~400k pairs per draw for the R². Both statistics depend on the data only through **additive
+per-block sums**, so both were rewritten to be O(blocks) per draw. **Pinned as exact, not merely
+faster:** point estimate and both interval endpoints match `options_stats.date_block_diff` to 12
+decimal places at the same seed and draw count.
+
+**5. Per-seed attribution cannot be keyed by trade fields.** Two seeds that draw the same ticker
+on the same day select the same contract by the same rule, so even
+`(ticker, date, strike, expiry)` collides — a key-based map put 6,820 trades in seed0 against a
+true 6,032. Recomputed by index range over the seed-ordered pooled book, which is exact because
+every path produced exactly one row per policy (625,485 = 21 × 29,785). Seed counts now reconcile
+to the manifest exactly.
+
+---
+
+## Trial accounting
+
+**Options 169 → 192** (O1 `n=21`, O23 `n=2`), charged in full: the 2026-08-03 verdict was read
+before this run, so it was not blind (O16-REFROZEN precedent). **Equity `N` unchanged at 129**, so
+**no equity claim moves** — Deflated Sharpe stays 0.8556, √(2·ln 129) stays 3.1176. Infra 4,
+total 325, `rows_malformed: []`.
+
+**Reproduce:** `python -m tests.test_options_exitreplay` for the instrument;
+the runners live in the session's job directory and read only
+`data/options_freeze/{R2_CORRECTED,R2_CONTROLS}_2026-08-08/` plus `data/bulk/prepared/bars/`.
