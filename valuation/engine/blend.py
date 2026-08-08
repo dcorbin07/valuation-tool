@@ -60,6 +60,25 @@ IMPLIED_GROWTH_REL = 1.5           # and >1.5x our own base case
 # lead with the implied-growth read and mark confidence down.
 GROWTH_LED = 0.50
 
+# --- Terminal-share bands (HANDOFF_live_data_bugs.md Part 9) --------------------------------
+# The confidence label used to describe where the DATA came from and which lens carried the
+# blend, and never what the number was MADE OF. A DCF that is 93% terminal value is a claim
+# about year 11-to-infinity wearing a ten-year model's clothes.
+#
+# A HIGH TERMINAL SHARE IS NORMAL — do not read these as defect thresholds. Measured across the
+# 201 DCF-participating names of the 241-name universe, the MEDIAN is 77.7% and p90 is 87.4%;
+# a 70% bar would flag three names in four and carry no information.
+#
+#   0.90  — just past p90, and where the histogram collapses (69 names in 80-90%, 9 in 90-100%).
+#           Under a tenth of the value then comes from the decade we actually model.
+#   1.00  — NOT a calibrated number: a sign change. TV > EV means PV(explicit forecast) < 0, so
+#           the modelled decade destroys value and the terminal pays for all of it plus the
+#           shortfall. That is a different object, not a fragile version of the same one.
+TV_SHARE_MEDIUM = 0.90
+TV_SHARE_LOW = 1.00
+
+_CONF_RANK = {"low": 0, "medium": 1, "high": 2}
+
 _LENS_LABEL = {"dcf": "DCF", "multiples": "multiples", "growth": "growth (revenue multiple)",
                "pb_roe": "P/B–ROE"}
 
@@ -78,6 +97,7 @@ class FairValueBlend:
     headline_mode: str = "point"           # "point" | "implied_growth"
     headline: str = ""                     # the sentence the UI should lead with
     confidence: str = "medium"             # high | medium | low
+    tv_share: Optional[float] = None       # DCF terminal value as a share of enterprise value
     value_low: Optional[float] = None      # bear end of the same-method range
     value_high: Optional[float] = None     # bull end
     lenses: dict = field(default_factory=dict)   # name -> {"value":…, "weight":…}
@@ -94,7 +114,8 @@ class FairValueBlend:
                 "maturity_parts": self.maturity_parts, "p_established": self.p_established,
                 "dcf_meaningful": self.dcf_meaningful, "growth_led": self.growth_led,
                 "headline_mode": self.headline_mode, "headline": self.headline,
-                "confidence": self.confidence, "value_low": self.value_low,
+                "confidence": self.confidence, "tv_share": self.tv_share,
+                "value_low": self.value_low,
                 "value_high": self.value_high, "lenses": self.lenses, "notes": self.notes,
                 "withheld_value": self.withheld_value}
 
@@ -216,6 +237,49 @@ def blended_fair_value(cd, cls, dcf_per_share, comps_fair_value,
     if note and out.headline_mode != "implied_growth":
         out.notes.append(note)
     return out
+
+
+def terminal_share_cap(confidence: str, tv_share) -> tuple:
+    """Cap a confidence label by the DCF's terminal share. Returns (label, note or None).
+
+    PURE, and deliberately so: it takes a label and a number and returns a label. It cannot see
+    a fair value, a score or a company, which is what makes "labels only, zero value changes" a
+    structural property of the change rather than something the sweep merely failed to catch.
+
+    MONOTONE DOWNWARD — `min` over the rank, never `max`. The cap can only ever mark a
+    valuation down, so it can never rescue one, and a name already "low" is left alone.
+
+    Callers apply it only when the DCF lens is actually in the blend; terminal share says
+    nothing about a name valued on P/B-ROE or on a revenue multiple.
+    """
+    try:
+        share = float(tv_share)
+    except (TypeError, ValueError):
+        return confidence, None
+    if share != share or share in (float("inf"), float("-inf")):
+        return confidence, None
+
+    if share >= TV_SHARE_LOW:
+        ceiling, note = "low", (
+            f"{share:.0%} of this DCF's enterprise value is terminal value — more than the whole "
+            f"company, which means the ten years we actually model are worth less than nothing on "
+            f"these assumptions and the perpetuity is carrying all of it. Confidence is marked "
+            f"down: this is a bet on the terminal assumption, not on the forecast.")
+    elif share >= TV_SHARE_MEDIUM:
+        ceiling, note = "medium", (
+            f"{share:.0%} of this DCF's value sits in the terminal value, so only {1 - share:.0%} "
+            f"comes from the decade we forecast with this company's own numbers. That is high even "
+            f"for a DCF, where a high terminal share is normal — the typical name here is ~78%. "
+            f"Confidence is marked down accordingly.")
+    else:
+        return confidence, None
+
+    # The note tracks the FACT, not the label delta: a name already marked "low" for another
+    # reason still deserves to have this one stated, or the reader learns nothing from the
+    # cases where two weaknesses coincide.
+    rank = min(_CONF_RANK.get(confidence, 1), _CONF_RANK[ceiling])
+    capped = next(k for k, v in _CONF_RANK.items() if v == rank)
+    return capped, note
 
 
 def _no_value_reason(cd, dcf_per_share, comps_fair_value, growth_value=None) -> str:
