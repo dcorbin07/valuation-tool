@@ -18,6 +18,46 @@ also unanswerable; 16 co-moving countries measure as n_eff 2–4)
 
 ---
 
+## 2026-08-07 — greeks lane, OUT-OF-BAND: the reinvestment undercharge. BOTH CANDIDATES REJECTED
+
+The engine charges reinvestment as `Δrevenue / sales_to_capital` — growth capital only — which
+collapses when revenue is flat, so a capex-heavy name is charged almost nothing to stand still.
+Two pre-chosen candidates were measured against thresholds committed alone at `4f99d8f`, offline
+on the 241-name 2026-08-05 snapshot. **Both REJECTED. Nothing behavioural ships**
+(`REINVESTMENT_FLOOR_MODE` defaults `"off"`).
+
+- **The control bound held perfectly for both arms — 116 names, bit-identical.** The gate
+  (`capex − D&A > 0`) *is* the control group, so this was true by construction.
+- **Arm A** (floor decaying over the explicit forecast) passes three of four success criteria and
+  fixes almost nothing: its terminal change is **+0.0%** because it cannot reach the terminal, and
+  these names carry **80%+ of EV** there. **Three of my four criteria were year-one statistics
+  that a terminal-blind fix passes trivially.**
+- **Arm B** (persistent floor, terminal included) **passes ALL SIX pre-registered bounds and is
+  still unshippable**: 18 negative enterprise values, 16 negative terminal values. **The rejection
+  rests on a criterion I failed to pre-register** — the bounds asked whether the number moved in
+  the right direction, never whether it was still a number.
+
+**The finding that matters, and it corrects my own Part 4 statistic.** The 33-name decisive set is
+**two populations**: 14 genuine flat-revenue undercharges, and 19 **capex-boom** names whose spend
+IS growth capital the revenue path already prices — ORCL's net capex is **68.8% of revenue while
+revenue grows 3.1×**, which is why flooring it drives EV to −884,065. **Part 4's "34 names
+undercharged by >5% of revenue" overstated the defect; the honest count is ~14.** The mechanism
+works exactly where the defect is real (8 of 8 flat-revenue names within ±25% of observed spend).
+Separating the two populations is what a third candidate must do — **not attempted, because
+choosing that gate on these results is the tuning the pre-commitment forbids.**
+
+**A LIVE defect found on the way, unrelated to either arm: six names are published today with a
+NON-POSITIVE DCF** — INTC (−0.53 → **$34.54**), F (−31.92 → **$60.25**), BA (−24.97 → **$94.27**),
+SRE, CCI, IRM. `blend._usable` drops a non-positive lens and renormalises the rest, so **a company
+whose cash-flow model collapses becomes more attractive**: charging MORE reinvestment moved
+EQIX **+121%**, GM **+92%**, XEL **+73%** UP. Characterised and pinned by a test, **not fixed** —
+it changes six published numbers and needs its own bound. **Recommended next task.**
+
+Tests: 24 suites, **872 passing, 0 failures** (engine 56/56). Write-up: `HANDOFF_live_data_bugs.md`
+Part 8. Ledger row `OOB3`.
+
+---
+
 ## 2026-08-07 — greeks lane, OUT-OF-BAND: a vanished vendor field can no longer rewrite a headline
 
 **MRK went from "cannot value this name" to a published 91 "Strong Buy" because Yahoo stopped
