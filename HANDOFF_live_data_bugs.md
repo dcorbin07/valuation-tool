@@ -1870,3 +1870,116 @@ sentence: *an input that could not be fetched must not silently become a differe
    constant. Now stamped. **Not measured** — no incident is attributed to it, and none is claimed.
 5. **A measurement that consumes the resource it measures will report its own exhaustion as a
    result.** Two runs here did. Neither was reportable, and only the second could tell.
+
+---
+
+# Part 8 — The reinvestment undercharge (the CHTR class defect). PRE-COMMITMENT
+
+**Written and committed BEFORE any candidate was run or any after-number existed.** This is my own
+Part 4 item 2, quantified and deliberately left unfixed then; it is the largest known defect in
+the valuation engine.
+
+## 8.0 Two exemplars in the brief have already moved — stated before anything else
+
+Measured on the **same 2026-08-05 pickle Part 4 used**, so this is intervening *code*, not new
+data:
+
+- **CHTR's modelled year-1 reinvestment is no longer −$79M. It is +$1,056M**, against $2,948M of
+  observed net capital spend — a shortfall of **3.5% of revenue, below the 5% flag**. Its FCFF
+  runs **9,104 → 10,188 on 1.124× revenue**, i.e. **+11.9% FCFF on +12.4% revenue. It does not
+  double.** CHTR is currently **withheld** (`fair_value None`).
+- **CI does not publish +275% at HIGH confidence.** It is withheld, `fair_value None`, confidence
+  low, and its net capex is **negative** (−1,563) — it is in the control group, not the treated
+  one.
+
+So the spec's CHTR-specific success criterion ("must no longer double FCF on 1.16× revenue") is
+**already satisfied by the current code** and cannot be used to score a candidate. I am not
+quietly dropping it — I am recording that it no longer discriminates, and scoring on the
+population instead.
+
+**The class defect is untouched and is the real target.** On the 241-name sweep: 205 non-financials
+have capex and D&A; **114 have positive net capital spend; 33 are undercharged by more than 5% of
+revenue and 21 by more than 10%** (worst: ORCL 57.3%, SRE 50.4%, D 46.7%, XEL 41.7%, APD 41.1%,
+AWK 31.1%, GOOGL 22.9%), concentrated in **Utilities 11, Energy 8, Technology 4, Basic Materials
+4**. **XOM (−17,131) and TTE (−12,778) are charged NEGATIVE reinvestment** while spending real
+money — shrinking revenue is credited as releasing capital.
+
+## 8.1 The control group — checked FIRST, and by its defining property
+
+Part 4's bound 1 breached because I verified a *proxy* was non-empty instead of verifying the
+change could not move it. Not repeating that.
+
+Both candidates are gated on **`net_capex = capex − D&A > 0`**. A name failing that gate never
+enters the changed code path, so it is bit-identical **by construction, not by tolerance**.
+Census, measured before committing:
+
+| group | n | can the fix touch it? |
+|---|---|---|
+| financials (out of scope) | 31 | no |
+| non-financial, capex ≤ D&A | **91** | **no — gate not entered** |
+| non-financial, capex or D&A missing | **5** | **no — gate not entered** |
+| non-financial, net capex > 0 | 114 | yes |
+
+**Control group = 96 names, and its defining property is the gate itself.** CI sits in it.
+
+## 8.2 The decisive set, and the motivating name
+
+**Decisive set = the 33 non-financial names undercharged by >5% of revenue.** CHTR motivated the
+search and **is not in the set** — at 3.5% it falls below the threshold on its own, so the
+exclusion the brief asks for is automatic rather than argued. CHTR is reported separately and
+carries no verdict weight, exactly as KSPI was handled in Part 2.
+
+## 8.3 The candidates, parameters fixed now
+
+`nc = capex − D&A` from the latest observed year. **No smoothing is available** — `CompanyData`
+carries `revenue_history`, `ebit_history`, `fcf_history` and `net_income_history` but **no capex
+history** — so a lumpy capex year propagates. Stated as a limitation, not fixed here.
+
+**ARM A — decaying floor, explicit years only.**
+`reinvest_t = max(growth_t, w_t · nc · rev_t/rev_0)` with `w_t = (n−t)/(n−1)`, i.e. full charge in
+year 1 fading linearly to zero in the final year. **Terminal value deliberately UNCHANGED.**
+
+**ARM B — persistent floor, explicit years AND terminal.**
+`reinvest_t = max(growth_t, nc · rev_t/rev_0)` (no decay), and the terminal charge becomes
+`max(g/ROIC · nopat_next, nc · rev_term/rev_0)`.
+
+**How each interacts with the terminal, which is the whole question.** The decisive set carries a
+median terminal share above 80% of EV (CHTR 84.6%, SRE 82.4%, D 81.3%). **Arm A cannot fix more
+than the explicit-forecast fraction of the problem — under a fifth of EV for these names — and it
+is included precisely so that limit is measured rather than asserted.** Arm B is the only arm that
+can reach the terminal.
+
+## 8.4 What "fixed" means — thresholds committed now
+
+- **F1 — flat-revenue names are charged what they spend.** For treated names whose forecast
+  revenue is roughly flat (`|rev_last/rev_1 − 1| ≤ 5%`), modelled year-1 reinvestment must land
+  **within ±25% of observed net capital spend**.
+- **F2 — the population tail closes.** The count of names undercharged by >5% of revenue must fall
+  from **33 to at most 5**.
+- **F3 — nobody is paid to shrink.** The count of treated names with **negative** modelled
+  reinvestment must fall to **0**.
+- **F4 — the terminal is reached.** For the decisive set, terminal FCFF must fall by a median of
+  at least **5%**. Arm A is expected to score ~0 here; that is the point of running it.
+
+## 8.5 Harm bounds
+
+- **H1 — the control group is BIT-IDENTICAL.** All 96 names: fair value, WACC, score, confidence
+  and published flag unchanged to the last digit. Any movement is a defect in my change, not a
+  tolerance to widen.
+- **H2 — published/withheld flips are enumerated name by name** in the treated set, and must be
+  zero in the control.
+- **H3 — the direction must be DOWN.** This charges more, so fair values must fall. **If a
+  candidate RAISES the decisive set's median fair value, that is a red flag to investigate, not a
+  result to ship.**
+
+## 8.6 Anti-tuning, and the expectation written down first
+
+Parameters ship at the values in 8.3. **A candidate that fails at its stated value is REJECTED,
+not retuned.** No threshold moves after seeing which names it catches.
+
+**Expectation, recorded before measuring: Arm A largely fails F4 and F2 because 80%+ of these
+names' value is terminal; Arm B bites hard and its risk is the opposite one — flooring at observed
+net capex double-charges genuinely growing names whose capex IS growth capital (MSFT nc 77,414 vs
+a growth charge of 28,506), which may collapse fair values far beyond the defect. 60/40 that Arm B
+overshoots.** This project's directional calls have been wrong more often than right; the point of
+writing it down is that it keeps being wrong.
