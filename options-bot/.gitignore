@@ -32,4 +32,17 @@ env/
 Thumbs.db
 *.zip
 !handoff/*.zip
+
+# C6 (2026-08-07). `handoff/*.zip` is re-included ABOVE ON PURPOSE and that
+# decision is what recovered this project: when the Oracle box was
+# decommissioned, `handoff/quant_bots.zip` still carried the only copy of
+# `options/data/*.py` that git had ever seen. Do not "tidy" that negation away.
+#
+# The STATE archives are the opposite case — they are a snapshot of runtime
+# output, they are not source, and `*.zip` never covered them because they are
+# .tgz. `quant_data.tgz` sat untracked AND unignored, one `git add -A` away from
+# being committed. Its contents belong in data/journal|sim|reports, which are
+# ignored by name above; the archive itself belongs nowhere in git.
+*.tgz
+*.tar.gz
 push_log.txt

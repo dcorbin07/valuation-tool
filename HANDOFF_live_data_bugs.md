@@ -1870,3 +1870,263 @@ sentence: *an input that could not be fetched must not silently become a differe
    constant. Now stamped. **Not measured** — no incident is attributed to it, and none is claimed.
 5. **A measurement that consumes the resource it measures will report its own exhaustion as a
    result.** Two runs here did. Neither was reportable, and only the second could tell.
+
+---
+
+# Part 8 — The reinvestment undercharge (the CHTR class defect). PRE-COMMITMENT
+
+**Written and committed BEFORE any candidate was run or any after-number existed.** This is my own
+Part 4 item 2, quantified and deliberately left unfixed then; it is the largest known defect in
+the valuation engine.
+
+## 8.0 Two exemplars in the brief have already moved — stated before anything else
+
+Measured on the **same 2026-08-05 pickle Part 4 used**, so this is intervening *code*, not new
+data:
+
+- **CHTR's modelled year-1 reinvestment is no longer −$79M. It is +$1,056M**, against $2,948M of
+  observed net capital spend — a shortfall of **3.5% of revenue, below the 5% flag**. Its FCFF
+  runs **9,104 → 10,188 on 1.124× revenue**, i.e. **+11.9% FCFF on +12.4% revenue. It does not
+  double.** CHTR is currently **withheld** (`fair_value None`).
+- **CI does not publish +275% at HIGH confidence.** It is withheld, `fair_value None`, confidence
+  low, and its net capex is **negative** (−1,563) — it is in the control group, not the treated
+  one.
+
+So the spec's CHTR-specific success criterion ("must no longer double FCF on 1.16× revenue") is
+**already satisfied by the current code** and cannot be used to score a candidate. I am not
+quietly dropping it — I am recording that it no longer discriminates, and scoring on the
+population instead.
+
+**The class defect is untouched and is the real target.** On the 241-name sweep: 205 non-financials
+have capex and D&A; **114 have positive net capital spend; 33 are undercharged by more than 5% of
+revenue and 21 by more than 10%** (worst: ORCL 57.3%, SRE 50.4%, D 46.7%, XEL 41.7%, APD 41.1%,
+AWK 31.1%, GOOGL 22.9%), concentrated in **Utilities 11, Energy 8, Technology 4, Basic Materials
+4**. **XOM (−17,131) and TTE (−12,778) are charged NEGATIVE reinvestment** while spending real
+money — shrinking revenue is credited as releasing capital.
+
+## 8.1 The control group — checked FIRST, and by its defining property
+
+Part 4's bound 1 breached because I verified a *proxy* was non-empty instead of verifying the
+change could not move it. Not repeating that.
+
+Both candidates are gated on **`net_capex = capex − D&A > 0`**. A name failing that gate never
+enters the changed code path, so it is bit-identical **by construction, not by tolerance**.
+Census, measured before committing:
+
+| group | n | can the fix touch it? |
+|---|---|---|
+| financials (out of scope) | 31 | no |
+| non-financial, capex ≤ D&A | **91** | **no — gate not entered** |
+| non-financial, capex or D&A missing | **5** | **no — gate not entered** |
+| non-financial, net capex > 0 | 114 | yes |
+
+**Control group = 96 names, and its defining property is the gate itself.** CI sits in it.
+
+## 8.2 The decisive set, and the motivating name
+
+**Decisive set = the 33 non-financial names undercharged by >5% of revenue.** CHTR motivated the
+search and **is not in the set** — at 3.5% it falls below the threshold on its own, so the
+exclusion the brief asks for is automatic rather than argued. CHTR is reported separately and
+carries no verdict weight, exactly as KSPI was handled in Part 2.
+
+## 8.3 The candidates, parameters fixed now
+
+`nc = capex − D&A` from the latest observed year. **No smoothing is available** — `CompanyData`
+carries `revenue_history`, `ebit_history`, `fcf_history` and `net_income_history` but **no capex
+history** — so a lumpy capex year propagates. Stated as a limitation, not fixed here.
+
+**ARM A — decaying floor, explicit years only.**
+`reinvest_t = max(growth_t, w_t · nc · rev_t/rev_0)` with `w_t = (n−t)/(n−1)`, i.e. full charge in
+year 1 fading linearly to zero in the final year. **Terminal value deliberately UNCHANGED.**
+
+**ARM B — persistent floor, explicit years AND terminal.**
+`reinvest_t = max(growth_t, nc · rev_t/rev_0)` (no decay), and the terminal charge becomes
+`max(g/ROIC · nopat_next, nc · rev_term/rev_0)`.
+
+**How each interacts with the terminal, which is the whole question.** The decisive set carries a
+median terminal share above 80% of EV (CHTR 84.6%, SRE 82.4%, D 81.3%). **Arm A cannot fix more
+than the explicit-forecast fraction of the problem — under a fifth of EV for these names — and it
+is included precisely so that limit is measured rather than asserted.** Arm B is the only arm that
+can reach the terminal.
+
+## 8.4 What "fixed" means — thresholds committed now
+
+- **F1 — flat-revenue names are charged what they spend.** For treated names whose forecast
+  revenue is roughly flat (`|rev_last/rev_1 − 1| ≤ 5%`), modelled year-1 reinvestment must land
+  **within ±25% of observed net capital spend**.
+- **F2 — the population tail closes.** The count of names undercharged by >5% of revenue must fall
+  from **33 to at most 5**.
+- **F3 — nobody is paid to shrink.** The count of treated names with **negative** modelled
+  reinvestment must fall to **0**.
+- **F4 — the terminal is reached.** For the decisive set, terminal FCFF must fall by a median of
+  at least **5%**. Arm A is expected to score ~0 here; that is the point of running it.
+
+## 8.5 Harm bounds
+
+- **H1 — the control group is BIT-IDENTICAL.** All 96 names: fair value, WACC, score, confidence
+  and published flag unchanged to the last digit. Any movement is a defect in my change, not a
+  tolerance to widen.
+- **H2 — published/withheld flips are enumerated name by name** in the treated set, and must be
+  zero in the control.
+- **H3 — the direction must be DOWN.** This charges more, so fair values must fall. **If a
+  candidate RAISES the decisive set's median fair value, that is a red flag to investigate, not a
+  result to ship.**
+
+## 8.6 Anti-tuning, and the expectation written down first
+
+Parameters ship at the values in 8.3. **A candidate that fails at its stated value is REJECTED,
+not retuned.** No threshold moves after seeing which names it catches.
+
+**Expectation, recorded before measuring: Arm A largely fails F4 and F2 because 80%+ of these
+names' value is terminal; Arm B bites hard and its risk is the opposite one — flooring at observed
+net capex double-charges genuinely growing names whose capex IS growth capital (MSFT nc 77,414 vs
+a growth charge of 28,506), which may collapse fair values far beyond the defect. 60/40 that Arm B
+overshoots.** This project's directional calls have been wrong more often than right; the point of
+writing it down is that it keeps being wrong.
+
+---
+
+## Part 8 — RESULTS. VERDICT: **BOTH ARMS REJECTED. Nothing behavioural ships.**
+
+Pre-commitment `4f99d8f`, committed alone before any candidate ran. Measured on the 241-name
+2026-08-05 pickle — **fully offline and deterministic**, one process, one beta memo, so the only
+difference between arms is the floor mode. `REINVESTMENT_FLOOR_MODE` ships **`"off"`**.
+
+### 8.7 The scorecard
+
+| bound | Arm A (decay, explicit only) | Arm B (persistent, + terminal) |
+|---|---|---|
+| **H1** control bit-identical (116 names) | **HELD — 0 moved** | **HELD — 0 moved** |
+| **F1** flat-revenue within ±25% of net capex | HELD 8/8 | HELD 8/8 |
+| **F2** names undercharged >5% of revenue ≤ 5 | HELD — 33 → **0** | HELD — 33 → **0** |
+| **F3** negative modelled reinvestment → 0 | HELD — **0** | HELD — **0** |
+| **F4** decisive-set terminal value ≤ −5% | **VIOLATED — +0.0%** | HELD — −67.4% |
+| **H2** publish/withhold flips, 0 in control | HELD — 0 anywhere | HELD — 0 anywhere |
+| **H3** decisive-set median fair value falls | HELD — −5.1% | HELD — −10.5% |
+
+**The control bound held perfectly for both arms — 116 names, zero movement, bit-identical.** The
+gate *is* the control group, so this was true by construction and the measurement confirms the
+construction. That is the one part of this task that worked exactly as designed.
+
+### 8.8 Arm A — REJECTED, and it fails in the most dangerous way available
+
+**Arm A passes F1, F2 and F3 and still fixes almost nothing.** Its terminal change is **+0.0%,
+exactly**, because it cannot touch the terminal by construction — and the decisive-set names carry
+80%+ of their EV there (CHTR 84.6%, SRE 82.4%, D 81.3%).
+
+**Three of my four success criteria are YEAR-ONE statistics, and a terminal-blind fix passes all
+three trivially.** F1, F2 and F3 all read year 1 only. Had I not written F4, Arm A would have
+scored 3-for-3 on "fixed" while leaving four-fifths of the affected value untouched. **This is the
+brief's own warning — "an undercharge fixed in years 1–10 but not in the terminal fixes a third of
+the problem" — reproduced as a measurement.** Rejected at its stated value, not retuned.
+
+### 8.9 Arm B — REJECTED, and my pre-commitment failed to catch it
+
+**Arm B passes ALL SIX pre-registered bounds and is obviously unshippable.** Stating that plainly
+because it is the most important methodological result here: **the rejection rests on a criterion
+I did not pre-register.**
+
+| harm, none of it covered by a bound | Arm A | Arm B |
+|---|---|---|
+| DCF pushed from positive to non-positive | 4 | **14** |
+| **negative enterprise value** | 1 | **18** |
+| **negative terminal value** | 0 | **16** |
+| fair value moved UP | 4 | 9 |
+| names whose fair value changed at all | 49/241 | 78/241 |
+
+ORCL's enterprise value under Arm B is **−884,065**; XEL **−156,070**; SRE **−132,247**. A
+negative enterprise value is not a conservative valuation, it is not a valuation. **My bounds
+asked whether the number moved in the right direction and never asked whether it was still a
+number.**
+
+### 8.10 The finding that reframes the defect — and corrects my own Part 4 statistic
+
+**The 33-name "decisive set" is two different populations, and only one of them has the defect.**
+
+| | n | names |
+|---|---|---|
+| **flat revenue — must spend to stand still** | **14** | SRE, APD, GOOGL, EOG, BHP, E, PBR, AMZN, MPC, TTE, RIO, NUE, XOM, COP |
+| **capex boom — the spend IS growth capital** | **19** | ORCL, D, XEL, AWK, WEC, PCG, WMB, MSFT, NVO, META, EQIX, SO, AEP, EXC, DUK, MU, TXN, EIX, CNI |
+
+**ORCL is the clearest case: net capex is 68.8% of revenue while revenue grows 3.1× across the
+forecast.** Treating that as a permanent maintenance requirement is why its EV goes to −884,065.
+The model already prices that expansion through the revenue path; charging observed net capex on
+top **double-counts it**. Same for MSFT (1.69× revenue), META (1.64×), MU (1.91×).
+
+**So Part 4's headline — "34 names undercharged by more than 5% of revenue" — conflates two
+things, and I wrote it. The honest count of names with a genuine flat-revenue undercharge is
+about 14, not 34.** The correction matters because the larger number is what made this "the
+largest known defect in the valuation engine."
+
+**The mechanism is right exactly where the defect is real: F1 held 8 of 8** on flat-revenue names
+under both arms. Neither pre-chosen candidate separates the two populations, and **that separation
+is what a third candidate has to do** — either gate the floor on forecast revenue growth, or
+decompose capex into maintenance and growth components rather than using the net figure whole.
+**Not attempted here: choosing that gate after seeing which names it catches is precisely the
+tuning the pre-commitment forbids.** It needs its own pre-registration.
+
+**My recorded expectation was RIGHT on both counts** — Arm A fails on the terminal, Arm B
+overshoots by double-charging growing names, called at 60/40 before measuring. One correct call
+does not license reasoning instead of measuring.
+
+### 8.11 A LIVE defect found on the way, independent of either arm
+
+**Six names are published TODAY with a non-positive DCF**, because `blend._usable` returns `None`
+for any per-share value ≤ 0, silently removing the DCF lens and renormalising the rest:
+
+| name | DCF/share | published | lenses after the drop |
+|---|---|---|---|
+| INTC | −0.53 | **$34.54** | multiples 48%, growth 52% |
+| F | −31.92 | **$60.25** | multiples 100% |
+| BA | −24.97 | **$94.27** | multiples 53%, growth 47% |
+| SRE | −2.69 | **$35.27** | multiples 100% |
+| CCI | −15.01 | **$33.93** | multiples 100% |
+| IRM | −35.10 | **$79.27** | multiples 100% |
+
+All six carry `confidence: low`, but they are published. **This is why charging MORE reinvestment
+moved fair values UP: GM 56.35 → 108.25 (+92%) as its DCF went 2.74 → −3.71, XEL 25.85 → 44.73
+(+73%), EQIX +121%.** A company whose cash-flow model collapses becomes *more* attractive, because
+the collapsing lens leaves the blend.
+
+`_usable`'s reasoning — "a non-positive fair value means the lens doesn't apply to this company" —
+is right for a lens that never applied and wrong for one that applied and then failed. Pinned by
+`test_a_non_positive_dcf_is_dropped_from_the_blend` as a characterisation, **not fixed**: it
+changes six published numbers and needs its own bound.
+
+### 8.12 What ships, and what I did NOT do
+
+**Ships:** `REINVESTMENT_FLOOR_MODE` (default `"off"`, no behaviour change), `_net_capex_floor`,
+the two arms behind it, and 5 tests (engine 51 → 56; 24 suites, **872 passing, 0 failures**).
+The untouched terminal branch keeps its original
+`nopat*(1-r)` expression verbatim — rewriting it as `nopat - nopat*r` differs in the last ulp and
+would have moved every control name for no reason.
+
+- **Did not ship either arm.** Both rejected against thresholds fixed before measurement.
+- **Did not retune.** No parameter moved after seeing which names it caught.
+- **Did not invent a third arm and adopt it** — the growth/maintenance split is the right idea and
+  choosing its gate on these results is the exact error the anti-tuning rule exists to prevent.
+- **Did not fix the blend's negative-DCF drop** (six live names) — same reasoning Part 4 used for
+  this defect itself.
+- **Did not touch** `valuation/edge/**`, `valuation/web/**` or `valuation/saas/**`.
+- **Did not narrow the pipeline's 5%-shortfall warning**, which we now know fires on 19
+  capex-boom false positives out of 33 — narrowing it on this evidence is tuning.
+
+**Limits.** One 2026-08-05 snapshot, 241 names. `CompanyData` has **no capex history**, so `nc` is
+a single lumpy year — a real weakness for a maintenance estimate and unaddressed. Two exemplars in
+the brief (CHTR, CI) had already moved before I started (§8.0).
+
+## BUGS FOUND (Part 8)
+
+1. **A non-positive DCF is silently dropped from the blend and RAISES the published number.**
+   Six names live today (INTC, F, BA, SRE, CCI, IRM). Characterised and pinned, not fixed.
+2. **My own success criteria were mostly year-one statistics.** F1, F2 and F3 all read year 1, and
+   a fix that provably cannot touch the terminal passed all three. Only F4 discriminated. A
+   success criterion that a known-inadequate candidate passes is not a success criterion.
+3. **My pre-commitment never required the output to remain a valuation.** Arm B cleared all six
+   bounds while producing 18 negative enterprise values and 16 negative terminal values. The
+   rejection is correct and is *not* pre-registered — stated rather than smoothed over.
+4. **Part 4's "34 names undercharged by >5% of revenue" conflates two populations** — 14 genuine
+   flat-revenue cases and 19 capex-boom names whose spend is growth capital already priced through
+   the revenue path. Mine, and it overstated the largest known defect in the engine.
+5. **`CompanyData` carries no capex history** while carrying revenue, EBIT, FCF and net-income
+   histories, so any maintenance-capex estimate rests on one lumpy year.

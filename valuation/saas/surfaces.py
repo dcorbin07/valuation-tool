@@ -1,5 +1,5 @@
 """
-The public / owner split — which surfaces a stranger may read on a PUBLIC instance.
+The public / demo / owner split — which surfaces a stranger may read on a PUBLIC instance.
 
 WHY THIS EXISTS AS ITS OWN MODULE
 ---------------------------------
@@ -30,6 +30,29 @@ It does not replace `private.check` (which still runs first when the lockdown is
 admin-token check, CSRF, or the tier system. It sits between them and answers one question,
 and — like `private.py` — it is a pure function of (path, user, cfg) so that "prove the split
 holds" is a unit test rather than a browser session.
+
+THE THIRD SIDE: THE DEMO SESSION (added 2026-08-07, PROMPT_recruiter_master_link.md)
+------------------------------------------------------------------------------------
+Don's decision, recorded so nobody re-litigates it from the code alone: the recruiter
+master-link (`/demo/<token>`, and the button on `/work` that carries it) opens the full
+READ-ONLY owner view — Track Record, the Index, Signals, the Edge Lab. He wants recruiters
+to see the tool that exists rather than the public half of it, the link goes on his résumé,
+and he has accepted in writing that a button on a public page makes that view effectively
+one click deep. The mitigations that make it acceptable are all here or next to it:
+
+  * READ-ONLY. `DEMO_DENIED_PATHS` below is the enforcement, and it is deliberately NOT
+    gated on `owner_split`: "a preview session must not change anything" is a different
+    policy from "strangers must not read the paper track", and flipping OWNER_SPLIT=false
+    must never hand a résumé link the scan trigger or the account page.
+  * NO RAW VENDOR ROWS. The owner surfaces the demo gains publish derived statistics Don
+    computed (adopted weights, ICs, the backtest summary block, expectancy) — the standing
+    posture line. Nothing under `/api/edge/` returns a Sharadar or ThetaData row; the three
+    POST runners that would COMPUTE new ones are denied above.
+  * THE DISCLAIMERS ARE UNCHANGED, because the demo view IS the owner view: the same
+    templates, the same paper/not-advice framing, rendered by the same code path.
+
+A demo session is still NOT an owner. `is_owner` is unchanged, `private.is_owner` still
+refuses it outright under the licence lockdown, and `/demo` is refused there too.
 
 FAILURE MODE, DELIBERATELY CHOSEN
 ---------------------------------
@@ -87,6 +110,63 @@ PUBLIC_API = frozenset({
     "/api/export/pdf",        # ditto                                                 [FMP]
 })
 
+# ---------------------------------------------------------------------------------------
+# THE DEMO EXCLUSIONS. A valid demo session reads every owner surface EXCEPT these.
+#
+# This is an allowlist in disguise and is meant to be: the demo gains read access by a
+# blanket rule, so the only thing standing between a résumé link and a state change is this
+# set. Every entry says which of the prompt's two non-negotiable exclusions it serves —
+# (1) no account/admin surfaces and nothing that mutates, (2) no raw vendor rows.
+#
+# The rule for adding to it: if a route WRITES anything (a store row, a session, a file), or
+# spends the owner's vendor/AI budget, or belongs to the account rather than the product, it
+# goes here. A route that only computes and returns does not.
+# ---------------------------------------------------------------------------------------
+DEMO_DENIED_PATHS = frozenset({
+    # (1) Triggers — each writes to the store AND spends the owner's money on every call.
+    "/api/scan/run",          # writes a scan snapshot; 3 FMP requests per uncached name
+    "/api/signals/run",       # writes intraday rows + alerts; one Anthropic call per run
+    "/api/backtest/run",      # CPU-heavy on a 512 MB box; a free DoS lever otherwise
+    "/api/edge/backtest",     # the research bench's own runner
+    "/api/edge/optimize",     # walk-forward weight search
+    "/api/edge/track",        # rewrites the tracked record
+
+    # (1) The account, which is settings rather than product. A demo user has no database
+    #     row at all (`auth._demo_user` is synthetic, id 0), so /account/alerts would write
+    #     an opt-in against a user that does not exist — a mutation AND a corrupt one.
+    "/account",
+    "/account/alerts",
+
+    # (1) Money. Billing is off on this instance, but "the preview cannot initiate a
+    #     payment" should not depend on a separate flag staying off.
+    "/billing/checkout",
+    "/billing/portal",
+})
+
+#: Not currently used — every raw-vendor surface is already denied above by the mutation
+#: rule, and no READ route returns a vendor row verbatim (checked route by route, recorded
+#: in HANDOFF_appfixes.md Session 18). It exists so that exclusion (2) has somewhere
+#: obvious to go when the next Sharadar-backed read route is added, instead of being
+#: remembered.
+DEMO_DENIED_VENDOR_ROWS = frozenset()
+
+
+def is_demo(user) -> bool:
+    """A recruiter master-link preview session. Not an owner, never an owner."""
+    return bool(user and user.get("is_demo"))
+
+
+def is_demo_denied(path: str) -> bool:
+    return path in DEMO_DENIED_PATHS or path in DEMO_DENIED_VENDOR_ROWS
+
+
+#: What the preview is told when it reaches something it may not have. Says it is the
+#: PREVIEW that is limited, not the reader — a recruiter who hits this should understand
+#: they are looking at a read-only copy, not that they did something wrong.
+DEMO_DENY_MESSAGE = ("This is a read-only preview of the full tool. It can show you "
+                     "everything the owner sees, but it can't run scans, spend the "
+                     "data budget or change any setting.")
+
 #: What an owner-only surface says when a stranger asks for it. It names the reason, because
 #: "this is a paper account, not a track record" is exactly the thing a visitor should learn
 #: from being refused — and because a bare 403 on a free site reads like a bug.
@@ -117,11 +197,33 @@ def is_owner_only(path: str) -> bool:
 
 
 def may_see_owner_surfaces(user, cfg) -> bool:
-    """The one question templates and views ask.
+    """MAY READ the owner surfaces. Owner or demo preview.
 
     With the split OFF this is true for everyone, which is what makes the flag a real revert
     rather than a partial one.
+
+    Demo was added 2026-08-07 (PROMPT_recruiter_master_link.md) and is the whole point of the
+    recruiter link. It grants READING only — `may_act` below is the other half, and the two
+    are separate functions precisely so that widening one cannot silently widen the other.
     """
+    if not enabled(cfg):
+        return True
+    return is_owner(user, cfg) or is_demo(user)
+
+
+def may_act(user, cfg) -> bool:
+    """MAY CHANGE SOMETHING. The owner alone — never a demo session.
+
+    Templates read this to decide whether to render a trigger (Run scan, Refresh signals,
+    the three Edge Lab runners). Rendering a button the API will refuse is worse than
+    rendering nothing: it teaches the reader the preview is broken rather than read-only.
+
+    Deliberately NOT true-for-everyone when the split is off, in the one case that matters:
+    a demo session stays read-only under every flag combination, because the flag governs
+    who may READ the paper track and has nothing to say about who may spend the budget.
+    """
+    if is_demo(user):
+        return False
     if not enabled(cfg):
         return True
     return is_owner(user, cfg)
@@ -133,11 +235,20 @@ def check(path: str, user, cfg):
     JSON for /api (the dashboard's own fetches read `owner_only` and hide their panel rather
     than printing an error), and a page refusal for anything else.
     """
+    # The demo read-only rule runs FIRST and outside the flag. See the module docstring:
+    # OWNER_SPLIT=false is a decision about what strangers may read, and it must not be
+    # able to turn a résumé link into a scan trigger as a side effect.
+    if is_demo(user) and is_demo_denied(path):
+        if path.startswith("/api/"):
+            return {"kind": "json", "status": 403,
+                    "payload": {"error": DEMO_DENY_MESSAGE, "owner_only": True,
+                                "demo_read_only": True}}
+        return {"kind": "page", "status": 403, "payload": {"message": DEMO_DENY_MESSAGE}}
     if not enabled(cfg):
         return None
     if not is_owner_only(path):
         return None
-    if is_owner(user, cfg):
+    if is_owner(user, cfg) or is_demo(user):
         return None
     if path.startswith("/api/"):
         return {"kind": "json", "status": 403,

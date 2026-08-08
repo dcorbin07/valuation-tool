@@ -39,6 +39,22 @@ __pycache__/
 *.csv.gz
 *.parquet
 
+# C6 (2026-08-07): `quant_data/` at the repo root is a loose EXTRACTED copy of the
+# bot state (24 files, byte-identical to `options-bot/quant_data.tgz` — measured,
+# not assumed). It was untracked AND unignored, so `git add -A` in the primary
+# checkout would have committed bot runtime state into the Valquo repo. Ignored
+# here as a guard; the copy itself is redundant and slated for deletion.
+/quant_data/
+
+# C6 (2026-08-07): `options-bot2/` is a SECOND, older copy of the whole bot tree
+# sitting inside the repo folder (~285 KB of duplicated source plus its own
+# quant_data.tgz). It is not tracked and, until now, was not ignored either — so
+# it showed up as untracked in the primary checkout and a single `git add -A`
+# would have committed a duplicate of the bot codebase at a stale revision.
+# It is kept on disk deliberately (it is a third independent copy of the
+# recovered `options/data/*.py`), so ignore it rather than deleting it.
+options-bot2/
+
 # O8: full VRP equity curves + trade logs are derived data (~5 MB), regenerable
 options-bot/options_backtest/options_backtest_*.json
 options-bot/screener/.cache/

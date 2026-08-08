@@ -38,6 +38,13 @@ function switchTab(t) {
   if (t === "index" && !STATE.indexLoaded) { STATE.indexLoaded = true; loadValquoIndex(); loadIndexTrack(); }
   if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); loadOptionsScorecard(); }
   if (t === "track" && !STATE.trackLoaded) { STATE.trackLoaded = true; loadTrack(); }
+  // The Edge Lab has no autoload for the owner — every button on it is expensive, so it
+  // waits to be asked. A READ-ONLY session has no such buttons, so the tab would open
+  // empty and read as broken; #edgeReadOnlyNote is rendered only in that case, and the
+  // one thing that session CAN do is the thing it came to see.
+  if (t === "edge" && !STATE.edgeLoaded && document.getElementById("edgeReadOnlyNote")) {
+    STATE.edgeLoaded = true; edgeLearning();
+  }
   if (t !== "signals") stopSigAuto();
 }
 

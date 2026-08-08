@@ -1,3 +1,27 @@
+> # ⛔ DECOMMISSIONED 2026-08-07 — THESE FIXES WILL NEVER BE DEPLOYED. THEY ARE RECORDED INSTEAD.
+>
+> The Oracle box (`141.148.45.115`) is gone; **never ssh/scp to it.** The deploy
+> instructions in §"Deploying" below are not runnable.
+>
+> **C6 closes on the "recorded" branch of its own criterion, not the "deployed" one.**
+> All three fixes are present in this repository and each is verified *by symbol and by
+> behaviour* on every run of `deploy/preflight.py` (measured 2026-08-07: all three `ok`).
+> There is no longer a service for them to be deployed to, so "undeployed" is now a
+> permanent, harmless state rather than a decaying one.
+>
+> **The blocker this file inherited was misdiagnosed as needing the box.** The git deploy
+> could not complete because `options/data/*.py` was untracked (repo-root `.gitignore`'s
+> bare `data/` matched at every depth). The record said the sources existed "only on the
+> Oracle box". They also existed in `handoff/quant_bots.zip` — **tracked in this
+> repository the entire time** — and were restored from it on 2026-08-07, byte-identical
+> to three other copies. The options suite went 53 collected / 14 errors → **181 passing**.
+>
+> **The count table below is stale and is deliberately left that way**, because the point
+> of the paragraph under it is that a count is a bad freshness proxy. Measured 2026-08-07:
+> `quant_bots` is **172** (table says 106; `deploy.sh` says 163), `quant_bots/options` is
+> **181** (table's "after" is right). The check that did not rot is the preflight, which
+> looks for the fixes themselves.
+
 # Fixes — 2026-07-26
 
 Three data-corrupting bugs, plus regression tests that fail against the old code and pass against the new.

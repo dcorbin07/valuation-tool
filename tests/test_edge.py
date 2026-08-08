@@ -6136,6 +6136,43 @@ def test_session9_clustering_can_only_raise_the_bar_never_lower_it():
     assert ks[-1] > ks[0], f"co-movement left the bar unchanged: {ks}"
 
 
+def test_session10_the_placebo_writer_summarises_the_hac_statistic_it_computes():
+    """The bug this pins is a WRITER bug, not a scoring bug, and it cost a whole sweep.
+
+    `quantile_backtest` has computed `long_short_tstat_nw` on every placebo draw since R9, but
+    the placebo recorder never stored it and the summariser never percentiled it. So X7's
+    calibrated long-short floor of 2.14 was derived on the NAIVE t while the project's shipped
+    statistic became the HAC t of 2.620 -- a bar and a number from different estimators, carried
+    as a known defect for days, and only closable by re-running 100 draws because the raw draws
+    could not be recovered.
+
+    A column that is computed and then silently dropped is indistinguishable from one that was
+    never computed. This asserts the round trip: a draw carrying the HAC keys must come out of
+    `_write` with those keys summarised.
+    """
+    import json as _json
+    import tempfile
+    from types import SimpleNamespace
+    from scripts import placebo as PL
+
+    draw = {"long_short_tstat": 1.0, "long_short_tstat_nw": 0.9, "long_short_ljung_box_p": 0.5,
+            "top_decile_alpha": 0.01, "top_decile_alpha_tstat": 1.1,
+            "top_decile_alpha_tstat_nw": 1.0, "monotonicity": -0.5, "pbo": 0.4,
+            "deflated_sharpe": 0.5, "max_abs_theme_ic_t": 1.2, "equal_weight_ann": 0.18,
+            "long_short_ann": 0.05, "breakeven_one_way_bps": 100.0,
+            "n_themes_ic_t_over_2": 0}
+    args = SimpleNamespace(n=2, seed0=1000, panel="dummy.pkl")
+    with tempfile.TemporaryDirectory() as td:
+        p = os.path.join(td, "out.json")
+        PL._write(p, dict(draw), [dict(draw), dict(draw)], args, costs=True)
+        out = _json.load(open(p, encoding="utf-8"))
+    for k in ("long_short_tstat_nw", "top_decile_alpha_tstat_nw", "long_short_ljung_box_p"):
+        assert k in out["null"], f"{k} is computed per draw but never summarised"
+        assert out["null"][k].get("p95") is not None, f"{k} has no p95 -- no floor can be read"
+    for k in ("long_short_t_nw_over_2", "long_short_t_nw_over_2_14"):
+        assert k in out["rates"], f"{k} missing; the HAC bar cannot be scored against noise"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
