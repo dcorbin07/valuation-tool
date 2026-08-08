@@ -174,6 +174,111 @@ LATE_START = "2021-01-01"
 SIGNALS = ("iv_rank", "vrp", "term_slope", "skew_25d", "gex_proxy")
 
 
+# ==========================================================================================
+#  O16 + O24 — WHAT IS `term_slope` ACTUALLY MEASURING?  PRE-REGISTRATION.
+#  Committed BEFORE any number was computed. Nothing below was chosen with a result in view.
+# ==========================================================================================
+#
+# `term_slope` = atm_mid (~60-DTE ATM IV) − atm_front (front-expiry ATM IV). It was the
+# strongest single feature in the signal stack. The entry signal is measured dead (R2) and
+# NOTHING here re-opens that; this is a characterisation of the FEATURE, which still feeds the
+# live Signals surface and is the prerequisite for U2 (options surface → stock signals).
+#
+#   O16 — is it a front-IV LEVEL in disguise? A steep slope may just mean the front leg is
+#         elevated. If so, every place both are used double-counts one exposure.
+#   O24 — is it an EARNINGS CALENDAR in disguise? Front IV inflates mechanically before
+#         earnings. If so its information is a date offset, not a vol-surface read.
+#
+# TEMPLATE, reused rather than reinvented: the PEAD rejection. Residualise on the incumbent,
+# ask whether the orthogonal remainder predicts anything, and check whether a control using NO
+# new data replicates the gain.
+#
+# DATA (banked; no new mining). `data/options_universe/state_r2_corrected.pkl` — the R2
+# CORRECTED book, 3,885 trades / 186 names / 118 calendar months, term_slope coverage 100%.
+# Explicitly NOT `state.pkl`, which is the void 3,042-trade pre-B1 book.
+# Outcome variable: `pnl_pct` per trade.
+#
+# INFERENCE (the options lane's standing method). Date-block bootstrap, block = calendar
+# month, via `options_stats.date_block_bootstrap`; 2,000 draws, seed 0. Clustering is reported
+# with `effective_n`, i.e. the design effect ALWAYS beside its own shuffled null — per R3, a
+# raw design effect is not evidence of clustering.
+#
+# THE NULL-VS-NULL TRAP, ruled on in advance. R2 measured the entry signal dead, so
+# `term_slope`'s own IC may not be separable from zero on this book. If the RAW feature's IC
+# has a date-block CI95 spanning zero, then comparing "raw IC" with "residual IC" cannot
+# discriminate — two nulls are indistinguishable no matter which hypothesis is true. In that
+# case the PREDICTIVE arm is declared UNINFORMATIVE and carries NO verdict weight, and the
+# IDENTITY arm (correlation + variance decomposition) decides. Committed now precisely because
+# it would be tempting later to read a null residual as "the confound explains it".
+#
+# ---- O16 protocol -----------------------------------------------------------------------
+# 1. REPRODUCTION GATE, first and blocking. Recompute atm_front / atm_mid at every alert from
+#    the banked chains through THIS module's own `compute_signals` path. The recomputed
+#    `term_slope` must match the banked value within O16_REPRO_TOL for at least
+#    O16_REPRO_MIN_FRAC of rows. If it does not, STOP and report — a decomposition of a
+#    quantity we cannot reproduce is not evidence about anything.
+# 2. IDENTITY: Pearson and Spearman of term_slope against atm_front and against atm_mid, plus
+#    the variance decomposition var(ts) = var(mid) + var(front) − 2cov(mid, front).
+# 3. RESIDUAL: OLS term_slope ~ a + b·atm_front; keep the residual.
+# 4. PREDICTIVE: Spearman IC vs pnl_pct for term_slope, for −atm_front, and for the residual,
+#    each with a date-block CI95.
+# 5. NO-NEW-DATA CONTROL: rank alerts by −atm_front alone, keep the top O16_CONTROL_RETAIN
+#    (term_slope's own shipped retention), and compare the mean-pnl uplift against the
+#    term_slope filter at its shipped threshold, via `date_block_diff`.
+#
+# VERDICT RULE O16 — evaluated in this order, first match wins, no tie-breaks afterwards:
+#   IS THE LEVEL  if |Spearman(ts, atm_front)| >= O16_LEVEL_RHO
+#                 AND var(atm_front)/var(ts) >= O16_LEVEL_VAR_SHARE
+#   IS DISTINCT   if |Spearman(ts, atm_front)| <  O16_DISTINCT_RHO
+#                 OR  var(atm_mid)/var(ts) >= var(atm_front)/var(ts)
+#   otherwise NULL (ambiguous is a NULL, it is not a lean).
+#
+# ---- O24 protocol -----------------------------------------------------------------------
+# 1. days-to-next-earnings from EVENTS code 22 (`data_providers.earnings_dates`), the same
+#    point-in-time source the PEAD study used.
+# 2. ELIGIBILITY, committed before any outcome was seen: an alert counts only if its next
+#    earnings date is within O24_MAX_DAYS. EVENTS coverage is PARTIAL (~2.8-3.2 dates/yr
+#    against a true ~4), and the scoping pass found a maximum apparent gap of 3,004 days —
+#    that is a hole in the calendar, not an eight-year earnings drought. Treating those as
+#    "far from earnings" would load the test toward "not a calendar", i.e. toward the answer
+#    this lane would find more convenient. Excluded as UNKNOWN and the count is reported.
+# 3. Bucket by O24_BUCKETS and report mean/median term_slope per bucket with counts.
+# 4. MODEL: OLS term_slope ~ bucket dummies. Statistic: R², the share of term_slope's variance
+#    the earnings calendar alone can reconstruct.
+# 5. DIRECTION, pre-committed: the mechanism REQUIRES term_slope to be most negative closest
+#    to earnings, i.e. Spearman(term_slope, days_to_earnings) > 0. A significant slope of the
+#    WRONG sign refutes the mechanism whatever R² says, and is recorded as such.
+# 6. NO-NEW-DATA CONTROL: a filter that keeps only alerts more than 30 days from earnings —
+#    does it replicate the term_slope filter's book gain?
+#
+# VERDICT RULE O24 — evaluated in this order, first match wins:
+#   IS THE CALENDAR if R² >= O24_CALENDAR_R2 AND Spearman(ts, days) > 0 with a date-block
+#                   CI95 excluding zero
+#   IS DISTINCT     if R² <  O24_DISTINCT_R2
+#   otherwise NULL.
+#
+# WHAT NO OUTCOME HERE CAN DO: none of this revives the entry signal (R2 stands), and none of
+# it is a claim about live trading. A confirmed confound means the feature is redundant with
+# something cheaper; a distinct verdict means U2 may use it as its own read.
+# ==========================================================================================
+
+O16_REPRO_TOL = 1e-6            # |recomputed − banked| term_slope
+O16_REPRO_MIN_FRAC = 0.99       # fraction of rows that must reproduce, else STOP
+O16_LEVEL_RHO = 0.80            # |rho(ts, atm_front)| at or above this => "is the level"
+O16_LEVEL_VAR_SHARE = 0.60      # var(atm_front)/var(ts) at or above this => "is the level"
+O16_DISTINCT_RHO = 0.60         # |rho| strictly below this => "distinct"
+O16_CONTROL_RETAIN = 0.406      # term_slope's shipped retention, for a like-for-like control
+
+O24_MAX_DAYS = 120              # next-earnings beyond this = UNKNOWN, excluded
+O24_BUCKETS = ((0, 7), (8, 14), (15, 30), (31, 60), (61, 120))
+O24_CALENDAR_R2 = 0.25          # R2 at or above this => "is the calendar"
+O24_DISTINCT_R2 = 0.10          # R2 strictly below this => "distinct"
+
+DECOMP_BLOCK = "month"          # date-block unit for every interval below
+DECOMP_DRAWS = 2000
+DECOMP_SEED = 0
+
+
 def _iv_at_delta(enr, target_delta: float, right: str) -> Optional[float]:
     """IV of the contract closest to a target delta on one expiry. None if nothing qualifies."""
     cand = [r for _, r in enr.iterrows()

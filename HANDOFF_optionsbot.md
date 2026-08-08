@@ -1618,3 +1618,95 @@ tracked-eligible.
 * **No file was merged or edited**, because every copy was identical. Had any journal genuinely
   diverged, the right move would have been a union of records rather than "keep the newest file",
   since two partial journals can each hold records the other lacks — that case did not arise.
+
+
+---
+
+# O16 + O24 — PRE-REGISTRATION (committed 2026-08-07, before any number existed)
+
+**This section was committed in its own commit, with no results in the tree.** The thresholds
+below are executable constants in `valuation/edge/options_signals_v2.py`, not prose, so the
+verdict rule cannot drift to meet the numbers.
+
+## The question
+
+`term_slope` = `atm_mid` (~60-DTE ATM IV) − `atm_front` (front-expiry ATM IV), computed at
+`options_signals_v2.py:230`. It was the strongest single feature in the signal stack.
+
+**The entry signal is measured dead (R2) and nothing here re-opens it.** This characterises the
+FEATURE, which still feeds the live Signals surface and is the prerequisite for **U2** (options
+surface → stock signals). Two hypotheses, never tested:
+
+* **O16 — is it a front-IV LEVEL in disguise?** If yes, everywhere both are used double-counts
+  one exposure.
+* **O24 — is it an EARNINGS CALENDAR in disguise?** If yes its information is a date offset, not
+  a vol-surface read.
+
+## Data and inference (banked only, no new mining)
+
+`data/options_universe/state_r2_corrected.pkl` — the **R2 corrected** book, explicitly not
+`state.pkl` (the void 3,042-trade pre-B1 book). **n = 3,885 trades, 186 names, 118 calendar
+months**, `term_slope` coverage 100%. Outcome is `pnl_pct` per trade.
+
+Inference is the options lane's standing method: **date-block bootstrap, block = calendar month**
+(`options_stats.date_block_bootstrap`, 2,000 draws, seed 0). Clustering is reported via
+`effective_n`, i.e. the design effect **always beside its own shuffled null** — per R3 a raw
+design effect is not evidence of clustering.
+
+## The null-vs-null trap, ruled on in advance
+
+R2 measured the entry signal dead, so `term_slope`'s own IC may not be separable from zero here.
+**If the raw feature's IC has a date-block CI95 spanning zero, the PREDICTIVE arm is declared
+UNINFORMATIVE and carries no verdict weight**, and the IDENTITY arm decides. Committed now
+because it would otherwise be tempting to read a null residual IC as "the confound explains it",
+when two nulls cannot discriminate between any hypotheses at all.
+
+## O16 protocol and verdict rule
+
+1. **Blocking reproduction gate.** Recompute `atm_front` / `atm_mid` at every alert through this
+   module's own `compute_signals` path; recomputed `term_slope` must match the banked value
+   within `1e-6` on **≥99%** of rows, or the study stops. Decomposing a quantity we cannot
+   reproduce is not evidence about anything.
+2. **Identity:** Pearson and Spearman of `term_slope` vs `atm_front` and vs `atm_mid`; variance
+   decomposition `var(ts) = var(mid) + var(front) − 2cov`.
+3. **Residual:** OLS `term_slope ~ a + b·atm_front`.
+4. **Predictive:** Spearman IC vs `pnl_pct` for `term_slope`, `−atm_front`, and the residual.
+5. **No-new-data control** (the PEAD template): rank by `−atm_front` alone, keep the top
+   **40.6%** — `term_slope`'s own shipped retention — and compare the uplift via
+   `date_block_diff`.
+
+**Verdict, first match wins:** **IS THE LEVEL** if `|ρ(ts, atm_front)| ≥ 0.80` **and**
+`var(atm_front)/var(ts) ≥ 0.60`; **IS DISTINCT** if `|ρ| < 0.60` **or**
+`var(atm_mid)/var(ts) ≥ var(atm_front)/var(ts)`; **otherwise NULL**. Ambiguous is a NULL, not a
+lean.
+
+## O24 protocol and verdict rule
+
+1. Days-to-next-earnings from **EVENTS code 22** (`data_providers.earnings_dates`) — the same
+   point-in-time source the PEAD study used.
+2. **Eligibility, committed before any outcome was seen:** an alert counts only if its next
+   earnings date is **within 120 days**. EVENTS coverage is partial (157/186 names; 3,495/3,885
+   alerts carry a forward date) and the scoping pass saw an apparent **3,004-day** gap — a hole
+   in the calendar, not an eight-year earnings drought. Scoring those as "far from earnings"
+   would load the test toward *"not a calendar"*, **the answer this lane would find more
+   convenient**. Excluded as UNKNOWN, count reported.
+3. Buckets 0-7 / 8-14 / 15-30 / 31-60 / 61-120 days, with counts.
+4. **Model:** OLS `term_slope ~ bucket dummies`; statistic is **R²**, the share of `term_slope`'s
+   variance the calendar alone reconstructs.
+5. **Direction, pre-committed:** the mechanism requires `term_slope` most negative closest to
+   earnings, i.e. `Spearman(ts, days) > 0`. **A significant wrong-sign slope refutes the
+   mechanism whatever R² says.**
+6. **No-new-data control:** keep only alerts >30d from earnings; does that replicate the
+   `term_slope` filter's book gain?
+
+**Verdict, first match wins:** **IS THE CALENDAR** if `R² ≥ 0.25` **and** `ρ(ts, days) > 0` with
+a date-block CI95 excluding zero; **IS DISTINCT** if `R² < 0.10`; **otherwise NULL**.
+
+## What no outcome here can do
+
+None of this revives the entry signal (R2 stands) and none of it is a claim about live trading.
+A confirmed confound means the feature is redundant with something cheaper; a distinct verdict
+means U2 may treat it as its own read.
+
+**Logged to `RESEARCH_LOG.md`** as O16 (n=5) and O24 (n=4), domain `options`, verdict PENDING.
+Options-domain `N` 155 → **164**; equity `N` unchanged at 121 (`N` is domain-scoped, per M1).
