@@ -241,7 +241,19 @@ def main(argv=None):
     ap.add_argument("--n-robust", type=int, default=100)
     ap.add_argument("--seed0", type=int, default=SEED0)
     ap.add_argument("--max-dates", type=int, default=0, help="0 = every date (robustness arm)")
+    ap.add_argument("--resume", action="store_true",
+                    help="reuse a partial run's completed primary arms and per-date rows. The "
+                         "sweep is seed-deterministic, so a resumed run is bit-identical to an "
+                         "uninterrupted one; this exists because the 69-date arm is long enough "
+                         "to be killed mid-flight, and re-running 24 completed dates to reach "
+                         "the 25th is pure waste.")
     args = ap.parse_args(argv)
+
+    prev, prev_draws = _load_partial(args.out) if args.resume else ({}, [])
+    if prev:
+        done = {r["date"] for r in (prev.get("robustness") or {}).get("per_date", [])}
+        print(f"[v3] resume: {len(done)} dates already done, "
+              f"{len(prev_draws):,} draws recovered", flush=True)
 
     panel = pd.read_pickle(args.panel)
     dates = sorted(panel["date"].unique())
@@ -274,10 +286,14 @@ def main(argv=None):
         "trial_cost": "ZERO — a calibration searches nothing (session-10 precedent). Equity N unchanged.",
     }
 
-    all_draws = []      # flat rows for the CSV — RUN_RULES A9
+    all_draws = list(prev_draws)      # flat rows for the CSV — RUN_RULES A9
 
     # ---- primary cross-section, both schemes -------------------------------------------------
     for scheme in ("within_column", "block"):
+        if prev.get(f"primary_{scheme}"):
+            out[f"primary_{scheme}"] = prev[f"primary_{scheme}"]
+            print(f"[v3] primary · {scheme} · reused from partial run", flush=True)
+            continue
         t0 = time.time()
         print(f"[v3] primary · {scheme} · {args.n_primary} draws", flush=True)
         real, draws = run_date(cs0, scheme, args.n_primary, ladder0, decile0,
@@ -325,28 +341,48 @@ def main(argv=None):
     # ---- robustness: every date, H1 only ------------------------------------------------------
     rob_dates = dates if not args.max_dates else dates[-args.max_dates:]
     print(f"[v3] robustness · {len(rob_dates)} dates × {args.n_robust} draws", flush=True)
-    per_date = []
+    per_date = list((prev.get("robustness") or {}).get("per_date", []))
+    have = {r["date"] for r in per_date}
+
+    # Rebuild any date whose DRAWS were banked but whose summary row was lost. The draws are the
+    # expensive half (100 scorings); the real cross-section is one more scoring, so a date with a
+    # full complement of banked draws is recoverable for ~1% of what it cost. This is RUN_RULES A9
+    # paying for itself in a way the rule did not anticipate: the draws answered a question asked
+    # later, and the question was "can this run be resumed".
+    banked = {}
+    for r in prev_draws:
+        if r.get("arm") == "within_column_robust":
+            banked.setdefault(r["date"], []).append(r)
+    for dstr, rows in sorted(banked.items()):
+        if dstr in have or len(rows) < args.n_robust:
+            continue
+        cs = panel[panel["date"].astype(str) == dstr].copy().set_index("ticker")
+        if len(cs) < 50:
+            continue
+        dec = max(1, len(cs) // 10)
+        lad = sorted(set(LADDER + [dec]))
+        real = statistic(cs, lad, dec)
+        per_date.append(_date_row(dstr, cs, dec, real, rows, lad))
+        have.add(dstr)
+        print(f"[v3]   recovered {dstr} from {len(rows)} banked draws", flush=True)
+    # The per-date rows are now parked in `out` BEFORE the loop and updated inside it. They used
+    # to be assembled in a local and attached only after the last date, so a run killed at date
+    # 24 of 69 left an artifact with no robustness block at all — 16 minutes of completed work
+    # that looked, to the next reader, exactly like work never started.
+    out["robustness"] = {"per_date": per_date, "status": "IN PROGRESS"}
     for i, d in enumerate(rob_dates, 1):
+        if str(d) in have:
+            continue
         cs = panel[panel["date"] == d].copy().set_index("ticker")
         if len(cs) < 50:
             per_date.append({"date": str(d), "n": int(len(cs)), "skipped": "cross-section under 50 names"})
+            _write(args.out, out, all_draws)
             continue
         dec = max(1, len(cs) // 10)
         lad = sorted(set(LADDER + [dec]))
         real, draws = run_date(cs, "within_column", args.n_robust, lad, dec, args.seed0)
-        tab = calibrate(real, draws, lad)
-        row = tab.get(PRIMARY_RANK, {})
-        per_date.append({
-            "date": str(d), "n": int(len(cs)), "decile_edge_rank": int(dec),
-            "real_at_primary_rank": row.get("real"),
-            "noise_p95_at_primary_rank": row.get("noise_p95"),
-            "empirical_p": row.get("empirical_p"),
-            "clears_p95": row.get("clears_p95"),
-            "real_top_decile_mean": real.get("top_decile_mean"),
-            "noise_top_decile_mean_p95": _pct([x["top_decile_mean"] for x in draws], 95),
-            "real_composite_sd": real.get("composite_sd"),
-            "noise_composite_sd_p50": _pct([x["composite_sd"] for x in draws], 50),
-        })
+        per_date.append(_date_row(str(d), cs, dec, real, draws, lad))
+        row = per_date[-1]
         for x in draws:
             all_draws.append({"arm": "within_column_robust", "date": str(d), **
                               {k: v for k, v in x.items() if k != "top_decile_composition"}})
@@ -354,10 +390,12 @@ def main(argv=None):
               f"clears_p95={row.get('clears_p95')} p={row.get('empirical_p')}", flush=True)
         _write(args.out, out, all_draws)
 
+    per_date.sort(key=lambda r: r["date"])
     scored = [r for r in per_date if r.get("clears_p95") is not None]
     n_clear = sum(1 for r in scored if r["clears_p95"])
     out["robustness"] = {
         "per_date": per_date,
+        "status": "COMPLETE",
         "n_dates_scored": len(scored),
         "n_dates_clearing_p95": n_clear,
         "fraction_clearing": (n_clear / len(scored) if scored else None),
@@ -403,6 +441,56 @@ def main(argv=None):
     print(f"\n[v3] VERDICT: {verdict}", flush=True)
     print(f"[v3] {len(all_draws):,} draws -> {args.out}", flush=True)
     return 0
+
+
+def _date_row(dstr, cs, dec, real, draws, lad) -> dict:
+    """One date's robustness summary. Shared by the live loop and the resume path so a recovered
+    date and a freshly computed one cannot be summarised by two different pieces of arithmetic."""
+    row = calibrate(real, draws, lad).get(PRIMARY_RANK, {})
+    return {
+        "date": dstr, "n": int(len(cs)), "decile_edge_rank": int(dec),
+        "real_at_primary_rank": row.get("real"),
+        "noise_p95_at_primary_rank": row.get("noise_p95"),
+        "empirical_p": row.get("empirical_p"),
+        "clears_p95": row.get("clears_p95"),
+        "real_top_decile_mean": real.get("top_decile_mean"),
+        "noise_top_decile_mean_p95": _pct([x["top_decile_mean"] for x in draws], 95),
+        "real_composite_sd": real.get("composite_sd"),
+        "noise_composite_sd_p50": _pct([x["composite_sd"] for x in draws], 50),
+        "n_draws": len(draws),
+    }
+
+
+def _load_partial(path):
+    """(summary, draws) from a previous partial run, or ({}, []) if there is nothing to reuse.
+
+    Reads the banked CSV back rather than regenerating it: the draws ARE the record (RUN_RULES
+    A9), and a resume that silently dropped the earlier ones would leave the artifact claiming a
+    draw count it no longer holds.
+    """
+    try:
+        with open(path) as f:
+            summary = json.load(f)
+    except (OSError, ValueError):
+        return {}, []
+    draws = []
+    try:
+        with open(path.replace(".json", "") + ".draws.csv", newline="") as f:
+            for row in csv.DictReader(f):
+                draws.append({k: (_num(v) if k not in ("arm", "date") else v)
+                              for k, v in row.items()})
+    except OSError:
+        pass
+    return summary, draws
+
+
+def _num(v):
+    if v is None or v == "":
+        return None
+    try:
+        return float(v)
+    except ValueError:
+        return v
 
 
 def _write(path, out, draws):
