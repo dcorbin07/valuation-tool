@@ -2635,6 +2635,18 @@ The register fixes the bar as literals before anything is measured, from
 | median entry premium | $2.58 |
 | commission | $1.30 round trip = **50.4 bps** of that premium |
 
+**THE BAR WAS CROSS-CHECKED AGAINST A SECOND ARTIFACT AND THE TWO AGREE TO ZERO.** O1's
+`data/options_exitlab/paths.pkl` stores raw `entry_bid` / `entry_ask` per trade, an independent
+route to the same quantity. On the **1,099 trades that match** between the two files, the direct
+`(ask − mid) / mid` and the book's `entry_spread_pct / 2` disagree by **0.000000 bps at the
+maximum**. The distribution is also bounded exactly where it should be — the book's maximum is
+1250.0 bps, i.e. `MAX_SPREAD_PCT` 0.25 ÷ 2, which is the entry gate binding.
+**One thing worth recording so nobody re-derives a different bar:** the same statistic computed
+over `paths.pkl`'s own 3,119 rows is **323.0 bps**, not 410.0, and that is a SAMPLE difference,
+not a disagreement — it is a partial rebuild, and restricting the book to its ticker set still
+gives 409.0, so the gap is which TRADES survived the path rebuild rather than which names. **The
+authoritative 3,885-trade book is the bar. Do not quote 323.**
+
 **V5's brief says to compare against "the modelled 33.4bps" and that would have been a category
 error of roughly an order of magnitude.** 33.4 bps one-way is audit **B11**'s measured cost on
 the *fundamental panel* — basis points of **stock notional**. This book pays ~410 bps of
