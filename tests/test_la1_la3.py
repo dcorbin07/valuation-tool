@@ -341,6 +341,26 @@ class TestTheSecondDoorNoDataWithNoException(unittest.TestCase):
         self.assertEqual(out["probe"], {"no_data": 2, "valued": 1})
 
 
+
+class TestMergeScreen(unittest.TestCase):
+    """The mop-up pass must ADD to the first pass's counts, never replace them."""
+
+    def test_counts_add_and_errors_are_not_lost(self):
+        a = {"screened": 488, "refused": 3, "errors": 2, "error_tickers": ["A"]}
+        b = {"screened": 13, "refused": 1, "errors": 0, "error_tickers": ["B"]}
+        out = SC._merge_screen(a, b, no_data_rescreened=13)
+        self.assertEqual(out["screened"], 501)
+        self.assertEqual(out["refused"], 4)
+        self.assertEqual(out["errors"], 2, "a clean second pass cannot erase the first's errors")
+        self.assertEqual(out["error_tickers"], ["A", "B"])
+        self.assertEqual(out["no_data_rescreened"], 13)
+
+    def test_the_mopup_uses_low_concurrency_because_the_leak_was_our_own_request_rate(self):
+        """13 of 500 came back with no statements at 8 workers; all 13 returned data at 2,
+        including the refusal this finding is about."""
+        self.assertLessEqual(SC.NO_DATA_RETRY_WORKERS, 2)
+
+
 # ==========================================================================================
 # LA3
 # ==========================================================================================

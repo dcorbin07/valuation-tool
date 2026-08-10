@@ -32,6 +32,19 @@ from .store import Store
 # row as `dcf_error`, and re-asked by the cheap refusal-only screen.
 DCF_ATTEMPTS = 2
 
+# LA1 — THE LEAK WAS SELF-INFLICTED BY OUR OWN REQUEST RATE, and this is the measurement that
+# settled it. The bulk refusal screen runs 8 workers over ~488 names against a free
+# rate-limited feed; 13 of them came back with NO statements and NO exception, so the model had
+# nothing to judge, `decide(None, price)` returned an empty reason, and the peer estimate went
+# out unchecked. Re-asked at TWO workers, all 13 returned data — 12 valued and KSPI REFUSED at
+# 5.6x. Nothing about those names is unfetchable; we were simply asking too fast.
+#
+# So the residue gets a second, slow pass rather than a policy change. It is small by
+# construction (13 of 500 on the observed run), so the cost is seconds, and it keeps the
+# fail-open policy intact: the alternative — withholding every name we could not reach — is a
+# product decision that would blank hundreds of rows on a genuinely bad upstream day.
+NO_DATA_RETRY_WORKERS = 2
+
 
 def _effective_weights(store):
     """Live weights = the latest self-learning-adopted weights, else the defaults."""
@@ -295,14 +308,18 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
                  if r.get("fair_value") is None and not r.get("fair_value_withheld")]
         if retry:
             again = _screen_refusals(retry, cfg, workers)
-            health_refusals = {
-                "screened": health_refusals["screened"] + again["screened"],
-                "refused": health_refusals["refused"] + again["refused"],
-                "errors": health_refusals.get("errors", 0) + again.get("errors", 0),
-                "error_tickers": sorted(set(health_refusals.get("error_tickers", []))
-                                        | set(again.get("error_tickers", [])))[:20],
-                "dcf_window_rescreened": len(retry),
-            }
+            health_refusals = _merge_screen(health_refusals, again,
+                                            dcf_window_rescreened=len(retry))
+        # ...and the SLOW MOP-UP. Anything that came back with no statements at all gets
+        # re-asked at NO_DATA_RETRY_WORKERS. Measured: 13 of 500 came back empty at 8 workers
+        # and every one of them returned data at 2 — including the refusal this whole finding
+        # is about. See the constant for the measurement.
+        residue = [r for r in rows[:refusal_screen]
+                   if r.get("dcf_probe") == "no_data" and not r.get("fair_value_withheld")]
+        if residue:
+            slow = _screen_refusals(residue, cfg, NO_DATA_RETRY_WORKERS)
+            health_refusals = _merge_screen(health_refusals, slow,
+                                            no_data_rescreened=len(residue))
     else:
         health_refusals = {"screened": 0, "refused": 0, "errors": 0,
                            "note": "refusal screen off"}
@@ -522,6 +539,27 @@ def _screen_refusals(rows, cfg, workers: int = 8) -> dict:
     # estimates on the public list.
     return {"screened": len(rows), "refused": after - before, "errors": len(errors),
             "error_tickers": sorted(errors)[:20]}
+
+
+def _merge_screen(a: dict, b: dict, **extra) -> dict:
+    """Combine two refusal-screen reports. The counts ADD; nothing is overwritten.
+
+    Written as one function because the alternative — merging inline at each call site — is
+    how a later pass silently replaces an earlier pass's `errors` with its own and a scan
+    reports a clean bill of health it never earned.
+    """
+    out = {
+        "screened": a.get("screened", 0) + b.get("screened", 0),
+        "refused": a.get("refused", 0) + b.get("refused", 0),
+        "errors": a.get("errors", 0) + b.get("errors", 0),
+        "error_tickers": sorted(set(a.get("error_tickers") or [])
+                                | set(b.get("error_tickers") or []))[:20],
+    }
+    for k, v in a.items():
+        if k not in out:
+            out[k] = v
+    out.update(extra)
+    return out
 
 
 def publication_audit(rows, dcf_window: int = 0) -> dict:
