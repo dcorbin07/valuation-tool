@@ -44,17 +44,147 @@ def _series(start, n_days, valquo_daily_pp, spy_daily_pp, skip=()):
 
 # ------------------------------------------------- the frozen pre-registration
 def test_frozen_constants_are_exactly_what_the_contract_says():
-    assert TM.CONTRACT_VERSION == "option-E-2026-08-09"
-    assert TM.INCEPTION == dt.date(2026, 7, 30)
-    assert TM.OPERATIONAL_GATE == dt.date(2027, 1, 30)
-    assert TM.FIRST_RENDER == dt.date(2027, 1, 30)
-    assert TM.VERDICT_DATE == dt.date(2031, 7, 30)
+    # Amendment 1 (2026-08-09) voided run #1 and opened vintage 2. The CLOCK moved; the
+    # STATISTICS did not -- sigma, rho, alpha and the cost drag are unchanged, and the
+    # assertions below pin that separation.
+    assert TM.CONTRACT_VERSION == "option-E-2026-08-09+amendment-1"
+    assert TM.INCEPTION == dt.date(2026, 8, 10)
+    assert TM.OPERATIONAL_GATE == dt.date(2027, 2, 10)
+    assert TM.FIRST_RENDER == dt.date(2027, 2, 10)
+    assert TM.VERDICT_DATE == dt.date(2031, 8, 10)
     assert TM.RHO == 3.0
     assert TM.ALPHA == 0.05
     assert TM.MARK_STALENESS_LIMIT_TD == 3
     assert TM.MAX_VOIDED_FRACTION == 0.10
     assert abs(TM.SIGMA_MONTHLY_PP - 3.9846917305386294) < 1e-12, TM.SIGMA_MONTHLY_PP
     assert abs(TM.COST_DRAG_PP_PER_MONTH - 0.14529) < 1e-12, TM.COST_DRAG_PP_PER_MONTH
+
+
+# ------------------------------------------------- the vintage rule (Amendment 1)
+def test_exactly_one_vintage_is_open_and_it_is_vintage_2():
+    v = TM.current_vintage()
+    assert v["vintage"] == 2 and v["run"] == 2
+    assert v["opened"] == dt.date(2026, 8, 10) and v["closed"] is None
+    assert sum(1 for x in TM.VINTAGES if x["status"] == "OPEN") == 1
+
+
+def test_run_1_is_recorded_as_void_and_is_not_deleted():
+    """§5a keeps the voided window. Deleting it would make the void unauditable."""
+    v1 = [x for x in TM.VINTAGES if x["vintage"] == 1][0]
+    assert v1["status"] == "VOID"
+    assert v1["opened"] == dt.date(2026, 7, 30) and v1["closed"] == dt.date(2026, 8, 9)
+    assert "no longer exists" in v1["reason"]
+
+
+def test_the_amendment_moved_the_clock_and_not_the_statistics():
+    """The whole defensibility of Amendment 1 rests on this separation."""
+    assert abs(TM.SIGMA_MONTHLY_PP - 3.9846917305386294) < 1e-12
+    assert TM.RHO == 3.0 and TM.ALPHA == 0.05
+    assert abs(TM.COST_DRAG_PP_PER_MONTH - 0.14529) < 1e-12
+    # And the horizons are derived from the vintage, not hand-entered.
+    assert TM.OPERATIONAL_GATE == TM._months_after(TM.INCEPTION, TM.GATE_MONTHS)
+    assert TM.VERDICT_DATE == TM._months_after(TM.INCEPTION, TM.VERDICT_MONTHS)
+
+
+def test_the_voided_vintage_does_not_feed_the_meter():
+    """Run #1's rows are inside the file and must contribute nothing to the live test."""
+    live = [{"date": "2026-07-31", "valquo": 0.4126, "spy": 0.6903},
+            {"date": "2026-08-06", "valquo": 0.7760, "spy": 3.6228}]
+    m = TM.meter(live, as_of=dt.date(2026, 9, 30))
+    assert m["vintage"] == 2
+    assert m["n_months"] == 0, "a voided vintage's rows reached the meter"
+    assert m["gaps"]["inception"] == "2026-08-10"
+
+
+def test_a_later_vintage_is_baselined_at_its_opening_level_not_at_zero():
+    """The recorded series is cumulative since run #1, so vintage 2 must not inherit its drift."""
+    rows = _series(dt.date(2026, 7, 30), 130, 0.10, 0.02)      # cumulative from run #1
+    lvl = {r["date"]: r for r in rows}
+    at_open = [r for r in rows if r["date"] <= "2026-08-10"][-1]
+    assert at_open["valquo"] > 0.5, at_open   # run #1 drift is genuinely non-zero
+
+    mx = TM.monthly_excess(rows, as_of=dt.date(2026, 10, 31))
+    first = mx["months"][0]
+    assert first["month"] == "2026-09"        # August is a stub and merges forward
+    # The first period runs from INCEPTION to end-September, so its return must be exactly the
+    # ratio of those two recorded levels. Baselining at zero instead would fold run #1's drift
+    # in and give a LARGER number; this pins the exact value rather than a band.
+    end = lvl[first["mark_date"]]
+    want_v = (1 + end["valquo"] / 100) / (1 + at_open["valquo"] / 100) - 1
+    want_s = (1 + end["spy"] / 100) / (1 + at_open["spy"] / 100) - 1
+    assert abs(first["valquo_ret_pp"] - want_v * 100) < 1e-9, (first, want_v * 100)
+    assert abs(first["excess_gross_pp"] - (want_v - want_s) * 100) < 1e-9
+    # And it is strictly smaller than the zero-baselined version, which is the actual defect.
+    assert first["valquo_ret_pp"] < end["valquo"], "vintage 2 inherited run #1's drift"
+
+
+def test_as_operated_keeps_the_voided_vintage_and_is_not_a_verdict():
+    live = [{"date": "2026-07-31", "valquo": 0.4126, "spy": 0.6903},
+            {"date": "2026-08-06", "valquo": 0.7760, "spy": 3.6228}]
+    ao = TM.as_operated(live, as_of=dt.date(2026, 8, 9))
+    assert ao["label"] == "the system as operated"
+    # The disclaimer must name WHY it is not a verdict -- that it crosses models -- not merely
+    # exist as a key. A key nobody reads is not a safeguard.
+    dis = ao["not_a_verdict"].lower()
+    assert "model" in dis and "vintage" in dis, ao["not_a_verdict"]
+    leg1 = [l for l in ao["legs"] if l["vintage"] == 1][0]
+    # The REAL experienced figures, not zero -- a six-day window holds no complete month, and
+    # reporting 0.0% for a window that moved -2.85pp would be the flattering kind of wrong.
+    assert abs(leg1["valquo_ret_pp"] - 0.7760) < 1e-9
+    assert abs(leg1["spy_ret_pp"] - 3.6228) < 1e-9
+    assert abs(leg1["excess_pp"] - (-2.8468)) < 1e-4
+
+
+# ------------------------------------------------- the running-path block (session 15)
+def test_detail_is_not_vacuously_green_before_the_vintage_starts():
+    """A bound that cannot fail yet must say so rather than report a pass."""
+    d = TM.detail(series=[], as_of=dt.date(2026, 8, 9))
+    assert d["available"] is True
+    assert d["started"] is False
+    assert d["recording_ok"] is None, "reported a pass before any trading day was due"
+    assert "not started" in d["recording_note"]
+
+
+def test_detail_reports_a_missing_day_the_day_after_it_was_due():
+    """The one-day test for whether the daily writer is actually running.
+
+    Inception (2026-08-10) is day 0, so the FIRST row due is 2026-08-11 and the earliest date
+    on which its absence is detectable is 2026-08-12.
+    """
+    d = TM.detail(series=[], as_of=dt.date(2026, 8, 12))
+    assert d["started"] is True and d["recording_ok"] is False
+    assert "MISSING" in d["recording_note"]
+    assert "2026-08-11" in d["meter"]["gaps"]["missing_dates"]
+    assert "2026-08-10" not in d["meter"]["gaps"]["missing_dates"], "demanded a row on day 0"
+
+
+def test_as_operated_is_reconciled_against_the_one_authority():
+    """PT-OUTBOUND: the authority for any vs-SPY claim is `index_track.vs_spy_claim`.
+
+    This module legitimately computes its own excess -- the meter's statistic is monthly,
+    per-vintage and net of a modelled cost drag, so reading it off the claim would be wrong.
+    But `as_operated` IS the same kind of object as the claim, so a disagreement between the
+    two must be reported rather than discovered. On 2026-08-05 two derivations that nobody
+    reconciled is exactly how a wrong number shipped.
+    """
+    assert TM._reconcile({"cumulative_excess_pp": -2.8468},
+                         {"available": True, "excess_pp": -2.8468}) is True
+    assert TM._reconcile({"cumulative_excess_pp": -2.8468},
+                         {"available": True, "excess_pp": +0.18}) is False
+    # No authority is a normal state on a fresh deploy -- and must NOT read as agreement.
+    assert TM._reconcile({"cumulative_excess_pp": -2.8468}, {"available": False}) is None
+    assert TM._reconcile({"cumulative_excess_pp": 0.0},
+                         {"available": True, "excess_pp": None}) is None
+
+
+def test_detail_names_the_bound_source_and_never_raises():
+    d = TM.detail(series=[], as_of=dt.date(2026, 8, 12))
+    assert "Valquo Index" in d["source"] and d["not_the_sandbox_engine"] is True
+    assert d["vintage"] == 2
+    # A broken series is a normal state, not a 500 on an unrelated page.
+    bad = TM.detail(series=[{"date": "not-a-date", "valquo": None, "spy": None}],
+                    as_of=dt.date(2026, 8, 11))
+    assert bad["available"] is True
 
 
 def test_sigma_derivation_is_the_projects_own_measured_numbers():
@@ -132,8 +262,8 @@ def test_meter_has_no_sign_branch():
     """
     up = _series(TM.INCEPTION, 130, 0.30, 0.02)
     dn = _series(TM.INCEPTION, 130, 0.02, 0.30)
-    a = TM.meter(up, as_of=dt.date(2027, 1, 30))
-    b = TM.meter(dn, as_of=dt.date(2027, 1, 30))
+    a = TM.meter(up, as_of=TM.FIRST_RENDER)
+    b = TM.meter(dn, as_of=TM.FIRST_RENDER)
     assert a["rendered"] == b["rendered"] is True
     assert a["n_months"] == b["n_months"]
     assert a["boundary_sum_pp"] == b["boundary_sum_pp"]
@@ -153,7 +283,7 @@ def test_render_is_blocked_before_the_contracted_first_render_date():
 
 def test_cost_drag_is_a_constant_shift_against_the_strategy():
     s = _series(TM.INCEPTION, 130, 0.05, 0.05)      # identical legs -> zero gross excess
-    mx = TM.monthly_excess(s, as_of=dt.date(2027, 1, 30))
+    mx = TM.monthly_excess(s, as_of=TM.FIRST_RENDER)
     assert mx["n_months"] >= 5
     for mo in mx["months"]:
         assert abs(mo["excess_gross_pp"]) < 1e-9
@@ -162,7 +292,7 @@ def test_cost_drag_is_a_constant_shift_against_the_strategy():
 
 def test_sigma_breach_fires_when_realised_volatility_exceeds_the_plug_in():
     calm = _series(TM.INCEPTION, 130, 0.05, 0.05)
-    assert TM.meter(calm, as_of=dt.date(2027, 1, 30))["sigma_breach"] is False
+    assert TM.meter(calm, as_of=TM.FIRST_RENDER)["sigma_breach"] is False
     # A series whose monthly excess swings far wider than sigma must raise the flag.
     rows, d, cv, cs, i, sign = [], TM.INCEPTION, 0.0, 0.0, 0, 1
     while i < 130:
@@ -175,17 +305,17 @@ def test_sigma_breach_fires_when_realised_volatility_exceeds_the_plug_in():
         if d.day > 25:
             sign = -sign
         rows.append({"date": d.isoformat(), "valquo": cv, "spy": cs})
-    assert TM.meter(rows, as_of=dt.date(2027, 1, 30))["sigma_breach"] is True
+    assert TM.meter(rows, as_of=TM.FIRST_RENDER)["sigma_breach"] is True
 
 
 # ------------------------------------------------- series construction
 def test_the_one_day_stub_month_is_merged_forward_not_counted():
     """Inception is 2026-07-30, so July holds a single trading day of exposure."""
     s = _series(TM.INCEPTION, 40, 0.05, 0.01)
-    mx = TM.monthly_excess(s, as_of=dt.date(2026, 9, 30))
+    mx = TM.monthly_excess(s, as_of=dt.date(2026, 10, 31))
     labels = [m["month"] for m in mx["months"]]
-    assert "2026-07" not in labels, labels
-    assert labels[0] == "2026-08"
+    assert "2026-08" not in labels, labels          # inception 2026-08-10 -> August is a stub
+    assert labels[0] == "2026-09"
 
 
 def test_an_interior_missing_day_does_not_corrupt_a_monthly_return():
@@ -193,8 +323,8 @@ def test_an_interior_missing_day_does_not_corrupt_a_monthly_return():
     full = _series(TM.INCEPTION, 130, 0.05, 0.01)
     holed = _series(TM.INCEPTION, 130, 0.05, 0.01,
                     skip=("2026-09-10", "2026-09-11", "2026-09-14"))
-    a = TM.monthly_excess(full, as_of=dt.date(2027, 1, 30))
-    b = TM.monthly_excess(holed, as_of=dt.date(2027, 1, 30))
+    a = TM.monthly_excess(full, as_of=TM.FIRST_RENDER)
+    b = TM.monthly_excess(holed, as_of=TM.FIRST_RENDER)
     assert b["n_voided"] == 0
     assert [m["month"] for m in a["months"]] == [m["month"] for m in b["months"]]
     for x, y in zip(a["months"], b["months"]):
@@ -204,7 +334,7 @@ def test_an_interior_missing_day_does_not_corrupt_a_monthly_return():
 def test_a_stale_month_end_mark_voids_that_month():
     s = _series(TM.INCEPTION, 130, 0.05, 0.01,
                 skip=tuple(f"2026-09-{d:02d}" for d in range(20, 31)))
-    mx = TM.monthly_excess(s, as_of=dt.date(2027, 1, 30))
+    mx = TM.monthly_excess(s, as_of=TM.FIRST_RENDER)
     voided = [v["month"] for v in mx["voided"]]
     assert "2026-09" in voided, mx["voided"]
     assert all("stale" in v["reason"] or "no mark" in v["reason"] for v in mx["voided"])
@@ -212,7 +342,7 @@ def test_a_stale_month_end_mark_voids_that_month():
 
 def test_too_many_voided_months_blocks_the_render():
     s = _series(TM.INCEPTION, 130, 0.05, 0.01)
-    mx = TM.monthly_excess(s, as_of=dt.date(2027, 1, 30))
+    mx = TM.monthly_excess(s, as_of=TM.FIRST_RENDER)
     n = mx["n_months"]
     # Drop the back half of every month so most marks are unusably stale.
     skip = []
@@ -220,7 +350,7 @@ def test_too_many_voided_months_blocks_the_render():
         y, m = (int(x) for x in mo["month"].split("-"))
         skip += [f"{y:04d}-{m:02d}-{d:02d}" for d in range(15, 32)]
     holed = _series(TM.INCEPTION, 130, 0.05, 0.01, skip=tuple(skip))
-    out = TM.meter(holed, as_of=dt.date(2027, 1, 30))
+    out = TM.meter(holed, as_of=TM.FIRST_RENDER)
     assert out["voided_fraction"] > TM.MAX_VOIDED_FRACTION
     assert out["rendered"] is False
     assert "voided" in out["render_blocked_reason"]
@@ -231,39 +361,44 @@ def test_too_many_voided_months_blocks_the_render():
 def test_gap_report_does_not_demand_a_row_on_the_inception_day():
     """Inception is day 0. Demanding a row there reports a gap that can never be closed."""
     s = _series(TM.INCEPTION, 5, 0.05, 0.01)
-    g = TM.gap_report(s, as_of=dt.date(2026, 8, 6))
+    g = TM.gap_report(s, as_of=dt.date(2026, 8, 17))
     assert TM.INCEPTION.isoformat() not in g["missing_dates"]
     assert g["complete"] is True, g
 
 
 def test_gap_report_names_the_missing_dates_not_just_a_count():
-    s = _series(TM.INCEPTION, 6, 0.05, 0.01, skip=("2026-08-04",))
-    g = TM.gap_report(s, as_of=dt.date(2026, 8, 7))
-    assert g["missing_dates"] == ["2026-08-04"], g
+    s = _series(TM.INCEPTION, 6, 0.05, 0.01, skip=("2026-08-13",))
+    g = TM.gap_report(s, as_of=dt.date(2026, 8, 18))
+    assert g["missing_dates"] == ["2026-08-13"], g
     assert g["complete"] is False and g["missing_count"] == 1
 
 
 def test_gap_report_flags_a_row_on_a_non_trading_day():
     s = _series(TM.INCEPTION, 5, 0.05, 0.01)
-    s.append({"date": "2026-08-08", "valquo": 1.0, "spy": 1.0})     # a Saturday
-    g = TM.gap_report(s, as_of=dt.date(2026, 8, 7))
-    assert "2026-08-08" in g["unexpected_dates"]
+    s.append({"date": "2026-08-15", "valquo": 1.0, "spy": 1.0})     # a Saturday
+    g = TM.gap_report(s, as_of=dt.date(2026, 8, 17))
+    assert "2026-08-15" in g["unexpected_dates"]
     assert g["complete"] is False
 
 
-def test_the_live_gap_as_recorded_is_reproduced():
-    """The real state on 2026-08-09: rows for day 1 and day 5, four trading days missing."""
+def test_the_voided_run_1_gap_as_recorded_is_still_reproduced():
+    """Run #1's real state on 2026-08-09, checked against ITS OWN inception.
+
+    Amendment 1 voided this window but kept it. The historical fact is pinned here so the void
+    stays auditable: 2 of 6 due rows, four named missing days, and zero complete months -- the
+    last being why the meter's parameters could not have been tuned to it.
+    """
     live = [{"date": "2026-07-31", "valquo": 0.4126, "spy": 0.6903},
             {"date": "2026-08-06", "valquo": 0.7760, "spy": 3.6228}]
-    g = TM.gap_report(live, as_of=dt.date(2026, 8, 9))
+    v1 = dt.date(2026, 7, 30)
+    g = TM.gap_report(live, as_of=dt.date(2026, 8, 9), inception=v1)
     assert g["expected_trading_days"] == 6 and g["present"] == 2
     assert g["missing_dates"] == ["2026-08-03", "2026-08-04", "2026-08-05", "2026-08-07"]
-    # And zero complete months, which is why the pre-registration is blind.
-    assert TM.monthly_excess(live, as_of=dt.date(2026, 8, 9))["n_months"] == 0
+    assert TM.monthly_excess(live, as_of=dt.date(2026, 8, 9), inception=v1)["n_months"] == 0
 
 
 def test_empty_series_is_a_normal_state_not_a_crash():
-    out = TM.meter([], as_of=dt.date(2027, 1, 30))
+    out = TM.meter([], as_of=TM.FIRST_RENDER)
     assert out["computable"] is False and out["rendered"] is False
     assert out["n_months"] == 0
 

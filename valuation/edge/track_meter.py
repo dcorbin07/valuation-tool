@@ -90,12 +90,49 @@ from valuation.screener.market_session import is_trading_day
 # breach of a pre-registration.
 # ---------------------------------------------------------------------------
 
-CONTRACT_VERSION = "option-E-2026-08-09"
+CONTRACT_VERSION = "option-E-2026-08-09+amendment-1"
 
-INCEPTION = _dt.date(2026, 7, 30)
-OPERATIONAL_GATE = _dt.date(2027, 1, 30)      # 6 months; also the meter's FIRST RENDER
+# --- VINTAGES (contract §5a, Amendment 1, 2026-08-09) ------------------------
+# An ADOPTED change to scoring, weights or construction closes the current vintage and opens the
+# next. Rebalancing under unchanged rules is NOT a vintage event. Each vintage carries its own
+# clock, and the gate and the meter attach to the CURRENT one -- a verdict is a statement about
+# a vintage and must name it. Voided vintages are kept, never deleted: they still appear in
+# `as_operated()`, which is the honest "what a user would have experienced" series and is
+# explicitly NOT the object of a contract verdict, because it mixes models.
+VINTAGES = (
+    {"vintage": 1, "run": 1, "opened": _dt.date(2026, 7, 30), "closed": _dt.date(2026, 8, 9),
+     "status": "VOID",
+     "reason": "growth-input fix, score fix, universe rebuild - the measured model no longer "
+               "exists. Voided by Amendment 1 under §3's 'any change to how the Index is "
+               "constructed'. The voided window was known to be -2.85pp; see §5a's disclosure."},
+    {"vintage": 2, "run": 2, "opened": _dt.date(2026, 8, 10), "closed": None, "status": "OPEN",
+     "reason": "opened by Amendment 1, with ZERO accrued days - so no window's sign could have "
+               "informed this start date."},
+)
+
+
+def current_vintage() -> dict:
+    """The one open vintage. Exactly one may be open; anything else is a defect, not a default."""
+    live = [v for v in VINTAGES if v["status"] == "OPEN"]
+    if len(live) != 1:
+        raise RuntimeError(f"expected exactly one OPEN vintage, found {len(live)}")
+    return live[0]
+
+
+def _months_after(d: _dt.date, n: int) -> _dt.date:
+    y, m = d.year + (d.month - 1 + n) // 12, (d.month - 1 + n) % 12 + 1
+    day = min(d.day, [31, 29 if y % 4 == 0 and (y % 100 or y % 400 == 0) else 28,
+                      31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1])
+    return _dt.date(y, m, day)
+
+
+GATE_MONTHS = 6
+VERDICT_MONTHS = 60
+
+INCEPTION = current_vintage()["opened"]                       # 2026-08-10 (vintage 2)
+OPERATIONAL_GATE = _months_after(INCEPTION, GATE_MONTHS)      # 2027-02-10; also FIRST RENDER
 FIRST_RENDER = OPERATIONAL_GATE
-VERDICT_DATE = _dt.date(2031, 7, 30)          # 60 months
+VERDICT_DATE = _months_after(INCEPTION, VERDICT_MONTHS)       # 2031-08-10
 
 # sigma: the backtest's own tracking error vs SPY, inflated for autocorrelation.
 _TRACKING_ERROR_ANNUAL_PP = 11.40             # benchmarks.spy, corrected 69-date panel
@@ -239,8 +276,15 @@ def monthly_excess(series: Sequence[dict], as_of: _dt.date = None,
     rows.sort(key=lambda t: t[0])
 
     months, voided = [], []
-    # Baseline is inception itself: cumulative return is 0 there by definition.
-    prev_v, prev_s, prev_mark = 0.0, 0.0, inception
+    # BASELINE AT THE VINTAGE'S OPENING LEVEL, NOT AT ZERO. The recorded series holds cumulative
+    # return since the ORIGINAL inception, and Amendment 1 opened vintage 2 partway through it.
+    # Baselining a later vintage at 0 would fold the earlier vintage's drift into its first
+    # month. Taking the level at the vintage's opening date is correct whether the writer resets
+    # its cumulative on a vintage change or carries it forward, so this does not depend on a
+    # behaviour of the Cowork writer that nobody here controls.
+    base = [t for t in rows if t[0] <= inception]
+    prev_v, prev_s = (base[-1][1], base[-1][2]) if base else (0.0, 0.0)
+    prev_mark = inception
 
     # THE STUB MONTH IS MERGED FORWARD, NOT COUNTED. Inception is 2026-07-30, so the calendar
     # month it falls in contains a single trading day of exposure. Admitting that as a monthly
@@ -307,10 +351,13 @@ def meter(series: Sequence[dict], as_of: _dt.date = None,
     xs = [mo["excess_pp"] for mo in mx["months"]]
     n = len(xs)
 
+    vin = current_vintage() if inception == INCEPTION else None
     out = {
         "contract_version": CONTRACT_VERSION,
         "as_of": as_of.isoformat(),
         "inception": inception.isoformat(),
+        "vintage": vin["vintage"] if vin else None,
+        "run": vin["run"] if vin else None,
         "first_render": FIRST_RENDER.isoformat(),
         "verdict_date": VERDICT_DATE.isoformat(),
         "params": {"sigma_monthly_pp": SIGMA_MONTHLY_PP, "rho": RHO, "alpha": ALPHA,
@@ -362,10 +409,161 @@ def meter(series: Sequence[dict], as_of: _dt.date = None,
     return out
 
 
+def as_operated(series: Sequence[dict], as_of: _dt.date = None) -> Dict:
+    """The cross-vintage record — "the system as operated" (contract §5a rule 5).
+
+    Every vintage chained end to end, INCLUDING voided ones. This is the honest answer to "what
+    would a user actually have experienced", and it is deliberately a different object from the
+    meter: it mixes models, so **no §5 verdict may be read from it**. It is reported beside the
+    meter, never instead of it, and the returned dict says so in `not_a_verdict`.
+    """
+    as_of = as_of or _dt.date.today()
+    rows = []
+    for r in series:
+        d, v_, s_ = _d(r.get("date")), r.get("valquo"), r.get("spy")
+        if d is not None and v_ is not None and s_ is not None:
+            rows.append((d, float(v_), float(s_)))
+    rows.sort(key=lambda t: t[0])
+
+    legs, cum_v, cum_s = [], 1.0, 1.0
+    for v in VINTAGES:
+        start = v["opened"]
+        end = min(v["closed"] or as_of, as_of)
+        if end < start:
+            continue
+        # RAW ENDPOINTS, NOT COMPLETE MONTHS. "What a user experienced" is not a monthly object:
+        # vintage 1 ran six days and holds no complete calendar month, so a month-based leg would
+        # report it as 0.0% when it actually moved -2.85pp. The meter is monthly because its
+        # statistic requires it; this series is not the meter and must not borrow its granularity.
+        base = [t for t in rows if t[0] <= start]
+        upto = [t for t in rows if t[0] <= end]
+        b_v, b_s = (base[-1][1], base[-1][2]) if base else (0.0, 0.0)
+        if not upto or upto[-1][0] <= start:
+            rv = rs = 1.0
+            n_rows = 0
+        else:
+            e_v, e_s = upto[-1][1], upto[-1][2]
+            rv = (1.0 + e_v / 100.0) / (1.0 + b_v / 100.0)
+            rs = (1.0 + e_s / 100.0) / (1.0 + b_s / 100.0)
+            n_rows = len([t for t in rows if start < t[0] <= end])
+        cum_v *= rv
+        cum_s *= rs
+        legs.append({"vintage": v["vintage"], "run": v["run"], "status": v["status"],
+                     "opened": start.isoformat(),
+                     "closed": (v["closed"].isoformat() if v["closed"] else None),
+                     "n_rows": n_rows,
+                     "valquo_ret_pp": (rv - 1.0) * 100.0, "spy_ret_pp": (rs - 1.0) * 100.0,
+                     "excess_pp": (rv - rs) * 100.0})
+    return {
+        "label": "the system as operated",
+        "not_a_verdict": ("chains across vintages and therefore across MODELS; the contract's "
+                          "verdict is read on the current vintage alone (§5a rule 5)"),
+        "legs": legs,
+        "n_vintages": len(legs),
+        "cumulative_valquo_pp": (cum_v - 1.0) * 100.0,
+        "cumulative_spy_pp": (cum_s - 1.0) * 100.0,
+        "cumulative_excess_pp": (cum_v - cum_s) * 100.0,
+    }
+
+
+def _authoritative_claim(meta_path=None, history_path=None) -> Dict:
+    """The bound recorder's OWN Index-vs-SPY figure — the one authority for that claim."""
+    try:
+        from ..screener.index_track import vs_spy_claim
+        return vs_spy_claim(meta_path=meta_path, history_path=history_path) or {
+            "available": False, "reason": "vs_spy_claim returned nothing"}
+    except Exception as e:                                   # noqa: BLE001
+        return {"available": False, "reason": f"authority unreadable: {type(e).__name__}"}
+
+
+def _reconcile(ao: Dict, claim: Dict, tol_pp: float = 0.01):
+    """Does the cross-vintage chain agree with the authority's since-inception figure?
+
+    `None` when the authority has nothing to say (a normal state on a fresh deploy). A False
+    here is not cosmetic: it means two derivations of the same object disagree, which is exactly
+    the state that let a wrong number ship on 2026-08-05.
+    """
+    if not claim.get("available") or claim.get("excess_pp") is None:
+        return None
+    return abs(float(ao["cumulative_excess_pp"]) - float(claim["excess_pp"])) <= tol_pp
+
+
+def detail(series: Sequence[dict] = None, as_of: _dt.date = None,
+           meta_path: str = None, history_path: str = None) -> Dict:
+    """The block the running path surfaces on every request (roadmap: session 15's first item).
+
+    Two things have to be visible continuously rather than discovered at the operational gate:
+    whether the track is being RECORDED at all, and what the (withheld) meter currently says.
+    Before Amendment 1 the recording failure was only findable by someone going to look; a gate
+    that fails in January because nobody noticed in August is a gate that cost five months.
+
+    Reads the BOUND source (the published Valquo Index) itself when no series is passed, so a
+    caller cannot accidentally point it at the sandbox engine, which records a different book.
+    Never raises: an unreadable track is a normal state and must degrade to "not started", not
+    to a 500 on a page that has nothing to do with it.
+    """
+    as_of = as_of or _dt.date.today()
+    if series is None:
+        try:
+            from ..screener.index_track import load
+            series = (load(meta_path, history_path) or {}).get("series") or []
+        except Exception as e:                               # noqa: BLE001
+            return {"available": False, "reason": f"track unreadable: {type(e).__name__}",
+                    "contract_version": CONTRACT_VERSION}
+    try:
+        v = current_vintage()
+        m = meter(series, as_of=as_of)
+        gaps = m["gaps"]
+        out = {
+            "available": True,
+            "contract_version": CONTRACT_VERSION,
+            "source": "published Valquo Index (valquo_track_history.csv)",
+            "not_the_sandbox_engine": True,
+            "vintage": v["vintage"], "run": v["run"],
+            "inception": v["opened"].isoformat(),
+            "operational_gate_date": OPERATIONAL_GATE.isoformat(),
+            "verdict_date": VERDICT_DATE.isoformat(),
+            "meter": m,
+            "as_operated": as_operated(series, as_of=as_of),
+        }
+        # THE AUTHORITY FOR ANY vs-SPY NUMBER A PERSON RECEIVES IS `vs_spy_claim`, NOT THIS
+        # MODULE (ledger PT-OUTBOUND: the Discord recap once printed the sandbox engine's
+        # +0.18pp as the Index while the bound recorder read -0.28pp). This module legitimately
+        # computes its own excess -- the meter's statistic is monthly, per-vintage and net of a
+        # modelled cost drag, so it is a DIFFERENT object and would be wrong to read off the
+        # claim. But `as_operated` is the same kind of object as the claim, so it is reconciled
+        # against it here and any disagreement is reported rather than left to be discovered.
+        out["vs_spy_claim"] = _authoritative_claim(meta_path, history_path)
+        out["as_operated_agrees_with_authority"] = _reconcile(
+            out["as_operated"], out["vs_spy_claim"])
+        # The one line a human should read. Deliberately blunt about the failure mode -- and
+        # NOT VACUOUSLY GREEN: before the vintage's first trading day there are zero expected
+        # rows, so `complete` is trivially true and reporting "every trading day recorded" would
+        # be a pass that means nothing. A bound that cannot fail yet must say so.
+        started = gaps["expected_trading_days"] > 0
+        out["started"] = started
+        out["recording_ok"] = bool(gaps["complete"]) if started else None
+        out["recording_note"] = (
+            f"vintage {v['vintage']} has not started - inception {v['opened'].isoformat()}, "
+            f"no trading day due yet, so nothing is verified either way" if not started else
+            f"every one of {gaps['expected_trading_days']} trading days recorded"
+            if gaps["complete"] else
+            f"{gaps['missing_count']} of {gaps['expected_trading_days']} trading days MISSING "
+            f"since inception - the operational gate cannot pass while this is true")
+        return out
+    except Exception as e:                                   # noqa: BLE001
+        return {"available": False, "reason": f"meter failed: {type(e).__name__}: {e}",
+                "contract_version": CONTRACT_VERSION}
+
+
 def frozen_parameters() -> Dict:
     """Everything the contract fixed, in one auditable dict."""
     return {
         "contract_version": CONTRACT_VERSION,
+        "vintages": [{**v, "opened": v["opened"].isoformat(),
+                      "closed": v["closed"].isoformat() if v["closed"] else None}
+                     for v in VINTAGES],
+        "current_vintage": current_vintage()["vintage"],
         "inception": INCEPTION.isoformat(),
         "operational_gate": OPERATIONAL_GATE.isoformat(),
         "first_render": FIRST_RENDER.isoformat(),

@@ -290,26 +290,29 @@ recorded**, and the register is live from that commit.
 | **Option chosen** | **E** — Option C's structure plus the §6 evidence meter |
 | **Signed by** | Don (donniecorbin6@gmail.com) |
 | **Date signed** | **2026-08-09** |
-| **Inception** | **2026-07-30**, including the five accrued days and the −2.85pp known to be negative at signing |
+| **Amended** | **Amendment 1, 2026-08-09 — see §5a.** Run #1 VOIDED; the live test is **run #2 / vintage 2** |
+| **Run / vintage now live** | **run #2, vintage 2** |
+| **Inception (run #2)** | **2026-08-10** — the first trading day on or after the amendment, with **ZERO accrued days** |
 | **Bound source** | the **published Valquo Index** — `data/valquo_track.json` + `data/valquo_track_history.csv`, as read by `valuation/screener/index_track.py`. **NOT** the Tradier sandbox engine (§0a.2) |
 | **Book** | Valquo Index as published — top decile, large-cap tier, score-weighted, 8% cap |
 | **Benchmark** | SPY total return |
-| **Operational gate date** | **2027-01-30** (6 months) — tests recording, not returns |
-| **Operational gate passed** | ***pending*** — the gate has NOT passed. It cannot, until the bound series has an automated daily writer (§7.2). **This row is read by the running site; see the note below.** |
-| **Verdict date** | **2031-07-30** (60 months) |
-| **Secondary verdict** | ~**2029-07-30** (36 months) vs a costed equal-weighted basket of the scored universe, **only if that basket is built and separately pre-registered first**. Not built as of signing; if it does not exist, there is no secondary reading |
+| **Operational gate date** | **2027-02-10** (6 months from run #2's inception) — tests recording, not returns |
+| **Operational gate passed** | ***pending*** — the gate has NOT passed. It cannot, until the bound series has a verified automated daily writer (§7.2). **This row is read by the running site; see the note below.** |
+| **Verdict date** | **2031-08-10** (60 months) |
+| **Secondary verdict** | ~**2029-08-10** (36 months) vs a costed equal-weighted basket of the scored universe, **only if that basket is built and separately pre-registered first**. Not built; if it does not exist, there is no secondary reading |
 | **Statistic** | one-sided NW(3) t on monthly excess, plus cumulative excess |
 | **SUPPORTED / UNSUPPORTED** | t ≥ +1.645 and cumulative > 0 / t ≤ −1.645; anything else NULL |
 | **Power at verdict, stated in advance** | **49%** vs SPY at 60 months; **64%** for the secondary at 36 months if built |
-| **Evidence meter** | pre-registered in §6, parameters frozen at this commit, first render **2027-01-30** |
+| **Evidence meter** | pre-registered in §6, parameters **unchanged by the amendment**, first render **2027-02-10** |
 | **Costs** | modelled, not measured: **0.14529 pp/month** subtracted from every monthly excess (§6) |
-| **Voided windows** | *(none yet)* |
+| **Voided windows** | **run #1 / vintage 1: 2026-07-30 → 2026-08-09 (2 recorded rows). Voided by Amendment 1, §5a.** |
 
-**What is fixed by this commit and may not be changed:** the inception date, both horizons, the
-bound source, the book, the benchmark, the statistic, the SUPPORTED/UNSUPPORTED thresholds, the
-cost constant, and every meter parameter in §6. Changing any of them voids the run under the
-abort rule in §3. Repairs to the *recording* (§7) are not changes to any of these and are
-expected — they are what the operational gate is for.
+**What is fixed and may not be changed:** the bound source, the book, the benchmark, the
+statistic, the SUPPORTED/UNSUPPORTED thresholds, the cost constant, and every meter parameter in
+§6 — **none of which Amendment 1 touched.** The current vintage's inception and its two horizons
+are fixed *for that vintage* and move only when the §5a vintage rule opens the next one. Changing
+a threshold voids the run under the abort rule in §3. Repairs to the *recording* (§7) are not
+changes to any of these and are expected — they are what the operational gate is for.
 
 > **THE `Operational gate passed` ROW IS READ BY THE RUNNING SITE. It is the only thing that
 > can promote the live number to the headline** (added 2026-08-09 by the engine lane, closing
@@ -324,13 +327,101 @@ expected — they are what the operational gate is for.
 > On gate day, set this row and nothing else, anywhere:
 >
 > ```
-> | Operational gate passed | YES - 2027-01-30 |
+> | Operational gate passed | YES - 2027-02-10 |
 > ```
 >
 > The value must begin with `yes`, `passed` or `true`. **Every other outcome is not-passed,
 > including a missing file, a missing row, a malformed table and two rows that disagree** —
 > the failure direction is deliberately "still backtested", never "now live". Nothing else in
 > the codebase carries this flag; there is exactly one copy of this fact and it is here.
+
+---
+
+## 5a. AMENDMENT 1 — run #1 voided, run #2 registered, and the VINTAGE RULE
+
+**Dated 2026-08-09. Decided by Don. Recorded here in full, per §3's requirement that a void is
+logged with its reason at the time it is found — never as a silent edit.** Nothing above this
+section was deleted: §5's register carries the void, and run #1's two recorded rows are kept.
+
+### What Don decided, in his words
+
+> Void run #1 (the 2026-07-30 inception window, ~6 days) — reason: it measured a model that has
+> since materially changed: growth-input fix, score fix, universe rebuild. Re-register as run #2
+> with a **vintage rule**: any ADOPTED change to scoring, weights, or construction closes the
+> current vintage and opens the next; each vintage carries its own clock; the operational gate
+> and meter attach to the current vintage; and the cross-vintage record is kept and labelled
+> "the system as operated". Rebalancing under unchanged rules is NOT a vintage event.
+
+### Why this is the contract working, not the contract bending
+
+§3's abort rule already lists **"any change to how the Index is constructed"** as something that
+**voids the affected window**. A growth-input fix, a score fix and a universe rebuild are that
+clause exactly. The window is voided by a cause that pre-dates the outcome and by a rule written
+before the run started.
+
+**No threshold was changed.** σ, ρ, α, the cost constant, the statistic, the
+SUPPORTED/UNSUPPORTED bars and the book are all untouched, so §3's *whole-run* void clause
+("any change to this contract's thresholds") is **not** triggered. **The amendment moves the
+clock, not the statistics.**
+
+**And σ was re-checked against the changed model rather than assumed to survive it:** the current
+backtest still gives SPY excess **+9.99%/yr** at an implied tracking error of **11.401 pp/yr** and
+an information ratio of **0.8759/yr** — the figures σ was derived from. Had the model change moved
+the tracking error, §6.5 would have permitted raising σ and nothing else.
+
+### THE DISCLOSURE THAT MUST TRAVEL WITH THIS AMENDMENT
+
+**The voided window was known to be negative when it was voided.** Run #1 recorded Valquo
+**+0.78%** against SPY **+3.62%**, an excess of **−2.85pp**. Discarding a stretch that went
+against the strategy is the flattering direction, and §1 of this contract warned about exactly
+this before anyone had signed anything.
+
+Three things make it defensible, and they should be checked rather than taken on trust:
+
+1. **The cause is independent of the outcome.** The model changed; that would have been true had
+   run #1 been +2.85pp. The clause invoked pre-existed the run.
+2. **Run #2 starts with ZERO accrued days.** Inception is 2026-08-10, the first trading day on or
+   after the amendment. There is no window whose sign could have informed the new start date —
+   which is the objection §1 raised against a fresh start, now unavailable by construction.
+3. **The voided data is kept, not deleted.** Run #1's rows remain in the series and appear in the
+   cross-vintage "system as operated" record below. Anyone can see what was excluded.
+
+**What would NOT be defensible, and is therefore forbidden from here:** voiding a vintage for a
+change that was *chosen* after seeing the vintage go badly. The vintage rule below exists to make
+that distinction mechanical rather than a matter of judgement.
+
+### THE VINTAGE RULE
+
+1. **A vintage opens** when an ADOPTED change to **scoring, weights, or construction** lands. It
+   closes the vintage that was current. "Adopted" means it ships in the live scoring path — not
+   proposed, not tested, not rejected.
+2. **Rebalancing under unchanged rules is NOT a vintage event.** Names entering and leaving the
+   book on the existing rule set is the strategy operating, not a new strategy.
+3. **Each vintage carries its own clock**: its own inception, its own 6-month operational gate,
+   its own 60-month verdict date.
+4. **The operational gate and the §6 meter attach to the CURRENT vintage** and are computed on
+   that vintage's window alone. A verdict is a statement about a vintage, and must name it.
+5. **The cross-vintage record is kept and published as "the system as operated"** — every
+   vintage chained end to end, including voided ones. It is the honest answer to "what would a
+   user actually have experienced", and it is explicitly **not** the contract's test: it mixes
+   models, so no §5 verdict may be read from it. Both are reported; neither is substituted for
+   the other.
+6. **A vintage change resets the clock, and the clock is the expensive part.** §2's arithmetic is
+   unchanged by any of this: 60 months at 49% power. **A vintage that closes at month 30 has
+   bought nothing statistically** — this rule buys honesty about *what* is being measured, not
+   speed. Anyone tempted to ship a scoring change should know it costs the whole accrued clock.
+
+### Vintage register
+
+| vintage | run | opened | closed | status | reason |
+|---|---|---|---|---|---|
+| **1** | #1 | 2026-07-30 | 2026-08-09 | **VOID** | growth-input fix, score fix, universe rebuild — the measured model no longer exists |
+| **2** | #2 | **2026-08-10** | — | **OPEN — the live test** | opened by Amendment 1 |
+
+**Cost of the amendment: equity `N` 130 → 131.** Charged, not waived. Void-and-restart is a
+researcher degree of freedom — each vintage is another chance for the same hypothesis, and the
+probability that *some* vintage crosses rises with the number of vintages. Rule 6 above is the
+brake; the trial charge is the accounting.
 
 ---
 
@@ -399,13 +490,17 @@ replace** the §5 verdict. Two consequences are binding:
 
 ### 6.3 Display rule, fixed
 
-- Computed from **inception**. **First rendered 2027-01-30** (the operational gate), monthly
-  thereafter, owner-side. Before that date the meter is computed but withheld — withheld from
-  display, not left unmeasured, so nothing is reconstructed later.
-  *(Noted so it is not later mistaken for a fault: **2027-01-30 is a Saturday**. The gate is
-  `as_of >= 2027-01-30`, so it opens on that date and the first actual render happens on the
-  next call at or after it — in practice Monday 2027-02-01. The date is not moved, because
-  moving a pre-registered date is exactly what §5 forbids.)*
+- Computed from **the current vintage's inception** — since Amendment 1, **2026-08-10**.
+  **First rendered 2027-02-10** (that vintage's operational gate), monthly thereafter,
+  owner-side. Before that date the meter is computed but withheld — withheld from display, not
+  left unmeasured, so nothing is reconstructed later.
+  *(Amendment 1 moved this date with the vintage's clock, per §5a rule 3; the run-#1 date was
+  2027-01-30, which was a Saturday and needed a note. **2027-02-10 is a Wednesday and a trading
+  day**, so that wrinkle is gone. The date moves only when a vintage opens — never otherwise,
+  because moving a pre-registered date is what §5 forbids.)*
+- **The meter is computed on the CURRENT VINTAGE'S WINDOW ALONE** (§5a rule 4). Voided vintages
+  do not feed it. The cross-vintage "system as operated" series is reported beside it and is
+  **never** the object of a §5 verdict.
 - **Rendering is unconditional on sign.** A suppressed unfavourable render voids the whole run
   under §3's abort rule, exactly as a back-fill does. The strongest guard is that the code
   cannot express the suppression: the render decision reads the date and the integrity of the
@@ -482,10 +577,24 @@ Recorded so they are not mistaken for oversights, and so the operational gate ha
    > records the same thing independently. The rows are produced by hand on the Cowork side,
    > which is why four of six are missing. **This is now the single blocking item for the
    > operational gate**, and it is the Cowork lane's: an automated daily write of the Index's
-   > cumulative Valquo/SPY levels, on every trading day, or the gate fails at 2027-01-30 by
-   > construction. `track_meter.gap_report` exists so the failure is loud and dated rather than
+   > cumulative Valquo/SPY levels, on every trading day, or the gate fails by construction.
+   > `track_meter.gap_report` exists so the failure is loud and dated rather than
    > discovered at the gate — it names every missing day, and it does not demand a row on
    > inception day, which is day 0.
+   >
+   > **STATUS 2026-08-09 (session 15): A WRITER IS REPORTED TO EXIST AND IT IS NOT YET VERIFIED,
+   > IN EITHER DIRECTION.** It is described as a Cowork scheduled task `valquo-daily-track-write`,
+   > weekdays 20:01. Two facts, both checkable: **(a)** no such task is visible in this machine's
+   > Task Scheduler — 413 tasks enumerate, three are Valquo-related (`Valquo D Backup`,
+   > `ValuationToolAutoPush`, `ValuationToolBackup`) and none is this one — and the name appears
+   > nowhere in the repository; **(b)** even if it exists, **no run was due before this was
+   > written**: the amendment lands Sunday 2026-08-09 and the first weekday firing is Monday
+   > 2026-08-10 at 20:01. So its absence from the scheduler is evidence but not proof — it could
+   > be registered under another account, or on another machine.
+   > **The gate stays `pending` and the gap report is now the instrument that settles it:** from
+   > run #2's inception the meter block reports every missing trading day on every request. **If
+   > 2026-08-11 shows no row for 2026-08-10, the writer is not running.** That is a one-day test
+   > and it needs no further investigation now.
 3. **The engine that this contract governs has never been fed** — 0 rows in all three paper
    tables, while the accrued 5 days come from a different mechanism. Either the sandbox engine
    becomes the source of truth or the contract should name the Cowork file as the source. **This

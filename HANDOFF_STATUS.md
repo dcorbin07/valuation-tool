@@ -4,11 +4,11 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-09 (external edge audit, **session 14** — the paper-track evaluation
-contract is **SIGNED AND IN FORCE as OPTION E**, the evidence meter's parameters are frozen with
-zero complete months in existence, and the track turns out to have **two recorders holding
-different books**. **NO ACTION REQUIRED FROM DON. The one blocking item is COWORK's: the bound
-series has no automated writer.**)
+**Session date:** 2026-08-09 (external edge audit, **session 15** — **AMENDMENT 1**: run #1 is
+VOID, **run #2 is the live test from 2026-08-10**, and the project now has a **VINTAGE RULE**.
+The meter and gap report are wired into `/api/track`. **NO ACTION REQUIRED FROM DON, but one
+thing needs confirming: the Cowork writer `valquo-daily-track-write` is NOT visible in this
+machine's Task Scheduler.** It is checkable from 2026-08-12 with no further work.)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
@@ -179,6 +179,51 @@ doubled; we tested 21 ways out against your alerts and against 29,785 random ent
 beat the exit you already have — about half of what any exit rule gains or loses is just the stock
 moving, and the convexity you buy by holding longer is almost exactly cancelled by the decay you
 pay for it.
+
+---
+
+## 📌 AMENDMENT 1 — RUN #1 VOIDED, RUN #2 LIVE, VINTAGE RULE ADOPTED (2026-08-09, session 15)
+
+`PAPER_TRACK_CONTRACT.md` **§5a**, recorded openly per the contract's own void clause — never a
+silent edit, and nothing above §5a was deleted.
+
+| | |
+|---|---|
+| **Run #1** | **VOID** — inception 2026-07-30, ~6 days, 2 rows. It measured a model that has since materially changed (growth-input fix, score fix, universe rebuild) |
+| **Run #2 — the live test** | inception **2026-08-10**, gate **2027-02-10**, verdict **2031-08-10**, **zero accrued days** |
+| **Cost** | equity `N` 130 → **131**, √(2·ln 131) = **3.1226** |
+
+**THE VINTAGE RULE.** Any **ADOPTED** change to scoring, weights or construction closes the
+current vintage and opens the next. **Rebalancing under unchanged rules is NOT a vintage event.**
+Each vintage has its own clock; the gate and meter attach to the **current** vintage, so a verdict
+names a vintage. The cross-vintage chain is kept and published as **"the system as operated"** and
+is **never** the object of a verdict, because it mixes models.
+
+**→ THE PART THAT MATTERS BEFORE SHIPPING ANY SCORING CHANGE (rule 6): a vintage change resets the
+whole accrued clock and buys nothing statistically.** 60 months at 49% power is unchanged. A
+vintage that closes at month 30 has spent 30 months for no evidence.
+
+**The amendment moved the CLOCK, not the STATISTICS.** σ, ρ, α, the cost drag and the
+SUPPORTED/UNSUPPORTED bars are unchanged — so the *whole-run* void clause is not engaged — and σ
+was **re-checked against the changed model**: the current backtest still gives SPY excess
++9.99%/yr at implied TE **11.401 pp/yr**, the figure σ came from.
+
+**Disclosed because it is the objection: the voided window was known to be −2.85pp**, so voiding
+is the flattering direction. Three answers, each checkable — the cause is independent of the
+outcome and its clause pre-existed; run #2 accrues **zero** days so no window's sign could inform
+the new start date; and the voided rows are **kept**, visible in `as_operated()`.
+
+**The meter now has a caller.** `track_meter.detail()` ships as `summary()["contract_track"]` on
+`/api/track`. It names every missing trading day, is **not vacuously green** before the vintage
+starts, and is reconciled against `index_track.vs_spy_claim()` (−2.8468 vs −2.8468).
+
+**⚠️ ONE THING TO CONFIRM — `valquo-daily-track-write` is not visible here.** 413 scheduled tasks
+enumerate on this machine; three are Valquo-related and **none is that one**, and the name is
+nowhere in the repo. But **no run was due yet** (first weekday firing Monday 2026-08-10 20:01), so
+this is evidence, not proof — it may be registered under another account or machine.
+**THE TEST IS MECHANICAL AND NEEDS NO INVESTIGATION: inception 2026-08-10 is day 0, the first row
+due is 2026-08-11, so from 2026-08-12 read `/api/track` → `contract_track.recording_ok`.** False
+with `2026-08-11` named means the writer is not running.
 
 ---
 
