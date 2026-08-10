@@ -3400,7 +3400,18 @@ charged here if and when one of these columns is *selected into* the composite.
    exceeded 40 filings. Correct for a one-off census, but it makes the insider theme the dominant
    per-scan cost of any adoption, and nothing in the function signals it. **Owner: screener lane
    (cost note for adoption).**
-5. **Carried forward, still open from Part 12:** the served payload's `health` key is `null`, so
+5. **`VALQUO_LEDGER.md`'s `V2G` row is MALFORMED, and it is a RECURRENCE of a defect this
+   project has already paid for once.** The pipeline builder's row writes `max|dev|` — absolute
+   value notation — unescaped inside a markdown table cell, so the row has **14 fields against an
+   11-field header** and its note is split into three columns: everything after `max` is shifted.
+   This is exactly session 12's O16 defect (`|Spearman(term_slope, atm_front)|`, same cause, same
+   shift), which cost that session a near-miss on the trial denominator. **Not edited here** —
+   the register forbids rewriting another lane's row, and the pipes want escaping as `\|` by the
+   lane that owns them. The row is otherwise correct and its content is folded into §13.12.
+   **Owner: pipeline builder.** *(Note also that `V2G` is a genuine id collision — that lane and
+   this one independently registered the same id off the same Part 12 finding. Both rows are
+   kept; this lane's is renamed `V2G-SRC`.)*
+6. **Carried forward, still open from Part 12:** the served payload's `health` key is `null`, so
    `theme_coverage`/`theme_contributing` reach nobody; nothing in the repository catches a
    rate-limit exception; `BETA_HIGH_CAP = 3.0` sends 7 served names to beta 1.0; and
    `tests/test_saas.py:200` still writes a 2099-01-01 row into the real `data/screener.db`.
