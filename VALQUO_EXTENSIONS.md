@@ -11,7 +11,7 @@ on landing). **First agent to execute any section commits this file.**
 | V2 | Live theme-health meter | greeks agent | **BUILT 2026-08-09** — `scripts/theme_health.py`, pre-reg `PREREG_v2_theme_health.md`, 23 tests, `HANDOFF_live_data_bugs.md` Part 11. Reports **NOT-QUOTABLE on all ten themes, on ZERO usable rows** — every archived scan day is synthetic and the store's one row is a 2099 test fixture. **The finding is the calibration: at 100 names the band has 2.5% power at 60 months against `quality`'s own backtested IC, at 800 names 80.3% — so the full-universe store is the asset and the top-100 archive cannot answer this, ever.** Needs real full-universe snapshots retained; earliest first reading ~9 months after capture starts. |
 | V3 | Noise-calibrated hot score | r1 | OPEN |
 | V4 | Public research-log page | app fixer | **DONE 2026-08-09** — `/work/research`, linked from `/work`; see `HANDOFF_appfixes.md` session 21 |
-| V5 | Measured slippage vs modeled costs | options bot | OPEN |
+| V5 | Measured slippage vs modeled costs | options bot | **DONE 2026-08-09** — `scripts/slippage_report.py`, pre-reg `PREREG_v5_slippage.md`, 57 tests, `HANDOFF_optionsbot.md`. Headline **INSUFFICIENT and that is the pre-registered outcome**: the paper book holds **3 entry fills and ZERO exits**, so the exit half-spread has n=0 against a minimum of 30. **The bar is measured, not assumed — 410.0 bps of premium (mean) on 3,885 of 3,885 banked trades — and the brief's "modelled 33.4bps" is audit B11's EQUITY cost in bps of stock notional, a ~12x category error.** Two shipped-code bugs found in the first three real fills (exit levels anchored to the pre-fill submit price; the alert's own sizing veto ignored), both routed not repaired. |
 
 ---
 
