@@ -117,6 +117,19 @@
 
   <h3>Where it is weak — read this part</h3>
   <ul>
+    {# V3, HANDOFF_extensions_v3.md. First in the list because it is the limit that bears on
+     # what a reader is actually looking at — the ranking — rather than on the research behind
+     # it. Sentences quoted verbatim from the handoff; pinned by tests/test_score_confidence.py.
+     # NOTE the scope line: this is a claim about the SCORE, not about backtested returns. #}
+    <li><b>The ranking is coarser than its two-decimal scores look.</b> We tested the score
+      itself against universes assembled by chance — same coverage, same weights, cross-theme
+      agreement destroyed — under a rule written down before the run. The per-name result
+      <b>failed</b>: {{ score_confidence.defensible }} {{ score_confidence.group_caveat }}
+      A second finding from the same test is worth carrying with it:
+      {{ score_confidence.thin_data }} What may no longer be said, on this evidence:
+      {{ score_confidence.no_longer_sayable }}. This is a statement about
+      the <em>ranking's precision</em>, not about the backtested return spread — those are
+      different objects, and this test settles only the first.</li>
     <li><b>It has seen one dataset.</b> Every backtested figure comes from a single 18-year
       panel that the model was also tuned on. That is the fundamental limit, and no amount of
       internal validation removes it. The live forward track is the only cure, and it is new.</li>
