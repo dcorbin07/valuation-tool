@@ -28,6 +28,7 @@ that consequence was accepted in writing before the run.**
 | noise p95 | **1.1117** |
 | empirical p | **0.116** (58 of 500 noise draws match or beat it) |
 | **verdict** | **NOT DISTINGUISHABLE** |
+| generalises? | **YES — holds on 45 of 69 dates**, against a pre-registered gate of 42 |
 
 Both halves of the registered bar agree (the p95 test and the empirical-p test), so there is no
 ambiguity to adjudicate and no NULL escape hatch. **A reader told that the #10 name "scores 97/100"
@@ -116,9 +117,13 @@ rank. It clears comfortably. **Stated as a pre-registered SECONDARY (PREREG §6)
 verdict** — §7 names rank 10 as the statistic the verdict rests on, and promoting the aggregate now
 because it is the flattering one would be selecting the statistic on the results.
 
-**The defensible product sentence, and it is the one to use:** *"The top decile as a group is
-better than a chance-assembled book. Where an individual name sits inside that decile is not
-distinguishable from chance."*
+**NARROWED BY THE 69-DATE ARM — read the robustness section before quoting this.** The top-decile
+mean clears on only **21 of 69** dates, so the group-level advantage is a property of *recent*
+cross-sections, not a standing one. The defensible sentence is therefore:
+
+> *"On recent cross-sections the top decile as a group scores better than a chance-assembled book.
+> Where an individual name sits inside that decile is not distinguishable from chance — and that
+> second half holds on 45 of 69 dates tested."*
 
 ### 2. THE COMPOSITE HAS NO EXCESS CROSS-THEME AGREEMENT — and the expectation was wrong in the way the pre-registration flagged as the risk.
 
@@ -170,9 +175,76 @@ weights alone would produce on noise, so the *mix* carries little information be
 
 ---
 
-## ROBUSTNESS — all 69 dates
+## ROBUSTNESS — all 69 dates, and the verdict GENERALISES
 
-*(filled in below on completion of the 69-date arm)*
+69 of 69 dates scored, 100 H1 draws each (6,900 draws; 7,900 including the primary arms).
+
+| | dates |
+|---|---|
+| **NOT DISTINGUISHABLE** at rank 10 | **45 of 69** |
+| DISTINGUISHABLE at rank 10 | 24 of 69 |
+| ambiguous | **0** |
+
+**The pre-registered generality gate is MET, for the negative result.** PREREG §7: *"the verdict is
+quotable as a property of the product only if it holds on ≥ 42 of the 69 dates."* The verdict is
+NOT DISTINGUISHABLE and it holds on **45**. So this is a property of the product, not of one
+cross-section — though only just (45 against a bar of 42), and that margin is quoted with it.
+
+**A correction to my own harness, because it would have mis-reported this.** The first
+implementation hard-coded the gate as `n_clear >= 42`, which only ever tests whether
+*DISTINGUISHABLE* generalises. With a NOT DISTINGUISHABLE headline it would have printed
+"quotable for the primary cross-section only" while 45 dates agreed with the headline. The
+pre-registration's rule is symmetric in the verdict; the code was not. Both counts now ship so a
+reader can apply either reading without re-running anything.
+
+### 24 of 69 is not nothing, and it may NOT be turned into a p-value
+
+If the score carried no information whatever, about **3 to 4** dates would clear a p95 bar by
+construction. **24 do.** Something real is present. But it is *absent on 45 of 69 dates*, which is
+why it cannot support a per-name claim.
+
+**What must not be done with that 24:** converting it into a significance statement. These are 69
+overlapping cross-sections of largely the same 1,500–1,900 names — they are nowhere near 69
+independent draws. That is precisely the error session 9 refuted when 16 co-moving countries turned
+out to be worth **2 to 4** independent draws and a "12 of 16" bar carrying a claimed α of 3.84%
+measured out at **28.7%**. The count ships as a count, with the warning written into the artifact
+(`robustness.independence_warning`). Anyone wanting a claim of the form "it clears on N dates" must
+first put it through a clustering gate — `valuation/edge/cross_country.py` is the project's
+precedent and it already exists.
+
+### Finding 1 does NOT generalise — and this is the correction that matters most
+
+On the primary cross-section the **top-decile mean** cleared strongly (p 0.008), and the write-up
+above draws the product sentence from it. Measured across all 69 dates it clears on only
+**21 of 69**. The group-level advantage is real on the recent book and **absent on two-thirds of
+history**.
+
+**So the product sentence must be narrowed further than the primary date alone suggested:** the
+top decile beats a chance-assembled book *on recent cross-sections*, not as a standing property.
+Likewise the composite's spread exceeds the noise median on only **29 of 69** dates — under half —
+confirming across history what the primary date showed: **there is no excess cross-theme
+agreement in this composite.**
+
+### EXPLORATORY — a strong temporal gradient. No verdict. Do not act on it.
+
+Generated *after* seeing the results, on the same data, testing nothing that was registered:
+
+| period | dates clearing | median cross-section |
+|---|---|---|
+| 2009–2013 | **2 of 20** | 1,530 |
+| 2014–2018 | 4 of 20 | 1,554 |
+| 2019–2022 | 9 of 16 | 1,729 |
+| 2023–2026 | **9 of 13** | 1,903 |
+
+The score's distinguishability from noise rises steadily over time. A plausible mechanism sits in
+this project's own record and would connect it to finding 3: **the `institutional` theme is empty
+before 2013-06-30**, so early cross-sections are scored on fewer themes, and a composite averaged
+over fewer themes is dominated by noise. Cross-section size grows over the same window, which is a
+competing explanation and is not separated here.
+
+**This is a hypothesis, generated post-hoc on the decide data, and it is exactly the shape of claim
+this project has been burned by.** It is recorded so it can be pre-registered by someone else, not
+acted upon. Nothing was changed on it.
 
 ---
 
@@ -180,9 +252,10 @@ weights alone would produce on noise, so the *mix* carries little information be
 
 Shipped in the artifact's `sentences` block, one per rank band. The two that matter:
 
-* **"The top decile as a group scores better than a book assembled by chance (this happens in under
-  1% of chance universes). Where a name sits within that decile is not distinguishable from
-  chance."**
+* **"On recent cross-sections the top decile as a group scores better than a book assembled by
+  chance. Where a name sits within that decile is not distinguishable from chance."** (The first
+  half holds on 21 of 69 dates and must not be stated as a standing property; the second holds on
+  45 of 69.)
 * **"A high score can partly reflect missing data: names near the top are scored on less
   information than the average name, more so than chance would produce."**
 
@@ -227,7 +300,33 @@ Measured today: `research_log.detail()` reads **equity 130**, options 192, infra
 **CLAUDE.md still says 129 — one session stale** (session 14 moved it). Not edited here; flagged
 for whoever owns that file.
 
-## BUGS FOUND
+## BUGS FOUND IN MY OWN HARNESS — both would have mis-reported this run
+
+Recorded at the same weight as bugs found elsewhere, because both were caught by cross-checking
+rather than by the code working, and one of them produced a **wrong verdict that read as caution**.
+
+* **A resumed run reported `NULL — ambiguous` for a clean `NOT DISTINGUISHABLE`.** JSON has no
+  integer keys, so the rank-keyed calibration table came back with `"10"` instead of `10`, the
+  verdict lookup missed, and the script fell through to the ambiguous branch. **A wrong verdict
+  that looks like "no conclusion" is the worst failure this harness can have** — nobody
+  investigates caution. It was caught only because the printed verdict disagreed with a table I
+  had already read out of the same file, which is luck rather than a control. Fixed at the single
+  point of entry (`_load_partial`) and pinned by
+  `test_resume_restores_integer_rank_keys_on_the_calibration_table`.
+* **A falsy-zero bug halved the distinguishable-date count, 24 → 12.** `(r.get("empirical_p") or 1)`
+  maps an empirical p of **0.0** — meaning *no noise draw reached the real value*, the strongest
+  evidence a draw set can give — to `1.0`, because `0.0` is falsy. It silently reclassified the
+  best dates as the worst. Caught by an independent recount disagreeing with the script. Pinned by
+  `test_a_zero_empirical_p_counts_as_the_strongest_evidence_not_the_weakest`.
+* **The generality gate was implemented one-directionally** while the pre-registration wrote it
+  symmetrically — see the robustness section. It would have printed "primary cross-section only"
+  while 45 dates agreed with the headline.
+* **The robustness arm checkpointed its draws but not its summaries**, so a kill at 24 of 69 left
+  an artifact with no robustness block at all. Fixed; the draws made the 24 dates recoverable for
+  ~1% of their original cost, which is RUN_RULES A9 paying for itself in a way the rule does not
+  mention.
+
+## BUGS FOUND ELSEWHERE
 
 * **`VALQUO_EXTENSIONS.md` was untracked** and existed only on this machine — the register for five
   adopted work items, unreadable by any other checkout, with the file's own rule saying the first

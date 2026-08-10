@@ -16,6 +16,50 @@ series has no automated writer.**)
 
 ---
 
+## 2026-08-10 — r1 lane: V3 DONE. THE HOT SCORE'S RANKING IS NOT DISTINGUISHABLE FROM CHANCE AT A GIVEN RANK
+
+Extension item **V3** (`VALQUO_EXTENSIONS.md`), pre-registered blind at `251c989`.
+Full write-up: **`HANDOFF_extensions_v3.md`**. Artifacts `data/free_analysis/SCORE_CALIBRATION.json`
++ `.draws.csv` (7,900 draws banked). Tests `tests/test_score_calibration.py`, 13/13.
+
+- **VERDICT: NOT DISTINGUISHABLE.** The pre-registered primary statistic — the composite at
+  **rank 10** on the latest cross-section — is **1.0909** against a noise **p95 of 1.1117**,
+  empirical **p 0.116**. Both halves of the registered bar agree, so there is no ambiguity.
+  **It GENERALISES: the verdict holds on 45 of 69 dates**, against a pre-registered gate of 42.
+  **Consequence, accepted in writing before the run: the product's confidence language must
+  weaken.** A reader told the #10 name "scores 97/100" is being given a number that roughly one
+  in nine chance-assembled universes reaches at that rank.
+- **X7's PERMUTATION CANNOT CALIBRATE A SCORE, AND V3 ASKED FOR EXACTLY THAT.** X7 shuffles whole
+  rows, so a name's theme vector and its renormalization denominator both travel intact and only
+  the ticker label changes — **the sorted composite comes back identical, not approximately**
+  (sd ratio 1.000000 over 500 draws; five seeds give one distinct value to full float precision).
+  It shipped as the registered CONTROL with that no-op predicted in advance. The instrument built
+  instead is a coverage-preserving within-column permutation that destroys cross-theme agreement
+  and holds every row's denominator fixed. **Pinned by a test**, because a null built X7's way
+  completes, prints percentiles, and looks exactly like a measurement.
+- **THERE IS NO EXCESS CROSS-THEME AGREEMENT.** Real composite sd **0.3845** sits at the noise
+  median (p 0.634) and above it on only 29 of 69 dates. Destroying every cross-theme agreement
+  does not narrow the composite — it slightly widens it. A top name's high score is one or two
+  themes far out, not many themes agreeing.
+- **THE TOP OF THE BOOK IS THINNER ON DATA THAN CHANCE — the one fixable defect here.** Present
+  weight **0.94798** in the real top decile vs **0.95730** for a noise top decile and **0.96324**
+  for the universe; only **9 of 500** noise draws are that thin, **p 0.018**. The tilt is
+  mechanical (renormalization makes a thin name's average noisier, so it lands at extremes more
+  often) but the real book has MORE of it than chance. **A name can rank highly partly because it
+  is missing a theme.**
+- **The group-level result does NOT generalise.** The top-decile MEAN clears on the primary date
+  (p 0.008) but on only **21 of 69** dates. Quote it as a property of recent cross-sections only.
+- **My directional expectation was WRONG**, via the exact branch the pre-registration named as the
+  risk. Recorded expectation: DISTINGUISHABLE at 70/30.
+- **ZERO trial cost** — a calibration searches nothing (session-10 precedent). **Equity `N` stays
+  130.** Note **CLAUDE.md still says 129, one session stale.**
+- **NOT DONE, and it is an open dependency:** the app's confidence language was not changed.
+  `valuation/web/**` is the app-fixer's lane; V3 is scoped new-files-only. The replacement
+  sentences are written and ready in `HANDOFF_extensions_v3.md`.
+- **Recommended next:** the thin-coverage tilt (p 0.018), not the rank-precision finding. It is
+  the only result here pointing at a fixable mechanism rather than at a limit of what a
+  1,842-name cross-section can support, and a minimum-coverage floor is cheap to pre-register.
+
 ## 2026-08-09 — app-fixer lane: THE TWO-RECORDER SPLIT ALREADY REACHED DISCORD (ledger PT-OUTBOUND)
 
 **Session 14 filed `PT-SPLIT` as a risk to be assigned. It had already fired, four days

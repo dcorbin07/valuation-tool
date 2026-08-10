@@ -9,7 +9,7 @@ on landing). **First agent to execute any section commits this file.**
 |---|---|---|---|
 | V1 | Shadow vintages — forward A/B of every adoption | pipeline builder | OPEN — blocked on Amendment 1 landing |
 | V2 | Live theme-health meter | greeks agent | OPEN |
-| V3 | Noise-calibrated hot score | r1 | OPEN |
+| V3 | Noise-calibrated hot score | r1 | **DONE 2026-08-10 — NOT DISTINGUISHABLE at rank 10 (real 1.0909 vs noise p95 1.1117, p 0.116); holds on 45 of 69 dates, so the confidence language must weaken. `HANDOFF_extensions_v3.md`** |
 | V4 | Public research-log page | app fixer | OPEN — after the Discord divergence fix |
 | V5 | Measured slippage vs modeled costs | options bot | OPEN |
 

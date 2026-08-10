@@ -393,15 +393,43 @@ def main(argv=None):
     per_date.sort(key=lambda r: r["date"])
     scored = [r for r in per_date if r.get("clears_p95") is not None]
     n_clear = sum(1 for r in scored if r["clears_p95"])
+    # PREREG §7's gate is "the VERDICT is quotable as a property of the product only if IT holds on
+    # >= 42 of the 69 dates" — symmetric in the verdict. The first cut hard-coded `n_clear >= 42`,
+    # which only ever tests whether DISTINGUISHABLE generalises, so a NOT DISTINGUISHABLE headline
+    # would have been reported as "primary cross-section only" while 45 dates agreed with it. Both
+    # counts ship, so a reader can apply either reading without re-running anything.
+    # `(x or 1)` would map an empirical p of 0.0 — the STRONGEST evidence a draw set can give —
+    # to 1.0, because 0.0 is falsy. That first cut counted 12 distinguishable dates where there
+    # are 24, understating exactly the dates with the most evidence. Explicit None checks only.
+    def _ep(r):
+        v = r.get("empirical_p")
+        return v if v is not None else None
+
+    n_dist = sum(1 for r in scored
+                 if r["clears_p95"] and _ep(r) is not None and _ep(r) <= 0.05)
+    n_not = sum(1 for r in scored
+                if (not r["clears_p95"]) and _ep(r) is not None and _ep(r) > 0.05)
     out["robustness"] = {
         "per_date": per_date,
         "status": "COMPLETE",
         "n_dates_scored": len(scored),
         "n_dates_clearing_p95": n_clear,
         "fraction_clearing": (n_clear / len(scored) if scored else None),
-        # The pre-registered generality gate: >= 42 of 69.
-        "generality_gate": "clears on >= 42 of 69 dates (60%)",
-        "generality_met": bool(len(scored) and n_clear >= 42),
+        "n_dates_distinguishable": n_dist,
+        "n_dates_not_distinguishable": n_not,
+        "n_dates_ambiguous": len(scored) - n_dist - n_not,
+        # The pre-registered generality gate: >= 42 of 69, applied to whichever verdict the
+        # primary cross-section returned.
+        "generality_gate": "the primary verdict holds on >= 42 of 69 dates (60%)",
+        # NOTE the dates are NOT independent draws: they are 69 overlapping cross-sections of
+        # largely the same 1,500-1,900 names. This count may NOT be converted into a p-value as
+        # though it were 69 independent trials — that is the precise error session 9 refuted when
+        # 16 co-moving countries turned out to be worth 2-4 independent draws. The count is
+        # reported as a count.
+        "independence_warning": (
+            "69 overlapping cross-sections of largely the same names are not 69 independent "
+            "draws; do not convert this count into a p-value without a clustering gate "
+            "(valuation/edge/cross_country.py is the project's precedent)."),
     }
 
     # ---- the pre-registered verdict -----------------------------------------------------------
@@ -431,8 +459,9 @@ def main(argv=None):
         "clears_p95": clears,
         "verdict": verdict,
         "generality": ("quotable as a property of the product"
-                       if out["robustness"]["generality_met"]
+                       if _generality_met(verdict, out["robustness"])
                        else "quotable for the primary cross-section only"),
+        "n_dates_agreeing": _agreeing(verdict, out["robustness"]),
     }
     out["sentences"] = {str(k): _sentence(k, v)
                         for k, v in out["primary_within_column"]["table"].items()}
@@ -441,6 +470,20 @@ def main(argv=None):
     print(f"\n[v3] VERDICT: {verdict}", flush=True)
     print(f"[v3] {len(all_draws):,} draws -> {args.out}", flush=True)
     return 0
+
+
+def _agreeing(verdict: str, rob: dict):
+    """How many dates reach the same verdict the primary cross-section did."""
+    if verdict.startswith("DISTINGUISHABLE"):
+        return rob.get("n_dates_distinguishable")
+    if verdict.startswith("NOT DISTINGUISHABLE"):
+        return rob.get("n_dates_not_distinguishable")
+    return None
+
+
+def _generality_met(verdict: str, rob: dict) -> bool:
+    n = _agreeing(verdict, rob)
+    return bool(n is not None and n >= 42)
 
 
 def _date_row(dstr, cs, dec, real, draws, lad) -> dict:
@@ -473,6 +516,16 @@ def _load_partial(path):
             summary = json.load(f)
     except (OSError, ValueError):
         return {}, []
+    # JSON has no integer keys. The calibration table is keyed by RANK, and a round trip turns
+    # `10` into `"10"` — so on a resumed run the verdict lookup `table.get(PRIMARY_RANK)` missed,
+    # returned {}, and the script reported NULL/ambiguous for a result that is a clean
+    # NOT DISTINGUISHABLE. It was caught only because the printed verdict disagreed with the
+    # table that had already been read out of the same file. Coerce on the way back in, where
+    # there is exactly one place to get it right.
+    for arm in ("primary_within_column", "primary_block"):
+        tab = (summary.get(arm) or {}).get("table")
+        if isinstance(tab, dict):
+            summary[arm]["table"] = {int(k): v for k, v in tab.items()}
     draws = []
     try:
         with open(path.replace(".json", "") + ".draws.csv", newline="") as f:

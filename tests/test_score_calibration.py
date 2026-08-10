@@ -175,6 +175,49 @@ def test_calibrate_survives_a_rank_deeper_than_the_cross_section():
     assert rec["c_at_1"] is not None
 
 
+def test_resume_restores_integer_rank_keys_on_the_calibration_table():
+    """A resumed run must reach the SAME verdict as an uninterrupted one.
+
+    JSON has no integer keys, so a round trip turns the rank-keyed table's `10` into `"10"`, the
+    verdict lookup `table.get(PRIMARY_RANK)` misses, and the script reports NULL/ambiguous for a
+    result that is a clean NOT DISTINGUISHABLE. That actually happened, and it was caught only
+    because the printed verdict disagreed with a table already read out of the same file — which
+    is luck, not a control. A wrong verdict that reads as "no conclusion" is the worst failure
+    this harness can have: it looks like caution.
+    """
+    import json
+    import tempfile
+    from scripts.score_calibration import _load_partial, PRIMARY_RANK
+
+    payload = {"primary_within_column": {
+        "table": {PRIMARY_RANK: {"real": 1.0, "noise_p95": 0.9, "empirical_p": 0.01,
+                                 "clears_p95": True}}}}
+    with tempfile.TemporaryDirectory() as td:
+        p = os.path.join(td, "x.json")
+        with open(p, "w") as f:
+            json.dump(payload, f)
+        back, _ = _load_partial(p)
+    tab = back["primary_within_column"]["table"]
+    assert PRIMARY_RANK in tab, list(tab)
+    assert tab[PRIMARY_RANK]["clears_p95"] is True
+
+
+def test_a_zero_empirical_p_counts_as_the_strongest_evidence_not_the_weakest():
+    """An empirical p of 0.0 means NO noise draw reached the real value. Written as
+    `(p or 1)` it becomes 1.0, because 0.0 is falsy — silently reclassifying the strongest
+    dates as the weakest. That happened here and cost half the distinguishable count (12 of 24)
+    before an independent recount caught it."""
+    from scripts.score_calibration import _agreeing
+
+    scored = [{"clears_p95": True, "empirical_p": 0.0},      # strongest possible
+              {"clears_p95": True, "empirical_p": 0.02},
+              {"clears_p95": False, "empirical_p": 0.90}]
+    n_dist = sum(1 for r in scored
+                 if r["clears_p95"] and r["empirical_p"] is not None and r["empirical_p"] <= 0.05)
+    assert n_dist == 2, n_dist
+    assert _agreeing("DISTINGUISHABLE", {"n_dates_distinguishable": n_dist}) == 2
+
+
 def test_composite_is_the_row_sum_of_its_contributions():
     """The live invariant `attribution.decompose` promises. If it breaks, every number V3 reports
     is explaining a different quantity from the one it ranks."""
