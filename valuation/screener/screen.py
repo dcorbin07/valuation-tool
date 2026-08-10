@@ -12,6 +12,7 @@ week-over-week history.
 """
 from __future__ import annotations
 
+import collections
 import datetime as _dt
 from typing import Optional, Callable
 
@@ -439,12 +440,33 @@ def _enrich_with_dcf(rows, cfg, refusal_only: bool = False):
                 verdict = decide_publication(had, getattr(res.company, "price", None),
                                              cd=res.company,
                                              growth_led=getattr(blend, "growth_led", False))
+                # WHAT THE PROBE ACTUALLY SAW — stamped on the row, because "the model
+                # refused", "the model doesn't apply here" and "we could not look" are three
+                # different states that all leave `fair_value` empty, and only the first two
+                # are acceptable reasons to publish a peer estimate unchecked.
+                #
+                # This is LA1's second door, found by re-running the scan after fixing the
+                # first: with 8 workers over 488 names against a free rate-limited feed, KSPI
+                # came back with NO statements and NO exception. `had` was None,
+                # `decide(None, price)` returns publish=False with an EMPTY reason by design,
+                # and the row sailed through with `errors: 0` — a clean bill of health on a
+                # name that refuses at 5.6x when asked on its own.
+                has_data = bool(getattr(res.company, "revenue", None))
+                if had is None and not has_data:
+                    r["dcf_probe"] = "no_data"
+                    if attempt < DCF_ATTEMPTS - 1:
+                        continue          # a throttled fetch is transient; ask again
+                elif had is None:
+                    r["dcf_probe"] = "no_value"     # the model genuinely does not apply here
                 if verdict.reason:
+                    r["dcf_probe"] = "refused"
                     record_refusal(r, verdict.reason)  # a DECISION, not a gap
-                elif not refusal_only:
-                    r["fair_value"] = res.base_fair_value
-                    r["upside"] = res.upside
-                    r.pop(ROW_WITHHELD, None)
+                elif had is not None:
+                    r["dcf_probe"] = "valued"
+                    if not refusal_only:
+                        r["fair_value"] = res.base_fair_value
+                        r["upside"] = res.upside
+                        r.pop(ROW_WITHHELD, None)
                 last = None
                 break
             except Exception as e:
@@ -531,8 +553,17 @@ def publication_audit(rows, dcf_window: int = 0) -> dict:
     """
     from ..engine.publication import FV_BAND_HIGH, ROW_WITHHELD
 
-    silent, breach = [], []
+    silent, breach, unverified = [], [], []
     for i, r in enumerate(rows):
+        # D3 `unverified` — the row was ASKED and we could not look: no statements came back,
+        # so the model had nothing to judge and `decide(None, price)` returned an EMPTY reason.
+        # Distinct from `no_value`, where the model genuinely does not apply (an ADR bank with
+        # no free cash flow) and a peer multiple is the right tool. Found by re-running the
+        # scan after the first fix: KSPI passed the refusal screen at rank 97 with `errors: 0`
+        # while refusing at 5.6x when asked on its own, because a throttled fetch returns
+        # partial data rather than raising, and only raises were being counted.
+        if r.get("dcf_probe") == "no_data" and not r.get(ROW_WITHHELD):
+            unverified.append(r.get("ticker"))
         px, fv = r.get("price"), r.get("fair_value")
         withheld = bool(r.get(ROW_WITHHELD))
         method = r.get("fair_value_method")
@@ -557,7 +588,11 @@ def publication_audit(rows, dcf_window: int = 0) -> dict:
         "asked_but_silent_count": len(silent),
         "band_breach": breach,
         "band_breach_count": len(breach),
-        "clean": not silent and not breach,
+        "unverified": unverified,
+        "unverified_count": len(unverified),
+        "probe": dict(sorted(collections.Counter(
+            r.get("dcf_probe") for r in rows if r.get("dcf_probe")).items())),
+        "clean": not silent and not breach and not unverified,
         "note": ("D2 (band_breach) cannot catch the LA1 class: a refused 11x model is replaced "
                  "by a peer estimate that sits inside the band. D1 (asked_but_silent) is the "
                  "rule that catches it."),

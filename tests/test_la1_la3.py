@@ -229,6 +229,118 @@ class TestFailOpenIsCounted(unittest.TestCase):
         self.assertIn("errors", SC._screen_refusals([], cfg=None))
 
 
+
+class TestTheSecondDoorNoDataWithNoException(unittest.TestCase):
+    """LA1's second door, found by RE-RUNNING the scan after fixing the first.
+
+    KSPI passed the refusal screen at rank 97 with `errors: 0` and was served a peer estimate
+    again, while refusing at 5.6x when asked on its own. Under 8 workers over 488 names against
+    a free rate-limited feed the fetch returns PARTIAL DATA rather than raising: `had` is None,
+    `publication.decide(None, price)` returns publish=False with an EMPTY reason by design, and
+    the row falls through. Counting only exceptions cannot see this.
+    """
+
+    class _Blend:
+        value = None
+        withheld_value = None
+        growth_led = False
+
+    def _res(self, revenue):
+        blend = self._Blend()
+
+        class _C:
+            price = 94.0
+            financial_currency = "USD"
+            currency = "USD"
+            fx_unresolved = False
+            fx_rate = None
+
+        _C.revenue = revenue
+
+        class _R:
+            fair_value_blend = blend
+            base_fair_value = None
+            upside = None
+            company = _C()
+        return _R()
+
+    def _run(self, revenue):
+        import valuation.engine.pipeline as P
+        orig = P.value_ticker
+        P.value_ticker = lambda t, cfg, **kw: self._res(revenue)
+        try:
+            rows = [{"ticker": "KSPI", "price": 94.0}]
+            errs = SC._enrich_with_dcf(rows, cfg=None, refusal_only=True)
+        finally:
+            P.value_ticker = orig
+        return rows[0], errs
+
+    def test_no_statements_is_recorded_as_no_data_and_flagged_unverified(self):
+        row, errs = self._run(revenue=None)
+        self.assertEqual(errs, {}, "it did not raise — that is the whole problem")
+        self.assertEqual(row["dcf_probe"], "no_data")
+        out = SC.publication_audit([row], dcf_window=0)
+        self.assertEqual(out["unverified"], ["KSPI"])
+        self.assertFalse(out["clean"])
+
+    def test_a_name_the_model_simply_cannot_value_is_NOT_flagged(self):
+        """An ADR bank with no free cash flow is a legitimate peer-multiple name. Flagging it
+        would fire on hundreds of rows and the signal would be ignored within a week."""
+        row, _ = self._run(revenue=1.0e10)
+        self.assertEqual(row["dcf_probe"], "no_value")
+        self.assertEqual(SC.publication_audit([row], dcf_window=0)["unverified"], [])
+
+    def test_a_no_data_row_is_retried_before_being_recorded(self):
+        import valuation.engine.pipeline as P
+        calls = []
+        orig = P.value_ticker
+
+        def counting(t, cfg, **kw):
+            calls.append(t)
+            return self._res(revenue=None)
+
+        P.value_ticker = counting
+        try:
+            SC._enrich_with_dcf([{"ticker": "KSPI", "price": 94.0}], cfg=None, refusal_only=True)
+        finally:
+            P.value_ticker = orig
+        self.assertEqual(len(calls), SC.DCF_ATTEMPTS, "a throttled fetch is transient")
+
+    def test_a_refusal_still_wins_over_every_probe_label(self):
+        import valuation.engine.pipeline as P
+        blend = self._Blend()
+        blend.withheld_value = 530.08
+
+        class _C:
+            price, revenue = 94.0, 1.0e9
+            financial_currency = currency = "USD"
+            fx_unresolved, fx_rate = False, None
+
+        class _R:
+            fair_value_blend = blend
+            base_fair_value = None
+            upside = None
+            company = _C()
+
+        orig = P.value_ticker
+        P.value_ticker = lambda t, cfg, **kw: _R()
+        try:
+            rows = [{"ticker": "KSPI", "price": 94.0}]
+            SC._enrich_with_dcf(rows, cfg=None, refusal_only=True)
+        finally:
+            P.value_ticker = orig
+        self.assertEqual(rows[0]["dcf_probe"], "refused")
+        self.assertTrue(rows[0]["fair_value_withheld"])
+        self.assertEqual(SC.publication_audit(rows, dcf_window=1)["unverified"], [])
+
+    def test_the_probe_distribution_ships_so_a_bad_feed_day_is_visible(self):
+        rows = [{"ticker": "A", "dcf_probe": "valued"},
+                {"ticker": "B", "dcf_probe": "no_data"},
+                {"ticker": "C", "dcf_probe": "no_data"}]
+        out = SC.publication_audit(rows, dcf_window=0)
+        self.assertEqual(out["probe"], {"no_data": 2, "valued": 1})
+
+
 # ==========================================================================================
 # LA3
 # ==========================================================================================
