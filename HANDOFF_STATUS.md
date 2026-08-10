@@ -4,14 +4,53 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-10 (edge lane, **session 16** — two live bugs in the paper options book
-**repaired**, `PT-SPLIT` **closed** on a corrected diagnosis, and **V1 shadow vintages
-registered** while no vintage pair exists. **NO ACTION REQUIRED FROM DON.** One item still needs
-confirming from 2026-08-12, unchanged from session 15: whether the Cowork writer
+**Session date:** 2026-08-10 (edge lane, **session 17** — measured what the three dead live themes
+cost: **IMMATERIAL on alpha (−1.31pp, not separable from zero), but the live four-theme book fails
+the calibrated long-short floor**. **NO ACTION REQUIRED FROM DON.** One item still needs confirming
+from 2026-08-12, unchanged from sessions 15 and 16: whether the Cowork writer
 `valquo-daily-track-write` is actually running.)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 ---
+
+## EDGE — WHAT THE THREE DEAD LIVE THEMES COST: IMMATERIAL ON ALPHA, BUT THE LIVE BOOK FAILS THE CALIBRATED LONG-SHORT FLOOR (2026-08-10, session 17, `V2G`)
+
+Full write-up in `HANDOFF_edge_audit.md` **SESSION 17**; ledger row `V2G`; pre-registration
+committed **alone at `6d8750a`** before `scripts/live_theme_cost.py` existed.
+
+**THE QUESTION, ROUTED OUT-OF-BAND.** The greeks lane measured (Part 12.7) that `insider` is
+**constant** and `capital_discipline` / `institutional` are **absent** on 100% of served rows —
+**42.9% of the composite's weight mass reaches no live score** — and explicitly left the price of
+that to a backtest. This is that backtest.
+
+**THE ANSWER: −1.31pp/yr, and not separable from zero.** Top-decile alpha **+7.17% → +5.86%**,
+paired HAC t **−1.4040** over 69 paired dates, against a pre-registered −1.95pp bar →
+**IMMATERIAL**. Building live sources for the dead themes is **a nice-to-have, not the project's
+highest-value work.**
+
+**THE CAVEAT THAT MUST TRAVEL WITH THAT: power against its own bar is 55.0%.** The design resolves
+1.87pp at |t| = 2, so the bar is well matched — but IMMATERIAL means *could not be separated from
+zero*, **not** *shown to be small*.
+
+**THE MORE SERIOUS FINDING: the live four-theme book does NOT clear the calibrated long-short
+floor** — HAC t **1.8811** against **2.2837** — where the deployed seven-theme book clears at
+2.6199. It **does** clear the top-decile alpha floor (**3.2087** vs 2.2913), and the shipped
+product is a **long-only hot list**, so what users receive stays demonstrable while the long-short
+statistic quoted beside it does not.
+
+**AND THE PART MOST LIKELY TO BE MISQUOTED: an immaterial alpha cost is NOT a finding that the
+live absence is acceptable.** The live product computes a **different composite** from the one
+every published figure is measured on — the class of defect audit B7 exists to prevent. Either
+build the sources or quote the headline for the book actually computed. **That is the screener
+lane's call, not the edge lane's.**
+
+**IF ONE SOURCE IS BUILT, IT IS 13F.** Exploratory and carrying no verdict by design: dropping
+`institutional` is the only one of the three negative in **both** halves (−1.41% full); dropping
+`capital_discipline` is **positive** in both halves despite its second-strongest panel IC (+2.76).
+
+**Equity `N` 131 → 135; Deflated Sharpe 0.8539 → 0.8504; `BACKTEST_RESULTS.json` re-run from a
+clean tree** (16 leaves moved — five the DSR chain, four provenance, seven 0.000% float; every
+headline bit-identical).
 
 ---
 

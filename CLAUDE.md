@@ -44,6 +44,54 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE LIVE PRODUCT SCORES A FOUR-THEME BOOK, AND WHAT THAT COSTS IS NOW MEASURED: −1.31pp/yr,
+  NOT SEPARABLE FROM ZERO — BUT THE LIVE BOOK FAILS THE CALIBRATED LONG-SHORT FLOOR
+  (2026-08-10, session 17, `V2G`).** The greeks lane measured over 500 served rows that three of
+  the seven weighted themes reach **no live score** — `insider` is **constant** (500/500 non-null,
+  one distinct value, so `zscore` returns all-NaN), `capital_discipline` and `institutional` are
+  **absent** (0/500). That is **0.375 of 0.875 = 42.9% of the weight mass**, so the hot list is a
+  **four-theme book** (`value`, `quality`, `momentum`, `size`) wearing the weights of a
+  seven-theme one. That lane declined to price it; this register did.
+  `PREREG_v2g_live_theme_cost.md` was committed **alone at `6d8750a`** before the measurement code
+  existed.
+  * **VERDICT IMMATERIAL, BY THE RULE FIXED IN ADVANCE: top-decile alpha +7.17% → +5.86%,
+    Δ −1.3133pp against a −1.95pp bar, paired HAC t −1.4040 over 69 paired dates.** Building live
+    sources for the dead themes is **a nice-to-have, not the project's highest-value work**.
+  * **THE POWER CAVEAT IS PART OF THE VERDICT, NOT A FOOTNOTE.** The HAC se of the paired annual
+    difference is 0.9354pp, so the design resolves **1.8708pp** at |t| = 2 — well matched to its
+    own bar, which is what makes the null worth anything — but power against a **true** 1.95pp gap
+    is **55.0%**. *IMMATERIAL means the cost could not be separated from zero at roughly a coin
+    flip's power. It does NOT mean the cost was shown to be small.*
+  * **THE SECOND FINDING IS THE MORE SERIOUS ONE, and the register asked for it separately: the
+    live four-theme book does NOT clear the calibrated long-short floor** — HAC t **1.8811** vs
+    **2.2837** (naive 2.0044 vs 2.1437), where the deployed book clears at 2.6199. It **does**
+    clear the top-decile alpha floor (**3.2087** vs 2.2913), and since the shipped product is a
+    **long-only hot list** that is the product-relevant statistic. So the long-only book users
+    receive stays demonstrable; the long-short figure quoted beside it does not.
+  * **AN IMMATERIAL ALPHA COST IS NOT A FINDING THAT THE LIVE ABSENCE IS ACCEPTABLE.** The live
+    product computes a **different composite** from the one every published figure is measured
+    on — the same class of defect **B7** exists to prevent. Either build the sources or quote the
+    headline for the book actually computed. **Owner: screener lane**, not the edge lane.
+  * **THE RESTRICTED ARM IS THE LIVE BOOK, PROVED NOT ASSUMED: `max|dev| = 0.000e+00` over all
+    113,945 rows**, for both the absent case and the constant-`insider` case, because `composite`
+    renormalises by the **present-weight mass**. Harness control: the incumbent arm reproduces the
+    record to the digit — alpha 0.071741423321, LS naive t 2.8361, HAC t 2.6199, alpha HAC t
+    4.3762, monotonicity −0.891, equal-weight benchmark +18.137%.
+  * **Both halves agree in sign and neither is significant** (early −1.14pp, late −1.48pp) — a
+    better stability profile than session 7's LOO arms. **Reported because it cuts against the
+    verdict:** the late-half **long-short** difference is −5.63pp/yr at HAC t **−2.0639**, which
+    crosses the conventional bar; not the pre-registered primary statistic, uncalibrated, one of
+    six cells.
+  * **EXPLORATORY, NO VERDICT** (session 7's rule: a full-sample ablation arm is not a finding):
+    dropping `institutional` is the **only** one negative in both halves (−1.41% full), so **13F is
+    the source to build first**; dropping `capital_discipline` is **positive in both halves**
+    (+1.37%) despite holding the second-strongest panel IC (+2.76) — **X3's lesson restated, theme
+    IC does not predict marginal contribution**; dropping `insider` flips sign between halves.
+  * **NO CALIBRATED FLOOR EXISTS FOR A PAIRED WITHIN-PANEL DIFFERENCE** — X7 and session 10
+    calibrate *levels*. The 2.0 used here is conventional and is labelled uncalibrated everywhere
+    it appears. `quantile_backtest(..., return_series=True)` now returns the per-period draws
+    (opt-in; default payloads bit-identical) so future paired tests use the **shipped** arithmetic.
+    **Equity `N` 131 → 135, Deflated Sharpe 0.8539 → 0.8504, √(2·ln 135) = 3.1322.**
 - **THE "8% CAP VIOLATION" NEVER EXISTED — `PT-SPLIT` IS CLOSED, AND THE DIAGNOSIS THIS FILE
   CARRIED FOR TWO SESSIONS WAS WRONG (2026-08-10, session 16).** The bullets below say the
   sandbox engine holds *"10 names, equal-weighted at 10% each — which the contract's own 8% cap
