@@ -44,6 +44,149 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE LIVE PRODUCT SCORES A FOUR-THEME BOOK, AND WHAT THAT COSTS IS NOW MEASURED: −1.31pp/yr,
+  NOT SEPARABLE FROM ZERO — BUT THE LIVE BOOK FAILS THE CALIBRATED LONG-SHORT FLOOR
+  (2026-08-10, session 17, `V2G`).** The greeks lane measured over 500 served rows that three of
+  the seven weighted themes reach **no live score** — `insider` is **constant** (500/500 non-null,
+  one distinct value, so `zscore` returns all-NaN), `capital_discipline` and `institutional` are
+  **absent** (0/500). That is **0.375 of 0.875 = 42.9% of the weight mass**, so the hot list is a
+  **four-theme book** (`value`, `quality`, `momentum`, `size`) wearing the weights of a
+  seven-theme one. That lane declined to price it; this register did.
+  `PREREG_v2g_live_theme_cost.md` was committed **alone at `6d8750a`** before the measurement code
+  existed.
+  * **VERDICT IMMATERIAL, BY THE RULE FIXED IN ADVANCE: top-decile alpha +7.17% → +5.86%,
+    Δ −1.3133pp against a −1.95pp bar, paired HAC t −1.4040 over 69 paired dates.** Building live
+    sources for the dead themes is **a nice-to-have, not the project's highest-value work**.
+  * **THE POWER CAVEAT IS PART OF THE VERDICT, NOT A FOOTNOTE.** The HAC se of the paired annual
+    difference is 0.9354pp, so the design resolves **1.8708pp** at |t| = 2 — well matched to its
+    own bar, which is what makes the null worth anything — but power against a **true** 1.95pp gap
+    is **55.0%**. *IMMATERIAL means the cost could not be separated from zero at roughly a coin
+    flip's power. It does NOT mean the cost was shown to be small.*
+  * **THE SECOND FINDING IS THE MORE SERIOUS ONE, and the register asked for it separately: the
+    live four-theme book does NOT clear the calibrated long-short floor** — HAC t **1.8811** vs
+    **2.2837** (naive 2.0044 vs 2.1437), where the deployed book clears at 2.6199. It **does**
+    clear the top-decile alpha floor (**3.2087** vs 2.2913), and since the shipped product is a
+    **long-only hot list** that is the product-relevant statistic. So the long-only book users
+    receive stays demonstrable; the long-short figure quoted beside it does not.
+  * **AN IMMATERIAL ALPHA COST IS NOT A FINDING THAT THE LIVE ABSENCE IS ACCEPTABLE.** The live
+    product computes a **different composite** from the one every published figure is measured
+    on — the same class of defect **B7** exists to prevent. Either build the sources or quote the
+    headline for the book actually computed. **Owner: screener lane**, not the edge lane.
+  * **THE RESTRICTED ARM IS THE LIVE BOOK, PROVED NOT ASSUMED: `max|dev| = 0.000e+00` over all
+    113,945 rows**, for both the absent case and the constant-`insider` case, because `composite`
+    renormalises by the **present-weight mass**. Harness control: the incumbent arm reproduces the
+    record to the digit — alpha 0.071741423321, LS naive t 2.8361, HAC t 2.6199, alpha HAC t
+    4.3762, monotonicity −0.891, equal-weight benchmark +18.137%.
+  * **Both halves agree in sign and neither is significant** (early −1.14pp, late −1.48pp) — a
+    better stability profile than session 7's LOO arms. **Reported because it cuts against the
+    verdict:** the late-half **long-short** difference is −5.63pp/yr at HAC t **−2.0639**, which
+    crosses the conventional bar; not the pre-registered primary statistic, uncalibrated, one of
+    six cells.
+  * **EXPLORATORY, NO VERDICT** (session 7's rule: a full-sample ablation arm is not a finding):
+    dropping `institutional` is the **only** one negative in both halves (−1.41% full), so **13F is
+    the source to build first**; dropping `capital_discipline` is **positive in both halves**
+    (+1.37%) despite holding the second-strongest panel IC (+2.76) — **X3's lesson restated, theme
+    IC does not predict marginal contribution**; dropping `insider` flips sign between halves.
+  * **NO CALIBRATED FLOOR EXISTS FOR A PAIRED WITHIN-PANEL DIFFERENCE** — X7 and session 10
+    calibrate *levels*. The 2.0 used here is conventional and is labelled uncalibrated everywhere
+    it appears. `quantile_backtest(..., return_series=True)` now returns the per-period draws
+    (opt-in; default payloads bit-identical) so future paired tests use the **shipped** arithmetic.
+    **Equity `N` 131 → 135, Deflated Sharpe 0.8539 → 0.8504, √(2·ln 135) = 3.1322.**
+- **THE "8% CAP VIOLATION" NEVER EXISTED — `PT-SPLIT` IS CLOSED, AND THE DIAGNOSIS THIS FILE
+  CARRIED FOR TWO SESSIONS WAS WRONG (2026-08-10, session 16).** The bullets below say the
+  sandbox engine holds *"10 names, equal-weighted at 10% each — which the contract's own 8% cap
+  forbids"*. **It forbids no such thing.** `valquo_index.build_index` sets
+  `cap = max(MAX_WEIGHT, 1/len(picks))` with a comment saying why — **ten names at 8% sum to
+  80%**, so on a small book the cap must relax to equal weight or the redistribution loop never
+  terminates — and the payload has always self-reported `effective_max_weight`. **The weights
+  were correct for the book they described.**
+  * **THE REAL DIVERGENCE IS BOOK SIZE, AND IT IS ONE CONSTRUCTION FED TWO INPUTS.**
+    `n = max(MIN_NAMES, round(len(large) × TOP_DECILE))` with `MIN_NAMES = 10`, so a 10-name book
+    means the eligible large-cap tier held **fewer than 100 names**; the published 86 implies a
+    tier of ~860. **`/admin/run-paper-track` reads `data/valquo_index.json` when it exists and
+    SILENTLY REBUILDS FROM THE STORE'S LATEST SCAN when it does not** — and that scan is a top-N
+    hot list. The engine was never pointed at a different strategy; it was handed a truncated one
+    with no label. That is how `PT-OUTBOUND` shipped an engine figure as an Index claim.
+  * **WHY THE WRONG FRAMING WAS EXPENSIVE, not merely untidy: the fix it implies is "lower a
+    cap", and the cap was already right.** The actual defect would have survived the repair.
+    Same lesson as the stale-figure and wrong-file-name corrections elsewhere in this file —
+    **re-derive a diagnosis from the code before acting on a repeated one.**
+  * **RESOLVED BOTH WAYS AT ONCE, per Don's "no third state":** `paper_track.seed_book` now
+    **refuses** to seed a book that is not the Index (**≥ `CONTRACT_MIN_POSITIONS` = 50 names AND
+    the 8% cap actually binding**), loudly and non-destructively — it never liquidates, because
+    doing so on a conformance rule would be worse than the split. `experiment=True` is the only
+    other door and it **stamps every holding row** (on the row, not in a return value: the old
+    code *did* label its fallback and no surface rendered the label). The **four recorded days
+    are registered in `PAPER_TRACK_CONTRACT.md` §5b** as a separate experiment, **kept not
+    deleted** — its *fills* are real evidence about execution, its *return series* is evidence
+    about nothing the contract binds.
+  * **STILL OPEN, and it is the app lane's:** this stops the engine *adding* to a wrong book; it
+    does not make it start recording the right one. That needs a conforming
+    `data/valquo_index.json` on the Render disk when the cycle runs. **No vintage opened or
+    closed** — the engine's series was never the bound series.
+- **THE FORWARD OPTIONS BOOK WAS RUNNING EXIT LEVELS NO BACKTEST DESCRIBES, AND HELD A NAME THE
+  ALERT ITSELF REFUSED (2026-08-10, session 16, `PT-BUG12`).** Both routed in by the options-bot
+  lane off the first three REAL fills, both fixed in `paper_track.py`, all expected values
+  pre-committed in `PREREG_session16_paper_track_repair.md` before any code changed.
+  * **`_place_entry` anchors target/stop to the SUBMIT price and `mark_open` overwrote
+    `entry_premium` with the FILL without recomputing either.** Systematic, not occasional:
+    `auto-scan.yml` runs the cycle after the close, so the limit comes from a post-close quote and
+    the day order fills at the next open. **2 of 3 open positions were off spec** (TGT +150.7%
+    target against +100%; MET −46.7% stop against −50%). Levels now derive from the fill on the
+    **alert's own** policy, and an idempotent repair pass fixes already-open rows every cycle.
+    **All five pre-committed criteria held exactly** — TGT 8.90 → 7.1000 / 2.225 → 1.7750, MET
+    9.80 → 9.2000 / 2.450 → 2.3000, **ETN bit-identical** because its fill equalled its limit.
+  * **THE REPAIR RUNS IN THE FLATTERING DIRECTION AND THAT MUST TRAVEL WITH IT.** The bug made
+    targets harder and stops tighter; correcting it makes them easier and looser. Right fix
+    either way — the levels were wrong against the specification — but **"we fixed a bug and the
+    book improved" is the easiest way for a forward test to flatter itself.** Concretely: **MET
+    sat 10.2% above a stop level no backtest ever specified**, days from recording a stop-out the
+    strategy under test would not have taken.
+  * **A REPAIR MAY NOT EXECUTE A TRADE.** If a corrected level is already crossed, the write is
+    **deferred and reported**, never auto-exited. Untaken today (no row crosses), pinned by test.
+  * **`_eligible` never read `features.sizing`**, so ETN was bought on `skip: true` / *"one
+    contract costs $1,610, above the $1,000 budget"* and became the **largest position in the
+    book**. The veto is now honoured; **the sizing QUANTITY deliberately is not** (that would
+    change construction), pinned as a non-change. **The open ETN position is NOT unwound** —
+    that gate applies to new entries, and closing a live position to tidy the record is a trade
+    decision.
+  * **A THIRD DEFECT, same family, found while fixing the first:** the resume branch called
+    `_exit_policy` on a `paper_option_orders` row, and **that table has no `features` column**, so
+    the policy silently collapsed to the DEFAULTS. **Audit B5c's own comment claims that branch
+    "rebuilds … the exit policy the same way the fresh path does" — the fresh path reads the
+    ALERT.** It has never fired only because all three live alerts use the default policy. **A
+    defect neutralised by a coincidence in the data is not handled**, so it is pinned with a
+    policy that differs.
+  * `options_summary.level_conformance` now reports off-spec live rows **read-only on every
+    request** — it stays after the fix precisely because the first time this book was inspected,
+    2 of 3 positions were off spec and nothing anywhere said so.
+- **V1 SHADOW VINTAGES IS REGISTERED, BLIND, WITH NO MEASUREMENT — AND ITS POWER TABLE IS THE
+  FINDING (2026-08-10, session 16).** Rule 6 (below) says an adopted change resets the whole
+  five-year clock and buys nothing statistically — which, alone, means **the model can never be
+  improved again without paying five years.** V1 is the escape: the closing vintage keeps being
+  scored in shadow on the same dates and the two books are compared **PAIRED**, so the market
+  risk that dominates a vs-SPY test **cancels**.
+  * **THE GAIN IS REAL AND THE LIMIT IS STRUCTURAL, both computed before any pair exists.** At a
+    between-book tracking error of 2.0 pp/yr the 60-month detectable difference is **3.34 pp/yr
+    against the vs-SPY meter's 19.01** — four-fold. **But σ is small exactly when the adoption
+    changed little, and an adoption big enough to matter raises σ.** No design escapes that. **A
+    shadow pair that has not crossed is the EXPECTED outcome and is NOT evidence the adoption was
+    worthless** — `verdict()` carries that sentence in its own output.
+  * **THE CONTROL IS EXACT:** fed the contract meter's own 11.40 pp/yr TE it reproduces
+    **σ 3.9847** and **~19 pp/yr at 60 months** to the digit, because it **imports**
+    `track_meter.boundary` rather than re-implementing it. ρ and α are imported too and a test
+    fails if they are ever copied — one boundary function in the project.
+  * **BLINDER THAN ANY PREVIOUS REGISTER HERE: no vintage pair exists.** Vintage 2 opened
+    2026-08-10 with no successor, so no parameter could have been tuned to a comparison even in
+    principle. Vintage 2's parameters are **pinned now, in a tracked file** (`params_id
+    0060c5ef3dda`), so the shadow runs a **snapshot, never a reconstruction**.
+  * **No sign branch** (AST-pinned; flipping a whole series flips the verdict and moves nothing
+    else), so **HARMED is exactly as reachable as CONFIRMED-LIVE**. **Research-only and fenced off
+    every public surface by a test, BEFORE it has numbers to leak** — `PT-OUTBOUND` is why that
+    fence is built in advance. **It does not weaken Rule 6:** it measures the price of an
+    adoption, it does not refund it.
+  * `valuation/edge/shadow_vintage.py`, `PREREG_v1_shadow_vintages.md`, 26 tests.
+    **Equity `N` stays 131** (infra `n = 1`); the first shadow PAIR is charged when it opens.
 - **AMENDMENT 1: RUN #1 IS VOID, RUN #2 IS THE LIVE TEST, AND THE PROJECT NOW HAS A VINTAGE
   RULE (2026-08-09, session 15).** Don voided run #1 (inception 2026-07-30, ~6 days, 2 rows)
   because it measured a model that has since materially changed — growth-input fix, score fix,

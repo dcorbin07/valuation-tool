@@ -37,7 +37,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from valuation.config import CONFIG  # noqa: E402
 
 
-def _post(path: str, payload: dict) -> None:
+def _post(path: str, payload: dict) -> dict:
+    """POST to an admin ingest endpoint. Returns the parsed response body ({} if unparseable).
+
+    The body is returned rather than only printed because the snapshot ingest now also PUBLISHES
+    the Valquo Index book, and whether that succeeded is the only signal the daily run gives —
+    the 200-character print below would truncate it away.
+    """
     base = os.environ["BASE_URL"].rstrip("/")
     token = os.environ["ADMIN_TOKEN"]
     body = json.dumps(payload).encode()
@@ -46,7 +52,12 @@ def _post(path: str, payload: dict) -> None:
         headers={"Content-Type": "application/json", "X-Admin-Token": token})
     try:
         with urllib.request.urlopen(req, timeout=180) as r:
-            print(f"  ingest {path}: {r.status} {r.read().decode()[:200]}")
+            raw = r.read().decode()
+            print(f"  ingest {path}: {r.status} {raw[:200]}")
+            try:
+                return json.loads(raw) or {}
+            except ValueError:
+                return {}
     except urllib.error.HTTPError as e:
         print(f"  ingest {path} FAILED: {e.code} {e.read().decode()[:300]}")
         sys.exit(1)
@@ -110,9 +121,17 @@ def run_hot() -> None:
         print(f"  display coverage: {h['display_coverage']}")
     if not rows:
         print("  nothing scored — not ingesting."); sys.exit(1)
-    _post("/admin/ingest-snapshot", {
+    resp = _post("/admin/ingest-snapshot", {
         "scan_date": res["scan_date"], "provider": res.get("provider", "ci"),
         "rows": rows, "params": {"scope": scope, "universe_size": res.get("universe_size")}})
+    # The Valquo Index book the sandbox engine records. Printed explicitly because a book that
+    # silently stopped being published is exactly how the engine came to record a 10-name book
+    # while the published Index held 86 (PT-SPLIT). A refusal is a normal, reportable outcome —
+    # it means this scan was too thin to build the contract-bound book — not a scan failure.
+    book = (resp or {}).get("index_book") or {}
+    if book:
+        print(f"  index book: {'PUBLISHED' if book.get('published') else 'NOT published'} — "
+              f"{book.get('reason', '')}")
     refresh_landing_sample()
 
 

@@ -2246,7 +2246,7 @@ def walk_forward(panel, cols, base, top_n=25, horizon=63, halflife_days=1260, n_
             "params": params}
 
 
-def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
+def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=False):
     """The 'is the edge real and harvestable?' test. Each date, sort EVERY name by composite and
     split into n_q equal buckets; measure each bucket's forward return. A genuine signal shows
     (a) higher-composite buckets earning more (monotonic), and (b) a positive, statistically
@@ -2272,6 +2272,7 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
     q_rets = [[] for _ in range(n_q)]
     ls, sw_long, ewb = [], [], []
     alpha_series = []          # AUDIT R9 — per-period top-decile MINUS equal-weight
+    used_dates, n_scored = [], []       # V2G — see `return_series`
     for d in dates:
         sub = panel[panel["date"] == d]
         comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
@@ -2280,6 +2281,8 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
         comp, fwd = comp[ok], fwd[ok]
         if len(fwd) < n_q * 3:                              # need enough names for clean buckets
             continue
+        used_dates.append(str(d)[:10])
+        n_scored.append(int(len(fwd)))
         order = np.argsort(-comp)                           # highest composite first
         buckets = np.array_split(order, n_q)
         for qi, b in enumerate(buckets):
@@ -2309,7 +2312,19 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
     ew_ann = annmean(ewb)
     sw_ann = annmean(sw_long)
     mono = _spearman(np.arange(n_q, dtype=float), np.array([np.mean(q) if q else np.nan for q in q_rets]))
+    # V2G — the per-period draws, opt-in so no existing caller's payload changes.
+    # `top_decile_alpha` is exactly `ppy * mean(alpha)`, but a PAIRED comparison of two arms
+    # needs the series itself: two arms scored on the same dates share the market move that
+    # dominates each level, and differencing them cancels it. Summaries cannot be paired after
+    # the fact, which is RUN_RULES A9 — store the draws, not just the summary.
+    # `dates`/`n_scored` are returned because two arms need NOT score the same dates or the same
+    # names: an arm can rank a name the other cannot (the other's themes are all absent on it),
+    # so alignment has to be checkable rather than assumed.
+    series = {"dates": used_dates, "n_scored": n_scored,
+              "long_short": [float(x) for x in ls],
+              "alpha": [float(x) for x in alpha_series]}
     return {"n_periods": len(ls), "n_quantiles": n_q, "horizon": horizon,
+            **({"series": series} if return_series else {}),
             "decile_ann_return": decile, "equal_weight_ann": ew_ann,
             "long_short_ann": annmean(ls), "long_short_tstat": tstat(ls),
             # AUDIT R9 — HAC inference and a visible serial-correlation diagnostic. The naive

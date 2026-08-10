@@ -36,7 +36,214 @@ VOID, **run #2 is the live test from 2026-08-10**, and the project now has a **V
 The meter and gap report are wired into `/api/track`. **NO ACTION REQUIRED FROM DON, but one
 thing needs confirming: the Cowork writer `valquo-daily-track-write` is NOT visible in this
 machine's Task Scheduler.** It is checkable from 2026-08-12 with no further work.)
+**Session date:** 2026-08-10 (edge lane, **session 17** — measured what the three dead live themes
+cost: **IMMATERIAL on alpha (−1.31pp, not separable from zero), but the live four-theme book fails
+the calibrated long-short floor**. **NO ACTION REQUIRED FROM DON.** One item still needs confirming
+from 2026-08-12, unchanged from sessions 15 and 16: whether the Cowork writer
+`valquo-daily-track-write` is actually running.)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
+
+---
+
+## EDGE — WHAT THE THREE DEAD LIVE THEMES COST: IMMATERIAL ON ALPHA, BUT THE LIVE BOOK FAILS THE CALIBRATED LONG-SHORT FLOOR (2026-08-10, session 17, `V2G`)
+
+Full write-up in `HANDOFF_edge_audit.md` **SESSION 17**; ledger row `V2G`; pre-registration
+committed **alone at `6d8750a`** before `scripts/live_theme_cost.py` existed.
+
+**THE QUESTION, ROUTED OUT-OF-BAND.** The greeks lane measured (Part 12.7) that `insider` is
+**constant** and `capital_discipline` / `institutional` are **absent** on 100% of served rows —
+**42.9% of the composite's weight mass reaches no live score** — and explicitly left the price of
+that to a backtest. This is that backtest.
+
+**THE ANSWER: −1.31pp/yr, and not separable from zero.** Top-decile alpha **+7.17% → +5.86%**,
+paired HAC t **−1.4040** over 69 paired dates, against a pre-registered −1.95pp bar →
+**IMMATERIAL**. Building live sources for the dead themes is **a nice-to-have, not the project's
+highest-value work.**
+
+**THE CAVEAT THAT MUST TRAVEL WITH THAT: power against its own bar is 55.0%.** The design resolves
+1.87pp at |t| = 2, so the bar is well matched — but IMMATERIAL means *could not be separated from
+zero*, **not** *shown to be small*.
+
+**THE MORE SERIOUS FINDING: the live four-theme book does NOT clear the calibrated long-short
+floor** — HAC t **1.8811** against **2.2837** — where the deployed seven-theme book clears at
+2.6199. It **does** clear the top-decile alpha floor (**3.2087** vs 2.2913), and the shipped
+product is a **long-only hot list**, so what users receive stays demonstrable while the long-short
+statistic quoted beside it does not.
+
+**AND THE PART MOST LIKELY TO BE MISQUOTED: an immaterial alpha cost is NOT a finding that the
+live absence is acceptable.** The live product computes a **different composite** from the one
+every published figure is measured on — the class of defect audit B7 exists to prevent. Either
+build the sources or quote the headline for the book actually computed. **That is the screener
+lane's call, not the edge lane's.**
+
+**IF ONE SOURCE IS BUILT, IT IS 13F.** Exploratory and carrying no verdict by design: dropping
+`institutional` is the only one of the three negative in **both** halves (−1.41% full); dropping
+`capital_discipline` is **positive** in both halves despite its second-strongest panel IC (+2.76).
+
+**Equity `N` 131 → 135; Deflated Sharpe 0.8539 → 0.8504; `BACKTEST_RESULTS.json` re-run from a
+clean tree** (16 leaves moved — five the DSR chain, four provenance, seven 0.000% float; every
+headline bit-identical).
+
+---
+
+## ENGINE/SCREENER — THE BETA LADDER NOW COVERS THE FULL SERVED UNIVERSE, AND THE BREADTH SHOWS 43% OF THE LIVE SCORE'S WEIGHT IS INERT (2026-08-10, greeks lane)
+
+Full write-up in `HANDOFF_live_data_bugs.md` **Part 12**; ledger row `V2F`; pre-registration
+committed alone at `1867a3f` before `scripts/live_cache.py` existed.
+
+**WHAT SHIPPED.** `scripts/live_cache.py` + `tests/test_live_cache.py` (40 tests, none touching
+the network). Four modes — `capture` pins the served universe, `fetch` pulls, `seed` replays a
+capture into a dedicated store, `report` measures offline.
+
+**BETA COVERAGE 46/403 (11.4%) -> 500/500 (100.0%), WITH ZERO THROTTLE EVENTS.** Runs 1 and 2 died
+at 176 and 297 throttled calls. **What made it affordable is BATCHING, not patience:**
+`yf.download` pulled 500 monthly close series in **13 requests in ~40 seconds**; only the vendor
+`beta` field (`.info`) cannot be batched, so that leg is paced at 2.5s and took ~25 minutes.
+
+**THE STRUCTURAL FIX IS THAT FETCH AND MEASUREMENT ARE NOW SEPARATE PROGRAMS.** `_resolve_beta`
+makes the network call itself (`wacc.py:166`), so measuring coverage burned the quota coverage
+depended on — that is why it kept failing. `report` now makes **zero** network calls and drives
+the **real** ladder against the cache, so it is deterministic and re-runnable. Failed or throttled
+units are **never recorded** (the miner's tri-state rule), so coverage cannot be inflated by
+running into a quota wall.
+
+**RUNG DISTRIBUTION over 500 names:** `vendor` 432 (86.4%), `vendor_corroborated` 31,
+`fallback` 22 (4.4%), `computed` 14, `vendor_uncorroborated` 1.
+**MY PRE-REGISTERED PREDICTION WAS WRONG (60/40):** I expected a *higher* fallback share at full
+breadth than the 46-name sample's 10.9%; it is **lower, 4.4%**, because that sample was enriched
+with problem names by construction. **B1 do-no-harm HELD on real data through an entirely
+different fetch path:** GILD 0.305, CI 0.288, KSPI 0.886 (n=30), CHTR 0.669 all reproduce Part 7.6
+exactly, and KSPI is still rejected for its 30 observations rather than its size.
+
+**THE FINDING — 42.9% OF THE DEPLOYED WEIGHT REACHES NO LIVE SCORE.** Measured on 500 served rows:
+`capital_discipline` and `institutional` are **null on 100% of rows**, and `insider` is 100%
+non-null with **exactly one distinct value**. Each carries **0.125** deployed weight out of a
+0.875 total. `composite_score` renormalises over what is present, so **the live hot list is a
+four-theme book (value, quality, size, momentum) wearing the weights of a nine-theme one.**
+`insider`'s deadness is documented at `screen.py:288`; the other two are not, and
+`capital_discipline` has the **second-strongest backtest IC (+2.76)**. **No claim is made about
+what this costs in return** — that is a backtest question and not this lane's.
+
+**A DEFECT IN MY OWN V2 METER, IN THE DANGEROUS DIRECTION.** Every V2 coverage floor counts
+NON-NULL ROWS, so a constant theme passed all seven — and **`_spearman` does not return NaN on a
+constant predictor**, it returns an arbitrary number, and **exactly +1.0 against a monotone
+target**. The meter would have banked those as genuine monthly observations and the anytime-valid
+band would eventually have called it significant. **The absent themes always refused safely; this
+one would have produced a verdict.** Fixed with a per-date degeneracy floor, recorded as a
+tightening permitted by `PREREG_v2_theme_health.md` §10. `tests/test_theme_health.py` 23 -> 27.
+
+**THE THEME RECORD IS REACHABLE FROM A CHECKOUT AFTER ALL, and Part 11 said it was not.** The
+public, credential-free `/api/hotstocks` carries all ten per-name theme scores. Replayed through
+the project's own `Store.save_snapshot` into a **dedicated** database (never `data/screener.db`),
+the meter now reads **500 real rows at `scan_date 2026-08-08`, 0 synthetic**, up from 0 usable
+rows. **Not one of the ten verdicts changed** — still zero closed 63-day windows — but seven
+themes moved from *blocked by absent data* to *blocked by elapsed time*. At a 500-name
+cross-section a live IC of **+0.0379 is detectable by month 60** against `quality`'s backtested
++0.0356, confirming V2's calibration from the other side. **The endpoint serves the LATEST scan
+only**, so the record accrues **forward** one day per run and can never be backfilled — 9 real
+dates exist on Render that this repo cannot reach.
+
+**RECOMMENDED NEXT STEP, and it is cheap:** run `capture` + `seed` on a daily cron. Every day it
+does not run is a day of the forward record that cannot be recovered. **Owner: Cowork/infra.**
+
+**TESTS: 26 suites, 1199 tests, 0 failures.** Zero trial cost — equity `N` stays **129**.
+
+**BUGS FOUND (5), four for other lanes:** (1) three themes carrying 42.9% of deployed weight
+contribute nothing to any live score; (2) the served payload's `health` key is `null`, so
+`theme_coverage`/`theme_contributing` — which `screen.py` computes precisely to surface (1) —
+reach nobody; (3) nothing in the repository catches a rate-limit exception, so a throttled call is
+indistinguishable from "no data" everywhere except `BetaEstimate.unavailable`; (4)
+`BETA_HIGH_CAP = 3.0` sends 7 of 500 served names (ARM 3.909, ALAB, BE, AFRM, AGGI, COIN, CRDO) to
+a beta of 1.0, escalating Part 7.7's open item from one name to a population; (5)
+`tests/test_saas.py:200` still writes a 2099-01-01 row into the real `data/screener.db`.
+
+## EDGE LANE, 2026-08-10 — session 16
+
+**No action required from Don.** Everything below is landed and tested.
+
+### 1. Two live bugs in the paper options book — FIXED
+
+The forward options track was running exit levels **no backtest describes**, and holding a
+position the alert itself had refused. Both were routed in by the options-bot lane off the first
+three real fills.
+
+* **The exit levels were anchored to the price the order was SUBMITTED at, not the price it
+  FILLED at.** Systematic rather than occasional: the paper cycle runs after the close, so the
+  limit comes from a post-close quote and the order fills at the next open. **2 of 3 open
+  positions were off spec** — TGT was running a +150.7% target against an intended +100%, MET a
+  −46.7% stop against −50%. Levels are now re-derived from the fill on the alert's own policy, and
+  a repair pass fixes rows that were already open. Every expected value was **written down before
+  the code changed** and all of them held exactly: TGT 8.90 → 7.10 and 2.225 → 1.775, MET 9.80 →
+  9.20 and 2.45 → 2.30, ETN untouched because its fill equalled its limit.
+* **DISCLOSED, because it matters: the repair moves the book in the FLATTERING direction.** The
+  bug made targets harder and stops tighter, so correcting it makes them easier and looser. It is
+  still the right fix — the levels were wrong against the specification either way — but "we fixed
+  a bug and the book improved" is the easiest way for a forward test to flatter itself, so it is
+  recorded everywhere the fix is. Concretely: **MET sat 10.2% above a stop level no backtest ever
+  specified**, and was days from recording a stop-out the strategy under test would not have taken.
+* **The book bought a name its own sizing refused.** ETN's alert carried *"one contract costs
+  $1,610, above the $1,000 budget"* and `skip: true`, and the paper track bought it anyway — **it
+  is the largest position in the book.** Now refused, with the alert's own reason recorded. **The
+  existing ETN position is deliberately NOT unwound**: that gate applies to new entries, and
+  closing a live position to tidy the record is a trade decision, not a bug fix.
+* **A third defect found while fixing the first**, same family: the crash-resume path silently
+  used DEFAULT exit levels instead of the alert's, because it read a table that does not carry
+  them. It has never fired — every live alert happens to use the default policy — which is luck,
+  not protection, so it is fixed and pinned with a policy that differs.
+
+### 2. PT-SPLIT — closed, and MY OWN EARLIER DIAGNOSIS WAS WRONG
+
+Sessions 14 and 15 (mine) reported the sandbox engine as *"10 names equal-weighted at 10%, which
+the contract's own 8% cap forbids"*. **That is not a cap violation.** The code sets the cap to
+`max(8%, 1/n)` on purpose, because ten names at 8% sum to 80%. **The weights were correct for the
+book.**
+
+**The real problem is book SIZE — 10 names against the published Index's 86 — and it is one
+construction fed two different inputs.** The paper-track endpoint reads the published book file
+when it exists and **silently rebuilds from the store's latest scan when it does not**, and that
+scan is a top-100 hot list rather than the universe. Had I "fixed" the cap as I described it, the
+actual defect would have survived untouched.
+
+**Resolved both ways at once, which is what Don's "no third state" requires:** the engine is
+**aligned going forward** — it now refuses to seed any book that is not the real Index, loudly and
+without liquidating anything — and the **four days already recorded are registered as a separate
+experiment** in `PAPER_TRACK_CONTRACT.md` §5b that may never be quoted as the Index. Those days
+are **kept, not deleted**: erasing a record because it turned out to describe the wrong book is
+the flattering direction. Its **fills** are still real evidence about execution; its **return
+series** is evidence about nothing the contract binds.
+
+**Still open, and it is the app lane's:** this stops the engine adding to a wrong book. Making it
+record the *right* one needs the published book file present on the Render disk when the cycle
+runs.
+
+### 3. V1 shadow vintages — REGISTERED (no measurement, and that is the point)
+
+Amendment 1's Rule 6 says a scoring change resets the whole five-year clock and buys nothing
+statistically. Taken alone that means **the model can never be improved again without paying five
+years**. V1 is the way out: when a change opens a new vintage, the old one keeps being scored in
+shadow on the same dates, and the two are compared **paired** — both books see the same market, so
+market risk cancels.
+
+**How much that buys, and the honest limit, both computed before any pair exists:** for two
+similar books the 60-month detectable difference is **3.34 pp/yr against the vs-SPY meter's
+19.01** — a four-fold gain. **But the tension is structural:** the meter is sharp exactly when the
+change was small, and a change big enough to matter blunts it. **So a shadow that has not crossed
+is the expected outcome, and is NOT evidence that a change was worthless.** That sentence is built
+into the code's own output, not left in a document.
+
+**Registered completely blind: there is no vintage pair to compare.** Vintage 2 opened 2026-08-10
+and has no successor, so not one parameter could have been chosen to suit a result, even in
+principle. Vintage 2's parameters are pinned in a tracked file now, so the shadow will run a
+frozen snapshot rather than a later reconstruction. It is research-only and fenced off every
+public surface by a test, **before** it has any numbers to leak.
+
+### Numbers
+
+* **Equity `N` stays 131; Deflated Sharpe stays 0.8539.** Two correctness repairs do not count as
+  trials, and a registered instrument with no measurement is charged to infra. **`BACKTEST_RESULTS.json`
+  did not need re-running** — checked, not assumed.
+* **Tests: every suite green.** `tests/test_paper_track.py` 70/70 (was 47 at session 15),
+  `tests/test_shadow_vintage.py` 26/26 new.
 
 ---
 
