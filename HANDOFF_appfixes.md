@@ -5,6 +5,144 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 23 — 2026-08-10 — the daily scan publishes the Index book, so the engine records the right one
+(prompt: cross-lane item named to this lane by `HANDOFF_edge_audit.md` Session 16 §7)
+
+**SHIPPED.** Session 16 closed `PT-SPLIT` with a **gate, not a repair**: `paper_track.seed_book`
+now refuses any book that is not the contract-bound Valquo Index (**≥ 50 names AND the 8% cap
+binding**), so the engine stopped *adding* to a wrong book. Nothing made it start recording the
+right one, because `/admin/run-paper-track` reads `data/valquo_index.json` when it exists and
+**silently rebuilds from the store's latest scan when it does not** — and a thin scan rebuilds a
+10-name book carrying a perfectly correct "Valquo Index" method string. **The daily scan now
+publishes that file.**
+
+## THE MEASUREMENT THAT DECIDED THE DESIGN, and it overturns a comment in the engine
+
+`seed_book`'s own comment says *"the store's eligible large-cap tier is under 100 names"*. **That
+is no longer true, and if it were, publishing would have been pointless** — the file would just
+carry the same truncated book. So I measured the live scan instead of assuming, against
+`https://valquo.co/api/hotstocks` on 2026-08-10 (scan of 2026-08-08):
+
+| | |
+|---|---|
+| universe / scored | 800 / **594** |
+| rows the API exposes | 500 (server cap) |
+| of those, ≥ $10B | **499** — the scanned universe is the most *liquid* names, i.e. nearly all large caps |
+| book built from those 500 real rows | **50 positions, effective max weight 0.0800 — the cap BINDS — conforms: True** |
+| engine's own `book_conformance` on it | **True** |
+| extrapolated over all 594 scored | tier ~593, decile **~59** against a floor of 50 |
+
+**So the tier is ~593, not "under 100".** The 10-name book the engine recorded on 2026-08-03/04/05/07
+came from a much thinner scan at the time, not from a truncation bug that is still present. The
+comment describes a past state and reads as a current one — the same class of stale-claim defect
+this project keeps finding. **Not edited: it is the edge lane's file.**
+
+**The margin is real but not comfortable.** 59 against a floor of 50. If the scan degrades to the
+documented ~190-name bundled fallback (what happens when `FMP_API_KEY` is absent), the decile
+lands near 19 and the book must not be published at all — which is exactly what the refusal below
+does.
+
+## What shipped
+
+**`valuation/saas/index_book.py`** — `publish(store, path)` builds the book from the store's
+latest scan and **writes it only if it conforms**.
+
+* **A non-conforming book is never written.** Not written-and-labelled, not written-for-the-engine-
+  to-reject — not written. `PT-OUTBOUND`'s lesson is that the old code *did* label its fallback
+  honestly and no surface ever rendered the label, so the wrong artifact is made unreachable
+  rather than better annotated.
+* **A refusal never deletes or overwrites an existing book.** Both post-refusal states are safe by
+  construction: the engine reads the last good file (whose `scan_date` shows its age) or finds
+  nothing, rebuilds from the same thin scan, and refuses. Neither can start recording a wrong book.
+* **Probe first, write second.** `export()` writes unconditionally, so conformance is decided on a
+  pure `build_index` probe of the same rows before `export` is called, and the **written payload is
+  re-checked** rather than assumed.
+* **It never raises.** The daily hot list must not fail to land because a book could not be built.
+* **Every attempt is banked** to store meta (`index_book_publish`), success or refusal, so a
+  pipeline that quietly stopped publishing is diagnosable instead of merely quiet.
+
+**Wired into the daily scan's terminal step** — `/admin/ingest-snapshot`, deliberately **outside**
+the once-per-day `already` guard, because the backup cron exists precisely because GitHub drops
+scheduled runs and a day whose primary ingest published nothing must still get a book. Publishing
+is idempotent, so a second call is a no-op or a repair.
+
+**`scripts/ci_scan.py` prints the outcome.** `_post` now returns the parsed body (it previously
+truncated the response at 200 characters, which would have hidden this entirely). A publisher that
+silently stopped is how the original defect survived.
+
+**One definition of the rule.** Conformance is reached through the payload's own
+`contract_conformance` block — `valquo_index.conformance`, the same object the engine reads. A test
+asserts `index_book.py` contains no restatement of the floor, the cap, or the verdict.
+
+## VERIFIED, not assumed
+
+* **The engine's gate goes green on it** — `seed_book` run against the published book returns
+  `seed_refused: None` and `conformance.conforms: True`, end to end through the real seeding path.
+* **The gate still discriminates** — the same test asserts a 12-name book is still refused, so a
+  green result is not a gate that stopped checking.
+* **Confirmed on real production rows**, not only synthetic ones: the table above is the actual
+  live scan pushed through `build_index` and `paper_track.book_conformance`.
+* **Three mutations, all caught**: guard disabled, guard inverted, written-payload re-check
+  dropped. The third initially was **NOT** caught — it is a defensive branch that cannot fire
+  naturally — so a test now forces it by monkeypatching `export` to disagree with its own probe.
+  An untested defensive branch is an assumption wearing a conditional.
+
+## Nothing else consumes the path — checked, and pinned
+
+Nine files mention `data/valquo_index.json`; **three touch it**: `valquo_index.py` (defines
+`DEFAULT_PATH`, the only writer), `app_saas.py` (the engine route reads it), and
+`scripts/paper_track_run.py` (CLI `--book` default). **`paper_track.py` names it only in a
+comment and never opens it** — the engine's gate operates on a book it is *handed*, not on a path
+it resolves. A test pins the whole mention set, so a second reader has to be noticed rather than
+discovered after it disagrees with the first.
+
+## THE THING I AM FLAGGING RATHER THAN DECIDING — it is a contract question, not an app one
+
+**Conformance is a size and a cap. It is silent about which universe the decile came from.** The
+book now published is a decile of the **daily live scan** (~594 names, FMP/free stack); the
+contract's published 86-name series was a decile of the **full point-in-time Sharadar universe**
+(861 eligible). Same construction, different universe — **so the holdings will not match name for
+name**, and both books satisfy the rule as written.
+
+The payload has always carried `source`, and `publish()` now banks it into the ingest response and
+store meta so the difference is visible up front rather than inferred later from a divergence.
+**Whether a live-scan-sourced book is the object `PAPER_TRACK_CONTRACT.md` binds is not mine to
+answer** — if it is not, conformance needs a provenance condition, which is a change to
+`valquo_index.conformance` in the edge lane. Recorded in the ledger as still open.
+
+## What happens on the next scan, stated plainly because it is a live state change
+
+The engine currently holds **10 experiment-stamped names**. On the first conforming publish,
+`seed_book` will close those 10 (they are not in the new book) and open ~59. Exits are **closed,
+not deleted**, per Session 16, so the registered experiment rows survive. The
+`MIN_BOOK_RETENTION` guard does not trip (59 against 10 open). **This is the intended transition,
+and it is the point of the item** — but it is the first time the sandbox engine will hold the real
+book, so the next `/admin/run-paper-track` response is worth reading.
+
+## BUGS FOUND
+
+| # | what | where | status |
+|---|---|---|---|
+| 1 | `seed_book`'s comment asserts the store's large-cap tier is "under 100 names". **Measured: ~593.** It describes the early-August state and reads as current — and it is the sentence that would have made this whole item look pointless. | `valuation/edge/paper_track.py:807-808` | **OPEN — edge lane's file**, not edited |
+| 2 | `_post` in the CI scan truncated every ingest response to 200 characters, so anything the endpoint reported past that was invisible to the daily run. Pre-existing; it would have hidden the publish outcome. | `scripts/ci_scan.py` | FIXED |
+| 3 | Conformance does not test provenance (above). Two books from different universes both pass. | `valuation/edge/valquo_index.py` | **OPEN — flagged to the contract lane** |
+| 4 | `tests/test_guards.py` still reports its one declared XFAIL, exit 0. Pre-existing, options-bot lane, recorded per RUN_RULES A3. | `tests/test_guards.py` | OPEN — not mine |
+
+**17 new tests. Gate: 37 suites, 1096 passed, 0 failed.**
+
+## WHAT THIS DOES NOT DO
+
+* **It does not make the engine's series quotable as the Index.** `PT-SPLIT`'s remaining half and
+  the provenance question above both stand. This makes the engine record a conforming book; it
+  does not settle whether that book is the contract's object.
+* **It does not touch `valuation/edge/**`.** The two defects found there are routed, not repaired.
+* **It does not write `valquo_track_history.csv`.** `PT-WRITER` is unrelated and still Cowork's.
+* **It cannot be confirmed in production from here.** The next scheduled hot scan (22:23 UTC,
+  weekdays) is what actually writes the file on Render. **Read the run's log line
+  `index book: PUBLISHED — …`, then `/admin/run-paper-track` for `seed.seed_refused: null`.**
+
+---
+
 # Session 22 — 2026-08-10 — V3's verdict reaches the product: the score stops claiming per-name precision
 (prompt: update the score presentation to match what is defensible after V3's calibration)
 
