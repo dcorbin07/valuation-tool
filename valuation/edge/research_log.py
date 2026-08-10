@@ -59,6 +59,13 @@ _CACHE: dict = {}
 DOMAINS = ("equity", "options", "unified", "infra")
 
 
+# Fields resolved from each table's own header. The first four drive the COUNT; the rest are
+# read for surfaces that need the RECORD rather than the denominator (see `rows()`), and are
+# resolved by the same rule so there is never a second parser to disagree with this one.
+_FIELDS = ("id", "verdict", "n", "domain", "date", "hypothesis", "metric", "threshold",
+           "source", "pre", "universe")
+
+
 def _header_map(cells):
     """If this row is a table header, return {field: column index}; else None.  [SESSION 12]
 
@@ -71,7 +78,15 @@ def _header_map(cells):
     low = [c.strip().lower() for c in cells]
     if "id" not in low or "verdict" not in low:
         return None                                   # not a row-table header
-    m = {k: low.index(k) for k in ("id", "verdict", "n", "domain") if k in low}
+    # EXACT match only. A `startswith` rule would let a future `notes` column be resolved as
+    # `n`, silently multiplying that row's trials by whatever prose it contained — the same
+    # class of defect as the session-12 whole-row grep this parser exists to have fixed.
+    m = {f: low.index(f) for f in _FIELDS if f in low}
+    if "threshold" not in m:                          # the one real header with a suffix
+        for i, c in enumerate(low):
+            if c.startswith("threshold"):
+                m["threshold"] = i
+                break
     m["_width"] = len(cells)
     return m
 
@@ -80,6 +95,26 @@ def _cell(cells, hdr, field):
     """The named field's own cell, or None if this table has no such column."""
     i = (hdr or {}).get(field)
     return cells[i] if i is not None and i < len(cells) else None
+
+
+def _emit(out, cells, hdr, rid, aligned, vcell, k):
+    """Record one row for surfaces that render the RECORD rather than the denominator.
+
+    Collected inside the one parse, so the public research page and the trial counter can
+    never disagree about what the log says. This project has been bitten twice by a second
+    reader of the same fact — session 12's `\\bFIXED\\b` whole-row grep, and the two
+    forward-track recorders that put a false claim into Discord — so there is deliberately no
+    second parser here.
+
+    Cells are handed over RAW. Deciding what may be PUBLISHED is the surface's job: the log
+    records thresholds and result figures that the public page is not allowed to show, and a
+    parser that pre-censored them would make the counter depend on a publishing rule.
+    """
+    row = {"id": rid, "n_trials": k, "aligned": aligned,
+           "verdict": (vcell or "").strip()}
+    for f in ("date", "hypothesis", "metric", "threshold", "source", "pre", "universe"):
+        row[f] = ((_cell(cells, hdr, f) if aligned else None) or "").strip()
+    out.append(row)
 
 
 def _parse(path):
@@ -97,6 +132,7 @@ def _parse(path):
     """
     trials = fixed = counted = 0
     ids = []
+    rows_out = []                                     # the record, for `rows()`
     changed = []                                      # rows whose treatment differs from legacy
     malformed = []                                    # rows whose columns do not line up
     by_domain = {d: 0 for d in DOMAINS}
@@ -141,6 +177,11 @@ def _parse(path):
                             "verdict_cell": vcell})
         if is_fixed:
             fixed += 1
+            # Emitted with ZERO trials, not skipped. A `FIXED` row is not a search over the
+            # data — that is why it does not count toward `N` — but it IS part of the record,
+            # and the public research page renders it as such. The two questions are
+            # different and this is the only place that says so.
+            _emit(rows_out, cells, hdr, rid, aligned, vcell, 0)
             continue
 
         # --- grid multiplier: THE `n` CELL ALONE ------------------------------------------
@@ -157,6 +198,7 @@ def _parse(path):
         trials += k
         counted += 1
         ids.append(rid)
+        _emit(rows_out, cells, hdr, rid, aligned, vcell, k)
 
         # --- domain: THE DOMAIN CELL ALONE ------------------------------------------------
         dcell = ((_cell(cells, hdr, "domain") if aligned else None) or "").lower()
@@ -173,7 +215,7 @@ def _parse(path):
             by_domain[dom] += k
     return {"trials": trials, "rows_counted": counted, "rows_fixed": fixed, "ids": ids,
             "by_domain": by_domain, "rows_changed_by_parser_fix": changed,
-            "rows_malformed": malformed}
+            "rows_malformed": malformed, "rows": rows_out}
 
 
 def trial_count(path=None, use_cache=True, domain="equity"):
@@ -191,6 +233,20 @@ def trial_count(path=None, use_cache=True, domain="equity"):
     if domain and (d.get("by_domain") or {}).get(domain) is not None:
         return int(max(WEIGHT_SCHEME_TRIALS, d["by_domain"][domain]))
     return int(max(WEIGHT_SCHEME_TRIALS, d.get("trials_logged") or 0))
+
+
+def rows(path=None, use_cache=True) -> list:
+    """Every logged row, in file order, for surfaces that render the RECORD.
+
+    Same parse as `trial_count`/`detail` — see `_emit`. `FIXED` rows are INCLUDED and carry
+    `n_trials == 0`, because "is this part of the record" and "was this a search over the data"
+    are different questions and only the second one sets `N`.
+
+    Returns raw cells. Callers that publish must apply their own rule about what may be shown;
+    `valuation/web/research_record.py` is the one that does, and it withholds figures.
+    """
+    parsed = _parse(path or _LOG)
+    return list((parsed or {}).get("rows") or [])
 
 
 def detail(path=None, use_cache=True):

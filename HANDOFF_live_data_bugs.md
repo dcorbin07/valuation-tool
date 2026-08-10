@@ -2657,3 +2657,186 @@ for verification.
    nothing is signed. The gate row defaults to not-passed regardless of which option lands, so
    this is a coordination note, not a blocker: **whoever commits Option E should set the
    `Operational gate passed` row's value at the same time, or leave it `pending`.**
+
+---
+
+# Part 11 — V2, THE LIVE THEME-HEALTH METER (2026-08-09)
+
+**Item:** `VALQUO_EXTENSIONS.md` **V2** — greeks lane, NEW FILES ONLY plus read-only imports.
+**Pre-registration:** `PREREG_v2_theme_health.md`, committed **alone** at `25ba793` before
+`scripts/theme_health.py` existed.
+**Ships:** `scripts/theme_health.py`, `tests/test_theme_health.py` (23 tests),
+`data/free_analysis/THEME_HEALTH.json` + two calibration artifacts.
+**Reproduce:** `python -m scripts.theme_health --json data/free_analysis/THEME_HEALTH.json`
+and `python -m scripts.theme_health --calibrate`.
+
+**VERDICT: BUILT AND VALIDATED; NOT-QUOTABLE ON ALL TEN THEMES, ON ZERO USABLE ROWS.** The
+refusal is the product today. The result worth acting on is not the refusal — it is the
+calibration, which says the meter's usefulness is decided almost entirely by **which source
+feeds it**, and the source it needs is the one nobody is currently preserving.
+
+---
+
+## 11.1 The pre-commitment, and why it is unusually easy to believe
+
+Everything V2 requires to be fixed before the first computation was fixed at `25ba793`:
+63-trading-day horizon; the IC is the panel's own `_spearman` **imported read-only**, not
+re-implemented; monthly cadence with the 3:1 window overlap **priced into the band rather than
+dropped**; a Robbins anytime-valid confidence sequence via `track_meter.boundary`, also imported
+read-only, at `sigma = sqrt(3)`, `rho = 3`, and `alpha = 0.05` **family-wise across the ten
+themes** (0.005 each); seven refusal floors; and the DEGRADED / CONFIRMED-LIVE / INSUFFICIENT /
+NO-REFERENCE / NOT-QUOTABLE verdict table.
+
+**At that commit the live record held ZERO closed 63-day windows.** There was no live number to
+tune a threshold against, *even in principle* — which is the strongest form the pre-registration
+argument takes, and the same one `track_meter.py` makes about its own frozen parameters.
+
+Three things were measured before the file was written, all required by V2 to come first and
+none of them an IC: **how many snapshot dates exist, each theme's non-null fraction, and which
+provider wrote each file.** The third turned out to matter more than the first two.
+
+**Two imports, deliberately, and they are the point of "read-only on `valuation/edge/**`".** The
+correlation is the panel's `_spearman` and the band is the contract meter's `boundary`.
+Re-implementing either would give the project a second definition free to drift from the first —
+the defect class it has already paid for more than once.
+
+## 11.2 What the record actually holds: nothing usable
+
+| source | dates | usable | what is there |
+|---|---|---|---|
+| `data/archive/scans/` | **7** | **0** | every file is provider `"synthetic (offline test)"`, tickers `SYN0802`, `SYN0309` |
+| `data/screener.db` `snapshot_rows` | **1** | **0** | one row dated **2099-01-01**, left by `tests/test_saas.py:200` |
+
+**Total usable rows: 0.** Depth per theme: 0 non-null everywhere. Closed 63-day windows: 0.
+Verdict on all ten themes: **NOT-QUOTABLE**, each carrying its own blocking reasons.
+
+This is the same shape as roadmap #12's finding — a mechanism that is fully built and tested
+while its tables hold zero rows — and V2's premise inherits half of it. V2 says the per-name
+snapshots are "in the screener store since task #97". **The schema is; the data is not, on this
+machine.** The real record accrues in the web service's database on Render's persistent disk:
+`auto-scan.yml`'s `hot` job scans on a GitHub runner and POSTs to the site's ingest endpoint, so
+the local store never receives it. **Nothing is broken — but nobody can run V2 against real data
+from a checkout, and that was not previously written down anywhere.**
+
+## 11.3 The estimator is proved anyway, because the live data cannot prove it
+
+Zero closed windows means the live record exercises the *refusal* and nothing else. That is
+exactly the situation in which a project ships a meter that has never computed anything and
+finds out in nine months that it computes the wrong thing. So the estimator is validated
+against panels with a **known planted IC**:
+
+| planted Pearson | theoretical Spearman | **recovered median IC** | other nine themes |
+|---|---|---|---|
+| +0.5 | +0.4826 | **+0.4712** | max abs 0.0969 |
+| 0.0 | 0.0000 | **−0.0714** | max abs 0.0969 |
+
+10 monthly observations, 60 names. The +0.5 arm also **crosses UP and is labelled
+CONFIRMED-LIVE**; the −0.5 arm **crosses DOWN and is labelled DEGRADED**; and **8 noise panels ×
+10 themes = 80 theme-runs produced 0 crossings.**
+
+**THE CONTROL CAUGHT A DEFECT IN ITSELF FIRST, AND THAT IS THE MOST INSTRUCTIVE THING HERE.**
+The first version of the planted panel drew a score and then wrote the price that satisfied it.
+With 63-day windows starting on every trading day, one date's **entry** price is an earlier
+date's **mark** price, so every realised return carried an independent second term and the
+recovered IC came back **+0.3575 against an expected +0.4826**. The arithmetic of that mistake
+predicts attenuation by `1/sqrt(2)` → **0.341**, which matches. **A 26% attenuation looks exactly
+like a broken estimator**, and would have been read as one had the expected value not been
+written down first. The panel now draws a genuine multiplicative price path and derives the score
+from the realised return, so the pair is bivariate normal by construction.
+
+## 11.4 THE FINDING: the source decides whether this meter can ever return a verdict
+
+Measured with `--calibrate` (20,000 Monte Carlo paths carrying the overlap structure the band
+assumes: `z_i` an equally weighted moving average of 3 innovations, lag-1 and lag-2
+autocorrelations of exactly 2/3 and 1/3), against **the backtest's own theme ICs**:
+
+| | 100 names (the archive's top-100 book) | 800 names (the store's full universe) |
+|---|---|---|
+| detectable mean IC by 24m | +0.1348 | **+0.0475** |
+| detectable mean IC by 60m | +0.0851 | **+0.0299** |
+| power at `quality`'s +0.0356, 60m | **2.5%** | **80.3%** |
+| power at `quality`'s +0.0356, 120m | 9.6% | 99.6% |
+| power at `capital_discipline`'s +0.0297, 60m | 1.5% | **55.0%** |
+| false crossing under the null, by 60m | 0.0010 | 0.0010 (nominal 0.005 — conservative) |
+
+**On the top-100 archive this meter is very nearly powerless at the effect sizes the backtest
+claims — 2.5% at five years, the same arithmetic that gives the forward paper track 13%. On the
+full-universe store it reaches 80% at five years and is a real test.** Same band, same horizon,
+same alpha; only the cross-section changes. The archive is doubly wrong for the purpose, because
+its top 100 are *selected on the composite*, which range-restricts the very scores whose
+correlation is being measured.
+
+**CONSEQUENCE, and it is the actionable one: the full-universe snapshot history is the asset,
+and it exists only on Render's disk.** If that disk is lost or reset, V2 does not lose months of
+progress — it loses the only source that can ever answer its question. The report now prints the
+typical cross-section and the IC detectable from it on every run, so nobody can read a verdict
+without seeing which regime produced it.
+
+**Timeline, stated plainly:** the first 63-day window cannot close for ~3 months after real
+capture begins, the pre-registered floor is 6 closed monthly windows after that, so **the
+earliest possible first reading is ~9 months from the day full-universe snapshots start being
+retained**, and the first reading with real power is **~5 years**. The pre-registered expectation
+(NOT-QUOTABLE on every theme, 95%) is **CONFIRMED**; the second, weaker one (INSUFFICIENT
+everywhere once quotable, 60/40) is untestable for years and stays on the record.
+
+## 11.5 One tightening, recorded
+
+`EXCLUDE_FUTURE_DATED` — rows dated after today are dropped — is **stricter than the
+pre-registration**, which did not mention them. It is recorded rather than quietly applied.
+Justification is the standing one: excluding more data can only delay a verdict, while the
+harmful error here is quoting an IC that is not supported. It is not hypothetical — before this
+guard the 2099-01-01 fixture row became the meter's `as_of` and dragged the entire report into
+the year 2099.
+
+## 11.6 What I did NOT do
+
+* **Did not hit production.** The real snapshot history is behind the site's admin endpoints and
+  `ADMIN_TOKEN`; reading it is an owner action, not something to do from an agent session with a
+  secret out of `.env`. `--db` / `--archive` take a path, so pointing the script at a downloaded
+  copy is one flag.
+* **Did not add a scheduled job.** V2 asks for the script and the surface data, not a cron. What
+  it needs is a decision about retaining full-universe snapshots (§11.4), which is not mine.
+* **Did not touch `valuation/edge/**`, `valuation/web/**` or any tracked data file.** Two
+  read-only imports, two new files, plus register/ledger/handoff rows.
+* **Did not surface anything publicly.** Owner-side Edge Lab instrumentation, per V2.
+* **Did not fix the `tests/test_saas.py` leak** (§ BUGS FOUND, item 1) — it is another lane's
+  file and the meter now defends against it.
+
+---
+
+## BUGS FOUND (Part 11)
+
+1. **A TEST WRITES INTO THE REAL LOCAL DATABASE, AND ITS ROW IS DATED 2099-01-01.**
+   `tests/test_saas.py:200` POSTs `{"scan_date": "2099-01-01", ...}` to
+   `/admin/ingest-snapshot`, and the app writes it to `data/screener.db` — where it is sitting
+   now, as the store's *only* `snapshot_rows` row. Any consumer that takes "the latest scan" as
+   `MAX(scan_date)` gets a row from the year 2099. `store.latest_scan_date()` orders by
+   `scan_date DESC`, so **`load_snapshot()` with no argument returns the fixture** on a machine
+   that has ever run that suite. Not fixed (another lane's file, and the correct fix is a
+   temp-directory database for the app tests, not a different sentinel date). The meter excludes
+   future-dated rows and reports the count.
+
+2. **`VALQUO_EXTENSIONS.md` V2's stated data source is half true, and the half that is false is
+   the one an executor depends on.** "the persisted per-name snapshots (in the screener store
+   since task #97)" — the schema and the writer exist (`screen.py:66` persists all ten themes
+   into `extra["factors"]`), but the store a checkout can reach has never received a real scan,
+   because `auto-scan.yml` runs the scan on a GitHub runner and POSTs the result to the live
+   site. There is also **no task #97** in `VALQUO_LEDGER.md` or `valquo_audit_items.json` (both
+   are letter-prefixed; index 97 is `O25`, "Sell the wing after the move"), so the citation
+   cannot be followed. Recorded, not edited — the register belongs to whoever wrote it.
+
+3. **The scan archive's `top=100` makes it unusable for theme health, and nothing says so.**
+   `archive.py:84` keeps the top 100 names "because the tail of a 3,000-name scan is noise for
+   this purpose" — true for its stated purpose, false for this one. Measured in §11.4: a
+   100-name cross-section gives 2.5% power at 60 months against `quality`'s own backtested IC,
+   versus 80.3% at 800. A future lane that reaches for the archive as the convenient
+   survivorship-free source will build something that cannot work, and the docstring reads as
+   an invitation.
+
+4. **`insider` and `sentiment` can never receive a directional verdict from this meter, for two
+   different reasons, and both are properties of the backtest rather than of the live data.**
+   `insider`'s backtest median IC is −0.0052, inside the pre-committed `REF_MIN_IC` of 0.01, so
+   there is no sign to be degraded relative to; `sentiment` is empty in the panel entirely
+   (`coverage 0.0`, `median_ic null`). Both correctly return NO-REFERENCE / NOT-QUOTABLE rather
+   than a fabricated direction. Worth knowing before someone asks why 2 of 10 themes never
+   report.
