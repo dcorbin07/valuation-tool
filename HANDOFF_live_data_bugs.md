@@ -3405,7 +3405,13 @@ charged here if and when one of these columns is *selected into* the composite.
    value notation — unescaped inside a markdown table cell, so the row has **14 fields against an
    11-field header** and its note is split into three columns: everything after `max` is shifted.
    This is exactly session 12's O16 defect (`|Spearman(term_slope, atm_front)|`, same cause, same
-   shift), which cost that session a near-miss on the trial denominator. **Not edited here** —
+   shift), which cost that session a near-miss on the trial denominator.
+   **AND IT IS WORSE THAN A SHIFT — THE ROW IS INVISIBLE.** `scripts/build_ledger.read_ledger()`
+   returns **163 rows and `V2G` is not one of them**; `V2F` and `V2G-SRC` both are. So the
+   ledger — the project's own authority for "is X done?" — **does not contain that lane's
+   completed item at all**, and anyone asking whether the cost of the dead themes has been
+   priced is told no. Its own suite passes because `tests/test_build_ledger.py` checks the
+   totals it can see, not the rows it silently lost. **Not edited here** —
    the register forbids rewriting another lane's row, and the pipes want escaping as `\|` by the
    lane that owns them. The row is otherwise correct and its content is folded into §13.12.
    **Owner: pipeline builder.** *(Note also that `V2G` is a genuine id collision — that lane and
