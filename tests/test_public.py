@@ -117,21 +117,103 @@ def test_registration_is_closed_and_creates_nothing():
 
 
 # ============================== the split, as policy =======================================
-def test_every_api_route_is_knowingly_public_or_knowingly_owner_only():
-    """Swept from the app's own URL map. A route added later lands in NEITHER list and fails
-    here — which is the point: the split should be a decision someone made, not an omission.
-    """
-    unclassified = []
+def _api_rules():
+    """Every concrete /api rule in the app's own URL map, with its methods."""
     for rule in APP.url_map.iter_rules():
         p = str(rule)
-        if not p.startswith("/api/") or "<" in p:
-            continue
-        if p.startswith("/api/option-alerts/"):
-            continue                      # admin-token endpoints; not part of the split
-        if p in surfaces.PUBLIC_API or surfaces.is_owner_only(p):
-            continue
-        unclassified.append(p)
-    assert not unclassified, f"unclassified API routes: {sorted(unclassified)}"
+        if p.startswith("/api/") and "<" not in p:
+            yield p, rule.methods
+
+
+def test_every_api_route_is_knowingly_classified():
+    """Swept from the app's own URL map. A route added later lands in NO category and fails
+    here — which is the point: the split should be a decision someone made, not an omission.
+
+    AMENDED 2026-08-10 (LA13). This used to skip `/api/option-alerts/` with a hard-coded
+    prefix and a comment, while `surfaces.py` advertised that every /api route is knowingly
+    public or owner-only. The exemption was correct and the claim was not: the skip lived
+    here, in the test, so the module stating the policy had no record that a third category
+    existed. It now reads `surfaces.classify`, so the categories are the module's answer and
+    a new admin-token route under a different prefix cannot fall through to public by
+    default. The enforcement half is the test below — classifying a route secures nothing.
+    """
+    unclassified = [p for p, _ in _api_rules() if surfaces.classify(p) is None]
+    assert not unclassified, (
+        f"unclassified API routes: {sorted(unclassified)} — put each in surfaces.PUBLIC_API, "
+        f"OWNER_ONLY_PATHS, or the admin-token list, with a reason")
+
+
+def test_the_admin_token_category_is_not_a_way_to_leave_a_route_unguarded():
+    """LA13's load-bearing half. The category is a LABEL; `_admin_ok()` is the guard.
+
+    Without this, moving a route out of the public set would be a one-line edit to
+    `surfaces.py` that reads like a security decision and enforces nothing — strictly worse
+    than the hard-coded skip it replaced. So every route the module calls admin-token is
+    called for real, with no token, and must refuse.
+
+    Asserted for both methods a rule accepts, because the two option-alerts endpoints are a
+    GET and a POST and only checking the GET would leave the writing one unproven.
+    """
+    admin_routes = [(p, m) for p, m in _api_rules()
+                    if surfaces.classify(p) == "admin-token"]
+    assert admin_routes, "no admin-token routes found — this test proved nothing"
+    with APP.test_client() as c:
+        for path, methods in admin_routes:
+            for verb in sorted({"GET", "POST"} & set(methods)):
+                r = c.open(path, method=verb)
+                assert r.status_code in (401, 403), (
+                    f"{verb} {path} is classified admin-token and answered {r.status_code} "
+                    f"to a caller with no X-Admin-Token")
+
+
+def test_every_admin_route_refuses_a_caller_with_no_token():
+    """The same enforcement sweep over the OTHER admin-token family (2026-08-10, LA13).
+
+    `/admin/*` is outside `surfaces.py` entirely — it is not part of the public/owner split and
+    is never classified there — so the test above cannot see it, and the same "eight
+    `_admin_ok()` call sites, none of them asserted" gap applied. Measured before writing this:
+    all 13 route-verbs already answer 401, with a real ADMIN_TOKEN set in the environment
+    (which is the case that means something — an unset token fails closed trivially). So this
+    pins a property the app already has rather than reporting a hole.
+
+    These are the daily scan, the paper-track cycle, the recap poster and the backtest
+    runners. An unguarded one is a stranger triggering the owner's vendor spend at will.
+    """
+    routes = []
+    with APP.test_client() as c:
+        for rule in APP.url_map.iter_rules():
+            p = str(rule)
+            if not p.startswith("/admin/") or "<" in p:
+                continue
+            for verb in sorted({"GET", "POST"} & set(rule.methods)):
+                routes.append((verb, p))
+                r = c.open(p, method=verb)
+                assert r.status_code in (401, 403), (
+                    f"{verb} {p} answered {r.status_code} to a caller with no X-Admin-Token")
+    assert len(routes) >= 10, f"only {len(routes)} /admin route-verbs swept — expected the full set"
+
+
+def test_the_admin_token_list_is_the_lockdowns_list_and_not_a_second_copy():
+    """The two files must name the same routes. `private.ADMIN_PREFIXES` lets these through
+    the lockdown; `surfaces.ADMIN_TOKEN_PREFIXES` classifies them here. If they can drift, a
+    route stays reachable under the lockdown while reverting to public in the split.
+    """
+    from valuation.saas import private
+    assert surfaces.ADMIN_TOKEN_PREFIXES == tuple(
+        p for p in private.ADMIN_PREFIXES if p.startswith("/api/"))
+    assert "/api/option-alerts/" in surfaces.ADMIN_TOKEN_PREFIXES
+    # ...and the category is exclusive: an admin-token route is neither public nor owner-only.
+    for p, _ in _api_rules():
+        kinds = [surfaces.is_owner_only(p), surfaces.is_admin_token(p), p in surfaces.PUBLIC_API]
+        assert sum(bool(k) for k in kinds) <= 1, f"{p} is in more than one category: {kinds}"
+
+
+def test_classify_answers_none_for_a_route_nobody_has_decided_about():
+    """Non-vacuity: the walk above only means something if `classify` can say None."""
+    assert surfaces.classify("/api/some-new-thing-nobody-classified") is None
+    assert surfaces.classify("/api/hotstocks") == "public"
+    assert surfaces.classify("/api/track") == "owner"
+    assert surfaces.classify("/api/option-alerts/open") == "admin-token"
 
 
 def test_the_owner_only_list_covers_every_category_it_claims_to():
@@ -209,7 +291,9 @@ def test_every_route_that_writes_is_on_the_demo_denied_list():
         "/api/rank",        # scores a watchlist the caller supplied
         "/api/portfolio",   # builds an allocation from the existing snapshot; writes nothing
     }
-    EXEMPT_PREFIXES = ("/admin/", "/api/option-alerts/", "/billing/webhook")
+    # The admin-token half is taken from the module rather than restated (LA13) — the same
+    # literal in two tests is how one of them keeps a route the other stopped covering.
+    EXEMPT_PREFIXES = ("/admin/", "/billing/webhook") + surfaces.ADMIN_TOKEN_PREFIXES
     unclassified = []
     for rule in APP.url_map.iter_rules():
         p = str(rule)

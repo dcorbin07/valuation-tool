@@ -180,7 +180,15 @@ def withhold_implausible_fair_values(rows, band: float = None) -> int:
     The reason is written onto the row rather than the value merely blanked. A silently
     missing cell reads as a gap in the data and invites someone to "fix" it later; the
     valuation page's refusal works precisely because it states its cause.
+
+    THE LABELS GO TOO (LA10, 2026-08-10). This used to blank `fair_value` and `upside` and
+    leave `fair_value_method: "blended"` / `fair_value_confidence: "medium"` standing, so a
+    withheld row described the confidence of a number it was not publishing. The clearing
+    rule is `publication.strip_derived_fields` — imported, not restated, so the scan-side
+    refusal and this band refusal cannot come to mean different things.
     """
+    from ..engine.publication import strip_derived_fields
+
     band = _band() if band is None else float(band)
     n = 0
     for r in rows:
@@ -196,7 +204,7 @@ def withhold_implausible_fair_values(rows, band: float = None) -> int:
             ratio = None
         if not pre_marked and (ratio is None or ratio <= band):
             continue
-        r["fair_value"] = None
+        strip_derived_fields(r)
         r["upside"] = None
         r[ROW_WITHHELD] = True
         r.setdefault(ROW_WITHHELD_REASON,
