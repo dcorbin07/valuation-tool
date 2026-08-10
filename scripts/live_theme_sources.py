@@ -119,6 +119,19 @@ MAX_FORM4_PER_NAME = 40     # PREREG §4.6 — recorded per name when it bites
 INSIDER_DAYS = 90           # the scraper's own default window
 ANCHOR_MAX = 1.50           # PREREG §4.4 — institutional value / market cap
 
+# TIGHTENING, recorded 2026-08-10 AFTER the first full-universe report and published alongside
+# the pre-registered number rather than replacing it (PREREG §8 permits tightening; both figures
+# are in HANDOFF_live_data_bugs.md Part 13).
+#
+# THE PRE-REGISTERED ANCHOR IS ONE-SIDED IN EFFECT. `0 < frac <= 1.50` rejects implausibly HIGH
+# institutional ownership and waves through implausibly LOW: a join onto a stale or wrong CUSIP
+# that essentially nobody reports holding lands at frac ~1e-6, comfortably inside the band. It
+# passed 12 names, including CMCSA, RIO, BTI and HSBC — megacaps credited with ONE reporting
+# institution. The floor below is structural rather than tuned: `sm_breadth` is the GROWTH IN
+# HOLDER COUNT, and a holder count of one cannot express breadth or its change at all. It is not
+# chosen to hit a coverage number — it is the smallest count at which the measure is defined.
+MIN_HOLDERS = 2
+
 # PREREG §5 — pre-existing project constants, applied unchanged.
 COVERAGE_FLOOR = 0.05       # fundamental_panel.py:3833 — "effectively empty"
 MIN_COVERAGE = 0.30         # pead.py:121, elite13f.py:90 — the adoption-relevant bar
@@ -834,6 +847,11 @@ def join_13f(root: str, served: list, agg: dict) -> dict:
                        "value": rec["value"], "shares": rec["shares"]})
         if anchor is None or not (0 < anchor <= ANCHOR_MAX):
             detail["rung"] = "anchor_failed"
+            out[tkr] = detail
+            continue
+        if rec["holders"] < MIN_HOLDERS:
+            # A single reporting holder is not breadth, and on a megacap it is a mis-join.
+            detail["rung"] = "too_few_holders"
             out[tkr] = detail
             continue
         p = prior.get(cusip)

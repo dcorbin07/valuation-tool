@@ -13,6 +13,62 @@ confirming from 2026-08-12, unchanged from session 15: whether the Cowork writer
 
 ---
 
+## GREEKS LANE — 2026-08-10 (V2G): the three dead themes now have free live sources, and nothing was shipped
+
+**NO ACTION REQUIRED FROM DON.** Read `HANDOFF_live_data_bugs.md` **Part 13**.
+
+Follow-up to Part 12, which found that **42.9% of the composite's deployed weight reaches no live
+score**. This session built a **free, public** source for each of the three dead themes and
+measured its coverage. Pre-registered alone at `66310e7` before any code existed.
+
+**All three sources are free.** The brief's premise is right and it is what makes this possible:
+**SF3 is a licensed aggregation of 13F — the underlying filings are public record.** Nothing here
+touched the licensed Sharadar exports.
+
+| theme | before | after (vs the same 500 served rows) |
+|---|---|---|
+| `institutional` | null on 500/500 | **411 / 500 = 82.2%**, 410 distinct values |
+| `capital_discipline` | null on 500/500 | **456 / 500 = 91.2%**, 441 distinct values |
+| `insider` | present but **1 distinct value** | **500 / 500**, **297 distinct values** |
+
+**Share of deployed weight reaching a live score: 56.5% -> 95.5%** (mean over 500 names).
+**All five pre-committed bounds held**, including the falsifiable external-validity one: the
+most widely held served name is NVDA at **5,775 distinct institutional filers**, and holder
+breadth correlates with size at Spearman **+0.539**.
+
+**NOTHING WAS SHIPPED, AND THAT IS THE POINT.** Zero files under `valuation/` were touched — so
+no composite change, no weight flip, and **no vintage event**: vintage 2's clock is untouched. A
+test enforces it rather than prose promising it, so a later change that quietly wires one of
+these in fails the suite.
+
+**ADOPTION IS A SEPARATE AND EXPENSIVE DECISION, AND NOBODY SHOULD SHORTCUT IT FROM THESE
+NUMBERS.** Coverage says the data exists; it says nothing about whether it predicts returns. That
+needs the held-out gate at the standing margins in both directions, plus the pipeline builder's
+cost measurement — and under Amendment 1 Rule 6 an adoption **closes vintage 2 and resets the
+entire accrued forward clock for no statistical gain**. Vintage 2 is one day old, so that price
+is at its cheapest today and rises every day the decision is deferred. That is an argument for
+deciding soon, not for deciding casually.
+
+**Found in my own instrument, and reported rather than smoothed over:** the pre-registered
+ownership anchor was **one-sided** — it rejected implausibly high institutional ownership and
+waved through implausibly low, passing **12 megacaps (CMCSA, RIO, BTI, HSBC and others) joined to
+a CUSIP with a single reporting holder**. Fixed with a structural floor; both the pre-registered
+(421) and tightened (411) figures are published rather than one replacing the other.
+
+**Two corroborations worth carrying:** the live insider theme is overwhelmingly a *"who is
+selling least"* sort (278 names below neutral against 43 above), and **16 names pin at exactly
+the scorer's `tanh` floor** — audit item **S3**'s saturation mechanism, confirmed on live data.
+
+**Tests: 38 suites, 0 failures.** Zero trial cost; equity `N` stays 131. **5 bugs reported.**
+
+**Recommended next step, and it is not mine to take:** decide whether to adopt. If yes, it is a
+scoring change and belongs to the screener/edge lanes with the held-out gate attached; V1 shadow
+vintages is already registered and blind and is the instrument that would measure whether the
+adoption helped.
+
+
+---
+
 ---
 
 ## ENGINE/SCREENER — THE BETA LADDER NOW COVERS THE FULL SERVED UNIVERSE, AND THE BREADTH SHOWS 43% OF THE LIVE SCORE'S WEIGHT IS INERT (2026-08-10, greeks lane)

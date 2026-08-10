@@ -3078,3 +3078,297 @@ product** and raises nothing. `_align_index` is the fix and three tests pin it.
    they are high-beta. Escalation of Part 7.7's open item from one name to a population.
 5. **`tests/test_saas.py:200` still writes a 2099-01-01 row into the real `data/screener.db`**
    (carried from Part 11, unfixed — another lane's file).
+
+## Part 13 — FREE LIVE SOURCES FOR THE THREE DEAD THEMES: BUILT, MEASURED, AND NOT SHIPPED (2026-08-10, greeks lane)
+
+Follow-up to Part 12, which found that **42.9% of the deployed composite weight reaches no live
+score**. This builds a free, public source for each of the three dead themes and measures its
+coverage against the same 500 served rows. **Everything here is an instrument. Nothing reaches
+the product**, and that is enforced by a test rather than promised in prose.
+
+Pre-registered in **`PREREG_v2g_live_theme_sources.md`, committed ALONE at `66310e7`** before any
+fetch or measurement code existed. Implementation `scripts/live_theme_sources.py`, **53 tests** in
+`tests/test_live_theme_sources.py`, artifact `data/free_analysis/V2G_LIVE_THEMES.json`.
+
+### 13.1 THE HEADLINE
+
+| theme | live state (Part 12) | **V2G measured coverage** | distinct values | floors |
+|---|---|---|---|---|
+| `institutional` | **null on 500/500** | **411 / 500 = 82.2%** | 410 | clears 0.30 and 0.05 |
+| `capital_discipline` | **null on 500/500** | **456 / 500 = 91.2%** | 441 | clears 0.30 and 0.05 |
+| `insider` | 500/500 present, **1 distinct** | **500 / 500 = 100.0%** | **297** | clears 0.30 and 0.05 |
+| `quality` ← accruals input | (quality already live) | 385 / 500 = 77.0% | 385 | clears 0.30 and 0.05 |
+
+Floors are the project's own constants, applied unchanged: `COVERAGE_FLOOR = 0.05`
+(`fundamental_panel.py:3833`), `MIN_COVERAGE = 0.30` (`pead.py:121`, `elite13f.py:90`),
+`MIN_DISTINCT = 2` (`theme_health.MIN_DISTINCT_VALUES`).
+
+**Share of deployed weight that reaches a live score, mean over the 500 served names: 56.5%
+today → 95.5% with these sources.** `insider` is counted as reaching nothing today, because it
+does: it is present, constant, and renormalised away after standardisation. **31 names would
+still sit below 80% weight coverage** — the gap is not uniformly closed and is named in §13.5.
+
+**ALL FIVE PRE-COMMITTED BOUNDS HELD.** B1 institutional ≥ 0.30 (0.822). B2 anchor pass ≥ 95%
+(423/423 = 100%). B3 external validity — most-held served name **NVDA at 5,775 distinct filers**
+(≥ 2,000) and **Spearman(holder breadth, log market cap) = +0.539** (> +0.30). B4
+`capital_discipline` usable. B6 `insider` ≥ 10 distinct (297).
+
+### 13.2 WHAT WAS BUILT, AND WHY IT IS FREE
+
+The brief's premise is correct and is what makes this possible: **SF3 is a licensed aggregation
+of 13F; the underlying filings are public record.** Nothing here touches `data/backtest`.
+
+* **`institutional`** — SEC **Form 13F structured data sets**, the quarterly zips at
+  `sec.gov/files/structureddata/data/form-13f-data-sets/`. Two periods, **31-DEC-2025 →
+  31-MAR-2026** (the `01jun2026-31aug2026` window is not published; Q2-2026 13Fs are due
+  2026-08-14). 90.3 MB + 99.4 MB, aggregated to **22,092 and 22,626 CUSIPs** from **8,625 and
+  8,741 distinct filers** over **3.08M and 3.11M** share rows. Options rows (`PUTCALL` set) and
+  bond rows (`SSHPRNAMTTYPE = PRN`) are excluded; restatement amendments supersede, new-holdings
+  amendments are additive. Then, exactly as `factors.py:267` builds it:
+  `institutional = mean(z(inst_accum), z(sm_breadth))`, where `sm_breadth` is growth in distinct
+  holder count and `inst_accum` is growth in **shares** held.
+  **`inst_accum` is share-based on purpose, fixed in the register before the run:** a
+  dollar-based change over a quarter is mostly the stock's own price move, which would have made
+  a "13F accumulation" signal a momentum signal wearing a 13F label.
+* **`capital_discipline`** — share issuance from **XBRL company facts**, two annual points,
+  `neg_issuance = -(shares_t / shares_{t-1} - 1)`, matching `factors.py:254`, which is issuance
+  **alone**.
+* **`insider`** — the repo's **already-fixed Form 4 scraper**, imported and called unmodified,
+  including its refusal contract. Then `(score - 50) / 25`, matching `factors.py:271`.
+
+**THE BRIEF'S THIRD ASK LANDS IN A DIFFERENT THEME, AND THE REGISTER SAID SO BEFORE THE RUN.**
+The brief asked for accruals under `capital_discipline`. `factors.py:254` is `neg_issuance`
+alone; `accruals_q` is a **`quality`** input (`factors.py:227`), and `quality` is one of the four
+themes that already works live. So **net issuance is the only input that can revive
+`capital_discipline`; accruals can only improve a theme that was never dead.** Built and reported
+anyway, labelled against the theme it actually feeds. No number was moved between themes to make
+a total look better.
+
+### 13.3 THE JOIN WAS THE HARD PART, AND IT IS WHERE THE INSTRUMENT IS WEAKEST
+
+13F identifies issuers by **CUSIP**; the served universe identifies them by **ticker**; there is
+no free CUSIP master. The ladder, with the rung recorded per name:
+
+| rung | names | what it is |
+|---|---|---|
+| `cusip_13g` | **398** | the company's own SC 13D/G filings carry its CUSIP; every candidate must pass the **mod-10 check digit**, and the modal validated value across up to 6 filings wins |
+| `name_exact` | 13 | normalised exact match on `NAMEOFISSUER` |
+| `too_few_holders` | 12 | matched, then refused — see §13.4 |
+| `ambiguous` | 49 | the name matched **more than one** CUSIP — a failure, never a coin flip |
+| `unmatched` | 28 | no CUSIP from either rung |
+
+**The authoritative rung did 94% of the work** (398 of 423 matched), which was predicted. The
+ownership anchor — 13F dollars held over market cap, admissible in `(0, 1.50]` — passed
+**423/423**, median **0.682**, p95 **0.992**, max **1.426**. A median of 68% institutional
+ownership across a large-cap screen is the right answer, and it is the strongest single piece of
+evidence that the join landed on the right issuers.
+
+**THE FAILURE MODES ARE COHERENT AND NAMED, not a diffuse loss.** Of the 77 unjoined names, 16
+are five-letter ADR tickers ending in `Y`, and the rest are dominated by foreign issuers whose
+13F names are abbreviated beyond exact match (`PNC FINL SVCS GROUP`) or split across ADR and
+ordinary lines (`ambiguous`: BCS, NWG, RY, EQNR, AMX, SLF, …).
+
+**AND ONE COHORT IS SYSTEMATICALLY WORSE, which matters for a screener full of banks: the join
+fails on 26.8% of Financial Services names against 13.2% everywhere else — twice the rate.**
+The cause is `edgar13d.py`'s filer-vs-subject contamination in a new place: **a company that is
+itself an asset manager files SC 13Gs ABOUT OTHER ISSUERS, and EDGAR's submissions feed for a CIK
+carries the filings it MADE as well as those naming it as subject.** PFG came back with six
+candidate CUSIPs at one vote each. **29 of 500 names hit that tie.** Caught during the smoke test,
+before the full run: a tie is now a refusal that falls through to the name rung, rather than being
+resolved by dictionary insertion order.
+
+### 13.4 THE DEFECT I FOUND IN MY OWN INSTRUMENT — the anchor is one-sided IN EFFECT
+
+**The pre-registered anchor band `0 < frac <= 1.50` rejects implausibly HIGH institutional
+ownership and waves through implausibly LOW.** A join onto a stale or wrong CUSIP that
+essentially nobody reports holding lands at `frac ≈ 1e-6` — comfortably *inside* the band.
+
+It passed **12 names**, and they are not obscure ones: **CMCSA, RIO, BTI, HSBC, MT, AMP, CM, MGA,
+SHG, IHG, TELNY, GALDY, IFNNY** — megacaps credited with **one single reporting institution**.
+Two of them (AMP, MT) produced `None` anyway because no prior-quarter record existed, i.e. they
+were caught **by luck, not by design**; had that CUSIP existed in both quarters they would have
+produced a garbage breadth-change that passed every check in the pipeline.
+
+**Fixed with a structural floor, not a tuned one.** `sm_breadth` is the *growth in holder count*,
+and a holder count of one cannot express breadth or its change at all — `MIN_HOLDERS = 2` is the
+smallest count at which the measure is **defined**, and it is not chosen to hit a coverage number.
+Recorded as a **tightening** (PREREG §8 permits tightening, not loosening), and **both figures are
+published rather than one replacing the other**:
+
+* institutional coverage under the **pre-registered** rule: **421 / 500 = 84.2%**
+* institutional coverage with the **tightening**: **411 / 500 = 82.2%** ← the number to quote
+
+**RESIDUAL RISK, STATED RATHER THAN CLOSED:** four matched names still carry only 2–5 reporting
+holders (KBGGY 2, HSBC 2, SMCI 5, CP 7 is above). They pass a floor of two and remain suspicious.
+They are listed so a reader can see them; raising the floor further would be tuning against the
+coverage number, which the register forbids.
+
+### 13.5 THE COVERAGE GAPS ARE FOREIGN ISSUERS, AND THEY ARE THE SAME NAMES EACH TIME
+
+* **`capital_discipline` misses 44 names**, of which **41 have ZERO annual share-count points**
+  in XBRL — foreign private issuers filing 20-F do not report
+  `dei:EntityCommonStockSharesOutstanding` on the US annual cadence. Three more have exactly one
+  point, and issuance needs two.
+* **Accruals misses 115 names (23%)** for the same reason one level deeper: IFRS filers have no
+  `us-gaap:Assets` / `NetCashProvidedByUsedInOperatingActivities`. So the 77.0% figure is
+  effectively "the US-GAAP share of the served universe", not a data-quality problem.
+* The 31 names still below 80% weight coverage are overwhelmingly this same ADR cohort.
+
+### 13.6 THE INSIDER THEME COMES ALIVE, AND ITS SHAPE IS THE FINDING
+
+`insider` goes from **1 distinct value to 297** across 500 names — B6 cleared by a wide margin.
+But the distribution is the part worth carrying:
+
+* median **43.68**; **179 names (35.8%) score exactly 50.0** (genuinely quiet — no qualifying
+  Form 4 activity in the 90-day window);
+* **278 names score below 50 and only 43 above.** The live theme, as constructed, is
+  overwhelmingly a **"who is selling least"** sort rather than a "who is buying" sort. That is not
+  a defect — insiders sell for liquidity and compensation far more often than they buy — but it
+  is a different signal from the one the theme's name suggests, and anyone adopting it should know
+  that before, not after.
+* **16 names pin at exactly 10.0** — the `50 + 40·tanh(pressure/4000)` floor. Zero names reach
+  the ceiling. **This is audit item S3's mechanism corroborated on live data:** the scale constant
+  (≈ √$16M) is far too small for megacap insider selling, so the strongest sellers are
+  indistinguishable from each other. ABNB, ALAB, AMAT, APP, CVX, DDOG, FANG, FLEX, HSY, ILMN, MDB,
+  MPWR, NTRA, TTWO, WDAY, XYZ all score identically.
+
+**My pre-committed prediction P4 was WRONG on its second half:** I predicted ≥50% of names would
+score exactly 50.0; measured **35.8%**.
+
+### 13.7 RATE LIMITS — V2F's lesson transferred, and the fleet DID get pushed back
+
+V2F's finding was *"batch what batches, pace what does not"*. Here **the 13F leg batches all the
+way**: two ~100MB quarterly zips replace what would otherwise be tens of thousands of per-filer
+fetches, and the whole aggregation runs in **~31 seconds**. Only the per-ticker legs (13G cover,
+XBRL facts, Form 4) are paced.
+
+Those legs are **latency-bound, not quota-bound**: one serial process reached ~3 req/s against
+SEC's published ~10 req/s ceiling, projecting **~3 hours**. Four interleaved shards at a higher
+per-process interval brought it to **~48 minutes** with the fleet under the ceiling.
+
+**SEC pushed back 27 times across the fleet, and that is reported rather than smoothed over.**
+Every one was retried with backoff and **none was recorded**: the manifest refuses a non-terminal
+status by construction, so a throttled unit is simply absent and gets retried. **Final state
+500/500 on all three legs**, confirmed by a serial closing sweep that found exactly one gap and
+filled it. Coverage cannot inflate by running into a wall.
+
+The other structural carry-over: **`report` makes ZERO network calls.** It drives the real
+construction against the cache. A measurement that consumes the resource it measures reports on
+its own exhaustion and calls it a result.
+
+### 13.8 ADOPTION IS A SEPARATE DECISION AND MUST NOT BE SHORTCUT FROM THESE NUMBERS
+
+Stated in the register **before** any coverage number existed, and repeated here because a table
+of green ticks is exactly what gets misread:
+
+**Coverage is a NECESSARY condition, not a sufficient one.** Before any of these enters the
+composite it needs, at minimum:
+
+1. **The pipeline builder's cost measurement.** Concretely, from this run: the 13F leg is ~190 MB
+   per quarter and ~31 s of CPU — trivial. The **insider leg is the expensive one**: it fetches
+   *every* Form 4 in the 90-day window with no cap, and **23 of 500 names exceeded 40 filings
+   each**. A daily scan paying that cost is a real operational decision, not a rounding error.
+2. **The held-out gate** — `holdout_theme_validate` / `holdout_compare_panels` at the standing
+   margins, **100 bps alpha and 0.25 long-short t, in BOTH split directions**. Nothing here is
+   evidence that any of these three themes *predicts returns live*. This measured whether the
+   data exists, not whether it works.
+3. **Acceptance of Rule 6's price.** Under **Amendment 1** (`PAPER_TRACK_CONTRACT.md` §5a) an
+   ADOPTED change — one that ships in the live scoring path — **closes vintage 2 and opens
+   vintage 3, resetting the entire accrued forward clock to zero and buying nothing
+   statistically** (§2: 60 months at 49% power). Vintage 2 opened **2026-08-10** with
+   `params_id 0060c5ef3dda`. Adopting these three themes on 2026-08-11 would discard a
+   one-day-old clock — cheap today, and **the price rises every day this is deferred**, which is
+   an argument for deciding soon, not for deciding casually. **V1 shadow vintages is the
+   instrument that would measure whether the adoption helped**, and it is registered and blind.
+
+**No vintage event occurred in this session.** Nothing shipped in the live scoring path.
+
+### 13.9 SCOPE, ENFORCED
+
+`git diff --stat origin/main...HEAD` for this work:
+
+```
+ PREREG_v2g_live_theme_sources.md |  239 +++++++++
+ scripts/live_theme_sources.py    | 1091 ++++++++++++++++++++++++++++++++++++++
+ tests/test_live_theme_sources.py |  627 ++++++++++++++++++++++
+ 3 files changed, 1957 insertions(+)
+```
+**Zero files under `valuation/`.** No composite change, no weight flip, no vintage event.
+
+**B5's enforcement mechanism was changed from the register's wording, and that is recorded rather
+than quietly substituted.** The register proposed asserting B5 with a raw `git diff` test. A
+git-diff test **fails for any unrelated lane that legitimately edits `valuation/`**, which makes
+it a nuisance rather than a check. The standing test asserts the invariant that actually matters
+and is strictly more durable: **no shipped module may reference `live_theme_sources`**, and the
+script may not call `build_frame`, `_decompose`, `composite_score`, `save_snapshot` or
+`run_screen`. If a later change wires one of these columns in, that test fails — which is the
+point. The one-off git diff was run by hand and its output is above.
+
+### 13.10 EVERY DEVIATION FROM THE REGISTER
+
+| # | deviation | direction | when |
+|---|---|---|---|
+| 1 | `MAX_FORM4_PER_NAME = 40` was **not enforced** — capping it requires editing the shipped scraper, which B5 forbids. Every filing was fetched, so the data is *more* complete than registered and the truncation caveat does not apply; `form4_truncated` is a descriptive flag (23 names). | more complete | during |
+| 2 | B5's enforcement mechanism (§13.9) | more durable | during |
+| 3 | CUSIP tie-break tightened to require a genuine mode | tightening | **before** any coverage number |
+| 4 | `normalise_name` strips corporate suffixes from the END only, plus a leading `THE` | narrower | **before** any coverage number |
+| 5 | `MIN_HOLDERS = 2` (§13.4) | tightening | **after**; both figures published |
+| 6 | PREREG §4.3 quoted "10,676 filings, 10,524 filers, 147 multi" for 31-DEC-2025. That ad-hoc count included **13F-NT notices**, which carry no holdings. The aggregation correctly counts `13F-HR`/`13F-HR/A` only: **8,738 filings, 8,625 filers, 108 multi (1.25%)**. The RULE is unchanged; the descriptive figure in the register is corrected here. | correction | after |
+
+### 13.11 PREDICTION SCORECARD — 2 right, 2 wrong, 1 not evaluable
+
+| # | prediction | measured | verdict |
+|---|---|---|---|
+| P1 | `institutional` coverage 0.70–0.95 | **0.822** | **RIGHT** |
+| P2 | name rung adds < 15pp | **4.0pp** (398 authoritative vs 13 by name) | **RIGHT** |
+| P3 | `capital_discipline` coverage **lower** than `institutional` | **0.912 vs 0.822 — higher** | **WRONG** |
+| P4 | `insider` clears B6 / ≥50% score exactly 50 | B6 cleared (297 distinct); **35.8%** at 50 | half **WRONG** |
+| P5 | anchor failures concentrate in ADR / multi-class | **zero anchor failures** | **NOT EVALUABLE** |
+
+Consistent with this project's record: writing the expectation down first keeps being worth it
+precisely because it keeps being wrong.
+
+### 13.12 TRIAL COST
+
+**ZERO.** No hypothesis about returns was tested, no arm selected, no weight chosen — this is a
+coverage census of data sources. Equity `N` stays **131**; the Deflated Sharpe chain is untouched.
+A trial is charged if and when one of these columns is *selected into* the composite.
+
+### 13.13 WHAT I DID NOT DO
+
+* **Did not wire anything into the composite**, by design, and a test now prevents it happening
+  silently.
+* **Did not test whether any of these predicts returns.** That is the held-out gate's job and it
+  is the whole remaining question.
+* **Did not build a sentiment source.** `sentiment` is also null on 500/500 rows but carries
+  **0.0** deployed weight, so it costs the live score nothing and was out of scope.
+* **Did not fix the insider `tanh` saturation** (§13.6 / audit S3) — it is a shipped-scoring
+  change in the screener lane, and touching it here would have been the vintage event this run
+  exists to avoid.
+* **Did not schedule anything.** These caches are a one-shot census. Accruing 13F quarter over
+  quarter needs a job, and that is a Cowork/infra decision.
+
+### BUGS FOUND (Part 13)
+
+1. **My own instrument's anchor was one-sided and passed 12 mis-joins** (CMCSA, RIO, BTI, HSBC,
+   MT, AMP, CM, MGA, SHG, IHG, TELNY, GALDY, IFNNY), two of which were caught only by luck.
+   **FIXED** with a structural `MIN_HOLDERS = 2`; both coverage figures published. Four names with
+   2–5 holders remain suspicious and are named. **Owner: me, closed.**
+2. **The Form 4 insider score saturates at its `tanh` floor for 16 of 500 served names** — the
+   scale constant `4000.0` (≈ √$16M) in `insider.py:174` is far too small for megacap insider
+   selling, so the sixteen strongest sellers are mutually indistinguishable at exactly 10.0. This
+   is **audit item S3's mechanism corroborated on live data**, not a new hypothesis. **Owner:
+   screener lane.**
+3. **A company that is itself an asset manager cannot be joined via its own EDGAR feed** — its
+   submissions carry the SC 13Gs it FILED about other issuers. 29 of 500 names hit a candidate
+   tie; join failure runs **26.8% inside Financial Services against 13.2% outside**. Refused
+   safely here, but any future EDGAR work keyed on a company's own filings inherits it. **Owner:
+   whoever next builds on EDGAR submissions.**
+4. **`insider.insider_detail` fetches every Form 4 in its window with no cap.** 23 of 500 names
+   exceeded 40 filings. Correct for a one-off census, but it makes the insider theme the dominant
+   per-scan cost of any adoption, and nothing in the function signals it. **Owner: screener lane
+   (cost note for adoption).**
+5. **Carried forward, still open from Part 12:** the served payload's `health` key is `null`, so
+   `theme_coverage`/`theme_contributing` reach nobody; nothing in the repository catches a
+   rate-limit exception; `BETA_HIGH_CAP = 3.0` sends 7 served names to beta 1.0; and
+   `tests/test_saas.py:200` still writes a 2099-01-01 row into the real `data/screener.db`.

@@ -359,6 +359,28 @@ class TestJoinLadder(unittest.TestCase):
         self.assertIsNone(j["sm_breadth"])
         self.assertIsNone(j["inst_accum"])
 
+    def test_a_single_reporting_holder_is_refused_because_breadth_needs_two(self):
+        """The pre-registered anchor is one-sided IN EFFECT: (0, 1.5] rejects implausibly high
+        ownership and waves through implausibly low. A join onto a stale CUSIP that nobody
+        reports holding lands at ~1e-6 and sails through — it passed 12 names on the real run,
+        including CMCSA, RIO, BTI and HSBC, each credited with ONE institution."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._root(tmp, {"AAPL": {"cusip": self.APPLE}})
+            served = [{"ticker": "AAPL", "name": "Apple Inc.", "market_cap": 2e10}]
+            agg = self._agg(holders_curr=1, holders_prior=1, value=20_000.0)
+            j = M.join_13f(root, served, agg)["AAPL"]
+        self.assertEqual(j["rung"], "too_few_holders")
+        self.assertIsNone(j["sm_breadth"])
+
+    def test_the_holder_floor_is_the_smallest_count_at_which_breadth_is_defined(self):
+        """Structural, not tuned: two holders is where a holder COUNT can have a growth rate."""
+        self.assertEqual(M.MIN_HOLDERS, 2)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = self._root(tmp, {"AAPL": {"cusip": self.APPLE}})
+            served = [{"ticker": "AAPL", "name": "Apple Inc.", "market_cap": 2e10}]
+            j = M.join_13f(root, served, self._agg(holders_curr=2, holders_prior=2))["AAPL"]
+        self.assertEqual(j["rung"], "cusip_13g")
+
     def test_a_valid_cusip_nobody_reported_holding_is_recorded_separately(self):
         """'no institution holds this' is an answer about the name, not a broken join."""
         with tempfile.TemporaryDirectory() as tmp:
