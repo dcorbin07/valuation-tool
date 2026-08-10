@@ -363,7 +363,9 @@
         after each market close and stays the same through the trading day, so it's always the
         latest — there's nothing to refresh. <b>A rank is analysis, not a recommendation:</b>
         it says how a name scores against the others today, and nothing about whether it suits
-        you.</div>
+        you. <b>And it is a coarse ordering, not a precise one.</b>
+        {{ score_confidence.per_name }} — so read this as a shortlist to research rather than a
+        league table.</div>
       {# The Index tab is a live book of positions and is owner-only, so the cross-links to it
        # exist only where the tab does — a "see the Index" link that lands on a 403 is worse
        # than no link. #}
@@ -396,6 +398,20 @@
       <div class="card">
         <h3>🔥 Hot stocks that screen as buys <span class="ai-src" id="hotMeta"></span></h3>
         <div class="section-hint">Ranked 1–100 by a cross-sectional value · quality · growth · momentum composite (two buckets, self-calibrating z-scores).</div>
+        {# THE CALIBRATED LEGEND — extension V3, `HANDOFF_extensions_v3.md`.
+         # The score was measured against a permutation null and the PER-NAME result FAILED its
+         # pre-registered bar (rank 10: real 1.0909 vs noise p95 1.1117, empirical p 0.116).
+         # So this sits with the ranking itself rather than behind a link on another page — a
+         # precision limit a reader has to go looking for is not a limit the product observed.
+         # Wording is quoted verbatim from the handoff and pinned by
+         # tests/test_score_confidence.py. Do NOT tidy, shorten or re-phrase it. #}
+        <div class="note score-calib" style="margin-top:8px">
+          <b>How precise is this ordering?</b> {{ score_confidence.defensible }}
+          {{ score_confidence.group_caveat }}
+          <br><b>One more thing the same test found:</b> {{ score_confidence.thin_data }}
+          <br><span class="muted">That is measured, not asserted: the ranking was scored against
+          universes assembled by chance under a test written down before it was run.</span>
+        </div>
         <div id="hotTable" style="overflow-x:auto"></div>
       </div>
       <div class="grid2">
@@ -603,6 +619,11 @@
   </div>
 </footer>
 
+{# The calibrated score copy, handed to app.js from the SAME constants the legend above
+ # renders. app.js must not carry its own wording: the per-name line it shows is an exact
+ # substring of the legend sentence, so a reader cannot be given a softer limit on a name row
+ # than the one printed over the table. Injected before app.js loads. #}
+<script>window.SCORE_CONFIDENCE = {{ score_confidence|tojson }};</script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

@@ -5,6 +5,129 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 22 — 2026-08-10 — V3's verdict reaches the product: the score stops claiming per-name precision
+(prompt: update the score presentation to match what is defensible after V3's calibration)
+
+**SHIPPED.** Extension **V3** (lane r1, `HANDOFF_extensions_v3.md`, pre-registered blind at
+`251c989`) pointed a permutation null at the *product's own score* and the pre-registered
+primary statistic **failed**: the composite at **rank 10** reads **1.0909** against a noise p95
+of **1.1117**, **empirical p 0.116** — roughly **one chance-assembled universe in nine** reaches
+the real value at that rank. Verdict **NOT DISTINGUISHABLE**, and it **generalises**: it holds on
+**45 of 69** dates against a pre-registered gate of 42.
+
+r1's handoff closed with an explicit open dependency — *"Did not weaken the product's confidence
+language in the app… the templates are the app-fixer's lane. This is an open dependency, not a
+finished item."* **This session is that item.** No score computation changed; labels and copy only.
+
+## What shipped
+
+**One source for the calibrated wording** — `valuation/web/score_confidence.py`. Every sentence
+in it appears **verbatim** in `HANDOFF_extensions_v3.md`, and `tests/test_score_confidence.py`
+normalises the markdown and fails if either side is reworded. r1's wording was written to survive
+scrutiny; a product surface that "tidies" a calibrated hedge is how it quietly becomes a claim
+again.
+
+Three surfaces now read those constants:
+
+* **The hot-list legend** (server-rendered, directly over the ranked table) carries the full
+  defensible sentence plus the recency caveat and the missing-data finding.
+* **The discovery blurb** above it: *"And it is a coarse ordering, not a precise one."*
+* **The per-name "why this score" panel** in `app.js` — the calibration prints **above** the
+  three-decimal attribution bars, not under them. A caveat after the evidence reads as a
+  footnote; before it, it frames how the bars are read.
+* **`/methodology`**, first bullet of *"Where it is weak — read this part"*.
+
+**The public landing card was changed too, but NOT with the pinned sentence, and the reason is
+worth recording.** Its screener card said the ranking *"says how names score against each
+other"*; it now says *"and a **coarse** one: it says roughly where names stand against each
+other"*. The calibrated sentence itself was deliberately **not** used there — it reads
+*"…inside that decile"*, and **no decile is mentioned anywhere on that page**, so the quote
+would have arrived without its antecedent. A quote that needs missing context is worse than an
+accurate paraphrase; the verbatim wording lives where the context does.
+
+**`PER_NAME` is an exact substring of `DEFENSIBLE`, not a shorter rewrite of it**, and a test
+asserts that. Otherwise the name row and the legend become two independently-editable statements
+of one limit — and a reader on a name row could be given the softer of the two.
+
+**`app.js` holds no copy of the wording.** It reads `window.SCORE_CONFIDENCE`, injected by
+`index.html` from the same constants; a test asserts the sentences are **absent** from the static
+file. Same rule PT-OUTBOUND landed for outbound figures: one authority, no second statement of
+the claim.
+
+**Injected by the shared context processor** (`web/app.py:_site_context`), not per route.
+`index.html` is rendered by **both** `web/app.py` and `saas/app_saas.py`, and this project's
+recurring defect is the second place being forgotten.
+
+## The distinction that took the most care, and it is the reason this is not a bigger change
+
+**V3 settles the SCORE's precision and explicitly not the backtested return spread.** Its handoff:
+*"A composite can rank names in an order that is indistinguishable from chance at a given rank
+and still have a real top-minus-bottom return spread."*
+
+So the recency caveat (**21 of 69 dates**) attaches to the top decile's **score** versus a chance
+book — **not** to the top-decile alpha, the long-short HAC t of 2.620 against its 2.28 floor, or
+R1's factor alpha. Attaching it to those would understate the edge research as badly as dropping
+it from the score would oversell the ranking. The methodology paragraph states its own scope in
+the rendered text, and `test_the_calibration_copy_is_not_attached_to_a_return_claim` fails if a
+return figure ever appears inside that block. **The `top decile` mentions in
+`methodology.html` and `portfolio.html` that describe backtested returns were deliberately left
+alone** — they are a different object.
+
+**The group half never travels alone.** V3's flattering finding — the top decile beats a chance
+book *as a group* (p 0.008) — holds on only **21 of 69** dates, and r1's own write-up narrows it
+twice. A test walks every rendered page and fails if the group claim appears without the caveat
+in the same block. The caveat is stated as a **bare count of dates, never a rate**: 21 of 69
+overlapping cross-sections of largely the same names are nowhere near 21 independent draws, which
+is the session-9 lesson (16 co-moving countries were worth 2–4 draws; a bar with a claimed 3.84%
+measured out at **28.7%**).
+
+## PINS MUTATION-TESTED, NOT ASSUMED
+
+Four mutations applied to `score_confidence.py`, each run against the suite — **all four caught**:
+
+| mutation | caught by |
+|---|---|
+| legend softened to *"only weakly distinguishable"* | verbatim pin + substring pin |
+| robustness count inflated 45 → 60 | verbatim pin + count/constant agreement |
+| group caveat stripped of its date count | group-claim-never-alone |
+| thin-data finding reworded | verbatim pin |
+
+`test_the_pin_is_not_vacuous` additionally proves the markdown normaliser does not collapse
+distinct sentences into a match — without it, a substring test against a large document would
+pass everything.
+
+**14 new tests. Gate: 34 suites, 1036 passed, 0 failed.**
+
+## BUGS FOUND
+
+| # | what | where | status |
+|---|---|---|---|
+| 1 | Two copy seams spliced a quoted sentence mid-clause, rendering *"…not a precise one — Where an individual name sits…"* with a capital mid-sentence, and *"read a high score with this in mind: A high score can partly reflect…"* repeating itself. Found by **rendering the page and reading it as text**, not by the tests — which passed throughout, because a substring pin cannot see grammar. | `index.html`, `methodology.html` | FIXED |
+| 2 | A first cut **paraphrased** r1's *"a specific rank, or the gap between #3 and #12, means anything"* into my own words on `/methodology` — the exact drift this task exists to prevent, committed by me while writing the guard against it. Now `NO_LONGER_SAYABLE`, quoted and pinned. | `methodology.html` | FIXED |
+| 3 | **`/work` claims "628 tests across 19 suites"; measured today is 1036 across 34.** Not touched — outside this task's "labels and copy only" scope for the *score*, and it wants the same treatment the trial counts got in session 21 (a figure on a recruiter page that drifts as the suite grows). | `portfolio.html:586` | **OPEN — flagged, not fixed** |
+| 4 | The **Deflated Sharpe copy on `/methodology` is still stale since M1** — it says the statistic "is an *undeflated* one" that "saturates at >99.9%", which has been void since 2026-08-05 (it is a genuine Deflated Sharpe, 0.8556 at N=129, failing the >0.95 convention while sitting above all 100 placebo draws). Carried over from session 21, still unfixed, still needs a paired copy+test change. | `methodology.html:123-127` | **OPEN — pre-existing** |
+| 5 | `tests/test_guards.py` reports one **XFAIL** ("a guard was fed the bug it exists to catch and did NOT complain"), exit 0 so the gate stays green. Pre-existing, already routed to `HANDOFF_optionsbot.md`, and independently recorded by r1 in `HANDOFF_extensions_v3.md`. Recorded per RUN_RULES A3 because I saw it. | `tests/test_guards.py` | **OPEN — options-bot lane** |
+
+## WHAT THIS DOES NOT DO
+
+* **It does not change any score, weight or threshold.** V3 was scoped new-files-only and
+  explicitly did not license a weight change; this session is copy.
+* **It does not act on V3's finding 3.** The thin-coverage tilt (real top decile present weight
+  0.94798; only 9 of 500 noise draws that thin, **p 0.018**) is r1's own recommended next step and
+  is a *research* change — a minimum-coverage floor or a variance penalty on thinly-scored names,
+  pre-registered. The product now **discloses** the tilt; it does not correct it.
+* **It does not touch the Index tab's construction copy.** "The top decile of the large-cap tier,
+  score-weighted, capped at 8%" is a description of construction, not a quality claim.
+
+## RECOMMENDED NEXT STEP
+
+r1's, unchanged and I agree with it: **take finding 3 before finding 1.** The thin-coverage tilt
+is the only V3 result pointing at a fixable defect rather than at a limit of what a cross-section
+can support, and unlike the rank-precision question it is not blocked by the size of the universe.
+That is an edge-lane pre-registration, not an app change.
+
+---
+
 # Session 21 — 2026-08-09 — V4: the research record, rendered as the credential it is
 (prompt: execute `VALQUO_EXTENSIONS.md` V4 — the public research-log page)
 

@@ -4,12 +4,102 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-09 (external edge audit, **session 15** — **AMENDMENT 1**: run #1 is
-VOID, **run #2 is the live test from 2026-08-10**, and the project now has a **VINTAGE RULE**.
-The meter and gap report are wired into `/api/track`. **NO ACTION REQUIRED FROM DON, but one
-thing needs confirming: the Cowork writer `valquo-daily-track-write` is NOT visible in this
-machine's Task Scheduler.** It is checkable from 2026-08-12 with no further work.)
+**Session date:** 2026-08-10 (edge lane, **session 16** — two live bugs in the paper options book
+**repaired**, `PT-SPLIT` **closed** on a corrected diagnosis, and **V1 shadow vintages
+registered** while no vintage pair exists. **NO ACTION REQUIRED FROM DON.** One item still needs
+confirming from 2026-08-12, unchanged from session 15: whether the Cowork writer
+`valquo-daily-track-write` is actually running.)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
+
+---
+
+## EDGE LANE, 2026-08-10 — session 16
+
+**No action required from Don.** Everything below is landed and tested.
+
+### 1. Two live bugs in the paper options book — FIXED
+
+The forward options track was running exit levels **no backtest describes**, and holding a
+position the alert itself had refused. Both were routed in by the options-bot lane off the first
+three real fills.
+
+* **The exit levels were anchored to the price the order was SUBMITTED at, not the price it
+  FILLED at.** Systematic rather than occasional: the paper cycle runs after the close, so the
+  limit comes from a post-close quote and the order fills at the next open. **2 of 3 open
+  positions were off spec** — TGT was running a +150.7% target against an intended +100%, MET a
+  −46.7% stop against −50%. Levels are now re-derived from the fill on the alert's own policy, and
+  a repair pass fixes rows that were already open. Every expected value was **written down before
+  the code changed** and all of them held exactly: TGT 8.90 → 7.10 and 2.225 → 1.775, MET 9.80 →
+  9.20 and 2.45 → 2.30, ETN untouched because its fill equalled its limit.
+* **DISCLOSED, because it matters: the repair moves the book in the FLATTERING direction.** The
+  bug made targets harder and stops tighter, so correcting it makes them easier and looser. It is
+  still the right fix — the levels were wrong against the specification either way — but "we fixed
+  a bug and the book improved" is the easiest way for a forward test to flatter itself, so it is
+  recorded everywhere the fix is. Concretely: **MET sat 10.2% above a stop level no backtest ever
+  specified**, and was days from recording a stop-out the strategy under test would not have taken.
+* **The book bought a name its own sizing refused.** ETN's alert carried *"one contract costs
+  $1,610, above the $1,000 budget"* and `skip: true`, and the paper track bought it anyway — **it
+  is the largest position in the book.** Now refused, with the alert's own reason recorded. **The
+  existing ETN position is deliberately NOT unwound**: that gate applies to new entries, and
+  closing a live position to tidy the record is a trade decision, not a bug fix.
+* **A third defect found while fixing the first**, same family: the crash-resume path silently
+  used DEFAULT exit levels instead of the alert's, because it read a table that does not carry
+  them. It has never fired — every live alert happens to use the default policy — which is luck,
+  not protection, so it is fixed and pinned with a policy that differs.
+
+### 2. PT-SPLIT — closed, and MY OWN EARLIER DIAGNOSIS WAS WRONG
+
+Sessions 14 and 15 (mine) reported the sandbox engine as *"10 names equal-weighted at 10%, which
+the contract's own 8% cap forbids"*. **That is not a cap violation.** The code sets the cap to
+`max(8%, 1/n)` on purpose, because ten names at 8% sum to 80%. **The weights were correct for the
+book.**
+
+**The real problem is book SIZE — 10 names against the published Index's 86 — and it is one
+construction fed two different inputs.** The paper-track endpoint reads the published book file
+when it exists and **silently rebuilds from the store's latest scan when it does not**, and that
+scan is a top-100 hot list rather than the universe. Had I "fixed" the cap as I described it, the
+actual defect would have survived untouched.
+
+**Resolved both ways at once, which is what Don's "no third state" requires:** the engine is
+**aligned going forward** — it now refuses to seed any book that is not the real Index, loudly and
+without liquidating anything — and the **four days already recorded are registered as a separate
+experiment** in `PAPER_TRACK_CONTRACT.md` §5b that may never be quoted as the Index. Those days
+are **kept, not deleted**: erasing a record because it turned out to describe the wrong book is
+the flattering direction. Its **fills** are still real evidence about execution; its **return
+series** is evidence about nothing the contract binds.
+
+**Still open, and it is the app lane's:** this stops the engine adding to a wrong book. Making it
+record the *right* one needs the published book file present on the Render disk when the cycle
+runs.
+
+### 3. V1 shadow vintages — REGISTERED (no measurement, and that is the point)
+
+Amendment 1's Rule 6 says a scoring change resets the whole five-year clock and buys nothing
+statistically. Taken alone that means **the model can never be improved again without paying five
+years**. V1 is the way out: when a change opens a new vintage, the old one keeps being scored in
+shadow on the same dates, and the two are compared **paired** — both books see the same market, so
+market risk cancels.
+
+**How much that buys, and the honest limit, both computed before any pair exists:** for two
+similar books the 60-month detectable difference is **3.34 pp/yr against the vs-SPY meter's
+19.01** — a four-fold gain. **But the tension is structural:** the meter is sharp exactly when the
+change was small, and a change big enough to matter blunts it. **So a shadow that has not crossed
+is the expected outcome, and is NOT evidence that a change was worthless.** That sentence is built
+into the code's own output, not left in a document.
+
+**Registered completely blind: there is no vintage pair to compare.** Vintage 2 opened 2026-08-10
+and has no successor, so not one parameter could have been chosen to suit a result, even in
+principle. Vintage 2's parameters are pinned in a tracked file now, so the shadow will run a
+frozen snapshot rather than a later reconstruction. It is research-only and fenced off every
+public surface by a test, **before** it has any numbers to leak.
+
+### Numbers
+
+* **Equity `N` stays 131; Deflated Sharpe stays 0.8539.** Two correctness repairs do not count as
+  trials, and a registered instrument with no measurement is charged to infra. **`BACKTEST_RESULTS.json`
+  did not need re-running** — checked, not assumed.
+* **Tests: every suite green.** `tests/test_paper_track.py` 70/70 (was 47 at session 15),
+  `tests/test_shadow_vintage.py` 26/26 new.
 
 ---
 

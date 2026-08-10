@@ -849,10 +849,22 @@ function _whyChips(r) {
    contributions that SUM to the composite (valuation/screener/attribution.py), so this panel
    is arithmetic rather than a narrative: every bar is a real term in the number above it.
 
-   Two things this must never imply. The contributions are in composite units — cross-sectional
+   THREE things this must never imply. The contributions are in composite units — cross-sectional
    standard deviations — NOT points of the 1-100 score, because rank is a monotone but
    non-linear map. And a theme's contribution is relative to the rest of the scan that day,
-   so "+0.2 quality" means "better than this cross-section", not "good in absolute terms". */
+   so "+0.2 quality" means "better than this cross-section", not "good in absolute terms".
+
+   THIRD, added after extension V3's noise calibration (HANDOFF_extensions_v3.md): the panel
+   decomposes the rank exactly, and that exactness is about the ARITHMETIC, not about the
+   rank's precision. V3 tested the score against a permutation null and the per-name result
+   FAILED its pre-registered bar — the composite at rank 10 sits at empirical p 0.116, i.e.
+   roughly one chance-assembled universe in nine reaches it at that rank. A panel that shows
+   three decimals of attribution for a position that is not distinguishable from chance is
+   precisely the impression this project must not give, so the calibrated sentence travels
+   with every panel. Its wording comes from window.SCORE_CONFIDENCE (injected by index.html
+   from valuation/web/score_confidence.py) and is NEVER re-worded here — one source, so a
+   name row cannot state a softer limit than the legend printed above the table. */
+const _SCORE_CONF = (typeof window !== "undefined" && window.SCORE_CONFIDENCE) || null;
 const THEME_LABEL = {
   value: ["Value", "cheap vs earnings, cash flow and book"],
   quality: ["Quality", "returns on capital, margins, low debt"],
@@ -894,7 +906,13 @@ function attributionPanel(r, opts) {
       ${up.length ? `· helped by <b class="pos">${up.slice(0, 2).map(x => esc(_themeLabel(x.theme).toLowerCase())).join(", ")}</b>` : ""}
       ${down.length ? `· held back by <b class="neg">${down.slice(0, 2).map(x => esc(_themeLabel(x.theme).toLowerCase())).join(", ")}</b>` : ""}
     </div>`;
-  return `<div class="attr">${head}${bars}
+  // The precision limit sits ABOVE the three-decimal bars, not under them. A caveat printed
+  // after the evidence reads as a footnote; printed before it, it frames how the bars are read.
+  const calib = _SCORE_CONF ? `<div class="note" style="margin-bottom:8px">
+      <b>This decomposition is exact; the position it explains is not.</b>
+      ${esc(_SCORE_CONF.per_name)} — so treat the themes below as the reason this name is in
+      the conversation, not as proof it belongs at this exact rank.</div>` : "";
+  return `<div class="attr">${head}${calib}${bars}
     <div class="note">Bars are the actual terms of the score: they add up to the composite
       (${comp == null ? "—" : comp.toFixed(3)}), and the 1–100 is that composite's percentile rank
       against every other name in this scan. Units are standard deviations versus this scan, not

@@ -22,6 +22,7 @@ from ..engine.pipeline import value_ticker
 from ..report import excel as excel_report
 from ..report import pdf as pdf_report
 from . import resultcache, withhold
+from . import score_confidence as _score_confidence
 
 app = Flask(__name__)
 
@@ -95,6 +96,11 @@ def _site_context():
             # silently treats "no such variable" as false would quietly restore the product
             # copy on the one deployment shape that has no auth at all.
             "private_mode": CONFIG.private_mode,
+            # V3's noise calibration governs how precisely the hot score may be described.
+            # Site-wide rather than per-route: index.html is rendered by BOTH web/app.py and
+            # saas/app_saas.py, and a surface that renders the score while forgetting the
+            # calibration is the failure this is here to prevent. Cheap constants, no I/O.
+            "score_confidence": _score_confidence.for_template(),
             "live_hero": _live_hero}
 
 
