@@ -25,6 +25,12 @@ from .factors import build_frame, prefilter
 from .providers import get_provider
 from .store import Store
 
+# LA1 — how many times the DCF pass tries a name before failing open. Two, not more: the
+# upstream feed is free and rate-limited, and the point is to absorb ONE flaky call, not to
+# hammer a name that is genuinely unreachable. A failure after this is COUNTED, stamped on the
+# row as `dcf_error`, and re-asked by the cheap refusal-only screen.
+DCF_ATTEMPTS = 2
+
 
 def _effective_weights(store):
     """Live weights = the latest self-learning-adopted weights, else the defaults."""
@@ -264,16 +270,41 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
         r["extra"]["why_composite"] = r.get("composite")
 
     # Deep-value the top names with the full DCF (optional, network-heavy).
+    dcf_errors: dict = {}
     if run_dcf_top and run_dcf_top > 0:
-        _enrich_with_dcf(rows[:run_dcf_top], cfg)
+        dcf_errors = _enrich_with_dcf(rows[:run_dcf_top], cfg) or {}
+        # Stamp the failure ON THE ROW. LA1's whole mechanism was that a fail-open left no
+        # trace anywhere, so the row was indistinguishable from one that had never been asked.
+        for r in rows[:run_dcf_top]:
+            if r.get("ticker") in dcf_errors:
+                r["dcf_error"] = dcf_errors[r["ticker"]]
     # ...and ask every OTHER served name only whether the model REFUSES it. Without this the
     # names outside the DCF window publish a peer estimate that nothing has ever checked
     # against the valuation page's verdict (Bug B). Off by default in-process so tests and
     # ad-hoc scans do not hit the network; the scheduled scan turns it on.
     if refusal_screen:
         health_refusals = _screen_refusals(rows[run_dcf_top:refusal_screen], cfg, workers)
+        # LA1 — CLOSE THE COUNTER HOLE. The screen ran on `rows[run_dcf_top:]`, so the top
+        # `SCAN_DCF_TOP` rows — the most-read on the site, and the ones the audit found the
+        # defect on — were excluded from it by construction. Any DCF-window row that came back
+        # SILENT (no value, no refusal) is re-asked here with the cheap refusal-only pass.
+        # Rows that already hold a good DCF value are deliberately NOT re-fetched: that buys
+        # nothing and doubles their cost.
+        retry = [r for r in rows[:run_dcf_top]
+                 if r.get("fair_value") is None and not r.get("fair_value_withheld")]
+        if retry:
+            again = _screen_refusals(retry, cfg, workers)
+            health_refusals = {
+                "screened": health_refusals["screened"] + again["screened"],
+                "refused": health_refusals["refused"] + again["refused"],
+                "errors": health_refusals.get("errors", 0) + again.get("errors", 0),
+                "error_tickers": sorted(set(health_refusals.get("error_tickers", []))
+                                        | set(again.get("error_tickers", [])))[:20],
+                "dcf_window_rescreened": len(retry),
+            }
     else:
-        health_refusals = {"screened": 0, "refused": 0, "note": "refusal screen off"}
+        health_refusals = {"screened": 0, "refused": 0, "errors": 0,
+                           "note": "refusal screen off"}
 
     # Data-health panel — catch silent data rot (a whole theme going missing, coverage
     # cratering) the day it happens, instead of finding out via bad picks weeks later.
@@ -295,6 +326,14 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
         # many it did. `screened: 0` on a scan that served hundreds of names is the tell that
         # Bug B is back — a silent zero here is exactly how the gap survived unnoticed.
         "refusal_screen": health_refusals,
+        # LA1's detector, run on EVERY scan. `asked_but_silent` is the rule that catches the
+        # class the cold audit found on rank 1 of the public list; `band_breach` is the
+        # invariant that nothing served may exceed the 5x band unwithheld. Reported separately
+        # on purpose: a green `band_breach` is NOT evidence the LA1 class is absent, because a
+        # refused 11x model is replaced by a peer estimate that sits inside the band.
+        "publication_audit": publication_audit(
+            rows[:refusal_screen] if refusal_screen else rows,
+            dcf_window=min(run_dcf_top or 0, refusal_screen or (run_dcf_top or 0))),
         # Display-field coverage. A blank company name or sector is not a scoring bug, so
         # nothing else would ever report it — and it went unnoticed on the live site for
         # weeks. Measured on the rows that actually ship.
@@ -369,36 +408,61 @@ def _enrich_with_dcf(rows, cfg, refusal_only: bool = False):
     fair value — that is the mode used for names outside the DCF window, where the point is
     to stop publishing a refused name, not to swap the published number for a different one.
     """
+    errors: dict = {}
     try:
         from ..engine.pipeline import value_ticker
         from ..engine.publication import record_refusal, decide as decide_publication, ROW_WITHHELD
-    except Exception:
-        return
+    except Exception as e:
+        # LA1: even the import failing is a fail-open. It used to return silently, so a
+        # deployment missing the engine would serve unchecked peer estimates for every name
+        # and report a clean scan.
+        for r in rows:
+            errors[r.get("ticker", "?")] = f"import: {type(e).__name__}"
+        return errors
     for r in rows:
-        try:
-            # The Monte Carlo is not an input to the publication decision (`blend` never sees
-            # it), and it costs 0.03-0.08s against a 1.1-6.6s fetch, so the refusal-only pass
-            # runs it at 1 trial rather than 1500.
-            res = value_ticker(r["ticker"], cfg, mc_trials=(1 if refusal_only else 1500))
-            blend = res.fair_value_blend
-            # The number the model HELD before the guard blanked it — that is what was judged.
-            had = blend.withheld_value if blend.withheld_value is not None else blend.value
-            verdict = decide_publication(had, getattr(res.company, "price", None),
-                                         cd=res.company,
-                                         growth_led=getattr(blend, "growth_led", False))
-            if verdict.reason:
-                record_refusal(r, verdict.reason)  # a DECISION, not a gap
-            elif not refusal_only:
-                r["fair_value"] = res.base_fair_value
-                r["upside"] = res.upside
-                r.pop(ROW_WITHHELD, None)
-        except Exception:
-            # FAIL OPEN. A fetch that fails tells us nothing about whether the model would
-            # refuse, and the upstream feed is a free, rate-limited one — a 401 was observed
-            # during the 387-name measurement. Failing closed would blank hundreds of fair
-            # values on a bad upstream day. The cost of failing open is stated plainly in the
-            # handoff: a name we could not reach keeps its peer estimate unchecked.
-            continue
+        # LA1 — RETRY ONCE BEFORE FAILING OPEN. The audit's KSPI case is the top-ranked name on
+        # the public list, and it is the one name in the top three that needs an extra network
+        # hop its neighbours do not (a KZT->USD rate) against a free, rate-limited feed. A
+        # single retry is what a transient fetch failure is for; it does not weaken the
+        # fail-open policy, it just stops one flaky call from silently publishing an unchecked
+        # peer estimate on rank 1.
+        last: Exception | None = None
+        for attempt in range(DCF_ATTEMPTS):
+            try:
+                # The Monte Carlo is not an input to the publication decision (`blend` never
+                # sees it), and it costs 0.03-0.08s against a 1.1-6.6s fetch, so the
+                # refusal-only pass runs it at 1 trial rather than 1500.
+                res = value_ticker(r["ticker"], cfg, mc_trials=(1 if refusal_only else 1500))
+                blend = res.fair_value_blend
+                # The number the model HELD before the guard blanked it — that is what was judged.
+                had = blend.withheld_value if blend.withheld_value is not None else blend.value
+                verdict = decide_publication(had, getattr(res.company, "price", None),
+                                             cd=res.company,
+                                             growth_led=getattr(blend, "growth_led", False))
+                if verdict.reason:
+                    record_refusal(r, verdict.reason)  # a DECISION, not a gap
+                elif not refusal_only:
+                    r["fair_value"] = res.base_fair_value
+                    r["upside"] = res.upside
+                    r.pop(ROW_WITHHELD, None)
+                last = None
+                break
+            except Exception as e:
+                # FAIL OPEN. A fetch that fails tells us nothing about whether the model would
+                # refuse, and the upstream feed is a free, rate-limited one — a 401 was observed
+                # during the 387-name measurement. Failing closed would blank hundreds of fair
+                # values on a bad upstream day. The cost of failing open is stated plainly in
+                # the handoff: a name we could not reach keeps its peer estimate unchecked.
+                #
+                # WHAT CHANGED (LA1): the cost is now COUNTED. It used to be `continue`, so a
+                # swallowed raise on rank 1 left no trace anywhere — no counter, no log, no key
+                # on the row — and `estimate_fair_values` read the untouched `fair_value: None`
+                # as "no DCF yet" and substituted a peer estimate. The policy is unchanged; its
+                # invisibility is not.
+                last = e
+        if last is not None:
+            errors[r.get("ticker", "?")] = f"{type(last).__name__}: {last}"[:160]
+    return errors
 
 
 def _screen_refusals(rows, cfg, workers: int = 8) -> dict:
@@ -419,16 +483,85 @@ def _screen_refusals(rows, cfg, workers: int = 8) -> dict:
     Measured cost: 387 names in 3.0 min at 6 workers, median 2.51s per name.
     """
     if not rows:
-        return {"screened": 0, "refused": 0}
+        return {"screened": 0, "refused": 0, "errors": 0, "error_tickers": []}
     before = sum(1 for r in rows if r.get("fair_value_withheld"))
+    errors: dict = {}
     if workers > 1 and len(rows) > 1:
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            list(pool.map(lambda r: _enrich_with_dcf([r], cfg, refusal_only=True), rows))
+            for got in pool.map(lambda r: _enrich_with_dcf([r], cfg, refusal_only=True), rows):
+                errors.update(got or {})
     else:
-        _enrich_with_dcf(rows, cfg, refusal_only=True)
+        errors.update(_enrich_with_dcf(rows, cfg, refusal_only=True) or {})
     after = sum(1 for r in rows if r.get("fair_value_withheld"))
-    return {"screened": len(rows), "refused": after - before}
+    # LA1 — the third counter. `screened` and `refused` alone cannot distinguish "asked 500
+    # names and none were refused" from "asked 500 names and 500 fetches failed", and those are
+    # opposite states: the first is a clean bill of health, the second is 500 unchecked peer
+    # estimates on the public list.
+    return {"screened": len(rows), "refused": after - before, "errors": len(errors),
+            "error_tickers": sorted(errors)[:20]}
+
+
+def publication_audit(rows, dcf_window: int = 0) -> dict:
+    """LA1's detection: the two ways a served row can carry a number nothing vouched for.
+
+    Runs on EVERY scan, over the rows the product can actually serve. Pre-registered in
+    `PREREG_la1_la3_repair.md` §2 before it was written.
+
+    D1 `asked_but_silent` — a row INSIDE the DCF window with no `fair_value`, no recorded
+        refusal and no recorded engine error. It was asked and it answered nothing. **This is
+        KSPI's exact state on the 2026-08-08 production scan** and it is detectable without
+        knowing which of the two paths produced it (a swallowed raise, or a model that yielded
+        no value at all — `publication.decide(None, price)` returns `publish=False` with an
+        EMPTY reason by design, so that one is not an exception anywhere).
+
+    D2 `band_breach` — a SERVED row whose `fair_value / price` exceeds `FV_BAND_HIGH` while
+        `fair_value_withheld` is falsy. Nothing published may sit outside the band unwithheld,
+        whatever produced it.
+
+    **D2 WOULD NOT HAVE CAUGHT KSPI, AND THAT IS RECORDED HERE RATHER THAN IMPLIED AWAY.** Its
+    served ratio is 274.13/90.30 = 3.04x, comfortably inside the 5.0 band — the substituted peer
+    estimate is plausible-looking, which is the whole reason the refusal mattered. D1 is the rule
+    that closes LA1; D2 closes a different real hole. A reader who takes a green D2 as evidence
+    that LA1 cannot recur has been misled, so the two are always reported separately.
+
+    LOUD BUT NOT FATAL. The scan is never aborted on a finding here: taking the daily scan down
+    over a data-quality signal is a worse failure than the one being reported. `ci_scan` prints
+    a LEAK banner naming every offending ticker, and `health.publication_audit` carries them.
+    """
+    from ..engine.publication import FV_BAND_HIGH, ROW_WITHHELD
+
+    silent, breach = [], []
+    for i, r in enumerate(rows):
+        px, fv = r.get("price"), r.get("fair_value")
+        withheld = bool(r.get(ROW_WITHHELD))
+        method = r.get("fair_value_method")
+        # "No DCF value on this row", expressed so it holds at BOTH points in the pipeline.
+        # `estimate_fair_values` runs at SERVE time (`web/app.py:500`), not in the scan, so
+        # the same row looks different depending on where it is inspected: at scan time a
+        # silent row is `fair_value None, method None` and a good one is `fair_value set,
+        # method None`; by serve time the silent row has acquired a peer estimate and reads
+        # `method "blended"`, while the good one reads `"dcf"`. Testing only for a null value
+        # would miss the served payload entirely — which is the object the audit looked at.
+        no_dcf = fv is None or (method is not None and method not in ("dcf", "withheld"))
+        if i < dcf_window and no_dcf and not withheld and not r.get("dcf_error"):
+            silent.append(r.get("ticker"))
+        if fv is not None and px and px > 0 and not withheld and fv / px > FV_BAND_HIGH:
+            breach.append({"ticker": r.get("ticker"), "ratio": round(fv / px, 4),
+                           "method": r.get("fair_value_method")})
+    return {
+        "band": FV_BAND_HIGH,
+        "dcf_window": dcf_window,
+        "rows_checked": len(rows),
+        "asked_but_silent": silent,
+        "asked_but_silent_count": len(silent),
+        "band_breach": breach,
+        "band_breach_count": len(breach),
+        "clean": not silent and not breach,
+        "note": ("D2 (band_breach) cannot catch the LA1 class: a refused 11x model is replaced "
+                 "by a peer estimate that sits inside the band. D1 (asked_but_silent) is the "
+                 "rule that catches it."),
+    }
 
 
 def _today() -> str:

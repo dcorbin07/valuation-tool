@@ -35,6 +35,7 @@ the track has not started rather than inventing one.
 from __future__ import annotations
 
 import csv
+import datetime as _dt
 import json
 import os
 from typing import Optional
@@ -46,6 +47,18 @@ MIN_LIVE_DAYS = 60
 # Below this there is not enough of a daily series to estimate a standard deviation that
 # means anything, so Sharpe stays None rather than being a ratio of two noise terms.
 MIN_SHARPE_DAYS = 20
+
+# LA3. Below this fraction of the ELAPSED trading days actually recorded, the Sharpe is
+# withheld rather than corrected. The chained series holds cumulative-since-inception levels,
+# so a missing day turns two "daily" returns into one multi-day one; the rescaling applied in
+# `summarize` fixes that in expectation under i.i.d. returns, but below half coverage the
+# typical observation spans more than two trading days and the correction is doing more work
+# than the data supports. Committed in PREREG_la1_la3_repair.md section 4 with that argument,
+# BEFORE any coverage figure was computed — it is not tuned to the observed 28.6%.
+#
+# The annualised ALPHA is deliberately NOT subject to this floor: it rests on two cumulative
+# endpoints and a known elapsed window, which a gap between them does not corrupt.
+MIN_COVERAGE_FOR_SHARPE = 0.5
 
 TRADING_DAYS = 252.0
 
@@ -234,6 +247,46 @@ def _daily_returns(series: list, key: str) -> list:
         out.append((1.0 + cum / 100.0) / (1.0 + prev / 100.0) - 1.0)
         prev = cum
     return out
+
+
+def _elapsed_trading_days(series: list, meta: dict = None) -> int:
+    """Trading days the recorded return actually accrued over (LA3).
+
+    Two definitions, and they COINCIDE on a gapless series, which is what makes the fix
+    backwards-compatible rather than a re-basing of every published figure:
+
+      * with an `inception_date`: the half-open interval (inception, last_row], because
+        inception is day 0 and carries a zero return by definition -- the same convention
+        `track_meter.gap_report` uses to decide which days should have a row;
+      * without one: the closed interval [first_row, last_row], i.e. the first recorded row is
+        treated as day 1 of the window it opens.
+
+    On a series recorded every trading day from inception+1 onward, both return exactly
+    `len(series)`, so `summarize` reproduces its old numbers to the bit on a complete track.
+    """
+    from .market_session import trading_days_between
+
+    if not series:
+        return 0
+    last = _date(series[-1].get("date"))
+    if last is None:
+        return len(series)
+    inception = _date((meta or {}).get("inception_date"))
+    if inception is not None and inception < last:
+        return trading_days_between(inception, last, inclusive_start=False)
+    first = _date(series[0].get("date"))
+    if first is None:
+        return len(series)
+    return trading_days_between(first, last, inclusive_start=True)
+
+
+def _date(x):
+    if isinstance(x, _dt.date):
+        return x
+    try:
+        return _dt.date.fromisoformat(str(x)[:10])
+    except Exception:
+        return None
 
 
 def _stdev(xs: list) -> Optional[float]:
@@ -459,6 +512,14 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
 
     last = series[-1]
     days = len(series)
+    # LA3 — ROWS AND ELAPSED TIME ARE DIFFERENT DENOMINATORS AND THIS USED TO CONFLATE THEM.
+    # `days` (rows recorded) still gates: a track that has not been written down is not
+    # evidence, and moving the GATE onto elapsed time would let a gappy track reach
+    # MIN_LIVE_DAYS sooner — the flattering direction, advancing the public "backtested ->
+    # live" posture on the strength of days nobody recorded. `elapsed` (trading days the
+    # return actually accrued over) is what annualisation needs.
+    elapsed = _elapsed_trading_days(series, meta)
+    coverage = (days / elapsed) if elapsed else None
     cum_v, cum_s = last["valquo"], last["spy"]
 
     # The since-inception excess comes from `vs_spy_claim`, not from a second subtraction here.
@@ -471,7 +532,8 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
     excess = claim.get("excess_pp")
 
     live = {
-        "days": days, "since": series[0]["date"], "as_of": last["date"],
+        "days": days, "elapsed_trading_days": elapsed, "coverage": coverage,
+        "since": series[0]["date"], "as_of": last["date"],
         "cum_valquo_pct": cum_v, "cum_spy_pct": cum_s, "excess_pp": excess,
         "book": claim.get("book_short"), "window": claim.get("window"),
         "claim": claim.get("text"), "recorder": claim.get("recorder"),
@@ -484,13 +546,30 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
     if days >= MIN_SHARPE_DAYS and len(rv) == len(rs) and rv:
         ex = [a - b for a, b in zip(rv, rs)]
         sd = _stdev(ex)
-        if sd:
-            sharpe = (sum(ex) / len(ex)) / sd * (TRADING_DAYS ** 0.5)
+        # LA3 — each CHAINED observation spans `elapsed / n_obs` trading days on average, not
+        # one. Scaling a multi-day series by sqrt(252) over-annualises it by sqrt(that span),
+        # which is how a 33%-recorded year reported a Sharpe of 1.03 against the same year's
+        # true 0.54. On a gapless series the ratio is exactly 1 and the figure is unchanged.
+        span = (elapsed / len(ex)) if (elapsed and ex) else 1.0
+        if sd and coverage is not None and coverage >= MIN_COVERAGE_FOR_SHARPE:
+            sharpe = (sum(ex) / len(ex)) / sd * ((TRADING_DAYS / span) ** 0.5)
             live["sharpe"] = sharpe if abs(sharpe) <= MAX_PLAUSIBLE_SHARPE else None
+        elif sd:
+            # Below the floor the "daily" series is mostly multi-day and the i.i.d. rescaling
+            # above would be doing more work than the data supports. WITHHELD, not corrected —
+            # the same choice `track_meter.monthly_excess` makes when a month's mark is stale.
+            live["sharpe"] = None
+            live["sharpe_withheld_reason"] = (
+                f"only {days} of {elapsed} trading days recorded "
+                f"({coverage:.1%} < {MIN_COVERAGE_FOR_SHARPE:.0%}); a Sharpe built from "
+                f"multi-day gaps would not be a daily-volatility estimate")
         live["hit_rate"] = sum(1 for x in ex if x > 0) / len(ex)
-    if days >= MIN_LIVE_DAYS and cum_v is not None and cum_s is not None:
-        gv = (1.0 + cum_v / 100.0) ** (TRADING_DAYS / days) - 1.0
-        gs = (1.0 + cum_s / 100.0) ** (TRADING_DAYS / days) - 1.0
+    if days >= MIN_LIVE_DAYS and cum_v is not None and cum_s is not None and elapsed:
+        # LA3 — the exponent is TIME, not row count. The cumulative levels are
+        # since-inception, so this rests on two endpoints and a known elapsed window; a gap
+        # between them does not corrupt it, which is why alpha needs no coverage floor.
+        gv = (1.0 + cum_v / 100.0) ** (TRADING_DAYS / elapsed) - 1.0
+        gs = (1.0 + cum_s / 100.0) ** (TRADING_DAYS / elapsed) - 1.0
         live["ann_alpha"] = gv - gs
 
     out["live"] = live
