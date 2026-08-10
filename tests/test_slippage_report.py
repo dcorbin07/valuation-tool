@@ -369,6 +369,36 @@ class TheTwoDiagnosticsCarryNoVerdictAndSayWhy(unittest.TestCase):
         self.assertEqual(SR.sizing_veto_ignored(rows, alerts)["n_traded_against_a_skip"], 0)
 
 
+class FillVersusLimitIsNotExecutionQualityAndTheReportSaysSo(unittest.TestCase):
+    """The field that stops a -20% fill-vs-limit being credited to the execution."""
+
+    def test_an_order_filled_the_next_session_is_flagged_as_crossing_a_day(self):
+        rows = [_order(created_at="2026-08-03T21:51:47", entry_ts="2026-08-04T13:46:15.812Z")]
+        d = SR.submit_to_fill(rows)
+        self.assertEqual(d["n_crossing_a_calendar_day"], 1)
+        self.assertFalse(d["rows"][0]["same_calendar_day"])
+
+    def test_the_broker_utc_stamp_and_the_naive_local_stamp_both_parse(self):
+        self.assertIsNotNone(SR._parse_ts("2026-08-04T13:46:15.812Z"))
+        self.assertIsNotNone(SR._parse_ts("2026-08-03T21:51:47"))
+        self.assertIsNone(SR._parse_ts("not a timestamp"))
+        self.assertIsNone(SR._parse_ts(None))
+
+    def test_the_explanation_names_the_after_close_schedule(self):
+        what = SR.submit_to_fill([])["what"]
+        self.assertIn("AFTER THE CLOSE", what)
+        self.assertIn("NOT execution quality", what)
+
+    def test_it_carries_no_verdict(self):
+        self.assertIn("NO VERDICT", SR.submit_to_fill([])["verdict"])
+
+    def test_the_rendered_report_shows_the_next_session_marker(self):
+        rows = [_order(created_at="2026-08-03T21:51:47", entry_ts="2026-08-04T13:46:15.812Z",
+                       entry_premium=3.55, target_premium=8.90)]
+        txt = SR.render(SR.build_report(_tmp_db(rows)))
+        self.assertIn("[NEXT SESSION]", txt)
+
+
 class TheRawValuesArePrintedBelowTheMinimum(unittest.TestCase):
     def test_the_rendered_text_shows_them_rather_than_only_saying_not_quotable(self):
         rows = [_order(alert_id=i, entry_premium=3.55, target_premium=8.90) for i in range(3)]

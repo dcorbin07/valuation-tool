@@ -362,6 +362,49 @@ def exit_level_fidelity(orders, alerts) -> dict:
             "verdict": "NO VERDICT - post-hoc diagnostic, not in the register"}
 
 
+def _parse_ts(s):
+    """Best-effort timestamp. Tolerates the broker's trailing Z and the store's naive local."""
+    if not s:
+        return None
+    t = str(s).strip().replace("Z", "+00:00")
+    try:
+        d = _dt.datetime.fromisoformat(t)
+    except ValueError:
+        return None
+    return d.replace(tzinfo=None) if d.tzinfo is None else d.astimezone(_dt.timezone.utc).replace(tzinfo=None)
+
+
+def submit_to_fill(orders) -> dict:
+    """POST-HOC DIAGNOSTIC, NO VERDICT. How long between placing the limit and filling it?
+
+    NOT in the register, and it is the single field that stops `fill vs limit` being read as
+    execution quality. `auto-scan.yml` schedules the paper cycle at 20:47 / 21:47 UTC, i.e.
+    **4:47pm ET, AFTER THE CLOSE**. So the entry limit is set from a POST-CLOSE quote, the order
+    is a `day` order, and it fills at the NEXT SESSION'S OPEN. Any difference between the limit
+    and the fill is therefore dominated by the overnight (or, at `MAX_ALERT_AGE_DAYS = 3`,
+    multi-day) gap in the option, not by how well the order was worked.
+
+    Without this field a reader sees "filled 20% below the limit" and credits the execution.
+    """
+    rows = []
+    for o in orders:
+        placed, filled = _parse_ts(o.get("created_at")), _parse_ts(o.get("entry_ts"))
+        if placed is None or filled is None:
+            continue
+        hours = (filled - placed).total_seconds() / 3600.0
+        rows.append({"alert_id": o.get("alert_id"), "ticker": o.get("ticker"),
+                     "claimed_at": o.get("created_at"), "filled_at": o.get("entry_ts"),
+                     "hours": hours, "same_calendar_day": placed.date() == filled.date()})
+    crossed = sum(1 for r in rows if not r["same_calendar_day"])
+    return {"n": len(rows), "n_crossing_a_calendar_day": crossed, "rows": rows,
+            "what": ("the paper cycle is scheduled AFTER THE CLOSE (auto-scan.yml, 20:47/21:47 "
+                     "UTC = 4:47pm ET), so an entry limit is set from a post-close quote and the "
+                     "day order fills at the NEXT OPEN. fill-vs-limit is therefore an overnight "
+                     "gap, NOT execution quality, and the target/stop derived from that "
+                     "pre-gap limit are anchored to a quote from a different session"),
+            "verdict": "NO VERDICT - post-hoc diagnostic, not in the register"}
+
+
 def sizing_veto_ignored(orders, alerts) -> dict:
     """POST-HOC DIAGNOSTIC, NO VERDICT. Did the paper track buy something the alert refused?
 
@@ -540,6 +583,7 @@ def build_report(db_path: str, broker=None, export_path: Optional[str] = None) -
             *legs["alert_to_fill"],
             label="alert-time ask -> entry fill (bps). SIGNAL DECAY AND LATENCY, NOT SLIPPAGE"),
         "m4_fill_funnel": funnel,
+        "diagnostic_submit_to_fill": submit_to_fill(orders),
         "diagnostic_exit_level_fidelity": exit_level_fidelity(orders, alerts),
         "diagnostic_sizing_veto_ignored": sizing_veto_ignored(orders, alerts),
         "not_measurable": {
@@ -628,6 +672,16 @@ def render(rep: dict) -> str:
         L.append("")
         L.append("M1  broker limit prices: %d entry, %d exit, %d errors, %d missing"
                  % (len(b["entry"]), len(b["exit"]), b["errors"], b["missing"]))
+    L.append("")
+    sf = rep["diagnostic_submit_to_fill"]
+    L.append("DIAGNOSTIC (no verdict) - limit placed WHEN, filled WHEN?  %d of %d cross a "
+             "calendar day" % (sf["n_crossing_a_calendar_day"], sf["n"]))
+    for r in sf["rows"]:
+        L.append("        %-6s placed %-20s -> filled %-26s  %.1f h%s"
+                 % (r["ticker"], r["claimed_at"], r["filled_at"], r["hours"],
+                    "" if r["same_calendar_day"] else "  [NEXT SESSION]"))
+    if sf["n_crossing_a_calendar_day"]:
+        L.append("      %s" % sf["what"])
     L.append("")
     ef = rep["diagnostic_exit_level_fidelity"]
     L.append("DIAGNOSTIC (no verdict, not in the register) - are the LIVE exit levels the "

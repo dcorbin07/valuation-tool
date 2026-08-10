@@ -2682,12 +2682,35 @@ The submit ask is not stored; it is recovered by inverting `_place_entry`
 *stop* column, a different multiplier, gives the same submit ask to four decimals on all three
 rows.
 
-**A marketable limit buy at the ask filling 20.2% below the ask is not execution, it is the
-sandbox's fill simulator.** So the paper book's entries are **not** the ask-in convention
-(`options_fill.DEFAULT_AGGRESSION = 1.0`) that every validated options number in this repo is net
-of — which is the precise thing the forward track exists to be comparable to. Quote it with its
-n: **three fills is three fills.** But the direction is the one the register warned about in
-advance, and it is large.
+> **CORRECTED WITHIN THIS SESSION, BEFORE LANDING. My first reading of these three numbers was
+> "the sandbox granted up to 20.2% price improvement", i.e. I credited the fill engine. THE
+> TIMESTAMPS REFUTE THAT AND THE REAL CAUSE IS WORSE.** Every order waits **12.8 to 15.9 hours**
+> between the limit being placed and the fill:
+>
+> | | limit placed | filled (UTC) | elapsed |
+> |---|---|---|---|
+> | TGT | 2026-08-03T21:51:47 | 2026-08-04T13:46:15Z | **15.9 h — next session** |
+> | MET | 2026-08-07T00:58:52 | 2026-08-07T13:47:15Z | 12.8 h |
+> | ETN | 2026-08-07T00:58:53 | 2026-08-07T13:46:09Z | 12.8 h |
+>
+> All three fill at **13:46–13:47 UTC = 09:46–09:47 ET, the opening minutes.** The cause is
+> structural and scheduled: `auto-scan.yml` runs the paper cycle at **20:47 / 21:47 UTC =
+> 4:47pm ET, AFTER THE CLOSE**. So the entry limit is set from a **post-close quote**, the order
+> is a `day` order, and it fills at the **next open**.
+
+**So "fill vs limit" on this book is an overnight gap, not execution quality**, and the report
+now prints the elapsed time beside it (`diagnostic_submit_to_fill`) so nobody else makes the
+mistake I did. Two consequences, and both are real:
+
+* **The paper book's entry basis is not the backtest's.** The backtest fills at the ask quoted on
+  the alert day (`option_alerts.entry_premium`: TGT 4.55). The paper book paid **3.55** — 22%
+  better, for a reason the backtest does not model. On entry that flatters the forward track
+  relative to the thing it is meant to test.
+* **It makes BUG 1 below systematic rather than occasional.** The target and stop are anchored to
+  a quote from a *different session* than the fill, so they will be wrong whenever the option
+  gaps — which is 2 of 3 so far.
+
+Quote it with its n: **three fills is three fills.**
 
 ## 4 · BUGS FOUND — two in shipped code, reported not repaired
 
@@ -2709,6 +2732,8 @@ book** — a farther target is harder to reach, a tighter stop is easier to hit 
 the flattering direction; but the *comparability* claim breaks either way, and comparability is
 the entire point of the track. Same family as audit **B5c**, which repaired the *resume* branch's
 missing levels; the fresh path still anchors them to the pre-fill price.
+**And per §3 it is systematic, not occasional:** the limit is set after the close and the fill
+happens at the next open, so the two prices routinely differ.
 **Fix:** recompute both levels from the fill in `mark_open`'s `status == "filled"` branch.
 
 **BUG 2 — the paper track buys names the alert's own sizing refused.** Alert 3 (ETN) carries

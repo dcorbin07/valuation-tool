@@ -33,17 +33,22 @@ and $1.30 round-trip commission (50.4 bps). **The brief's "modelled 33.4bps" is 
 EQUITY cost in bps of stock notional and does not apply here — the ratio is about 12x.**
 
 **What three fills already show, quoted as raw values and no mean:** entry fill vs its own limit
-is **−2022.5, −612.2 and 0.0 bps** — the Tradier sandbox granted up to **20.2% price improvement
-on a limit order placed at the ask**, so the paper book's entries are not yet the ask-in
-convention the backtest assumes.
+is **−2022.5, −612.2 and 0.0 bps**. That is **NOT execution quality** — the timestamps say every
+order waits **12.8–15.9 hours** and fills at **09:46–09:47 ET, the opening minutes**, because
+`auto-scan.yml` runs the paper cycle **after the close** (20:47 UTC = 4:47pm ET). The limit is
+set from a **post-close quote** and the day order fills at the **next open**, so the difference
+is an **overnight gap**. Consequence: the paper book's entry basis is not the backtest's (TGT's
+alert-day ask was 4.55; the paper book paid 3.55), which flatters the forward track on entry for
+a reason the backtest does not model.
 
 **TWO SHIPPED-CODE BUGS, found in those same three rows, reported not repaired (V5 is scoped
 new-files-only):**
 1. **Exit levels are derived from the SUBMIT price and never recomputed to the actual fill**, so
    TGT is running **+150.7% / −37.3%** and MET **+113.0% / −46.7%** against an intended
    +100% / −50%. **2 of 3 live positions are running a strategy no backtest describes**, in the
-   book whose whole purpose is comparability. Fix: recompute both levels in `mark_open`'s
-   `filled` branch.
+   book whose whole purpose is comparability. **Systematic, not occasional** — the after-close
+   schedule guarantees the limit and the fill come from different sessions. Fix: recompute both
+   levels in `mark_open`'s `filled` branch.
 2. **The paper track buys names the alert's own sizing refused.** ETN carries
    `skip: true, contracts: 0, "one contract costs $1,610, above the $1,000 budget"` and was
    bought anyway — it is the largest position in the book. Fix: honour `features.sizing.skip`
