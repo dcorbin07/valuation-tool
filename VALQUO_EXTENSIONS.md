@@ -83,3 +83,23 @@ any aggregate is quoted (suggest ≥30 fills), and the rule for flagging diverge
 90% CI excludes the modeled cost). Output feeds S14 (no-trade band) and the capacity number — note
 in the report that P2 showed assumed-vs-measured moved capacity 4.72x, which is why this exists.
 Sandbox fills are optimistic vs real fills; say so in every output. Report in `HANDOFF_optionsbot.md`.
+
+## V2G — What the three dead live themes cost in return (edge lane) — **DONE 2026-08-10**
+
+Follow-up to V2F, which measured that `insider` (constant), `capital_discipline` and
+`institutional` (both absent) reach no live score, carrying **42.9% of the deployed weight
+mass** between them — and which explicitly left the price of that to a backtest.
+
+**Answered.** Deployed 7-theme composite vs the same composite restricted to the four
+live-present themes, renormalised exactly as `composite_score` does (proved exact, not
+assumed). **Top-decile alpha +7.17% → +5.86%, Δ −1.31pp, paired HAC t −1.4040** against a
+pre-registered −1.95pp bar → **IMMATERIAL**, at **55% power** against that bar.
+
+**But the live four-theme book fails the calibrated long-short floor** (HAC t 1.8811 vs
+2.2837) while clearing the top-decile alpha floor (3.2087 vs 2.2913). The product is
+long-only, so what users receive stays demonstrable; the long-short statistic quoted beside
+it does not. Exploratory: `institutional` is the only one of the three whose absence costs
+in both halves — build 13F first, if any.
+
+`PREREG_v2g_live_theme_cost.md`, `scripts/live_theme_cost.py`,
+`data/free_analysis/LIVE_THEME_COST.json`. Equity `N` 131 → 135.
