@@ -44,12 +44,55 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
-- **THE FORWARD PAPER TRACK CANNOT DELIVER A VERDICT FOR ~5 YEARS, AND IT IS NOT CURRENTLY
-  RUNNING (2026-08-08, session 13). Both halves of roadmap #12's status line were wrong.** That
-  item says the track is built and *"what remains is elapsed time and reading the track, not
-  building it."* Measured: `paper_option_orders`, `paper_index_holdings` and `paper_index_track`
-  hold **0 rows each** while 45/45 of its tests pass — the engine has never been fed, and the
-  five accrued days come from a different mechanism (the Cowork-side `data/valquo_track.json`).
+- **THE PAPER-TRACK CONTRACT IS SIGNED AND IN FORCE — OPTION E, 2026-08-09 (session 14). THE
+  PROJECT NOW HAS A PRE-REGISTERED FORWARD TEST, AND TWO RECORDERS THAT DISAGREE ABOUT WHAT IT
+  IS RECORDING.** Don signed: keep inception **2026-07-30** including the accrued negative days,
+  **6-month operational gate (2027-01-30)**, **60-month verdict vs SPY (2031-07-30)**, the
+  ~36-month costed equal-weight-basket secondary *if it is ever built*, plus a pre-registered
+  anytime-valid evidence meter first rendered at the gate and monthly thereafter, whatever it
+  says. `PAPER_TRACK_CONTRACT.md` §5 is the register; §6 freezes the meter.
+  * **THE REGISTER BINDS THE PUBLISHED VALQUO INDEX, NOT THE SANDBOX ENGINE — because they are
+    recording DIFFERENT BOOKS.** This is the session's material finding. The Index
+    (`data/valquo_track.json` + `valquo_track_history.csv`, read by `index_track.py`) is **86
+    names, score-weighted, max weight 2.3%, inception 2026-07-30**. The Tradier sandbox engine
+    (`paper_index_track` → `data_export/paper_track_*`) is **10 names, equal-weighted at 10%
+    each — which the contract's own 8% cap forbids — inception 2026-08-03.** They are not one
+    track recorded twice. **Never quote an engine figure as evidence under the contract**, and
+    a B7-class split stands until the engine is re-pointed or its outputs are labelled a
+    different object everywhere they surface.
+  * **~~The engine has never been fed (0 rows)~~ — CORRECTED 2026-08-09 (session 14): THAT WAS
+    MEASURED ON THE LOCAL DEV DATABASE.** On the live Render service the engine holds **4 index
+    days, 10 holdings and 3 paper option orders**, and the weekly `track-backup` Action has been
+    committing them to `data_export/` all along. The rest of this bullet's session-13 findings
+    stand; this one did not.
+  * **THE REAL BLOCKER IS THAT NOTHING IN THIS REPOSITORY WRITES THE BOUND SERIES.** Not a
+    scheduler fault, not a crash, not a conditional write — **there is no writer.**
+    `index_track.py` only ever *reads* `valquo_track_history.csv`; the rows are produced by hand
+    on the Cowork side, which is exactly why **four of six due rows are missing (33.3%
+    coverage)**. **The operational gate cannot pass until an automated daily write exists**, and
+    that is the Cowork lane's. `valuation/edge/track_meter.py:gap_report` now names every
+    missing day so the failure is dated rather than discovered at the gate.
+  * **THE METER IS HONEST AND WEAK, AND THE SECOND HALF MUST TRAVEL WITH THE FIRST.** A Robbins
+    normal-mixture anytime-valid confidence sequence, σ **3.9847 pp/month** (the backtest's own
+    11.40pp/yr tracking error inflated by R9's AR(1) design effect **1.4661**), **ρ = 3**,
+    **α = 0.05 two-sided**, cost drag **0.14529 pp/month**. Measured over 40k AR(1) paths:
+    false-crossing **1.5%** against a nominal 5%, but **power at the backtested +9.99%/yr edge is
+    just 13.3% by 60 months and 30.7% by 120**, needing **~19 pp/yr to cross at 60 months**.
+    **A meter that has not crossed is the EXPECTED outcome and is NOT evidence against the
+    strategy.** The AR(1) inflation is load-bearing, not decoration: without it the false-crossing
+    rate is **6.7%**, i.e. the naive version breaks its own guarantee. **σ may never be revised
+    downward** — at 1.5× the assumed volatility the false-crossing rate is **20%**.
+  * **GENUINELY BLIND, which is the whole point:** at the signing commit the bound series held
+    **two daily rows and ZERO complete calendar months**, so no meter parameter could have been
+    tuned to the outcome even in principle. Pinned by `tests/test_track_meter.py` (20 tests,
+    every constant a literal), including one that fails if the AR(1) inflation is removed and one
+    that pins the render decision as invariant to flipping the sign of the entire series.
+  * **Equity `N` 129 → 130** (the register is charged as a trial; understating `N` overstates
+    significance). **Deflated Sharpe 0.8556 → 0.8552, √(2·ln 130) = 3.1201.**
+- **THE FORWARD PAPER TRACK CANNOT DELIVER A VERDICT FOR ~5 YEARS (2026-08-08, session 13).
+  Roadmap #12's status line was wrong.** That item says the track is built and *"what remains is
+  elapsed time and reading the track, not building it."* The arithmetic below is why that is
+  false, and it is unchanged by the session-14 bullet above.
   * **THE ARITHMETIC IS THE FINDING, and it is not escapable by choosing a better statistic.**
     From `benchmarks.spy` the top decile beats SPY by **+9.99%/yr at a tracking error of
     11.4pp/yr** — an **information ratio of 0.88/yr**, and that is the IN-SAMPLE figure. Since
@@ -66,9 +109,17 @@ the project's memory and the old versions had been repeated for months.
     closed stints in *"is a construction change, not a bug fix, and was not made."* The Cowork
     file chains correctly but is **missing days** (two rows exist where five were due). **The
     verdict is not computable at any horizon until one source produces a chained series.**
-  * **THE INCEPTION DATE EXISTS ONLY IN A GITIGNORED FILE.** `2026-07-30` is in
-    `data/valquo_track.json` and **nowhere in the repository**. A pre-registration nobody can
-    produce is not one — which is the strongest argument for signing the contract.
+    **PARTLY CLOSED 2026-08-09 (session 14): the snapshot objection was about the ENGINE, and
+    the engine is not the bound source.** The Index series stores cumulative-since-inception
+    levels, and `track_meter.monthly_excess` chains them into calendar months — a construction
+    **robust to an interior missing day**, since a month needs only its two endpoints (pinned by
+    `test_an_interior_missing_day_does_not_corrupt_a_monthly_return`). A month whose *month-end*
+    mark is missing or >3 trading days stale is **voided**, never silently averaged over. **What
+    remains is the missing writer, not the construction.**
+  * ~~**THE INCEPTION DATE EXISTS ONLY IN A GITIGNORED FILE.**~~ **CLOSED 2026-08-09 (session
+    14).** `2026-07-30` is now in **tracked** files — `PAPER_TRACK_CONTRACT.md` §5 and
+    `track_meter.INCEPTION`, pinned by a test. The pre-registration can now be produced by
+    anyone with the repo, which is what makes it one.
   * **THE SITE PROMOTES THE TRACK TO ITS HEADLINE BY ITSELF, ON A FIXED DATE, WITH NO APPROVAL
     STEP — THE ONE ITEM HERE WITH A DEADLINE.** `index_track.py:223-224` is
     `thin = days < MIN_LIVE_DAYS` then `headline = "backtested" if thin else "live"`, and

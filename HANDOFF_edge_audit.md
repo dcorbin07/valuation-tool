@@ -5732,3 +5732,208 @@ written, so the refreshed artifact is reproducible from a named commit.
    was repaired by the options lane (rewritten as `abs(...)`), `rows_malformed` is now **empty**,
    and options `N` corrects **164 → 169** as session 12 predicted — the 4 trials that row was
    silently losing, plus one new row. The session-12 parser fix is what made the loss visible.
+
+---
+
+# SESSION 14 — the contract is signed (OPTION E), the meter is frozen, and the track has two recorders
+
+**Date:** 2026-08-09. **Owner:** pipeline builder. **Lane:** `valuation/edge/**`.
+**One-line state:** the register is IN FORCE and the meter's parameters are frozen with zero
+complete months in existence — and the two headline repairs the task asked for turned out to
+rest on premises that were false, so what shipped is the diagnosis plus the parts that were
+actually mine.
+
+## 1. The committed register — §5 of `PAPER_TRACK_CONTRACT.md`, quoted
+
+Don's choice, recorded verbatim as given:
+
+> **OPTION E** — Option C's structure (keep 2026-07-30 inception including the accrued negative
+> days; 6-month operational gate; 60-month statistical verdict vs SPY; the ~36-month costed
+> equal-weight-basket secondary once built), PLUS a pre-registered anytime-valid evidence meter
+> that runs from inception but **first renders at the 6-month operational gate (2027-01-30) and
+> monthly thereafter — whatever it says, favourable or not.**
+
+| field | value |
+|---|---|
+| **Option chosen** | **E** — Option C's structure plus the §6 evidence meter |
+| **Signed by** | Don (donniecorbin6@gmail.com) |
+| **Date signed** | **2026-08-09** |
+| **Inception** | **2026-07-30**, including the five accrued days and the −2.85pp known to be negative at signing |
+| **Bound source** | the **published Valquo Index** — `data/valquo_track.json` + `data/valquo_track_history.csv`, read by `valuation/screener/index_track.py`. **NOT** the Tradier sandbox engine |
+| **Book** | Valquo Index as published — top decile, large-cap tier, score-weighted, 8% cap |
+| **Benchmark** | SPY total return |
+| **Operational gate** | **2027-01-30** (6 months) — tests recording, not returns |
+| **Verdict date** | **2031-07-30** (60 months) |
+| **Secondary verdict** | ~**2029-07-30**, **only if** the costed equal-weight basket is built and separately pre-registered. Not built; if it never is, there is no secondary reading |
+| **Statistic** | one-sided NW(3) t on monthly excess, plus cumulative excess |
+| **SUPPORTED / UNSUPPORTED** | t ≥ +1.645 and cumulative > 0 / t ≤ −1.645; anything else NULL |
+| **Power at verdict, in advance** | **49%** vs SPY at 60 months; 64% for the secondary at 36 if built |
+| **Costs** | modelled, not measured: **0.14529 pp/month** |
+| **Voided windows** | *(none yet)* |
+
+Logged to `RESEARCH_LOG.md` as **`PT-REGISTER`**, verdict `REGISTERED`, **equity `N` 129 → 130**
+(**Deflated Sharpe 0.8556 → 0.8552, √(2·ln 130) = 3.1201**). Charged rather than waived because
+the verdict will be quoted as a claim about the equity strategy, and understating `N` overstates
+significance. The row is logged **at registration** — that is the point of a pre-registration —
+and the verdict gets appended to it in 2031 rather than replacing it.
+
+## 2. The meter's exact parameters — `valuation/edge/track_meter.py`, contract §6
+
+A **Robbins normal-mixture anytime-valid confidence sequence** on the running sum of monthly
+excess-vs-SPY returns:
+
+```
+boundary(n) = sigma * sqrt( (n + rho) * ln( (n + rho) / (rho * alpha^2) ) )
+```
+
+| parameter | value | source |
+|---|---|---|
+| `sigma` | **3.9846917305386294** pp/month | backtest tracking error 11.40pp/yr → 3.2909/month, **inflated by √1.466091** |
+| autocorrelation | design effect **1.466091** | (1+r)/(1−r) at R9's measured lag-1 **r = +0.189** |
+| `rho` | **3** | minimises detectable edge averaged over 12/24/36/60m; flat from ρ=2 to ρ=6 |
+| `alpha` | **0.05 two-sided** | 2.5% per direction |
+| cost drag | **0.14529 pp/month** | 261% turnover × 33.4bps one-way, both legs = 1.7435 pp/yr |
+| stale-mark limit | **3 trading days** | staler ⇒ the month is **voided**, not measured from the wrong window |
+| max voided fraction | **10%** | above this the meter **refuses to render** |
+
+**Measured, not asserted** — 40,000 simulated paths with the AR(1) structure in them:
+
+| | |
+|---|---|
+| false crossing under the null | **1.5%** by 60 months, 1.9% by 120 (nominal 5%) |
+| power at the backtested +9.99 pp/yr | **13.3%** by 60 months, 30.7% by 120 |
+| power at twice that (+20 pp/yr) | 65.8% by 60 months |
+
+Mean excess needed to cross: **6m 63.7 · 12m 42.5 · 24m 29.6 · 36m 24.3 · 60m 19.0 · 120m 13.8
+pp/yr.**
+
+**THE SENTENCE THAT MUST TRAVEL WITH EVERY QUOTE OF THIS METER: it will most likely never cross,
+even if the strategy is exactly as good as the backtest says** — it needs ~19 pp/yr at 60 months
+against a claimed +9.99. That is the correct behaviour of an honest anytime-valid bound. **A
+meter that has not crossed is the expected outcome and is NOT evidence against the strategy**,
+just as three good months are not evidence for it.
+
+Two findings from building it, both of which changed the design:
+
+- **The AR(1) inflation is load-bearing.** Without it the false-crossing rate on autocorrelated
+  data is **6.7%** against a nominal 5% — the naive version silently breaks its own guarantee.
+  `test_the_autocorrelation_inflation_is_load_bearing` fails if anyone removes it.
+- **`sigma` may never be revised downward.** At 1.5× the assumed volatility the false-crossing
+  rate is **20%**, a four-fold breach, so `sigma_breach` ships on every call.
+
+**Genuinely blind:** at the freezing commit the bound series held **two daily rows and ZERO
+complete calendar months**. No parameter could have been tuned to the outcome even in principle.
+20 tests pin every constant to a literal, including one that pins the render decision as
+invariant to flipping the sign of the entire series — the code cannot express a suppression.
+
+## 3. Item 2 — the recording. Both premises were false, and that is the deliverable
+
+The task asked me to find why the daily write skipped days 2–4, and to wire an engine that "has
+never been fed". Measured:
+
+**3.1 There is no daily writer at all.** Not a scheduler fault, not a crash, not a conditional
+write. **Nothing in this repository writes `data/valquo_track_history.csv`.** `index_track.py`
+only ever *reads* it; `HANDOFF_backup.md:194` records the same independently. The rows are
+produced by hand on the Cowork side, which is exactly why four of six are missing. Measured
+coverage on 2026-08-09: **2 of 6 due rows, 33.3%**, missing 2026-08-03/04/05/07.
+**The operational gate cannot pass until an automated daily write exists**, and building it is
+the Cowork lane's, not mine.
+
+**3.2 The engine HAS been fed — session 13 measured the wrong database.** On the live Render
+service `paper_index_track` holds **4 index days**, `paper_index_holdings` **10 holdings** and
+`paper_option_orders` **3 orders**, and the weekly `track-backup` Action has been committing
+them to `data_export/` all along. Session 13's "0 rows each" was the local dev database.
+**Correction recorded in `CLAUDE.md` and in the contract's §0a.**
+
+**3.3 The two recorders hold DIFFERENT BOOKS. This is the session's material finding.**
+
+| | **published Valquo Index** | Tradier sandbox engine |
+|---|---|---|
+| files | `valquo_track.json` + `valquo_track_history.csv` | `paper_index_track` → `data_export/paper_track_*` |
+| inception | **2026-07-30** | 2026-08-03 |
+| book | **86 names, score-weighted, max weight 2.3%** | **10 names, equal-weighted at 10% each** |
+| read by | `screener/index_track.py` — the number the site shows | `edge/paper_track.py` |
+
+The engine's 10% equal weights **violate the contract's own 8% cap**, and its book is not the
+Index. **So this was never a choice between two recordings of one track — they are different
+objects.** The register binds the Index. Wiring the engine into the daily path, as the task
+proposed, would have bound the contract to the wrong book.
+
+**3.4 What I built instead, in my lane.** `track_meter.gap_report` names **every** missing
+trading day rather than counting them — a count cannot be audited later, and the abort rule has
+to tell "missed and filled the same week" from "missing". It also flags rows on non-trading days
+(something marking the book when there was no close), and it correctly does **not** demand a row
+on inception day, which is day 0 — my first version did, and reported a permanent uncloseable
+gap. And `monthly_excess` makes the statistical series **robust to interior gaps by
+construction**: the source stores cumulative-since-inception levels, so a month needs only its
+two endpoints. A month whose *month-end* mark is missing or >3 days stale is **voided**, never
+silently averaged over.
+
+**3.5 Backfilled nothing.** Days 2–4 stay missing, logged, exactly as the register requires.
+
+## 4. What I did NOT do
+
+1. **I did not produce "evidence the daily write now happens (two consecutive days landing)."**
+   It was not possible for two independent reasons: there is no writer in this repo to fix
+   (§3.1), and two consecutive trading days is elapsed wall-clock this session does not have.
+   **The gate remains failing, and I have not claimed otherwise.**
+2. **I did not wire the sandbox engine into the daily path.** §3.3 — it records a different
+   book, so wiring it would bind the contract to the wrong object. I named the bound source
+   instead, which is the branch the task explicitly permitted.
+3. **I did not re-point the engine's book at the Index.** It runs live on Render against a
+   sandbox broker; changing what it holds is a construction change to a running recorder, not a
+   repair, and it needs its own decision. Recorded as ledger `PT-SPLIT`.
+4. **I did not touch `valuation/screener/index_track.py`** — the 60-day auto-flip is the greeks
+   lane's, prompted separately. It is still live and still dated: **late October 2026**, at 13%
+   power, roughly three months *before* this contract's own first render. Until it is repaired
+   **the code and the contract disagree, and the contract governs** (§6.3).
+5. **I escaped nothing in `RESEARCH_LOG.md` myself.** `rows_malformed` is empty and options `N`
+   reads 192 after the merge.
+6. **I did not build the 36-month secondary basket.** It does not exist, and §5 records it as
+   conditional for exactly that reason.
+
+## 5. BUGS FOUND
+
+1. **THE BOUND FORWARD-TRACK SERIES HAS NO WRITER.** The project's #1 validation depends on a
+   file that is maintained by hand, in a gitignored directory, with 33.3% coverage. **Blocks the
+   operational gate outright.** → Cowork lane. Ledger `PT-WRITER`.
+2. **TWO LIVE RECORDERS HOLD DIFFERENT BOOKS, AND ONE VIOLATES THE CONTRACT'S OWN 8% CAP** (10
+   names at 10%). A B7-class split: two numbers that can be confused for each other, one of
+   which is not the Index at all. → Needs assigning. Ledger `PT-SPLIT`.
+3. **SESSION 13 REPORTED "0 ROWS, THE ENGINE HAS NEVER BEEN FED" FROM THE LOCAL DEV DATABASE.**
+   The live service had data the whole time. Corrected in `CLAUDE.md` and §0a. The general
+   lesson is the one the artifact-staleness bug already taught: **a local read is not a
+   measurement of production.**
+4. **THE ENGINE'S OWN RECORD IS ALSO GAPPY, AND ON A DIFFERENT DAY.** It holds 2026-08-03/04/05/
+   **07** — missing **08-06** — while the Index file holds 07-31 and **08-06**. The two
+   recorders' gaps are *complementary*, so neither is a copy of the other and neither is
+   reliable.
+5. **THE ENGINE'S DAY-1 ROW IS NOT ZERO** (`index_ret` 1.73%, `bench_ret` 1.42% on its own
+   inception date), i.e. entry prices and the first mark are taken at different times of day.
+   Small, but it means "return since inception" from that source includes a partial first
+   session. Not investigated further — out of the bound source.
+6. **THE RECORDED SERIES IS GROSS; THE CONTRACT'S COST FIGURE IS MODELLED.** No fills exist for
+   a quote-marked paper book, so 0.14529 pp/month is an assumption fixed in advance (deliberately
+   the larger of the two readings the record supports). It cannot interact with the outcome, but
+   it is not evidence about real trading costs. Recorded as contract §7.6.
+7. **`MIN_LIVE_DAYS = 60` STILL AUTO-PROMOTES THE TRACK TO THE SITE HEADLINE** around late
+   October 2026 with no approval step, now in direct contradiction of a signed contract. Not
+   mine; still dated; still needs the greeks lane to land the fix.
+
+## 6. Session 15's first item
+
+**`needs first`: nothing — this one is unblocked and it is mine.**
+
+**Wire the meter and the gap report into something that runs.** They exist and are tested but
+nothing calls them: `track_meter` is a library with no caller. The operational gate and the
+first render are the same day, 2027-01-30, so the useful work now is the *reporting* path — a
+`detail()`-style block that surfaces `gap_report` (missing days, dated) and the withheld meter
+state on every run, so the recording failure is visible continuously instead of being discovered
+at the gate. That is squarely `valuation/edge/**` and needs no decision from anyone.
+
+**Two items that are NOT session 15's because they are not this lane's**, listed so they are not
+mistaken for available work: `PT-WRITER` (Cowork must build the daily write) and the
+`MIN_LIVE_DAYS` auto-flip (greeks lane, dated late October 2026). **If `PT-WRITER` is still
+unbuilt by roughly 2026-11, the operational gate will fail on 2027-01-30 by construction**, and
+the honest response then is to restart the clock from the repair — which §3's Option A already
+provides for — not to relax the gate.

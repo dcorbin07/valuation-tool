@@ -1,0 +1,382 @@
+#!/usr/bin/env python3
+"""track_meter.py — the pre-registered evidence meter for the forward paper track.
+
+WHY THIS EXISTS. `PAPER_TRACK_CONTRACT.md` went IN FORCE on 2026-08-09 as **Option E**: keep
+the 2026-07-30 inception including the accrued negative days, a 6-month operational gate, a
+60-month statistical verdict against SPY, and -- the part this module is -- a pre-registered
+anytime-valid evidence meter that runs from inception but first renders at the operational
+gate and monthly thereafter, whatever it says.
+
+THE POINT OF AN ANYTIME-VALID BOUND. The contract's verdict is a fixed-horizon test read once,
+at 60 months. But a track that nobody may look at for five years is a track nobody will keep,
+and a track that IS looked at monthly with a fixed-horizon statistic is a multiple-testing
+machine: 60 monthly peeks at a t-test with a 5% bar produce a "significant" result far more
+than 5% of the time under the null. A confidence sequence is the object that fixes this. It is
+valid at EVERY n simultaneously, so looking every month costs nothing and no correction has to
+be invented later. The price is paid up front, in width.
+
+THE CONSTRUCTION, FIXED AND NOT REVISABLE. A Robbins normal-mixture confidence sequence on the
+running sum of monthly excess returns. For observations with sub-Gaussian parameter `sigma`,
+
+    boundary(n) = sigma * sqrt( (n + rho) * ln( (n + rho) / (rho * alpha^2) ) )
+
+bounds |sum of (x_i - mu)| for all n at once with probability >= 1 - alpha. The sequence
+crosses when the running sum leaves +/- boundary(n); crossing UP is SUPPORTED-EARLY, crossing
+DOWN is UNSUPPORTED-EARLY, and both are valid conclusions precisely because the boundary was
+fixed before any monthly observation existed.
+
+EVERY PARAMETER WAS CHOSEN WITH ZERO MONTHLY DATA IN HAND, WHICH IS WHY THIS IS A GENUINE
+PRE-REGISTRATION. At the commit that fixed them the track held five DAILY rows and **no
+complete calendar month**, so there was no monthly series to tune against even in principle.
+
+  * `sigma` is NOT estimated from the track. It is the backtest's own measured tracking error
+    against SPY, 11.40pp/yr -> 3.2909pp/month, inflated by the AR(1) design effect implied by
+    R9's measured lag-1 autocorrelation of +0.189: (1+r)/(1-r) = 1.4661, sqrt = 1.2108. That
+    inflation is not decoration. Measured by Monte Carlo below: with it the false-crossing rate
+    under the null is 1.5%; WITHOUT it, on the same autocorrelated data, 6.7% -- i.e. the naive
+    version silently breaks its own 5% guarantee.
+  * `rho` = 3 minimises the detectable edge averaged over the 12/24/36/60-month horizons, the
+    range where an early conclusion would actually be actionable. The curve is flat between
+    rho = 2 and rho = 6 (28.9 to 29.5 pp/yr), so the choice is not delicate.
+  * `alpha` = 0.05 TWO-SIDED, i.e. 2.5% per direction.
+
+WHAT IT ACTUALLY DELIVERS, STATED PLAINLY BECAUSE IT IS NOT FLATTERING. Measured, not asserted
+(40k Monte Carlo paths with the AR(1) structure in them):
+
+    false crossing under the null   1.5% by 60 months, 1.9% by 120   (nominal 5% -- conservative)
+    power at the backtested edge    13.3% by 60 months, 30.7% by 120
+    power at twice that edge        65.8% by 60 months
+
+    mean excess needed to cross:  6m 63.7  12m 42.5  24m 29.6  36m 24.3  60m 19.0  120m 13.8 pp/yr
+
+**So the meter will most likely never cross, even if the strategy is exactly as good as the
+backtest says.** At 60 months it needs ~19 pp/yr against a claimed +9.99. That is the correct
+and intended behaviour of an honest anytime-valid bound, and it is the reason the meter does
+NOT replace the 60-month fixed-horizon verdict: the meter can only ever end the run EARLY, and
+only for an effect far larger than the one claimed. Anyone who reads a non-crossing meter as
+evidence against the strategy has made exactly the error the contract exists to prevent.
+
+TWO RULES THAT ARE ANTI-GAMING, NOT STATISTICS:
+
+  1. **`sigma` may never be revised DOWNWARD.** A smaller sigma narrows the band and makes
+     crossing easier, so a downward revision is indistinguishable from buying a result. If
+     realised volatility comes in ABOVE the plug-in the bound is anti-conservative and sigma
+     must be raised (measured: at 1.5x the assumed sd the false-crossing rate is 20%, a 4x
+     breach), which is why `meter()` reports `sigma_breach` on every call.
+  2. **There is no sign-dependent branch anywhere in this file.** The render decision is a
+     function of the DATE and the data's integrity only. Suppressing an unfavourable month
+     voids the whole run under the contract's abort rule, and `test_meter_has_no_sign_branch`
+     pins that the rendering decision is invariant to flipping the sign of every observation.
+
+WHICH SERIES THIS BINDS. The published Valquo Index track -- `valquo_track.json` plus
+`valquo_track_history.csv`, the source `valuation/screener/index_track.py` reads, whose book is
+the 86-name score-weighted Index the contract names. It does NOT bind the Tradier sandbox
+engine in `paper_track.py`: that engine records a DIFFERENT book (10 names, equal-weighted at
+10%, which the contract's own 8% cap forbids) from a DIFFERENT inception (2026-08-03). See
+`gap_report` and the session-14 handoff -- the divergence is recorded, not resolved here.
+"""
+from __future__ import annotations
+
+import datetime as _dt
+import math
+from typing import Dict, List, Optional, Sequence
+
+from valuation.screener.market_session import is_trading_day
+
+# ---------------------------------------------------------------------------
+# FROZEN by the contract's commit. Derivations are shown so they are auditable,
+# then pinned to literals by tests. Changing any of these after 2026-08-09 voids
+# the run under the contract's abort rule -- it is not a code change, it is a
+# breach of a pre-registration.
+# ---------------------------------------------------------------------------
+
+CONTRACT_VERSION = "option-E-2026-08-09"
+
+INCEPTION = _dt.date(2026, 7, 30)
+OPERATIONAL_GATE = _dt.date(2027, 1, 30)      # 6 months; also the meter's FIRST RENDER
+FIRST_RENDER = OPERATIONAL_GATE
+VERDICT_DATE = _dt.date(2031, 7, 30)          # 60 months
+
+# sigma: the backtest's own tracking error vs SPY, inflated for autocorrelation.
+_TRACKING_ERROR_ANNUAL_PP = 11.40             # benchmarks.spy, corrected 69-date panel
+_LAG1_AUTOCORR = 0.189                        # audit R9, the project's only measurement of it
+_DESIGN_EFFECT = (1.0 + _LAG1_AUTOCORR) / (1.0 - _LAG1_AUTOCORR)          # 1.466091
+SIGMA_MONTHLY_PP = (_TRACKING_ERROR_ANNUAL_PP / math.sqrt(12.0)) * math.sqrt(_DESIGN_EFFECT)
+
+RHO = 3.0
+ALPHA = 0.05                                  # two-sided; 2.5% per direction
+
+# Modelled cost drag, subtracted from every monthly excess. The recorded series is GROSS, and
+# the contract promises the verdict net of the costs the backtest charges. Derived from the
+# backtest's own figures the way its breakeven is derived -- 261% annual turnover at a measured
+# 33.4 bps one-way, charged both legs: 2 * 2.61 * 0.334pp = 1.7435 pp/yr. That is the LARGER of
+# the two readings available in the record, i.e. the one that counts against the strategy, and
+# it is a constant, so it shifts the series by a fixed amount and cannot interact with outcome.
+_ANNUAL_TURNOVER = 2.61
+_ONE_WAY_COST_PP = 0.334
+COST_DRAG_PP_PER_MONTH = (2.0 * _ANNUAL_TURNOVER * _ONE_WAY_COST_PP) / 12.0
+
+# A month's mark is the last row on or before its final trading day. If that row is staler than
+# this, the month is VOIDED rather than measured against a mark from the wrong window.
+MARK_STALENESS_LIMIT_TD = 3
+
+# If more than this fraction of elapsed months are voided for missing data, the series is not
+# trustworthy enough to carry a verdict and the meter says so instead of quietly averaging.
+MAX_VOIDED_FRACTION = 0.10
+
+
+def boundary(n: int, sigma: float = None, rho: float = None, alpha: float = None) -> float:
+    """Robbins normal-mixture boundary on the running SUM of centred observations.
+
+    Defaults are the frozen contract parameters. The arguments exist so the Monte Carlo
+    calibration can probe other values -- NOT so a caller can retune the live meter.
+    """
+    sigma = SIGMA_MONTHLY_PP if sigma is None else sigma
+    rho = RHO if rho is None else rho
+    alpha = ALPHA if alpha is None else alpha
+    if n < 1:
+        raise ValueError("n must be >= 1")
+    v = n + rho
+    return sigma * math.sqrt(v * math.log(v / (rho * alpha * alpha)))
+
+
+def detectable_edge_pp_per_year(n: int) -> float:
+    """The mean excess a run must sustain for `n` months to cross. The honest headline."""
+    return boundary(n) / n * 12.0
+
+
+# ---------------------------------------------------------------------------
+# Series handling
+# ---------------------------------------------------------------------------
+
+def _d(x) -> Optional[_dt.date]:
+    if isinstance(x, _dt.date):
+        return x
+    try:
+        return _dt.date.fromisoformat(str(x)[:10])
+    except Exception:
+        return None
+
+
+def _trading_days(start: _dt.date, end: _dt.date) -> List[_dt.date]:
+    out, d = [], start
+    while d <= end:
+        if is_trading_day(d):
+            out.append(d)
+        d += _dt.timedelta(days=1)
+    return out
+
+
+def _month_end_trading_day(year: int, month: int) -> _dt.date:
+    if month == 12:
+        nxt = _dt.date(year + 1, 1, 1)
+    else:
+        nxt = _dt.date(year, month + 1, 1)
+    d = nxt - _dt.timedelta(days=1)
+    while not is_trading_day(d):
+        d -= _dt.timedelta(days=1)
+    return d
+
+
+def gap_report(series: Sequence[dict], as_of: _dt.date = None,
+               inception: _dt.date = None) -> Dict:
+    """Every trading day that should have a row and does not. LOUD BY DESIGN.
+
+    The contract's abort rule distinguishes "missed a day and filled it the same week" from
+    "missing", and neither can be told apart from the other unless the misses are enumerated at
+    the time. So this returns the actual dates, not a count -- a count cannot be audited later.
+
+    This is the operational gate's checklist, not a statistical object: an interior gap does NOT
+    corrupt a monthly return, because the series stores cumulative-since-inception levels and a
+    month's return only needs its two endpoints. `monthly_excess` handles that separately.
+    """
+    inception = inception or INCEPTION
+    as_of = as_of or _dt.date.today()
+    have = {_d(r.get("date")) for r in series}
+    have.discard(None)
+    # Inception is day 0: cumulative return is 0 there by definition and the recorded series
+    # starts at day 1. Counting the inception date itself as a missing row would report a
+    # permanent, uncloseable gap -- the guard has to be right about what it demands.
+    expected = [d for d in _trading_days(inception, as_of) if d > inception]
+    missing = [d for d in expected if d not in have]
+    # A row on a non-trading day is its own defect: it means something marked the book when
+    # there was no close, which is the failure auto-scan's session guard exists to prevent.
+    unexpected = sorted(d for d in have if d and d >= inception and not is_trading_day(d))
+    return {
+        "inception": inception.isoformat(),
+        "as_of": as_of.isoformat(),
+        "expected_trading_days": len(expected),
+        "present": len([d for d in expected if d in have]),
+        "missing_count": len(missing),
+        "missing_dates": [d.isoformat() for d in missing],
+        "unexpected_dates": [d.isoformat() for d in unexpected],
+        "complete": not missing and not unexpected,
+        "coverage": (len(expected) - len(missing)) / len(expected) if expected else None,
+    }
+
+
+def monthly_excess(series: Sequence[dict], as_of: _dt.date = None,
+                   inception: _dt.date = None) -> Dict:
+    """Chain the cumulative daily series into COMPLETE calendar months of excess return.
+
+    The rows hold cumulative-since-inception percentages, so month m's return is
+    (1+cum_end/100)/(1+cum_prev/100) - 1 -- the same chaining `index_track._daily_returns` uses,
+    and the reason an interior missing day is survivable while a missing month-end is not.
+
+    A month is VOIDED (never silently averaged over) when its mark is missing or staler than
+    MARK_STALENESS_LIMIT_TD trading days. Voids are returned with their reason so the contract's
+    "recorded at the time it is found, not at the horizon" rule can actually be honoured.
+    """
+    inception = inception or INCEPTION
+    as_of = as_of or _dt.date.today()
+    rows = []
+    for r in series:
+        d = _d(r.get("date"))
+        v, s = r.get("valquo"), r.get("spy")
+        if d is None or v is None or s is None:
+            continue
+        rows.append((d, float(v), float(s)))
+    rows.sort(key=lambda t: t[0])
+
+    months, voided = [], []
+    # Baseline is inception itself: cumulative return is 0 there by definition.
+    prev_v, prev_s, prev_mark = 0.0, 0.0, inception
+
+    # THE STUB MONTH IS MERGED FORWARD, NOT COUNTED. Inception is 2026-07-30, so the calendar
+    # month it falls in contains a single trading day of exposure. Admitting that as a monthly
+    # observation would feed the confidence sequence a draw with ~1/21 of a month's variance --
+    # the bound assumes every observation has variance sigma^2, and a one-day "month" does not.
+    # So unless inception falls on or before its month's first trading day, the stub runs on
+    # into the next month and the first observation covers inception -> that month's end.
+    y, m = inception.year, inception.month
+    _first_td = min(_trading_days(_dt.date(y, m, 1), _month_end_trading_day(y, m)))
+    if inception > _first_td:
+        m += 1
+        if m == 13:
+            y, m = y + 1, 1
+    while True:
+        mend = _month_end_trading_day(y, m)
+        if mend > as_of:
+            break
+        # The last row on or before this month's final trading day.
+        cand = [t for t in rows if t[0] <= mend]
+        label = f"{y:04d}-{m:02d}"
+        if not cand or cand[-1][0] <= prev_mark:
+            voided.append({"month": label, "reason": "no mark in the month"})
+        else:
+            d, v, s = cand[-1]
+            stale = len(_trading_days(d, mend)) - 1      # trading days from mark to month end
+            if stale > MARK_STALENESS_LIMIT_TD:
+                voided.append({"month": label, "reason": f"mark {stale} trading days stale",
+                               "mark_date": d.isoformat()})
+            else:
+                rv = (1.0 + v / 100.0) / (1.0 + prev_v / 100.0) - 1.0
+                rs = (1.0 + s / 100.0) / (1.0 + prev_s / 100.0) - 1.0
+                months.append({
+                    "month": label, "mark_date": d.isoformat(), "stale_trading_days": stale,
+                    "valquo_ret_pp": rv * 100.0, "spy_ret_pp": rs * 100.0,
+                    "excess_gross_pp": (rv - rs) * 100.0,
+                    "excess_pp": (rv - rs) * 100.0 - COST_DRAG_PP_PER_MONTH,
+                })
+                prev_v, prev_s, prev_mark = v, s, d
+        m += 1
+        if m == 13:
+            y, m = y + 1, 1
+
+    elapsed = len(months) + len(voided)
+    return {
+        "months": months, "voided": voided,
+        "n_months": len(months), "n_voided": len(voided), "n_elapsed": elapsed,
+        "voided_fraction": (len(voided) / elapsed) if elapsed else 0.0,
+        "cost_drag_pp_per_month": COST_DRAG_PP_PER_MONTH,
+    }
+
+
+def meter(series: Sequence[dict], as_of: _dt.date = None,
+          inception: _dt.date = None) -> Dict:
+    """The full pre-registered meter. Computed from inception; RENDERED from FIRST_RENDER.
+
+    `rendered` is a function of the date and the series' integrity ONLY. It never consults the
+    sign of the result -- see the module docstring's rule 2 and the test that pins it.
+    """
+    as_of = as_of or _dt.date.today()
+    inception = inception or INCEPTION
+
+    gaps = gap_report(series, as_of=as_of, inception=inception)
+    mx = monthly_excess(series, as_of=as_of, inception=inception)
+    xs = [mo["excess_pp"] for mo in mx["months"]]
+    n = len(xs)
+
+    out = {
+        "contract_version": CONTRACT_VERSION,
+        "as_of": as_of.isoformat(),
+        "inception": inception.isoformat(),
+        "first_render": FIRST_RENDER.isoformat(),
+        "verdict_date": VERDICT_DATE.isoformat(),
+        "params": {"sigma_monthly_pp": SIGMA_MONTHLY_PP, "rho": RHO, "alpha": ALPHA,
+                   "cost_drag_pp_per_month": COST_DRAG_PP_PER_MONTH},
+        "n_months": n, "gaps": gaps, "voided": mx["voided"],
+        "voided_fraction": mx["voided_fraction"],
+    }
+
+    # Display gate. Both conditions are date/integrity only.
+    too_early = as_of < FIRST_RENDER
+    untrustworthy = mx["voided_fraction"] > MAX_VOIDED_FRACTION
+    out["rendered"] = (not too_early) and n >= 1 and not untrustworthy
+    out["render_blocked_reason"] = (
+        "before the contract's first-render date" if too_early else
+        "no complete month yet" if n < 1 else
+        f"{mx['n_voided']} of {mx['n_elapsed']} months voided for missing data" if untrustworthy
+        else None)
+
+    if n < 1:
+        out["computable"] = False
+        return out
+
+    s = sum(xs)
+    b = boundary(n)
+    out.update({
+        "computable": True,
+        "sum_excess_pp": s,
+        "mean_excess_pp_per_month": s / n,
+        "mean_excess_pp_per_year": s / n * 12.0,
+        "boundary_sum_pp": b,
+        "ci_lower_pp_per_month": (s - b) / n,
+        "ci_upper_pp_per_month": (s + b) / n,
+        "detectable_edge_pp_per_year": detectable_edge_pp_per_year(n),
+        "crossed": "up" if s >= b else ("down" if s <= -b else None),
+        "state": "SUPPORTED-EARLY" if s >= b else ("UNSUPPORTED-EARLY" if s <= -b
+                                                   else "NO CONCLUSION"),
+    })
+
+    # Anti-conservatism guard: the bound assumes sigma. If realised volatility exceeds it the
+    # band is too narrow and sigma must be RAISED (never lowered) with the change logged.
+    if n >= 2:
+        mu = s / n
+        sd = math.sqrt(sum((x - mu) ** 2 for x in xs) / (n - 1))
+        out["realised_sd_pp_per_month"] = sd
+        out["sigma_breach"] = sd > SIGMA_MONTHLY_PP
+    else:
+        out["realised_sd_pp_per_month"] = None
+        out["sigma_breach"] = False
+    return out
+
+
+def frozen_parameters() -> Dict:
+    """Everything the contract fixed, in one auditable dict."""
+    return {
+        "contract_version": CONTRACT_VERSION,
+        "inception": INCEPTION.isoformat(),
+        "operational_gate": OPERATIONAL_GATE.isoformat(),
+        "first_render": FIRST_RENDER.isoformat(),
+        "verdict_date": VERDICT_DATE.isoformat(),
+        "sigma_monthly_pp": SIGMA_MONTHLY_PP,
+        "sigma_derivation": {"tracking_error_annual_pp": _TRACKING_ERROR_ANNUAL_PP,
+                             "lag1_autocorr": _LAG1_AUTOCORR, "design_effect": _DESIGN_EFFECT},
+        "rho": RHO, "alpha": ALPHA,
+        "cost_drag_pp_per_month": COST_DRAG_PP_PER_MONTH,
+        "mark_staleness_limit_td": MARK_STALENESS_LIMIT_TD,
+        "max_voided_fraction": MAX_VOIDED_FRACTION,
+        "detectable_edge_pp_per_year": {n: detectable_edge_pp_per_year(n)
+                                        for n in (6, 12, 24, 36, 60, 120)},
+    }

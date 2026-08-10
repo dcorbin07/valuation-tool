@@ -4,9 +4,11 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-08 (external edge audit, **session 13** — the paper-track evaluation
-contract is DRAFTED AND WAITING ON DON, and the canonical artifact is refreshed off a 45-trial-stale
-denominator. **ACTION REQUIRED FROM DON: pick an option in `PAPER_TRACK_CONTRACT.md`.**)
+**Session date:** 2026-08-09 (external edge audit, **session 14** — the paper-track evaluation
+contract is **SIGNED AND IN FORCE as OPTION E**, the evidence meter's parameters are frozen with
+zero complete months in existence, and the track turns out to have **two recorders holding
+different books**. **NO ACTION REQUIRED FROM DON. The one blocking item is COWORK's: the bound
+series has no automated writer.**)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
@@ -75,58 +77,61 @@ pay for it.
 
 ---
 
-## ⛔ WAITING ON DON — THE PAPER-TRACK CONTRACT (2026-08-08, edge audit session 13)
+## ✅ SIGNED — THE PAPER-TRACK CONTRACT IS IN FORCE, OPTION E (2026-08-09, edge audit session 14)
 
-`PAPER_TRACK_CONTRACT.md` is a **DRAFT and binds nothing.** Don picks one line — *"Option A"*,
-B, C, or *"A but start fresh"* — and session 14 commits the chosen option verbatim with his
-choice recorded. Full write-up in `HANDOFF_edge_audit.md` § SESSION 13; ledger rows
-`PT-CONTRACT`, `ARTIFACT-N`.
+`PAPER_TRACK_CONTRACT.md` is **IN FORCE from commit time.** Don chose **OPTION E**: keep
+inception **2026-07-30** including the accrued negative days, a **6-month operational gate
+(2027-01-30)**, a **60-month verdict vs SPY (2031-07-30)**, the ~36-month costed
+equal-weight-basket secondary *only if it is ever built and separately pre-registered*, plus a
+**pre-registered anytime-valid evidence meter** first rendered at the gate and monthly
+thereafter, whatever it says. §5 is the register; §6 freezes the meter. Full write-up in
+`HANDOFF_edge_audit.md` § SESSION 14; ledger rows `PT-CONTRACT`, `PT-METER`, `PT-WRITER`,
+`PT-SPLIT`.
 
-**The finding that shapes the whole thing, and it is arithmetic on our own published numbers.**
-The Index's top decile beat SPY by **+9.99%/yr at 11.4pp/yr tracking error** — an **information
-ratio of 0.88/yr**, and that is the *in-sample* figure. Since t grows as √time:
+**Equity `N` 129 → 130** (the register is charged as a trial): **Deflated Sharpe 0.8552,
+√(2·ln 130) = 3.1201**, and `BACKTEST_RESULTS.json` was re-run to match.
 
-| horizon | expected t | chance of "significant" **even if the edge is entirely real** | smallest detectable edge |
-|---|---|---|---|
-| 3 months | 0.4 | 10% | +69 pp/yr |
-| **12 months** | **0.9** | **18%** | **+34 pp/yr** |
-| 36 months | 1.5 | 35% | +20 pp/yr |
-| **60 months** | **2.0** | **49%** | **+15 pp/yr** |
+**THE MATERIAL FINDING: there are TWO live recorders and they record DIFFERENT BOOKS.**
 
-**t = 2.0 arrives at 5.2 years** (7.6 with an n_eff haircut). Refutation is symmetric — bad news
-arrives no faster. **The contract's deliverable is the prohibition on reading a short track, not
-a near-term verdict**, and the project has been implicitly assuming otherwise.
+| | **published Valquo Index — WHAT THE REGISTER BINDS** | Tradier sandbox engine |
+|---|---|---|
+| inception | **2026-07-30** | 2026-08-03 |
+| book | **86 names, score-weighted, max weight 2.3%** | **10 names, equal-weighted at 10% each** |
+| read by | `screener/index_track.py` — the number the site shows | `edge/paper_track.py` |
 
-**Five things block the track, and none is repaired here** (two are construction decisions Don's
-answer determines, so fixing them first would choose the contract by implementation):
+The engine's 10% weights **violate the contract's own 8% cap**. These are not one track recorded
+twice — they are different objects whose numbers can be confused, which is a B7-class split.
+**Never quote an engine figure as evidence under the contract.** Needs assigning (`PT-SPLIT`).
 
-1. **The inception date exists only in gitignored `data/valquo_track.json`** — `2026-07-30`,
-   nowhere in the repo. On a fresh deploy the start date of the out-of-sample record is gone.
-2. **No verdict is computable at any horizon.** `paper_index_track` stores a snapshot of
-   currently-open holdings, not a chained series; the Cowork file chains but is missing days.
-3. **The daily write dropped days 2-4 of 5.**
-4. **The engine has never been fed** — 0 rows in all three paper tables, 45/45 tests passing.
-   CLAUDE.md roadmap #12's *"what remains is elapsed time … not building it"* is **wrong**.
-5. **⏰ THE SITE WILL PROMOTE THE PAPER TRACK TO ITS HEADLINE BY ITSELF.**
-   `index_track.py:223-224` — `headline = "backtested" if thin else "live"` with
-   `MIN_LIVE_DAYS = 60`. **The track is on day 5; this fires around late October 2026, at 13%
-   power, with no approval step.** In `valuation/screener/`, **outside the edge lane — it needs
-   assigning.**
+**THE ONE BLOCKING ITEM, AND IT IS NOT WHAT ANYONE THOUGHT: the bound series has no writer.**
+Days 2–4 are not missing from a scheduler fault or a crash — **nothing in this repository writes
+`data/valquo_track_history.csv` at all.** `index_track.py` only reads it; the rows are produced
+by hand on the Cowork side. Measured 2026-08-09: **2 of 6 due rows, 33.3% coverage.**
+**→ COWORK LANE: the 6-month operational gate cannot pass until an automated daily write of the
+Index's cumulative Valquo and SPY levels exists on every trading day.** If it is still unbuilt by
+roughly 2026-11, the gate fails on 2027-01-30 by construction.
 
-**State, disclosed because it makes the choice results-contingent:** inception 2026-07-30, five
-days, Valquo **+0.78%** vs SPY **+3.62%**, excess **−2.85pp** — −1.8 SD of a five-day window, an
-ordinary bad week that says nothing about the strategy. But **the start date is being chosen with
-the sign of the accrued period known**, so discarding those days is the flattering direction; all
-three options therefore keep inception.
+**Corrected from session 13:** *"the engine has never been fed — 0 rows"* was measured on the
+**local dev database**. The live Render service holds 4 index days, 10 holdings and 3 paper
+orders, and the weekly `track-backup` Action has been committing them to `data_export/` all
+along. A local read is not a measurement of production.
 
-**Also done this session: `BACKTEST_RESULTS.json` refreshed.** It shipped a Deflated Sharpe at
-`n_trials = 84`, 45 trials stale. Now **0.8556 at N = 129** (was 0.8997 at 84), re-run on the
-full 2,531-name / 69-date universe from a clean tree. **Every other number is bit-identical** —
-15 leaves moved, five of them the DSR chain, ten by 0.000% float. It was also stale in a way
-nobody had noticed: it predated session 7's B8 fix and shipped **no `oos_verdicts` block at all**.
-Equity `N` stays **129**; zero trial cost.
+**The meter, and the half of it that must always travel with the other half.** Robbins
+normal-mixture confidence sequence: σ **3.9847 pp/month** (the backtest's 11.40pp/yr tracking
+error inflated by R9's AR(1) design effect **1.4661**), **ρ = 3**, **α = 0.05 two-sided**, cost
+drag **0.14529 pp/month**. Measured over 40k AR(1) paths — false-crossing **1.5%** against a
+nominal 5%, but **power at the backtested +9.99%/yr edge is only 13.3% by 60 months**, needing
+**~19 pp/yr to cross**. **So a meter that has not crossed is the EXPECTED outcome and is NOT
+evidence against the strategy.** The AR(1) inflation is load-bearing: without it the false-crossing
+rate is 6.7%. **σ may never be revised downward** (at 1.5× the assumed vol the rate is 20%).
+Genuinely blind: **zero complete calendar months existed** when the parameters were frozen.
 
----
+**⏰ STILL LIVE AND STILL DATED, and it now contradicts a signed contract.**
+`index_track.MIN_LIVE_DAYS = 60` drives `headline = "backtested" if thin else "live"`, so the
+site promotes the paper track to its headline **around late October 2026**, at 13% power, with no
+approval step — roughly three months *before* the contract's own first render. In
+`valuation/screener/`, the greeks lane's, prompted separately. **Until it lands, the code and the
+contract disagree and the contract governs.**
 
 ## ENGINE — CONFIDENCE NOW KNOWS WHAT THE VALUATION IS MADE OF (2026-08-08, greeks/engine lane)
 
