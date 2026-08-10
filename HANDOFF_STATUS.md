@@ -13,6 +13,79 @@ confirming from 2026-08-12, unchanged from session 15: whether the Cowork writer
 
 ---
 
+---
+
+## ENGINE/SCREENER — THE BETA LADDER NOW COVERS THE FULL SERVED UNIVERSE, AND THE BREADTH SHOWS 43% OF THE LIVE SCORE'S WEIGHT IS INERT (2026-08-10, greeks lane)
+
+Full write-up in `HANDOFF_live_data_bugs.md` **Part 12**; ledger row `V2F`; pre-registration
+committed alone at `1867a3f` before `scripts/live_cache.py` existed.
+
+**WHAT SHIPPED.** `scripts/live_cache.py` + `tests/test_live_cache.py` (40 tests, none touching
+the network). Four modes — `capture` pins the served universe, `fetch` pulls, `seed` replays a
+capture into a dedicated store, `report` measures offline.
+
+**BETA COVERAGE 46/403 (11.4%) -> 500/500 (100.0%), WITH ZERO THROTTLE EVENTS.** Runs 1 and 2 died
+at 176 and 297 throttled calls. **What made it affordable is BATCHING, not patience:**
+`yf.download` pulled 500 monthly close series in **13 requests in ~40 seconds**; only the vendor
+`beta` field (`.info`) cannot be batched, so that leg is paced at 2.5s and took ~25 minutes.
+
+**THE STRUCTURAL FIX IS THAT FETCH AND MEASUREMENT ARE NOW SEPARATE PROGRAMS.** `_resolve_beta`
+makes the network call itself (`wacc.py:166`), so measuring coverage burned the quota coverage
+depended on — that is why it kept failing. `report` now makes **zero** network calls and drives
+the **real** ladder against the cache, so it is deterministic and re-runnable. Failed or throttled
+units are **never recorded** (the miner's tri-state rule), so coverage cannot be inflated by
+running into a quota wall.
+
+**RUNG DISTRIBUTION over 500 names:** `vendor` 432 (86.4%), `vendor_corroborated` 31,
+`fallback` 22 (4.4%), `computed` 14, `vendor_uncorroborated` 1.
+**MY PRE-REGISTERED PREDICTION WAS WRONG (60/40):** I expected a *higher* fallback share at full
+breadth than the 46-name sample's 10.9%; it is **lower, 4.4%**, because that sample was enriched
+with problem names by construction. **B1 do-no-harm HELD on real data through an entirely
+different fetch path:** GILD 0.305, CI 0.288, KSPI 0.886 (n=30), CHTR 0.669 all reproduce Part 7.6
+exactly, and KSPI is still rejected for its 30 observations rather than its size.
+
+**THE FINDING — 42.9% OF THE DEPLOYED WEIGHT REACHES NO LIVE SCORE.** Measured on 500 served rows:
+`capital_discipline` and `institutional` are **null on 100% of rows**, and `insider` is 100%
+non-null with **exactly one distinct value**. Each carries **0.125** deployed weight out of a
+0.875 total. `composite_score` renormalises over what is present, so **the live hot list is a
+four-theme book (value, quality, size, momentum) wearing the weights of a nine-theme one.**
+`insider`'s deadness is documented at `screen.py:288`; the other two are not, and
+`capital_discipline` has the **second-strongest backtest IC (+2.76)**. **No claim is made about
+what this costs in return** — that is a backtest question and not this lane's.
+
+**A DEFECT IN MY OWN V2 METER, IN THE DANGEROUS DIRECTION.** Every V2 coverage floor counts
+NON-NULL ROWS, so a constant theme passed all seven — and **`_spearman` does not return NaN on a
+constant predictor**, it returns an arbitrary number, and **exactly +1.0 against a monotone
+target**. The meter would have banked those as genuine monthly observations and the anytime-valid
+band would eventually have called it significant. **The absent themes always refused safely; this
+one would have produced a verdict.** Fixed with a per-date degeneracy floor, recorded as a
+tightening permitted by `PREREG_v2_theme_health.md` §10. `tests/test_theme_health.py` 23 -> 27.
+
+**THE THEME RECORD IS REACHABLE FROM A CHECKOUT AFTER ALL, and Part 11 said it was not.** The
+public, credential-free `/api/hotstocks` carries all ten per-name theme scores. Replayed through
+the project's own `Store.save_snapshot` into a **dedicated** database (never `data/screener.db`),
+the meter now reads **500 real rows at `scan_date 2026-08-08`, 0 synthetic**, up from 0 usable
+rows. **Not one of the ten verdicts changed** — still zero closed 63-day windows — but seven
+themes moved from *blocked by absent data* to *blocked by elapsed time*. At a 500-name
+cross-section a live IC of **+0.0379 is detectable by month 60** against `quality`'s backtested
++0.0356, confirming V2's calibration from the other side. **The endpoint serves the LATEST scan
+only**, so the record accrues **forward** one day per run and can never be backfilled — 9 real
+dates exist on Render that this repo cannot reach.
+
+**RECOMMENDED NEXT STEP, and it is cheap:** run `capture` + `seed` on a daily cron. Every day it
+does not run is a day of the forward record that cannot be recovered. **Owner: Cowork/infra.**
+
+**TESTS: 26 suites, 1199 tests, 0 failures.** Zero trial cost — equity `N` stays **129**.
+
+**BUGS FOUND (5), four for other lanes:** (1) three themes carrying 42.9% of deployed weight
+contribute nothing to any live score; (2) the served payload's `health` key is `null`, so
+`theme_coverage`/`theme_contributing` — which `screen.py` computes precisely to surface (1) —
+reach nobody; (3) nothing in the repository catches a rate-limit exception, so a throttled call is
+indistinguishable from "no data" everywhere except `BetaEstimate.unavailable`; (4)
+`BETA_HIGH_CAP = 3.0` sends 7 of 500 served names (ARM 3.909, ALAB, BE, AFRM, AGGI, COIN, CRDO) to
+a beta of 1.0, escalating Part 7.7's open item from one name to a population; (5)
+`tests/test_saas.py:200` still writes a 2099-01-01 row into the real `data/screener.db`.
+
 ## EDGE LANE, 2026-08-10 — session 16
 
 **No action required from Don.** Everything below is landed and tested.
