@@ -703,12 +703,25 @@ def leg_path(root: str, leg: str, ticker: str) -> str:
 
 
 def fetch_all(root: str = DEFAULT_ROOT, legs=_LEGS, limit: int | None = None,
-              guard: Guard | None = None) -> dict:
+              guard: Guard | None = None, slice_i: int = 0, slice_n: int = 1) -> dict:
+    """Fetch every leg for every served name, resumably.
+
+    `slice_i/slice_n` splits the universe into disjoint interleaved shards so several
+    processes can run at once. The cost here is LATENCY, not the rate limit: SEC publishes a
+    ~10 req/s ceiling and one serial process only reaches ~3 req/s, so a shard runs at a
+    higher per-process interval and the FLEET still sits under the ceiling. Shards never
+    collide: each keeps its own manifest, and the durable cache is the per-leg payload file,
+    written atomically — so `done` also accepts "the payload is already on disk", which makes
+    a lost or racing manifest a slowdown rather than a correctness problem.
+    """
     served = load_served()
     if limit:
         served = served[:limit]
+    if slice_n > 1:
+        served = [r for i, r in enumerate(served) if i % slice_n == slice_i]
     guard = guard or Guard()
-    manifest = Manifest(os.path.join(root, "manifest.json"))
+    suffix = "" if slice_n == 1 else f"_{slice_i}_{slice_n}"
+    manifest = Manifest(os.path.join(root, f"manifest{suffix}.json"))
     ciks = cik_map(root, guard)
     stats = {leg: {"done": 0, "fetched": 0, "skipped_no_cik": 0} for leg in legs}
 
@@ -717,7 +730,7 @@ def fetch_all(root: str = DEFAULT_ROOT, legs=_LEGS, limit: int | None = None,
         info = ciks.get(tkr.upper())
         for leg in legs:
             key = f"{leg}:{tkr}"
-            if manifest.done(key):
+            if manifest.done(key) or os.path.exists(leg_path(root, leg, tkr)):
                 stats[leg]["done"] += 1
                 continue
             if leg in ("cusip", "xbrl") and not info:
@@ -1051,6 +1064,9 @@ def main(argv=None) -> int:
     ap.add_argument("--root", default=DEFAULT_ROOT)
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--legs", default=",".join(_LEGS))
+    ap.add_argument("--slice", default="0/1", help="i/n — disjoint shard for parallel runs")
+    ap.add_argument("--interval", type=float, default=None,
+                    help="per-process pacing; raise it when running several shards")
     ap.add_argument("--out", default=None)
     a = ap.parse_args(argv)
     if a.command == "thirteenf":
@@ -1059,7 +1075,10 @@ def main(argv=None) -> int:
     elif a.command == "fetch":
         build_13f(a.root)
         legs = tuple(x for x in a.legs.split(",") if x)
-        print(json.dumps(fetch_all(a.root, legs=legs, limit=a.limit), indent=2))
+        i, n = (int(x) for x in a.slice.split("/"))
+        guard = Guard(min_interval=a.interval) if a.interval else None
+        print(json.dumps(fetch_all(a.root, legs=legs, limit=a.limit, guard=guard,
+                                   slice_i=i, slice_n=n), indent=2))
     elif a.command == "report":
         p = report(a.root, out=a.out or os.path.join("data", "free_analysis", "V2G_LIVE_THEMES.json"))
         print(render(p))
