@@ -448,6 +448,56 @@ def test_the_script_runs_end_to_end_and_writes_an_artifact_with_per_date_rows():
         assert art["parameters"]["prereg"] == "PREREG_v2_theme_health.md"
 
 
+def test_spearman_on_a_constant_predictor_is_not_zero_and_can_be_plus_one():
+    """The premise for the degeneracy guard, measured rather than assumed.
+
+    `_spearman` does not report NaN when asked to rank a constant. Against a monotone target
+    it returns exactly +1.0 — a perfect IC out of a column that carries no information. This
+    is why the guard is a floor and not a footnote."""
+    assert TH._spearman([1.0] * 10, list(range(10))) == 1.0
+    vals = [TH._spearman([0.0] * 50, [((i * 37) % 50) / 50.0 for i in range(50)])]
+    assert all(v == v for v in vals)          # a number, not NaN — that is the hazard
+
+
+def test_a_constant_theme_is_refused_rather_than_measured():
+    """`insider` is live proof: 100% non-null on 500 served rows, exactly one distinct value."""
+    rows, days = planted_panel(months=14, planted=0.5, theme="quality", seed=11)
+    for r in rows:
+        r["factors"]["insider"] = 0.0                    # the live constant
+    res = TH.analyse(rows, as_of=days[-1])
+    d = res["depth"]["per_theme"]["insider"]
+    assert d["non_null_rows"] == len(rows), "premise: fully populated"
+    assert d["coverage"] == 1.0, "premise: reads as 100% covered"
+    assert d["degenerate"] is True
+    assert d["dates_with_variation"] == 0
+    v = res["themes"]["insider"]
+    assert v["verdict"] == "NOT-QUOTABLE", v
+    assert any("CONSTANT" in b for b in v["blocked_by"]), v["blocked_by"]
+
+
+def test_a_constant_theme_contributes_no_monthly_observations():
+    """The guard must bite at the IC, not only at the label — otherwise the band still fills."""
+    rows, days = planted_panel(months=14, planted=0.5, theme="quality", seed=12)
+    for r in rows:
+        r["factors"]["insider"] = 0.0
+    res = TH.analyse(rows, as_of=days[-1])
+    # The band must be EMPTY, not merely unlabelled: a guard that only changed the verdict
+    # would still be accumulating a fabricated IC every month underneath it.
+    assert res["themes"]["insider"]["n_months"] == 0, res["themes"]["insider"]["n_months"]
+    # ...while the same run's real theme keeps every one of its months.
+    assert res["themes"]["quality"]["n_months"] > 0, res["themes"]["quality"]
+
+
+def test_a_theme_with_variation_is_untouched_by_the_guard():
+    """Do-no-harm: the guard must not disturb a theme that was measurable before it existed."""
+    rows, days = planted_panel(months=14, planted=0.5, theme="quality", seed=13)
+    res = TH.analyse(rows, as_of=days[-1])
+    d = res["depth"]["per_theme"]["quality"]
+    assert d["degenerate"] is False
+    assert d["dates_with_variation"] > 0
+    assert res["themes"]["quality"]["verdict"] == "CONFIRMED-LIVE", res["themes"]["quality"]
+
+
 if __name__ == "__main__":
     print("theme_health (V2 live theme-health meter)")
     for nm, fn in sorted((k, v) for k, v in list(globals().items())

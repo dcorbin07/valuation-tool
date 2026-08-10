@@ -337,10 +337,21 @@ def depth_report(rows: Sequence[dict]) -> dict:
         present = sum(1 for r in rows if (r["factors"] or {}).get(theme) is not None)
         theme_dates = sorted({r["date"] for r in rows
                               if (r["factors"] or {}).get(theme) is not None})
+        # PRESENT is not USABLE. Measured per DATE, because a theme is ranked within a
+        # cross-section: constant on every date is dead even if the values differ across
+        # dates, and a single live date with variance is enough to keep it alive.
+        live_dates = 0
+        for d in theme_dates:
+            vals = [(r["factors"] or {}).get(theme) for r in rows
+                    if r["date"] == d and (r["factors"] or {}).get(theme) is not None]
+            if len(vals) >= MIN_NAMES_PER_DATE and not _is_degenerate(vals):
+                live_dates += 1
         per_theme[theme] = {
             "non_null_rows": present,
             "coverage": present / n,
             "dates_with_data": len(theme_dates),
+            "dates_with_variation": live_dates,
+            "degenerate": bool(theme_dates) and live_dates == 0,
             "meets_coverage_floor": (present / n) >= MIN_THEME_COVERAGE,
         }
     return {
@@ -441,6 +452,41 @@ def forward_returns(rows: Sequence[dict], d: _dt.date,
     return out, info
 
 
+#: Distinct values below which a theme's cross-section carries no ranking information.
+#: A rank-IC needs something to rank.
+MIN_DISTINCT_VALUES = 2
+
+
+def _is_degenerate(xs: Sequence[float]) -> bool:
+    """True when a theme is CONSTANT across the cross-section, so its rank-IC is not defined.
+
+    TIGHTENING, ADDED 2026-08-10, RECORDED RATHER THAN SLIPPED IN. The V2 pre-registration
+    froze seven coverage floors and every one of them counts NON-NULL ROWS. That is the wrong
+    question for a live feed, and the live feed proved it: measured on the 500 served rows of
+    scan 2026-08-08, `insider` is 100% non-null and takes exactly ONE distinct value, because
+    with no `insider_score` in the metrics `build_frame` fills the column with the constant 0.0
+    (`screen.py:288-292` documents this as the live example of a dead theme).
+
+    The failure is not benign, which is why this is a floor and not a footnote. `_spearman`
+    does not return NaN on a constant predictor — it returns an arbitrary number. Measured:
+    against random targets it lands anywhere in roughly [-0.15, +0.17], and against a monotone
+    target it returns exactly +1.0. Without this guard the meter would accumulate those as
+    genuine monthly observations for a theme that carries no information at all, and a run of
+    them in one direction is precisely what an anytime-valid band is built to declare
+    significant. **The absent themes were always going to refuse safely; this one would have
+    produced a verdict.**
+
+    Permitted by PREREG_v2_theme_health.md §10: refusing MORE data can only delay a verdict,
+    never manufacture one.
+    """
+    seen = set()
+    for x in xs:
+        seen.add(x)
+        if len(seen) >= MIN_DISTINCT_VALUES:
+            return False
+    return True
+
+
 def per_date_ic(rows: Sequence[dict], d: _dt.date, fwd: Dict[str, float],
                 index: dict = None) -> Dict[str, dict]:
     """{theme: {ic, n}} on date `d`. The correlation is the panel's own `_spearman`."""
@@ -459,11 +505,12 @@ def per_date_ic(rows: Sequence[dict], d: _dt.date, fwd: Dict[str, float],
                 ys.append(float(f))
             except (TypeError, ValueError):
                 continue
-        if len(xs) >= MIN_NAMES_PER_DATE:
+        if len(xs) >= MIN_NAMES_PER_DATE and not _is_degenerate(xs):
             ic = _spearman(xs, ys)
             out[theme] = {"ic": (float(ic) if ic == ic else None), "n": len(xs)}
         else:
-            out[theme] = {"ic": None, "n": len(xs)}
+            out[theme] = {"ic": None, "n": len(xs),
+                          "degenerate": _is_degenerate(xs) if xs else False}
     return out
 
 
@@ -609,7 +656,18 @@ def analyse(rows: Sequence[dict], as_of: _dt.date = None,
         blocks = []
         if depth["per_theme"][t]["non_null_rows"] == 0:
             blocks.append("theme is empty in the record (0 non-null rows)")
-        elif not depth["per_theme"][t]["meets_coverage_floor"]:
+        elif depth["per_theme"][t].get("degenerate"):
+            # Present on every row and CONSTANT, so there is nothing to rank. Reported as its
+            # own reason because it is a different defect from absence and has a different
+            # owner: an absent theme needs a data source, a constant one needs a writer fix.
+            blocks.append("theme is CONSTANT across every cross-section (%d non-null rows, "
+                          "no variation) — a rank-IC is undefined, not zero"
+                          % depth["per_theme"][t]["non_null_rows"])
+        if depth["per_theme"][t]["non_null_rows"] and \
+                not depth["per_theme"][t]["meets_coverage_floor"]:
+            # Independent of the degeneracy check, not chained behind it: a theme can be BOTH
+            # sparse and constant, and an elif would report one reason and silently drop the
+            # other. Every reason a theme is unquotable is printed.
             blocks.append("coverage %.1f%% is below the %.0f%% floor"
                           % (100.0 * depth["per_theme"][t]["coverage"],
                              100.0 * MIN_THEME_COVERAGE))
@@ -723,10 +781,18 @@ def render(result: dict, provenance: dict) -> str:
     A("  %-20s %10s %9s %8s" % ("theme", "non-null", "coverage", "months"))
     for t in S.FACTORS_ALL:
         pt = d["per_theme"][t]
+        # The degeneracy marker belongs HERE, in the depth table, not only in the verdict:
+        # this row is where a reader checks whether a theme has data, and a constant theme
+        # reads as the best-covered one in the product. `insider` is 100.0% and dead.
+        if pt.get("degenerate"):
+            note = "   CONSTANT - no ranking information"
+        elif not pt["meets_coverage_floor"]:
+            note = "   < floor"
+        else:
+            note = ""
         A("  %-20s %10d %8.1f%% %8d%s"
           % (t, pt["non_null_rows"], 100.0 * pt["coverage"],
-             result["themes"][t]["n_months"],
-             "" if pt["meets_coverage_floor"] else "   < floor"))
+             result["themes"][t]["n_months"], note))
 
     A("")
     A("-- VERDICTS " + "-" * 65)
