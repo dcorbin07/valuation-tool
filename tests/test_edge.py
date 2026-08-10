@@ -5839,6 +5839,92 @@ def test_x3_alpha_series_reproduces_quantile_backtest():
     assert abs(float(np.mean(s["alpha"]) * 4.0) - r["top_decile_alpha"]) < 1e-12
 
 
+def test_v2g_return_series_is_opt_in_and_changes_nothing_else():
+    """V2G added the per-period draws to `quantile_backtest`. It is opt-in precisely so that no
+    existing caller's payload — including the tracked BACKTEST_RESULTS.json — moves by one bit."""
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=12, n_names=60, seed=11)
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    off = quantile_backtest(p, cols, w, n_q=10, horizon=63)
+    on = quantile_backtest(p, cols, w, n_q=10, horizon=63, return_series=True)
+    assert "series" not in off, "the draws must NOT appear unless asked for"
+    assert set(on) - set(off) == {"series"}, f"only `series` may be added; got {set(on) - set(off)}"
+    for k in off:
+        assert repr(off[k]) == repr(on[k]), f"{k} moved when the series was requested"
+
+
+def test_v2g_the_series_reproduces_its_own_summary():
+    """RUN_RULES A9 — the draws must be the same object the summary is computed from, or a
+    paired comparison built on them is measuring something the headline is not."""
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=12, n_names=60, seed=11)
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    r = quantile_backtest(p, cols, w, n_q=10, horizon=63, return_series=True)
+    s = r["series"]
+    ppy = 252.0 / 63
+    assert len(s["alpha"]) == len(s["long_short"]) == r["n_periods"]
+    assert len(s["dates"]) == len(s["n_scored"]) == r["n_periods"], "every draw must be dated"
+    assert abs(float(np.mean(s["alpha"]) * ppy) - r["top_decile_alpha"]) < 1e-12
+    assert abs(float(np.mean(s["long_short"]) * ppy) - r["long_short_ann"]) < 1e-12
+
+
+def test_v2g_the_shipped_series_agrees_with_the_x3_implementation():
+    """There were two implementations of this series. They must not drift apart."""
+    from valuation.edge.ablation import alpha_series
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=12, n_names=60, seed=11)
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    shipped = quantile_backtest(p, cols, w, n_q=10, horizon=63, return_series=True)["series"]
+    x3 = alpha_series(p, cols, w, n_q=10)
+    assert len(shipped["alpha"]) == len(x3["alpha"])
+    for a, b in zip(shipped["alpha"], x3["alpha"]):
+        assert abs(a - b) < 1e-12, f"the two alpha series disagree: {a} vs {b}"
+
+
+def test_v2g_dropping_a_theme_equals_the_live_product_losing_it():
+    """The claim V2G rests on: the four-theme restricted arm IS the live book, not a model of it.
+
+    `composite` renormalises by the PRESENT-weight mass, so a theme that is absent (all-NaN) or
+    constant (z-scores to all-NaN, because `zscore` returns NaN on zero variance) leaves both the
+    numerator and the denominator identically — which is exactly what dropping it from `weights`
+    does. If this ever stops holding, the restricted arm stops describing the live product and
+    V2G's verdict describes nothing.
+    """
+    import numpy as _np
+
+    from valuation.edge.fundamental_panel import composite_from_frame
+    from valuation.screener.cross_sectional import zscore
+
+    p = _u7_panel(n_dates=3, n_names=60, seed=11)
+    sub = p[p["date"] == sorted(p["date"].unique())[0]].copy()
+    live, dead = ["quality", "momentum"], ["value", "size"]
+    w_all = {t: 0.125 for t in live + dead}
+    w_live = {t: 0.125 for t in live}
+
+    want = composite_from_frame(sub, list(w_live), w_live, zscore)
+
+    absent = sub.copy()
+    for t in dead:
+        absent[t] = _np.nan
+    got_absent = composite_from_frame(absent, list(w_all), w_all, zscore)
+
+    const = sub.copy()                      # the LIVE `insider` case: present but one value
+    for t in dead:
+        const[t] = 0.0
+    got_const = composite_from_frame(const, list(w_all), w_all, zscore)
+
+    assert _np.isfinite(want).any(), "the fixture must produce a scorable cross-section"
+    for got, label in ((got_absent, "absent"), (got_const, "constant")):
+        assert _np.array_equal(_np.isfinite(want), _np.isfinite(got)), \
+            f"{label}: the scorable-name set changed"
+        both = _np.isfinite(want) & _np.isfinite(got)
+        dev = float(_np.max(_np.abs(want[both] - got[both])))
+        assert dev <= 1e-12, f"{label}: composite differs by {dev:.3e}"
+
+
 def test_x3_deflated_sharpe_at_round_trips_and_falls_with_n():
     """X3's eight arms raise N, and a higher N must LOWER the Deflated Sharpe. That direction
     is the entire point of M1; a re-derivation that moved it the other way would be wrong."""
