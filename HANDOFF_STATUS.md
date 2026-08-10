@@ -4,6 +4,33 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-10 — r1 lane, cold-audit LA2: the track backup was backing up the wrong book
+
+**FIXED.** The weekly `track-backup` workflow preserved 4 days of the Tradier **sandbox** engine
+and **ZERO rows of the contract-bound Valquo Index** — the record `PAPER_TRACK_CONTRACT.md`
+actually binds. Its anti-regression guard counted the sandbox file, so the bound series could go
+from two rows to zero without tripping anything; **the job was green throughout**, because zero is
+never fewer than zero.
+
+The workflow now ingests the bound series from every place it can live and merges by date (an
+empty source can never erase a populated one), writes it as its own `valquo_index_track.csv`,
+guards on **its** row count plus an absolute presence check, and the emitted README no longer
+labels the sandbox file "Valquo Index vs SPY" — the exact mislabel behind the false "Index beating
+SPY" Discord post of 2026-08-05.
+
+**The two bound rows are now committed to git** (2026-07-31 −0.2777pp, 2026-08-06 −2.8468pp, 86
+names), so the record no longer exists on one laptop only. **`data/` is untouched and still
+gitignored** — the licensed-Sharadar rule is not bent; the copy lives in the already-tracked
+`data_export/`. It is a **backup, not a second recorder**: `index_track.load()` still reads `data/`
+and only `data/`.
+
+New `tests/test_track_export.py` (**18 tests**; the module had none), including a real restore that
+reproduces the published −2.8468pp. **34/34 suites green.** Full write-up: `HANDOFF_ci.md`, LA2.
+
+**NOTHING CHANGED ABOUT WHAT THE SITE SAYS OR WHAT THE CONTRACT BINDS.** And the gate's real
+blocker is unmoved: **there is still no automated writer for the bound series** — LA2 does not
+cover it. Trial cost none; equity `N` stays 131.
+
 **Session date:** 2026-08-09 (external edge audit, **session 15** — **AMENDMENT 1**: run #1 is
 VOID, **run #2 is the live test from 2026-08-10**, and the project now has a **VINTAGE RULE**.
 The meter and gap report are wired into `/api/track`. **NO ACTION REQUIRED FROM DON, but one

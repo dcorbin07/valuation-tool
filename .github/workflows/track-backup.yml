@@ -2,6 +2,16 @@ name: Track backup (the one thing that can't be re-derived)
 
 # Commits a plain-text snapshot of the FORWARD PAPER TRACK into the repo every week.
 #
+# TWO DIFFERENT BOOKS ARE BACKED UP, and conflating them is the defect this workflow shipped
+# with (audit LA2, fixed 2026-08-10):
+#   * the CONTRACT-BOUND Valquo Index (`valquo_index_*`) — 86 names, score-weighted, 8% cap,
+#     inception 2026-07-30. This is the series `PAPER_TRACK_CONTRACT.md` binds and the only one
+#     that may ever be cited as evidence under it.
+#   * the Tradier SANDBOX engine (`paper_track_*`) — 10 names, equal-weighted at 10%, inception
+#     2026-08-03. Its weights break the contract's own 8% cap. It is not the Index.
+# Until LA2 this job backed up the second and ZERO rows of the first, and its anti-regression
+# guard counted the second — so the record it existed to protect was never counted at all.
+#
 # Why this workflow has to exist at all: the live record lives in the SQLite database on the
 # Render web service's persistent disk (render.yaml: disk `data`, /app/data, 1GB). That disk
 # survives redeploys but not the service being deleted or recreated. Everything else in this
@@ -68,25 +78,55 @@ jobs:
               print("::error::export endpoint returned an error:", d.get("error"))
               sys.exit(1)
           c = (d.get("export") or {}).get("counts") or {}
-          print("index days:", c.get("index_days"), "| closed trades:",
-                c.get("option_alerts_closed"), "| ingested days:", c.get("ingested_index_days"))
+          # Both books, named for what they are. `index_days` is the SANDBOX engine; the
+          # contract-bound Valquo Index is `bound_index_days`, and it is absent entirely from
+          # a service still running pre-LA2 code — which is why the render step below merges
+          # the committed copy rather than trusting this number.
+          print("sandbox engine days:", c.get("index_days"),
+                "| closed trades:", c.get("option_alerts_closed"),
+                "| BOUND Valquo Index days:", c.get("bound_index_days"),
+                "| legacy ingested days:", c.get("ingested_index_days"))
           PY
 
-      - name: Render the backup files
-        run: python -m valuation.edge.track_export --from-json payload.json --out data_export
-
-      - name: Refuse to overwrite a real backup with an empty one
+      - name: Snapshot the committed backup, so the guard has something to compare against
         run: |
           set -euo pipefail
-          # The failure this guards against: the service comes up against a FRESH disk, the
-          # track reads as empty, and a well-behaved backup faithfully commits nothing over
-          # months of record. An empty export is only allowed to land if what is already
-          # committed is empty too. Tripping this is a real incident, not a flaky job.
-          NEW=$(python -c "import csv;print(sum(1 for _ in csv.DictReader(open('data_export/paper_track_index.csv'))))")
-          OLD=$(git show HEAD:data_export/paper_track_index.csv 2>/dev/null | tail -n +2 | grep -c . || echo 0)
-          echo "index rows: committed=$OLD new=$NEW"
-          if [ "$NEW" -lt "$OLD" ]; then
-            echo "::error::the new export has FEWER index days ($NEW) than the committed backup ($OLD). Refusing to commit. The live database may have been reset — investigate before overwriting."
+          # Taken BEFORE the render, because the render overwrites data_export/ in place.
+          # Anything the committed tree does not have is legitimately absent -> 0 rows.
+          mkdir -p .guard-committed
+          for f in valquo_index_track.csv paper_track_index.csv; do
+            git show "HEAD:data_export/$f" > ".guard-committed/$f" 2>/dev/null \
+              || rm -f ".guard-committed/$f"
+          done
+          ls -l .guard-committed/ || true
+
+      - name: Render the backup files, and refuse to lose a row of either book
+        run: |
+          set -euo pipefail
+          # --guard-against fails the step when EITHER series comes back with fewer rows than
+          # the committed copy. The render itself also merges the committed bound rows (that
+          # is `write(merge_committed=True)`, the default), so the guard is a backstop rather
+          # than the only defence — the live service holding zero bound rows is a NORMAL state
+          # and must not be able to erase the record.
+          #
+          # LA2, 2026-08-10: this used to count `paper_track_index.csv` only — the SANDBOX
+          # book. The contract-bound Valquo Index was never counted, so it could go from two
+          # rows to zero without tripping anything, which is exactly what it had been doing.
+          python -m valuation.edge.track_export \
+            --from-json payload.json --out data_export --guard-against .guard-committed
+          rm -rf .guard-committed
+
+      - name: The bound series must be present, not merely un-regressed
+        run: |
+          set -euo pipefail
+          # A separate check from the guard above on purpose. The guard is relative (did we
+          # LOSE rows); this is absolute (is the thing we exist to protect actually here). At
+          # the time LA2 was found the answer had been "no" for months while every run was
+          # green, because zero is never fewer than zero.
+          N=$(python -c "from valuation.edge.track_export import guard_counts as g;print(g('data_export')['bound_index_days'])")
+          echo "contract-bound Valquo Index rows in the backup: $N"
+          if [ "$N" -eq 0 ]; then
+            echo "::error::the backup contains ZERO rows of the CONTRACT-BOUND Valquo Index (data/valquo_track.json + valquo_track_history.csv). That is the series PAPER_TRACK_CONTRACT.md binds and the one record here that cannot be re-derived. The sandbox engine's rows are NOT a substitute."
             exit 1
           fi
 
