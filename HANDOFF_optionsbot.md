@@ -2816,3 +2816,234 @@ in particular corrupts the comparison the whole forward track exists to make, an
 stays open is another position entered under levels no backtest describes. The instrument itself
 needs nothing further until roughly 30 exits exist — on a three-position book at the current
 alert rate, that is a long way off, which is itself worth knowing.
+
+---
+
+# LA15 — the test suite writes into the real databases (2026-08-10)
+
+**Item:** `VALQUO_LIVE_AUDIT.md` LA15, severity LOW, class `test-mutates-production-state`.
+**Scope:** `tests/**` only. No production module was edited.
+**Files:** `tests/state_isolation.py` (new), `tests/test_state_isolation.py` (new, 29 tests),
+plus a two-line guard import in eight existing suites.
+
+## 1. What the audit said, and what was actually there
+
+The audit named one row: `tests/test_saas.py:200-205` POSTs `/admin/ingest-snapshot` with
+`scan_date: "2099-01-01"` against a `Store()` that resolves to the repository's real
+`data/screener.db`, and `latest_scan_date()` orders `DESC`, so the fixture outranks every real
+scan forever.
+
+Measured on this checkout, **one run of that one suite left six rows across five tables plus a
+meta key**:
+
+| table | row |
+|---|---|
+| `meta` | `hot_processed_2099-01-01` |
+| `scans` | `2099-01-01`, provider `ci` |
+| `snapshot_rows` | `TESTX` @ `2099-01-01`, hot_score 91.0 |
+| `track_picks` | `hot10` / `2099-01-01` / `TESTX` |
+| `positions` | an **OPEN** `hot10` paper position in `TESTX` at $10.00 |
+| `alerts_sent` | `__HOTDIGEST__`, `alert_date` = **the real calendar day the test ran** |
+
+The last row is the one that is not cosmetic. `notify.post_hot_digest` returns early when
+`store.alerted_today("__HOTDIGEST__")`, and `mark_alerted` stamps *today*, not the scan date —
+so **running the suite on a box with a Discord webhook configured suppresses that day's real
+hot digest.** A test may not decide whether the product notifies its users.
+
+## 2. The primary checkout is polluted right now (read-only check, nothing was changed)
+
+| | measured |
+|---|---|
+| `data/screener.db` latest scan | **`2099-01-01`, and it is the ONLY scan_date present** |
+| open positions | 1 — the `TESTX` fixture |
+| `data/app.db` user accounts | **34**, all created by test runs |
+| `data/archive/scans/` | 3 days, **all** `provider: "synthetic (offline test)"` |
+
+Every scan-derived surface on Don's local app — `/api/hotstocks`, `/api/valquo-index`,
+`/api/whatdo`, the hero — is serving the fixture. The audit predicted this; it is confirmed
+live rather than inferred. **Nothing was deleted: that is Don's call, and the commands are in
+§8.**
+
+## 3. The sweep — measured, not read
+
+`data/`, `data_export/`, every repo-root file and `git status --porcelain` were fingerprinted
+(size + mtime + sha1) around a subprocess run of **each of the 37 suites then present**, before
+and after.
+
+**Four suites mutate real state, three of which the audit did not name:**
+
+| suite | what it wrote |
+|---|---|
+| `test_saas.py` | `data/screener.db` **and** `data/app.db` |
+| `test_security.py` | `data/app.db` |
+| `test_screener.py` | `data/archive/scans/<today>.json.gz` |
+| `test_private.py` | opened the real `screener.db` (its `-wal`/`-shm` were checkpointed away) |
+
+One reported mutation was **a false positive and is discounted**: `test_theme_health.py`'s
+`__git_status__` hit is the guard module I created while the sweep was still running. Recorded
+here rather than quietly dropped.
+
+Three further suites **read** real state without writing it — `create_saas_app` opens
+`data/app.db` — and so their results depend on those 34 accounts: `test_public.py`,
+`test_research_page.py`, `test_score_confidence.py`. `test_paper_track.py` reads
+`data/valquo_track.json`. All are covered.
+
+## 4. Four escapes, enumerated
+
+```
+create_saas_app(...)   -> UserStore(cfg.database_url)      -> data/app.db
+Store() / UserStore()  -> no path                          -> data/screener.db, data/app.db
+run_scan(..., save)    -> screen.py -> archive_scan()      -> data/archive   (RELATIVE root)
+live_hero(...)         -> index_track.default_paths()      -> data/valquo_track.json + .csv
+```
+
+The third is the interesting one. `test_screener.py` passes a **temp store** — the author did
+isolate the database — but `screen.py:336` calls `archive_scan(rows, scan_date, provider.name)`
+with no root, and `archive.DEFAULT_ROOT` is the *relative* path `data/archive`, resolved against
+the cwd and bound as a default argument at def time. A relative default root is invisible from
+the call site, which is why isolating the store was not enough. **This is the same class as the
+miner's `data/options` root already pinned in `tests/test_edge.py:4567`.**
+
+## 5. THE FINDING THAT LEAVES THIS LANE: the local scan archive is 100% test output, and it
+   grows by one fabricated day per day
+
+Every archived scan day on this checkout — **5 of 5**, and **3 of 3** in the primary checkout —
+reads `provider: "synthetic (offline test)"` with 100 `SYN####` tickers. One file per calendar
+day the suite was run:
+
+```
+2026-08-06  synthetic (offline test)  100 rows  SYN0706
+2026-08-07  synthetic (offline test)  100 rows  SYN0410
+2026-08-08  synthetic (offline test)  100 rows  SYN0807
+2026-08-09  synthetic (offline test)  100 rows  SYN0612
+2026-08-10  synthetic (offline test)  100 rows  SYN0513
+```
+
+`scripts/theme_health.py` — the **V2** instrument — reads exactly `data/archive/scans/`. V2
+reported that "every archived scan day is synthetic and the store's one row is a 2099 test
+fixture" and correctly called the theme-health meter NOT-QUOTABLE. **Both halves of that
+sentence are this audit item**: the archive days come from `test_screener.py`, the 2099 row from
+`test_saas.py`. V2 diagnosed the symptom; this is the mechanism.
+
+The dangerous property is that it is **self-refreshing**. The directory is not empty and not
+obviously broken — it accrues one more plausible-looking day every day anyone runs the tests, so
+it reads as accumulating history. → **V2's lane (greeks agent): the archive cannot be treated as
+a partially-real series with synthetic gaps. On any developer box it is synthetic in full.**
+
+## 6. The other finding: two of the project's strongest guards fail on a developer box, with
+   messages that assert the opposite of what happened
+
+`HANDOFF_STATUS` has carried "`test_paper_track` 37/40 locally, 40/40 in CI — don't chase it".
+It was worth chasing. Copying the primary checkout's real `valquo_track.json` +
+`valquo_track_history.csv` into this worktree and running the **pre-fix** suite from `HEAD`:
+
+* **pre-fix: 65/70.** Fixed suite, same files present: **70/70.**
+* The five failures are `test_hero_never_raises_and_never_takes_the_page_down`,
+  `test_hero_stays_hidden_until_the_track_actually_reports`,
+  `test_hero_will_not_render_the_sandbox_book_as_the_index`,
+  `test_no_outbound_surface_may_quote_the_sandbox_engine_as_the_index`,
+  `test_recap_will_not_quote_a_hit_rate_as_a_rate_below_the_evidence_floor`.
+
+**Read at face value, two of those say the B7 sandbox/Index split has regressed. It has not.**
+`test_hero_will_not_render_the_sandbox_book_as_the_index` fails with
+
+> the hero rendered the Tradier sandbox book as the Valquo Index: `{'available': True,
+> 'source': 'index-track', 'since': '2026-07-31', 'days': 2, 'book': 'Valquo Index (top decile,
+> large-cap tier, score-weighted, 8% cap)', ...}`
+
+— the payload it prints is `source: 'index-track'`, the **contract-bound** recorder, read
+correctly from the developer's own file. The hero did the right thing; the test asserted
+`available is False` on the assumption that no bound track exists, which is true in CI and false
+on Don's machine. Same for the outbound-surface guard, whose recap is labelled *"paper,
+contract-bound Valquo Index"*. **Nobody should quote those local failures as evidence of a
+sandbox leak.**
+
+The fix does not weaken either guard: in CI there are no track files, so pointing
+`default_paths()` at an empty temp directory reproduces CI behaviour exactly — the guards stay
+as strong as they are in the gate, and now behave that way everywhere.
+
+## 7. BUGS FOUND
+
+**B-LA15.1 — `valuation/edge/archive.py:35`: the archive root is relative, and bound at def
+time.** `DEFAULT_ROOT = os.path.join("data", "archive")` is a relative path used as a default
+argument, so (a) it resolves against whatever the cwd happens to be, and (b) reassigning the
+module constant does not change it. `valuation/screener/screen.py:336` calls
+`archive_scan(rows, scan_date, provider.name)` with no root, so **any** caller anywhere writes
+into `<cwd>/data/archive` — which is how a suite that had correctly passed a temp store still
+wrote a real archive day. Same class as the miner's `data/options` root already pinned in
+`tests/test_edge.py:4567`. **NOT FIXED — LA15's scope is `tests/**`.** → screener/engine lane:
+resolve against the repo root or require an explicit root, and pin it.
+
+**B-LA15.2 — `valuation/saas/notify.py:187,190`: the hot digest is deduped on the wall-clock
+day, but it is a digest *for* `scan_date`.** `alerted_today("__HOTDIGEST__")` keys on today
+while `mark_alerted("__HOTDIGEST__", scan_date)` stores `alert_date = today` and
+`run_time = scan_date`. The docstring says "at most once per day", so the wall-clock key is
+deliberate and this is **behaviour, not a verdict** — but two consequences follow that are worth
+someone's attention. First, it is the mechanism by which a test run suppressed a real digest.
+Second, `/admin/ingest-snapshot`'s own `already` guard is keyed on `scan_date`, so a *second,
+different* `scan_date` ingested on the same calendar day — exactly the backup-cron case the
+route's comment describes, since GitHub drops scheduled runs — passes that guard, reaches
+`post_hot_digest`, and is silently not posted. → app lane, unverified against production
+behaviour.
+
+**B-LA15.3 — `tests/test_saas.py:2` claimed something untrue.** The module docstring has read
+"offline, deterministic — temp DB, no network" throughout the period it was writing to the real
+`data/screener.db`. Fixed as a side effect of this item; noted because a docstring that asserts
+the property being violated is worse than none.
+
+**B-LA15.4 — a defect in the guard itself, found and fixed before pushing.** The first version
+of `_isolate_user_store` wrapped `UserStore.__init__` as `guarded_init(self, url=None, ...)`.
+Two faults, both silent: the real signature's parameter is named **`database_url`**, so
+`UserStore(database_url=...)` would have landed in `**kwargs` and never been checked; and the
+real signature's default is **`"sqlite:///data/app.db"` — the real accounts DB** — so a bare
+`UserStore()` would have been passed `None` and died with a confusing `TypeError` instead of the
+guard's own refusal. Now bound off `inspect.signature(real_init)` and pinned by two tests
+(`test_a_bare_user_store_raises_rather_than_opening_its_real_default`,
+`test_the_keyword_spelling_cannot_slip_past`), both of which the broken version fails. Recorded
+because a guard with a hole in it is worse than no guard: it reports safety it is not providing.
+
+## 8. What was NOT done, and who owns it
+
+1. **Nothing was deleted.** The polluted primary checkout is Don's to clear. Targeted, and only
+   after the fix is merged so it does not immediately come back:
+   ```sql
+   -- data/screener.db
+   DELETE FROM snapshot_rows WHERE scan_date LIKE '2099%';
+   DELETE FROM scans         WHERE scan_date LIKE '2099%';
+   DELETE FROM track_picks   WHERE run_date  LIKE '2099%';
+   DELETE FROM positions     WHERE entry_date LIKE '2099%';
+   DELETE FROM alerts_sent   WHERE run_time  LIKE '2099%';
+   DELETE FROM meta          WHERE key LIKE '%2099%';
+   ```
+   plus `rm data/archive/scans/*.json.gz` (all synthetic) and, if the 34 accounts are unwanted,
+   `rm data/app.db`. **Check first** — `paper_option_orders`, `paper_index_holdings` and
+   `paper_index_track` are all 0 locally, so no real fill is at risk, but that is a fact about
+   today, not a standing guarantee.
+2. **`archive.DEFAULT_ROOT` is still relative.** The test-side guard stops the leak; the
+   production smell remains and is not mine — LA15's scope is `tests/**`. → **screener/engine
+   lane:** resolve it against the repo root, or require an explicit root, and pin it the way
+   `test_edge.py` already pins the miner's cache root.
+3. **No production module was edited at all**, including the ones the escapes run through
+   (`app_saas.py`, `screen.py`, `archive.py`, `index_track.py`, `store.py`). The guard is
+   entirely test-side, so nothing shipped to Render changes and the repair cannot itself be the
+   cause of a production incident.
+4. **The detector enumerates four escapes; it does not claim to be exhaustive.** A fifth route
+   nobody has thought of would slip past the AST sweep. The runtime tripwire is the backstop for
+   that case — it refuses anything resolving inside the real `data/`, whatever called it.
+
+## 9. Verification
+
+* `tests/test_state_isolation.py` — **29/29**.
+* The eight modified suites, all green and unchanged in count: `test_saas` 30/30,
+  `test_security` 22/22, `test_screener` 83/83, `test_private` 30/30, `test_public` 27/27,
+  `test_research_page` 14/14, `test_score_confidence` 14/14, `test_paper_track` 70/70.
+* **Re-ran the identical fingerprint sweep over all 38 suites after the fix: every suite `rc=0`,
+  and the mutation list is EMPTY.** Before: 4 mutating suites. After: 0. `test_theme_health.py`
+  came back clean on the re-run, which is the check that its earlier `__git_status__` hit was
+  the guard module being created mid-sweep rather than a real write.
+* Trial accounting: the row is a `FIXED` correctness row, so **it does not count toward `N`**.
+  Measured before and after, against the shipped parser: equity **135 → 135**, options
+  **192 → 192**, infra **6 → 6**, total **333 → 333**, `rows_counted` **66 → 66**. The only
+  field that moves is `rows_fixed_not_counted` **25 → 26**, which is the row itself landing on
+  the correct side of the counting rule. `rows_malformed: []` before and after, so the new row's
+  pipes are clean — the hazard the session-12 recount exists to catch.

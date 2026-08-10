@@ -7,6 +7,12 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# LA15 — this suite is why the guard exists: it POSTed a scan_date of 2099-01-01 into the
+# repository's REAL screener.db, and `latest_scan_date()` orders DESC, so every scan-derived
+# surface served the fixture forever after. Import BEFORE `valuation` — `create_saas_app`
+# binds its UserStore on the FIRST call and returns that same app to every later one.
+import state_isolation   # noqa: E402,F401
 
 from valuation.config import CONFIG
 from valuation.saas.models import UserStore

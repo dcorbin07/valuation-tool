@@ -13,6 +13,51 @@ from 2026-08-12, unchanged from sessions 15 and 16: whether the Cowork writer
 
 ---
 
+## LA15 (options-bot lane, 2026-08-10) — THE TEST SUITE NO LONGER WRITES INTO THE REAL DATABASES
+
+First executed item from `VALQUO_LIVE_AUDIT.md`. Full write-up in `HANDOFF_optionsbot.md`;
+ledger row `LA15`. **Scope was `tests/**` only — no production module was edited.**
+
+`tests/state_isolation.py` redirects the screener store, the accounts store, the dated scan
+archive and the index-track files into a per-process temp directory, and **raises** on anything
+still resolving inside the real `data/` — redirection alone fails silently, which is the failure
+mode this item is about. `tests/test_state_isolation.py` (**29 tests**) pins the rule and fails
+the gate if any suite can reach default state without importing the guard.
+
+**The audit named one row; the measured blast radius is six, across five tables.** One run of
+`tests/test_saas.py` also left an `alerts_sent` row for `__HOTDIGEST__` stamped with the **real
+calendar day** — `notify.post_hot_digest` returns early on `alerted_today`, so a local test run
+**suppresses that day's real Discord hot digest**. A fingerprint sweep around each of the 37
+suites found **four** mutating, three unnamed by the audit: `test_security.py` → `data/app.db`,
+`test_screener.py` → `data/archive/scans/<today>.json.gz`, `test_private.py` → opens the real
+store. **Re-running the identical sweep after the fix: every suite `rc=0`, mutation list empty.**
+
+**Two findings travel further than the repair:**
+
+1. **The local scan archive is 100% test output and self-refreshing.** Every archived scan day —
+   5 of 5 here, 3 of 3 in the primary checkout — is `provider: "synthetic (offline test)"`, one
+   file per calendar day the suite ran. `scripts/theme_health.py` reads exactly that directory,
+   so this is the **mechanism** behind V2's NOT-QUOTABLE theme-health verdict. → **greeks lane.**
+2. **Two of the project's strongest guards fail on a developer box with messages that assert the
+   opposite of what happened.** With the real track files present the pre-fix
+   `test_paper_track.py` scores **65/70**; `test_hero_will_not_render_the_sandbox_book_as_the_index`
+   reports *"the hero rendered the Tradier sandbox book as the Valquo Index"* while printing
+   `source: 'index-track'` — the **contract-bound** recorder, read correctly. **Those local
+   failures are not a B7 sandbox leak and must never be quoted as one.** Fixed suite: 70/70,
+   which closes the long-standing "37/40 locally, don't chase it" note as diagnosed.
+
+**DON: nothing was deleted, and one thing is worth knowing.** The primary checkout's
+`data/screener.db` has `2099-01-01` as its **only** scan date, so the local app is serving the
+test fixture on every scan-derived surface; `data/app.db` holds **34** test-created accounts.
+Cleanup statements are in `HANDOFF_optionsbot.md` §8 — run them *after* this lands, or they come
+straight back. **No action is required for the fix itself.**
+
+`archive.DEFAULT_ROOT` is still a relative path (`valuation/edge/archive.py:35`) — reported and
+routed to the screener lane, since this item's scope was tests only. `FIXED` row, so `N` does
+not move: equity **135**, options 192, infra 6, total 333, `rows_malformed: []`.
+
+---
+
 ## EDGE — WHAT THE THREE DEAD LIVE THEMES COST: IMMATERIAL ON ALPHA, BUT THE LIVE BOOK FAILS THE CALIBRATED LONG-SHORT FLOOR (2026-08-10, session 17, `V2G`)
 
 Full write-up in `HANDOFF_edge_audit.md` **SESSION 17**; ledger row `V2G`; pre-registration
