@@ -1941,7 +1941,9 @@ function _renderIndexTrack(d) {
         ${metric("Sharpe", live.sharpe == null ? "—" : num(live.sharpe, 2))}
         ${metric("Days", live.days)}
       </div>
-      <div class="muted" style="font-size:11px;margin-top:6px">Dated model positions since
+      <div class="muted" style="font-size:11px;margin-top:6px">${esc(live.book || "")}${live.book
+          ? " · " + esc(live.window || "") + " · source: " + esc(live.recorder || "") + ". "
+          : ""}Dated model positions since
         ${esc(d.inception || live.since)}, priced forward — a model portfolio, not a traded
         account, and no capital is at risk in it. ${d.thin
           ? `Annualised figures are withheld until ${d.min_live_days} trading days — compounding

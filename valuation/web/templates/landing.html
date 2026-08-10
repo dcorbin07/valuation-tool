@@ -180,6 +180,16 @@
           <div class="n {{ 'up' if track.live.excess_pp >= 0 else 'down' }}">
             {{ "%+.2f"|format(track.live.excess_pp) }} pp</div></div>
       </div>
+      {# WHICH BOOK, WHICH WINDOW — added 2026-08-09. These three figures are meaningless
+       # without them, and the project has already shipped a vs-SPY number describing a book
+       # nobody thought they were reading (the 2026-08-05 Discord post). Both strings come
+       # from index_track.vs_spy_claim, the same authority that produced the numbers, so the
+       # page cannot describe one book while showing another's figures. #}
+      {% if track.live.book %}
+      <div class="muted" style="font-size:12.5px;margin-top:6px">
+        {{ track.live.book }} · {{ track.live.window }} · source: {{ track.live.recorder }}
+      </div>
+      {% endif %}
       {% endif %}
     {% else %}
       <div class="muted" style="font-size:13.5px">
