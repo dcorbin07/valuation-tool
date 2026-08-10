@@ -239,6 +239,7 @@ recorded**, and the register is live from that commit.
 | Date signed | *pending* |
 | Inception | *pending* |
 | Operational gate date | *pending* |
+| **Operational gate passed** | *pending* |
 | Verdict date | *pending* |
 | Book | Valquo Index as published — top decile, large-cap tier, score-weighted, 8% cap |
 | Benchmark | SPY total return |
@@ -246,6 +247,25 @@ recorded**, and the register is live from that commit.
 | SUPPORTED / UNSUPPORTED | t ≥ +1.645 and cumulative > 0 / t ≤ −1.645 |
 | Power at verdict, stated in advance | *pending* |
 | Voided windows | *(none yet)* |
+
+> **THE `Operational gate passed` ROW IS READ BY THE RUNNING SITE. It is the only thing that
+> can promote the live number to the headline** (added 2026-08-09 by the engine lane, closing
+> §6.4). `valuation/screener/index_track.gate_state()` parses this row on every request;
+> until it reads as a pass, `headline` stays `"backtested"`, the "too early to judge" pill
+> stays up, and `hero.may_lead` stays false — **at any day count, indefinitely**. The day
+> count (`MIN_LIVE_DAYS`) is still required as well: the gate is an additional condition, not
+> a replacement, so this row cannot promote a three-day track.
+>
+> On gate day, set this row and nothing else, anywhere:
+>
+> ```
+> | Operational gate passed | YES - 2027-01-30 |
+> ```
+>
+> The value must begin with `yes`, `passed` or `true`. **Every other outcome is not-passed,
+> including a missing file, a missing row, a malformed table and two rows that disagree** —
+> the failure direction is deliberately "still backtested", never "now live". Nothing else in
+> the codebase carries this flag; there is exactly one copy of this fact and it is here.
 
 ---
 
