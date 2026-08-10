@@ -87,6 +87,16 @@ the project's memory and the old versions had been repeated for months.
     tuned to the outcome even in principle. Pinned by `tests/test_track_meter.py` (20 tests,
     every constant a literal), including one that fails if the AR(1) inflation is removed and one
     that pins the render decision as invariant to flipping the sign of the entire series.
+  * **THE DATED AUTO-FLIP IS CLOSED, BY THE ENGINE LANE, THE SAME DAY (`126c137`).**
+    `MIN_LIVE_DAYS = 60` no longer promotes the track on its own. `index_track.gate_state()`
+    parses the **`Operational gate passed` row of `PAPER_TRACK_CONTRACT.md` §5** on every
+    request, and `headline` requires **both** the day count **and** that row — so at any day
+    count, indefinitely, the headline stays `"backtested"` until the contract says otherwise.
+    **Every unrecognised outcome is not-passed** (missing file, missing row, malformed table,
+    two rows disagreeing), so the failure direction is "still backtested", never "now live".
+    Session 14 filled the row as `pending` and verified the parser returns `passed: false`.
+    **On gate day, set that ONE row and nothing else anywhere:**
+    `| Operational gate passed | YES - 2027-01-30 |`.
   * **Equity `N` 129 → 130** (the register is charged as a trial; understating `N` overstates
     significance). **Deflated Sharpe 0.8556 → 0.8547, √(2·ln 130) = 3.1201**, and
     `BACKTEST_RESULTS.json` was re-run so the artifact matches the record rather than going
@@ -128,6 +138,9 @@ the project's memory and the old versions had been repeated for months.
     `MIN_LIVE_DAYS = 60`. At day 60 the *"too early to judge"* pill (`index.html:114`)
     disappears and the headline flips to **live**. **The track is on day 5: this fires ~55
     trading days out, late October 2026, at 13% power (minimum detectable edge +49pp/yr).** The
+    **CLOSED 2026-08-09 (`126c137`, engine lane) — see the session-14 bullet above: the flip now
+    requires the contract's `Operational gate passed` row as well as the day count, and that row
+    reads `pending`.** The rest of this sub-bullet is the record of what the defect was. The
     constant was never pre-committed, does not derive from power, and disagrees 2× with
     `paper_track.MIN_DAYS_FOR_MEANING = 126` governing the same track. Both sit in
     `valuation/screener/index_track.py` — **outside the edge lane; it needs assigning.**

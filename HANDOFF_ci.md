@@ -364,3 +364,112 @@ change touches them.
    note the general shape: the tested tree and the pushed tree are only identical because the push
    is rejected otherwise. That guarantee rests on `git push` being non-fast-forward-safe, which it
    is — worth knowing if anyone ever adds `--force` anywhere near this file.
+
+---
+
+# Repo records cleanup (r1 lane, 2026-08-09)
+
+Two commits. **Thirteen files that govern this project were never in git**; six executed era
+prompts and one superseded status doc were carrying on in the working tree. Gate: **26 suites,
+0 failing** before the push.
+
+## Commit 1 — `Repo records: commit the untracked project-governing files.`
+
+13 files, 5,795 insertions plus a 7.8 MB PDF. The audit's own **input** was untracked while
+`VALQUO_LEDGER.md` — one row per item in it — has been tracked all along; that asymmetry is why
+`build_ledger.py` carries `SEARCH_DIRS = [ROOT, ROOT.parent.parent.parent]`, reaching outside the
+repo to find `valquo_audit_items.json`. With the file tracked, that fallback is now a
+belt-and-braces path rather than the only one. **Given the backup drive is dead, "exists on one
+disk, untracked" was the project's single largest unforced risk.**
+
+Also tracked: `VALQUO_EDGE_AUDIT.md`, the delivered PDF catalogue, the dependency map, the action
+plan (NO-SKIP + SEQUENCING verbatim), the master roadmap, state-of-play, the auditor's original
+protocol, the Option E record, `AGENTS.md`, `check_lanes.py`, `sync.bat`.
+
+**`AGENTS.md` is worth singling out: four of the ledger's five BLOCKED rows (R4, R5, R6, R8) are
+blocked by lane ownership defined in it** — that is, the ledger's blockers referenced a file that
+was not in the repo.
+
+### `RUN_RULES.md` was on the list and needed nothing
+Already tracked. Its main-checkout copy differs from the tracked file by 80 bytes, and that is
+**line endings only** — `Compare-Object` reports the two identical line for line. Recorded so the
+next reader does not re-investigate an 80-byte delta.
+
+### The secret gate ran BEFORE `git add`, not after
+Checked for `sk-ant-*`, `sk-*`, `AKIA*`, `gh?_*`, `xox?-*`, PEM private keys, bearer literals,
+`NAME=<12+ chars>` and 40+ char hex, plus a soft pass over secret vocabulary. **68 hard hits, all
+in the PDF, all cleared by decoding rather than by assumption**: they are hex-encoded PDF text
+strings whose font maps CID+29, so `0037004B0048` is `The`, `0037004B004C` is `Thi`.
+
+`VALQUO_MASTER_ROADMAP.md` names `TRADIER_PAPER_TOKEN`, `TRADIER_PAPER_ACCOUNT_ID`, `ADMIN_TOKEN`
+and `DISCORD_WEBHOOK_URL` — **names only, in instructions about what Render's env must hold, no
+values**. `sync.bat`'s flagged lines are `git for-each-ref` loops; it carries no credential.
+`.env` untouched and still ignored; `data/` and `*.db` untouched.
+
+**Keep the soft pass.** `ADMIN_TOKEN` was not in the hard pattern list and only the soft pass
+surfaced it. A scanner that only reports what it was told to look for cannot tell you what you
+forgot.
+
+## Commit 2 — `Retire superseded era documents.`
+
+7 files, 567 deletions: the six options-era prompts and `WHERE_WE_STAND.md`.
+
+### `WHERE_WE_STAND.md` was NOT a tracked file being retired
+The task said to `git rm` it because "history preserves them". **It didn't.** `git log --
+WHERE_WE_STAND.md` was empty and `git ls-files` never listed it: it was an untracked 11 KB
+document whose only copy was on one disk. `git rm` would have failed on it, and deleting it would
+have been unrecoverable — not a retirement.
+
+**So it was committed in commit 1 and removed in commit 2.** Net effect on the tracked tree is
+exactly what was asked; the difference is that the content still exists, at
+`git show a91dae5:WHERE_WE_STAND.md`. **The generalisable check: before retiring anything on the
+grounds that history holds it, confirm history actually holds it.** One `git log --` is cheap;
+this file was 177 lines of project narrative.
+
+### Two dangling references, created deliberately and flagged not silenced
+`VALQUO_MASTER_ROADMAP.md:59` sends "full narrative status + edge assessment + the generational
+product plan" to `WHERE_WE_STAND.md`, and `:240` sends PHASE 9's detail to the same place. Both
+now point at a path not in the tree.
+
+**Left as-is rather than repointed at `VALQUO_STATE_OF_PLAY.md`**, because the two are not the
+same document and I did not verify that state-of-play carries PHASE 9's product detail. Silently
+repointing a reference at a file that may not answer it is worse than a reference that is visibly
+stale. **Fix by reading both, then either repointing or restoring the section.**
+
+`PROMPT_options_A2A5.md:5` referenced `PROMPT_phase4_big.md`; both leave together, so that one
+does not dangle.
+
+### Why the six prompts are safe to drop
+Executed briefs. Findings live in the ledger, `HANDOFF_universe_backtest.md` and CLAUDE.md's
+options section, and the entry signal they were written to develop has since been measured dead on
+corrected data (real +3.41%/trade vs a random-entry control's +10.06%, sign test z −4.903).
+**A superseded plan left in the tree invites a reader to treat it as a live one.**
+
+Untouched as instructed: every `HANDOFF_*.md`, every results file and register, `RUN_RULES.md`,
+and the two prompts still in force (`PROMPT_edge_audit_execution.md`,
+`PROMPT_session14_commit_option_e.md`).
+
+## File-count attribution — most of the change is not mine
+
+**Cowork separately deleted 73 executed untracked prompts directly on disk.** Those were never
+tracked, so they appear in **no commit here**. If the root directory looks ~80 files lighter:
+**73 is Cowork's deletion, 7 is commit 2.** Recorded because a git-only reading of the repo would
+otherwise credit this lane with a cleanup it did not do.
+
+**One consequence Don should know:** because Cowork's 73 were untracked and are now deleted, they
+are gone permanently — there is no `git show` for them, same class of loss that
+`WHERE_WE_STAND.md` avoided by one commit.
+
+## Residual: the main checkout still holds its own untracked copies
+
+Committing here does not remove the untracked originals sitting in
+`C:\Users\donni\Downloads\valuation-tool\`. Once this lands, those paths become tracked and the
+on-disk copies simply become the working-tree files — **except `WHERE_WE_STAND.md`, which lands as
+deleted while an untracked copy remains on disk.** Harmless, but it means the file will still be
+visible there; it can be deleted freely now that history holds it.
+
+## Trial cost: none
+
+No `RESEARCH_LOG.md` row owed; equity `N` stays **129**. Nothing here searched a hypothesis space,
+fitted anything or selected among arms. No threshold was pre-committed because there is no verdict
+— this is repo hygiene, not a measurement.

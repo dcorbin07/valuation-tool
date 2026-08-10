@@ -295,6 +295,7 @@ recorded**, and the register is live from that commit.
 | **Book** | Valquo Index as published — top decile, large-cap tier, score-weighted, 8% cap |
 | **Benchmark** | SPY total return |
 | **Operational gate date** | **2027-01-30** (6 months) — tests recording, not returns |
+| **Operational gate passed** | ***pending*** — the gate has NOT passed. It cannot, until the bound series has an automated daily writer (§7.2). **This row is read by the running site; see the note below.** |
 | **Verdict date** | **2031-07-30** (60 months) |
 | **Secondary verdict** | ~**2029-07-30** (36 months) vs a costed equal-weighted basket of the scored universe, **only if that basket is built and separately pre-registered first**. Not built as of signing; if it does not exist, there is no secondary reading |
 | **Statistic** | one-sided NW(3) t on monthly excess, plus cumulative excess |
@@ -309,6 +310,27 @@ bound source, the book, the benchmark, the statistic, the SUPPORTED/UNSUPPORTED 
 cost constant, and every meter parameter in §6. Changing any of them voids the run under the
 abort rule in §3. Repairs to the *recording* (§7) are not changes to any of these and are
 expected — they are what the operational gate is for.
+
+> **THE `Operational gate passed` ROW IS READ BY THE RUNNING SITE. It is the only thing that
+> can promote the live number to the headline** (added 2026-08-09 by the engine lane, closing
+> what is now §7.4 — the section was renumbered when §6 became the meter, so their "§6.4" and
+> this "§7.4" are the same item). `valuation/screener/index_track.gate_state()` parses this row
+> on every request;
+> until it reads as a pass, `headline` stays `"backtested"`, the "too early to judge" pill
+> stays up, and `hero.may_lead` stays false — **at any day count, indefinitely**. The day
+> count (`MIN_LIVE_DAYS`) is still required as well: the gate is an additional condition, not
+> a replacement, so this row cannot promote a three-day track.
+>
+> On gate day, set this row and nothing else, anywhere:
+>
+> ```
+> | Operational gate passed | YES - 2027-01-30 |
+> ```
+>
+> The value must begin with `yes`, `passed` or `true`. **Every other outcome is not-passed,
+> including a missing file, a missing row, a malformed table and two rows that disagree** —
+> the failure direction is deliberately "still backtested", never "now live". Nothing else in
+> the codebase carries this flag; there is exactly one copy of this fact and it is here.
 
 ---
 
@@ -489,13 +511,17 @@ Recorded so they are not mistaken for oversights, and so the operational gate ha
    acts**, and it lives in `valuation/screener/index_track.py`, which is outside the lane that
    drafted this — so it needs assigning, not just noting.
 
-   > **ASSIGNED, NOT FIXED, AT SIGN-OFF.** It is the greeks lane's, prompted separately. Still
-   > live and still dated: the flip fires around **late October 2026**, roughly three months
-   > before this contract's own first render, at 13% power. Signing this contract does not stop
-   > it — only the code change does. §6.3's rule ("public surfaces keep the paper/thin/too-early
-   > posture until the operational gate PASSES") is the written instruction that the auto-flip
-   > currently contradicts, so until it is repaired **the code and the contract disagree, and
-   > the contract governs.**
+   > ~~**ASSIGNED, NOT FIXED, AT SIGN-OFF.**~~ **CLOSED THE SAME DAY BY THE ENGINE LANE
+   > (`126c137`), and the fix is better than the one this section asked for.** Rather than
+   > re-pointing `MIN_LIVE_DAYS` at a new number, `index_track.gate_state()` now reads the
+   > **`Operational gate passed` row of §5** on every request, and `headline` requires **both**
+   > the day count **and** that row. So the auto-flip is gone: at any day count, indefinitely,
+   > the headline stays `"backtested"` until this contract says the gate passed. Every
+   > unrecognised outcome — missing file, missing row, malformed table, two rows disagreeing —
+   > is not-passed, so the failure direction is "still backtested", never "now live".
+   > **Verified at merge:** `gate_state()` reads the signed §5 as `passed: false`, matching
+   > §6.3's rule. **The code and the contract now agree, and there is exactly one copy of the
+   > fact.**
 5. **The secondary 36-month benchmark does not exist.** Option E inherits Option C's costed
    equal-weighted basket, and §5 records it as conditional for that reason: the basket is not
    built, it is real engineering rather than a switch, and it must be **separately

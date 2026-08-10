@@ -5906,10 +5906,16 @@ silently averaged over.
 3. **I did not re-point the engine's book at the Index.** It runs live on Render against a
    sandbox broker; changing what it holds is a construction change to a running recorder, not a
    repair, and it needs its own decision. Recorded as ledger `PT-SPLIT`.
-4. **I did not touch `valuation/screener/index_track.py`** — the 60-day auto-flip is the greeks
-   lane's, prompted separately. It is still live and still dated: **late October 2026**, at 13%
-   power, roughly three months *before* this contract's own first render. Until it is repaired
-   **the code and the contract disagree, and the contract governs** (§6.3).
+4. **I did not touch `valuation/screener/index_track.py`** — the 60-day auto-flip was the greeks
+   lane's, prompted separately. **They closed it the same day (`126c137`), merged in here, and
+   their fix is better than the one the contract asked for:** instead of re-pointing
+   `MIN_LIVE_DAYS` at a new constant, `gate_state()` now parses the **`Operational gate passed`
+   row of §5** on every request and `headline` requires **both** the day count **and** that row.
+   The auto-flip is gone at any day count, indefinitely, and every unrecognised outcome (missing
+   file, missing row, malformed table, two rows disagreeing) is not-passed — the failure
+   direction is "still backtested", never "now live". **My part of the merge was to fill that row
+   as `pending` and verify their parser agrees: `gate_state()` reads the signed §5 as
+   `passed: false`.** The code and the contract now agree, with one copy of the fact.
 5. **I escaped nothing in `RESEARCH_LOG.md` myself.** `rows_malformed` is empty and options `N`
    reads 192 after the merge.
 6. **I did not build the 36-month secondary basket.** It does not exist, and §5 records it as
@@ -5939,9 +5945,12 @@ silently averaged over.
    a quote-marked paper book, so 0.14529 pp/month is an assumption fixed in advance (deliberately
    the larger of the two readings the record supports). It cannot interact with the outcome, but
    it is not evidence about real trading costs. Recorded as contract §7.6.
-7. **`MIN_LIVE_DAYS = 60` STILL AUTO-PROMOTES THE TRACK TO THE SITE HEADLINE** around late
-   October 2026 with no approval step, now in direct contradiction of a signed contract. Not
-   mine; still dated; still needs the greeks lane to land the fix.
+7. ~~**`MIN_LIVE_DAYS = 60` STILL AUTO-PROMOTES THE TRACK TO THE SITE HEADLINE**~~ **— CLOSED
+   THE SAME DAY by the engine lane (`126c137`), merged in here.** `headline` now requires both
+   the day count and §5's `Operational gate passed` row, which I filled as `pending` and verified
+   their parser reads as `passed: false`. **The dated deadline is gone.** Kept in this list
+   because it was live when the session opened and because it is the one bug in the set that
+   another lane fixed rather than me.
 
 ## 6. Session 15's first item
 

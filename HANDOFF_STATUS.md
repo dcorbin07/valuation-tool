@@ -22,6 +22,69 @@ series has no automated writer.**)
 
 ---
 
+---
+
+## ENGINE/SCREENER — THE SITE NO LONGER PROMOTES ITSELF TO "LIVE" ON A CALENDAR (2026-08-09, greeks lane)
+
+Full write-up in `HANDOFF_live_data_bugs.md` **Part 10**; ledger row `OOB5`. Pre-commitment
+committed alone at `4f2d61f` before any code. **SHIPPED — labels only; every number in the
+payload is bit-identical and no tracked data file changed.**
+
+**This closes the one item in `PAPER_TRACK_CONTRACT.md` §6.4 that had a deadline whether or not
+anyone acted, and it needed assigning because it sits outside the edge lane.**
+
+`index_track.py:223-224` decided the site's public posture with a single comparison,
+`days < MIN_LIVE_DAYS` (= 60). On the 60th trading day of the forward track, three things flipped
+at once with no approval step: `headline` `"backtested"` → `"live"`, the **"too early to judge"**
+pill went down (`templates/index.html:114`, keyed on `hero.thin`), and `hero.may_lead` went true.
+On the recorded inception of **2026-07-30** that fires in **late October 2026** — at **13% power**,
+against a test the contract's own §2 shows cannot detect an edge below **+49pp/yr**.
+
+**Now gated on the contract's 6-month OPERATIONAL GATE, with ONE authority: the contract's own
+register row**, read by `index_track.gate_state()`. Not a `settings.py` constant, not an env var,
+not a store key — a code flag would be a *second* record of the same fact, free to disagree with
+the document Don signs, and there would be no way to tell which was right. **The edge lane sets
+one row in `PAPER_TRACK_CONTRACT.md` §5 on gate day and nothing else, anywhere:** field cell
+`Operational gate passed`, value beginning `YES` / `PASSED` / `TRUE`.
+
+**Fail-closed exhaustively, each case a test:** missing file, missing row, `pending`, `no`, blank,
+a bare date, a wrong field name, a malformed row, the row inside a fenced code block, and two rows
+that disagree — all NOT PASSED. **Measured on the contract as it stands on `main`: reads
+`'pending'`, so day 60 now returns `headline='backtested'`, `thin=True`.**
+
+**All seven pre-committed bounds HELD.** The two that matter: **B5** — with the gate unpassed the
+headline stays `"backtested"` at *every* day count, checked to 2,000; **B6** — with the gate
+passed the day-count floor **still applies**, so a 3-day track cannot lead. The gate is an
+additional condition, never a replacement; getting that backwards would have been worse than the
+original bug.
+
+**The pre-commitment said the value must "begin with" yes/passed/true, and its own test caught the
+hole:** `yes-ish, mostly` parsed as a PASS — the same class of defect as `research_log._parse`
+reading prose as a verdict. The rule is now the first **whole word**, i.e. **stricter than
+pre-committed**, which is the only direction that cannot reach the harmful error.
+
+Pinned by `test_day_count_alone_can_never_flip_the_headline` (60/61/300/2,000 days with no gate
+all stay backtested, then the gate flips it so the assertion cannot pass vacuously). Five new
+tests; **83/83 screener**, full gate green. **One existing test was pinning the defect** —
+`test_live_track_never_annualizes_a_stub_or_leads_with_it` asserted `headline == "live"` at
+`MIN_LIVE_DAYS + 5` — and was amended with the old line quoted inline.
+
+**NOT done, and stated:** `MIN_LIVE_DAYS` stays **60**, because it now gates only *annualisation*,
+which is a value and not a label; `valuation/web/**` untouched, since fixing the producer means
+`app.py`, `hero.py` and `showcase.py` inherit it unedited; the contract is **not signed** by me —
+one register row set to `pending` plus a note, no option, no date, no threshold.
+
+**BUG FOR ANOTHER LANE, and it is the important one: THERE IS A SECOND, UNGATED DOOR.**
+`hero.py:75-92` falls back to `paper_track.index_summary()` whenever the Cowork tracker has no
+live data, and takes `thin` from that payload's `meaningful` flag — `len(rows) >= 126`
+(`paper_track.py:799`) — which never consults the contract. With the Cowork file absent and the
+sandbox book running, `may_lead` can still flip on elapsed time alone. **Fix is one line in the
+edge lane: gate `meaningful` on the same `gate_state()`, do not add a second flag.** Related:
+both `PAPER_TRACK_CONTRACT.md` §6.4 and `CLAUDE.md` say `MIN_DAYS_FOR_MEANING` lives in
+`index_track.py` — it is in `valuation/edge/paper_track.py:70`, and that sentence is the one
+assigning the work.
+
+
 ## 2026-08-08 — OPTIONS LANE: O1 + O23, the exits tested against random entries (REJECTED / NULL)
 
 Register `PREREG_o1_o23_exits.md` committed at `dc2c486` before any policy was scored.
@@ -127,12 +190,20 @@ evidence against the strategy.** The AR(1) inflation is load-bearing: without it
 rate is 6.7%. **σ may never be revised downward** (at 1.5× the assumed vol the rate is 20%).
 Genuinely blind: **zero complete calendar months existed** when the parameters were frozen.
 
-**⏰ STILL LIVE AND STILL DATED, and it now contradicts a signed contract.**
-`index_track.MIN_LIVE_DAYS = 60` drives `headline = "backtested" if thin else "live"`, so the
-site promotes the paper track to its headline **around late October 2026**, at 13% power, with no
-approval step — roughly three months *before* the contract's own first render. In
-`valuation/screener/`, the greeks lane's, prompted separately. **Until it lands, the code and the
-contract disagree and the contract governs.**
+**✅ THE DATED AUTO-FLIP IS CLOSED — the engine lane landed it the same day (`126c137`).**
+`index_track.MIN_LIVE_DAYS = 60` used to promote the paper track to the site headline around late
+October 2026 at 13% power with no approval step. It no longer can: `gate_state()` reads the
+**`Operational gate passed` row of `PAPER_TRACK_CONTRACT.md` §5** on every request, and
+`headline` requires **both** the day count **and** that row. At any day count, indefinitely, the
+headline stays `"backtested"` until the contract says the gate passed, and every unrecognised
+outcome (missing file, missing row, malformed table, two rows disagreeing) counts as not-passed —
+the failure direction is "still backtested", never "now live". **This session filled that row as
+`pending` and verified their parser agrees: `gate_state()` returns `passed: false`.** The code
+and the contract now agree, with exactly one copy of the fact.
+
+**→ On gate day, the edge lane sets that ONE row and nothing else, anywhere:**
+`| Operational gate passed | YES - 2027-01-30 |`. It cannot be set today — see the missing
+writer above.
 
 ## ENGINE — CONFIDENCE NOW KNOWS WHAT THE VALUATION IS MADE OF (2026-08-08, greeks/engine lane)
 

@@ -5,7 +5,7 @@ Everything else the product reports about the Index comes from an 18-year point-
 panel that the model was also tuned on. This module reads the forward paper-track that
 started on the inception date and reports it *beside* the backtest, never blended into it.
 
-Two rules encoded here, both about not flattering the live number:
+Three rules encoded here, all about not flattering the live number:
 
   1. **The backtest stays the headline until the live track is long enough to mean
      anything.** `MIN_LIVE_DAYS` trading days. Before that the live figure is served with
@@ -16,6 +16,16 @@ Two rules encoded here, both about not flattering the live number:
      number nobody should believe. Annualised alpha and Sharpe are only computed once there
      is enough history, and are `None` before that — not zero, not the cumulative figure
      wearing an annual label.
+  3. **A day count may not promote the live number on its own.** Until 2026-08-09 rule 1 was
+     the WHOLE rule, so on the 60th trading day `headline` flipped to `"live"`, the
+     "too early to judge" pill vanished and the live number became allowed to lead the page —
+     automatically, on a date already fixed, with nobody approving it. On the recorded
+     inception of 2026-07-30 that fired in late October 2026, at a horizon
+     `PAPER_TRACK_CONTRACT.md` §2 measures at **13% power**, unable to detect an edge below
+     +49pp/yr. The public posture now changes only when that contract's **6-month operational
+     gate** is recorded as passed — see `gate_state()`. The day count is still required; the
+     gate is an ADDITIONAL condition, never a replacement, so a three-day track cannot lead
+     just because the gate passed.
 
 Source of truth is the tracker the Cowork side maintains (`data/valquo_track.json` plus
 `valquo_track_history.csv`). Those live under `data/`, which is gitignored, so on a fresh
@@ -47,8 +57,121 @@ TRADING_DAYS = 252.0
 MAX_PLAUSIBLE_SHARPE = 6.0
 
 
+# --- The contract gate. See rule 3 above and PAPER_TRACK_CONTRACT.md §5. ---
+#
+# ONE authority, deliberately: the contract's own register. Not a constant here, not an env
+# var, not a store key. A code flag would be a SECOND record of the same fact, free to
+# disagree with the document Don signs and with no way to tell which was right; reading the
+# register makes the human record and the machine record the same bytes.
+#
+# The known risk, and why it is acceptable. This project has already been bitten by parsing a
+# markdown table — `research_log._parse` matched `\bFIXED\b` across joined cells, and an
+# unescaped `|` inside a cell shifted every column after it and understated the trial count.
+# So this parser is deliberately dumb and deliberately one-directional:
+#   * it recognises ONE row form, and anything it does not recognise is not a pass;
+#   * EVERY failure resolves to NOT PASSED — file missing, unreadable, malformed, row absent,
+#     value unrecognised. The conservative error is a mature track still labelled "backtested";
+#     the harmful error is the reverse, and no accident can reach it;
+#   * fenced code blocks are skipped, so documenting the row form cannot flip the gate on;
+#   * if two rows disagree, NOT PASSED wins.
+# The parse is published in the payload (`gate`), so a mis-parse is visible, not silent.
+CONTRACT_FILE = "PAPER_TRACK_CONTRACT.md"
+GATE_FIELD = "operational gate passed"
+GATE_YES = ("yes", "passed", "true")
+
+
 def _repo_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def contract_path() -> str:
+    return os.path.join(_repo_root(), CONTRACT_FILE)
+
+
+def _verdict_token(s: str) -> str:
+    """First WHOLE word of a register value: 'YES - 2027-01-30' -> 'yes', '*pending*' ->
+    'pending', 'yes-ish, mostly' -> 'yes-ish'.
+
+    TIGHTER THAN THE PRE-COMMITMENT, deliberately. Part 10 committed "the value must BEGIN
+    with yes/passed/true", and the first implementation took the leading run of letters — so
+    `yes-ish, mostly` read as a PASS. Its own test caught it. Requiring a whole word instead
+    can only make the gate HARDER to pass, so it cannot reach the harmful error; a rule that
+    reads hedged prose as an approval can.
+
+    Dashes separate (the canonical row is `YES - <date>`); hyphens do not, which is exactly
+    what keeps `yes-ish` out.
+    """
+    for dash in ("—", "–"):
+        s = s.replace(dash, " ")
+    words = s.lower().split()
+    return words[0].strip(".,;:!()[]'\"") if words else ""
+
+
+def gate_state(path: str = None) -> dict:
+    """Has the paper-track contract's 6-month OPERATIONAL GATE been recorded as passed?
+
+    The gate is a test of whether the track is being RECORDED properly — daily rows with no
+    gaps, the book turning over as modelled, realised costs near the backtest's — not a test
+    of returns (`PAPER_TRACK_CONTRACT.md` §3). It is what the contract makes the public
+    posture depend on, and it is a human judgement, so it is recorded by a human, in the
+    contract, in exactly one place. The edge lane sets this row on gate day:
+
+        | Operational gate passed | YES - <date> |
+
+    Field match is case- and whitespace-insensitive; the value's FIRST WHOLE WORD must be one
+    of `yes` / `passed` / `true`. `pending`, `no`, blank, an absent row and hedged prose like
+    `yes-ish, mostly` are all not-passed.
+    """
+    p = path or contract_path()
+    out = {"passed": False, "source": CONTRACT_FILE, "field": GATE_FIELD, "value": None,
+           "reason": "", "contract_present": False}
+    try:
+        with open(p, encoding="utf-8") as f:
+            text = f.read()
+    except Exception:
+        out["reason"] = (f"{CONTRACT_FILE} is not readable, so the operational gate cannot have "
+                         f"been recorded as passed.")
+        return out
+    out["contract_present"] = True
+
+    values, fenced = [], False
+    for line in text.splitlines():
+        s = line.strip()
+        # Strip blockquote markers FIRST. The contract documents the canonical row inside a
+        # fenced block inside a blockquote; without this the fence markers read as prose, the
+        # example is skipped only because of its "> " prefix, and the fence rule above would
+        # be true by accident rather than by construction.
+        while s.startswith(">"):
+            s = s[1:].strip()
+        if s.startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced or not s.startswith("|"):
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        if " ".join(cells[0].replace("*", "").lower().split()) == GATE_FIELD:
+            values.append(cells[1].replace("*", "").strip())
+
+    if not values:
+        out["reason"] = (f"{CONTRACT_FILE} carries no '{GATE_FIELD}' row, so the operational gate "
+                         f"has not been recorded as passed.")
+        return out
+
+    out["value"] = values[0] if len(values) == 1 else values
+    verdicts = [_verdict_token(v) in GATE_YES for v in values]
+    if all(verdicts):
+        out["passed"] = True
+        out["reason"] = f"{CONTRACT_FILE} records the operational gate as passed ({values[0]!r})."
+    elif any(verdicts):
+        # Two rows disagreeing is a broken register, not a pass.
+        out["reason"] = (f"{CONTRACT_FILE} carries conflicting '{GATE_FIELD}' rows ({values!r}); "
+                         f"resolved as NOT passed.")
+    else:
+        out["reason"] = (f"{CONTRACT_FILE} records the operational gate as {values[0]!r}, which "
+                         f"is not a pass.")
+    return out
 
 
 def default_paths() -> tuple:
@@ -148,10 +271,11 @@ def from_store(store) -> dict:
 
 
 def summarize(config: str = None, meta_path: str = None, history_path: str = None,
-              store=None) -> dict:
+              store=None, contract: str = None) -> dict:
     """Live track + the backtested figures for the same book, side by side.
 
-    Never merges the two. `headline` names which one the UI is allowed to lead with.
+    Never merges the two. `headline` names which one the UI is allowed to lead with, and per
+    rule 3 that requires BOTH enough days AND the contract's operational gate.
     """
     from . import settings as S
 
@@ -169,6 +293,7 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
                   "modelled transaction costs"),
     }
 
+    gate = gate_state(contract)
     d = load(meta_path, history_path)
     if not d["series"] and store is not None:
         d = from_store(store)
@@ -178,6 +303,7 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
         "benchmark": meta.get("benchmark") or "SPY",
         "inception": meta.get("inception_date"),
         "min_live_days": MIN_LIVE_DAYS,
+        "gate": gate,
         "backtested": backtested,
         "series": series,
         "available": bool(series),
@@ -220,12 +346,21 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
         live["ann_alpha"] = gv - gs
 
     out["live"] = live
-    out["thin"] = days < MIN_LIVE_DAYS
+
+    # Rule 3. BOTH conditions, and the day count is not sufficient on its own. Order matters
+    # only for the wording: a track that is short is short whatever the contract says.
+    long_enough = days >= MIN_LIVE_DAYS
+    out["thin"] = not (long_enough and gate["passed"])
     out["headline"] = "backtested" if out["thin"] else "live"
-    if out["thin"]:
+    if not long_enough:
         out["note"] = (f"Live track is {days} trading day{'s' if days != 1 else ''} old — far too "
                        f"short to judge. It is shown for transparency, not as evidence, and the "
-                       f"headline stays on the backtest until {MIN_LIVE_DAYS} trading days.")
+                       f"headline stays on the backtest.")
+    elif not gate["passed"]:
+        out["note"] = (f"Live track is {days} trading days old, past the {MIN_LIVE_DAYS}-day "
+                       f"floor, but the paper-track contract's operational gate has not been "
+                       f"recorded as passed, so the backtest stays the headline. Elapsed time "
+                       f"alone does not promote a live number. ({gate['reason']})")
     else:
         out["note"] = (f"Live forward track, {days} trading days since {live['since']} — real "
                        f"dated positions measured forward, no survivorship or hindsight.")

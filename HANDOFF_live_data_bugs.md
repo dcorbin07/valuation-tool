@@ -2368,3 +2368,292 @@ stable compounder may be perfectly sound, and the label says "judge this on the 
    claim needs that denominator, or it will fire on three names in four.
 3. **The brief's exemplar was stale for the third time in two parts** (CHTR and CI in Part 8, CI
    again here). Named exemplars in prompts are written against a snapshot and rot within days.
+
+
+---
+
+# Part 10 — THE HEADLINE FLIP IS GATED ON THE CONTRACT, NOT ON A DAY COUNT (PRE-COMMITMENT)
+
+**Committed BEFORE the change is written, in its own commit, and nothing below is edited
+afterwards.** This part is not a measurement, so there is no threshold to pre-commit in the usual
+sense — what is pre-committed instead is the **mechanism**, the **default**, and the list of
+things that are **not allowed to move**. Those are the parts that could otherwise be chosen after
+seeing what was convenient.
+
+## 10.0 The defect, stated exactly
+
+`valuation/screener/index_track.py:223-224`:
+
+```python
+out["thin"] = days < MIN_LIVE_DAYS
+out["headline"] = "backtested" if out["thin"] else "live"
+```
+
+`MIN_LIVE_DAYS = 60`. On the 60th trading day of the forward track, three things happen at once,
+with no approval step and nobody in the loop:
+
+1. `headline` flips `"backtested"` → `"live"`;
+2. `thin` flips `True` → `False`, which drops the **"too early to judge"** pill
+   (`valuation/web/templates/index.html:114`, keyed on `hero.thin`);
+3. `hero.may_lead` flips `False` → `True` (`valuation/web/hero.py:154`), which is the flag the
+   surfaces read to decide whether the live number is allowed to lead the page.
+
+The track's recorded inception is **2026-07-30** and it stood at 5 trading days when
+`PAPER_TRACK_CONTRACT.md` was drafted, so this fires around **late October 2026** — at **13%
+power**, against a test that on the contract's own arithmetic (§2) cannot detect an edge below
+**+49pp/yr**. `MIN_LIVE_DAYS` was never pre-committed and does not derive from power.
+
+**The contract says the public posture changes on the 6-month OPERATIONAL GATE** (§3, Option A:
+"a test of whether the track is being recorded properly at all"), **not on a day count.** Today
+the code and the contract disagree, and the code wins by default because it is the thing that
+actually runs.
+
+## 10.1 The mechanism — ONE, and which one
+
+The instruction is explicit that there must not be two. **The authority is the contract's own
+register (`PAPER_TRACK_CONTRACT.md` §5), read directly by `index_track`.** Not a constant in
+`settings.py`, not an env var, not a store key.
+
+**Why the register and not a code flag.** A code flag would be a *second* record of the same
+fact: the register would say the gate passed and `settings.py` would say whatever it last said,
+and the two could disagree with no way to tell which was right. Reading the register makes the
+human record and the machine record **the same bytes**. It also means the gate cannot be flipped
+by an edit that leaves no trace in the document Don signs.
+
+**The known risk, stated in advance rather than discovered later.** This project has already been
+bitten by parsing a markdown table: session 12's `research_log._parse` matched `\bFIXED\b` across
+joined cells, and an unescaped `|` inside a cell shifted every column after it and understated
+`N` by 4. Parsing prose to decide a public posture invites exactly that. Three mitigations, all
+committed now:
+
+* the parser reads **one canonical row form only**, and a row it does not recognise is not a
+  pass;
+* **every failure mode resolves to NOT PASSED** — file missing, unreadable, malformed, field
+  absent, value unrecognised. The conservative error is a mature track still labelled
+  "backtested"; the harmful error is the reverse, and it is unreachable by accident;
+* the parse result is **published in the payload** (`gate` block: `passed`, `source`, `value`,
+  `reason`) so a mis-parse is visible rather than silent.
+
+**The canonical row, fixed here and quoted verbatim in the module docstring and the handoff:**
+
+```
+| Operational gate passed | YES — <date> |
+```
+
+Match is on the field cell `operational gate passed` (case- and whitespace-insensitive), and the
+value cell must begin with `yes`, `passed` or `true`. `pending`, `no`, blank, or an absent row
+are all NOT PASSED. **The edge lane sets exactly this row on gate day; nothing else, nowhere
+else.**
+
+## 10.2 What the change is allowed to touch
+
+**Labels only.** The permitted writes are exactly:
+
+* `out["headline"]` — `"backtested"` / `"live"`
+* `out["thin"]` — the pill and `may_lead`
+* `out["note"]` — the sentence explaining which one is in force
+* `out["gate"]` — a NEW block, additive, describing the parse
+
+**Bounds — the change is WRONG if any of these move:**
+
+| | bound |
+|---|---|
+| B1 | every number in the `live` block is bit-identical for a given input series — `days`, `since`, `as_of`, `cum_valquo_pct`, `cum_spy_pct`, `excess_pp`, `ann_alpha`, `sharpe`, `hit_rate` |
+| B2 | the `backtested` block is bit-identical |
+| B3 | `series`, `available`, `days`, `inception`, `benchmark`, `config`, `min_live_days` unchanged |
+| B4 | **no tracked file under `data_export/` changes** — not one byte |
+| B5 | with the gate NOT passed, `headline` is `"backtested"` at **every** day count, 0 to ∞ |
+| B6 | with the gate passed, the day-count floor still applies — the gate is an **additional** condition, never a replacement, so a 3-day track cannot lead just because the gate passed |
+| B7 | the default on a repo with today's unsigned contract is NOT PASSED |
+
+**B5 and B6 together are the substance:** the flip requires **both** the gate and the days. A
+gate-passed flag that let a 3-day track lead would be a worse bug than the one being fixed.
+
+## 10.3 What I will NOT do, decided now
+
+* **Not change `MIN_LIVE_DAYS` from 60.** It is the wrong number — the contract's §2 shows 60 days
+  has 10-13% power — but it now only gates *annualisation*, which is a published figure, and
+  moving it would change a number rather than a label. Recorded as a bug, not fixed here.
+* **Not change `ann_alpha` / `sharpe` suppression.** Same reason: those are values.
+* **Not touch `valuation/web/**`** (another lane) — the fix is in the producer, so every consumer
+  inherits it unchanged.
+* **Not touch `paper_track.MIN_DAYS_FOR_MEANING = 126`** — it is in the edge lane's
+  `valuation/edge/paper_track.py`, and it governs a *different* track.
+* **Not sign, choose, date or re-threshold the contract.** My only edit to it is to add the
+  register row above with the value `pending`, plus one sentence saying the row is machine-read.
+  No option, no date, no threshold.
+
+## 10.4 The test the instruction asks for
+
+`test_day_count_alone_can_never_flip_the_headline` — runs a series **far past** `MIN_LIVE_DAYS`
+with no gate and asserts `headline == "backtested"`, `thin is True`; then the same series with the
+gate passed and asserts it flips. It fails if anyone restores the day-count-only rule, and it
+fails if the gate becomes a *replacement* for the day count rather than an addition.
+
+
+
+---
+
+# Part 10 — RESULTS: THE HEADLINE FLIP IS NOW A DECISION, NOT A DATE
+
+**VERDICT: SHIPPED. Labels only; every number in the payload is bit-identical, and no tracked
+data file changed.** The pre-commitment above was committed alone at `4f2d61f`, before a line of
+code, and nothing in it was edited afterwards.
+
+## 10.5 What was actually going to happen
+
+`index_track.summarize()` decided the site's public posture with one comparison, `days <
+MIN_LIVE_DAYS`, and `MIN_LIVE_DAYS = 60`. Measured, not asserted — the day-count-only rule
+against the rule now shipped:
+
+| trading days | BEFORE: headline / thin | AFTER, gate not passed | AFTER, gate passed |
+|---|---|---|---|
+| 1 | backtested / thin | backtested / thin | backtested / thin |
+| 20 | backtested / thin | backtested / thin | backtested / thin |
+| 59 | backtested / thin | backtested / thin | backtested / thin |
+| **60** | **live / NOT thin** | **backtested / thin** | live / NOT thin |
+| 61 | live / NOT thin | backtested / thin | live / NOT thin |
+| 90 | live / NOT thin | backtested / thin | live / NOT thin |
+| 300 | live / NOT thin | backtested / thin | live / NOT thin |
+| 2000 | live / NOT thin | backtested / thin | live / NOT thin |
+
+**Three things flipped together on day 60 and none of them had an approval step:** `headline`
+`"backtested"` → `"live"`; the **"too early to judge"** pill went down
+(`templates/index.html:114`, keyed on `hero.thin`); and `hero.may_lead` went true
+(`hero.py:154`), which is the flag deciding whether the live number may lead the page.
+
+On the recorded inception of **2026-07-30** that lands in **late October 2026**, at a horizon the
+contract's own §2 puts at **13% power**, unable to detect an edge below **+49pp/yr**. The site
+would have started leading with a number that, on the project's own arithmetic, cannot mean
+anything yet.
+
+**Measured on the contract exactly as it stands on `main` today:**
+
+```
+row value : 'pending'
+passed    : False
+day 60    -> headline='backtested'  thin=True
+note      : Live track is 60 trading days old, past the 60-day floor, but the paper-track
+            contract's operational gate has not been recorded as passed, so the backtest stays
+            the headline. Elapsed time alone does not promote a live number.
+```
+
+## 10.6 The mechanism, and why there is exactly one
+
+**The contract's own register is the authority** (`PAPER_TRACK_CONTRACT.md` §5), read on every
+request by `index_track.gate_state()`. No constant in `settings.py`, no env var, no store key.
+
+The instruction was not to invent two mechanisms, and the reason is sharper than tidiness: a code
+flag would be a **second record of the same fact**, free to disagree with the document Don signs,
+with no way to tell which was right. Reading the register makes the human record and the machine
+record the same bytes. It also means the posture cannot be changed by an edit that leaves no
+trace in the contract.
+
+One row, and the edge lane sets it on gate day and nothing else, anywhere:
+
+```
+| Operational gate passed | YES - 2027-01-30 |
+```
+
+I added that row to §5 with the value `pending`, plus a note above it saying the running site
+reads it. **I did not sign, choose, date or re-threshold anything** — no option letter, no
+horizon, no statistic.
+
+**Fail-closed, exhaustively, and each case is a test:** missing file, missing row, `pending`,
+`no`, blank, a bare date, a wrong field name, a malformed row, the row **inside a fenced code
+block**, and **two rows that disagree** — all resolve to NOT PASSED. The conservative error is a
+mature track still labelled "backtested"; the harmful error is a thin track labelled "live", and
+no accident reaches it.
+
+## 10.7 The parser hole my own test found, and the rule I tightened
+
+The pre-commitment said the value "must **begin with** `yes`, `passed` or `true`". Implemented
+literally — leading run of letters — and `test_every_unusable_contract_resolves_to_not_passed`
+immediately failed on the case I had put in it as a formality:
+
+> **`| Operational gate passed | yes-ish, mostly |` was read as a PASS.**
+
+That is precisely the failure this project has already paid for once, in
+`research_log._parse`: prose read as a verdict. **The rule is now the first WHOLE WORD**, so
+`yes-ish` is not `yes`, while dashes still separate (`YES - 2027-01-30` parses) because hyphens
+do not.
+
+**This is TIGHTER than what I pre-committed, and that direction is the reason it is allowed.**
+Tightening can only make the gate harder to pass, so it cannot reach the harmful error;
+loosening after seeing a result would be the move that needs defending. Recorded rather than
+quietly folded in.
+
+## 10.8 All seven bounds HELD
+
+| | bound | result |
+|---|---|---|
+| B1 | every `live` number bit-identical, gate off vs on | **HELD** — `days`, `since`, `as_of`, `cum_valquo_pct`, `cum_spy_pct`, `excess_pp`, `ann_alpha`, `sharpe`, `hit_rate` all `==` |
+| B2 | `backtested` block bit-identical | **HELD** |
+| B3 | `series` / `available` / `days` / `min_live_days` / `config` / `benchmark` / `inception` unchanged | **HELD** |
+| B4 | no tracked file under `data_export/` changes | **HELD** — three files touched, none of them data |
+| B5 | gate not passed ⇒ `"backtested"` at every day count | **HELD** — checked to 2000 days |
+| B6 | gate passed ⇒ the day-count floor still applies | **HELD** — 1, 5, 20 and 59 days all stay backtested with the gate open |
+| B7 | today's unsigned contract defaults to NOT PASSED | **HELD** — reads `'pending'` |
+
+**B6 is the one worth naming.** A gate-passed flag that let a three-day track lead would be a
+worse bug than the one being fixed, and it is the obvious way to get this wrong. The gate is an
+**additional** condition; it never replaces the day count.
+
+## 10.9 The test the instruction asked for
+
+`test_day_count_alone_can_never_flip_the_headline` runs 60, 61, 300 and 2000 days with no
+contract and asserts `headline == "backtested"` and `thin is True` at every one — then runs the
+same series with the gate passed and asserts it flips, so the first half cannot pass vacuously.
+It fails if anyone restores the day-count-only rule at any horizon.
+
+**One existing test was pinning the defect and had to be amended, which is stated rather than
+buried.** `test_live_track_never_annualizes_a_stub_or_leads_with_it` asserted
+`long["headline"] == "live"` at `MIN_LIVE_DAYS + 5`. The claim it still owns — that annualisation
+switches on past the floor — is a *value* and is unchanged; the amendment is recorded inline in
+the test with the old line quoted.
+
+Five new tests, `83/83` in `tests/test_screener.py`, and the full gate is green.
+
+## 10.10 What I did NOT do
+
+* **Did not change `MIN_LIVE_DAYS` from 60.** It is the wrong number — §2 of the contract puts
+  60 days at 10-13% power — but it now gates only *annualisation*, which is a published figure.
+  Moving it changes a number, not a label. **Recorded as a bug below, not fixed.**
+* **Did not touch `valuation/web/**`.** The fix is in the producer, so `app.py`, `hero.py` and
+  `showcase.py` inherit it with no edit.
+* **Did not touch `paper_track.MIN_DAYS_FOR_MEANING = 126`** — edge lane, and it opens a second
+  door that is reported below rather than fixed from here.
+* **Did not sign or alter the contract's terms.** One register row and one explanatory note.
+* **Did not correct §6.4's file:line error** in another lane's document — reported below.
+
+**Limits.** The gate is a *recorded human judgement*, not a measurement: nothing here checks that
+the gate's actual criteria (daily rows with no gaps, turnover as modelled, realised costs near
+33.4 bps) were met. If someone writes `YES` without doing the work, the site believes them. That
+is the correct division — the contract makes the gate a judgement — but it should not be mistaken
+for verification.
+
+## BUGS FOUND (Part 10)
+
+1. **THERE IS A SECOND, UNGATED DOOR TO THE SAME FLIP, and this change does not close it.**
+   `hero.py:75-92` falls back to `paper_track.index_summary()` whenever the Cowork tracker has
+   no live data, and takes `thin` from that payload's `meaningful` flag —
+   `len(rows) >= MIN_DAYS_FOR_MEANING` (`paper_track.py:799`, 126 days). That path never
+   consults the contract, so with the Cowork file absent and the sandbox book running,
+   `hero.may_lead` can still flip on a day count alone, ~126 days in. **Fix is one line in the
+   edge lane** — have `index_summary` (and `options_summary`) gate `meaningful` on
+   `index_track.gate_state()["passed"]`, the same single authority, rather than adding a second
+   flag. **Edge lane + web lane; assigned to neither so far.**
+2. **`MIN_LIVE_DAYS = 60` still annualises a 60-day stub**, which is what the module's own rule 2
+   forbids in spirit — compounding ~3 months of drift by 4.2x. The contract's §2 arithmetic says
+   the number is meaningless at that horizon. Left alone deliberately because it is a value, not
+   a label, and the instruction was labels-only. Wants its own pre-committed change.
+3. **`PAPER_TRACK_CONTRACT.md` §6.4 and `CLAUDE.md` both put `paper_track.MIN_DAYS_FOR_MEANING`
+   in `valuation/screener/index_track.py`. It is in `valuation/edge/paper_track.py:70`.** Both
+   documents say "both live in index_track.py", and only one of the two constants does. Not
+   corrected here — they belong to other lanes — but it matters, because the sentence is the one
+   assigning the work, and half of it points at the wrong lane. That half is bug 1.
+4. **The brief describes the contract as "now being committed as Option E".** The contract on
+   `main` as merged offers **A, B and C only**, and its register reads `pending` throughout —
+   nothing is signed. The gate row defaults to not-passed regardless of which option lands, so
+   this is a coordination note, not a blocker: **whoever commits Option E should set the
+   `Operational gate passed` row's value at the same time, or leave it `pending`.**
