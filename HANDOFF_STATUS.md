@@ -110,6 +110,79 @@ post.**
 
 ---
 
+---
+
+## ENGINE/SCREENER — V2's LIVE THEME-HEALTH METER IS BUILT, AND IT REPORTS THAT IT HAS NOTHING TO REPORT (2026-08-09, greeks lane)
+
+Full write-up in `HANDOFF_live_data_bugs.md` **Part 11**; ledger row `V2`; pre-registration
+committed alone at `25ba793` before any code existed. **First `VALQUO_EXTENSIONS.md` section
+executed, so that register lands with this work per its own rule.**
+
+**WHAT SHIPPED.** `scripts/theme_health.py` + `tests/test_theme_health.py` (23 tests). It reads
+the live per-name snapshot record, computes each theme's realized forward 63-day rank-IC as
+windows close at monthly cadence, and carries an anytime-valid band per theme. The IC is the
+panel's own `_spearman` and the band is `track_meter.boundary`, **both imported read-only** —
+`valuation/edge/**` is untouched, and the project keeps one definition of each rather than two
+free to drift apart.
+
+**VERDICT: NOT-QUOTABLE ON ALL TEN THEMES, ON ZERO USABLE ROWS.** Every one of the 7 archived
+scan days is provider `"synthetic (offline test)"` with `SYN*` tickers, and the store's single
+`snapshot_rows` entry is dated **2099-01-01** — a fixture left by `tests/test_saas.py:200`. The
+refusal is the product: each theme prints its blocking reasons and **no IC is printed at all**,
+because a number beside its own reason for being untrustworthy gets quoted without it.
+
+**V2's STATED DATA SOURCE IS HALF FALSE AND THE FALSE HALF IS THE ONE AN EXECUTOR DEPENDS ON.**
+The schema and writer exist (`screen.py:66` persists all ten themes into `extra["factors"]`), but
+`auto-scan.yml` runs the scan on a GitHub runner and POSTs the result to the live site, so **a
+checkout's store never receives a real scan.** The record accrues only on Render's persistent
+disk. There is also no task #97 anywhere (index 97 is `O25`), so the citation cannot be followed.
+
+**THE ESTIMATOR IS PROVED ANYWAY, BECAUSE THE LIVE DATA CANNOT PROVE IT.** Against panels with a
+known planted IC: planted +0.5 recovers **median IC +0.4712** against a theoretical +0.4826 and
+is labelled CONFIRMED-LIVE; planted −0.5 crosses DOWN and is labelled DEGRADED; **8 noise panels
+× 10 themes = 80 theme-runs produced 0 crossings.** The control caught a defect in **itself**
+first — the initial panel builder let one date's entry price double as an earlier date's mark,
+attenuating the recovered IC to **+0.3575**, which is the 0.341 that `1/sqrt(2)` predicts. That
+would have read as a broken estimator.
+
+**THE FINDING WORTH ACTING ON IS THE CALIBRATION, AND IT IS ABOUT WHICH SOURCE FEEDS THE METER.**
+20,000 Monte Carlo paths carrying the overlap structure the band assumes:
+
+| | 100 names (top-100 archive) | 800 names (full-universe store) |
+|---|---|---|
+| power at `quality`'s +0.0356, 60m | **2.5%** | **80.3%** |
+| power at `capital_discipline`'s +0.0297, 60m | 1.5% | **55.0%** |
+| detectable mean IC by 60m | +0.0851 | **+0.0299** |
+
+Same band, same horizon, same alpha; only the cross-section moves. **On the top-100 archive this
+meter is very nearly powerless at the effect sizes the backtest claims — the same arithmetic that
+gives the forward paper track 13%. So the full-universe snapshot history is the asset, and it
+lives only on Render's disk.** The archive is doubly wrong here: its top 100 are selected on the
+composite, which range-restricts the very scores being correlated. False crossing under the null
+is 0.0010 against a nominal 0.005 — conservative, as a Robbins bound should be.
+
+**TIMELINE:** first 63-day window closes ~3 months after real capture begins, plus the
+pre-registered 6 monthly observations, so **the earliest possible first reading is ~9 months from
+the day full-universe snapshots start being retained; the first reading with real power is ~5
+years.** The pre-registered expectation (NOT-QUOTABLE everywhere, 95% confidence) is CONFIRMED.
+
+**ZERO TRIAL COST** — a meter searches nothing. Equity `N` stays **129**, Deflated Sharpe 0.8556.
+
+**NOT DONE, and stated:** production was not read (the real history sits behind admin endpoints
+and `ADMIN_TOKEN`; `--db` / `--archive` take a path so pointing at a downloaded copy is one
+flag); no scheduled job was added; nothing was surfaced publicly; and the `test_saas.py` fixture
+leak was not fixed — another lane's file, and the meter now defends against it.
+
+**BUGS FOUND (4), the first two for other lanes:** (1) `tests/test_saas.py:200` writes a
+**2099-01-01** row into the real `data/screener.db`, and `store.latest_scan_date()` orders by
+`scan_date DESC`, so **`load_snapshot()` with no argument returns that fixture** on any machine
+that has run the suite; (2) `VALQUO_EXTENSIONS.md` V2's data-source claim and its "task #97"
+citation, above; (3) `archive.py:84`'s `top=100` makes the scan archive unusable for theme
+health and its docstring reads as an invitation to use it; (4) `insider` (backtest IC −0.0052,
+inside the pre-committed `REF_MIN_IC` of 0.01) and `sentiment` (empty in the panel) can never
+receive a directional verdict — both correctly return NO-REFERENCE rather than a fabricated one.
+
+
 ## ENGINE/SCREENER — THE SITE NO LONGER PROMOTES ITSELF TO "LIVE" ON A CALENDAR (2026-08-09, greeks lane)
 
 Full write-up in `HANDOFF_live_data_bugs.md` **Part 10**; ledger row `OOB5`. Pre-commitment
