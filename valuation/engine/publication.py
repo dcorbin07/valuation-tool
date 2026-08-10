@@ -46,6 +46,37 @@ FV_BAND_LOW = 0.2
 ROW_WITHHELD = "fair_value_withheld"
 ROW_WITHHELD_REASON = "fair_value_withheld_reason"
 
+# --------------------------------------------------------------------------------------- #
+# THE LABELS THAT DESCRIBE THE VALUE, AND WHY THEY GO WITH IT (LA10, 2026-08-10).
+#
+# `estimate_fair_values` writes `fair_value_method` ("blended") and `fair_value_confidence`
+# ("medium") alongside the number. The band withhold in `web/withhold.py` then blanked the
+# number and left both labels standing, so a refused row shipped as
+#
+#     {fair_value: null, fair_value_method: "blended", fair_value_confidence: "medium",
+#      fair_value_withheld: true}
+#
+# — the confidence of a number that is not there. Cosmetic today (no surface draws it), and
+# it is exactly the shape this module exists to eliminate: a label outliving the value it
+# described. The audit found the same shape three times in documentation; this is the one
+# instance of it in a served payload.
+#
+# THE TWO FIELDS ARE TREATED DIFFERENTLY, ON PURPOSE.
+#   * `fair_value_method` is SET to "withheld" rather than cleared. That word is already this
+#     project's vocabulary for it — `fairvalue.py`'s own refusal branch writes it and
+#     `tests/test_guards.py` pins it — and a positive label beats an empty cell for the same
+#     reason a refusal writes a REASON instead of leaving a gap: a blank invites someone to
+#     "fix" the missing data later.
+#   * `fair_value_confidence` is CLEARED. It is a graded scale ("low" / "medium") with no
+#     withheld rung, and writing a word into a scale invites a renderer to sort or compare it.
+#     The row already carries `fair_value_withheld: true` as the positive marker.
+ROW_WITHHELD_METHOD = "withheld"
+
+#: Everything derived from the fair value that a refusal must clear. `fair_value` and
+#: `fair_value_method` are handled explicitly in `strip_derived_fields` (one is the value,
+#: the other is set rather than cleared), so they are deliberately not in this tuple.
+ROW_DERIVED_FIELDS = ("upside", "fair_value_confidence")
+
 
 @dataclass(frozen=True)
 class PublicationVerdict:
@@ -117,6 +148,24 @@ def _f(x) -> Optional[float]:
     return None if (x != x or x in (float("inf"), float("-inf"))) else x
 
 
+def strip_derived_fields(row: dict) -> None:
+    """Clear the value AND every label that described it. See ROW_DERIVED_FIELDS above.
+
+    Split out from `record_refusal` so the band withhold in `web/withhold.py` can apply the
+    identical rule at the other end of the pipeline. Two places decide a row is withheld;
+    there is one definition of what that does to the row, because two would drift — the same
+    argument this module makes about the band itself.
+
+    Does NOT set the withheld flag or reason: those say a refusal happened, this says what a
+    refusal does to the row, and the band path writes its own reason.
+    """
+    row["fair_value"] = None
+    for k in ROW_DERIVED_FIELDS:
+        if k in row:
+            row[k] = None
+    row["fair_value_method"] = ROW_WITHHELD_METHOD
+
+
 def record_refusal(row: dict, reason: str) -> None:
     """Mark a scan row as REFUSED rather than merely empty.
 
@@ -124,7 +173,7 @@ def record_refusal(row: dict, reason: str) -> None:
     `fair_value` reads downstream as "not computed yet" and invites a substitute; a recorded
     refusal reads as a decision and is honoured.
     """
-    row["fair_value"] = None
-    row["upside"] = None
+    strip_derived_fields(row)
+    row["upside"] = None                 # explicit: `upside` is cleared even if it was absent
     row[ROW_WITHHELD] = True
     row[ROW_WITHHELD_REASON] = reason or "No fair value is published for this name."
