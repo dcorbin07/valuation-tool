@@ -37,6 +37,14 @@ Three surfaces now read those constants:
   footnote; before it, it frames how the bars are read.
 * **`/methodology`**, first bullet of *"Where it is weak — read this part"*.
 
+**The public landing card was changed too, but NOT with the pinned sentence, and the reason is
+worth recording.** Its screener card said the ranking *"says how names score against each
+other"*; it now says *"and a **coarse** one: it says roughly where names stand against each
+other"*. The calibrated sentence itself was deliberately **not** used there — it reads
+*"…inside that decile"*, and **no decile is mentioned anywhere on that page**, so the quote
+would have arrived without its antecedent. A quote that needs missing context is worse than an
+accurate paraphrase; the verbatim wording lives where the context does.
+
 **`PER_NAME` is an exact substring of `DEFENSIBLE`, not a shorter rewrite of it**, and a test
 asserts that. Otherwise the name row and the legend become two independently-editable statements
 of one limit — and a reader on a name row could be given the softer of the two.
