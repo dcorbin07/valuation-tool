@@ -653,8 +653,21 @@ def test_hero_expectancy_comes_from_the_scorecard_not_a_second_calculation():
     assert block["thin"] is False
 
 
-def test_hero_names_which_forward_record_it_drew():
-    """Two live records exist. An unlabelled fallback would swap the number's meaning."""
+def test_hero_will_not_render_the_sandbox_book_as_the_index():
+    """REPLACES `test_hero_names_which_forward_record_it_drew` (2026-08-09), and is STRICTLY
+    HARDER to satisfy — the old behaviour it pinned cannot pass this one.
+
+    That test asserted the hero may fall back to `paper_track.index_summary` provided it sets
+    `source: "paper-sandbox"`, on the reasoning that "an unlabelled fallback would swap the
+    number's meaning". The labelling was real and honest — and no template ever rendered
+    `source`, so a visitor saw the sandbox book's return under the heading "Valquo Index" with
+    nothing to say otherwise. Two days after that test was written the same defect, in the same
+    shape, put a false claim into Discord (2026-08-05, +0.18 pp).
+
+    The repair is not a better label. A surface that CAN reach the wrong book eventually shows
+    it, so the fallback is gone: with no contract-bound rows the hero reports nothing, however
+    much the engine has to say.
+    """
     from valuation.web.hero import live_hero
     st, _ = _book_with_one_closed_winner()
     PT.ensure_schema(st)
@@ -663,12 +676,35 @@ def test_hero_names_which_forward_record_it_drew():
                   "active_ret, n_priced) VALUES (?,?,?,?,?,?)",
                   ("2026-08-03", "2026-08-01", 0.0182, 0.0091, 0.0091, 25))
     idx = live_hero(st)["index"]
-    assert idx["available"] is True
-    assert idx["source"] == "paper-sandbox"
-    # paper_track reports fractions; the hero speaks percent, and the two must not be mixed.
-    assert abs(idx["cum_pct"] - 1.82) < 1e-9
-    assert abs(idx["bench_pct"] - 0.91) < 1e-9
-    assert abs(idx["excess_pp"] - 0.91) < 1e-9
+    assert idx["available"] is False, (
+        "the hero rendered the Tradier sandbox book as the Valquo Index: " + repr(idx))
+    for k in ("cum_pct", "bench_pct", "excess_pp"):
+        assert idx.get(k) is None, f"a sandbox figure leaked into the hero as {k}"
+
+
+def test_hero_index_figures_carry_their_book_and_window(tmpdir=None):
+    """When the hero DOES have a figure, the book and the window come with it — the two facts
+    whose absence made +0.18 pp look like a claim about the Index."""
+    import valuation.web.hero as H
+    import valuation.screener.index_track as IT
+    orig = IT.summarize
+    try:
+        IT.summarize = lambda *a, **k: {
+            "available": True, "benchmark": "SPY", "inception": "2026-07-30", "thin": True,
+            "min_live_days": IT.MIN_LIVE_DAYS, "series": [], "note": "",
+            "live": {"days": 2, "since": "2026-07-31", "as_of": "2026-08-06",
+                     "cum_valquo_pct": 0.776, "cum_spy_pct": 3.6228, "excess_pp": -2.8468,
+                     "book": IT.BOOK_SHORT, "window": "since inception 2026-07-30 through "
+                                                      "2026-08-06 (2 recorded sessions)",
+                     "claim": "…", "recorder": IT.RECORDER},
+        }
+        idx = H._index_block(_store())
+    finally:
+        IT.summarize = orig
+    assert idx["available"] is True and idx["source"] == "index-track"
+    assert idx["book"] == IT.BOOK_SHORT and "2026-08-06" in idx["window"]
+    assert idx["recorder"] == IT.RECORDER
+    assert abs(idx["excess_pp"] + 2.8468) < 1e-9
 
 
 def test_hero_never_raises_and_never_takes_the_page_down():
@@ -795,6 +831,155 @@ def test_p4_seed_book_can_still_accumulate_when_asked():
     assert out["closed"] == 0
     with st._conn() as c:
         assert c.execute("SELECT COUNT(*) FROM paper_index_holdings").fetchone()[0] == 2
+
+# ---------------------------------------------------------------------------------------- #
+# ONE RECORDER FOR EVERY OUTBOUND vs-SPY CLAIM.
+#
+# THE INCIDENT THESE PIN. On 2026-08-05 the Discord recap posted "Since inception 2026-08-03
+# (3 sessions): index +3.22%, SPY +3.05% -> **+0.18 pp**" — the Valquo Index beating SPY. The
+# contract-bound recorder over that window reads -0.2777pp (2026-07-31) and -2.8468pp
+# (2026-08-06); it was never above SPY. No arithmetic was wrong. The recap read the Tradier
+# sandbox ENGINE (10 names, equal-weighted at 10%, inception 2026-08-03 — weights that violate
+# PAPER_TRACK_CONTRACT.md's own 8% cap) and printed it under the words "Valquo Index vs SPY".
+#
+# WHY THESE ARE STRICTER THAN THE SITE'S. A wrong figure on a page is corrected by a deploy.
+# A wrong figure in Discord is delivered once, to people, and no correction ever catches it.
+# ---------------------------------------------------------------------------------------- #
+_FAKE_CLAIM = {
+    "available": True, "reason": "", "recorder": "FAKE_RECORDER", "book": "FAKEBOOK",
+    "book_short": "FAKEBOOK", "benchmark": "SPY", "window": "FAKEWINDOW",
+    "window_kind": "inception", "since": "2026-01-01", "as_of": "2026-01-09", "n_points": 2,
+    # DELIBERATELY INCONSISTENT: +5.00 - +1.00 is +4.00 pp, and the recorder says -9.99.
+    # Nothing downstream may "fix" that — the recorder is the definition, not a suggestion.
+    "valquo_pct": 5.0, "spy_pct": 1.0, "excess_pp": -9.99, "excess_source": "recorded",
+    "text": "FAKEBOOK vs SPY, FAKEWINDOW: Index +5.00%, SPY +1.00% → -9.99 pp",
+}
+
+
+def test_the_recap_prints_the_recorders_excess_and_never_recomputes_it():
+    """THE PIN THE TASK ASKED FOR: a digest that computes its own excess return fails here.
+
+    The recorder is handed a claim whose excess (-9.99 pp) is not the difference of its own two
+    legs (+4.00 pp). Any surface that re-derived `valquo - spy` would print +4.00. Only a
+    surface that treats the recorder as the single definition prints -9.99.
+    """
+    import valuation.screener.index_track as IT
+    orig = IT.vs_spy_claim
+    try:
+        IT.vs_spy_claim = lambda *a, **k: dict(_FAKE_CLAIM)
+        text = RC.build(_store(), kind="daily")
+    finally:
+        IT.vs_spy_claim = orig
+    assert "-9.99 pp" in text, f"the recap did not print the recorder's excess:\n{text}"
+    assert "+4.00 pp" not in text, ("the recap RECOMPUTED the excess from the two legs instead "
+                                    f"of reading it:\n{text}")
+    # The book and the window must travel with the number, in the message itself.
+    assert "FAKEBOOK" in text and "FAKEWINDOW" in text, text
+
+
+def test_no_outbound_surface_may_quote_the_sandbox_engine_as_the_index():
+    """The 2026-08-05 regression, reconstructed from the engine's own committed export.
+
+    The engine holds exactly the rows it held that day and the bound track holds nothing. The
+    correct post says it has no Index figure. A post that reaches for the engine prints
+    +0.18 pp, which is the false claim that was actually sent.
+    """
+    st = _store()
+    PT.ensure_schema(st)
+    rows = [("2026-08-03", 0.0172942154, 0.0142430692, 0.0030511461),
+            ("2026-08-04", 0.0404483143, 0.0325288141, 0.0079195002),
+            ("2026-08-05", 0.0322393165, 0.0304673172, 0.0017719993)]
+    with st._conn() as c:
+        c.executemany("INSERT OR REPLACE INTO paper_index_track (as_of, index_ret, bench_ret,"
+                      " active_ret, n_positions, n_priced, inception) VALUES (?,?,?,?,10,10,"
+                      "'2026-08-03')", rows)
+    text = RC.build(st, kind="daily", day="2026-08-05")
+    assert "+0.18 pp" not in text, f"THE 2026-08-05 FALSE CLAIM IS BACK:\n{text}"
+    assert "+3.22%" not in text and "+3.05%" not in text, (
+        f"the sandbox engine's returns are being reported as the Index:\n{text}")
+    assert "No Index-vs-SPY figure" in text, (
+        f"with no bound rows the recap must decline to report, not substitute:\n{text}")
+
+
+def test_the_recap_does_not_consult_the_engine_for_an_index_claim_at_all():
+    """Not "prefers the recorder" — cannot reach the engine. `index_summary` is made to
+    explode; a recap that still builds is one that never calls it for this."""
+    st = _store()
+    PT.ensure_schema(st)
+    orig = PT.index_summary
+    try:
+        PT.index_summary = lambda *a, **k: (_ for _ in ()).throw(
+            AssertionError("the recap asked the sandbox engine for an Index-vs-SPY figure"))
+        text = RC.build(st, kind="daily")
+    finally:
+        PT.index_summary = orig
+    assert "Valquo Index" in text and "vs SPY" in text, text
+
+
+def test_outbound_modules_contain_no_second_definition_of_excess_return():
+    """Structural backstop: no outbound composer may subtract one return series from another.
+
+    The behavioural tests above catch a recomputation that CHANGES a printed number. This
+    catches one that happens to agree today — the state the site and the recap were in before
+    2026-08-05, when two definitions matched and nothing said which was authoritative. The
+    single legal site of this arithmetic is `index_track._window_return_pct` / `vs_spy_claim`,
+    which is deliberately not in this list.
+    """
+    import ast
+    import os
+    # Every module that composes something a person receives: Discord, email, the site's hero.
+    outbound = ["valuation/saas/recap.py", "valuation/saas/notify.py",
+                "valuation/saas/emailer.py", "valuation/web/hero.py"]
+    # Both operands must be return-ish for a subtraction to count, which is what keeps
+    # `len(lines) - keep_tail` and `today - timedelta(...)` out of it.
+    vocab = ("valquo", "spy", "bench", "index_ret", "excess", "active_ret", "cum_pct",
+             "cum_valquo_pct", "cum_spy_pct", "bench_pct", "bench_ret")
+
+    def nameish(node):
+        if isinstance(node, ast.Name):
+            return node.id.lower()
+        if isinstance(node, ast.Attribute):
+            return node.attr.lower()
+        if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant):
+            return str(node.slice.value).lower()
+        if isinstance(node, ast.Call):                 # r.get("index_ret")
+            for a in node.args:
+                if isinstance(a, ast.Constant) and isinstance(a.value, str):
+                    return a.value.lower()
+        return ""
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    offences = []
+    for rel in outbound:
+        path = os.path.join(root, *rel.split("/"))
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            tree = ast.parse(f.read(), filename=rel)
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Sub)):
+                continue
+            l, r = nameish(node.left), nameish(node.right)
+            if any(v in l for v in vocab) and any(v in r for v in vocab):
+                offences.append(f"{rel}:{node.lineno}  {l} - {r}")
+    assert not offences, (
+        "an outbound surface computes its own excess return; it must read "
+        "index_track.vs_spy_claim instead:\n  " + "\n  ".join(offences))
+
+
+def test_the_email_digest_makes_no_unsourced_vs_spy_claim():
+    """The email digest currently makes NO vs-SPY claim, and this keeps it that way by
+    accident-proofing rather than by memory: if one is ever added, it must come from the
+    recorder. Checked on the rendered output, not the source, so a claim assembled from
+    f-strings cannot slip past."""
+    from valuation.saas import emailer
+    html = (emailer.weekly_digest_html("2026-08-05", [], []) or "") + \
+           (emailer.learning_digest_html({}) or "")
+    if "SPY" in html.upper():
+        import valuation.screener.index_track as IT
+        assert IT.RECORDER in html or IT.BOOK_SHORT in html, (
+            "the email digest quotes SPY without naming the contract-bound recorder or book")
+
 
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

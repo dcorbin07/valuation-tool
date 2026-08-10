@@ -270,6 +270,146 @@ def from_store(store) -> dict:
             "series": sorted(series, key=lambda r: r["date"])}
 
 
+# --------------------------------------------------------------------------- #
+# THE ONE AUTHORITY for a "Valquo Index vs SPY" statement on any outbound surface.
+# --------------------------------------------------------------------------- #
+#
+# WHY THIS EXISTS. On 2026-08-05 the Discord recap posted:
+#
+#     "Since inception 2026-08-03 (3 sessions): index +3.22%, SPY +3.05% -> **+0.18 pp**"
+#
+# i.e. the Index was BEATING SPY. The contract-bound recorder over that window reads
+# -0.2777pp (2026-07-31) and -2.8468pp (2026-08-06): it was never above SPY, on any day.
+# Nothing was miscalculated. The recap read a DIFFERENT BOOK -- the Tradier sandbox engine
+# (`paper_track.index_summary`), 10 names equal-weighted at 10% each, inception 2026-08-03 --
+# and printed it under the words "Valquo Index vs SPY". Those 10% weights violate this
+# contract's own 8% cap, so the engine is not the Index and may never be evidence under
+# `PAPER_TRACK_CONTRACT.md`.
+#
+# WHY IT IS CENTRALISED RATHER THAN PATCHED. The same defect had already been found ON THE
+# SITE (audit B7: the live screener and the backtest scored names differently because two code
+# paths computed the same thing). The lesson taken then was that a second implementation of one
+# number is a bug with a delay fuse, not a style problem. This is that bug on an OUTBOUND
+# surface, which is strictly worse: a wrong figure on a page can be corrected in place, but a
+# wrong figure in Discord is delivered once, to people, and the correction never catches up
+# with it. So there is exactly one function that may answer "how is the Index doing vs SPY",
+# it reads only the bound source, and there is no fallback to any other recorder -- an
+# unavailable claim is a normal outcome and is reported as such.
+#
+# WHY THE TEXT IS BUILT HERE. Every claim carries its BOOK and its WINDOW in the same string as
+# its numbers, so the two cannot come apart in transit. A surface that wants the numbers gets
+# the sentence; a surface that renders its own layout still gets `book` and `window` as fields
+# it is expected to show. "+0.18 pp" is not a claim -- "+0.18 pp, this book, this window" is.
+
+# The book, exactly as PAPER_TRACK_CONTRACT.md fixes it (see its "comparison rule").
+BOOK = ("Valquo Index — broad top decile of the large-cap tier by hot score, score-weighted, "
+        "capped at 8%")
+BOOK_SHORT = "Valquo Index (top decile, large-cap tier, score-weighted, 8% cap)"
+
+# The bound source. Named in the claim so a reader can check it against the contract.
+RECORDER = "data/valquo_track.json + valquo_track_history.csv"
+
+WINDOW_KINDS = ("inception", "last_point", "trailing")
+
+
+def _window_return_pct(cum_now, cum_then) -> Optional[float]:
+    """Compound a window return out of two cumulative-since-inception PERCENT levels.
+
+    THE ONLY PLACE THIS ARITHMETIC IS ALLOWED TO LIVE. Cumulative levels do not subtract --
+    (1+a)/(1+b)-1, not a-b -- and the difference matters once the levels are more than a few
+    percent apart. Keeping it here means a surface cannot get it subtly wrong in its own copy.
+    """
+    a, b = _f(cum_now), _f(cum_then)
+    if a is None or b is None:
+        return None
+    return ((1.0 + a / 100.0) / (1.0 + b / 100.0) - 1.0) * 100.0
+
+
+def _plural_sessions(n: int) -> str:
+    return f"{n} recorded session" + ("" if n == 1 else "s")
+
+
+def vs_spy_claim(window: str = "inception", points: int = 1, meta_path: str = None,
+                 history_path: str = None, store=None) -> dict:
+    """The Index's record against its benchmark, over one window, from the bound recorder.
+
+    `window`:
+      * `inception`  — first recorded row to the latest one. Uses the tracker's OWN recorded
+                       `excess_pp` when it wrote one, so the published number and this one are
+                       the same bytes rather than two derivations that agree today.
+      * `last_point` — the previous recorded row to the latest one.
+      * `trailing`   — `points` recorded rows back to the latest one.
+
+    Windows are counted in RECORDED POINTS, never calendar days, and say so in the text. The
+    bound series is maintained by hand on the Cowork side and has gaps (2 of 6 due rows on
+    2026-08-09), so "since yesterday" would silently attribute several days of drift to one.
+
+    Returns `available: False` with a `reason` when the bound source has nothing to say. That
+    is a normal state on a fresh deploy — `data/` is gitignored — and it is NEVER resolved by
+    reading another recorder. A surface with no claim must print no claim.
+    """
+    if window not in WINDOW_KINDS:
+        raise ValueError(f"unknown window {window!r}; expected one of {WINDOW_KINDS}")
+
+    out = {"available": False, "reason": "", "recorder": RECORDER, "book": BOOK,
+           "book_short": BOOK_SHORT, "benchmark": "SPY", "window": "", "window_kind": window,
+           "since": None, "as_of": None, "n_points": 0, "valquo_pct": None, "spy_pct": None,
+           "excess_pp": None, "excess_source": None, "text": ""}
+
+    d = load(meta_path, history_path)
+    if not d["series"] and store is not None:
+        d = from_store(store)
+    series, meta = d["series"], d["meta"]
+    out["benchmark"] = meta.get("benchmark") or "SPY"
+    out["inception"] = meta.get("inception_date")
+
+    if not series:
+        out["reason"] = ("the contract-bound track has no recorded rows, so there is no "
+                         "Index-vs-SPY figure to report")
+        return out
+
+    last = series[-1]
+    out["as_of"] = last["date"]
+
+    if window == "inception":
+        first = series[0]
+        out.update(since=meta.get("inception_date") or first["date"], n_points=len(series),
+                   valquo_pct=_f(last.get("valquo")), spy_pct=_f(last.get("spy")))
+        rec = _f(last.get("excess"))
+        if rec is not None:
+            out["excess_pp"], out["excess_source"] = rec, "recorded"
+        elif out["valquo_pct"] is not None and out["spy_pct"] is not None:
+            out["excess_pp"] = out["valquo_pct"] - out["spy_pct"]
+            out["excess_source"] = "derived-by-recorder"
+        out["window"] = (f"since inception {out['since']} through {out['as_of']} "
+                         f"({_plural_sessions(len(series))})")
+    else:
+        back = 1 if window == "last_point" else max(1, int(points))
+        if len(series) < back + 1:
+            out["reason"] = (f"the bound track has {len(series)} recorded row(s) — too few for a "
+                             f"{back}-point window")
+            return out
+        prev = series[-1 - back]
+        out.update(since=prev["date"], n_points=back + 1,
+                   valquo_pct=_window_return_pct(last.get("valquo"), prev.get("valquo")),
+                   spy_pct=_window_return_pct(last.get("spy"), prev.get("spy")))
+        if out["valquo_pct"] is not None and out["spy_pct"] is not None:
+            out["excess_pp"] = out["valquo_pct"] - out["spy_pct"]
+            out["excess_source"] = "derived-by-recorder"
+        out["window"] = (f"{prev['date']} → {out['as_of']} "
+                         f"({back} recorded point{'' if back == 1 else 's'} apart)")
+
+    if out["valquo_pct"] is None or out["spy_pct"] is None:
+        out["reason"] = "the bound track's latest rows are missing a priced leg"
+        return out
+
+    out["available"] = True
+    out["text"] = (f"{BOOK_SHORT} vs {out['benchmark']}, {out['window']}: "
+                   f"Index {out['valquo_pct']:+.2f}%, {out['benchmark']} {out['spy_pct']:+.2f}% "
+                   f"→ {out['excess_pp']:+.2f} pp")
+    return out
+
+
 def summarize(config: str = None, meta_path: str = None, history_path: str = None,
               store=None, contract: str = None) -> dict:
     """Live track + the backtested figures for the same book, side by side.
@@ -320,13 +460,21 @@ def summarize(config: str = None, meta_path: str = None, history_path: str = Non
     last = series[-1]
     days = len(series)
     cum_v, cum_s = last["valquo"], last["spy"]
-    excess = last.get("excess")
-    if excess is None and cum_v is not None and cum_s is not None:
-        excess = cum_v - cum_s
+
+    # The since-inception excess comes from `vs_spy_claim`, not from a second subtraction here.
+    # Both readings agreed, which is exactly why they were dangerous: two derivations that
+    # match today are one edit away from not matching, and nothing would have said which was
+    # right. `claim` also travels into the payload so the API serves the book and the window
+    # attached to the number.
+    claim = vs_spy_claim("inception", meta_path=meta_path, history_path=history_path,
+                         store=store)
+    excess = claim.get("excess_pp")
 
     live = {
         "days": days, "since": series[0]["date"], "as_of": last["date"],
         "cum_valquo_pct": cum_v, "cum_spy_pct": cum_s, "excess_pp": excess,
+        "book": claim.get("book_short"), "window": claim.get("window"),
+        "claim": claim.get("text"), "recorder": claim.get("recorder"),
         "ann_alpha": None, "sharpe": None, "hit_rate": None,
     }
 
