@@ -88,8 +88,9 @@ thereafter, whatever it says. §5 is the register; §6 freezes the meter. Full w
 `HANDOFF_edge_audit.md` § SESSION 14; ledger rows `PT-CONTRACT`, `PT-METER`, `PT-WRITER`,
 `PT-SPLIT`.
 
-**Equity `N` 129 → 130** (the register is charged as a trial): **Deflated Sharpe 0.8552,
-√(2·ln 130) = 3.1201**, and `BACKTEST_RESULTS.json` was re-run to match.
+**Equity `N` 129 → 130** (the register is charged as a trial): **Deflated Sharpe 0.8547,
+√(2·ln 130) = 3.1201**, and `BACKTEST_RESULTS.json` was re-run to match — 11 leaves moved, five
+of them the DSR chain, four provenance and two last-digit float; every headline bit-identical.
 
 **THE MATERIAL FINDING: there are TWO live recorders and they record DIFFERENT BOOKS.**
 

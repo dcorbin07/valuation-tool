@@ -380,6 +380,10 @@ replace** the §5 verdict. Two consequences are binding:
 - Computed from **inception**. **First rendered 2027-01-30** (the operational gate), monthly
   thereafter, owner-side. Before that date the meter is computed but withheld — withheld from
   display, not left unmeasured, so nothing is reconstructed later.
+  *(Noted so it is not later mistaken for a fault: **2027-01-30 is a Saturday**. The gate is
+  `as_of >= 2027-01-30`, so it opens on that date and the first actual render happens on the
+  next call at or after it — in practice Monday 2027-02-01. The date is not moved, because
+  moving a pre-registered date is exactly what §5 forbids.)*
 - **Rendering is unconditional on sign.** A suppressed unfavourable render voids the whole run
   under §3's abort rule, exactly as a back-fill does. The strongest guard is that the code
   cannot express the suppression: the render decision reads the date and the integrity of the

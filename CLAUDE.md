@@ -88,7 +88,9 @@ the project's memory and the old versions had been repeated for months.
     every constant a literal), including one that fails if the AR(1) inflation is removed and one
     that pins the render decision as invariant to flipping the sign of the entire series.
   * **Equity `N` 129 → 130** (the register is charged as a trial; understating `N` overstates
-    significance). **Deflated Sharpe 0.8556 → 0.8552, √(2·ln 130) = 3.1201.**
+    significance). **Deflated Sharpe 0.8556 → 0.8547, √(2·ln 130) = 3.1201**, and
+    `BACKTEST_RESULTS.json` was re-run so the artifact matches the record rather than going
+    stale on the denominator again.
 - **THE FORWARD PAPER TRACK CANNOT DELIVER A VERDICT FOR ~5 YEARS (2026-08-08, session 13).
   Roadmap #12's status line was wrong.** That item says the track is built and *"what remains is
   elapsed time and reading the track, not building it."* The arithmetic below is why that is

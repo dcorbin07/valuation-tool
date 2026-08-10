@@ -5772,10 +5772,33 @@ Don's choice, recorded verbatim as given:
 | **Voided windows** | *(none yet)* |
 
 Logged to `RESEARCH_LOG.md` as **`PT-REGISTER`**, verdict `REGISTERED`, **equity `N` 129 → 130**
-(**Deflated Sharpe 0.8556 → 0.8552, √(2·ln 130) = 3.1201**). Charged rather than waived because
+(**Deflated Sharpe 0.8556 → 0.85473, √(2·ln 130) = 3.1201**). Charged rather than waived because
 the verdict will be quoted as a claim about the equity strategy, and understating `N` overstates
 significance. The row is logged **at registration** — that is the point of a pre-registration —
 and the verdict gets appended to it in 2031 rather than replacing it.
+
+**And because charging it moved `N`, the canonical artifact had to be re-run — this session
+re-created session 13's own staleness bug and then closed it in the same session.** Full re-run
+on the 2,531-name / 69-date universe from a **clean tree at `f56cc51`**, `git.dirty` false:
+
+| | before (`c1b0ed6`) | after |
+|---|---|---|
+| `cpcv.deflated_sharpe.value` | 0.855607566829599 | **0.8547321268980206** |
+| `n_trials` / `n_trials_from_research_log` | 129 | **130** |
+| `sr0_benchmark` | 0.43031816623094016 | 0.43075197686098127 |
+| `n_trials_source` | `RESEARCH_LOG.md (audit M1)` | unchanged |
+| `n_trials_from_weight_schemes` | 8 | unchanged — degrade path intact |
+
+**Leaf-by-leaf diff: 11 moved / 0 added / 0 removed.** Five *are* the DSR chain, four are
+provenance (`generated_at`, `generated_at_utc`, `git.commit`, `git.short`), and the remaining two
+moved by **0.000%** last-digit float. `long_short_tstat` **2.8360640685320595**,
+`top_decile_alpha` **0.07174142332098163**, `monotonicity` **−0.8909090909090909** and universe
+**2531/69** are bit-identical. **Zero additions**, against session 13's 32 — the expected
+signature of a refresh one day behind rather than five sessions. `oos_verdicts` unchanged
+(`low_risk` `confirmed_oos`, `insider` `rejected_oos`), `cpcv.adopt` still false so the shipped
+strategy takes no haircut, and the sanity layer fires its two expected flags with **neither
+silenced**. Verified afterwards: the artifact's `n_trials` and `research_log`'s equity `N` both
+read **130**. Logged as `ARTIFACT-N14` (verdict `FIXED`, so it does not itself count).
 
 ## 2. The meter's exact parameters — `valuation/edge/track_meter.py`, contract §6
 

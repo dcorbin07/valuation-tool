@@ -1,11 +1,11 @@
 {
   "schema_version": 4,
   "errors": [],
-  "generated_at": "2026-08-08T14:03:24",
-  "generated_at_utc": "2026-08-08T18:03:24+00:00",
+  "generated_at": "2026-08-09T22:07:57",
+  "generated_at_utc": "2026-08-10T02:07:57+00:00",
   "git": {
-    "commit": "e83df30f57f60ccc02c90825bb887e37f77ee268",
-    "short": "e83df30",
+    "commit": "f56cc517d7155d89b48cc687d094a0fc1c0131c8",
+    "short": "f56cc51",
     "branch": "worktree-options-live",
     "dirty": false
   },
@@ -249,21 +249,21 @@
       "meaning": "probability_of_backtest_overfitting"
     },
     "deflated_sharpe_detail": {
-      "probability": 0.855607566829599,
+      "probability": 0.8547321268980206,
       "sharpe_per_period": 0.5500328707621251,
-      "sr0_benchmark": 0.43031816623094016,
-      "n_trials": 129,
+      "sr0_benchmark": 0.43075197686098127,
+      "n_trials": 130,
       "var_sr_across_trials": 0.026997967906897496,
       "n_periods": 69,
       "n_trials_from_weight_schemes": 8,
-      "n_trials_from_research_log": 129,
+      "n_trials_from_research_log": 130,
       "n_trials_source": "RESEARCH_LOG.md (audit M1)",
       "is_effectively_undeflated": false,
       "metric": "deflated_sharpe_ratio"
     },
     "pbo_scope": "weight_scheme_selection_only",
     "deflated_sharpe": {
-      "value": 0.855607566829599,
+      "value": 0.8547321268980206,
       "want": ">0.95",
       "meaning": "probability_edge_is_real_after_trials_correction"
     },
@@ -1167,7 +1167,7 @@
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.08119856135218217,
       "net_alpha": 0.06069654078141906,
-      "realised_one_way_bps": 33.35986774800826,
+      "realised_one_way_bps": 33.35986774800828,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",
@@ -1356,7 +1356,7 @@
         "cost_drag_ann": 0.020502020570763113
       },
       "0.12": {
-        "annual_turnover": 2.4388625876979892,
+        "annual_turnover": 2.4388625876979897,
         "gross_alpha": 0.08300357706698791,
         "net_alpha": 0.06371136083058992,
         "after_tax_alpha": -0.004702249042870754,
