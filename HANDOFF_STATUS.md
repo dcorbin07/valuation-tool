@@ -191,7 +191,7 @@ silent edit, and nothing above §5a was deleted.
 |---|---|
 | **Run #1** | **VOID** — inception 2026-07-30, ~6 days, 2 rows. It measured a model that has since materially changed (growth-input fix, score fix, universe rebuild) |
 | **Run #2 — the live test** | inception **2026-08-10**, gate **2027-02-10**, verdict **2031-08-10**, **zero accrued days** |
-| **Cost** | equity `N` 130 → **131**, √(2·ln 131) = **3.1226** |
+| **Cost** | equity `N` 130 → **131**, Deflated Sharpe 0.8547 → **0.8539**, √(2·ln 131) = **3.1226** (artifact re-run to match) |
 
 **THE VINTAGE RULE.** Any **ADOPTED** change to scoring, weights or construction closes the
 current vintage and opens the next. **Rebalancing under unchanged rules is NOT a vintage event.**

@@ -6042,7 +6042,16 @@ signed. Three things answer it, each checkable rather than asserted:
 §5a also forbids the thing this must not become: **voiding a vintage for a change chosen after
 seeing the vintage go badly.** The rule's "ADOPTED change" test is what makes that mechanical.
 
-**Cost: equity `N` 130 → 131** (`PT-AMEND1`), **√(2·ln 131) = 3.1226**. Charged, not waived:
+**Cost: equity `N` 130 → 131** (`PT-AMEND1`), **Deflated Sharpe 0.8547321268980206 →
+0.8538605963614212, √(2·ln 131) = 3.1226**. `BACKTEST_RESULTS.json` was re-run from a clean tree
+at `68aba51` so the artifact matches the record: **14 leaves moved / 0 added / 0 removed** —
+five are the DSR chain, four provenance, and five moved by **0.000%** last-digit float.
+`long_short_tstat` 2.8360640685320595, `top_decile_alpha` 0.07174142332098163, `monotonicity`
+−0.8909090909090909 and universe 2531/69 are bit-identical; `oos_verdicts` unchanged,
+`cpcv.adopt` still false, degrade path (`n_trials_from_weight_schemes` 8) intact, sanity layer
+fires its two expected flags with neither silenced. *(The first attempt was killed mid-load and
+wrote nothing, so the artifact was briefly one trial stale rather than wrong; it was re-run
+rather than patched.)* Logged as `ARTIFACT-N15`. Charged, not waived:
 void-and-restart is a researcher degree of freedom — each vintage is another chance for the same
 hypothesis, and the probability that *some* vintage crosses rises with the number of vintages.
 §5a rule 6 is the brake (a vintage change resets the whole accrued clock and buys nothing

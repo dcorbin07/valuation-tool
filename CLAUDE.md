@@ -74,9 +74,11 @@ the project's memory and the old versions had been repeated for months.
     the new start date; and the voided rows are **kept**, visible in `as_operated()`. §5a
     forbids the thing this must never become — voiding a vintage for a change *chosen* after
     seeing the vintage go badly.
-  * **Equity `N` 130 → 131** (`PT-AMEND1`), **√(2·ln 131) = 3.1226.** Charged because
-    void-and-restart is a degree of freedom: each vintage is another chance at the same
-    hypothesis.
+  * **Equity `N` 130 → 131** (`PT-AMEND1`), **Deflated Sharpe 0.8547 → 0.8539,
+    √(2·ln 131) = 3.1226**, and `BACKTEST_RESULTS.json` was re-run from a clean tree so the
+    artifact matches (14 leaves moved, five the DSR chain, four provenance, five 0.000% float;
+    every headline bit-identical). Charged because void-and-restart is a degree of freedom: each
+    vintage is another chance at the same hypothesis.
   * **THE METER NOW HAS A CALLER (session 15's own item).** `track_meter.detail()` ships as
     `summary()["contract_track"]` on **`/api/track`** — before this it was a tested library
     nothing called. It names **every missing trading day** on every request, is **not vacuously
