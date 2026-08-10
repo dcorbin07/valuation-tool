@@ -425,6 +425,86 @@ brake; the trial charge is the accounting.
 
 ---
 
+## 5b. THE SANDBOX ENGINE IS A REGISTERED EXPERIMENT — 2026-08-10 (session 16, `PT-SPLIT`)
+
+§0a.2 recorded that two mechanisms record something called "the Valquo Index" and that they hold
+**different books**. This section closes that split the only two ways it can honestly be closed:
+the mechanism is **aligned going forward**, and the **already-recorded days are registered as a
+separate experiment**. There is no third state — no book is both.
+
+**THE ROUTED DIAGNOSIS WAS WRONG, AND THE CORRECTION IS THE USEFUL PART.** The split was reported
+as the engine "violating the contract's 8% cap" by holding 10 names at 10% each. It is not a cap
+violation. `valquo_index.build_index` sets `cap = max(MAX_WEIGHT, 1/len(picks))` with a comment
+saying why: **ten names at 8% sum to 80%**, so on a small book the cap necessarily relaxes to
+equal weight, and the payload has always self-reported `effective_max_weight`. The weights were
+correct for the book they described.
+
+**The real divergence is BOOK SIZE — 10 names against the published Index's 86 — and it is ONE
+construction fed TWO inputs.** `n = max(MIN_NAMES, round(len(large) × TOP_DECILE))` with
+`MIN_NAMES = 10`, so a 10-name book means the eligible large-cap tier held **fewer than 100
+names**; the published 86 implies a tier of roughly 860. `/admin/run-paper-track` reads
+`data/valquo_index.json` when it exists and **silently rebuilds from the store's latest scan when
+it does not** — and that scan is a top-N hot list, not the universe. The engine was never pointed
+at a different strategy. It was handed a truncated one, with no label saying so.
+
+That matters beyond bookkeeping, because it is how `PT-OUTBOUND` happened: a Discord recap read
+the engine and published **+0.18pp** while the bound recorder read **−2.85pp**. A book too small
+to be the Index was quoted as the Index.
+
+### The conformance rule, fixed here
+
+A book is **the contract-bound Valquo Index** if and only if:
+
+1. it holds at least **`CONTRACT_MIN_POSITIONS` = 50** names, and
+2. the **8% cap actually binds** — `effective_max_weight ≤ MAX_WEIGHT`.
+
+Condition 2 is not redundant. An unbound cap is the *signature* of a book too small for the cap to
+be reachable, so it catches the same failure from the other side. **50 is derived, not observed:**
+the 8% cap can only bind at 13 names or more, and the published method is a top *decile* of the
+large-cap tier, so a book that cannot plausibly be a decile of a real universe is not the Index.
+It is a floor, not a target — the published book may be 86 or 120 and conforms either way.
+
+### What is enforced, and where
+
+`paper_track.seed_book` **refuses to seed a non-conforming book** and says why. The refusal is
+loud and non-destructive: the run continues and marks whatever is already held, because silently
+liquidating a live sandbox book on a conformance rule would be a worse failure than the split it
+fixes. The only other way through is `experiment=True`, which **stamps every holding row it
+creates** with `REGISTERED EXPERIMENT`. The stamp is on the row rather than in a return value on
+purpose — `PT-OUTBOUND`'s lesson is that the old code *did* label its fallback honestly and no
+surface ever rendered the label. Make the wrong source unreachable, not merely marked.
+
+`index_summary` carries `book_conformance` measured **from the holdings**, not remembered from a
+seed run, so every surface that reads the engine reads what it is actually holding.
+
+### The registered experiment
+
+| | |
+|---|---|
+| what | Tradier sandbox engine, `paper_index_track` → `data_export/paper_track_*` |
+| book | **10 names, equal-weighted at 10%** — `MIN_NAMES`, built from a truncated scan |
+| inception | 2026-08-03 |
+| days recorded | 4 (2026-08-03, 04, 05, 07) |
+| status | **REGISTERED EXPERIMENT — never quotable as the Valquo Index, at any horizon** |
+| may it be quoted at all? | Only as what it is: a sandbox execution experiment. Its **fills** are real evidence about execution (V5 uses them); its **return series** is evidence about nothing the contract binds. |
+
+**The four days are kept, not deleted** — the same rule as the voided vintage-1 rows in §5a.
+Deleting a record because it turned out to describe the wrong book is the flattering direction,
+and the honest artifact is a labelled wrong book rather than an absent one.
+
+**This does NOT open or close a vintage.** The engine's series was never the bound series, so
+under §5a's Rule 6 nothing here touches run #2's clock: inception stays **2026-08-10**, the gate
+stays **2027-02-10**, the verdict stays **2031-08-10**. Zero trial cost — a conformance rule
+searches nothing and selects nothing; charged to infra at `n = 1`.
+
+**What is still open after this section:** the alignment is a gate, not a repair. Nothing here
+makes the engine *start* recording the real 86-name book — that needs the conforming
+`data/valquo_index.json` to be present on the Render disk when the cycle runs, which is the app
+lane's. Until then the gate's effect is that the engine **stops adding** to a non-conforming book
+rather than starting a conforming one, and `seed_refused` says so on every cycle.
+
+---
+
 ## 6. The evidence meter — pre-registered, parameters frozen at this commit
 
 Don's Option E asks for a meter that runs from inception, first renders at the operational gate
