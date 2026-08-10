@@ -22,7 +22,7 @@ from ..config import CONFIG
 from ..safe_error import safe_error
 from ..web.app import app as tool_app
 from .models import UserStore
-from . import auth, billing, csrf, gating, private, ratelimit, surfaces
+from . import auth, billing, csrf, gating, index_book, private, ratelimit, surfaces
 
 # NOTE: a PUBLIC_PATHS set used to sit here. It was never referenced anywhere — _guard
 # implements a different and narrower policy — so it read like enforced access control
@@ -506,7 +506,23 @@ def create_saas_app(cfg=CONFIG):
                     st.set_meta(done_key, {"at": _dt.datetime.utcnow().isoformat(), "rows": len(rows)})
                 except Exception:
                     pass
-            return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows), "reprocessed": already})
+            # PUBLISH THE INDEX BOOK — the cross-lane item Session 16 §7 named to this lane.
+            #
+            # `/admin/run-paper-track` reads `data/valquo_index.json` when it exists and SILENTLY
+            # rebuilds from the store's latest scan when it does not; that rebuild is how the
+            # engine came to record a 10-name book while the published Index held 86. Writing the
+            # file here is what makes the engine record the RIGHT book instead of a truncated one.
+            #
+            # Deliberately OUTSIDE the `already` guard: the backup cron exists because GitHub
+            # drops scheduled runs, and a day whose primary ingest published nothing must still
+            # get a book. Publishing is idempotent (same rows -> same book) and refuses to write
+            # a non-conforming one, so a second call is a no-op or a repair, never a corruption.
+            #
+            # Never fatal. The daily hot list must not fail to land because a book could not be
+            # built — `publish` catches its own errors and reports them in the response.
+            book = index_book.publish(st)
+            return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows),
+                            "reprocessed": already, "index_book": book})
         except Exception as e:
             return jsonify({"error": safe_error(e)}), 500
 
