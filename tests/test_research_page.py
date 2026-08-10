@@ -138,12 +138,58 @@ def test_the_counts_are_the_logs_counts_not_a_typed_summary():
 
 
 def test_extending_the_parser_did_not_move_the_trial_denominator():
-    """`rows()` shares `_parse` with the counter, so a mistake there would change `N` — which
-    feeds the Deflated Sharpe. Pinned against the value the ledger records for this log."""
-    d = RL.detail(use_cache=False)
-    assert d["n_used"] == 130, f"equity N moved to {d['n_used']}"
-    assert d["rows_counted"] + d["rows_fixed_not_counted"] == len(RL.rows())
-    assert not d["rows_malformed"], d["rows_malformed"]
+    """`rows()` shares `_parse` with the counter, so a mistake there changes `N` — which feeds
+    the Deflated Sharpe.
+
+    PINNED ON A FIXTURE, NOT ON TODAY'S COUNT. The first version of this test asserted
+    `n_used == 130`, the live value. That is the wrong pin twice over: it says nothing about
+    the parser (any log with 130 equity trials passes it), and it would have failed the shared
+    land gate for ANY OTHER LANE that legitimately appended a row — making one lane's correct
+    work look like another's regression. The fixture below pins the parsing RULES instead, and
+    the live log is checked only for internal consistency.
+
+    The `notes` column is the point. An early cut of `_header_map` resolved columns by
+    `startswith`, so in a table with no `n` column a `notes` cell would have been read as the
+    grid multiplier — charging row A1 fifty trials because of a phrase in its prose.
+    """
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "FIXTURE_LOG.md")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(
+                "| id | date | domain | hypothesis | universe | metric |"
+                " threshold (pre-committed) | verdict | source | notes |\n"
+                "|---|---|---|---|---|---|---|---|---|---|\n"
+                "| A1 | 2030-01-01 | equity | first | full | m | thr | REJECTED | S.md |"
+                " grid n=50 in the appendix |\n"
+                "| A2 | 2030-01-02 | options | second | full | m | thr | FIXED | S.md | none |\n"
+                "\n"
+                "| id | date | domain | pre | hypothesis | metric | verdict | n | source |\n"
+                "|---|---|---|---|---|---|---|---|---|\n"
+                "| B1 | 2030-01-03 | equity | yes | third | m | ADOPTED | n=20 | S.md |\n")
+        det = RL.detail(path=p, use_cache=False)
+        rws = RL.rows(path=p)
+
+    # A1 contributes ONE trial despite the `n=50` in its notes; B1's own `n` cell gives 20.
+    assert det["by_domain"]["equity"] == 21, det["by_domain"]
+    assert det["by_domain"]["options"] == 0, "a FIXED row was charged as a trial"
+    assert det["n_used"] == 21, det["n_used"]
+    assert det["rows_counted"] == 2 and det["rows_fixed_not_counted"] == 1
+    assert not det["rows_malformed"], det["rows_malformed"]
+
+    # Both table layouts resolve their own columns: verdict sits at index 7 in the first table
+    # and 6 in the second, so a hard-coded index would be wrong on one of them.
+    by_id = {r["id"]: r for r in rws}
+    assert by_id["A1"]["verdict"] == "REJECTED" and by_id["A1"]["hypothesis"] == "first"
+    assert by_id["B1"]["verdict"] == "ADOPTED" and by_id["B1"]["pre"] == "yes"
+    assert by_id["B1"]["n_trials"] == 20 and by_id["A1"]["n_trials"] == 1
+    assert by_id["A2"]["n_trials"] == 0
+
+    # The LIVE log: internal consistency only, so an unrelated lane appending a row cannot
+    # fail this suite.
+    live = RL.detail(use_cache=False)
+    assert live["rows_counted"] + live["rows_fixed_not_counted"] == len(RL.rows())
+    assert not live["rows_malformed"], live["rows_malformed"]
+    assert live["n_used"] == max(RL.WEIGHT_SCHEME_TRIALS, live["by_domain"]["equity"])
 
 
 def test_fixed_rows_are_in_the_record_but_count_zero_trials():
