@@ -6442,3 +6442,208 @@ human action is required to unblock this.**
 adding to a wrong one; a conforming `data/valquo_index.json` on the Render disk is what makes it
 start recording the right one, and that is a cross-lane item worth naming to the app lane rather
 than leaving in a ledger row.
+
+---
+
+# SESSION 17 (2026-08-10) — V2G: what the three dead live themes cost
+
+**Routed in out-of-band by Don, off the greeks lane's Part 12.7 finding.** That lane measured that
+three of the seven weighted themes reach no live score and then explicitly declined to price it:
+*"No claim is made here about how much this costs in return. That is a backtest question (score the
+panel with those three themes removed) and it is not this lane's, and not this run's."* This is that
+backtest question, and nothing else.
+
+`PREREG_v2g_live_theme_cost.md` was committed **alone at `6d8750a`, before
+`scripts/live_theme_cost.py` existed and before any arm was scored.** The arms, both bars, the
+decision rule, the split point, the trial cost and the expectations are all fixed there.
+
+## 1. The setup, and why the restricted arm IS the live book
+
+`WEIGHTS_ESTABLISHED` carries seven non-zero themes at 0.125 (sum 0.875). Three of them reach no
+live score — `insider` is **constant** (500/500 non-null, one distinct value), `capital_discipline`
+and `institutional` are **absent** (0/500). That is **0.375 of 0.875 = 42.9% of the weight mass**,
+so the live hot list is a four-theme book wearing the weights of a seven-theme one.
+
+| arm | themes | weights |
+|---|---|---|
+| **A7** deployed | value, quality, momentum, insider, capital_discipline, size, institutional | 0.125 each |
+| **B4** the live book | value, quality, momentum, size | 0.125 each |
+
+**No new scoring code was written, and that is a structural claim rather than a convenience.**
+`fundamental_panel.composite` and `cross_sectional.composite_score` are the same arithmetic —
+renormalise by the **present-weight mass** — so a theme that is absent (all-NaN) or constant
+(z-scores to all-NaN) drops out of numerator and denominator identically, which is exactly what
+dropping it from `weights` does. Two controls prove it rather than assert it:
+
+* **C1 (absence) and C2 (constancy) are EXACT — `max|dev| = 0.000e+00` over all 113,945 rows.**
+  C2 is the live condition precisely: `insider` set to a constant, the other two NaN. Both
+  reproduce the B4 arm **name for name**.
+
+The register said no verdict could be reported if these failed. They passed exactly.
+
+## 2. The harness reproduces the record to the digit
+
+Before any new number is quoted, the incumbent arm was re-derived on the same panel:
+
+| A7 statistic | measured here | the record |
+|---|---|---|
+| top-decile alpha | **0.071741423321** | +7.17% |
+| long-short naive t | **2.8361** | 2.836 |
+| long-short HAC t | **2.6199** | 2.61991 |
+| top-decile alpha HAC t | **4.3762** | +4.376 |
+| monotonicity | **−0.8909** | −0.891 |
+| equal-weight benchmark | **+18.137%** | +18.14% |
+
+Every one matches. The corrected 2,531-name / 69-date panel, 2009-01-15 → 2026-01-28.
+
+## 3. THE RESULT — the cost is not separable from zero, and the verdict is IMMATERIAL
+
+| | A7 deployed | B4 live book | Δ (B4 − A7) |
+|---|---|---|---|
+| top-decile alpha | +7.17% | **+5.86%** | **−1.31pp** |
+| long-short ann | +11.04% | +8.04% | −3.00pp |
+| long-short HAC t | 2.6199 | **1.8811** | |
+| top-decile alpha HAC t | 4.3762 | **3.2087** | |
+| monotonicity | −0.891 | −0.939 | |
+
+**`Δalpha = −1.3133pp` against the pre-registered −1.95pp bar, and the paired HAC t is −1.4040 over
+69 paired dates.** Both conditions of the IMMATERIAL branch are met, so by the rule fixed in advance:
+
+> **IMMATERIAL — a nice-to-have.** Building live sources for the dead themes is **not** the
+> project's highest-value work.
+
+**THE POWER CAVEAT MUST TRAVEL WITH THAT SENTENCE.** The HAC standard error of the annualised
+paired difference is **0.9354pp**, so the smallest gap this design can resolve at |t| = 2 is
+**1.8708pp** — well matched to the 1.95pp bar it committed to, which is why the null is worth
+something. But the power to detect a **true** 1.95pp gap is only **55.0%**. *IMMATERIAL here means
+the cost could not be separated from zero at roughly a coin flip's power against its own bar — not
+that the cost was shown to be small.*
+
+The paired test is the right statistic and is far more powerful than comparing two point estimates:
+both arms see the same dates and the same names, so differencing cancels the market move that
+dominates each level. **Both arms scored the same 69 dates and the same median 1,557 names**, so the
+register's stated risk — that B4 might rank fewer names than A7 — did not materialise.
+
+## 4. THE SECOND FINDING IS THE MORE SERIOUS ONE, AND IT IS WHY THE REGISTER ASKED FOR IT SEPARATELY
+
+The register required, separately from the cost, an answer to *does the book users actually receive
+stand on its own?* Against this panel's calibrated floors:
+
+| statistic | B4 | calibrated floor | |
+|---|---|---|---|
+| long-short HAC t | **1.8811** | 2.2837 | **FAILS** |
+| long-short naive t | **2.0044** | 2.1437 | **FAILS** |
+| top-decile alpha HAC t | **3.2087** | 2.2913 | **CLEARS** |
+
+**The live four-theme book does not clear the calibrated long-short floor, where the deployed
+seven-theme book clears it at 2.6199.** It does clear the top-decile alpha floor — and since the
+shipped product is a **long-only hot list**, that is the product-relevant statistic. So: the
+long-only book users receive remains demonstrable against a calibrated bar; the long-short research
+statistic it is habitually quoted beside is not.
+
+This is the R9/session-10 asymmetry again — the long-only object is far better measured than the
+long-short the project leads with — but here it decides which half of the headline survives the
+restriction.
+
+## 5. Both split directions — the direction is stable, and one late-half cell crosses
+
+| | Δalpha | paired HAC t | Δ long-short | paired LS HAC t |
+|---|---|---|---|---|
+| full (69) | −1.31pp | −1.4040 | −3.00pp | −1.8792 |
+| early (34) | −1.14pp | −1.3519 | −0.29pp | −0.2235 |
+| late (35) | −1.48pp | −0.8984 | −5.63pp | **−2.0639** |
+
+**Both halves agree in sign on alpha and neither is significant.** That is a genuinely better
+stability profile than session 7's LOO arms, four of seven of which changed sign between halves.
+
+**Reported because it goes against the verdict's direction:** the **long-short** degradation in the
+late half crosses the conventional 2.0 bar at **−2.0639**. It is not the pre-registered primary
+statistic (alpha is), the bar is **uncalibrated** for a paired difference, and it is one of six
+cells — but a reader entitled to the whole picture gets it rather than only the cells that agree.
+
+## 6. Exploratory decomposition — NO VERDICT, and it was registered as carrying none
+
+Pre-registered as exploratory because session 7 established on **this exact panel** that a
+full-sample ablation arm is not a finding.
+
+| dropped from A7 | full | early | late | |
+|---|---|---|---|---|
+| `insider` | +0.30% | −1.39% | +1.94% | **flips sign** |
+| `capital_discipline` | +1.37% | +0.20% | +2.51% | positive in both halves |
+| `institutional` | **−1.41%** | −0.89% | −1.91% | **negative in both halves** |
+
+* **`institutional` (13F) is the only one whose absence consistently costs.** If one live source is
+  built, that is the one the evidence points at. **A build-priority hint, not a result.**
+* **`capital_discipline` — the theme with the second-strongest panel IC (+2.76), one of only two
+  clearing X7's 2.71 bar — appears to cost nothing to lose, in both halves.** That is X3's finding
+  restated: **theme IC does not predict marginal contribution.** Its early-half +0.20% coincides
+  with the figure session 7's held-out LOO measured for the same arm.
+* **`insider` flips sign between halves**, consistent with the record's own standing note that its
+  t is not a measurable quantity in either direction.
+
+## 7. WHAT THIS DOES NOT SAY — the part most likely to be misquoted
+
+**An immaterial ALPHA cost is not a finding that the live absence is acceptable.** The live product
+computes a **different composite** from the one every published figure is measured on. That is a
+claims-integrity issue independent of return, and it is the same class of defect audit **B7**
+exists to prevent — live and backtest scoring diverging, with no shipped path reproducing the
+backtested composite. Two honest options follow, and they are the app/screener lane's to choose
+between: build the sources, or quote the headline for the book that is actually computed.
+
+It also does not license dropping the three themes from the backtest. Nothing here tests removing
+them from the **research** composite as a deliberate design; it measures what the live product's
+accidental restriction costs.
+
+## 8. Controls on the calibration itself
+
+**C3 — are session 10's floors still the floors at today's `N`?** The published floors were measured
+at `N` = 121 and re-verified at 129; `N` moves individual placebo draws through the CPCV adopt gate
+(session 12), and the floor is a percentile of the resulting null. Adoption is **monotone decreasing
+in `N`**, so an identical adopter set means every draw is scored under identical weights and the
+percentiles cannot have moved. Recomputed from the banked `X7_RECONCILE` margins: **20 adopters at
+`N` = 129, 20 at `N` = 135, set identical → the floors stand at this `N`.** Zero trials — a
+calibration searches nothing.
+
+## 9. The one shipped-code change
+
+`quantile_backtest` gained an **opt-in `return_series`**. It already computed the per-period
+long-short and alpha draws and threw them away, so a paired comparison had no way to reach the
+**shipped** arithmetic — and X3 had already written a *second* implementation of the same series to
+work around it. Default payloads are **bit-identical** (pinned by test), and a further test pins the
+two implementations to agree so they cannot drift. This is RUN_RULES A9 — store the draws, not just
+the summary.
+
+## 10. Expectations scorecard — written first, and wrong again on the headline
+
+| prediction | confidence | outcome |
+|---|---|---|
+| **MATERIAL** | 55/45 | **WRONG** — IMMATERIAL |
+| B4 still clears the LS HAC floor | 50/50 | **WRONG** — it fails |
+| `institutional` the costliest of the three | 55/45 | **RIGHT** |
+| dropping `insider` helps or is neutral | 70/30 | **RIGHT** |
+| ≥1 decomposition arm flips sign between halves | 65/35 | **RIGHT** — exactly one does |
+
+Two wrong, three right, and **both wrong calls are on the two headline questions.** The standing
+rule holds: do not reason about the direction of an effect in this project; measure it.
+
+## 11. What I did NOT do
+
+* **Did not touch `valuation/screener/**` or fix the three dead live themes.** That is the screener
+  lane's, it is a data-plumbing job, and this register was scoped to price the gap, not close it.
+* **Did not change any weight, any theme, or any live behaviour.** No adoption; the shipped
+  composite is untouched.
+* **Did not re-measure the calibrated floors.** C3 shows they still stand at `N` = 135 by an exact
+  argument; a fresh placebo sweep was not needed and was not run.
+* **Did not test removing the three themes from the RESEARCH composite** — a different hypothesis,
+  and it would need its own register.
+* **Did not quote any exploratory decomposition arm as a finding**, per §6.
+
+## 12. Trial cost and the artifact
+
+**Equity `N` 131 → 135** — four arms (B4 plus the three decomposition arms). The halves are the same
+arms on subsets rather than new hypotheses and are not charged, on session 7's precedent of charging
+7 for 7 LOO arms measured in both directions. `BACKTEST_RESULTS.json` was re-run from a clean tree so
+the artifact's `n_trials` and Deflated Sharpe match the register rather than going stale on the
+denominator.
+
+---

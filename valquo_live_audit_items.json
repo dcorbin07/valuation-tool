@@ -1,0 +1,268 @@
+{
+  "LA1": {
+    "id": "LA1",
+    "title": "Live hot list's #1 name publishes a +204% fair value the engine refuses; the fail-open DCF branch has no counter and the refusal screen excludes the top-N rows",
+    "severity": "BLOCKING",
+    "class": "guard-cannot-see/fail-open-uncounted",
+    "files": [
+      "valuation/screener/screen.py",
+      "valuation/screener/fairvalue.py",
+      "scripts/ci_scan.py",
+      "tests/test_guards.py"
+    ],
+    "modifies": [
+      "valuation/screener/screen.py",
+      "tests/test_guards.py"
+    ],
+    "creates": [],
+    "depends_on": ["LA5"],
+    "evidence": "GET /api/hotstocks rank 1 KSPI price 90.30 fair_value 274.13 fair_value_withheld=false fair_value_method='blended'; value_ticker('KSPI') -> publication.decide publish=False ratio=5.641 reason='Cannot value this name: the model's $530.14 is 5.6x the $93.97 price.'",
+    "note": "screen.py:395 `except: continue` is uncounted; _screen_refusals runs on rows[run_dcf_top:refusal_screen] so ranks 1-12 are excluded from the counter by construction. Needs an `errors` counter and coverage of rows[:refusal_screen]. Verify via health.refusal_screen once LA5 lands.",
+    "readonly": false
+  },
+  "LA2": {
+    "id": "LA2",
+    "title": "The contract-bound Valquo Index series is absent from its own backup; the anti-empty guard checks the sandbox book instead, and the emitted README mislabels it as the Index",
+    "severity": "HIGH",
+    "class": "two-recorders/guard-checks-wrong-object",
+    "files": [
+      ".github/workflows/track-backup.yml",
+      "valuation/edge/track_export.py",
+      "data_export/paper_track_history.json",
+      "data_export/README.md"
+    ],
+    "modifies": [
+      ".github/workflows/track-backup.yml",
+      "valuation/edge/track_export.py"
+    ],
+    "creates": [],
+    "depends_on": [],
+    "evidence": "data_export/paper_track_history.json counts.ingested_index_days = 0 and ingested_index_track = null; the workflow's 'Refuse to overwrite a real backup with an empty one' step compares only data_export/paper_track_index.csv row counts; data_export/README.md:16 reads 'paper_track_index.csv | daily Valquo Index vs SPY'.",
+    "note": "track_export.py:26-33 records the label correction in prose but the _README string it writes was not corrected. Guard must also compare counts.ingested_index_days against HEAD. Related to ledger PT-WRITER (Cowork lane) but distinct: this is the backup, not the writer.",
+    "readonly": false
+  },
+  "LA3": {
+    "id": "LA3",
+    "title": "index_track annualises alpha and Sharpe on recorded rows, not elapsed trading days; measured 3.5x alpha and 1.9x Sharpe inflation at the observed 28.6% recording rate",
+    "severity": "HIGH",
+    "class": "two-sources-of-truth/fixture-only-exercises-clean-case",
+    "files": [
+      "valuation/screener/index_track.py",
+      "valuation/web/static/app.js",
+      "valuation/web/hero.py",
+      "tests/test_screener.py"
+    ],
+    "modifies": [
+      "valuation/screener/index_track.py",
+      "valuation/web/static/app.js",
+      "tests/test_screener.py"
+    ],
+    "creates": [],
+    "depends_on": [],
+    "evidence": "Same synthetic year, identical returns: 252 rows -> ann_alpha 11.08%, sharpe 0.54; every-3rd-day (33%) -> ann_alpha 39.21%, sharpe 1.03. Real bound track: index_track.summarize days=2 while track_meter.gap_report reports 7 expected / 2 present / coverage 0.286.",
+    "note": "index_track.py:461 days=len(series) drives both MIN_LIVE_DAYS and the 252/days exponent. Docstring rule 2 and app.js:1968 both assert 'trading days'. Fix must derive elapsed days from track_meter.gap_report; the fixture at tests/test_screener.py:580 builds consecutive dates and must be given a gapped series.",
+    "readonly": false
+  },
+  "LA4": {
+    "id": "LA4",
+    "title": "scan_date is stamped after the scan, so the 23:41 UTC backup cron dates the snapshot the next calendar day; two snapshots exist for one Friday close and freshness calls a Saturday 'last close'",
+    "severity": "HIGH",
+    "class": "clock-at-wrong-end/guard-does-not-validate-input",
+    "files": [
+      "valuation/screener/screen.py",
+      ".github/workflows/auto-scan.yml",
+      "valuation/saas/app_saas.py",
+      "valuation/screener/freshness.py"
+    ],
+    "modifies": [
+      "valuation/screener/screen.py",
+      "valuation/screener/freshness.py"
+    ],
+    "creates": [],
+    "depends_on": [],
+    "evidence": "Live /api/hotstocks history contains both 2026-08-07 and 2026-08-08 (a Saturday) for one Friday close, plus 2026-07-26 (a Sunday). freshness.status('2026-08-08', today=2026-08-10) returns level='fresh', message='As of 2026-08-08 (last close).'",
+    "note": "screen.py:328 computes scan_date after a run the workflow allows 60 minutes; the backup cron fires 19 minutes before midnight UTC. Different scan_date defeats the hot_processed_{scan_date} idempotency key, so tracker.log_hot and the Discord hot digest fire twice for one close. auto-scan.yml:33's 'the backup is a no-op' comment is disproved.",
+    "readonly": false
+  },
+  "LA5": {
+    "id": "LA5",
+    "title": "ci_scan drops the health and filtered blocks from the ingest payload, so theme_contributing, refusal_screen and display_coverage reach nobody",
+    "severity": "HIGH",
+    "class": "fixed-field-list-drops-computed-values",
+    "files": [
+      "scripts/ci_scan.py",
+      "valuation/screener/screen.py",
+      "valuation/web/app.py"
+    ],
+    "modifies": ["scripts/ci_scan.py"],
+    "creates": [],
+    "depends_on": [],
+    "evidence": "ci_scan.py:124-126 posts params={'scope','universe_size'} only; live /api/hotstocks returns health=null and filtered=null on a payload reporting universe_size=800, scored=594.",
+    "note": "Already recorded as HANDOFF_STATUS 'BUGS FOUND (2)'; re-verified and traced to the line. One-line fix. This is the mechanism that makes LA1, LA6 and LA9 unobservable from outside, so it should land first.",
+    "readonly": false
+  },
+  "LA6": {
+    "id": "LA6",
+    "title": "42.9% of deployed composite weight reaches no live score; insider is a constant rather than absent, so only the discarded theme_contributing block can detect it",
+    "severity": "MEDIUM",
+    "class": "silently-empty-inputs",
+    "files": [
+      "valuation/screener/factors.py",
+      "valuation/screener/providers.py",
+      "valuation/screener/settings.py",
+      "scripts/ci_scan.py"
+    ],
+    "modifies": [],
+    "creates": [],
+    "depends_on": ["LA5"],
+    "evidence": "providers.company_to_metrics:162 hard-codes share_issuance=None (capital_discipline dead); no live source emits inst_accum or sm_breadth (institutional dead); factors.py:273 sets insider=0.0 constant and ci_scan.run_hot never calls enrich_insider. 3 x 0.125 of a 0.875 total = 42.9%.",
+    "note": "Tracked as ledger V2F; re-verified independently. The addition worth carrying: capital_discipline/institutional are NULL (theme_coverage sees them) while insider is 100% non-null with one distinct value (only theme_contributing sees it) - and theme_contributing is exactly what LA5 discards.",
+    "readonly": true
+  },
+  "LA7": {
+    "id": "LA7",
+    "title": "freshness never validates that as_of is a trading day, does not model holidays, and its docstring states the error direction backwards",
+    "severity": "MEDIUM",
+    "class": "guard-cannot-see",
+    "files": [
+      "valuation/screener/freshness.py",
+      "valuation/screener/market_session.py"
+    ],
+    "modifies": ["valuation/screener/freshness.py", "tests/test_screener.py"],
+    "creates": [],
+    "depends_on": [],
+    "evidence": "status('2026-08-08', today=2026-08-10) -> level='fresh' on a Saturday. status('2026-12-24', today=2026-12-28) -> age_trading_days=2, counting Christmas Day. freshness.py:28 claims not modelling holidays avoids 'crying wolf'; it makes the badge fire sooner.",
+    "note": "market_session.market_holidays already computes the NYSE calendar and is imported by track_meter; freshness maintains a second, weaker calendar. This guard is what turns LA4's misdated snapshot green.",
+    "readonly": false
+  },
+  "LA8": {
+    "id": "LA8",
+    "title": "'Days' on the forward-track cards is a row count rendered as trading days, so a recording failure reads to the user as a short track",
+    "severity": "MEDIUM",
+    "class": "mislabelled-quantity",
+    "files": [
+      "valuation/screener/index_track.py",
+      "valuation/web/hero.py",
+      "valuation/web/static/app.js"
+    ],
+    "modifies": ["valuation/screener/index_track.py", "valuation/web/static/app.js"],
+    "creates": [],
+    "depends_on": ["LA3"],
+    "evidence": "summarize() note reads 'Live track is 2 trading days old' while the track is 7 trading days old with 2 recorded rows (track_meter.gap_report).",
+    "note": "Distinct from LA3: false today, before annualisation is even reachable. Owner of the underlying recording gap is ledger PT-WRITER (Cowork lane), but the surface wording is this lane's.",
+    "readonly": false
+  },
+  "LA9": {
+    "id": "LA9",
+    "title": "HYPOTHESIS: the scheduled hot-scan job passes no TRADIER_TOKEN, so the broker universe and broker fundamentals may be unavailable in every scheduled scan",
+    "severity": "MEDIUM",
+    "class": "config-drift/unobservable",
+    "files": [
+      ".github/workflows/auto-scan.yml",
+      "valuation/screener/providers.py",
+      "valuation/screener/broker_universe.py",
+      "valuation/screener/broker_fundamentals.py"
+    ],
+    "modifies": [".github/workflows/auto-scan.yml"],
+    "creates": [],
+    "depends_on": ["LA5"],
+    "evidence": "auto-scan.yml hot job env passes BASE_URL, ADMIN_TOKEN, ANTHROPIC_API_KEY, DISCORD_WEBHOOK_URL, FMP_API_KEY, SEC_USER_AGENT - not TRADIER_TOKEN (the intraday job does pass it). CONFIG.tradier_token reads only that env var; both broker available() checks are bool(cfg.tradier_token).",
+    "note": "MARKED HYPOTHESIS - Actions secret scope is not readable from the repo. Would mean the universe falls back to the SEC EDGAR filer list truncated to 800 with no price/market-cap ordering. Settled in one read by health.universe_note / health.fundamentals.broker.note, which LA5 discards - the two findings interlock.",
+    "readonly": false
+  },
+  "LA10": {
+    "id": "LA10",
+    "title": "A withheld row keeps fair_value_method and fair_value_confidence, describing the confidence of a number that is not there",
+    "severity": "LOW",
+    "class": "label-survives-its-value",
+    "files": [
+      "valuation/web/withhold.py",
+      "valuation/screener/fairvalue.py"
+    ],
+    "modifies": ["valuation/web/withhold.py"],
+    "creates": [],
+    "depends_on": [],
+    "evidence": "In /api/hotstocks estimate_fair_values sets method/confidence, then withhold_implausible_fair_values blanks fair_value and upside but not the labels.",
+    "note": "Cosmetic today (no surface renders it); becomes a wrong number the day one does.",
+    "readonly": false
+  },
+  "LA11": {
+    "id": "LA11",
+    "title": "track_meter, index_track and recap docstrings still carry the retracted '10% weights violate the 8% cap' diagnosis",
+    "severity": "LOW",
+    "class": "corrected-in-one-place-only",
+    "files": [
+      "valuation/edge/track_meter.py",
+      "valuation/screener/index_track.py",
+      "valuation/saas/recap.py"
+    ],
+    "modifies": [
+      "valuation/edge/track_meter.py",
+      "valuation/screener/index_track.py",
+      "valuation/saas/recap.py"
+    ],
+    "creates": [],
+    "depends_on": [],
+    "evidence": "track_meter.py:73-76, index_track.py:286, recap.py:19-21 all state the cap violation. HANDOFF_STATUS session 16 retracts it: the cap is max(8%, 1/n) by design and the weights were correct; the real separation is book SIZE (10 vs 86).",
+    "note": "The conclusion survives on corrected ground. Left as is, a reader who checks the cap finds it correct and may conclude the whole separation was mistaken.",
+    "readonly": false
+  },
+  "LA12": {
+    "id": "LA12",
+    "title": "sector_attractiveness.median_upside is computed over the ~12 DCF'd names while count reports the full sector",
+    "severity": "LOW",
+    "class": "two-populations-in-one-row",
+    "files": [
+      "valuation/screener/sectors.py",
+      "valuation/web/app.py"
+    ],
+    "modifies": ["valuation/screener/sectors.py"],
+    "creates": [],
+    "depends_on": [],
+    "evidence": "app.py computes sector_attractiveness(all_rows) on rows straight from the DB, before estimate_fair_values has run on anything; only SCAN_DCF_TOP=12 names carry a stored upside.",
+    "note": "Ships in the public payload; not currently rendered by app.js.",
+    "readonly": false
+  },
+  "LA13": {
+    "id": "LA13",
+    "title": "surfaces.py claims every /api route lands in PUBLIC_API or OWNER_ONLY, but two admin-token routes are exempted in the test rather than recorded in the module",
+    "severity": "LOW",
+    "class": "policy-stated-in-one-place-enforced-in-another",
+    "files": [
+      "valuation/saas/surfaces.py",
+      "tests/test_public.py"
+    ],
+    "modifies": ["valuation/saas/surfaces.py"],
+    "creates": [],
+    "depends_on": [],
+    "evidence": "Walking the real URL map: /api/option-alerts/open and /api/option-alerts/outcome are in neither set; test_public.py:127 skips the prefix as 'admin-token endpoints'.",
+    "note": "Not a leak - both handlers call _admin_ok(). The defect is that a third category exists and the module that states the policy has no record of it, so a future admin route under a different prefix gets neither the list nor the exemption.",
+    "readonly": false
+  },
+  "LA14": {
+    "id": "LA14",
+    "title": "market_holidays(y) can return a date in year y-1 when New Year's Day falls on a Saturday",
+    "severity": "LOW",
+    "class": "set-is-not-what-its-name-says",
+    "files": ["valuation/screener/market_session.py"],
+    "modifies": ["valuation/screener/market_session.py"],
+    "creates": [],
+    "depends_on": [],
+    "evidence": "market_holidays(2028) contains 2027-12-31; market_holidays(2033) contains 2032-12-31.",
+    "note": "Inert for is_trading_day (which queries market_holidays(d.year)) and inert CORRECTLY - the NYSE does not close on 31 Dec when 1 Jan is a Saturday. Latent for any caller that iterates the set instead of testing membership; nothing does today.",
+    "readonly": false
+  },
+  "LA15": {
+    "id": "LA15",
+    "title": "tests/test_saas.py writes a 2099-01-01 snapshot into the real screener database, so every scan-derived surface reads the fixture as the latest scan",
+    "severity": "LOW",
+    "class": "test-mutates-production-state",
+    "files": ["tests/test_saas.py"],
+    "modifies": ["tests/test_saas.py"],
+    "creates": [],
+    "depends_on": [],
+    "evidence": "test_saas.py:200-205 POSTs /admin/ingest-snapshot with scan_date '2099-01-01' against a Store() resolving to the repo's data/screener.db; Store.latest_scan_date() orders by scan_date DESC.",
+    "note": "Already recorded as HANDOFF_STATUS 'BUGS FOUND (5)'; re-verified. Harmless in CI, and the reason a local run makes the app show test data.",
+    "readonly": false
+  }
+}

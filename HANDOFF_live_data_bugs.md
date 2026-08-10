@@ -3328,13 +3328,45 @@ point. The one-off git diff was run by hand and its output is above.
 Consistent with this project's record: writing the expectation down first keeps being worth it
 precisely because it keeps being wrong.
 
-### 13.12 TRIAL COST
+### 13.12 THE OTHER HALF OF THIS QUESTION WAS ANSWERED IN PARALLEL, AND IT CHANGES THE PRIORITY
 
-**ZERO.** No hypothesis about returns was tested, no arm selected, no weight chosen — this is a
-coverage census of data sources. Equity `N` stays **131**; the Deflated Sharpe chain is untouched.
-A trial is charged if and when one of these columns is *selected into* the composite.
+While this run was fetching, the **pipeline builder lane** landed its own item off the same Part
+12 finding — ledger `V2G`, `HANDOFF_edge_audit.md` session 17 — asking what the three dead themes
+**cost in return**. It is the half this lane explicitly declined to price, and the two results
+should be read together:
 
-### 13.13 WHAT I DID NOT DO
+* **The cost is IMMATERIAL by their pre-registered rule:** the live four-theme book scores
+  **+5.86% alpha against the deployed seven-theme +7.17%**, Δ **−1.31pp** against a −1.95pp bar,
+  paired HAC t **−1.40**. **Their power caveat must travel with it** — 55.0% against a true
+  1.95pp gap, so "immaterial" means *could not be separated from zero at roughly a coin flip's
+  power*, not *shown to be small*.
+* **Their second finding is the serious one:** the live four-theme book **fails the calibrated
+  long-short floor** (HAC t 1.8811 vs 2.2837) where the deployed book clears at 2.6199 — while
+  still clearing the top-decile alpha floor (3.2087 vs 2.2913), which is the product-relevant
+  statistic for a long-only hot list.
+* **Their exploratory decomposition reorders the work this Part just made possible**, and it
+  cuts against the easiest build: dropping `institutional` is the **only** arm negative in both
+  halves (−1.41% full, −0.89% early, −1.91% late), so **13F is the source to build first** — and
+  it is the one this run covers at 82.2%. Dropping `capital_discipline` is **POSITIVE in both
+  halves** (+1.37% full) despite holding the second-strongest panel IC (+2.76), which is X3's
+  finding restated: **theme IC does not predict marginal contribution.** So the theme this run
+  covers *best* (91.2%, the cheapest of the three to wire) is the one with the least evidence it
+  helps. Carried with their own label: exploratory, no verdict.
+
+**The convergent conclusion, which neither result reaches alone: the reason to build these is
+claims integrity, not alpha.** The live product computes a **different composite** from the one
+every published figure is measured against — the same class of defect audit B7 exists to prevent —
+and that is true whether or not the return difference is separable from zero.
+
+### 13.13 TRIAL COST
+
+**ZERO for this run.** No hypothesis about returns was tested, no arm selected, no weight chosen —
+this is a coverage census of data sources, and the Deflated Sharpe chain is untouched by it.
+**The denominator in force is now `N` = 135, not 131**: the pipeline builder's parallel item
+charged four arms (131 → 135) and landed on `main` while this was running. Quote 135. A trial is
+charged here if and when one of these columns is *selected into* the composite.
+
+### 13.14 WHAT I DID NOT DO
 
 * **Did not wire anything into the composite**, by design, and a test now prevents it happening
   silently.
