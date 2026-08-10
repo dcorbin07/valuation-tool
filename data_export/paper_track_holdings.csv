@@ -1,1 +1,11 @@
 ticker,weight,entry_date,entry_price,bench_entry_price,shares,order_id,note
+AMAT,0.1,2026-08-03,507.67,747.03,,,quote-marked
+AMD,0.1,2026-08-03,476.15,747.03,,,quote-marked
+BA,0.1,2026-08-03,216.14,747.03,,,quote-marked
+BKNG,0.1,2026-08-03,192.9,747.03,,,quote-marked
+CVS,0.1,2026-08-03,104.43,747.03,,,quote-marked
+DELL,0.1,2026-08-03,405.37,747.03,,,quote-marked
+MCD,0.1,2026-08-03,270.64,747.03,,,quote-marked
+MRK,0.1,2026-08-03,130.2,747.03,,,quote-marked
+T,0.1,2026-08-03,23.25,747.03,,,quote-marked
+VZ,0.1,2026-08-03,46.81,747.03,,,quote-marked

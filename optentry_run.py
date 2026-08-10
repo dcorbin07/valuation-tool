@@ -221,6 +221,13 @@ def main():
                           "per_name": state["meta"]},
                     seed=a.seed)
     path = E.save(res, out_dir)
+    # audit O16 follow-on: pin the chain bytes this book was scored against. Descriptive here;
+    # blocking only on a replay (valuation/edge/options_freeze.py).
+    try:
+        from valuation.edge import options_freeze as FZ
+        FZ.stamp_run(out_dir, os.path.basename(state_path), arms_rows)
+    except Exception as e:                                               # noqa: BLE001
+        print(f"[optentry] WARNING: chain stamp failed ({type(e).__name__}: {e})", flush=True)
     _print_headline(res)
     print(f"\nwritten: {path}", flush=True)
     return 0

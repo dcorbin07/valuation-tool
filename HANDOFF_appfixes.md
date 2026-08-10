@@ -5,6 +5,131 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 19 — 2026-08-08 — The P2 stale-figure sweep across every rendered surface
+(prompt: sweep public / demo / owner / exports / methodology for the figures P2 corrected)
+
+**THE HEADLINE: the sweep found a worse defect than the one it was sent to fix. The PUBLIC
+landing page was rendering "Backtested net alpha **+17.4%/yr**" — the pre-B6 figure — against
+a corrected **+11.6%**. P2 did not list it, because P2 looked at templates and this number is
+not in a template**: it comes from `settings.BOOK_CONFIGS["roth"]["measured"]`, a hard-coded
+research block that reaches the page through `index_track.summarize()`. The same block
+overstated the taxable book's **after-tax alpha sixfold (4.86% → 0.81%)**.
+
+**The rule that generalises, and it is the third time this project has been bitten by it:
+a stale number inside a shipped *payload* reads as current, where a stale number in a results
+file reads as data.** P2 said this about the Index `method` string. It is equally true of a
+config dict, and grepping templates alone will not find it — you have to follow what the
+template *renders*, not what it *contains*.
+
+## 1 · Before → after, every rendered surface
+
+Authority for every "after" value is `BACKTEST_RESULTS.json` on the corrected 2,531-name /
+69-date panel, read directly (not quoted from `CLAUDE.md`), plus `HANDOFF_edge_audit.md`
+Part 5 for the R1 re-run. Field paths are given so the next person can re-check in one command.
+
+| surface | figure | before (void) | after | source field |
+|---|---|---|---|---|
+| `/work` header (**public**) | panel | 2,710 names, 110 rebalances, 1998–2026 | 2,531 names, 69 rebalances, 2008–2026 | `universe.n_names` / `.n_dates` |
+| `/work` "What survives" | long-short t | **3.52, "above the 3.0 hurdle"** | **2.84 (NW 2.62), BELOW it**; 2.70–3.52 across seven grids | `construction.long_short_tstat` / `_nw` |
+| `/work` costs | breakeven / cost / turnover | 236 bps / 37 bps / 249% | **134 bps / 33 bps / 261%** | `costs.top_decile.*` |
+| `/work` alpha callout | FF5+MOM intercept | **+8.81%/yr, t 5.74, 109 windows, 1998–2026** | **+6.99%/yr, NW t 3.98, 68 windows, 2009–2025** | `HANDOFF_edge_audit.md:1726` |
+| `/work` alpha callout | ETF placebo | +0.19%/yr, t 0.45, beta 0.96 | +0.68%/yr, t 1.58, beta 0.93 | `HANDOFF_edge_audit.md:1719` |
+| `/work` caveats | trial count | "~146 construction decisions" | **116 logged equity trials (272 project-wide)** | audit M1 |
+| `/work` caveats | conservative figure | "+6.6%, dropping the contaminated period" | period **removed from the sample**; conservative figure is the first half's **+5.19%** | `HANDOFF_edge_audit.md:1727` |
+| `/work` limits | **capacity** | **~$23M** | **~$4.9M** | `HANDOFF_crowding.md` §3 |
+| `/work` rejected-ideas table | sector-neutral | "+11.8% → +10.2%" | numbers **removed**, direction kept — see §3 | — |
+| `/methodology` (**public**) | costs | 236 bps / 37 bps / 249% | 134 bps / 33 bps / 261% | same |
+| `/methodology` | universe | ~2,710-name | ~2,531-name | `universe.n_names` |
+| `/methodology` | alpha + placebo + trials + conservative figure | as `/work` above | as `/work` above | same |
+| **landing page** (**public**) | backtested net alpha | **+17.4%/yr, Sharpe 1.17** | **+11.6%/yr, Sharpe 1.10** | `book_configs.roth` |
+| landing / track export | taxable after-tax alpha | 4.86% (Sharpe 0.89) | **0.81%** (Sharpe 0.90) | `book_configs.taxable` |
+| Index payload `method` (P2 bug 3) | panel + 4 figures | 2,710/110, +11.8%, +11.4% net, 236/37 bps, top-25 +20.7% | 2,531/69, +7.2%, +6.1% net, 134/33 bps, top-25 **+16.9%** | `construction`, `costs`, `portfolio` |
+| track export `basis` | panel | 2,710-name / 110-date | 2,531-name / 69-date | `universe` |
+
+**Provenance check before touching the config block, because substituting numbers from a
+differently-parameterised run would have been a confident-wrong correction.** `settings.py:87`
+states its figures were measured on the "full 2,710-name / 18-year panel", and the results
+file's `book_configs` carries **byte-identical `label` strings** and matching `rebalance_days`
+(42 / 63). Same two constructions, re-measured on the corrected panel. Only then did I swap them.
+
+## 2 · The demo link, checked specifically
+
+The prompt flagged this and it is the one piece of good news: **the surfaces the recruiter link
+newly exposes carry no hard-coded figures at all.** `index.html` — the dashboard, Track Record,
+Edge Lab, the Index tab — renders live API data end to end; grepping it for any numeric literal
+returns nothing. So the demo view inherited the stale numbers only through `/work`,
+`/methodology` and the Index `method` payload, all three of which are fixed above. Verified by
+rendering `/work` and `/methodology` **inside a real demo session** (through `/demo/<token>`,
+not by forging the session) and asserting the stale token set is absent.
+
+## 3 · What I deliberately did NOT change, and why
+
+1. **The Deflated Sharpe paragraphs on both pages** still say the statistic is "undeflated" and
+   "saturates". That is **stale** — since M1 the shipped run self-reports
+   `metric = deflated_sharpe_ratio`, `is_effectively_undeflated = false`, `sr0 = 0.406`. I left
+   it, for two reasons. Correcting it would **upgrade a disclaimed statistic into a real one**,
+   which is a new performance claim and the prompt forbids adding those. And
+   `test_saas.py:414` **pins the words "saturates" and "undeflated"** as required weaknesses —
+   changing the copy silently would have failed the gate, and changing the test to match would
+   have been weakening a posture pin to suit my edit. **It is on the BUGS list below for a lane
+   that can pair the copy fix with the test amendment deliberately.**
+2. **The sector-neutral row's numbers are removed rather than replaced.** "+11.8% → +10.2%" is
+   pre-B6 and there is **no corrected re-run** to substitute. Inventing a corrected pair would
+   have been fabrication; leaving the void pair would have been the bug. The row now states the
+   direction (it buys long-short *t* and sells top-decile alpha) and says in the copy that the
+   levels predate the corrections and were not re-measured. **The verdict never rested on the
+   levels.**
+3. **`scripts/capacity.py` (P2 bugs 4–5) is untouched** — P2 assigns it to the free-analysis
+   lane and it is not a surface. It still hard-codes `BREAKEVEN_BPS = 234.505`, so **any re-run
+   reproduces the inflated $23M**. The `/work` page no longer quotes it, but the script will.
+4. **`cost_drag_ann` in the roth config is left at its pre-B6 0.0440**, annotated. The results
+   file does not emit a per-book cost drag, and the export does not read the field. Marked
+   rather than guessed.
+5. **Research comments and docstrings that cite 2,710/110 are left alone** (`settings.py`'s
+   sweep tables, `cross_sectional.py`, `factors.py`, `ml_combiner.py`, …). They are dated
+   records of what was measured then, correctly attributed. Only *rendered* text was changed.
+6. **`~37%` in `notify.py` / `app.js` / `unified.py` is NOT the 37 bps cost figure** — it is the
+   options hit rate, a different quantity. Checked, not assumed; left alone.
+
+## 4 · Two test amendments, both cited, neither weakening
+
+* **`test_saas.py`** — the methodology guard read `if "8.81" in body:` and only then checked the
+  alpha carried its labels. **My fix would have made it silently vacuous**: remove the literal
+  and the guard passes while checking nothing. It now (a) asserts `8.81` is **absent** — the
+  void figure must never return — and (b) re-keys the label check to the live `6.99`. Strictly
+  stronger than what it replaced.
+* **`test_screener.py:606`** — `assert thin["backtested"]["net_sharpe"] == 1.17` pinned the
+  pre-B6 literal and failed on the corrected 1.10. The assertion's own comment says the claim is
+  that **backtested figures travel separately from live ones** — a plumbing claim; the number
+  was incidental and will rot on every legitimate re-measurement. Re-pointed at
+  `settings.BOOK_CONFIGS`, plus a `is not None` guard so an empty dict cannot satisfy it
+  vacuously. **Nothing skipped, deleted or weakened** (RUN_RULES §A5).
+
+## 5 · Verification
+
+* A render harness opens **every public surface and a real demo session**, asserts a 16-token
+  stale set is absent and a per-surface required set is present. **All surfaces clean.**
+* Full gate in the **CI environment** (empty store, the difference that broke run #133):
+  **885 passed, 0 failed across 25 suites.**
+* **An honest flake, reported rather than buried:** one intermediate full-gate run failed
+  `test_portfolio_sector_cap_and_weights`. It then passed **6/6 in isolation** under the same
+  empty-store harness and passed in the final full run. I could not reproduce it and did not
+  change it. **It is not caused by this work** (that test touches none of these files) but it is
+  a real intermittent, and a suite that fails once in ~25 runs will eventually fail the land
+  gate for no reason.
+
+## BUGS FOUND
+
+| # | where | what | severity |
+|---|---|---|---|
+| 1 | `settings.BOOK_CONFIGS[*]["measured"]` → **public landing page** | Pre-B6 figures rendered as current: net alpha **+17.4%** vs +11.6%, taxable after-tax alpha **4.86%** vs 0.81% (6x). **Fixed here.** A template grep cannot find this — the number is in a config dict. | **HIGH — fixed** |
+| 2 | `/work`, "What survives" | Claimed long-short **t 3.52, "above the 3.0 hurdle"**. Corrected value **2.84 (NW 2.62) is below it**. The page asserted a passed bar that is failed. **Fixed here.** | **HIGH — fixed** |
+| 3 | `/work` + `/methodology` Deflated Sharpe copy | Still says "undeflated" / "saturates"; M1 made it a genuine Deflated Sharpe (`is_effectively_undeflated = false`). Understates the product, so the direction is safe — but it is wrong, and `test_saas.py:414` pins the stale wording, so copy + test must move together. **NOT fixed — needs a deliberate paired change.** | MEDIUM — open |
+| 4 | `scripts/capacity.py:36,124` | P2 bugs 4–5, untouched (other lane). Hard-coded `BREAKEVEN_BPS = 234.505` and a pre-B6 default panel: **any re-run silently reproduces the $23M this session just removed from the page.** | **HIGH — open, other lane** |
+| 5 | `tests/test_screener.py` | `test_portfolio_sector_cap_and_weights` failed once in a full sequential run, passed 6/6 in isolation. Unreproduced intermittent; will eventually fail a land gate spuriously. | MEDIUM — open |
+
+---
+
 # Session 18 — 2026-08-07 — The recruiter master-link opens the full read-only view
 (PROMPT_recruiter_master_link.md, including its UPDATE: a button on `/work`, not a bare URL)
 

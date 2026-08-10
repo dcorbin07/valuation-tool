@@ -2130,3 +2130,530 @@ the brief (CHTR, CI) had already moved before I started (§8.0).
    the revenue path. Mine, and it overstated the largest known defect in the engine.
 5. **`CompanyData` carries no capex history** while carrying revenue, EBIT, FCF and net-income
    histories, so any maintenance-capex estimate rests on one lumpy year.
+
+---
+
+# Part 9 — TERMINAL-SHARE-AWARE CONFIDENCE (PRE-COMMITMENT)
+
+**Written before any outcome was measured, and committed alone.** Status: OUT-OF-BAND, live
+product. Owner: greeks agent (engine lane).
+
+## 9.0 The complaint
+
+The confidence label describes *where the data came from* and *which lens carried the blend*. It
+never asks what the number is MADE OF. A DCF whose terminal value is 93% of enterprise value is a
+statement about year 11-to-infinity wearing a ten-year model's clothes, and the engine will happily
+stamp it "high".
+
+Both rejected reinvestment arms mean the VALUE will not change. The LABEL can still be honest.
+
+## 9.1 The one thing I checked before committing to anything
+
+**A control group exists: 40 of 241 names have no DCF lens in the blend at all** (financials
+valued on P/B-ROE, plus names whose DCF was dropped as non-positive). Terminal share does not
+describe their published number and the change must be mechanically incapable of touching them.
+Part 4's bound 1 was breached because the control was a proxy; Part 8's held because the gate WAS
+the control. Here the gate is again the defining property — `dcf` absent from `blend.lenses`.
+
+## 9.2 The band, argued from the distribution and NOT from CI
+
+Measured first, on the 241-name 2026-08-05 snapshot, printing **only the input distribution** — no
+ticker, no label, no upside, no score. Choosing a threshold after seeing which names it flags is
+the tuning this document exists to prevent, so the step-1 harness (`tv_dist.py`) is written to make
+that impossible rather than to make it unlikely.
+
+Terminal share across the 201 DCF-participating names:
+
+| p1 | p5 | p10 | p25 | p50 | p75 | p90 | p95 | p99 | max |
+|---|---|---|---|---|---|---|---|---|---|
+| 49.9% | 57.0% | 63.0% | 69.4% | **77.7%** | 83.7% | **87.4%** | 90.4% | 119.1% | 227.8% |
+
+**A high terminal share is NORMAL and must not be treated as a defect.** A ten-year DCF on a mature
+business at an ~8% discount rate mathematically puts two-thirds-plus of its value in the terminal;
+the median here is 77.7%. A 70% threshold would flag 73% of the universe, and a label that fires on
+three names in four carries no information. This is the single most important reason to argue the
+band from the distribution instead of from intuition.
+
+The histogram has a shoulder, and the bands sit on it:
+
+```
+  40- 50%    3        70- 80%   62
+  50- 60%   10        80- 90%   69     <- bulk ends here
+  60- 70%   42        90-100%    9     <- density collapses
+                     >=100%      6     <- different object entirely
+```
+
+* **`TV_SHARE_MEDIUM = 0.90` — cap at "medium".** Just past p90 (87.4%); density falls 69 -> 9
+  across the boundary. Economically: **under a tenth of the value comes from the decade we
+  actually model** with company-specific inputs. Expected to bind on 15 of 201 (7.5%).
+* **`TV_SHARE_LOW = 1.00` — cap at "low".** *This is not a calibrated number.* At 100% the
+  terminal exceeds the whole enterprise value, so **PV(explicit forecast) is negative**: the
+  modelled decade destroys value and the terminal pays for all of it plus the shortfall. A sign
+  change needs no threshold argument, which makes it the sturdier of the two bands. Expected: 6.
+
+I record the counterfactual explicitly, because CI is named in the brief at 93.5%: a band at
+**95%** would catch 7 names and would NOT catch CI. I am choosing 90% on the p90-and-shoulder
+argument above. If that argument does not persuade a reader, the honest response is that the band
+is wrong, not that the result is.
+
+## 9.3 What changes, and what may not
+
+Labels only, applied AFTER every value is final:
+
+* `blend.confidence` — the fair-value label.
+* `score.confidence` — the label printed beside the recommendation.
+* Both capped **monotonically downward**. The cap can never raise a label, so it cannot rescue
+  anything, and a name already "low" is untouched.
+* Applied whenever the DCF lens participates (`weight > 0`), without a weight threshold. That is
+  the conservative choice and avoids a second free parameter; names carrying only a sliver of DCF
+  are growth-led and already "low", which C7 tests rather than assumes.
+* `blend.tv_share` and a note are stored so the reason is visible rather than mysterious.
+
+## 9.4 Success criteria — what "fixed" means, with tolerances
+
+* **C1 — VALUE BOUND. Every published fair value bit-identical, all 241 names, exact float
+  equality (`==`, not a tolerance).** Zero value changes is the whole premise.
+* **C2 — SCORE BOUND. Every composite score, recommendation and sub-score bit-identical.** Stops
+  the label leaking into the number.
+* **C3 — CONTROL BOUND. The 40 non-DCF names: confidence labels bit-identical, both fields.**
+* **C4 — MONOTONE. No name's confidence rises, on either field.**
+* **C5 — DO NO HARM. The 186 DCF-participating names below 90%: labels bit-identical.**
+* **C6 — NOT INERT. At least one PUBLISHED name is re-labelled.** If zero move, the change is
+  cosmetic and I report NULL and ship nothing — the Part 8 discipline.
+* **C7 — the low-DCF-weight assumption in 9.3, stated as a bound instead of an argument: no name
+  with `dcf_weight < 0.2` is moved down from "high"** (it should already be "low" via growth-led).
+
+**C1, C2 and C3 must be mechanically impossible to breach, not merely observed to hold.** I have
+been caught twice by bounds that could not fail. Verified before the run: the cap is a pure
+function of `(existing_label, tv_share)` returning a string, invoked after `blend.value`,
+`fv_scen` and `compute_score` are complete, and it writes only to two `confidence` attributes.
+Measurement is confirmation, not the proof.
+
+**Anti-tuning rule, unchanged from Parts 2 and 8: a band failing at its pre-chosen value is
+REJECTED, not retuned.** CI motivated the brief and is therefore excluded from the argument for
+the band, exactly as KSPI was in Part 2 and CHTR in Part 8.
+
+## 9.5 Out of scope, stated in advance
+
+`screener/fairvalue.py` computes its own `fair_value_confidence` — but that path blends multiples
+and the growth lens only, has **no DCF and therefore no terminal value**, and is already capped at
+"medium". Nothing to do there, and I will not invent a proxy for it.
+
+
+# Part 9 — TERMINAL-SHARE-AWARE CONFIDENCE (RESULTS)
+
+**VERDICT: ADOPTED. Labels only; every published number is bit-identical.** Measured offline on
+the same 241-name 2026-08-05 pickle and disk beta memo as Part 8, one process, deterministic — so
+"bit-identical" is exact float equality on identical inputs rather than a tolerance on a re-fetch.
+
+## 9.6 The brief's exemplar does not reproduce — CI is already withheld
+
+The brief opens with *"CI publishes +275% at HIGH confidence on a number that is 93.5% terminal
+value."* Measured through current code on this snapshot:
+
+**CI is WITHHELD. Its terminal share is 90.3%, not 93.5%, and both its labels already read
+`low`.** It publishes no number and no upside. The publication guard and the Part 7 beta work
+landed between the brief being written and this run; CHTR was stale in Part 8 for the same reason.
+**Third stale exemplar in two parts** — check the named name before building to it.
+
+The band still binds on CI (90.3% ≥ 90%), so it now carries the terminal note; its label cannot
+move because it is already at the floor. **Had I tuned the band to catch CI, I would have achieved
+nothing at all** — which is a cleaner argument for the pre-commitment than any I could have written
+in advance.
+
+**The class of problem is real regardless, and this is the finding that replaces the exemplar:
+ten names published today with `score.confidence = "high"` on a DCF that is more than 90% terminal
+value.** The worst is SNAP at **227.8%**.
+
+## 9.7 All seven pre-registered criteria HELD
+
+| | criterion | result |
+|---|---|---|
+| C1 | every fair value / range / upside bit-identical, 241 names | **HELD** |
+| C2 | composite score, recommendation, sub-scores bit-identical | **HELD** |
+| C3 | control: 40 names with no DCF lens, both labels identical | **HELD** |
+| C4 | monotone — no confidence label rises | **HELD** |
+| C5 | do no harm: 186 DCF names below 90%, labels identical | **HELD** |
+| C6 | not inert: ≥1 published name re-labelled — **12** were | **HELD** |
+| C7 | no `dcf_weight < 0.2` name demoted from "high" | **HELD** |
+
+**The bands bound on exactly the counts predicted before the run: 9 in [90%, 100%) and 6 at
+≥100%.** That is arithmetic from the step-1 distribution rather than a result, but it does confirm
+the band was fixed before the outcome was seen.
+
+**The ≥100% band is exactly the set with PV(explicit forecast) < 0** — checked as a set equality,
+not asserted. That band is a sign change, not a calibration, which is why it needs no defending.
+
+## 9.8 What moved
+
+All 12 moved on `score.confidence`; 4 of those also moved on `blend.confidence`.
+
+| ticker | terminal % | dcf wt | blend | score | upside | published |
+|---|---|---|---|---|---|---|
+| SNAP | **227.8%** | 0.36 | low | **high → low** | −31% | yes |
+| WELL | 132.7% | 0.34 | medium → low | medium → low | −77% | yes |
+| CPNG | 119.1% | 0.44 | medium → low | **high → low** | −16% | yes |
+| SNOW | 104.0% | 0.23 | low | medium → low | −70% | yes |
+| KHC | 102.2% | 0.43 | medium → low | **high → low** | −58% | yes |
+| GM | 97.1% | 0.49 | medium | high → medium | −37% | yes |
+| WMT | 94.5% | 0.53 | medium | high → medium | −40% | yes |
+| KR | 94.1% | 0.50 | medium | high → medium | **+75%** | yes |
+| SYY | 90.6% | 0.52 | medium | high → medium | **+22%** | yes |
+| SLB | 90.4% | 0.60 | high → medium | high → medium | −14% | yes |
+| HAL | 90.4% | 0.58 | medium | high → medium | **+7%** | yes |
+| COST | 90.0% | 0.53 | medium | high → medium | −57% | yes |
+
+Three more sit in a band and keep their label because they are already at or below the ceiling —
+**CI, JD (101.7%, withheld) and PCG** — and now carry the note. The note tracks the fact, not the
+label delta, so a name marked down for two reasons states both.
+
+**Published-name confidence mix:**
+
+| label | before | after |
+|---|---|---|
+| `score.confidence` | high **120** / med 66 / low 48 | high **110** / med 71 / low 53 |
+| `blend.confidence` | high 96 / med 129 / low 9 | high 95 / med 127 / low 12 |
+
+**The two labels were disagreeing, and the optimistic one was the one on the recommendation
+card.** SNAP's fair-value label already said `low` while the score beside it said `high`; WELL,
+KHC, CPNG and SNOW are the same shape. That is the substance of the complaint: `blend.confidence`
+knows which lens carried the blend, `score.confidence` knows only DCF reliability and data
+completeness, and neither knew what the number was made of.
+
+**Only three of the twelve carry positive upside** — KR +75%, SYY +22%, HAL +7%. Those are the
+ones where the label does work, because a buy recommendation is where confidence is read. The
+other nine are already negative-upside names where the marking-down is cheap.
+
+## 9.9 Why this is labels-only by construction, not by luck
+
+`terminal_share_cap(confidence, tv_share) -> (label, note)` is a pure function of a string and a
+number. It cannot see a company, a fair value or a score. It is invoked in `pipeline.py` **after**
+`blend.value`, `fv_scen` and `compute_score` are all final, and writes only two `confidence`
+attributes plus `blend.tv_share` and one note.
+
+`test_the_cap_changes_labels_and_provably_not_values` runs the same company twice with the bands
+at both extremes — cap nothing, then cap everything — and asserts the fair value, the range, the
+composite, the recommendation and every sub-score are bit-identical while the labels differ. That
+fails the day anyone routes confidence back into a number.
+
+## 9.10 What I did NOT do
+
+* **Did not touch `screener/fairvalue.py`.** Pre-registered as out of scope in 9.5: it blends
+  multiples and the growth lens, has no DCF and therefore no terminal value, and already caps at
+  "medium". Inventing a proxy there would be asserting something I have not measured.
+* **Did not weight the cap by DCF share of the blend.** A name at 5% DCF weight and 95% terminal
+  is barely a terminal-driven number; the unweighted rule is the conservative one and avoids a
+  second free parameter. C7 held, so no low-weight name was demoted from "high" anyway.
+* **Did not re-tune after seeing the outcome.** The bands are the pre-committed 0.90 and 1.00.
+* **Did not fix the six non-positive-DCF names** carried over from Part 8's BUGS FOUND. SNAP at
+  227.8% terminal and SNOW at 104% are adjacent to that defect — both have a positive DCF whose
+  explicit decade is negative — but the fix is a different change with different bounds.
+* **Did not change what is published or withheld.** C1 forbids it.
+
+**Limits.** One 2026-08-05 snapshot of 241 names; the bands are floors for THIS universe and would
+want re-measuring if the panel changed materially. Terminal share is read from the BASE scenario
+only — the bear and bull DCFs have their own, unexamined. And the cap marks a valuation down
+without saying whether the terminal assumption is *wrong*; a 95%-terminal DCF on a genuinely
+stable compounder may be perfectly sound, and the label says "judge this on the terminal", not
+"this is broken".
+
+## BUGS FOUND (Part 9)
+
+1. **`score.confidence` and `blend.confidence` disagreed on 5 of the 12 flagged names, and the
+   more optimistic one is the one printed beside the recommendation.** SNAP read `low` on the
+   fair value and `high` on the score simultaneously. Now capped together; the underlying
+   divergence between the two definitions is untouched and is a real open item.
+2. **A high terminal share is normal and the project had no number for it.** Median 77.7%, p90
+   87.4% across 201 DCF-participating names. Any future "the terminal is doing all the work"
+   claim needs that denominator, or it will fire on three names in four.
+3. **The brief's exemplar was stale for the third time in two parts** (CHTR and CI in Part 8, CI
+   again here). Named exemplars in prompts are written against a snapshot and rot within days.
+
+
+---
+
+# Part 10 — THE HEADLINE FLIP IS GATED ON THE CONTRACT, NOT ON A DAY COUNT (PRE-COMMITMENT)
+
+**Committed BEFORE the change is written, in its own commit, and nothing below is edited
+afterwards.** This part is not a measurement, so there is no threshold to pre-commit in the usual
+sense — what is pre-committed instead is the **mechanism**, the **default**, and the list of
+things that are **not allowed to move**. Those are the parts that could otherwise be chosen after
+seeing what was convenient.
+
+## 10.0 The defect, stated exactly
+
+`valuation/screener/index_track.py:223-224`:
+
+```python
+out["thin"] = days < MIN_LIVE_DAYS
+out["headline"] = "backtested" if out["thin"] else "live"
+```
+
+`MIN_LIVE_DAYS = 60`. On the 60th trading day of the forward track, three things happen at once,
+with no approval step and nobody in the loop:
+
+1. `headline` flips `"backtested"` → `"live"`;
+2. `thin` flips `True` → `False`, which drops the **"too early to judge"** pill
+   (`valuation/web/templates/index.html:114`, keyed on `hero.thin`);
+3. `hero.may_lead` flips `False` → `True` (`valuation/web/hero.py:154`), which is the flag the
+   surfaces read to decide whether the live number is allowed to lead the page.
+
+The track's recorded inception is **2026-07-30** and it stood at 5 trading days when
+`PAPER_TRACK_CONTRACT.md` was drafted, so this fires around **late October 2026** — at **13%
+power**, against a test that on the contract's own arithmetic (§2) cannot detect an edge below
+**+49pp/yr**. `MIN_LIVE_DAYS` was never pre-committed and does not derive from power.
+
+**The contract says the public posture changes on the 6-month OPERATIONAL GATE** (§3, Option A:
+"a test of whether the track is being recorded properly at all"), **not on a day count.** Today
+the code and the contract disagree, and the code wins by default because it is the thing that
+actually runs.
+
+## 10.1 The mechanism — ONE, and which one
+
+The instruction is explicit that there must not be two. **The authority is the contract's own
+register (`PAPER_TRACK_CONTRACT.md` §5), read directly by `index_track`.** Not a constant in
+`settings.py`, not an env var, not a store key.
+
+**Why the register and not a code flag.** A code flag would be a *second* record of the same
+fact: the register would say the gate passed and `settings.py` would say whatever it last said,
+and the two could disagree with no way to tell which was right. Reading the register makes the
+human record and the machine record **the same bytes**. It also means the gate cannot be flipped
+by an edit that leaves no trace in the document Don signs.
+
+**The known risk, stated in advance rather than discovered later.** This project has already been
+bitten by parsing a markdown table: session 12's `research_log._parse` matched `\bFIXED\b` across
+joined cells, and an unescaped `|` inside a cell shifted every column after it and understated
+`N` by 4. Parsing prose to decide a public posture invites exactly that. Three mitigations, all
+committed now:
+
+* the parser reads **one canonical row form only**, and a row it does not recognise is not a
+  pass;
+* **every failure mode resolves to NOT PASSED** — file missing, unreadable, malformed, field
+  absent, value unrecognised. The conservative error is a mature track still labelled
+  "backtested"; the harmful error is the reverse, and it is unreachable by accident;
+* the parse result is **published in the payload** (`gate` block: `passed`, `source`, `value`,
+  `reason`) so a mis-parse is visible rather than silent.
+
+**The canonical row, fixed here and quoted verbatim in the module docstring and the handoff:**
+
+```
+| Operational gate passed | YES — <date> |
+```
+
+Match is on the field cell `operational gate passed` (case- and whitespace-insensitive), and the
+value cell must begin with `yes`, `passed` or `true`. `pending`, `no`, blank, or an absent row
+are all NOT PASSED. **The edge lane sets exactly this row on gate day; nothing else, nowhere
+else.**
+
+## 10.2 What the change is allowed to touch
+
+**Labels only.** The permitted writes are exactly:
+
+* `out["headline"]` — `"backtested"` / `"live"`
+* `out["thin"]` — the pill and `may_lead`
+* `out["note"]` — the sentence explaining which one is in force
+* `out["gate"]` — a NEW block, additive, describing the parse
+
+**Bounds — the change is WRONG if any of these move:**
+
+| | bound |
+|---|---|
+| B1 | every number in the `live` block is bit-identical for a given input series — `days`, `since`, `as_of`, `cum_valquo_pct`, `cum_spy_pct`, `excess_pp`, `ann_alpha`, `sharpe`, `hit_rate` |
+| B2 | the `backtested` block is bit-identical |
+| B3 | `series`, `available`, `days`, `inception`, `benchmark`, `config`, `min_live_days` unchanged |
+| B4 | **no tracked file under `data_export/` changes** — not one byte |
+| B5 | with the gate NOT passed, `headline` is `"backtested"` at **every** day count, 0 to ∞ |
+| B6 | with the gate passed, the day-count floor still applies — the gate is an **additional** condition, never a replacement, so a 3-day track cannot lead just because the gate passed |
+| B7 | the default on a repo with today's unsigned contract is NOT PASSED |
+
+**B5 and B6 together are the substance:** the flip requires **both** the gate and the days. A
+gate-passed flag that let a 3-day track lead would be a worse bug than the one being fixed.
+
+## 10.3 What I will NOT do, decided now
+
+* **Not change `MIN_LIVE_DAYS` from 60.** It is the wrong number — the contract's §2 shows 60 days
+  has 10-13% power — but it now only gates *annualisation*, which is a published figure, and
+  moving it would change a number rather than a label. Recorded as a bug, not fixed here.
+* **Not change `ann_alpha` / `sharpe` suppression.** Same reason: those are values.
+* **Not touch `valuation/web/**`** (another lane) — the fix is in the producer, so every consumer
+  inherits it unchanged.
+* **Not touch `paper_track.MIN_DAYS_FOR_MEANING = 126`** — it is in the edge lane's
+  `valuation/edge/paper_track.py`, and it governs a *different* track.
+* **Not sign, choose, date or re-threshold the contract.** My only edit to it is to add the
+  register row above with the value `pending`, plus one sentence saying the row is machine-read.
+  No option, no date, no threshold.
+
+## 10.4 The test the instruction asks for
+
+`test_day_count_alone_can_never_flip_the_headline` — runs a series **far past** `MIN_LIVE_DAYS`
+with no gate and asserts `headline == "backtested"`, `thin is True`; then the same series with the
+gate passed and asserts it flips. It fails if anyone restores the day-count-only rule, and it
+fails if the gate becomes a *replacement* for the day count rather than an addition.
+
+
+
+---
+
+# Part 10 — RESULTS: THE HEADLINE FLIP IS NOW A DECISION, NOT A DATE
+
+**VERDICT: SHIPPED. Labels only; every number in the payload is bit-identical, and no tracked
+data file changed.** The pre-commitment above was committed alone at `4f2d61f`, before a line of
+code, and nothing in it was edited afterwards.
+
+## 10.5 What was actually going to happen
+
+`index_track.summarize()` decided the site's public posture with one comparison, `days <
+MIN_LIVE_DAYS`, and `MIN_LIVE_DAYS = 60`. Measured, not asserted — the day-count-only rule
+against the rule now shipped:
+
+| trading days | BEFORE: headline / thin | AFTER, gate not passed | AFTER, gate passed |
+|---|---|---|---|
+| 1 | backtested / thin | backtested / thin | backtested / thin |
+| 20 | backtested / thin | backtested / thin | backtested / thin |
+| 59 | backtested / thin | backtested / thin | backtested / thin |
+| **60** | **live / NOT thin** | **backtested / thin** | live / NOT thin |
+| 61 | live / NOT thin | backtested / thin | live / NOT thin |
+| 90 | live / NOT thin | backtested / thin | live / NOT thin |
+| 300 | live / NOT thin | backtested / thin | live / NOT thin |
+| 2000 | live / NOT thin | backtested / thin | live / NOT thin |
+
+**Three things flipped together on day 60 and none of them had an approval step:** `headline`
+`"backtested"` → `"live"`; the **"too early to judge"** pill went down
+(`templates/index.html:114`, keyed on `hero.thin`); and `hero.may_lead` went true
+(`hero.py:154`), which is the flag deciding whether the live number may lead the page.
+
+On the recorded inception of **2026-07-30** that lands in **late October 2026**, at a horizon the
+contract's own §2 puts at **13% power**, unable to detect an edge below **+49pp/yr**. The site
+would have started leading with a number that, on the project's own arithmetic, cannot mean
+anything yet.
+
+**Measured on the contract exactly as it stands on `main` today:**
+
+```
+row value : 'pending'
+passed    : False
+day 60    -> headline='backtested'  thin=True
+note      : Live track is 60 trading days old, past the 60-day floor, but the paper-track
+            contract's operational gate has not been recorded as passed, so the backtest stays
+            the headline. Elapsed time alone does not promote a live number.
+```
+
+## 10.6 The mechanism, and why there is exactly one
+
+**The contract's own register is the authority** (`PAPER_TRACK_CONTRACT.md` §5), read on every
+request by `index_track.gate_state()`. No constant in `settings.py`, no env var, no store key.
+
+The instruction was not to invent two mechanisms, and the reason is sharper than tidiness: a code
+flag would be a **second record of the same fact**, free to disagree with the document Don signs,
+with no way to tell which was right. Reading the register makes the human record and the machine
+record the same bytes. It also means the posture cannot be changed by an edit that leaves no
+trace in the contract.
+
+One row, and the edge lane sets it on gate day and nothing else, anywhere:
+
+```
+| Operational gate passed | YES - 2027-01-30 |
+```
+
+I added that row to §5 with the value `pending`, plus a note above it saying the running site
+reads it. **I did not sign, choose, date or re-threshold anything** — no option letter, no
+horizon, no statistic.
+
+**Fail-closed, exhaustively, and each case is a test:** missing file, missing row, `pending`,
+`no`, blank, a bare date, a wrong field name, a malformed row, the row **inside a fenced code
+block**, and **two rows that disagree** — all resolve to NOT PASSED. The conservative error is a
+mature track still labelled "backtested"; the harmful error is a thin track labelled "live", and
+no accident reaches it.
+
+## 10.7 The parser hole my own test found, and the rule I tightened
+
+The pre-commitment said the value "must **begin with** `yes`, `passed` or `true`". Implemented
+literally — leading run of letters — and `test_every_unusable_contract_resolves_to_not_passed`
+immediately failed on the case I had put in it as a formality:
+
+> **`| Operational gate passed | yes-ish, mostly |` was read as a PASS.**
+
+That is precisely the failure this project has already paid for once, in
+`research_log._parse`: prose read as a verdict. **The rule is now the first WHOLE WORD**, so
+`yes-ish` is not `yes`, while dashes still separate (`YES - 2027-01-30` parses) because hyphens
+do not.
+
+**This is TIGHTER than what I pre-committed, and that direction is the reason it is allowed.**
+Tightening can only make the gate harder to pass, so it cannot reach the harmful error;
+loosening after seeing a result would be the move that needs defending. Recorded rather than
+quietly folded in.
+
+## 10.8 All seven bounds HELD
+
+| | bound | result |
+|---|---|---|
+| B1 | every `live` number bit-identical, gate off vs on | **HELD** — `days`, `since`, `as_of`, `cum_valquo_pct`, `cum_spy_pct`, `excess_pp`, `ann_alpha`, `sharpe`, `hit_rate` all `==` |
+| B2 | `backtested` block bit-identical | **HELD** |
+| B3 | `series` / `available` / `days` / `min_live_days` / `config` / `benchmark` / `inception` unchanged | **HELD** |
+| B4 | no tracked file under `data_export/` changes | **HELD** — three files touched, none of them data |
+| B5 | gate not passed ⇒ `"backtested"` at every day count | **HELD** — checked to 2000 days |
+| B6 | gate passed ⇒ the day-count floor still applies | **HELD** — 1, 5, 20 and 59 days all stay backtested with the gate open |
+| B7 | today's unsigned contract defaults to NOT PASSED | **HELD** — reads `'pending'` |
+
+**B6 is the one worth naming.** A gate-passed flag that let a three-day track lead would be a
+worse bug than the one being fixed, and it is the obvious way to get this wrong. The gate is an
+**additional** condition; it never replaces the day count.
+
+## 10.9 The test the instruction asked for
+
+`test_day_count_alone_can_never_flip_the_headline` runs 60, 61, 300 and 2000 days with no
+contract and asserts `headline == "backtested"` and `thin is True` at every one — then runs the
+same series with the gate passed and asserts it flips, so the first half cannot pass vacuously.
+It fails if anyone restores the day-count-only rule at any horizon.
+
+**One existing test was pinning the defect and had to be amended, which is stated rather than
+buried.** `test_live_track_never_annualizes_a_stub_or_leads_with_it` asserted
+`long["headline"] == "live"` at `MIN_LIVE_DAYS + 5`. The claim it still owns — that annualisation
+switches on past the floor — is a *value* and is unchanged; the amendment is recorded inline in
+the test with the old line quoted.
+
+Five new tests, `83/83` in `tests/test_screener.py`, and the full gate is green.
+
+## 10.10 What I did NOT do
+
+* **Did not change `MIN_LIVE_DAYS` from 60.** It is the wrong number — §2 of the contract puts
+  60 days at 10-13% power — but it now gates only *annualisation*, which is a published figure.
+  Moving it changes a number, not a label. **Recorded as a bug below, not fixed.**
+* **Did not touch `valuation/web/**`.** The fix is in the producer, so `app.py`, `hero.py` and
+  `showcase.py` inherit it with no edit.
+* **Did not touch `paper_track.MIN_DAYS_FOR_MEANING = 126`** — edge lane, and it opens a second
+  door that is reported below rather than fixed from here.
+* **Did not sign or alter the contract's terms.** One register row and one explanatory note.
+* **Did not correct §6.4's file:line error** in another lane's document — reported below.
+
+**Limits.** The gate is a *recorded human judgement*, not a measurement: nothing here checks that
+the gate's actual criteria (daily rows with no gaps, turnover as modelled, realised costs near
+33.4 bps) were met. If someone writes `YES` without doing the work, the site believes them. That
+is the correct division — the contract makes the gate a judgement — but it should not be mistaken
+for verification.
+
+## BUGS FOUND (Part 10)
+
+1. **THERE IS A SECOND, UNGATED DOOR TO THE SAME FLIP, and this change does not close it.**
+   `hero.py:75-92` falls back to `paper_track.index_summary()` whenever the Cowork tracker has
+   no live data, and takes `thin` from that payload's `meaningful` flag —
+   `len(rows) >= MIN_DAYS_FOR_MEANING` (`paper_track.py:799`, 126 days). That path never
+   consults the contract, so with the Cowork file absent and the sandbox book running,
+   `hero.may_lead` can still flip on a day count alone, ~126 days in. **Fix is one line in the
+   edge lane** — have `index_summary` (and `options_summary`) gate `meaningful` on
+   `index_track.gate_state()["passed"]`, the same single authority, rather than adding a second
+   flag. **Edge lane + web lane; assigned to neither so far.**
+2. **`MIN_LIVE_DAYS = 60` still annualises a 60-day stub**, which is what the module's own rule 2
+   forbids in spirit — compounding ~3 months of drift by 4.2x. The contract's §2 arithmetic says
+   the number is meaningless at that horizon. Left alone deliberately because it is a value, not
+   a label, and the instruction was labels-only. Wants its own pre-committed change.
+3. **`PAPER_TRACK_CONTRACT.md` §6.4 and `CLAUDE.md` both put `paper_track.MIN_DAYS_FOR_MEANING`
+   in `valuation/screener/index_track.py`. It is in `valuation/edge/paper_track.py:70`.** Both
+   documents say "both live in index_track.py", and only one of the two constants does. Not
+   corrected here — they belong to other lanes — but it matters, because the sentence is the one
+   assigning the work, and half of it points at the wrong lane. That half is bug 1.
+4. **The brief describes the contract as "now being committed as Option E".** The contract on
+   `main` as merged offers **A, B and C only**, and its register reads `pending` throughout —
+   nothing is signed. The gate row defaults to not-passed regardless of which option lands, so
+   this is a coordination note, not a blocker: **whoever commits Option E should set the
+   `Operational gate passed` row's value at the same time, or leave it `pending`.**

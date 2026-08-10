@@ -44,6 +44,46 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE FORWARD PAPER TRACK CANNOT DELIVER A VERDICT FOR ~5 YEARS, AND IT IS NOT CURRENTLY
+  RUNNING (2026-08-08, session 13). Both halves of roadmap #12's status line were wrong.** That
+  item says the track is built and *"what remains is elapsed time and reading the track, not
+  building it."* Measured: `paper_option_orders`, `paper_index_holdings` and `paper_index_track`
+  hold **0 rows each** while 45/45 of its tests pass — the engine has never been fed, and the
+  five accrued days come from a different mechanism (the Cowork-side `data/valquo_track.json`).
+  * **THE ARITHMETIC IS THE FINDING, and it is not escapable by choosing a better statistic.**
+    From `benchmarks.spy` the top decile beats SPY by **+9.99%/yr at a tracking error of
+    11.4pp/yr** — an **information ratio of 0.88/yr**, and that is the IN-SAMPLE figure. Since
+    t grows as √time, **t = 2.0 arrives at 5.2 years** (7.6 once R9's lag-1 +0.189 is applied as
+    an n_eff haircut). **At 12 months the power is 18% and the minimum detectable edge is
+    +34pp/yr — over three times what the project claims.** If the strategy is exactly as good as
+    backtested, a one-year forward test reports "no evidence" **82% of the time**.
+  * **REFUTATION TAKES EXACTLY AS LONG AS CONFIRMATION** — the test is symmetric. There is no
+    horizon at which bad news is cheap. Nobody may say a short track disproved this either.
+  * **THE TRACK CANNOT PRODUCE THE SERIES A VERDICT NEEDS, IN EITHER SOURCE.**
+    `paper_index_track` stores a **snapshot of currently-open holdings** measured from each
+    name's own entry, not a chained series — differencing two points is not a monthly return, and
+    a departed name stops contributing. `paper_track.py:735-740` says so, and says chaining
+    closed stints in *"is a construction change, not a bug fix, and was not made."* The Cowork
+    file chains correctly but is **missing days** (two rows exist where five were due). **The
+    verdict is not computable at any horizon until one source produces a chained series.**
+  * **THE INCEPTION DATE EXISTS ONLY IN A GITIGNORED FILE.** `2026-07-30` is in
+    `data/valquo_track.json` and **nowhere in the repository**. A pre-registration nobody can
+    produce is not one — which is the strongest argument for signing the contract.
+  * **THE SITE PROMOTES THE TRACK TO ITS HEADLINE BY ITSELF, ON A FIXED DATE, WITH NO APPROVAL
+    STEP — THE ONE ITEM HERE WITH A DEADLINE.** `index_track.py:223-224` is
+    `thin = days < MIN_LIVE_DAYS` then `headline = "backtested" if thin else "live"`, and
+    `MIN_LIVE_DAYS = 60`. At day 60 the *"too early to judge"* pill (`index.html:114`)
+    disappears and the headline flips to **live**. **The track is on day 5: this fires ~55
+    trading days out, late October 2026, at 13% power (minimum detectable edge +49pp/yr).** The
+    constant was never pre-committed, does not derive from power, and disagrees 2× with
+    `paper_track.MIN_DAYS_FOR_MEANING = 126` governing the same track. Both sit in
+    `valuation/screener/index_track.py` — **outside the edge lane; it needs assigning.**
+  * **STATE, as of this bullet: the track is BEHIND — inception 2026-07-30, five days, Valquo
+    +0.78% vs SPY +3.62%, excess −2.85pp.** That is −1.8 SD of a five-day window (p ≈ 0.08),
+    i.e. an ordinary bad week that means nothing about the strategy — **but it means the start
+    date is being chosen with the sign of the accrued period known**, so discarding those days
+    is the flattering direction. `PAPER_TRACK_CONTRACT.md` is a **DRAFT awaiting Don**; zero
+    trial cost, equity `N` stays 129, and the trial is charged on sign-off.
 - **X8 REPLICATED ON 2026-08-04 AND THIS FILE NEVER RECORDED IT — the single strongest piece of
   external evidence the project has, missing from its own memory for three days (found
   2026-08-07, session 8).** Before this bullet, `CLAUDE.md` contained the words "JKP" and "Japan"
@@ -169,6 +209,88 @@ the project's memory and the old versions had been repeated for months.
   * **Trial cost paid as registered: equity `N` 121 → 129, Deflated Sharpe 0.8628 → 0.8556,
     √(2·ln 129) = 3.118.** Every equity claim after this is charged N = 129.
     `data/free_analysis/ML_COMBINER.json`; reproduce with `python -m scripts.ml_combiner`.
+- **`N` MOVES THE LONG-SHORT t, AND THEREFORE MOVES THE CALIBRATED FLOORS. THE X7 8%-vs-7%
+  DISCREPANCY IS CLOSED — IT IS ONE DRAW, SEED 1005 (2026-08-08, session 12).** Two sessions
+  called it undiagnosable because X7's raw draws were never retained. The cause is a coupling
+  nothing in the record described: `cpcv_validate`'s adopt gate is
+  `margin > _trials_haircut(len(names)) · se`, and `_trials_haircut` (`fundamental_panel.py:2097`)
+  is **floored at the research log's `N`** (audit M1); `scripts/placebo.py` then feeds the
+  **adopted** weights to `quantile_backtest`. **Adoption is monotone decreasing in `N`, so raising
+  `N` re-scores a draw under different weights.**
+  * **X7 ran at N = 84 (haircut 2.97685); session 10 ran at N = 121 (haircut 3.09703).** Seed
+    1005's margin is **0.00287097** against `se` **0.00094470**: it clears the N = 84 bar
+    (0.0028122) and fails the N = 121 bar (0.0029257). Scored under the challenger's weights its
+    naive `ls_t` is **2.1273**; under base weights, **1.0454**. Session 10's retained artifact
+    records **1.0453572947436582** — identical to the recomputation to sixteen digits.
+  * **SEED 1005 IS THE ONLY FLIP IN 100 DRAWS**, which is checkable because the gate's other two
+    conditions do not depend on `N`, so adoption is monotone and the search set is the draws that
+    did not adopt at N = 121.
+  * **IT REPRODUCES EVERY RECORDED NUMBER ON BOTH SIDES.** Substituting the adopted value into
+    session 10's 100 draws gives **exactly 8** at `t ≥ 2.0` — X7's figure. And the naive **p95
+    stays 2.1437, max stays 3.436** — which is precisely why session 10's control reproduced X7's
+    percentiles *to the digit* while missing one draw: **2.1273 lands just below the 95th
+    percentile.** One fact explains both halves of what looked like a contradiction.
+  * **THE ADOPT CURVE REPRODUCES TWO HISTORICALLY RECORDED RATES THE SCRIPT NEVER SAW.** With
+    `(margin, se)` banked, adoption at any `N` is arithmetic: **N = 8 → 27 draws adopt** (X7's
+    recorded **27%**), **N = 84 → 21** (M1's recorded **21%**), **N = 116/121/129 → 20**
+    (session 10's artifact: **20**), N = 200 → 18, N = 400 → 17. Monotone throughout, and
+    **27 → 21 is six draws stopping with none starting** — exactly the one-directional move this
+    file records for M1, recovered independently from the margins.
+  * **CHECKED, NOT ASSUMED: today's N = 129 still gives 20 adopters, the same as session 10's
+    121, so session 10's published floors (naive 2.1437, HAC 2.2837) are still the floors at the
+    current `N`.**
+  * **IT ALSO EXPLAINS WHY IT LOOKED UNDIAGNOSABLE.** Session 10 reasoned that no draw sat near
+    2.0 so it could not be a boundary effect. Correct — seed 1005 did not *drift* across the
+    boundary, it **jumped 1.08 of a t** because its weights changed. A knife-edge crossing was
+    the wrong thing to look for.
+  * **THE CONSEQUENCE THAT OUTLIVES THE DISCREPANCY: A CALIBRATED PLACEBO FLOOR IS A FUNCTION OF
+    `N`.** The floor is a percentile of the null `ls_t` distribution, and `N` moves individual
+    draws within it. **Here the floors did not move** (2.1437 naive, 2.2837 HAC at both `N`)
+    because the one affected draw landed below the percentile — **that is luck, not design.**
+    Every sweep must record the `N` it ran at, and **a floor may not be compared across sweeps
+    run at different `N` without checking.**
+  * **THE SHIPPED STRATEGY IS UNAFFECTED, for a reason already in the record: it does not adopt,
+    it keeps `current-default`,** so no haircut touches its `ls_t`. The exposure is entirely to
+    the *calibration*, not the headline. Same family as X7's post-hoc "CPCV adoption manufactures
+    ~+1.4 of long-short t" — now a demonstrated mechanism on a named draw rather than a split.
+  * `cpcv_validate` now banks **`adopt_detail`** (margin, se, haircut, `n_trials_used`) and
+    **`challenger_weights_cols`** — the challenger's weights whether or not adopted — so "what
+    would this run have scored one haircut lower" is arithmetic. **Zero trial cost**; equity `N`
+    stays 129. `data/free_analysis/X7_RECONCILE.json`; `python -m scripts.x7_reconcile`.
+- **THE TRIAL COUNTER HAD A REAL DEFECT THAT NEVER FIRED, AND `N` DOES NOT MOVE (2026-08-08,
+  session 12).** `research_log._parse` tested `\bFIXED\b` against **every cell of a row joined
+  together**, so a row whose hypothesis, threshold, source or note merely contained the word
+  "fixed" was dropped from `N` even where its verdict read `REJECTED`. Understating `N`
+  **overstates** the significance of every DSR-gated claim — M1's own error, inside M1's own
+  parser, carried three sessions. Two sibling defects of the same class were fixed with it: the
+  `n=<k>` grid multiplier was grepped from the **whole line**, and the domain came from the first
+  cell matching any domain name rather than the domain column.
+  * **THE RECOUNT MOVES NOTHING. Equity `N` 129 → 129**, options 164, infra 3, total 296, 57 rows
+    counted and 18 dropped (merged log) — identical against the **shipped module itself** and
+    against **all fifteen historical revisions** of `RESEARCH_LOG.md`. No `fix*` word appears
+    outside a verdict cell in any of the 72 data rows as they stood at the recount; **zero
+    near-misses. No published `N` was ever wrong.** Deflated Sharpe stays **0.8556**,
+    √(2·ln 129) stays **3.1176**, and all four DSR figures in this file
+    (N = 84 → 0.899659, 116 → 0.867360, 121 → 0.862756, 129 → 0.855608) reproduce to six decimals.
+  * **THE REPAIR NEARLY SHIPPED THE ERROR IT WAS FIXING, AND THAT IS THE MOST USEFUL THING HERE.**
+    Merging `origin/main` mid-session brought in **O16**, which writes
+    `|Spearman(term_slope, atm_front)|` — an absolute value — **inside a markdown table cell**.
+    The unescaped `|` gives that row **11 cells against a 9-cell header**, shifting every column
+    after the metric; the first-cut column parser read `n` off prose and charged it **1 trial
+    instead of 5, understating options `N` by 4** — the same harmful direction, in a different
+    column, and **the whole-line grep it replaced was accidentally immune**. It was caught only
+    because merging and re-running the recount was written into the procedure rather than left to
+    the end. Misaligned rows now resolve toward a **larger** `N` and are listed in
+    `rows_malformed`. **The O16 row is NOT edited** (the register forbids it); **its pipes want
+    escaping as `\|` by the lane that owns them** — it is the only malformed row in 74.
+  * **WHY IT NEVER FIRED IS NOT REASSURING.** Sessions 9-11 knew about the defect and dodged it
+    by choosing synonyms; the earlier rows avoid the word by luck. **A denominator protected by
+    authors' word choice is not protected.** The repair is pinned by a fixture the old parser
+    fails (3 real trials, of which it counts 1), and `detail()` ships
+    `rows_rescued_by_parser_fix` so a silent revert would be loud.
+  * The pre-registered expectation (`N` rises, 60/40) was **WRONG** — five wrong directional calls
+    to one right. Procedure committed at `21069ac` before the parser was touched, including the
+    rule that **no row's text may be edited to change `N`**: `PREREG_session12_recount.md`.
 - **THE COMPOSITE'S COMPLEXITY IS NOT DEMONSTRATED, AND THEME IC DOES NOT PREDICT WHICH THEME
   MATTERS (2026-08-06, session 6, X3 RE-RUN). The 2026-08-03 "EARNS ITS COMPLEXITY" verdict is
   VOID — it ran on the pre-B6 110-date panel and against a 1.0pp bar that sits BELOW X7's
@@ -293,7 +415,15 @@ the project's memory and the old versions had been repeated for months.
   bar where this strategy is distinguishable from noise and still fails its threshold.
   **M1 also made the adoption gate harder for noise to pass, as a free side effect:** CPCV
   adopts on **27% → 21%** of pure-noise draws, one-directional (six draws stopped adopting,
-  none started), because the adopt gate reads the Deflated Sharpe. **This is NOT the run-to-run
+  none started). ~~because the adopt gate reads the Deflated Sharpe~~ — **THE MECHANISM WAS
+  BACKWARDS; CORRECTED 2026-08-08 (session 12). The direction and the magnitude are right and
+  the mechanism was not.** The adopt gate cannot read the Deflated Sharpe: adoption is decided
+  at `fundamental_panel.py:2729` and `_dsr_detail` is computed at `:2744`, **downstream of it**,
+  on the returns of whichever scheme adoption just chose. What M1 actually changed is
+  `_trials_haircut` (`:2097`), which is **floored at the research log's `N`** — and the adopt
+  gate multiplies `se` by that haircut. Both the haircut and the DSR read `_trial_N()`; neither
+  reads the other. **This matters beyond pedantry, because it means `N` MOVES `ls_t`** — see the
+  session-12 bullet below. **This is NOT the run-to-run
   non-reproducibility** — that remains open; it was briefly mistaken for it before the
   one-directional pattern was checked.
 

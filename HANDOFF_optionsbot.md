@@ -1917,3 +1917,683 @@ consistent with R3's 2.2121 on the full book.
 
     python tests/test_term_slope_decomp.py        # 38 tests: the statistics, the committed
                                                   # verdict rules, the reproduction gate
+
+---
+
+# 2026-08-08 — FREEZE THE CHAINS: the store moved under the banked book, and now it cannot do so silently
+
+**Out-of-band instrument repair.** This is my own O16 finding promoted to its own task: O16's
+blocking reproduction gate measured the authoritative options book at **86.435% reproducible**
+against the chain store it was built from, and the cause was not a code defect but a mutable
+store. Every banked options verdict was pinned to inputs that no longer existed.
+
+## The freeze design, and the measurement it was chosen on
+
+The brief named two candidate designs and required that **(a) be measured before it could be
+rejected** — a good instruction, because the intuition here is wrong by two orders of magnitude.
+
+| | |
+|---|---|
+| (a) frozen copy of the chain rows the R2 book consumed | **157.88 MB** pickle, **27.44 MB** gzipped, 2,870,079 rows |
+| live store it is drawn from | **26.98 GB**, 5,063 symbol-years, 1,000 symbols |
+| **(a) as a share of the store** | **0.585% pickle / 0.102% gzipped** |
+
+**So (a) is ADOPTED, not rejected.** The reason it is cheap is worth stating because it is the
+non-obvious part: **a book is SPARSE in the store.** 3,885 trades read one *day* out of ~250 per
+symbol-year, plus one contract's history each — not the years themselves. The breakdown is
+2,717,072 alert-day slice rows + 158,702 contract-history rows, deduplicated to 2,870,079.
+
+**The artifact actually banked is smaller still: 23.30 MB over 2,870,811 rows — 0.086% of the
+store.** It is smaller than the 27.44 MB probe *despite* 732 more rows and an extra `symbol`
+column, and the reason is worth stating rather than glossing: the probe kept the concatenation's
+non-contiguous index (a 2.87M-entry int64 array) and `freeze_book` drops it. The extra rows come
+from that same `symbol` column — rows identical across two symbols correctly stop collapsing
+into one another.
+
+**(b) fingerprinting is adopted alongside it, not instead of it**, because the two answer
+different questions: (a) is *"can this verdict still be checked"*, (b) is *"is what I am reading
+now what was read then"*. Only (b) can make drift loud, and only (a) survives the store being
+deleted.
+
+**THE LIMIT THAT MUST TRAVEL WITH (a):** the frozen copy is **trade scope**. `chain_on` is called
+on every *candidate* day the scan looks at — **33,254** of them for this book against 3,885
+alerts — so the freeze replays every per-trade statistic but **cannot re-derive which alerts
+fire**. Run scope is *estimated* at ~1,280 MB (699.6 mean rows/day-slice × 33,254 × 55.01 B/row);
+that is an extrapolation, not a measurement, and is labelled as one wherever it appears.
+
+Reproduce the cost measurement: `python -m scripts.options_freeze_cost`.
+
+## Per-book reconciliation, and the pattern nobody had looked for
+
+Measured against the store as it stands today. "Untouched" is the share of the symbol-years a
+book consumed whose files have **not** been rewritten since that book was banked — the necessary
+condition for reproducibility, and cheap enough to run on every book.
+
+| book | banked | symbol-years | rewritten since | untouched |
+|---|---|---|---|---|
+| **R2 corrected (authoritative)** | 2026-08-05 19:51 | 1,429 | 280 | **80.41%** |
+| control r2 seed0 | 2026-08-05 20:01 | 1,371 | 277 | 79.80% |
+| control r2 seed1 | 2026-08-05 20:21 | 1,381 | 269 | 80.52% |
+| control r2 seed2 | 2026-08-05 21:14 | 1,384 | 246 | 82.23% |
+| control r2 seed3 | 2026-08-05 21:26 | 1,372 | 248 | 81.92% |
+| control r2 seed4 | 2026-08-05 21:38 | 1,358 | 244 | 82.03% |
+| pre-correction `state.pkl` | 2026-08-03 08:28 | 1,251 | 547 | **56.27%** |
+| `state_mid.pkl` | 2026-08-03 09:41 | 1,251 | 547 | **56.27%** |
+| entry lab | 2026-08-03 17:36 | 1,481 | 648 | **56.25%** |
+| exit lab | 2026-08-03 19:05 | 1,448 | 622 | **57.04%** |
+
+**THE FINDING THE BRIEF DID NOT ANTICIPATE: drift is PROGRESSIVE, and it is a function of age.**
+Every book banked on 2026-08-03 sits at ~56% untouched; every book banked on 2026-08-05 sits at
+~80%. This is not a property of the R2 book — it is a property of *time spent sitting next to a
+live miner*. O16 caught it on the newest and most-defended book in the project, which is the
+best case, not the worst.
+
+**Two facts that bound the damage, both measured rather than assumed:**
+
+* **Nothing is lost.** `absent_from_store` is **0** for all ten books — no consumed symbol-year
+  has been deleted. Drift is rewriting, not deletion.
+* **The store has been quiet since 2026-08-06 04:29:39**, the newest mtime among every consumed
+  file across all ten books. So the snapshot frozen today is coherent, and the drift all happened
+  in the window between the banks and that timestamp.
+
+### Dispositions
+
+| book | disposition |
+|---|---|
+| R2 corrected | **REFROZEN** — new bank at `data/options_freeze/R2_CORRECTED_2026-08-08/` (`chains.pkl.gz` + `FREEZE_MANIFEST.json`). Never an overwrite: `freeze_book` refuses to land on an existing freeze. |
+| control seeds 0-4 | **REFROZEN**, at `data/options_freeze/R2_CONTROLS_2026-08-08/` — **21,877,728 rows, 168.9 MB**, all five seeds (29,785 trades), 1,558 symbol-years. The R2 verdict is a *comparison* carried by the paired name-year sign test, so freezing the real book alone would leave half of it un-replayable. **It took three attempts and the first two failed; see "A performance defect in my own freeze" below — the intermediate states of this row are recorded there rather than tidied away.** |
+| pre-correction, `state_mid` | **RETIRED**, annotated: *inputs no longer reproducible; the verdict stands on the frozen summary.* Both were already SUPERSEDED by the B1-B4/B15 corrections — the record's own word — so refreezing would preserve replayability for books nobody may quote. |
+| entry lab, exit lab | **RETIRED**, annotated the same way, at 56.25% / 57.04%. A refreeze remains possible and cheap should either be quoted again; what it would freeze is *today's* store, which is not what those books were scored against. |
+
+
+## The gate, and where it is wired
+
+`valuation/edge/options_freeze.py` (new) + one check inside `theta_bulk._year_frame`.
+
+**Bank time is DESCRIPTIVE. Replay is BLOCKING.** That asymmetry is the design, not a compromise:
+a stamp that could fail the run it describes would be switched off within a week, and the miner
+must stay free to re-pull faulted years. Unpinned is the default and costs one `is not None` test
+per frame load.
+
+* `stamp_years()` / `stamp_run()` — fingerprint every symbol-year a finished run consumed.
+  Wired into **all three** banked-book runners: `optuniv_run.py`, `optentry_run.py`,
+  `optexit_run.py`, each writing `CHAIN_STAMP.json` beside the book. It cannot raise: it runs
+  *after* the scoring is banked, so a bookkeeping bug must never destroy finished work — pinned
+  by a test that forces an internal failure.
+* `replay_pin()` — installs a banked stamp; `_year_frame` then **refuses** to serve a symbol-year
+  whose bytes differ. Checked **before** the unpickle and before the memo cache, because serving
+  a drifted year once would leave the wrong rows in `self._mem` for the rest of the process
+  (pinned by its own test).
+* Absent from the stamp is **not** a violation — it means this replay never read that year.
+  "We read nothing here" and "we forgot to record this" must not look the same, so an absent
+  symbol-year is *recorded* as `present: false` rather than omitted.
+
+**Fingerprints are two-level, so the stamp does not cry wolf.** A byte sha256 (memoised in a
+`.sha256` sidecar keyed by size+mtime_ns, so 27 GB is not rehashed per read) catches everything
+but is too sensitive: re-pickling identical rows under a different pandas version changes the
+bytes and nothing else. A stamp that fires on *that* trains the reader to ignore it. So a byte
+mismatch escalates to a content comparison, which separates `repickled` (benign) from `changed`
+(the O16 failure). Where no content record was banked, the verdict is reported as
+`changed_or_repickled` — undecided, never guessed in either direction.
+
+**Two corrections I made to my own design mid-task, both kept in the record:**
+
+1. `content_digest` first rendered each frame with `to_csv`, which made banking a **~50-minute**
+   step (1,429 whole year-frames, ~285M rows of text formatting). Now hashed from the column
+   buffers. This is not just convenience: **a freeze slow enough to be annoying is a freeze that
+   gets skipped, which is exactly how the store came to move under the book.**
+2. More important — a whole-year digest is **over-broad**. It reports `changed` when a re-mine
+   rewrites rows on dates the book *never read*, which is not a fact about that book's inputs.
+   `verify_against_frozen()` asks the precise question instead: *are the rows this book actually
+   consumed still identical?* The frozen copy already **is** that content record, so the
+   expensive whole-year digest buys nothing the freeze does not provide, and the banking path is
+   byte-stamp + frozen copy. `content_digest`/`deepen_stamp` remain for whole-year comparisons
+   and stay pinned by tests.
+
+`tests/test_options_freeze.py` — 40 tests. The ones that earn their place pin failures that
+would otherwise be **silent**: a sidecar surviving a rewrite, a pin that fails open, a digest
+that cannot tell a re-pickle from a data change, a drifted year lingering in the memo cache, and
+drift reported for dates the book never read.
+
+
+## O16 — the verdict it could not carry: **IS DISTINCT**
+
+### The object of study changed, and that is stated rather than slipped in
+
+The register (`ad66468`, **unamended** — every constant as committed) gates on *"recomputed
+`term_slope` matches the BANKED value on ≥99% of rows."* **That gate cannot be made to pass, ever.**
+The banked book's inputs for the 13.6% of rows whose chain files were re-mined no longer exist
+anywhere; re-running the comparison returns the same 86.435% in perpetuity. Measured again today,
+it does exactly that:
+
+    compared 3,885; identical within 1e-6: 3,358 (86.435%); median |diff| 0.0; max 0.4633
+
+So the question is answered about the **refrozen book**: `atm_front`, `atm_mid` and `term_slope`
+recomputed together from one frozen store, hence mutually consistent **by construction** rather
+than by a gate. Three consequences, all of which cut in different directions and all of which are
+reported:
+
+* **It is the LIVE feature.** This is what `compute_signals` returns today, on today's store — so
+  it is the object the Signals surface and U2 actually care about, arguably more relevant than a
+  book banked three days ago.
+* **The banked-book version of the question is permanently unanswerable.** Not "not yet answered".
+* **I had already seen an exploratory version of this answer last cycle**, on the 86.4% subset.
+  The re-run was therefore **not blind**, and that is the honest reason the trial cost is paid
+  again below rather than waived as a mere repair.
+
+The recompute covered **3,885 of 3,885 rows (100% of the book), 186 names, 118 months, 0 errors,
+0 drift**, run under `replay_pin` — and the pin was independently re-verified afterwards with the
+corrected uncached hash path: **1,429 of 1,429 symbol-years clean in 18.2s**. "The store held
+still during the run" is a measured fact here, not an assumption.
+
+### Identity — the arm the register says decides
+
+| statistic | value | date-block CI95 |
+|---|---|---|
+| **Spearman(term_slope, atm_front)** | **−0.53966** | **[−0.5740, −0.5022]** |
+| Pearson(term_slope, atm_front) | **−0.82793** | |
+| Spearman(term_slope, atm_mid) | −0.00831 | |
+| Spearman(atm_front, atm_mid) | +0.79093 | |
+| var(atm_front)/var(ts) | 1.88319 | [1.7703, 2.0267] |
+| var(atm_mid)/var(ts) | 0.61088 | |
+| −2cov share | −1.49406 | |
+
+**VERDICT: IS DISTINCT.** `|ρ| = 0.5397` fails the LEVEL bar of 0.80, and falls **below** the
+DISTINCT bar of 0.60 — and the whole CI95 sits inside that region, so the verdict is not a
+sampling accident.
+
+**THE VERDICT HINGES ENTIRELY ON THE PRE-REGISTERED CHOICE OF SPEARMAN, AND THAT MUST BE QUOTED
+WITH IT.** On **Pearson** the correlation is **−0.828**, which clears the LEVEL bar of 0.80, and
+`var(atm_front)/var(ts) = 1.88` clears its 0.60 companion — so the *same data* under Pearson
+returns **IS THE LEVEL**, the opposite verdict. The register named Spearman in writing before any
+number existed, so IS DISTINCT stands; but anyone quoting this must know the answer flipped on a
+choice made in advance. The gap between the two is itself the finding: the relationship is
+strongly *linear* and much more weakly *monotone*, i.e. a few large-magnitude alerts carry the
+linear fit.
+
+**Variance shares exceed 1 because the legs co-move** (Spearman(front, mid) = +0.791): the
+identity is var(ts) = var(mid) + var(front) − 2cov, and the −1.494 cross term absorbs the excess.
+Read alone, "atm_front is 188% of term_slope's variance" would be a nonsense claim for the level
+hypothesis — it is only interpretable beside the covariance term.
+
+### Predictive — informative this time, and it corroborates DISTINCT
+
+The register's null-vs-null escape clause did **not** fire: the raw feature's own IC excludes zero,
+so the residual comparison is admissible.
+
+| arm | IC (all 3,885) | CI95 | excludes 0 |
+|---|---|---|---|
+| `term_slope` | +0.05673 | [+0.0206, +0.0922] | yes |
+| **residual(ts ~ atm_front)** | **+0.07034** | [+0.0287, +0.1131] | **yes** |
+| `−atm_front` | +0.01316 | [−0.0333, +0.0626] | no |
+| `atm_mid` | +0.03406 | [−0.0151, +0.0814] | no |
+
+**The part of `term_slope` orthogonal to front IV predicts BETTER than `term_slope` itself, and
+front IV alone predicts nothing.** That is the opposite of a confound signature — a disguised
+level would put the predictive content *in* the level. The unchanged-chain subset (n=3,358) agrees
+throughout: +0.0645 / **+0.0770** / +0.0148 / +0.0368.
+
+*Caveat that travels with this arm:* `pnl_pct` is **banked** (a trade outcome) while `term_slope`
+is **refrozen**, so for the 13.6% of drifted rows the two come from different stores. That is why
+the unchanged-only subset is reported beside it; it does not change the reading.
+
+## O24 — re-checked on the refrozen feature, and the NULL is re-confirmed
+
+The brief asked whether a materially different refrozen book forces O24 to be re-checked. It was
+re-run rather than reasoned about:
+
+| | banked (last cycle) | **refrozen** |
+|---|---|---|
+| eligible n | 3,458 | **3,458** (157 names, 118 months) |
+| R² on earnings buckets | 0.21443 | **0.21555**, CI95 [0.1840, 0.2498] |
+| Spearman(ts, days) | +0.00183 | **+0.00579**, CI95 [−0.0453, +0.0586] |
+| verdict | NULL | **NULL** |
+
+| bucket | n | mean ts (refrozen) | mean ts (banked) |
+|---|---|---|---|
+| 0-7d | 532 | **−0.19120** | −0.19159 |
+| 8-14d | 248 | +0.00913 | +0.00976 |
+| 15-30d | 604 | +0.01657 | +0.01717 |
+| 31-60d | 984 | +0.00515 | +0.00379 |
+| 61-120d | 1,090 | −0.03015 | −0.03112 |
+
+**The answer to the brief's question: the refrozen book differs materially ROW BY ROW and barely
+at all IN AGGREGATE.** 13.6% of individual rows moved, some by as much as 0.463 — yet every
+bucket mean shifts by ≤0.0014, R² by +0.0011, and the whole CI still sits below the 0.25 bar. The
+0-7d spike, the non-monotone shape, and the reason the monotone direction test is near-blind to
+it are all unchanged. **O24's NULL did not need re-checking, and now that is measured rather than
+assumed.**
+
+
+## What these verdicts do downstream
+
+* **The LIVE Signals surface: nothing changes today.** `term_slope` feeds it, and IS DISTINCT
+  says the feature is not a redundant restatement of front-month IV — which is a reason **not**
+  to remove it, not a reason to lean harder on it. R2 stands: the options entry signal is dead as
+  a day-selection edge, and no result here revives it.
+* **U2 (options surface → stock signals) is UNBLOCKED on the question it was queued behind.**
+  That question was *"is `term_slope` its own read, or front IV wearing a second name?"* and the
+  answer, on the pre-registered rule, is that it is its own read. **Two conditions travel with
+  that clearance and neither is optional:** (1) the verdict flips to IS THE LEVEL under Pearson,
+  so U2 must not be built on a linear-only treatment of this feature; (2) the clearance is for
+  the **refrozen/live** feature, not for the banked book.
+* **What is now unblocked that was NOT before: replayability.** Before today no options verdict
+  could be re-checked against its own inputs. The R2 book and its five controls now can be, and
+  every future banked run stamps itself automatically.
+
+## BUGS FOUND
+
+1. **THE SIDECAR HASH CACHE HAS A FALSE-NEGATIVE MODE, AND IT WAS ON THE BLOCKING PATH.**
+   `file_sha256` memoises in a `.sha256` sidecar keyed by `(size, mtime_ns)`. **A rewrite that
+   produces a file of the SAME SIZE within the filesystem's timestamp granularity collides with
+   its own cache entry and the STALE hash is served** — so a drifted chain would have been
+   reported clean by the very gate built to catch it. Found by my own test suite failing
+   intermittently under load; reproduced deterministically with `os.utime`. **Fixed**: every
+   blocking path (`replay_pin` via `_year_frame`, and `verify_stamp`) now passes
+   `use_cache=False`; the cache is trusted only for bulk stamping, where a miss costs time
+   rather than correctness. The measured cost of the fix is small — uncached verification of all
+   1,429 symbol-years took **18.2s**. Two tests pin it, and the older test whose overly broad
+   claim ("any rewrite invalidates the sidecar") was simply false has been narrowed to the part
+   that holds.
+   *Note the ordering honestly: the legs recompute ran BEFORE this fix, so its pin used the
+   cached path. That is why the stamp was re-verified afterwards with the corrected path — 1,429
+   of 1,429 clean — rather than left resting on the weaker guarantee.*
+
+2. **`freeze_book` has no progress output, and on a 27 GB store that is a real defect.** The R2
+   freeze ran 1,153s with a single line printed at the start; while another lane's four
+   `x7_reconcile` shards were competing for the machine there was no way to distinguish "slow"
+   from "hung" except by inspecting process memory. I did not fix it — it is cosmetic against the
+   correctness work in this cycle — but a long-running bank step that cannot be observed is one
+   that gets killed and restarted, which I did twice today.
+
+3. **STILL OPEN, unchanged from last cycle and NOT fixed here: run-scope replay.** No banked
+   options book can have its *alert selection* re-derived, only its per-trade statistics
+   replayed. The freeze covers trade scope only (33,254 candidate days vs 3,885 alerts). This is
+   a stated limit of the design, not an oversight, but it means "reproduce the book from
+   scratch" remains impossible for every book in the project.
+
+
+## What I did NOT do
+
+* **I did not re-run the miner or pull anything new.** The freeze is a copy of what was already
+  on disk; `data/options` is otherwise untouched apart from the `.sha256` sidecars, which are
+  invisible to every file-listing helper in `theta_bulk` (verified: `cached_years('AAPL')` still
+  returns exactly its ten years).
+* **I did not refreeze the pre-correction book, `state_mid`, the entry lab or the exit lab.**
+  Their dispositions are RETIRED-with-annotation and the reasoning is in the table above. What a
+  refreeze would capture today is *today's* store, which is not what those books were scored
+  against — it would manufacture the appearance of reproducibility rather than the fact of it.
+* **I did not freeze RUN SCOPE for any book.** Only trade scope. So no banked book can have its
+  *alert selection* re-derived, only its per-trade statistics replayed. The ~1,280 MB figure for
+  run scope is an estimate and was not paid.
+* **I did not retro-fit stamps onto the already-banked books.** A stamp taken today records
+  today's bytes, which for the drifted years are *not* the bytes those books read; writing one
+  would be worse than having none, because it would look authoritative.
+* **I did not change any live signal, any threshold, or the deployed product.** Nothing here
+  touches `valuation/screener|engine|web/**`.
+* **I did not amend the O16/O24 pre-registration** (`ad66468`). Every constant is as committed.
+
+## Reproduce
+
+    python -m scripts.options_freeze_cost            # the (a)-vs-(b) cost measurement
+    python tests/test_options_freeze.py              # 40 tests: fingerprints, gate, freeze
+    python tests/test_term_slope_decomp.py           # 38 tests: the O16/O24 statistics
+
+## The freeze is validated as USABLE, not merely present
+
+An artifact that exists but cannot actually replay anything is decoration, so this was checked
+rather than assumed. `validate_frozen.py` loads **only** the frozen copy — never the live store —
+and pushes a spread sample of real banked alerts back through `compute_signals`:
+
+    frozen rows 2,870,811   columns [expiration, strike, right, date, bid, ask, volume,
+                                     open_interest, symbol]   distinct symbols 186
+    sampled 20 alerts: 20 reproduce, 0 missing, 0 mismatched     VERDICT: USABLE
+
+Every sampled alert's `term_slope` recomputed **from the frozen copy** matches the value
+recomputed from the store to within `1e-6`. So the R2 book's verdicts can now be re-derived even
+if `data/options` is deleted, re-mined, or moved — which is the property that did not exist
+before today and whose absence is the whole reason O16 stopped.
+
+## A performance defect in my own freeze, and what it cost
+
+**`freeze_book` scanned the whole year frame once PER CONTRACT.** That is tolerable for the R2
+book — 3,885 contracts, 1,153s — and hopeless for the five pooled control seeds: **29,785
+contracts × a ~200k-row scan each**. It ran ~45 minutes without emitting a row and was killed by
+the environment before writing anything.
+
+Two things follow, and the second is the one worth keeping:
+
+1. **Nothing was corrupted.** `freeze_book` writes to `.tmp` and `os.replace`s, so a kill at any
+   point leaves either the previous artifact or nothing. The directory was simply empty. That is
+   the atomic-write discipline `theta_bulk` already applies to the store, applied here.
+2. **This is BUG #2 above biting for real.** I filed "no progress output, so slow is
+   indistinguishable from hung" as cosmetic and deferred it. It was not cosmetic: with no output
+   I could not tell a slow job from a wedged one, and the only reason I knew it was alive was
+   inspecting its resident memory from PowerShell.
+
+**Repaired:** contract selection is now keyed and joined once per symbol-year instead of masked
+per contract (`_contract_rows`), and `freeze_book` takes `progress=True`. Each contract keeps its
+**own** date window rather than a pooled min/max — a pooled window would freeze rows the book
+never read, which is safe for replay but would misreport what the book consumed, and that number
+is the entire basis of the cost measurement above. Two tests pin the window behaviour and the
+no-match case.
+
+**The optimisation was verified to be behaviour-preserving on the real book, not just on
+fixtures:** re-freezing R2 through the new path gives **2,870,811 rows against the banked
+2,870,811**, content-identical after sorting. 707s vs 1,153s — a 1.6× win here, because for a
+book this size *frame loading* dominates; the win scales with contract count, which is where the
+control seeds were dying.
+
+**A CORRECTION TO MY OWN REASONING, recorded because it nearly became documentation.** An interim
+version of the rewrite collapsed a contract's multiple date windows into one `[min, max]` span,
+and the resulting freeze was **14,231 bytes larger** than the banked one. I read that as proof of
+exactly the over-inclusion I had warned against, and started writing it into the code comment as
+a measured fact. **It was not true.** Checked properly, the two row sets are *identical* — gzip
+was simply compressing a different row ORDER. The per-window predicate is kept regardless,
+because it matches the original loop *by construction* rather than by luck of this book's
+contract mix, and a test now pins the disjoint-window case that actually distinguishes them. A
+byte-size difference is not a row-set difference, and I should have checked before concluding.
+
+### The controls freeze took three attempts, and the third worked
+
+| attempt | outcome |
+|---|---|
+| 1 — whole job, per-contract scan | killed by the environment at ~45 min, **0 rows written** |
+| 2 — whole job, vectorised | killed by the environment at 600/1,558 symbol-years |
+| 3 — **six ticker shards, foreground** | **completed**, 129-152s per shard, ~13 min total |
+
+**The operational finding worth carrying: this environment stops long-running background jobs,
+and both failures were that rather than anything wrong with the data.** Sharding by ticker is
+sound here because `freeze_book`'s work is keyed by `(ticker, year)` — no shard can affect
+another's rows — so the shards are independent and their union is exactly the whole freeze.
+`bank_controls_shard.py combine` concatenates, de-duplicates, writes the manifest and deletes the
+shard files.
+
+**Result: 21,877,728 rows, 168,934,527 bytes (168.9 MB).** Note it is **7.6× the R2 book's row
+count** off 7.7× the trades — the controls are random-entry, so their alert dates are spread far
+more widely across the store than the real book's clustered ones.
+
+**Total freeze footprint on disk: 23.3 MB + 168.9 MB = 192.2 MB, against a 26.98 GB store —
+0.71%.** The whole defended set costs under three quarters of one percent of what it defends.
+
+---
+
+# 2026-08-08 — O1 + O23: do the exits carry anything, tested against random entries?
+
+**Register:** `PREREG_o1_o23_exits.md`, committed at **`dc2c486` before any policy was scored**.
+**Artifacts:** `data/options_exitlab/EXITLAB_FROZEN_2026-08-08.json`,
+`data/options_exitlab/O23_UNDERLYING_2026-08-08.json`.
+**Verdicts: O1 REJECTED. O23 NULL (set-dependent).**
+
+**The routed hygiene item was already done.** Session 12 asked me to escape the unescaped `|` in
+my O16 row. It was repaired last cycle at `fd36e25` (`|Spearman(...)|` → `abs(Spearman(...))`);
+measured today the parser reads **`rows_malformed: []`** across all 74 rows. No commit was needed
+and none was made — a no-op commit would have looked like work.
+
+---
+
+## 1. THE FREEZE HELD, AND THAT IS THE FIRST THING TO SAY
+
+This is the **first research to run entirely off the chain freeze**, and the register made that
+falsifiable rather than decorative: `FrozenChains` has **no fallback to the live store**, so a gap
+surfaces as a missing path instead of a silent live read.
+
+| gate | signal (R2 book) | random (5 control seeds) |
+|---|---|---|
+| **G0a** contract histories served from the frozen copy | **3,885 / 3,885** | **29,785 / 29,785** |
+| freeze fingerprints re-verified | 1,429 / 1,429 clean | 1,558 / 1,558 clean |
+| **G0b** shipped policy vs the banked book — parity mode | **99.820%** | **99.865%** |
+| **G0b** under honest settlement | **100.000% (3,885/3,885)** | — |
+
+The 7 residuals under parity mode are **exactly the 7 `settled_at_intrinsic` trades**, which is
+the case the parity mode is *defined* to differ on. Nothing is unexplained.
+
+**And the replay reproduces R2's published headline independently, having rebuilt every path from
+frozen bytes rather than copying a number:**
+
+* R2 published **real +3.41%/trade vs control +10.06%** → replay **+3.41% vs +10.06%**.
+* R2 published a control per-seed range of **+6.46% to +15.34%** → replay **+6.46% to +15.34%**.
+
+That is the strongest evidence to date that the freeze is sufficient, and it is worth more than
+the freeze's own self-check because the target was a number the freeze did not write.
+
+---
+
+## 2. O1 — THE EXIT SWEEP. VERDICT: **REJECTED**
+
+21 policies × {3,885 alert entries, 29,785 random entries over five pooled seeds}, gate X1–X5
+imported unamended, date-block (calendar-month) bootstrap at 2,000 draws seed 0, **paired
+name-year sign test carrying the verdict** per the standing R2 rule.
+
+**No policy clears the gate. PBO 0.000 on both entry sets; the held-out chooser survives in both
+directions on both sets.**
+
+### 2.1 The one policy that clears the expectancy bar fails the statistic that decides
+
+`tp100_only` (take-profit at +100%, **no stop, no time stop**) is the only policy to clear the
+pre-committed 10pp signal bar, and on pooled expectancy it looks like the answer:
+
+| | shipped | tp100_only |
+|---|---|---|
+| expectancy / trade (signal) | +3.41% | **+14.19%** (+10.78pp) |
+| expectancy / trade (random) | +10.06% | **+27.92%** (+17.86pp) |
+| clustered CI95 on the signal gain | — | **[+6.26pp, +15.29pp]**, excludes zero |
+| both halves positive, both sets | — | yes |
+| chosen by the held-out selector | — | in **all four** directions |
+
+**And it loses in a majority of name-year cells on the alert book.** Paired sign test:
+**z −5.76**, winning **41.7% of 1,217 decided cells**, **median cell −5.79pp**. The mechanism is
+visible and it is not subtle:
+
+| | shipped | tp100_only |
+|---|---|---|
+| share of trades that are **total losses** | **1.39%** | **46.87%** |
+| median trade | −52.2% | −37.9% |
+| mean holding period | 14.5 d | **42.6 d** |
+| tail share of gross winnings | 86.8% | 92.8% |
+
+Removing the stop converts nearly half the book into zeros and pays for it with a fatter tail.
+The mean rises; the typical name-year gets worse. **The pre-registered direction rule caught it:
+`analyse` assigns p = 1.0 to any policy whose sign z is negative, so a large mean carried by a few
+trades can never enter the FDR pool as a discovery.** That guard was written before this run for
+exactly this failure mode, and this is the first time it has fired on a policy that would
+otherwise have been adopted.
+
+**On the random book the same rule genuinely works** — 64.5% of decided cells, z +10.55, median
++11.13pp, and stable across every seed (+15.9pp to +22.2pp). By the verdict-carrying statistic it
+is **CONTROL-ONLY**, not an exit effect.
+
+### 2.2 The structural finding: what is BROAD is SMALL, what is LARGE is NARROW
+
+| policy | signal gain | signal sign z | signal decided-cell win | random sign z | reading |
+|---|---|---|---|---|---|
+| `tp100_only` | **+10.78pp** | **−5.76** | 41.7% | +10.55 | big mean, loses the cells |
+| `tp150` | +3.19pp | **+7.93** | **66.2%** | **+8.09** | broad on BOTH sets, small |
+| `tp200` | +3.82pp | **+4.57** | 58.8% | **+5.12** | broad on BOTH sets, small |
+| `sl30` | **−3.11pp** | **+13.13** | **69.9%** | −3.94 | wins the cells, loses the mean |
+
+`tp150` and `tp200` — simply **raising the take-profit** — are the only policies that are FDR
+discoveries *and* positive on the sign test on *both* entry sets. They are real and they are
+small: +3.19pp and +3.82pp against a bar of 10pp that was committed before the run. `sl30` is the
+exact mirror image of `tp100_only`: it wins 69.9% of decided cells while *losing* 3.11pp of
+expectancy.
+
+**Mean and median disagree systematically on this payoff, and which exit "wins" depends entirely
+on which statistic you quote.** That is the most transferable thing in this study.
+
+### 2.3 A reporting hazard worth carrying
+
+`paired_cells` returns `win_rate` over **all** cells and `sign_z` computed over **non-tied** cells
+only. Adjacent fields, different denominators — so `tp150` reads "win_rate 0.296" beside "z
++7.93", which looks like a contradiction and is not (740 of 1,338 cells are ties, because raising
+a take-profit only matters on trades that would have hit +100%). **Every win rate in this write-up
+is the tie-excluded one and is labelled "decided-cell".** Quoting the raw `win_rate` next to the
+sign test would publish an apparent contradiction.
+
+### 2.4 The four-way label is asymmetric by inheritance — stated, not hidden
+
+The register's pattern table (both / signal-only / random-only / neither) is applied to the gate's
+own fields, and **X1(a) applies a 10pp bar to the signal set while X1(b) applies only > 0 to
+random**. So "CONTROL-ONLY" in the raw table means *"did not clear 10pp on signal"*, **not** *"hurt
+on signal"*. Recounted symmetrically: **13 of 20 policies are positive on both sets; 1 of 20
+clears 10pp on both.** The asymmetry is inherited from the 2026-08-03 gate, not introduced here,
+and the verdict does not turn on it — but the label would mislead anyone reading the table alone.
+
+---
+
+## 3. O23 — EXITS AGAINST THE UNDERLYING. VERDICT: **NULL** (set-dependent)
+
+Policies share an identical entry and differ only in exit date, so the P&L difference is
+attributable to the two exit dates alone. Regress `Δ_opt` on `Δ_und` over the same two holding
+periods, restricted to trades whose exit actually differs.
+
+| set | pairs | blocks | R² | CI95 | label |
+|---|---|---|---|---|---|
+| signal | 26,851 | 118 | **0.53304** | [0.48564, 0.58428] | **NULL** — point clears 0.50, lower bound does not |
+| random | 210,731 | 118 | **0.55737** | [0.53112, 0.61686] | **UNDERLYING-DRIVEN** |
+
+The register states the verdict on the signal book and **downgrades a disagreement to NULL**. That
+is what is recorded. A near-miss is a NULL, not a "nearly".
+
+**Reported rather than buried, because the NULL alone would mislead: the POOLED fit understates
+the per-policy relationship.** Slopes range **6.36 to 17.45** across policies, and a pooled
+regression over heterogeneous slopes loses R². Per policy on the signal book the **median R² is
+about 0.70 and 17 of 20 exceed 0.50**, from 0.4180 (`tp100_only`) to 0.7542 (`dte21`). The policy
+with the largest expectancy gain is the **least** explained by the underlying — which is what
+holding an all-or-nothing payoff to expiry does to a linear fit.
+
+### 3.1 The Greek attribution agrees by a completely different route
+
+Secondary, **carries no verdict**. Of the total *absolute* mark movement between the two exit
+dates (23,983 pairs, 2,868 skipped, r = 3%):
+
+| term | share of absolute movement | mean **signed** contribution |
+|---|---|---|
+| **delta** | **50.70%** | **+0.4617** |
+| gamma | 15.57% | **+0.8528** |
+| theta | 14.07% | **−0.7708** |
+| vega | 13.25% | +0.2376 |
+| residual (linearisation) | 6.41% | −0.2026 |
+
+Delta alone lands on the **same ~50%** the regression found, by an independent method. Delta +
+gamma is 66.3%.
+
+**The signed column is the sentence worth keeping: gamma +0.85 and theta −0.77 nearly cancel,
+leaving delta +0.46.** Holding a long call longer buys convexity and pays for it in decay at
+almost the same rate; what survives is the direction of the stock.
+
+---
+
+## 4. FOR DON — one plain paragraph, and it answers the 37/63 question
+
+You asked what the winners share and what tricks us in the losers. On the current book you win on
+**35.3% of trades** and lose on 64.7%, and **86.8% of everything you make comes from trades that
+gained 100% or more** — so the book is already a lottery-ticket book, and that is by design, not a
+fault. We tested 21 different ways of getting out, against your real alerts and against 29,785
+random entries picked on the same stocks and the same days. **Nothing beat the exit you already
+have.** The one rule that made the average much better — never stop out, just wait for a double —
+turns out to make *most* individual stock-years **worse**: it wins on 42% of them and turns 47% of
+all trades into total write-offs, versus 1% today. It works by making the lottery more extreme,
+not by picking better. Two small changes look genuinely real on both your alerts and random
+entries — taking profit at +150% or +200% instead of +100% — but they are worth about 3 points a
+trade, and we agreed in writing beforehand not to change anything for less than 10. And the deeper
+answer to "what tricks us": **about half of what any exit rule gains or loses is just the stock
+moving**, and of the option-specific part, the convexity you gain by holding longer is almost
+exactly cancelled by the time decay you pay for it. The exit is not where the money is. **The entry
+is still dead (that has not changed), and the exit is not hiding an edge behind it.**
+
+---
+
+## 5. WHAT I DID NOT DO
+
+* **Did not re-open the entry signal.** R2 stands and was not re-tested.
+* **Did not amend the 21 policies**, add one, or retune one. They are imported from the
+  2026-08-03 register unamended.
+* **Did not cite the 2026-08-03 exit lab's REJECT as corroboration.** It ran on the
+  pre-correction book, with ~2 control draws, through the pre-B2 filter repaired below. Its
+  agreement with this run is not independent and is not claimed as support.
+* **Did not run a run-scope freeze.** The freeze is trade scope, so this study can replay a
+  book's exits but cannot re-derive *which alerts fire*. O1 is an exit study and does not need
+  that; no conclusion here may be extended to entry selection.
+* **Did not freeze the underlying bars store.** O23's headline depends on it. The files consumed
+  are fingerprinted per run (`stamp_bars`), which makes the gap auditable but does not close it.
+* **Did not act on `tp150`/`tp200`.** They are the nearest thing to a positive result and they
+  are below a bar committed before the run. Promoting them now would be selecting on the results.
+* **Did not test exits on the equity book or on spreads.** Long calls only.
+
+## 6. EXPECTATIONS, SCORED
+
+* **O1: I wrote REJECT at 70/30 before the run. Correct.**
+* **O23: I wrote UNDERLYING-DRIVEN at 60/40. The verdict is NULL** — both point estimates clear
+  0.50 and the random book clears outright, but the signal book's interval straddles the bar. Call
+  it wrong: the register asks for a label and the label is NULL.
+
+One right, one wrong. The standing rule holds — do not reason about the direction of an effect in
+this project, measure it.
+
+---
+
+## BUGS FOUND
+
+**1. `options_exitlab.capture_path` was never moved to audit B2's exit tolerance. (REPAIRED,
+`4170ad9`.)** B2 moved `options_backtest.simulate_trade:367` to `F.exit_reject_reason`; the exit
+lab kept the strict `quote_reject_reason(check_liquidity=False)`, so **wide-spread and
+thin-premium days were deleted from every trade's exit path.** That is precisely the failure B2's
+own docstring describes: a bad price is not an absent one, and a loser that decays through the
+−50% stop on a wide-quote day is never stopped. Nothing caught it because nothing had ever
+replayed a *post*-B2 book through the exit lab.
+
+*Localised before it was theorised.* The drift hypothesis was tested **first and refuted** —
+untouched symbol-years matched at 86.5% against re-mined ones at 88.7%, nothing like O16's
+100%/30.5% signature — so the store was exonerated. Entry fills matched 3,885/3,885 and
+`held_days(replay) − held_days(book)` was **never negative**, which put it in the exit day-walk
+and nowhere else. One ABBV contract kept **7 of its 34** quote days. Effect: **86.950% → 99.820%**
+(100.000% honest) on one line. Three tests fail on the old line; the key one returns `time_stop`
+where the fix returns `stop`.
+
+**Consequence beyond this study: the 2026-08-03 exit lab scored all 21 policies on paths with days
+silently removed, and the bias is policy-dependent because it lands hardest on stop-based rules.**
+That is an independent reason its verdict is not transferable, found by measurement.
+
+**2. `paired_cells` reports `win_rate` and `sign_z` on different denominators.** Not a defect —
+the sign test correctly excludes ties — but the two sit adjacent in one dict and invite publishing
+"wins 29.6% of cells, z +7.93". Handled in §2.3; flagged because it is a live trap for anyone
+quoting that dict.
+
+**3. Three defects in my own new code, all found by running it.** Recorded because they were live
+long enough to have produced numbers: **(a)** the frozen frame keeps `strike` as **float32**, and
+merging on the raw float64 cast silently dropped 14 of 3,885 contracts (`140.0` →
+`140.00000762939453`); **(b)** `FrozenChains` built one DataFrame object per contract, which on an
+unfiltered freeze is 2.09M objects — measured at ~12 GB against 6.6 GB free, so it thrashed rather
+than failed; **(c)** `greek_attribution` assumed textbook units, but `options_greeks` returns vega
+per **1.00 of vol** and theta per **year**, and `implied_vol` returns an **(iv, reason) pair**. Two
+of those three would have silently rescaled a term and only the third crashed — which is the only
+reason the other two were caught. Units are now pinned against finite differences of `bs_price`
+rather than against the docstring.
+
+**4. Two of my own statistics would not have finished as written.** The register's 2,000-draw
+clustered intervals are ~4.8 billion list operations for the policy diffs, and a re-fit over
+~400k pairs per draw for the R². Both statistics depend on the data only through **additive
+per-block sums**, so both were rewritten to be O(blocks) per draw. **Pinned as exact, not merely
+faster:** point estimate and both interval endpoints match `options_stats.date_block_diff` to 12
+decimal places at the same seed and draw count.
+
+**5. Per-seed attribution cannot be keyed by trade fields.** Two seeds that draw the same ticker
+on the same day select the same contract by the same rule, so even
+`(ticker, date, strike, expiry)` collides — a key-based map put 6,820 trades in seed0 against a
+true 6,032. Recomputed by index range over the seed-ordered pooled book, which is exact because
+every path produced exactly one row per policy (625,485 = 21 × 29,785). Seed counts now reconcile
+to the manifest exactly.
+
+---
+
+## Trial accounting
+
+**Options 169 → 192** (O1 `n=21`, O23 `n=2`), charged in full: the 2026-08-03 verdict was read
+before this run, so it was not blind (O16-REFROZEN precedent). **Equity `N` unchanged at 129**, so
+**no equity claim moves** — Deflated Sharpe stays 0.8556, √(2·ln 129) stays 3.1176. Infra 4,
+total 325, `rows_malformed: []`.
+
+**Reproduce:** `python -m tests.test_options_exitreplay` for the instrument;
+the runners live in the session's job directory and read only
+`data/options_freeze/{R2_CORRECTED,R2_CONTROLS}_2026-08-08/` plus `data/bulk/prepared/bars/`.
