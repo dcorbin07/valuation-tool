@@ -8,7 +8,7 @@ on landing). **First agent to execute any section commits this file.**
 | id | title | owner | status |
 |---|---|---|---|
 | V1 | Shadow vintages — forward A/B of every adoption | pipeline builder | OPEN — blocked on Amendment 1 landing |
-| V2 | Live theme-health meter | greeks agent | OPEN |
+| V2 | Live theme-health meter | greeks agent | **BUILT 2026-08-09** — `scripts/theme_health.py`, pre-reg `PREREG_v2_theme_health.md`, 23 tests, `HANDOFF_live_data_bugs.md` Part 11. Reports **NOT-QUOTABLE on all ten themes, on ZERO usable rows** — every archived scan day is synthetic and the store's one row is a 2099 test fixture. **The finding is the calibration: at 100 names the band has 2.5% power at 60 months against `quality`'s own backtested IC, at 800 names 80.3% — so the full-universe store is the asset and the top-100 archive cannot answer this, ever.** Needs real full-universe snapshots retained; earliest first reading ~9 months after capture starts. |
 | V3 | Noise-calibrated hot score | r1 | OPEN |
 | V4 | Public research-log page | app fixer | OPEN — after the Discord divergence fix |
 | V5 | Measured slippage vs modeled costs | options bot | OPEN |
