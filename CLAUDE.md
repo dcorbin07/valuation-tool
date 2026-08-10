@@ -44,6 +44,54 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **AMENDMENT 1: RUN #1 IS VOID, RUN #2 IS THE LIVE TEST, AND THE PROJECT NOW HAS A VINTAGE
+  RULE (2026-08-09, session 15).** Don voided run #1 (inception 2026-07-30, ~6 days, 2 rows)
+  because it measured a model that has since materially changed — growth-input fix, score fix,
+  universe rebuild. **Run #2: inception 2026-08-10, gate 2027-02-10, verdict 2031-08-10, with
+  ZERO accrued days.** Recorded openly in `PAPER_TRACK_CONTRACT.md` **§5a**, never as a silent
+  edit, and nothing above §5a was deleted.
+  * **THE VINTAGE RULE.** Any **ADOPTED** change to scoring, weights or construction closes the
+    current vintage and opens the next ("adopted" = ships in the live scoring path).
+    **Rebalancing under unchanged rules is NOT a vintage event.** Each vintage carries its own
+    clock; **the gate and the meter attach to the CURRENT vintage**, so a verdict is a statement
+    *about a vintage* and must name it. The cross-vintage chain is kept and published as **"the
+    system as operated"** — the honest answer to what a user would have experienced — and is
+    **explicitly not the object of a verdict**, because it mixes models.
+  * **RULE 6 IS THE BRAKE, AND IT IS THE PART TO REMEMBER BEFORE SHIPPING A SCORING CHANGE: a
+    vintage change resets the whole accrued clock and buys nothing statistically.** §2's
+    arithmetic is unchanged — 60 months at 49% power. A vintage that closes at month 30 has
+    spent 30 months for no evidence.
+  * **THE AMENDMENT MOVED THE CLOCK, NOT THE STATISTICS.** σ 3.9847, ρ 3, α 0.05, the cost drag
+    and the SUPPORTED/UNSUPPORTED bars are **all unchanged**, so §3's *whole-run* void clause
+    (which triggers on a threshold change) is not engaged; only the window-void clause is.
+    Pinned by `test_the_amendment_moved_the_clock_and_not_the_statistics`. **σ was re-checked
+    against the changed model rather than assumed to survive it: the current backtest still gives
+    SPY excess +9.99%/yr at implied TE 11.401 pp/yr and IR 0.8759/yr** — the figures σ came from.
+  * **THE DISCLOSURE THAT MUST TRAVEL WITH IT: the voided window was KNOWN to be −2.85pp.**
+    Discarding a stretch that went against the strategy is the flattering direction. Three
+    answers, each checkable: the cause (a model change) is independent of the outcome and its
+    clause pre-existed the run; **run #2 accrues ZERO days**, so no window's sign could inform
+    the new start date; and the voided rows are **kept**, visible in `as_operated()`. §5a
+    forbids the thing this must never become — voiding a vintage for a change *chosen* after
+    seeing the vintage go badly.
+  * **Equity `N` 130 → 131** (`PT-AMEND1`), **Deflated Sharpe 0.8547 → 0.8539,
+    √(2·ln 131) = 3.1226**, and `BACKTEST_RESULTS.json` was re-run from a clean tree so the
+    artifact matches (14 leaves moved, five the DSR chain, four provenance, five 0.000% float;
+    every headline bit-identical). Charged because void-and-restart is a degree of freedom: each
+    vintage is another chance at the same hypothesis.
+  * **THE METER NOW HAS A CALLER (session 15's own item).** `track_meter.detail()` ships as
+    `summary()["contract_track"]` on **`/api/track`** — before this it was a tested library
+    nothing called. It names **every missing trading day** on every request, is **not vacuously
+    green** before the vintage starts (`recording_ok: None`, not `true`), is labelled a different
+    object from the sandbox engine, and is **reconciled against `index_track.vs_spy_claim()`**,
+    the one authority for a vs-SPY claim (measured −2.8468 vs −2.8468).
+  * **`PT-WRITER` IS REPORTED CLOSED AND I COULD NOT VERIFY IT — the gate stays `pending`.** The
+    writer is described as Cowork task `valquo-daily-track-write`, weekdays 20:01. **No such task
+    is in this machine's Task Scheduler** (413 enumerate; three Valquo tasks, none this one) and
+    the name is nowhere in the repo — but **no run was due yet either**, so that is evidence, not
+    proof. **THE TEST IS MECHANICAL: inception 2026-08-10 is day 0, the first row due is
+    2026-08-11, so from 2026-08-12 `/api/track` answers it.** Read that block before doing
+    anything else with the track.
 - **THE PAPER-TRACK CONTRACT IS SIGNED AND IN FORCE — OPTION E, 2026-08-09 (session 14). THE
   PROJECT NOW HAS A PRE-REGISTERED FORWARD TEST, AND TWO RECORDERS THAT DISAGREE ABOUT WHAT IT
   IS RECORDING.** Don signed: keep inception **2026-07-30** including the accrued negative days,

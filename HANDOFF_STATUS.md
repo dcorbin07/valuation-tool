@@ -4,12 +4,68 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
-**Session date:** 2026-08-09 (external edge audit, **session 14** — the paper-track evaluation
-contract is **SIGNED AND IN FORCE as OPTION E**, the evidence meter's parameters are frozen with
-zero complete months in existence, and the track turns out to have **two recorders holding
-different books**. **NO ACTION REQUIRED FROM DON. The one blocking item is COWORK's: the bound
-series has no automated writer.**)
+**Session date:** 2026-08-09 (external edge audit, **session 15** — **AMENDMENT 1**: run #1 is
+VOID, **run #2 is the live test from 2026-08-10**, and the project now has a **VINTAGE RULE**.
+The meter and gap report are wired into `/api/track`. **NO ACTION REQUIRED FROM DON, but one
+thing needs confirming: the Cowork writer `valquo-daily-track-write` is NOT visible in this
+machine's Task Scheduler.** It is checkable from 2026-08-12 with no further work.)
 **Branch:** `worktree-options-live`, auto-lands to `main` via CI
+
+---
+
+## OPTIONS LANE, 2026-08-09 — VALQUO_EXTENSIONS **V5** (measured slippage vs modelled costs): **DONE**
+
+**No action required from Don.** Two items are routed to the lane that owns
+`valuation/edge/paper_track.py`.
+
+`scripts/slippage_report.py` is built, pre-registered (`PREREG_v5_slippage.md`, committed at
+`c06ac55` before the script existed), and pinned by 52 tests. Run it with
+`python scripts/slippage_report.py --from-export data_export/paper_track_history.json`.
+
+**Headline verdict INSUFFICIENT, which is the pre-registered outcome.** The paper book holds
+**3 entry fills and 0 exits**, so the exit half-spread has n = 0 and no aggregate may be quoted
+(the pre-registered minimum is 30 filled legs). The expectation written down first was
+INSUFFICIENT at 90/10, and it was right.
+
+**The modelled bar is measured, not assumed:** entry half-spread **mean 410.0 bps of premium**
+(median 333.3) on **3,885 of 3,885** banked R2-corrected trades, against a $2.58 median premium
+and $1.30 round-trip commission (50.4 bps). **The brief's "modelled 33.4bps" is audit B11's
+EQUITY cost in bps of stock notional and does not apply here — the ratio is about 12x.**
+
+**What three fills already show, quoted as raw values and no mean:** entry fill vs its own limit
+is **−2022.5, −612.2 and 0.0 bps**. That is **NOT execution quality** — the timestamps say every
+order waits **12.8–15.9 hours** and fills at **09:46–09:47 ET, the opening minutes**, because
+`auto-scan.yml` runs the paper cycle **after the close** (20:47 UTC = 4:47pm ET). The limit is
+set from a **post-close quote** and the day order fills at the **next open**, so the difference
+is an **overnight gap**. Consequence: the paper book's entry basis is not the backtest's (TGT's
+alert-day ask was 4.55; the paper book paid 3.55), which flatters the forward track on entry for
+a reason the backtest does not model.
+
+**TWO SHIPPED-CODE BUGS, found in those same three rows, reported not repaired (V5 is scoped
+new-files-only):**
+1. **Exit levels are derived from the SUBMIT price and never recomputed to the actual fill**, so
+   TGT is running **+150.7% / −37.3%** and MET **+113.0% / −46.7%** against an intended
+   +100% / −50%. **2 of 3 live positions are running a strategy no backtest describes**, in the
+   book whose whole purpose is comparability. **Systematic, not occasional** — the after-close
+   schedule guarantees the limit and the fill come from different sessions. Fix: recompute both
+   levels in `mark_open`'s `filled` branch.
+2. **The paper track buys names the alert's own sizing refused.** ETN carries
+   `skip: true, contracts: 0, "one contract costs $1,610, above the $1,000 budget"` and was
+   bought anyway — it is the largest position in the book. Fix: honour `features.sizing.skip`
+   in `_eligible`.
+
+**Also routed:** the ENTRY half-spread is not measurable at all, because `paper_option_orders`
+stores no bid/ask/mid at submit. Fix is two columns in `_place_entry`.
+
+**Correction to the project record:** `CLAUDE.md` still says `paper_option_orders` holds **0
+rows** and "the engine has never been fed". Measured today from the committed Render backup:
+**3 paper orders, 10 index holdings, 4 index-series rows.** Fed since 2026-08-04.
+
+**Trials:** infra 4 -> **5**, **options N stays 192, equity N stays 130** — no DSR-gated claim
+moves. Full write-up in `HANDOFF_optionsbot.md`; artifact
+`data/options_slippage/V5_SLIPPAGE_2026-08-09.json`.
+
+---
 
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
 > Read it before starting work. Non-negotiable for all agents.**
@@ -51,8 +107,11 @@ Full write-up: **`HANDOFF_extensions_v3.md`**. Artifacts `data/free_analysis/SCO
   (p 0.008) but on only **21 of 69** dates. Quote it as a property of recent cross-sections only.
 - **My directional expectation was WRONG**, via the exact branch the pre-registration named as the
   risk. Recorded expectation: DISTINGUISHABLE at 70/30.
-- **ZERO trial cost** — a calibration searches nothing (session-10 precedent). **Equity `N` stays
-  130.** Note **CLAUDE.md still says 129, one session stale.**
+- **ZERO trial cost** — a calibration searches nothing (session-10 precedent); this run adds
+  nothing to `N`. **`N` moved mid-session and NOT by me: equity 130 when the pre-registration was
+  written, 131 after merging `origin/main` (Amendment 1, `509c45b`).** Nothing here is
+  `N`-denominated — a permutation floor is not the CPCV adopt gate. **CLAUDE.md still says 129,
+  now two behind.**
 - **NOT DONE, and it is an open dependency:** the app's confidence language was not changed.
   `valuation/web/**` is the app-fixer's lane; V3 is scoped new-files-only. The replacement
   sentences are written and ready in `HANDOFF_extensions_v3.md`.
@@ -296,6 +355,51 @@ doubled; we tested 21 ways out against your alerts and against 29,785 random ent
 beat the exit you already have — about half of what any exit rule gains or loses is just the stock
 moving, and the convexity you buy by holding longer is almost exactly cancelled by the decay you
 pay for it.
+
+---
+
+## 📌 AMENDMENT 1 — RUN #1 VOIDED, RUN #2 LIVE, VINTAGE RULE ADOPTED (2026-08-09, session 15)
+
+`PAPER_TRACK_CONTRACT.md` **§5a**, recorded openly per the contract's own void clause — never a
+silent edit, and nothing above §5a was deleted.
+
+| | |
+|---|---|
+| **Run #1** | **VOID** — inception 2026-07-30, ~6 days, 2 rows. It measured a model that has since materially changed (growth-input fix, score fix, universe rebuild) |
+| **Run #2 — the live test** | inception **2026-08-10**, gate **2027-02-10**, verdict **2031-08-10**, **zero accrued days** |
+| **Cost** | equity `N` 130 → **131**, Deflated Sharpe 0.8547 → **0.8539**, √(2·ln 131) = **3.1226** (artifact re-run to match) |
+
+**THE VINTAGE RULE.** Any **ADOPTED** change to scoring, weights or construction closes the
+current vintage and opens the next. **Rebalancing under unchanged rules is NOT a vintage event.**
+Each vintage has its own clock; the gate and meter attach to the **current** vintage, so a verdict
+names a vintage. The cross-vintage chain is kept and published as **"the system as operated"** and
+is **never** the object of a verdict, because it mixes models.
+
+**→ THE PART THAT MATTERS BEFORE SHIPPING ANY SCORING CHANGE (rule 6): a vintage change resets the
+whole accrued clock and buys nothing statistically.** 60 months at 49% power is unchanged. A
+vintage that closes at month 30 has spent 30 months for no evidence.
+
+**The amendment moved the CLOCK, not the STATISTICS.** σ, ρ, α, the cost drag and the
+SUPPORTED/UNSUPPORTED bars are unchanged — so the *whole-run* void clause is not engaged — and σ
+was **re-checked against the changed model**: the current backtest still gives SPY excess
++9.99%/yr at implied TE **11.401 pp/yr**, the figure σ came from.
+
+**Disclosed because it is the objection: the voided window was known to be −2.85pp**, so voiding
+is the flattering direction. Three answers, each checkable — the cause is independent of the
+outcome and its clause pre-existed; run #2 accrues **zero** days so no window's sign could inform
+the new start date; and the voided rows are **kept**, visible in `as_operated()`.
+
+**The meter now has a caller.** `track_meter.detail()` ships as `summary()["contract_track"]` on
+`/api/track`. It names every missing trading day, is **not vacuously green** before the vintage
+starts, and is reconciled against `index_track.vs_spy_claim()` (−2.8468 vs −2.8468).
+
+**⚠️ ONE THING TO CONFIRM — `valquo-daily-track-write` is not visible here.** 413 scheduled tasks
+enumerate on this machine; three are Valquo-related and **none is that one**, and the name is
+nowhere in the repo. But **no run was due yet** (first weekday firing Monday 2026-08-10 20:01), so
+this is evidence, not proof — it may be registered under another account or machine.
+**THE TEST IS MECHANICAL AND NEEDS NO INVESTIGATION: inception 2026-08-10 is day 0, the first row
+due is 2026-08-11, so from 2026-08-12 read `/api/track` → `contract_track.recording_ok`.** False
+with `2026-08-11` named means the writer is not running.
 
 ---
 

@@ -853,12 +853,33 @@ def options_summary(store) -> dict:
             "label": _label(inception, n_closed, MIN_DAYS_FOR_MEANING)}
 
 
+def _contract_track() -> dict:
+    """The CONTRACT-bound track's recording status and withheld meter, for every request.
+
+    A different object from everything else in this module, and labelled as one: `options` and
+    `index` here are the Tradier SANDBOX engine, while this is the published Valquo Index that
+    `PAPER_TRACK_CONTRACT.md` actually binds. The two record different books (§0a.2), so they
+    are reported side by side and never merged.
+
+    Why it is surfaced on every request rather than checked at the gate: the contract's 6-month
+    operational gate tests whether the track is being RECORDED, and a recording failure that
+    nobody notices until gate day has already cost the whole window. `track_meter.detail()`
+    names every missing trading day, so the failure is visible continuously.
+    """
+    try:
+        from . import track_meter
+        return track_meter.detail()
+    except Exception as e:                                   # noqa: BLE001 - never break /api/track
+        return {"available": False, "reason": f"contract track unreadable: {type(e).__name__}"}
+
+
 def summary(store) -> dict:
     """Everything `/api/track` needs, with the caveats attached to the numbers themselves."""
     opt, idx = options_summary(store), index_summary(store)
     meaningful = bool(opt.get("meaningful")) and bool(idx.get("meaningful"))
     return {
         "options": opt, "index": idx,
+        "contract_track": _contract_track(),
         "venue": "Tradier sandbox (paper). No real money and no real orders.",
         "data_caveat": DATA_CAVEAT,
         "headline": ("Backtested expectancy remains the headline result - this forward paper "

@@ -5,6 +5,86 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 21 — 2026-08-09 — V4: the research record, rendered as the credential it is
+(prompt: execute `VALQUO_EXTENSIONS.md` V4 — the public research-log page)
+
+**SHIPPED: `/work/research`, linked from `/work`.** It renders `RESEARCH_LOG.md` and the
+registers in full — **83 entries: 32 rejected, 7 null, 4 inconclusive, 15 adopted, 21 defects
+found and fixed, 4 other.** Of the 62 entries that are genuine searches over the data, **43 came
+back rejected, null or unanswerable.** That ratio is the page.
+
+## 1 · One record, not a second copy of it
+
+Every row comes from `research_log.rows()` — **the same parse that produces the trial
+denominator `N` for the Deflated Sharpe.** A page that kept its own copy of the record would be
+a second version of the truth, which is precisely the bug session 20 pulled out of Discord the
+day before. `rows()` was added to the existing parser rather than written beside it; `_emit()`
+collects each row inside the one pass.
+
+**`FIXED` rows are included and carry `n_trials == 0`.** "Is this part of the record" and "was
+this a search over the data" are different questions, and only the second sets `N`. The 21
+defect rows are some of the most persuasive entries on the page and they must not inflate a
+denominator — both facts are now true at once, in one place.
+
+The registers (`PREREG_*.md`, `PAPER_TRACK_CONTRACT.md`, `VALQUO_EXTENSIONS.md`) are listed by
+reading the repository, so one that is added and never mentioned still appears.
+
+## 2 · The publishing rule, and why it is absolute
+
+The spec allows no performance figures beyond the public posture. I implemented something
+stricter and therefore testable: **no performance figure at all.** Not results, not
+pre-committed thresholds, not the effect sizes that sit in 25 of the log's `source` cells.
+`research_record.withhold()` is the single place that decides, and the test asserts it against
+the **rendered HTML**, line by line — rendering is where a new column would leak, not the rows.
+
+A rule with an exception list stops being testable the moment an append-only log grows, and
+this one grows without anyone consulting the page.
+
+**The guard was calibrated against its own false positives.** A first pattern read row IDs
+`P4`, `P10-b`, `P6-1` as "statistic *p*, value 4" — the page's guard firing on the page's own
+identifiers. The statistic branch now requires a separator. Plain integers and ISO dates
+deliberately survive: the counts and the dates *are* the honest content.
+
+## 3 · Two things I deliberately did not do
+
+* **No registration dates.** The obvious implementation — scrape the first ISO date from each
+  register — gave `PREREG_free_analysis.md` a registration date of **1998-01-01**, from a date
+  inside its own contents. A wrong date is the one error that would undermine the only claim
+  this page makes, so no date is shown and the log rows' dates carry that job.
+* **No new figures anywhere.** The only numbers added to `/work` are counts, and they are
+  corrections — see below.
+
+## 4 · The stale counts I had to fix, because the page made them visible
+
+`/work` said *"Roughly 146 pre-registered tests … about one in eight was adopted"* (146 was the
+audit's **estimate**; measured, it is 83 entries and 15 adoptions) and cited **116** logged
+equity trials / **272** project-wide. Measured today: **130 equity, 326 project-wide.**
+`/methodology` carried the same 116.
+
+Left alone, `/work` would have linked to a live register that visibly disagreed with the
+paragraph above the link — the two-sources defect again, one page apart. All three are corrected
+and **dated in the prose**, because they will keep moving and these pages are static by
+construction.
+
+## 5 · Verification
+
+`940 passed / 0 failed across 30 suites` in the CI-proxy environment. New suite
+`tests/test_research_page.py`, **14/14**, including: the no-figure sweep over rendered HTML; a
+non-vacuity test that the guard fires on real figures and *not* on row IDs; a substitute-log
+test that fails if the page ever stops being sourced; and a pin that extending the parser did
+not move equity `N` (130).
+
+### BUGS FOUND
+
+| # | where | what |
+|---|---|---|
+| 1 | `portfolio.html` | "Roughly 146 pre-registered tests, about one in eight adopted" — 146 was an estimate; measured is 83 entries / 15 adopted. CORRECTED and dated. |
+| 2 | `portfolio.html`, `methodology.html` | Trial counts stale: 116 equity / 272 project-wide vs a measured 130 / 326. CORRECTED. |
+| 3 | `tests/` (method, found writing this suite) | **`create_saas_app` is idempotent** — it wraps one module-level Flask app and returns that same app for every later call, whatever config is passed. A test that builds "a second app with the flag off" silently re-tests the first app with the flag ON and asserts nothing. My gate test did exactly that and passed vacuously until the control caught it. Any suite using that pattern is suspect. |
+| 4 | `research_log._header_map` (introduced and fixed here) | A first cut resolved columns by `startswith`, so a future `notes` column would have been read as the `n` grid multiplier and silently multiplied that row's trials. Tightened to exact match. |
+
+---
+
 # Session 20 — 2026-08-09 — Discord posted a book nobody thought they were reading
 (prompt: a 2026-08-05 Discord recap said we were beating SPY; the authoritative track shows the
 Index was never above SPY in that window. Find the divergence, then fix it structurally.)

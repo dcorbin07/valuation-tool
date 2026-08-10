@@ -623,11 +623,41 @@ def create_saas_app(cfg=CONFIG):
         # Empty token or private mode => no button at all; the template tests for it.
         token = (cfg.demo_access_token or "").strip()
         demo_url = f"/demo/{token}" if token and not cfg.private_mode else None
+        # The research record (V4). Derived from the same config path, so rotating
+        # PORTFOLIO_PATH moves the page and this link together. It is a PATH, not a number —
+        # the page stays static by construction.
         resp = make_response(render_template("portfolio.html",
                                              contact_email=cfg.contact_email,
-                                             demo_url=demo_url))
+                                             demo_url=demo_url,
+                                             research_url=cfg.resolved_portfolio_path
+                                             + "/research"))
         # Belt and braces with the <meta> tag and robots.txt. The header is the one of the
         # three that a crawler cannot miss and a scraper cannot ignore by not parsing HTML.
+        resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet"
+        return resp
+
+    @app.route(cfg.resolved_portfolio_path + "/research")
+    def research_record_page():
+        """The public research record — every pre-registration and every verdict.  [V4]
+
+        A CHILD OF /work, deliberately. It inherits that page's gate, its `noindex` header and
+        its place under the blanket `Disallow: /` in robots.txt, and rotating `PORTFOLIO_PATH`
+        moves both together — a second hard-coded path would be one more thing to forget.
+
+        NO VENDOR DATA AND NO PERFORMANCE FIGURES. It reads two things, both from this
+        repository: `RESEARCH_LOG.md` (through the same parse that produces the trial
+        denominator `N`, so the page and the statistic cannot disagree) and the pre-registration
+        documents on disk. `research_record.withhold()` strips anything shaped like a
+        performance figure before it reaches the template, and `tests/test_research_page.py`
+        asserts the rendered HTML contains none.
+
+        404, not a redirect, when the flag is off — a redirect confirms the path exists.
+        """
+        if not cfg.portfolio_page_enabled:
+            abort(404)
+        from ..web import research_record
+        resp = make_response(render_template(
+            "research.html", work_url=cfg.resolved_portfolio_path, **research_record.record()))
         resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet"
         return resp
 

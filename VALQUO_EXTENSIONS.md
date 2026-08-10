@@ -10,8 +10,8 @@ on landing). **First agent to execute any section commits this file.**
 | V1 | Shadow vintages — forward A/B of every adoption | pipeline builder | OPEN — blocked on Amendment 1 landing |
 | V2 | Live theme-health meter | greeks agent | **BUILT 2026-08-09** — `scripts/theme_health.py`, pre-reg `PREREG_v2_theme_health.md`, 23 tests, `HANDOFF_live_data_bugs.md` Part 11. Reports **NOT-QUOTABLE on all ten themes, on ZERO usable rows** — every archived scan day is synthetic and the store's one row is a 2099 test fixture. **The finding is the calibration: at 100 names the band has 2.5% power at 60 months against `quality`'s own backtested IC, at 800 names 80.3% — so the full-universe store is the asset and the top-100 archive cannot answer this, ever.** Needs real full-universe snapshots retained; earliest first reading ~9 months after capture starts. |
 | V3 | Noise-calibrated hot score | r1 | **DONE 2026-08-10 — NOT DISTINGUISHABLE at rank 10 (real 1.0909 vs noise p95 1.1117, p 0.116); holds on 45 of 69 dates, so the confidence language must weaken. `HANDOFF_extensions_v3.md`** |
-| V4 | Public research-log page | app fixer | OPEN — after the Discord divergence fix |
-| V5 | Measured slippage vs modeled costs | options bot | OPEN |
+| V4 | Public research-log page | app fixer | **DONE 2026-08-09** — `/work/research`, linked from `/work`; see `HANDOFF_appfixes.md` session 21 |
+| V5 | Measured slippage vs modeled costs | options bot | **DONE 2026-08-09** — `scripts/slippage_report.py`, pre-reg `PREREG_v5_slippage.md`, 57 tests, `HANDOFF_optionsbot.md`. Headline **INSUFFICIENT and that is the pre-registered outcome**: the paper book holds **3 entry fills and ZERO exits**, so the exit half-spread has n=0 against a minimum of 30. **The bar is measured, not assumed — 410.0 bps of premium (mean) on 3,885 of 3,885 banked trades — and the brief's "modelled 33.4bps" is audit B11's EQUITY cost in bps of stock notional, a ~12x category error.** Two shipped-code bugs found in the first three real fills (exit levels anchored to the pre-fill submit price; the alert's own sizing veto ignored), both routed not repaired. |
 
 ---
 
@@ -61,6 +61,17 @@ performance figures beyond what the public posture already allows; a REJECTED/NU
 the point, render it proudly, not apologetically; vendor names fine, raw vendor data never; the
 page carries one sentence explaining pre-registration to a lay reader. Link it from /work — it is
 the strongest thing a recruiter can see. Report in `HANDOFF_appfixes.md`.
+
+**DONE 2026-08-09** (app fixer, session 21). `/work/research`, rendered from
+`RESEARCH_LOG.md` through `research_log.rows()` — the SAME parse that produces the trial
+denominator `N`, so the page and the counter cannot disagree — plus the registers listed by
+reading the files on disk. **83 entries: 32 rejected, 7 null, 4 inconclusive, 15 adopted,
+21 defects fixed, 4 other.** The publishing rule is in one place
+(`valuation/web/research_record.py::withhold`) and the page renders **no performance figure at
+all**, which is stricter than "nothing beyond the public posture" and is what makes it testable;
+`test_research_page.py` asserts it on the rendered HTML. Registration dates are deliberately NOT
+shown — scraping them gave one register a date of 1998-01-01 from its own contents, and a wrong
+date is the one error that would undermine the page's whole claim.
 
 ## V5 — Measured slippage vs modeled costs (options bot; NEW FILES ONLY + reads)
 

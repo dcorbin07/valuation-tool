@@ -5990,3 +5990,166 @@ mistaken for available work: `PT-WRITER` (Cowork must build the daily write) and
 unbuilt by roughly 2026-11, the operational gate will fail on 2027-01-30 by construction**, and
 the honest response then is to restart the clock from the repair — which §3's Option A already
 provides for — not to relax the gate.
+
+---
+
+# SESSION 15 — Amendment 1 (run #1 voided, vintage rule), and the meter finally has a caller
+
+**Date:** 2026-08-09. **Owner:** pipeline builder. **Lane:** `valuation/edge/**`.
+**One-line state:** the contract is amended and the amendment is recorded openly with its own
+strongest objection attached; the meter and gap report are wired into `/api/track`; and the
+writer that was reported to close `PT-WRITER` **could not be found**, so the gate stays shut.
+
+## 1. Contract Amendment 1 — `PAPER_TRACK_CONTRACT.md` §5a
+
+Don's decision, quoted verbatim in §5a and summarised here:
+
+- **Run #1 is VOID** — inception 2026-07-30, ~6 days, 2 recorded rows. Reason: it measured a
+  model that has since materially changed (growth-input fix, score fix, universe rebuild).
+- **Run #2 is registered** — inception **2026-08-10**, gate **2027-02-10**, verdict
+  **2031-08-10**, with **zero accrued days**.
+- **The VINTAGE RULE** — any ADOPTED change to scoring, weights or construction closes the
+  current vintage and opens the next; **rebalancing under unchanged rules is not a vintage
+  event**; each vintage carries its own clock; the gate and meter attach to the current vintage;
+  the cross-vintage chain is kept and published as **"the system as operated"**.
+
+**Why this is the contract working rather than bending.** §3's abort rule already listed *"any
+change to how the Index is constructed"* as voiding the affected window. The clause pre-existed
+the run, and the cause is a model change rather than a result.
+
+**No threshold moved.** σ, ρ, α, the cost drag, the statistic and the SUPPORTED/UNSUPPORTED bars
+are untouched, so §3's *whole-run* void clause (which triggers on a threshold change) is not
+engaged. **The amendment moves the clock, not the statistics**, and a test pins that separation.
+
+**σ was re-checked against the changed model rather than assumed to survive it.** The current
+backtest still gives SPY excess **+9.99%/yr** at an implied tracking error of **11.401 pp/yr** and
+IR **0.8759/yr** — the figures σ was derived from. Had they moved, §6.5 permits raising σ and
+nothing else.
+
+### The disclosure, which is written into the contract and not just here
+
+**The voided window was known to be −2.85pp when it was voided.** Discarding a stretch that went
+against the strategy is the flattering direction, and §1 warned about exactly this before anyone
+signed. Three things answer it, each checkable rather than asserted:
+
+1. **The cause is independent of the outcome** — the model changed, which would have been true
+   had run #1 been +2.85pp.
+2. **Run #2 accrues ZERO days before its inception**, so no window's sign could have informed the
+   new start date. The objection §1 raised against a fresh start is unavailable by construction.
+3. **The voided rows are kept, not deleted** — they appear in `as_operated()`, so anyone can see
+   what was excluded.
+
+§5a also forbids the thing this must not become: **voiding a vintage for a change chosen after
+seeing the vintage go badly.** The rule's "ADOPTED change" test is what makes that mechanical.
+
+**Cost: equity `N` 130 → 131** (`PT-AMEND1`), **Deflated Sharpe 0.8547321268980206 →
+0.8538605963614212, √(2·ln 131) = 3.1226**. `BACKTEST_RESULTS.json` was re-run from a clean tree
+at `68aba51` so the artifact matches the record: **14 leaves moved / 0 added / 0 removed** —
+five are the DSR chain, four provenance, and five moved by **0.000%** last-digit float.
+`long_short_tstat` 2.8360640685320595, `top_decile_alpha` 0.07174142332098163, `monotonicity`
+−0.8909090909090909 and universe 2531/69 are bit-identical; `oos_verdicts` unchanged,
+`cpcv.adopt` still false, degrade path (`n_trials_from_weight_schemes` 8) intact, sanity layer
+fires its two expected flags with neither silenced. *(The first attempt was killed mid-load and
+wrote nothing, so the artifact was briefly one trial stale rather than wrong; it was re-run
+rather than patched.)* Logged as `ARTIFACT-N15`. Charged, not waived:
+void-and-restart is a researcher degree of freedom — each vintage is another chance for the same
+hypothesis, and the probability that *some* vintage crosses rises with the number of vintages.
+§5a rule 6 is the brake (a vintage change resets the whole accrued clock and buys nothing
+statistically); the trial charge is the accounting.
+
+## 2. Vintages in code — `track_meter.VINTAGES`
+
+Two construction points each took a rewrite, and both were found by running the thing:
+
+- **A later vintage is baselined at its OPENING LEVEL, not at zero.** The recorded series holds
+  cumulative return since run #1, so zero-baselining vintage 2 would fold run #1's drift into its
+  first month. Taking the level at the vintage's opening date is correct whether or not the
+  Cowork writer resets its cumulative — a behaviour nobody here controls.
+- **`as_operated()` uses RAW ENDPOINTS, not complete months.** The first cut reported vintage 1 as
+  **0.0%** because a six-day window holds no complete calendar month. Reporting 0.0% for a window
+  that actually moved −2.85pp is the flattering kind of wrong. It now reproduces **+0.7760% /
+  +3.6228% / −2.8468pp** exactly.
+
+## 3. Session 15's own item — the meter now has a caller
+
+`track_meter.detail()` is surfaced as `summary()["contract_track"]` in `paper_track.py`, i.e. on
+**`/api/track`**, which `app_saas.py:389` and `web/app.py:748` already serve. Before this the
+meter and the gap report existed, were tested, and **nothing called them** — a library with no
+caller. The gate tests whether the track is being *recorded*, and a recording failure nobody
+notices until gate day has already cost the whole window.
+
+- **It is not vacuously green, and the first cut was.** Before the vintage's first trading day
+  there are zero expected rows, so `gap_report.complete` is trivially true and "every trading day
+  recorded" would have been a pass that means nothing. `recording_ok` now reads `None` with an
+  explicit "has not started" note. Pinned by a test.
+- **Labelled as a different object** from the sandbox engine's blocks in the same payload
+  (`source` names the published Valquo Index; `not_the_sandbox_engine: true`).
+- **Fails soft** — an unreadable track degrades to `available: false`, never a 500 on an
+  unrelated page.
+- **Reconciled against PT-OUTBOUND's authority.** This module legitimately computes its own
+  excess — the meter's statistic is monthly, per-vintage and net of a modelled cost drag, so
+  reading it off the claim would be wrong. But `as_operated` *is* the same kind of object as the
+  claim, so `detail()` carries `index_track.vs_spy_claim()`'s output beside it and reports
+  `as_operated_agrees_with_authority`. **Measured today: −2.8468 vs −2.8468, agrees.** A missing
+  authority reads `None`, never agreement.
+
+## 4. PT-WRITER — reported closed, and I could not find it
+
+The task states the writer now exists as Cowork scheduled task `valquo-daily-track-write`,
+weekdays 20:01. **Two checkable facts, and they do not settle it in either direction:**
+
+- **No such task is visible in this machine's Task Scheduler.** 413 tasks enumerate (so this is
+  not a permissions block); three are Valquo-related — `Valquo D Backup`, `ValuationToolAutoPush`,
+  `ValuationToolBackup` — and **none is this one.** The name appears nowhere in the repository.
+- **Even if it exists, no run was due before this was written.** The amendment lands Sunday
+  2026-08-09; the first weekday firing is Monday 2026-08-10 at 20:01.
+
+So its absence from the scheduler is **evidence, not proof** — it could be registered under
+another account or on another machine. **I have not marked `PT-WRITER` done, and the gate stays
+`pending`.**
+
+**The test is now mechanical and costs nothing.** Run #2's inception is 2026-08-10, which is day
+0, so the **first row due is 2026-08-11** and the earliest date its absence is detectable is
+**2026-08-12**. From then, `/api/track`'s `contract_track` block reports it directly:
+`recording_ok: false` and the missing date named.
+
+## 5. What I did NOT do
+
+1. **I did not verify the writer works** (§4) — no run was due, and I could not find the task.
+2. **I did not backfill run #1's missing days,** and Amendment 1 does not either. Voided is not
+   repaired.
+3. **I did not re-tune σ, ρ or α** to the changed model. Re-tuning a pre-registered parameter on
+   a model change is how a pre-registration dies; §6.5 permits only raising σ, and the
+   re-measurement said it did not need raising.
+4. **I did not re-point the sandbox engine's book** (`PT-SPLIT`, still open) or touch
+   `valuation/screener/**` beyond reading it.
+5. **I did not add `track_meter.py` to PT-OUTBOUND's AST guard list.** It is not an outbound
+   composer and would fail the guard for a legitimate reason; the reconciliation in §3 is the
+   answer instead.
+
+## 6. BUGS FOUND
+
+1. **THE REPORTED WRITER CANNOT BE FOUND** (§4). The one item blocking the operational gate is
+   reported closed and is not verifiable; the scheduler does not have it. → Needs Don or Cowork
+   to confirm where it is registered. **Checkable from 2026-08-12 with no further work.**
+2. **MY OWN FIRST CUT REPORTED A VACUOUS PASS** — `recording_ok: true` before any trading day was
+   due. Caught by running it. Recorded because the class of error matters: a bound that cannot
+   fail yet must not report a pass, and this project has shipped that shape before.
+3. **MY OWN `as_operated` REPORTED 0.0% FOR A WINDOW THAT MOVED −2.85pp**, by inheriting the
+   meter's monthly granularity for an object that is not monthly. Also caught by running it.
+4. **The contract's §7.4 gate-day example still said 2027-01-30** after the horizons moved.
+   Corrected to 2027-02-10. It sits inside a fenced block that the parser skips, so it could not
+   have flipped the gate — but a wrong instruction on gate day is a real hazard.
+
+## 7. Session 16's first item
+
+**`needs first`: one reading, on or after 2026-08-12 — no human action required to unblock it.**
+
+**Read `/api/track`'s `contract_track.recording_ok`.** If it is `false` with `2026-08-11` named,
+the daily writer is not running and `PT-WRITER` is still open regardless of what the scheduler
+claims — and that is then the whole of session 16's work, escalated to Cowork with a dated,
+named missing row rather than an impression. If it is `true`, `PT-WRITER` closes on evidence for
+the first time and the operational gate has a path to passing on 2027-02-10.
+
+**Then, and only then:** `PT-SPLIT` (the sandbox engine still records a different book at 10%
+equal weights, which the contract's 8% cap forbids) is the next open item in this lane.

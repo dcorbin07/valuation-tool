@@ -293,12 +293,19 @@ live path uses.
 ## TRIAL COST
 
 **ZERO.** A calibration searches no hypothesis space, fits nothing and adopts nothing — session-10
-precedent ("a calibration searches nothing, equity `N` stays 121"). **Equity `N` stays 130.** No
-`RESEARCH_LOG.md` row is owed and no weight, threshold or shipped behaviour changes.
+precedent ("a calibration searches nothing, equity `N` stays 121"). **This run adds nothing to
+`N`.** No `RESEARCH_LOG.md` row is owed and no weight, threshold or shipped behaviour changes.
 
-Measured today: `research_log.detail()` reads **equity 130**, options 192, infra 4, total 326.
-**CLAUDE.md still says 129 — one session stale** (session 14 moved it). Not edited here; flagged
-for whoever owns that file.
+**`N` MOVED DURING THIS SESSION, AND NOT BY ME — quote 131, not 130.** It read **equity 130** when
+the pre-registration was written (which is what `PREREG_v3_score_calibration.md` §9 says, correctly
+as of that moment) and reads **equity 131** after merging `origin/main`, where a concurrent lane
+landed Amendment 1 (`509c45b`, "Refresh the artifact for N=131"). Options 192, infra 5.
+
+This is the ordinary case of the session-12 finding that **`N` is a PROJECT quantity, not a session
+one** — and the reason a sweep must stamp the `N` it ran at. Nothing here depends on the value: the
+calibration's floors are percentiles of a permutation null and are not `N`-denominated, unlike the
+CPCV adopt gate. **CLAUDE.md still says 129, now two behind.** Not edited here; flagged for whoever
+owns that file.
 
 ## BUGS FOUND IN MY OWN HARNESS — both would have mis-reported this run
 
