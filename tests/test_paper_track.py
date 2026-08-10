@@ -352,6 +352,47 @@ def test_equity_mirror_is_opt_in_and_sizes_whole_shares():
     assert qty["AAA"] == 50 and qty["BBB"] == 25       # $5,000 / 100 and / 200
 
 
+def test_a_day_count_alone_can_never_make_the_index_track_meaningful():
+    """The SECOND ungated door, found by audit OOB5 after it closed the first.
+
+    `index_track` was gated on the contract's operational gate, but `hero` falls back to
+    `paper_track.index_summary` when the Cowork tracker files are absent -- which is exactly the
+    fresh-deploy case, since `data/` is gitignored. If `meaningful` were a pure day count, a
+    paper track could still lead the page on elapsed time alone, defeating the gate one layer
+    down. `meaningful` therefore requires BOTH, and this pins that the day count alone is never
+    enough at any n.
+    """
+    st = _store()
+    b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
+                           "SPY": {"last": 500.0}})
+    PT.seed_book(st, b, _BOOK)
+    with st._conn() as c:
+        rows = [(f"2026-{1 + i // 28:02d}-{1 + i % 28:02d}", 0.05, 0.01, 0.04, 2, 2,
+                 "2026-01-01") for i in range(PT.MIN_DAYS_FOR_MEANING + 40)]
+        c.executemany(
+            "INSERT OR REPLACE INTO paper_index_track"
+            " (as_of, index_ret, bench_ret, active_ret, n_positions, n_priced, inception)"
+            " VALUES (?,?,?,?,?,?,?)", rows)
+    out = PT.index_summary(st)
+    assert out["n_days"] >= PT.MIN_DAYS_FOR_MEANING, out["n_days"]
+    # The real contract on disk records the gate as pending, so this must be False.
+    assert out["contract_gate"]["passed"] is False, out["contract_gate"]
+    assert out["meaningful"] is False, "a day count alone promoted a paper track"
+
+
+def test_the_index_gate_fails_closed_when_the_contract_cannot_be_read():
+    """Any failure reaching the gate must resolve to NOT passed, never to passed."""
+    import valuation.screener.index_track as IT
+    orig = IT.gate_state
+    try:
+        IT.gate_state = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+        g = PT._contract_gate()
+    finally:
+        IT.gate_state = orig
+    assert g["passed"] is False
+    assert "unreadable" in g["reason"]
+
+
 # ----------------------------------------------------------------- honest labelling
 def test_a_thin_track_says_so_and_keeps_the_backtest_as_the_headline():
     st = _store()

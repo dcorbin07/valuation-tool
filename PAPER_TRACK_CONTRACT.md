@@ -511,6 +511,21 @@ Recorded so they are not mistaken for oversights, and so the operational gate ha
    acts**, and it lives in `valuation/screener/index_track.py`, which is outside the lane that
    drafted this — so it needs assigning, not just noting.
 
+   > **CORRECTION — THE TWO CONSTANTS ARE IN DIFFERENT FILES AND DIFFERENT LANES.** This item
+   > says "both sit in `valuation/screener/index_track.py`", and that sentence was the one
+   > assigning the work, so the wrong file name aimed the fix at the wrong lane.
+   > `MIN_LIVE_DAYS` is `screener/index_track.py:44`; **`MIN_DAYS_FOR_MEANING` is
+   > `valuation/edge/paper_track.py:70`**, the edge lane's.
+   >
+   > **BOTH ARE NOW GATED, AND THE SECOND ONE WAS A SECOND OPEN DOOR.** `hero` falls back to
+   > `paper_track.index_summary()` when the Cowork tracker files are absent — the fresh-deploy
+   > case, since `data/` is gitignored — and that function set `meaningful` on a pure day count,
+   > so a paper track could still have led the page on elapsed time alone, one layer beneath the
+   > gate. It now requires **both** the day count **and** this contract's gate row, read by
+   > delegating to `index_track.gate_state()` rather than parsing this file a second time, and
+   > **fails closed** on any error. Neither constant was re-pointed at a new number, because the
+   > authority is this document's one row, not a constant.
+
    > ~~**ASSIGNED, NOT FIXED, AT SIGN-OFF.**~~ **CLOSED THE SAME DAY BY THE ENGINE LANE
    > (`126c137`), and the fix is better than the one this section asked for.** Rather than
    > re-pointing `MIN_LIVE_DAYS` at a new number, `index_track.gate_state()` now reads the

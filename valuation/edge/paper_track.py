@@ -791,17 +791,43 @@ def index_summary(store) -> dict:
         return {"started": False, "n_holdings": int(n_hold), "n_days": 0, "realized": real,
                 "label": _label(None, 0, 0)}
     last, first = rows[-1], rows[0]
+    gate = _contract_gate()
     return {"started": True, "inception": last.get("inception") or first["as_of"],
             "as_of": last["as_of"], "n_days": len(rows), "n_holdings": int(n_hold),
             "realized": real,
             "index_ret": last.get("index_ret"), "bench_ret": last.get("bench_ret"),
             "active_ret": last.get("active_ret"), "n_priced": last.get("n_priced"),
-            "meaningful": len(rows) >= MIN_DAYS_FOR_MEANING,
+            # BOTH conditions, never either alone. The day count is not sufficient: audit OOB5
+            # closed the same hole in `index_track` and found this one still open behind it --
+            # `hero` falls back to THIS function when the Cowork tracker files are absent, which
+            # is precisely the fresh-deploy case, so a day count alone could still promote a
+            # paper track to the headline. Same authority as `index_track.gate_state()`, not a
+            # second flag: one copy of the fact, in the contract Don signed.
+            "meaningful": len(rows) >= MIN_DAYS_FOR_MEANING and bool(gate.get("passed")),
             "min_days_for_meaning": MIN_DAYS_FOR_MEANING,
+            "contract_gate": gate,
             "history": [{"as_of": r["as_of"], "index_ret": r.get("index_ret"),
                          "bench_ret": r.get("bench_ret")} for r in rows[-260:]],
             "label": _label(last.get("inception") or first["as_of"], MIN_CLOSED_FOR_MEANING,
                             len(rows))}
+
+
+def _contract_gate() -> dict:
+    """The paper track's operational gate, read from the ONE place that carries it.
+
+    `PAPER_TRACK_CONTRACT.md` §5's `Operational gate passed` row, parsed by
+    `index_track.gate_state()`. Deliberately delegated rather than re-implemented: a second
+    parser is a second record of the same fact, free to disagree with the document Don signed.
+
+    FAIL-CLOSED. Anything that goes wrong here -- import failure, unreadable contract, malformed
+    row -- resolves to NOT passed, so the error this cannot reach is "a thin track leads the
+    page". The conservative error is a mature track still labelled backtested.
+    """
+    try:
+        from ..screener.index_track import gate_state
+        return gate_state() or {"passed": False, "reason": "gate_state returned nothing"}
+    except Exception as e:                                   # noqa: BLE001 - fail closed
+        return {"passed": False, "reason": f"operational gate unreadable: {type(e).__name__}"}
 
 
 def options_summary(store) -> dict:

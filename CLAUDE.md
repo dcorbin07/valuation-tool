@@ -142,8 +142,16 @@ the project's memory and the old versions had been repeated for months.
     requires the contract's `Operational gate passed` row as well as the day count, and that row
     reads `pending`.** The rest of this sub-bullet is the record of what the defect was. The
     constant was never pre-committed, does not derive from power, and disagrees 2× with
-    `paper_track.MIN_DAYS_FOR_MEANING = 126` governing the same track. Both sit in
-    `valuation/screener/index_track.py` — **outside the edge lane; it needs assigning.**
+    `paper_track.MIN_DAYS_FOR_MEANING = 126` governing the same track. ~~Both sit in
+    `valuation/screener/index_track.py` — outside the edge lane; it needs assigning.~~
+    **CORRECTED 2026-08-09 (session 14): THEY SIT IN DIFFERENT FILES AND DIFFERENT LANES, and
+    this sentence was the one assigning the work, so the wrong file name pointed the fix at the
+    wrong lane.** `MIN_LIVE_DAYS` is `valuation/screener/index_track.py:44` (engine lane, fixed);
+    `MIN_DAYS_FOR_MEANING` is **`valuation/edge/paper_track.py:70`** — the edge lane's, and it
+    was a **second ungated door**: `hero` falls back to `paper_track.index_summary()` when the
+    Cowork files are absent, which is the fresh-deploy case, and that read a pure day count.
+    **Both are now gated on the contract's one row; `index_summary` delegates to
+    `index_track.gate_state()` rather than parsing the contract twice, and fails closed.**
   * **STATE, as of this bullet: the track is BEHIND — inception 2026-07-30, five days, Valquo
     +0.78% vs SPY +3.62%, excess −2.85pp.** That is −1.8 SD of a five-day window (p ≈ 0.08),
     i.e. an ordinary bad week that means nothing about the strategy — **but it means the start

@@ -5894,6 +5894,27 @@ silently averaged over.
 
 **3.5 Backfilled nothing.** Days 2–4 stay missing, logged, exactly as the register requires.
 
+**3.6 CLOSED A SECOND UNGATED DOOR, in my lane, found by the engine lane's own bug report.**
+Their `OOB5` gated `index_track` on the contract but recorded that a second path was still open:
+`hero` falls back to `paper_track.index_summary()` when the Cowork tracker files are absent —
+**which is exactly the fresh-deploy case, since `data/` is gitignored** — and that function set
+`meaningful` on a pure day count (`len(rows) >= MIN_DAYS_FOR_MEANING`, 126) without ever
+consulting the contract. So a paper track could still have led the page on elapsed time alone,
+one layer below the gate they had just built.
+
+`index_summary` now requires **both** the day count **and** the contract gate, and it reads that
+gate by **delegating to their `index_track.gate_state()`** rather than parsing the contract
+again — a second parser would be a second record of the same fact, free to disagree with the
+document Don signed. `_contract_gate()` is **fail-closed**: import failure, unreadable contract
+or malformed row all resolve to *not passed*, so the unreachable error is "a thin track leads the
+page". Two tests pin it — one that a day count alone is never enough at any *n*, one that a
+raising `gate_state` yields `passed: false`. **47/47 paper-track tests** (was 45).
+
+Also corrected, because their report was right and the error was in my document: the contract's
+§7.4 and `CLAUDE.md` both said `MIN_DAYS_FOR_MEANING` lives in `index_track.py`. **It is
+`valuation/edge/paper_track.py:70`** — and that sentence was the one assigning the work, so the
+wrong file name pointed the fix at the wrong lane.
+
 ## 4. What I did NOT do
 
 1. **I did not produce "evidence the daily write now happens (two consecutive days landing)."**
