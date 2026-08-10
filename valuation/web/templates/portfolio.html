@@ -189,11 +189,25 @@
     <li><b>Append the row — especially the rejections.</b> A log that records only adoptions
       is a multiple-testing denominator of one with extra steps.</li>
   </ol>
+  {# COUNTS REFRESHED 2026-08-09 (V4). This read "Roughly 146 pre-registered tests ... about
+   # one in eight was adopted" — 146 was the external audit's ESTIMATE, and the measured log
+   # now says something different and better. It matters more than usual now that
+   # /work/research renders the same register live: two numbers describing one record is the
+   # defect this project shipped to Discord on 2026-08-05. Authority: research_log.detail().
+   # Dated in the prose because it will keep moving and this page is static by construction. #}
   <p>
-    Roughly 146 pre-registered tests have been run across the project. About one in eight was
-    adopted, and the adoptions cluster in bug fixes rather than new signals. That ratio is the
-    single most honest number on this page: it is what a real search over a finite dataset
-    looks like when the nulls are not quietly dropped.
+    As of <b>2026-08-09</b> the log holds <span class="num">83</span> entries, of which
+    <span class="num">62</span> are genuine searches over the data and the rest are defects
+    found in the machinery. <b><span class="num">43</span> of those searches came back
+    rejected, null or unanswerable; <span class="num">15</span> were adopted</b> — and the
+    adoptions cluster in bug fixes rather than new signals. That ratio is the single most
+    honest number on this page: it is what a real search over a finite dataset looks like when
+    the nulls are not quietly dropped.
+  </p>
+  <p>
+    <b><a href="{{ research_url }}">Read the whole record →</a></b> Every row, newest first,
+    with its verdict — rendered from the log itself rather than retyped. It carries no
+    performance figures at all, by design.
   </p>
   <p>
     The append-only log that formalises this is recent and its retrospective backfill is not
@@ -499,8 +513,10 @@
       The caveats travel with it, in the project's own words. It is still <b>one panel</b> — a
       factor regression is a control, not new data, and the international replication above is
       the out-of-sample evidence, not this. The t-statistic is <b>not multiplicity-corrected</b>
-      against the <span class="num">116</span> logged equity trials behind it
-      (<span class="num">272</span> across the whole project), though the deployed weights are
+      against the <span class="num">130</span> logged equity trials behind it
+      (<span class="num">326</span> across the whole project, as of 2026-08-09 — the live
+      count is on the <a href="{{ research_url }}">research record</a>), though the deployed
+      weights are
       flat one-seventh and were never tuned. The panel's contaminated early period is no
       longer discounted — it was removed from the sample outright — and the conservative
       single figure is now the first half's <b>+5.19%</b>. And it does not contradict the null

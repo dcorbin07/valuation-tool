@@ -1,0 +1,212 @@
+{# The public research record. VALQUO_EXTENSIONS.md V4.
+ #
+ # FOUR RULES, and they are the reason this page is worth having at all.
+ #
+ # 1. NO PERFORMANCE FIGURES. Not results, not pre-committed thresholds, not effect sizes in a
+ #    source note. Every string reaching this template has been through
+ #    research_record.withhold(); tests/test_research_page.py asserts the RENDERED html carries
+ #    none. That is stricter than "nothing beyond the public posture", and it is stricter on
+ #    purpose: a rule with an exception list stops being testable the moment the log grows.
+ #
+ # 2. NOT HAND-MAINTAINED. Every row comes from RESEARCH_LOG.md via research_log.rows() — the
+ #    same parse that produces the trial denominator N. A second copy of the record would be a
+ #    second version of the truth, which is the bug this project shipped to Discord on
+ #    2026-08-05 and fixed the day before this page was built.
+ #
+ # 3. THE NEGATIVE VERDICTS LEAD. Most of this record is rejections, nulls and defects. That is
+ #    the evidence, not an embarrassment to be sorted below the wins, so the counts are shown
+ #    plainly and the rejections come first in the legend.
+ #
+ # 4. NO VENDOR DATA. Vendor NAMES appear (they are part of the record); no vendor row, price
+ #    or fundamental does. The log's `universe` column — export sizes, panel dimensions — is
+ #    not rendered at all.
+ #
+ # Standalone by design, like portfolio.html: it must not inherit a product surface, a nav, or
+ # a route a logged-out reader would get a 401 from. #}
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valquo — the research record</title>
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="referrer" content="no-referrer">
+<style>
+  :root{--bg:#eef1f6;--card:#fff;--ink:#1a2233;--muted:#6b7688;--faint:#9aa4b5;
+    --navy:#1f3864;--blue:#2e5fa3;--soft:#eaf0fb;--border:#e2e8f2;
+    --red:#b3261e;--green:#1b7f4b;--amber:#c77c11}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);line-height:1.62;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    font-size:16px;-webkit-text-size-adjust:100%}
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px 72px}
+  header{background:var(--navy);color:#fff;padding:44px 0 38px;margin-bottom:26px}
+  header .wrap{padding-bottom:0}
+  header .eyebrow{font-size:12.5px;letter-spacing:1.4px;text-transform:uppercase;
+    color:#a9bde0;font-weight:700;margin:0 0 10px}
+  header h1{margin:0 0 12px;font-size:31px;line-height:1.25;font-weight:800}
+  header p{margin:0 0 6px;color:#d6e0f2;font-size:16.5px;max-width:70ch}
+  header .back{margin-top:18px;font-size:14px;color:#a9bde0}
+  header .back a{color:#fff;text-decoration:underline}
+  section{background:var(--card);border-radius:14px;padding:26px 28px;margin-bottom:18px;
+    box-shadow:0 1px 3px rgba(20,30,60,.07),0 6px 22px rgba(20,30,60,.04)}
+  section > h2{margin:0 0 4px;font-size:13px;letter-spacing:.7px;text-transform:uppercase;
+    color:var(--blue);font-weight:800}
+  section > .lede{margin:0 0 18px;font-size:20px;font-weight:700;color:var(--navy);
+    line-height:1.35}
+  p{margin:0 0 14px} p:last-child{margin-bottom:0}
+  ul{margin:0 0 14px;padding-left:22px} li{margin-bottom:7px}
+  code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13.5px;
+    background:var(--soft);padding:1px 5px;border-radius:5px;color:var(--navy)}
+  .callout{background:var(--soft);border-left:4px solid var(--blue);border-radius:0 10px 10px 0;
+    padding:16px 18px;margin:0 0 16px}
+  .callout .h{font-weight:800;color:var(--navy);display:block;margin-bottom:6px;font-size:15px}
+  .callout p:last-child{margin-bottom:0}
+  .tally{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 18px}
+  .tally .t{flex:1 1 140px;background:var(--soft);border-radius:11px;padding:13px 15px}
+  .tally .n{font-size:27px;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums;
+    line-height:1.1}
+  .tally .l{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);
+    font-weight:700;margin-top:3px}
+  .tally .t.kill .n{color:var(--red)} .tally .t.keep .n{color:var(--green)}
+  .tally .t.null .n{color:var(--amber)}
+  .tbl{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{width:100%;border-collapse:collapse;font-size:14.5px}
+  .tbl table{min-width:720px}
+  th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--muted);font-weight:700;padding:0 12px 8px 0;border-bottom:1px solid var(--border)}
+  td{padding:10px 12px 10px 0;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td.d{white-space:nowrap;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+  td.id{font-weight:700;color:var(--navy);white-space:nowrap;font-size:13.5px}
+  td.dom{font-size:12.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.4px}
+  .verdict{font-weight:800;font-size:11.5px;letter-spacing:.4px;text-transform:uppercase;
+    white-space:nowrap}
+  .v-rejected{color:var(--red)} .v-null,.v-inconclusive{color:var(--amber)}
+  .v-adopted{color:var(--green)} .v-fixed{color:var(--blue)} .v-other{color:var(--muted)}
+  .pre{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.4px;
+    text-transform:uppercase;padding:2px 7px;border-radius:20px;margin-left:6px;
+    background:var(--soft);color:var(--blue);vertical-align:1px}
+  .src{font-size:12.5px;color:var(--faint);margin-top:16px}
+  .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;
+    margin:0 0 4px}
+  .legend div{font-size:13.5px;color:var(--muted)}
+  .legend b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
+  footer{max-width:960px;margin:0 auto;padding:0 20px 60px;font-size:12.5px;color:var(--faint);
+    line-height:1.65}
+  footer .rule{border-top:1px solid var(--border);margin-bottom:18px}
+  @media (max-width:600px){
+    header{padding:32px 0 28px} header h1{font-size:25px}
+    section{padding:22px 18px} body{font-size:15.5px}
+  }
+</style>
+</head><body>
+
+<header><div class="wrap">
+  <p class="eyebrow">Valquo — research record</p>
+  <h1>Every question asked, and how it came out</h1>
+  <p>This is the project's own research log, rendered in full: what was predicted, when, and
+     what the answer turned out to be — including, mostly, <b>no</b>.</p>
+  <p class="back">← <a href="{{ work_url }}">Back to how the research works</a></p>
+</div></header>
+
+<div class="wrap">
+
+  <section>
+    <h2>What pre-registration means</h2>
+    {# The one lay-reader sentence the V4 spec requires. Exactly one, on purpose. #}
+    <div class="callout">
+      <span class="h">In one sentence</span>
+      <p>{{ prereg_sentence }}</p>
+    </div>
+    <p>The point of doing it that way is that it makes a negative result <em>cost</em> something
+       to ignore. Once the pass mark is written down, a test that misses it is a rejection, and
+       the only honest thing left to do is record it and move on. That is why most of the table
+       below says the strategy did <b>not</b> work.</p>
+  </section>
+
+  <section>
+    <h2>The tally</h2>
+    <p class="lede">{{ total }} entries. {{ negative }} of them found nothing.</p>
+    <div class="tally">
+      <div class="t kill"><div class="n">{{ counts.rejected }}</div><div class="l">Rejected</div></div>
+      <div class="t null"><div class="n">{{ counts.null }}</div><div class="l">Null</div></div>
+      <div class="t null"><div class="n">{{ counts.inconclusive }}</div><div class="l">Inconclusive</div></div>
+      <div class="t keep"><div class="n">{{ counts.adopted }}</div><div class="l">Adopted</div></div>
+      <div class="t"><div class="n">{{ counts.fixed }}</div><div class="l">Defects fixed</div></div>
+      <div class="t"><div class="n">{{ counts.other }}</div><div class="l">Other verdict</div></div>
+    </div>
+    <p>Of the {{ searches }} entries that were genuine searches over the data,
+       <b>{{ negative }}</b> came back rejected, null or unanswerable. The remaining
+       {{ counts.fixed }} are defects found in the machinery rather than tests of an idea, so
+       they do not count toward the multiple-testing denominator — a search that never happened
+       cannot inflate a result.</p>
+    <div class="legend">
+      {% for b in buckets %}
+        <div><b class="v-{{ b }}">{{ bucket_label[b] }}</b>{{ bucket_blurb[b] }}</div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section>
+    <h2>What is deliberately not here</h2>
+    <p><b>No performance figures.</b> Not one — no return, no t-statistic, no threshold. Where a
+       logged line contained one it reads <code>[figure withheld]</code>. The figures Valquo does
+       publish live on the surfaces that are allowed to carry them, with their caveats attached;
+       repeating them here would turn a page about <em>method</em> into an unaudited second
+       source for <em>numbers</em>, and this project has already shipped that mistake.</p>
+    <p>No market data, no holdings, no vendor rows. Vendor <em>names</em> appear because they
+       are part of the record.</p>
+  </section>
+
+  <section>
+    <h2>Registered in advance</h2>
+    <p class="lede">The documents that fixed a question before it was measured.</p>
+    <ul>
+      {% for p in preregistrations %}
+        <li><code>{{ p.file }}</code> — {{ p.title }}</li>
+      {% endfor %}
+    </ul>
+    <p class="src">Listed by reading the repository, not by hand, so a register that is added
+       and never mentioned still appears here. Registration dates are not shown: they are not
+       reliably recoverable from the documents, and a wrong one would undermine the only claim
+       this page makes.</p>
+  </section>
+
+  <section>
+    <h2>The log</h2>
+    <p class="lede">Newest first. Every row, no filter.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr>
+          <th>Date</th><th>Id</th><th>Area</th><th>What was predicted</th><th>Verdict</th>
+          <th>Written up in</th>
+        </tr></thead>
+        <tbody>
+        {% for i in items %}
+          <tr>
+            <td class="d">{{ i.date or "—" }}</td>
+            <td class="id">{{ i.id }}</td>
+            <td class="dom">{{ i.domain or "—" }}</td>
+            <td>{{ i.hypothesis or "—" }}{% if i.pre == "yes" %}<span class="pre"
+                title="threshold committed before the run">pre-registered</span>{% endif %}</td>
+            <td><span class="verdict v-{{ i.bucket }}">{{ i.verdict }}</span></td>
+            <td class="d">{{ i.source or "—" }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="src">Rendered from <code>{{ log_file }}</code> — the same file, and the same
+       parse, that supplies the multiple-testing denominator used in the project's own
+       statistics. There is no second copy of this record.</p>
+  </section>
+
+</div>
+
+<footer>
+  <div class="rule"></div>
+  <p>Educational only, not investment advice. Nothing here is a recommendation to buy or sell
+     anything. Verdicts are the project's own, recorded against thresholds set in advance;
+     they describe historical research, not future results.</p>
+</footer>
+
+</body></html>
