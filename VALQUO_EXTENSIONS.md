@@ -11,7 +11,7 @@ on landing). **First agent to execute any section commits this file.**
 | V2 | Live theme-health meter | greeks agent | OPEN |
 | V3 | Noise-calibrated hot score | r1 | OPEN |
 | V4 | Public research-log page | app fixer | OPEN — after the Discord divergence fix |
-| V5 | Measured slippage vs modeled costs | options bot | OPEN |
+| V5 | Measured slippage vs modeled costs | options bot | **DONE 2026-08-09 — instrument landed; headline INSUFFICIENT (0 exit fills exist). `scripts/slippage_report.py`, `PREREG_v5_slippage.md`, 52 tests. Two shipped-code bugs found in the first three real fills — see `HANDOFF_optionsbot.md`.** |
 
 ---
 

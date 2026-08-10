@@ -2597,3 +2597,185 @@ total 325, `rows_malformed: []`.
 **Reproduce:** `python -m tests.test_options_exitreplay` for the instrument;
 the runners live in the session's job directory and read only
 `data/options_freeze/{R2_CORRECTED,R2_CONTROLS}_2026-08-08/` plus `data/bulk/prepared/bars/`.
+
+---
+
+# V5 — Measured slippage vs modelled costs (2026-08-09, options bot)
+
+**Register:** `VALQUO_EXTENSIONS.md` V5. **Pre-registration:** `PREREG_v5_slippage.md`, committed
+at `c06ac55` **before `scripts/slippage_report.py` existed and before any fill was read.**
+**Artifact:** `data/options_slippage/V5_SLIPPAGE_2026-08-09.json`. **Tests:**
+`tests/test_slippage_report.py`, 52. **Reproduce:**
+`python scripts/slippage_report.py --from-export data_export/paper_track_history.json`.
+
+## 0 · The one-paragraph version
+
+The instrument is built, pre-registered, tested and landed. **Its headline verdict is
+INSUFFICIENT and that is the pre-registered outcome, not a shortfall:** the paper book holds
+**three entry fills and zero exits**, so the exit half-spread — the only measure directly
+comparable to the modelled cost — has n = 0. The register's expectation was INSUFFICIENT at
+90/10 and it was right. What is *not* nothing is what those three rows already say: the
+sandbox handed the book up to **20.2% of price improvement** on a limit order placed at the ask,
+and reading them turned up **two defects in shipped code**, one of which means two of the three
+live positions are running exit levels no backtest describes.
+
+## 1 · The modelled bar is measured, and the brief's number is the wrong currency
+
+The register fixes the bar as literals before anything is measured, from
+`data/options_universe/state_r2_corrected.pkl` — the authoritative R2-corrected book, with
+`entry_spread_pct` present on **3,885 of 3,885 trades (100.0%)**. Half-spread paid at entry is
+`entry_spread_pct / 2`, because `spread_pct = (ask − bid) / mid` and the fill is at the ask.
+
+| modelled quantity | value |
+|---|---|
+| entry half-spread, **mean** | **410.0 bps of premium** |
+| entry half-spread, median | 333.3 bps |
+| p10 / p25 / p75 / p90 | 131.8 / 198.0 / 550.0 / 837.0 bps |
+| max | 1250.0 bps — this is `MAX_SPREAD_PCT` 0.25 ÷ 2, so the cap binds |
+| median entry premium | $2.58 |
+| commission | $1.30 round trip = **50.4 bps** of that premium |
+
+**V5's brief says to compare against "the modelled 33.4bps" and that would have been a category
+error of roughly an order of magnitude.** 33.4 bps one-way is audit **B11**'s measured cost on
+the *fundamental panel* — basis points of **stock notional**. This book pays ~410 bps of
+**premium** per side. 410 / 33.4 ≈ **12×**, and they are not the same denominator. The report
+prints that sentence on every run rather than quietly substituting the right number, because the
+33.4 figure is already circulating and someone will try to apply it here again.
+
+## 2 · Why a limit-at-the-touch book needs four measures and not one
+
+The obvious statistic — did the fill beat the order's limit — is **worthless here, and the
+register says so in advance rather than after seeing the answer.** `paper_track` submits a LIMIT
+buy at the ask and a LIMIT sell at the bid, so a fill can never be worse than its limit. Lead
+with that and you publish "0 bps of slippage" forever: not a measurement, a restatement of the
+order type.
+
+| | measure | status today |
+|---|---|---|
+| **M3** | **exit half-spread vs the mid — THE HEADLINE**, the only measure comparable to 410.0 bps | **n = 0 → INSUFFICIENT** |
+| M2 | fill vs the touch, reconstructed offline. Structurally bounded ≤ 0; never a headline | n = 3, not quotable |
+| M4 | the **fill funnel** — the cost M1/M2 structurally cannot see | 3 rows, 3 filled, 100.0% |
+| M5 | alert-ask → fill drift. **Reported and labelled NOT SLIPPAGE** (different timestamps) | n = 3, not quotable |
+
+**The minimum sample is a refusal, not a warning.** Below 30 filled legs the script computes no
+mean, no CI and no verdict, prints the raw values, and says `NOT QUOTABLE (n=k < 30)`. Three
+tests pin that a mean cannot appear at n = 29 and does appear at n = 30.
+
+**Inference, when there is ever enough of it:** percentile bootstrap of the mean, 2,000 draws,
+seed 0, **resampling CALENDAR WEEKS, not legs.** One alert engine fires several names on a day
+and names repeat; audit **R3** found every earlier options interval was optimistically narrow for
+exactly that reason. A test pins that clustering *widens* the interval on the same 120 values
+when weeks disagree — if a later edit silently drops the blocks, that test fails.
+
+## 3 · What three fills already show, at n = 3 and quoted as raw values
+
+The paper book, from the git-committed Render backup (`generated_at 2026-08-09T07:15:04`):
+
+| | alert ask | submit ask | fill | fill vs its own limit |
+|---|---|---|---|---|
+| TGT 260918C160 | 4.55 | 4.45 | **3.55** | **−2022.5 bps (−20.2%)** |
+| MET 261016C100 | 4.90 | 4.90 | **4.60** | **−612.2 bps (−6.1%)** |
+| ETN 261016C500 | 16.10 | 16.10 | **16.10** | **0.0 bps** |
+
+The submit ask is not stored; it is recovered by inverting `_place_entry`
+(`target_premium / (1 + target_pct)`). **That reconstruction is corroborated independently:** the
+*stop* column, a different multiplier, gives the same submit ask to four decimals on all three
+rows.
+
+**A marketable limit buy at the ask filling 20.2% below the ask is not execution, it is the
+sandbox's fill simulator.** So the paper book's entries are **not** the ask-in convention
+(`options_fill.DEFAULT_AGGRESSION = 1.0`) that every validated options number in this repo is net
+of — which is the precise thing the forward track exists to be comparable to. Quote it with its
+n: **three fills is three fills.** But the direction is the one the register warned about in
+advance, and it is large.
+
+## 4 · BUGS FOUND — two in shipped code, reported not repaired
+
+V5 is scoped **NEW FILES ONLY**, so both are routed with the exact fix rather than made here.
+
+**BUG 1 — the live exit levels are not the backtested ones. 2 of 3 open positions are off spec.**
+`paper_track._place_entry` derives `target_premium` and `stop_premium` from the price the order
+was **submitted** at; `mark_open` then overwrites `entry_premium` with the broker's actual fill
+and **never recomputes either level.**
+
+| | fill | live target | intended | live stop | intended |
+|---|---|---|---|---|---|
+| TGT | 3.55 | **+150.7%** | +100% | **−37.3%** | −50% |
+| MET | 4.60 | **+113.0%** | +100% | **−46.7%** | −50% |
+| ETN | 16.10 | +100.0% | +100% | −50.0% | −50% |
+
+ETN is on spec only because its fill equalled its limit. **Both drifts run against the paper
+book** — a farther target is harder to reach, a tighter stop is easier to hit — so this is not
+the flattering direction; but the *comparability* claim breaks either way, and comparability is
+the entire point of the track. Same family as audit **B5c**, which repaired the *resume* branch's
+missing levels; the fresh path still anchors them to the pre-fill price.
+**Fix:** recompute both levels from the fill in `mark_open`'s `status == "filled"` branch.
+
+**BUG 2 — the paper track buys names the alert's own sizing refused.** Alert 3 (ETN) carries
+`"sizing": {"contracts": 0, "skip": true, "reason": "one contract costs $1,610, above the $1,000
+budget - cannot be sized correctly"}`. The paper track bought one contract anyway:
+`submit_new_alerts` takes its size from `cfg.paper_contracts_per_trade` and `_eligible` tests
+only the contract, the expiry and the alert's age — `features.sizing` is never read.
+**It is the largest position in the book.** **Fix:** honour `features.sizing.skip` in
+`_eligible`, with the reason recorded on the skipped row.
+
+**GAP 3 (routed, not a bug) — the ENTRY half-spread is not measurable at all.**
+`paper_option_orders` stores no bid, ask or mid at submit. The **ask** is recoverable; the
+**mid** is not, by any route, and a half-spread needs a mid. So M3 covers the **exit leg only**,
+and the report names which leg every number belongs to. **Fix:** two columns, `entry_bid` and
+`entry_ask`, written in `_place_entry` beside the existing target/stop.
+
+## 5 · Two corrections to the project's own record
+
+**`paper_option_orders` is no longer empty, and `CLAUDE.md` still says it is.** That file's
+roadmap-#12 bullet reads *"`paper_option_orders`, `paper_index_holdings` and `paper_index_track`
+hold **0 rows each** — the engine has never been fed."* Measured today from the committed
+backup: **3 paper orders, 10 index holdings, 4 index-series rows.** The engine has been fed since
+2026-08-04. The bullet was true when written and is stale now.
+
+**Every screener store off Render holds zero paper rows, and the backup is the read path.** The
+track runs on Render's persistent disk behind `/admin/run-paper-track`; both local `screener.db`
+copies read 0. What *does* reach the repository is `.github/workflows/track-backup.yml`, which
+curls `/admin/export-track` and commits `data_export/paper_track_history.json` — and
+`track_export.payload` carries `paper_option_orders` verbatim. **The backup written to protect
+the record doubles as the only reachable way to measure it**, so `--from-export` is a first-class
+input, not a convenience. Without it this instrument would be ornamental.
+
+## 6 · What I did NOT do
+
+* **Did not repair either bug.** V5 is new-files-only; both are in `valuation/edge/paper_track.py`,
+  which the pipeline-builder lane owns. Routed with fixes named.
+* **Did not add the two entry-quote columns**, for the same reason — and the report says
+  `ROUTED, NOT MADE` in its own output so a reader cannot mistake the gap for an oversight.
+* **Did not quote any aggregate.** n = 3 against a pre-registered minimum of 30. The mean of
+  those three numbers is not in this write-up, in the artifact, or in the log row.
+* **Did not lower the modelled cost.** The register forbids acting on DIVERGENT-CHEAPER on its
+  own, because sandbox optimism already points that way.
+* **Did not touch the entry signal.** R2 stands: real +3.41%/trade vs a random-entry control's
+  +10.06%, sign-test z −4.903. A cost measurement cannot revive an entry signal.
+* **Did not feed S14's no-trade band or the capacity number.** V5's brief asks for that, and it
+  is not possible: both are **equity** constructs, `seed_book(place_equity=False)` is the default
+  so **no equity fills exist**, and option-leg slippage cannot feed them. Stated as a limitation
+  in the report's own output rather than worked around.
+
+## 7 · Expectations, scored
+
+* **"INSUFFICIENT, at 90/10" — RIGHT.** n = 0 on the headline.
+* The conditional call (DIVERGENT-CHEAPER at 60/40) is **not yet scorable** — no exits. The
+  entry-side evidence at n = 3 leans hard that way, but that is a different measure and is not
+  claimed as a hit.
+
+## 8 · Trial accounting
+
+Instrumentation searches nothing and selects nothing, so it is charged to **infra** at `n = 1` on
+the HACFLOOR / CHAINFREEZE precedent. **Options `N` stays 192 and equity `N` stays 130** — no
+DSR-gated claim moves; Deflated Sharpe stays 0.8547 at 130. Infra 4 → **5**, total 326 → **327**,
+63 rows counted, 21 `FIXED` not counted, `rows_malformed: []`.
+
+## 9 · Recommended next step
+
+**Route BUG 1 and BUG 2 to whoever owns `paper_track.py`, before the exits start landing.** BUG 1
+in particular corrupts the comparison the whole forward track exists to make, and every day it
+stays open is another position entered under levels no backtest describes. The instrument itself
+needs nothing further until roughly 30 exits exist — on a three-position book at the current
+alert rate, that is a long way off, which is itself worth knowing.
