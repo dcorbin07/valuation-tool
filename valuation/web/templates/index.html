@@ -126,6 +126,15 @@
               {{ "%+.2fpp"|format(hero.index.excess_pp) if hero.index.excess_pp is not none else "—" }}</span></div>
           <div class="lb-stat"><span class="k">Days</span><span class="v">{{ hero.index.days }}</span></div>
         {% endif %}
+        {# Which book, and over which window. Added 2026-08-09 with the two-recorders fix: the
+           hero used to be able to fall back to the Tradier sandbox book and render IT under
+           the words "Valquo Index". The fallback is gone, but the figures now state their own
+           book and window so a screenshot of this band cannot lose them. Both strings come
+           from index_track.vs_spy_claim — the template does not word them. #}
+        {% if hero.index.available and hero.index.book %}
+          <div class="lb-stat lb-prov" style="flex-basis:100%">
+            <span class="muted" style="font-size:12.5px">{{ hero.index.book }} · {{ hero.index.window }}</span></div>
+        {% endif %}
         {% if hero.options.available %}
           <div class="lb-stat"><span class="k">Options (paper)</span>
             <span class="v">{{ hero.options.n_live }} live · {{ hero.options.n_closed }} closed</span></div>

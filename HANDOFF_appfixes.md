@@ -5,6 +5,116 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 20 — 2026-08-09 — Discord posted a book nobody thought they were reading
+(prompt: a 2026-08-05 Discord recap said we were beating SPY; the authoritative track shows the
+Index was never above SPY in that window. Find the divergence, then fix it structurally.)
+
+**THE HEADLINE: the recap was not wrong about a number. It was right about a different book.**
+On 2026-08-05 it posted, in bold:
+
+> • Since inception 2026-08-03 (3 sessions): index +3.22%, SPY +3.05% → **+0.18 pp**
+
+The contract-bound recorder over that window reads **−0.2777pp** (2026-07-31) and **−2.8468pp**
+(2026-08-06). The Index was never above SPY on any recorded day. Nothing miscalculated;
+`saas/recap.py` read `paper_track.index_summary` — the **Tradier sandbox engine**, 10 names
+equal-weighted at 10% each, inception 2026-08-03 — and printed it under the words
+"Valquo Index vs SPY". Those 10% weights **violate `PAPER_TRACK_CONTRACT.md`'s own 8% cap**, so
+the engine is not the Index and can never be evidence under the contract. This is
+`VALQUO_LEDGER.md` row **PT-SPLIT**, which was filed 2026-08-09 as a risk to be assigned. It had
+already fired, four days earlier, on the one surface where it cannot be taken back.
+
+## 1 · The divergence, reproduced rather than inferred
+
+Seeding an empty store from the engine's **own committed export**
+(`data_export/paper_track_index.csv`) and calling `recap.build(store, "daily", day="2026-08-05")`
+returns the false line verbatim. Both sides, same day:
+
+| | recorder | book | inception | 2026-08-05 reading |
+|---|---|---|---|---|
+| **what Discord quoted** | `paper_track.index_summary` (sandbox engine) | 10 names, equal-weighted 10% | 2026-08-03 | index +3.22%, SPY +3.05%, **+0.18 pp** |
+| **what the contract binds** | `index_track` → `data/valquo_track.json` + `valquo_track_history.csv` | 86 names, score-weighted, 8% cap | 2026-07-30 | −0.2777pp (07-31) → −2.8468pp (08-06) |
+
+**Two errors compounded, not one.** Wrong *book*, and a wrong *window*: the engine's inception
+is three days later and therefore skips the accrued drawdown the contract deliberately keeps.
+The bound series has no row on 08-05 at all (it is hand-maintained on the Cowork side, 2 of 6
+due rows — ledger row **PT-WRITER**), so the honest post that day was *"no Index figure"*.
+
+## 2 · The structural fix — one authority, no fallback, book and window welded to the number
+
+New **`index_track.vs_spy_claim()`** is the only function permitted to answer "how is the Index
+doing vs SPY". It reads **only** the bound source, has **no fallback to any other recorder**, and
+returns the figures with the **book** and the **window** in the same string, so they cannot come
+apart in transit. `summarize()` now takes its excess from it too — the two derivations that
+happened to agree became one that must.
+
+Deleted, not patched: `recap._delta()`, which took its own `index_ret − bench_ret`, and the
+`_pp` formatter that existed only to print it. Windows are counted in **recorded points**, never
+calendar days, because the bound series has gaps and "since yesterday" would silently attribute
+several sessions of drift to one.
+
+**The site had the same bug, and the label did not save it.** `hero.py` fell back to the engine
+whenever the tracker files were absent — i.e. **on every fresh deploy**, since `data/` is
+gitignored — with its own `(idx - bench) * 100`. It honestly set `source: "paper-sandbox"`, and
+**no template ever rendered that field** (verified by grep, not assumed). *A label a surface can
+decline to show is not a safeguard*, so the fallback is removed rather than relabelled.
+
+Every outbound surface now states which book and which window beside the figures: Discord
+(heading + per-line window), the landing page, the hero band and the Index tab.
+
+**Email digest: checked, and it makes no vs-SPY claim.** Confirmed on rendered output rather
+than by memory, and pinned so that if one is ever added it must come from the recorder.
+
+## 3 · Pinned — and the pins were mutation-tested, not assumed live
+
+Four new tests in `tests/test_paper_track.py` (53/53, was 47):
+
+1. **The one the task asked for.** The recorder is handed a claim whose excess (**−9.99 pp**) is
+   deliberately *not* the difference of its own legs (+5.00 / +1.00 = **+4.00 pp**). Anything that
+   recomputes prints +4.00. *Mutation-checked:* a deliberately recomputing `_claim_line` does
+   print +4.00 and fails the test.
+2. **The 2026-08-05 regression itself**, rebuilt from the engine's committed rows: must yield
+   "No Index-vs-SPY figure", never +0.18 pp. *Mutation-checked:* the engine's `active_ret` for
+   that day renders as exactly `+0.18 pp`.
+3. **The engine is unreachable, not merely deprioritised** — `index_summary` is made to raise and
+   the recap still builds.
+4. **AST scan** of `recap` / `notify` / `emailer` / `hero` for any subtraction of two return-ish
+   operands. *Mutation-checked:* run against the **pre-fix** `recap.py` it flags
+   `line 212: index_ret - bench_ret`. It is not vacuous.
+
+**One existing test replaced, and it is strictly harder.**
+`test_hero_names_which_forward_record_it_drew` asserted the fallback was *acceptable if
+labelled*. It is now `test_hero_will_not_render_the_sandbox_book_as_the_index`, and the old
+behaviour cannot pass it. The old test was written two days before the same defect put a false
+claim into Discord — worth remembering when a mitigation is "label it".
+
+## 4 · Verification
+
+`926 passed / 0 failed across 29 suites` in the CI-proxy environment (empty store, the
+difference that has broken the land gate before). `test_paper_track.py` 53/53.
+
+## 5 · What this does NOT do
+
+* **It cannot recall the 2026-08-05 post.** That is the whole reason the outbound case is worse
+  than the on-site one, and it is why the fix removes the wrong book rather than labelling it.
+* **The engine is still not re-pointed at the Index book** — ledger **PT-SPLIT** stays OPEN for
+  that half. It runs live on Render and re-pointing it is a construction change, not a repair.
+* **No new performance claim was added.** The corrected post reports −2.85 pp; the only figures
+  that changed are ones that were describing the wrong book.
+* **The bound series still has no automated writer** (**PT-WRITER**, Cowork lane). Until it
+  exists the honest answer on most days is "no Index figure", which is now what gets posted.
+
+### BUGS FOUND
+
+| # | where | what |
+|---|---|---|
+| 1 | `saas/recap.py` | Read the sandbox engine and printed it as the Valquo Index. **Shipped a false claim to Discord on 2026-08-05.** FIXED. |
+| 2 | `web/hero.py` | Same substitution on the site, plus its own `(idx - bench)` definition of excess. FIXED. |
+| 3 | `web/hero.py` + templates | `source: "paper-sandbox"` was set honestly and **rendered nowhere**. FIXED by removing the reachable wrong book. |
+| 4 | `edge/track_export.py` | Prose called the engine's table "the daily Valquo-Index-vs-SPY series". CORRECTED. |
+| 5 | `saas/recap.py` | `_delta()` computed its own excess for the day/week lines — a second definition that agreed with nothing in particular. DELETED. |
+
+---
+
 # Session 19 — 2026-08-08 — The P2 stale-figure sweep across every rendered surface
 (prompt: sweep public / demo / owner / exports / methodology for the figures P2 corrected)
 

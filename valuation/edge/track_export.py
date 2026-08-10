@@ -19,9 +19,18 @@ WHAT IT WRITES
 Plain, human-readable, deterministic files under `data_export/`:
 
   paper_track_history.json   everything below, structured, one file
-  paper_track_index.csv      the daily Valquo-Index-vs-SPY series
+  paper_track_index.csv      the TRADIER SANDBOX book's daily vs-SPY series
   paper_track_trades.csv     every closed paper option trade, entry -> exit -> P&L
-  paper_track_holdings.csv   the index book the series is computed from
+  paper_track_holdings.csv   the sandbox index book the series is computed from
+
+NAMING, corrected 2026-08-09. `paper_track_index.csv` was described here as "the daily
+Valquo-Index-vs-SPY series". It is not: it is the Tradier sandbox engine's book (10 names,
+equal-weighted at 10%, inception 2026-08-03), whose weights violate the 8% cap in
+`PAPER_TRACK_CONTRACT.md`. The contract-bound Valquo Index series is the ingested Cowork
+tracker, backed up below under the `index_track` meta key. The two were conflated in prose
+here and in code in `saas/recap.py`, where it put a false "Index beating SPY" claim into
+Discord on 2026-08-05. These files are a BACKUP and make no claim of their own — but the
+label is how the confusion travels, so it is stated exactly.
 
 The prompt asked for "a .csv + a .json". It is three CSVs because the backup holds three
 genuinely different record types, and merging a daily return series with per-contract trades

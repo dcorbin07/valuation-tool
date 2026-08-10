@@ -65,6 +65,48 @@ moves. Full write-up in `HANDOFF_optionsbot.md`; artifact
 > **FIRST: `RUN_RULES.md` is in the repo root and CLAUDE.md points every session at it.
 > Read it before starting work. Non-negotiable for all agents.**
 
+---
+
+## 2026-08-09 — app-fixer lane: THE TWO-RECORDER SPLIT ALREADY REACHED DISCORD (ledger PT-OUTBOUND)
+
+**Session 14 filed `PT-SPLIT` as a risk to be assigned. It had already fired, four days
+earlier, on the one surface where a wrong number cannot be taken back.** On **2026-08-05** the
+daily Discord recap posted, in bold:
+
+> • Since inception 2026-08-03 (3 sessions): index +3.22%, SPY +3.05% → **+0.18 pp**
+
+i.e. the Valquo Index beating SPY. **The contract-bound recorder reads −0.2777pp (2026-07-31)
+and −2.8468pp (2026-08-06) — it was never above SPY on any recorded day.** Reproduced exactly
+(not inferred) by seeding a store from the engine's own committed
+`data_export/paper_track_index.csv` and re-running `recap.build(..., day="2026-08-05")`.
+
+**Nothing was miscalculated. The recap read the wrong BOOK and the wrong WINDOW:**
+`paper_track.index_summary`, the Tradier sandbox engine — 10 names equal-weighted at 10% each
+(weights the contract's own **8% cap forbids**), inception 2026-08-03, three days later than the
+bound inception and so skipping the accrued drawdown the contract deliberately keeps.
+
+**FIXED STRUCTURALLY.** New `index_track.vs_spy_claim()` is the single authority for any
+Index-vs-SPY statement: bound source only, **no fallback to any other recorder**, and it returns
+the numbers with the **book** and the **window** welded into the same string. `summarize()` now
+draws its excess from it, so two derivations that happened to agree became one that must.
+`recap._delta()` (which took its own `index_ret − bench_ret`) is deleted.
+
+**The site had the same defect and the label did not save it.** `hero.py` fell back to the
+engine on every fresh deploy (`data/` is gitignored) with its own `(idx - bench) * 100`. It
+honestly set `source: "paper-sandbox"` — and **no template ever rendered that field**. *A label
+a surface can decline to show is not a safeguard*, so the wrong book is no longer reachable.
+
+Pinned by 4 new tests, each **mutation-tested** to prove it fails when the bug is present
+(including an AST scan that, run against the pre-fix `recap.py`, flags
+`line 212: index_ret - bench_ret`). One older test was replaced by a strictly harder one.
+**926 passed / 0 failed across 29 suites.**
+
+**STILL OPEN, and not this lane's:** `PT-SPLIT` remains OPEN for its other half — re-pointing
+the engine at the Index book, a live-Render construction change. `PT-WRITER` (Cowork) still has
+no automated daily write of the bound series, so on most days the honest post is now
+*"no Index-vs-SPY figure"*, which is what it says. **Nothing here can recall the 2026-08-05
+post.**
+
 > **Scope:** newest sections first — audit session 6 (this one), then session 5, then session 4, then session 3, then session 2,
 > then R1's original run, then session 1, then deep research #2, then the EV staleness fix, then
 > PEAD, then options 22b, then P9b/P10, then P7/P8. Canonical numbers in `BACKTEST_RESULTS.json`;
