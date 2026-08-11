@@ -93,8 +93,9 @@ the project's memory and the old versions had been repeated for months.
     pre-registered expectation** and is the recommended next item: `entry_spread_pct` as its own
     registered refusal rule, which inherits O13's discouraging Q3a prior.
   * **Options `N` 210 → 246. Equity `N` UNTOUCHED at 155** and `BACKTEST_RESULTS.json` needs no
-    re-run — the trial counter is domain-scoped. Expectations scored **5 right, 2 wrong** across
-    the two items. `data/free_analysis/O13_ANTISIGNAL.json`, `O12_KELLY_RUIN.json`;
+    re-run — the trial counter is domain-scoped. Expectations scored **5 right, 1 split, 2
+    wrong** across the two items — the split is flat-sizing-below-`f*`, which holds for five of
+    six account sizes and fails below $6,371. `data/free_analysis/O13_ANTISIGNAL.json`, `O12_KELLY_RUIN.json`;
     `HANDOFF_optionsbot.md` §24-28.
 - **THE STANDARDISER IS WORTH SEVERAL POINTS OF ALPHA AND NO THEME IC CAN SEE IT — S20 REJECTED,
   S21 NOT REPLICATED, AND THE STANDING RULE IS NOW PROVED RATHER THAN ANECDOTAL (2026-08-11,
