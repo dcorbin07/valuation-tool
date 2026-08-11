@@ -888,15 +888,39 @@ the project's memory and the old versions had been repeated for months.
   and it SURVIVED — the gap moved 0.61pp.** Every number in `HANDOFF_universe_backtest.md` was
   computed against a mis-stated underlying price (B1) plus B2/B3/B4/B15, and that file is now
   banner-marked SUPERSEDED. Re-run on the identical pinned 187-name universe:
-  **real +3.41%/trade vs a random-entry control's +10.06%, gap −6.65pp, date-block CI95
-  [−11.92pp, −2.13pp], paired sign-test z −4.903 (p < 1e−5)** over 1,334 name-year cells (5
-  control seeds, 29,785 control trades — see the seed note below). The
+  **CORRECTED 2026-08-11 (session 23, `U1-SPLIT`) — THE GAP IS −5.06pp, NOT −6.65pp, AND 24% OF
+  THE PUBLISHED GAP WAS A CORPORATE-ACTION ARTIFACT. THE VERDICT IS UNCHANGED.** The figures
+  below now read split-clean; the as-published ones are kept beside them because the
+  re-derivation reproduces them **to the digit**, which is what makes the correction checkable.
+  Option chains are as-traded and unadjusted for splits while `bars` ARE adjusted, and nothing in
+  the options lane consulted the split table — GE's 1-for-8 reverse split (2021-08-02) let a
+  $0.27 call settle against a ~$104 post-split underlying on a pre-split strike and book
+  **+31,921%** against a true value of **zero**. Full repair record in `PREREG_u1split_repair.md`.
+
+  | | as published | **split-clean (quote this)** |
+  |---|---|---|
+  | alert book | +3.41%/trade | **+3.2702%** (n 3,885 → 3,870) |
+  | five-seed control | +10.06%/trade | **+8.3342%** (n 29,785 → 29,654) |
+  | **gap** | −6.6468pp | **−5.0640pp** |
+  | date-block CI95 | [−11.9152, −2.1317]pp | **[−8.5957, −1.5325]pp** |
+  | paired sign-test z | −4.9027, 1,334 cells | **−4.9612, 1,332 cells (p 7e−07)** |
+
+  **THE CONTROL IS CONTAMINATED ~12× HARDER THAN THE ALERT BOOK** (15 rows vs 131) because it
+  draws many random days per name-year and so gets more shots at any split window — two GE draws
+  at +269x and +261x. **The defect was therefore making R2's negative verdict look WORSE than it
+  is, and correcting it runs TOWARD the alert.** It still loses decisively.
+  **REPORTED BECAUSE IT CUTS AGAINST THE OBVIOUS READING: the sign test does NOT weaken — it
+  strengthens slightly, −4.9027 → −4.9612.** The mean gap shrank because the artifact was a
+  right-tail phenomenon in the control; the median name-year cell never depended on it. The
   alert's day-selection subtracts value. **Do not describe the live options alert as a
   day-selection edge; it is an alert-generation mechanism.**
-  * **THE BREADTH CLAIM IS VOID.** "The edge survives breadth but roughly halves" is false. The
-    133 new names are now **−0.47%/trade (PF 0.988)**; all of the book's positive expectancy is
-    the original 54 megacaps (**+9.37%**). It is a megacap phenomenon that a corrupted price
-    basis made look broader.
+  * **THE BREADTH CLAIM IS VOID.** "The edge survives breadth but roughly halves" is false.
+    **CORRECTED 2026-08-11 (`U1-SPLIT`): split-clean the new names read −0.5589%/trade and the
+    baseline 54 megacaps +9.1391%** (as published: −0.4713% and +9.3720%, reproduced exactly).
+    **The count is 132 names, not the 133 this file has said** — `UNIVERSE_RESULTS.json`'s
+    `new_names_only.n_names` has always read 132. All of the book's positive expectancy is still
+    the original 54 megacaps, so the claim's substance is unchanged. It is a megacap phenomenon
+    that a corrupted price basis made look broader.
   * **B1's signature, for the record:** trades ROSE 3,042 → 3,885 because `no_contract_in_band`
     rejects fell 2,911 → 1,729 — an adjusted spot against as-traded strikes was throwing the
     0.90–1.20 moneyness prefilter, silently discarding 1,182 alerts. Median entry IV
@@ -929,6 +953,10 @@ the project's memory and the old versions had been repeated for months.
   measured on the PRE-CORRECTION 3,042-trade book and never updated; the corrected 3,885-trade
   book gives **design effect 2.2121 against null p95 1.2037**, which is what
   `UNIVERSE_RESULTS.json` has always shipped — the artifact was right, the prose was stale.
+  **CORRECTED 2026-08-11 (`U1-SPLIT`): split-clean the figures are design effect 2.1837 against
+  null p95 1.1898** — clustering is still measurable, the √-haircut is 1.478× rather than 1.487×,
+  and no verdict moves. Removing 15 of 3,885 trades was never going to shift an ICC materially,
+  and it did not; the figures are restated only so the file quotes one book throughout.
   **Every options *t* shrinks by √2.212 = 1.487×, not 1.36×**, and **no verdict changes** (checked,
   not assumed: R2 rests on the name-year sign test, the date-block intervals embed clustering by
   construction rather than applying the design effect as a haircut, and
@@ -948,9 +976,23 @@ the project's memory and the old versions had been repeated for months.
 - **POINT-IN-TIME LIQUIDITY RAISES THE OPTIONS HEADLINE — the audit expected it to fall
   (2026-08-05, audit O20).** Applying the miner's own screen at each entry date instead of to the
   name's first cached year: **PIT-liquid 3,359 trades at +4.82% vs PIT-illiquid 495 at −7.84%**,
-  coverage 99.2%. **But it does NOT rescue the signal** — the control is screened by the same
-  rule and benefits too, so on the liquid subset the real book loses to random entry MORE
-  decisively (z −3.475, p 0.0005). The headline stays the whole book at aggression 1.0.
+  coverage 99.2%. **CORRECTED 2026-08-11 (`U1-SPLIT`): split-clean these read 3,347 at +4.7293%
+  and 494 at −8.0168%** — the means reproduce as published to the digit and the correction moves
+  them by hundredths, so nothing here changes. **But it does NOT rescue the signal** — the
+  control is screened by the same rule and benefits too, so on the liquid subset the real book
+  loses to random entry MORE decisively (z −3.475, p 0.0005). The headline stays the whole book
+  at aggression 1.0.
+  **THE z OF −3.475 DID NOT REPRODUCE AND IS THEREFORE NOT RESTATED (2026-08-11, `U1-SPLIT`).**
+  Re-deriving the liquid-subset paired name-year sign test against the same-screened control
+  gives **−4.8953 as published** and −4.8109 split-clean, not −3.475, on a construction that
+  reproduces every other O20 figure exactly. The −3.475 is in no shipped artifact —
+  `UNIVERSE_RESULTS.json`'s `o20_point_in_time_liquidity` block carries no z at all — so it
+  cannot be reconciled from the repository, only re-derived by the lane that produced it.
+  **Neither number is quoted as the corrected one here**; the discrepancy is recorded instead,
+  because silently substituting a figure that happens to agree in direction is how the 1.85
+  design effect travelled out of scope. **Owner: the O20 lane.** The direction of O20's claim —
+  the liquid subset loses to its own control more decisively, not less — holds on every
+  construction tried.
   **The audit's premise is half wrong and this is the correction:** names were ranked into the
   mining pool by TODAY's market cap (true), but the liquidity screen was already applied to the
   FIRST CACHED YEAR, not to a present-day chain (`mine_options_cache.py:160`). So O20 is an

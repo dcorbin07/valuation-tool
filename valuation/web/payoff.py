@@ -53,8 +53,10 @@ comfortable arithmetic is the one that cries wolf.**
 WHAT THIS MODULE REFUSES TO DO
 ------------------------------
 It does not say the alerts work. It cannot, because they do not: measured against random entry
-on the same names and dates, the alert's day-selection SUBTRACTS value (−6.65pp per trade,
-paired sign test z −4.903, p < 1e-5, audit R2). A streak being normal is a statement about the
+on the same names and dates, the alert's day-selection SUBTRACTS value (−5.06pp per trade,
+paired sign test z −4.961, p < 1e-6, audit R2 as corrected by U1-SPLIT on 2026-08-11; the
+figure read −6.65pp / z −4.903 before a corporate-action defect was repaired, and the verdict
+is unchanged). A streak being normal is a statement about the
 SHAPE of a convex payoff. It is not evidence of edge, and `NOT_A_CLAIM` travels with every
 payload so the two cannot be read as one.
 
@@ -103,6 +105,10 @@ HIT_RATE_RANGE = "35-37%"
 #:      54 original megacaps  n=1,532   hit 37.27%   expectancy  +9.37%
 #:      132 names added       n=2,353   hit 34.04%   expectancy  -0.47%
 #:      whole book            n=3,885   hit 35.32%   expectancy  +3.41%
+#:
+#: CORRECTED 2026-08-11 (`U1-SPLIT`): split-clean these read +9.14% / -0.56% / +3.27% on
+#: n=1,528 / 2,342 / 3,870. The hit rates and the breadth story are unchanged; the constants
+#: above are left as transcribed because a test pins them to the banked book they came from.
 #:
 #: So the two endpoints of the range mean something specific — 37% is the megacap book, 35% is
 #: the broad one — and the spread is breadth, not a defect. Worth keeping written down, because
@@ -192,10 +198,20 @@ CLUSTERING = {
              "predicts; the verdict below therefore reads a measured table, not the formula"),
 }
 
+#: The measured R2 gap, as ONE constant, so the number a user reads and the number a test pins
+#: cannot drift apart. CORRECTED 2026-08-11 (`U1-SPLIT`): it read -6.65pp until a
+#: corporate-action defect was repaired -- option chains are as-traded and unadjusted for splits
+#: while bars are adjusted, and the five-seed control was contaminated ~12x harder than the alert
+#: book, so the artifact had been making this figure look WORSE than it is. The verdict is
+#: unchanged: the alert still loses to random entry, and it still is not an edge.
+R2_GAP_PP = -5.06
+R2_SIGN_Z = -4.961
+
 NOT_A_CLAIM = ("A normal-looking losing streak is a fact about the SHAPE of a convex payoff. It "
                "is not evidence the alerts work. Measured against random entry on the same "
-               "names, this book's day-selection subtracted value (-6.65pp per trade, sign test "
-               "p < 1e-5), so the alert is an idea generator, not a demonstrated edge.")
+               f"names, this book's day-selection subtracted value ({R2_GAP_PP:.2f}pp per trade, "
+               "sign test p < 1e-5), so the alert is an idea generator, not a demonstrated "
+               "edge.")
 
 HEADLINE = (f"Most of these lose. The middle trade gives back {abs(MEDIAN_TRADE):.0%} of the "
             f"premium and {P_STOP_OUT:.0%} hit the stop, while {P_TAIL_WIN:.0%} at least double "

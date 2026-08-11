@@ -437,3 +437,41 @@ of every DSR-gated claim and this file is one of the places that number gets quo
 −50% stop / half-DTE time stop**. Per Don's instruction there is no third state and no re-park.
 The dead-entry caveat of §0 stands unchanged: R2 is untouched by any of this, and no exit rule
 makes this book tradeable.
+
+
+---
+
+## 10. ADDENDUM 2026-08-11 — re-derived on split-clean data by `U1-SPLIT`. **THE VERDICT STANDS.**
+
+**Sections 1-9 are UNEDITED.** They record what was measured on 2026-08-11 against the corpus as
+it then stood, and that record is not rewritten. This section is additive.
+
+`U1-SPLIT` (see `PREREG_u1split_repair.md`) found that option chains are as-traded and unadjusted
+for splits while `bars` are adjusted, so a handful of trades whose contract life crosses a split
+carry corrupted marks. **The signal book loses 15 of 3,885 rows.** Because C1's bar and the arms'
+gains are computed on that corpus, both were re-derived — this was flagged in advance as the one
+figure that could change a verdict's relationship to its bar.
+
+| | as published (sections 8-9) | **split-clean** |
+|---|---|---|
+| C1 bar (p95 of 100 draws) | +5.0812pp | **+5.1302pp** |
+| `tp150` gain | +3.1948pp, 82nd pct | **+3.1834pp, 81st pct** |
+| `tp200` gain | +3.8238pp, 87th pct | **+3.8653pp, 87th pct** |
+| shipped | +3.410308%/trade | **+3.270181%/trade** |
+| draws beating shipped | 53 / 100 | **54 / 100** |
+| winsorised `tp150` (C2) | +2.4511pp | **+2.4371pp** |
+
+**BOTH ARMS STILL FAIL C1, AND THE MARGIN WIDENS**: `tp150`'s shortfall goes **1.8864pp ->
+1.9468pp**. The bar moved *up* and the gain moved *down* — both against the arm, the opposite of
+the direction a repair would need to run to rescue it. **Item A remains CLOSED and REJECTED. No
+policy changes; the paper options book keeps +100% target / -50% stop / half-DTE time stop.**
+
+**The re-derivation reproduces sections 8-9 exactly on the uncorrected corpus** — bar +5.0812pp,
+`tp150` +3.1948pp at the 82nd percentile, shipped +3.410308%/trade, 53/100 draws beating shipped,
+winsor cap +124.3pp with 39 capped — which is the control that makes the corrected column worth
+reading. `data/options_pathstudy/U1SPLIT_TPBAR.json`; reproduce with
+`python -m scripts.u1split_tpbar`.
+
+**Zero trial cost.** Re-deriving a published figure after repairing a defect in its inputs is not
+a new trial; options `N` stays 210. `TPBAR_NULL.json` and `TPBAR_VERDICT.json` are **not**
+overwritten — they remain the record of what was published.

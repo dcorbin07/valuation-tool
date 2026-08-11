@@ -442,7 +442,7 @@ does not dangle.
 ### Why the six prompts are safe to drop
 Executed briefs. Findings live in the ledger, `HANDOFF_universe_backtest.md` and CLAUDE.md's
 options section, and the entry signal they were written to develop has since been measured dead on
-corrected data (real +3.41%/trade vs a random-entry control's +10.06%, sign test z −4.903).
+corrected data (real +3.27%/trade vs a random-entry control's +8.33%, sign test z −4.961 — CORRECTED 2026-08-11, `U1-SPLIT`; was +3.41 / +10.06 / −4.903).
 **A superseded plan left in the tree invites a reader to treat it as a live one.**
 
 Untouched as instructed: every `HANDOFF_*.md`, every results file and register, `RUN_RULES.md`,

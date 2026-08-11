@@ -139,3 +139,130 @@ which is precisely why they are written down first.
 that already exist on a corpus that was always meant to be split-clean. Options `N` stays **210**,
 equity `N` stays **149**. Re-deriving a published number after fixing a defect in it is not a new
 trial, and charging one would create an incentive to leave defects unrepaired.
+
+
+---
+
+## 6. THE RESULT — repaired, re-derived, and **no verdict moves**
+
+Run 2026-08-11. `data/options_universe/U1SPLIT_REDERIVATION.json`,
+`data/options_universe/U1SPLIT_MANIFEST.json`, `data/options_pathstudy/U1SPLIT_TPBAR.json`.
+Reproduce with `python -m scripts.u1split_rebank` and `python -m scripts.u1split_tpbar`.
+
+### The control that makes the correction checkable
+
+**Every `as_published` figure reproduces the record to the digit** before any corrected number is
+quoted: gap **-6.6468pp**, date-block CI95 **[-11.9152, -2.1317]**, sign-test z **-4.9027** over
+**1,334** cells, breadth **+9.3720%** / **-0.4713%**, design effect **2.2121** vs null p95
+**1.2037**, and TP-BAR's bar **+5.0812pp** with `tp150` **+3.1948pp** at the **82nd** percentile
+and shipped **+3.410308%**/trade. A re-derivation that could not reproduce the old numbers would
+be evidence about the harness, not about the defect.
+
+### P1-P3 — the R2 headline
+
+| | as published | **split-clean** |
+|---|---|---|
+| alert book | +3.4103% (n 3,885) | **+3.2702%** (n 3,870) |
+| five-seed control | +10.0571% (n 29,785) | **+8.3342%** (n 29,654) |
+| **gap** | **-6.6468pp** | **-5.0640pp** |
+| date-block CI95 | [-11.9152, -2.1317]pp | **[-8.5957, -1.5325]pp** |
+| sign test | -4.9027, 577/1,334 (43.3%) | **-4.9612, 575/1,332 (43.2%), p 7e-07** |
+
+**24% of the published gap was a corporate-action artifact.** The control is contaminated ~12x
+harder (131 rows vs 15) because it draws many random days per name-year, so **the defect was
+making R2's negative verdict look worse than it is.**
+
+**REPORTED BECAUSE IT CUTS AGAINST THE OBVIOUS READING: the sign test does not weaken, it
+STRENGTHENS**, -4.9027 -> -4.9612. The mean gap shrank because the artifact lived in the
+control's right tail; the median name-year cell never depended on it. **That is also why D3 was
+wrong.**
+
+### P4-P6
+
+* **Breadth** — baseline 54 megacaps **+9.1391%**, new names **-0.5589%**. Sign preserved; the
+  claim's substance is unchanged. **The count is 132 names, not the 133 `CLAUDE.md` has said** —
+  `UNIVERSE_RESULTS.json` has always read 132.
+* **O20** — liquid **3,347 at +4.7293%**, illiquid **494 at -8.0168%**. Means move by hundredths.
+* **R3** — design effect **2.1837** vs shuffled null p95 **1.1898**; clustering still measurable,
+  haircut 1.478x rather than 1.487x.
+
+**P5's `z -3.475` DID NOT REPRODUCE AND IS NOT RESTATED.** The same construction that reproduces
+every other O20 figure gives **-4.8953** as published. The figure is in no shipped artifact, so
+it cannot be reconciled from the repository. **The discrepancy is recorded rather than papered
+over with a number that merely agrees in direction** — that is how the 1.85 design effect
+travelled out of scope. **Owner: the O20 lane.** O20's direction holds on every construction.
+
+### P7 — the one that could have reopened item A. **IT DOES NOT.**
+
+| | as published | **split-clean** |
+|---|---|---|
+| C1 bar (p95) | +5.0812pp | **+5.1302pp** |
+| `tp150` gain | +3.1948pp (82nd pct) | **+3.1834pp (81st)** |
+| `tp200` gain | +3.8238pp (87th pct) | **+3.8653pp (87th)** |
+| shipped | +3.410308%/trade | **+3.270181%** |
+| draws beating shipped | 53/100 | **54/100** |
+
+**Both arms still FAIL C1, and the margin WIDENS** — `tp150`'s shortfall goes 1.8864pp ->
+1.9468pp. **Item A stays closed; TP-BAR's verdict is unchanged.** The bar moved *up* and the gain
+moved *down*, i.e. both against the arm, which is the opposite of the direction a repair would
+need to run to rescue it.
+
+### Fingerprints re-stamped
+
+* **The freeze is untouched and that was verified, not asserted: 1,429 symbol-years checked,
+  0 changed.** This repair never writes to `data/options/`, so every banked replay pin still
+  holds and no frozen result becomes unreplayable.
+* Corrected books are **new files** — `state_r2_splitclean.pkl`,
+  `control_r2_splitclean_seed{0..4}.pkl`. **Originals are never overwritten**; they are the
+  record of what was published and are needed to check this very correction.
+  `U1SPLIT_MANIFEST.json` carries sha256 of **both** sides of all six books plus the freeze
+  manifest.
+
+### Equivalence, verified rather than assumed
+
+Re-mining the 2021-07-22 rebalance **under the guard** produced **146** trades against **147**
+banked; the dropped row was **GE**; the key sets matched exactly and **0 of 146 shared trades
+differed on any field**. That is what licenses re-banking ~34,000 trades by filter instead of a
+multi-hour re-mine.
+
+### The live product was quoting the wrong figure, and a test caught the change
+
+`valuation/web/payoff.py` renders the R2 gap to **users**, and `tests/test_payoff.py` pins the
+exact string with the message *"the measured R2 gap must be quoted, not gestured at"*. Correcting
+the copy broke that test — **which is the test working**, not an obstacle.
+
+**The pin was UPDATED, never loosened.** A test that stopped naming a number would stop enforcing
+the property it exists for. The figure now lives in ONE constant, `payoff.R2_GAP_PP = -5.06`,
+which the rendered sentence interpolates and the test asserts against **both** the constant and
+the literal — so the number a user reads and the number a test pins cannot drift apart, and
+neither can move alone.
+
+### A defect in the repair, found by the repair's own check
+
+The guard's rejections were being counted as `no_trade` — `u1_entry._mine_cell` collapsed every
+simulation failure to one label — so the guard worked but **could not be seen working**, against
+this register's own promise that rejections would be "counted, never silent". Found by the
+equivalence check, not by reading the code. Fixed; the counter now reads
+`split_in_contract_life: 1`, and a test pins it.
+
+### The expectations, scored: **6 right, 1 wrong**
+
+| | prediction | outcome |
+|---|---|---|
+| D1 | gap ~ -5.06pp, still negative and significant, verdict unchanged | **RIGHT** |
+| D2 | date-block CI95 still excludes zero on the negative side | **RIGHT** |
+| D3 | sign-test z *shrinks* in magnitude by < 0.5, stays past -4 | **WRONG** — it *grew*, -4.9027 -> -4.9612. Right about the size of the move (0.0585), wrong about its sign |
+| D4 | breadth keeps its sign | **RIGHT** — new names -0.5589% |
+| D5 | TP-BAR's bar and `tp150` each move < 0.5pp; `tp150` still fails | **RIGHT** — 0.0490 and 0.0114 |
+| D6 | no verdict anywhere flips | **RIGHT** |
+| D7 | freeze verifies, zero symbol-years move | **RIGHT** — 1,429 checked, 0 changed |
+
+**D3 is the instructive miss**: it assumed a correction that shrinks a mean must weaken the
+statistic built on it. The two are different objects — one is a tail average, the other a count
+of cell wins — and the artifact only ever lived in the tail.
+
+### Trial cost
+
+**Zero, as committed.** Options `N` stays **210**, equity **149**. **No research-log row is
+added**: the log is one row per pre-registered *test*, and this is a correctness repair that
+tested no hypothesis. It is recorded in `VALQUO_LEDGER.md` instead.

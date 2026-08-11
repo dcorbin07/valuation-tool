@@ -27,7 +27,8 @@ wrong:
     same distinction TP-BAR turned on, stated here because it is the easiest thing to over-read.
 
 R2 STANDS AND TRAVELS WITH EVERY NUMBER PRODUCED HERE: the shipped alert loses to a five-seed
-random-entry control (+3.41%/trade vs +10.06%, sign z -4.903). U1 does not repair that, and a
+random-entry control (+3.27%/trade vs +8.33%, sign z -4.961, split-clean per U1-SPLIT
+2026-08-11; as published +3.41 vs +10.06, z -4.903). U1 does not repair that, and a
 positive U1 would not make the alert tradeable.
 """
 from __future__ import annotations
@@ -139,37 +140,31 @@ def grid_cells(by_date: dict, bars_by_ticker: dict, start: str, end: str) -> lis
 # return. A rule that dropped "implausibly large" P&L would be selecting on the outcome, which is
 # the one thing a null must not let the arm do.
 def load_splits(data_root: str) -> dict:
-    """{ticker: [(iso_date, ratio)]} for every ticker with a real split. Ratio 1.0 is dropped."""
-    import os
-    import pickle
-    p = os.path.join(data_root, "bulk", "prepared", "actions.pkl")
-    with open(p, "rb") as f:
-        act = pickle.load(f)
-    out = {}
-    for t, rec in act.items():
-        ss = [(str(d)[:10], float(r)) for d, r in (rec.get("splits") or [])
-              if r and abs(float(r) - 1.0) > 1e-9]
-        if ss:
-            out[str(t)] = sorted(ss)
-    return out
+    """{ticker: [(iso_date, ratio)]} — DELEGATES to `options_backtest.load_splits`.
+
+    One split table in the project. This used to carry its own copy; the repair moved the
+    canonical implementation down to `options_backtest`, where the entry guard also lives, and
+    `test_composite_entry` fails if this ever stops delegating. A project with two split tables
+    ends up with two answers.
+    """
+    from .options_backtest import load_splits as _ls
+    return _ls(data_root)
 
 
 def spans_split(row, splits: dict) -> bool:
     """True if a split falls inside this trade's contract life, `(alert_ts, expiry]`.
 
-    The window is the CONTRACT LIFE, not the realised holding period, and deliberately so: an
-    exit is priced off a quote series that the split has already corrupted, so a trade that
-    *exited before* the split can still have been marked against post-split quotes on its way
-    there. Taking the wider window over-excludes by a handful of rows and under-excludes by none.
+    DELEGATES the window test to `options_backtest.split_in_window`, which is the same predicate
+    the entry guard applies — so a row filtered out of a banked book here is exactly a candidate
+    the guard would have refused at source. That equivalence is what lets the books be re-banked
+    by filtering instead of re-mined.
     """
-    ss = splits.get(str(row.get("ticker") or ""))
-    if not ss:
-        return False
+    from .options_backtest import split_in_window
     a = str(row.get("alert_ts") or "")[:10]
     exp = str(row.get("expiry") or "")[:10]
     if not a or not exp:
         return False
-    return any(a < d <= exp for d, _ in ss)
+    return split_in_window(splits, str(row.get("ticker") or ""), a, exp)
 
 
 def drop_split_spanners(rows, splits: dict) -> tuple:

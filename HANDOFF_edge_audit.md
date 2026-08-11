@@ -2091,7 +2091,7 @@ variable. Window 2016-01-01 → 2025-10-15, unchanged. Nothing re-tuned.
 | | pre-correction | **corrected** |
 |---|---|---|
 | real / control expectancy | +5.14% / +13.22% (2 seeds) | **+3.41% / +10.06% (5 seeds)** |
-| gap | −8.08pp | **−6.65pp** |
+| gap | −8.08pp | **−6.65pp** (CORRECTED 2026-08-11, `U1-SPLIT`: **−5.06pp** split-clean; verdict unchanged) |
 | **date-block CI95 on the gap** | [−11.66pp, −4.51pp] | **[−11.92pp, −2.13pp]** |
 | negative at significance | YES | **YES** |
 | paired name-year cells / wins | 441 / 1,052 = 41.9% | **577 / 1,334 = 43.3%** |

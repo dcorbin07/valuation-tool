@@ -3740,3 +3740,123 @@ Three scored arms: **options `N` 207 → 210**, verified from `research_log.deta
 session-10 precedent. **Equity `N` reads 149, not the 143 this session started quoting** — S23's
 six arms landed from another lane mid-run, and a stale `N` overstates every DSR-gated claim, so
 it was re-measured rather than copied.
+
+
+# SESSION 23b — 2026-08-11 — `U1-SPLIT` **repaired at source**. R2's published gap was 24% artifact; **no verdict moved.**
+
+My own finding from U1's calibration, chased to the end. Pre-registered in
+`PREREG_u1split_repair.md`, **committed alone before any repair code existed**, naming the eight
+published figures that move and the expected direction of each.
+
+---
+
+## 1 · Reproduced from the bars before anything was touched
+
+`options_backtest.simulate_trade` settles at intrinsic against `bars["raw_close"]` — the
+**unadjusted** close, with the comment *"as-traded: strikes are not adjusted"*. Correct **within**
+a split-free window, wrong **across** one.
+
+| date | `raw_close` | `adj_close` |
+|---|---|---|
+| 2021-07-30 | 12.9500 | 63.3710 |
+| **2021-08-02** (GE 1-for-8 reverse) | **100.6000** | 61.5360 |
+| 2021-09-17 (expiry) | 100.4700 | 61.4570 |
+
+The banked row: strike 14.00, entry 0.2700, exit **86.4700** — and `max(0, 100.4700 − 14.00) =
+86.4700` **to the cent**. **The true value is not "unknowable", it is ZERO**: the OCC adjusts the
+*deliverable* to 12.5 new shares and leaves the strike, so true P&L is **−100%** against a booked
+**+31,921%**.
+
+## 2 · The exposure was wider than my first diagnosis, and that changed the repair
+
+**106 of the 131 affected control rows never reach the settlement line** — they exit on target or
+stop, i.e. on **post-split quotes**. A reverse split keeps the strike, so `contract_history`,
+which matches on exact strike, happily returns quotes referring to an adjusted deliverable. A
+settlement-only patch would have left the larger channel open.
+
+**So the guard rejects at ENTRY, on the contract life `(entry, expiry]`, decided before
+simulation** and therefore provably outcome-independent. Dropping only trades whose *exit* lands
+after the split would be keyed on exit timing — which is determined by the payoff.
+
+**Exclusion, not re-pricing, with the direction disclosed:** since the flagship case's true value
+is −100%, re-pricing would push the control's mean *further* down and help the alert *more*.
+**Exclusion is the conservative choice against R2's standing negative verdict.**
+
+## 3 · The control first: every as-published figure reproduces to the digit
+
+Gap −6.6468pp · CI95 [−11.9152, −2.1317] · sign z −4.9027 over 1,334 cells · breadth +9.3720% /
+−0.4713% · design effect 2.2121 vs null p95 1.2037 · TP-BAR bar +5.0812pp with `tp150` +3.1948pp
+at the 82nd percentile · shipped +3.410308%/trade. **A re-derivation that could not reproduce the
+old numbers would be evidence about the harness, not the defect.**
+
+## 4 · The headline moves; the verdict does not
+
+| | as published | **split-clean** |
+|---|---|---|
+| alert book | +3.4103% | **+3.2702%** |
+| five-seed control | +10.0571% | **+8.3342%** |
+| **gap** | **−6.6468pp** | **−5.0640pp** |
+| date-block CI95 | [−11.9152, −2.1317]pp | **[−8.5957, −1.5325]pp** |
+| sign test | −4.9027, 1,334 cells | **−4.9612, 1,332 cells, p 7e−07** |
+
+**24% of the published gap was a corporate-action artifact.** The control is contaminated ~12×
+harder (131 rows vs 15) — many random days per name-year means more shots at any split window —
+so **the defect was making R2 look WORSE than it is.**
+
+**REPORTED BECAUSE IT CUTS AGAINST THE OBVIOUS READING: the sign test does not weaken, it
+STRENGTHENS** (−4.9027 → −4.9612). The mean gap shrank because the artifact lived in the
+control's right tail; the median name-year cell never depended on it.
+
+## 5 · P7 — the one that could have reopened item A. **It does not.**
+
+| | as published | **split-clean** |
+|---|---|---|
+| C1 bar | +5.0812pp | **+5.1302pp** |
+| `tp150` | +3.1948pp (82nd) | **+3.1834pp (81st)** |
+| `tp200` | +3.8238pp (87th) | **+3.8653pp (87th)** |
+
+**Both arms still FAIL C1 and the margin WIDENS** — `tp150`'s shortfall 1.8864 → 1.9468pp. The
+bar moved *up*, the gain moved *down*: both against the arm. **Item A stays closed.**
+
+## 6 · Fingerprints re-stamped
+
+* **Freeze verified, not asserted: 1,429 symbol-years checked, 0 changed.** The repair never
+  writes to `data/options/`, so every banked replay pin still holds.
+* Corrected books are **new files**; **originals are never overwritten** — they are the record of
+  what was published and are needed to check this correction. `U1SPLIT_MANIFEST.json` carries
+  sha256 of both sides of all six books.
+* **Equivalence verified:** re-mining 2021-07-22 under the guard gave 146 trades vs 147 banked,
+  the dropped row was GE, key sets matched, **0 of 146 shared trades differed on any field**.
+
+## 7 · BUGS FOUND
+
+* **A defect in my own repair, caught by the repair's own check.** `u1_entry._mine_cell` collapsed
+  every simulation failure to `no_trade`, so the guard worked but **could not be seen working** —
+  against this register's own promise that rejections would be counted and named. Found by the
+  equivalence check, not by reading the code. Fixed and pinned.
+* **`CLAUDE.md` said "133 new names"; it is 132.** `UNIVERSE_RESULTS.json` has always read 132.
+* **O20's `z −3.475` does not reproduce and is NOT restated.** The construction that reproduces
+  every other O20 figure gives **−4.8953** as published. It is in no shipped artifact, so it
+  cannot be reconciled from the repository. Recorded as unreconciled rather than replaced with a
+  number that merely agrees in direction — that is how the 1.85 design effect travelled out of
+  scope. **Owner: the O20 lane.**
+
+## 8 · What I did NOT do, and why
+
+* **Did not re-price.** §2 gives the reason and the direction it costs.
+* **Did not re-mine the books.** Equivalence was verified instead; re-mining ~34,000 trades to
+  reach a provably identical set would spend hours for nothing.
+* **Did not edit sections 1–9 of `PREREG_A_take_profit_bar.md`, nor overwrite `TPBAR_NULL.json`.**
+  Registers and banked artifacts record what was measured then. The re-derivation is an additive
+  §10.
+* **Did not re-run the path study, O1/exitlab or the autopsy split-clean.** Their inputs move by
+  the same 15 rows; none of their verdicts rests on a margin this small, and re-banking them is
+  the owning lane's call. Flagged, not done.
+
+## 9 · Accounting
+
+**Zero trials, as committed** — a correctness repair tests no hypothesis, and charging one would
+create an incentive to leave defects unrepaired. Options `N` stays **210**, equity **149**. **No
+research-log row**: that log is one row per pre-registered *test*. Expectations scored **6 right,
+1 wrong** (D3 assumed a correction that shrinks a mean must weaken the statistic built on it —
+different objects).

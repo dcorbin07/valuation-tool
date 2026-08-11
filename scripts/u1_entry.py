@@ -67,6 +67,8 @@ def _init(data_root: str, aggression: float):
     _G["bars_dir"] = os.path.join(data_root, "bulk", "prepared", "bars")
     _G["caps"] = U.load_caps(data_root)
     _G["aggression"] = aggression
+    from valuation.edge import options_backtest as OB
+    _G["splits"] = OB.load_splits(data_root)
 
 
 def _mine_cell(cell: dict, bars: dict) -> dict:
@@ -92,10 +94,18 @@ def _mine_cell(cell: dict, bars: dict) -> dict:
     row = OB.pick_contract(chain, und, day, right="C")
     if row is None:
         return {"reject": "no_contract_in_band"}
+    # U1-SPLIT at source. U1 already filtered these rows post hoc; passing the guard here means a
+    # re-mine never produces them in the first place, and the two routes must agree exactly —
+    # `test_u1_split_repair` pins that equivalence, since it is what lets the banked books be
+    # re-banked by filtering rather than re-mined.
     t = OB.simulate_trade(_G["prov"], cell["ticker"], row, day, bars,
-                          aggression=_G["aggression"])
+                          aggression=_G["aggression"], splits=_G.get("splits"))
     if not t or not t.get("ok"):
-        return {"reject": "no_trade"}
+        # Propagate the REASON. This used to collapse every simulation failure to "no_trade",
+        # which silently hid the U1-SPLIT guard's own rejections behind a generic counter —
+        # found by the equivalence check, not by reading the code. The register promised these
+        # would be counted and named, so they are.
+        return {"reject": str((t or {}).get("reason") or "no_trade")}
     r = OB.to_alert_row(cell["ticker"], day, row, t, None, [], None, None)
     mc = cap_at(_G["caps"], cell["ticker"], d)
     r["marketcap_musd"] = mc

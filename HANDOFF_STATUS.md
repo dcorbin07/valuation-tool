@@ -4,6 +4,72 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — options bot, session 23b (U1-SPLIT): R2's published gap was 24% artifact, repaired at source, and NO VERDICT MOVED
+
+**Quote R2 as −5.06pp, not −6.65pp.** That is the one thing to carry away.
+
+A corporate-action defect found during U1's calibration has been repaired at source and every
+figure it touched re-derived. Pre-registered in `PREREG_u1split_repair.md`, committed alone before
+any repair code existed, naming the eight published figures that move and the expected direction
+of each.
+
+**The defect.** Option chains are as-traded and unadjusted for splits while Sharadar bars ARE
+adjusted, and nothing in the options lane consulted the split table. GE's 1-for-8 reverse split
+(2021-08-02) moved `raw_close` 12.95 → 100.60 while the strike stayed pre-split, so a $0.27 call
+settled at `max(0, 100.47 − 14.00) = 86.47` — booking **+31,921%** against a true value of
+**zero** (the OCC adjusts the deliverable to 12.5 shares and leaves the strike).
+
+**The exposure was wider than first diagnosed.** 106 of 131 affected control rows never reach the
+settlement line — they exit on target or stop, i.e. on post-split quotes, because a reverse split
+keeps the strike and the history lookup matches on exact strike. So the guard rejects at ENTRY on
+the contract life, decided before simulation and therefore outcome-independent, keyed on an
+external table and a date and never on the size of a return.
+
+**The headline moves, the verdict does not.**
+
+| | as published | split-clean |
+|---|---|---|
+| alert book | +3.4103%/trade | +3.2702% |
+| five-seed control | +10.0571%/trade | +8.3342% |
+| gap | −6.6468pp | **−5.0640pp** |
+| date-block CI95 | [−11.92, −2.13]pp | [−8.60, −1.53]pp |
+| sign test z | −4.9027 | −4.9612 (p 7e−07) |
+
+**24% of the published gap was an artifact.** The control is hit ~12× harder than the alert book,
+so the defect had been making R2's negative verdict look WORSE than it is. Reported because it
+cuts against the obvious reading: **the sign test does not weaken — it strengthens** (−4.9027 →
+−4.9612), because the artifact lived in the control's right tail and the median name-year cell
+never depended on it.
+
+**TP-BAR was flagged in advance as the one figure that could reopen a closed item. It does not.**
+Split-clean the C1 bar goes +5.0812 → +5.1302pp and tp150's gain +3.1948 → +3.1834pp, so both
+arms still fail C1 and the margin WIDENS (1.8864 → 1.9468pp). **Item A stays closed.**
+
+**Every as-published figure reproduces to the digit before any corrected one is quoted** — that
+is the control that makes the correction checkable.
+
+**Fingerprints re-stamped.** The freeze is untouched and verified rather than asserted: 1,429
+symbol-years checked, 0 changed, so every banked replay pin still holds. Corrected books are NEW
+files; originals are never overwritten. `U1SPLIT_MANIFEST.json` carries sha256 of both sides of
+all six books.
+
+**Corrected in place and dated**: CLAUDE.md, HANDOFF_parked_positives.md, HANDOFF_ci.md,
+HANDOFF_edge_audit.md, and **live product copy in `valuation/web/payoff.py`, which was rendering
+−6.65pp to users**. Also corrected: the breadth count is 132 names, not the 133 CLAUDE.md said.
+
+**Still open, owned elsewhere.** O20's `z −3.475` does NOT reproduce — the construction that
+reproduces every other O20 figure gives −4.8953 as published — and it appears in no shipped
+artifact, so it is recorded as unreconciled rather than silently replaced. **Owner: the O20
+lane.** Separately, the path study, O1/exitlab and the autopsy were NOT re-run split-clean; their
+inputs move by the same 15 rows and no verdict of theirs rests on a margin that small, but
+re-banking them is the owning lane's call.
+
+**Accounting.** Zero trials — a correctness repair tests no hypothesis. Options `N` stays 210,
+equity 149. Expectations scored 6 right, 1 wrong. Test gate: 51 suites, 0 failing.
+
+**Recommended next step.** U2 (options surface → stock signals) is now the only untested direction
+of the unification, and it does not inherit U1's horizon mismatch.
+
 ## 2026-08-11 — options bot, session 23 (U1): the equity edge does NOT reach the options book, and a split defect moves R2 by 24%
 
 **U1 is REJECTED.** It was the ledger's oldest blocked unification item and the first test of

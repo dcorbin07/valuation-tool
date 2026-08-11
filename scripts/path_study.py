@@ -9,8 +9,9 @@ static ladders against it and rejected all of them; O23 showed half of any exit'
 is just the underlying. Neither looked at the PATH: how deep a trade digs before it dies, whether
 a -40% option comes back, how long a winner takes, what happens after a winner hits its target.
 
-THE CAVEAT TRAVELS WITH EVERY NUMBER. The options entry signal is dead (R2: +3.41%/trade against
-a five-seed random-entry control's +10.06%, sign-test z -4.903). Nothing computed here is a
+THE CAVEAT TRAVELS WITH EVERY NUMBER. The options entry signal is dead (R2: +3.27%/trade against
+a five-seed random-entry control's +8.33%, sign-test z -4.961 - split-clean per U1-SPLIT
+2026-08-11; as published +3.41 / +10.06 / -4.903, and the verdict is unchanged). Nothing computed here is a
 tradeable-edge claim. It is paper-book policy and structural knowledge.
 
 THE SOURCE. Paths are rebuilt from the frozen chains

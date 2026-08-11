@@ -17,8 +17,8 @@ Applies, mechanically, the discipline `PREREG_path_study.md` §5 committed befor
   * ambiguous = NULL.
 
 AND THE CAVEAT THIS GATE CANNOT REMOVE. The options entry signal is dead — R2 measured the real
-book at +3.41%/trade against a five-seed random-entry control's +10.06%, paired sign test
-z −4.903. A verdict produced here is a verdict about how the PAPER book exits, never about
+book at +3.27%/trade against a five-seed random-entry control's +8.33%, paired sign test
+z −4.961 (split-clean per U1-SPLIT 2026-08-11; as published +3.41 / +10.06 / −4.903). A verdict produced here is a verdict about how the PAPER book exits, never about
 whether the alert is worth trading. Even an ADOPT would ship to the paper book only.
 """
 import argparse

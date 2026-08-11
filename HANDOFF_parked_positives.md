@@ -108,7 +108,8 @@ construction"*. `tp150`/`tp200` satisfy both, so it is not unsatisfiable — but
 should be re-examined before another thread reuses it.
 
 **The honest counter, which must travel with this item.** The effect is measured on a book whose
-*entry* signal is dead — R2 established the alert loses to random entry by −6.65pp
+*entry* signal is dead — R2 established the alert loses to random entry by −5.06pp
+(**CORRECTED 2026-08-11, `U1-SPLIT`**; the published −6.65pp predates the corporate-action repair, and the verdict is unchanged)
 (`CLAUDE.md`). Improving the exit of a book with no entry edge raises a negative number toward
 zero; it does not create an edge. **The record already says this**: the effect *"replicates on
 random entries with equal or larger size, whatever effect exists is a property of the exit, not
@@ -503,7 +504,7 @@ re-litigating a loss, not funding a confirmation:
 * **Cross-section of option returns** (deep research #2) — nothing clears the gate; one
   characteristic sorts backwards from the literature.
 * **VRP put-credit-spread arm** (A3) — fails five of seven pre-committed gate arms by a wide margin.
-* **The options entry signal** (R2) — −6.65pp vs random entry, sign-test z −4.903.
+* **The options entry signal** (R2) — **−5.06pp** vs random entry, sign-test z **−4.961** (CORRECTED 2026-08-11, `U1-SPLIT`; was −6.65pp / −4.903).
 * **U7, composite as an options veto** — all three pre-registered cells go the wrong way.
 * **Sector-neutral under FLAT weights** — worse on both metrics; only the *deployed*-weights arm
   produced the LS-t gain in §3.

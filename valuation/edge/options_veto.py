@@ -28,7 +28,8 @@ and that the shipped path is the conservative one.
     nobody had checked until it was measured.
 
 Every number produced here sits inside a book that R2 showed loses to random entry
-(+3.41%/trade against a control's +10.06%). A veto that improves this book improves a book with
+(+3.27%/trade against a control's +8.33%, split-clean per U1-SPLIT 2026-08-11; as published
++3.41% vs +10.06%). A veto that improves this book improves a book with
 a negative day-selection edge. That sentence travels with the results.
 """
 from __future__ import annotations
