@@ -45,6 +45,38 @@ from 2026-08-12, unchanged from sessions 15 and 16: whether the Cowork writer
 
 ---
 
+## ITEM A / THE TAKE-PROFIT BAR (options-bot lane, 2026-08-10) — **A DECISION IS WAITING ON DON**
+
+Memo: **`PREREG_A_take_profit_bar.md`**; ledger row `TP-BAR`; write-up in
+`HANDOFF_optionsbot.md`. **It changes no policy and ends at Don's choice**, exactly as the
+paper-track contract did. **The dead-entry caveat attaches to every option, including "adopt":
+R2 stands, the alert loses to random entry by −6.65pp, and no exit rule makes this book
+tradeable.**
+
+Raising the take-profit +100% → +150/200% has been measured twice and refused by a **+10pp**
+bar that was set for adopting a *construction* change. Reconciled: look 1 (2026-08-03) gives
++2.11/+3.26pp, look 2 (O1 off the freeze, 2026-08-08) gives **+3.19/+3.82pp**, and the path
+study's same-direction arms (+1.50 to +3.60pp) lean the same way without clearing. **The
+inventory's "two independent runs" is too strong** — the two books share 1,099 trades (28.3% of
+the larger) and the path study runs on the larger one exactly.
+
+**Why the bar was wrong, from the distribution:** of all **33** exit arms ever scored on this
+book, exactly **one** clears +10pp — `tp100_only` — and it fails FDR, raises tail concentration
+to 92.75%, and fails its own sign test on the alert book. The unit is the deeper problem: the
+**top 1% of trades carry 106–210% of each arm's entire gain**, so the other 99% are collectively
+negative. **And the obvious fix is refuted** — a *relative* bar drifts +62%/+109% between the two
+books where the absolute gain drifts +17%/+52%, so absolute is the more stable unit.
+
+**The memo pre-registers a procedure, not a number** (calibrate the level as X7 did; add a
+condition that does not run through the mean), and notes the timing fact: the paper options book
+has **three open positions and ZERO closed trades**, so a change now breaks no forward-record
+continuity — which makes adopting *cheap*, not *right*, and expires with the first close.
+
+**Don's three options are in `HANDOFF_optionsbot.md` §5.** Recommendation on record: **option 2**
+— require one calibrated confirmation, then decide. Zero trials; options `N` stays 205.
+
+---
+
 ## THE PATH STUDY (options-bot lane, 2026-08-10) — NOTHING CHANGES, AND THAT IS THE RESULT
 
 Full write-up in `HANDOFF_optionsbot.md`; ledger row `PATHSTUDY`; pre-registration committed at

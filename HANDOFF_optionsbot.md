@@ -3355,3 +3355,119 @@ passed anyway; here a test read state CI lacks and would have died.*
 Stage 1 is descriptive: no arm, no bar, no verdict, **zero trials**. Stage 2 charges its
 **13 arms to options `N`**, as the register committed, whatever the verdicts —
 options **192 → 205**. Equity `N` is untouched at **135**, so no DSR-gated equity claim moves.
+
+---
+
+# ITEM A — THE TAKE-PROFIT BAR: a decision memo, not a change (2026-08-10)
+
+Full memo, written as a pre-registration: **`PREREG_A_take_profit_bar.md`**. It ends at Don's
+choice and **changes no policy**, exactly as `PAPER_TRACK_CONTRACT.md` did. Ledger row `TP-BAR`.
+
+`HANDOFF_parked_positives.md` item A is the one entry on that list whose missing input is a
+judgement rather than data: raising the take-profit +100% → +150/200% is measured twice and was
+refused by a **+10pp per-trade** bar. **The caveat travels with every option below: the entry
+signal is dead (R2, −6.65pp vs a five-seed control, sign-test z −4.903), so nothing here makes the
+options alert tradeable.** This is about how a paper book exits.
+
+## 1. The three looks reconciled — and the inventory's independence claim is too strong
+
+| # | run | trade set | baseline | `tp150` | `tp200` |
+|---|---|---|---|---|---|
+| 1 | deep-research, 2026-08-03 | 3,119 / 5,986 | +4.708%/trade | +2.11pp | +3.26pp |
+| 2 | O1 off the freeze, 2026-08-08 | **3,885 / 29,785** | +3.410%/trade | **+3.19pp** | **+3.82pp** |
+| 3 | path study F-family, 2026-08-10 | **the same 3,885** | +3.410%/trade | — | — |
+
+Look 3 tested no raised target directly (its families were path-*conditional*), but everything it
+ran in that direction leans the same way and lands in the same range: `escalate_fast` **+2.40pp**,
+`clean_runner` **+1.50pp**, `trail50_after100` **+3.60pp**. None cleared.
+
+**Measured, not asserted: look 1 and look 2 share 1,099 trades — 35.2% of look 1, 28.3% of look 2
+— and look 3 runs on look 2's book exactly.** So item A's *"replicated in two independent runs"*
+overstates it. What we own is **two partially-overlapping trade sets and three analyses**. The
+direction has never disagreed (five positives from five looks, two books, two entry sets), but it
+is one option corpus examined three times. Also: the inventory's `+3.19/+3.82` are look 2's; look
+1's own artifact reads `+2.11/+3.26`. Anyone quoting item A should say which book.
+
+## 2. Why +10pp was the wrong bar — from the distribution, not from wanting to pass
+
+* **Attainability, measured over all 33 exit arms ever scored on the 3,885-trade book: exactly
+  ONE clears +10pp.** `tp100_only` at **+10.78pp** — and it **fails paired-cell FDR**, raises tail
+  concentration from 86.75% to **92.75%**, and (inventory item J) fails the name-year sign test on
+  the alert book at **z −5.76** while passing on random at +10.55. **A bar that only a discredited
+  arm can clear is not selecting for quality; on this family it is selecting for removing the
+  stop.**
+* **The unit is the real problem, and lowering the number does not fix it.** This book's
+  expectancy is a tail statistic — hit rate 35.3%, median trade −52.2%, **86.75% of gross winnings
+  from the tail**. The *gains* are worse: over the per-trade differences, the **top 1% of trades
+  carry 106–210% of each arm's entire gain**, so the other 99% are collectively negative. "+3.82pp
+  of expectancy" is a claim about a few dozen contracts.
+* **THE OBVIOUS FIX IS REFUTED BY MEASUREMENT, and it was the one I expected to endorse.** "Use a
+  relative bar, the payoff is multiplicative" fails on the two books we have: between look 1 and
+  look 2 the **absolute** gain drifts +17% (`tp200`) and +52% (`tp150`), while the **relative**
+  gain drifts **+62%** and **+109%** — because the baseline expectancy itself fell −27.6%.
+  **The absolute figure is two to four times the more stable unit.** Reported because it cuts
+  against the case for adopting.
+* **The bar is also nowhere near the design's resolution.** Month-block clustered SEs on the
+  paired gain run **0.29pp to 2.10pp**, so the design resolves ~0.6–4.2pp at |t| = 2. A 10pp bar
+  sits an order of magnitude from the noise, in a region this family never visits.
+
+## 3. What the memo pre-registers instead — a procedure, not a number
+
+**What a paper-book bar is FOR, which is what fixes its shape.** A bar on a live-money change is
+an *economic* instrument — "is this worth the cost and risk of doing?" — and a large absolute
+threshold is reasonable there because small edges do not survive frictions. A bar on a **paper**
+book is an *epistemic* one: no money moves, it reverses in one constant, and §4 shows it breaks no
+forward-record continuity. The cost of adopting a small *true* improvement is ≈ 0; essentially the
+whole downside is adopting an artefact of having looked at the same 3,885 trades three times.
+**So the bar should be sized to separation from noise, not to materiality — and a large absolute
+pp threshold is a materiality test wearing a significance test's clothes.** That, not its level,
+is why +10pp was the wrong instrument.
+
+**And it deliberately names no replacement level.** Any number argued in prose would be a number
+chosen after seeing which arms pass. X7 is the precedent: measure what the null produces and take
+a percentile. So the memo commits to **C1** a calibrated level (p95 of a null built by jittering
+exit parameters, n=100, seeds 1000–1099, identical paths and scorer, binding whatever it returns
+— including a bar above +3.82pp that refuses the change again); **C2** a condition that does not
+run through the mean (the gain must survive winsorising the top 1% of per-trade differences — a
+real hazard given the table above); **C3** entry-independence, already satisfied; **C4** the
+existing FDR / both-halves / both-sets / PBO gates. **No new market data is required for any of
+it.**
+
+## 4. The timing fact most likely to be assumed wrong
+
+**The paper options book holds three positions — TGT, ETN, MET — all OPEN, and ZERO closed
+trades** (verified against the committed export). A policy change now breaks **no** forward-record
+continuity, because no options exit has ever been recorded. That makes "adopt" *cheap*, not
+*right* — and it expires with the first closed trade. Checked and not assumed: no vintage closes
+either, because the contract binds the published **Index**, not this book.
+
+## 5. The three options, as put to Don
+
+1. **Adopt `tp150` on the paper book now.** Accepts +3.19pp against a bar revised after seeing the
+   numbers, and gives up the right to say it cleared a pre-committed bar. `tp150` over `tp200`
+   because `tp200`'s extra +0.6pp costs hit rate 35.3% → 31.3%, target exits 27.1% → 13.4%, and
+   three extra days of hold. Zero trials, reversible in one constant.
+2. **Require one confirmation (C1–C4), then decide.** No new data, one session's compute. Placebo
+   calibration charged **zero** (X7 / HACFLOOR precedent); the two winsorised re-scores charged
+   **2** to options `N` (205 → 207). May well refuse the change — which would close item A
+   properly rather than leaving it parked.
+3. **Leave it.** The shipped +100% is defensible on the path study's own evidence: **83.2%** of
+   early winners give the +100% back and **58.0%** eventually go below zero if held.
+
+**My recommendation, recorded so it can be scored later: option 2**, and the pre-registered
+expectation is that the calibrated bar lands between +1pp and +4pp (60/40) with `tp150` clearing
+it *barely* (55/45).
+
+## 6. Trial accounting
+
+**Zero.** No arm scored, no hypothesis tested, no bar applied — every figure is a re-cut of banked
+artifacts plus one read of the committed paper-track export. Options `N` stays **205**, equity
+`N` stays **135**, `rows_malformed` empty.
+
+**And deliberately NO `RESEARCH_LOG.md` row, which is a decision rather than an omission.** That
+file's counting rule is *"all non-FIXED rows count"*, so adding a row — even one marked
+`REGISTERED` — would charge a trial against a document that tests nothing. V1's `REGISTERED` row
+is not the precedent here: it registered an instrument that had been **built**. This registers a
+**procedure that has not run**, and the nearer precedent is SELRULE, where declining to run a test
+cost zero and the reasoning was recorded in the ledger. **The ledger row `TP-BAR` is the record.**
+If Don picks option 2, that run gets the research-log row and the 2 trials, on landing.
