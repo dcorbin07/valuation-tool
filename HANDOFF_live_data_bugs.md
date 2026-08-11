@@ -3870,8 +3870,12 @@ more than its size. `refusal_screen` exists precisely so a silent zero is the te
 publication leak is back — and the 2026-08-08 scan duly reported **zero refusals across 500 names
 it could not reach**, with nothing anywhere saying so.
 
-Payload size was **checked, not assumed**: `filtered` is a reason→count dict with ≤8 example
-tickers per reason; `health` is counts plus short ticker lists. A few KB beside ~500 scored rows.
+Payload size was **measured, not assumed**, and the worst case is bounded by the served surface
+rather than by taste: with all 500 served rows unverified (the largest `publication_audit` can
+get) plus a full `refusal_screen` error list, `health` is **6,712 bytes** and `filtered` **911** —
+**7.4 KB** added to a POST already carrying ~500 scored rows. Note `unverified` is *uncapped* in
+the data (only its console print is truncated at 25); at one entry per served name that is fine,
+but it is a list that grows with the universe, not a fixed-size field.
 
 ### 16.3 LA7 — the guard that could not see, and a collision I created
 
