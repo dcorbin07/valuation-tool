@@ -4,6 +4,43 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-10 — edge lane, session 18 (S22): the edge does not decay over two years, but the long-short does
+
+**Ledger S22, registered blind** in `PREREG_s22_term_structure.md` at `6b187dd` — committed alone,
+a strict git ancestor of the measurement commit. Every figure this project publishes had been
+measured at a single 63-day forward window because the panel computes one `fwd_ret` and the
+deployed rebalance equals it. Eight horizons (1–8 quarters) were scored from **ONE** panel build,
+because the grid end is `len(cal) − horizon` and a build per horizon would have varied the horizon
+**and** the date set **and** the cross-sections together.
+
+**VERDICT CONSTANT-RATE.** Annualized top-decile alpha is **essentially flat from three months to
+two years — +6.59% → +5.10%** — cumulative alpha reaching **+10.20%** at eight quarters,
+`R(8) = 6.195` against a pre-registered ≥6.0 bar. The alpha HAC *t* **never drops below 3.16** at
+the overlap-corrected lag, and median rank IC **rises** with horizon (+0.034 → ~+0.072).
+
+**The constraint that must travel with it: the long-short spread decays and its significance
+collapses** — HAC *t* **2.7167 → 0.6846**, cumulative spread peaking at Q5. **The persistence is
+entirely in the LONG leg**, which is the leg the shipped long-only hot list actually delivers — but
+**the long-short research statistic and the product statistic diverge with horizon**, and the
+record has been quoting them side by side. No long-short figure may be quoted beyond about a year.
+
+**Reported because it cuts against the verdict:** the classification clears its bar narrowly (6.195
+vs 6.0) and **does not replicate across halves** (early 8.559, late 5.470). Both halves agree in
+sign and both still show alpha accruing at two years, so **the persistence replicates and the label
+does not**.
+
+**Tenure: the top decile turns over almost completely every quarter.** Kaplan–Meier median spell is
+**ONE rebalance (~3 months)**, **70.6% of spells last exactly one**, one-period retention **36.6%**
+— inside the 20–50% band pre-committed from the shipped 261%/yr turnover, so tenure and the cost
+model describe the same book. **Re-entry is the norm** (74% of names have more than one spell), and
+**small caps stay longest**, the opposite of the pre-registration. A per-horizon placebo was built because X7's floors do not transfer across configurations (8 of 8 horizons clear their own alpha floor, 4 of 8 their own long-short floor); it is a deliberately less conservative null than X7's and is labelled so in the artifact.
+
+**Nothing was adopted.** A rebalance-frequency change is **S23's** own register and a **vintage
+event**; display is the **web lane's**. The defensible product sentence is written in
+`HANDOFF_edge_audit.md` session 18 §6, with the caveats it may not be shown without.
+
+Equity `N` 135 → 143. **40/40 suites green** (`test_edge.py` 275/275, +9 S22 tests).
+
 ## 2026-08-10 — r1 lane, cold-audit LA2: the track backup was backing up the wrong book
 
 **FIXED.** The weekly `track-backup` workflow preserved 4 days of the Tradier **sandbox** engine

@@ -6647,3 +6647,348 @@ the artifact's `n_trials` and Deflated Sharpe match the register rather than goi
 denominator.
 
 ---
+
+# SESSION 18 (2026-08-10) — S22: the term structure of the signal, and top-decile tenure
+
+**Ledger item S22, routed in by Don as this lane's, unblocked.** Two questions the project had
+never asked, and that nothing in the corpus mentions:
+
+1. **How long does a hot name's edge last?** Every performance figure this project has published
+   is measured at a **63-trading-day** forward window, because `build_fundamental_panel` computes
+   exactly one `fwd_ret` and the deployed rebalance period equals it. That is an inherited
+   default, not a measured optimum.
+2. **How long do names stay hot?** The top decile IS the product, and how long a name survives in
+   it had never been measured.
+
+`PREREG_s22_term_structure.md` was committed **alone at `6b187dd`, before
+`scripts/term_structure.py` existed and before any horizon was scored** — a strict git ancestor of
+the measurement commit `ec4a5d3`, which is what makes the blindness checkable rather than asserted.
+The horizons, the primary statistic, the date sets, the HAC lag, the bars, the tenure definitions,
+the trial cost and the expectations are all fixed there.
+
+**Adopts nothing.** Holding-period changes are S23's own register and a vintage event; display is
+the web lane's.
+
+---
+
+## 1. The design decision that makes the question answerable
+
+The horizon is baked into the panel builder, and — this is the part that matters — the rebalance
+grid ends at `len(cal) - horizon`. **Building one panel per horizon would have varied the horizon
+AND the date set AND the scored cross-sections together**, and no difference between two such runs
+could have been attributed to the horizon.
+
+So: **ONE panel build, carrying eight forward-return columns** computed inside the same loop from
+the same price array. The scores, the dates, the names and the composite are **identical across
+every arm**, and the forward window is the only thing that varies. A useful side effect: the
+record's known run-to-run `insider` nondeterminism is **common to all arms and cancels** out of
+every across-horizon comparison.
+
+Horizons are **1 through 8 quarters** — 63, 126, 189, 252, 315, 378, 441, 504 trading days. A
+complete grid in units of the rebalance period is required because the incremental analysis
+differences adjacent horizons, and those differences are only comparable if every step is one
+quarter.
+
+### 1a. Right-censoring is not delisting — the defect named in advance
+
+`_forward_return` keeps the shipped delisting rule: if the horizon-end price is NaN because the
+survivorship mask cut the name mid-window, fall back to the last price it actually traded at.
+
+It would be **catastrophic** if that branch also fired when the **calendar** ends before the window
+does. There the return does not exist, and a last-price fallback would return a **shorter realized
+return labelled as a long-horizon one** — for the most recent dates specifically, flattering short
+horizons and penalising long ones. That is precisely the comparison this study is. The register
+names it as the single most likely way the study fabricates a result; the code returns `None`, and
+a test pins it **from both sides** (censored windows must return nothing; a delisting inside an
+observable window must still realize its last traded price).
+
+**The measured signature is the cleanest possible confirmation the rule is right:**
+
+| horizon | 63 | 126 | 189 | 252 | 315 | 378 | 441 | 504 |
+|---|---|---|---|---|---|---|---|---|
+| rebalance dates observable | 69 | 68 | 67 | 66 | 65 | 64 | 63 | 62 |
+
+**Exactly one 63-day rebalance date lost per extra quarter of window**, monotone, and censoring
+removes a **suffix** of dates rather than scattering NaNs — because the calendar ends for every
+name at once.
+
+---
+
+## 2. Controls — all four pass
+
+* **C0 — the added column IS the shipped column.** `max|fwd_ret − fwd_ret_h63| = 0.000e+00` over
+  **all 113,945 rows**. The new code path is the shipped rule, not a second implementation.
+* **C1 — the incumbent reproduces the published record to the digit**, on a **fresh** build rather
+  than the cached pickle V2G used: `top_decile_alpha` **0.071741**, long-short naive *t*
+  **2.836064**, long-short HAC *t* **2.619912**, alpha HAC *t* **4.376230**, monotonicity
+  **−0.890909**, equal-weight benchmark **+0.181371**. All six. The panel is 113,945 rows /
+  2,531 names / 69 dates, `label` "full" — and it is bit-reproducible, so the record's known
+  `insider` nondeterminism did not bite here.
+* **C2 — censoring is real, counted and monotone** (the table above).
+* **C3 — default payloads unchanged.** With no extra horizons requested the frame is
+  column-for-column what it was, proved end to end on a real build in `tests/test_edge.py`.
+
+---
+
+## 3. The primary result — the edge does NOT decay
+
+Primary date set is the **COMMON 62 dates** (2009-01-15 → 2024-04-24), i.e. the dates observable at
+**every** horizon, so the horizon is the sole varying quantity. The primary statistic is
+**cumulative, non-annualized** top-decile alpha: annualizing divides by the horizon and would make
+a fixed one-off edge look like it decays as `1/k` when nothing decayed at all.
+
+| H | Q | cum alpha | **annualized** | R | R/linear | alpha HAC *t* | LS HAC *t* | cum long-short | median rank IC |
+|---|---|---|---|---|---|---|---|---|---|
+| 63 | 1 | +1.65% | **+6.59%** | 1.000 | 1.000 | 3.7695 | 2.7167 | +2.89% | +0.0336 |
+| 126 | 2 | +3.34% | **+6.67%** | 2.026 | 1.013 | 4.3836 | 2.7111 | +4.81% | +0.0586 |
+| 189 | 3 | +4.52% | **+6.03%** | 2.745 | 0.915 | 3.2912 | 2.1446 | +5.60% | +0.0709 |
+| 252 | 4 | +6.14% | **+6.14%** | 3.730 | 0.932 | 3.1608 | 1.8561 | +6.52% | +0.0725 |
+| 315 | 5 | +7.79% | **+6.23%** | 4.732 | 0.946 | 3.4240 | 1.6495 | +7.11% | +0.0720 |
+| 378 | 6 | +8.60% | **+5.74%** | 5.225 | 0.871 | 3.3887 | 1.1632 | +6.05% | +0.0699 |
+| 441 | 7 | +8.86% | **+5.07%** | 5.384 | 0.769 | 3.4180 | 0.6619 | +4.14% | +0.0711 |
+| 504 | 8 | +10.20% | **+5.10%** | 6.195 | 0.774 | 3.8301 | 0.6846 | +4.60% | +0.0655 |
+
+**VERDICT: CONSTANT-RATE**, by the rule fixed in advance — `R(8) = 6.1950` against the
+pre-registered `≥ 6.0`.
+
+**The single sentence:** *annualized top-decile alpha is essentially flat from three months to two
+years, +6.59% → +5.10%.* The edge is **not** a one-quarter effect that decays; the cohort selected
+today keeps out-earning the equal-weighted universe at a near-constant rate for two years.
+
+**Every one of the eight incremental quarters is positive** (+1.65, +1.69, +1.19, +1.62, +1.65,
++0.81, +0.26, +1.34 pp), with Q7 the weakest. *Reported with its stated limitation: adjacent
+cumulative windows overlap almost entirely, so these are differences of highly dependent
+quantities; the inference is approximate and uncalibrated and no verdict rests on it.*
+
+**The alpha is well measured at EVERY horizon.** The alpha HAC *t* — at the overlap-corrected lag
+`max(1, H/63 − 1)`, so lag 7 at two years — never drops below **3.16** and is **3.83** at the
+longest horizon. This is not a case of a signal surviving because the error bars widened.
+
+**The secondary all-available date set agrees** in shape and sign at every horizon (+7.17% → +5.10%
+annualized), so nothing here is an artifact of the common-date restriction.
+
+### 3a. Two things that cut against the headline, reported because they do
+
+**(a) The classification clears its bar NARROWLY, and it is not stable across halves.**
+`R(8) = 6.195` against a bar of `6.0`; at 5.9 the same table would have read INTERMEDIATE. And the
+two halves land on **opposite sides** of the bar — early **8.559** (super-linear), late **5.470**
+(INTERMEDIATE). They agree in **sign** and both show alpha still accruing at two years, but the
+*label* does not replicate. `R(8)` is a ratio whose **denominator is one noisy quarter**, so it is
+fragile by construction; the flat annualized-alpha column is the more robust way to read the same
+data. *The persistence replicates; the classification does not.*
+
+**(b) THE LONG-SHORT SPREAD DECAYS AND ITS SIGNIFICANCE COLLAPSES.** Long-short HAC *t* falls
+**2.7167 → 0.6846** across the eight horizons, and the cumulative spread **peaks at Q5 (+7.11%)
+then falls to +4.60%**. So the persistence lives entirely in the **long** leg; the bottom decile
+catches up. **Nobody may quote a long-short figure beyond about one year** — past Q4 there is no
+evidence of a spread at all.
+
+That asymmetry is **fortunate rather than damaging for the product**, and the reason is worth
+stating: the shipped product is a **long-only hot list**, so the leg that persists is the leg users
+actually receive. But it means the long-short research statistic and the product statistic
+**diverge with horizon**, and the record has been quoting them side by side.
+
+### 3b. Rank IC rises with horizon
+
+Median per-date rank IC goes **+0.0336** at one quarter to a plateau of **+0.070 to +0.073** from
+three quarters out, with HAC *t* rising 3.50 → 4.23. The composite's rank correlation with forward
+returns is **stronger at long horizons than at the one it is deployed on**. Consistent with the
+constant-rate finding, and an independent route to it — the IC never touches the decile machinery.
+
+---
+
+## 4. Calibrated bars — what applies, and the refusal to pretend
+
+**X7 / session 10's floors (long-short HAC 2.2837, alpha HAC 2.2913, long-short naive 2.1437) are
+valid at exactly ONE configuration: H = 63, the full 69-date panel, HAC lag 1.** `n` changes with
+the horizon, the windows overlap, and the HAC lag changes with them. **They are not quoted against
+any other arm here.** Comparing across configurations is the error the record already paid for
+twice — a HAC *t* against a naive-calibrated floor (closed in session 10) and a floor across
+different `N` (closed in session 12).
+
+At the one arm where they apply, the incumbent clears all three: **2.6199 vs 2.2837**, **4.3762 vs
+2.2913**, **2.8361 vs 2.1437**.
+
+For every other horizon the register commits a **per-horizon placebo** — the shipped
+`placebo_panel` block permutation, 200 draws, seeds 2000–2199, **fixed weights and no CPCV**.
+Measured floors and whether each arm clears its own:
+
+| H | Q | alpha HAC *t* | own p95 | clears | LS HAC *t* | own p95 | clears | null median |
+|---|---|---|---|---|---|---|---|---|
+| 63 | 1 | 3.7695 | 1.5151 | YES | 2.7167 | 1.7494 | YES | -0.0604 |
+| 126 | 2 | 4.3836 | 1.3101 | YES | 2.7111 | 1.7938 | YES | -0.2333 |
+| 189 | 3 | 3.2912 | 1.5335 | YES | 2.1446 | 1.6360 | YES | -0.2475 |
+| 252 | 4 | 3.1608 | 1.4884 | YES | 1.8561 | 1.6292 | YES | -0.1278 |
+| 315 | 5 | 3.4240 | 1.5614 | YES | 1.6495 | 1.7336 | NO | -0.1489 |
+| 378 | 6 | 3.3887 | 1.5553 | YES | 1.1632 | 1.5721 | NO | -0.2466 |
+| 441 | 7 | 3.4180 | 1.5538 | YES | 0.6619 | 1.8245 | NO | -0.1908 |
+| 504 | 8 | 3.8301 | 1.6720 | YES | 0.6846 | 2.0837 | NO | -0.1367 |
+
+**8 of 8 horizons clear their own top-decile alpha floor; only 4 of 8 clear their own long-short floor** — and the four that fail are exactly Q5 through Q8. **The calibrated null therefore says the same thing the point estimates did, and dates it: the long-short edge is indistinguishable from noise from about fifteen months out, while the long-only alpha is not.**
+
+**The stronger statement, and it holds at every horizon: the real top-decile alpha HAC *t* sits ABOVE ALL 200 NOISE DRAWS** at all eight horizons (empirical p <= 0.005 each). The null's own maximum ranges 2.0234 to 3.0392 against a real series that never falls below 3.16.
+
+**C4 holds** — the null's median alpha HAC *t* runs -0.2475 to -0.0604, i.e. near zero at every horizon, so the instrument destroys what it claims to.
+
+**By-product, no verdict attached (registered as such):** the fixed-weights null's long-short HAC p95 at H = 63 is **1.7494**, against X7 / session 10's **2.2837** measured on the same panel and the same statistic **with CPCV weight selection in the loop** — so putting selection in the loop raises the 95th-percentile floor by **+0.5343** of a *t*. **Stated precisely, because it is easy to conflate with a figure already in the record:** this is the shift in the *p95 over all draws*, which is NOT the same quantity as X7's post-hoc *~+1.4 mean long-short t among the 27% of noise draws that actually adopted*. The two are consistent in direction and plausible in magnitude — a large effect on a fifth of the draws moves a 95th percentile by much less than the effect itself. An observation with its own uncertainty, not a test; it adopts nothing.
+
+---
+
+## 5. Tenure — the top decile turns over almost completely every quarter
+
+Membership uses the identical shipped convention (`argsort(-composite)`, `n_q = 10`, first bucket).
+A useful check came out of it: because a panel row only exists when the base `fwd_ret` is present,
+the backtest's finite-mask **reduces to "finite composite"** — the two possible definitions
+coincide, which is reported (`mask_definitions_coincide: true`) rather than assumed.
+
+**7,286 spells over 1,895 distinct names, median decile size 156.**
+
+* **Kaplan–Meier median spell = 1 rebalance (≈ 3 months).** The naive median over completed spells
+  agrees at 1.0, so censoring is not doing the work here.
+* **70.6% of spells last exactly one rebalance** (5,146 of 7,286). Mean 1.568, max **19** (~4.75
+  years).
+* **One-period retention 36.6%** — and the register pre-committed a **20–50%** band derived from
+  the shipped ~261%/yr turnover at four rebalances a year. **It lands inside**, so the tenure
+  measurement and the cost model describe the same book and no bug report is triggered. Stable
+  across halves (35.9% early, 37.4% late).
+* **Continuous survival** decays fast: 36.8% survive one more rebalance, 18.1% two, 9.8% three,
+  0.8% eight.
+* **Re-entry is the norm, not the exception.** Allowing gaps, persistence plateaus at **~19–24%**
+  out to eight rebalances rather than decaying to zero — and **1,407 of 1,895 names (74%) have more
+  than one spell.** Names leave the decile and come back.
+* **Exits are genuine, not data artifacts:** 6,986 fell out while still in the panel, only 115 left
+  the panel entirely, 185 censored at the panel end.
+
+**By market-cap tertile (computed WITHIN each date, so the tiers are relative):** KM median is
+**1 rebalance in all three tiers**. Mean spell length is **small 1.788 > mid 1.372 > large 1.224**
+— **small caps stay longest**, the opposite of the pre-registered expectation.
+
+---
+
+## 6. The defensible product sentence
+
+The register requires the one sentence that is derivable from a measured figure with **no
+extrapolation**, naming the horizon it was measured at. It is:
+
+> **In the backtest, the top decile of the hot list beat the equal-weighted universe by about 6.6%
+> annualized over the next three months — and was still ahead by about 5.1% annualized two years
+> later — even though a given name typically stays in the top decile for only one quarterly
+> rebalance.**
+
+**Caveats that must travel with it, and without which it may not be displayed:** measured on the
+corrected 2,531-name / 69-date panel (2009-01-15 → 2026-01-28, common-horizon window ending
+2024-04-24); **long-only top decile versus the equal-weighted universe**; **gross of costs**; and
+it is the **same single in-sample panel every other published figure comes from — not a forward
+test.** The long-short spread does **not** persist and must not be quoted alongside it beyond a
+year.
+
+**Display is the web lane's**, not this one's. Wording it was this register's job; putting it on a
+page is not.
+
+---
+
+## 7. What this does NOT say
+
+**It is not a finding that the book should rebalance less often, and that inference is the most
+likely way this result gets misused.** `cum_alpha(H)` is the buy-and-hold return of the cohort
+selected on one date. A quarterly-rebalanced book **re-selects every quarter and compounds fresh
+selections**, so "the cohort keeps earning for two years" and "holding longer beats rebalancing"
+are different claims, and only the first is measured here.
+
+What the result does do is make the second claim **worth testing**, which it was not before: the
+deployed book pays **261%/yr turnover** to harvest an edge that is still accruing at two years.
+**That is S23's question** — it needs its own pre-registration, and adopting it would be a
+**vintage event** under `PAPER_TRACK_CONTRACT.md`, closing the current vintage and resetting the
+five-year clock for zero statistical gain. Recorded as a hypothesis, deliberately not acted on.
+
+It also does not license quoting any long-horizon number as out-of-sample evidence. **It is the
+same panel.** A longer forward window is not new data — it is the same 18 years read differently,
+and the overlapping windows mean the eight arms are eight views of one sample, not eight samples.
+
+---
+
+## 8. Trial cost
+
+**Eight horizon arms charged: equity `N` 135 → 143.** H = 63 is charged even though it is the
+incumbent control, because a sweep from which a best horizon *could* be quoted is a search over
+eight cells regardless of which one was already known — and understating `N` overstates the
+significance of every DSR-gated claim.
+
+**Charged at zero, as registered:** the tenure statistics (descriptive — no hypothesis, no
+threshold, no selection), the per-horizon placebo (a calibration searches nothing — session 10's
+precedent), and the half-splits (the same arms on subsets).
+
+`BACKTEST_RESULTS.json` regenerated from a clean tree so its Deflated Sharpe is computed at
+`N = 143` rather than going stale on the denominator — **re-run, never hand-patched.**
+
+
+---
+
+## 9. The pre-registered expectations, scored
+
+The project's standing rule is that reasoning about the direction of an effect here fails more
+often than it works. The score:
+
+| # | expectation | odds | outcome |
+|---|---|---|---|
+| 1 | term structure is **SATURATING** (front-loaded) | 60/40 | **WRONG** — CONSTANT-RATE |
+| 2 | KM median tenure ≤ 2 rebalances | 65/35 | **RIGHT** — 1 |
+| 3 | at least one horizon ≥ 252d fails its own placebo floor | 70/30 | **AMBIGUOUS, SO SCORED AS A NULL** — the expectation did not say WHICH floor, and the two answer oppositely: on **alpha** every horizon >= 252d clears (0 of 4 fail), on **long-short** every horizon >= 252d fails (4 of 4 fail). The ambiguity is mine and it is scored the way the rules require rather than resolved in whichever direction flatters the call. |
+| 4 | large-cap tenure **longer** than small-cap | 55/45 | **WRONG** — small is longest (1.788 vs 1.224) |
+| 5 | `Δ_k` not reliably positive beyond k = 4 | 60/40 | **WRONG** — all eight quarters positive |
+| 6 | C1 reproduces the record to the digit | 95/5 | **RIGHT** |
+
+**Three wrong, two right, and the two headline questions were both called wrong.** The streak
+holds.
+
+---
+
+## 10. Reproduce
+
+```
+python -m scripts.term_structure \
+    --data-dir data/backtest \
+    --panel    data/free_analysis/panel_s22_h504.pkl \
+    --json     data/free_analysis/TERM_STRUCTURE.json
+```
+
+Artifact `data/free_analysis/TERM_STRUCTURE.json` retains **every per-draw placebo row** and every
+arm's full per-period series (RUN_RULES A9). Pinned by **9** new tests in `tests/test_edge.py` (266 -> 275, all green).
+
+---
+
+## 11. BUGS FOUND
+
+* **A full-universe run that dies mid-build is silent and indistinguishable from one that never
+  started** — carried forward from session 17, where the artifact re-run died at 60 of 69 rebalance
+  dates at ~5.9 GB with no traceback and no partial output. **This session's build survived the
+  same point** (peak ~6.1 GB, completed in 334s), so it is memory pressure rather than a
+  deterministic fault, and the finding stands as reported rather than being re-opened.
+* **CORRECTION TO THIS SESSION'S OWN COMMIT MESSAGE.** `ec4a5d3` says "11 new
+  tests"; it is **9**. The suite went 266 -> 275. Recorded rather than amended, because the
+  commit was already written and this file is the record that gets read.
+* **`quantile_backtest` had no guard on its return column.** Before this session a caller could not
+  select one at all; now a missing column raises rather than silently falling back to `fwd_ret` and
+  reporting the 63-day answer under a 504-day label. Pinned.
+* **Not a defect, but a live mis-quotation risk worth recording:** the long-short statistic and the
+  top-decile alpha **diverge with horizon** (LS HAC *t* 2.72 → 0.68 while alpha *t* stays above
+  3.16). Any surface that presents them as two views of one edge is wrong beyond about a year.
+
+## 12. What was NOT done
+
+* **No book change, no holding-period change, no exit-rule change.** S23's, and a vintage event.
+* **No display change.** The product sentence is written here; rendering it is the web lane's.
+* **No cost model applied to the long-horizon arms.** Every figure above is **gross**, exactly as
+  the register specified. A longer holding period would pay *less* turnover, so costs would move
+  these numbers in the flattering direction — which is a further reason the rebalance-frequency
+  question needs S23's own design rather than an inference from this table.
+* **The per-horizon placebo is a DIFFERENT and less conservative null than X7's** (fixed weights,
+  no CPCV adoption). Its percentiles are labelled `fixed_weights_null` in the artifact and may
+  never be compared with 2.2837 or 2.2913.
+* **The rank-IC term structure was NOT split across halves.** The register named three quantities
+  for the stability check — `R(8)`, the incremental sign pattern and the KM median tenure — and the
+  rising IC emerged as a finding afterwards. Splitting it now would be choosing an analysis after
+  seeing the result, which is the error session 6 paid for and session 7 declined to repeat. It is
+  a **registered gap, not an oversight**, and it is the cheapest thing for a follow-up to close.
+* **No forward-return column beyond 504 days.** Two years is where the panel runs out of
+  rebalance dates fast: each extra quarter costs one date, and the study already spends seven.

@@ -44,6 +44,71 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE EDGE DOES NOT DECAY OVER TWO YEARS, THE LONG-SHORT SPREAD DOES, AND A HOT NAME LASTS
+  ONE REBALANCE (2026-08-10, session 18, `S22`).** The project had measured everything at a single
+  63-day forward window because `build_fundamental_panel` computes one `fwd_ret` and the deployed
+  rebalance equals it — an inherited default, never a measured optimum. Eight horizons (1–8
+  quarters) were scored from **ONE** panel build, because the grid end is `len(cal) − horizon` and a
+  build per horizon would vary the horizon **and** the date set **and** the cross-sections together.
+  `PREREG_s22_term_structure.md` was committed **alone at `6b187dd`**, a strict git ancestor of the
+  measurement commit.
+  * **VERDICT CONSTANT-RATE, by the rule fixed in advance: `R(8) = 6.195` against a ≥6.0 bar.
+    Annualized top-decile alpha is ESSENTIALLY FLAT from three months to two years — +6.59%,
+    +6.67%, +6.03%, +6.14%, +6.23%, +5.74%, +5.07%, +5.10%** — and cumulative alpha reaches
+    **+10.20%** at eight quarters. **The alpha HAC *t* never drops below 3.16** at the
+    overlap-corrected lag (7 at two years), so this is not a signal surviving on widened error bars.
+    Median rank IC **rises** with horizon (+0.034 → ~+0.072), an independent route to the same
+    finding that never touches the decile machinery.
+  * **THE SECOND HALF OF THE HEADLINE IS THE ONE THAT CONSTRAINS QUOTING: THE LONG-SHORT SPREAD
+    DECAYS AND ITS SIGNIFICANCE COLLAPSES — HAC *t* 2.7167 → 0.6846**, cumulative spread peaking at
+    Q5 (+7.11%) then falling. **The persistence lives entirely in the LONG leg.** That is fortunate
+    rather than damaging — the shipped product is a **long-only hot list**, so the leg that persists
+    is the one users receive — but **the long-short research statistic and the product statistic
+    DIVERGE with horizon, and the record has been quoting them side by side.** Nobody may quote a
+    long-short figure beyond about a year.
+  * **REPORTED BECAUSE IT CUTS AGAINST THE VERDICT: the classification clears its bar NARROWLY
+    (6.195 vs 6.0) and DOES NOT REPLICATE ACROSS HALVES** — early **8.559** (super-linear), late
+    **5.470** (would read INTERMEDIATE). Both halves agree in **sign** and both still show alpha
+    accruing at two years, so **the PERSISTENCE replicates and the LABEL does not.** `R(8)` is a
+    ratio whose denominator is one noisy quarter; the flat annualized-alpha column is the robust
+    reading of the same data.
+  * **TENURE: the top decile turns over almost completely every quarter.** 7,286 spells over 1,895
+    names at a median decile size of 156. **Kaplan–Meier median spell = ONE rebalance (~3 months)**,
+    naive median agrees at 1.0, **70.6% of spells last exactly one**, max 19. **One-period retention
+    36.6%, INSIDE the 20–50% band pre-committed from the shipped 261%/yr turnover** — so the tenure
+    measurement and the cost model describe the same book and the registered BUG branch did not
+    fire. **Re-entry is the norm:** persistence-with-gaps plateaus at ~19–24% out to eight
+    rebalances instead of decaying to zero, and **74% of names have more than one spell.**
+    **Small caps stay LONGEST** (mean 1.788 vs large 1.224), the opposite of the pre-registration.
+  * **THE DEFENSIBLE PRODUCT SENTENCE, and it must travel with its caveats:** *"the top decile beat
+    the equal-weighted universe by about 6.6% annualized over the next three months and was still
+    ahead by about 5.1% annualized two years later, even though a given name typically stays in the
+    top decile for only one quarterly rebalance"* — **long-only, gross of costs, on the same single
+    in-sample panel every other published figure comes from, not a forward test.** Display is the
+    **web lane's**.
+  * **WHAT IT DOES NOT SAY, and this is the most likely misuse: it is NOT a finding that the book
+    should rebalance less often.** `cum_alpha(H)` is the buy-and-hold return of the cohort selected
+    on ONE date; a quarterly book **re-selects and compounds fresh selections**. Those are different
+    claims and only the first is measured. It does make the second **worth testing** — the book pays
+    261%/yr turnover to harvest an edge still accruing at two years — but **that is S23's, needs its
+    own register, and adopting it is a VINTAGE EVENT that resets the five-year clock for zero
+    statistical gain.**
+  * **X7's floors were NOT quoted outside the one configuration they were calibrated in** (h63, 69
+    dates, lag 1) — `n`, the overlap and the HAC lag all change with the horizon, and comparing
+    across configurations is the error the record already paid for twice.
+  * **A per-horizon placebo was built because X7's floors do not transfer** (200 draws, fixed weights, no CPCV — a DIFFERENT and less conservative null, labelled `fixed_weights_null`, whose percentiles may never be compared with 2.2837): **8 of 8 horizons clear their own alpha floor, 4 of 8 clear their own long-short floor.** Free by-product, no verdict: the same null at h63 **without** CPCV gives a long-short p95 of **1.7494** against session 10's **2.2837** **with** selection in the loop, so **putting selection in the loop raises the 95th-percentile floor by +0.5343 of a *t*.** **Do not conflate that with the figure already in this file:** it is the shift in the **p95 over all draws**, NOT X7's post-hoc **~+1.4 mean long-short *t* among the 27% of noise draws that actually adopted**. Same direction, different quantities — a large effect on a fifth of the draws moves a 95th percentile by far less than the effect itself.
+  * **CONTROLS ALL EXACT: C0 `max|fwd_ret − fwd_ret_h63| = 0.000e+00` over all 113,945 rows**; C1
+    reproduces the record to the digit on a **fresh** build (alpha 0.071741, LS naive 2.836064, HAC
+    2.619912, alpha HAC 4.376230, monotonicity −0.890909, EW +0.181371), so the known `insider`
+    nondeterminism did not bite; **C2 dates observable 69, 68, 67, 66, 65, 64, 63, 62 — exactly one
+    rebalance date lost per extra quarter**, censoring removing a **suffix**, never a scatter.
+    **The defect named in advance and avoided: right-censoring is NOT delisting** — a last-price
+    fallback on a censored window would return a shorter realized return labelled as a long-horizon
+    one, for the most recent dates specifically. Pinned from both sides.
+  * **Equity `N` 135 → 143** (eight arms; tenure, the placebo and the half-splits charged at zero).
+    **THE EXPECTATIONS WERE WRONG ON BOTH HEADLINE QUESTIONS** — SATURATING predicted at 60/40 and
+    the answer is CONSTANT-RATE; large-cap tenure predicted longer at 55/45 and small is longest;
+    all eight incremental quarters positive against a prediction they would not be beyond k=4.
 - **THE LIVE PRODUCT SCORES A FOUR-THEME BOOK, AND WHAT THAT COSTS IS NOW MEASURED: −1.31pp/yr,
   NOT SEPARABLE FROM ZERO — BUT THE LIVE BOOK FAILS THE CALIBRATED LONG-SHORT FLOOR
   (2026-08-10, session 17, `V2G`).** The greeks lane measured over 500 served rows that three of
