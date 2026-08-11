@@ -119,6 +119,13 @@ the project's memory and the old versions had been repeated for months.
     **ELIGIBLE, not adopted**, and **QUEUES BEHIND the theme restoration's vintage** rather than
     spending a second five-year clock reset on the same restart. Expectations scored **2 right,
     3 wrong, 1 split** — the streak continues, which is why they are written down first.
+  * **THE QUEUEING CLAUSE TURNED OUT TO BIND, WHICH IS WHY IT WAS WRITTEN BEFORE THE RESULT: the
+    theme-restoration lane took the vintage event THE SAME DAY** (`c8efd00`, `PREREG_theme_restoration.md`
+    committed alone at `1d12822`), restoring `capital_discipline` to the live path on a fidelity
+    gate while `institutional` (+0.1706) and `insider` (+0.3596) failed it. **Nothing here
+    conflicts, because both arms failed their own gate** — but had either been eligible, adopting
+    it separately would have spent a **second** clock reset for one restart's worth of evidence.
+    The clause cost nothing to write and would have been unarguable to add afterwards.
 - **SECTOR-NEUTRAL IS REJECTED AGAIN — AND IT FAILED *DIFFERENTLY*: THE TRADE-OFF THE ORIGINAL
   REJECTION RESTED ON DOES NOT EXIST ON THE CORRECTED PANEL (2026-08-11, session 20,
   `SECTOR-NEUTRAL-B6`).** Item **B** of `HANDOFF_parked_positives.md`. Sector-neutral ranking was
