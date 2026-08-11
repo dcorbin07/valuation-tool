@@ -79,6 +79,32 @@
   factor ETFs you can actually buy — that was tested separately and <b>was not demonstrated</b>
   (a +9.2pp margin at t 1.10, negative in the first half: a null).</div>
 
+  {# S22, HANDOFF_edge_audit.md session 18. The registered sentence and its mandatory caveats
+   # come from valuation/web/hold_horizon.py and are pinned by tests/test_hold_horizon.py.
+   # The long-short spread is deliberately absent: it decays to insignificance by two years
+   # (HAC t 2.72 → 0.68) and the handoff forbids quoting it beside this. #}
+  <h3>How long the edge lasted, and what that does not license</h3>
+  <p>Every headline figure this project publishes is measured over a <b>63-trading-day</b>
+  forward window, which was an inherited default rather than a measured optimum. So the
+  composite was scored at {{ hold_horizon.horizon_quarters }} horizons — one quarter through two
+  years — from a single panel build, on the set of dates observable at <b>every</b> horizon, so
+  that the length of the window is the only thing that varies. The result:
+  <b>{{ hold_horizon.verdict }}</b>.
+  {{ hold_horizon.defensible }}</p>
+  <p>An independent route reaches the same place without touching the decile machinery: the
+  median per-date rank correlation between score and forward return <i>rises</i> with horizon,
+  {{ "%.4f"|format(hold_horizon.rank_ic.first_quarter) }} at one quarter to
+  {{ "%.4f"|format(hold_horizon.rank_ic.two_years) }} at two years. And the alpha is well
+  measured at every horizon — its t-statistic never falls below 3.16, and is 3.83 at two years
+  — so this is not a signal that survives because its error bars widened.</p>
+  <div class="note" style="margin:12px 0"><b>Three limits, and the third is the one people get
+  wrong.</b> {{ hold_horizon.caveat }}
+  Second, a longer forward window is <b>not new data</b>: the eight horizons are eight views of
+  one sample, not eight samples, and the windows overlap almost entirely.
+  Third: {{ hold_horizon.not_a_hold_rule }} What was measured is the buy-and-hold return of
+  the names picked on a single date; a quarterly-rebalanced list re-picks and compounds fresh
+  selections, and those are different claims. Only the first was tested.</div>
+
   <h3>The options side wins about a third of the time, and that is the design</h3>
   <p>The research also runs an options book, and its hit rate is <b>{{ payoff.hit_rate_range }}</b>
   depending on which book you measure. That number is the one most likely to be misread, so here

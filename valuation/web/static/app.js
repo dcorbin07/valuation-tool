@@ -435,8 +435,14 @@ function scenarioCards(scen, price, fvb) {
   const el = document.getElementById("scenarioNote");
   if (el) {
     const conf = (fvb && fvb.confidence) ? fvb.confidence : null;
+    // The band is a ZONE, not a number to trade toward. Wording from window.HOLD_HORIZON so
+    // it cannot drift, and BAND_SCOPE is not optional: this spread comes from the valuation
+    // engine on one company's filings, while the hot list's backtested figures come from the
+    // composite. Letting a reader take one as evidence for the other is the misreading that
+    // putting both on the same product invites.
+    const band = _HOLD_H ? ` <b>${esc(_HOLD_H.band)}</b> ${esc(_HOLD_H.band_scope)}` : "";
     el.innerHTML = `<div class="note">Each case is valued the same way as the headline${scen.method ? ` (${scen.method})` : ""} —
-      growth and margins shifted, and the exit multiple compressed or expanded with them.` +
+      growth and margins shifted, and the exit multiple compressed or expanded with them.` + band +
       (conf === "low" ? ` <b>Confidence: low.</b> This is a range, not a forecast — a growth valuation
       moves a long way on assumptions nobody can pin down yet.` : "") + `</div>`;
   }
@@ -865,6 +871,12 @@ function _whyChips(r) {
    from valuation/web/score_confidence.py) and is NEVER re-worded here — one source, so a
    name row cannot state a softer limit than the legend printed above the table. */
 const _SCORE_CONF = (typeof window !== "undefined" && window.SCORE_CONFIDENCE) || null;
+/* S22's hold-horizon copy (valuation/web/hold_horizon.py, injected by index.html). Same rule
+   as _SCORE_CONF above: never re-worded here, so a name row cannot state a longer-lasting or
+   more personal version of the edge than the legend printed above the table. The figures stay
+   in the legend; what reaches a NAME is the limit — the edge is the decile's property and a
+   name usually leaves after one quarter. */
+const _HOLD_H = (typeof window !== "undefined" && window.HOLD_HORIZON) || null;
 const THEME_LABEL = {
   value: ["Value", "cheap vs earnings, cash flow and book"],
   quality: ["Quality", "returns on capital, margins, low debt"],
@@ -912,7 +924,11 @@ function attributionPanel(r, opts) {
       <b>This decomposition is exact; the position it explains is not.</b>
       ${esc(_SCORE_CONF.per_name)} — so treat the themes below as the reason this name is in
       the conversation, not as proof it belongs at this exact rank.</div>` : "";
-  return `<div class="attr">${head}${calib}${bars}
+  // How long the edge lasted belongs next to the rank it qualifies, but as a LIMIT rather than
+  // a figure: S22's returns are the top decile's as a group, and V3 forbids a per-name promise.
+  const horizon = _HOLD_H ? `<div class="note" style="margin-bottom:8px">
+      <b>And it is the list's edge, not this name's.</b> ${esc(_HOLD_H.per_name_note)}</div>` : "";
+  return `<div class="attr">${head}${calib}${horizon}${bars}
     <div class="note">Bars are the actual terms of the score: they add up to the composite
       (${comp == null ? "—" : comp.toFixed(3)}), and the 1–100 is that composite's percentile rank
       against every other name in this scan. Units are standard deviations versus this scan, not
