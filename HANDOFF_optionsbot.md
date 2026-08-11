@@ -3047,3 +3047,293 @@ because a guard with a hole in it is worse than no guard: it reports safety it i
   field that moves is `rows_fixed_not_counted` **25 → 26**, which is the row itself landing on
   the correct side of the counting rule. `rows_malformed: []` before and after, so the new row's
   pipes are clean — the hazard the session-12 recount exists to catch.
+
+---
+
+# THE PATH STUDY — stage 1 descriptive, stage 2 rejected (2026-08-10)
+
+Pre-registered in `PREREG_path_study.md`, committed at `9d37241` **before a single table existed**
+— including stage 2's whole arm set, so the arms cannot have been chosen to suit stage 1's
+numbers. Reproduce with `python -m scripts.path_study --stage1`, `python -m scripts.path_arms
+--run [--control]`, `python -m scripts.path_gate`.
+
+## 0. THE CAVEAT THAT TRAVELS WITH EVERY NUMBER BELOW
+
+**The options entry signal is dead.** R2 measured the real book at **+3.41%/trade against a
+five-seed random-entry control's +10.06%** — gap −6.65pp, date-block CI95 [−11.92, −2.13],
+paired sign test **z −4.903**. That stands, and this study reproduces its headline exactly as a
+by-product (§2). **Nothing here is a tradeable-edge claim.** An exit rule cannot rescue an entry
+that subtracts value, and O23 already measured that half of any exit's P&L difference is just the
+underlying. What follows is **paper-book policy and structural knowledge**, and any sentence from
+it that reads as "we found an edge" is a misquote.
+
+## 1. What was built, and the two controls that make it believable
+
+`data/options_exitlab/paths.pkl` — the obvious input — covers only **1,099 of the 3,885 banked
+trades (28.3%)** and carries 2,020 paths the book does not. It is a different trade set. Paths
+were therefore rebuilt from the frozen chains
+(`R2_CORRECTED_2026-08-08/chains.pkl.gz`, 2,870,811 rows) and from `R2_CONTROLS_2026-08-08/`
+(21,877,728 rows) for the five seeds.
+
+| | signal | control (5 seeds pooled) |
+|---|---|---|
+| banked trades | 3,885 | 29,785 |
+| **paths rebuilt** | **3,885 (100.0%)** | **29,783 (100.0%)** |
+
+**CONTROL 1 — the replay is exact.** Scoring the shipped policy on the rebuilt paths reproduces
+the banked book on **3,885 / 3,885 exit reasons AND 3,885 / 3,885 P&Ls to within 1e-9** (mean
+absolute error **0.0**), and the arm's mean return is **+3.41%/trade**, which is R2's recorded
+headline to the digit. Any difference an arm shows below is the arm, not the harness.
+*(O1's own note records a freeze replay matching only 86.950% — that was measured under the
+pre-B2 quote rule its docstring was diagnosing. Using the post-B2 rule, as the banked book did,
+takes it to 100%. O1's diagnosis is corroborated.)*
+
+**CONTROL 2 — the entry quote is derived, and the derivation is checked.** The book stores the
+fill and the spread, not both sides. At aggression 1.0 a buy fills at the ask, so
+`bid = ask·(2−s)/(2+s)`. Against the 1,099 trades that DO appear in O1's artifact with a true
+`entry_bid`, the maximum absolute error is **0.000000000**. The 28.3% overlap is useless as a
+book and is exactly the right control for that one step.
+
+## 2. STAGE 1 — the tables. This is the direct answer to the questions asked.
+
+### 2a. How deep do they dig? Deeper than the policy suggests.
+
+Max adverse excursion **before the banked exit**, sell-side marks, as a fraction of premium:
+
+| | p25 | median | p75 | mean |
+|---|---|---|---|---|
+| all trades | −58.4% | **−51.5%** | −26.1% | −39.7% |
+
+| banked outcome | n | median MAE |
+|---|---|---|
+| target | 1,053 | **−10.0%** |
+| time_stop | 527 | −32.2% |
+| stop | 2,298 | −56.8% |
+| expiry | 7 | −25.0% |
+
+**80.2% of all trades touch −50% at some point in the contract's life**; 88.8% touch −25%.
+Even the trades that ended at TARGET had a median drawdown of −10% and a p25 of −25.5% first.
+
+### 2b. Do losers come back? Mostly not — and TIME LEFT is what decides it.
+
+Measured on the **full contract life, ignoring the shipped exit** — the counterfactual the
+question is actually asking. Unconditionally, **44.7%** of trades reach +100% at some point.
+
+| first touch of | n (% of book) | back to ≥ 0 | on to +100% |
+|---|---|---|---|
+| −25% | 3,449 (88.8%) | 55.2% | 28.3% |
+| −40% | 3,244 (83.5%) | 43.6% | 21.9% |
+| −50% | 3,115 (80.2%) | **35.4%** | **17.5%** |
+| −60% | 2,971 (76.5%) | 27.2% | 13.2% |
+
+A −50% touch cuts the chance of ever making the target from **44.7% to 17.5%**. The stop is
+sitting at a level that carries real information.
+
+**And the DTE conditioning is far stronger than the level conditioning** — from a −50% touch:
+
+| DTE remaining at the touch | n | back to ≥ 0 | on to +100% |
+|---|---|---|---|
+| ≤ 7 | 153 | **9.2%** | **2.0%** |
+| 8–21 | 332 | 30.7% | 12.7% |
+| 22–45 | 1,443 | 34.2% | 16.4% |
+| > 45 | 1,187 | **41.6%** | **22.1%** |
+
+A −50% drawdown with a week left is close to terminal; the same drawdown with two months left
+recovers to breakeven **four and a half times as often**. **The single flat −50% stop is the
+crudest thing in the inherited policy** — and §3 is where that intuition gets tested and does
+not survive.
+
+### 2c. How long does a winner take? Fast — so the time stop rarely binds on winners.
+
+Of the 1,737 trades that reach +100%: median **20 calendar days**, p25 10, p75 34 — or a median
+of **one third of the original DTE**. **67.6% of all targets arrive with more than half the DTE
+still left.** The half-DTE time stop is therefore mostly adjudicating the undecided middle, not
+cutting winners short.
+
+### 2d. What happens after +100%? A barbell — and it vindicates closing there.
+
+For the **1,174** trades that reached +100% with more than half their DTE still to run:
+
+| | signal | control |
+|---|---|---|
+| went on to **+200%** | **67.5%** | 70.0% |
+| **fell back below +100%** | **83.2%** | 82.7% |
+| **fell below 0** | **58.0%** | 54.9% |
+| median best price after | +273.7% | +297.9% |
+| median FINAL outcome after | +62.2% | +108.0% |
+
+Two thirds of early winners double again. **More than half of them, held on, eventually go
+underwater.** The median final outcome is positive and the p25 is **−94.4%** — that is not a
+distribution to hold for the mean. Closing at +100% is not leaving free money on the table; it
+is swapping a barbell for a certainty.
+
+*"Final" here means the return at the contract's **last usable quote**, which for these paths is
+at or near expiry — not a settled P&L. That distinction is O1's central methodological finding
+and it is checked rather than assumed: only **6.9%** of these paths lose their last usable quote
+more than five days before expiry, so the continuation figures are not an artefact of stale
+marks. (§3c re-checks it on the arms, where it matters more.)*
+
+### 2e. THE CONTROL COMPARISON, and it is the most important line in stage 1
+
+At **every** touch level and on **both** recovery measures — eight cells out of eight — the
+**random-entry control recovers MORE often than the signal book**:
+
+| from a touch of | back to ≥0: signal → control | to +100%: signal → control |
+|---|---|---|
+| −25% | 55.2% → **61.2%** | 28.3% → **33.3%** |
+| −40% | 43.6% → **48.9%** | 21.9% → **25.5%** |
+| −50% | 35.4% → **40.6%** | 17.5% → **20.6%** |
+| −60% | 27.2% → **31.5%** | 13.2% → **15.4%** |
+
+…while the drawdowns themselves are **identical** (mean MAE −39.7% on both books, medians
+−51.5% vs −50.8%), and the control reaches +100% more often overall (**50.1% vs 44.7%**).
+
+**The alert picks entries that dig just as deep and come back less often.** That is R2's verdict
+restated in path terms, on a measurement R2 never made.
+
+**NOT a sign test, and the temptation to call it one is exactly what this project has already
+been burned by.** The four touch levels are nested subsets of one another (a −60% touch is a
+−50% touch) and the two recovery measures are nested (reaching +100% implies passing 0), so the
+eight cells are nowhere near eight independent draws — the same error SELRULE measured on X8's
+countries, where 16 co-moving units were worth an `n_eff` of 2 to 4. The honest statement is
+that **the direction is unanimous across every cut**, not that it carries a p-value. The
+magnitudes (4–6pp) are consistent with R2's −6.65pp gap, measured a different way.
+
+## 3. STAGE 2 — thirteen pre-registered arms. VERDICT: REJECT.
+
+Stage 1 cleared the pre-registered materiality bar (§3 of the register: a recovery cell ≥10pp
+from base on ≥100 trades — the ≤7-DTE cell is 26.2pp below on 153 trades), so stage 2 ran.
+
+Gain in per-trade expectancy over the shipped policy, full book, with month-block clustered CIs:
+
+| arm | family | gain | clustered CI95 | fires on |
+|---|---|---|---|---|
+| `trail50_after100` | A | **+3.60pp** | [−0.5, +7.7] | 9.6% |
+| `escalate_fast` | F | +2.40pp | [−0.6, +5.7] | 11.1% |
+| `half_at_100` | E | +1.93pp | [−0.2, +4.1] | — |
+| `clean_runner` | F | +1.50pp | **[+0.4, +2.5]** | — |
+| `time_cond25` | B | +0.12pp | [−0.4, +0.7] | — |
+| `ivcrush30` | C | −0.02pp | [−0.2, +0.1] | 1.3% |
+| `delta85` | C | −0.02pp | [−0.3, +0.2] | 2.4% |
+| `stock_stop` | D | −0.06pp | [−0.2, +0.1] | **0.4%** |
+| `be50` | A | −0.36pp | [−1.2, +0.5] | 9.9% |
+| `step50` | A | −0.36pp | [−1.2, +0.5] | 9.9% |
+| `extrinsic20` | C | −0.47pp | **[−0.9, −0.0]** | 4.4% |
+| `gap_open` | D | −1.72pp | **[−2.4, −1.1]** | 5.6% |
+| `sl_by_dte` | B | **−2.14pp** | **[−3.4, −1.0]** | — |
+
+**The wall.** Book split at its median alert date, **2021-03-08**; arms ranked on the decide half,
+the published number measured on the other; both directions:
+
+| direction | arm selected on decide | decide gain | **measured on the other half** | clustered CI95 |
+|---|---|---|---|---|
+| decide early → measure late | `trail50_after100` | +1.42pp | **+5.77pp** | [−0.03, +11.95] |
+| decide late → measure early | `trail50_after100` | +5.77pp | **+1.42pp** | [−4.15, +6.65] |
+
+**Both directions select the same arm — which is more stability than session 7's LOO managed —
+and neither measured gain clears the bar, and neither confidence interval excludes zero.**
+The bar is **O1's own `MIN_EXPECTANCY_GAIN = 0.10`**, i.e. 10 percentage points of per-trade
+expectancy, pre-committed there and re-committed in `PREREG_path_study.md` before any arm ran.
+The largest **full-book** gain in the study is **+3.60pp**, and the largest gain on any
+half-sample is the **+5.77pp** in the table above. Against a **10pp** bar, neither is close —
+and the +5.77pp is the more flattering of the two directions of a split whose other direction
+gives +1.42pp on the same arm, which is what a wall is for.
+
+**VERDICT: REJECT. No rule change is justified, and nothing ships — not to the live book, not to
+the paper book.**
+
+### 3a. THE STRONGEST RESULT IN THE STUDY IS THE CONTROL, AND IT GENERALISES O23
+
+The same thirteen arms were scored on the five pooled random-entry seeds (29,783 paths). The
+control's shipped policy returns **+10.06%/trade — R2's recorded control mean, exactly**, which
+is the second independent reproduction of the record this study produces.
+
+| arm | gain on the SIGNAL book | gain on RANDOM entries | difference |
+|---|---|---|---|
+| `trail50_after100` | +3.60pp | **+3.46pp** | +0.14pp |
+| `half_at_100` | +1.93pp | +2.04pp | −0.10pp |
+| `escalate_fast` | +2.40pp | +1.74pp | +0.66pp |
+| `clean_runner` | +1.50pp | +1.29pp | +0.20pp |
+| `gap_open` | −1.72pp | −1.27pp | −0.45pp |
+| `sl_by_dte` | −2.14pp | −2.72pp | +0.59pp |
+
+Across all thirteen: **Pearson r = 0.967, regression slope 0.990, 13 of 13 the same sign, mean
+absolute difference 0.34pp and a maximum of 0.86pp.**
+
+**Whatever an exit rule does to the alert's book, it does to a book of random entries — one for
+one.** O23 found that *half* of an exit's P&L difference is the underlying. On this arm set, on
+this book, essentially **all** of it is independent of the entry. An exit rule is a property of
+options, not of the signal.
+
+Under O1's own gate that is the *supportive* branch — `X1_adopt` requires an arm to help on both
+entry sets, precisely so that a book-specific fit is caught. These arms are not fitted to the
+book. They simply do not clear the magnitude bar, on either book.
+
+### 3b. Three things the rejection should not be allowed to bury
+
+1. **`sl_by_dte` is the worst arm in the study, and it is the one stage 1 appeared to motivate.**
+   Stage 1 says recovery collapses as DTE shrinks; the conventional stop-widening parameterisation
+   pre-registered for family B (−40% while DTE > 21, −60% at DTE ≤ 21) **widens the stop exactly
+   where stage 1 says the trade is already dead**, and it costs −2.14pp with a CI excluding zero.
+   The register fixed that parameterisation before stage 1's table existed. **The flipped version
+   — tighten near expiry — is a NEW pre-registration for a future session, and running it now on
+   the same book would be selecting the rule on the result.** That is the whole reason the arms
+   were committed first.
+2. **Families C and D are nearly inert, and that is a structural finding.** `stock_stop` fires on
+   **0.4%** of trades, `ivcrush30` on 1.3%, `delta85` on 2.4%. By the time the underlying is −8%
+   the option is already through its −50% stop: **the option-level stop dominates every
+   underlying- or state-level trigger tested.** An underlying-triggered exit has almost no room
+   to act inside this policy.
+3. **`be50` and `step50` are the same arm.** Identical exits, identical mean, to the digit —
+   because with a +50% step the first ratchet lands exactly at breakeven and the +100% target
+   closes the trade before a second step can arm. Two of the thirteen arms are one arm; the
+   register did not notice, and the run did. Counted and charged as two, because that is what was
+   pre-registered.
+
+### 3c. The stale-mark control, which is what makes the hold-longer arms quotable at all
+
+O1's central methodological finding is that marking a dying contract at its last usable quote
+manufactures a **monotone reward for holding longer**. Four of these arms hold longer. Measured:
+only 7–13 trades per arm reach the expiry path at all, and **zero of them use a stale mark** —
+every one settles at intrinsic. So `trail50_after100`'s +3.60pp is a real property of the paths
+and *still* fails the bar, rather than being an artefact that had to be argued away.
+
+## 4. Plain answer for Don
+
+**Your exit policy is in better shape than the study set out to test, and the one part that looks
+wrong is the part that refused to improve when I tried.**
+
+* **"Do my losers come back if I give them room?" — No, and the −50% stop is roughly where it
+  should be.** Once a trade touches −50%, its chance of ever reaching +100% falls from 44.7% to
+  17.5%, and only about a third ever see breakeven again.
+* **"Should I let winners run past +100%?" — The data says take the double.** Two thirds of early
+  winners do double again, but 83% give back the +100% and **58% eventually go to a loss**.
+  Holding is a lottery ticket bought with a sure thing.
+* **"Is the half-DTE time stop cutting my winners short?" — No.** Winners arrive in a median of
+  20 days, a third of the contract's life, and two thirds of them arrive with more than half the
+  time still left.
+* **"Should the stop depend on how much time is left?" — The paths say yes and the test says no.**
+  A −50% drawdown with a week to go recovers 9% of the time; with two months to go, 42%. That is
+  the strongest structure in the whole study — and the time-conditioned stop I had committed to in
+  advance made things *worse*, by −2.14pp. I am not going to rewrite the rule on the strength of a
+  pattern whose one pre-registered test failed.
+* **Nothing changes.** No rule ships, to either book. And none of this is a reason to trade the
+  options alert — the entry is still dead; this was about how the paper book exits, and about
+  knowing how these contracts behave.
+
+## 5. What was NOT done, and where it went
+
+* **Earnings-timing arms → O17. Sizing → O12.** Excluded by the register's own scope, observed
+  and not run. One observation for O12 from §2d: the post-target distribution is so barbelled
+  (p25 −94.4% against a median +62.2%) that position sizing, not exit timing, is where the
+  variance actually lives.
+* **The flipped `sl_by_dte`** — tighten near expiry rather than widen — is the one arm this study
+  ends up wanting and may not run. New pre-registration, future session, ideally different data.
+* **No live-book or paper-book change was made**, so nothing needs deploying and nothing needs
+  reverting.
+
+## 6. Trial accounting
+
+Stage 1 is descriptive: no arm, no bar, no verdict, **zero trials**. Stage 2 charges its
+**13 arms to options `N`**, as the register committed, whatever the verdicts —
+options **192 → 205**. Equity `N` is untouched at **135**, so no DSR-gated equity claim moves.

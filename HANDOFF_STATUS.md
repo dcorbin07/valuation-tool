@@ -45,6 +45,42 @@ from 2026-08-12, unchanged from sessions 15 and 16: whether the Cowork writer
 
 ---
 
+## THE PATH STUDY (options-bot lane, 2026-08-10) — NOTHING CHANGES, AND THAT IS THE RESULT
+
+Full write-up in `HANDOFF_optionsbot.md`; ledger row `PATHSTUDY`; pre-registration committed at
+**`9d37241` before a single table existed**, stage-2 arm set included.
+
+**THE CAVEAT IS LOAD-BEARING: the options entry signal is dead (R2, unchanged). Nothing here is
+a tradeable-edge claim** — it is paper-book policy and structural knowledge.
+
+**The harness reproduces the record twice**, which is what makes the rest quotable: paths rebuilt
+for **3,885/3,885** banked trades and **29,783/29,785** control trades from the frozen chains,
+and replaying the shipped policy reproduces the banked book on **3,885/3,885 exit reasons and
+P&Ls to 1e-9**, at **+3.41%/trade** signal and **+10.06%/trade** control — both R2's figures to
+the digit. (`data/options_exitlab/paths.pkl` covers only 28.3% of the book and is a different
+trade set; it was not used.)
+
+**STAGE 1 — the answers.** 80.2% of trades touch −50% at some point, and a −50% touch cuts the
+chance of ever reaching +100% from **44.7% to 17.5%**, so the inherited stop sits at an
+informative level. **Recovery depends far more on TIME than on level**: from a −50% touch,
+9.2% get back to breakeven with under a week left against **41.6%** with more than 45 days.
+Winners are fast — median **20 days**, a third of the DTE — and **67.6%** of targets arrive with
+more than half the DTE unused, so the time stop is not cutting winners short. **After +100% it is
+a barbell that vindicates closing there:** 67.5% of early winners double again, but **83.2% give
+back the +100% and 58.0% end up below zero.**
+
+**STAGE 2 — REJECT, 13 pre-registered arms.** Largest gain **+3.60pp against O1's own
+pre-committed 10pp bar**; both split directions select the same arm and neither measured half
+clears; both clustered CIs straddle zero. **The finding that outlives the verdict:** on the five
+pooled random-entry seeds, every arm moves a book of RANDOM entries almost exactly as much as the
+alert's — **r 0.967, slope 0.990, 13 of 13 same sign** — so an exit rule is a property of
+*options*, not of the entry. That generalises O23 from "half" to essentially "all".
+
+**DON: no action, and nothing was deployed.** The plain-English answers to the four questions are
+in `HANDOFF_optionsbot.md` §4. Options `N` 192 → **205**; equity `N` unchanged at **135**.
+
+---
+
 ## LA15 (options-bot lane, 2026-08-10) — THE TEST SUITE NO LONGER WRITES INTO THE REAL DATABASES
 
 First executed item from `VALQUO_LIVE_AUDIT.md`. Full write-up in `HANDOFF_optionsbot.md`;
