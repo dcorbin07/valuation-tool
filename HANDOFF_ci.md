@@ -679,3 +679,62 @@ as measured today by `research_log.detail()`.
 * **The still-open blocker is unchanged and is not this:** nothing ingests the bound series into
   the live service's store, and there is still **no automated daily writer** for it anywhere. That
   remains the operational gate's actual blocker (`PT-WRITER`, Cowork lane).
+
+---
+
+# D4 — Cboe Open-Close Volume Summary: DON'T BUY (2026-08-11)
+
+**The full memo is `HANDOFF_data_spend_d4.md`**, written in the `HANDOFF_data_spend.md` house
+style. This section is the lane pointer, not a second copy. **Research only — no code changed,
+zero trials, equity `N` unmoved.** Ledger row `D4` OPEN → DONE/REJECTED. **The D series is now
+complete**; D4 was the one item the 2026-08-06 buy-nothing pass explicitly left out
+(*"not in this task's list, still unpriced, still gated on O14"*).
+
+## What the memo establishes
+
+| | |
+|---|---|
+| Cost, EOD subscription | **$500/mo**, filed with the SEC |
+| Cost, EOD ad-hoc history | **$400 per request per month**; **one request = one month of data** (verbatim) |
+| Cost for this project's own window | **$28,200–$37,600, ONE exchange**; fees are filed per exchange across C1/C2/BZX/EDGX |
+| Audit's indicative figure | *"roughly $600/yr"* — understates the **recurring** line ~**10×** ($6,000/yr per exchange) and has **no counterpart** for the one-time history cost. Not compressed into one multiple: a one-time cost over an annual rate means nothing. The audit did label it indicative |
+| Free trial | **Six months of ad-hoc historical EOD, $0**, non-TPHs eligible, **one-shot** |
+| Licence to ship anything derived | **$5,000/mo = $60,000/yr**, plus approval |
+| History start | **January 2018** — leaves **24 of 118 months (20.3%) unbuyable, the early ones** |
+| Open items it feeds | **Exactly one that is not its own gate: `U2`** |
+
+## The three things worth carrying out of it
+
+1. **A public free trial replaced the audit's recommended action.** The audit says "one sales
+   call". Cboe now gives six months of exactly this dataset to non-TPHs who have never subscribed.
+   **The decision no longer costs money — but the trial is one-shot, so spending it before `O14`
+   has produced a hypothesis wastes the one free look.**
+2. **The licence is the same trap as D1, a third time.** Internal use only; external distribution
+   of derived data is a separate $60k/yr product. Research-only, exactly like JKP. Any plan that
+   ends with a flow-derived number on valquo.co has an unbudgeted $60k/yr in it.
+3. **D4 cannot be tested by this project's own standard.** Ad-hoc history begins 2018-01, the alert
+   book begins 2016-01, and the early/late split is the instrument nearly every options verdict
+   rests on. **A fifth of the window, on the early side, is unavailable at any price.** Nobody had
+   checked the dataset's start date against the book's window.
+
+## Method note
+
+The price was not on the vendor page and I did not accept that as unpriced. The product page's own
+sentence — *"Fee Schedules have been filed with the SEC (see 'LiveVol Fees')"* — is the route, and
+the filed schedules are public, quotable and current. **Two independent retrievals agreed on the
+EOD figures before I used them**, and the "one request = one month" unit was confirmed verbatim
+rather than inferred, because the whole cost estimate scales on it. `federalregister.gov`,
+`sec.gov` and `justia.com` all refuse automated fetches (302 to an unblock page, or 403);
+**`govinfo.gov` serves the same filings as plain HTML** and is the source that worked.
+
+## Not done, and why
+
+* **`O14` was not run.** It is the gate, it is free, and it is ~7 hours of compute — but it is a
+  measurement with a pre-registration requirement (Benjamini–Hochberg across however many features
+  are built), and this task was scoped to the purchase decision. It is the recommended next step.
+* **`U2` was not run** — same reason, and it is the only open item D4 would feed.
+* **No email or trial signup was initiated.** Both are outbound actions and Don's call.
+* **The two per-exchange ambiguities were left ambiguous** rather than resolved by assumption: the
+  $500-vs-$600/$300 structure, and whether C1 sells history back to 2005 as the audit claims. **If
+  C1 does, the 24-month hole closes and the cost roughly triples.** Listed in UNRESOLVED, not
+  estimated.

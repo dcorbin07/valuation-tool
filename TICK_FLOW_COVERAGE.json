@@ -1,0 +1,1795 @@
+{
+ "generated_utc": "2026-08-11T20:08:56+00:00",
+ "schema_version": 2,
+ "source_endpoint": "option_history_trade_quote",
+ "dte_cap": null,
+ "book": "state_r2_corrected.pkl",
+ "units_total": 3885,
+ "units_with_data": 3884,
+ "units_empty": 1,
+ "units_missing": 0,
+ "units_not_attempted": 0,
+ "coverage_frac": 1.0,
+ "prints": 70288482,
+ "contracts_traded": 433725746,
+ "bytes_on_disk": 4720916526,
+ "gb_on_disk": 4.721,
+ "symbols": 186,
+ "dates": 1574,
+ "date_range": [
+  "2016-01-19",
+  "2025-10-15"
+ ],
+ "per_year": {
+  "2016": {
+   "units": 309,
+   "ok": 309,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1253431,
+   "bytes": 84890841
+  },
+  "2017": {
+   "units": 471,
+   "ok": 471,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 3053179,
+   "bytes": 205957533
+  },
+  "2018": {
+   "units": 351,
+   "ok": 351,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 3243785,
+   "bytes": 218375508
+  },
+  "2019": {
+   "units": 308,
+   "ok": 308,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 2552178,
+   "bytes": 171910022
+  },
+  "2020": {
+   "units": 379,
+   "ok": 379,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 11862474,
+   "bytes": 795925594
+  },
+  "2021": {
+   "units": 584,
+   "ok": 584,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 12756915,
+   "bytes": 856461851
+  },
+  "2023": {
+   "units": 345,
+   "ok": 345,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 8579343,
+   "bytes": 575851022
+  },
+  "2024": {
+   "units": 604,
+   "ok": 603,
+   "empty": 1,
+   "missing": 0,
+   "owed": 0,
+   "prints": 15546895,
+   "bytes": 1043448307
+  },
+  "2025": {
+   "units": 361,
+   "ok": 361,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 9140021,
+   "bytes": 613462489
+  },
+  "2022": {
+   "units": 173,
+   "ok": 173,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 2300261,
+   "bytes": 154633359
+  }
+ },
+ "per_symbol": {
+  "AAPL": {
+   "units": 33,
+   "ok": 33,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 6074869,
+   "bytes": 407119938
+  },
+  "ABBV": {
+   "units": 24,
+   "ok": 24,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 148605,
+   "bytes": 10027926
+  },
+  "ABNB": {
+   "units": 7,
+   "ok": 7,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 156237,
+   "bytes": 10489193
+  },
+  "ABT": {
+   "units": 32,
+   "ok": 32,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 136999,
+   "bytes": 9273441
+  },
+  "ACN": {
+   "units": 24,
+   "ok": 24,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 43667,
+   "bytes": 2996304
+  },
+  "ADBE": {
+   "units": 27,
+   "ok": 27,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 294672,
+   "bytes": 19823826
+  },
+  "ADI": {
+   "units": 20,
+   "ok": 20,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 28310,
+   "bytes": 1955544
+  },
+  "ADP": {
+   "units": 17,
+   "ok": 17,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 10429,
+   "bytes": 748554
+  },
+  "AEM": {
+   "units": 16,
+   "ok": 16,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 24192,
+   "bytes": 1667929
+  },
+  "ALL": {
+   "units": 17,
+   "ok": 17,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 7673,
+   "bytes": 563815
+  },
+  "AMAT": {
+   "units": 34,
+   "ok": 34,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 311848,
+   "bytes": 20995464
+  },
+  "AMD": {
+   "units": 33,
+   "ok": 33,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 2758182,
+   "bytes": 184899751
+  },
+  "AMGN": {
+   "units": 21,
+   "ok": 21,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 85237,
+   "bytes": 5773075
+  },
+  "AMT": {
+   "units": 17,
+   "ok": 17,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 13490,
+   "bytes": 953677
+  },
+  "AMZN": {
+   "units": 42,
+   "ok": 42,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 4862746,
+   "bytes": 325935864
+  },
+  "ANET": {
+   "units": 25,
+   "ok": 25,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 122521,
+   "bytes": 8282996
+  },
+  "AON": {
+   "units": 9,
+   "ok": 9,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 2854,
+   "bytes": 217468
+  },
+  "APH": {
+   "units": 15,
+   "ok": 15,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 6952,
+   "bytes": 509543
+  },
+  "APP": {
+   "units": 8,
+   "ok": 8,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 64713,
+   "bytes": 4359587
+  },
+  "ARM": {
+   "units": 4,
+   "ok": 4,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 135252,
+   "bytes": 9074134
+  },
+  "ASML": {
+   "units": 23,
+   "ok": 23,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 64389,
+   "bytes": 4381844
+  },
+  "AVGO": {
+   "units": 53,
+   "ok": 53,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1163134,
+   "bytes": 78089291
+  },
+  "AXP": {
+   "units": 26,
+   "ok": 26,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 136881,
+   "bytes": 9248114
+  },
+  "AZN": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 76103,
+   "bytes": 5163764
+  },
+  "BA": {
+   "units": 23,
+   "ok": 23,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 702654,
+   "bytes": 47147718
+  },
+  "BABA": {
+   "units": 30,
+   "ok": 30,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1356970,
+   "bytes": 91009180
+  },
+  "BAC": {
+   "units": 28,
+   "ok": 28,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 590864,
+   "bytes": 39672738
+  },
+  "BHP": {
+   "units": 8,
+   "ok": 8,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 6043,
+   "bytes": 428318
+  },
+  "BMO": {
+   "units": 8,
+   "ok": 8,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1185,
+   "bytes": 102681
+  },
+  "BMY": {
+   "units": 25,
+   "ok": 25,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 142223,
+   "bytes": 9603222
+  },
+  "BN": {
+   "units": 2,
+   "ok": 2,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1036,
+   "bytes": 75274
+  },
+  "BNS": {
+   "units": 7,
+   "ok": 7,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1158,
+   "bytes": 97972
+  },
+  "BTI": {
+   "units": 5,
+   "ok": 5,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 4138,
+   "bytes": 291915
+  },
+  "BUD": {
+   "units": 9,
+   "ok": 8,
+   "empty": 1,
+   "missing": 0,
+   "owed": 0,
+   "prints": 5518,
+   "bytes": 393148
+  },
+  "BX": {
+   "units": 25,
+   "ok": 25,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 81493,
+   "bytes": 5533873
+  },
+  "C": {
+   "units": 28,
+   "ok": 28,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 364693,
+   "bytes": 24518530
+  },
+  "CAT": {
+   "units": 25,
+   "ok": 25,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 344364,
+   "bytes": 23147605
+  },
+  "CB": {
+   "units": 17,
+   "ok": 17,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 9646,
+   "bytes": 695901
+  },
+  "CDNS": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 15226,
+   "bytes": 1084602
+  },
+  "CEG": {
+   "units": 3,
+   "ok": 3,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 24345,
+   "bytes": 1640041
+  },
+  "CI": {
+   "units": 15,
+   "ok": 15,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 19768,
+   "bytes": 1368469
+  },
+  "CL": {
+   "units": 14,
+   "ok": 14,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 16623,
+   "bytes": 1154856
+  },
+  "CM": {
+   "units": 3,
+   "ok": 3,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 362,
+   "bytes": 32978
+  },
+  "CMCSA": {
+   "units": 25,
+   "ok": 25,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 88503,
+   "bytes": 6003681
+  },
+  "CME": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 20516,
+   "bytes": 1439175
+  },
+  "CNQ": {
+   "units": 9,
+   "ok": 9,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 3565,
+   "bytes": 265183
+  },
+  "COF": {
+   "units": 13,
+   "ok": 13,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 31838,
+   "bytes": 2171505
+  },
+  "COP": {
+   "units": 14,
+   "ok": 14,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 49371,
+   "bytes": 3349274
+  },
+  "COST": {
+   "units": 36,
+   "ok": 36,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 419174,
+   "bytes": 28192811
+  },
+  "CP": {
+   "units": 5,
+   "ok": 5,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1634,
+   "bytes": 124064
+  },
+  "CRM": {
+   "units": 30,
+   "ok": 30,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 405409,
+   "bytes": 27252397
+  },
+  "CRWD": {
+   "units": 18,
+   "ok": 18,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 411587,
+   "bytes": 27631004
+  },
+  "CSCO": {
+   "units": 40,
+   "ok": 40,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 427724,
+   "bytes": 28777294
+  },
+  "CSX": {
+   "units": 21,
+   "ok": 21,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 46652,
+   "bytes": 3187571
+  },
+  "CVNA": {
+   "units": 20,
+   "ok": 20,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 368960,
+   "bytes": 24780582
+  },
+  "CVS": {
+   "units": 13,
+   "ok": 13,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 122800,
+   "bytes": 8266454
+  },
+  "CVX": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 193551,
+   "bytes": 13033654
+  },
+  "DASH": {
+   "units": 10,
+   "ok": 10,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 54002,
+   "bytes": 3647833
+  },
+  "DDOG": {
+   "units": 14,
+   "ok": 14,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 189819,
+   "bytes": 12759943
+  },
+  "DE": {
+   "units": 20,
+   "ok": 20,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 101248,
+   "bytes": 6842911
+  },
+  "DELL": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 229292,
+   "bytes": 15428090
+  },
+  "DHR": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 33314,
+   "bytes": 2296556
+  },
+  "DIS": {
+   "units": 13,
+   "ok": 13,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 310715,
+   "bytes": 20857255
+  },
+  "DUK": {
+   "units": 23,
+   "ok": 23,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 20207,
+   "bytes": 1421404
+  },
+  "EMR": {
+   "units": 14,
+   "ok": 14,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 9175,
+   "bytes": 655777
+  },
+  "ENB": {
+   "units": 19,
+   "ok": 19,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 9916,
+   "bytes": 720001
+  },
+  "EOG": {
+   "units": 13,
+   "ok": 13,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 22244,
+   "bytes": 1528608
+  },
+  "ETN": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 17658,
+   "bytes": 1247630
+  },
+  "F": {
+   "units": 17,
+   "ok": 17,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 678091,
+   "bytes": 45484081
+  },
+  "FCX": {
+   "units": 16,
+   "ok": 16,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 265283,
+   "bytes": 17822313
+  },
+  "FDX": {
+   "units": 16,
+   "ok": 16,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 181826,
+   "bytes": 12230217
+  },
+  "FTNT": {
+   "units": 18,
+   "ok": 18,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 34204,
+   "bytes": 2344586
+  },
+  "GD": {
+   "units": 24,
+   "ok": 24,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 21502,
+   "bytes": 1511031
+  },
+  "GE": {
+   "units": 26,
+   "ok": 26,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 318088,
+   "bytes": 21389713
+  },
+  "GILD": {
+   "units": 21,
+   "ok": 21,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 278805,
+   "bytes": 18742708
+  },
+  "GLW": {
+   "units": 26,
+   "ok": 26,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 59336,
+   "bytes": 4052104
+  },
+  "GM": {
+   "units": 21,
+   "ok": 21,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 304486,
+   "bytes": 20463598
+  },
+  "GOOGL": {
+   "units": 51,
+   "ok": 51,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 2422080,
+   "bytes": 162436208
+  },
+  "GS": {
+   "units": 29,
+   "ok": 29,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 452130,
+   "bytes": 30380148
+  },
+  "GSK": {
+   "units": 20,
+   "ok": 20,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 11063,
+   "bytes": 799759
+  },
+  "HD": {
+   "units": 31,
+   "ok": 31,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 370958,
+   "bytes": 24947135
+  },
+  "HLT": {
+   "units": 16,
+   "ok": 16,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 11463,
+   "bytes": 814877
+  },
+  "HON": {
+   "units": 31,
+   "ok": 31,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 49098,
+   "bytes": 3380764
+  },
+  "HOOD": {
+   "units": 13,
+   "ok": 13,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 600538,
+   "bytes": 40276131
+  },
+  "HWM": {
+   "units": 10,
+   "ok": 10,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 8975,
+   "bytes": 630584
+  },
+  "IBM": {
+   "units": 23,
+   "ok": 23,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 268385,
+   "bytes": 18050860
+  },
+  "INTC": {
+   "units": 26,
+   "ok": 26,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1020469,
+   "bytes": 68450555
+  },
+  "ISRG": {
+   "units": 21,
+   "ok": 21,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 56847,
+   "bytes": 3870711
+  },
+  "JCI": {
+   "units": 14,
+   "ok": 14,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 9029,
+   "bytes": 645926
+  },
+  "JNJ": {
+   "units": 28,
+   "ok": 28,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 261511,
+   "bytes": 17604845
+  },
+  "JPM": {
+   "units": 34,
+   "ok": 34,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 571476,
+   "bytes": 38391514
+  },
+  "KKR": {
+   "units": 21,
+   "ok": 21,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 9772,
+   "bytes": 716167
+  },
+  "KMI": {
+   "units": 16,
+   "ok": 16,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 36557,
+   "bytes": 2496474
+  },
+  "KO": {
+   "units": 37,
+   "ok": 37,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 239894,
+   "bytes": 16182911
+  },
+  "LLY": {
+   "units": 29,
+   "ok": 29,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 390924,
+   "bytes": 26278637
+  },
+  "LMT": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 115208,
+   "bytes": 7784178
+  },
+  "LOW": {
+   "units": 18,
+   "ok": 18,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 158146,
+   "bytes": 10649386
+  },
+  "MA": {
+   "units": 33,
+   "ok": 33,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 189915,
+   "bytes": 12822306
+  },
+  "MAR": {
+   "units": 15,
+   "ok": 15,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 22278,
+   "bytes": 1536695
+  },
+  "MCD": {
+   "units": 31,
+   "ok": 31,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 238302,
+   "bytes": 16058656
+  },
+  "MDLZ": {
+   "units": 18,
+   "ok": 18,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 25898,
+   "bytes": 1788095
+  },
+  "MDT": {
+   "units": 27,
+   "ok": 27,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 59632,
+   "bytes": 4074922
+  },
+  "META": {
+   "units": 37,
+   "ok": 37,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 3160003,
+   "bytes": 211835838
+  },
+  "MMM": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 81242,
+   "bytes": 5508249
+  },
+  "MNST": {
+   "units": 16,
+   "ok": 16,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 10904,
+   "bytes": 777454
+  },
+  "MO": {
+   "units": 21,
+   "ok": 21,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 88283,
+   "bytes": 5977106
+  },
+  "MPC": {
+   "units": 17,
+   "ok": 17,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 43347,
+   "bytes": 2954390
+  },
+  "MRK": {
+   "units": 25,
+   "ok": 25,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 146996,
+   "bytes": 9922914
+  },
+  "MRVL": {
+   "units": 31,
+   "ok": 31,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 303904,
+   "bytes": 20454169
+  },
+  "MS": {
+   "units": 20,
+   "ok": 20,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 139396,
+   "bytes": 9399124
+  },
+  "MSFT": {
+   "units": 54,
+   "ok": 54,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 3040624,
+   "bytes": 203888147
+  },
+  "MSI": {
+   "units": 20,
+   "ok": 20,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 3638,
+   "bytes": 302041
+  },
+  "MU": {
+   "units": 30,
+   "ok": 30,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1029631,
+   "bytes": 69076765
+  },
+  "NDAQ": {
+   "units": 17,
+   "ok": 17,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 16742,
+   "bytes": 1171481
+  },
+  "NEE": {
+   "units": 21,
+   "ok": 21,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 23649,
+   "bytes": 1646015
+  },
+  "NEM": {
+   "units": 21,
+   "ok": 21,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 111384,
+   "bytes": 7525083
+  },
+  "NET": {
+   "units": 13,
+   "ok": 13,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 139362,
+   "bytes": 9376126
+  },
+  "NFLX": {
+   "units": 34,
+   "ok": 34,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 2839834,
+   "bytes": 190374564
+  },
+  "NKE": {
+   "units": 15,
+   "ok": 15,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 273170,
+   "bytes": 18347496
+  },
+  "NSC": {
+   "units": 14,
+   "ok": 14,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 7365,
+   "bytes": 534457
+  },
+  "NTES": {
+   "units": 18,
+   "ok": 18,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 30826,
+   "bytes": 2118270
+  },
+  "NVDA": {
+   "units": 50,
+   "ok": 50,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 7858807,
+   "bytes": 526695309
+  },
+  "NVO": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 86858,
+   "bytes": 5884314
+  },
+  "NVS": {
+   "units": 16,
+   "ok": 16,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 5898,
+   "bytes": 441834
+  },
+  "ORCL": {
+   "units": 30,
+   "ok": 30,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 383280,
+   "bytes": 25769749
+  },
+  "PANW": {
+   "units": 29,
+   "ok": 29,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 398917,
+   "bytes": 26814269
+  },
+  "PCAR": {
+   "units": 8,
+   "ok": 8,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 2418,
+   "bytes": 185364
+  },
+  "PDD": {
+   "units": 16,
+   "ok": 16,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 248275,
+   "bytes": 16682660
+  },
+  "PEP": {
+   "units": 30,
+   "ok": 30,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 131200,
+   "bytes": 8879188
+  },
+  "PFE": {
+   "units": 19,
+   "ok": 19,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 617711,
+   "bytes": 41444284
+  },
+  "PG": {
+   "units": 44,
+   "ok": 44,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 212814,
+   "bytes": 14388942
+  },
+  "PGR": {
+   "units": 9,
+   "ok": 9,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 4267,
+   "bytes": 312240
+  },
+  "PH": {
+   "units": 8,
+   "ok": 8,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1663,
+   "bytes": 134731
+  },
+  "PLD": {
+   "units": 18,
+   "ok": 18,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 3918,
+   "bytes": 315006
+  },
+  "PLTR": {
+   "units": 13,
+   "ok": 13,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1701882,
+   "bytes": 114067050
+  },
+  "PM": {
+   "units": 19,
+   "ok": 19,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 44543,
+   "bytes": 3040376
+  },
+  "PNC": {
+   "units": 14,
+   "ok": 14,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 13744,
+   "bytes": 961913
+  },
+  "PSX": {
+   "units": 9,
+   "ok": 9,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 14908,
+   "bytes": 1025323
+  },
+  "QCOM": {
+   "units": 19,
+   "ok": 19,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 451178,
+   "bytes": 30286509
+  },
+  "RCL": {
+   "units": 19,
+   "ok": 19,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 72030,
+   "bytes": 4882213
+  },
+  "RIO": {
+   "units": 11,
+   "ok": 11,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 8024,
+   "bytes": 569855
+  },
+  "ROST": {
+   "units": 21,
+   "ok": 21,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 35281,
+   "bytes": 2425553
+  },
+  "RTX": {
+   "units": 29,
+   "ok": 29,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 94124,
+   "bytes": 6392011
+  },
+  "SBUX": {
+   "units": 19,
+   "ok": 19,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 311679,
+   "bytes": 20939903
+  },
+  "SCCO": {
+   "units": 17,
+   "ok": 17,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 6147,
+   "bytes": 461480
+  },
+  "SCHW": {
+   "units": 11,
+   "ok": 11,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 26579,
+   "bytes": 1813236
+  },
+  "SHEL": {
+   "units": 14,
+   "ok": 14,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 11531,
+   "bytes": 813684
+  },
+  "SHOP": {
+   "units": 33,
+   "ok": 33,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 937932,
+   "bytes": 62941574
+  },
+  "SLB": {
+   "units": 7,
+   "ok": 7,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 48482,
+   "bytes": 3269124
+  },
+  "SNOW": {
+   "units": 6,
+   "ok": 6,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 316481,
+   "bytes": 21222727
+  },
+  "SO": {
+   "units": 28,
+   "ok": 28,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 25554,
+   "bytes": 1794257
+  },
+  "SONY": {
+   "units": 11,
+   "ok": 11,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 11707,
+   "bytes": 816695
+  },
+  "SPG": {
+   "units": 17,
+   "ok": 17,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 19837,
+   "bytes": 1378994
+  },
+  "SPOT": {
+   "units": 15,
+   "ok": 15,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 120057,
+   "bytes": 8088579
+  },
+  "STX": {
+   "units": 21,
+   "ok": 21,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 55005,
+   "bytes": 3747249
+  },
+  "SU": {
+   "units": 19,
+   "ok": 19,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 23706,
+   "bytes": 1644112
+  },
+  "T": {
+   "units": 31,
+   "ok": 31,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 371400,
+   "bytes": 24976647
+  },
+  "TD": {
+   "units": 16,
+   "ok": 16,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 2888,
+   "bytes": 240093
+  },
+  "TGT": {
+   "units": 20,
+   "ok": 20,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 185698,
+   "bytes": 12501585
+  },
+  "TJX": {
+   "units": 34,
+   "ok": 34,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 81120,
+   "bytes": 5535176
+  },
+  "TM": {
+   "units": 10,
+   "ok": 10,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 6107,
+   "bytes": 438437
+  },
+  "TMUS": {
+   "units": 26,
+   "ok": 26,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 64455,
+   "bytes": 4395134
+  },
+  "TRV": {
+   "units": 17,
+   "ok": 17,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 5803,
+   "bytes": 438401
+  },
+  "TSLA": {
+   "units": 19,
+   "ok": 19,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 5097200,
+   "bytes": 341571946
+  },
+  "TSM": {
+   "units": 30,
+   "ok": 30,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1053475,
+   "bytes": 70674014
+  },
+  "TT": {
+   "units": 7,
+   "ok": 7,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1068,
+   "bytes": 91926
+  },
+  "TTE": {
+   "units": 6,
+   "ok": 6,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1162,
+   "bytes": 95331
+  },
+  "TXN": {
+   "units": 33,
+   "ok": 33,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 129009,
+   "bytes": 8741169
+  },
+  "UBER": {
+   "units": 14,
+   "ok": 14,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 555006,
+   "bytes": 37228229
+  },
+  "UBS": {
+   "units": 10,
+   "ok": 10,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 3685,
+   "bytes": 276072
+  },
+  "UL": {
+   "units": 10,
+   "ok": 10,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 1100,
+   "bytes": 102808
+  },
+  "UNH": {
+   "units": 40,
+   "ok": 40,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 229997,
+   "bytes": 15528591
+  },
+  "UNP": {
+   "units": 29,
+   "ok": 29,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 57409,
+   "bytes": 3931818
+  },
+  "UPS": {
+   "units": 21,
+   "ok": 21,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 238475,
+   "bytes": 16040576
+  },
+  "USB": {
+   "units": 12,
+   "ok": 12,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 21984,
+   "bytes": 1508247
+  },
+  "V": {
+   "units": 37,
+   "ok": 37,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 341823,
+   "bytes": 23012720
+  },
+  "VLO": {
+   "units": 14,
+   "ok": 14,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 46674,
+   "bytes": 3168539
+  },
+  "VRT": {
+   "units": 14,
+   "ok": 14,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 95700,
+   "bytes": 6453550
+  },
+  "VZ": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 178711,
+   "bytes": 12039298
+  },
+  "WDC": {
+   "units": 23,
+   "ok": 23,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 136844,
+   "bytes": 9236911
+  },
+  "WELL": {
+   "units": 20,
+   "ok": 20,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 8642,
+   "bytes": 637471
+  },
+  "WFC": {
+   "units": 23,
+   "ok": 23,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 378100,
+   "bytes": 25402098
+  },
+  "WM": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 28275,
+   "bytes": 1958977
+  },
+  "WMB": {
+   "units": 23,
+   "ok": 23,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 14468,
+   "bytes": 1036731
+  },
+  "WMT": {
+   "units": 38,
+   "ok": 38,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 895786,
+   "bytes": 60132663
+  },
+  "XOM": {
+   "units": 22,
+   "ok": 22,
+   "empty": 0,
+   "missing": 0,
+   "owed": 0,
+   "prints": 510374,
+   "bytes": 34261857
+  }
+ },
+ "empty_units": [
+  "BUD|2024-01-10"
+ ],
+ "missing_units": []
+}
