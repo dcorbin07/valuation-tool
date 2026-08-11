@@ -1966,6 +1966,11 @@ function _renderIndexTrack(d) {
     <div class="muted" style="font-size:11px;margin-top:6px">${esc(bt.basis || "")}. Hypothetical —
       the model was tuned on this same history.</div>`;
 
+  // LA8 — supplied by the server (index_track.track_age) rather than derived here, so the card,
+  // the hero band, the landing page and the server's own note cannot disagree about how old
+  // the track is. Null-guarded: an older payload simply falls back to the row count.
+  const age = live && live.age ? live.age : null;
+
   let liveRows;
   if (!d.available || !live) {
     liveRows = `<div class="muted" style="margin-top:10px">${esc(d.note || "Not started yet.")}</div>`;
@@ -1981,15 +1986,22 @@ function _renderIndexTrack(d) {
       <div class="metricline" style="margin-top:6px">
         ${metric("Alpha / yr", live.ann_alpha == null ? "—" : spct(live.ann_alpha))}
         ${metric("Sharpe", live.sharpe == null ? "—" : num(live.sharpe, 2))}
-        ${metric("Days", live.days)}
+        ${/* LA8 — "Days" was live.days, the number of rows the recorder wrote, sitting beside
+              two performance figures under a word that means age. A track 7 days old with 2
+              rows read as "2". The age tile now shows the calendar; the Recorded tile appears
+              only when they differ, so the gap is a visible second number rather than a
+              silently smaller first one. */
+          metric("Days", age ? age.age : live.days)}
+        ${age && !age.complete ? metric("Recorded", age.recorded) : ""}
       </div>
       <div class="muted" style="font-size:11px;margin-top:6px">${esc(live.book || "")}${live.book
           ? " · " + esc(live.window || "") + " · source: " + esc(live.recorder || "") + ". "
           : ""}Dated model positions since
         ${esc(d.inception || live.since)}, priced forward — a model portfolio, not a traded
         account, and no capital is at risk in it. ${d.thin
-          ? `Annualised figures are withheld until ${d.min_live_days} trading days — compounding
-             ${live.days} day${live.days === 1 ? "" : "s"} to a yearly rate would invent a number.`
+          ? `Annualised figures are withheld until ${d.min_live_days} RECORDED trading days —
+             compounding ${live.days} recorded day${live.days === 1 ? "" : "s"} to a yearly rate
+             would invent a number.`
           : "Net of the same cost model as the backtest."}</div>`;
   }
 
@@ -1997,7 +2009,8 @@ function _renderIndexTrack(d) {
     + card("Backtested", liveLeads ? "reference" : "headline",
            liveLeads ? "spec" : "est", btRows, !liveLeads)
     + card("Forward, model portfolio",
-           d.available ? (d.thin ? `thin — ${live.days}d` : "headline") : "not started",
+           d.available ? (d.thin ? `thin — ${age ? esc(age.short) : live.days + "d"}` : "headline")
+                       : "not started",
            d.thin || !d.available ? "spec" : "est", liveRows, liveLeads)
     + `</div>`
     + (d.note ? `<div class="note" style="margin-top:10px">${esc(d.note)}</div>` : "");
