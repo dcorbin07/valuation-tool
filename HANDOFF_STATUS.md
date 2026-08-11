@@ -55,7 +55,7 @@ of the time — the whole book is 3,870 and the largest live bucket is 2,058.** 
 expectancy on this book is essentially unmeasurable **at any floor**; a third independent
 corroboration of R2/O13. **Zero live buckets change status.**
 
-Full gate **59 suites, all green** (two new: `test_dividends.py` 27, `test_bucket_floor.py` 19).
+Full gate **60 suites, all green** on the merged tree (two new: `test_dividends.py` 27, `test_bucket_floor.py` 19).
 Options `N` **246 → 248** (O21 charged 1, O26 charged 1); **equity `N` untouched at 155**, so `BACKTEST_RESULTS.json` needs no re-run. Detail in
 `HANDOFF_optionsbot.md` §29–33. **Recommended next:** re-mine the 179 alternative contracts to
 close D2 — the only open door — and **do not raise `MIN_CLOSED_PER_BUCKET`**; the lever does not
