@@ -56,7 +56,8 @@ any verdict was read and is recorded as an amendment.
 (`entry_spread_pct` q5 **−7.41%**). That refuted my own pre-registered expectation and is the
 **recommended next step: `entry_spread_pct` as its own pre-registered refusal rule.**
 
-Full gate **55 suites, all green** (two new: `test_antisignal.py` 35, `test_kelly.py` 28).
+Full gate **57 suites, all green** on the merged tree (two new here: `test_antisignal.py` 35,
+`test_kelly.py` 28).
 Options `N` **210 → 246**; **equity `N` untouched at 155** and `BACKTEST_RESULTS.json` needs no
 re-run — the trial counter is domain-scoped. Detail in `HANDOFF_optionsbot.md` §24–28.
 
