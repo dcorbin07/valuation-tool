@@ -6130,6 +6130,163 @@ def test_s22_kaplan_meier_is_censoring_aware():
     assert none_median is None
 
 
+def _s23_panel(n_dates=20, n_names=80, seed=3):
+    """A synthetic panel with the columns `_backtest_hold` reads."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for di in range(n_dates):
+        d = f"20{10 + di // 4}-{1 + 3 * (di % 4):02d}-15"
+        for j in range(n_names):
+            rows.append({"date": d, "ticker": f"T{j:02d}",
+                         "quality": float(rng.normal()), "momentum": float(rng.normal()),
+                         "fwd_ret": float(rng.normal(0, 0.1)),
+                         "bench_ret": float(rng.normal(0, 0.05)),
+                         "market_cap": 1e9 * (j + 1)})
+    return pd.DataFrame(rows)
+
+
+def test_s23_the_new_exits_are_opt_in_and_change_nothing():
+    """S23 added four exits, a cost model and a series to `_backtest_hold`. Every one is
+    opt-in, so the shipped book — which BACKTEST_RESULTS.json reports — cannot move by a bit."""
+    from valuation.edge.fundamental_panel import _backtest_hold
+
+    p = _s23_panel()
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    off = _backtest_hold(p, cols, w, top_n=10)
+    explicit = _backtest_hold(p, cols, w, top_n=10, take_profit=None, stop_loss=None,
+                              fv_at_or_above=None, disable_rank_exit=False,
+                              cost_bps_one_way=None, return_series=False)
+    assert set(off) == set(explicit), "passing the new defaults must add no keys"
+    for k in off:
+        assert repr(off[k]) == repr(explicit[k]), f"{k} moved at default settings"
+    assert off["charges_costs"] is False
+    assert "series" not in off and "exit_reasons" not in off
+
+
+def test_s23_costs_are_charged_in_the_right_direction_and_size():
+    """The whole cost of an exit rule is turnover, so a race scored gross would flatter
+    whichever arm trades most. The drag is exact for an equal-weighted book:
+    bps/1e4 * (bought + sold) / held."""
+    from valuation.edge.fundamental_panel import _backtest_hold
+
+    p = _s23_panel()
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    g = _backtest_hold(p, cols, w, top_n=10, return_series=True)
+    n = _backtest_hold(p, cols, w, top_n=10, cost_bps_one_way=33.4, return_series=True)
+    assert n["cagr"] < g["cagr"], "charging costs must not improve the book"
+    assert n["charges_costs"] is True and n["cost_bps_one_way"] == 33.4
+    s = n["series"]
+    for k in range(len(s["net"])):
+        want = (33.4 / 1e4) * (s["bought"][k] + s["sold"][k]) / s["held"][k]
+        assert abs(s["drag"][k] - want) < 1e-12, f"period {k} drag is not the stated formula"
+        assert abs((s["gross"][k] - s["drag"][k]) - s["net"][k]) < 1e-12
+    # a zero-cost run must reproduce the gross series exactly
+    assert g["series"]["gross"] == n["series"]["gross"]
+    assert all(d == 0.0 for d in g["series"]["drag"])
+
+
+def test_s23_each_exit_rule_actually_fires_and_is_attributed():
+    """An exit rule that never triggers would make its arm a silent copy of the incumbent, and
+    the race would report a dead heat that means nothing."""
+    from valuation.edge.fundamental_panel import _backtest_hold
+
+    p = _s23_panel()
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    base = _backtest_hold(p, cols, w, top_n=10, return_series=True)
+    assert set(base["exit_reasons"]) == {"rank"}
+
+    tp = _backtest_hold(p, cols, w, top_n=10, take_profit=0.25, stop_loss=0.08,
+                        return_series=True)
+    assert tp["exit_reasons"].get("take_profit", 0) > 0
+    assert tp["exit_reasons"].get("stop_loss", 0) > 0
+
+    dates = sorted(p["date"].unique())
+    fv = {(d, "T00") for d in dates} | {(d, "T01") for d in dates}
+    f = _backtest_hold(p, cols, w, top_n=10, fv_at_or_above=fv, return_series=True)
+    assert f["exit_reasons"].get("fair_value", 0) > 0
+
+    # every exit is attributed to exactly one reason, so the counts sum to the completed spells
+    for r in (base, tp, f):
+        assert sum(r["exit_reasons"].values()) > 0
+
+
+def test_s23_the_never_exit_control_never_sells_and_its_book_grows():
+    """C-NEVER is a CONTROL, not a candidate: its book is not size-comparable to the others,
+    and this is the test that makes that concrete rather than a caveat in prose."""
+    from valuation.edge.fundamental_panel import _backtest_hold
+
+    p = _s23_panel()
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    base = _backtest_hold(p, cols, w, top_n=10, return_series=True)
+    nv = _backtest_hold(p, cols, w, top_n=10, disable_rank_exit=True, return_series=True)
+    assert nv["exit_reasons"] == {}, "the control must never sell"
+    assert nv["held_max"] > base["held_max"], "the control's book must grow past the incumbent's"
+    assert nv["series"]["sold"] == [0] * len(nv["series"]["sold"])
+
+
+def test_s23_min_hold_binds_every_exit_rule_alike():
+    """`min_hold` is held identical across arms so churn protection is not a confound. A
+    take-profit that could fire on the entry period would give the TP/SL arms a different
+    churn floor from the incumbent and the race would be measuring two things."""
+    from valuation.edge.fundamental_panel import _backtest_hold
+
+    p = _s23_panel()
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    # a take-profit of -1000% would fire instantly if min_hold did not bind it
+    r = _backtest_hold(p, cols, w, top_n=10, take_profit=-10.0, min_hold=2, return_series=True)
+    assert r["series"]["sold"][0] == 0, "nothing may be sold in the entry period"
+    assert r["series"]["sold"][1] == 0, "nor before min_hold periods have passed"
+    assert sum(r["series"]["sold"]) > 0, "and it must fire once the minimum hold is met"
+
+
+def test_s23_offline_beta_reproduces_the_ladder_without_its_network_rung():
+    """The PIT valuation must never reach `data.beta.compute_beta`, which fetches TODAY'S
+    prices — look-ahead in a backtest. `offline_beta` is rungs 1 -> (2 or 4), never 3."""
+    from valuation.engine.calibration import offline_beta
+    from valuation.engine.wacc import BETA_FALLBACK, BETA_HIGH_CAP, BETA_LOW_TRIGGER
+
+    assert offline_beta(1.2) == 1.2, "an in-range PIT beta is used as-is (rung 2)"
+    assert offline_beta(BETA_HIGH_CAP) == BETA_HIGH_CAP, "the cap itself is in range"
+    # everything the ladder would have sent to the network lands on the STATED CONSTANT
+    for bad in (None, float("nan"), 0.0, -1.0, BETA_LOW_TRIGGER, BETA_LOW_TRIGGER / 2,
+                BETA_HIGH_CAP + 0.01, 99.0):
+        assert offline_beta(bad) == BETA_FALLBACK, f"{bad} must fall to the stated constant"
+
+
+def test_s23_lean_fair_value_beta_override_is_opt_in():
+    """`lean_fair_value` gained one optional argument. Default None must leave the live path
+    exactly as it was, or the website's own valuations move."""
+    import inspect
+
+    from valuation.engine.calibration import lean_fair_value
+
+    sig = inspect.signature(lean_fair_value)
+    assert sig.parameters["beta_override"].default is None
+    assert list(sig.parameters) == ["cd", "cfg", "with_reverse", "beta_override"], \
+        "the override must be appended, never inserted ahead of an existing positional"
+
+
+def test_s23_the_valuation_panel_cuts_the_shared_calendar_not_each_ticker():
+    """AUDIT B6, in the valuation panel. It used to request a per-ticker tail — the route
+    `data_providers.price_history` says 'is never the panel's route now' — which put its early
+    cross-sections on names that had already stopped trading. If this regresses, the fair-value
+    arm silently scores a different calendar from the factor panel and S23's C1 is void."""
+    import inspect
+
+    from valuation.engine import calibration as C
+
+    src = inspect.getsource(C.build_valuation_panel)
+    assert "price_history(t, days=None)" in src, \
+        "the valuation panel must ask for the WHOLE series (B6)"
+    assert "frame.iloc[-_CAL_DAYS:]" in src, \
+        "the SHARED calendar must be cut once, after the frame is built (B6)"
+    # Scoped to the PER-TICKER fetch. The benchmark is fetched with an explicit `days=` too,
+    # and that one is legitimate: SPY is a single series reindexed onto the panel calendar, so
+    # it cannot create the union-calendar defect B6 is about.
+    assert "provider.price_history(t, days=TD" not in src, \
+        "the per-ticker tail must not come back"
+
+
 def test_x3_deflated_sharpe_at_round_trips_and_falls_with_n():
     """X3's eight arms raise N, and a higher N must LOWER the Deflated Sharpe. That direction
     is the entire point of M1; a re-derivation that moved it the other way would be wrong."""

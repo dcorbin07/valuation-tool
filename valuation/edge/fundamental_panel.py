@@ -1752,19 +1752,46 @@ def _backtest(panel, cols, weights, top_n=20, horizon=252):
 
 
 def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, horizon=63,
-                   trailing_stop=None):
+                   trailing_stop=None, take_profit=None, stop_loss=None, fv_at_or_above=None,
+                   disable_rank_exit=False, cost_bps_one_way=None, return_series=False):
     """Event-driven backtest that mirrors the LIVE sell logic: BUY the top-N by composite,
     then HOLD each name until it falls out of the top `exit_rank` (a hysteresis band, so a
     still-good name that merely slips isn't churned) — subject to a minimum hold. Optional
     `trailing_stop` (e.g. 0.3) also sells if a name falls that far from its own peak since
     entry (a profit-lock / reversal catch). Holding periods are variable: a strong name
-    compounds for years. 'Hold the gems, sell what's no longer worth holding', not churn."""
+    compounds for years. 'Hold the gems, sell what's no longer worth holding', not churn.
+
+    S23 — the alternative exits are ADDITIONAL and opt-in, so with every new argument at its
+    default this function is bit-identical to what it was (pinned by
+    test_s23_the_new_exits_are_opt_in_and_change_nothing). One implementation, not a second
+    copy that can drift from the shipped one.
+
+      * `take_profit` / `stop_loss` — cumulative return since entry, e.g. 0.25 / 0.08. These
+        are evaluated at REBALANCE MARKS ONLY, because the panel carries no intra-quarter path,
+        so they trigger LESS often than a true path-dependent rule would. That biases the
+        result in FAVOUR of a TP/SL arm, which is stated in PREREG_s23_exit_rule.md §5a and is
+        why a NEGATIVE result on these arms is the trustworthy direction.
+      * `fv_at_or_above` — a set of (date, ticker) pairs at which the price has reached the
+        point-in-time fair value. Precomputed by the caller through the LIVE engine, never
+        re-derived here.
+      * `disable_rank_exit` — the never-sell control. Its book grows without bound, so its
+        size is NOT comparable to the others; that is the control's whole point.
+      * `cost_bps_one_way` — charge turnover. On an equal-weighted book each traded name pays
+        its own weight's worth, so the period drag is exactly
+        `bps/1e4 * (n_bought + n_sold) / n_held`. Off by default, which is the historical
+        (B17-flagged) behaviour: this function has always charged nothing.
+
+    `return_series=True` adds the per-period draws and the per-period book/trade counts, which
+    a PAIRED comparison of two arms needs and a summary cannot reconstruct (RUN_RULES A9).
+    """
     from ..screener.cross_sectional import zscore
     exit_rank = exit_rank or (top_n * 2)
     dates = sorted(panel["date"].unique())
     by_date = {d: panel[panel["date"] == d] for d in dates}
     held, port, bench, ew, hold_lens = {}, [], [], [], []   # held[t] = [entry_i, cum_factor, peak_factor]
     held_counts = []                                       # AUDIT B17: realised book size
+    exit_reasons, used_dates = {}, []                      # S23
+    gross_series, drag_series, bought_series, sold_series = [], [], [], []
     for i, d in enumerate(dates):
         sub = by_date[d]
         tickers = sub["ticker"].values
@@ -1772,16 +1799,31 @@ def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, h
         order = np.argsort(-comp)
         rank = {tickers[order[r]]: r + 1 for r in range(len(order))}
         fwd = {tickers[j]: sub["fwd_ret"].values[j] for j in range(len(tickers))}
+        n_sold_i = 0
         for t in list(held):                              # SELL: band drop-out (past min-hold) or stop
             entry_i, cum, peak = held[t]
             dd = (cum / peak - 1.0) if peak > 0 else 0.0
+            aged = (i - entry_i) >= min_hold
             stop_hit = (trailing_stop is not None) and (dd <= -trailing_stop)
-            rank_out = (t not in rank or rank[t] > exit_rank) and (i - entry_i) >= min_hold
-            if stop_hit or rank_out:
+            rank_out = (not disable_rank_exit) and (t not in rank or rank[t] > exit_rank) and aged
+            # S23 — cumulative return since entry, at this rebalance mark. `cum` is the running
+            # product of realised period returns, so `cum - 1` IS that cumulative return.
+            ret_cum = cum - 1.0
+            tp_hit = (take_profit is not None) and aged and (ret_cum >= take_profit)
+            sl_hit = (stop_loss is not None) and aged and (ret_cum <= -stop_loss)
+            fv_hit = (fv_at_or_above is not None) and aged and ((d, t) in fv_at_or_above)
+            if stop_hit or rank_out or tp_hit or sl_hit or fv_hit:
+                # one reason per exit, in a fixed precedence so the counts sum to the exits
+                reason = ("stop" if stop_hit else "take_profit" if tp_hit else
+                          "stop_loss" if sl_hit else "fair_value" if fv_hit else "rank")
+                exit_reasons[reason] = exit_reasons.get(reason, 0) + 1
                 hold_lens.append(i - entry_i)
                 del held[t]
+                n_sold_i += 1
+        n_before = len(held)
         for r in range(min(top_n, len(order))):           # BUY: new top-N
             held.setdefault(tickers[order[r]], [i, 1.0, 1.0])
+        n_bought_i = len(held) - n_before
         rets = []
         for t in held:                                    # this period's return + update each name's path
             fr = fwd.get(t)
@@ -1795,10 +1837,20 @@ def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, h
         bm = float(np.nanmean(br)) if np.isfinite(br).any() else float("nan")
         em = float(np.nanmean(allr)) if np.isfinite(allr).any() else float("nan")
         if pr == pr and bm == bm:
-            port.append(pr)
+            # S23 — turnover drag. Equal-weighted book, so each traded name costs its own
+            # weight's worth: bps * (bought + sold) / held. Zero when costs are off.
+            drag = 0.0
+            if cost_bps_one_way and len(held):
+                drag = (float(cost_bps_one_way) / 1e4) * (n_bought_i + n_sold_i) / float(len(held))
+            gross_series.append(pr)
+            drag_series.append(drag)
+            bought_series.append(n_bought_i)
+            sold_series.append(n_sold_i)
+            port.append(pr - drag)
             bench.append(bm)
             ew.append(em if em == em else bm)
             held_counts.append(len(held))      # AUDIT B17
+            used_dates.append(str(d)[:10])
     if not port:
         return None
     tot = float(np.prod([1 + x for x in port]) - 1)
@@ -1826,7 +1878,19 @@ def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, h
             "held_median": (int(np.median(held_counts)) if held_counts else None),
             "held_min": (int(min(held_counts)) if held_counts else None),
             "held_max": (int(max(held_counts)) if held_counts else None),
-            "charges_costs": False, "charges_taxes": False,
+            "charges_costs": bool(cost_bps_one_way), "charges_taxes": False,
+            # S23 — opt-in diagnostics. `exit_reasons` sums to the number of completed spells,
+            # so "which rule actually fired" is measurable rather than inferred.
+            **({"cost_bps_one_way": float(cost_bps_one_way)} if cost_bps_one_way else {}),
+            **({"exit_reasons": dict(exit_reasons),
+                "avg_bought_per_period": float(np.mean(bought_series)) if bought_series else None,
+                "avg_sold_per_period": float(np.mean(sold_series)) if sold_series else None,
+                "avg_drag_per_period": float(np.mean(drag_series)) if drag_series else None,
+                "series": {"dates": used_dates, "net": list(port), "gross": gross_series,
+                           "drag": drag_series, "bench": list(bench), "ew": list(ew),
+                           "held": [int(x) for x in held_counts],
+                           "bought": bought_series, "sold": sold_series}}
+               if return_series else {}),
             "label_warning": ("realised book size is ~exit_rank, NOT top_n; gross of costs and "
                               "taxes unlike every other book in this file (audit B17)")}
 
