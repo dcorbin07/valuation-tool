@@ -117,12 +117,19 @@ def test_a_real_parameter_change_changes_the_id():
         assert not SV.same_model(a, SV.snapshot(changed))
 
 
-def test_vintage_2s_parameters_are_pinned_now_while_nothing_can_be_compared():
-    """The pre-registration's whole claim. Vintage 2's snapshot is in a tracked file BEFORE any
-    successor exists, so it cannot be reconstructed later to suit a comparison."""
+def test_vintage_2s_parameters_are_pinned_and_did_not_move_when_a_successor_arrived():
+    """The pre-registration's whole claim, now in its STRONGER form.
+
+    Vintage 2's snapshot was written to a tracked file on 2026-08-10, before any successor
+    existed, so it could not have been chosen to suit a comparison. On 2026-08-11 a successor
+    DID arrive (vintage 3, the theme restoration) — and the hash is unchanged. A pin that moves
+    retroactively is not a pin, and this is the day that claim became checkable rather than
+    merely asserted.
+    """
     snap = SV.pinned_snapshot(2)
     assert snap and snap["params_id"] == "0060c5ef3dda"
-    assert SV.PINNED[2]["opened"] == dt.date(2026, 8, 10) == TM.INCEPTION
+    assert SV.PINNED[2]["opened"] == dt.date(2026, 8, 10)
+    assert "themes_scored_live" not in snap["params"], "vintage 2's pin was rewritten"
     weights = snap["params"]["theme_weights"]
     assert weights["low_risk"] == 0.0, "low_risk is zeroed in the deployed model"
     assert abs(sum(weights.values()) - 0.875) < 1e-9, "seven themes at a flat 1/8 each"
@@ -130,10 +137,19 @@ def test_vintage_2s_parameters_are_pinned_now_while_nothing_can_be_compared():
 
 
 def test_param_keys_are_the_registered_set():
-    """Widening this silently redefines what 'the same model' means, so it is pinned."""
+    """Widening this silently redefines what 'the same model' means, so it is pinned.
+
+    THIS TEST FIRED ON 2026-08-11 AND WAS RIGHT TO. The theme restoration added
+    `themes_scored_live`, which was NOT pre-registered. It is updated deliberately here rather
+    than widened silently, and the reason is recorded in `shadow_vintage.PARAM_KEYS` itself:
+    without that key vintage 2 and vintage 3 hash IDENTICAL — no declared weight changed — and
+    `same_model` would report no change while the live book demonstrably changed. The key
+    records what actually reaches a score, which is what the declared weights were silently
+    assumed to equal. It changes no score.
+    """
     assert SV.PARAM_KEYS == ("theme_weights", "sector_neutral", "residual_momentum",
                              "ev_point_in_time", "large_cap_min", "top_decile", "max_weight",
-                             "weighting", "top_n")
+                             "weighting", "top_n", "themes_scored_live")
 
 
 # ------------------------------------------------------------------ divergence
@@ -229,14 +245,20 @@ def test_a_null_always_carries_what_it_could_have_detected():
 
 
 # ------------------------------------------------------------------ status and scope
-def test_detail_is_not_vacuously_green_before_a_pair_exists():
+def test_detail_is_not_vacuously_green_now_that_a_pair_exists():
     """The failure track_meter had to fix: a healthy-looking object full of zeros, reported
-    before the thing it describes had started."""
+    before the thing it describes had started.
+
+    Rewritten 2026-08-11: the theme restoration opened vintage 3, so a pair now EXISTS. The
+    property under test is unchanged and is now the stronger one — a pair is open and there is
+    still no verdict, because no complete month has elapsed. A shadow pair that has not crossed
+    is the EXPECTED outcome and is not evidence the adoption was worthless.
+    """
     d = SV.detail()
-    assert d["active"] is False and d["n_pairs"] == 0 and d["pairs"] == []
-    assert "no vintage pair exists yet" in d["status"]
+    assert d["n_pairs"] == 1 and len(d["pairs"]) == 1
+    assert d["pairs"][0]["live_vintage"] == 3 and d["pairs"][0]["shadow_vintage"] == 2
+    assert d["current_vintage"] == TM.current_vintage()["vintage"]
     assert "no verdict of any kind is available" in d["status"]
-    assert d["current_vintage"] == 2
 
 
 def test_detail_names_its_own_scope():

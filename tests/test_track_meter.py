@@ -48,10 +48,14 @@ def test_frozen_constants_are_exactly_what_the_contract_says():
     # STATISTICS did not -- sigma, rho, alpha and the cost drag are unchanged, and the
     # assertions below pin that separation.
     assert TM.CONTRACT_VERSION == "option-E-2026-08-09+amendment-1"
-    assert TM.INCEPTION == dt.date(2026, 8, 10)
-    assert TM.OPERATIONAL_GATE == dt.date(2027, 2, 10)
-    assert TM.FIRST_RENDER == dt.date(2027, 2, 10)
-    assert TM.VERDICT_DATE == dt.date(2031, 8, 10)
+    # THE CLOCK ATTACHES TO THE CURRENT VINTAGE and is DERIVED, so a vintage event moves it
+    # mechanically rather than by anyone remembering to. Asserted as a relationship, which is
+    # the property the contract actually states; the literal dates moved when the theme
+    # restoration opened vintage 3 (gate 2027-02-10 -> 2027-02-11).
+    assert TM.INCEPTION == TM.current_vintage()["opened"]
+    assert TM.OPERATIONAL_GATE == TM._months_after(TM.INCEPTION, TM.GATE_MONTHS)
+    assert TM.FIRST_RENDER == TM.OPERATIONAL_GATE
+    assert TM.VERDICT_DATE == TM._months_after(TM.INCEPTION, TM.VERDICT_MONTHS)
     assert TM.RHO == 3.0
     assert TM.ALPHA == 0.05
     assert TM.MARK_STALENESS_LIMIT_TD == 3
@@ -61,11 +65,17 @@ def test_frozen_constants_are_exactly_what_the_contract_says():
 
 
 # ------------------------------------------------- the vintage rule (Amendment 1)
-def test_exactly_one_vintage_is_open_and_it_is_vintage_2():
+def test_exactly_one_vintage_is_open_and_it_is_the_latest():
+    """The INVARIANT, not the number. Pinning "it is vintage 2" made a legitimate vintage event
+    fail a test that exists to catch two vintages being open at once."""
     v = TM.current_vintage()
-    assert v["vintage"] == 2 and v["run"] == 2
-    assert v["opened"] == dt.date(2026, 8, 10) and v["closed"] is None
     assert sum(1 for x in TM.VINTAGES if x["status"] == "OPEN") == 1
+    assert v["vintage"] == max(x["vintage"] for x in TM.VINTAGES)
+    assert v["closed"] is None
+    # every earlier vintage is resolved, never left dangling
+    for x in TM.VINTAGES:
+        if x["vintage"] != v["vintage"]:
+            assert x["status"] in ("VOID", "CLOSED") and x["closed"] is not None, x
 
 
 def test_run_1_is_recorded_as_void_and_is_not_deleted():
@@ -91,16 +101,16 @@ def test_the_voided_vintage_does_not_feed_the_meter():
     live = [{"date": "2026-07-31", "valquo": 0.4126, "spy": 0.6903},
             {"date": "2026-08-06", "valquo": 0.7760, "spy": 3.6228}]
     m = TM.meter(live, as_of=dt.date(2026, 9, 30))
-    assert m["vintage"] == 2
+    assert m["vintage"] == TM.current_vintage()["vintage"]
     assert m["n_months"] == 0, "a voided vintage's rows reached the meter"
-    assert m["gaps"]["inception"] == "2026-08-10"
+    assert m["gaps"]["inception"] == TM.INCEPTION.isoformat()
 
 
 def test_a_later_vintage_is_baselined_at_its_opening_level_not_at_zero():
     """The recorded series is cumulative since run #1, so vintage 2 must not inherit its drift."""
     rows = _series(dt.date(2026, 7, 30), 130, 0.10, 0.02)      # cumulative from run #1
     lvl = {r["date"]: r for r in rows}
-    at_open = [r for r in rows if r["date"] <= "2026-08-10"][-1]
+    at_open = [r for r in rows if r["date"] <= TM.INCEPTION.isoformat()][-1]
     assert at_open["valquo"] > 0.5, at_open   # run #1 drift is genuinely non-zero
 
     mx = TM.monthly_excess(rows, as_of=dt.date(2026, 10, 31))
@@ -148,14 +158,22 @@ def test_detail_is_not_vacuously_green_before_the_vintage_starts():
 def test_detail_reports_a_missing_day_the_day_after_it_was_due():
     """The one-day test for whether the daily writer is actually running.
 
-    Inception (2026-08-10) is day 0, so the FIRST row due is 2026-08-11 and the earliest date
-    on which its absence is detectable is 2026-08-12.
+    Inception is day 0, so the FIRST row due is the next trading day and the earliest date on
+    which its absence is detectable is the day after that. Derived from the open vintage rather
+    than hard-coded, so a vintage event moves the test with the clock instead of breaking it.
     """
-    d = TM.detail(series=[], as_of=dt.date(2026, 8, 12))
+    day0 = TM.INCEPTION
+    due = day0 + dt.timedelta(days=1)
+    while due.weekday() >= 5:
+        due += dt.timedelta(days=1)
+    detect = due + dt.timedelta(days=1)
+    while detect.weekday() >= 5:
+        detect += dt.timedelta(days=1)
+    d = TM.detail(series=[], as_of=detect)
     assert d["started"] is True and d["recording_ok"] is False
     assert "MISSING" in d["recording_note"]
-    assert "2026-08-11" in d["meter"]["gaps"]["missing_dates"]
-    assert "2026-08-10" not in d["meter"]["gaps"]["missing_dates"], "demanded a row on day 0"
+    assert due.isoformat() in d["meter"]["gaps"]["missing_dates"]
+    assert day0.isoformat() not in d["meter"]["gaps"]["missing_dates"], "demanded a row on day 0"
 
 
 def test_as_operated_is_reconciled_against_the_one_authority():
@@ -180,7 +198,7 @@ def test_as_operated_is_reconciled_against_the_one_authority():
 def test_detail_names_the_bound_source_and_never_raises():
     d = TM.detail(series=[], as_of=dt.date(2026, 8, 12))
     assert "Valquo Index" in d["source"] and d["not_the_sandbox_engine"] is True
-    assert d["vintage"] == 2
+    assert d["vintage"] == TM.current_vintage()["vintage"]
     # A broken series is a normal state, not a 500 on an unrelated page.
     bad = TM.detail(series=[{"date": "not-a-date", "valquo": None, "spy": None}],
                     as_of=dt.date(2026, 8, 11))

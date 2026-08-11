@@ -416,7 +416,34 @@ that distinction mechanical rather than a matter of judgement.
 | vintage | run | opened | closed | status | reason |
 |---|---|---|---|---|---|
 | **1** | #1 | 2026-07-30 | 2026-08-09 | **VOID** | growth-input fix, score fix, universe rebuild — the measured model no longer exists |
-| **2** | #2 | **2026-08-10** | — | **OPEN — the live test** | opened by Amendment 1 |
+| **2** | #2 | **2026-08-10** | 2026-08-11 | **CLOSED** | opened by Amendment 1; closed by the theme restoration after **ONE accrued day** |
+| **3** | #2 | **2026-08-11** | — | **OPEN — the live test** | opened by the theme restoration: `capital_discipline` reaches a live score after clearing a pre-registered fidelity gate (Spearman +0.8421 vs the panel's own theme). `institutional` (+0.1706) and `insider` (+0.3596) FAILED that gate and are deliberately still absent. No weight or construction parameter changed |
+
+> **THE CLOCK RESET, AND WHAT IT COST — recorded because Rule 6 says it buys nothing
+> statistically.** The gate and the meter attach to the CURRENT vintage, and
+> `track_meter.INCEPTION` is *derived* from the open vintage rather than being a literal, so
+> the reset is mechanical rather than a decision anyone had to remember to make:
+>
+> | | vintage 2 | **vintage 3 (current)** |
+> |---|---|---|
+> | inception | 2026-08-10 | **2026-08-11** |
+> | operational gate / first render | 2027-02-10 | **2027-02-11** |
+> | verdict date | 2031-08-10 | **2031-08-11** |
+>
+> **It cost ONE DAY, which is the entire argument for doing this now rather than later.**
+> Vintage 2 had accrued a single day, so Rule 6's penalty — reset the whole clock, gain
+> nothing — was as cheap as it will ever be. The same restoration a year from now would have
+> discarded a year.
+>
+> **The §5 rows above are NOT rewritten.** They record Amendment 1's terms as signed, and
+> those dates describe VINTAGE 2. Where §5 says 2027-02-10 or 2031-08-10, the current
+> vintage's equivalents are one day later. The `Operational gate passed` row still reads
+> `pending` and is still the one row the running site parses.
+>
+> **`V1`'s shadow machinery fires here for the FIRST TIME** — `open_pairs()` was documented
+> as *"Empty until an adoption opens vintage 3"* and now returns exactly one pair, live 3
+> shadowed by 2. Vintage 2's parameters were pinned on 2026-08-10, before any successor
+> existed, so the shadow runs a snapshot rather than a reconstruction.
 
 **Cost of the amendment: equity `N` 130 → 131.** Charged, not waived. Void-and-restart is a
 researcher degree of freedom — each vintage is another chance for the same hypothesis, and the

@@ -4008,3 +4008,192 @@ without a word. A test fails if a **fourth** appears.
 * **NEW** `build_ledger.read_ledger` silently dropped unparseable rows and `--write` would delete
   them; three rows (`S23`, `M1-PARSE`, `V2G`) are affected today. Guard added; rows reported, not
   rewritten.
+
+---
+
+## Part 17 — THE THEME RESTORATION: ONE THEME OF THREE, AND THE FIRST VINTAGE EVENT (2026-08-11, greeks lane)
+
+The live book scored **4 of 7** weighted themes and failed the calibrated long-short floor
+(**1.8811 vs 2.2837**) while the validated seven-theme composite clears it (2.6199). This closes
+that gap on COHERENCE — live must run what was validated — but only for the theme that proved it
+is the same theme.
+
+`PREREG_theme_restoration.md`, committed **alone at `1d12822`**, before any wiring or any fidelity
+number existed.
+
+### 17.1 THE FIDELITY TABLE — the gate, and it did its job
+
+Spearman rank correlation between each live theme and **the panel's own theme**, on the panel's
+most recent cross-section (2026-01-28), over names present in both.
+
+| theme | ρ | p | n | quintile agree | coverage | distinct | verdict |
+|---|---|---|---|---|---|---|---|
+| **capital_discipline** | **+0.8421** | 4.5e-113 | 416 | 0.688 | 0.912 | 441 | **RESTORES** |
+| institutional | +0.1706 | 8.1e-04 | 382 | 0.262 | 0.822 | 410 | **FIDELITY FAIL** |
+| insider | +0.3596 | 8.7e-12 | 339 | 0.375 | 1.000 | 297 | **FIDELITY FAIL** |
+
+**BAR = max(0.60 floor, calibrated P95 0.3590) = 0.60.** The calibrated half is the X7 method
+applied to a correlation: over **36 distinct panel-theme pairs**, |ρ| has median **0.1878** and
+P95 **0.3590**. A live theme must agree with its panel counterpart better than two *different*
+panel themes agree with each other, or it is statistically indistinguishable from a different
+theme. Computed from the panel alone, so no fidelity result informed it.
+
+**Two things in that table deserve to be read carefully:**
+
+* **`institutional` at +0.1706 scores BELOW the median correlation between two DIFFERENT panel
+  themes (0.1878).** My EDGAR-derived institutional column agrees with the panel's SF3-derived
+  one *less well than momentum agrees with institutional*. That is not a marginal miss; it is the
+  B7 disease caught in the act. It passed every one of its own V2G bounds — 82.2% coverage, 410
+  distinct values, all five external-validity bounds held — and it is still **not the theme it
+  would have been wired in as.** Coverage was never the question.
+* **`insider` at +0.3596 lands almost exactly ON the calibrated component (0.3590).** It clears
+  that half by 0.0006 — noise — and fails the absolute floor. It sits precisely at the level where
+  distinct themes correlate with each other. Both halves of the bar were needed: the floor is what
+  rejected it.
+
+**The bar bound on the floor, not the calibration.** Had I registered only the calibrated
+component, `insider` would have restored on a 0.0006 margin.
+
+### 17.2 WHAT RESTORED, AND HOW LITTLE HAD TO CHANGE
+
+`capital_discipline` was never unwired. `factors.py:161` has read `share_issuance` all along and
+the weight has been 0.125 all along; `providers.py` shipped the input as `None` with the comment
+*"needs share history"*. **The hook was there and the data was not.**
+
+`valuation/screener/issuance.py` supplies it from free SEC XBRL company facts — the same source
+and the same quantity `fundamental_panel.py:699` computes for the backtest. Measured end to end on
+30 names: `capital_discipline` **0/30 → 30/30 non-null, 30 distinct values.**
+
+**A drift guard was necessary and it caught a real drift.** The fidelity gate was measured on the
+V2G *measured-only* column, so the shipped module must compute the same quantity or the +0.8421
+does not transfer. My first cut listed four share concepts and looped them one at a time, which
+resolves a different series than passing the list in one call: **PEP came out −0.003537 against
+the measured column's −0.003628.** Close enough to pass a spot-check and not the quantity that
+cleared the gate. Corrected to the exact two-concept list in a single call: **38 of 38 cached
+names now agree exactly, 2 both-None, 0 differ.**
+
+### 17.3 WHAT DID NOT RESTORE, AND EXACTLY WHAT WOULD FIX IT
+
+**`institutional` — the join is faithful, the AGGREGATION is not.** The CUSIP ladder is sound
+(anchor 423/423, median institutional ownership 0.682), so the names are right; what differs is
+what is being counted. SF3 is a cleaned, deduplicated aggregation across managers; my column is
+raw INFOTABLE rows aggregated per CUSIP with no manager-level dedup, no amendment reconciliation
+beyond the restatement rule, and no exclusion of the non-13F share classes SF3 drops.
+**FIX: reconcile against SF3's construction on a period where both exist** — one quarter of
+overlap is enough to identify which of dedup / amendment handling / share-class filtering moves
+ρ, and each is testable separately. Until then it stays a measured-only column.
+
+**`insider` — the window is disjoint and the test cannot separate source from period.** My Form 4
+window is the last 90 days; the panel's is its own, roughly six months earlier, and insider
+activity is bursty rather than persistent. **The register said in advance that a failure here
+cannot be attributed to the source**, so this is recorded as **NOT DEMONSTRATED**, not as "the
+scraper is bad". **FIX: a historical Form 4 crawl at the panel's own dates** — EDGAR's filings are
+dated and the crawl is mechanical, it is just a fetch this task did not have. A second, separate
+problem is that 35.8% of the live column sits at exactly 50.0, so even a date-aligned test would
+be fighting a compressed distribution (audit item S3's saturation).
+
+### 17.4 THE VINTAGE EVENT — and a correction to the brief's numbering
+
+The brief says *"vintage 2 opens"* and *"vintage 1's four-theme composite runs in shadow"*. Both
+are off by one, against both the record and the code: vintage 2 has been open since 2026-08-10,
+and `shadow_vintage.py:114` states the successor case explicitly — *"When an adoption opens
+**vintage 3**…"*, with `open_pairs()` documented as *"Empty until an adoption opens vintage 3."*
+
+**So: vintage 2 CLOSED, VINTAGE 3 OPENED 2026-08-11, and the book that shadows is VINTAGE 2's.**
+Registered with the corrected numbering in `track_meter.VINTAGES`, `shadow_vintage.PINNED` and
+`PAPER_TRACK_CONTRACT.md` §5a.
+
+**THE CLOCK RESET IS MECHANICAL, AND IT COST ONE DAY.** `track_meter.INCEPTION` is *derived* from
+the open vintage rather than being a literal, so Rule 6's penalty applied itself:
+
+| | vintage 2 | **vintage 3 (current)** |
+|---|---|---|
+| inception | 2026-08-10 | **2026-08-11** |
+| operational gate / first render | 2027-02-10 | **2027-02-11** |
+| verdict date | 2031-08-10 | **2031-08-11** |
+
+**One day is the entire argument for doing this now rather than later.** Vintage 2 had accrued a
+single day, so the reset — discard the clock, gain nothing statistically — was as cheap as it will
+ever be. The same restoration in a year would have discarded a year.
+
+**THE ARGUMENT THAT THIS IS A BUG FIX AND NOT A VINTAGE EVENT, recorded because someone will
+reach for it:** vintage 2's pinned snapshot already *declares* all seven themes at 0.125, so
+restoring one could be read as bringing live into conformance with what vintage 2 always claimed.
+**It loses.** Amendment 1 defines "adopted" as *ships in the live scoring path*, and the composite
+users receive changes materially. Whatever the track accrued, it accrued while recording a
+**four-theme** book; that record cannot be carried forward as evidence about a five-theme one.
+
+**AN UNREGISTERED CHANGE, DISCLOSED RATHER THAN SLIPPED IN.** `PARAM_KEYS` gained
+`themes_scored_live`, and its own comment says adding a key there is itself a construction change.
+It was not pre-registered. **Without it the machinery cannot represent this vintage change at
+all**: no declared weight moved, so vintages 2 and 3 would hash IDENTICAL and `same_model` would
+report no change while the live book demonstrably changed. It records what actually reaches a
+score — the quantity the declared weights were silently assumed to equal — and it changes no
+score. `test_param_keys_are_the_registered_set` **fired and was right to**; it is updated
+deliberately, with the reason in the module.
+
+**Vintage 2's pin did NOT move: `params_id` is still `0060c5ef3dda`.** Its entry deliberately
+omits the new key, so the hash the record published on 2026-08-10 is the hash today. A pin that
+moves retroactively is not a pin, and 2026-08-11 is the day that claim became checkable rather
+than merely asserted — which is now what that test asserts.
+
+### 17.5 THE SHADOW BOOK'S FIRST DAY
+
+**V1's machinery fires for the first time.** `open_pairs()` was documented as *"Empty until an
+adoption opens vintage 3"* and now returns exactly one pair:
+
+    live_vintage 3, shadow_vintage 2, opened 2026-08-11
+    complete paired months: 0   (minimum for any verdict: 6)
+    public surface: never — research instrumentation only
+
+**A GAP THE FIRST LIVE PAIR EXPOSED, AND IT IS FIXED.** Until today the `pairs exist` branch of
+`detail()` had never run. It returned only *"1 vintage pair(s) under shadow"* — dropping the
+no-verdict caveat at exactly the moment a reader is most likely to mistake "it is running" for
+"it is telling me something". `PREREG_v1` commits to carrying that sentence in the output. The
+status now reads: *"…0 complete paired month(s) against a minimum of 6 — so no verdict of any
+kind is available yet, and none is due for years. A shadow pair that has not crossed is the
+EXPECTED outcome and is not evidence the adoption was worthless."*
+
+Found by a test that I had already rewritten for the new state and which failed anyway. Correctly.
+
+### 17.6 WHAT I DID NOT DO
+
+* **Did not restore two of the three themes.** Skipping stays strictly better than faking.
+* **Did not retune.** `capital_discipline` enters at its deployed 0.125.
+* **Did not touch the composite arithmetic** — one input is populated; `composite_score` is
+  unchanged.
+* **Did not re-run the backtest.** The seven-theme figures are unchanged and unaffected; this
+  changes what LIVE computes, not what the panel measured.
+* **Did not rewrite Amendment 1's §5 rows.** They record the terms as signed and describe
+  vintage 2; the current vintage's dates are one day later and the divergence is noted in place.
+* **Did not expose the shadow on any public surface** — the fence predates the numbers, which is
+  the point.
+
+### 17.7 EXPECTATIONS, SCORED
+
+| prediction | odds | outcome |
+|---|---|---|
+| `capital_discipline` passes | 60/40 | **RIGHT** (+0.8421) |
+| `institutional` passes | 50/50 | **WRONG** — failed, and below the cross-theme median |
+| `insider` fails or is not measurable | 75/25 | **RIGHT** (failed) |
+| one or two themes restore, not three | 70/30 | **RIGHT** (one) |
+
+Three of four right, and the one wrong is the one I called a coin flip.
+
+**Zero trial cost; equity `N` unchanged.** The vintage event is charged against the forward clock
+instead, which is the more expensive currency and is paid in §17.4.
+Artifact `data/free_analysis/THEME_RESTORATION.json` (under `data/`, never committed).
+**26 tests** in `tests/test_theme_restoration.py`; `python -m scripts.theme_restoration fidelity`.
+
+**BUGS FOUND (Part 17)**
+
+1. **The shipped issuance extraction did not reproduce the column the gate was measured on**
+   (concept list and call shape). FIXED before wiring; 38/38 now agree exactly.
+2. **`shadow_vintage.detail()` dropped its no-verdict caveat the moment a pair existed** — the
+   branch had never run. FIXED.
+3. **`PARAM_KEYS` could not represent a vintage change that alters which themes score**, only
+   ones that alter declared weights. Widened, disclosed as unregistered.
+4. **Six track-meter and three shadow tests froze vintage-2 numbers and dates** that a legitimate
+   vintage event moves. Rewritten to assert the invariant from the registry — stronger, not
+   weaker: "exactly one vintage is open and it is vintage 2" is now "…and it is the latest, and
+   every earlier one is resolved".

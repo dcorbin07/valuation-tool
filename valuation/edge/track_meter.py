@@ -105,9 +105,32 @@ VINTAGES = (
      "reason": "growth-input fix, score fix, universe rebuild - the measured model no longer "
                "exists. Voided by Amendment 1 under §3's 'any change to how the Index is "
                "constructed'. The voided window was known to be -2.85pp; see §5a's disclosure."},
-    {"vintage": 2, "run": 2, "opened": _dt.date(2026, 8, 10), "closed": None, "status": "OPEN",
+    {"vintage": 2, "run": 2, "opened": _dt.date(2026, 8, 10),
+     "closed": _dt.date(2026, 8, 11), "status": "CLOSED",
      "reason": "opened by Amendment 1, with ZERO accrued days - so no window's sign could have "
-               "informed this start date."},
+               "informed this start date. CLOSED 2026-08-11 by the theme restoration: "
+               "capital_discipline reached a live score for the first time, which changes the "
+               "composite users receive and is therefore an ADOPTED change. It accrued ONE day."},
+    # VINTAGE 3 - opened 2026-08-11 by the theme restoration.
+    #
+    # THE PRICE IS PAID IN FULL AND IS THE POINT OF RECORDING IT HERE. Rule 6: a vintage change
+    # resets the whole accrued clock and buys nothing statistically. Vintage 2 accrued one day,
+    # so the reset costs almost nothing THIS time - which is exactly why this was the moment to
+    # do it, and why doing it later would have been far more expensive.
+    #
+    # THE ARGUMENT THAT THIS IS A BUG FIX RATHER THAN A VINTAGE EVENT, AND WHY IT LOSES:
+    # vintage 2's pinned snapshot already DECLARED all seven themes at 0.125, so restoring one
+    # could be read as bringing live into conformance with what vintage 2 always claimed. It
+    # loses because Amendment 1 defines "adopted" as SHIPS IN THE LIVE SCORING PATH, and the
+    # book users receive changes materially. Whatever the track accrued, it accrued while
+    # recording a FOUR-theme book; that record cannot be carried forward as evidence about a
+    # five-theme one.
+    {"vintage": 3, "run": 2, "opened": _dt.date(2026, 8, 11), "closed": None, "status": "OPEN",
+     "reason": "opened by the theme restoration - capital_discipline reaches a live score from "
+               "free SEC XBRL company facts, after clearing a pre-registered fidelity gate at "
+               "Spearman +0.8421 against the panel's own theme. institutional (+0.1706) and "
+               "insider (+0.3596) FAILED that gate and are deliberately still absent. No weight "
+               "or construction parameter changed."},
 )
 
 
