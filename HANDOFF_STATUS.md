@@ -64,8 +64,12 @@ lane.** Separately, the path study, O1/exitlab and the autopsy were NOT re-run s
 inputs move by the same 15 rows and no verdict of theirs rests on a margin that small, but
 re-banking them is the owning lane's call.
 
-**Accounting.** Zero trials — a correctness repair tests no hypothesis. Options `N` stays 210,
-equity 149. Expectations scored 6 right, 1 wrong. Test gate: 51 suites, 0 failing.
+**Accounting.** Zero trials — a correctness repair tests no hypothesis. Options `N` stays **210**.
+Equity `N` is untouched *by this work* but is no longer 149: it read 143 when U1 opened, 149
+mid-session, and **151** at close, because other lanes landed while this ran. **Always re-read it
+from `research_log.detail()` rather than copying a number out of a handoff** — a stale `N`
+overstates every DSR-gated claim, and this file has now watched it move twice in one day.
+Expectations scored 6 right, 1 wrong. Test gate: 52 suites, 0 failing.
 
 **Recommended next step.** U2 (options surface → stock signals) is now the only untested direction
 of the unification, and it does not inherit U1's horizon mismatch.
