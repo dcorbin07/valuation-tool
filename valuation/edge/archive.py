@@ -98,6 +98,17 @@ def archive_scan(rows, scan_date: str, provider: str = "", top: int = 100,
                         "sector": r.get("sector"), "bucket": r.get("bucket"),
                         "market_cap": r.get("market_cap"),
                         "fair_value": r.get("fair_value"), "upside": r.get("upside"),
+                        # AUDIT M6 — the second instance of the fixed-field-list class, and
+                        # the one the live-data lane reported as "edge lane, not mine". This
+                        # list stored `fair_value` but neither the refusal flag nor its
+                        # reason, so a refused row archived as a bare `None` and the
+                        # PERMANENT record could not tell "we declined to value this" from
+                        # "we never tried". No number was ever published wrongly — it is a
+                        # record-keeping loss, in the one file that is supposed to be the
+                        # survivorship-free record of what we said and when.
+                        "fair_value_withheld": r.get("fair_value_withheld"),
+                        "fair_value_withheld_reason": r.get("fair_value_withheld_reason"),
+                        "fair_value_withheld_kind": r.get("fair_value_withheld_kind"),
                         "factors": ((r.get("extra") or {}).get("factors") or None)})
         payload = {"kind": "scan", "scan_date": scan_date, "provider": provider,
                    "n": len(out), "archived_at": _dt.datetime.now().replace(microsecond=0).isoformat(),

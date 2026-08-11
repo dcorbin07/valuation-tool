@@ -28,6 +28,8 @@ import json
 import os
 import subprocess
 
+from . import payload_schema as _schema      # AUDIT M6 — field-level schema guard
+
 JSON_NAME = "BACKTEST_RESULTS.json"
 MD_NAME = "BACKTEST_RESULTS.md"
 # 2 adds the `signal_coverage` block: {signal: coverage} for every wired number and theme,
@@ -37,7 +39,12 @@ MD_NAME = "BACKTEST_RESULTS.md"
 # `per_theme`, `holdout_validation` and `costs`. All additive; a v2 reader still works.
 # 4 adds `ev_freshness`: what fraction of rows carry an enterprise value priced at the
 # REBALANCE date rather than the filing date, and how far re-pricing moved it. Additive.
-SCHEMA_VERSION = 4
+# 5 adds, all additive: `*_inference` blocks (audit M2 — clustered-by-default cross-date
+# inference, with n_eff beside n and the naive figure labelled a diagnostic); B17's hold-book
+# disclosure on `portfolio` (`label_warning`, `held_*`, `exit_rank`, `charges_*`) which was
+# being computed and silently dropped; and `cpcv.adopt_detail` / `cpcv.challenger_weights`,
+# banked by session 12 and likewise never serialised. A v4 reader still works.
+SCHEMA_VERSION = 5
 
 
 def repo_root(start: str | None = None) -> str:
@@ -170,7 +177,19 @@ def build_payload(res: dict, universe_label: str | None = None,
                       "benchmark_total_return": _num(hue.get("bench_return")),
                       "years": _num(hue.get("years")), "n_periods": hue.get("n_periods"),
                       "hit_rate": _num(hue.get("hit_rate")),
-                      "avg_hold_years": _num(hue.get("avg_hold_years"))},
+                      "avg_hold_years": _num(hue.get("avg_hold_years")),
+                      # AUDIT M6 — B17's ENTIRE DISCLOSURE was being computed and dropped
+                      # here. `_backtest_hold` has been returning all of these; none of them
+                      # reached the canonical file, so `cagr` above shipped as "the top-25
+                      # hold book" with no warning that the realised book is ~`exit_rank`
+                      # names and pays neither costs nor taxes, unlike every other book in
+                      # this file. That warning is the reason B17 exists.
+                      "label_warning": hue.get("label_warning"),
+                      "target_n": hue.get("target_n"), "exit_rank": hue.get("exit_rank"),
+                      "held_min": hue.get("held_min"), "held_median": hue.get("held_median"),
+                      "held_max": hue.get("held_max"),
+                      "charges_costs": hue.get("charges_costs"),
+                      "charges_taxes": hue.get("charges_taxes")},
 
         "cpcv": {"n_paths": cp.get("n_paths"),
                  "pbo": {"value": _num(cp.get("pbo")), "want": "<0.50",
@@ -187,6 +206,14 @@ def build_payload(res: dict, universe_label: str | None = None,
                  "recommend": cp.get("recommend"), "adopt": cp.get("adopt"),
                  "verdict": cp.get("verdict"),
                  "recommended_weights": cp.get("recommended_weights_cols"),
+                 # AUDIT M6 — session 12 banked these two SPECIFICALLY so that "what would
+                 # this run have scored one haircut lower" is arithmetic rather than a
+                 # re-run, after the X7 8%-vs-7% discrepancy proved undiagnosable without
+                 # them. Neither reached the canonical file, which is the only place a later
+                 # session would look. Banking a number into a dict nobody serialises is not
+                 # banking it.
+                 "adopt_detail": cp.get("adopt_detail"),
+                 "challenger_weights": cp.get("challenger_weights_cols"),
                  "candidates": candidates(cp)},
 
         "walk_forward": {"n_folds": (res.get("walk_forward") or {}).get("n_folds"),
@@ -208,6 +235,11 @@ def build_payload(res: dict, universe_label: str | None = None,
                          # and `long_short_tstat_nw` is the number to quote.
                          "long_short_tstat_nw": _num(cn.get("long_short_tstat_nw")),
                          "long_short_ljung_box": cn.get("long_short_ljung_box"),
+                         # AUDIT M2 — clustered-by-default inference. `t` is the HAC figure
+                         # (identical to `long_short_tstat_nw`), `t_naive` the i.i.d. one,
+                         # and `n_eff` travels with `n` for the first time. The flat keys
+                         # above keep their meanings: the gates were calibrated on them.
+                         "long_short_inference": cn.get("long_short_inference"),
                          "long_short_hit": _num(cn.get("long_short_hit")),
                          # -1.0 = returns fall perfectly from the best decile to the worst
                          # (ideal); +1.0 = the composite is exactly backwards. NEGATIVE IS
@@ -220,6 +252,7 @@ def build_payload(res: dict, universe_label: str | None = None,
                          "top_decile_alpha_tstat": _num(cn.get("top_decile_alpha_tstat")),
                          "top_decile_alpha_tstat_nw": _num(cn.get("top_decile_alpha_tstat_nw")),
                          "top_decile_alpha_ljung_box": cn.get("top_decile_alpha_ljung_box"),
+                         "top_decile_alpha_inference": cn.get("top_decile_alpha_inference"),
                          "top_decile_alpha_hit": _num(cn.get("top_decile_alpha_hit")),
                          "signal_weighted_top_decile_alpha": _num(cn.get("sw_top_decile_alpha"))},
 
@@ -311,6 +344,21 @@ def build_payload(res: dict, universe_label: str | None = None,
                             for r in (cov.get("below_floor") or [])],
             "exempt_themes": cov.get("exempt_themes") or []},
     }
+
+    # AUDIT M6 — FIELD-level schema check. The block-level one (B22's
+    # `missing_result_blocks`) catches a whole block going missing; this catches the case
+    # that actually bit twice — a field the producer computed that this whitelist never
+    # carried. It enumerates from the SOURCE, so a newly computed metric is caught the first
+    # time it is added rather than the first time somebody happens to read two files side by
+    # side. Findings land in `errors`, which already renders as a DEGRADED banner, and
+    # `write()` then fails the run.
+    for _f in _schema.check_payload(res, payload):
+        payload["errors"].append(
+            {"block": _f["block"],
+             "status": (f"error: computed field `{_f['field']}` was dropped from the payload "
+                        f"(audit M6). Carry it in build_payload, or declare it in "
+                        f"payload_schema.BLOCK_SPEC['{_f['block']}']['allow'] with a reason."),
+             "dropped_field": _f["field"]})
     return payload
 
 
@@ -598,4 +646,16 @@ def write(res: dict, universe_label: str | None = None, cleanups: dict | None = 
         f.write("\n")
     with open(mp, "w", encoding="utf-8") as f:
         f.write(render_md(payload))
+    # AUDIT M6 — fail the run, but only AFTER both files are on disk. A 20-40 minute run must
+    # not lose its output to a schema complaint, and the evidence has to be readable to be
+    # actionable. There is deliberately NO environment-variable escape hatch (RUN_RULES A5 —
+    # never silence a check); the documented allowlist in `payload_schema.BLOCK_SPEC` is the
+    # legitimate door, and it leaves a diff.
+    _dropped = [e for e in (payload.get("errors") or []) if e.get("dropped_field")]
+    if _dropped:
+        raise _schema.PayloadSchemaError(
+            f"{len(_dropped)} computed field(s) dropped from {JSON_NAME}: "
+            + _schema.describe([{"block": e["block"], "field": e["dropped_field"]}
+                                for e in _dropped])
+            + f". Files were written to {jp} so the run's work is not lost.")
     return {"json": jp, "md": mp, "payload": payload}

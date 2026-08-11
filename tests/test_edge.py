@@ -7119,6 +7119,315 @@ def test_s2021_holdout_compare_panels_scores_each_arm_with_its_OWN_standardizer(
         "standardizer_b must actually reach the challenger's scoring"
 
 
+# ============================================================================
+# AUDIT M2 — clustered inference as the default (PREREG_m2_m6.md)
+# ============================================================================
+def _m2_series(seed=11, n=69, rho=0.0):
+    rng = np.random.default_rng(seed)
+    out, prev = [], 0.0
+    for _ in range(n):
+        prev = rho * prev + float(rng.normal(0, 1))
+        out.append(0.25 + prev)
+    return out
+
+
+def test_m2_delegations_are_bit_identical_to_the_arithmetic_they_replaced():
+    """KNOWN-BAD: fails if anyone edits the estimator while refactoring it.
+
+    The whole change rests on `long_short_tstat` and `long_short_tstat_nw` keeping their
+    exact values, because the published record and the calibrated floors are those numbers.
+    """
+    from valuation.edge import fundamental_panel as fp
+    from valuation.edge import statistics as st
+    rng = np.random.default_rng(4)
+    for _ in range(60):
+        n = int(rng.integers(3, 100))
+        s = list(rng.normal(0.01, 0.05, n))
+        assert fp._tstat(s) == st.naive_tstat(s)
+        assert fp._nw_tstat(s, 1) == st.hac_tstat(s, 1)
+        assert fp._ljung_box(s, 4) == st.ljung_box(s, 4)
+
+
+def test_m2_mean_inference_returns_the_CLUSTERED_figure_as_its_unqualified_t():
+    from valuation.edge import statistics as st
+    s = _m2_series(rho=0.5)
+    mi = st.mean_inference(s)
+    assert mi["method"] == "newey_west_hac"
+    assert mi["t"] == st.hac_tstat(s, 1), "the unqualified t must be the CLUSTERED one"
+    assert mi["t_naive"] == st.naive_tstat(s)
+    assert mi["t"] != mi["t_naive"], "an autocorrelated series must separate the two"
+    assert "DIAGNOSTIC ONLY" in mi["naive_note"]
+
+
+def test_m2_n_eff_travels_with_n_and_is_clipped_at_n():
+    """M2's third requirement: n_eff reported alongside n wherever a t-like quantity appears."""
+    from valuation.edge import statistics as st
+    hi = st.mean_inference(_m2_series(rho=0.7))
+    assert hi["n_eff"] < hi["n"], "positive autocorrelation must SHRINK the effective n"
+    # negative autocorrelation improves precision; letting n_eff exceed n would manufacture
+    # a bonus out of a favourable property
+    alt = [((-1) ** i) + 0.05 for i in range(60)]
+    assert st.mean_inference(alt)["n_eff"] <= 60.0
+    # the real long-short spread: R9 measured lag-1 autocorrelation +0.189 over 69 periods
+    assert abs(st.effective_n(69, 0.189046) - 47.06) < 0.02
+
+
+def test_m2_the_shipped_lag_is_STILL_1_and_the_auto_lag_is_reported_not_adopted():
+    """Pins a deliberate NON-change (PREREG_m2_m6.md §3b).
+
+    Schwert gives lag 3 at n = 69. Adopting it would move the published HAC t of 2.6199 AND
+    invalidate the placebo floor (2.2837) calibrated at lag 1. It ships as a diagnostic.
+    """
+    from valuation.edge import statistics as st
+    assert st.DEFAULT_HAC_LAG == 1
+    assert st.auto_lag(69) == 3
+    mi = st.mean_inference(_m2_series(rho=0.4))
+    assert mi["lag"] == 1 and mi["lag_source"] == "fixed"
+    assert mi["auto_lag"] == 3 and mi["t_auto_lag"] is not None
+    assert "NOT ADOPTED" in mi["auto_lag_note"]
+
+
+def test_m2_no_existing_results_key_changed_its_meaning():
+    """KNOWN-BAD: fails if `long_short_tstat` is ever quietly redefined as the clustered one."""
+    from valuation.edge import statistics as st
+    from valuation.edge.fundamental_panel import quantile_backtest
+    rng = np.random.default_rng(3)
+    rows = []
+    for d in _DATES[::60][:40]:
+        for i in range(80):
+            v = float(rng.normal())
+            rows.append({"date": d, "ticker": f"T{i}", "value": v,
+                         "fwd_ret": 0.04 * v + float(rng.normal()) * 0.05})
+    panel = pd.DataFrame(rows)
+    r = quantile_backtest(panel, ["value"], {"value": 1.0}, n_q=10, horizon=63)
+    inf = r["long_short_inference"]
+    assert r["long_short_tstat"] == inf["t_naive"], "the flat key must remain the NAIVE one"
+    assert r["long_short_tstat_nw"] == inf["t"], "the clustered figure is `inference.t`"
+    assert r["top_decile_alpha_tstat"] == r["top_decile_alpha_inference"]["t_naive"]
+    assert inf["n_eff"] is not None and inf["n"] == r["n_periods"]
+
+
+def test_m2_theme_and_signal_ic_now_carry_a_clustered_figure_they_never_had():
+    """The substantive M2 gap: the theme IC t carrying X7's 2.71 bar had no clustered variant."""
+    from valuation.edge.fundamental_panel import theme_ic
+    rng = np.random.default_rng(5)
+    rows = []
+    for d in _DATES[::40][:30]:
+        for i in range(60):
+            v = float(rng.normal())
+            rows.append({"date": d, "ticker": f"T{i}", "value": v,
+                         "fwd_ret": 0.05 * v + float(rng.normal()) * 0.05})
+    out = theme_ic(pd.DataFrame(rows), min_dates=5)
+    assert "value" in out, f"theme_ic saw no themes: {list(out)}"
+    assert "ic_inference" in out["value"]
+    assert out["value"]["ic_tstat"] == out["value"]["ic_inference"]["t_naive"], \
+        "the published ic_tstat must be untouched — X7's 2.71 bar was calibrated on it"
+    assert out["value"]["ic_inference"]["n_eff"] is not None
+
+
+def test_m2_the_gates_still_read_the_naive_statistic_they_were_calibrated_on():
+    """Pins the deliberate non-change: switching the gate re-quotes every verdict it made."""
+    import inspect
+    from valuation.edge import fundamental_panel as fp
+    src = inspect.getsource(fp.holdout_compare_panels)
+    assert 'get("long_short_tstat")' in src, \
+        "holdout_compare_panels must keep reading long_short_tstat; its +0.25 margin was " \
+        "committed against the NAIVE statistic (PREREG_m2_m6.md §2)"
+    assert "long_short_inference" not in src
+
+
+# ============================================================================
+# AUDIT M6 — field-level results-file schema assertion (PREREG_m2_m6.md §5)
+# ============================================================================
+def _m6_res():
+    return {
+        "construction": {"n_periods": 69, "horizon": 63, "long_short_tstat": 2.83,
+                         "long_short_tstat_nw": 2.62, "long_short_inference": {"t": 2.62},
+                         "top_decile_alpha": 0.0717, "top_decile_alpha_tstat": 4.51,
+                         "top_decile_alpha_tstat_nw": 4.37,
+                         "top_decile_alpha_inference": {"t": 4.37},
+                         "sw_top_decile_ann": 0.2, "sw_top_decile_alpha": 0.02,
+                         "monotonicity": -0.89},
+        "hold_until_exit": {"cagr": 0.27, "bench_cagr": 0.15, "ew_cagr": 0.18,
+                            "ew_alpha": 0.09, "bench_return": 1.0, "label_warning": "holds ~50",
+                            "target_n": 25, "exit_rank": 50, "held_min": 20, "held_median": 47,
+                            "held_max": 55, "charges_costs": False, "charges_taxes": False},
+        "cpcv": {"n_paths": 15, "pbo": 0.73, "adopt": False,
+                 "recommended_weights_cols": {}, "adopt_detail": {"margin": 0.1},
+                 "challenger_weights_cols": {}, "candidates": {}},
+        "horizons": {"63": {"names": 2531, "dates": 69, "rows": 113945}},
+        "primary_horizon": "63",
+    }
+
+
+def test_m6_KNOWN_BAD_the_actual_R9_incident_is_caught():
+    """The historical bug, reproduced exactly.
+
+    `quantile_backtest` computed top_decile_alpha_tstat = 4.517421601141459 and the canonical
+    file recorded None beside it, because build_payload whitelists what it writes. Nothing
+    raised, and a human caught it by reading two files side by side.
+    """
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+    res = _m6_res()
+    payload = rf.build_payload(res)
+    del payload["construction"]["top_decile_alpha_tstat"]
+    found = ps.check_payload(res, payload)
+    assert any(f["field"] == "top_decile_alpha_tstat" for f in found), \
+        "the guard failed to catch the exact bug it was built for"
+
+
+def test_m6_KNOWN_BAD_a_brand_new_computed_metric_is_caught():
+    """The options-bot lane's own demonstration:
+    build_payload({"construction": {"a_brand_new_metric": 1.23}}) returned a construction
+    block with no such key and no complaint."""
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+    res = _m6_res()
+    res["construction"]["a_brand_new_metric"] = 1.23
+    found = ps.check_payload(res, rf.build_payload(res))
+    assert [f["field"] for f in found] == ["a_brand_new_metric"]
+
+
+def test_m6_the_guard_is_NOT_vacuous_on_a_complete_payload():
+    """A guard that fires on everything is as useless as one that fires on nothing."""
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+    res = _m6_res()
+    assert ps.check_payload(res, rf.build_payload(res)) == []
+
+
+def test_m6_write_FAILS_THE_RUN_but_only_after_both_files_are_on_disk():
+    """A 40-minute run must not lose its output to a schema complaint, and the evidence has
+    to be readable to be actionable — so the files are written, THEN the run fails."""
+    import json as _json
+    import tempfile
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+    res = _m6_res()
+    res["construction"]["a_metric_nobody_carried"] = 9.9
+    with tempfile.TemporaryDirectory() as td:
+        try:
+            rf.write(res, root=td)
+            raise AssertionError("write() must fail the run when a computed field is dropped")
+        except ps.PayloadSchemaError as e:
+            assert "a_metric_nobody_carried" in str(e)
+        jp = os.path.join(td, rf.JSON_NAME)
+        assert os.path.exists(jp) and os.path.exists(os.path.join(td, rf.MD_NAME)), \
+            "both files must be written BEFORE the run fails"
+        blob = _json.load(open(jp, encoding="utf-8"))
+        assert any(x.get("dropped_field") == "a_metric_nobody_carried"
+                   for x in blob["errors"]), "the finding must be recorded in the file itself"
+
+
+def test_m6_there_is_no_environment_escape_hatch():
+    """RUN_RULES A5 — never silence a check. The allowlist is the legitimate door, and it
+    leaves a diff; an env var would not."""
+    import inspect
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+    joined = inspect.getsource(ps) + inspect.getsource(rf.write)
+    # look for an actual env READ, not the word: this test's first version tripped on the
+    # comment saying no escape hatch exists, which is the wrong kind of failure
+    for probe in ("os.environ", "os.getenv", "getenv(", "environ["):
+        assert probe not in joined, f"an env-var escape hatch appeared: {probe}"
+
+
+def test_m6_a_block_that_THREW_is_not_also_reported_as_dropping_fields():
+    """A block that raised computed nothing, so "you dropped a field" would be noise layered
+    on the real failure. Keeping the two error classes distinct is the same lesson
+    `missing_result_blocks` carries: assuming one guard covers another is how a degraded run
+    comes to read as a run that found nothing."""
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+    res = _m6_res()
+    res["construction"] = {"status": "error: boom"}
+    found = ps.check_payload(res, rf.build_payload(res))
+    assert not any(f["block"] == "construction" for f in found), found
+    # ...but a HEALTHY block in the same run is still checked
+    res["cpcv"]["something_new"] = 1
+    assert any(f["field"] == "something_new" for f in ps.check_payload(res, rf.build_payload(res)))
+
+
+def test_m6_the_schema_failure_is_NOT_swallowed_by_the_blanket_except():
+    """KNOWN-BAD, and the one that nearly shipped broken.
+
+    `main()` wraps the results write in `try/except Exception` commented "Never allowed to
+    fail a completed backtest". That intent is right — a serialisation hiccup must not
+    discard 40 minutes of work — but it would also have caught PayloadSchemaError and
+    printed it as a warning nobody reads. A check that cannot fail anything is not a check,
+    which is the exact pattern M6 exists to close. So the schema error needs its own handler,
+    BEFORE the blanket one, and main() must exit non-zero.
+    """
+    import ast
+    import inspect
+    from valuation.edge import fundamental_panel as fp
+    fn = next(n for n in ast.walk(ast.parse(inspect.getsource(fp).replace("\t", "    ")))
+              if isinstance(n, ast.FunctionDef) and n.name == "main")
+    handlers = [h for t in ast.walk(fn) if isinstance(t, ast.Try) for h in t.handlers]
+    names = []
+    for h in handlers:
+        if h.type is None:
+            names.append("bare")
+        else:
+            names.append(ast.unparse(h.type))
+    schema_at = [i for i, n in enumerate(names) if "PayloadSchemaError" in n]
+    assert schema_at, "PayloadSchemaError must be caught SEPARATELY, or the guard is inert"
+    # it must come before the blanket handler of the SAME try statement
+    for t in ast.walk(fn):
+        if isinstance(t, ast.Try):
+            hs = [("bare" if h.type is None else ast.unparse(h.type)) for h in t.handlers]
+            if any("PayloadSchemaError" in x for x in hs):
+                i = next(k for k, x in enumerate(hs) if "PayloadSchemaError" in x)
+                j = next((k for k, x in enumerate(hs) if x == "Exception"), len(hs))
+                assert i < j, "a blanket `except Exception` before it would swallow the guard"
+    src = inspect.getsource(fp.main)
+    assert "return 2" in src, "a schema failure must exit NON-ZERO"
+
+
+def test_m6_B17s_hold_book_disclosure_now_reaches_the_canonical_file():
+    """`_backtest_hold` was computing all of this and build_payload carried NONE of it, so
+    `portfolio.cagr` shipped with no warning that the book is ~exit_rank names and pays
+    neither costs nor taxes — which is the entire point of B17."""
+    from valuation.edge import results_file as rf
+    pf = rf.build_payload(_m6_res())["portfolio"]
+    assert pf["label_warning"] == "holds ~50"
+    assert pf["target_n"] == 25 and pf["exit_rank"] == 50 and pf["held_median"] == 47
+    assert pf["charges_costs"] is False and pf["charges_taxes"] is False
+
+
+def test_m6_session12_cpcv_reconciliation_fields_reach_the_canonical_file():
+    """Session 12 banked adopt_detail/challenger_weights so 'what would this run have scored
+    one haircut lower' is arithmetic. Banking a number into a dict nobody serialises is not
+    banking it."""
+    from valuation.edge import results_file as rf
+    cp = rf.build_payload(_m6_res())["cpcv"]
+    assert cp["adopt_detail"] == {"margin": 0.1}
+    assert "challenger_weights" in cp
+
+
+def test_m6_archive_scan_records_WHY_a_row_was_blank():
+    """The second incident: ten hand-written keys stored fair_value but not the refusal flag,
+    so the permanent archive could not tell 'refused' from 'not computed'."""
+    import gzip
+    import json as _json
+    import tempfile
+    from valuation.edge.archive import archive_scan
+    rows = [{"ticker": "KSPI", "rank": 1, "hot_score": 90.0, "price": 100.0,
+             "fair_value": None, "fair_value_withheld": True,
+             "fair_value_withheld_reason": "insufficient history",
+             "fair_value_withheld_kind": "no_data"}]
+    with tempfile.TemporaryDirectory() as td:
+        p = archive_scan(rows, "2026-08-11", root=td)
+        assert p, "archive_scan wrote nothing"
+        with gzip.open(p, "rt", encoding="utf-8") as f:
+            got = _json.load(f)["rows"][0]
+    assert got["fair_value"] is None
+    assert got["fair_value_withheld"] is True
+    assert got["fair_value_withheld_reason"] == "insufficient history", \
+        "a refused row must archive WHY, not just a bare None"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

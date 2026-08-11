@@ -96,3 +96,182 @@ def hlz_significant(t_stat) -> bool:
     """Harvey-Liu-Zhu: a genuinely new factor needs |t| > 3 (not 2) to survive
     multiple-testing across the 'factor zoo'."""
     return abs(t_stat) > 3.0
+
+
+# =============================================================================
+# AUDIT M2 — cross-date inference. ONE definition, CLUSTERED BY DEFAULT.
+# =============================================================================
+# Before this block the project had FOUR hand-rolled naive t-stats (two in
+# `fundamental_panel`, one in `engine/calibration.py`, one in the EV study) and
+# the clustered figure existed only where R9 had bolted it on by hand. The
+# equity lane's per-signal and per-theme IC t-stats had no clustered variant at
+# ALL — including the theme IC t that carries X7's calibrated 2.71 bar.
+#
+# `mean_inference` is now the one definition. Its unqualified `t` is the HAC
+# (clustered) statistic; the i.i.d. figure is carried beside it, explicitly
+# labelled a diagnostic; and `n_eff` travels with `n`, which is M2's third
+# requirement and the one nothing in the equity lane did.
+#
+# WHAT THIS DELIBERATELY DOES NOT DO (PREREG_m2_m6.md §2): it does not redefine
+# any existing key. `long_short_tstat` is read by `holdout_compare_panels`,
+# whose +0.25 margin was committed against the NAIVE statistic, and the placebo
+# floors (naive 2.1437 / HAC 2.2837) are specific to both the statistic AND the
+# lag. Redefining in place would silently re-quote every verdict those gates
+# ever produced. Clustered is the default here by being what this function
+# returns as `t` — not by moving the record.
+
+DEFAULT_HAC_LAG = 1
+
+
+def _clean(series):
+    """The usable observations, as a float array. None and NaN dropped."""
+    import numpy as np
+    return np.asarray([x for x in series if x is not None and x == x], dtype=float)
+
+
+def naive_tstat(series):
+    """i.i.d. t-statistic of a series' mean against zero. DIAGNOSTIC ONLY.
+
+    Kept as a named, importable function precisely so that the assumption is
+    visible at every call site rather than reimplemented inline for the fifth time.
+    """
+    import numpy as np
+    s = _clean(series)
+    if len(s) < 2:
+        return None
+    sd = float(np.std(s, ddof=1))
+    return float(np.mean(s) / (sd / np.sqrt(len(s)))) if sd > 0 else None
+
+
+def hac_tstat(series, lag=DEFAULT_HAC_LAG):
+    """AUDIT R9 — Newey-West (Bartlett) HAC t-statistic of the mean against zero.
+
+    The 63-day windows genuinely do not overlap, so the naive t is defensible on the
+    OVERLAP dimension. It is not defensible on autocorrelation: factor spreads are
+    serially correlated and regime-dependent. Same estimator `scripts/factor_alpha.py`
+    uses for R1 on a mean-only design, so the two lanes report comparable inference.
+    """
+    import numpy as np
+    s = _clean(series)
+    n = len(s)
+    if n < 3:
+        return None
+    e = s - s.mean()                       # residuals of a mean-only regression
+    g0 = float(e @ e) / n
+    S_hac = g0
+    for L in range(1, min(int(lag), n - 1) + 1):
+        gL = float(e[L:] @ e[:-L]) / n
+        S_hac += 2.0 * (1.0 - L / (lag + 1.0)) * gL      # Bartlett kernel
+    if S_hac <= 0:
+        return None
+    se = np.sqrt(S_hac / n)
+    return float(s.mean() / se) if se > 0 else None
+
+
+def chi2_sf(x, k):
+    """Upper-tail chi-square probability. Series expansion for the regularised lower
+    incomplete gamma P(k/2, x/2); adequate at the small dfs used here and avoids a
+    scipy dependency this project does not otherwise carry."""
+    if x <= 0 or k <= 0:
+        return 1.0
+    a, xx = k / 2.0, x / 2.0
+    if xx > a + 40.0:                       # far tail — P ~ 1, report a floor rather than 0.0
+        return 1e-12
+    term = 1.0 / math.gamma(a + 1.0)
+    total = term
+    for i in range(1, 512):
+        term *= xx / (a + i)
+        total += term
+        if term < total * 1e-15:
+            break
+    p_lower = total * math.exp(-xx + a * math.log(xx))
+    return float(min(1.0, max(0.0, 1.0 - p_lower)))
+
+
+def ljung_box(series, lags=4):
+    """AUDIT R9 — Ljung-Box Q, so the independence assumption is VISIBLE.
+
+    A small p means the series is serially correlated and the naive i.i.d. t
+    overstates significance — which is the whole reason the HAC t is the default.
+    """
+    s = _clean(series)
+    n = len(s)
+    lags = int(min(lags, n - 2))
+    if n < 8 or lags < 1:
+        return None
+    e = s - s.mean()
+    denom = float(e @ e)
+    if denom <= 0:
+        return None
+    acf, q = [], 0.0
+    for L in range(1, lags + 1):
+        r = float(e[L:] @ e[:-L]) / denom
+        acf.append(r)
+        q += (r * r) / (n - L)
+    q *= n * (n + 2)
+    return {"q": float(q), "df": lags, "acf": [float(x) for x in acf],
+            "p_value": chi2_sf(float(q), lags),
+            "lag1_autocorr": (float(acf[0]) if acf else None)}
+
+
+def auto_lag(n):
+    """Schwert/Greene automatic HAC truncation lag: floor(4*(n/100)^(2/9)).
+
+    M2 asks for the lag to come from the series rather than from convention. It is
+    REPORTED here and deliberately NOT adopted as the shipped figure: at n = 69 this
+    returns 3, and moving the published HAC t off lag 1 would both change the record
+    and invalidate the placebo floor (2.2837) that was calibrated at lag 1.
+    """
+    n = int(n)
+    if n < 3:
+        return 0
+    return max(1, int(math.floor(4.0 * (n / 100.0) ** (2.0 / 9.0))))
+
+
+def effective_n(n, rho):
+    """AR(1) effective sample size, n·(1−rho)/(1+rho), clipped to [1, n].
+
+    An ESTIMATE off a single autocorrelation coefficient, not a measurement with a
+    null behind it — R3's rule ("a raw design effect is not evidence of clustering")
+    applies to it, which is why the rho it was built from is always reported beside
+    it. Clipped at n because negative autocorrelation IMPROVES precision, and letting
+    n_eff exceed n would turn a favourable property into a manufactured bonus.
+    """
+    if n is None or n < 1 or rho is None or rho != rho:
+        return None
+    r = max(-0.999, min(0.999, float(rho)))
+    return float(max(1.0, min(float(n), n * (1.0 - r) / (1.0 + r))))
+
+
+def mean_inference(series, lag=DEFAULT_HAC_LAG, ljung_lags=4) -> dict | None:
+    """THE cross-date inference function. Clustered (HAC) by default.
+
+    `t` is the HAC statistic. `t_naive` is the i.i.d. one, carried for continuity and
+    diagnosis, never as the headline. `n_eff` travels with `n`. `auto_lag`/`t_auto_lag`
+    report what a data-driven lag would give WITHOUT adopting it.
+    """
+    s = _clean(series)
+    n = int(len(s))
+    if n < 2:
+        return None
+    lb = ljung_box(s, lags=ljung_lags)
+    rho = (lb or {}).get("lag1_autocorr")
+    al = auto_lag(n)
+    return {
+        "t": hac_tstat(s, lag=lag),
+        "method": "newey_west_hac",
+        "lag": int(lag),
+        "lag_source": "fixed",
+        "n": n,
+        "n_eff": effective_n(n, rho),
+        "autocorr_lag1": rho,
+        "t_naive": naive_tstat(s),
+        "naive_note": ("DIAGNOSTIC ONLY — assumes i.i.d. periods. Quote `t`. "
+                       "Existing *_tstat keys remain naive for record continuity "
+                       "(PREREG_m2_m6.md §2)."),
+        "ljung_box": lb,
+        "auto_lag": al,
+        "t_auto_lag": hac_tstat(s, lag=al),
+        "auto_lag_note": ("REPORTED, NOT ADOPTED — adopting it would move the published "
+                          "HAC t and invalidate the placebo floor calibrated at lag 1."),
+    }

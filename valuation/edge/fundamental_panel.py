@@ -24,6 +24,8 @@ import numpy as np
 import pandas as pd
 
 from ..screener import settings as S
+from . import statistics as _stats      # AUDIT M2 — the ONE cross-date inference definition
+from . import payload_schema as _schema  # AUDIT M6 — field-level results-file schema guard
 
 
 def _f(d: dict, *keys):
@@ -1995,86 +1997,39 @@ def _spearman(a, b):
     return float((ar * br).sum() / denom) if denom > 0 else np.nan
 
 
+# AUDIT M2 — these four are now thin delegations to `edge/statistics.py`, which holds the ONE
+# cross-date inference definition. They keep their names and their exact semantics because the
+# published record and every pre-committed gate read the keys they feed; what changed is that
+# there is no longer a second copy of the arithmetic here to drift from the first.
 def _tstat(series):
-    """Naive i.i.d. t-statistic of a series' mean against zero."""
-    s = np.asarray([x for x in series if x is not None and x == x], dtype=float)
-    if len(s) < 2:
-        return None
-    sd = float(np.std(s, ddof=1))
-    return float(np.mean(s) / (sd / np.sqrt(len(s)))) if sd > 0 else None
+    """Naive i.i.d. t-statistic of a series' mean against zero. DIAGNOSTIC ONLY (audit M2)."""
+    return _stats.naive_tstat(series)
 
 
 def _nw_tstat(series, lag=1):
-    """AUDIT R9 — Newey-West (Bartlett) HAC t-statistic of the mean against zero.
-
-    The 63-day windows genuinely do not overlap, so the naive i.i.d. t is defensible on the
-    OVERLAP dimension. It is not defensible on autocorrelation: factor spreads are strongly
-    serially correlated and regime-dependent, and the project has never had a serial-correlation
-    diagnostic anywhere. This is the same estimator `scripts/factor_alpha.py` uses for R1, on a
-    mean-only design, so the two lanes report comparable inference.
-    """
-    s = np.asarray([x for x in series if x is not None and x == x], dtype=float)
-    n = len(s)
-    if n < 3:
-        return None
-    e = s - s.mean()                       # residuals of a mean-only regression
-    g0 = float(e @ e) / n
-    S_hac = g0
-    for L in range(1, min(int(lag), n - 1) + 1):
-        gL = float(e[L:] @ e[:-L]) / n
-        S_hac += 2.0 * (1.0 - L / (lag + 1.0)) * gL      # Bartlett kernel
-    if S_hac <= 0:
-        return None
-    se = np.sqrt(S_hac / n)
-    return float(s.mean() / se) if se > 0 else None
+    """AUDIT R9 — Newey-West (Bartlett) HAC t-statistic of the mean against zero."""
+    return _stats.hac_tstat(series, lag=lag)
 
 
 def _ljung_box(series, lags=4):
-    """AUDIT R9 — Ljung-Box Q on a series, so the independence assumption is VISIBLE.
-
-    Returns Q, its degrees of freedom, the autocorrelations used, and a chi-square p-value.
-    A small p means the series is serially correlated and the naive i.i.d. t overstates
-    significance — which is the whole reason the HAC t above is now reported beside it.
-    """
-    s = np.asarray([x for x in series if x is not None and x == x], dtype=float)
-    n = len(s)
-    lags = int(min(lags, n - 2))
-    if n < 8 or lags < 1:
-        return None
-    e = s - s.mean()
-    denom = float(e @ e)
-    if denom <= 0:
-        return None
-    acf, q = [], 0.0
-    for L in range(1, lags + 1):
-        r = float(e[L:] @ e[:-L]) / denom
-        acf.append(r)
-        q += (r * r) / (n - L)
-    q *= n * (n + 2)
-    return {"q": float(q), "df": lags, "acf": [float(x) for x in acf],
-            "p_value": _chi2_sf(float(q), lags),
-            "lag1_autocorr": (float(acf[0]) if acf else None)}
+    """AUDIT R9 — Ljung-Box Q on a series, so the independence assumption is VISIBLE."""
+    return _stats.ljung_box(series, lags=lags)
 
 
 def _chi2_sf(x, k):
-    """Upper-tail chi-square probability. Series expansion for the regularised lower
-    incomplete gamma P(k/2, x/2); adequate at the small dfs used here and avoids a scipy
-    dependency this project does not otherwise carry."""
-    if x <= 0 or k <= 0:
-        return 1.0
-    a, xx = k / 2.0, x / 2.0
-    if xx > a + 40.0:                       # far tail — P ~ 1, report a floor rather than 0.0
-        return 1e-12
-    import math
-    term = 1.0 / math.gamma(a + 1.0)
-    total = term
-    for i in range(1, 512):
-        term *= xx / (a + i)
-        total += term
-        if term < total * 1e-15:
-            break
-    p_lower = total * math.exp(-xx + a * math.log(xx))
-    return float(min(1.0, max(0.0, 1.0 - p_lower)))
+    """Upper-tail chi-square probability (audit M2: one definition, in `statistics.py`)."""
+    return _stats.chi2_sf(x, k)
+
+
+def _inference(series, lag=1, ljung_lags=4):
+    """AUDIT M2 — the clustered-by-default inference block for a cross-date series.
+
+    Additive: it sits BESIDE the existing `*_tstat` / `*_tstat_nw` keys rather than
+    replacing them, because those keys are what the published record and the
+    pre-committed gates read (PREREG_m2_m6.md §2). `t` here is the HAC statistic and
+    equals `*_tstat_nw` by construction; `t_naive` equals `*_tstat`.
+    """
+    return _stats.mean_inference(series, lag=lag, ljung_lags=ljung_lags)
 
 
 def _base_weights(cols, bucket):
@@ -2514,6 +2469,10 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=Fa
             # `long_short_tstat_nw` is the number to quote.
             "long_short_tstat_nw": _nw_tstat(ls, lag=1),
             "long_short_ljung_box": _ljung_box(ls, lags=4),
+            # AUDIT M2 — clustered-by-default inference, ADDITIVE. `t` is the HAC statistic
+            # (== long_short_tstat_nw); `t_naive` is the i.i.d. one (== long_short_tstat),
+            # labelled a diagnostic. Carries n_eff beside n, which nothing here did before.
+            "long_short_inference": _inference(ls),
             "long_short_hit": float(np.mean([1.0 if x > 0 else 0.0 for x in ls])),
             "top_decile_alpha": (None if decile[0] is None or ew_ann is None else decile[0] - ew_ann),
             # AUDIT R9 — the number on the front of the product finally has a significance
@@ -2521,6 +2480,7 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=Fa
             "top_decile_alpha_tstat": _tstat(alpha_series),
             "top_decile_alpha_tstat_nw": _nw_tstat(alpha_series, lag=1),
             "top_decile_alpha_ljung_box": _ljung_box(alpha_series, lags=4),
+            "top_decile_alpha_inference": _inference(alpha_series),      # AUDIT M2
             "top_decile_alpha_hit": (float(np.mean([1.0 if x > 0 else 0.0 for x in alpha_series]))
                                      if alpha_series else None),
             "sw_top_decile_ann": sw_ann,
@@ -2593,6 +2553,7 @@ def benchmark_panel(panel, cols, weights, n_q=10, horizon=63, ew_turnover=1.0):
                 "top_decile_ann": float(np.mean([t for t, _ in pairs]) * ppy),
                 "excess_ann": float(np.mean(exc) * ppy),
                 "excess_tstat": _tstat(exc), "excess_tstat_nw": _nw_tstat(exc, lag=1),
+                "excess_inference": _inference(exc),                     # AUDIT M2
                 "hit_rate": float(np.mean([1.0 if x > 0 else 0.0 for x in exc]))}
 
     return {
@@ -3073,6 +3034,10 @@ def per_signal_ic(panel, horizon_col="fwd_ret", min_names=20, min_dates=8) -> di
             sd = float(a.std(ddof=1))
             t = float(a.mean() / (sd / (len(a) ** 0.5))) if sd > 0 else 0.0
             out[num] = {"median_ic": float(np.median(a)), "ic_tstat": t,
+                        # AUDIT M2 — an IC series indexed by rebalance date is exactly the
+                        # object R9 showed is serially correlated for the long-short spread,
+                        # and it had NO clustered figure at all. `ic_tstat` above is untouched.
+                        "ic_inference": _inference(a),
                         "coverage": cov, "n_dates": len(a)}
         else:
             out[num] = {"median_ic": None, "ic_tstat": None, "coverage": cov,
@@ -3110,6 +3075,12 @@ def theme_ic(panel, horizon_col="fwd_ret", min_names=20, min_dates=8) -> dict:
             sd = float(a.std(ddof=1))
             t = float(a.mean() / (sd / (len(a) ** 0.5))) if sd > 0 else 0.0
             out[theme] = {"median_ic": float(np.median(a)), "ic_tstat": t,
+                          # AUDIT M2 — `ic_tstat` is the statistic carrying X7's calibrated
+                          # 2.71 bar and it had no clustered variant. This is a NEW statistic
+                          # with NO calibrated floor: nobody may compare `ic_inference.t`
+                          # to 2.71. `ic_tstat` itself is untouched, so the bar still applies
+                          # to exactly the number it was calibrated on.
+                          "ic_inference": _inference(a),
                           "coverage": cov, "n_dates": len(a)}
         else:
             out[theme] = {"median_ic": None, "ic_tstat": None, "coverage": cov,
@@ -4395,7 +4366,10 @@ def main(argv=None):
         print("\nNo weighting beat the defaults out-of-sample (walk-forward or single-split) — keep the current weights.")
     # Canonical results files at the repo root, written on EVERY run and git-tracked, so the
     # current numbers travel out of a worktree to main for another agent to read. Derived
-    # metrics only, never raw licensed rows. Never allowed to fail a completed backtest.
+    # metrics only, never raw licensed rows. Never allowed to fail a completed backtest —
+    # EXCEPT a schema failure (audit M6), which gets its own `except` below and exits
+    # non-zero WITHOUT discarding any artifact the run already produced.
+    _schema_failed = None
     try:
         import os as _os
         from .results_file import write as _write_results
@@ -4442,6 +4416,16 @@ def main(argv=None):
                             cleanups=_cleanups, per_signal=_psig)
         print(f"Canonical results  -> {_os.path.basename(_w['json'])} + "
               f"{_os.path.basename(_w['md'])} (repo root, tracked)")
+    except _schema.PayloadSchemaError as _se:
+        # AUDIT M6 — this blanket `except Exception` exists so a serialisation hiccup cannot
+        # discard a completed 40-minute backtest, and that intent is right. But it would also
+        # have SWALLOWED the schema guard, printing it as a warning nobody reads — a check
+        # that cannot fail anything is not a check, which is the exact pattern M6 is about.
+        # So the schema failure is caught SEPARATELY: the run keeps every artifact it has
+        # already produced (both canonical files are on disk, and the --json dump below still
+        # happens), and then main() exits NON-ZERO.
+        _schema_failed = str(_se)
+        print(f"[results] SCHEMA FAILURE (audit M6): {_se}")
     except Exception as _e:
         print(f"[results] could not write the canonical results files: {_e}")
 
@@ -4450,6 +4434,12 @@ def main(argv=None):
         with open(args.json, "w") as f:
             json.dump(res, f, indent=2)
         print(f"\nFull results → {args.json}")
+    if _schema_failed:
+        print("\nRUN FAILED: a computed field was dropped from the canonical results file.\n"
+              "Nothing was lost — every artifact above was written. Carry the field in\n"
+              "results_file.build_payload, or declare it in payload_schema.BLOCK_SPEC with\n"
+              "a reason, then re-run.")
+        return 2
     return 0
 
 

@@ -363,8 +363,14 @@ def test_a_block_that_threw_is_caught_by_the_writer_not_by_the_block_check():
     assert missing_result_blocks(threw) == [], \
         "an errored block IS present — this check is not the one that catches it"
 
+    # AUDIT M6 (session 22) — `errors` now carries TWO classes: a block that threw, and a
+    # computed field the payload dropped. This test is about the first, so it filters to it.
+    # The synthetic `{"x": 1}` blocks above are legitimately reported by the field-level
+    # guard (`x` is a computed field nothing carries), and that report is not what this test
+    # is pinning. Assertion narrowed, intent unchanged.
     errs = build_payload(dict(threw, horizons={}))["errors"]
-    assert [e["block"] for e in errs] == ["cpcv"], errs
+    threw_errs = [e for e in errs if not e.get("dropped_field")]
+    assert [e["block"] for e in threw_errs] == ["cpcv"], errs
     assert build_payload({"horizons": {}, "cpcv": {"n_paths": 15}})["errors"] == []
 
 
