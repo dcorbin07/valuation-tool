@@ -553,3 +553,150 @@ twice, from two independent collection methods, and agrees.
 **Then item B**, because it is the only member where the *existing* rejection may rest on a panel
 the project has declared void — and unlike everything else on this list, re-running it either
 strengthens a shipped decision or overturns it, both of which are worth more than the run costs.
+
+---
+
+# ITEM C — CLOSED **REJECTED-COMPLETE** (2026-08-11, greeks lane)
+
+Arm B passed all seven of its original bounds and was rejected on harm the register never
+encoded. That state — *passed every bound, rejected on a technicality* — is now ended. Arm B was
+re-scored, at its original parameters, against a bound set written down and committed **before**
+the re-run. It failed five of the twelve. **The item closes REJECTED-COMPLETE.**
+
+`PREREG_C_reinvestment_complete_bounds.md`, committed **alone at `abeb4f7`**, before
+`scripts/reinvestment_complete_bounds.py` existed.
+
+## C.1 The scorecard
+
+| bound | | result |
+|---|---|---|
+| **F1** flat-revenue names charged within ±25% of net capex | original | **HELD** — 0 violations |
+| **F2** count undercharged >5% of revenue falls to ≤5 | original | **HELD** — 33 → **0** |
+| **F3** negative modelled reinvestment falls to 0 | original | **HELD** — 0 |
+| **F4** decisive-set terminal FCFF falls ≥5% | original | **HELD** — median **−53.6%** |
+| **H1** control group bit-identical | original | **HELD** — 0 of 98 moved |
+| **H2** publish/withhold flips zero in control | original | **HELD** — 0 |
+| **H3** decisive-set median fair value falls | original | **HELD** — **−8.3%** |
+| **C1** EV stays positive for ≥99% that had one | **NEW** | **VIOLATED** — 92.35%, **15** names |
+| **C2** TV stays positive for every name that had one | **NEW** | **VIOLATED** — **15** |
+| **C3** DCF stays positive for every name that had one | **NEW** | **VIOLATED** — **15** |
+| **C4** no fair value rises >1% | **NEW** | **VIOLATED** — **8** over tolerance, 9 rose at all |
+| **C5** blast radius ≤1.5× decisive set | **NEW** | **INDECISIVE** — 71 changed vs 33 decisive |
+| **P1** the target is the flat-revenue population | **NEW** | **HELD** (= F1 ∧ F2) |
+| **P2** capex-boom names' year-1 reinvestment doesn't rise >10% | **NEW** | **VIOLATED** — **26 of 26** |
+
+**VERDICT: REJECTED-COMPLETE.** Failed: C1, C2, C3, C4, P2.
+
+**THE RESULT REPRODUCES THE ORIGINAL FINDING RATHER THAN REPLACING IT.** All seven original
+bounds held again, on a different snapshot six days later. Arm B really does do what the original
+register asked; the original register asked the wrong questions.
+
+## C.2 The mechanism reproduced almost exactly, which is the strongest evidence here
+
+`C4`'s worst offenders, against the record's own figures from the 2026-08-05 run:
+
+| | this run (2026-08-11) | recorded (2026-08-05) |
+|---|---|---|
+| EQIX | **+120.5%** | +121% |
+| GM | **+98.7%** | +92% |
+| XEL | **+76.2%** | +73% |
+
+Charging *more* reinvestment raises the published fair value, because `blend._usable` drops a
+non-positive lens and renormalises over what is left. Two independent snapshots, six days apart,
+on a rebuilt universe, agree to within a few points on all three. **This is not a one-snapshot
+artefact.**
+
+## C.3 The dataset — an honest deviation, declared in the register before the run
+
+**The original 2026-08-05 241-name pickle is UNRECOVERABLE.** Searched first: the repository, both
+`data/` trees, all three tracked handoff zips, and every on-disk cache (`screener.db`,
+`live_cache/served.db`, `app.db` — all **0 rows**). It was session-local and nothing rebuilds it.
+
+Substitute, fixed in the register **before** the run, with **no discretionary name selection**:
+the 191 bundled tickers (a fixed in-repo artifact) plus exactly the seven foreign filers the Part 8
+record itself names and the bundled list lacks (BHP, E, PBR, TTE, RIO, NVO, CNI) — **198 names**.
+That universe covers **33/33** of the record's decisive set and **10/10** of the names it singles
+out for harm. Five of the seven added names are flat-revenue — the population the fix is meant to
+*help* — so the addition is not tilted against Arm B.
+
+**196 of 198 fetched (98.99%).** The two misses are BRK.B (ticker format) and HES (acquired), both
+genuine absences rather than throttling. **Every bound is self-relative** — treated vs control on
+the same snapshot, in the same process, from the same `CompanyData` objects — so the verdict is
+well-defined on a rebuilt snapshot. What is lost is comparability of magnitudes, not validity.
+
+**The VOID preconditions are the reason this is trustworthy.** A throttled fetch returns partial
+data without raising, the name fails the `net_capex > 0` gate, and **every output-validity bound
+then passes on an empty population**. Registered in advance: ≥95% fetched (**98.99%**), ≥80 treated
+(**98**), ≥20 decisive (**33**). All three cleared, so the pass/fail is being read off a real
+population.
+
+## C.4 Two escape hatches fired exactly as registered, and both cut against me
+
+* **C5 is INDECISIVE, not violated.** 71 names changed against a 33-name decisive set = **2.15×**,
+  inside the [1.0, 2.3] band where the multiplier I chose would decide the answer. The register
+  says such a bound carries no verdict weight, so **C5 was excluded and the verdict rests on the
+  other eleven.** Had I let it count, the rejection would have looked stronger than it is.
+* **H1 was scored on the wrong fields first, and corrected against the register.** My first cut
+  compared `ev`/`tv`/`dcf` as well as the fields the register names, and H1 came back VIOLATED on
+  one name. **That is stricter than the registered bound**, and re-scoring a bound on fields the
+  register does not list — after seeing the result — is the exact error this task exists to
+  correct. Scored as registered ("fair value, WACC, score, confidence and published flag"), **H1
+  HOLDS**. The verdict does not change either way: C1–C4 and P2 fail regardless.
+
+## C.5 A FINDING, deliberately NOT folded into the verdict
+
+**The reinvestment floor's gate does not exclude financials.** `_net_capex_floor` gates on
+`capex − D&A > 0` alone and never asks the regime, so a financial with positive net capex **is**
+run through the floor. The original register's census asserts *"financials (out of scope) 31 — no
+[cannot be touched]"*. **That claim is false at the code level.**
+
+Measured: 19 financials scored, **1 touched** — Citigroup, net capex 2,147. Its year-1
+reinvestment moves **1,181 → 2,236** and its enterprise value **263,129 → 257,853**, while its
+published fair value does not move at all (65.79 both), because the financial regime replaces the
+headline per-share number with a P/B–ROE model.
+
+**That masking is why the original H1 could never have caught it** — H1 compares fair value, WACC,
+score, confidence and published flag, every one of which the financial override leaves untouched.
+
+Per PREREG §5 this is **recorded as a finding for whoever re-opens the item, not added to the
+scorecard.** Adding a bound after seeing the run is the original sin. It changes nothing here (the
+verdict is already REJECTED-COMPLETE on five other bounds) and it is small (one name, no published
+value moved) — but it is a false claim in the record, and the next person to reason from "the gate
+is the control group" should know the gate is narrower than the census says.
+
+## C.6 What this does and does not license
+
+* **Nothing ships.** `REINVESTMENT_FLOOR_MODE` stays `"off"`, pinned by a test.
+* **No retuning happened.** Arm B ran at the parameters fixed in §8.3. A failure at the stated
+  value is a rejection, not an invitation to adjust.
+* **The underlying defect is still real and still unfixed.** 33 names are undercharged by >5% of
+  revenue. Arm B is not the fix; that Arm B is not the fix is now established against a bound set
+  that asks the right questions, rather than asserted after the fact.
+* **The live negative-DCF defect is untouched** — the blend still drops a non-positive lens and
+  renormalises, which is C4's mechanism. Characterised, not fixed, exactly as the record says.
+
+## C.7 Cost and reproduction
+
+**Zero trial cost; equity `N` unchanged.** This re-scores one already-charged arm (`OOB3`) at
+unchanged parameters against *more* bounds. Adding bounds to a fixed candidate can only move a
+verdict toward fail, so it searches nothing and cannot manufacture significance.
+
+Reproduce: `python -m scripts.reinvestment_complete_bounds fetch` then `... score`.
+Artifact `data/free_analysis/REINVEST_COMPLETE_BOUNDS.json` (all 196 names, both arms, every
+bound) — **under `data/`, so never committed**; the numbers above are the record.
+**17 tests** in `tests/test_reinvestment_complete_bounds.py`, pinning the verdict machinery: that
+a clean population SHIPS (a scorer that can only reject is scoring nothing), that an empty
+population is VOID rather than a pass, that H1 uses exactly the registered field list, and that
+the finding cannot leak into the verdict.
+
+**Expectation, scored:** predicted C1/C2/C3 fail at 90/10 — **RIGHT** (and a weak prediction, as
+labelled: it forecast a repeat of a published result). Predicted C4 and P2 also fail at 60/40 —
+**RIGHT**, and that was the half with real content.
+
+**BUGS FOUND (Item C)**
+
+1. **The reinvestment floor's gate does not exclude financials**, contradicting the original
+   register's census. One name affected today; invisible in fair value because the financial
+   regime overrides it. Reported, not fixed, and not counted in the verdict.
+2. **The original H1 compares only fields the financial regime masks**, so it cannot see the gate
+   reaching a financial. Structural, not incidental.
