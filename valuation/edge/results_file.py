@@ -322,6 +322,11 @@ def build_payload(res: dict, universe_label: str | None = None,
         # is its own kind of broken).
         "ev_freshness": {
             "available": bool(evf),
+            # AUDIT M6 — found by the guard on its FIRST real run. `fresh` is a FRACTION and
+            # this is its denominator: 100% over 12 rows and 100% over 113,945 are not the
+            # same claim, and the canonical file carried only the former. Nothing in the AST
+            # of `ev_freshness` shows it, because the dict is built incrementally.
+            "rows": evf.get("rows"),
             "fresh": _num(evf.get("fresh")),
             "stale": _num(evf.get("stale")),
             "floor": _num(evf.get("floor")),

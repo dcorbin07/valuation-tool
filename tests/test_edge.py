@@ -7255,6 +7255,10 @@ def _m6_res():
         "cpcv": {"n_paths": 15, "pbo": 0.73, "adopt": False,
                  "recommended_weights_cols": {}, "adopt_detail": {"margin": 0.1},
                  "challenger_weights_cols": {}, "candidates": {}},
+        # ev_freshness is in the fixture because the guard caught a REAL drop here on its
+        # first live run (`rows`, the denominator of the `fresh` FRACTION) that no test had.
+        "ev_freshness": {"floor": 0.95, "rows": 113945, "by_source": {}, "fresh": 1.0,
+                         "stale": 0.0, "ok": True, "warnings": [], "drift": {}},
         "horizons": {"63": {"names": 2531, "dates": 69, "rows": 113945}},
         "primary_horizon": "63",
     }
@@ -7295,6 +7299,9 @@ def test_m6_the_guard_is_NOT_vacuous_on_a_complete_payload():
     from valuation.edge import results_file as rf
     res = _m6_res()
     assert ps.check_payload(res, rf.build_payload(res)) == []
+    # the denominator the guard recovered: `fresh` is a fraction, and 100% over 12 rows is
+    # not the same claim as 100% over 113,945
+    assert rf.build_payload(res)["ev_freshness"]["rows"] == 113945
 
 
 def test_m6_write_FAILS_THE_RUN_but_only_after_both_files_are_on_disk():
