@@ -42,55 +42,59 @@ def _f(x) -> Optional[float]:
 
 
 def _index_block(store) -> dict:
-    """Index vs benchmark since inception, from whichever live track is actually reporting.
+    """The Index vs its benchmark since inception, from the contract-bound recorder ONLY.
 
-    Two forward records exist and neither is a substitute for the other: the ingested Cowork
-    tracker (`index_track`, which the Index tab leads with and which carries a series to draw)
-    and the Tradier-sandbox paper book (`paper_track.index_summary`). The hero prefers the
-    first and falls back to the second, and NAMES which one it drew — an unlabelled fallback
-    would silently swap the meaning of the number between deploys.
+    THE FALLBACK THAT USED TO LIVE HERE IS GONE — REMOVED 2026-08-09, and it was the same
+    defect that put a false claim into Discord. When the Cowork tracker files were absent
+    (i.e. on every fresh deploy, since `data/` is gitignored) this function fell back to
+    `paper_track.index_summary` and rendered it under the heading "Valquo Index". That is a
+    different book: 10 names against the published book's 86, from a 2026-08-03 inception. It
+    also took its own `(idx - bench) * 100` — a second definition of excess return, free to
+    drift from the recorder's.
+
+    CORRECTED 2026-08-11 (cold audit LA11, which did not list this file — found by sweeping for
+    the claim rather than by following the audit's citations). The description above used to add
+    that the engine's 10% weights "violate `PAPER_TRACK_CONTRACT.md`'s own 8% cap". They do not;
+    session 16 (`PT-SPLIT`) retracted that. `valquo_index.build_index` sets
+    `cap = max(MAX_WEIGHT, 1/len(picks))` deliberately, since ten names at 8% sum to 80%. The
+    weights were right for the book; the BOOK was wrong, on SIZE. Nothing about the removal of
+    this fallback depended on the retracted reason.
+
+    Naming the source in the payload was not enough protection, and that is the lesson worth
+    keeping: the old code DID set `source: "paper-sandbox"`, honestly, and the template never
+    rendered it. A label that a surface can decline to show is not a safeguard. So the wrong
+    book is no longer reachable from here at all, and an absent track renders nothing.
     """
-    out = {"available": False}
     try:
         from ..screener.index_track import summarize
         t = summarize(store=store) or {}
     except Exception:
         t = {}
     live = t.get("live") or {}
-    if t.get("available") and live:
-        series = t.get("series") or []
-        return {
-            "available": True, "source": "index-track",
-            "since": live.get("since") or t.get("inception"), "as_of": live.get("as_of"),
-            "days": live.get("days"), "benchmark": t.get("benchmark") or "SPY",
-            "cum_pct": _f(live.get("cum_valquo_pct")), "bench_pct": _f(live.get("cum_spy_pct")),
-            "excess_pp": _f(live.get("excess_pp")),
-            "thin": bool(t.get("thin")), "min_days": t.get("min_live_days"),
-            "series": series[-SPARK_POINTS:],
-            "note": t.get("note"),
-        }
+    if not (t.get("available") and live):
+        return {"available": False,
+                "reason": "the contract-bound track has not reported yet"}
 
-    # Fallback: the sandbox paper index. It carries returns but no valquo/spy series in the
-    # shape the sparkline wants, so the hero shows the figures without a curve.
-    try:
-        from ..edge.paper_track import index_summary
-        p = index_summary(store) or {}
-    except Exception:
-        p = {}
-    if p.get("started"):
-        idx, bench = _f(p.get("index_ret")), _f(p.get("bench_ret"))
-        out = {
-            "available": True, "source": "paper-sandbox",
-            "since": p.get("inception"), "as_of": p.get("as_of"), "days": p.get("n_days"),
-            "benchmark": "SPY",
-            # paper_track reports fractions; the hero speaks in percent throughout.
-            "cum_pct": None if idx is None else idx * 100.0,
-            "bench_pct": None if bench is None else bench * 100.0,
-            "excess_pp": (None if (idx is None or bench is None) else (idx - bench) * 100.0),
-            "thin": not bool(p.get("meaningful")), "min_days": p.get("min_days_for_meaning"),
-            "series": [], "note": p.get("label"),
-        }
-    return out
+    series = t.get("series") or []
+    return {
+        "available": True, "source": "index-track",
+        "since": live.get("since") or t.get("inception"), "as_of": live.get("as_of"),
+        "days": live.get("days"), "benchmark": t.get("benchmark") or "SPY",
+        # LA8 — `days` is the ROW COUNT and stays one, because the gate reads it. `age` is the
+        # display vocabulary: how old the track is, and how many of those days were recorded.
+        # A surface that renders `days` under the word "Days" is stating a coverage number as
+        # an age, which is the defect LA8 names.
+        "age": live.get("age"),
+        "cum_pct": _f(live.get("cum_valquo_pct")), "bench_pct": _f(live.get("cum_spy_pct")),
+        "excess_pp": _f(live.get("excess_pp")),
+        # Book and window travel WITH the numbers so the template cannot render a figure
+        # without the two facts that make it meaningful. Both come from the recorder.
+        "book": live.get("book"), "window": live.get("window"), "claim": live.get("claim"),
+        "recorder": live.get("recorder"),
+        "thin": bool(t.get("thin")), "min_days": t.get("min_live_days"),
+        "series": series[-SPARK_POINTS:],
+        "note": t.get("note"),
+    }
 
 
 def _options_block(store) -> dict:

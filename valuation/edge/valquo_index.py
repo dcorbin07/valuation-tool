@@ -29,6 +29,23 @@ TOP_DECILE = 0.10
 MIN_NAMES = 10                # a "decile" of a small scan would be too thin to be a book
 MAX_WEIGHT = 0.08             # no single name dominates
 
+# SESSION 16 (PT-SPLIT) — the floor a book must clear to be THE Valquo Index, i.e. the object
+# `PAPER_TRACK_CONTRACT.md` binds, rather than some other book built by the same function.
+#
+# Why a floor is needed at all: `n = max(MIN_NAMES, round(len(large) * TOP_DECILE))`, so this
+# function happily builds a 10-name book out of a truncated scan and labels it "Valquo Index"
+# with a perfectly correct method string. The Tradier sandbox engine ran on exactly that for
+# four days — 10 names against the published book's 86 — and it was read as a cap violation
+# ("10% weights against an 8% cap") when it is nothing of the kind: `cap` below is
+# `max(MAX_WEIGHT, 1/len(picks))` BY DESIGN, because 10 names at 8% sum to 80%. The weights
+# were right for the book; the BOOK was wrong. One construction, two inputs.
+#
+# 50 is set from what the cap means rather than from the observed 86: the 8% cap can only bind
+# on a book of at least 13 names, and the published method is a top DECILE of the large-cap
+# tier, so a book that cannot plausibly be a decile of a real universe is not the Index. It is
+# a floor, not a target — the published book is free to be 86 or 120.
+CONTRACT_MIN_POSITIONS = 50
+
 
 def _f(x) -> Optional[float]:
     try:
@@ -51,6 +68,43 @@ def _sector_block(positions) -> tuple:
         sectors[key] = round(sectors.get(key, 0.0) + (p.get("weight") or 0.0), 5)
     ordered = dict(sorted(sectors.items(), key=lambda kv: -kv[1]))
     return ordered, any((p.get("sector") or "").strip() for p in positions)
+
+
+def conformance(n_positions: int, effective_max_weight: float,
+                n_eligible: Optional[int] = None) -> dict:
+    """Is this book THE Valquo Index, or merely a book this function built?
+
+    SESSION 16 (PT-SPLIT). The contract binds one object; `build_index` can produce several, and
+    until now nothing in the payload said which one you were holding. Two conditions, both
+    necessary:
+
+      * at least `CONTRACT_MIN_POSITIONS` names, and
+      * the 8% cap actually BINDS — `effective_max_weight <= MAX_WEIGHT`. On a small book the cap
+        silently relaxes to equal weight (it has to; 10 names at 8% sum to 80%), so an unbound
+        cap is the signature of a book too small to be the Index.
+
+    Reported, never enforced here: this is a pure description of a payload. `paper_track.seed_book`
+    is where it becomes a gate, because that is where a wrong book would start being recorded.
+    """
+    n = int(n_positions or 0)
+    cap = float(effective_max_weight or 0.0)
+    cap_binds = cap <= MAX_WEIGHT + 1e-9
+    big_enough = n >= CONTRACT_MIN_POSITIONS
+    why = []
+    if not big_enough:
+        why.append(f"{n} positions, below the contract floor of {CONTRACT_MIN_POSITIONS}"
+                   + (f" (eligible tier {n_eligible})" if n_eligible is not None else ""))
+    if not cap_binds:
+        why.append(f"the {MAX_WEIGHT:.0%} cap does not bind - effective cap is {cap:.4f}, i.e. "
+                   f"the book is too small for the cap to be reachable")
+    if n and n <= MIN_NAMES:
+        why.append(f"the book sits on the MIN_NAMES floor ({MIN_NAMES}), so it is the size the "
+                   f"builder fell back to rather than a decile it measured")
+    return {"conforms": bool(big_enough and cap_binds),
+            "n_positions": n, "effective_max_weight": round(cap, 5),
+            "max_weight": MAX_WEIGHT, "min_positions": CONTRACT_MIN_POSITIONS,
+            "n_eligible": (int(n_eligible) if n_eligible is not None else None),
+            "why_not": why}
 
 
 def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
@@ -125,17 +179,23 @@ def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
 
     return {
         "name": "Valquo Index",
+        # FIGURES REFRESHED 2026-08-08 (P2 crowding memo, BUGS FOUND #3). Every number in this
+        # string was measured on the pre-B6 2,710-name / 110-date panel and read as current
+        # because it ships inside a payload rather than a results file. Sourced from
+        # BACKTEST_RESULTS.json: construction.top_decile_alpha, costs.top_decile.net_alpha /
+        # .breakeven_one_way_bps / .realised_one_way_bps, portfolio.alpha_vs_equal_weight.
         "method": ("Broad top-decile of the large-cap tier by hot score, score-weighted and "
-                   "capped at 8%. On the full 2,710-name / 110-date backtest the top decile "
-                   "returns +11.8%/yr over equal-weight gross, +11.4% net of modelled "
-                   "transaction costs (breakeven 236bps one-way vs ~37bps actual). Breadth is "
+                   "capped at 8%. On the full 2,531-name / 69-date backtest the top decile "
+                   "returns +7.2%/yr over equal-weight gross, +6.1% net of modelled "
+                   "transaction costs (breakeven 134bps one-way vs 33bps measured). Breadth is "
                    "chosen for robustness, not because concentration underperforms: the "
-                   "top-25 book actually scores higher (+20.7% gross alpha) but is the "
+                   "top-25 book actually scores higher (+16.9% gross alpha) but is the "
                    "noisiest number in the study, so the decile is the honest book to track."),
         "criteria": {"large_cap_min": large_cap_min, "top_decile": top_decile,
                      "top_n": (int(top_n) if top_n else None),
                      "tilt": tilt, "weighting": weighting,
                      "max_weight": MAX_WEIGHT, "effective_max_weight": round(cap, 5)},
+        "contract_conformance": conformance(len(positions), cap, len(large)),
         "n_scored": len(scored), "n_eligible": len(large), "n_positions": len(positions),
         "sector_data_available": sector_data,
         "sector_weights": sectors,

@@ -12,6 +12,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import state_isolation   # noqa: E402,F401  — LA15: temp state only. Import BEFORE `valuation`.
 
 from valuation.edge import options_tracker as OT           # noqa: E402
 from valuation.edge import paper_track as PT               # noqa: E402
@@ -91,6 +93,21 @@ def _alert(store, ticker="AAPL", ts=None, expiry=None, entry=5.0, dte=60):
         "features": {"exit_policy": {"target_pct": 1.00, "stop_pct": -0.50,
                                      "time_stop_frac": 0.50}}})
     return OT.occ_symbol(ticker, expiry, "call", 250.0)
+
+
+def _seed(store, broker, book, **kw):
+    """`seed_book`, told that these fixture books are experiments — because they are.
+
+    SESSION 16 (PT-SPLIT): `seed_book` now REFUSES a book that is not the contract-bound Valquo
+    Index (>= CONTRACT_MIN_POSITIONS names, 8% cap actually binding), because a truncated scan
+    silently produced a 10-name book that the engine then recorded for four days as if it were
+    the 86-name published Index. Every book below is a 1-to-8-name fixture testing seed/close
+    MECHANICS, so it goes through the experiment door explicitly rather than the gate being
+    loosened to let it through. The gate itself is pinned by
+    `test_ptsplit_*` further down.
+    """
+    kw.setdefault("experiment", True)
+    return PT.seed_book(store, broker, book, **kw)
 
 
 # ----------------------------------------------------------------- the sandbox guard
@@ -298,7 +315,7 @@ def test_index_tracks_each_name_against_spy_over_its_own_window():
     st = _store()
     b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
                            "SPY": {"last": 500.0}})
-    seed = PT.seed_book(st, b, _BOOK)
+    seed = _seed(st, b, _BOOK)
     assert seed["added"] == 2 and seed["orders"] == 0, "quote-marked by default"
     b._q = {"AAA": {"last": 110.0}, "BBB": {"last": 210.0}, "SPY": {"last": 525.0}}
     pt = PT.index_point(st, b)
@@ -312,9 +329,9 @@ def test_reseeding_does_not_reset_accrued_entry_prices():
     st = _store()
     b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
                            "SPY": {"last": 500.0}})
-    PT.seed_book(st, b, _BOOK)
+    _seed(st, b, _BOOK)
     b._q = {"AAA": {"last": 300.0}, "BBB": {"last": 600.0}, "SPY": {"last": 500.0}}
-    again = PT.seed_book(st, b, _BOOK)
+    again = _seed(st, b, _BOOK)
     assert again["added"] == 0 and again["held"] == 2
     pt = PT.index_point(st, b)
     assert abs(pt["index_ret"] - 2.0) < 1e-9, "entry prices were reset by the re-seed"
@@ -324,7 +341,7 @@ def test_a_name_priced_on_one_leg_only_is_dropped_from_both():
     st = _store()
     b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
                            "SPY": {"last": 500.0}})
-    PT.seed_book(st, b, _BOOK)
+    _seed(st, b, _BOOK)
     b._q = {"AAA": {"last": 150.0}, "SPY": {"last": 500.0}}      # BBB has no quote today
     pt = PT.index_point(st, b)
     assert pt["n_priced"] == 1
@@ -336,7 +353,7 @@ def test_index_point_is_idempotent_per_day():
     st = _store()
     b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
                            "SPY": {"last": 500.0}})
-    PT.seed_book(st, b, _BOOK)
+    _seed(st, b, _BOOK)
     for _ in range(3):
         PT.index_point(st, b)
     assert PT.index_summary(st)["n_days"] == 1
@@ -346,10 +363,51 @@ def test_equity_mirror_is_opt_in_and_sizes_whole_shares():
     st = _store()
     b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
                            "SPY": {"last": 500.0}})
-    seed = PT.seed_book(st, b, _BOOK, place_equity=True, capital=10000.0)
+    seed = _seed(st, b, _BOOK, place_equity=True, capital=10000.0)
     assert seed["orders"] == 2
     qty = {p["symbol"]: p["quantity"] for p in b.placed}
     assert qty["AAA"] == 50 and qty["BBB"] == 25       # $5,000 / 100 and / 200
+
+
+def test_a_day_count_alone_can_never_make_the_index_track_meaningful():
+    """The SECOND ungated door, found by audit OOB5 after it closed the first.
+
+    `index_track` was gated on the contract's operational gate, but `hero` falls back to
+    `paper_track.index_summary` when the Cowork tracker files are absent -- which is exactly the
+    fresh-deploy case, since `data/` is gitignored. If `meaningful` were a pure day count, a
+    paper track could still lead the page on elapsed time alone, defeating the gate one layer
+    down. `meaningful` therefore requires BOTH, and this pins that the day count alone is never
+    enough at any n.
+    """
+    st = _store()
+    b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
+                           "SPY": {"last": 500.0}})
+    _seed(st, b, _BOOK)
+    with st._conn() as c:
+        rows = [(f"2026-{1 + i // 28:02d}-{1 + i % 28:02d}", 0.05, 0.01, 0.04, 2, 2,
+                 "2026-01-01") for i in range(PT.MIN_DAYS_FOR_MEANING + 40)]
+        c.executemany(
+            "INSERT OR REPLACE INTO paper_index_track"
+            " (as_of, index_ret, bench_ret, active_ret, n_positions, n_priced, inception)"
+            " VALUES (?,?,?,?,?,?,?)", rows)
+    out = PT.index_summary(st)
+    assert out["n_days"] >= PT.MIN_DAYS_FOR_MEANING, out["n_days"]
+    # The real contract on disk records the gate as pending, so this must be False.
+    assert out["contract_gate"]["passed"] is False, out["contract_gate"]
+    assert out["meaningful"] is False, "a day count alone promoted a paper track"
+
+
+def test_the_index_gate_fails_closed_when_the_contract_cannot_be_read():
+    """Any failure reaching the gate must resolve to NOT passed, never to passed."""
+    import valuation.screener.index_track as IT
+    orig = IT.gate_state
+    try:
+        IT.gate_state = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom"))
+        g = PT._contract_gate()
+    finally:
+        IT.gate_state = orig
+    assert g["passed"] is False
+    assert "unreadable" in g["reason"]
 
 
 # ----------------------------------------------------------------- honest labelling
@@ -478,7 +536,7 @@ def test_recap_health_note_does_not_report_a_hole_before_inception():
     st = _store()
     b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
                            "SPY": {"last": 500.0}})
-    PT.seed_book(st, b, _BOOK)
+    _seed(st, b, _BOOK)
     PT.index_point(st, b)
     note = RC.health_note(RC.collect(st))
     assert "hole in it" not in note, note
@@ -612,8 +670,21 @@ def test_hero_expectancy_comes_from_the_scorecard_not_a_second_calculation():
     assert block["thin"] is False
 
 
-def test_hero_names_which_forward_record_it_drew():
-    """Two live records exist. An unlabelled fallback would swap the number's meaning."""
+def test_hero_will_not_render_the_sandbox_book_as_the_index():
+    """REPLACES `test_hero_names_which_forward_record_it_drew` (2026-08-09), and is STRICTLY
+    HARDER to satisfy — the old behaviour it pinned cannot pass this one.
+
+    That test asserted the hero may fall back to `paper_track.index_summary` provided it sets
+    `source: "paper-sandbox"`, on the reasoning that "an unlabelled fallback would swap the
+    number's meaning". The labelling was real and honest — and no template ever rendered
+    `source`, so a visitor saw the sandbox book's return under the heading "Valquo Index" with
+    nothing to say otherwise. Two days after that test was written the same defect, in the same
+    shape, put a false claim into Discord (2026-08-05, +0.18 pp).
+
+    The repair is not a better label. A surface that CAN reach the wrong book eventually shows
+    it, so the fallback is gone: with no contract-bound rows the hero reports nothing, however
+    much the engine has to say.
+    """
     from valuation.web.hero import live_hero
     st, _ = _book_with_one_closed_winner()
     PT.ensure_schema(st)
@@ -622,12 +693,35 @@ def test_hero_names_which_forward_record_it_drew():
                   "active_ret, n_priced) VALUES (?,?,?,?,?,?)",
                   ("2026-08-03", "2026-08-01", 0.0182, 0.0091, 0.0091, 25))
     idx = live_hero(st)["index"]
-    assert idx["available"] is True
-    assert idx["source"] == "paper-sandbox"
-    # paper_track reports fractions; the hero speaks percent, and the two must not be mixed.
-    assert abs(idx["cum_pct"] - 1.82) < 1e-9
-    assert abs(idx["bench_pct"] - 0.91) < 1e-9
-    assert abs(idx["excess_pp"] - 0.91) < 1e-9
+    assert idx["available"] is False, (
+        "the hero rendered the Tradier sandbox book as the Valquo Index: " + repr(idx))
+    for k in ("cum_pct", "bench_pct", "excess_pp"):
+        assert idx.get(k) is None, f"a sandbox figure leaked into the hero as {k}"
+
+
+def test_hero_index_figures_carry_their_book_and_window(tmpdir=None):
+    """When the hero DOES have a figure, the book and the window come with it — the two facts
+    whose absence made +0.18 pp look like a claim about the Index."""
+    import valuation.web.hero as H
+    import valuation.screener.index_track as IT
+    orig = IT.summarize
+    try:
+        IT.summarize = lambda *a, **k: {
+            "available": True, "benchmark": "SPY", "inception": "2026-07-30", "thin": True,
+            "min_live_days": IT.MIN_LIVE_DAYS, "series": [], "note": "",
+            "live": {"days": 2, "since": "2026-07-31", "as_of": "2026-08-06",
+                     "cum_valquo_pct": 0.776, "cum_spy_pct": 3.6228, "excess_pp": -2.8468,
+                     "book": IT.BOOK_SHORT, "window": "since inception 2026-07-30 through "
+                                                      "2026-08-06 (2 recorded sessions)",
+                     "claim": "…", "recorder": IT.RECORDER},
+        }
+        idx = H._index_block(_store())
+    finally:
+        IT.summarize = orig
+    assert idx["available"] is True and idx["source"] == "index-track"
+    assert idx["book"] == IT.BOOK_SHORT and "2026-08-06" in idx["window"]
+    assert idx["recorder"] == IT.RECORDER
+    assert abs(idx["excess_pp"] + 2.8468) < 1e-9
 
 
 def test_hero_never_raises_and_never_takes_the_page_down():
@@ -658,9 +752,9 @@ def test_p4_a_name_that_leaves_the_book_is_closed_not_deleted():
     st = _store()
     b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
                            "SPY": {"last": 500.0}})
-    PT.seed_book(st, b, _BOOK)
+    _seed(st, b, _BOOK)
     b._q = {"AAA": {"last": 100.0}, "BBB": {"last": 240.0}, "SPY": {"last": 550.0}}
-    out = PT.seed_book(st, b, _BOOK_ONE)                      # BBB has left the book
+    out = _seed(st, b, _BOOK_ONE)                      # BBB has left the book
     assert out["closed"] == 1 and out["closed_tickers"] == ["BBB"], out
 
     with st._conn() as c:
@@ -689,14 +783,14 @@ def test_p4_a_closed_name_stops_moving_the_index_and_can_re_enter_later():
     st = _store()
     b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
                            "SPY": {"last": 500.0}})
-    PT.seed_book(st, b, _BOOK)
+    _seed(st, b, _BOOK)
     b._q = {"AAA": {"last": 110.0}, "BBB": {"last": 999.0}, "SPY": {"last": 500.0}}
-    PT.seed_book(st, b, _BOOK_ONE)
+    _seed(st, b, _BOOK_ONE)
     pt = PT.index_point(st, b)
     assert pt["n_positions"] == 1 and pt["n_priced"] == 1
     assert abs(pt["index_ret"] - 0.10) < 1e-9, "the sold name is still moving the index"
 
-    back = PT.seed_book(st, b, _BOOK)                          # BBB returns
+    back = _seed(st, b, _BOOK)                          # BBB returns
     assert back["added"] == 1, "a re-entering name was silently refused"
     with st._conn() as c:
         assert c.execute("SELECT COUNT(*) FROM paper_index_holdings").fetchone()[0] == 2
@@ -712,15 +806,15 @@ def test_p4_a_truncated_export_closes_nothing():
     st = _store()
     b = FakeBroker(quotes={f"T{i}": {"last": 100.0} for i in range(10)} | {"SPY": {"last": 500.0}})
     big = {"positions": [{"ticker": f"T{i}", "weight": 0.1} for i in range(10)]}
-    PT.seed_book(st, b, big)
-    out = PT.seed_book(st, b, {"positions": [{"ticker": "T0", "weight": 1.0}]})
+    _seed(st, b, big)
+    out = _seed(st, b, {"positions": [{"ticker": "T0", "weight": 1.0}]})
     assert out["closed"] == 0, "a 90% shrink was treated as a real rebalance"
     assert out["close_refused"] and "truncated" in out["close_refused"]
     with st._conn() as c:
         assert c.execute("SELECT COUNT(*) FROM paper_index_holdings").fetchone()[0] == 10
 
     # An ordinary rebalance is NOT refused: the guard catches a truncated file, not turnover.
-    ok = PT.seed_book(st, b, {"positions": [{"ticker": f"T{i}", "weight": 0.125}
+    ok = _seed(st, b, {"positions": [{"ticker": f"T{i}", "weight": 0.125}
                                             for i in range(8)]})
     assert ok["closed"] == 2 and ok["close_refused"] is None, ok
 
@@ -732,11 +826,11 @@ def test_p4_inception_does_not_walk_forward_when_the_oldest_name_is_sold():
     st = _store()
     b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
                            "SPY": {"last": 500.0}})
-    PT.seed_book(st, b, _BOOK, today="2026-01-05")
+    _seed(st, b, _BOOK, today="2026-01-05")
     PT.index_point(st, b, today="2026-01-05")
     first = PT.index_summary(st)["inception"]
 
-    PT.seed_book(st, b, {"positions": [{"ticker": "CCC", "weight": 1.0}]}, today="2026-06-01")
+    _seed(st, b, {"positions": [{"ticker": "CCC", "weight": 1.0}]}, today="2026-06-01")
     b._q = {"CCC": {"last": 50.0}, "SPY": {"last": 500.0}}
     PT.index_point(st, b, today="2026-06-01")
     assert PT.index_summary(st)["inception"] == first, "inception followed the surviving names"
@@ -749,11 +843,463 @@ def test_p4_seed_book_can_still_accumulate_when_asked():
     st = _store()
     b = FakeBroker(quotes={"AAA": {"last": 100.0}, "BBB": {"last": 200.0},
                            "SPY": {"last": 500.0}})
-    PT.seed_book(st, b, _BOOK)
-    out = PT.seed_book(st, b, _BOOK_ONE, close_exits=False)
+    _seed(st, b, _BOOK)
+    out = _seed(st, b, _BOOK_ONE, close_exits=False)
     assert out["closed"] == 0
     with st._conn() as c:
         assert c.execute("SELECT COUNT(*) FROM paper_index_holdings").fetchone()[0] == 2
+
+# ---------------------------------------------------------------------------------------- #
+# ONE RECORDER FOR EVERY OUTBOUND vs-SPY CLAIM.
+#
+# THE INCIDENT THESE PIN. On 2026-08-05 the Discord recap posted "Since inception 2026-08-03
+# (3 sessions): index +3.22%, SPY +3.05% -> **+0.18 pp**" — the Valquo Index beating SPY. The
+# contract-bound recorder over that window reads -0.2777pp (2026-07-31) and -2.8468pp
+# (2026-08-06); it was never above SPY. No arithmetic was wrong. The recap read the Tradier
+# sandbox ENGINE (10 names against the published book's 86, inception 2026-08-03) and printed
+# it under the words "Valquo Index vs SPY".
+#
+# CORRECTED 2026-08-11 (cold audit LA11). This comment used to describe the engine's weights as
+# violating "PAPER_TRACK_CONTRACT.md's own 8% cap". They do not, and session 16 (`PT-SPLIT`)
+# retracted it — see `test_ptsplit_a_ten_percent_weight_is_not_a_cap_violation` further down this
+# same file, which has pinned the correct reading since. The comment and the test it introduces
+# disagreed with a test in the same module; the test was right.
+#
+# WHY THESE ARE STRICTER THAN THE SITE'S. A wrong figure on a page is corrected by a deploy.
+# A wrong figure in Discord is delivered once, to people, and no correction ever catches it.
+# ---------------------------------------------------------------------------------------- #
+_FAKE_CLAIM = {
+    "available": True, "reason": "", "recorder": "FAKE_RECORDER", "book": "FAKEBOOK",
+    "book_short": "FAKEBOOK", "benchmark": "SPY", "window": "FAKEWINDOW",
+    "window_kind": "inception", "since": "2026-01-01", "as_of": "2026-01-09", "n_points": 2,
+    # DELIBERATELY INCONSISTENT: +5.00 - +1.00 is +4.00 pp, and the recorder says -9.99.
+    # Nothing downstream may "fix" that — the recorder is the definition, not a suggestion.
+    "valquo_pct": 5.0, "spy_pct": 1.0, "excess_pp": -9.99, "excess_source": "recorded",
+    "text": "FAKEBOOK vs SPY, FAKEWINDOW: Index +5.00%, SPY +1.00% → -9.99 pp",
+}
+
+
+def test_the_recap_prints_the_recorders_excess_and_never_recomputes_it():
+    """THE PIN THE TASK ASKED FOR: a digest that computes its own excess return fails here.
+
+    The recorder is handed a claim whose excess (-9.99 pp) is not the difference of its own two
+    legs (+4.00 pp). Any surface that re-derived `valquo - spy` would print +4.00. Only a
+    surface that treats the recorder as the single definition prints -9.99.
+    """
+    import valuation.screener.index_track as IT
+    orig = IT.vs_spy_claim
+    try:
+        IT.vs_spy_claim = lambda *a, **k: dict(_FAKE_CLAIM)
+        text = RC.build(_store(), kind="daily")
+    finally:
+        IT.vs_spy_claim = orig
+    assert "-9.99 pp" in text, f"the recap did not print the recorder's excess:\n{text}"
+    assert "+4.00 pp" not in text, ("the recap RECOMPUTED the excess from the two legs instead "
+                                    f"of reading it:\n{text}")
+    # The book and the window must travel with the number, in the message itself.
+    assert "FAKEBOOK" in text and "FAKEWINDOW" in text, text
+
+
+def test_no_outbound_surface_may_quote_the_sandbox_engine_as_the_index():
+    """The 2026-08-05 regression, reconstructed from the engine's own committed export.
+
+    The engine holds exactly the rows it held that day and the bound track holds nothing. The
+    correct post says it has no Index figure. A post that reaches for the engine prints
+    +0.18 pp, which is the false claim that was actually sent.
+    """
+    st = _store()
+    PT.ensure_schema(st)
+    rows = [("2026-08-03", 0.0172942154, 0.0142430692, 0.0030511461),
+            ("2026-08-04", 0.0404483143, 0.0325288141, 0.0079195002),
+            ("2026-08-05", 0.0322393165, 0.0304673172, 0.0017719993)]
+    with st._conn() as c:
+        c.executemany("INSERT OR REPLACE INTO paper_index_track (as_of, index_ret, bench_ret,"
+                      " active_ret, n_positions, n_priced, inception) VALUES (?,?,?,?,10,10,"
+                      "'2026-08-03')", rows)
+    text = RC.build(st, kind="daily", day="2026-08-05")
+    assert "+0.18 pp" not in text, f"THE 2026-08-05 FALSE CLAIM IS BACK:\n{text}"
+    assert "+3.22%" not in text and "+3.05%" not in text, (
+        f"the sandbox engine's returns are being reported as the Index:\n{text}")
+    assert "No Index-vs-SPY figure" in text, (
+        f"with no bound rows the recap must decline to report, not substitute:\n{text}")
+
+
+def test_the_recap_does_not_consult_the_engine_for_an_index_claim_at_all():
+    """Not "prefers the recorder" — cannot reach the engine. `index_summary` is made to
+    explode; a recap that still builds is one that never calls it for this."""
+    st = _store()
+    PT.ensure_schema(st)
+    orig = PT.index_summary
+    try:
+        PT.index_summary = lambda *a, **k: (_ for _ in ()).throw(
+            AssertionError("the recap asked the sandbox engine for an Index-vs-SPY figure"))
+        text = RC.build(st, kind="daily")
+    finally:
+        PT.index_summary = orig
+    assert "Valquo Index" in text and "vs SPY" in text, text
+
+
+def test_outbound_modules_contain_no_second_definition_of_excess_return():
+    """Structural backstop: no outbound composer may subtract one return series from another.
+
+    The behavioural tests above catch a recomputation that CHANGES a printed number. This
+    catches one that happens to agree today — the state the site and the recap were in before
+    2026-08-05, when two definitions matched and nothing said which was authoritative. The
+    single legal site of this arithmetic is `index_track._window_return_pct` / `vs_spy_claim`,
+    which is deliberately not in this list.
+    """
+    import ast
+    import os
+    # Every module that composes something a person receives: Discord, email, the site's hero.
+    outbound = ["valuation/saas/recap.py", "valuation/saas/notify.py",
+                "valuation/saas/emailer.py", "valuation/web/hero.py"]
+    # Both operands must be return-ish for a subtraction to count, which is what keeps
+    # `len(lines) - keep_tail` and `today - timedelta(...)` out of it.
+    vocab = ("valquo", "spy", "bench", "index_ret", "excess", "active_ret", "cum_pct",
+             "cum_valquo_pct", "cum_spy_pct", "bench_pct", "bench_ret")
+
+    def nameish(node):
+        if isinstance(node, ast.Name):
+            return node.id.lower()
+        if isinstance(node, ast.Attribute):
+            return node.attr.lower()
+        if isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Constant):
+            return str(node.slice.value).lower()
+        if isinstance(node, ast.Call):                 # r.get("index_ret")
+            for a in node.args:
+                if isinstance(a, ast.Constant) and isinstance(a.value, str):
+                    return a.value.lower()
+        return ""
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    offences = []
+    for rel in outbound:
+        path = os.path.join(root, *rel.split("/"))
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding="utf-8") as f:
+            tree = ast.parse(f.read(), filename=rel)
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Sub)):
+                continue
+            l, r = nameish(node.left), nameish(node.right)
+            if any(v in l for v in vocab) and any(v in r for v in vocab):
+                offences.append(f"{rel}:{node.lineno}  {l} - {r}")
+    assert not offences, (
+        "an outbound surface computes its own excess return; it must read "
+        "index_track.vs_spy_claim instead:\n  " + "\n  ".join(offences))
+
+
+def test_the_email_digest_makes_no_unsourced_vs_spy_claim():
+    """The email digest currently makes NO vs-SPY claim, and this keeps it that way by
+    accident-proofing rather than by memory: if one is ever added, it must come from the
+    recorder. Checked on the rendered output, not the source, so a claim assembled from
+    f-strings cannot slip past."""
+    from valuation.saas import emailer
+    html = (emailer.weekly_digest_html("2026-08-05", [], []) or "") + \
+           (emailer.learning_digest_html({}) or "")
+    if "SPY" in html.upper():
+        import valuation.screener.index_track as IT
+        assert IT.RECORDER in html or IT.BOOK_SHORT in html, (
+            "the email digest quotes SPY without naming the contract-bound recorder or book")
+
+
+# --------------------------------------------- session 16: BUG 1, BUG 2 and the latent third
+#
+# Routed by the options-bot lane (HANDOFF_optionsbot.md §4/§9) off the first three REAL fills.
+# Pre-committed expected values: PREREG_session16_paper_track_repair.md §2 and §3.
+def _alert_with(store, ticker="AAPL", entry=5.0, dte=60, sizing=None, policy=None):
+    """A logged alert whose `features` carry a chosen sizing block and/or exit policy."""
+    expiry = (dt.date.today() + dt.timedelta(days=dte)).isoformat()
+    feats = {"exit_policy": policy or {"target_pct": 1.00, "stop_pct": -0.50,
+                                       "time_stop_frac": 0.50}}
+    if sizing is not None:
+        feats["sizing"] = sizing
+    OT.log_alert(store, {
+        "alert_ts": dt.date.today().isoformat() + "T14:30:00", "ticker": ticker,
+        "opt_right": "call", "strike": 250.0, "expiry": expiry, "entry_premium": entry,
+        "underlying_price": 240.0, "score": 93.0, "iv": 0.35, "iv_rank": 45.0,
+        "horizon": "swing", "target_delta": 0.35, "dte": dte, "features": feats})
+    return OT.occ_symbol(ticker, expiry, "call", 250.0)
+
+
+def test_bug1_exit_levels_are_derived_from_the_fill_not_the_submit_price():
+    """THE bug: the limit is set from a post-close quote and fills at the next open, so the
+    submit price and the fill routinely differ. Levels anchored to the submit price describe a
+    price the book never paid. TGT's real numbers: submitted 4.45, filled 3.55."""
+    st = _store()
+    occ = _alert_with(st)
+    b = FakeBroker(quotes={occ: {"bid": 4.35, "ask": 4.45}})
+    PT.submit_new_alerts(st, b, cfg=_Cfg())
+    submitted = PT.paper_orders(st)[0]
+    assert abs(submitted["target_premium"] - 8.90) < 1e-9, "at submit, levels track the ask"
+
+    b.fill(b.placed[0]["id"], 3.55)                    # the overnight gap, as it really happened
+    PT.mark_open(st, b)
+    row = PT.paper_orders(st)[0]
+    assert abs(row["entry_premium"] - 3.55) < 1e-9
+    assert abs(row["target_premium"] - 7.1000) < 1e-9, f"target {row['target_premium']} != 7.1000"
+    assert abs(row["stop_premium"] - 1.7750) < 1e-9, f"stop {row['stop_premium']} != 1.7750"
+    assert abs(row["target_premium"] / row["entry_premium"] - 2.0) < 1e-6
+    assert abs(row["stop_premium"] / row["entry_premium"] - 0.5) < 1e-6
+
+
+def test_bug1_a_fill_that_equals_its_limit_is_left_bit_identical():
+    """ETN filled at its limit and was already on spec. A repair that moves it is repairing the
+    wrong thing, so this pins that the fix is not just 'rewrite every level every cycle'."""
+    st = _store()
+    occ = _alert_with(st)
+    b = FakeBroker(quotes={occ: {"bid": 16.00, "ask": 16.10}})
+    PT.submit_new_alerts(st, b, cfg=_Cfg())
+    b.fill(b.placed[0]["id"], 16.10)
+    PT.mark_open(st, b)
+    before = PT.paper_orders(st)[0]
+    assert abs(before["target_premium"] - 32.20) < 1e-9 and abs(before["stop_premium"] - 8.05) < 1e-9
+    out = PT.mark_open(st, b)
+    after = PT.paper_orders(st)[0]
+    assert out["levels_repaired"] == 0, "a conforming row must not be rewritten"
+    assert before["note"] == after["note"], "nor annotated"
+
+
+def test_bug1_already_open_rows_are_repaired_and_the_repair_is_idempotent():
+    """Fixing the fill branch only protects FUTURE entries; the book already held three
+    positions whose levels were anchored to a submit price weeks earlier."""
+    st = _store()
+    occ = _alert_with(st)
+    b = FakeBroker(quotes={occ: {"bid": 4.50, "ask": 4.60}})
+    PT.submit_new_alerts(st, b, cfg=_Cfg())
+    b.fill(b.placed[0]["id"], 4.60)
+    PT.mark_open(st, b)
+    # Re-corrupt exactly as the pre-fix code left MET: levels anchored to a 4.90 submit price.
+    PT._update(st, PT.paper_orders(st)[0]["alert_id"], target_premium=9.80, stop_premium=2.45)
+    assert PT._level_conformance(st, PT.paper_orders(st, limit=100))["off_spec"] == 1
+
+    out = PT.mark_open(st, b)
+    row = PT.paper_orders(st)[0]
+    assert out["levels_repaired"] == 1
+    assert abs(row["target_premium"] - 9.2000) < 1e-9 and abs(row["stop_premium"] - 2.3000) < 1e-9
+    assert PT._level_conformance(st, PT.paper_orders(st, limit=100))["ok"]
+    assert PT.mark_open(st, b)["levels_repaired"] == 0, "second pass must be a no-op"
+
+
+def test_bug1_a_repair_never_executes_a_trade():
+    """If the CORRECTED level is already crossed, writing it makes the next `close_matured`
+    sell the position. A bug fix that silently closes a live position is not a bug fix, so the
+    write is deferred and reported for a human instead."""
+    st = _store()
+    occ = _alert_with(st)
+    b = FakeBroker(quotes={occ: {"bid": 9.90, "ask": 10.00}})
+    PT.submit_new_alerts(st, b, cfg=_Cfg())
+    b.fill(b.placed[0]["id"], 10.00)
+    PT.mark_open(st, b)
+    aid = PT.paper_orders(st)[0]["alert_id"]
+    # Wrong levels (anchored to a much higher submit price) AND a mark below the correct stop.
+    PT._update(st, aid, target_premium=40.0, stop_premium=1.0, last_mark=4.0)
+
+    b._q = {}                                          # no quote, so nothing re-marks the row
+    out = PT.mark_open(st, b)
+    row = PT.paper_orders(st)[0]
+    assert out["levels_repaired"] == 0
+    assert len(out["level_repairs_deferred"]) == 1
+    assert "already crossed" in out["level_repairs_deferred"][0]["deferred_because"]
+    assert abs(row["stop_premium"] - 1.0) < 1e-9, "the deferred level must NOT be written"
+    assert PT.close_matured(st, b)["closing"] == 0, "and nothing may be sold as a side effect"
+
+
+def test_bug1_the_read_only_guard_reports_off_spec_rows_without_writing():
+    """`options_summary` must be able to say 'this position trades to a level no backtest
+    describes' on every request. The first time this book was inspected, 2 of 3 open positions
+    were off spec and nothing anywhere said so."""
+    st = _store()
+    occ = _alert_with(st)
+    b = FakeBroker(quotes={occ: {"bid": 4.50, "ask": 4.60}})
+    PT.submit_new_alerts(st, b, cfg=_Cfg())
+    b.fill(b.placed[0]["id"], 4.60)
+    PT.mark_open(st, b)
+    PT._update(st, PT.paper_orders(st)[0]["alert_id"], target_premium=9.80, stop_premium=2.45)
+
+    lc = PT.options_summary(st)["level_conformance"]
+    assert lc["checked"] == 1 and lc["off_spec"] == 1 and lc["ok"] is False
+    assert abs(lc["detail"][0]["target_should_be"] - 9.20) < 1e-9
+    row = PT.paper_orders(st)[0]
+    assert abs(row["target_premium"] - 9.80) < 1e-9, "a summary must never write"
+
+
+def test_bug2_the_alerts_own_sizing_veto_is_honoured():
+    """ETN carried `sizing.skip: true` ("one contract costs $1,610, above the $1,000 budget")
+    and the paper track bought it anyway — it became the LARGEST position in the book. A forward
+    track that takes trades the live product declines is not tracking the live product."""
+    st = _store()
+    occ = _alert_with(st, ticker="ETN", entry=16.10, sizing={
+        "contracts": 0, "skip": True, "dollar_risk": None,
+        "reason": "one contract costs $1,610, above the $1,000 budget - cannot be sized correctly"})
+    b = FakeBroker(quotes={occ: {"bid": 16.00, "ask": 16.10}})
+    res = PT.submit_new_alerts(st, b, cfg=_Cfg())
+
+    assert res["submitted"] == 0 and res["skipped"] == 1
+    assert not b.placed, "no order may reach the broker"
+    assert "budget" in res["skips"][0]["reason"], "the alert's OWN reason must be recorded"
+    row = PT.paper_orders(st)[0]
+    assert row["state"] == "skipped" and "sizing refused" in (row["note"] or "")
+
+
+def test_bug2_an_alert_the_sizing_accepted_is_still_taken():
+    """The veto must not become a blanket refusal — TGT and MET both carry `skip: false`."""
+    st = _store()
+    occ = _alert_with(st, ticker="TGT", entry=4.55,
+                      sizing={"contracts": 1, "skip": False, "dollar_risk": 455.0,
+                              "reason": None})
+    b = FakeBroker(quotes={occ: {"bid": 4.45, "ask": 4.55}})
+    assert PT.submit_new_alerts(st, b, cfg=_Cfg())["submitted"] == 1
+
+
+def test_bug2_an_alert_with_no_sizing_block_is_unaffected():
+    """Alerts logged before `notify.py` carried sizing must keep flowing, or the fix silently
+    empties the book instead of filtering it."""
+    st = _store()
+    occ = _alert_with(st, sizing=None)
+    b = FakeBroker(quotes={occ: {"bid": 4.90, "ask": 5.00}})
+    assert PT.submit_new_alerts(st, b, cfg=_Cfg())["submitted"] == 1
+
+
+def test_the_veto_is_read_but_the_sizing_QUANTITY_deliberately_is_not():
+    """Pinning a deliberate NON-change (prereg §3). Honouring `sizing.contracts` would alter the
+    book's construction — position size — which is a different decision from declining a trade
+    the alert already refused. If a later edit starts sizing from the alert, this fails and the
+    change has to be argued rather than absorbed."""
+    st = _store()
+    occ = _alert_with(st, sizing={"contracts": 7, "skip": False, "reason": None})
+
+    class Cfg3(_Cfg):
+        paper_contracts_per_trade = 3
+    b = FakeBroker(quotes={occ: {"bid": 4.90, "ask": 5.00}})
+    PT.submit_new_alerts(st, b, cfg=Cfg3())
+    assert b.placed[0]["quantity"] == 3, "size comes from config, not from the alert's sizing"
+
+
+def test_the_exit_policy_of_an_order_row_is_read_from_its_alert():
+    """The latent third bug, found while fixing BUG 1. `paper_option_orders` has NO `features`
+    column, so `_exit_policy(order_row)` silently returns the DEFAULT policy. Audit B5c's comment
+    claims the resume branch 'rebuilds the exit policy the same way the fresh path does' — the
+    fresh path reads the ALERT, the resume branch was reading the order.
+
+    It has never fired in production because all three live alerts happen to use the default
+    policy. That is luck, not protection, so it is pinned with a policy that DIFFERS."""
+    st = _store()
+    _alert_with(st, policy={"target_pct": 0.60, "stop_pct": -0.30, "time_stop_frac": 0.40})
+    with st._conn() as c:
+        cols = {r[1] for r in c.execute("PRAGMA table_info(paper_option_orders)")}
+    assert "features" not in cols, "the premise: an order row cannot carry the policy"
+
+    aid = [a["id"] for a in OT.open_alerts(st)][0]
+    order_row = {"alert_id": aid, "ticker": "AAPL"}
+    assert PT._exit_policy(order_row)["target_pct"] == OT.DEFAULT_TARGET_PCT   # the defect
+    good = PT._policy_for(st, order_row)
+    assert good["target_pct"] == 0.60 and good["stop_pct"] == -0.30
+    assert abs(PT._levels_from(st, order_row, 10.0)["target_premium"] - 16.0) < 1e-9
+    assert abs(PT._levels_from(st, order_row, 10.0)["stop_premium"] - 7.0) < 1e-9
+
+
+# --------------------------------------------------------- session 16: PT-SPLIT, the alignment
+def _index_rows(n, mc=5e10):
+    return [{"ticker": f"N{i}", "hot_score": 100 - i * 0.1, "price": 50.0, "market_cap": mc}
+            for i in range(n)]
+
+
+def test_ptsplit_a_ten_percent_weight_is_not_a_cap_violation():
+    """The routed report called the engine's 10% weights a breach of the contract's 8% cap. They
+    are not: `build_index` sets `cap = max(MAX_WEIGHT, 1/len(picks))` because 10 names at 8% sum
+    to 80%. The weights were right for the book — the BOOK was wrong. Pinned so the wrong
+    diagnosis cannot come back and get 'fixed' by lowering a cap that is already correct."""
+    from valuation.edge import valquo_index as VI
+    b = VI.build_index(_index_rows(10))
+    assert len(b["positions"]) == 10
+    assert abs(b["criteria"]["effective_max_weight"] - 0.10) < 1e-9
+    assert abs(sum(p["weight"] for p in b["positions"]) - 1.0) < 1e-6, "weights still sum to 1"
+    assert b["contract_conformance"]["conforms"] is False, "it is non-conforming on SIZE"
+
+
+def test_ptsplit_a_real_decile_book_conforms_and_its_cap_binds():
+    from valuation.edge import valquo_index as VI
+    b = VI.build_index(_index_rows(800))
+    assert b["n_positions"] >= VI.CONTRACT_MIN_POSITIONS
+    assert b["criteria"]["effective_max_weight"] <= VI.MAX_WEIGHT + 1e-9
+    assert b["contract_conformance"]["conforms"] is True
+
+
+def test_ptsplit_seed_book_refuses_a_book_that_is_not_the_index():
+    """THE alignment. `/admin/run-paper-track` falls back to rebuilding from the store's scan
+    when `data/valquo_index.json` is absent, and that scan's eligible tier is under 100 names, so
+    `n` clamps to MIN_NAMES. That silent substitution is how the engine recorded a 10-name book
+    for four days while the published Index held 86."""
+    from valuation.edge import valquo_index as VI
+    st = _store()
+    b = FakeBroker(quotes={f"N{i}": {"bid": 49.9, "ask": 50.1, "last": 50.0} for i in range(10)})
+    out = PT.seed_book(st, b, VI.build_index(_index_rows(10)))       # no experiment flag
+    assert out["added"] == 0 and out["seed_refused"], out
+    assert "not the contract-bound Valquo Index" in out["seed_refused"]
+    with st._conn() as c:
+        assert c.execute("SELECT COUNT(*) FROM paper_index_holdings").fetchone()[0] == 0
+
+
+def test_ptsplit_the_experiment_door_stamps_every_row_it_creates():
+    """There is no third state: a book is the Index, or it is a registered experiment. The stamp
+    goes on the ROW, because a label a surface can decline to show is not a safeguard — that is
+    exactly how PT-OUTBOUND shipped an engine figure as an Index claim."""
+    from valuation.edge import valquo_index as VI
+    st = _store()
+    b = FakeBroker(quotes={f"N{i}": {"bid": 49.9, "ask": 50.1, "last": 50.0} for i in range(10)})
+    out = PT.seed_book(st, b, VI.build_index(_index_rows(10)), experiment=True)
+    assert out["added"] == 10 and not out["seed_refused"]
+    with st._conn() as c:
+        notes = [n for (n,) in c.execute("SELECT note FROM paper_index_holdings")]
+    assert notes and all(PT.EXPERIMENT_STAMP in (n or "") for n in notes)
+
+    held = PT.held_book_conformance(st)
+    assert held["conforms"] is False and held["registered_experiment"] is True
+    assert "NEVER quotable as the Index" in held["registered_as"]
+    assert PT.index_summary(st)["book_conformance"]["registered_experiment"] is True
+
+
+def test_ptsplit_a_conforming_book_seeds_with_no_flag_and_no_stamp():
+    from valuation.edge import valquo_index as VI
+    st = _store()
+    book = VI.build_index(_index_rows(800))
+    q = {p["ticker"]: {"bid": 49.9, "ask": 50.1, "last": 50.0} for p in book["positions"]}
+    q["SPY"] = {"bid": 500.0, "ask": 500.2, "last": 500.0}
+    out = PT.seed_book(st, FakeBroker(quotes=q), book)
+    assert out["added"] == book["n_positions"] and not out["seed_refused"]
+    with st._conn() as c:
+        notes = [n for (n,) in c.execute("SELECT note FROM paper_index_holdings")]
+    assert not any(PT.EXPERIMENT_STAMP in (n or "") for n in notes)
+    assert PT.held_book_conformance(st)["conforms"] is True
+
+
+def test_ptsplit_conformance_fails_closed_on_anything_unreadable():
+    """The error this must never make is admitting a book it could not check."""
+    for bad in ({"positions": [{"ticker": "A", "weight": 1.0}]}, {"positions": []}, {}, None,
+                {"positions": [{"ticker": "A"}], "criteria": {"effective_max_weight": "??"}}):
+        assert PT.book_conformance(bad).get("conforms") is not True, bad
+
+
+def test_ptsplit_the_live_engine_book_is_recorded_as_non_conforming():
+    """The measured verdict on the four days already on the books, from the committed Render
+    export — the pre-committed expectation in PREREG_session16 §4."""
+    import json
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        "data_export", "paper_track_history.json")
+    if not os.path.exists(path):
+        return
+    from valuation.edge import valquo_index as VI
+    holds = json.load(open(path, encoding="utf-8")).get("index_holdings") or []
+    if not holds:
+        return
+    w = [float(h.get("weight") or 0.0) for h in holds]
+    conf = VI.conformance(len(holds), max(w))
+    assert conf["conforms"] is False, (
+        "the engine's recorded book now conforms; if that is real the register in "
+        "PAPER_TRACK_CONTRACT.md 5b needs updating rather than this test")
+
 
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]

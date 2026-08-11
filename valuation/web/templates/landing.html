@@ -164,7 +164,11 @@
     </h2>
     {% if track.available %}
       <div class="muted" style="font-size:13.5px">
-        Live paper track since {{ track.inception }} · {{ track.days }} trading day{{ '' if track.days == 1 else 's' }}.
+        {# LA8 — was `track.days`, the row count, worded as an age. The phrase comes from
+           index_track so this page cannot state an age the Index tab disagrees with. #}
+        Live paper track since {{ track.inception }} ·
+        {{ track.live.age.phrase if (track.live and track.live.age)
+           else (track.days ~ ' trading day' ~ ('' if track.days == 1 else 's') ~ ' recorded') }}.
         {% if track.thin %}Far too short to mean anything yet — shown because hiding it until it
         looks good is how track records lie.{% endif %}
       </div>
@@ -180,6 +184,16 @@
           <div class="n {{ 'up' if track.live.excess_pp >= 0 else 'down' }}">
             {{ "%+.2f"|format(track.live.excess_pp) }} pp</div></div>
       </div>
+      {# WHICH BOOK, WHICH WINDOW — added 2026-08-09. These three figures are meaningless
+       # without them, and the project has already shipped a vs-SPY number describing a book
+       # nobody thought they were reading (the 2026-08-05 Discord post). Both strings come
+       # from index_track.vs_spy_claim, the same authority that produced the numbers, so the
+       # page cannot describe one book while showing another's figures. #}
+      {% if track.live.book %}
+      <div class="muted" style="font-size:12.5px;margin-top:6px">
+        {{ track.live.book }} · {{ track.live.window }} · source: {{ track.live.recorder }}
+      </div>
+      {% endif %}
       {% endif %}
     {% else %}
       <div class="muted" style="font-size:13.5px">
@@ -242,8 +256,13 @@
       transparent 1–100 score. It adapts to mature, growth, and cash-burning companies.</p></div>
     <div class="card"><h3 style="margin-top:0;color:var(--navy)">🔥 Hot-stocks screener</h3>
       <p class="muted">Scans the whole US market and ranks every name on a self-calibrating value · quality · growth ·
-      momentum composite, with sector heat. A ranking, not a recommendation — it says how names score
-      against each other, not what belongs in your account.</p></div>
+      momentum composite, with sector heat. A ranking, not a recommendation — and a <b>coarse</b> one:
+      it says roughly where names stand against each other, not what belongs in your account.
+      {# "roughly" is load-bearing, not hedging. V3's calibration (HANDOFF_extensions_v3.md) found an
+       # individual name's position is not distinguishable from chance. The pinned sentence itself is
+       # NOT used here: it reads "...inside that decile", whose antecedent does not exist on this page,
+       # and a quote that needs missing context is worse than an accurate paraphrase. The full
+       # calibrated wording is on /methodology and over the ranked table. #}</p></div>
     <div class="card"><h3 style="margin-top:0;color:var(--navy)">📊 Honest backtest</h3>
       <p class="muted">Information Coefficient, quantile spread after costs, equity curve vs benchmark, out-of-sample —
       it won't call a lucky curve an edge. Survivorship caveats included.</p></div>

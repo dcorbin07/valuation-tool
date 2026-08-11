@@ -225,7 +225,14 @@ def test_the_recap_and_the_web_app_quote_one_source_not_two():
 def test_every_payload_carrying_the_shape_also_carries_the_refusal():
     s = P.payoff_summary()
     assert "not evidence" in s["not_a_claim"]
-    assert "-6.65pp" in s["not_a_claim"], "the measured R2 gap must be quoted, not gestured at"
+    # CORRECTED 2026-08-11 (`U1-SPLIT`): the measured gap is -5.06pp, not -6.65pp, after a
+    # corporate-action defect in the banked control was repaired. The pin is UPDATED rather than
+    # loosened -- its whole purpose is that the figure a user reads is the measured one, and a
+    # test that stopped naming a number would stop enforcing that. Asserted against the module's
+    # own constant AND against the literal, so neither can drift alone.
+    assert P.R2_GAP_PP == -5.06
+    assert f"{P.R2_GAP_PP:.2f}pp" in s["not_a_claim"],         "the measured R2 gap must be quoted, not gestured at"
+    assert "-5.06pp" in s["not_a_claim"]
     for k in ("verdict", "text"):
         assert k in P.streak_verdict(20, 9)
     assert P.streak_verdict(20, 9)["not_a_claim"] == P.NOT_A_CLAIM

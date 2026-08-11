@@ -423,7 +423,7 @@ def tier_of(mcap: Optional[float]) -> Optional[str]:
 # ================================ scoring one name ==========================================
 def run_name(prov, ticker: str, bars: dict, start: str = ENTRY_START, end: str = ENTRY_END,
              aggression: float = F.DEFAULT_AGGRESSION, caps: Optional[dict] = None,
-             with_signals: bool = True) -> dict:
+             with_signals: bool = True, splits: Optional[dict] = None) -> dict:
     """Reconstruct one name's alert history and trades. The live logic is CALLED, not copied.
 
     One position per name at a time, exactly as `run_full.py` did for the 55 — otherwise a name
@@ -469,7 +469,11 @@ def run_name(prov, ticker: str, bars: dict, start: str = ENTRY_START, end: str =
         if row is None:
             rejects["no_contract_in_band"] = rejects.get("no_contract_in_band", 0) + 1
             continue
-        tr = OB.simulate_trade(prov, ticker, row, day, bars, aggression=aggression)
+        # U1-SPLIT: `splits` defaults to None, so a caller that does not pass it is bit-identical
+        # to the historical path. `optuniv_run` passes it, so re-mined books are split-clean at
+        # source rather than filtered afterwards.
+        tr = OB.simulate_trade(prov, ticker, row, day, bars, aggression=aggression,
+                               splits=splits)
         if not tr or not tr.get("ok"):
             rejects[(tr or {}).get("reason", "sim_failed")] = \
                 rejects.get((tr or {}).get("reason", "sim_failed"), 0) + 1
@@ -761,7 +765,8 @@ def term_slope_gate(rows, threshold: float = SHIPPED_TERM_THRESHOLD,
 
 def random_entry_control(prov, ticker: str, bars: dict, trades: list, draws: int = 2,
                          seed: int = 0, aggression: float = F.DEFAULT_AGGRESSION,
-                         caps: Optional[dict] = None) -> list:
+                         caps: Optional[dict] = None,
+                         splits: Optional[dict] = None) -> list:
     """THE control this study needs most: same name, same YEAR, random entry DAY.
 
     The survivorship probe shows the book's expectancy is concentrated in names that went on to
@@ -802,7 +807,11 @@ def random_entry_control(prov, ticker: str, bars: dict, trades: list, draws: int
             row = OB.pick_contract(chain, und, day, right="C")
             if row is None:
                 continue
-            t = OB.simulate_trade(prov, ticker, row, day, bars, aggression=aggression)
+            # U1-SPLIT — the control is guarded on the SAME rule as the real book. Guarding one
+            # arm and not the other would turn a corporate-action repair into a comparison
+            # between two different universes, which is the error O20's own note warns about.
+            t = OB.simulate_trade(prov, ticker, row, day, bars, aggression=aggression,
+                                  splits=splits)
             if not t or not t.get("ok"):
                 continue
             r = OB.to_alert_row(ticker, day, row, t, None, [], None, None)

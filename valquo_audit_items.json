@@ -1,0 +1,1488 @@
+{
+ "B1": {
+  "title": "Price basis in options_universe",
+  "modifies": [
+   "tests/test_edge.py",
+   "valuation/edge/options_universe.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "2-line fix + overnight re-run",
+  "readonly": false
+ },
+ "B2": {
+  "title": "Exit-path quote censoring",
+  "modifies": [
+   "valuation/edge/options_backtest.py",
+   "valuation/edge/options_fill.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "gates O1",
+  "readonly": false
+ },
+ "B3": {
+  "title": "Stale-quote expiry marks",
+  "modifies": [
+   "valuation/edge/options_fill.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "gates O1",
+  "readonly": false
+ },
+ "B4": {
+  "title": "OI sentinel into chain_summary",
+  "modifies": [
+   "valuation/edge/options_backtest.py",
+   "valuation/edge/theta_bulk.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "crosses mining->engine",
+  "readonly": false
+ },
+ "B5": {
+  "title": "Four paper-track defects",
+  "modifies": [
+   "valuation/edge/options_tracker.py",
+   "valuation/edge/paper_broker.py",
+   "valuation/edge/paper_track.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "options_tracker is a 10-module hub",
+  "readonly": false
+ },
+ "B6": {
+  "title": "Panel truncation + date ranges",
+  "modifies": [
+   "valuation/edge/data_providers.py",
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "B7": {
+  "title": "Unify the three composites",
+  "modifies": [
+   "valuation/config.py",
+   "valuation/edge/fundamental_panel.py",
+   "valuation/screener/factors.py",
+   "valuation/screener/screen.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "widest equity blast radius",
+  "readonly": false
+ },
+ "B8": {
+  "title": "Holdout rule vs documentation",
+  "modifies": [
+   "CLAUDE.md",
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "B9": {
+  "title": "DSR / PBO trial accounting",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "relabel only; B25 unifies",
+  "readonly": false
+ },
+ "B10": {
+  "title": "accruals_q silent overwrite",
+  "modifies": [
+   "valuation/screener/factors.py",
+   "valuation/screener/settings.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "B11": {
+  "title": "Compute the 37bps figure",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "B12": {
+  "title": "Alphabetical universe",
+  "modifies": [
+   "valuation/edge/data_providers.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "gates R5, R6",
+  "readonly": false
+ },
+ "B13": {
+  "title": "prefilter in the backtest",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py",
+   "valuation/screener/factors.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "B14": {
+  "title": "Ship delisting-mask coverage",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "B15": {
+  "title": "Commission in return_pct",
+  "modifies": [
+   "valuation/edge/options_fill.py",
+   "valuation/edge/options_tracker.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "options_tracker hub",
+  "readonly": false
+ },
+ "B16": {
+  "title": "Quarantine dead exit module",
+  "modifies": [
+   "valuation/edge/options_backtest.py",
+   "valuation/edge/options_exit.py",
+   "valuation/edge/options_fill.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "file deletion/move",
+  "readonly": false
+ },
+ "B17": {
+  "title": "top-25 hold holds fifty",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "B18": {
+  "title": "Negative EV read two ways",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py",
+   "valuation/screener/factors.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "gates S1",
+  "readonly": false
+ },
+ "B19": {
+  "title": "Sharpe uses rf=0",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "B20": {
+  "title": "earnings_yield numerator switch",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "B21": {
+  "title": "_sector_capped never invoked",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "B22": {
+  "title": "Results file loses blocks silently",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "B23": {
+  "title": "Four panel builds per run",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "speeds every later run; do early",
+  "readonly": false
+ },
+ "B24": {
+  "title": "sanity_check double-counts",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "B25": {
+  "title": "Three DSR conventions",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py",
+   "valuation/edge/options_autopsy.py",
+   "valuation/edge/statistics.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "CROSS-LANE: equity + options",
+  "readonly": false
+ },
+ "B26": {
+  "title": "Same-day insider/grades",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "R1": {
+  "title": "Factor-adjusted alpha",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [
+   "valuation/edge/factor_model.py"
+  ],
+  "depends_on": [
+   "B6"
+  ],
+  "note": "panel edit is a small series emit",
+  "readonly": false
+ },
+ "R2": {
+  "title": "Re-run broad options study",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [
+   "B1",
+   "B3",
+   "O20"
+  ],
+  "note": "run only, no code writes",
+  "readonly": true
+ },
+ "R3": {
+  "title": "Clustered inference (options)",
+  "modifies": [
+   "valuation/edge/options_autopsy.py",
+   "valuation/edge/options_universe.py",
+   "valuation/edge/statistics.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B1"
+  ],
+  "note": "CROSS-LANE via statistics.py",
+  "readonly": false
+ },
+ "R4": {
+  "title": "Multiple-testing accounting",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [
+   "research_log.jsonl"
+  ],
+  "depends_on": [
+   "B9"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "R5": {
+  "title": "Four classic anomalies, full universe",
+  "modifies": [
+   "valuation/screener/factors.py",
+   "valuation/screener/settings.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B12"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "R6": {
+  "title": "SF3 conviction family",
+  "modifies": [
+   "valuation/screener/factors.py",
+   "valuation/screener/settings.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B12"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "R7": {
+  "title": "Re-commit term_slope floor",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "note": "doc/pre-commitment only",
+  "readonly": true
+ },
+ "R8": {
+  "title": "Total return, not price-only",
+  "modifies": [
+   "valuation/edge/bulk.py",
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "R9": {
+  "title": "t-stat on headline; HAC",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "R10": {
+  "title": "Investable benchmark",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B6"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "X1": {
+  "title": "Split on universe, not time",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B6"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "X2": {
+  "title": "Rebalance-grid offset",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B6"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "X3": {
+  "title": "Ablate to best single signal",
+  "modifies": [],
+  "creates": [
+   "scripts/ablation.py"
+  ],
+  "depends_on": [],
+  "note": "read-only",
+  "readonly": true
+ },
+ "X4": {
+  "title": "Factor-ETF benchmark",
+  "modifies": [],
+  "creates": [
+   "scripts/etf_benchmark.py"
+  ],
+  "depends_on": [],
+  "note": "read-only + external data",
+  "readonly": true
+ },
+ "X5": {
+  "title": "Bootstrap the pipeline",
+  "modifies": [],
+  "creates": [
+   "scripts/pipeline_bootstrap.py"
+  ],
+  "depends_on": [
+   "B23"
+  ],
+  "note": "read-only; B23 makes it affordable",
+  "readonly": true
+ },
+ "X6": {
+  "title": "Structural-break test",
+  "modifies": [],
+  "creates": [
+   "scripts/breaks.py"
+  ],
+  "depends_on": [],
+  "note": "read-only",
+  "readonly": true
+ },
+ "X7": {
+  "title": "Placebo through the pipeline",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [
+   "scripts/placebo.py"
+  ],
+  "depends_on": [
+   "B23"
+  ],
+  "note": "hook + runner",
+  "readonly": false
+ },
+ "X8": {
+  "title": "Replicate on JKP / another country",
+  "modifies": [],
+  "creates": [
+   "scripts/jkp_replication.py"
+  ],
+  "depends_on": [],
+  "note": "read-only + external data",
+  "readonly": true
+ },
+ "S1": {
+  "title": "Fix value theme inputs",
+  "modifies": [
+   "valuation/screener/factors.py",
+   "valuation/screener/settings.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B18"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "S2": {
+  "title": "Register cash_op_prof",
+  "modifies": [
+   "valuation/screener/factors.py",
+   "valuation/screener/settings.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S3": {
+  "title": "Rebuild the insider score",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S4": {
+  "title": "Growth theme carries zero weight",
+  "modifies": [
+   "valuation/screener/settings.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S5": {
+  "title": "Hierarchical shrinkage",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [
+   "valuation/edge/shrinkage.py"
+  ],
+  "depends_on": [
+   "X3"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "S6": {
+  "title": "Factor momentum on themes",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [
+   "valuation/edge/factor_momentum.py"
+  ],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S7": {
+  "title": "Pre-registered interactions",
+  "modifies": [
+   "valuation/screener/factors.py",
+   "valuation/screener/settings.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S8": {
+  "title": "Signal-freshness weighting",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S9": {
+  "title": "Data-staleness conditioning",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S10": {
+  "title": "Downside-exclusion screen",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [
+   "valuation/edge/distress.py"
+  ],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S11": {
+  "title": "Horizon ensemble",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S12": {
+  "title": "Rank within bucket",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py",
+   "valuation/screener/factors.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S13": {
+  "title": "Vol-targeted weighting",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S14": {
+  "title": "No-trade band on net alpha",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B11",
+   "B13"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "S15": {
+  "title": "Sector-relative value only",
+  "modifies": [
+   "valuation/screener/factors.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "S25"
+  ],
+  "note": "S25 makes sector PIT",
+  "readonly": false
+ },
+ "S16": {
+  "title": "Decompose net issuance",
+  "modifies": [
+   "valuation/edge/bulk.py",
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S17": {
+  "title": "Decode the rest of EVENTS",
+  "modifies": [
+   "valuation/edge/bulk.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "D10"
+  ],
+  "note": "needs the legend",
+  "readonly": false
+ },
+ "S18": {
+  "title": "Short interest as interaction",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py",
+   "valuation/edge/short_interest.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S19": {
+  "title": "MD&A anomaly left on the table",
+  "modifies": [
+   "valuation/research/lazy_prices_ic.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "X1"
+  ],
+  "note": "isolated module",
+  "readonly": false
+ },
+ "S20": {
+  "title": "Rank composite, not z-sum",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py",
+   "valuation/screener/cross_sectional.py",
+   "valuation/screener/factors.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B7"
+  ],
+  "note": "touches every signal at once",
+  "readonly": false
+ },
+ "S21": {
+  "title": "Winsorise before standardising",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py",
+   "valuation/screener/factors.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S22": {
+  "title": "Term structure of the signal",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S23": {
+  "title": "Exit rule for the equity book",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S24": {
+  "title": "Ensemble across draws",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "S25": {
+  "title": "Point-in-time sector map",
+  "modifies": [
+   "valuation/edge/bulk.py"
+  ],
+  "creates": [
+   "scripts/sic_map.py"
+  ],
+  "depends_on": [],
+  "note": "gates S15, B21",
+  "readonly": false
+ },
+ "S26": {
+  "title": "Read the twenty worst holdings",
+  "modifies": [],
+  "creates": [
+   "scripts/failure_cases.py"
+  ],
+  "depends_on": [],
+  "note": "read-only",
+  "readonly": true
+ },
+ "S27": {
+  "title": "Weight recent observations more",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "X6"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "S28": {
+  "title": "Distribution, not just the mean",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "O1": {
+  "title": "Exit sweep incl. random entries",
+  "modifies": [
+   "valuation/edge/options_backtest.py"
+  ],
+  "creates": [
+   "scripts/exit_sweep.py"
+  ],
+  "depends_on": [
+   "B2",
+   "B3"
+  ],
+  "note": "params already exist",
+  "readonly": false
+ },
+ "O2": {
+  "title": "Cross-sectional VRP",
+  "modifies": [],
+  "creates": [
+   "valuation/edge/opt_xsec.py"
+  ],
+  "depends_on": [],
+  "note": "reads derived layer",
+  "readonly": true
+ },
+ "O3": {
+  "title": "Delta-hedged vs idio vol",
+  "modifies": [],
+  "creates": [
+   "valuation/edge/opt_xsec.py"
+  ],
+  "depends_on": [
+   "O2"
+  ],
+  "note": "same new module",
+  "readonly": true
+ },
+ "O4": {
+  "title": "Expected idio skewness",
+  "modifies": [],
+  "creates": [
+   "valuation/edge/opt_xsec.py"
+  ],
+  "depends_on": [
+   "O2"
+  ],
+  "note": "same new module",
+  "readonly": true
+ },
+ "O5": {
+  "title": "Volatility of volatility",
+  "modifies": [],
+  "creates": [
+   "valuation/edge/opt_xsec.py"
+  ],
+  "depends_on": [
+   "O2"
+  ],
+  "note": "same new module",
+  "readonly": true
+ },
+ "O6": {
+  "title": "Cheapest-on-surface selection",
+  "modifies": [
+   "valuation/edge/options_backtest.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B1",
+   "O2"
+  ],
+  "note": "pick_contract",
+  "readonly": false
+ },
+ "O7": {
+  "title": "Earnings straddles",
+  "modifies": [],
+  "creates": [
+   "valuation/edge/opt_earnings.py"
+  ],
+  "depends_on": [],
+  "note": "",
+  "readonly": true
+ },
+ "O8": {
+  "title": "Index VRP - run existing bt",
+  "modifies": [
+   "options-bot/options_backtest/backtest_engine.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "SECOND CODEBASE - free lane",
+  "readonly": false
+ },
+ "O9": {
+  "title": "IV rank as sell-timing",
+  "modifies": [
+   "options-bot/options_backtest/backtest_engine.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "O8"
+  ],
+  "note": "second codebase",
+  "readonly": false
+ },
+ "O10": {
+  "title": "Passive-limit fill model",
+  "modifies": [
+   "valuation/edge/options_fill.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B2",
+   "B3"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "O11": {
+  "title": "Portfolio layer for single-leg",
+  "modifies": [
+   "valuation/edge/options_vrp_portfolio.py"
+  ],
+  "creates": [
+   "scripts/optbook.py"
+  ],
+  "depends_on": [
+   "B1"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "O12": {
+  "title": "Fractional Kelly / ruin",
+  "modifies": [],
+  "creates": [
+   "scripts/kelly.py"
+  ],
+  "depends_on": [
+   "O11"
+  ],
+  "note": "read-only on the log",
+  "readonly": true
+ },
+ "O13": {
+  "title": "Anti-signal decomposition",
+  "modifies": [
+   "valuation/edge/options_universe.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B1"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "O14": {
+  "title": "Tick flow, alert days only",
+  "modifies": [
+   "valuation/edge/theta_bulk.py"
+  ],
+  "creates": [
+   "scripts/tickflow.py"
+  ],
+  "depends_on": [],
+  "note": "overnight pull",
+  "readonly": false
+ },
+ "O15": {
+  "title": "Re-mine beyond 90 DTE",
+  "modifies": [
+   "valuation/edge/options_greeks.py",
+   "valuation/edge/theta_bulk.py",
+   "valuation/edge/thetadata_provider.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "long mining job",
+  "readonly": false
+ },
+ "O16": {
+  "title": "Is term_slope a front-IV level?",
+  "modifies": [
+   "valuation/edge/options_signals_v2.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B1"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "O17": {
+  "title": "Earnings filter for the long arm",
+  "modifies": [
+   "valuation/edge/options_universe.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B1"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "O18": {
+  "title": "Spread-conditional cost model",
+  "modifies": [
+   "valuation/edge/options_fill.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "O19": {
+  "title": "Cheap-contract sizing artefact",
+  "modifies": [],
+  "creates": [
+   "scripts/size_reagg.py"
+  ],
+  "depends_on": [],
+  "note": "re-aggregation only",
+  "readonly": true
+ },
+ "O20": {
+  "title": "PIT option-universe selection",
+  "modifies": [
+   "valuation/edge/options_universe.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B1"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "O21": {
+  "title": "Dividends / early exercise",
+  "modifies": [
+   "valuation/edge/blackscholes.py",
+   "valuation/edge/options_greeks.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "blackscholes has 6 importers",
+  "readonly": false
+ },
+ "O22": {
+  "title": "Capacity-constrained replay",
+  "modifies": [],
+  "creates": [
+   "scripts/optcap.py"
+  ],
+  "depends_on": [
+   "O11"
+  ],
+  "note": "read-only",
+  "readonly": true
+ },
+ "O23": {
+  "title": "Exits vs the underlying",
+  "modifies": [
+   "valuation/edge/options_backtest.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "O1"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "O24": {
+  "title": "Is term_slope an earnings cal?",
+  "modifies": [
+   "valuation/edge/options_signals_v2.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "O16",
+   "D10"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "O25": {
+  "title": "Sell the wing after the move",
+  "modifies": [],
+  "creates": [
+   "scripts/wing.py"
+  ],
+  "depends_on": [
+   "O1"
+  ],
+  "note": "read-only on the log",
+  "readonly": true
+ },
+ "O26": {
+  "title": "Raise the per-bucket floor",
+  "modifies": [
+   "valuation/edge/options_universe.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "",
+  "readonly": false
+ },
+ "U1": {
+  "title": "Stock composite -> options entry",
+  "modifies": [],
+  "creates": [
+   "valuation/edge/bridge.py"
+  ],
+  "depends_on": [
+   "B1",
+   "R2"
+  ],
+  "note": "",
+  "readonly": true
+ },
+ "U2": {
+  "title": "Options surface -> stock signals",
+  "modifies": [
+   "valuation/screener/factors.py",
+   "valuation/screener/settings.py"
+  ],
+  "creates": [
+   "valuation/edge/opt_stock_signals.py"
+  ],
+  "depends_on": [
+   "O2"
+  ],
+  "note": "registration step touches factors",
+  "readonly": false
+ },
+ "U3": {
+  "title": "Convex overlay as insurance",
+  "modifies": [],
+  "creates": [
+   "scripts/overlay.py"
+  ],
+  "depends_on": [
+   "O11"
+  ],
+  "note": "read-only",
+  "readonly": true
+ },
+ "U4": {
+  "title": "One decision object",
+  "modifies": [
+   "valuation/web/"
+  ],
+  "creates": [],
+  "depends_on": [
+   "U1",
+   "U2"
+  ],
+  "note": "product",
+  "readonly": false
+ },
+ "U5": {
+  "title": "Tax-aware arm allocation",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "note": "decision only",
+  "readonly": true
+ },
+ "U6": {
+  "title": "CSPs in, covered calls out",
+  "modifies": [],
+  "creates": [
+   "valuation/edge/bridge_income.py"
+  ],
+  "depends_on": [
+   "B1"
+  ],
+  "note": "",
+  "readonly": true
+ },
+ "U7": {
+  "title": "Composite as an options veto",
+  "modifies": [],
+  "creates": [
+   "scripts/veto_probe.py"
+  ],
+  "depends_on": [],
+  "note": "read-only; run BEFORE U1",
+  "readonly": true
+ },
+ "U8": {
+  "title": "One risk budget across books",
+  "modifies": [
+   "valuation/edge/options_vrp_portfolio.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "O11"
+  ],
+  "note": "",
+  "readonly": false
+ },
+ "C1": {
+  "title": "Backtest the model that ships",
+  "modifies": [
+   "options-bot/screener/run_backtest.py",
+   "options-bot/screener/scoring.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "SECOND CODEBASE",
+  "readonly": false
+ },
+ "C2": {
+  "title": "Universe is inverse of target",
+  "modifies": [
+   "options-bot/core/pit_universe.py",
+   "options-bot/screener/run_backtest.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "SECOND CODEBASE",
+  "readonly": false
+ },
+ "C3": {
+  "title": "--bots reversion does nothing",
+  "modifies": [
+   "options-bot/screener/run_backtest.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "SECOND CODEBASE",
+  "readonly": false
+ },
+ "C4": {
+  "title": "Wire the tracking loop",
+  "modifies": [
+   "options-bot/screener/pipeline.py",
+   "options-bot/screener/store.py"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "SECOND CODEBASE",
+  "readonly": false
+ },
+ "C5": {
+  "title": "PIT universe on real data",
+  "modifies": [
+   "options-bot/scripts/run_sharadar_backtest.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "D10"
+  ],
+  "note": "SECOND CODEBASE; time-limited",
+  "readonly": false
+ },
+ "C6": {
+  "title": "Three undeployed fixes",
+  "modifies": [
+   "options-bot/screener/"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "SECOND CODEBASE",
+  "readonly": false
+ },
+ "C7": {
+  "title": "Widen the CI gate",
+  "modifies": [
+   ".github/workflows/land-agent-branch.yml"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "INFRA - do first, blocks nothing",
+  "readonly": false
+ },
+ "P1": {
+  "title": "Estimate capacity",
+  "modifies": [],
+  "creates": [
+   "scripts/capacity.py"
+  ],
+  "depends_on": [],
+  "note": "read-only",
+  "readonly": true
+ },
+ "P2": {
+  "title": "Model user crowding",
+  "modifies": [],
+  "creates": [
+   "scripts/crowding.py"
+  ],
+  "depends_on": [
+   "P1"
+  ],
+  "note": "read-only",
+  "readonly": true
+ },
+ "P3": {
+  "title": "Design for a 37% hit rate",
+  "modifies": [
+   "valuation/web/"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "product",
+  "readonly": false
+ },
+ "P4": {
+  "title": "Fix the track's rules",
+  "modifies": [
+   "valuation/edge/paper_track.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B5"
+  ],
+  "note": "SAME FILE as B5 - serialize",
+  "readonly": false
+ },
+ "P5": {
+  "title": "Decide the claim before R1",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "note": "decision only",
+  "readonly": true
+ },
+ "D1": {
+  "title": "Sharadar direct at $29/mo",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "note": "procurement",
+  "readonly": true
+ },
+ "D2": {
+  "title": "ThetaData tier + licence",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "note": "procurement",
+  "readonly": true
+ },
+ "D3": {
+  "title": "Fetch the free factor datasets",
+  "modifies": [],
+  "creates": [
+   "scripts/fetch_factors.py"
+  ],
+  "depends_on": [],
+  "note": "gates R1, X4, X8",
+  "readonly": true
+ },
+ "D4": {
+  "title": "Cboe Open-Close Volume Summary",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [
+   "O14"
+  ],
+  "note": "procurement; gate on O14",
+  "readonly": true
+ },
+ "D5": {
+  "title": "ORATS",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [
+   "O2"
+  ],
+  "note": "procurement; gate on O2/O6",
+  "readonly": true
+ },
+ "D6": {
+  "title": "Estimate-revision situation",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "note": "reference - stays parked",
+  "readonly": true
+ },
+ "D7": {
+  "title": "WRDS reality check",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "note": "reference - no path exists",
+  "readonly": true
+ },
+ "D8": {
+  "title": "What not to buy",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "note": "reference",
+  "readonly": true
+ },
+ "D9": {
+  "title": "Options costs are a step change",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "note": "reference / cost calibration",
+  "readonly": true
+ },
+ "D10": {
+  "title": "Freeze verification + legend",
+  "modifies": [],
+  "creates": [
+   "scripts/verify_sharadar_run.md"
+  ],
+  "depends_on": [],
+  "note": "TIME-LIMITED; gates S17, C5, O24",
+  "readonly": true
+ },
+ "M1": {
+  "title": "Research log with real N",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [
+   "research_log.jsonl"
+  ],
+  "depends_on": [],
+  "note": "same as R4",
+  "readonly": false
+ },
+ "M2": {
+  "title": "Clustered inference default",
+  "modifies": [
+   "valuation/edge/statistics.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B25"
+  ],
+  "note": "CROSS-LANE",
+  "readonly": false
+ },
+ "M3": {
+  "title": "Guards with known-bad fixtures",
+  "modifies": [
+   "tests/"
+  ],
+  "creates": [],
+  "depends_on": [],
+  "note": "test-only",
+  "readonly": false
+ },
+ "M4": {
+  "title": "Live-replay harness",
+  "modifies": [],
+  "creates": [
+   "scripts/live_replay.py"
+  ],
+  "depends_on": [
+   "B7"
+  ],
+  "note": "",
+  "readonly": true
+ },
+ "M5": {
+  "title": "Protocol for tail-hedge tests",
+  "modifies": [],
+  "creates": [],
+  "depends_on": [],
+  "note": "doc only",
+  "readonly": true
+ },
+ "M6": {
+  "title": "Results-file schema assertion",
+  "modifies": [
+   "valuation/edge/fundamental_panel.py"
+  ],
+  "creates": [],
+  "depends_on": [
+   "B22"
+  ],
+  "note": "",
+  "readonly": false
+ }
+}

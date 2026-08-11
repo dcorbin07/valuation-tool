@@ -6,6 +6,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import state_isolation   # noqa: E402,F401  — LA15: temp state only. Import BEFORE `valuation`.
 
 from valuation.screener.screen import run_scan
 from valuation.screener.sectors import sector_attractiveness
@@ -597,13 +599,31 @@ def test_live_track_never_annualizes_a_stub_or_leads_with_it():
     assert thin["live"]["sharpe"] is None, "too few points for a meaningful stdev"
     assert thin["live"]["cum_valquo_pct"] is not None, "cumulative IS honest to show"
 
-    long = T.summarize("roth", meta_path="/nope", history_path="/nope",
+    # AMENDED 2026-08-09 (Part 10). This used to read:
+    #     assert long["thin"] is False and long["headline"] == "live"
+    # i.e. it PINNED the defect — that 60 trading days alone promotes the live number to the
+    # headline and drops the "too early to judge" pill, automatically, with nobody approving
+    # it. The paper-track contract makes that a decision, not a date, so the day count is now
+    # necessary and not sufficient. The claim this test still owns is the ANNUALISATION rule:
+    # past the floor, ann_alpha is computed. That is a value and it is unchanged.
+    long = T.summarize("roth", meta_path="/nope", history_path="/nope", contract="/nope",
                        store=_St(_series(T.MIN_LIVE_DAYS + 5)))
-    assert long["thin"] is False and long["headline"] == "live"
+    assert long["headline"] == "backtested", "day count alone must never promote the live number"
+    assert long["thin"] is True
     assert long["live"]["ann_alpha"] is not None
 
     # Backtested figures always travel with the live ones, never merged into them.
-    assert thin["backtested"]["net_sharpe"] == 1.17
+    # AMENDED 2026-08-08 (P2 crowding-memo sweep). This pinned the literal 1.17, which was the
+    # PRE-B6 2,710-name figure; the corrected 69-date panel reads 1.10 and the settings block
+    # was re-measured, so the literal failed. The claim under test is the PLUMBING — that the
+    # backtested block is populated from the book config and kept separate from the live one —
+    # and the specific number was never what it was asserting. Pointing it at the config keeps
+    # the claim, stops it rotting on every legitimate re-measurement, and the not-None check
+    # stops an empty dict from satisfying it vacuously.
+    from valuation.screener import settings as _S
+    _want = _S.BOOK_CONFIGS["roth"]["measured"]["net_sharpe"]
+    assert _want is not None
+    assert thin["backtested"]["net_sharpe"] == _want
     assert "live" not in (thin["backtested"].get("basis") or "")
 
 
@@ -620,6 +640,147 @@ def test_live_track_suppresses_an_implausible_sharpe():
     out = T.summarize("roth", meta_path="/nope", history_path="/nope", store=_St())
     assert out["days"] == 25
     assert out["live"]["sharpe"] is None, out["live"]["sharpe"]
+
+
+# --------------------------------------------------------------------------- #
+# The contract gate (Part 10). `index_track.MIN_LIVE_DAYS = 60` used to flip the
+# public posture on its own, on a date already fixed by the inception. See
+# PAPER_TRACK_CONTRACT.md §5 and index_track's module docstring, rule 3.
+# --------------------------------------------------------------------------- #
+def _contract(body: str) -> str:
+    """A throwaway contract file containing `body`."""
+    import tempfile
+    d = tempfile.mkdtemp(prefix="valquo_contract_")
+    p = os.path.join(d, "PAPER_TRACK_CONTRACT.md")
+    with open(p, "w", encoding="utf-8") as f:
+        f.write(body)
+    return p
+
+
+def _track_store(n):
+    class _St:
+        def get_meta(self, k, default=None):
+            return {"inception_date": "2026-07-30", "benchmark": "SPY",
+                    "series": [{"date": f"2026-{7 + d // 28:02d}-{(d % 28) + 1:02d}",
+                                "valquo": 0.30 * (d + 1) + (0.05 if d % 3 else -0.04),
+                                "spy": 0.20 * (d + 1)} for d in range(n)]}
+    return _St()
+
+
+def _sum(n, contract):
+    from valuation.screener import index_track as T
+    return T.summarize("roth", meta_path="/nope", history_path="/nope",
+                       contract=contract, store=_track_store(n))
+
+
+PASSED_CONTRACT = "| field | value |\n|---|---|\n| Operational gate passed | YES - 2027-01-30 |\n"
+
+
+def test_day_count_alone_can_never_flip_the_headline():
+    """THE PINNING TEST for Part 10, and the reason this file exists in this shape.
+
+    `MIN_LIVE_DAYS` used to be the whole rule: on the 60th trading day `headline` flipped to
+    "live", `thin` flipped false (dropping the "too early to judge" pill at
+    templates/index.html:114 and raising hero.may_lead), with no approval step. The contract
+    says the posture changes on the 6-month OPERATIONAL GATE, not on elapsed time.
+
+    Fails if anyone restores the day-count-only rule, at any horizon.
+    """
+    from valuation.screener import index_track as T
+
+    for n in (T.MIN_LIVE_DAYS, T.MIN_LIVE_DAYS + 1, T.MIN_LIVE_DAYS * 5, 2000):
+        out = _sum(n, "/nope/no_contract.md")
+        assert out["days"] == n
+        assert out["headline"] == "backtested", f"{n} days promoted the live number with no gate"
+        assert out["thin"] is True, f"the 'too early to judge' pill went down at {n} days"
+        assert out["gate"]["passed"] is False
+
+    # ...and the gate genuinely works, or the above would pass vacuously.
+    ok = _sum(T.MIN_LIVE_DAYS + 5, _contract(PASSED_CONTRACT))
+    assert ok["gate"]["passed"] is True, ok["gate"]["reason"]
+    assert ok["headline"] == "live" and ok["thin"] is False
+
+
+def test_the_gate_is_an_extra_condition_and_never_a_replacement():
+    """A gate-passed flag that let a three-day track lead would be worse than the bug it
+    replaces. Both conditions, always."""
+    from valuation.screener import index_track as T
+    p = _contract(PASSED_CONTRACT)
+    for n in (1, 5, 20, T.MIN_LIVE_DAYS - 1):
+        out = _sum(n, p)
+        assert out["gate"]["passed"] is True
+        assert out["headline"] == "backtested", f"{n} days led because the gate had passed"
+        assert out["thin"] is True
+
+
+def test_every_unusable_contract_resolves_to_not_passed():
+    """Fail-CLOSED, exhaustively. The conservative error is a mature track still labelled
+    'backtested'; the harmful one is a thin track labelled 'live', and no accident may reach
+    it. Note the fenced case: documenting the row form must not flip the gate on."""
+    from valuation.screener import index_track as T
+
+    cases = {
+        "missing file": None,
+        "no row at all": "# Contract\n\nNothing here.\n",
+        "pending": "| Operational gate passed | *pending* |\n",
+        "explicit no": "| Operational gate passed | no |\n",
+        "blank value": "| Operational gate passed |  |\n",
+        "date only": "| Operational gate passed | 2027-01-30 |\n",
+        "near miss": "| Operational gate passed | yes-ish, mostly |\n",
+        "wrong field": "| Operational gate date | YES - 2027-01-30 |\n",
+        "malformed row": "| Operational gate passed YES - 2027-01-30 |\n",
+        "inside a fence": "```\n| Operational gate passed | YES - 2027-01-30 |\n```\n",
+        # This is the SHIPPED shape: the contract documents the canonical row in a fenced
+        # block inside a blockquote. If the blockquote markers were not stripped first, the
+        # fence would not register and this would only be skipped by accident.
+        "fenced inside a blockquote": ("> On gate day, set this row:\n>\n> ```\n"
+                                       "> | Operational gate passed | YES - 2027-01-30 |\n> ```\n"),
+        "two rows disagreeing": ("| Operational gate passed | YES - 2027-01-30 |\n"
+                                 "| Operational gate passed | pending |\n"),
+    }
+    for name, body in cases.items():
+        path = "/nope/absent.md" if body is None else _contract(body)
+        g = T.gate_state(path)
+        assert g["passed"] is False, f"{name!r} was read as a PASS: {g}"
+        out = _sum(T.MIN_LIVE_DAYS + 50, path)
+        assert out["headline"] == "backtested", f"{name!r} promoted the headline"
+        assert out["thin"] is True
+
+    # Accepted spellings, so the edge lane is not fighting the parser on gate day.
+    for body in ("| Operational gate passed | YES - 2027-01-30 |\n",
+                 "| operational   gate passed | yes |\n",
+                 "| **Operational gate passed** | **PASSED** on 2027-01-30 |\n",
+                 "| Operational gate passed | true |\n"):
+        assert T.gate_state(_contract(body))["passed"] is True, body
+
+
+def test_the_gate_changes_labels_and_provably_not_values():
+    """Part 10's bound: this is a LABELS-ONLY change. Same series, gate off vs gate on —
+    every number must be bit-identical while the labels differ."""
+    from valuation.screener import index_track as T
+    n = T.MIN_LIVE_DAYS + 30
+    off = _sum(n, "/nope/absent.md")
+    on = _sum(n, _contract(PASSED_CONTRACT))
+
+    assert off["headline"] != on["headline"] and off["thin"] != on["thin"], "inert"
+    for k in ("days", "since", "as_of", "cum_valquo_pct", "cum_spy_pct", "excess_pp",
+              "ann_alpha", "sharpe", "hit_rate"):
+        assert off["live"][k] == on["live"][k], f"live.{k} moved: {off['live'][k]} -> {on['live'][k]}"
+    assert off["backtested"] == on["backtested"]
+    for k in ("config", "benchmark", "inception", "min_live_days", "available", "days", "series"):
+        assert off[k] == on[k], f"{k} moved"
+
+
+def test_the_shipped_contract_still_carries_the_row_the_site_reads():
+    """The register row is the ONLY thing that can promote the live number. If it is ever
+    deleted or renamed, the site silently loses its one approval step — so its absence must
+    be loud here rather than quiet in production. Deliberately asserts the row EXISTS, not
+    what it says: on gate day the edge lane sets it to YES and this test must still pass."""
+    from valuation.screener import index_track as T
+    g = T.gate_state()
+    assert g["contract_present"] is True, f"{T.CONTRACT_FILE} is not where the site looks for it"
+    assert g["value"] is not None, (f"{T.CONTRACT_FILE} has lost its '{T.GATE_FIELD}' row — the "
+                                   f"headline gate now has no register to read")
 
 
 def test_live_track_is_absent_not_invented_when_there_is_no_data():

@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS snapshot_rows (
     z_value REAL, z_quality REAL, z_growth REAL, z_momentum REAL, z_insider REAL,
     fair_value REAL, upside REAL, extra TEXT,
     fair_value_withheld INTEGER, fair_value_withheld_reason TEXT,
+    fair_value_withheld_kind TEXT,
     PRIMARY KEY (scan_date, ticker)
 );
 
@@ -108,8 +109,13 @@ class Store:
             # honest and worth stating: an ALREADY-STORED snapshot keeps leaking until the next
             # scan overwrites its date. Scans run daily, so that is one scan, not a backfill.
             _scols = {r[1] for r in c.execute("PRAGMA table_info(snapshot_rows)").fetchall()}
+            # `fair_value_withheld_kind` distinguishes "the model refused this valuation"
+            # from "the data could not be fetched this scan". They are different claims and
+            # an existing database has neither, so a missing column reads as an unspecified
+            # kind — the row is still withheld, it just cannot say which sort until rewritten.
             for _col, _decl in (("fair_value_withheld", "INTEGER"),
-                                ("fair_value_withheld_reason", "TEXT")):
+                                ("fair_value_withheld_reason", "TEXT"),
+                                ("fair_value_withheld_kind", "TEXT")):
                 if _col not in _scols:
                     c.execute(f"ALTER TABLE snapshot_rows ADD COLUMN {_col} {_decl}")
             # Self-learning audit log + adopted factor weights.
@@ -232,21 +238,23 @@ class Store:
         # Key names come from the publication module rather than being restated here, so the
         # scan, the database and the web surface cannot drift to different spellings of the
         # same decision.
-        from ..engine.publication import ROW_WITHHELD, ROW_WITHHELD_REASON
+        from ..engine.publication import (ROW_WITHHELD, ROW_WITHHELD_REASON,
+                                          ROW_WITHHELD_KIND)
         with self._conn() as c:
             c.execute("DELETE FROM snapshot_rows WHERE scan_date=?", (scan_date,))
             for r in rows:
                 c.execute("""INSERT OR REPLACE INTO snapshot_rows
                     (scan_date,ticker,name,sector,bucket,price,market_cap,hot_score,composite,rank,
                      z_value,z_quality,z_growth,z_momentum,z_insider,fair_value,upside,extra,
-                     fair_value_withheld,fair_value_withheld_reason)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                     fair_value_withheld,fair_value_withheld_reason,fair_value_withheld_kind)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (scan_date, r["ticker"], r.get("name"), r.get("sector"), r.get("bucket"),
                      r.get("price"), r.get("market_cap"), r.get("hot_score"), r.get("composite"),
                      r.get("rank"), r.get("z_value"), r.get("z_quality"), r.get("z_growth"),
                      r.get("z_momentum"), r.get("z_insider"), r.get("fair_value"), r.get("upside"),
                      json.dumps(r.get("extra", {})),
-                     1 if r.get(ROW_WITHHELD) else None, r.get(ROW_WITHHELD_REASON)))
+                     1 if r.get(ROW_WITHHELD) else None, r.get(ROW_WITHHELD_REASON),
+                     r.get(ROW_WITHHELD_KIND)))
             c.execute("INSERT OR REPLACE INTO scans VALUES (?,?,?,?,?,?)",
                       (scan_date, (params or {}).get("universe_size"), len(rows), provider,
                        json.dumps(params or {}), _dt.datetime.utcnow().isoformat()))
@@ -263,7 +271,8 @@ class Store:
         q = "SELECT * FROM snapshot_rows WHERE scan_date=? ORDER BY rank ASC"
         if top:
             q += f" LIMIT {int(top)}"
-        from ..engine.publication import ROW_WITHHELD, ROW_WITHHELD_REASON
+        from ..engine.publication import (ROW_WITHHELD, ROW_WITHHELD_REASON,
+                                          ROW_WITHHELD_KIND)
         with self._conn() as c:
             rows = [dict(r) for r in c.execute(q, (scan_date,)).fetchall()]
         for r in rows:
@@ -281,9 +290,12 @@ class Store:
                 r[ROW_WITHHELD] = True
                 if not r.get(ROW_WITHHELD_REASON):
                     r.pop(ROW_WITHHELD_REASON, None)
+                if not r.get(ROW_WITHHELD_KIND):
+                    r.pop(ROW_WITHHELD_KIND, None)
             else:
                 r.pop(ROW_WITHHELD, None)
                 r.pop(ROW_WITHHELD_REASON, None)
+                r.pop(ROW_WITHHELD_KIND, None)
         return rows
 
     def list_scans(self):

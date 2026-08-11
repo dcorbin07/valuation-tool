@@ -46,6 +46,58 @@ FV_BAND_LOW = 0.2
 ROW_WITHHELD = "fair_value_withheld"
 ROW_WITHHELD_REASON = "fair_value_withheld_reason"
 
+# WHICH KIND OF SILENCE THIS IS. Both blank the fair value; they are not the same claim and
+# they must not read as the same claim.
+#
+#   refused      the model produced a number and the guard REJECTED it. A statement about the
+#                VALUATION. Stable: it will say the same thing tomorrow.
+#   unavailable  the data for this name could not be fetched on this scan, so the model was
+#                never in a position to have an opinion. A statement about the FETCH, and
+#                TEMPORARY — the quota resets and the next scan retries it with no
+#                intervention.
+#
+# Collapsing these is how "we could not look" gets read as "we looked and refused", which
+# would make a transient feed problem look like a permanent verdict on a company.
+ROW_WITHHELD_KIND = "fair_value_withheld_kind"
+KIND_REFUSED = "refused"
+KIND_UNAVAILABLE = "unavailable"
+
+UNAVAILABLE_REASON = (
+    "No fair value this scan: the data for this name could not be fetched, so the model was "
+    "never able to form a view. This is a temporary data problem, not a judgement about the "
+    "company — the next scan retries it automatically.")
+
+# --------------------------------------------------------------------------------------- #
+# THE LABELS THAT DESCRIBE THE VALUE, AND WHY THEY GO WITH IT (LA10, 2026-08-10).
+#
+# `estimate_fair_values` writes `fair_value_method` ("blended") and `fair_value_confidence`
+# ("medium") alongside the number. The band withhold in `web/withhold.py` then blanked the
+# number and left both labels standing, so a refused row shipped as
+#
+#     {fair_value: null, fair_value_method: "blended", fair_value_confidence: "medium",
+#      fair_value_withheld: true}
+#
+# — the confidence of a number that is not there. Cosmetic today (no surface draws it), and
+# it is exactly the shape this module exists to eliminate: a label outliving the value it
+# described. The audit found the same shape three times in documentation; this is the one
+# instance of it in a served payload.
+#
+# THE TWO FIELDS ARE TREATED DIFFERENTLY, ON PURPOSE.
+#   * `fair_value_method` is SET to "withheld" rather than cleared. That word is already this
+#     project's vocabulary for it — `fairvalue.py`'s own refusal branch writes it and
+#     `tests/test_guards.py` pins it — and a positive label beats an empty cell for the same
+#     reason a refusal writes a REASON instead of leaving a gap: a blank invites someone to
+#     "fix" the missing data later.
+#   * `fair_value_confidence` is CLEARED. It is a graded scale ("low" / "medium") with no
+#     withheld rung, and writing a word into a scale invites a renderer to sort or compare it.
+#     The row already carries `fair_value_withheld: true` as the positive marker.
+ROW_WITHHELD_METHOD = "withheld"
+
+#: Everything derived from the fair value that a refusal must clear. `fair_value` and
+#: `fair_value_method` are handled explicitly in `strip_derived_fields` (one is the value,
+#: the other is set rather than cleared), so they are deliberately not in this tuple.
+ROW_DERIVED_FIELDS = ("upside", "fair_value_confidence")
+
 
 @dataclass(frozen=True)
 class PublicationVerdict:
@@ -117,6 +169,24 @@ def _f(x) -> Optional[float]:
     return None if (x != x or x in (float("inf"), float("-inf"))) else x
 
 
+def strip_derived_fields(row: dict) -> None:
+    """Clear the value AND every label that described it. See ROW_DERIVED_FIELDS above.
+
+    Split out from `record_refusal` so the band withhold in `web/withhold.py` can apply the
+    identical rule at the other end of the pipeline. Two places decide a row is withheld;
+    there is one definition of what that does to the row, because two would drift — the same
+    argument this module makes about the band itself.
+
+    Does NOT set the withheld flag or reason: those say a refusal happened, this says what a
+    refusal does to the row, and the band path writes its own reason.
+    """
+    row["fair_value"] = None
+    for k in ROW_DERIVED_FIELDS:
+        if k in row:
+            row[k] = None
+    row["fair_value_method"] = ROW_WITHHELD_METHOD
+
+
 def record_refusal(row: dict, reason: str) -> None:
     """Mark a scan row as REFUSED rather than merely empty.
 
@@ -124,7 +194,32 @@ def record_refusal(row: dict, reason: str) -> None:
     `fair_value` reads downstream as "not computed yet" and invites a substitute; a recorded
     refusal reads as a decision and is honoured.
     """
-    row["fair_value"] = None
-    row["upside"] = None
+    strip_derived_fields(row)
+    row["upside"] = None                 # explicit: `upside` is cleared even if it was absent
     row[ROW_WITHHELD] = True
     row[ROW_WITHHELD_REASON] = reason or "No fair value is published for this name."
+    row[ROW_WITHHELD_KIND] = KIND_REFUSED
+
+
+def record_unavailable(row: dict, reason: str = "") -> None:
+    """Mark a row as WITHHELD BECAUSE WE COULD NOT LOOK — the fail-closed half.
+
+    Adopted 2026-08-11 on Don's decision, and the evidence for it is this project's own
+    measurement: failing OPEN served peer estimates up to 2.1x the model's own valuation on
+    names whose data never arrived (DB 88.69 against the model's 42.25; CIB 167.42 against
+    90.93), alongside one name the model refuses outright at 5.6x. A peer estimate nobody
+    checked is the confident-wrong-number failure this module exists to prevent, and the ~5%
+    of served rows this blanks is the accepted price.
+
+    Deliberately NOT `record_refusal` with different wording. The KIND is its own field so the
+    two survive the database round trip and the UI can render them differently: a reader shown
+    the same badge for "we could not fetch this today" and "the model rejects this valuation"
+    has been told one thing when two are true. And this one is TEMPORARY — the quota resets and
+    the next scan retries the name with no intervention, which the reason text says out loud so
+    a withheld name does not read as a permanent verdict.
+    """
+    strip_derived_fields(row)
+    row["upside"] = None
+    row[ROW_WITHHELD] = True
+    row[ROW_WITHHELD_REASON] = reason or UNAVAILABLE_REASON
+    row[ROW_WITHHELD_KIND] = KIND_UNAVAILABLE

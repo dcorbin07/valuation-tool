@@ -22,7 +22,7 @@ from ..config import CONFIG
 from ..safe_error import safe_error
 from ..web.app import app as tool_app
 from .models import UserStore
-from . import auth, billing, csrf, gating, private, ratelimit, surfaces
+from . import auth, billing, csrf, gating, index_book, private, ratelimit, surfaces
 
 # NOTE: a PUBLIC_PATHS set used to sit here. It was never referenced anywhere — _guard
 # implements a different and narrower policy — so it read like enforced access control
@@ -506,7 +506,23 @@ def create_saas_app(cfg=CONFIG):
                     st.set_meta(done_key, {"at": _dt.datetime.utcnow().isoformat(), "rows": len(rows)})
                 except Exception:
                     pass
-            return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows), "reprocessed": already})
+            # PUBLISH THE INDEX BOOK — the cross-lane item Session 16 §7 named to this lane.
+            #
+            # `/admin/run-paper-track` reads `data/valquo_index.json` when it exists and SILENTLY
+            # rebuilds from the store's latest scan when it does not; that rebuild is how the
+            # engine came to record a 10-name book while the published Index held 86. Writing the
+            # file here is what makes the engine record the RIGHT book instead of a truncated one.
+            #
+            # Deliberately OUTSIDE the `already` guard: the backup cron exists because GitHub
+            # drops scheduled runs, and a day whose primary ingest published nothing must still
+            # get a book. Publishing is idempotent (same rows -> same book) and refuses to write
+            # a non-conforming one, so a second call is a no-op or a repair, never a corruption.
+            #
+            # Never fatal. The daily hot list must not fail to land because a book could not be
+            # built — `publish` catches its own errors and reports them in the response.
+            book = index_book.publish(st)
+            return jsonify({"ok": True, "scan_date": scan_date, "rows": len(rows),
+                            "reprocessed": already, "index_book": book})
         except Exception as e:
             return jsonify({"error": safe_error(e)}), 500
 
@@ -623,11 +639,41 @@ def create_saas_app(cfg=CONFIG):
         # Empty token or private mode => no button at all; the template tests for it.
         token = (cfg.demo_access_token or "").strip()
         demo_url = f"/demo/{token}" if token and not cfg.private_mode else None
+        # The research record (V4). Derived from the same config path, so rotating
+        # PORTFOLIO_PATH moves the page and this link together. It is a PATH, not a number —
+        # the page stays static by construction.
         resp = make_response(render_template("portfolio.html",
                                              contact_email=cfg.contact_email,
-                                             demo_url=demo_url))
+                                             demo_url=demo_url,
+                                             research_url=cfg.resolved_portfolio_path
+                                             + "/research"))
         # Belt and braces with the <meta> tag and robots.txt. The header is the one of the
         # three that a crawler cannot miss and a scraper cannot ignore by not parsing HTML.
+        resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet"
+        return resp
+
+    @app.route(cfg.resolved_portfolio_path + "/research")
+    def research_record_page():
+        """The public research record — every pre-registration and every verdict.  [V4]
+
+        A CHILD OF /work, deliberately. It inherits that page's gate, its `noindex` header and
+        its place under the blanket `Disallow: /` in robots.txt, and rotating `PORTFOLIO_PATH`
+        moves both together — a second hard-coded path would be one more thing to forget.
+
+        NO VENDOR DATA AND NO PERFORMANCE FIGURES. It reads two things, both from this
+        repository: `RESEARCH_LOG.md` (through the same parse that produces the trial
+        denominator `N`, so the page and the statistic cannot disagree) and the pre-registration
+        documents on disk. `research_record.withhold()` strips anything shaped like a
+        performance figure before it reaches the template, and `tests/test_research_page.py`
+        asserts the rendered HTML contains none.
+
+        404, not a redirect, when the flag is off — a redirect confirms the path exists.
+        """
+        if not cfg.portfolio_page_enabled:
+            abort(404)
+        from ..web import research_record
+        resp = make_response(render_template(
+            "research.html", work_url=cfg.resolved_portfolio_path, **research_record.record()))
         resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive, nosnippet"
         return resp
 

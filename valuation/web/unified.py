@@ -257,6 +257,7 @@ def name_view(store, ticker: str, book_config: str = None, risk_budget=None,
             "fair_value_method": row.get("fair_value_method"),
             "fair_value_withheld": bool(row.get("fair_value_withheld")),
             "fair_value_withheld_reason": row.get("fair_value_withheld_reason"),
+            "fair_value_withheld_kind": row.get("fair_value_withheld_kind"),
             "why": extra.get("why") or [], "why_composite": extra.get("why_composite"),
             # The two owner-only halves. `book_withheld` is carried explicitly so the reader
             # (and _action_lines below) can tell "not published" from "not in the book".

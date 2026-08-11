@@ -247,7 +247,20 @@ def capture_path(provider, ticker: str, entry_row, entry_date: dt.date, bars: di
             if day <= entry_date:
                 continue
             q = F.Quote(bid=row.get("bid"), ask=row.get("ask"))
-            if F.quote_reject_reason(q, check_liquidity=False) is not None:
+            # AUDIT B2, APPLIED HERE 2026-08-08 (O1). This line read
+            # `quote_reject_reason(q, check_liquidity=False)` -- the PRE-B2 rule -- while
+            # `options_backtest.simulate_trade:367`, which built every banked book, was moved to
+            # `exit_reject_reason` when B2 landed. This module was missed.
+            #
+            # The consequence is exactly what B2's own docstring predicts: a wide or thin quote
+            # is a bad price, not an absent one, and dropping the day deletes it from the
+            # trade's history. Losers that decay through the -50% stop on a wide-quote day are
+            # never stopped and ride on to a worse outcome. MEASURED on the R2 book: the
+            # shipped policy replayed from the freeze reproduced the banked book on only
+            # 86.950% of 3,885 trades, `held_days(replay) - held_days(book)` was NEVER negative
+            # (3,363 exact, every other trade held LONGER), and one ABBV contract kept 7 of its
+            # 34 quote days. Entry fills matched 3,885/3,885, which is what localised it here.
+            if F.exit_reject_reason(q) is not None:
                 continue
             days.append((day.isoformat(), _f(row.get("bid")), _f(row.get("ask"))))
 

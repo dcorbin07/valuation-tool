@@ -68,12 +68,22 @@ _GRANULAR = list(S.NUMBERS_ALL)
 
 
 def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None,
-                value_ev_multiples=None) -> pd.DataFrame:
+                value_ev_multiples=None, standardizer=None) -> pd.DataFrame:
     """Return a DataFrame indexed by ticker with the theme columns standardized across
     the universe. sector_neutral scores each number relative to its sector peers (removes
     accidental sector bets); residual_momentum strips the beta component out of momentum.
     value_ev_multiples also feeds EV/Sales + EV/EBITDA into the ESTABLISHED value branch
-    (they already feed the speculative one). All three default to config."""
+    (they already feed the speculative one). All three default to config.
+
+    LEDGER S20/S21 — `standardizer` swaps the PER-NUMBER standardizer (layer 1: every `z_*`
+    column below). It defaults to `cross_sectional.zscore`, the shipped winsorized z-score, so
+    with it unset this function is behaviourally identical to before. The study passes
+    `rank_score` and `zscore_nowinsor`; see PREREG_s20_s21_construction.md §3.
+
+    Note the two documented asymmetries, which are properties of the construction rather than
+    of the swap: `insider` below is NOT z-scored (it is a fixed affine map of insider_score) and
+    so is untouched by this argument, and `size` is a SINGLE standardized column where every
+    other theme is a mean of several."""
     from ..config import CONFIG
     if sector_neutral is None:
         sector_neutral = CONFIG.sector_neutral
@@ -200,10 +210,11 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
                 s = pd.to_numeric(df[col], errors="coerce")
                 df[col] = s - s.groupby(_grp).transform("median")
 
-    # Standardize granular metrics across the universe.
+    # Standardize granular metrics across the universe.  [S20/S21 — layer 1]
+    _std = zscore if standardizer is None else standardizer
     for col in _GRANULAR:
         if col in df:
-            df["z_" + col] = zscore(pd.to_numeric(df[col], errors="coerce"))
+            df["z_" + col] = _std(pd.to_numeric(df[col], errors="coerce"))
         else:
             df["z_" + col] = np.nan
 

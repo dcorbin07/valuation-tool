@@ -88,7 +88,30 @@ def market_holidays(year: int) -> set:
     Computed, not hard-coded, so this keeps working after 2026. Excludes the ad-hoc closures
     (national days of mourning, hurricanes) which no rule can predict — those are rare and the
     cost of a run on one is a single duplicate-priced mark, not a corrupted book.
+
+    LA14 — THE SET NOW CONTAINS ONLY DATES IN `year`, AND DROPPING THE STRAY IS THE
+    FACTUALLY CORRECT NYSE RULE, NOT MERELY TIDINESS. `_observed` moves a Saturday holiday to
+    the preceding Friday, so a Saturday New Year's Day became 31 December of `year - 1`:
+    measured, `market_holidays(2028)` contained `2027-12-31` and `market_holidays(2033)`
+    contained `2032-12-31`.
+
+    The NYSE does **not** close on 31 December when 1 January falls on a Saturday — the
+    Saturday-to-Friday rollback is not applied across the year boundary for New Year's Day — so
+    the right answer is that the holiday is not observed at all, which is what filtering gives.
+    `market_holidays(2027)` correctly does not gain 2027-12-31 either.
+
+    It was inert for `is_trading_day`, which asks `market_holidays(d.year)` and so never saw the
+    stray, and inert *correctly* for the same reason. The exposure is to any caller that
+    ITERATES the set rather than testing membership: it would receive a date outside the year it
+    asked for, while the year that date belongs to silently lacked it. Nothing iterates it today
+    — this closes the hole before something does.
     """
+    return {h for h in _holidays_unfiltered(year) if h.year == year}
+
+
+def _holidays_unfiltered(year: int) -> set:
+    """The raw observed dates, before the year filter. Split out so LA14's filter is visible
+    and testable rather than folded into the set comprehension it corrects."""
     return {
         _observed(_dt.date(year, 1, 1)),                      # New Year's Day
         _nth_weekday(year, 1, 0, 3),                          # MLK Jr Day
@@ -105,6 +128,36 @@ def market_holidays(year: int) -> set:
 
 def is_trading_day(d: _dt.date) -> bool:
     return d.weekday() < 5 and d not in market_holidays(d.year)
+
+
+def trading_days_between(start: _dt.date, end: _dt.date, *, inclusive_start: bool = True) -> int:
+    """How many trading days ELAPSED from `start` to `end`. THE elapsed-time primitive.
+
+    Added for LA3. `index_track.summarize` annualised on `len(series)` — the number of rows the
+    recorder wrote — while the recorder was missing 71% of its days, so a missing day silently
+    became a multi-day "daily" return and the published alpha was over-annualised by the ratio
+    of elapsed days to recorded rows. Rows are the right denominator for a GATE ("have we
+    recorded enough to say anything?") and the wrong one for an EXPONENT ("over how long did
+    this return accrue?"), and those are different questions.
+
+    It lives here, beside `is_trading_day`, rather than in either caller, because
+    `valuation/edge/track_meter.py` already has a private `_trading_days` walking the same
+    calendar. Two implementations of "which days should have a row" is precisely the
+    two-sources-of-truth class the audit is full of; `tests/test_screener.py` pins the two to
+    agree so they cannot drift apart.
+
+    `inclusive_start=False` counts the half-open interval (start, end], which is what a series
+    of cumulative-since-inception levels needs: inception is day 0 and carries a return of zero
+    by definition, so the first recorded row is day 1.
+    """
+    if start is None or end is None or end < start:
+        return 0
+    n, d = 0, start
+    while d <= end:
+        if (inclusive_start or d > start) and is_trading_day(d):
+            n += 1
+        d += _dt.timedelta(days=1)
+    return n
 
 
 def session_state(now: Optional[_dt.datetime] = None) -> dict:

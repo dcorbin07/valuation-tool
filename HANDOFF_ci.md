@@ -364,3 +364,377 @@ change touches them.
    note the general shape: the tested tree and the pushed tree are only identical because the push
    is rejected otherwise. That guarantee rests on `git push` being non-fast-forward-safe, which it
    is — worth knowing if anyone ever adds `--force` anywhere near this file.
+
+---
+
+# Repo records cleanup (r1 lane, 2026-08-09)
+
+Two commits. **Thirteen files that govern this project were never in git**; six executed era
+prompts and one superseded status doc were carrying on in the working tree. Gate: **26 suites,
+0 failing** before the push.
+
+## Commit 1 — `Repo records: commit the untracked project-governing files.`
+
+13 files, 5,795 insertions plus a 7.8 MB PDF. The audit's own **input** was untracked while
+`VALQUO_LEDGER.md` — one row per item in it — has been tracked all along; that asymmetry is why
+`build_ledger.py` carries `SEARCH_DIRS = [ROOT, ROOT.parent.parent.parent]`, reaching outside the
+repo to find `valquo_audit_items.json`. With the file tracked, that fallback is now a
+belt-and-braces path rather than the only one. **Given the backup drive is dead, "exists on one
+disk, untracked" was the project's single largest unforced risk.**
+
+Also tracked: `VALQUO_EDGE_AUDIT.md`, the delivered PDF catalogue, the dependency map, the action
+plan (NO-SKIP + SEQUENCING verbatim), the master roadmap, state-of-play, the auditor's original
+protocol, the Option E record, `AGENTS.md`, `check_lanes.py`, `sync.bat`.
+
+**`AGENTS.md` is worth singling out: four of the ledger's five BLOCKED rows (R4, R5, R6, R8) are
+blocked by lane ownership defined in it** — that is, the ledger's blockers referenced a file that
+was not in the repo.
+
+### `RUN_RULES.md` was on the list and needed nothing
+Already tracked. Its main-checkout copy differs from the tracked file by 80 bytes, and that is
+**line endings only** — `Compare-Object` reports the two identical line for line. Recorded so the
+next reader does not re-investigate an 80-byte delta.
+
+### The secret gate ran BEFORE `git add`, not after
+Checked for `sk-ant-*`, `sk-*`, `AKIA*`, `gh?_*`, `xox?-*`, PEM private keys, bearer literals,
+`NAME=<12+ chars>` and 40+ char hex, plus a soft pass over secret vocabulary. **68 hard hits, all
+in the PDF, all cleared by decoding rather than by assumption**: they are hex-encoded PDF text
+strings whose font maps CID+29, so `0037004B0048` is `The`, `0037004B004C` is `Thi`.
+
+`VALQUO_MASTER_ROADMAP.md` names `TRADIER_PAPER_TOKEN`, `TRADIER_PAPER_ACCOUNT_ID`, `ADMIN_TOKEN`
+and `DISCORD_WEBHOOK_URL` — **names only, in instructions about what Render's env must hold, no
+values**. `sync.bat`'s flagged lines are `git for-each-ref` loops; it carries no credential.
+`.env` untouched and still ignored; `data/` and `*.db` untouched.
+
+**Keep the soft pass.** `ADMIN_TOKEN` was not in the hard pattern list and only the soft pass
+surfaced it. A scanner that only reports what it was told to look for cannot tell you what you
+forgot.
+
+## Commit 2 — `Retire superseded era documents.`
+
+7 files, 567 deletions: the six options-era prompts and `WHERE_WE_STAND.md`.
+
+### `WHERE_WE_STAND.md` was NOT a tracked file being retired
+The task said to `git rm` it because "history preserves them". **It didn't.** `git log --
+WHERE_WE_STAND.md` was empty and `git ls-files` never listed it: it was an untracked 11 KB
+document whose only copy was on one disk. `git rm` would have failed on it, and deleting it would
+have been unrecoverable — not a retirement.
+
+**So it was committed in commit 1 and removed in commit 2.** Net effect on the tracked tree is
+exactly what was asked; the difference is that the content still exists, at
+`git show a91dae5:WHERE_WE_STAND.md`. **The generalisable check: before retiring anything on the
+grounds that history holds it, confirm history actually holds it.** One `git log --` is cheap;
+this file was 177 lines of project narrative.
+
+### Two dangling references, created deliberately and flagged not silenced
+`VALQUO_MASTER_ROADMAP.md:59` sends "full narrative status + edge assessment + the generational
+product plan" to `WHERE_WE_STAND.md`, and `:240` sends PHASE 9's detail to the same place. Both
+now point at a path not in the tree.
+
+**Left as-is rather than repointed at `VALQUO_STATE_OF_PLAY.md`**, because the two are not the
+same document and I did not verify that state-of-play carries PHASE 9's product detail. Silently
+repointing a reference at a file that may not answer it is worse than a reference that is visibly
+stale. **Fix by reading both, then either repointing or restoring the section.**
+
+`PROMPT_options_A2A5.md:5` referenced `PROMPT_phase4_big.md`; both leave together, so that one
+does not dangle.
+
+### Why the six prompts are safe to drop
+Executed briefs. Findings live in the ledger, `HANDOFF_universe_backtest.md` and CLAUDE.md's
+options section, and the entry signal they were written to develop has since been measured dead on
+corrected data (real +3.27%/trade vs a random-entry control's +8.33%, sign test z −4.961 — CORRECTED 2026-08-11, `U1-SPLIT`; was +3.41 / +10.06 / −4.903).
+**A superseded plan left in the tree invites a reader to treat it as a live one.**
+
+Untouched as instructed: every `HANDOFF_*.md`, every results file and register, `RUN_RULES.md`,
+and the two prompts still in force (`PROMPT_edge_audit_execution.md`,
+`PROMPT_session14_commit_option_e.md`).
+
+## File-count attribution — most of the change is not mine
+
+**Cowork separately deleted 73 executed untracked prompts directly on disk.** Those were never
+tracked, so they appear in **no commit here**. If the root directory looks ~80 files lighter:
+**73 is Cowork's deletion, 7 is commit 2.** Recorded because a git-only reading of the repo would
+otherwise credit this lane with a cleanup it did not do.
+
+**One consequence Don should know:** because Cowork's 73 were untracked and are now deleted, they
+are gone permanently — there is no `git show` for them, same class of loss that
+`WHERE_WE_STAND.md` avoided by one commit.
+
+## Residual: the main checkout still holds its own untracked copies
+
+Committing here does not remove the untracked originals sitting in
+`C:\Users\donni\Downloads\valuation-tool\`. Once this lands, those paths become tracked and the
+on-disk copies simply become the working-tree files — **except `WHERE_WE_STAND.md`, which lands as
+deleted while an untracked copy remains on disk.** Harmless, but it means the file will still be
+visible there; it can be deleted freely now that history holds it.
+
+## Trial cost: none
+
+No `RESEARCH_LOG.md` row owed; equity `N` stays **129**. Nothing here searched a hypothesis space,
+fitted anything or selected among arms. No threshold was pre-committed because there is no verdict
+— this is repo hygiene, not a measurement.
+
+---
+
+# LA2 — the track backup was backing up the wrong book (r1 lane, 2026-08-10)
+
+## STATUS: fixed, tested, verified end-to-end. 34/34 suites green.
+
+Cold-audit item LA2 (`VALQUO_LIVE_AUDIT.md`). **The finding reproduces exactly, and it is worse
+than "a file was missing": the weekly job was green the entire time.**
+
+## What was wrong — measured before anything was changed
+
+The committed `data_export/paper_track_history.json` read:
+
+    "ingested_index_days": 0,   "ingested_index_track": null
+    "index_days": 4,            "index_holdings": 10,   "paper_orders": 3
+
+So the backup faithfully preserved **4 days of the Tradier sandbox engine** (10 names,
+equal-weighted at 10%, inception 2026-08-03) and **zero rows of the contract-bound Valquo Index**
+(86 names, score-weighted, 8% cap, inception 2026-07-30) — the one record
+`PAPER_TRACK_CONTRACT.md` binds, and the one thing in this project that cannot be re-derived.
+
+**Cause.** `payload()` did reach for the bound series, but only through
+`store.get_meta("index_track")` — and nothing has ever ingested that key on the live service. The
+only copy was `data/valquo_track_history.csv` on one laptop, 127 bytes, with (per CLAUDE.md) **no
+writer for it anywhere in this repository**.
+
+**Why nobody saw it.** The anti-regression guard counted `data_export/paper_track_index.csv` — the
+*sandbox* book. The bound series was never counted at all, so it could go from two rows to zero
+without tripping anything. **A relative guard cannot catch a quantity that was always zero**;
+zero is never fewer than zero. That is the transferable lesson here.
+
+## The fix, four parts
+
+1. **Gather from everywhere it can live.** `bound_series()` reads the committed backup, the local
+   `data/` tracker files, and the live store's meta; `merge_bound_rows()` unions them **by date —
+   a later source wins a shared date and no date is ever dropped.** That asymmetry is the safety
+   property: a legitimately empty source (fresh Render disk, a store that never ingested) can
+   never erase a populated one. This matters immediately, because the deployed service is still
+   running pre-LA2 code and its payload has no bound key at all.
+2. **Give it its own file.** `valquo_index_track.csv` + `valquo_index_meta.json`, using the
+   tracker's **own column names**, so restoring is `cp` and not a transformation written at 2am
+   against a lost original.
+3. **Guard the right thing.** `guard_counts()` reports `bound_index_days`; the workflow fails on a
+   regression in *either* book, **plus an absolute presence check** — because the failure above
+   was invisible to a relative one.
+4. **Fix the label.** The emitted README no longer calls `paper_track_index.csv` "daily Valquo
+   Index vs SPY". That exact mislabel put a false *"Index beating SPY"* claim into Discord on
+   2026-08-05, on a day the bound recorder had the track **2.85pp behind**. The README now leads
+   with the two-books distinction and states both weight caps (8% vs 10%), which is what tells
+   them apart.
+
+## The bound series is now in git
+
+Committed to the already-tracked `data_export/`: 2026-07-31 (−0.2777pp) and 2026-08-06
+(−2.8468pp), 86 names, inception 2026-07-30. Its existence no longer depends on one laptop.
+
+**`data/` is untouched and still gitignored.** That rule exists because `data/` holds the licensed
+Sharadar exports, which may not be redistributed; the bound series is a different object —
+Valquo's own derived, unlicensed output — so a copy lives with the rest of the backup and the hard
+rule is not bent.
+
+**It is a BACKUP, not a second recorder.** `index_track.load()` still reads `data/` and only
+`data/`, so `index_track.vs_spy_claim()` remains the single authority for a vs-SPY statement.
+Nothing reads the committed copy back into the live path. This project has already been bitten
+twice by two recorders of one number disagreeing (audit B7 on the site; the Discord recap); a
+backup that quietly became an input would be that bug a third time.
+
+## Verification — what I actually ran
+
+`gh` is not installed on this machine, so **I did not dispatch the Action**; I ran its steps
+locally against the payload the **current, pre-LA2 live service actually returns** (confirmed to
+carry no `bound_index_track` key), which is the realistic next-run scenario:
+
+    render exit 0
+    guard: committed={'bound_index_days': 2, 'sandbox_index_days': 4}
+                new={'bound_index_days': 2, 'sandbox_index_days': 4}
+    artifact valquo_index_track.csv -> both bound rows present
+
+**Negative control:** with no committed copy to merge, the same command warns loudly and the
+presence check returns 0, i.e. the workflow fails — which is exactly the state that had been
+silently green for months.
+
+The scheduled run itself is unverified until it fires (Sunday 06:17 UTC, or dispatch by hand).
+
+## Tests
+
+**`tests/test_track_export.py` — new, 18 tests. The module had NO test suite at all**, which is
+part of how this survived. They are written against the failure, not the feature: an empty payload
+cannot erase the committed series; a payload from the *older* service cannot either; the guard
+catches a bound-row regression (with a passing control, so it cannot pass by always failing); a
+corrupt committed backup **raises rather than reading as zero rows**; and a real restore through
+`index_track.load()` reproduces the published **−2.8468pp** from the backed-up copy.
+
+**A bug in my own fix, caught by its own test.** Recording the write-time merge count inside the
+artifact made two runs of identical input differ — breaking the byte-idempotence this module has
+promised in prose since it was written and never tested. The count moved to the run log.
+
+**One existing test was rewritten, not silenced.**
+`test_private.py::test_the_backup_workflow_guards_against_clobbering_a_good_backup` asserted the
+old step's *name* and the presence of bash `-lt`. Both were legitimately replaced when the
+comparison moved into `track_export --guard-against` (which counts through the `csv` module, so an
+embedded newline in a quoted field cannot inflate the count `grep -c` trusted). The intent is
+unchanged and the test is now **stricter**: it requires the bound series to be covered, and it
+**executes** the guard instead of grepping for an operator.
+
+## What I did NOT do
+
+* **Nothing ingests the bound series into the live service's store.** On a fresh Render disk the
+  API still serves an empty live column until the files are restored by hand. LA2 does not cover
+  that writer, and **there is still no automated daily writer for the bound series anywhere** —
+  which remains the operational gate's actual blocker, not this.
+* **No change to `index_track.py`, the contract, or any public surface.** Deliberate: this is a
+  backup fix. Nothing about what the site says or what the contract binds moved.
+* **`data/` unchanged**, including the gitignore rule.
+
+## Trial cost: none
+
+No `RESEARCH_LOG.md` row owed; equity `N` stays **131**. Nothing here searched a hypothesis space,
+fitted anything or selected among arms — it is infrastructure, not a measurement.
+
+
+---
+
+# LA11 — the retracted 8%-cap diagnosis, still standing in eight places (2026-08-11)
+
+**Cold audit #2 is now fully executed.** LA11 was the last open item; all fifteen (LA1–LA15) are
+resolved, with LA6 tracked as `V2F`/`V2G` rather than as its own row.
+
+## What the defect was
+
+Session 16 (`PT-SPLIT`) retracted a diagnosis: the Tradier sandbox engine's 10% weights were
+reported as breaching `PAPER_TRACK_CONTRACT.md`'s own 8% cap. **They do not.**
+`valquo_index.build_index` sets `cap = max(MAX_WEIGHT, 1/len(picks))` deliberately — ten names at
+8% sum to 80%, so on a small book the cap must relax to equal weight or the redistribution loop
+never terminates — and the payload has always self-reported `effective_max_weight`. The weights
+were right for the book; the **book** was wrong, on **size** (10 names against the published 86).
+
+The **conclusion** (the engine is not the Index and may never be evidence under the contract)
+survives untouched. Only its **reason** moved. But the retracted reason was left standing in prose,
+and that is a worse state than no reason at all: a reader who checks the cap finds it correct and
+may then doubt the separation itself.
+
+## The audit named three sites. There were eight.
+
+| site | named by the audit? |
+|---|---|
+| `valuation/edge/track_meter.py` | yes |
+| `valuation/screener/index_track.py` | yes — as `:286`, actually `:368` |
+| `valuation/saas/recap.py` | yes |
+| `valuation/web/hero.py` | **no** |
+| `valuation/edge/track_export.py` (module docstring) | **no** |
+| `valuation/edge/track_export.py` (`_README`, emitted) | **no** |
+| `.github/workflows/track-backup.yml` | **no** |
+| `PAPER_TRACK_CONTRACT.md` §0a.2 | **no** |
+
+The five extra sites were found by grepping **the claim** rather than following the audit's
+citations. The `index_track.py` cite had drifted 82 lines in a day, which is CLAUDE.md's own
+warning about line cites in this project rotting within days, confirmed once more.
+
+## Two things worse than a stale docstring
+
+**1. It shipped as committed DATA, and that is mine.** `track_export._README` is *emitted*, so the
+retracted claim was written into `data_export/README.md` and committed — by my own LA2 work one day
+earlier, which carried the stale reason forward. Regenerated from the corrected source.
+
+**2. The contract asserted it in one section and corrected it in another.**
+`PAPER_TRACK_CONTRACT.md` §5b has carried the full correction since 2026-08-10 while §0a.2 still
+stated the retracted clause — exactly the shape the audit's preamble names. Struck in place with a
+dated pointer to §5b; the original text is left visible because that document does not delete.
+**No threshold, date or parameter moved**, so no void clause is engaged.
+
+## A test was pinning the retracted diagnosis into the artifact
+
+`tests/test_track_export.py` asserted `"8%" in readme and "10%" in readme` with the message *"the
+README does not state the weight caps that tell the two books apart"*. The weight caps are exactly
+what does **not** tell them apart — so that assertion **would have failed had the README been fixed
+and the test left alone**, and a future reader would have concluded the README was wrong. It now
+pins **book size** (86 vs 10 names), the ground the conclusion actually rests on. This was my own
+test from LA2.
+
+A comment in `tests/test_paper_track.py` also carried the retracted claim while
+`test_ptsplit_a_ten_percent_weight_is_not_a_cap_violation`, in the same module, pinned the correct
+reading. The comment and the test disagreed; the test was right.
+
+## Verification
+
+A regex sweep over every `.py`, `.yml` and `.md` in the tree returns **22 surviving matches**, and
+each is one of: a dated correction quoting what it used to say, `VALQUO_LIVE_AUDIT.md`'s own record
+of the defect, or a historical session handoff that already self-corrects (`HANDOFF_edge_audit.md`
+§6414 lists it as "MY OWN, TWICE-PUBLISHED"). No site asserts it live.
+
+**Full gate: 52 suites, all green.**
+
+## Trial cost: none
+
+A documentation correction — nothing searched, fitted or selected. Equity `N` unchanged at **151**
+as measured today by `research_log.detail()`.
+
+## Not done
+
+* **The correction is prose only.** Nothing about what the code computes, what the site says, or
+  what the contract binds has moved. That is deliberate and is the whole scope of LA11.
+* **The still-open blocker is unchanged and is not this:** nothing ingests the bound series into
+  the live service's store, and there is still **no automated daily writer** for it anywhere. That
+  remains the operational gate's actual blocker (`PT-WRITER`, Cowork lane).
+
+---
+
+# D4 — Cboe Open-Close Volume Summary: DON'T BUY (2026-08-11)
+
+**The full memo is `HANDOFF_data_spend_d4.md`**, written in the `HANDOFF_data_spend.md` house
+style. This section is the lane pointer, not a second copy. **Research only — no code changed,
+zero trials, equity `N` unmoved.** Ledger row `D4` OPEN → DONE/REJECTED. **The D series is now
+complete**; D4 was the one item the 2026-08-06 buy-nothing pass explicitly left out
+(*"not in this task's list, still unpriced, still gated on O14"*).
+
+## What the memo establishes
+
+| | |
+|---|---|
+| Cost, EOD subscription | **$500/mo**, filed with the SEC |
+| Cost, EOD ad-hoc history | **$400 per request per month**; **one request = one month of data** (verbatim) |
+| Cost for this project's own window | **$28,200–$37,600, ONE exchange**; fees are filed per exchange across C1/C2/BZX/EDGX |
+| Audit's indicative figure | *"roughly $600/yr"* — understates the **recurring** line ~**10×** ($6,000/yr per exchange) and has **no counterpart** for the one-time history cost. Not compressed into one multiple: a one-time cost over an annual rate means nothing. The audit did label it indicative |
+| Free trial | **Six months of ad-hoc historical EOD, $0**, non-TPHs eligible, **one-shot** |
+| Licence to ship anything derived | **$5,000/mo = $60,000/yr**, plus approval |
+| History start | **January 2018** — leaves **24 of 118 months (20.3%) unbuyable, the early ones** |
+| Open items it feeds | **Exactly one that is not its own gate: `U2`** |
+
+## The three things worth carrying out of it
+
+1. **A public free trial replaced the audit's recommended action.** The audit says "one sales
+   call". Cboe now gives six months of exactly this dataset to non-TPHs who have never subscribed.
+   **The decision no longer costs money — but the trial is one-shot, so spending it before `O14`
+   has produced a hypothesis wastes the one free look.**
+2. **The licence is the same trap as D1, a third time.** Internal use only; external distribution
+   of derived data is a separate $60k/yr product. Research-only, exactly like JKP. Any plan that
+   ends with a flow-derived number on valquo.co has an unbudgeted $60k/yr in it.
+3. **D4 cannot be tested by this project's own standard.** Ad-hoc history begins 2018-01, the alert
+   book begins 2016-01, and the early/late split is the instrument nearly every options verdict
+   rests on. **A fifth of the window, on the early side, is unavailable at any price.** Nobody had
+   checked the dataset's start date against the book's window.
+
+## Method note
+
+The price was not on the vendor page and I did not accept that as unpriced. The product page's own
+sentence — *"Fee Schedules have been filed with the SEC (see 'LiveVol Fees')"* — is the route, and
+the filed schedules are public, quotable and current. **Two independent retrievals agreed on the
+EOD figures before I used them**, and the "one request = one month" unit was confirmed verbatim
+rather than inferred, because the whole cost estimate scales on it. `federalregister.gov`,
+`sec.gov` and `justia.com` all refuse automated fetches (302 to an unblock page, or 403);
+**`govinfo.gov` serves the same filings as plain HTML** and is the source that worked.
+
+## Not done, and why
+
+* **`O14` was not run.** It is the gate, it is free, and it is ~7 hours of compute — but it is a
+  measurement with a pre-registration requirement (Benjamini–Hochberg across however many features
+  are built), and this task was scoped to the purchase decision. It is the recommended next step.
+* **`U2` was not run** — same reason, and it is the only open item D4 would feed.
+* **No email or trial signup was initiated.** Both are outbound actions and Don's call.
+* **The two per-exchange ambiguities were left ambiguous** rather than resolved by assumption: the
+  $500-vs-$600/$300 structure, and whether C1 sells history back to 2005 as the audit claims. **If
+  C1 does, the 24-month hole closes and the cost roughly triples.** Listed in UNRESOLVED, not
+  estimated.

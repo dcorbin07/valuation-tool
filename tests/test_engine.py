@@ -906,6 +906,115 @@ def test_healthy_name_is_untouched_by_the_terminal_clamp():
     assert r.terminal_growth == a.terminal_growth, "clamp must not bind on a normal name"
 
 
+# --- Part 9: terminal-share-aware confidence -------------------------------------------------
+
+def test_the_terminal_share_cap_can_never_raise_a_label():
+    """MONOTONE DOWNWARD, exhaustively. The cap exists to mark valuations DOWN; if it could
+    ever raise one it would be a way to manufacture confidence out of a fragile DCF."""
+    from valuation.engine.blend import terminal_share_cap, _CONF_RANK
+    for label in ("low", "medium", "high"):
+        for share in (0.0, 0.5, 0.85, 0.899, 0.90, 0.95, 0.999, 1.0, 1.5, 2.278):
+            out, _ = terminal_share_cap(label, share)
+            assert _CONF_RANK[out] <= _CONF_RANK[label], (
+                f"{label} at {share} rose to {out}")
+
+
+def test_the_terminal_bands_sit_exactly_where_the_pre_commitment_put_them():
+    """0.90 -> medium ceiling, 1.00 -> low ceiling, and the boundaries are inclusive at the
+    band and untouched a hair below. Pre-committed in HANDOFF_live_data_bugs.md Part 9 before
+    any outcome was measured; a test is what stops them being quietly retuned later."""
+    from valuation.engine import blend as B
+    assert (B.TV_SHARE_MEDIUM, B.TV_SHARE_LOW) == (0.90, 1.00)
+    assert B.terminal_share_cap("high", 0.8999)[0] == "high"
+    assert B.terminal_share_cap("high", 0.90)[0] == "medium"
+    assert B.terminal_share_cap("high", 0.9999)[0] == "medium"
+    assert B.terminal_share_cap("high", 1.00)[0] == "low"
+    assert B.terminal_share_cap("medium", 1.00)[0] == "low"
+    assert B.terminal_share_cap("low", 1.00)[0] == "low"
+
+
+def test_an_unusable_terminal_share_leaves_the_label_exactly_as_it_was():
+    """FAIL OPEN. A missing or non-finite terminal share means the check could not run, which
+    is not the same statement as 'the terminal share is fine' — and it must never be the same
+    statement as 'mark this down'. Part 7 shipped a bug of exactly this shape in reverse: a
+    failed check was read as a measurement and rewrote 178 headlines."""
+    from valuation.engine.blend import terminal_share_cap
+    for bad in (None, float("nan"), float("inf"), float("-inf"), "", "n/a", [], {}):
+        assert terminal_share_cap("high", bad) == ("high", None), f"{bad!r} moved the label"
+
+
+def test_the_cap_changes_labels_and_provably_not_values():
+    """THE BOUND THAT MATTERS: labels only, zero value changes (Part 9 C1/C2).
+
+    Runs the same company twice through the real pipeline with the bands moved to the two
+    extremes — cap nothing, then cap everything. Every published number must be bit-identical
+    across the pair while the labels differ. This pins the property structurally: it fails if
+    anyone ever routes confidence back into a value or a score.
+    """
+    from valuation.engine import blend as B
+    from valuation.engine.pipeline import value_from_company
+    was = (B.TV_SHARE_MEDIUM, B.TV_SHARE_LOW)
+    try:
+        B.TV_SHARE_MEDIUM, B.TV_SHARE_LOW = 9e9, 9e9      # nothing can be capped
+        loose = value_from_company(build_nike(), CONFIG, mc_trials=1)
+        B.TV_SHARE_MEDIUM, B.TV_SHARE_LOW = 0.0, 9e9      # everything is capped to medium
+        tight = value_from_company(build_nike(), CONFIG, mc_trials=1)
+    finally:
+        B.TV_SHARE_MEDIUM, B.TV_SHARE_LOW = was
+
+    assert loose.base_fair_value == tight.base_fair_value, "the cap moved the fair value"
+    assert loose.fair_value_blend.value == tight.fair_value_blend.value
+    assert loose.fair_value_blend.value_low == tight.fair_value_blend.value_low
+    assert loose.fair_value_blend.value_high == tight.fair_value_blend.value_high
+    assert loose.score.score == tight.score.score, "the cap moved the composite score"
+    assert loose.score.recommendation == tight.score.recommendation
+    assert loose.score.subscores == tight.score.subscores
+    # ... and it did something, or the test above proves nothing.
+    assert tight.fair_value_blend.confidence != "high"
+    assert tight.score.confidence != "high"
+
+
+def test_a_name_with_no_dcf_lens_is_untouched_even_with_the_band_wide_open():
+    """THE CONTROL GROUP AS A PROPERTY. 40 of the 241 names have no DCF in the blend — banks on
+    P/B-ROE and names whose DCF was dropped as non-positive. Terminal share describes the DCF,
+    so it must be mechanically incapable of touching them. Band forced to 0.0, which would cap
+    every DCF name on earth; these must still not move."""
+    from valuation.engine import blend as B
+    from valuation.engine.pipeline import value_from_company
+
+    def bank():
+        cd = build_nike()
+        cd.ticker, cd.sector = "BANK", "Financial Services"
+        cd.industry = "Banks—Diversified"
+        return cd
+
+    base = value_from_company(bank(), CONFIG, mc_trials=1)
+    assert base.classification.regime == "financial"
+    assert "dcf" not in (base.fair_value_blend.lenses or {}), (
+        "fixture no longer exercises the control path — pick a name with no DCF lens")
+
+    was = (B.TV_SHARE_MEDIUM, B.TV_SHARE_LOW)
+    try:
+        B.TV_SHARE_MEDIUM, B.TV_SHARE_LOW = 0.0, 0.0
+        wide = value_from_company(bank(), CONFIG, mc_trials=1)
+    finally:
+        B.TV_SHARE_MEDIUM, B.TV_SHARE_LOW = was
+
+    assert wide.fair_value_blend.confidence == base.fair_value_blend.confidence
+    assert wide.score.confidence == base.score.confidence
+    assert wide.fair_value_blend.tv_share is None, "tv_share was stamped on a non-DCF blend"
+
+
+def test_the_terminal_share_survives_serialization():
+    """The UI reads the dict, not the dataclass. A label the reader never sees is not a fix."""
+    import json
+    from valuation.engine.pipeline import value_from_company
+    d = value_from_company(build_nike(), CONFIG, mc_trials=1).fair_value_blend.to_dict()
+    assert "tv_share" in d and isinstance(d["tv_share"], float)
+    assert 0.0 < d["tv_share"] < 2.0
+    json.loads(json.dumps(d))
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

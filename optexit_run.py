@@ -241,6 +241,14 @@ def main():
     res["meta"] = {"n_names": len(state["done"]), "aggression": a.aggression,
                    "smoke_test": bool(a.limit)}
     path = EL.save(res, out_dir)
+    # audit O16 follow-on: pin the chain bytes this book was scored against. Descriptive here;
+    # blocking only on a replay (valuation/edge/options_freeze.py).
+    try:
+        from valuation.edge import options_freeze as FZ
+        FZ.stamp_run(out_dir, os.path.basename(state_path),
+                     {"signal": state["signal"], "shipped": state["shipped_rows"]})
+    except Exception as e:                                               # noqa: BLE001
+        print(f"[exitlab] WARNING: chain stamp failed ({type(e).__name__}: {e})", flush=True)
     _print(res)
     print(f"\nwritten: {path}", flush=True)
     return 0

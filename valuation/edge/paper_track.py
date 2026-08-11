@@ -71,6 +71,15 @@ MIN_DAYS_FOR_MEANING = 126                             # ~6 months of index hist
 
 _STATES = ("claimed", "submitted", "open", "closing", "closed", "rejected", "skipped")
 
+# Exit levels are stored rounded to 4dp, so two of them agree when they are within half a unit
+# of the last place. Used only to decide whether a level needs repairing, never to trigger an
+# exit: `_exit_decision` compares the mark to the level exactly, as it always has.
+_LEVEL_TOL = 5e-5
+
+# SESSION 16 (PT-SPLIT) — what a deliberately non-conforming book is stamped with, on the row.
+EXPERIMENT_STAMP = ("REGISTERED EXPERIMENT - not the contract-bound Valquo Index and may never "
+                    "be quoted as it (PAPER_TRACK_CONTRACT.md 5b)")
+
 
 def _f(x) -> Optional[float]:
     try:
@@ -179,15 +188,19 @@ def paper_orders(store, states=None, limit: int = 1000) -> list:
 
 
 # ============================== options: submit =============================================
-def _exit_policy(alert: dict) -> dict:
-    """The alert's OWN exit policy, as logged. Defaults only when the row predates it."""
-    pol = {}
+def _features(alert: dict) -> dict:
+    """The alert's logged `features` blob, however it arrived (JSON text or dict)."""
     try:
         feats = alert.get("features")
         feats = json.loads(feats) if isinstance(feats, str) else (feats or {})
-        pol = (feats or {}).get("exit_policy") or {}
+        return feats if isinstance(feats, dict) else {}
     except (ValueError, TypeError, AttributeError):
-        pol = {}
+        return {}
+
+
+def _exit_policy(alert: dict) -> dict:
+    """The alert's OWN exit policy, as logged. Defaults only when the row predates it."""
+    pol = _features(alert).get("exit_policy") or {}
     return {"target_pct": _f(pol.get("target_pct")) if _f(pol.get("target_pct")) is not None
                           else OT.DEFAULT_TARGET_PCT,
             "stop_pct": _f(pol.get("stop_pct")) if _f(pol.get("stop_pct")) is not None
@@ -197,8 +210,60 @@ def _exit_policy(alert: dict) -> dict:
                                else OT.DEFAULT_TIME_STOP_FRAC)}
 
 
+def _alert_row(store, alert_id) -> dict:
+    """The ORIGINATING alert row, by id.
+
+    Needed because `paper_option_orders` carries no `features` column, so an order row cannot
+    answer "what exit policy did this alert specify?" — see `_policy_for`.
+    """
+    if alert_id is None:
+        return {}
+    try:
+        with store._conn() as c:
+            cur = c.execute("SELECT * FROM option_alerts WHERE id = ?", (alert_id,))
+            r = cur.fetchone()
+            if not r:
+                return {}
+            return dict(zip([d[0] for d in cur.description], r))
+    except Exception:                                                # noqa: BLE001
+        return {}
+
+
+def _policy_for(store, order_row: dict) -> dict:
+    """The exit policy for an ORDER row, read from the alert it came from.
+
+    SESSION 16 — this exists because `_exit_policy(dict(order_row))` is silently wrong.
+    `paper_option_orders` has no `features` column (see `ensure_schema`), so handing it an order
+    row makes `_features` return `{}` and the policy collapse to
+    DEFAULT_TARGET_PCT / DEFAULT_STOP_PCT with no error. Audit B5c's comment claims the resume
+    branch "rebuilds the exit policy the same way the fresh path does" — the fresh path reads the
+    ALERT, the resume branch was reading the order, and for any alert whose policy differs from
+    the default that is a different strategy, arrived at silently. Same failure family as B5c
+    itself, one layer down. Falling back to the order row keeps the old behaviour when the alert
+    has been purged, rather than losing the policy entirely.
+    """
+    return _exit_policy(_alert_row(store, order_row.get("alert_id")) or dict(order_row))
+
+
+def _levels_from(store, order_row: dict, price) -> dict:
+    """`target_premium` / `stop_premium` for an order row at `price`, on the alert's own policy."""
+    px = _f(price)
+    if px is None or px <= 0:
+        return {}
+    pol = _policy_for(store, order_row)
+    return {"target_premium": round(px * (1.0 + (pol["target_pct"] or 0)), 4),
+            "stop_premium": round(px * (1.0 + (pol["stop_pct"] or 0)), 4)}
+
+
+def _sizing(alert: dict) -> dict:
+    """The alert's OWN position sizing, as logged by `notify.py`."""
+    sz = _features(alert).get("sizing")
+    return sz if isinstance(sz, dict) else {}
+
+
 def _eligible(alert: dict, today: _dt.date) -> tuple:
-    """(ok, reason). A tradeable paper entry needs a real, unexpired, recent contract."""
+    """(ok, reason). A tradeable paper entry needs a real, unexpired, recent contract that the
+    alert's own sizing did not refuse."""
     if not alert.get("occ_symbol"):
         return False, "no contract on the alert (chain unavailable when it fired)"
     exp = _d(alert.get("expiry"))
@@ -213,6 +278,21 @@ def _eligible(alert: dict, today: _dt.date) -> tuple:
     if age > MAX_ALERT_AGE_DAYS:
         return False, (f"alert is {age} days old (>{MAX_ALERT_AGE_DAYS}); entering now would "
                        f"back-fill the track with hindsight")
+    # SESSION 16 (routed as BUG 2 by the options-bot lane) — the alert's OWN sizing veto.
+    # `notify.py` logs `features.sizing`, and `options_live` sets `skip: true` when the position
+    # cannot be sized inside the risk budget; the product surfaces that as not-actionable. This
+    # function tested only the contract, the expiry and the age, so the paper book bought names
+    # the alert itself refused — ETN entered on a `skip: true` row whose reason was "one contract
+    # costs $1,610, above the $1,000 budget" and became the LARGEST position in the book. A
+    # forward track that takes trades the live product declines is not tracking the live product.
+    #
+    # The VETO is honoured; the QUANTITY deliberately is not. Reading `sizing.contracts` would
+    # change the book's construction (position size), which is a different decision and is not
+    # this repair's — see PREREG_session16_paper_track_repair.md §3.
+    sz = _sizing(alert)
+    if sz.get("skip"):
+        why = str(sz.get("reason") or "").strip() or "no reason recorded on the alert"
+        return False, f"the alert's own sizing refused this trade: {why}"
     return True, ""
 
 
@@ -264,16 +344,18 @@ def submit_new_alerts(store, broker: PaperBroker, cfg=CONFIG, limit: int = 25,
         out["considered"] += 1
         _rq = broker.quotes([r["occ_symbol"]]).get(r["occ_symbol"]) if r.get("occ_symbol") else None
         _rask = _f((_rq or {}).get("ask"))
-        _rpol = _exit_policy(dict(r))
+        # SESSION 16 — was `_exit_policy(dict(r))`, which reads `features` off an ORDER row that
+        # has no such column and so silently returned the DEFAULT policy. See `_policy_for`.
+        _rpol = _policy_for(store, r)
         existing = _adopt_open_entry(broker, r["occ_symbol"])
         if existing:
             _fields = {"state": "submitted",
                        "entry_order_id": str(existing.get("id") or ""),
                        "note": "adopted an order left by an interrupted run"}
             _rprice = _f(PaperBroker.fill_price(existing)) or _rask
-            if _rprice and _rpol:
-                _fields["target_premium"] = round(_rprice * (1.0 + (_rpol["target_pct"] or 0)), 4)
-                _fields["stop_premium"] = round(_rprice * (1.0 + (_rpol["stop_pct"] or 0)), 4)
+            _rlv = _levels_from(store, r, _rprice)
+            if _rlv:
+                _fields.update(_rlv)
             else:
                 _fields["note"] += " (NO exit levels: no usable price — audit B5c)"
             _update(store, r["alert_id"], **_fields)
@@ -376,7 +458,8 @@ def _place_entry(store, broker: PaperBroker, alert_id, ticker, occ, contracts,
 def mark_open(store, broker: PaperBroker) -> dict:
     """Refresh entry fills and daily marks. This is what the book was missing entirely."""
     ensure_schema(store)
-    out = {"filled": 0, "still_working": 0, "rejected": 0, "marked": 0, "errors": []}
+    out = {"filled": 0, "still_working": 0, "rejected": 0, "marked": 0, "errors": [],
+           "levels_repaired": 0, "level_repairs": [], "level_repairs_deferred": []}
 
     for r in paper_orders(store, states=("submitted",)):
         try:
@@ -387,8 +470,17 @@ def mark_open(store, broker: PaperBroker) -> dict:
         status = str(o.get("status") or "").lower()
         fill = PaperBroker.fill_price(o)
         if status == "filled" and fill:
+            # SESSION 16 (routed as BUG 1) — the exit levels MUST be re-derived from the fill.
+            # `_place_entry` anchors them to the price the order was SUBMITTED at; this branch
+            # then overwrote `entry_premium` with the broker's actual fill and left the levels
+            # alone, so the live target and stop described a price the book never paid. It is
+            # systematic, not occasional: `auto-scan.yml` runs the cycle AFTER the close, the
+            # limit is set from a post-close quote and the day order fills at the next open, so
+            # the two prices routinely differ (2 of the first 3 fills were off spec — TGT ran a
+            # +150.7% target against an intended +100%, MET a -46.7% stop against -50%).
             _update(store, r["alert_id"], state="open", entry_premium=fill,
-                    entry_ts=o.get("transaction_date") or now_iso())
+                    entry_ts=o.get("transaction_date") or now_iso(),
+                    **_levels_from(store, r, fill))
             out["filled"] += 1
         elif status in ("canceled", "rejected", "expired"):
             _update(store, r["alert_id"], state="rejected",
@@ -396,6 +488,45 @@ def mark_open(store, broker: PaperBroker) -> dict:
             out["rejected"] += 1
         else:
             out["still_working"] += 1
+
+    # SESSION 16 — repair rows that were already open when the fix above landed.
+    #
+    # Fixing `mark_open`'s fill branch only protects FUTURE entries: the three positions the book
+    # already held had passed through that branch weeks earlier and carry levels anchored to
+    # their submit price forever. So the correct levels are re-derived here, every cycle, from
+    # the stored fill and the alert's own policy. It is idempotent — a conforming row is skipped,
+    # not rewritten — which also makes it a standing GUARD rather than a one-shot migration: if
+    # any future path writes a level that disagrees with the fill, this repairs it and says so.
+    #
+    # A REPAIR MAY NOT EXECUTE A TRADE. If the corrected level is already crossed by the last
+    # mark, the write is DEFERRED and reported in `level_repairs_deferred` instead, because
+    # writing it would make the next `close_matured` sell the position — a bug fix silently
+    # closing a live position is not a bug fix. That case needs a human, so it is surfaced in
+    # `options_summary()` too rather than left in a cycle log nobody reads.
+    for r in paper_orders(store, states=("open", "closing")):
+        entry = _f(r.get("entry_premium"))
+        want = _levels_from(store, r, entry) if entry else {}
+        if not want:
+            continue
+        cur_t, cur_s = _f(r.get("target_premium")), _f(r.get("stop_premium"))
+        if (cur_t is not None and abs(cur_t - want["target_premium"]) <= _LEVEL_TOL
+                and cur_s is not None and abs(cur_s - want["stop_premium"]) <= _LEVEL_TOL):
+            continue
+        detail = {"alert_id": r["alert_id"], "ticker": r.get("ticker"), "entry_premium": entry,
+                  "target_was": cur_t, "target_now": want["target_premium"],
+                  "stop_was": cur_s, "stop_now": want["stop_premium"]}
+        mark = _f(r.get("last_mark"))
+        if mark is not None and (mark <= want["stop_premium"] or mark >= want["target_premium"]):
+            detail["deferred_because"] = (
+                f"the corrected level is already crossed by the last mark ({mark}); writing it "
+                f"would close this position on the next cycle. Needs a decision, not a repair.")
+            out["level_repairs_deferred"].append(detail)
+            continue
+        _update(store, r["alert_id"], **want,
+                note=(f"session 16: exit levels re-derived from the FILL ({entry}) on the "
+                      f"alert's own policy; they had been anchored to the submit price"))
+        out["levels_repaired"] += 1
+        out["level_repairs"].append(detail)
 
     live = paper_orders(store, states=("open", "closing"))
     if live:
@@ -604,8 +735,35 @@ def _close_departed(store, broker: PaperBroker, gone, day: str) -> dict:
     return {"closed": len(closed), "closed_tickers": closed, "close_unpriced": unpriced}
 
 
+def book_conformance(book: dict) -> dict:
+    """Does this payload describe the contract-bound Valquo Index, or a different book?
+
+    SESSION 16 (PT-SPLIT). Delegates to `valquo_index.conformance` rather than re-deriving the
+    rule, so there is one definition of "is this the Index" in the project. Falls back to
+    measuring the positions directly when the payload predates the block.
+
+    FAILS CLOSED: anything unreadable is NOT conforming, because the error this must never make
+    is admitting a book it could not check.
+    """
+    try:
+        from . import valquo_index as VI
+        blk = (book or {}).get("contract_conformance")
+        if isinstance(blk, dict) and "conforms" in blk:
+            return blk
+        positions = (book or {}).get("positions") or []
+        cap = _f(((book or {}).get("criteria") or {}).get("effective_max_weight"))
+        if cap is None:
+            weights = [_f(p.get("weight")) or 0.0 for p in positions]
+            cap = max(weights) if weights else 1.0
+        return VI.conformance(len(positions), cap)
+    except Exception as e:                                           # noqa: BLE001 - fail closed
+        return {"conforms": False, "n_positions": None, "why_not":
+                [f"conformance unreadable: {type(e).__name__}"]}
+
+
 def seed_book(store, broker: PaperBroker, book: dict, place_equity: bool = False,
-              capital: float = 100000.0, today=None, close_exits: bool = True) -> dict:
+              capital: float = 100000.0, today=None, close_exits: bool = True,
+              experiment: bool = False) -> dict:
     """Take the exported Valquo Index and hold it in the paper account.
 
     Names already held are LEFT ALONE — a re-run must not reset an entry price and wipe the
@@ -634,10 +792,35 @@ def seed_book(store, broker: PaperBroker, book: dict, place_equity: bool = False
     ensure_schema(store)
     day = (_d(today) or _dt.date.today()).isoformat()
     positions = (book or {}).get("positions") or []
+    conf = book_conformance(book)
     out = {"held": 0, "added": 0, "unpriced": [], "orders": 0, "place_equity": place_equity,
-           "closed": 0, "closed_tickers": [], "close_refused": None}
+           "closed": 0, "closed_tickers": [], "close_refused": None,
+           "conformance": conf, "experiment": bool(experiment), "seed_refused": None}
     if not positions:
         out["error"] = "the exported book has no positions"
+        return out
+
+    # SESSION 16 (PT-SPLIT) — THE ALIGNMENT GATE.
+    #
+    # `/admin/run-paper-track` reads `data/valquo_index.json` if it exists and otherwise rebuilds
+    # from the STORE's latest scan. That fallback is silent and it is how the engine came to
+    # record a 10-name book while the published Index held 86: the store's eligible large-cap
+    # tier is under 100 names, so `n` clamps to `MIN_NAMES`. The two recorders were then read as
+    # one track (`PT-OUTBOUND`: a Discord recap quoted the engine's +0.18pp while the bound
+    # recorder read -2.85pp).
+    #
+    # So a book that is not the Index may not be seeded as if it were. The refusal is LOUD and
+    # the run continues — `index_point` still marks whatever is already held — because silently
+    # liquidating a live sandbox book on a conformance rule would be worse than the split.
+    #
+    # `experiment=True` is the ONLY other way through, and it stamps every row it creates. There
+    # is no third state: a book is the Index, or it is a registered experiment that may never be
+    # quoted as the Index.
+    if not conf.get("conforms") and not experiment:
+        out["seed_refused"] = (
+            "this book is not the contract-bound Valquo Index, so it was NOT seeded: "
+            + "; ".join(conf.get("why_not") or ["no reason recorded"])
+            + ". Pass experiment=True to record it deliberately as a separate experiment.")
         return out
 
     with store._conn() as c:
@@ -677,11 +860,15 @@ def seed_book(store, broker: PaperBroker, book: dict, place_equity: bool = False
                 if oid:
                     out["orders"] += 1
         with store._conn() as c:
+            note = "quote-marked" if not place_equity else "equity order placed"
+            if experiment:
+                # Stamped on the ROW, not just returned to the caller: a label a surface can
+                # decline to show is not a safeguard (the PT-OUTBOUND lesson).
+                note += f" | {EXPERIMENT_STAMP}"
             c.execute("""INSERT OR IGNORE INTO paper_index_holdings
                 (ticker, weight, entry_price, bench_entry_price, entry_date, shares, order_id,
                  note) VALUES (?,?,?,?,?,?,?,?)""",
-                      (t, w, px, bench, day, shares, oid,
-                       "quote-marked" if not place_equity else "equity order placed"))
+                      (t, w, px, bench, day, shares, oid, note))
         out["added"] += 1
     return out
 
@@ -762,6 +949,32 @@ def _label(inception: Optional[str], n_closed: int, n_days: int) -> str:
             + (", thin - not yet a result" if thin else ", sample now meaningful"))
 
 
+def held_book_conformance(store) -> dict:
+    """Conformance of the book the engine is ACTUALLY HOLDING, measured from the holdings.
+
+    SESSION 16 (PT-SPLIT). `seed_book`'s gate describes the payload that was offered; this
+    describes what is on the books, which is the thing every surface reads. They can differ —
+    the four days recorded before the gate existed are exactly that case — so the answer is
+    measured from the rows rather than remembered from a seed run.
+    """
+    try:
+        from . import valquo_index as VI
+        with store._conn() as c:
+            rows = list(c.execute("SELECT weight, note FROM paper_index_holdings"))
+        if not rows:
+            return {"conforms": None, "n_positions": 0,
+                    "why_not": ["no holdings yet - nothing to conform"]}
+        weights = [float(w or 0.0) for w, _ in rows]
+        conf = VI.conformance(len(rows), max(weights) if weights else 1.0)
+        conf["registered_experiment"] = any(EXPERIMENT_STAMP in (n or "") for _, n in rows)
+        conf["registered_as"] = ("the contract-bound Valquo Index" if conf["conforms"]
+                                 else "a registered experiment - NEVER quotable as the Index")
+        return conf
+    except Exception as e:                                           # noqa: BLE001 - fail closed
+        return {"conforms": False, "why_not": [f"unreadable: {type(e).__name__}"],
+                "registered_as": "a registered experiment - NEVER quotable as the Index"}
+
+
 def index_summary(store) -> dict:
     ensure_schema(store)
     with store._conn() as c:
@@ -788,20 +1001,50 @@ def index_summary(store) -> dict:
         real["note"] = ("realised vs SPY over each stint's own window; NOT chained into the "
                         "daily series, which is a snapshot of open holdings")
     if not rows:
+        # `book_conformance` belongs on BOTH returns. A book can be held before its first
+        # series point exists, and that is exactly when a wrong book is cheapest to catch.
         return {"started": False, "n_holdings": int(n_hold), "n_days": 0, "realized": real,
+                "book_conformance": held_book_conformance(store),
                 "label": _label(None, 0, 0)}
     last, first = rows[-1], rows[0]
+    gate = _contract_gate()
     return {"started": True, "inception": last.get("inception") or first["as_of"],
             "as_of": last["as_of"], "n_days": len(rows), "n_holdings": int(n_hold),
             "realized": real,
             "index_ret": last.get("index_ret"), "bench_ret": last.get("bench_ret"),
             "active_ret": last.get("active_ret"), "n_priced": last.get("n_priced"),
-            "meaningful": len(rows) >= MIN_DAYS_FOR_MEANING,
+            # BOTH conditions, never either alone. The day count is not sufficient: audit OOB5
+            # closed the same hole in `index_track` and found this one still open behind it --
+            # `hero` falls back to THIS function when the Cowork tracker files are absent, which
+            # is precisely the fresh-deploy case, so a day count alone could still promote a
+            # paper track to the headline. Same authority as `index_track.gate_state()`, not a
+            # second flag: one copy of the fact, in the contract Don signed.
+            "meaningful": len(rows) >= MIN_DAYS_FOR_MEANING and bool(gate.get("passed")),
             "min_days_for_meaning": MIN_DAYS_FOR_MEANING,
+            "contract_gate": gate,
+            "book_conformance": held_book_conformance(store),
             "history": [{"as_of": r["as_of"], "index_ret": r.get("index_ret"),
                          "bench_ret": r.get("bench_ret")} for r in rows[-260:]],
             "label": _label(last.get("inception") or first["as_of"], MIN_CLOSED_FOR_MEANING,
                             len(rows))}
+
+
+def _contract_gate() -> dict:
+    """The paper track's operational gate, read from the ONE place that carries it.
+
+    `PAPER_TRACK_CONTRACT.md` §5's `Operational gate passed` row, parsed by
+    `index_track.gate_state()`. Deliberately delegated rather than re-implemented: a second
+    parser is a second record of the same fact, free to disagree with the document Don signed.
+
+    FAIL-CLOSED. Anything that goes wrong here -- import failure, unreadable contract, malformed
+    row -- resolves to NOT passed, so the error this cannot reach is "a thin track leads the
+    page". The conservative error is a mature track still labelled backtested.
+    """
+    try:
+        from ..screener.index_track import gate_state
+        return gate_state() or {"passed": False, "reason": "gate_state returned nothing"}
+    except Exception as e:                                   # noqa: BLE001 - fail closed
+        return {"passed": False, "reason": f"operational gate unreadable: {type(e).__name__}"}
 
 
 def options_summary(store) -> dict:
@@ -824,7 +1067,57 @@ def options_summary(store) -> dict:
             "scorecard": sc.get("overall"),
             "meaningful": n_closed >= MIN_CLOSED_FOR_MEANING,
             "min_closed_for_meaning": MIN_CLOSED_FOR_MEANING,
+            "level_conformance": _level_conformance(store, rows),
             "label": _label(inception, n_closed, MIN_DAYS_FOR_MEANING)}
+
+
+def _level_conformance(store, rows) -> dict:
+    """Do the live exit levels match the fill they are supposed to be derived from?
+
+    SESSION 16, the read-only half of the BUG 1 repair. `mark_open` fixes rows when a cycle runs;
+    this reports on every request whether any LIVE position is still trading to a target or stop
+    the backtest does not describe. Read-only on purpose: a summary must never write.
+
+    It stays after the bug is fixed because that is the point -- the first time this book was
+    inspected, 2 of 3 open positions were off spec and nothing anywhere said so.
+    """
+    off, checked = [], 0
+    for r in rows:
+        if (r.get("state") or "") not in ("open", "closing"):
+            continue
+        entry = _f(r.get("entry_premium"))
+        want = _levels_from(store, r, entry) if entry else {}
+        if not want:
+            continue
+        checked += 1
+        cur_t, cur_s = _f(r.get("target_premium")), _f(r.get("stop_premium"))
+        if (cur_t is None or abs(cur_t - want["target_premium"]) > _LEVEL_TOL
+                or cur_s is None or abs(cur_s - want["stop_premium"]) > _LEVEL_TOL):
+            off.append({"alert_id": r.get("alert_id"), "ticker": r.get("ticker"),
+                        "entry_premium": entry,
+                        "target_is": cur_t, "target_should_be": want["target_premium"],
+                        "stop_is": cur_s, "stop_should_be": want["stop_premium"]})
+    return {"checked": checked, "off_spec": len(off), "ok": not off, "detail": off}
+
+
+def _contract_track() -> dict:
+    """The CONTRACT-bound track's recording status and withheld meter, for every request.
+
+    A different object from everything else in this module, and labelled as one: `options` and
+    `index` here are the Tradier SANDBOX engine, while this is the published Valquo Index that
+    `PAPER_TRACK_CONTRACT.md` actually binds. The two record different books (§0a.2), so they
+    are reported side by side and never merged.
+
+    Why it is surfaced on every request rather than checked at the gate: the contract's 6-month
+    operational gate tests whether the track is being RECORDED, and a recording failure that
+    nobody notices until gate day has already cost the whole window. `track_meter.detail()`
+    names every missing trading day, so the failure is visible continuously.
+    """
+    try:
+        from . import track_meter
+        return track_meter.detail()
+    except Exception as e:                                   # noqa: BLE001 - never break /api/track
+        return {"available": False, "reason": f"contract track unreadable: {type(e).__name__}"}
 
 
 def summary(store) -> dict:
@@ -833,6 +1126,7 @@ def summary(store) -> dict:
     meaningful = bool(opt.get("meaningful")) and bool(idx.get("meaningful"))
     return {
         "options": opt, "index": idx,
+        "contract_track": _contract_track(),
         "venue": "Tradier sandbox (paper). No real money and no real orders.",
         "data_caveat": DATA_CAVEAT,
         "headline": ("Backtested expectancy remains the headline result - this forward paper "

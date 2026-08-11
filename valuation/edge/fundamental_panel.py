@@ -901,15 +901,79 @@ def _inst_accum_at(prep, as_of, lag_days=45):
     return (cur / prev - 1.0) if prev > 0 else None
 
 
+def _forward_return(closes, i, h, n_cal):
+    """S22 — delisting-aware forward return over `h` trading days from calendar index `i`.
+
+    This is the shipped `fwd_ret` rule, factored out so that additional horizons are computed
+    by the SAME code rather than by a second implementation that can drift from it.
+
+    Delisting: if the horizon-end price is NaN because the survivorship mask cut the name
+    mid-window, fall back to the last price it actually traded at, realizing the delisting
+    outcome instead of discarding the name — dropping it would quietly re-introduce the
+    survivorship bias the mask exists to remove.
+
+    RIGHT-CENSORING IS NOT DELISTING (PREREG_s22_term_structure.md §2a). If `i + h` runs past
+    the end of the shared calendar the return DOES NOT EXIST and this returns None. It must not
+    fall through to the delisting branch: that branch returns the last traded price, which for a
+    censored window would deliver a SHORTER realized return labelled as a long-horizon one, and
+    would do so precisely for the most recent dates — flattering short horizons and penalising
+    long ones. Pinned by test_s22_right_censoring_is_not_delisting.
+    """
+    if i + h >= n_cal:
+        return None
+    start = closes[i]
+    if not (start > 0):
+        return None
+    end = closes[i + h]
+    if end != end:                                      # NaN -> delisted mid-window
+        seg = closes[i + 1:i + h + 1]
+        valid = seg[~np.isnan(seg)] if len(seg) else seg
+        end = float(valid[-1]) if len(valid) else np.nan
+    return (end / start - 1.0) if end == end else None
+
+
 def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                             lookback_years=6, horizon=63, inst_lag_days=45,
                             keep_numbers=False, sector_neutral=False,
-                            grid_offset=None) -> pd.DataFrame:
+                            grid_offset=None, extra_horizons=None,
+                            sector_neutral_pair=False, standardizer_arms=None) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
     a diagnostic can measure one signal's standalone predictive power instead of only the
     theme it was folded into. Off by default — it widens the frame considerably.
+
+    S22 — `extra_horizons` adds a `fwd_ret_h{H}` column per requested horizon, computed inside
+    the SAME loop from the SAME price array as the shipped `fwd_ret`. Off by default; with no
+    extra horizons the frame is column-for-column identical to before.
+
+    Why it exists: the horizon is baked into this function, and the grid end is
+    `len(cal) - horizon`, so building one panel per horizon would vary the horizon AND the date
+    set AND the scored cross-sections together — no difference between two such runs could be
+    attributed to the horizon. One build keeps the scores, dates, names and composite identical
+    across every arm, so the forward window is the only thing that varies (and any run-to-run
+    nondeterminism in the panel is common to all arms and cancels).
+
+    The extra columns are defined on exactly the rows this panel already emits — a row still
+    requires the BASE `fwd_ret` to be present — so the row set does not change either. Longer
+    horizons are simply NaN on the most recent dates, which is the censoring above.
+
+    SECTOR-NEUTRAL-B6 — `sector_neutral_pair` additionally scores each cross-section with the
+    OPPOSITE `sector_neutral` setting and emits it as `sn_{theme}` columns on the SAME rows. Off
+    by default; with it off the frame is column-for-column identical to before.
+
+    Why it exists: both prior sector-neutral rejections built the two arms as two separate runs,
+    and a full backtest is NOT reproducible run to run (the `insider` theme moved median IC
+    -0.0034 / +0.0155 / -0.0034 across three identical-data runs). Scoring both arms from the one
+    `metrics` list makes that nondeterminism common-mode, so it cancels out of the difference
+    being measured, and makes the identical row set a property of the code rather than a claim.
+    Same argument as `extra_horizons` above.
+
+    LEDGER S20/S21 — `standardizer_arms` is the same device generalised: a {prefix: callable}
+    mapping, where each callable replaces the PER-NUMBER standardizer for one extra scoring of the
+    SAME `metrics` list, emitted as `{prefix}_{theme}` columns on the SAME rows. Off by default;
+    with it unset the frame is column-for-column identical to before. The study passes
+    `{"rk": rank_score, "nw": zscore_nowinsor}` — see PREREG_s20_s21_construction.md §4.
 
     AUDIT X2 — `grid_offset` shifts the rebalance grid by N trading days. The grid has
     always started at exactly TD = 252 and every number this project has ever reported was
@@ -929,6 +993,11 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     grid_offset = int(grid_offset)
     if grid_offset < 0:
         raise ValueError(f"grid_offset must be >= 0, got {grid_offset}")
+    # S22 — the additional forward windows, deduplicated and ordered. The BASE horizon is
+    # allowed here and is the study's C0 control: `fwd_ret_h63` must equal `fwd_ret` exactly.
+    _extra_h = sorted({int(h) for h in (extra_horizons or [])})
+    if any(h <= 0 for h in _extra_h):
+        raise ValueError(f"extra_horizons must all be > 0, got {sorted(extra_horizons or [])}")
     _GRID_START = TD + grid_offset
     from ..screener.factors import prefilter as _prefilter   # AUDIT B13
 
@@ -1108,6 +1177,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         "panel_end": str(_panel_end.date()) if _panel_end is not None else None,
     }
     cal = frame.index
+    _n_cal = len(cal)                  # S22 — the censoring boundary for every forward window
     _cal64 = cal.values.astype("datetime64[D]")
     benchf = bench.reindex(cal).ffill()
     benchv = benchf.values.tolist()        # for the idiosyncratic-vol regression, computed once
@@ -1128,6 +1198,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         b0, b1 = benchf.iloc[i], benchf.iloc[i + horizon]
         bret = (b1 / b0 - 1.0) if (b0 and b0 > 0) else np.nan
         metrics, fwd, mktcap = [], {}, {}
+        fwd_x = {h: {} for h in _extra_h}        # S22 — one dict per extra horizon
         for t in px:
             closes = frame[t].values
             if np.isnan(closes[i]) or closes[i] <= 0:
@@ -1245,20 +1316,24 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # actually traded at. That realizes the delisting outcome instead of discarding
             # the name — dropping it would quietly re-introduce the survivorship bias the
             # mask exists to remove.
-            if closes[i] > 0:
-                end = closes[i + horizon]
-                if end != end:                                  # NaN -> delisted mid-window
-                    seg = closes[i + 1:i + horizon + 1]
-                    valid = seg[~np.isnan(seg)] if len(seg) else seg
-                    end = float(valid[-1]) if len(valid) else np.nan
-                fwd[t] = (end / closes[i] - 1.0) if end == end else None
-            else:
-                fwd[t] = None
+            fwd[t] = _forward_return(closes, i, horizon, _n_cal)
+            for _h in _extra_h:                                 # S22 — same rule, same array
+                fwd_x[_h][t] = _forward_return(closes, i, _h, _n_cal)
         if len(metrics) < 10:
             continue
         from ..screener.factors import build_frame
         _by_ticker = {m["ticker"]: m for m in metrics}
         fr = build_frame(metrics, sector_neutral=sector_neutral, residual_momentum=False)
+        # SECTOR-NEUTRAL-B6 — the OTHER arm, scored from the SAME `metrics` list in the SAME
+        # pass. `build_frame` copies its input (`pd.DataFrame(metrics)`) and never mutates the
+        # caller's list, so the two calls differ by the flag and by nothing else.
+        fr_sn = (build_frame(metrics, sector_neutral=(not sector_neutral),
+                             residual_momentum=False) if sector_neutral_pair else None)
+        # S20/S21 — one extra scoring per standardizer arm, same `metrics`, same pass, so the
+        # known run-to-run nondeterminism is common-mode and cancels out of every difference.
+        fr_std = {p: build_frame(metrics, sector_neutral=sector_neutral,
+                                 residual_momentum=False, standardizer=fn)
+                  for p, fn in (standardizer_arms or {}).items()}
         for t, r in fr.iterrows():
             fr_ret = fwd.get(t)
             if fr_ret is None or fr_ret != fr_ret:
@@ -1270,9 +1345,29 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                    # concentration RISK cap, which is a different thing from the
                    # sector-NEUTRAL ranking rejected in P10.
                    "sector": (_by_ticker.get(t) or {}).get("sector") or ""}
+            # S22 — longer forward windows on the SAME row. NaN where the calendar ends before
+            # the window does; see `_forward_return` on why that may not be a last-price fallback.
+            for _h in _extra_h:
+                _v = fwd_x[_h].get(t)
+                row[f"fwd_ret_h{_h}"] = None if (_v is None or _v != _v) else float(_v)
             for theme in S.FACTORS_ALL:
                 v = r.get(theme) if theme in fr.columns else None
                 row[theme] = None if (v is None or pd.isna(v)) else float(v)
+            # SECTOR-NEUTRAL-B6 — the paired arm's themes on the SAME row, so the two arms are
+            # provably scored on one identical row set and any run-to-run nondeterminism in the
+            # panel (the known `insider` one) is common-mode and cancels out of the difference.
+            if fr_sn is not None:
+                _rs = fr_sn.loc[t] if t in fr_sn.index else None
+                for theme in S.FACTORS_ALL:
+                    v = (_rs.get(theme) if (_rs is not None and theme in fr_sn.columns)
+                         else None)
+                    row["sn_" + theme] = None if (v is None or pd.isna(v)) else float(v)
+            # S20/S21 — the standardizer arms' themes, on this same row.
+            for _p, _fr in fr_std.items():
+                _rr = _fr.loc[t] if t in _fr.index else None
+                for theme in S.FACTORS_ALL:
+                    v = (_rr.get(theme) if (_rr is not None and theme in _fr.columns) else None)
+                    row[f"{_p}_{theme}"] = None if (v is None or pd.isna(v)) else float(v)
             if keep_numbers:
                 for num in S.NUMBERS_ALL:
                     zc = "z_" + num
@@ -1316,6 +1411,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         "calendar_cut_days": int(_CAL_DAYS),
         "truncation": "shared_calendar",     # AUDIT B6: never per-ticker
         "horizon": int(horizon), "rebalance_days": int(rebalance_days),
+        "extra_horizons": list(_extra_h),        # S22 — provenance for the term-structure run
         # AUDIT X2 — which of the `rebalance_days` possible grids this run used. 0 is the
         # historical grid every prior number in the project was measured on.
         "grid_offset": int(grid_offset),
@@ -1699,36 +1795,84 @@ def _backtest(panel, cols, weights, top_n=20, horizon=252):
 
 
 def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, horizon=63,
-                   trailing_stop=None):
+                   trailing_stop=None, take_profit=None, stop_loss=None, fv_at_or_above=None,
+                   disable_rank_exit=False, cost_bps_one_way=None, return_series=False):
     """Event-driven backtest that mirrors the LIVE sell logic: BUY the top-N by composite,
     then HOLD each name until it falls out of the top `exit_rank` (a hysteresis band, so a
     still-good name that merely slips isn't churned) — subject to a minimum hold. Optional
     `trailing_stop` (e.g. 0.3) also sells if a name falls that far from its own peak since
     entry (a profit-lock / reversal catch). Holding periods are variable: a strong name
-    compounds for years. 'Hold the gems, sell what's no longer worth holding', not churn."""
+    compounds for years. 'Hold the gems, sell what's no longer worth holding', not churn.
+
+    S23 — the alternative exits are ADDITIONAL and opt-in, so with every new argument at its
+    default this function is bit-identical to what it was (pinned by
+    test_s23_the_new_exits_are_opt_in_and_change_nothing). One implementation, not a second
+    copy that can drift from the shipped one.
+
+      * `take_profit` / `stop_loss` — cumulative return since entry, e.g. 0.25 / 0.08. These
+        are evaluated at REBALANCE MARKS ONLY, because the panel carries no intra-quarter path,
+        so they trigger LESS often than a true path-dependent rule would. That biases the
+        result in FAVOUR of a TP/SL arm, which is stated in PREREG_s23_exit_rule.md §5a and is
+        why a NEGATIVE result on these arms is the trustworthy direction.
+      * `fv_at_or_above` — a set of (date, ticker) pairs at which the price has reached the
+        point-in-time fair value. Precomputed by the caller through the LIVE engine, never
+        re-derived here.
+      * `disable_rank_exit` — the never-sell control. Its book grows without bound, so its
+        size is NOT comparable to the others; that is the control's whole point.
+      * `cost_bps_one_way` — charge turnover. On an equal-weighted book each traded name pays
+        its own weight's worth, so the period drag is exactly
+        `bps/1e4 * (n_bought + n_sold) / n_held`. Off by default, which is the historical
+        (B17-flagged) behaviour: this function has always charged nothing.
+
+    `return_series=True` adds the per-period draws and the per-period book/trade counts, which
+    a PAIRED comparison of two arms needs and a summary cannot reconstruct (RUN_RULES A9).
+    """
     from ..screener.cross_sectional import zscore
     exit_rank = exit_rank or (top_n * 2)
     dates = sorted(panel["date"].unique())
     by_date = {d: panel[panel["date"] == d] for d in dates}
     held, port, bench, ew, hold_lens = {}, [], [], [], []   # held[t] = [entry_i, cum_factor, peak_factor]
     held_counts = []                                       # AUDIT B17: realised book size
+    exit_reasons, used_dates = {}, []                      # S23
+    gross_series, drag_series, bought_series, sold_series = [], [], [], []
     for i, d in enumerate(dates):
         sub = by_date[d]
         tickers = sub["ticker"].values
         comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
         order = np.argsort(-comp)
         rank = {tickers[order[r]]: r + 1 for r in range(len(order))}
-        fwd = {tickers[j]: sub["fwd_ret"].values[j] for j in range(len(tickers))}
+        # PERFORMANCE (S23) — hoist the column out of the comprehension. `sub["fwd_ret"]` inside
+        # it was re-evaluated once per NAME, so a 1,650-name cross-section extracted the column
+        # 1,650 times and each extraction deep-copied the panel's `.attrs` through pandas'
+        # `__finalize__`. Measured: 114,774 column extractions and 61 of 70 seconds per call, on
+        # a function `run_backtests` and `sweep_hold_params` both drive. Identical results.
+        _fwd_vals = sub["fwd_ret"].values
+        fwd = {tickers[j]: _fwd_vals[j] for j in range(len(tickers))}
+        n_sold_i = 0
         for t in list(held):                              # SELL: band drop-out (past min-hold) or stop
             entry_i, cum, peak = held[t]
             dd = (cum / peak - 1.0) if peak > 0 else 0.0
+            aged = (i - entry_i) >= min_hold
             stop_hit = (trailing_stop is not None) and (dd <= -trailing_stop)
-            rank_out = (t not in rank or rank[t] > exit_rank) and (i - entry_i) >= min_hold
-            if stop_hit or rank_out:
+            rank_out = (not disable_rank_exit) and (t not in rank or rank[t] > exit_rank) and aged
+            # S23 — cumulative return since entry, at this rebalance mark. `cum` is the running
+            # product of realised period returns, so `cum - 1` IS that cumulative return.
+            ret_cum = cum - 1.0
+            tp_hit = (take_profit is not None) and aged and (ret_cum >= take_profit)
+            sl_hit = (stop_loss is not None) and aged and (ret_cum <= -stop_loss)
+            fv_hit = (fv_at_or_above is not None) and aged and ((d, t) in fv_at_or_above)
+            if stop_hit or rank_out or tp_hit or sl_hit or fv_hit:
+                # one reason per exit, in a fixed precedence so the counts sum to the exits
+                reason = ("stop" if stop_hit else "take_profit" if tp_hit else
+                          "stop_loss" if sl_hit else "fair_value" if fv_hit else "rank")
+                exit_reasons[reason] = exit_reasons.get(reason, 0) + 1
                 hold_lens.append(i - entry_i)
                 del held[t]
+                n_sold_i += 1
+        n_before = len(held)
         for r in range(min(top_n, len(order))):           # BUY: new top-N
             held.setdefault(tickers[order[r]], [i, 1.0, 1.0])
+        n_bought_i = len(held) - n_before
         rets = []
         for t in held:                                    # this period's return + update each name's path
             fr = fwd.get(t)
@@ -1742,10 +1886,20 @@ def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, h
         bm = float(np.nanmean(br)) if np.isfinite(br).any() else float("nan")
         em = float(np.nanmean(allr)) if np.isfinite(allr).any() else float("nan")
         if pr == pr and bm == bm:
-            port.append(pr)
+            # S23 — turnover drag. Equal-weighted book, so each traded name costs its own
+            # weight's worth: bps * (bought + sold) / held. Zero when costs are off.
+            drag = 0.0
+            if cost_bps_one_way and len(held):
+                drag = (float(cost_bps_one_way) / 1e4) * (n_bought_i + n_sold_i) / float(len(held))
+            gross_series.append(pr)
+            drag_series.append(drag)
+            bought_series.append(n_bought_i)
+            sold_series.append(n_sold_i)
+            port.append(pr - drag)
             bench.append(bm)
             ew.append(em if em == em else bm)
             held_counts.append(len(held))      # AUDIT B17
+            used_dates.append(str(d)[:10])
     if not port:
         return None
     tot = float(np.prod([1 + x for x in port]) - 1)
@@ -1773,7 +1927,19 @@ def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, h
             "held_median": (int(np.median(held_counts)) if held_counts else None),
             "held_min": (int(min(held_counts)) if held_counts else None),
             "held_max": (int(max(held_counts)) if held_counts else None),
-            "charges_costs": False, "charges_taxes": False,
+            "charges_costs": bool(cost_bps_one_way), "charges_taxes": False,
+            # S23 — opt-in diagnostics. `exit_reasons` sums to the number of completed spells,
+            # so "which rule actually fired" is measurable rather than inferred.
+            **({"cost_bps_one_way": float(cost_bps_one_way)} if cost_bps_one_way else {}),
+            **({"exit_reasons": dict(exit_reasons),
+                "avg_bought_per_period": float(np.mean(bought_series)) if bought_series else None,
+                "avg_sold_per_period": float(np.mean(sold_series)) if sold_series else None,
+                "avg_drag_per_period": float(np.mean(drag_series)) if drag_series else None,
+                "series": {"dates": used_dates, "net": list(port), "gross": gross_series,
+                           "drag": drag_series, "bench": list(bench), "ew": list(ew),
+                           "held": [int(x) for x in held_counts],
+                           "bought": bought_series, "sold": sold_series}}
+               if return_series else {}),
             "label_warning": ("realised book size is ~exit_rank, NOT top_n; gross of costs and "
                               "taxes unlike every other book in this file (audit B17)")}
 
@@ -2246,7 +2412,8 @@ def walk_forward(panel, cols, base, top_n=25, horizon=63, halflife_days=1260, n_
             "params": params}
 
 
-def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
+def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=False,
+                      ret_col="fwd_ret", standardizer=None):
     """The 'is the edge real and harvestable?' test. Each date, sort EVERY name by composite and
     split into n_q equal buckets; measure each bucket's forward return. A genuine signal shows
     (a) higher-composite buckets earning more (monotonic), and (b) a positive, statistically
@@ -2266,20 +2433,37 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
     This project's notes repeatedly read it the other way round ("monotonicity is negative at
     every lag - the deciles aren't cleanly ordered", and a -0.782 -> -0.855 move logged as
     "slightly worse"). Both are inverted: those were well-ordered results getting better.
-    Guarded by test_monotonicity_sign_convention."""
+    Guarded by test_monotonicity_sign_convention.
+
+    S22 — `ret_col` selects which forward-return column is scored. It defaults to the shipped
+    `fwd_ret`, so every existing caller is unchanged; the term-structure study points it at the
+    `fwd_ret_h{H}` columns `build_fundamental_panel(extra_horizons=...)` adds. Rows whose chosen
+    column is NaN are skipped by the same finite-mask the composite already uses, which is how a
+    long horizon silently loses its right-censored dates rather than scoring them short. Pass
+    `horizon=H` alongside it, or the annualization will be wrong."""
     from ..screener.cross_sectional import zscore
+    # S20/S21 — the PER-THEME standardizer (layer 3, the actual "z-sum"). Defaults to the
+    # shipped winsorized z-score, so every existing caller is unchanged; the study passes the
+    # arm's own standardizer so an arm is swapped at BOTH layers rather than half of one.
+    _std = zscore if standardizer is None else standardizer
+    if ret_col not in panel.columns:
+        raise KeyError(f"quantile_backtest: no forward-return column {ret_col!r} in the panel "
+                       f"(build it with build_fundamental_panel(extra_horizons=[...]))")
     dates = sorted(panel["date"].unique())
     q_rets = [[] for _ in range(n_q)]
     ls, sw_long, ewb = [], [], []
     alpha_series = []          # AUDIT R9 — per-period top-decile MINUS equal-weight
+    used_dates, n_scored = [], []       # V2G — see `return_series`
     for d in dates:
         sub = panel[panel["date"] == d]
-        comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
-        fwd = sub["fwd_ret"].values
+        comp = composite_from_frame(sub, cols, weights, _std)   # AUDIT B7; S20/S21 standardizer
+        fwd = pd.to_numeric(sub[ret_col], errors="coerce").to_numpy(dtype=float)   # S22
         ok = np.isfinite(comp) & np.isfinite(fwd)
         comp, fwd = comp[ok], fwd[ok]
         if len(fwd) < n_q * 3:                              # need enough names for clean buckets
             continue
+        used_dates.append(str(d)[:10])
+        n_scored.append(int(len(fwd)))
         order = np.argsort(-comp)                           # highest composite first
         buckets = np.array_split(order, n_q)
         for qi, b in enumerate(buckets):
@@ -2309,7 +2493,19 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63):
     ew_ann = annmean(ewb)
     sw_ann = annmean(sw_long)
     mono = _spearman(np.arange(n_q, dtype=float), np.array([np.mean(q) if q else np.nan for q in q_rets]))
+    # V2G — the per-period draws, opt-in so no existing caller's payload changes.
+    # `top_decile_alpha` is exactly `ppy * mean(alpha)`, but a PAIRED comparison of two arms
+    # needs the series itself: two arms scored on the same dates share the market move that
+    # dominates each level, and differencing them cancels it. Summaries cannot be paired after
+    # the fact, which is RUN_RULES A9 — store the draws, not just the summary.
+    # `dates`/`n_scored` are returned because two arms need NOT score the same dates or the same
+    # names: an arm can rank a name the other cannot (the other's themes are all absent on it),
+    # so alignment has to be checkable rather than assumed.
+    series = {"dates": used_dates, "n_scored": n_scored,
+              "long_short": [float(x) for x in ls],
+              "alpha": [float(x) for x in alpha_series]}
     return {"n_periods": len(ls), "n_quantiles": n_q, "horizon": horizon,
+            **({"series": series} if return_series else {}),
             "decile_ann_return": decile, "equal_weight_ann": ew_ann,
             "long_short_ann": annmean(ls), "long_short_tstat": tstat(ls),
             # AUDIT R9 — HAC inference and a visible serial-correlation diagnostic. The naive
@@ -2707,9 +2903,25 @@ def cpcv_validate(panel, cols, base, halflife_days=1260, horizon=63, n_groups=6,
     best = max(chall, key=lambda nm: med[nm], default=None)
     dflt = med["current-default"]
     adopt, verdict = False, "kept the current default weights"
+    _adopt_detail = None
     if best is not None and dflt is not None:
         arr = oos[best]
         se = (float(np.std(arr)) / len(arr) ** 0.5) if len(arr) > 1 else None
+        # SESSION 12 — BANK THE MARGIN, NOT JUST THE DECISION. The adopt gate multiplies `se` by
+        # `_trials_haircut`, which is FLOORED AT THE RESEARCH LOG'S `N` (audit M1). So the same
+        # draw can adopt at one project-wide trial count and not at another, and the adopted
+        # weights then feed `quantile_backtest` — meaning `N` silently moves the long-short t of
+        # any run that sits near this bar. X7's placebo recorded only the boolean, which is why
+        # its 8%-vs-7% `ls_t >= 2.0` discrepancy cost two sessions and a 100-draw re-run to chase.
+        # With (margin, se) banked, the decision at any other `N` is arithmetic.
+        _adopt_detail = {
+            "best": best, "median_oos_ic_best": med[best], "median_oos_ic_default": dflt,
+            "margin": (None if (med[best] is None or dflt is None) else float(med[best] - dflt)),
+            "se": se, "folds_positive": posf[best],
+            "haircut": float(_trials_haircut(len(names))),
+            "n_trials_used": int(max(2, len(names), _trial_N())),
+            "bar": (None if not se else float(_trials_haircut(len(names)) * se)),
+        }
         if se and se > 0 and (med[best] - dflt) > _trials_haircut(len(names)) * se and (posf[best] or 0) >= 0.6 and med[best] > 0:
             adopt = True
             verdict = (f"adopt '{best}': median OOS IC {med[best]:+.3f} vs default {dflt:+.3f} across "
@@ -2737,6 +2949,12 @@ def cpcv_validate(panel, cols, base, halflife_days=1260, horizon=63, n_groups=6,
             "pbo_scope": "weight_scheme_selection_only",
             "deflated_sharpe_detail": _dsr_detail,
             "recommend": recname, "adopt": adopt,
+            "adopt_detail": _adopt_detail,
+            # SESSION 12 — the challenger's weights, exposed WHETHER OR NOT it was adopted. The
+            # shipped path must keep returning `base` on a reject (that is the rule X7 measured),
+            # so this is a separate key: it is what makes "what would this run have scored had the
+            # bar been one haircut lower" answerable without re-running the sweep.
+            "challenger_weights_cols": (dict(all_w[best]) if best in all_w else None),
             "verdict": verdict, "recommended_weights_cols": (all_w[recname] if adopt else dict(base)),
             "candidates": {nm: {"median_oos_ic": med[nm], "folds_positive": posf[nm]} for nm in names}}
 
@@ -3429,7 +3647,8 @@ def cost_breakeven_bps(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
 def holdout_compare_panels(panel_a, panel_b, cols, label_a="A", label_b="B", n_q=10,
                            horizon=63, base_weight=0.125, min_dates=16,
                            min_alpha_gain=MIN_HOLDOUT_ALPHA_GAIN,
-                           min_tstat_gain=MIN_HOLDOUT_TSTAT_GAIN) -> dict:
+                           min_tstat_gain=MIN_HOLDOUT_TSTAT_GAIN,
+                           standardizer_a=None, standardizer_b=None) -> dict:
     """Held-out comparison of two PANEL CONSTRUCTIONS (not two weightings).
 
     holdout_theme_validate answers "should this theme carry weight". Some changes are not a
@@ -3438,6 +3657,11 @@ def holdout_compare_panels(panel_a, panel_b, cols, label_a="A", label_b="B", n_q
     beat A by the SAME pre-committed margin (MIN_HOLDOUT_*) in BOTH split directions.
 
     Both panels must cover the same dates; only the construction differs.
+
+    LEDGER S20/S21 — `standardizer_a` / `standardizer_b` let the two arms be scored by DIFFERENT
+    standardizers, which is what makes a standardization change testable through this gate at all:
+    the incumbent keeps the shipped winsorized z-score while the challenger uses its own. Both
+    default to None (= the shipped `zscore`), so every existing caller is unchanged.
     """
     out = {"label_a": label_a, "label_b": label_b, "splits": {},
            "min_alpha_gain": min_alpha_gain, "min_tstat_gain": min_tstat_gain}
@@ -3453,9 +3677,9 @@ def holdout_compare_panels(panel_a, panel_b, cols, label_a="A", label_b="B", n_q
     improves = []
     for name, ds in halves.items():
         ra = quantile_backtest(panel_a[panel_a["date"].isin(ds)], cols, w,
-                               n_q=n_q, horizon=horizon) or {}
+                               n_q=n_q, horizon=horizon, standardizer=standardizer_a) or {}
         rb = quantile_backtest(panel_b[panel_b["date"].isin(ds)], cols, w,
-                               n_q=n_q, horizon=horizon) or {}
+                               n_q=n_q, horizon=horizon, standardizer=standardizer_b) or {}
         dt = (None if ra.get("long_short_tstat") is None or rb.get("long_short_tstat") is None
               else rb["long_short_tstat"] - ra["long_short_tstat"])
         da = (None if ra.get("top_decile_alpha") is None or rb.get("top_decile_alpha") is None

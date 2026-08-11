@@ -5839,6 +5839,454 @@ def test_x3_alpha_series_reproduces_quantile_backtest():
     assert abs(float(np.mean(s["alpha"]) * 4.0) - r["top_decile_alpha"]) < 1e-12
 
 
+def test_v2g_return_series_is_opt_in_and_changes_nothing_else():
+    """V2G added the per-period draws to `quantile_backtest`. It is opt-in precisely so that no
+    existing caller's payload — including the tracked BACKTEST_RESULTS.json — moves by one bit."""
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=12, n_names=60, seed=11)
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    off = quantile_backtest(p, cols, w, n_q=10, horizon=63)
+    on = quantile_backtest(p, cols, w, n_q=10, horizon=63, return_series=True)
+    assert "series" not in off, "the draws must NOT appear unless asked for"
+    assert set(on) - set(off) == {"series"}, f"only `series` may be added; got {set(on) - set(off)}"
+    for k in off:
+        assert repr(off[k]) == repr(on[k]), f"{k} moved when the series was requested"
+
+
+def test_v2g_the_series_reproduces_its_own_summary():
+    """RUN_RULES A9 — the draws must be the same object the summary is computed from, or a
+    paired comparison built on them is measuring something the headline is not."""
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=12, n_names=60, seed=11)
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    r = quantile_backtest(p, cols, w, n_q=10, horizon=63, return_series=True)
+    s = r["series"]
+    ppy = 252.0 / 63
+    assert len(s["alpha"]) == len(s["long_short"]) == r["n_periods"]
+    assert len(s["dates"]) == len(s["n_scored"]) == r["n_periods"], "every draw must be dated"
+    assert abs(float(np.mean(s["alpha"]) * ppy) - r["top_decile_alpha"]) < 1e-12
+    assert abs(float(np.mean(s["long_short"]) * ppy) - r["long_short_ann"]) < 1e-12
+
+
+def test_v2g_the_shipped_series_agrees_with_the_x3_implementation():
+    """There were two implementations of this series. They must not drift apart."""
+    from valuation.edge.ablation import alpha_series
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=12, n_names=60, seed=11)
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    shipped = quantile_backtest(p, cols, w, n_q=10, horizon=63, return_series=True)["series"]
+    x3 = alpha_series(p, cols, w, n_q=10)
+    assert len(shipped["alpha"]) == len(x3["alpha"])
+    for a, b in zip(shipped["alpha"], x3["alpha"]):
+        assert abs(a - b) < 1e-12, f"the two alpha series disagree: {a} vs {b}"
+
+
+def test_v2g_dropping_a_theme_equals_the_live_product_losing_it():
+    """The claim V2G rests on: the four-theme restricted arm IS the live book, not a model of it.
+
+    `composite` renormalises by the PRESENT-weight mass, so a theme that is absent (all-NaN) or
+    constant (z-scores to all-NaN, because `zscore` returns NaN on zero variance) leaves both the
+    numerator and the denominator identically — which is exactly what dropping it from `weights`
+    does. If this ever stops holding, the restricted arm stops describing the live product and
+    V2G's verdict describes nothing.
+    """
+    import numpy as _np
+
+    from valuation.edge.fundamental_panel import composite_from_frame
+    from valuation.screener.cross_sectional import zscore
+
+    p = _u7_panel(n_dates=3, n_names=60, seed=11)
+    sub = p[p["date"] == sorted(p["date"].unique())[0]].copy()
+    live, dead = ["quality", "momentum"], ["value", "size"]
+    w_all = {t: 0.125 for t in live + dead}
+    w_live = {t: 0.125 for t in live}
+
+    want = composite_from_frame(sub, list(w_live), w_live, zscore)
+
+    absent = sub.copy()
+    for t in dead:
+        absent[t] = _np.nan
+    got_absent = composite_from_frame(absent, list(w_all), w_all, zscore)
+
+    const = sub.copy()                      # the LIVE `insider` case: present but one value
+    for t in dead:
+        const[t] = 0.0
+    got_const = composite_from_frame(const, list(w_all), w_all, zscore)
+
+    assert _np.isfinite(want).any(), "the fixture must produce a scorable cross-section"
+    for got, label in ((got_absent, "absent"), (got_const, "constant")):
+        assert _np.array_equal(_np.isfinite(want), _np.isfinite(got)), \
+            f"{label}: the scorable-name set changed"
+        both = _np.isfinite(want) & _np.isfinite(got)
+        dev = float(_np.max(_np.abs(want[both] - got[both])))
+        assert dev <= 1e-12, f"{label}: composite differs by {dev:.3e}"
+
+
+def test_s22_right_censoring_is_not_delisting():
+    """THE defect S22 can have, pre-committed in the register as the most likely way the study
+    fabricates a result.
+
+    `_forward_return` has a delisting branch: if the horizon-end price is NaN because the
+    survivorship mask cut the name mid-window, it falls back to the last price the name actually
+    traded at, realizing the delisting instead of discarding the name. That is correct.
+
+    It is CATASTROPHIC if it also fires when the CALENDAR ends before the window does. There the
+    return simply does not exist, and a last-price fallback would return a SHORTER realized
+    return labelled as a long-horizon one — for the most recent dates specifically, flattering
+    short horizons and penalising long ones. The whole term structure is that comparison.
+    """
+    from valuation.edge.fundamental_panel import _forward_return
+
+    closes = np.array([10.0, 11.0, 12.0, 13.0, 14.0])       # a 5-day calendar, no NaNs at all
+    n = len(closes)
+
+    # in-range: an ordinary forward return
+    assert abs(_forward_return(closes, 0, 2, n) - 0.2) < 1e-12
+
+    # the last index the window can reach is n-1, so i+h == n-1 is the last OBSERVABLE window
+    assert abs(_forward_return(closes, 0, 4, n) - 0.4) < 1e-12
+
+    # i + h == n and beyond run past the calendar -> the return DOES NOT EXIST
+    assert _forward_return(closes, 1, 4, n) is None, "i+h == n must be censored, not salvaged"
+    assert _forward_return(closes, 4, 1, n) is None
+    assert _forward_return(closes, 0, 99, n) is None, "a far-future window cannot be realized"
+
+    # and the failure mode specifically: censoring must NOT return the last traded price. If it
+    # did, this would come back as +0.4 (10 -> 14) rather than None.
+    assert _forward_return(closes, 1, 4, n) != 0.2727272727272727
+
+
+def test_s22_the_delisting_branch_still_fires_inside_the_calendar():
+    """The other half of the same rule: censoring must not be implemented by refusing every NaN.
+    A name that stops trading INSIDE an observable window is a delisting and must realize its
+    last traded price, or the survivorship bias the mask exists to remove comes back."""
+    from valuation.edge.fundamental_panel import _forward_return
+
+    closes = np.array([10.0, 11.0, 12.0, np.nan, np.nan, 20.0, 21.0])
+    n = len(closes)
+    # window 0 -> 4 ends on a NaN but the name traded at 12.0 inside it
+    got = _forward_return(closes, 0, 4, n)
+    assert got is not None, "a delisting inside the calendar must still produce a return"
+    assert abs(got - 0.2) < 1e-12, f"expected the last traded price (12.0), got {got}"
+    # a name with no valid price anywhere in the window yields nothing
+    assert _forward_return(np.array([10.0, np.nan, np.nan]), 0, 2, 3) is None
+    # a non-positive or missing start price is not a return
+    assert _forward_return(np.array([0.0, 11.0, 12.0]), 0, 2, 3) is None
+    assert _forward_return(np.array([np.nan, 11.0, 12.0]), 0, 2, 3) is None
+
+
+def test_s22_extra_horizons_are_off_by_default_and_the_base_one_is_the_shipped_column():
+    """S22's controls C0 and C3, end to end on a real panel build rather than by inspection.
+
+    C3 — with no extra horizons requested the frame must be column-for-column what it was, so
+    the tracked BACKTEST_RESULTS.json cannot move.
+    C0 — asking for the BASE horizon as an "extra" must reproduce the shipped `fwd_ret` exactly.
+    If it does not, the added code path is not the shipped rule and every arm built on it is
+    measuring something else.
+    """
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+
+    prov = _SynthPIT(30, seed=7)
+    tickers = list(prov.q.keys())
+    kw = dict(rebalance_days=63, horizon=21, lookback_years=4)
+
+    plain = build_fundamental_panel(prov, tickers, **kw)
+    assert not plain.empty
+    assert not [c for c in plain.columns if str(c).startswith("fwd_ret_h")], \
+        "no extra horizon columns may appear unless asked for"
+
+    withx = build_fundamental_panel(prov, tickers, extra_horizons=[21, 42, 200], **kw)
+    assert list(plain.columns) == [c for c in withx.columns
+                                   if not str(c).startswith("fwd_ret_h")], \
+        "requesting extra horizons must ADD columns and move none"
+    assert len(withx) == len(plain), "the row set must not change"
+
+    a = pd.to_numeric(withx["fwd_ret"], errors="coerce").to_numpy(dtype=float)
+    b = pd.to_numeric(withx["fwd_ret_h21"], errors="coerce").to_numpy(dtype=float)
+    both_nan = (~np.isfinite(a)) & (~np.isfinite(b))
+    dev = np.where(both_nan, 0.0, np.abs(a - b))
+    assert float(np.max(dev)) == 0.0, f"C0: fwd_ret_h21 != fwd_ret, max dev {np.max(dev):.3e}"
+
+    # A window long enough to run past the calendar must lose whole DATES from the END. The
+    # calendar ends for every name at once, so censoring removes a SUFFIX of dates rather than
+    # scattering NaNs — and a scatter would be the signature of the delisting branch firing on
+    # censored windows, which is the defect this whole design turns on.
+    dates = sorted(withx["date"].unique())
+    obs = sorted(withx.loc[withx["fwd_ret_h200"].notna(), "date"].unique())
+    assert obs, "a 200-day window must still be observable on the early dates"
+    assert len(obs) < len(dates), "a 200-day window must censor the most recent dates"
+    assert obs == dates[:len(obs)], \
+        f"censoring must remove a suffix of dates, not a scatter; got {obs} of {dates}"
+
+
+def test_s22_extra_horizons_rejects_nonsense():
+    """A zero or negative horizon would silently produce a same-day or backward-looking
+    'forward' return."""
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+
+    prov = _SynthPIT(4, seed=1)
+    for bad in ([0], [-63], [63, 0]):
+        try:
+            build_fundamental_panel(prov, list(prov.q.keys()), extra_horizons=bad,
+                                    rebalance_days=63, horizon=21, lookback_years=4)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"extra_horizons={bad} must raise")
+
+
+def test_s22_ret_col_defaults_to_the_shipped_column_and_can_select_another():
+    """`ret_col` is opt-in. The default must be bit-identical to the shipped call, and pointing
+    it at a different column must actually change the answer — otherwise the term structure
+    would be eight copies of one arm and every horizon would agree by construction."""
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=12, n_names=60, seed=11)
+    rng = np.random.default_rng(4)
+    p["fwd_ret_h126"] = p["fwd_ret"].values + rng.normal(0, 0.05, len(p))
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+
+    base = quantile_backtest(p, cols, w, n_q=10, horizon=63)
+    same = quantile_backtest(p, cols, w, n_q=10, horizon=63, ret_col="fwd_ret")
+    for k in base:
+        assert repr(base[k]) == repr(same[k]), f"{k} moved when ret_col was passed explicitly"
+
+    other = quantile_backtest(p, cols, w, n_q=10, horizon=126, ret_col="fwd_ret_h126")
+    assert other["top_decile_alpha"] != base["top_decile_alpha"], \
+        "a different forward column must give a different arm"
+
+
+def test_s22_a_censored_horizon_loses_dates_rather_than_scoring_them_short():
+    """The panel-level consequence of the censoring rule. A long-horizon column is NaN on the
+    most recent dates; `quantile_backtest` must DROP those dates, not score them on a partial
+    cross-section. A silently shortened date is indistinguishable from a real one in the output.
+    """
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=12, n_names=60, seed=11)
+    dates = sorted(p["date"].unique())
+    p["fwd_ret_h504"] = p["fwd_ret"]
+    p.loc[p["date"].isin(dates[-3:]), "fwd_ret_h504"] = np.nan     # right-censor the last 3
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+
+    full = quantile_backtest(p, cols, w, n_q=10, horizon=63, return_series=True)
+    cens = quantile_backtest(p, cols, w, n_q=10, horizon=504, ret_col="fwd_ret_h504",
+                             return_series=True)
+    assert cens["n_periods"] == full["n_periods"] - 3
+    assert cens["series"]["dates"] == full["series"]["dates"][:-3]
+    # and the dates it DID score are scored identically — the censoring removed dates, nothing else
+    for a, b in zip(cens["series"]["alpha"], full["series"]["alpha"][:-3]):
+        assert abs(a - b) < 1e-12
+
+
+def test_s22_quantile_backtest_refuses_an_absent_return_column():
+    """A typo in a column name must not silently fall back to `fwd_ret` and report the 63-day
+    answer under a 504-day label."""
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=8, n_names=40, seed=5)
+    try:
+        quantile_backtest(p, ["quality"], {"quality": 1.0}, ret_col="fwd_ret_h999")
+    except KeyError as exc:
+        assert "fwd_ret_h999" in str(exc)
+    else:
+        raise AssertionError("a missing forward-return column must raise, not fall back")
+
+
+def test_s22_hac_lag_is_the_overlap_the_grid_induces():
+    """At horizon H with a 63-day rebalance, consecutive windows overlap by H/63 - 1 periods.
+    The lag is a property of the design and is pinned so it cannot drift into a tuned choice.
+    At H=63 it must be 1 — the shipped R9 convention, not 0."""
+    from scripts.term_structure import hac_lag, ret_col, HORIZONS
+
+    assert [hac_lag(h) for h in HORIZONS] == [1, 1, 2, 3, 4, 5, 6, 7]
+    assert hac_lag(63) == 1, "the base horizon keeps the shipped lag-1 convention"
+    assert ret_col(63) == "fwd_ret", "the base horizon must read the SHIPPED column"
+    assert ret_col(252) == "fwd_ret_h252"
+
+
+def test_s22_kaplan_meier_is_censoring_aware():
+    """Tenure spells still open at the panel end are right-censored. Discarding them biases the
+    median DOWN, which is why KM is the primary and the naive median is reported beside it."""
+    from scripts.term_structure import _km
+
+    # four spells end at 1, one runs to 4 and is still open
+    spells = [(1, False), (1, False), (1, False), (1, False), (4, True)]
+    curve, median = _km(spells)
+    assert median == 1, f"four of five leave at t=1, so the median is 1; got {median}"
+    assert abs(curve[0]["survival"] - 0.2) < 1e-12
+
+    # censoring must RAISE the survival curve relative to treating censored spells as events
+    a, _ = _km([(1, False), (2, True), (2, True), (2, True)])
+    b, _ = _km([(1, False), (2, False), (2, False), (2, False)])
+    assert a[-1]["survival"] > b[-1]["survival"], \
+        "treating an ongoing spell as an exit must not survive better than censoring it"
+
+    # a single ongoing spell yields no events, so the median is undefined rather than 0
+    _, none_median = _km([(3, True)])
+    assert none_median is None
+
+
+def _s23_panel(n_dates=20, n_names=80, seed=3):
+    """A synthetic panel with the columns `_backtest_hold` reads."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for di in range(n_dates):
+        d = f"20{10 + di // 4}-{1 + 3 * (di % 4):02d}-15"
+        for j in range(n_names):
+            rows.append({"date": d, "ticker": f"T{j:02d}",
+                         "quality": float(rng.normal()), "momentum": float(rng.normal()),
+                         "fwd_ret": float(rng.normal(0, 0.1)),
+                         "bench_ret": float(rng.normal(0, 0.05)),
+                         "market_cap": 1e9 * (j + 1)})
+    return pd.DataFrame(rows)
+
+
+def test_s23_the_new_exits_are_opt_in_and_change_nothing():
+    """S23 added four exits, a cost model and a series to `_backtest_hold`. Every one is
+    opt-in, so the shipped book — which BACKTEST_RESULTS.json reports — cannot move by a bit."""
+    from valuation.edge.fundamental_panel import _backtest_hold
+
+    p = _s23_panel()
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    off = _backtest_hold(p, cols, w, top_n=10)
+    explicit = _backtest_hold(p, cols, w, top_n=10, take_profit=None, stop_loss=None,
+                              fv_at_or_above=None, disable_rank_exit=False,
+                              cost_bps_one_way=None, return_series=False)
+    assert set(off) == set(explicit), "passing the new defaults must add no keys"
+    for k in off:
+        assert repr(off[k]) == repr(explicit[k]), f"{k} moved at default settings"
+    assert off["charges_costs"] is False
+    assert "series" not in off and "exit_reasons" not in off
+
+
+def test_s23_costs_are_charged_in_the_right_direction_and_size():
+    """The whole cost of an exit rule is turnover, so a race scored gross would flatter
+    whichever arm trades most. The drag is exact for an equal-weighted book:
+    bps/1e4 * (bought + sold) / held."""
+    from valuation.edge.fundamental_panel import _backtest_hold
+
+    p = _s23_panel()
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    g = _backtest_hold(p, cols, w, top_n=10, return_series=True)
+    n = _backtest_hold(p, cols, w, top_n=10, cost_bps_one_way=33.4, return_series=True)
+    assert n["cagr"] < g["cagr"], "charging costs must not improve the book"
+    assert n["charges_costs"] is True and n["cost_bps_one_way"] == 33.4
+    s = n["series"]
+    for k in range(len(s["net"])):
+        want = (33.4 / 1e4) * (s["bought"][k] + s["sold"][k]) / s["held"][k]
+        assert abs(s["drag"][k] - want) < 1e-12, f"period {k} drag is not the stated formula"
+        assert abs((s["gross"][k] - s["drag"][k]) - s["net"][k]) < 1e-12
+    # a zero-cost run must reproduce the gross series exactly
+    assert g["series"]["gross"] == n["series"]["gross"]
+    assert all(d == 0.0 for d in g["series"]["drag"])
+
+
+def test_s23_each_exit_rule_actually_fires_and_is_attributed():
+    """An exit rule that never triggers would make its arm a silent copy of the incumbent, and
+    the race would report a dead heat that means nothing."""
+    from valuation.edge.fundamental_panel import _backtest_hold
+
+    p = _s23_panel()
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    base = _backtest_hold(p, cols, w, top_n=10, return_series=True)
+    assert set(base["exit_reasons"]) == {"rank"}
+
+    tp = _backtest_hold(p, cols, w, top_n=10, take_profit=0.25, stop_loss=0.08,
+                        return_series=True)
+    assert tp["exit_reasons"].get("take_profit", 0) > 0
+    assert tp["exit_reasons"].get("stop_loss", 0) > 0
+
+    dates = sorted(p["date"].unique())
+    fv = {(d, "T00") for d in dates} | {(d, "T01") for d in dates}
+    f = _backtest_hold(p, cols, w, top_n=10, fv_at_or_above=fv, return_series=True)
+    assert f["exit_reasons"].get("fair_value", 0) > 0
+
+    # every exit is attributed to exactly one reason, so the counts sum to the completed spells
+    for r in (base, tp, f):
+        assert sum(r["exit_reasons"].values()) > 0
+
+
+def test_s23_the_never_exit_control_never_sells_and_its_book_grows():
+    """C-NEVER is a CONTROL, not a candidate: its book is not size-comparable to the others,
+    and this is the test that makes that concrete rather than a caveat in prose."""
+    from valuation.edge.fundamental_panel import _backtest_hold
+
+    p = _s23_panel()
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    base = _backtest_hold(p, cols, w, top_n=10, return_series=True)
+    nv = _backtest_hold(p, cols, w, top_n=10, disable_rank_exit=True, return_series=True)
+    assert nv["exit_reasons"] == {}, "the control must never sell"
+    assert nv["held_max"] > base["held_max"], "the control's book must grow past the incumbent's"
+    assert nv["series"]["sold"] == [0] * len(nv["series"]["sold"])
+
+
+def test_s23_min_hold_binds_every_exit_rule_alike():
+    """`min_hold` is held identical across arms so churn protection is not a confound. A
+    take-profit that could fire on the entry period would give the TP/SL arms a different
+    churn floor from the incumbent and the race would be measuring two things."""
+    from valuation.edge.fundamental_panel import _backtest_hold
+
+    p = _s23_panel()
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    # a take-profit of -1000% would fire instantly if min_hold did not bind it
+    r = _backtest_hold(p, cols, w, top_n=10, take_profit=-10.0, min_hold=2, return_series=True)
+    assert r["series"]["sold"][0] == 0, "nothing may be sold in the entry period"
+    assert r["series"]["sold"][1] == 0, "nor before min_hold periods have passed"
+    assert sum(r["series"]["sold"]) > 0, "and it must fire once the minimum hold is met"
+
+
+def test_s23_offline_beta_reproduces_the_ladder_without_its_network_rung():
+    """The PIT valuation must never reach `data.beta.compute_beta`, which fetches TODAY'S
+    prices — look-ahead in a backtest. `offline_beta` is rungs 1 -> (2 or 4), never 3."""
+    from valuation.engine.calibration import offline_beta
+    from valuation.engine.wacc import BETA_FALLBACK, BETA_HIGH_CAP, BETA_LOW_TRIGGER
+
+    assert offline_beta(1.2) == 1.2, "an in-range PIT beta is used as-is (rung 2)"
+    assert offline_beta(BETA_HIGH_CAP) == BETA_HIGH_CAP, "the cap itself is in range"
+    # everything the ladder would have sent to the network lands on the STATED CONSTANT
+    for bad in (None, float("nan"), 0.0, -1.0, BETA_LOW_TRIGGER, BETA_LOW_TRIGGER / 2,
+                BETA_HIGH_CAP + 0.01, 99.0):
+        assert offline_beta(bad) == BETA_FALLBACK, f"{bad} must fall to the stated constant"
+
+
+def test_s23_lean_fair_value_beta_override_is_opt_in():
+    """`lean_fair_value` gained one optional argument. Default None must leave the live path
+    exactly as it was, or the website's own valuations move."""
+    import inspect
+
+    from valuation.engine.calibration import lean_fair_value
+
+    sig = inspect.signature(lean_fair_value)
+    assert sig.parameters["beta_override"].default is None
+    assert list(sig.parameters) == ["cd", "cfg", "with_reverse", "beta_override"], \
+        "the override must be appended, never inserted ahead of an existing positional"
+
+
+def test_s23_the_valuation_panel_cuts_the_shared_calendar_not_each_ticker():
+    """AUDIT B6, in the valuation panel. It used to request a per-ticker tail — the route
+    `data_providers.price_history` says 'is never the panel's route now' — which put its early
+    cross-sections on names that had already stopped trading. If this regresses, the fair-value
+    arm silently scores a different calendar from the factor panel and S23's C1 is void."""
+    import inspect
+
+    from valuation.engine import calibration as C
+
+    src = inspect.getsource(C.build_valuation_panel)
+    assert "price_history(t, days=None)" in src, \
+        "the valuation panel must ask for the WHOLE series (B6)"
+    assert "frame.iloc[-_CAL_DAYS:]" in src, \
+        "the SHARED calendar must be cut once, after the frame is built (B6)"
+    # Scoped to the PER-TICKER fetch. The benchmark is fetched with an explicit `days=` too,
+    # and that one is legitimate: SPY is a single series reindexed onto the panel calendar, so
+    # it cannot create the union-calendar defect B6 is about.
+    assert "provider.price_history(t, days=TD" not in src, \
+        "the per-ticker tail must not come back"
+
+
 def test_x3_deflated_sharpe_at_round_trips_and_falls_with_n():
     """X3's eight arms raise N, and a higher N must LOWER the Deflated Sharpe. That direction
     is the entire point of M1; a re-derivation that moved it the other way would be wrong."""
@@ -6171,6 +6619,504 @@ def test_session10_the_placebo_writer_summarises_the_hac_statistic_it_computes()
         assert out["null"][k].get("p95") is not None, f"{k} has no p95 -- no floor can be read"
     for k in ("long_short_t_nw_over_2", "long_short_t_nw_over_2_14"):
         assert k in out["rates"], f"{k} missing; the HAC bar cannot be scored against noise"
+
+
+def test_session11_the_ml_executor_still_matches_the_register_it_executed():
+    """`PREREG_ml_combiner.md` is only worth anything if the code that ran it still says what it
+    said. This pins the four things a later session could quietly widen: the grid is EIGHT points
+    (not nine), the features are the SEVEN deployed themes (never `low_risk`, `sentiment`, or the
+    56 raw signals), the anti-overfit hyperparameters are held rather than searched, and the bars
+    are the calibrated ones.
+    """
+    from scripts import ml_combiner as M
+    assert len(M.GRID) == 8, f"the register froze 8 grid points, found {len(M.GRID)}"
+    assert {tuple(sorted(g.items())) for g in M.GRID} == {
+        tuple(sorted({"max_depth": d, "learning_rate": lr, "max_iter": it}.items()))
+        for d in (2, 3) for lr in (0.03, 0.10) for it in (100, 300)}, "grid drifted"
+    assert M.THEMES == ["value", "quality", "momentum", "insider", "capital_discipline",
+                        "size", "institutional"], "feature set drifted from the register"
+    for banned in ("low_risk", "sentiment"):
+        assert banned not in M.THEMES, \
+            f"{banned} is a theme-membership change smuggled in as a feature"
+    assert M.FIXED["min_samples_leaf"] == 200 and M.FIXED["l2_regularization"] == 1.0 and \
+        M.FIXED["early_stopping"] is False and M.FIXED["random_state"] == 0, \
+        "an anti-overfit constant moved; that is a new trial, not a clarification"
+    assert abs(M.LS_HAC_FLOOR - 2.2837) < 1e-9, "LS floor must be session 10's HAC-calibrated bar"
+    assert abs(M.MIN_ALPHA_MARGIN - 0.0195) < 1e-9, "alpha margin must be X7's 1.95pp"
+    assert abs(M.MIN_T_MARGIN - 0.25) < 1e-9, "t-margin must be the standing MIN_HOLDOUT 0.25"
+
+
+def test_session12_the_trial_counter_reads_verdicts_from_the_verdict_column_only():
+    """THE FIXTURE THE REPAIR EXISTS FOR.
+
+    `research_log._parse` used to test `\\bFIXED\\b` against every cell of a row joined together,
+    so a row whose hypothesis, threshold, source or note merely contained the word "fixed" was
+    silently dropped from `N`. An understated `N` OVERSTATES the significance of every DSR-gated
+    claim in the project — M1's own error, committed inside M1's own parser.
+
+    On the log as it stands the defect is LATENT (session 12 measured it: zero rows differ, on all
+    ten historical revisions), so nothing but a fixture can prove the repair does anything. This
+    row set is built so the OLD parser and the NEW one give different answers: prose containing
+    "fixed", "adopted" and "rejected" in every field except the verdict, a grid multiplier that
+    only counts when read from its own column, and a domain word planted in free text.
+    """
+    import tempfile
+    from valuation.edge import research_log as RL
+
+    md = (
+        "# fixture\n\n"
+        "| id | date | domain | pre | hypothesis | metric | verdict | n | source |\n"
+        "|---|---|---|---|---|---|---|---|---|\n"
+        # counts: the note says "fixed" but the VERDICT says REJECTED
+        "| T1 | 2026-08-08 | equity | yes | The defect fixed in session 12 understated N "
+        "| IC t | REJECTED | n=1 | note |\n"
+        # counts: prose full of other verdict words, none of them the verdict
+        "| T2 | 2026-08-08 | equity | yes | Whether the ADOPTED weights beat the rejected ones "
+        "| alpha | NULL | n=3 | a run that fixed nothing |\n"
+        # does NOT count: the verdict column itself says FIXED
+        "| T3 | 2026-08-08 | equity | retro | A real correctness repair | code | FIXED | n=1 "
+        "| adopted nowhere |\n"
+        # does NOT count: the legitimate existing variant value
+        "| T4 | 2026-08-08 | options | retro | Another repair | code | FIXED (relabel only) "
+        "| n=1 | — |\n"
+        # counts, and its DOMAIN must come from the domain column, not the planted word
+        "| T5 | 2026-08-08 | options | yes | Compared against the equity book | PF | ADOPTED "
+        "| n=2 | equity |\n"
+    )
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "RESEARCH_LOG.md")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(md)
+        got = RL._parse(p)
+
+    # --- the repair -------------------------------------------------------------------
+    assert got["rows_counted"] == 3, (
+        f"T1, T2 and T5 are trials; got {got['rows_counted']} rows counted. "
+        "A row is FIXED only when its VERDICT CELL says so.")
+    assert got["rows_fixed"] == 2, f"only T3 and T4 are FIXED; got {got['rows_fixed']}"
+    assert set(got["ids"]) == {"T1", "T2", "T5"}, got["ids"]
+
+    # --- the grid multiplier comes from the `n` column ---------------------------------
+    assert got["trials"] == 1 + 3 + 2, f"expected 6 trials (1+3+2), got {got['trials']}"
+
+    # --- the domain comes from the domain column, not a word planted in free text -------
+    assert got["by_domain"]["equity"] == 4, (
+        f"T1(1)+T2(3) are equity; got {got['by_domain']['equity']}. T5 says `options` in its "
+        "domain column and `equity` in its source — the column wins.")
+    assert got["by_domain"]["options"] == 2, got["by_domain"]
+
+    # --- and the old behaviour really did differ, or this fixture proves nothing --------
+    legacy_counted = 0
+    for ln in md.splitlines():
+        if not ln.startswith("|"):
+            continue
+        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if len(cells) < 4 or cells[0].lower() in ("id",) or set(cells[0]) <= set("-: "):
+            continue
+        if not re.search(r"\bFIXED\b", " ".join(cells).upper()):
+            legacy_counted += 1
+    assert legacy_counted == 1, (
+        f"the fixture must be one the OLD parser got wrong; it counted {legacy_counted} of the "
+        "3 real trials")
+
+
+def test_session12_a_row_with_unescaped_pipes_may_not_silently_lose_its_trials():
+    """FOUND THE HARD WAY, mid-session, by merging another lane.
+
+    O16 writes `|Spearman(term_slope, atm_front)|` for an absolute value inside a markdown table
+    cell. The unescaped `|` splits that cell in two, so every column after it shifts and the row's
+    indices stop meaning what the header says. The column-wise parser then read the `n` field off
+    prose, found no `n=<k>`, and charged the row **1 trial instead of 5** — understating `N`,
+    which is precisely the direction session 12 exists to eliminate. The old whole-line grep was
+    accidentally immune, so the repair would have introduced a regression the defect it replaced
+    did not have.
+
+    A misaligned row therefore resolves toward a LARGER `N` on every field, and is reported in
+    `rows_malformed` rather than silently absorbed.
+    """
+    import tempfile
+    from valuation.edge import research_log as RL
+
+    md = (
+        "| id | date | domain | pre | hypothesis | metric | verdict | n | source |\n"
+        "|---|---|---|---|---|---|---|---|---|\n"
+        # 11 cells, not 9: the metric carries |x| for an absolute value
+        "| O16X | 2026-08-07 | options | yes | a signal is another signal renamed "
+        "| identity arm is |Spearman(a, b)| and var(a)/var(b) | INCONCLUSIVE | n=5 | note |\n"
+        # a well-formed control alongside it, so the guard cannot pass by counting everything
+        "| OKROW | 2026-08-07 | options | yes | something testable | IC t | REJECTED | n=2 "
+        "| note |\n"
+        "| FIXROW | 2026-08-07 | equity | n/a | a repair | code | FIXED | n=1 | note |\n"
+    )
+    with tempfile.TemporaryDirectory() as d:
+        p = os.path.join(d, "RESEARCH_LOG.md")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(md)
+        got = RL._parse(p)
+
+    assert got["trials"] == 7, (
+        f"expected 5 + 2 = 7 trials, got {got['trials']}. A row whose columns are shifted by an "
+        "unescaped `|` must fall back to the whole-line scan and take the LARGER count, never "
+        "silently drop to 1.")
+    assert got["by_domain"]["options"] == 7, got["by_domain"]
+    assert got["rows_fixed"] == 1, "the well-formed FIXED row must still be excluded"
+    mal = got.get("rows_malformed") or []
+    assert [m["id"] for m in mal] == ["O16X"], (
+        f"the misaligned row must be REPORTED, not silently absorbed; got {mal}")
+    assert mal[0]["row_width"] == 11 and mal[0]["header_width"] == 9, mal[0]
+
+
+# --------------------------------------------------------------------------- #
+#  SECTOR-NEUTRAL-B6 — the paired build (PREREG_sector_neutral_b6.md §2)
+#
+#  Both prior sector-neutral rejections built the two arms as two SEPARATE runs, and a full
+#  backtest is not reproducible run to run. These pin the property that makes the re-run
+#  interpretable: one pass, one `metrics` list, two `build_frame` calls, identical rows.
+# --------------------------------------------------------------------------- #
+def _synth_with_sectors(n=30, seed=7, sectors=("Technology", "Utilities", "Healthcare")):
+    """_SynthPIT plus a TICKERS overlay (the only source of `sector` in the panel), and with the
+    fcf/netinc proportionality BROKEN.
+
+    `_SynthPIT.fundamentals_history` emits `fcf = 90*(1+q)` and `netinc = 100*(1+q)`, so the cash
+    conversion ratio is EXACTLY 0.9 for every name and `accruals_q` is a constant column. A
+    constant column's z-score is not a well-defined object, and in this codebase it is worse than
+    undefined: `zscore`'s zero-variance guard tests `sd == 0`, but `pd.Series([0.9]*30).std()` is
+    2.2e-16 rather than 0.0, so the guard does not fire and the column standardises to garbage
+    that is not invariant under a shift. That is a real (reported) defect, but it is not what
+    these tests are about, so the fixture is made non-degenerate instead of the assertion being
+    weakened. See HANDOFF_edge_audit.md session 20.
+    """
+    prov = _SynthPIT(n, seed=seed)
+    if sectors:
+        prov.ticker_meta = lambda t, _s=sectors: {"sector": _s[int(t[1:]) % len(_s)]}
+    base = prov.fundamentals_history
+
+    def _fh(ticker, _b=base):
+        rows = _b(ticker)
+        for k, r in enumerate(rows):
+            # a per-name, per-period wobble so fcf/netinc genuinely disperses
+            r["fcf"] = r["fcf"] * (1.0 + 0.13 * ((int(ticker[1:]) % 7) - 3) + 0.02 * k)
+        return rows
+
+    prov.fundamentals_history = _fh
+    return prov
+
+
+def test_b6_sector_pair_is_off_by_default_and_only_ADDS_columns():
+    """The default payload may not move — BACKTEST_RESULTS.json is built from this frame."""
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+
+    prov = _synth_with_sectors()
+    tickers = list(prov.q.keys())
+    kw = dict(rebalance_days=63, horizon=21, lookback_years=4)
+
+    plain = build_fundamental_panel(prov, tickers, **kw)
+    assert not plain.empty
+    assert not [c for c in plain.columns if str(c).startswith("sn_")], \
+        "no paired columns may appear unless asked for"
+
+    pair = build_fundamental_panel(prov, tickers, sector_neutral_pair=True, **kw)
+    assert list(plain.columns) == [c for c in pair.columns if not str(c).startswith("sn_")], \
+        "the paired build must ADD columns and move none"
+    assert len(pair) == len(plain), "the row set must not change"
+
+
+def test_b6_the_paired_build_leaves_the_FLAT_arm_bit_identical():
+    """The row-defining arm is the shipped one and must not be perturbed by measuring the other.
+
+    If this fails, the re-run's `flat` arm is not the shipped book and control C3 (reproduce the
+    published record to the digit) would be measuring a different object.
+    """
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+    from valuation.screener import settings as S
+
+    prov = _synth_with_sectors()
+    tickers = list(prov.q.keys())
+    kw = dict(rebalance_days=63, horizon=21, lookback_years=4)
+    plain = build_fundamental_panel(prov, tickers, **kw)
+    pair = build_fundamental_panel(prov, tickers, sector_neutral_pair=True, **kw)
+
+    assert list(plain["ticker"]) == list(pair["ticker"]), "row order changed"
+    assert list(plain["date"].astype(str)) == list(pair["date"].astype(str)), "dates changed"
+    for theme in S.FACTORS_ALL:
+        a = pd.to_numeric(plain[theme], errors="coerce").to_numpy(dtype=float)
+        b = pd.to_numeric(pair[theme], errors="coerce").to_numpy(dtype=float)
+        both_nan = (~np.isfinite(a)) & (~np.isfinite(b))
+        dev = float(np.max(np.where(both_nan, 0.0, np.abs(a - b))))
+        assert dev == 0.0, f"{theme}: the paired build moved the flat arm by {dev:.3e}"
+
+
+def test_b6_paired_arms_are_EXACTLY_equal_when_every_sector_is_blank():
+    """The inertness signature, used here as proof the pair really routes through the flag.
+
+    `x - median(x)` over one group is a pure shift and the z-score that follows erases it, so
+    with no TICKERS overlay the two arms must agree to the last bit. A pair path that ignored
+    the flag would pass every other test in this block and fail nothing — except this one.
+    """
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+    from valuation.screener import settings as S
+
+    prov = _synth_with_sectors(sectors=None)          # deliberately NO ticker_meta
+    pair = build_fundamental_panel(prov, list(prov.q.keys()), sector_neutral_pair=True,
+                                   rebalance_days=63, horizon=21, lookback_years=4)
+    assert not pair.empty
+    assert (pair["sector"].astype(str).str.strip() == "").all(), "fixture must have no sectors"
+    for theme in S.FACTORS_ALL:
+        a = pd.to_numeric(pair[theme], errors="coerce").to_numpy(dtype=float)
+        b = pd.to_numeric(pair["sn_" + theme], errors="coerce").to_numpy(dtype=float)
+        both_nan = (~np.isfinite(a)) & (~np.isfinite(b))
+        dev = float(np.max(np.where(both_nan, 0.0, np.abs(a - b))))
+        assert dev < 1e-12, f"{theme}: blank sectors must make the arms identical, dev {dev:.3e}"
+
+
+def test_b6_paired_arms_diverge_when_sectors_are_real_and_add_no_missing_values():
+    """C2 (the toggle is not inert) and C6 (median-subtraction creates no NEW missing value).
+
+    C6 is not cosmetic: a new NaN would mean the two arms score different NAMES, and the whole
+    point of the one-pass build is that they cannot.
+    """
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+    from valuation.screener import settings as S
+
+    prov = _synth_with_sectors()
+    pair = build_fundamental_panel(prov, list(prov.q.keys()), sector_neutral_pair=True,
+                                   rebalance_days=63, horizon=21, lookback_years=4)
+    assert not pair.empty
+    moved = []
+    for theme in S.FACTORS_ALL:
+        a = pd.to_numeric(pair[theme], errors="coerce")
+        b = pd.to_numeric(pair["sn_" + theme], errors="coerce")
+        assert int(b.isna().sum()) <= int(a.isna().sum()), (
+            f"{theme}: sector-neutral created {int(b.isna().sum()) - int(a.isna().sum())} "
+            f"NEW missing values — the arms would score different names")
+        ok = a.notna() & b.notna()
+        if ok.any():
+            moved.append(float((b[ok] - a[ok]).abs().mean()))
+    assert max(moved) > 1e-6, f"with real sectors the arms must diverge somewhere: {moved}"
+
+
+def test_b6_zscore_zero_variance_guard_does_not_fire_on_a_constant_column():
+    """A DEFECT PINNED, NOT FIXED — found by the B6 re-run, reported, deliberately not repaired.
+
+    `cross_sectional.zscore` guards degeneracy with `if not sd or np.isnan(sd) or sd == 0`.
+    That guard assumes a constant cross-section has `sd == 0`. Whether it does is
+    VALUE-DEPENDENT, because pandas reaches the variance through a sum of squares: it is exactly
+    0.0 for 0.0, 50.0, 2.5, 0.125 and 0.07, and 1e-16-ish for 0.9, 0.1, 1/3 and 12.34. When it
+    misses, `zscore` does not return NaN — it returns a fabricated pattern with max |z| = 1.0,
+    built entirely out of floating-point residue. A constant signal therefore does not reliably
+    neutralise itself; it can inject invented ±1 scores into a theme.
+
+    Why it is pinned rather than fixed: `zscore` is on the live scoring path and every published
+    figure in this project runs through it. Changing it is a scoring change, therefore a VINTAGE
+    EVENT, and it is not this register's to make. Pinning it means a future fix cannot land
+    silently — this test fails, and whoever fixes it has to update the record.
+
+    It also corrects a claim in the record: V2G says a constant `insider` means "`zscore` returns
+    all-NaN". That is true only because the live `insider` is constant at EXACTLY 0.0
+    (`(50 - 50) / 25`), where the sum of squares really is 0. It is not a general property, and
+    quoting it as one would be wrong.
+    """
+    from valuation.screener.cross_sectional import zscore
+
+    # The guard DOES work for these — so "a constant column becomes NaN" is true sometimes,
+    # which is exactly what makes the failure hard to notice.
+    for c in (0.0, 50.0, 2.5, 0.125):
+        s = pd.Series([c] * 30)
+        assert s.std(ddof=0) == 0.0, f"expected an exact zero variance for {c}"
+        assert zscore(s).isna().all(), f"a column constant at {c} must degrade to NaN"
+
+    # And it does NOT work for these. Same shape of input, opposite behaviour.
+    for c in (0.9, 0.1, 12.34):
+        s = pd.Series([c] * 30)
+        assert s.nunique() == 1, "fixture must be constant"
+        assert s.std(ddof=0) != 0.0, (
+            f"if pandas now returns an exact 0 for a constant {c} series, the guard works and "
+            f"this defect is fixed — update HANDOFF_edge_audit.md session 20 and the record")
+        z = zscore(s)
+        assert not z.isna().all(), (
+            f"zscore({c}-constant) no longer produces garbage — the defect is FIXED. That is "
+            f"good news, but it is a scoring change: update the record and treat it as a "
+            f"vintage event rather than deleting this test")
+        assert abs(float(np.nanmax(np.abs(z.to_numpy(dtype=float)))) - 1.0) < 1e-9, (
+            "the fabricated pattern is the ±1 residue one; a different shape means the "
+            "mechanism changed and the write-up needs re-checking")
+
+    # And the consequence that matters: the output is not invariant to a shift, which is what
+    # made a constant-grouping sector-neutral pass look like a real difference.
+    near = pd.Series([0.9] * 28 + [0.9 + 1e-16, 0.9 - 1e-16])
+    assert float((zscore(near) - zscore(near - 0.9)).abs().max()) > 1.0, \
+        "the shift-invariance failure on a degenerate column is the observable symptom"
+
+
+# =============================================================================================
+# S20 / S21 — the construction pair: rank composite, and winsorisation.
+# PREREG_s20_s21_construction.md, committed alone at 27af414.
+# =============================================================================================
+
+
+def test_s2021_rank_score_is_the_ONE_definition_and_standardize_factors_uses_it():
+    """Two rank implementations that drift apart is a defect class this project has paid for
+    four times (`assets`, the SF3 positional-arg bug, the five empty factors, `invcap`)."""
+    from valuation.screener.cross_sectional import rank_score, standardize_factors
+    rng = np.random.default_rng(3)
+    s = pd.Series(np.concatenate([rng.normal(size=120), [40.0, -50.0]]))
+    inline = (s.astype(float).rank(pct=True) - 0.5) * 2.0
+    assert np.allclose(rank_score(s).to_numpy(), inline.to_numpy(), equal_nan=True)
+    got = standardize_factors(pd.DataFrame({"a": s}), ["a"], method="rank")["a"]
+    assert np.allclose(got.to_numpy(), inline.to_numpy(), equal_nan=True), \
+        "standardize_factors(method='rank') must go through rank_score, not a second copy"
+    r = rank_score(s)
+    assert -1.0 <= float(r.min()) and float(r.max()) <= 1.0
+    s2 = s.copy()
+    s2.iloc[:4] = np.nan
+    assert int(rank_score(s2).isna().sum()) == 4, "NaN must propagate, not become mid-pack"
+
+
+def test_s2021_zscore_nowinsor_disables_the_clip_that_zscore_applies():
+    """S21's challenger. `winsorize(s, 0)` clips to [min, max], an exact no-op."""
+    from valuation.screener.cross_sectional import winsorize, zscore, zscore_nowinsor
+    rng = np.random.default_rng(11)
+    s = pd.Series(np.concatenate([rng.normal(size=200), [50.0, -60.0, 80.0]]))
+    assert np.allclose(winsorize(s, 0.0).to_numpy(), s.to_numpy()), \
+        "p=0 must be an exact no-op, so S21 needs no change to winsorize itself"
+    assert np.allclose(zscore_nowinsor(s).to_numpy(), zscore(s, p=0.0).to_numpy(),
+                       equal_nan=True)
+    # and it is NOT inert: the shipped 2% clip really does bind on a tailed column
+    assert float(zscore_nowinsor(s).abs().max()) > float(zscore(s).abs().max()) + 1.0, \
+        "removing the clip must let the tails back in, or S21 is testing nothing"
+
+
+def test_s2021_rank_is_NOT_invariant_to_winsorization_correcting_the_register():
+    """PREREG §3 and control C7 registered this as 'must be bit-identical'. IT IS NOT, and the
+    reason is exact: rank is invariant to STRICTLY monotone transforms, and winsorisation is only
+    WEAKLY monotone — it is flat in the clipped tails, so it creates TIES, and a percentile rank
+    is not invariant to ties. The difference is confined to the clipped tails and is ~2p of rows.
+
+    Pinned so the correction cannot be quietly lost: S20 does NOT strictly subsume S21."""
+    from valuation.screener.cross_sectional import rank_score, winsorize
+    rng = np.random.default_rng(5)
+    s = pd.Series(rng.normal(size=500))
+    d = (rank_score(s) - rank_score(winsorize(s, 0.02))).abs()
+    assert float(d.max()) > 0.0, "if this ever passes bit-identically the tie analysis is wrong"
+    frac = float((d > 1e-12).mean())
+    assert 0.01 < frac < 0.10, f"differences must sit in the clipped tails only, got {frac:.3f}"
+    # the middle of the distribution IS invariant — that half of the claim survives
+    mid = (s > s.quantile(0.05)) & (s < s.quantile(0.95))
+    assert float(d[mid].max()) == 0.0, "only the clipped tails may move"
+
+
+def test_s2021_spearman_ic_CANNOT_see_a_rank_transform_while_the_composite_moves():
+    """THE STANDING RULE, as an identity rather than an anecdote: never judge a construction
+    change by per-signal IC. Rank-IC is invariant to a monotone rescaling; the composite is a
+    weighted SUM and is scale-sensitive. P6.3 is the expensive precedent (robust z halved the
+    long-short t while every theme IC stayed flat)."""
+    from valuation.edge.fundamental_panel import _spearman, composite
+    from valuation.screener.cross_sectional import rank_score, zscore
+    rng = np.random.default_rng(17)
+    n = 400
+    a = pd.Series(rng.normal(size=n))
+    b = pd.Series(np.concatenate([rng.normal(size=n - 3), [30.0, -40.0, 60.0]]))
+    fwd = (0.4 * a + 0.2 * b + rng.normal(size=n)).to_numpy()
+    # S20 is INVISIBLE to per-signal IC: ranking is strictly monotone, so the IC is unchanged
+    # to the last bit.
+    for col in (a, b):
+        i_raw = _spearman(col.to_numpy(dtype=float), fwd)
+        i_r = _spearman(rank_score(col).to_numpy(dtype=float), fwd)
+        assert abs(float(i_raw) - float(i_r)) < 1e-12, \
+            "per-signal Spearman IC is mathematically incapable of seeing a rank transform"
+    # S21 is NOT invisible, and the asymmetry is the same tie mechanism as C7: winsorisation is
+    # only WEAKLY monotone, so clipping the tails creates ties and DOES move a rank IC. So the
+    # standing rule bites hardest on S20 — the arm whose per-signal diagnostics are provably blind.
+    i_raw_b = _spearman(b.to_numpy(dtype=float), fwd)
+    i_win_b = _spearman(zscore(b).to_numpy(dtype=float), fwd)
+    assert abs(float(i_raw_b) - float(i_win_b)) > 1e-12, \
+        "clipping creates ties, so winsorisation IS visible to a per-signal rank IC"
+    wv = np.array([0.125, 0.125])
+    cz = composite(np.column_stack([zscore(a).to_numpy(), zscore(b).to_numpy()]), wv)
+    cr = composite(np.column_stack([rank_score(a).to_numpy(), rank_score(b).to_numpy()]), wv)
+    assert float(np.max(np.abs(cz - cr))) > 0.05, \
+        "the composite MUST move even though every per-signal IC is bit-identical"
+
+
+def test_s2021_build_frame_standardizer_defaults_to_zscore_and_is_injectable():
+    """Layer 1. Default must be behaviourally identical — the live product reads this path."""
+    from valuation.screener.cross_sectional import rank_score, zscore
+    from valuation.screener.factors import build_frame
+    rng = np.random.default_rng(23)
+    metrics = [{"ticker": f"T{i}", "price": 20.0 + i, "market_cap": 1e9 * (i + 1),
+                "revenue": 1e8 * (i + 1), "net_income": 1e7 * (i + 1),
+                "operating_income": 1.2e7 * (i + 1), "gross_profit": 4e7 * (i + 1),
+                "total_equity": 5e8 * (i + 1), "total_debt": 1e8,
+                "fcf": 9e6 * (i + 1) * (1 + 0.11 * (i % 5)),
+                "ret_6_1": float(rng.normal()), "ret_12_1": float(rng.normal()),
+                "beta": 1.0 + 0.1 * (i % 4)} for i in range(40)]
+    base = build_frame(metrics, sector_neutral=False, residual_momentum=False)
+    same = build_frame(metrics, sector_neutral=False, residual_momentum=False, standardizer=zscore)
+    ranked = build_frame(metrics, sector_neutral=False, residual_momentum=False,
+                         standardizer=rank_score)
+    assert list(base.columns) == list(same.columns) == list(ranked.columns), \
+        "an arm may not add or drop columns"
+    assert np.allclose(pd.to_numeric(base["quality"], errors="coerce").to_numpy(),
+                       pd.to_numeric(same["quality"], errors="coerce").to_numpy(),
+                       equal_nan=True), "standardizer=zscore must reproduce the default exactly"
+    q_b = pd.to_numeric(base["quality"], errors="coerce")
+    q_r = pd.to_numeric(ranked["quality"], errors="coerce")
+    assert float((q_b - q_r).abs().max()) > 1e-6, "the layer-1 swap must not be inert"
+    # `insider` is (score-50)/25, NOT a z-score, so layer 1 cannot touch it (prereg §3)
+    assert np.allclose(pd.to_numeric(base["insider"], errors="coerce").to_numpy(),
+                       pd.to_numeric(ranked["insider"], errors="coerce").to_numpy(),
+                       equal_nan=True), "insider's layer-1 exemption is a documented asymmetry"
+
+
+def test_s2021_quantile_backtest_standardizer_defaults_and_injects_at_layer_three():
+    """Layer 3 — the actual 'z-sum'. The default payload must be bit-identical."""
+    from valuation.edge.fundamental_panel import quantile_backtest
+    from valuation.screener.cross_sectional import rank_score, zscore
+    rng = np.random.default_rng(29)
+    rows = []
+    for d in range(12):
+        for i in range(60):
+            v = float(rng.normal())
+            q = float(rng.normal())
+            rows.append({"date": f"20{10+d:02d}-01-15", "ticker": f"T{i}",
+                         "value": v, "quality": q if i % 9 else 25.0,
+                         "fwd_ret": 0.02 * v + 0.01 * q + float(rng.normal()) * 0.05})
+    panel = pd.DataFrame(rows)
+    cols, w = ["value", "quality"], {"value": 0.125, "quality": 0.125}
+    a = quantile_backtest(panel, cols, w, n_q=5, horizon=63)
+    b = quantile_backtest(panel, cols, w, n_q=5, horizon=63, standardizer=zscore)
+    c = quantile_backtest(panel, cols, w, n_q=5, horizon=63, standardizer=rank_score)
+    assert a["long_short_tstat"] == b["long_short_tstat"], \
+        "standardizer=None and =zscore must be the same object, digit for digit"
+    assert a["top_decile_alpha"] == b["top_decile_alpha"]
+    assert a["long_short_tstat"] != c["long_short_tstat"], \
+        "an outlier-bearing theme must score differently under a rank composite"
+
+
+def test_s2021_holdout_compare_panels_scores_each_arm_with_its_OWN_standardizer():
+    """The gate is what makes a standardisation change testable at all: the incumbent keeps the
+    shipped z-score while the challenger uses its own, on the same rows."""
+    from valuation.edge.fundamental_panel import holdout_compare_panels
+    from valuation.screener.cross_sectional import rank_score
+    rng = np.random.default_rng(31)
+    rows = []
+    for d in range(40):
+        for i in range(50):
+            v = float(rng.normal())
+            rows.append({"date": f"2010-{(d % 12) + 1:02d}-{(d // 12) + 10:02d}",
+                         "ticker": f"T{i}", "value": v if i % 11 else 40.0,
+                         "quality": float(rng.normal()),
+                         "fwd_ret": 0.03 * v + float(rng.normal()) * 0.05})
+    panel = pd.DataFrame(rows)
+    cols = ["value", "quality"]
+    same = holdout_compare_panels(panel, panel, cols, min_dates=8)
+    assert same["verdict"] in ("reject", "not_replicated", "adopt")
+    for h in same["splits"].values():
+        assert h["delta_long_short_tstat"] == 0.0 and h["delta_top_decile_alpha"] == 0.0, \
+            "identical panels and identical standardizers must difference to exactly zero"
+    diff = holdout_compare_panels(panel, panel, cols, min_dates=8, standardizer_b=rank_score)
+    assert any(h["delta_long_short_tstat"] != 0.0 for h in diff["splits"].values()), \
+        "standardizer_b must actually reach the challenger's scoring"
 
 
 def _run_all():

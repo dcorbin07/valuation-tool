@@ -328,16 +328,68 @@ def pick_contract(chain, underlying: float, as_of, right: str = "C",
 
 
 # ============================ trade simulation ============================================
+# ------------------------------------------------------------ corporate actions [U1-SPLIT] ---
+# THE CANONICAL SPLIT HELPERS LIVE HERE, at the lowest level that needs them, and
+# `composite_entry` delegates to them rather than carrying a second copy. A project that ends up
+# with two split tables ends up with two answers.
+#
+# The defect these exist to close, reproduced in `PREREG_u1split_repair.md`: option chains are
+# AS-TRADED and unadjusted for splits while `bars` are adjusted, and nothing consulted the split
+# table. GE's 1-for-8 reverse split (2021-08-02) moves `raw_close` 12.95 -> 100.60 while the
+# strike stays pre-split, and a $0.27 call books +31,921% against a true value of ZERO.
+def load_splits(data_root: str) -> dict:
+    """{ticker: [(iso_date, ratio)]} for every ticker with a real split. Ratio 1.0 is dropped."""
+    p = os.path.join(data_root, "bulk", "prepared", "actions.pkl")
+    with open(p, "rb") as f:
+        act = pickle.load(f)
+    out = {}
+    for t, rec in act.items():
+        ss = [(str(d)[:10], float(r)) for d, r in (rec.get("splits") or [])
+              if r and abs(float(r) - 1.0) > 1e-9]
+        if ss:
+            out[str(t)] = sorted(ss)
+    return out
+
+
+def split_in_window(splits: dict, ticker: str, entry_date, expiry) -> bool:
+    """True if a split falls in `(entry_date, expiry]` — the CONTRACT LIFE.
+
+    The contract life, not the realised holding period, and the reason is measured rather than
+    assumed: most affected rows never reach the settlement line at all. 106 of the 131 affected
+    control rows exit on target or stop, i.e. on POST-SPLIT QUOTES — for a reverse split the OCC
+    keeps the strike, so `contract_history`, which matches on exact strike, returns quotes that
+    now refer to an adjusted deliverable, and a "+100% target hit" on that series is spurious.
+
+    Judged at ENTRY so it is provably outcome-independent. Dropping only trades whose EXIT lands
+    after the split would be keyed on exit timing, which is determined by the payoff.
+    """
+    ss = splits.get(str(ticker or "")) if splits else None
+    if not ss:
+        return False
+    a = entry_date.isoformat() if hasattr(entry_date, "isoformat") else str(entry_date)[:10]
+    e = expiry.isoformat() if hasattr(expiry, "isoformat") else str(expiry)[:10]
+    return any(a < d <= e for d, _ in ss)
+
+
 def simulate_trade(provider, ticker: str, entry_row, entry_date, bars: dict,
                    aggression: float = F.DEFAULT_AGGRESSION,
                    target_pct: float = TARGET_PCT, stop_pct: float = STOP_PCT,
-                   time_stop_frac: float = TIME_STOP_FRAC) -> Optional[dict]:
-    """Walk forward day by day; exit at the FIRST trigger. Never sees the whole path."""
+                   time_stop_frac: float = TIME_STOP_FRAC,
+                   splits: Optional[dict] = None) -> Optional[dict]:
+    """Walk forward day by day; exit at the FIRST trigger. Never sees the whole path.
+
+    `splits` defaults to None, which is the historical behaviour exactly — no caller that does
+    not pass it changes by one digit. Callers that BUILD BOOKS pass it, and a candidate whose
+    contract life crosses a split is refused before it is simulated.
+    """
     import pandas as pd
 
     strike = float(entry_row["strike"])
     right = str(entry_row["right"])
     expiry = pd.Timestamp(entry_row["expiration"]).date()
+    # U1-SPLIT. Refused BEFORE simulation, so the decision cannot depend on the outcome.
+    if splits and split_in_window(splits, ticker, entry_date, expiry):
+        return {"ok": False, "reason": "split_in_contract_life"}
     entry_q = F.Quote(bid=entry_row.get("bid"), ask=entry_row.get("ask"),
                       oi=entry_row.get("open_interest"), volume=entry_row.get("volume"))
     reason = F.quote_reject_reason(entry_q)

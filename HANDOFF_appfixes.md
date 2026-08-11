@@ -5,6 +5,1159 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 27 — 2026-08-11 — the operated record now names its vintage, and the
+label it was commissioned with was wrong
+(prompt: vintage 2 is live (theme restoration, 2026-08-11); surface the vintage on the
+owner/track pages — "Book vintage 2 since 2026-08-11 (capital_discipline restored); vintage 1
+runs in shadow" — and verify the theme bars/legend picked up the fifth theme correctly from
+data (they should be data-driven; confirm, do not assume). Public posture language unchanged.
+Pin the label to the vintage register. Ledger; merge main first; push and verify.)
+
+## 0. The headline, and it is the label itself
+
+`PAPER_TRACK_CONTRACT.md` §5a Rule 4: *"a verdict is a statement about a vintage, and must name
+it."* The forward-track card is the closest thing the product publishes to such a statement, and
+it named an inception date without ever naming the vintage that date belongs to.
+
+**The label this work was commissioned with is off by one on both numbers.** Measured against
+the register in the same hour, not inferred:
+
+```
+current_vintage()      -> vintage 3, opened 2026-08-11
+open_pairs()           -> live 3, shadowed by 2
+asked for              -> "Book vintage 2 ...; vintage 1 runs in shadow"
+```
+
+Vintage 2 was opened by Amendment 1 on 2026-08-10 and **closed after ONE accrued day** by the
+theme restoration. Vintage 1 is the *voided* run #1. So the requested string would have
+published a wrong vintage number **and** a wrong shadow, on the one surface whose entire job is
+to say which book the numbers describe — and it would have been wrong from the day it shipped,
+because the restoration had already taken the vintage.
+
+It now renders:
+
+> **Book vintage 3 since 2026-08-11 (capital_discipline restored); vintage 2 runs in shadow**
+
+## 1. Derived, never typed — and pinned to the derivation
+
+`track_meter.vintage_label()` rebuilds the sentence from `VINTAGES`: the open vintage's number,
+its opening date, its own short label, and the immediately preceding vintage as the shadow. Each
+register row gained a `label` field (≤60 chars) so even the parenthetical comes from the
+register rather than being invented at a surface.
+
+**No test asserts "3".** `tests/test_track_meter.py` already learned that the hard way — it used
+to assert *"it is vintage 2"*, and a legitimate vintage event then failed a test that exists to
+catch two vintages being open at once. The tests here reconstruct the phrase from the register
+and compare, and mutate a single-vintage register in to prove the no-predecessor branch emits no
+`"; None runs in shadow"` stub.
+
+## 2. Two sources for one fact, cross-checked rather than merged
+
+`track_meter` answers *which vintage is open*. `shadow_vintage.open_pairs()` answers the
+neighbouring question of whether that predecessor can actually be **scored** (it needs a pinned
+parameter snapshot). The label computes the predecessor from its own register — importing
+`shadow_vintage` into `track_meter` would invert the module's dependency direction for a number
+it already holds — and a test asserts the two never disagree.
+
+## 3. V1's outbound fence held, and was re-asserted from the new surface
+
+`test_shadow_vintage.py` forbids the string `shadow_vintage` anywhere under `valuation/web` or
+`valuation/saas`, because **PT-OUTBOUND** published a research *figure* to Discord. The label
+reaches the web layer through `track_meter` only, and a mutation that adds `shadow_vintage` to
+`app.py`'s import is caught.
+
+The label also carries **no measurement** — no return, excess or paired difference — pinned by a
+test that rejects float values and measurement-shaped keys. **Naming a vintage is bookkeeping;
+publishing its paired difference is the thing the fence exists to stop.** Both carriers
+(`/api/index-track`, and `/api/track` via `contract_track`) are in `OWNER_ONLY_PATHS`, pinned,
+because the argument that this is safe to render rests on it.
+
+## 4. The theme legend — and the answer is split
+
+**The bars were always data-driven, and picked the fifth theme up on their own.** `_themeBars`
+enumerates `Object.entries(w)` over whatever weights the payload carries, and
+`health.theme_contributing` is computed server-side over `settings.FACTORS_ALL`. Confirmed by
+running them, not by reading them.
+
+**What was hardcoded was the caption under the bar, and it was wrong on two counts about the one
+theme the whole day was about:**
+
+```
+capital_discipline: "low share issuance · low asset growth (dormant — needs data)"
+```
+
+* It was **not dormant** — it had just become the fifth live theme, the adoption that opened
+  vintage 3.
+* `factors.py:265` computes it as `df[["z_neg_issuance"]].mean(axis=1)` — **issuance only**.
+  Asset growth was deliberately removed for cancelling out the one input that works.
+
+A confident wrong caption is worse than a missing bar: a missing bar invites a question, a
+caption closes one.
+
+Fixed by moving the copy to `valuation/web/theme_status.py`, following the
+`score_confidence.py` / `hold_horizon.py` convention already in the tree — injected as
+`window.THEME_STATUS`, escaped but never reworded in `app.js`. Dormancy renders as its own
+flagged line instead of being folded into the ingredient list. The dead themes now say **why**:
+`institutional` and `insider` FAILED `PREREG_theme_restoration.md`'s fidelity gate (Spearman
++0.17 and +0.36 against 0.60) — *"needs data"* would have implied the fix is a download, and it
+is not. `low_risk` is described as zeroed on evidence, not as missing.
+
+**Deliberately not derived from a live scan.** `health.theme_contributing` measures what survived
+standardization *today*, and is the right instrument for the scan-health warning. But
+`issuance.py` fails to `None` on an SEC outage **by design**, so driving the legend off it would
+make a transient outage read as a retired theme. The legend states the **design**; the health
+block states the **day**.
+
+## 5. The live book is now five themes of seven declared
+
+| | themes |
+|---|---|
+| declared (weighted 0.125, established) | value, quality, momentum, size, capital_discipline, insider, institutional |
+| **reaching a live score** | value, quality, momentum, size, **capital_discipline** |
+| weighted but contributing nothing | insider, institutional |
+
+## 6. Verification
+
+* `tests/test_vintage_label.py` **16**, `tests/test_theme_status.py` **14** — offline.
+* **Mutations: 19/19 caught, 0 missed, 0 skipped.**
+* **A first pass reported 6 SKIPPED and that was the useful part.** Multi-line anchors were
+  written with `\n` against CRLF files, and one reason string carries an em dash — so six
+  mutations matched nothing and were silently credited. A skipped mutation tests nothing while
+  reading exactly like a pass. Fixed and re-run before any of them was counted.
+* Routes exercised through a real test client, not asserted from source.
+
+## 7. BUGS FOUND
+
+1. **The commissioned label was wrong** (§0) — the substantive one.
+2. **`THEME_INPUTS.capital_discipline` was false on both halves** (§4).
+3. In my own test: a regex bounded by `[^;]+` stopped inside a CSS `style` attribute and
+   "passed" without reaching the code it checked. Caught by the failure it should have produced.
+
+## 8. What I did NOT do
+
+* **No scoring, weight or construction change — so NO vintage event.** This is labelling and
+  copy. Equity `N` unchanged.
+* **Public posture untouched.** The backtested/live gate still reads
+  `long_enough = days >= MIN_LIVE_DAYS`; the landing page has no vintage on it, pinned.
+* **Did not rewrite `providers.py:162`'s stale `"share_issuance": None  # needs share history`
+  comment.** It is now misleading — `screen.py` enriches it after the provider — but it is the
+  screener lane's file and a comment, not a rendered claim. **Flagged, not fixed.**
+* **`/methodology` still calls the Deflated Sharpe "undeflated"** — carried forward from
+  sessions 25 and 26, still the oldest stale figure rendering. Different finding's copy.
+
+## 9. Next
+
+`PT-WRITER` remains the operational gate's real blocker: nothing in this repository writes the
+contract-bound series. The vintage label makes the record say *which book* it is of; it does not
+make anything record it.
+
+---
+
+# Session 26 — 2026-08-11 — LA8: the forward track's "Days" was a row count, and the
+number it was hiding is a recording failure
+(prompt: LA8 — "Days" on the forward-track cards is a row count rendered as an age; now that LA3
+fixed the annualization denominator underneath, make the display say what is true — elapsed
+days from inception, with recorded rows beside it when they differ, so a gap is visible instead
+of flattering. Contract posture language untouched. Pin the copy. Ledger; merge main; push and
+verify.)
+
+## 0. The headline
+
+`VALQUO_LIVE_AUDIT.md` LA8 reads as a labelling nit. It is not. Every surface showing the
+forward track's age was showing `len(series)` — the number of rows the recorder managed to
+write — under the word **"Days"**, sitting beside "Alpha / yr" and "Sharpe". The server's own
+note said:
+
+> *"Live track is 2 trading days old — far too short to judge."*
+
+The track was **7 trading days old with 2 recorded rows**. The sentence is false, and it is
+false in the flattering direction: a reader is told **the record is short**, when the true
+statement is that **the recorder is missing 71% of its rows** — a different problem, with a
+different owner (ledger `PT-WRITER`, Cowork lane), and one somebody might actually act on. The
+one number that would have made the recording failure visible on the surface where it would be
+noticed was being spent to say something else.
+
+It now reads:
+
+> *"Live track is 7 trading days old, with only 2 of those days recorded — far too short to
+> judge. It is shown for transparency, not as evidence, and the headline stays on the
+> backtest."*
+
+## 1. Three clocks, and the fix is to name all three
+
+The defect class here is one quantity standing in for another. LA3 separated two of them; this
+adds the third and gives each a job it cannot be borrowed for:
+
+| clock | what it answers | correct use | where |
+|---|---|---|---|
+| **rows** `len(series)` | how many days were written down | the **GATE** | `MIN_LIVE_DAYS` |
+| **elapsed to last row** | over what window did the return accrue | the **EXPONENT** | LA3, `_elapsed_trading_days` |
+| **age** (new) | how old is this track | the **DISPLAY** | `track_age.py`, `_age_trading_days` |
+
+**The third is not a restatement of the second, and this is the part worth remembering.**
+`_elapsed_trading_days` measures to the **last recorded row**, so a recorder that stopped three
+weeks ago leaves it *frozen* — the track appears to stop ageing at the exact moment it stopped
+being written. That is the most flattering failure mode available and it is invisible in every
+other field on the payload. Age measures to **today**, so a dead recorder shows up as a widening
+gap instead of as silence.
+
+That capability did not exist before this session and is pinned by
+`test_the_default_clock_is_today_and_not_the_last_recorded_row`, which exercises the
+**production** default. Every other test in the suite passes `today` explicitly and would pass
+with the defect fully restored — **the mutation harness found that, not reasoning.**
+
+## 2. What deliberately did not move
+
+* **The gate.** `MIN_LIVE_DAYS` still counts recorded rows. Moving it onto elapsed time would
+  let a gappy track reach the floor sooner and advance the public "backtested → live" posture
+  on the strength of days nobody recorded. LA3 wrote that reasoning down; **this change is
+  precisely where it could have been quietly undone**, so it is pinned.
+  * Note the pin needed care: `thin` alone **cannot** see the gate move, because the contract
+    gate is independently unpassed and `thin` stays `true` either way. The **note's branch** is
+    the only observable separating the two rules. The first version of that test passed against
+    the mutation; it now asserts on the note.
+* **Contract posture language**, verbatim: *"It is shown for transparency, not as evidence, and
+  the headline stays on the backtest"* and *"Elapsed time alone does not promote a live
+  number."* Pinned by `test_the_contract_posture_sentences_are_verbatim`.
+* **The annualisation denominator and every published figure.** LA3's `elapsed_trading_days` and
+  the `days` row count are untouched; the new field sits beside them.
+
+**One posture word did change, on purpose.** The floor's *unit* was ambiguous: `"past the
+60-day floor"` and `"withheld until 60 trading days"` both describe a floor counted in **rows**.
+Leaving that ambiguous beside a now-correct age re-creates the exact conflation LA8 names, so
+they read `60-recorded-day floor` and `60 RECORDED trading days`. Flagged here rather than
+buried, because the instruction was to leave posture language alone.
+
+## 3. The gapless case is byte-identical
+
+On a track written every trading day since inception, `recorded == age`, and `phrase()` returns
+**exactly** the string the old f-string built. Pinned across n = 1 / 2 / 5 / 60 / 252. So the
+display changes only where it was wrong, and no correctly-recorded track gets re-worded. Same
+property LA3 leaned on, for the same reason.
+
+## 4. Six surfaces, one source
+
+| surface | was | now |
+|---|---|---|
+| `index_track.summarize` note ×3 | `{days} trading days old` | `{age.phrase}` |
+| hero band (`index.html`) | `Days = hero.index.days` | `Days = age.age`, `+ Recorded` on a gap |
+| landing page | `{{ track.days }} trading days` | `track.live.age.phrase` |
+| track card tile (`app.js`) | `metric("Days", live.days)` | `metric("Days", age.age)` `+ Recorded` |
+| track card badge | `thin — {days}d` | `thin — 7d · 2 rec` |
+| withheld-annualisation line | `until 60 trading days` | `until 60 RECORDED trading days` |
+
+All read one `age` dict off the payload. The card is pinned against computing its own — no
+`new Date(`, `Date.parse` or `86400` may appear beside it — so the card, the band, the landing
+page and the server cannot disagree about how old the track is.
+
+**Rows are still shown**, as a *second* number ("Recorded") that appears only when it differs
+from the age. Hiding the row count would be the same defect with the other number.
+
+## 5. Verification
+
+* `tests/test_track_age.py` — **22 tests**, offline.
+* **Mutations: 16/16 caught**, each by the test that names it.
+* **Three initially MISSED, all real holes in the pins, all fixed rather than argued away:**
+  1. a duplicated literal `0` in the complete branch made the negative-gap clamp untestable —
+     the module now reads one computed `missing` in both branches;
+  2. the default-clock gap in §1;
+  3. the gate move hiding behind `thin` (§2).
+* Full gate: **46 suites, 0 non-zero exits, 1160/1161 assertions.** The single shortfall is
+  `test_guards.py` 35/36 — a pre-existing **declared XFAIL** that exits 0, options-bot lane,
+  unchanged by this work.
+* Landing fragment rendered in all three states (gap / complete / no-live-block) before landing.
+
+## 6. BUGS FOUND (0 in shipped code)
+
+None beyond LA8 itself. The three defects found this session were in **my own tests**, all by
+the mutation harness, all listed in §5. Worth stating plainly: a pin that passes against the
+edit it exists to catch is not a pin, and two of these three would have looked fine forever.
+
+## 7. Files
+
+| file | change |
+|---|---|
+| `valuation/screener/track_age.py` | **NEW** — the display vocabulary, one source |
+| `valuation/screener/index_track.py` | `_age_trading_days`, `age` on the payload, 3 notes re-worded |
+| `valuation/web/hero.py` | passes `age` through |
+| `valuation/web/templates/index.html` | hero band: age + conditional Recorded |
+| `valuation/web/templates/landing.html` | age phrase instead of the row count |
+| `valuation/web/static/app.js` | tile, badge, withheld sentence |
+| `tests/test_track_age.py` | **NEW** — 22 tests |
+| `VALQUO_LEDGER.md` | LA8 row (out-of-band) |
+
+## 8. What I did NOT do
+
+* **Did not touch `PT-WRITER`.** LA8's fix makes the missing recorder *visible*; it does not
+  write the rows. That is still the Cowork lane's and still the operational gate's real blocker.
+* **Did not change the gate, the headline rule, or any contract sentence** beyond the floor's
+  unit (§2).
+* **Did not add staleness prose.** A dead recorder now shows as "day 45 · 3 recorded", which
+  states the fact without a second copy of the freshness badge's job.
+* **`/methodology` still calls the Deflated Sharpe "undeflated"** — M1 settled that on
+  2026-08-05 and it self-reports `deflated_sharpe_ratio`. Carried forward from session 25,
+  still the oldest stale figure rendering. **Flagged, not fixed** — different finding's copy.
+
+## 9. Next
+
+`PT-WRITER`: from 2026-08-12, `/api/track` → `contract_track.recording_ok` answers whether the
+Cowork writer exists. LA8 means the *public* surfaces will now show the gap while that question
+is open, which is the right way round.
+
+---
+
+# Session 25 — 2026-08-11 — S22's hold-horizon result reaches the product, with the
+long-short spread deliberately left behind
+(prompt: S22's display follow-up, `HANDOFF_edge_audit.md` session 18 — put the hold-horizon
+story on the product with the calibrated language, pin the copy to the registered sentence)
+
+## 0. The headline
+
+S22 measured what the composite predicts as the forward window lengthens from one quarter to
+two years and found **CONSTANT-RATE** — annualized top-decile alpha essentially flat, alpha HAC
+t never below 3.16 and 3.83 at two years. That is the most flattering shape a term-structure
+study can return, and its handoff knew it: §6 registers **one sentence** as the only claim
+derivable from a measured figure with no extrapolation, lists the caveats *"without which it may
+not be displayed"*, and then stops — *"Display is the web lane's, not this one's."*
+
+This session is that lane. The sentence now renders on the hot list, on the name row and on
+`/methodology`, from **one pinned source**, and three fences keep it from growing.
+
+## 1. The module — `valuation/web/hold_horizon.py`
+
+Built on the `score_confidence.py` precedent, which exists for the same reason: a research
+finding whose wording was chosen carefully, and a product surface that will otherwise tidy it.
+Every shipped sentence appears **verbatim** in `HANDOFF_edge_audit.md`; `tests/test_hold_horizon.py`
+normalises the markdown and fails if either side is reworded.
+
+| constant | what it is | where it renders |
+|---|---|---|
+| `DEFENSIBLE` | §6's registered sentence, verbatim | hot-list card, `/methodology` |
+| `PER_NAME` | the limit half — an **exact substring** of `DEFENSIBLE` | name attribution panel |
+| `CAVEAT_CLAUSES` | the three §6 says it may not be displayed without | both pages |
+| `NOT_A_HOLD_RULE` | §7's named misuse, opening with the handoff's own words | both pages |
+| `BAND` / `BAND_SCOPE` | the valuation band reframe — **not an S22 object** | valuation scenario note |
+
+The caveats are held as three separate clauses rather than one string because each is
+independently quoted from the handoff: a single joined sentence would straddle the handoff's
+bold markers and could only be pinned loosely. `caveat()` assembles them, and the test asserts
+every clause survives into the rendered page — so a surface cannot ship three of four.
+
+## 2. The three fences, each pinned rather than commented
+
+**(1) NO LONG-SHORT FIGURE, in the module or beside this copy on a page.** This is the one that
+mattered most. The long-short spread does *not* persist — HAC t falls **2.7167 at one quarter to
+0.6846 at two years** — and the handoff forbids quoting it beyond about a year. The persistence
+lives entirely in the **long leg**, which is fortunate because the shipped product *is* a
+long-only hot list, but it means the long-short research statistic and the product statistic
+**diverge with horizon**, and the record has been quoting them side by side. Two tests: one that
+no shipped string mentions it, and one that walks the rendered page around the claim. A third
+asserts the module still *explains* the exclusion in prose — otherwise the omission reads as an
+oversight and the next editor "completes" the picture.
+
+**(2) NO PER-NAME PROMISE.** V3 already established that where a name sits inside the decile is
+not distinguishable from chance. So the figures stay on the group, and what reaches a name row
+is the limit: *"The backtested edge is a property of the top decile as a group, not a promise
+about this name — and a given name typically stays in the top decile for only one quarterly
+rebalance."* A test fails if `6.6%`, `5.1%` or `annualized` ever appears in the name-row note.
+
+**(3) THE VALUATION BAND IS A DIFFERENT OBJECT.** Reframed as *"the zone the model considers
+full value — context for today's price, not a target"*, with `BAND_SCOPE` saying on the page that
+it comes from the valuation engine on one company's filings and that the two measurements **do
+not check each other**. Grouping them on one product invites a reader to take either as evidence
+for the other; a test fails if an S22 figure enters the band copy, and another pins that the
+band wording stays absent when the valuation is **withheld** (LA10's rule — a refusal has no zone
+to describe).
+
+## 3. §7's misuse ships, rather than staying in a research file
+
+The handoff calls it *"the most likely way this result gets misused"*: the result is **not** a
+finding that the book should rebalance less often. `cum_alpha(H)` is the buy-and-hold return of
+the cohort selected on **one** date; a quarterly-rebalanced list re-picks and compounds fresh
+selections. Different claims, only the first measured. The surface most able to cause that
+misreading is the one stating the two-year figure, so the warning renders beside it in both
+places.
+
+**One trade-off recorded openly:** the shipped sentence opens with the handoff's own words, which
+include *"the book"* — mild jargon on a consumer page. It is kept verbatim because the pin is
+worth more than the polish, and the clause immediately following says "the list", which resolves
+it in context.
+
+## 4. Verification
+
+* **`tests/test_hold_horizon.py` — 19 tests, all passing.**
+* **12/12 mutations caught**, each by the test that names it. The two most tempting edits are
+  covered: rounding `5.1%` up to `5.5%`, and dropping the caveat line while keeping the figure.
+  Also covered: the sentence being "tidied", `PER_NAME` ceasing to be a substring, `app.js`
+  growing its own copy, the band becoming a target, and the withheld branch stopping.
+* **Full gate: 41 suites, 0 non-zero exits, 1130/1131 assertions.** The single shortfall is
+  `test_guards.py` 35/36 — the pre-existing declared XFAIL that exits 0, options-bot lane.
+
+## 5. BUGS FOUND (1)
+
+**An assertion message of mine crashed the offline test runner.** The message contained `→`
+(U+2192); these suites are run with `python tests/test_x.py` on a Windows cp1252 console, and the
+runner's `print` of the failure raised `UnicodeEncodeError`. The suite exited **non-zero while
+printing nothing about why** — the pin fired correctly and reported silence. Found by the
+mutation harness, not by reasoning: a mutation came back "CAUGHT" with no named failure, which
+is what sent me looking. Fixed by keeping assertion messages inside cp1252. **The general form
+is worth knowing for other suites in this repo, which use the same runner shape.**
+
+## 6. Files
+
+| file | change |
+|---|---|
+| `valuation/web/hold_horizon.py` | **new** — the pinned copy, one source for three surfaces |
+| `tests/test_hold_horizon.py` | **new** — 19 tests |
+| `valuation/web/app.py` | `hold_horizon` in the site-wide context processor |
+| `valuation/web/templates/index.html` | hot-list block + `window.HOLD_HORIZON` injection |
+| `valuation/web/templates/methodology.html` | the finding, rank-IC corroboration, three limits |
+| `valuation/web/static/app.js` | name-row limit; band reframe on the scenario note |
+| `VALQUO_LEDGER.md` | row `S22-DISPLAY` |
+
+## 7. What I did NOT do, and why
+
+1. **No research figure was recomputed.** This is copy; every number is quoted from S22's
+   artifact via the handoff. **Zero trials — equity `N` stays 143.**
+2. **The rank-IC corroboration renders on `/methodology` only.** It is the right evidence and
+   the wrong register for a name row; a rank correlation on a hot-list card is jargon.
+3. **`/methodology`'s Deflated Sharpe paragraph is still stale** (it calls the statistic
+   undeflated; M1 settled that in 2026-08-05 and it self-reports `deflated_sharpe_ratio` now).
+   Untouched — it is a different finding's copy and not this task's scope. **Flagged, not fixed;
+   it is the oldest stale figure still rendering.**
+4. **No change to what the hot list computes.** Display only.
+
+## 8. Next
+
+Nothing is blocked. The obvious follow-on is the item in §7.3 — one paragraph on
+`/methodology` that has been wrong since M1 and would take a session-19-style stale-figure pass
+to do properly, since the same claim may render elsewhere.
+
+---
+
+# Session 24 — 2026-08-10 — Cold-audit LA10 and LA13: a label that outlived its value, and a
+policy the suite did not enforce
+(prompt: cold audit items LA10 and LA13, `VALQUO_LIVE_AUDIT.md`; no overlap with the in-flight
+LA1/LA3 work)
+
+**BOTH SHIPPED.** Two LOW-severity items, and one of them turned out to be sitting on top of
+something that is not low severity: **no test anywhere asserted that the two admin-token API
+endpoints refuse a caller with no token.** Details in LA13 below.
+
+---
+
+## LA10 — a withheld row kept the labels that described the value it withheld
+
+`estimate_fair_values` writes `fair_value_method` (`"blended"`) and `fair_value_confidence`
+(`"medium"`) alongside the number. `withhold.withhold_implausible_fair_values` then blanked
+`fair_value` and `upside` and **left both labels standing**, so a refused row shipped as
+
+```json
+{"fair_value": null, "fair_value_method": "blended",
+ "fair_value_confidence": "medium", "fair_value_withheld": true}
+```
+
+— the confidence of a number that is not in the payload.
+
+**Why it was worth fixing despite being invisible.** It is the same shape `withhold.py` exists
+to eliminate, one level up: the original KSPI bug was a *figure* surviving its own suppression;
+this is the *description* of the figure surviving. The audit's own framing — "cosmetic today, a
+future renderer would pick it up" — is exactly right, and I confirmed the first half rather than
+assuming it: **`app.js:1039` tests `fair_value_withheld` and returns `"withheld"` before it ever
+reads the method**, so the page has always displayed the correct thing. The wire was what
+disagreed with the page.
+
+**Fixed as one definition, not two edits.** `publication.strip_derived_fields` is now the single
+rule for what a refusal does to a row, and **both** refusal paths call it — the scan-side
+`record_refusal` and the web-side band withhold. Two places decide a row is withheld; there is
+now one definition of what that means, for the same reason `publication.py` owns the band.
+
+**The two fields are treated differently, deliberately:**
+
+| field | what happens | why |
+|---|---|---|
+| `fair_value_method` | **set** to `"withheld"` | already the project's vocabulary — `fairvalue.py`'s own refusal branch writes it, `test_guards.py:316` pins it. A positive label beats an empty cell for the same reason a refusal writes a REASON rather than leaving a gap: a blank invites someone to "fix" the missing data later. |
+| `fair_value_confidence` | **cleared** | it is a graded scale (`low`/`medium`) with no withheld rung, and putting a word into a scale invites a renderer to sort or compare it. The row already carries `fair_value_withheld: true` as the positive marker. |
+
+**The catch-all was structurally blind to this, which is the durable part.**
+`_walk_fair_values` walked *ratios* — and a withheld row has no ratio, so every band assertion
+passed on precisely the rows carrying the stale labels. It now carries the two labels as well,
+and `test_no_public_api_response_describes_a_fair_value_it_withheld` asserts that a marked row
+anywhere in a public body has no live method and no confidence. It has a **non-vacuity floor**
+(`>= 2` withheld rows in the walk) so it cannot quietly become a test of nothing.
+
+**Mutation-verified 3/3**, each caught on the real production AEG row (5.25x, $49.91 against
+$9.50): the bug as reported, and **both half-fixes** — method left standing, and confidence left
+standing. A fix that did only half the job fails.
+
+---
+
+## LA13 — `surfaces.py` claimed a completeness property the suite did not enforce
+
+The docstring promised *"every registered /api route is knowingly on one side or the other — a
+new route lands in neither list and fails the suite until someone decides"*, and
+`test_public.py:127` skipped `/api/option-alerts/` with a hard-coded prefix and a comment.
+
+The exemption is **correct** — both handlers call `_admin_ok()` — but it lived in the test, so
+the module stating the policy had no record that a third category existed. A future admin-token
+route under a different prefix would have got neither the list nor the exemption, and would have
+landed on the public side by default.
+
+**Fixed by writing the third side down.** `ADMIN_TOKEN_PREFIXES` is **derived from
+`private.ADMIN_PREFIXES`**, not restated — the list that lets these routes through the lockdown
+must be the list that classifies them here, or one gets edited alone. `is_admin_token()` and
+`classify()` are the single reader, and the suite now walks `classify` instead of keeping a
+second copy of the policy.
+
+### The finding underneath, which the audit did not name
+
+**Nothing in the suite asserted that these two endpoints refuse an un-tokened caller.** All four
+references to them were:
+
+| reference | what it actually asserts |
+|---|---|
+| `test_intraday.py:327` | the two path strings appear in a source file |
+| `test_private.py:145` | `private.always_open(...)` is True — i.e. the lockdown lets them **reach** the handler. Reachability, not refusal. |
+| `test_public.py:127` | skip |
+| `test_public.py:210` | skip |
+
+So deleting `_admin_ok()` from a handler would have been caught by **nothing**. And that makes
+the classification change dangerous on its own: a named category is strictly *worse* than a
+hard-coded skip if it becomes a one-line way to move a route out of the public set while securing
+nothing. So the classification ships with its enforcement:
+`test_the_admin_token_category_is_not_a_way_to_leave_a_route_unguarded` calls every
+admin-token route **for real, with no token, on every verb it accepts**, and requires 401/403.
+
+**Mutation-verified 3/3:**
+
+| mutation | caught by | result |
+|---|---|---|
+| drop the category from `classify` | the walk | both routes report unclassified |
+| **drop `_admin_ok()` from the handler** | the enforcement pin | `GET /api/option-alerts/open` answered **200** to an anonymous caller |
+| drift `private.ADMIN_PREFIXES` from the surfaces list | the agreement pin | both lists diverge, walk fails |
+
+---
+
+## BUGS FOUND (2)
+
+1. **The admin-token endpoints' guard was never tested** (above). Not what the audit item said —
+   LA13 is written as a documentation/classification gap, and the classification gap is real, but
+   the untested guard beneath it is the part worth remembering. **Now pinned.** Recorded because
+   the generalisation is the audit's own appendix thesis in a new place: the verification effort
+   watched *what the policy says*, and nothing watched *whether the policy is enforced*.
+2. **`test_public.py` held two independent copies of the option-alerts literal** (lines 127 and
+   210), for two different properties. The second is now `+ surfaces.ADMIN_TOKEN_PREFIXES`, so a
+   route added to the category is covered by both. Same literal in two tests is how one of them
+   keeps covering a route the other stopped covering.
+
+## Files
+
+| file | change |
+|---|---|
+| `valuation/engine/publication.py` | `ROW_WITHHELD_METHOD`, `ROW_DERIVED_FIELDS`, `strip_derived_fields()`; `record_refusal` delegates to it |
+| `valuation/web/withhold.py` | the band withhold calls `strip_derived_fields` instead of blanking two fields inline |
+| `valuation/saas/surfaces.py` | third-side docstring section, `ADMIN_TOKEN_PREFIXES`, `is_admin_token()`, `classify()` |
+| `tests/test_withhold.py` | `_walk_fair_values` carries the labels; +1 test (30/30) |
+| `tests/test_public.py` | walk reads `classify`; +4 tests, 1 renamed (31/31, was 27) |
+
+**Gate: 37 suites, every one exit 0.** The single reported shortfall is `test_guards.py` 35/36,
+a pre-existing **declared** XFAIL that exits 0 and belongs to the options-bot lane.
+
+## Not done, and why
+
+* **LA10's sibling surfaces were checked, not assumed.** `unified.py:251-259` serves
+  `fair_value_method` and `fair_value_withheld` but never `fair_value_confidence`, so
+  `/api/whatdo` only ever carried half of this. Both are covered by the walk regardless.
+* **No renderer change.** The page already showed "withheld"; changing `app.js` would have been
+  a change with no defect behind it.
+* **`/admin/*` was outside LA13's wording and is now swept anyway.** Those routes are not
+  classified by `surfaces.py` at all — it only speaks about `/api` — so the classification walk
+  cannot see them, and the same "call sites asserted nowhere" gap applied. The enforcement pin
+  was already generic, so extending it cost five lines:
+  `test_every_admin_route_refuses_a_caller_with_no_token`. **Measured first, then pinned:** all
+  **13 route-verbs already answer 401**, with a real `ADMIN_TOKEN` set in the environment —
+  which is the case that means anything, since an unset token fails closed trivially. So this
+  pins a property the app already had; it did not find a hole. These are the daily scan, the
+  paper-track cycle, the recap poster and the backtest runners, i.e. the owner's vendor spend.
+
+---
+
+# Session 23 — 2026-08-10 — the daily scan publishes the Index book, so the engine records the right one
+(prompt: cross-lane item named to this lane by `HANDOFF_edge_audit.md` Session 16 §7)
+
+**SHIPPED.** Session 16 closed `PT-SPLIT` with a **gate, not a repair**: `paper_track.seed_book`
+now refuses any book that is not the contract-bound Valquo Index (**≥ 50 names AND the 8% cap
+binding**), so the engine stopped *adding* to a wrong book. Nothing made it start recording the
+right one, because `/admin/run-paper-track` reads `data/valquo_index.json` when it exists and
+**silently rebuilds from the store's latest scan when it does not** — and a thin scan rebuilds a
+10-name book carrying a perfectly correct "Valquo Index" method string. **The daily scan now
+publishes that file.**
+
+## THE MEASUREMENT THAT DECIDED THE DESIGN, and it overturns a comment in the engine
+
+`seed_book`'s own comment says *"the store's eligible large-cap tier is under 100 names"*. **That
+is no longer true, and if it were, publishing would have been pointless** — the file would just
+carry the same truncated book. So I measured the live scan instead of assuming, against
+`https://valquo.co/api/hotstocks` on 2026-08-10 (scan of 2026-08-08):
+
+| | |
+|---|---|
+| universe / scored | 800 / **594** |
+| rows the API exposes | 500 (server cap) |
+| of those, ≥ $10B | **499** — the scanned universe is the most *liquid* names, i.e. nearly all large caps |
+| book built from those 500 real rows | **50 positions, effective max weight 0.0800 — the cap BINDS — conforms: True** |
+| engine's own `book_conformance` on it | **True** |
+| extrapolated over all 594 scored | tier ~593, decile **~59** against a floor of 50 |
+
+**So the tier is ~593, not "under 100".** The 10-name book the engine recorded on 2026-08-03/04/05/07
+came from a much thinner scan at the time, not from a truncation bug that is still present. The
+comment describes a past state and reads as a current one — the same class of stale-claim defect
+this project keeps finding. **Not edited: it is the edge lane's file.**
+
+**The margin is real but not comfortable.** 59 against a floor of 50. If the scan degrades to the
+documented ~190-name bundled fallback (what happens when `FMP_API_KEY` is absent), the decile
+lands near 19 and the book must not be published at all — which is exactly what the refusal below
+does.
+
+## What shipped
+
+**`valuation/saas/index_book.py`** — `publish(store, path)` builds the book from the store's
+latest scan and **writes it only if it conforms**.
+
+* **A non-conforming book is never written.** Not written-and-labelled, not written-for-the-engine-
+  to-reject — not written. `PT-OUTBOUND`'s lesson is that the old code *did* label its fallback
+  honestly and no surface ever rendered the label, so the wrong artifact is made unreachable
+  rather than better annotated.
+* **A refusal never deletes or overwrites an existing book.** Both post-refusal states are safe by
+  construction: the engine reads the last good file (whose `scan_date` shows its age) or finds
+  nothing, rebuilds from the same thin scan, and refuses. Neither can start recording a wrong book.
+* **Probe first, write second.** `export()` writes unconditionally, so conformance is decided on a
+  pure `build_index` probe of the same rows before `export` is called, and the **written payload is
+  re-checked** rather than assumed.
+* **It never raises.** The daily hot list must not fail to land because a book could not be built.
+* **Every attempt is banked** to store meta (`index_book_publish`), success or refusal, so a
+  pipeline that quietly stopped publishing is diagnosable instead of merely quiet.
+
+**Wired into the daily scan's terminal step** — `/admin/ingest-snapshot`, deliberately **outside**
+the once-per-day `already` guard, because the backup cron exists precisely because GitHub drops
+scheduled runs and a day whose primary ingest published nothing must still get a book. Publishing
+is idempotent, so a second call is a no-op or a repair.
+
+**`scripts/ci_scan.py` prints the outcome.** `_post` now returns the parsed body (it previously
+truncated the response at 200 characters, which would have hidden this entirely). A publisher that
+silently stopped is how the original defect survived.
+
+**One definition of the rule.** Conformance is reached through the payload's own
+`contract_conformance` block — `valquo_index.conformance`, the same object the engine reads. A test
+asserts `index_book.py` contains no restatement of the floor, the cap, or the verdict.
+
+## VERIFIED, not assumed
+
+* **The engine's gate goes green on it** — `seed_book` run against the published book returns
+  `seed_refused: None` and `conformance.conforms: True`, end to end through the real seeding path.
+* **The gate still discriminates** — the same test asserts a 12-name book is still refused, so a
+  green result is not a gate that stopped checking.
+* **Confirmed on real production rows**, not only synthetic ones: the table above is the actual
+  live scan pushed through `build_index` and `paper_track.book_conformance`.
+* **Three mutations, all caught**: guard disabled, guard inverted, written-payload re-check
+  dropped. The third initially was **NOT** caught — it is a defensive branch that cannot fire
+  naturally — so a test now forces it by monkeypatching `export` to disagree with its own probe.
+  An untested defensive branch is an assumption wearing a conditional.
+
+## Nothing else consumes the path — checked, and pinned
+
+Nine files mention `data/valquo_index.json`; **three touch it**: `valquo_index.py` (defines
+`DEFAULT_PATH`, the only writer), `app_saas.py` (the engine route reads it), and
+`scripts/paper_track_run.py` (CLI `--book` default). **`paper_track.py` names it only in a
+comment and never opens it** — the engine's gate operates on a book it is *handed*, not on a path
+it resolves. A test pins the whole mention set, so a second reader has to be noticed rather than
+discovered after it disagrees with the first.
+
+## THE THING I AM FLAGGING RATHER THAN DECIDING — it is a contract question, not an app one
+
+**Conformance is a size and a cap. It is silent about which universe the decile came from.** The
+book now published is a decile of the **daily live scan** (~594 names, FMP/free stack); the
+contract's published 86-name series was a decile of the **full point-in-time Sharadar universe**
+(861 eligible). Same construction, different universe — **so the holdings will not match name for
+name**, and both books satisfy the rule as written.
+
+The payload has always carried `source`, and `publish()` now banks it into the ingest response and
+store meta so the difference is visible up front rather than inferred later from a divergence.
+**Whether a live-scan-sourced book is the object `PAPER_TRACK_CONTRACT.md` binds is not mine to
+answer** — if it is not, conformance needs a provenance condition, which is a change to
+`valquo_index.conformance` in the edge lane. Recorded in the ledger as still open.
+
+## What happens on the next scan, stated plainly because it is a live state change
+
+The engine currently holds **10 experiment-stamped names**. On the first conforming publish,
+`seed_book` will close those 10 (they are not in the new book) and open ~59. Exits are **closed,
+not deleted**, per Session 16, so the registered experiment rows survive. The
+`MIN_BOOK_RETENTION` guard does not trip (59 against 10 open). **This is the intended transition,
+and it is the point of the item** — but it is the first time the sandbox engine will hold the real
+book, so the next `/admin/run-paper-track` response is worth reading.
+
+## BUGS FOUND
+
+| # | what | where | status |
+|---|---|---|---|
+| 1 | `seed_book`'s comment asserts the store's large-cap tier is "under 100 names". **Measured: ~593.** It describes the early-August state and reads as current — and it is the sentence that would have made this whole item look pointless. | `valuation/edge/paper_track.py:807-808` | **OPEN — edge lane's file**, not edited |
+| 2 | `_post` in the CI scan truncated every ingest response to 200 characters, so anything the endpoint reported past that was invisible to the daily run. Pre-existing; it would have hidden the publish outcome. | `scripts/ci_scan.py` | FIXED |
+| 3 | Conformance does not test provenance (above). Two books from different universes both pass. | `valuation/edge/valquo_index.py` | **OPEN — flagged to the contract lane** |
+| 4 | `tests/test_guards.py` still reports its one declared XFAIL, exit 0. Pre-existing, options-bot lane, recorded per RUN_RULES A3. | `tests/test_guards.py` | OPEN — not mine |
+
+**17 new tests. Gate: 37 suites, 1096 passed, 0 failed.**
+
+## WHAT THIS DOES NOT DO
+
+* **It does not make the engine's series quotable as the Index.** `PT-SPLIT`'s remaining half and
+  the provenance question above both stand. This makes the engine record a conforming book; it
+  does not settle whether that book is the contract's object.
+* **It does not touch `valuation/edge/**`.** The two defects found there are routed, not repaired.
+* **It does not write `valquo_track_history.csv`.** `PT-WRITER` is unrelated and still Cowork's.
+* **It cannot be confirmed in production from here.** The next scheduled hot scan (22:23 UTC,
+  weekdays) is what actually writes the file on Render. **Read the run's log line
+  `index book: PUBLISHED — …`, then `/admin/run-paper-track` for `seed.seed_refused: null`.**
+
+---
+
+# Session 22 — 2026-08-10 — V3's verdict reaches the product: the score stops claiming per-name precision
+(prompt: update the score presentation to match what is defensible after V3's calibration)
+
+**SHIPPED.** Extension **V3** (lane r1, `HANDOFF_extensions_v3.md`, pre-registered blind at
+`251c989`) pointed a permutation null at the *product's own score* and the pre-registered
+primary statistic **failed**: the composite at **rank 10** reads **1.0909** against a noise p95
+of **1.1117**, **empirical p 0.116** — roughly **one chance-assembled universe in nine** reaches
+the real value at that rank. Verdict **NOT DISTINGUISHABLE**, and it **generalises**: it holds on
+**45 of 69** dates against a pre-registered gate of 42.
+
+r1's handoff closed with an explicit open dependency — *"Did not weaken the product's confidence
+language in the app… the templates are the app-fixer's lane. This is an open dependency, not a
+finished item."* **This session is that item.** No score computation changed; labels and copy only.
+
+## What shipped
+
+**One source for the calibrated wording** — `valuation/web/score_confidence.py`. Every sentence
+in it appears **verbatim** in `HANDOFF_extensions_v3.md`, and `tests/test_score_confidence.py`
+normalises the markdown and fails if either side is reworded. r1's wording was written to survive
+scrutiny; a product surface that "tidies" a calibrated hedge is how it quietly becomes a claim
+again.
+
+Three surfaces now read those constants:
+
+* **The hot-list legend** (server-rendered, directly over the ranked table) carries the full
+  defensible sentence plus the recency caveat and the missing-data finding.
+* **The discovery blurb** above it: *"And it is a coarse ordering, not a precise one."*
+* **The per-name "why this score" panel** in `app.js` — the calibration prints **above** the
+  three-decimal attribution bars, not under them. A caveat after the evidence reads as a
+  footnote; before it, it frames how the bars are read.
+* **`/methodology`**, first bullet of *"Where it is weak — read this part"*.
+
+**The public landing card was changed too, but NOT with the pinned sentence, and the reason is
+worth recording.** Its screener card said the ranking *"says how names score against each
+other"*; it now says *"and a **coarse** one: it says roughly where names stand against each
+other"*. The calibrated sentence itself was deliberately **not** used there — it reads
+*"…inside that decile"*, and **no decile is mentioned anywhere on that page**, so the quote
+would have arrived without its antecedent. A quote that needs missing context is worse than an
+accurate paraphrase; the verbatim wording lives where the context does.
+
+**`PER_NAME` is an exact substring of `DEFENSIBLE`, not a shorter rewrite of it**, and a test
+asserts that. Otherwise the name row and the legend become two independently-editable statements
+of one limit — and a reader on a name row could be given the softer of the two.
+
+**`app.js` holds no copy of the wording.** It reads `window.SCORE_CONFIDENCE`, injected by
+`index.html` from the same constants; a test asserts the sentences are **absent** from the static
+file. Same rule PT-OUTBOUND landed for outbound figures: one authority, no second statement of
+the claim.
+
+**Injected by the shared context processor** (`web/app.py:_site_context`), not per route.
+`index.html` is rendered by **both** `web/app.py` and `saas/app_saas.py`, and this project's
+recurring defect is the second place being forgotten.
+
+## The distinction that took the most care, and it is the reason this is not a bigger change
+
+**V3 settles the SCORE's precision and explicitly not the backtested return spread.** Its handoff:
+*"A composite can rank names in an order that is indistinguishable from chance at a given rank
+and still have a real top-minus-bottom return spread."*
+
+So the recency caveat (**21 of 69 dates**) attaches to the top decile's **score** versus a chance
+book — **not** to the top-decile alpha, the long-short HAC t of 2.620 against its 2.28 floor, or
+R1's factor alpha. Attaching it to those would understate the edge research as badly as dropping
+it from the score would oversell the ranking. The methodology paragraph states its own scope in
+the rendered text, and `test_the_calibration_copy_is_not_attached_to_a_return_claim` fails if a
+return figure ever appears inside that block. **The `top decile` mentions in
+`methodology.html` and `portfolio.html` that describe backtested returns were deliberately left
+alone** — they are a different object.
+
+**The group half never travels alone.** V3's flattering finding — the top decile beats a chance
+book *as a group* (p 0.008) — holds on only **21 of 69** dates, and r1's own write-up narrows it
+twice. A test walks every rendered page and fails if the group claim appears without the caveat
+in the same block. The caveat is stated as a **bare count of dates, never a rate**: 21 of 69
+overlapping cross-sections of largely the same names are nowhere near 21 independent draws, which
+is the session-9 lesson (16 co-moving countries were worth 2–4 draws; a bar with a claimed 3.84%
+measured out at **28.7%**).
+
+## PINS MUTATION-TESTED, NOT ASSUMED
+
+Four mutations applied to `score_confidence.py`, each run against the suite — **all four caught**:
+
+| mutation | caught by |
+|---|---|
+| legend softened to *"only weakly distinguishable"* | verbatim pin + substring pin |
+| robustness count inflated 45 → 60 | verbatim pin + count/constant agreement |
+| group caveat stripped of its date count | group-claim-never-alone |
+| thin-data finding reworded | verbatim pin |
+
+`test_the_pin_is_not_vacuous` additionally proves the markdown normaliser does not collapse
+distinct sentences into a match — without it, a substring test against a large document would
+pass everything.
+
+**14 new tests. Gate: 34 suites, 1036 passed, 0 failed.**
+
+## BUGS FOUND
+
+| # | what | where | status |
+|---|---|---|---|
+| 1 | Two copy seams spliced a quoted sentence mid-clause, rendering *"…not a precise one — Where an individual name sits…"* with a capital mid-sentence, and *"read a high score with this in mind: A high score can partly reflect…"* repeating itself. Found by **rendering the page and reading it as text**, not by the tests — which passed throughout, because a substring pin cannot see grammar. | `index.html`, `methodology.html` | FIXED |
+| 2 | A first cut **paraphrased** r1's *"a specific rank, or the gap between #3 and #12, means anything"* into my own words on `/methodology` — the exact drift this task exists to prevent, committed by me while writing the guard against it. Now `NO_LONGER_SAYABLE`, quoted and pinned. | `methodology.html` | FIXED |
+| 3 | **`/work` claims "628 tests across 19 suites"; measured today is 1036 across 34.** Not touched — outside this task's "labels and copy only" scope for the *score*, and it wants the same treatment the trial counts got in session 21 (a figure on a recruiter page that drifts as the suite grows). | `portfolio.html:586` | **OPEN — flagged, not fixed** |
+| 4 | The **Deflated Sharpe copy on `/methodology` is still stale since M1** — it says the statistic "is an *undeflated* one" that "saturates at >99.9%", which has been void since 2026-08-05 (it is a genuine Deflated Sharpe, 0.8556 at N=129, failing the >0.95 convention while sitting above all 100 placebo draws). Carried over from session 21, still unfixed, still needs a paired copy+test change. | `methodology.html:123-127` | **OPEN — pre-existing** |
+| 5 | `tests/test_guards.py` reports one **XFAIL** ("a guard was fed the bug it exists to catch and did NOT complain"), exit 0 so the gate stays green. Pre-existing, already routed to `HANDOFF_optionsbot.md`, and independently recorded by r1 in `HANDOFF_extensions_v3.md`. Recorded per RUN_RULES A3 because I saw it. | `tests/test_guards.py` | **OPEN — options-bot lane** |
+
+## WHAT THIS DOES NOT DO
+
+* **It does not change any score, weight or threshold.** V3 was scoped new-files-only and
+  explicitly did not license a weight change; this session is copy.
+* **It does not act on V3's finding 3.** The thin-coverage tilt (real top decile present weight
+  0.94798; only 9 of 500 noise draws that thin, **p 0.018**) is r1's own recommended next step and
+  is a *research* change — a minimum-coverage floor or a variance penalty on thinly-scored names,
+  pre-registered. The product now **discloses** the tilt; it does not correct it.
+* **It does not touch the Index tab's construction copy.** "The top decile of the large-cap tier,
+  score-weighted, capped at 8%" is a description of construction, not a quality claim.
+
+## RECOMMENDED NEXT STEP
+
+r1's, unchanged and I agree with it: **take finding 3 before finding 1.** The thin-coverage tilt
+is the only V3 result pointing at a fixable defect rather than at a limit of what a cross-section
+can support, and unlike the rank-precision question it is not blocked by the size of the universe.
+That is an edge-lane pre-registration, not an app change.
+
+---
+
+# Session 21 — 2026-08-09 — V4: the research record, rendered as the credential it is
+(prompt: execute `VALQUO_EXTENSIONS.md` V4 — the public research-log page)
+
+**SHIPPED: `/work/research`, linked from `/work`.** It renders `RESEARCH_LOG.md` and the
+registers in full — **83 entries: 32 rejected, 7 null, 4 inconclusive, 15 adopted, 21 defects
+found and fixed, 4 other.** Of the 62 entries that are genuine searches over the data, **43 came
+back rejected, null or unanswerable.** That ratio is the page.
+
+## 1 · One record, not a second copy of it
+
+Every row comes from `research_log.rows()` — **the same parse that produces the trial
+denominator `N` for the Deflated Sharpe.** A page that kept its own copy of the record would be
+a second version of the truth, which is precisely the bug session 20 pulled out of Discord the
+day before. `rows()` was added to the existing parser rather than written beside it; `_emit()`
+collects each row inside the one pass.
+
+**`FIXED` rows are included and carry `n_trials == 0`.** "Is this part of the record" and "was
+this a search over the data" are different questions, and only the second sets `N`. The 21
+defect rows are some of the most persuasive entries on the page and they must not inflate a
+denominator — both facts are now true at once, in one place.
+
+The registers (`PREREG_*.md`, `PAPER_TRACK_CONTRACT.md`, `VALQUO_EXTENSIONS.md`) are listed by
+reading the repository, so one that is added and never mentioned still appears.
+
+## 2 · The publishing rule, and why it is absolute
+
+The spec allows no performance figures beyond the public posture. I implemented something
+stricter and therefore testable: **no performance figure at all.** Not results, not
+pre-committed thresholds, not the effect sizes that sit in 25 of the log's `source` cells.
+`research_record.withhold()` is the single place that decides, and the test asserts it against
+the **rendered HTML**, line by line — rendering is where a new column would leak, not the rows.
+
+A rule with an exception list stops being testable the moment an append-only log grows, and
+this one grows without anyone consulting the page.
+
+**The guard was calibrated against its own false positives.** A first pattern read row IDs
+`P4`, `P10-b`, `P6-1` as "statistic *p*, value 4" — the page's guard firing on the page's own
+identifiers. The statistic branch now requires a separator. Plain integers and ISO dates
+deliberately survive: the counts and the dates *are* the honest content.
+
+## 3 · Two things I deliberately did not do
+
+* **No registration dates.** The obvious implementation — scrape the first ISO date from each
+  register — gave `PREREG_free_analysis.md` a registration date of **1998-01-01**, from a date
+  inside its own contents. A wrong date is the one error that would undermine the only claim
+  this page makes, so no date is shown and the log rows' dates carry that job.
+* **No new figures anywhere.** The only numbers added to `/work` are counts, and they are
+  corrections — see below.
+
+## 4 · The stale counts I had to fix, because the page made them visible
+
+`/work` said *"Roughly 146 pre-registered tests … about one in eight was adopted"* (146 was the
+audit's **estimate**; measured, it is 83 entries and 15 adoptions) and cited **116** logged
+equity trials / **272** project-wide. Measured today: **130 equity, 326 project-wide.**
+`/methodology` carried the same 116.
+
+Left alone, `/work` would have linked to a live register that visibly disagreed with the
+paragraph above the link — the two-sources defect again, one page apart. All three are corrected
+and **dated in the prose**, because they will keep moving and these pages are static by
+construction.
+
+## 5 · Verification
+
+`940 passed / 0 failed across 30 suites` in the CI-proxy environment. New suite
+`tests/test_research_page.py`, **14/14**, including: the no-figure sweep over rendered HTML; a
+non-vacuity test that the guard fires on real figures and *not* on row IDs; a substitute-log
+test that fails if the page ever stops being sourced; and a pin that extending the parser did
+not move equity `N` (130).
+
+### BUGS FOUND
+
+| # | where | what |
+|---|---|---|
+| 1 | `portfolio.html` | "Roughly 146 pre-registered tests, about one in eight adopted" — 146 was an estimate; measured is 83 entries / 15 adopted. CORRECTED and dated. |
+| 2 | `portfolio.html`, `methodology.html` | Trial counts stale: 116 equity / 272 project-wide vs a measured 130 / 326. CORRECTED. |
+| 3 | `tests/` (method, found writing this suite) | **`create_saas_app` is idempotent** — it wraps one module-level Flask app and returns that same app for every later call, whatever config is passed. A test that builds "a second app with the flag off" silently re-tests the first app with the flag ON and asserts nothing. My gate test did exactly that and passed vacuously until the control caught it. Any suite using that pattern is suspect. |
+| 4 | `research_log._header_map` (introduced and fixed here) | A first cut resolved columns by `startswith`, so a future `notes` column would have been read as the `n` grid multiplier and silently multiplied that row's trials. Tightened to exact match. |
+
+---
+
+# Session 20 — 2026-08-09 — Discord posted a book nobody thought they were reading
+(prompt: a 2026-08-05 Discord recap said we were beating SPY; the authoritative track shows the
+Index was never above SPY in that window. Find the divergence, then fix it structurally.)
+
+**THE HEADLINE: the recap was not wrong about a number. It was right about a different book.**
+On 2026-08-05 it posted, in bold:
+
+> • Since inception 2026-08-03 (3 sessions): index +3.22%, SPY +3.05% → **+0.18 pp**
+
+The contract-bound recorder over that window reads **−0.2777pp** (2026-07-31) and **−2.8468pp**
+(2026-08-06). The Index was never above SPY on any recorded day. Nothing miscalculated;
+`saas/recap.py` read `paper_track.index_summary` — the **Tradier sandbox engine**, 10 names
+equal-weighted at 10% each, inception 2026-08-03 — and printed it under the words
+"Valquo Index vs SPY". Those 10% weights **violate `PAPER_TRACK_CONTRACT.md`'s own 8% cap**, so
+the engine is not the Index and can never be evidence under the contract. This is
+`VALQUO_LEDGER.md` row **PT-SPLIT**, which was filed 2026-08-09 as a risk to be assigned. It had
+already fired, four days earlier, on the one surface where it cannot be taken back.
+
+## 1 · The divergence, reproduced rather than inferred
+
+Seeding an empty store from the engine's **own committed export**
+(`data_export/paper_track_index.csv`) and calling `recap.build(store, "daily", day="2026-08-05")`
+returns the false line verbatim. Both sides, same day:
+
+| | recorder | book | inception | 2026-08-05 reading |
+|---|---|---|---|---|
+| **what Discord quoted** | `paper_track.index_summary` (sandbox engine) | 10 names, equal-weighted 10% | 2026-08-03 | index +3.22%, SPY +3.05%, **+0.18 pp** |
+| **what the contract binds** | `index_track` → `data/valquo_track.json` + `valquo_track_history.csv` | 86 names, score-weighted, 8% cap | 2026-07-30 | −0.2777pp (07-31) → −2.8468pp (08-06) |
+
+**Two errors compounded, not one.** Wrong *book*, and a wrong *window*: the engine's inception
+is three days later and therefore skips the accrued drawdown the contract deliberately keeps.
+The bound series has no row on 08-05 at all (it is hand-maintained on the Cowork side, 2 of 6
+due rows — ledger row **PT-WRITER**), so the honest post that day was *"no Index figure"*.
+
+## 2 · The structural fix — one authority, no fallback, book and window welded to the number
+
+New **`index_track.vs_spy_claim()`** is the only function permitted to answer "how is the Index
+doing vs SPY". It reads **only** the bound source, has **no fallback to any other recorder**, and
+returns the figures with the **book** and the **window** in the same string, so they cannot come
+apart in transit. `summarize()` now takes its excess from it too — the two derivations that
+happened to agree became one that must.
+
+Deleted, not patched: `recap._delta()`, which took its own `index_ret − bench_ret`, and the
+`_pp` formatter that existed only to print it. Windows are counted in **recorded points**, never
+calendar days, because the bound series has gaps and "since yesterday" would silently attribute
+several sessions of drift to one.
+
+**The site had the same bug, and the label did not save it.** `hero.py` fell back to the engine
+whenever the tracker files were absent — i.e. **on every fresh deploy**, since `data/` is
+gitignored — with its own `(idx - bench) * 100`. It honestly set `source: "paper-sandbox"`, and
+**no template ever rendered that field** (verified by grep, not assumed). *A label a surface can
+decline to show is not a safeguard*, so the fallback is removed rather than relabelled.
+
+Every outbound surface now states which book and which window beside the figures: Discord
+(heading + per-line window), the landing page, the hero band and the Index tab.
+
+**Email digest: checked, and it makes no vs-SPY claim.** Confirmed on rendered output rather
+than by memory, and pinned so that if one is ever added it must come from the recorder.
+
+## 3 · Pinned — and the pins were mutation-tested, not assumed live
+
+Four new tests in `tests/test_paper_track.py` (53/53, was 47):
+
+1. **The one the task asked for.** The recorder is handed a claim whose excess (**−9.99 pp**) is
+   deliberately *not* the difference of its own legs (+5.00 / +1.00 = **+4.00 pp**). Anything that
+   recomputes prints +4.00. *Mutation-checked:* a deliberately recomputing `_claim_line` does
+   print +4.00 and fails the test.
+2. **The 2026-08-05 regression itself**, rebuilt from the engine's committed rows: must yield
+   "No Index-vs-SPY figure", never +0.18 pp. *Mutation-checked:* the engine's `active_ret` for
+   that day renders as exactly `+0.18 pp`.
+3. **The engine is unreachable, not merely deprioritised** — `index_summary` is made to raise and
+   the recap still builds.
+4. **AST scan** of `recap` / `notify` / `emailer` / `hero` for any subtraction of two return-ish
+   operands. *Mutation-checked:* run against the **pre-fix** `recap.py` it flags
+   `line 212: index_ret - bench_ret`. It is not vacuous.
+
+**One existing test replaced, and it is strictly harder.**
+`test_hero_names_which_forward_record_it_drew` asserted the fallback was *acceptable if
+labelled*. It is now `test_hero_will_not_render_the_sandbox_book_as_the_index`, and the old
+behaviour cannot pass it. The old test was written two days before the same defect put a false
+claim into Discord — worth remembering when a mitigation is "label it".
+
+## 4 · Verification
+
+`926 passed / 0 failed across 29 suites` in the CI-proxy environment (empty store, the
+difference that has broken the land gate before). `test_paper_track.py` 53/53.
+
+## 5 · What this does NOT do
+
+* **It cannot recall the 2026-08-05 post.** That is the whole reason the outbound case is worse
+  than the on-site one, and it is why the fix removes the wrong book rather than labelling it.
+* **The engine is still not re-pointed at the Index book** — ledger **PT-SPLIT** stays OPEN for
+  that half. It runs live on Render and re-pointing it is a construction change, not a repair.
+* **No new performance claim was added.** The corrected post reports −2.85 pp; the only figures
+  that changed are ones that were describing the wrong book.
+* **The bound series still has no automated writer** (**PT-WRITER**, Cowork lane). Until it
+  exists the honest answer on most days is "no Index figure", which is now what gets posted.
+
+### BUGS FOUND
+
+| # | where | what |
+|---|---|---|
+| 1 | `saas/recap.py` | Read the sandbox engine and printed it as the Valquo Index. **Shipped a false claim to Discord on 2026-08-05.** FIXED. |
+| 2 | `web/hero.py` | Same substitution on the site, plus its own `(idx - bench)` definition of excess. FIXED. |
+| 3 | `web/hero.py` + templates | `source: "paper-sandbox"` was set honestly and **rendered nowhere**. FIXED by removing the reachable wrong book. |
+| 4 | `edge/track_export.py` | Prose called the engine's table "the daily Valquo-Index-vs-SPY series". CORRECTED. |
+| 5 | `saas/recap.py` | `_delta()` computed its own excess for the day/week lines — a second definition that agreed with nothing in particular. DELETED. |
+
+---
+
+# Session 19 — 2026-08-08 — The P2 stale-figure sweep across every rendered surface
+(prompt: sweep public / demo / owner / exports / methodology for the figures P2 corrected)
+
+**THE HEADLINE: the sweep found a worse defect than the one it was sent to fix. The PUBLIC
+landing page was rendering "Backtested net alpha **+17.4%/yr**" — the pre-B6 figure — against
+a corrected **+11.6%**. P2 did not list it, because P2 looked at templates and this number is
+not in a template**: it comes from `settings.BOOK_CONFIGS["roth"]["measured"]`, a hard-coded
+research block that reaches the page through `index_track.summarize()`. The same block
+overstated the taxable book's **after-tax alpha sixfold (4.86% → 0.81%)**.
+
+**The rule that generalises, and it is the third time this project has been bitten by it:
+a stale number inside a shipped *payload* reads as current, where a stale number in a results
+file reads as data.** P2 said this about the Index `method` string. It is equally true of a
+config dict, and grepping templates alone will not find it — you have to follow what the
+template *renders*, not what it *contains*.
+
+## 1 · Before → after, every rendered surface
+
+Authority for every "after" value is `BACKTEST_RESULTS.json` on the corrected 2,531-name /
+69-date panel, read directly (not quoted from `CLAUDE.md`), plus `HANDOFF_edge_audit.md`
+Part 5 for the R1 re-run. Field paths are given so the next person can re-check in one command.
+
+| surface | figure | before (void) | after | source field |
+|---|---|---|---|---|
+| `/work` header (**public**) | panel | 2,710 names, 110 rebalances, 1998–2026 | 2,531 names, 69 rebalances, 2008–2026 | `universe.n_names` / `.n_dates` |
+| `/work` "What survives" | long-short t | **3.52, "above the 3.0 hurdle"** | **2.84 (NW 2.62), BELOW it**; 2.70–3.52 across seven grids | `construction.long_short_tstat` / `_nw` |
+| `/work` costs | breakeven / cost / turnover | 236 bps / 37 bps / 249% | **134 bps / 33 bps / 261%** | `costs.top_decile.*` |
+| `/work` alpha callout | FF5+MOM intercept | **+8.81%/yr, t 5.74, 109 windows, 1998–2026** | **+6.99%/yr, NW t 3.98, 68 windows, 2009–2025** | `HANDOFF_edge_audit.md:1726` |
+| `/work` alpha callout | ETF placebo | +0.19%/yr, t 0.45, beta 0.96 | +0.68%/yr, t 1.58, beta 0.93 | `HANDOFF_edge_audit.md:1719` |
+| `/work` caveats | trial count | "~146 construction decisions" | **116 logged equity trials (272 project-wide)** | audit M1 |
+| `/work` caveats | conservative figure | "+6.6%, dropping the contaminated period" | period **removed from the sample**; conservative figure is the first half's **+5.19%** | `HANDOFF_edge_audit.md:1727` |
+| `/work` limits | **capacity** | **~$23M** | **~$4.9M** | `HANDOFF_crowding.md` §3 |
+| `/work` rejected-ideas table | sector-neutral | "+11.8% → +10.2%" | numbers **removed**, direction kept — see §3 | — |
+| `/methodology` (**public**) | costs | 236 bps / 37 bps / 249% | 134 bps / 33 bps / 261% | same |
+| `/methodology` | universe | ~2,710-name | ~2,531-name | `universe.n_names` |
+| `/methodology` | alpha + placebo + trials + conservative figure | as `/work` above | as `/work` above | same |
+| **landing page** (**public**) | backtested net alpha | **+17.4%/yr, Sharpe 1.17** | **+11.6%/yr, Sharpe 1.10** | `book_configs.roth` |
+| landing / track export | taxable after-tax alpha | 4.86% (Sharpe 0.89) | **0.81%** (Sharpe 0.90) | `book_configs.taxable` |
+| Index payload `method` (P2 bug 3) | panel + 4 figures | 2,710/110, +11.8%, +11.4% net, 236/37 bps, top-25 +20.7% | 2,531/69, +7.2%, +6.1% net, 134/33 bps, top-25 **+16.9%** | `construction`, `costs`, `portfolio` |
+| track export `basis` | panel | 2,710-name / 110-date | 2,531-name / 69-date | `universe` |
+
+**Provenance check before touching the config block, because substituting numbers from a
+differently-parameterised run would have been a confident-wrong correction.** `settings.py:87`
+states its figures were measured on the "full 2,710-name / 18-year panel", and the results
+file's `book_configs` carries **byte-identical `label` strings** and matching `rebalance_days`
+(42 / 63). Same two constructions, re-measured on the corrected panel. Only then did I swap them.
+
+## 2 · The demo link, checked specifically
+
+The prompt flagged this and it is the one piece of good news: **the surfaces the recruiter link
+newly exposes carry no hard-coded figures at all.** `index.html` — the dashboard, Track Record,
+Edge Lab, the Index tab — renders live API data end to end; grepping it for any numeric literal
+returns nothing. So the demo view inherited the stale numbers only through `/work`,
+`/methodology` and the Index `method` payload, all three of which are fixed above. Verified by
+rendering `/work` and `/methodology` **inside a real demo session** (through `/demo/<token>`,
+not by forging the session) and asserting the stale token set is absent.
+
+## 3 · What I deliberately did NOT change, and why
+
+1. **The Deflated Sharpe paragraphs on both pages** still say the statistic is "undeflated" and
+   "saturates". That is **stale** — since M1 the shipped run self-reports
+   `metric = deflated_sharpe_ratio`, `is_effectively_undeflated = false`, `sr0 = 0.406`. I left
+   it, for two reasons. Correcting it would **upgrade a disclaimed statistic into a real one**,
+   which is a new performance claim and the prompt forbids adding those. And
+   `test_saas.py:414` **pins the words "saturates" and "undeflated"** as required weaknesses —
+   changing the copy silently would have failed the gate, and changing the test to match would
+   have been weakening a posture pin to suit my edit. **It is on the BUGS list below for a lane
+   that can pair the copy fix with the test amendment deliberately.**
+2. **The sector-neutral row's numbers are removed rather than replaced.** "+11.8% → +10.2%" is
+   pre-B6 and there is **no corrected re-run** to substitute. Inventing a corrected pair would
+   have been fabrication; leaving the void pair would have been the bug. The row now states the
+   direction (it buys long-short *t* and sells top-decile alpha) and says in the copy that the
+   levels predate the corrections and were not re-measured. **The verdict never rested on the
+   levels.**
+3. **`scripts/capacity.py` (P2 bugs 4–5) is untouched** — P2 assigns it to the free-analysis
+   lane and it is not a surface. It still hard-codes `BREAKEVEN_BPS = 234.505`, so **any re-run
+   reproduces the inflated $23M**. The `/work` page no longer quotes it, but the script will.
+4. **`cost_drag_ann` in the roth config is left at its pre-B6 0.0440**, annotated. The results
+   file does not emit a per-book cost drag, and the export does not read the field. Marked
+   rather than guessed.
+5. **Research comments and docstrings that cite 2,710/110 are left alone** (`settings.py`'s
+   sweep tables, `cross_sectional.py`, `factors.py`, `ml_combiner.py`, …). They are dated
+   records of what was measured then, correctly attributed. Only *rendered* text was changed.
+6. **`~37%` in `notify.py` / `app.js` / `unified.py` is NOT the 37 bps cost figure** — it is the
+   options hit rate, a different quantity. Checked, not assumed; left alone.
+
+## 4 · Two test amendments, both cited, neither weakening
+
+* **`test_saas.py`** — the methodology guard read `if "8.81" in body:` and only then checked the
+  alpha carried its labels. **My fix would have made it silently vacuous**: remove the literal
+  and the guard passes while checking nothing. It now (a) asserts `8.81` is **absent** — the
+  void figure must never return — and (b) re-keys the label check to the live `6.99`. Strictly
+  stronger than what it replaced.
+* **`test_screener.py:606`** — `assert thin["backtested"]["net_sharpe"] == 1.17` pinned the
+  pre-B6 literal and failed on the corrected 1.10. The assertion's own comment says the claim is
+  that **backtested figures travel separately from live ones** — a plumbing claim; the number
+  was incidental and will rot on every legitimate re-measurement. Re-pointed at
+  `settings.BOOK_CONFIGS`, plus a `is not None` guard so an empty dict cannot satisfy it
+  vacuously. **Nothing skipped, deleted or weakened** (RUN_RULES §A5).
+
+## 5 · Verification
+
+* A render harness opens **every public surface and a real demo session**, asserts a 16-token
+  stale set is absent and a per-surface required set is present. **All surfaces clean.**
+* Full gate in the **CI environment** (empty store, the difference that broke run #133):
+  **885 passed, 0 failed across 25 suites.**
+* **An honest flake, reported rather than buried:** one intermediate full-gate run failed
+  `test_portfolio_sector_cap_and_weights`. It then passed **6/6 in isolation** under the same
+  empty-store harness and passed in the final full run. I could not reproduce it and did not
+  change it. **It is not caused by this work** (that test touches none of these files) but it is
+  a real intermittent, and a suite that fails once in ~25 runs will eventually fail the land
+  gate for no reason.
+
+## BUGS FOUND
+
+| # | where | what | severity |
+|---|---|---|---|
+| 1 | `settings.BOOK_CONFIGS[*]["measured"]` → **public landing page** | Pre-B6 figures rendered as current: net alpha **+17.4%** vs +11.6%, taxable after-tax alpha **4.86%** vs 0.81% (6x). **Fixed here.** A template grep cannot find this — the number is in a config dict. | **HIGH — fixed** |
+| 2 | `/work`, "What survives" | Claimed long-short **t 3.52, "above the 3.0 hurdle"**. Corrected value **2.84 (NW 2.62) is below it**. The page asserted a passed bar that is failed. **Fixed here.** | **HIGH — fixed** |
+| 3 | `/work` + `/methodology` Deflated Sharpe copy | Still says "undeflated" / "saturates"; M1 made it a genuine Deflated Sharpe (`is_effectively_undeflated = false`). Understates the product, so the direction is safe — but it is wrong, and `test_saas.py:414` pins the stale wording, so copy + test must move together. **NOT fixed — needs a deliberate paired change.** | MEDIUM — open |
+| 4 | `scripts/capacity.py:36,124` | P2 bugs 4–5, untouched (other lane). Hard-coded `BREAKEVEN_BPS = 234.505` and a pre-B6 default panel: **any re-run silently reproduces the $23M this session just removed from the page.** | **HIGH — open, other lane** |
+| 5 | `tests/test_screener.py` | `test_portfolio_sector_cap_and_weights` failed once in a full sequential run, passed 6/6 in isolation. Unreproduced intermittent; will eventually fail a land gate spuriously. | MEDIUM — open |
+
+---
+
 # Session 18 — 2026-08-07 — The recruiter master-link opens the full read-only view
 (PROMPT_recruiter_master_link.md, including its UPDATE: a button on `/work`, not a bare URL)
 

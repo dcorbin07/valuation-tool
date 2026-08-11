@@ -3,10 +3,39 @@ Daily + weekly Discord recap of the forward paper track (options book + Valquo I
 
 WHY IT ONLY READS. Every number here already exists somewhere that has been tested:
 `options_tracker.record_outcome` computes each trade's P&L from the premiums it was logged
-against, `options_tracker.scorecard` defines expectancy, and `paper_track.index_summary`
-defines the index-vs-SPY record. This module re-derives NONE of them. A recap that computed
+against, `options_tracker.scorecard` defines expectancy, and `index_track.vs_spy_claim`
+defines the Index-vs-SPY record. This module re-derives NONE of them. A recap that computed
 its own P&L would eventually disagree with the API and the Signals tab, and the version people
 read in Discord is the one they would believe.
+
+WHICH BOOK THE INDEX FIGURES DESCRIBE — FIXED 2026-08-09, AND IT HAD ALREADY MISFIRED.
+This file used to read `paper_track.index_summary`, the Tradier sandbox ENGINE, and print it
+under the heading "Valquo Index vs SPY". On **2026-08-05** that posted:
+
+    "Since inception 2026-08-03 (3 sessions): index +3.22%, SPY +3.05% -> **+0.18 pp**"
+
+— the Index beating SPY. The contract-bound recorder over that window reads **-0.2777pp**
+(2026-07-31) and **-2.8468pp** (2026-08-06): it was never above SPY on any day. Nothing was
+miscalculated; the wrong BOOK was quoted. The engine held 10 names against the published
+book's 86, from a 2026-08-03 inception, so it is not the Index and cannot be evidence under
+the contract.
+
+CORRECTED 2026-08-11 (cold audit LA11). That sentence used to disqualify the engine because
+its 10% weights "violate `PAPER_TRACK_CONTRACT.md`'s own 8% cap". They do not — session 16
+(`PT-SPLIT`) retracted it. `valquo_index.build_index` sets `cap = max(MAX_WEIGHT,
+1/len(picks))` by design, because ten names at 8% sum to 80%; the weights were right for the
+book, and the BOOK was wrong. What disqualifies the engine is book SIZE. The correction
+matters here because this is the file that actually shipped the false claim: a reader who
+checked the cap, found it correct, and concluded the recap fix was an overreaction would be
+reopening a defect that reached real people.
+
+Every Index-vs-SPY figure in this file now comes from `index_track.vs_spy_claim` — the
+contract-named recorder, one function, no fallback to any other source — and every line names
+the book and the window it describes. When the bound track has nothing to say, this file says
+so and prints no figure; it does NOT reach for the engine to fill the gap. **A wrong number
+here cannot be corrected: Discord delivers once, to people, and the correction never catches
+it.** The engine's own liveness is still reported, as liveness, in `health_note` — session
+counts, never returns.
 
 WHAT IT IS ALLOWED TO SAY. The paper track is days old. So:
 
@@ -36,8 +65,14 @@ from typing import Optional
 from ..edge import paper_track as PT
 from ..edge.options_confidence import (FULL_SAMPLE_EXPECTANCY, HIT_RATE,
                                        LATE_HALF_EXPECTANCY)
+from ..screener import index_track as IT
 from ..web import payoff as _payoff
 from .notify import send_discord
+
+# How many recorded points back the weekly post's trailing window reaches. POINTS, not days:
+# the bound series is maintained by hand and has gaps, so "this week" counted in calendar days
+# would attribute several sessions of drift to one.
+TRAILING_POINTS = 5
 
 KINDS = ("daily", "weekly")
 
@@ -90,9 +125,10 @@ def _pct(x, nd: int = 1, signed: bool = True) -> str:
     return f"{v * 100:+.{nd}f}%" if signed else f"{v * 100:.{nd}f}%"
 
 
-def _pp(x, nd: int = 2) -> str:
-    v = _f(x)
-    return "—" if v is None else f"{v * 100:+.{nd}f} pp"
+# `_pp` (a fraction rendered as pp) lived here and is deliberately GONE. It existed only to
+# print the engine's `active_ret`, the inline difference this module is no longer allowed to
+# take. Percentage-point figures now arrive pre-formed in a claim's `text`, so there is no
+# formatter here that a re-derived excess could be printed through.
 
 
 def _money(x) -> str:
@@ -179,40 +215,16 @@ def _closed_paper_trades(store) -> list:
     return rows
 
 
-def _index_history(store) -> list:
-    with store._conn() as c:
-        cur = c.execute("SELECT as_of, index_ret, bench_ret, active_ret, n_positions, n_priced "
-                        "FROM paper_index_track ORDER BY as_of")
-        keys = [k[0] for k in cur.description]
-        return [dict(zip(keys, r)) for r in cur.fetchall()]
+def _sandbox_sessions(store) -> list:
+    """Dates the Tradier sandbox cycle recorded an index point. LIVENESS ONLY.
 
-
-def _holdings_added(store, since: str) -> list:
-    with store._conn() as c:
-        return [r[0] for r in c.execute(
-            "SELECT ticker FROM paper_index_holdings WHERE entry_date >= ? ORDER BY ticker",
-            (since,))]
-
-
-def _delta(rows: list, back: int) -> Optional[dict]:
-    """Change over the last `back` recorded points. None when there is no earlier point.
-
-    Deliberately measured in RECORDED points rather than calendar days: if the cycle missed a
-    session, "since the previous point" is the honest window and pretending it was one day
-    would attribute two days of drift to one.
+    Deliberately selects no returns. This is the engine's book, not the Index, and the one
+    thing it is allowed to tell a reader is whether the cron ran — see `health_note`. Reading
+    `index_ret`/`bench_ret` here is what produced the 2026-08-05 post described in the module
+    docstring, so the columns are not selected at all rather than selected and then not used.
     """
-    if len(rows) < back + 1:
-        return None
-    now, then = rows[-1], rows[-1 - back]
-    out = {"from": then["as_of"], "to": now["as_of"], "points": back}
-    for k in ("index_ret", "bench_ret"):
-        a, b = _f(now.get(k)), _f(then.get(k))
-        out[k] = (1.0 + a) / (1.0 + b) - 1.0 if (a is not None and b is not None) else None
-    if out["index_ret"] is not None and out["bench_ret"] is not None:
-        out["active_ret"] = out["index_ret"] - out["bench_ret"]
-    else:
-        out["active_ret"] = None
-    return out
+    with store._conn() as c:
+        return [r[0] for r in c.execute("SELECT as_of FROM paper_index_track ORDER BY as_of")]
 
 
 def collect(store, day=None, window_days: int = WEEK_DAYS) -> dict:
@@ -222,9 +234,13 @@ def collect(store, day=None, window_days: int = WEEK_DAYS) -> dict:
     day_iso = today.isoformat()
 
     opt = PT.options_summary(store)
-    idx = PT.index_summary(store)
     closed = _closed_paper_trades(store)
-    hist = _index_history(store)
+    sessions = _sandbox_sessions(store)
+
+    # THE ONE SOURCE for every Index-vs-SPY figure in this post. Three windows, all answered by
+    # the contract-bound recorder, each carrying its own book and window description. Nothing
+    # below subtracts one return from another.
+    claim = IT.vs_spy_claim("inception", store=store)
 
     opened_today = [r["ticker"] for r in PT.paper_orders(store, states=("open", "submitted"))
                     if str(r.get("entry_ts") or "")[:10] == day_iso]
@@ -257,12 +273,16 @@ def collect(store, day=None, window_days: int = WEEK_DAYS) -> dict:
             "worst": ranked[0] if ranked else None,
         },
         "index": {
-            "summary": idx,
-            "day": _delta(hist, 1),
-            "week": _delta(hist, min(5, len(hist) - 1)) if len(hist) > 1 else None,
-            "added_since": _holdings_added(store, since),
-            "added_today": _holdings_added(store, day_iso),
-            "points_in_window": [r for r in hist if r["as_of"] >= since],
+            "claim": claim,
+            "last_point": IT.vs_spy_claim("last_point", store=store),
+            "trailing": IT.vs_spy_claim("trailing", points=TRAILING_POINTS, store=store),
+        },
+        # The ENGINE, kept strictly apart from the block above and carrying no returns. Its
+        # only job in this post is to say whether the cron ran.
+        "sandbox_cycle": {
+            "started": bool(sessions),
+            "first": sessions[0] if sessions else None,
+            "sessions_in_window": [d for d in sessions if d >= since],
         },
     }
 
@@ -271,26 +291,29 @@ def collect(store, day=None, window_days: int = WEEK_DAYS) -> dict:
 def health_note(data: dict, day=None) -> str:
     """One honest line: did the cycle actually run, and is anything stuck.
 
-    The index book records exactly one point per session it ran, so counting points against
-    the trading days in the window is a real liveness check rather than a restatement of the
-    numbers above it. A gap here is the failure mode that matters most — a forward track that
-    silently stops recording is indistinguishable from one that is doing fine.
+    LIVENESS, NOT PERFORMANCE. This watches the Tradier sandbox cron — the engine records
+    exactly one point per session it ran, so counting points against the trading days in the
+    window is a real check rather than a restatement of the numbers above it. A gap here is
+    the failure mode that matters most: a forward track that silently stops recording is
+    indistinguishable from one that is doing fine. It reads session DATES only; the engine's
+    returns are not the Index's and appear nowhere in this post.
     """
     from ..screener.market_session import is_trading_day
 
-    idx = data["index"]["summary"]
-    if not idx.get("started"):
-        return ("Health: the index book has not recorded a session yet, so there is nothing to "
-                "check for gaps.")
+    cyc = data.get("sandbox_cycle") or {}
+    if not cyc.get("started"):
+        return ("Health: the sandbox cycle has not recorded a session yet, so there is nothing "
+                "to check for gaps.")
 
     today = _d(day) or _dt.date.today()
     expected = [today - _dt.timedelta(days=i) for i in range(WEEK_DAYS)]
-    # Only sessions on or after inception count. Without this a track that started yesterday
-    # reports "1/5 sessions" and cries about a hole every day of its first week — a watchdog
-    # that is wrong at exactly the moment you are watching it teaches you to ignore it.
-    born = _d(idx.get("inception"))
+    # Only sessions on or after the cycle's first point count. Without this a track that
+    # started yesterday reports "1/5 sessions" and cries about a hole every day of its first
+    # week — a watchdog that is wrong at exactly the moment you are watching it teaches you to
+    # ignore it.
+    born = _d(cyc.get("first"))
     expected = [d for d in expected if is_trading_day(d) and (born is None or d >= born)]
-    got = {r["as_of"] for r in data["index"]["points_in_window"]}
+    got = set(cyc.get("sessions_in_window") or [])
     ran = sum(1 for d in expected if d.isoformat() in got)
 
     bits = [f"cycle recorded {ran}/{len(expected)} sessions since "
@@ -308,9 +331,21 @@ def health_note(data: dict, day=None) -> str:
 
 # ------------------------------------------------------------------ the posts
 def _label(data: dict) -> str:
-    """The honesty stamp, taken from whichever book has actually started."""
-    opt, idx = data["options"]["summary"], data["index"]["summary"]
-    return opt.get("label") if opt.get("started") else idx.get("label")
+    """The honesty stamp, taken from whichever book has actually started.
+
+    The options label is the sandbox engine's own string. The Index is a different book with
+    no engine label, so when only the Index is reporting the stamp names the bound recorder
+    rather than borrowing the engine's wording — which is how the two came to be conflated in
+    the first place.
+    """
+    opt = data["options"]["summary"]
+    if opt.get("started"):
+        return opt.get("label")
+    claim = data["index"]["claim"]
+    if claim.get("available"):
+        return (f"paper, contract-bound Valquo Index — {claim['window']}, "
+                f"thin: not yet a result")
+    return "paper — neither book has reported yet"
 
 
 def _options_block(data: dict, weekly: bool = False) -> list:
@@ -376,41 +411,51 @@ def _options_block(data: dict, weekly: bool = False) -> list:
     return lines
 
 
+def _claim_line(c: dict) -> str:
+    """One window's figures, with its window attached. FORMATS, never computes.
+
+    Every value printed here is a field of the claim the recorder returned. There is no
+    subtraction in this file — see `index_track.vs_spy_claim`, which owns that arithmetic.
+    """
+    return (f"{c['window']}: Index {c['valquo_pct']:+.2f}%, {c['benchmark']} "
+            f"{c['spy_pct']:+.2f}% → {c['excess_pp']:+.2f} pp")
+
+
 def _index_block(data: dict, weekly: bool = False) -> list:
+    """The Index's record against SPY, from the contract-bound recorder and nowhere else.
+
+    The heading names the BOOK and every line names its WINDOW, so no single line can be
+    quoted — or screenshotted — as a claim about a book it does not describe. That is the
+    whole repair: the 2026-08-05 post was false not because a number was wrong but because
+    the number was true of a different book.
+    """
     i = data["index"]
-    s = i["summary"]
-    lines = ["**Valquo Index vs SPY (paper)**"]
-    if not s.get("started"):
-        lines.append(f"• Not started — {s.get('n_holdings', 0)} holdings seeded, no marked "
-                     f"session yet.")
+    claim, last, trail = i["claim"], i["last_point"], i["trailing"]
+
+    lines = [f"**{IT.BOOK_SHORT} vs SPY**",
+             f"_Source: {IT.RECORDER}, the book PAPER_TRACK_CONTRACT.md binds. The Tradier "
+             f"sandbox book is a different book and is not reported as the Index._"]
+
+    if not claim.get("available"):
+        # No figure is a real answer. The engine is NOT consulted to fill this gap.
+        lines.append(f"• No Index-vs-SPY figure this post — "
+                     f"{claim.get('reason') or 'the bound track is not reporting'}.")
         return lines
 
-    day = i["day"]
-    if day:
-        lines.append(f"• Since the previous point ({day['from']} → {day['to']}): "
-                     f"index {_pct(day['index_ret'], nd=2)}, SPY {_pct(day['bench_ret'], nd=2)} "
-                     f"→ {_pp(day['active_ret'])}")
-    else:
-        lines.append("• First recorded session — no previous point to compare with yet.")
+    if last.get("available"):
+        lines.append(f"• {_claim_line(last)}")
+    if weekly and trail.get("available"):
+        lines.append(f"• {_claim_line(trail)}")
+    lines.append(f"• **{claim['text']}**")
 
-    # Suppressed when the week is only one point long: it would restate the line above it
-    # under a wider-sounding label, which reads as more evidence than there is.
-    if weekly and i["week"] and i["week"]["points"] > 1:
-        w = i["week"]
-        lines.append(f"• This week ({w['from']} → {w['to']}, {_plural(w['points'], 'session')}): "
-                     f"index {_pct(w['index_ret'], nd=2)}, SPY {_pct(w['bench_ret'], nd=2)} "
-                     f"→ {_pp(w['active_ret'])}")
-
-    lines.append(f"• Since inception {s.get('inception')} "
-                 f"({_plural(s.get('n_days') or 0, 'session')}): "
-                 f"index {_pct(s.get('index_ret'), nd=2)}, SPY {_pct(s.get('bench_ret'), nd=2)} "
-                 f"→ **{_pp(s.get('active_ret'))}**")
-    lines.append(f"• {s.get('n_holdings')} holdings, {s.get('n_priced')} priced against SPY"
-                 + (f" · added today: {', '.join(i['added_today'][:8])}"
-                    if i["added_today"] else " · no holdings changes today"))
-    if not s.get("meaningful"):
-        lines.append(f"    {s.get('n_days')} sessions is far short of the "
-                     f"{s.get('min_days_for_meaning')} needed before this means anything.")
+    n = claim.get("n_points") or 0
+    if n < IT.MIN_LIVE_DAYS:
+        gate = IT.gate_state()
+        lines.append(f"    {_plural(n, 'recorded session')} is far short of the "
+                     f"{IT.MIN_LIVE_DAYS} needed before this means anything"
+                     + ("." if gate.get("passed") else
+                        ", and the contract's operational gate has not been recorded as "
+                        "passed."))
     return lines
 
 

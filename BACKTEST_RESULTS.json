@@ -1,13 +1,13 @@
 {
   "schema_version": 4,
   "errors": [],
-  "generated_at": "2026-08-05T12:46:11",
-  "generated_at_utc": "2026-08-05T16:46:11+00:00",
+  "generated_at": "2026-08-11T12:56:37",
+  "generated_at_utc": "2026-08-11T16:56:37+00:00",
   "git": {
-    "commit": "4f41c9f49d5a6e45175d73cd013aacde5af7080a",
-    "short": "4f41c9f",
+    "commit": "9ea8f6ffbba6846aeee2df1ba63e930f676b683a",
+    "short": "9ea8f6f",
     "branch": "worktree-options-live",
-    "dirty": true
+    "dirty": false
   },
   "provider": "local export files (Sharadar or CRSP)",
   "survivorship_free": true,
@@ -47,6 +47,7 @@
       "truncation": "shared_calendar",
       "horizon": 63,
       "rebalance_days": 63,
+      "extra_horizons": [],
       "grid_offset": 0,
       "n_rebalance_dates": 69,
       "cross_section_min": 1471,
@@ -249,21 +250,21 @@
       "meaning": "probability_of_backtest_overfitting"
     },
     "deflated_sharpe_detail": {
-      "probability": 0.8996589404135822,
+      "probability": 0.8340367318547941,
       "sharpe_per_period": 0.5500328707621251,
-      "sr0_benchmark": 0.4056234662323911,
-      "n_trials": 84,
+      "sr0_benchmark": 0.440537154600876,
+      "n_trials": 155,
       "var_sr_across_trials": 0.026997967906897496,
       "n_periods": 69,
       "n_trials_from_weight_schemes": 8,
-      "n_trials_from_research_log": 84,
+      "n_trials_from_research_log": 155,
       "n_trials_source": "RESEARCH_LOG.md (audit M1)",
       "is_effectively_undeflated": false,
       "metric": "deflated_sharpe_ratio"
     },
     "pbo_scope": "weight_scheme_selection_only",
     "deflated_sharpe": {
-      "value": 0.8996589404135822,
+      "value": 0.8340367318547941,
       "want": ">0.95",
       "meaning": "probability_edge_is_real_after_trials_correction"
     },
@@ -725,6 +726,12 @@
         "coverage": 0.7184518846812058,
         "n_dates": 49
       },
+      "cash_op_prof": {
+        "median_ic": 0.0025644369874580357,
+        "ic_tstat": 0.8392408086546717,
+        "coverage": 0.9527052525341173,
+        "n_dates": 69
+      },
       "sm_breadth": {
         "median_ic": 0.02503524588892606,
         "ic_tstat": 1.671620858487314,
@@ -881,6 +888,8 @@
     "metric": "long_short_tstat and top_decile_alpha, measured on the held-out half",
     "min_alpha_gain": 0.01,
     "min_tstat_gain": 0.25,
+    "verdicts_scope": "both_halves_stability \u2014 the decide-half rule is NOT applied (audit B8); see oos_verdicts for the rule-gated protocol",
+    "oos_verdicts_scope": "rule-gated out-of-sample \u2014 only directions whose decide half flagged the theme carry evidence (audit B8)",
     "splits": {
       "decide_early_measure_late": {
         "decide_dates": 34,
@@ -1109,7 +1118,37 @@
       "size": "rejected",
       "institutional": "rejected"
     },
-    "boundary_date_embargoed": "2017-07-20"
+    "oos_verdicts": {
+      "value": "rejected_oos",
+      "quality": "not_flagged",
+      "momentum": "rejected_oos",
+      "insider": "rejected_oos",
+      "low_risk": "confirmed_oos",
+      "capital_discipline": "not_flagged",
+      "size": "rejected_oos",
+      "institutional": "not_flagged"
+    },
+    "oos_directions_tested": {
+      "value": 1,
+      "quality": 0,
+      "momentum": 1,
+      "insider": 1,
+      "low_risk": 1,
+      "capital_discipline": 0,
+      "size": 1,
+      "institutional": 0
+    },
+    "boundary_date_embargoed": "2017-07-20",
+    "stability_verdicts": {
+      "value": "rejected",
+      "quality": "rejected",
+      "momentum": "not_replicated",
+      "insider": "rejected",
+      "low_risk": "confirmed",
+      "capital_discipline": "not_replicated",
+      "size": "rejected",
+      "institutional": "rejected"
+    }
   },
   "costs": {
     "cost_model": "one-way bps by point-in-time market cap; see COST_BPS_BY_MKTCAP",
@@ -1129,14 +1168,14 @@
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.08119856135218217,
       "net_alpha": 0.06069654078141906,
-      "realised_one_way_bps": 33.359867748008256,
+      "realised_one_way_bps": 33.359867748008234,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",
         "the equal-weight benchmark is charged ZERO cost while the strategy pays, so every 'alpha versus equal-weight' figure compares a book that trades against one that does not"
       ],
       "flat_bps": null,
-      "breakeven_one_way_bps": 134.11280625592693,
+      "breakeven_one_way_bps": 134.11280625592718,
       "curve": [
         {
           "bps": 0.0,
@@ -1155,8 +1194,8 @@
         },
         {
           "bps": 50.0,
-          "net_alpha": 0.050428265528673855,
-          "net_ann": 0.22282127373117722
+          "net_alpha": 0.05042826552867408,
+          "net_ann": 0.22282127373117744
         },
         {
           "bps": 100.0,
@@ -1165,8 +1204,8 @@
         },
         {
           "bps": 150.0,
-          "net_alpha": -0.00941914573819691,
-          "net_ann": 0.16297386246430645
+          "net_alpha": -0.009419145738196688,
+          "net_ann": 0.16297386246430667
         },
         {
           "bps": 200.0,
@@ -1190,7 +1229,7 @@
       "n_names": 25,
       "top_frac": null,
       "gross_sharpe": 1.1994838740730134,
-      "net_sharpe": 1.101773362108518,
+      "net_sharpe": 1.1017733621085182,
       "net_max_drawdown": -0.26212347635832645,
       "net_vol_ann": 0.2666640308161228,
       "equal_weight_sharpe": 0.9084245982678518,
@@ -1201,14 +1240,14 @@
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.14889205697196717,
       "net_alpha": 0.1163488122989853,
-      "realised_one_way_bps": 41.894808649779996,
+      "realised_one_way_bps": 41.894808649779975,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",
         "the equal-weight benchmark is charged ZERO cost while the strategy pays, so every 'alpha versus equal-weight' figure compares a book that trades against one that does not"
       ],
       "flat_bps": null,
-      "breakeven_one_way_bps": 198.21638220997386,
+      "breakeven_one_way_bps": 198.21638220997417,
       "curve": [
         {
           "bps": 0.0,
@@ -1242,8 +1281,8 @@
         },
         {
           "bps": 200.0,
-          "net_alpha": -0.0012944629431470567,
-          "net_ann": 0.1710985452593563
+          "net_alpha": -0.0012944629431468346,
+          "net_ann": 0.17109854525935653
         },
         {
           "bps": 300.0,
@@ -1339,7 +1378,7 @@
         "cost_drag_ann": 0.01498705106900644
       },
       "0.25": {
-        "annual_turnover": 1.5944717306147036,
+        "annual_turnover": 1.5944717306147034,
         "gross_alpha": 0.08525933211842296,
         "net_alpha": 0.0721413470592025,
         "after_tax_alpha": 0.013414468255314338,
@@ -1360,7 +1399,7 @@
       "rebalance_days": 42,
       "scored_at_horizon": 63,
       "net_alpha": 0.1163488122989853,
-      "net_sharpe": 1.101773362108518,
+      "net_sharpe": 1.1017733621085182,
       "net_max_drawdown": -0.26212347635832645,
       "annual_turnover": 3.1690792919718658,
       "after_tax_alpha": 0.020442996157761906,
@@ -1492,6 +1531,7 @@
           "sm_breadth": 0.49223628303195277,
           "high_prox": 0.4950947996535241,
           "neg_days_to_cover": 0.5038567493112948,
+          "cash_op_prof": 0.4962762356127285,
           "ps": 0.5013404825737265
         }
       },
@@ -1579,6 +1619,7 @@
       "neg_rating_disp": 0.0,
       "f_score": 0.9502040458115758,
       "inst_breadth": 0.7184518846812058,
+      "cash_op_prof": 0.9527052525341173,
       "sm_breadth": 0.7169336083198035,
       "roe_ttm": 0.9049190398876651,
       "roic_ttm": 0.93803150642854,

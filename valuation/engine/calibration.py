@@ -266,7 +266,28 @@ def pit_company(ticker, prep, as_of, price, market_cap, sector="", industry="", 
 # The valuation itself — the live engine, minus what doesn't feed the headline
 # --------------------------------------------------------------------------- #
 
-def lean_fair_value(cd: CompanyData, cfg=CONFIG, with_reverse=True) -> dict:
+def offline_beta(pit_beta):
+    """S23 — the beta a POINT-IN-TIME valuation may use, with no network and no hindsight.
+
+    `wacc._resolve_beta` rung 3 corroborates an unusable vendor beta by calling
+    `data.beta.compute_beta`, which fetches `yf.Ticker(...).history(...)` — i.e. TODAY'S prices.
+    That is correct for the live product, where today IS the as-of date. In a backtest it values
+    a 1999 date with a beta regressed on 2021-2026 returns, which is look-ahead; it is also a
+    network dependency and a rate-limit hazard. Measured on a 25-name probe it fired 157 times
+    over 1,122 rows.
+
+    This reproduces the ladder with rung 3 removed: an in-range point-in-time beta is used
+    (rung 2), and anything else falls to the engine's OWN stated constant (rung 4) — which is
+    exactly where the ladder lands when corroboration cannot run.
+    """
+    from .wacc import BETA_FALLBACK, BETA_HIGH_CAP, BETA_LOW_TRIGGER
+    b = pit_beta
+    if b is not None and b == b and 0 < b <= BETA_HIGH_CAP and b > BETA_LOW_TRIGGER:
+        return float(b)
+    return float(BETA_FALLBACK)
+
+
+def lean_fair_value(cd: CompanyData, cfg=CONFIG, with_reverse=True, beta_override=None) -> dict:
     """The blended fair value for one company, by the same path as the website.
 
     Mirrors pipeline.value_from_company exactly up to `blend.value`; Monte Carlo,
@@ -275,7 +296,9 @@ def lean_fair_value(cd: CompanyData, cfg=CONFIG, with_reverse=True) -> dict:
     either, but it IS the growth-name headline, so it is computed when asked for.
     """
     cls = classify(cd)
-    w = compute_wacc(cd, cfg)
+    # S23 — `beta_override` defaults to None, so the live path is unchanged. A point-in-time
+    # caller passes `offline_beta(pit_beta)` and the ladder never reaches its network rung.
+    w = compute_wacc(cd, cfg, beta_override=beta_override)
     wacc_value = w.wacc
     base = build_base_assumptions(cd, cls, w.risk_free, cfg)
 
@@ -348,7 +371,7 @@ def _beta_at(closes, benchv, i, window=120) -> Optional[float]:
 
 def build_valuation_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                           lookback_years=18, horizon=63, progress=True,
-                          risk_free=None) -> pd.DataFrame:
+                          risk_free=None, offline=False) -> pd.DataFrame:
     """Point-in-time fair value + forward return per (date, ticker).
 
     Same calendar, same delisting mask and same forward-return convention as
@@ -364,8 +387,19 @@ def build_valuation_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
         if progress:
             print(f"[calib] {time.time() - t0:6.0f}s  {msg}", file=sys.stderr, flush=True)
 
+    # AUDIT B6, APPLIED HERE TOO (S23). This function used to request
+    # `days=TD*lookback_years + horizon + 60`, which takes the PER-TICKER tail — the exact
+    # route `data_providers.price_history` says in its own comment "is never the panel's route
+    # now". The consequence is B6's: the union calendar's early cross-sections consist only of
+    # names that stopped trading before the window closed, and measured on a 25-name probe this
+    # produced 110 rebalance dates starting 1998-12-31 against the corrected factor panel's 69
+    # from 2008-01-16. `days=None` asks for the WHOLE series and the SHARED calendar is cut once
+    # below, so every ticker is cut at the same DATE and this panel lands on the factor panel's
+    # own dates (pinned by S23's control C1).
+    _CAL_DAYS = TD * lookback_years + horizon + 60
+
     def series(t):
-        d, c = provider.price_history(t, days=TD * lookback_years + horizon + 60)
+        d, c = provider.price_history(t, days=None)
         return pd.Series(c, index=pd.to_datetime(d)) if (d and c and len(c) > TD) else None
 
     bench = series(benchmark)
@@ -411,6 +445,12 @@ def build_valuation_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
             if m.any():
                 frame.loc[m, t] = np.nan
 
+    # AUDIT B6 — cut the shared CALENDAR once, after the frame is built, so every ticker is
+    # cut at the same date. This is the same cut `build_fundamental_panel` makes, which is what
+    # puts the two panels on identical rebalance dates.
+    if _CAL_DAYS and len(frame.index) > _CAL_DAYS:
+        frame = frame.iloc[-_CAL_DAYS:]
+
     cal = frame.index
     benchf = bench.reindex(cal).ffill()
     benchv = benchf.values.tolist()
@@ -437,16 +477,20 @@ def build_valuation_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                 continue                       # no point-in-time market cap -> skip
             mc = float(d[0]) * 1e6
             md = meta.get(t) or {}
+            _pit_beta = _beta_at(closes, benchv, i)
             cd = pit_company(t, prep.get(t), as_of, float(p), mc,
                              sector=md.get("sector") or "",
                              industry=md.get("industry") or "",
-                             beta=_beta_at(closes, benchv, i),
+                             beta=_pit_beta,
                              risk_free=risk_free)
             if cd is None:
                 n_no_company += 1
                 continue
             try:
-                v = lean_fair_value(cd)
+                # S23 — `offline=True` pins the beta point-in-time so the ladder cannot reach
+                # its network rung and fetch TODAY'S prices for a historical valuation.
+                v = lean_fair_value(cd, beta_override=(offline_beta(_pit_beta) if offline
+                                                       else None))
             except Exception as e:               # counted, never silent — see below
                 n_failed += 1
                 if len(first_errors) < 5:

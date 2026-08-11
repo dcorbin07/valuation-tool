@@ -1,25 +1,702 @@
 {
+  "bound_index_track": {
+    "book": "Valquo Index — broad top decile of the large-cap tier by hot score, score-weighted, capped at 8%",
+    "meta": {
+      "benchmark": "SPY",
+      "inception_date": "2026-07-30",
+      "positions": [
+        {
+          "ticker": "WDS",
+          "weight": 0.02315
+        },
+        {
+          "ticker": "SKM",
+          "weight": 0.02258
+        },
+        {
+          "ticker": "APA",
+          "weight": 0.02225
+        },
+        {
+          "ticker": "RGA",
+          "weight": 0.02206
+        },
+        {
+          "ticker": "DOW",
+          "weight": 0.02174
+        },
+        {
+          "ticker": "CF",
+          "weight": 0.02155
+        },
+        {
+          "ticker": "OVV",
+          "weight": 0.02142
+        },
+        {
+          "ticker": "EG",
+          "weight": 0.02129
+        },
+        {
+          "ticker": "AGX",
+          "weight": 0.02123
+        },
+        {
+          "ticker": "HON",
+          "weight": 0.02065
+        },
+        {
+          "ticker": "INCY",
+          "weight": 0.02026
+        },
+        {
+          "ticker": "RNR",
+          "weight": 0.01994
+        },
+        {
+          "ticker": "FDX",
+          "weight": 0.0193
+        },
+        {
+          "ticker": "HPE",
+          "weight": 0.01911
+        },
+        {
+          "ticker": "JBHT",
+          "weight": 0.01898
+        },
+        {
+          "ticker": "BEN",
+          "weight": 0.01872
+        },
+        {
+          "ticker": "UMBF",
+          "weight": 0.0184
+        },
+        {
+          "ticker": "STM",
+          "weight": 0.01808
+        },
+        {
+          "ticker": "POWL",
+          "weight": 0.01788
+        },
+        {
+          "ticker": "MRNA",
+          "weight": 0.01776
+        },
+        {
+          "ticker": "TTE",
+          "weight": 0.01756
+        },
+        {
+          "ticker": "ALLY",
+          "weight": 0.0175
+        },
+        {
+          "ticker": "SNDK",
+          "weight": 0.01705
+        },
+        {
+          "ticker": "TER",
+          "weight": 0.01686
+        },
+        {
+          "ticker": "SU",
+          "weight": 0.01666
+        },
+        {
+          "ticker": "EXE",
+          "weight": 0.01628
+        },
+        {
+          "ticker": "VICR",
+          "weight": 0.01564
+        },
+        {
+          "ticker": "EOG",
+          "weight": 0.01557
+        },
+        {
+          "ticker": "TPL",
+          "weight": 0.01551
+        },
+        {
+          "ticker": "WDC",
+          "weight": 0.01538
+        },
+        {
+          "ticker": "FORM",
+          "weight": 0.01531
+        },
+        {
+          "ticker": "WTFC",
+          "weight": 0.01519
+        },
+        {
+          "ticker": "ARW",
+          "weight": 0.01499
+        },
+        {
+          "ticker": "AEIS",
+          "weight": 0.01474
+        },
+        {
+          "ticker": "BNS",
+          "weight": 0.01467
+        },
+        {
+          "ticker": "KHC",
+          "weight": 0.01454
+        },
+        {
+          "ticker": "VOD",
+          "weight": 0.01409
+        },
+        {
+          "ticker": "FIX",
+          "weight": 0.01403
+        },
+        {
+          "ticker": "STRL",
+          "weight": 0.01358
+        },
+        {
+          "ticker": "VRT",
+          "weight": 0.01326
+        },
+        {
+          "ticker": "ZION",
+          "weight": 0.013
+        },
+        {
+          "ticker": "MDGL",
+          "weight": 0.0121
+        },
+        {
+          "ticker": "FTI",
+          "weight": 0.01191
+        },
+        {
+          "ticker": "DINO",
+          "weight": 0.01159
+        },
+        {
+          "ticker": "CVE",
+          "weight": 0.01107
+        },
+        {
+          "ticker": "IX",
+          "weight": 0.01101
+        },
+        {
+          "ticker": "OXY",
+          "weight": 0.01075
+        },
+        {
+          "ticker": "VIAV",
+          "weight": 0.01069
+        },
+        {
+          "ticker": "COKE",
+          "weight": 0.01056
+        },
+        {
+          "ticker": "MEDP",
+          "weight": 0.0103
+        },
+        {
+          "ticker": "THC",
+          "weight": 0.00992
+        },
+        {
+          "ticker": "CIEN",
+          "weight": 0.00947
+        },
+        {
+          "ticker": "ZTO",
+          "weight": 0.00863
+        },
+        {
+          "ticker": "EQT",
+          "weight": 0.00837
+        },
+        {
+          "ticker": "GEN",
+          "weight": 0.00831
+        },
+        {
+          "ticker": "BPOP",
+          "weight": 0.00799
+        },
+        {
+          "ticker": "ET",
+          "weight": 0.00786
+        },
+        {
+          "ticker": "WBS",
+          "weight": 0.00779
+        },
+        {
+          "ticker": "IFF",
+          "weight": 0.00722
+        },
+        {
+          "ticker": "CGNX",
+          "weight": 0.00702
+        },
+        {
+          "ticker": "PR",
+          "weight": 0.00689
+        },
+        {
+          "ticker": "KNX",
+          "weight": 0.00561
+        },
+        {
+          "ticker": "AR",
+          "weight": 0.00522
+        },
+        {
+          "ticker": "MOD",
+          "weight": 0.00509
+        },
+        {
+          "ticker": "TSEM",
+          "weight": 0.00497
+        },
+        {
+          "ticker": "KGC",
+          "weight": 0.00458
+        },
+        {
+          "ticker": "PSA",
+          "weight": 0.00445
+        },
+        {
+          "ticker": "RPM",
+          "weight": 0.00439
+        },
+        {
+          "ticker": "ASML",
+          "weight": 0.00432
+        },
+        {
+          "ticker": "FCNCA",
+          "weight": 0.00426
+        },
+        {
+          "ticker": "ONTO",
+          "weight": 0.004
+        },
+        {
+          "ticker": "KEYS",
+          "weight": 0.00381
+        },
+        {
+          "ticker": "GGG",
+          "weight": 0.00375
+        },
+        {
+          "ticker": "JEF",
+          "weight": 0.00349
+        },
+        {
+          "ticker": "DOCN",
+          "weight": 0.00336
+        },
+        {
+          "ticker": "ACGL",
+          "weight": 0.0033
+        },
+        {
+          "ticker": "CBOE",
+          "weight": 0.00297
+        },
+        {
+          "ticker": "TD",
+          "weight": 0.00227
+        },
+        {
+          "ticker": "HAL",
+          "weight": 0.00207
+        },
+        {
+          "ticker": "GNRC",
+          "weight": 0.00201
+        },
+        {
+          "ticker": "VSAT",
+          "weight": 0.00195
+        },
+        {
+          "ticker": "RF",
+          "weight": 0.00175
+        },
+        {
+          "ticker": "TECK",
+          "weight": 0.00143
+        },
+        {
+          "ticker": "IMO",
+          "weight": 0.00137
+        },
+        {
+          "ticker": "XPO",
+          "weight": 0.00124
+        },
+        {
+          "ticker": "MU",
+          "weight": 0.00117
+        }
+      ],
+      "scan_date": "2026-07-24"
+    },
+    "recorder": "data/valquo_track.json + valquo_track_history.csv",
+    "series": [
+      {
+        "date": "2026-07-31",
+        "excess_pp": -0.2777,
+        "n_priced": 86.0,
+        "spy_pct": 0.6903,
+        "valquo_pct": 0.4126
+      },
+      {
+        "date": "2026-08-06",
+        "excess_pp": -2.8468,
+        "n_priced": 86.0,
+        "spy_pct": 3.6228,
+        "valquo_pct": 0.776
+      }
+    ],
+    "sources": {
+      "committed_backup": 0,
+      "ingested_store": 0,
+      "tracker_files": 2
+    }
+  },
   "counts": {
-    "index_days": 0,
-    "index_holdings": 0,
+    "bound_index_days": 2,
+    "index_days": 4,
+    "index_holdings": 10,
     "ingested_index_days": 0,
-    "option_alerts": 0,
+    "option_alerts": 3,
     "option_alerts_closed": 0,
-    "paper_orders": 0,
+    "paper_orders": 3,
     "paper_orders_closed": 0
   },
-  "generated_at": "1970-01-01T00:00:00",
-  "index_holdings": [],
-  "index_series": [],
+  "generated_at": "2026-08-09T07:15:04",
+  "index_holdings": [
+    {
+      "bench_entry_price": 747.03,
+      "entry_date": "2026-08-03",
+      "entry_price": 507.67,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "AMAT",
+      "weight": 0.1
+    },
+    {
+      "bench_entry_price": 747.03,
+      "entry_date": "2026-08-03",
+      "entry_price": 476.15,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "AMD",
+      "weight": 0.1
+    },
+    {
+      "bench_entry_price": 747.03,
+      "entry_date": "2026-08-03",
+      "entry_price": 216.14,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "BA",
+      "weight": 0.1
+    },
+    {
+      "bench_entry_price": 747.03,
+      "entry_date": "2026-08-03",
+      "entry_price": 192.9,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "BKNG",
+      "weight": 0.1
+    },
+    {
+      "bench_entry_price": 747.03,
+      "entry_date": "2026-08-03",
+      "entry_price": 104.43,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "CVS",
+      "weight": 0.1
+    },
+    {
+      "bench_entry_price": 747.03,
+      "entry_date": "2026-08-03",
+      "entry_price": 405.37,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "DELL",
+      "weight": 0.1
+    },
+    {
+      "bench_entry_price": 747.03,
+      "entry_date": "2026-08-03",
+      "entry_price": 270.64,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "MCD",
+      "weight": 0.1
+    },
+    {
+      "bench_entry_price": 747.03,
+      "entry_date": "2026-08-03",
+      "entry_price": 130.2,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "MRK",
+      "weight": 0.1
+    },
+    {
+      "bench_entry_price": 747.03,
+      "entry_date": "2026-08-03",
+      "entry_price": 23.25,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "T",
+      "weight": 0.1
+    },
+    {
+      "bench_entry_price": 747.03,
+      "entry_date": "2026-08-03",
+      "entry_price": 46.81,
+      "note": "quote-marked",
+      "order_id": null,
+      "shares": null,
+      "ticker": "VZ",
+      "weight": 0.1
+    }
+  ],
+  "index_series": [
+    {
+      "active_ret": 0.0030511461,
+      "as_of": "2026-08-03",
+      "bench_ret": 0.0142430692,
+      "detail": "{\"weight_priced\": 1.0, \"n_holdings\": 10, \"bench\": \"SPY\", \"data_caveat\": \"Tradier sandbox quotes are delayed ~15 minutes, so paper fills and marks are approximate - close to, but not, what a live account would have received.\"}",
+      "inception": "2026-08-03",
+      "index_ret": 0.0172942154,
+      "n_positions": 10,
+      "n_priced": 10
+    },
+    {
+      "active_ret": 0.0079195002,
+      "as_of": "2026-08-04",
+      "bench_ret": 0.0325288141,
+      "detail": "{\"weight_priced\": 1.0, \"n_holdings\": 10, \"bench\": \"SPY\", \"data_caveat\": \"Tradier sandbox quotes are delayed ~15 minutes, so paper fills and marks are approximate - close to, but not, what a live account would have received.\"}",
+      "inception": "2026-08-03",
+      "index_ret": 0.0404483143,
+      "n_positions": 10,
+      "n_priced": 10
+    },
+    {
+      "active_ret": 0.0017719993,
+      "as_of": "2026-08-05",
+      "bench_ret": 0.0304673172,
+      "detail": "{\"weight_priced\": 1.0, \"n_holdings\": 10, \"bench\": \"SPY\", \"data_caveat\": \"Tradier sandbox quotes are delayed ~15 minutes, so paper fills and marks are approximate - close to, but not, what a live account would have received.\"}",
+      "inception": "2026-08-03",
+      "index_ret": 0.0322393165,
+      "n_positions": 10,
+      "n_priced": 10
+    },
+    {
+      "active_ret": -0.0011744037,
+      "as_of": "2026-08-07",
+      "bench_ret": 0.0351123784,
+      "detail": "{\"weight_priced\": 1.0, \"n_holdings\": 10, \"bench\": \"SPY\", \"data_caveat\": \"Tradier sandbox quotes are delayed ~15 minutes, so paper fills and marks are approximate - close to, but not, what a live account would have received.\", \"scope\": \"open holdings only; closed stints in index_summary.realized\"}",
+      "inception": "2026-08-03",
+      "index_ret": 0.0339379747,
+      "n_positions": 10,
+      "n_priced": 10
+    }
+  ],
   "ingested_index_track": null,
-  "option_alerts": [],
-  "paper_orders": [],
+  "option_alerts": [
+    {
+      "alert_ts": "2026-08-03 17:57",
+      "dte": 46,
+      "entry_premium": 4.55,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": "2026-09-18",
+      "features": "{\"confidence\": {\"expectancy_estimate\": 0.0649, \"level\": \"moderate\", \"min_bucket_n\": 307}, \"contract_source\": \"live chain\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 1, \"dollar_risk\": 455.0, \"reason\": null, \"skip\": false}, \"term\": {\"source\": \"chain (BS-from-mid, as fitted)\", \"term_ok\": true, \"term_slope\": 0.08991777420043945}}",
+      "flow_read": "Call-heavy flow (P/C 0.12)",
+      "horizon": "swing",
+      "id": 1,
+      "iv": 0.3808768749,
+      "iv_rank": null,
+      "labels": "[\"Uptrend (>50 & >200 DMA)\", \"Near 52-wk high\", \"Breakout (upper band)\", \"Call-heavy flow (P/C 0.12)\", \"Unusual call volume vs OI\"]",
+      "momentum_score": null,
+      "occ_symbol": "TGT260918C00160000",
+      "opt_right": "call",
+      "pnl_dollars": null,
+      "pnl_pct": null,
+      "score": 80.5,
+      "status": "open",
+      "strike": 160.0,
+      "target_delta": 0.3508072957,
+      "technical_score": null,
+      "ticker": "TGT",
+      "underlying_price": 149.745
+    },
+    {
+      "alert_ts": "2026-08-07 00:43",
+      "dte": 71,
+      "entry_premium": 4.9,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": "2026-10-16",
+      "features": "{\"confidence\": {\"expectancy_estimate\": 0.067, \"level\": \"moderate\", \"min_bucket_n\": 223}, \"contract_source\": \"live chain\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 1, \"dollar_risk\": 490.0, \"reason\": null, \"skip\": false}, \"term\": {\"source\": \"chain (BS-from-mid, as fitted)\", \"term_ok\": true, \"term_slope\": 0.011165885925292968}}",
+      "flow_read": "Call-heavy flow (P/C 0.38)",
+      "horizon": "swing",
+      "id": 2,
+      "iv": 0.2287940788,
+      "iv_rank": null,
+      "labels": "[\"Uptrend (>50 & >200 DMA)\", \"MACD bullish cross\", \"Near 52-wk high\", \"Breakout (upper band)\", \"Call-heavy flow (P/C 0.38)\"]",
+      "momentum_score": null,
+      "occ_symbol": "MET261016C00100000",
+      "opt_right": "call",
+      "pnl_dollars": null,
+      "pnl_pct": null,
+      "score": 82.3,
+      "status": "open",
+      "strike": 100.0,
+      "target_delta": 0.5503165385,
+      "technical_score": null,
+      "ticker": "MET",
+      "underlying_price": 99.95
+    },
+    {
+      "alert_ts": "2026-08-07 00:43",
+      "dte": 71,
+      "entry_premium": 16.1,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": "2026-10-16",
+      "features": "{\"confidence\": {\"expectancy_estimate\": 0.0746, \"level\": \"high\", \"min_bucket_n\": 307}, \"contract_source\": \"live chain\", \"exit_policy\": {\"stop_pct\": -0.5, \"target_pct\": 1.0, \"time_stop_frac\": 0.5}, \"sizing\": {\"contracts\": 0, \"dollar_risk\": null, \"reason\": \"one contract costs $1,610, above the $1,000 budget - cannot be sized correctly\", \"skip\": true}, \"term\": {\"source\": \"chain (BS-from-mid, as fitted)\", \"term_ok\": true, \"term_slope\": 0.025342369079589866}}",
+      "flow_read": "Call-heavy flow (P/C 0.16)",
+      "horizon": "swing",
+      "id": 3,
+      "iv": 0.3963252401,
+      "iv_rank": null,
+      "labels": "[\"Uptrend (>50 & >200 DMA)\", \"Near 52-wk high\", \"Call-heavy flow (P/C 0.16)\", \"Unusual call volume vs OI\"]",
+      "momentum_score": null,
+      "occ_symbol": "ETN261016C00500000",
+      "opt_right": "call",
+      "pnl_dollars": null,
+      "pnl_pct": null,
+      "score": 81.2,
+      "status": "open",
+      "strike": 500.0,
+      "target_delta": 0.3114734622,
+      "technical_score": null,
+      "ticker": "ETN",
+      "underlying_price": 448.19
+    }
+  ],
+  "paper_orders": [
+    {
+      "alert_id": 1,
+      "contracts": 1,
+      "created_at": "2026-08-03T21:51:47",
+      "entry_order_id": "36442255",
+      "entry_premium": 3.55,
+      "entry_ts": "2026-08-04T13:46:15.812Z",
+      "exit_order_id": null,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": "2026-09-18",
+      "last_mark": 3.5,
+      "last_mark_ts": "2026-08-07T22:18:52",
+      "last_mid": 3.65,
+      "note": null,
+      "occ_symbol": "TGT260918C00160000",
+      "state": "open",
+      "stop_premium": 2.225,
+      "target_premium": 8.9,
+      "ticker": "TGT",
+      "time_stop_date": "2026-08-26",
+      "updated_at": "2026-08-07T22:18:52"
+    },
+    {
+      "alert_id": 3,
+      "contracts": 1,
+      "created_at": "2026-08-07T00:58:53",
+      "entry_order_id": "36617421",
+      "entry_premium": 16.1,
+      "entry_ts": "2026-08-07T13:46:09.979Z",
+      "exit_order_id": null,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": "2026-10-16",
+      "last_mark": 11.1,
+      "last_mark_ts": "2026-08-07T22:18:52",
+      "last_mid": 12.55,
+      "note": null,
+      "occ_symbol": "ETN261016C00500000",
+      "state": "open",
+      "stop_premium": 8.05,
+      "target_premium": 32.2,
+      "ticker": "ETN",
+      "time_stop_date": "2026-09-12",
+      "updated_at": "2026-08-07T22:18:52"
+    },
+    {
+      "alert_id": 2,
+      "contracts": 1,
+      "created_at": "2026-08-07T00:58:52",
+      "entry_order_id": "36617420",
+      "entry_premium": 4.6,
+      "entry_ts": "2026-08-07T13:47:15.596Z",
+      "exit_order_id": null,
+      "exit_premium": null,
+      "exit_reason": null,
+      "exit_ts": null,
+      "expiry": "2026-10-16",
+      "last_mark": 2.7,
+      "last_mark_ts": "2026-08-07T22:18:52",
+      "last_mid": 3.0,
+      "note": null,
+      "occ_symbol": "MET261016C00100000",
+      "state": "open",
+      "stop_premium": 2.45,
+      "target_premium": 9.8,
+      "ticker": "MET",
+      "time_stop_date": "2026-09-12",
+      "updated_at": "2026-08-07T22:18:52"
+    }
+  ],
   "schema_version": 1,
   "tables_present": {
     "option_alerts": true,
-    "paper_index_holdings": false,
-    "paper_index_track": false,
-    "paper_option_orders": false
+    "paper_index_holdings": true,
+    "paper_index_track": true,
+    "paper_option_orders": true
   },
-  "what_this_is": "Forward, out-of-sample paper record of the Valquo model. Every row was written before its outcome was known. Paper only - Tradier sandbox, no real money. This file exists because this record cannot be reconstructed if it is lost. PLACEHOLDER: committed empty to establish the format and the directory. Populated by the first `track-backup` workflow run, which pulls the live record from the Render service."
+  "what_this_is": "Forward, out-of-sample paper record of the Valquo model. Every row was written before its outcome was known. Paper only - Tradier sandbox, no real money. This file exists because this record cannot be reconstructed if it is lost."
 }

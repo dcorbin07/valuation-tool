@@ -435,8 +435,14 @@ function scenarioCards(scen, price, fvb) {
   const el = document.getElementById("scenarioNote");
   if (el) {
     const conf = (fvb && fvb.confidence) ? fvb.confidence : null;
+    // The band is a ZONE, not a number to trade toward. Wording from window.HOLD_HORIZON so
+    // it cannot drift, and BAND_SCOPE is not optional: this spread comes from the valuation
+    // engine on one company's filings, while the hot list's backtested figures come from the
+    // composite. Letting a reader take one as evidence for the other is the misreading that
+    // putting both on the same product invites.
+    const band = _HOLD_H ? ` <b>${esc(_HOLD_H.band)}</b> ${esc(_HOLD_H.band_scope)}` : "";
     el.innerHTML = `<div class="note">Each case is valued the same way as the headline${scen.method ? ` (${scen.method})` : ""} —
-      growth and margins shifted, and the exit multiple compressed or expanded with them.` +
+      growth and margins shifted, and the exit multiple compressed or expanded with them.` + band +
       (conf === "low" ? ` <b>Confidence: low.</b> This is a range, not a forecast — a growth valuation
       moves a long way on assumptions nobody can pin down yet.` : "") + `</div>`;
   }
@@ -759,7 +765,7 @@ async function runRank() {
       const part = r.score_partial;
       html += `<tr><td>${i + 1}</td><td><b>${r.ticker}</b></td><td>${r.name || ""}</td><td><span class="badge">${r.regime}</span></td>
         <td class="num">${money(r.price)}</td><td class="num">${part
-          ? `<span class="muted" style="font-weight:700" title="${esc(r.fair_value_withheld_reason || "")}">withheld</span>`
+          ? `<span class="muted" style="font-weight:700${r.fair_value_withheld_kind === "unavailable" ? ";font-style:italic" : ""}" title="${esc(r.fair_value_withheld_reason || "")}">${r.fair_value_withheld_kind === "unavailable" ? "no data" : "withheld"}</span>`
           : money(r.fair_value)}</td>
         <td class="num ${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</td>
         <td class="num"><b style="color:${scoreColor(r.score)}${part ? ';opacity:.7' : ''}">${r.score}</b>${part
@@ -849,10 +855,28 @@ function _whyChips(r) {
    contributions that SUM to the composite (valuation/screener/attribution.py), so this panel
    is arithmetic rather than a narrative: every bar is a real term in the number above it.
 
-   Two things this must never imply. The contributions are in composite units — cross-sectional
+   THREE things this must never imply. The contributions are in composite units — cross-sectional
    standard deviations — NOT points of the 1-100 score, because rank is a monotone but
    non-linear map. And a theme's contribution is relative to the rest of the scan that day,
-   so "+0.2 quality" means "better than this cross-section", not "good in absolute terms". */
+   so "+0.2 quality" means "better than this cross-section", not "good in absolute terms".
+
+   THIRD, added after extension V3's noise calibration (HANDOFF_extensions_v3.md): the panel
+   decomposes the rank exactly, and that exactness is about the ARITHMETIC, not about the
+   rank's precision. V3 tested the score against a permutation null and the per-name result
+   FAILED its pre-registered bar — the composite at rank 10 sits at empirical p 0.116, i.e.
+   roughly one chance-assembled universe in nine reaches it at that rank. A panel that shows
+   three decimals of attribution for a position that is not distinguishable from chance is
+   precisely the impression this project must not give, so the calibrated sentence travels
+   with every panel. Its wording comes from window.SCORE_CONFIDENCE (injected by index.html
+   from valuation/web/score_confidence.py) and is NEVER re-worded here — one source, so a
+   name row cannot state a softer limit than the legend printed above the table. */
+const _SCORE_CONF = (typeof window !== "undefined" && window.SCORE_CONFIDENCE) || null;
+/* S22's hold-horizon copy (valuation/web/hold_horizon.py, injected by index.html). Same rule
+   as _SCORE_CONF above: never re-worded here, so a name row cannot state a longer-lasting or
+   more personal version of the edge than the legend printed above the table. The figures stay
+   in the legend; what reaches a NAME is the limit — the edge is the decile's property and a
+   name usually leaves after one quarter. */
+const _HOLD_H = (typeof window !== "undefined" && window.HOLD_HORIZON) || null;
 const THEME_LABEL = {
   value: ["Value", "cheap vs earnings, cash flow and book"],
   quality: ["Quality", "returns on capital, margins, low debt"],
@@ -894,7 +918,17 @@ function attributionPanel(r, opts) {
       ${up.length ? `· helped by <b class="pos">${up.slice(0, 2).map(x => esc(_themeLabel(x.theme).toLowerCase())).join(", ")}</b>` : ""}
       ${down.length ? `· held back by <b class="neg">${down.slice(0, 2).map(x => esc(_themeLabel(x.theme).toLowerCase())).join(", ")}</b>` : ""}
     </div>`;
-  return `<div class="attr">${head}${bars}
+  // The precision limit sits ABOVE the three-decimal bars, not under them. A caveat printed
+  // after the evidence reads as a footnote; printed before it, it frames how the bars are read.
+  const calib = _SCORE_CONF ? `<div class="note" style="margin-bottom:8px">
+      <b>This decomposition is exact; the position it explains is not.</b>
+      ${esc(_SCORE_CONF.per_name)} — so treat the themes below as the reason this name is in
+      the conversation, not as proof it belongs at this exact rank.</div>` : "";
+  // How long the edge lasted belongs next to the rank it qualifies, but as a LIMIT rather than
+  // a figure: S22's returns are the top decile's as a group, and V3 forbids a per-name promise.
+  const horizon = _HOLD_H ? `<div class="note" style="margin-bottom:8px">
+      <b>And it is the list's edge, not this name's.</b> ${esc(_HOLD_H.per_name_note)}</div>` : "";
+  return `<div class="attr">${head}${calib}${horizon}${bars}
     <div class="note">Bars are the actual terms of the score: they add up to the composite
       (${comp == null ? "—" : comp.toFixed(3)}), and the 1–100 is that composite's percentile rank
       against every other name in this scan. Units are standard deviations versus this scan, not
@@ -1018,7 +1052,15 @@ function _fairValCell(r, up) {
   // A withheld estimate is not a missing one. "—" reads as "we don't have this yet" and
   // invites someone to fill it back in; this says the number existed and was refused, and
   // carries the reason with it. See web/withhold.py::withhold_implausible_fair_values.
+  //
+  // TWO KINDS, RENDERED DIFFERENTLY (2026-08-11). "the model rejects this valuation" and
+  // "we could not fetch this name today" both blank the cell, and showing one word for both
+  // turns a temporary feed problem into what reads as a permanent verdict on the company.
+  // `no data` also says, in its tooltip, that the next scan retries it automatically.
   if (r.fair_value_withheld) {
+    if (r.fair_value_withheld_kind === "unavailable") {
+      return `<span class="muted" style="font-weight:700;font-style:italic" title="${esc(r.fair_value_withheld_reason || "")}">no data</span>`;
+    }
     return `<span class="muted" style="font-weight:700" title="${esc(r.fair_value_withheld_reason || "")}">withheld</span>`;
   }
   if (r.fair_value == null) return "—";
@@ -1436,29 +1478,43 @@ async function edgeLearning() {
   } catch (e) { eshow("edgeErr", e.message); }
   finally { toggle("edgeLoader", false); }
 }
-const THEME_INPUTS = {
-  value: "earnings yield · FCF yield · EBIT/EV · sales multiples · book-to-price",
-  quality: "ROIC · ROE · margins · low leverage · gross profitability · FCF margin · accruals · interest coverage",
-  growth: "revenue growth · growth acceleration",
-  momentum: "12-1 return · 6-1 return · 52-week-high proximity",
-  low_risk: "low beta · low realized volatility",
-  capital_discipline: "low share issuance · low asset growth (dormant — needs data)",
-  sentiment: "estimate revisions (dormant — needs data)",
-  size: "small-cap tilt",
-  insider: "cluster insider buying",
-  institutional: "13F institutional accumulation (dormant — needs data)",
-};
+/* The theme legend — inputs, and whether a theme reaches a live score.
+
+   THIS USED TO BE A HARDCODED MAP HERE, AND IT WENT WRONG IN THE WORST POSSIBLE PLACE. On
+   2026-08-11 it described `capital_discipline` as "low share issuance · low asset growth
+   (dormant — needs data)" on the exact day that theme was restored to the live scoring path —
+   the adoption that opened vintage 3 — and it named an input (asset growth) that factors.py had
+   stopped averaging into the theme.
+
+   Worth being precise about which half was broken, because it is not the obvious one: the BARS
+   were always data-driven and picked the fifth theme up on their own, since they enumerate
+   whatever weights the payload carries. What was hardcoded was the CAPTION UNDER the bar, and a
+   confident wrong caption is worse than a missing bar — a missing bar invites a question, a
+   caption closes one.
+
+   Now served from valuation/web/theme_status.py as window.THEME_STATUS and only escaped here,
+   the same one-source rule as _SCORE_CONF and _HOLD_H. tests/test_theme_status.py fails if this
+   file grows its own copy back. */
+const _THEME_STATUS = (typeof window !== "undefined" && window.THEME_STATUS) || {};
+function _themeInputs(k) { return (_THEME_STATUS[k] || {}).inputs || ""; }
+function _themeDormant(k) { return (_THEME_STATUS[k] || {}).dormant || ""; }
 function _themeBars(w) {
   if (!w) return "<div class='muted'>—</div>";
   const entries = Object.entries(w).sort((a, b) => b[1] - a[1]);
   const max = Math.max(...entries.map(e => e[1]), 0.01);
   return entries.map(([k, v]) => {
     const label = pct(v, 0), wd = Math.round(v / max * 100);
+    // A theme carrying weight while contributing nothing is the failure mode this legend
+    // exists to make visible (`insider` is the standing example — 100% "covered", constant,
+    // renormalised away). So the dormancy note is rendered as its own flagged line rather
+    // than folded into the input list, where it read as one more ingredient.
+    const dormant = _themeDormant(k);
     return `<div style="margin:5px 0">
       <div style="display:flex;justify-content:space-between;font-size:12px">
         <span style="text-transform:capitalize"><b>${k.replace(/_/g, " ")}</b></span><span>${label}</span></div>
       <div style="background:#eef;border-radius:4px;height:8px"><div style="width:${wd}%;background:#3454a4;height:8px;border-radius:4px"></div></div>
-      <div class="muted" style="font-size:11px">${THEME_INPUTS[k] || ""}</div></div>`;
+      <div class="muted" style="font-size:11px">${esc(_themeInputs(k))}</div>
+      ${dormant ? `<div class="muted" style="font-size:11px;font-style:italic">⚠ ${esc(dormant)}</div>` : ""}</div>`;
   }).join("");
 }
 function _numberICSection(nic) {
@@ -1924,14 +1980,31 @@ function _renderIndexTrack(d) {
     <div class="muted" style="font-size:11px;margin-top:6px">${esc(bt.basis || "")}. Hypothetical —
       the model was tuned on this same history.</div>`;
 
+  // LA8 — supplied by the server (index_track.track_age) rather than derived here, so the card,
+  // the hero band, the landing page and the server's own note cannot disagree about how old
+  // the track is. Null-guarded: an older payload simply falls back to the row count.
+  const age = live && live.age ? live.age : null;
+
+  // WHICH BOOK THIS RECORD IS OF. Contract §5a Rule 4 — a verdict is a statement about a
+  // vintage and must name it. Served pre-rendered by the server (track_meter.vintage_label,
+  // derived from the register) and only escaped here: the vintage number and the inception date
+  // must move together, and a card that assembled its own sentence is where they would stop.
+  // It sits ABOVE the metrics on purpose. Printed underneath, it reads as a footnote about the
+  // past; printed above, it says what the numbers below are a record OF — which is the point,
+  // because the series restarted and the figures do not carry that on their face.
+  const vin = d.vintage || null;
+  const vintageLine = vin ? `<div class="muted" style="font-size:11px;margin-top:8px"
+      title="${esc(vin.rule || "")}"><b>${esc(vin.phrase)}</b></div>` : "";
+
   let liveRows;
   if (!d.available || !live) {
-    liveRows = `<div class="muted" style="margin-top:10px">${esc(d.note || "Not started yet.")}</div>`;
+    liveRows = vintageLine +
+      `<div class="muted" style="margin-top:10px">${esc(d.note || "Not started yet.")}</div>`;
   } else {
     // Cumulative-since-inception is the ONLY honest headline for a short track. Annualised
     // alpha and Sharpe are served as null until there is enough history, and render as "—"
     // with the reason — never as a compounded stub.
-    liveRows = `<div class="metricline" style="margin-top:8px">
+    liveRows = vintageLine + `<div class="metricline" style="margin-top:8px">
         ${metric("Index", spct(live.cum_valquo_pct / 100))}
         ${metric(esc(d.benchmark || "SPY"), spct(live.cum_spy_pct / 100))}
         ${metric("Excess", live.excess_pp == null ? "—" : spct(live.excess_pp / 100))}
@@ -1939,13 +2012,22 @@ function _renderIndexTrack(d) {
       <div class="metricline" style="margin-top:6px">
         ${metric("Alpha / yr", live.ann_alpha == null ? "—" : spct(live.ann_alpha))}
         ${metric("Sharpe", live.sharpe == null ? "—" : num(live.sharpe, 2))}
-        ${metric("Days", live.days)}
+        ${/* LA8 — "Days" was live.days, the number of rows the recorder wrote, sitting beside
+              two performance figures under a word that means age. A track 7 days old with 2
+              rows read as "2". The age tile now shows the calendar; the Recorded tile appears
+              only when they differ, so the gap is a visible second number rather than a
+              silently smaller first one. */
+          metric("Days", age ? age.age : live.days)}
+        ${age && !age.complete ? metric("Recorded", age.recorded) : ""}
       </div>
-      <div class="muted" style="font-size:11px;margin-top:6px">Dated model positions since
+      <div class="muted" style="font-size:11px;margin-top:6px">${esc(live.book || "")}${live.book
+          ? " · " + esc(live.window || "") + " · source: " + esc(live.recorder || "") + ". "
+          : ""}Dated model positions since
         ${esc(d.inception || live.since)}, priced forward — a model portfolio, not a traded
         account, and no capital is at risk in it. ${d.thin
-          ? `Annualised figures are withheld until ${d.min_live_days} trading days — compounding
-             ${live.days} day${live.days === 1 ? "" : "s"} to a yearly rate would invent a number.`
+          ? `Annualised figures are withheld until ${d.min_live_days} RECORDED trading days —
+             compounding ${live.days} recorded day${live.days === 1 ? "" : "s"} to a yearly rate
+             would invent a number.`
           : "Net of the same cost model as the backtest."}</div>`;
   }
 
@@ -1953,7 +2035,8 @@ function _renderIndexTrack(d) {
     + card("Backtested", liveLeads ? "reference" : "headline",
            liveLeads ? "spec" : "est", btRows, !liveLeads)
     + card("Forward, model portfolio",
-           d.available ? (d.thin ? `thin — ${live.days}d` : "headline") : "not started",
+           d.available ? (d.thin ? `thin — ${age ? esc(age.short) : live.days + "d"}` : "headline")
+                       : "not started",
            d.thin || !d.available ? "spec" : "est", liveRows, liveLeads)
     + `</div>`
     + (d.note ? `<div class="note" style="margin-top:10px">${esc(d.note)}</div>` : "");

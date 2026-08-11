@@ -24,6 +24,7 @@ _G = {}
 
 
 def _init(data_root: str, aggression: float):
+    from valuation.edge import options_backtest as OB
     from valuation.edge import options_universe as U
     from valuation.edge.theta_bulk import ThetaBulk
     _G["root"] = data_root
@@ -31,6 +32,15 @@ def _init(data_root: str, aggression: float):
     _G["bars_dir"] = os.path.join(data_root, "bulk", "prepared", "bars")
     _G["caps"] = U.load_caps(data_root)
     _G["aggression"] = aggression
+    # U1-SPLIT: option chains are as-traded and unadjusted for splits while bars ARE adjusted.
+    # Loaded once here and handed to both the real book and the control, so a re-mine is
+    # split-clean at source. A missing actions table degrades to {} — i.e. to the historical
+    # behaviour — rather than crashing a ten-hour mine, and the reject counter says so.
+    try:
+        _G["splits"] = OB.load_splits(data_root)
+    except OSError:
+        _G["splits"] = {}
+        print("[optuniv] WARNING: no actions.pkl — U1-SPLIT guard INACTIVE", flush=True)
 
 
 def _score(ticker: str):
@@ -42,7 +52,7 @@ def _score(ticker: str):
         return {"ticker": ticker, "rows": [], "n_cand": 0, "n_alert": 0,
                 "rejects": {"no_bars": 1}, "seconds": time.time() - t0}
     out = U.run_name(_G["prov"], ticker, bars, caps=_G["caps"],
-                     aggression=_G["aggression"])
+                     aggression=_G["aggression"], splits=_G.get("splits"))
     out["seconds"] = time.time() - t0
     return out
 
@@ -56,7 +66,8 @@ def _control(arg):
     if not bars:
         return {"ticker": ticker, "rows": []}
     rows = U.random_entry_control(_G["prov"], ticker, bars, trades, draws=draws, seed=seed,
-                                 aggression=_G["aggression"], caps=_G["caps"])
+                                 aggression=_G["aggression"], caps=_G["caps"],
+                                 splits=_G.get("splits"))
     return {"ticker": ticker, "rows": rows}
 
 
@@ -167,6 +178,22 @@ def guard_bank(out_dir: str, state_path: str, key: dict, overwrite: bool) -> dic
             pass
     return {"action": "archived", "occupants": occ, "archived_to": dest, "moved": moved,
             "reason": why}
+
+
+def _stamp_chains(out_dir: str, state_path: str, rows) -> Optional[str]:
+    """Record the fingerprint of every chain symbol-year this book consumed (audit O16).
+
+    Why it exists: `data/options` is mutable — the miner re-pulls faulted years and `dte_extend`
+    deepens them in place — and until O16 nothing recorded which bytes a banked book had
+    actually read. The authoritative book was measured at 86.435% reproducible against the
+    store it came from, with the drift attributable entirely to re-mined ticker-years. The
+    stamp written here makes the next such divergence loud instead of silent.
+    """
+    try:
+        from valuation.edge import options_freeze as FZ
+    except Exception:                                                    # noqa: BLE001
+        return None
+    return FZ.stamp_run(out_dir, os.path.basename(state_path), rows)
 
 
 def write_manifest(out_dir: str, key: dict, artifacts) -> str:
@@ -367,6 +394,7 @@ def main():
     path = U.save(res, out_dir)
     write_manifest(out_dir, key,
                    [n for n in GUARDED if os.path.exists(os.path.join(out_dir, n))])
+    _stamp_chains(out_dir, state_path, rows)
     _print_headline(res)
     print(f"\nwritten: {path}", flush=True)
     return 0
