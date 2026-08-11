@@ -213,8 +213,10 @@ verdict.
 * The **arms** TOP10, TOP20, BOT10 are three scored selection rules: **3 trials.**
 * The decile table is descriptive and carries no verdict: **0 trials.**
 
-**Options `N` 207 → 210.** Equity `N` is untouched by this work; it reads 143 and must be
-re-read from `research_log.detail()` rather than copied from here if it is quoted anywhere.
+**Options `N` 207 → 210.** Equity `N` is untouched by this work. **It reads 149, not the 143 this
+file said when section 9 was written** — S23's six arms landed from another lane while U1 ran,
+and a stale `N` overstates every DSR-gated claim, so it is corrected here rather than left.
+Always re-read it from `research_log.detail()`.
 
 ---
 
@@ -289,3 +291,117 @@ because it is the flattering-to-nobody one.
 **E6: the split-clean grid mean is +3.65%/trade, so the GRID still beats the alert book's
 +3.27% split-clean — E5 survives the correction, but narrowly, at 60/40.** Written before the
 arms were scored, like the rest.
+
+---
+
+## 11. THE RESULT — `U1` closes **REJECTED**
+
+Run 2026-08-11 against the bars committed at `e34dc9d`, which contains no scorer.
+`data/options_u1/U1_VERDICT.json`; reproduce with `python -m scripts.u1_score`.
+
+### The verdict table
+
+| | TOP10 | TOP20 | BOT10 |
+|---|---|---|---|
+| n trades | 486 | 948 | 557 |
+| mean / trade | +2.4624% | +4.6726% | +11.3446% |
+| **gain vs grid** | **−1.1892pp** | +1.0210pp | +7.6930pp |
+| **V1** vs plain bar | **FAILS** (+7.2870) | FAILS (+4.6411) | clears (+5.9833) |
+| **V2** vs cap-matched bar | **FAILS** (+9.4513) | FAILS (+5.3309) | clears (+5.5733) |
+| percentile in its own null | **31st / 15th** | 63rd / 48th | 99th / 99th |
+| **V3** date-block CI95 | **FAILS** [−11.74, +10.29] | FAILS [−6.24, +8.42] | FAILS [−1.53, +17.26] |
+| **V4** both halves positive | **FAILS** (+5.18 / −5.61) | passes (+0.14 / +1.50) | passes (+1.13 / +12.47) |
+
+**TOP10 fails all four conditions and its gain is NEGATIVE, so the rule fires REJECTED.** The
+grid it is measured against is 5,168 trades over 39 dates and 181 names, mean **+3.6516%/trade**.
+
+### The mechanism, and it is cleaner than the verdict
+
+**Every decile's MEDIAN trade is between −52.5% and −54.3%. All ten.**
+
+| | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | D9 | D10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| mean | +2.46 | +7.00 | +6.98 | +4.67 | +1.92 | +5.03 | +2.60 | −0.09 | −4.89 | +11.35 |
+| median | −52.8 | −52.9 | −52.5 | −52.9 | −53.0 | −52.5 | −53.3 | −53.3 | −54.3 | −52.6 |
+
+**The composite does not move the typical option trade at all.** Every difference between deciles
+lives in the right tail — and the right tail on ~500 trades is precisely what a +7.29pp bar says
+is noise. **TOP10's own mean is entirely tail-carried: its best five trades contribute +3.912pp
+of a +2.462% mean, i.e. 158.9% of it.** Remove them and the arm is negative outright; winsorised
+at its own p99 the gain worsens to **−1.4911pp**.
+
+### Reported because it is the strongest number and it cuts AGAINST the composite
+
+On the **paired name-year sign test — R2's standing rule that the sign test carries the options
+verdict** — the composite's top names are **significantly worse** than the same universe's other
+cells. The comparison is within `(ticker, year)`, so it asks: for the same name in the same year,
+did the quarters it ranked top-decile produce better option trades than the quarters it did not?
+
+* **TOP10: 119 of 285 cells won, 41.8%, z −2.7840, p 0.0054**
+* **TOP20: 210 of 489 cells won, 42.9%, z −3.1203, p 0.0018**
+
+Two arms, same direction, the wider one stronger. **Stated with its limit: no calibrated bar
+exists for this statistic** — X7 and session 10 calibrate levels, not paired within-grid sign
+tests — so the p-values are **conventional and uncalibrated**, and this is one of three arms.
+
+### `BOT10` CLEARS BOTH BARS AND IS **NOT** A FINDING. DO NOT ACT ON IT
+
+The worst-composite decile gains **+7.6930pp**, sits at the **99th percentile of both nulls**, and
+survives winsorising (+7.4869pp). It is nonetheless refused, on grounds fixed before the run:
+
+* its **date-block CI95 includes zero** [−1.53, +17.26] — it fails V3, the same condition TOP10
+  fails;
+* it is **carried by the late half** (+1.13 early vs +12.47 late);
+* its **sign test is 52.0%, z +0.7256, p 0.4681** — it does **not** win more often, it wins
+  *bigger*. A mean-only effect on 557 trades with a flat median is a tail statement;
+* it is the **extreme of three arms**, and the register attaches a verdict only to TOP10.
+
+**Calling this "the composite runs backwards" would be the exact error TP-BAR closed** — reading
+a region of a noisy corpus as a location. The decile table is **UNORDERED, not INVERTED**: D9 is
+the worst cell (−4.89%) and D10 the best (+11.35%), which no monotone story explains. The
+mechanical `backwards` clause did fire (D1 < D10) and is recorded, but **"inverted" is the wrong
+word and must not travel** — the negative gain alone was already sufficient for REJECTED.
+
+### E5/E6 confirmed: the mechanical quarterly grid beats the dead alert, and both lose to random days
+
+| book (all split-clean) | n | mean/trade |
+|---|---|---|
+| **U1 GRID** — every name, every quarter | 5,168 | **+3.6516%** |
+| R2 alert book | 3,870 | +3.2702% |
+| U1 TOP10 | 486 | +2.4624% |
+| R2 five-seed random-DAY control | 29,654 | +8.3342% |
+
+**GRID beats the alert by +0.3814pp; TOP10 LOSES to it by −0.8078pp.** So a rule that ignores the
+alert entirely and buys everything quarterly does better than the alert — R2 restated in a fresh
+corpus — while the composite-selected subset does *worse* than the alert. **Both are far below
+random-day entry (+8.33%)**, which is not a paired comparison — the control samples days across
+the whole year while the grid is locked to 39 fixed dates — but it does say the quarterly grid's
+date concentration is expensive, and it is reported rather than omitted.
+
+### The expectations, scored: **3 right, 2 wrong, 1 untriggered**
+
+| | prediction | outcome |
+|---|---|---|
+| E1 | NULL at 60/40 | **WRONG** — REJECTED |
+| E2 | gain 0 to +4pp at 55/45 | **WRONG** — −1.1892pp |
+| E3 | cap-matched binding *if* V1 passes, 65/35 | **UNTRIGGERED** — V1 failed, so the conditional never fired. Its spirit held: the cap-matched bar is higher (+9.45 vs +7.29) and TOP10 sits lower inside it (15th vs 31st percentile) |
+| E4 | decile table not monotone, 60/40 | **RIGHT** |
+| E5 | grid beats the alert book, 70/30 | **RIGHT** — +0.3814pp |
+| E6 | E5 survives the split correction, narrowly, 60/40 | **RIGHT** — and it was narrow |
+
+### What this does NOT say
+
+* **It does not refute the equity composite.** S22 measured that the composite's rank IC *rises*
+  with horizon (+0.034 at 63d → ~+0.072 at two years); a 30–75 DTE contract lives at the *short*
+  end, where the composite is weakest, and it was pre-registered in section 1 that U1 tests the
+  composite where it is least strong. The equity book's +6.6%/yr top-decile alpha is untouched.
+* **It does not say name selection is hopeless in options** — it says *this* composite, at *this*
+  horizon, on *this* 182-name megacap universe, at a quarterly grid, carries no information about
+  the median option trade. A composite built **within** the options universe from options-native
+  inputs remains untested and is U2's territory, not U1's.
+* **It does not rescue or further damn the alert.** R2 stands, at a corrected gap of −5.06pp.
+
+### Trial cost, as committed
+
+Three scored arms: **options `N` 207 → 210.** The grid mine and both calibrations are charged
+**zero** (X7 / session-10 HAC-floor precedent). Equity `N` untouched at **149** (re-measured, not copied: it was 143 when this register opened).

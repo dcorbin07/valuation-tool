@@ -4,6 +4,62 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — options bot, session 23 (U1): the equity edge does NOT reach the options book, and a split defect moves R2 by 24%
+
+**U1 is REJECTED.** It was the ledger's oldest blocked unification item and the first test of
+whether the composite — the one thing here that survives calibration — is worth anything on the
+options side. It is not, at this horizon.
+
+**The ledger's reopen condition was met both ways at once.** `U1` said *reopen only with a
+composite built WITHIN the options universe **or** with size neutralised*. This did both:
+rankings are percentiles among the ~182 optionable names as of the same rebalance date, and the
+primary null is drawn **matched on market-cap tier per date**.
+
+**Design.** One grid mined once — 182 names × 39 rebalance dates, 6,811 cells → 5,186 trades —
+with every arm and every null draw a **subset of it**, so arms cannot differ by fill, contract,
+exit or calendar. Entry is the first trading day **strictly after** the rebalance (the U7
+backward-looking join). The shipped +100/−50/half-DTE exit is called, not copied. Pre-registered
+alone at `7d7c414`; bars committed at `e34dc9d` with the scorer not yet written.
+
+**Result.** Against a grid earning +3.6516%/trade, the top decile (n=486) gains **−1.1892pp**,
+sits at the **31st percentile** of its plain null and the **15th** of its cap-matched one, and
+**fails all four** pre-registered conditions. Calibrated bars were +7.2870pp (plain) and
++9.4513pp (cap-matched), p95 of 200 shape-matched draws.
+
+**The mechanism is cleaner than the verdict: every decile's MEDIAN trade is between −52.5% and
+−54.3% — all ten.** The composite does not move the typical option trade at all; every decile
+difference lives in a right tail that the bar calls noise. The top decile's mean is entirely
+tail-carried (best five trades = 158.9% of it).
+
+**On R2's standing statistic the top names are significantly WORSE**: paired name-year sign test
+within (ticker, year), TOP10 wins 41.8% (z −2.7840, p 0.0054), TOP20 42.9% (z −3.1203, p 0.0018).
+No calibrated bar exists for that statistic, so those p-values are conventional.
+
+**The bottom decile clears both bars at the 99th percentile and is NOT a finding** — its
+date-block CI includes zero, it is carried by the late half, and its sign test is 52.0% at
+p 0.47: it does not win more often, it wins bigger. The decile table is **unordered, not
+inverted** (D9 worst, D10 best). Do not act on it.
+
+**BUG, cross-lane, and it moves a published number — `U1-SPLIT`.** Option chains are as-traded
+and unadjusted for splits while bars are adjusted, and nothing in the options lane has ever
+consulted the split table. GE's 1-for-8 reverse split (2021-08-02) turns a $0.27 call into a
++31,921% "winner" worth 6.28pp of the raw grid's 9.93% mean. Measured on the banked books:
+**R2's gap goes −6.6468pp → −5.0640pp, so 24% of the published gap is a corporate-action
+artifact.** The control is hit ~12× harder than the alert book, so **the defect has been making
+R2 look worse than it is**. R2's sign and verdict are unchanged — the alert still loses
+decisively — but **quote −5.06pp**. **The repair belongs upstream in the miner and is NOT DONE.**
+
+**Nothing live changed.** No policy, no weight, no constant.
+
+**Accounting.** Options `N` 207 → 210 (three scored arms; the mine and both calibrations charged
+zero). **Equity `N` is 149, not 143** — S23 landed mid-session and a stale `N` overstates every
+DSR-gated claim. Test gate: **46 suites, 0 failing.**
+
+**Recommended next step.** Either (a) repair `U1-SPLIT` at source in the miner/replay path and
+re-bank the affected options artifacts — it is the only open item that changes an already-quoted
+number — or (b) take U2 (options surface → stock signals), which is now the only untested
+direction of the unification and does not inherit U1's horizon mismatch.
+
 ## 2026-08-11 — options bot, session 22 (TP-BAR): Don chose Option 2, and item A closes REJECTED
 
 **Don's decision, with its date: Option 2 of `PREREG_A_take_profit_bar.md`, taken 2026-08-11** —
