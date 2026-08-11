@@ -52,7 +52,11 @@ _SHARE_CONCEPTS = ["EntityCommonStockSharesOutstanding",
 #: to a trickle of SEC calls; the cache is per ticker so a miss costs one request, not a sweep.
 CACHE_TTL_S = 30 * 24 * 3600
 
-_CACHE_DIR = os.path.join("data", "live_cache", "issuance")
+#: Overridable so CI can point it at the directory the Action actually persists. `auto-scan.yml`
+#: caches `.scan-cache` between runs and NOT `data/`, so without this every scheduled scan would
+#: refetch the whole universe from SEC — ~800 requests a day to learn share counts that change
+#: quarterly. Default stays under `data/` for local runs, which is gitignored either way.
+_CACHE_DIR = os.environ.get("ISSUANCE_CACHE_DIR") or os.path.join("data", "live_cache", "issuance")
 
 _mem: dict = {}
 
