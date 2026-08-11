@@ -116,8 +116,37 @@ reaching a live score: **56.5% → 95.5%**. All five pre-committed bounds held.
 Amendment 1 Rule 6, adopting these would **close vintage 2, open vintage 3 and reset the entire
 accrued forward clock for no statistical gain**. Do not shortcut that from a green coverage number.
 
-**State: landed on `main` and deploying. Full gate 45 suites, 0 failures.** Detail in
-`HANDOFF_live_data_bugs.md` Parts 13–15; ledger rows `V2G-SRC`, `LA1-LA3`, `CI-PY311`.
+**THE SCREENER LA BATCH — LA4, LA5, LA7, LA9, LA12, LA14, all six verified against the code
+first and all six real.** **LA4:** the snapshot was stamped AFTER the scan, and the 23:41 UTC
+backup cron sits 19 minutes from UTC midnight — so a slow backup dated the snapshot the next day,
+and because idempotency keys on `hot_processed_{scan_date}`, the "no-op" backup wrote a **second
+forward-track pick row for the same close** and posted the Discord digest **twice**. **LA5:** the
+scan's `health` and `filtered` blocks were computed, logged, and then dropped at the only boundary
+that persists them — **this is why LA1 and LA6 were invisible**; a scan reporting zero refusals
+across 500 names it could not reach had no way to say so. **LA7:** the staleness guard called a
+Saturday "last close" and counted Christmas as a trading session, and its own docstring argued for
+the opposite of what it did. **LA9 was marked HYPOTHESIS by the audit and is CONFIRMED TRUE:** the
+scheduled hot scan passed no broker token, so it ran the EDGAR fallback universe — no price, no
+market cap, no size ordering — while the job's comment claimed the broker's liquidity-ranked one.
+Passing the token alone would have silently pointed it at the *sandbox*, so the env goes with it.
+**LA12** and **LA14** are smaller: a sector median computed over 1–2 valued names beside a
+full-sector count, and a holiday set containing a date from the previous year.
+
+**Two of these were self-inflicted and are recorded as such.** LA7's fourth defect — two
+`trading_days_between` functions with the same name in sibling modules returning different answers
+— was created by this lane's own LA3 work days earlier. And while writing the ledger rows, an
+unescaped `|` in a note split the row and made it **vanish** from `read_ledger`; chasing that found
+that `--write` re-renders from that dict and would therefore have **deleted** it. Three rows are
+affected today (`S23`, `M1-PARSE`, `V2G`) — all other lanes', **reported rather than rewritten**,
+with a fail-closed guard now stopping the deletion.
+
+**Cowork note:** nothing here needs you, but two items change what you will see. Scans dated a
+non-trading day now carry a visible "not a trading session" note instead of a green badge, and the
+next scheduled hot scan is the first to run on the broker universe — expect the served list to
+change composition, and that is the fix working, not a regression.
+
+**State: landed on `main` and deploying. Full gate 46 suites, 0 failures.** Detail in
+`HANDOFF_live_data_bugs.md` Parts 13–16; ledger rows `V2G-SRC`, `LA1-LA3`, `CI-PY311`, `LA4`, `LA5`, `LA7`, `LA9`, `LA12`, `LA14`.
 
 ---
 
