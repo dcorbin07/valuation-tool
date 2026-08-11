@@ -3723,3 +3723,107 @@ reaches the audit **unwithheld**, i.e. if fail-closed itself broke. Pinned both 
 
 **48 tests in `tests/test_la1_la3.py`; full gate 42 suites, 0 failures.**
 
+
+---
+
+## Part 15 — WHY NONE OF PARTS 13 AND 14 HAD DEPLOYED: ONE F-STRING, AND THE VERSION CHECK THAT DID NOT CHECK THE VERSION (2026-08-11, greeks lane)
+
+Parts 13 and 14 were finished, green and pushed. **They were also entirely undeployed**, and had
+been for three pushes. The branch would not land, `main` took five other lanes past it, and the
+gate was green locally every time it was asked. This part is the diagnosis, because the failure
+mode is more reusable than the fix.
+
+### 15.1 The fault
+
+`scripts/live_theme_sources.py:776` contained an f-string that reused its own quote character
+inside the expression:
+
+    f'{k} {v['fetched']}+{v['done']}'
+
+**PEP 701 legalised that in Python 3.12. On 3.11 it is a hard SyntaxError**, and
+`.github/workflows/land-agent-branch.yml` pins `python-version: '3.11'`. This machine runs 3.13.
+
+So the module could not be **imported** on the runner, and the suite that imports it —
+`tests/test_live_theme_sources.py` — died at collection. **All 53 tests failed at once, for one
+reason, and the reason was not in any of them.** Every other suite stayed green, which is why CI
+named exactly one file and offered no further clue. The land step's `exit $fail` then did its job
+and left `main` untouched.
+
+**One character of quoting, in a progress log line, in a measured-only script that ships nothing.**
+It blocked the KSPI publication leak fix, the fail-closed publication policy and the LA3
+denominator repair from reaching production for a day.
+
+### 15.2 Why my own pre-push check missed it, which is the part worth keeping
+
+Before the earlier pushes I verified 3.11 compatibility with:
+
+    ast.parse(src, feature_version=(3, 11))
+
+**That argument is best-effort and does not gate tokenizer-level changes like PEP 701.** It
+accepted the file without complaint. I then reported, in writing, that Python 3.11 syntax had been
+ruled out — and it had not been. The check named a version it was not able to enforce.
+
+**A version claim needs a compiler of that version.** The fix was to fetch the official 3.11.9
+embeddable distribution (no install, no elevation) and compile against it. That took about two
+minutes and settled in one command what three pushes and a lot of reasoning did not.
+
+### 15.3 The guard, in two halves, because either alone is blind
+
+Both live in `tests/test_live_theme_sources.py`:
+
+| check | what it catches | where it fires |
+|---|---|---|
+| `compile()` every `.py` under the **running** interpreter | any construct, exhaustively | on CI, where the running interpreter **is** 3.11 — red with a file and a line instead of an unexplained import failure |
+| tokenizer scan for the specific construct | PEP 701 quote reuse; backslash in an expression | **locally, before a push** — only 3.12+ can represent it, so this is the half that would have saved the three attempts |
+
+`CI_PYTHON` is pinned to the workflow by a test, so bumping the runner cannot silently leave the
+checks describing the old version.
+
+### 15.4 The detector's rule was read off the compiler, not recalled — and its first cut was wrong
+
+The rule is empirical. A table of eight constructs was run through real CPython 3.11.9 and the
+verdicts recorded; the table is pinned **in both directions** (on 3.12+ it asserts the detector;
+on 3.11 it asserts the table against that compiler).
+
+**The first cut had two false positives on one correct line** — `fundamental_panel.py:4182`:
+
+* it compared **first characters** rather than full delimiters, so a `'''`-delimited f-string
+  containing a nested `'` was condemned. That is legal 3.11.
+* it tracked **one** delimiter instead of a **stack**, so in `f"{(f'{y:.2f}')} {d['k']}"` the
+  inner f-string's quote was still considered open and the outer one's `d['k']` was condemned.
+  Also legal 3.11.
+
+Both shapes are now rows in the fixture table. **This matters beyond tidiness: a repo-wide guard
+that cries wolf on correct code is a guard every other lane learns to route around**, and it
+would have been reported here as a finding about `fundamental_panel.py` that was purely my error.
+
+### 15.5 What was verified, and what was not
+
+* **390 files compile under real 3.11.9** — 0 failures, on the merged tree, including the other
+  lane's newly landed `scripts/exit_rule.py` and `valuation/web/hold_horizon.py`.
+* **57 of 58 tests in the suite pass under real 3.11.** The single error is `ModuleNotFoundError:
+  numpy`, an artefact of the bare embeddable interpreter; `numpy>=1.24` is in `requirements.txt`,
+  which CI installs.
+* **Full gate on the merged tree: 45 suites, 0 failures.**
+* **NOT verified: the Actions log itself.** I still cannot read it — no `gh`, no GitHub token.
+  The diagnosis rests on reproducing the failure locally against a 3.11 compiler, which is
+  stronger evidence than the log line would have been, but the causal chain to CI's specific
+  run is inferred, not read.
+
+### 15.6 The lesson, stated plainly
+
+**"Green locally" and "green on the gate" are claims about different interpreters, and this
+project had no check that knew the difference.** The repo's own standing rule — never silence a
+check — has a sibling this session paid for: *never trust a check that cannot enforce what it
+names.* `ast.parse(feature_version=...)` reads exactly like a version gate and is not one.
+
+**BUGS FOUND (Part 15)**
+
+* **`live_theme_sources.py:776` — 3.12-only f-string syntax on a 3.11 runner.** FIXED. Blocked
+  every deploy from this lane for three pushes. Class-wide guard added.
+* **No repo-wide check that the tree parses on the CI Python.** FIXED — two-part guard above.
+  Note the tradeoff, recorded rather than hidden: the guard scans the **whole tree**, so another
+  lane's 3.11-incompatible file will now redden **this** suite. That is deliberate — it is a
+  repo-wide invariant and the message names the offending file and line — but it is a shared
+  failure surface and the next lane to hit it should read this section rather than assume the
+  suite is flaky.
