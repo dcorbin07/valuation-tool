@@ -62,6 +62,110 @@ intent unchanged, and it is called out rather than buried.
 
 **Recommended next step:** the CPCV embargo, pre-registered on its own, since it is the one M2
 item left and the only one that can move a published number.
+## 2026-08-11 — options-bot lane (O21 + O26): the dividend gap is real but cheap and is deliberately left alone; the bucket floor cannot deliver what its comment promises
+
+Two ledger items closed, frozen book, no re-mine, **no live code path changed**. Both registers
+committed **together and ALONE** at `bf5324c` (two `.md`, zero `.py`). Both ledger rows were bare,
+so the scope was derived and each register states what it derived.
+
+**O21 — the defect is the CALLER, not the model.** `bs_price`, `implied_vol` and `greeks` already
+take a dividend yield `q` and handle it correctly; **every caller uses the default 0.0**. Anyone
+who "adds dividend support to the pricer" is fixing the wrong thing (pinned by a test). And the
+banked P&L comes from **quoted** bid/ask, so the pricer cannot move it directly — it reaches the
+book only via early exercise, contract selection, and stored derived fields.
+
+**Exposure is widespread, the measured cost is not.** 81.4% of trades sit on dividend payers
+(median trailing yield 2.02%) and **2,107 of 3,870 calls span an ex-div date** — but only **34
+exits (0.879%) were booked below intrinsic, worth +0.2002pp** against a pre-registered 1.00pp
+bar. Measured **model-free** (`bid < S − K`) so the answer is not a function of the pricer under
+test. Two controls first: parity recovers the stored entry spot at median rel error 0.00232, and
+the sim's **own** bars at **0.00000 / 100% within 1%**.
+
+**One door is UNRESOLVED and is reported as such, not as zero.** The `q=0` control reproduces the
+banked contract **3,870/3,870 = 100.00%**; the corrected pricer picks a **different contract on
+179 entries (4.63%)**, and **not a near-substitute** — median |delta gap| **0.129** against a 0.35
+target, **93.9% moving to a lower strike** (the predicted direction). **Its P&L is not computable
+on the frozen book**: the freeze holds full chains only on ENTRY dates, so an unheld contract has
+no forward path (median 2 chain dates). Closing it needs a re-mine.
+
+**The pricer is deliberately NOT changed** — neither clause of the materiality bar is met, and
+passing `q` into `pick_contract` would change *which contract the live engine buys* on 4.63% of
+entries: a construction change, not a bug fix. Pinned by two tests.
+
+**Two defects in my own instrument, caught before any verdict was read.** A `max(bid+strike)`
+spot estimate was parity's **loosest upper bound** and inflated the early-exercise gain to
+**+5.62pp — 8× the truth**, in the direction that manufactures a material finding; then the
+parity fix rejected zero-value puts and discarded exactly the deep-ITM cases, scoring **zero
+rows**. Both pinned. Also found: **`options_backtest.BARS_CACHE` is a RELATIVE path** and silently
+resolves to nothing from a worktree.
+
+**O26 — NULL, the floor stays 30, and that is not a vindication of 30.** The constant's own
+comment ("enough that one lucky contract cannot flip the verdict") is testable and had never been
+tested. `P_flip(n)` **never reaches the 0.05 bar anywhere on the pre-committed grid**: 0.1848 at
+the shipped 30, still **0.1084 at n=300**. Going 30 → 300 — a tenfold rise no live bucket could
+supply — buys almost nothing.
+
+**The secondary is the stronger result and it was checked against closed form, not trusted.**
+Half-to-half sign agreement is a **coin flip at every size** (0.4942 at n=30, 0.5482 at n=300),
+and the book's own moments (mean 0.0327, sd 0.9251) **predict that curve analytically** (0.5059 /
+0.5561). **A bucket would need ~6,148 trades for its halves to agree on the sign of expectancy 95%
+of the time — the whole book is 3,870 and the largest live bucket is 2,058.** So per-bucket
+expectancy on this book is essentially unmeasurable **at any floor**; a third independent
+corroboration of R2/O13. **Zero live buckets change status.**
+
+Full gate **60 suites, all green** on the merged tree (two new: `test_dividends.py` 27, `test_bucket_floor.py` 19).
+Options `N` **246 → 248** (O21 charged 1, O26 charged 1); **equity `N` untouched at 155**, so `BACKTEST_RESULTS.json` needs no re-run. Detail in
+`HANDOFF_optionsbot.md` §29–33. **Recommended next:** re-mine the 179 alternative contracts to
+close D2 — the only open door — and **do not raise `MIN_CLOSED_PER_BUCKET`**; the lever does not
+work.
+## 2026-08-11 — data-spend lane (D4): DON'T BUY the Cboe Open-Close Volume Summary — and a free six-month trial means you never had to pay to find out
+
+**The last open D item is closed, so the D series is now complete.** Research only, **no code
+changed, zero trials**. Memo in `HANDOFF_data_spend_d4.md`, in the `HANDOFF_data_spend.md` house
+style; ledger row `D4` OPEN → DONE/REJECTED.
+
+**It is priced, and the audit's figure understates it badly.** The product page shows no price but
+points at fee schedules **filed with the SEC**. Verified: EOD subscription **$500/mo**; EOD ad-hoc
+historical **$400 per request per month**, with **one request = one month of data** (quoted
+verbatim); ten-minute intraday $1,000/mo; one-minute $6,000/mo. Fees are filed **per exchange**
+(C1, C2, BZX, EDGX). The 94 purchasable months of this project's own alert window
+(**2016-01-01 → 2025-10-15**) cost **$28,200–$37,600 for ONE exchange**. Against the audit's
+indicative *"roughly $600/yr"*, stated on comparable bases: the **recurring** subscription is
+**$6,000/yr per exchange (~10×)**, and the **one-time** history purchase has **no counterpart in
+the audit's figure at all** — the two are deliberately not compressed into one multiple, because a
+one-time cost divided by an annual rate means nothing. The audit's own caveat that its figure was
+for a different product was right to be there.
+
+**Three findings the audit did not have.**
+1. **A six-month FREE TRIAL of ad-hoc historical EOD Open-Close data exists** (filed Dec 2025,
+   clarified Jul 2026), open to *"both TPHs and non-TPHs who have not previously subscribed …
+   or previously received a free trial."* **Don qualifies.** The audit's "one sales call" is
+   obsolete — the correct action costs nothing. It is **one-shot**, so *when* it is spent matters.
+2. **The licence forbids what Valquo is.** *"Raw data is licensed for internal use only and may not
+   be redistributed externally in any form"*; external distribution of **derived** data is
+   **$5,000/mo ($60,000/yr) plus approval**. A score shown on valquo.co is derived data distributed
+   externally. Same shape as D1's Sharadar finding and JKP's research-only licence.
+3. **Ad-hoc history starts January 2018**, so **24 of the book's 118 months (20.3%) are unavailable
+   at any price — and they are the EARLY ones.** D4 cannot be tested by this project's own
+   both-halves standard, in a programme whose signature failure is a result holding on one half and
+   reversing on the other.
+
+**The gate was never approached, and it points one series over.** `O14` (free alert-day tick flow,
+**~7 hours on data already held**) is still OPEN and has never run. Of the twenty OPEN O and U
+items only **two** are flow items and one is `O14` itself, so **D4 names exactly one open item that
+is not its own gate: `U2`.** The audit filed D4 under options while its cited literature
+(Pan–Poteshman 2006) predicts **stock** returns — and the options entry is dead (`R2`, −5.0640pp
+split-clean) — so the only live route is `U2` into the equity composite, which `S22`'s flat
+three-month-to-two-year alpha makes a ~60× horizon mismatch.
+
+**Reported because it cuts toward running O14:** `O13` (yesterday) found the gap is entirely a
+within-bin **rate** effect — the alert loses on the **day** it picks, uniformly — and flow is a
+day-level feature. But `O13`'s own refusal rules made the other half **worse in both directions**,
+and **you cannot short the gap**.
+
+**Recommended next step: run `O14`, then `U2` — both free — and only then spend the trial. Do not
+buy.** Five bugs reported, including the gate pointing at the wrong series and nobody having checked
+the dataset's start date against the book's own window.
 
 ## 2026-08-11 — options-bot lane (O13 + O12): the anti-signal is DIFFUSE and un-tradeable, and the dead entry costs 2.75× in position size
 
@@ -1695,6 +1799,45 @@ being followed, and this task was a verification rather than a reconstruction.
 corrected figure is √2.212 = 1.487× on the 3,885-trade book.** It has now survived two refreshes
 because both flagged it as "not this lane's row". Recommended: let any lane correct a figure that
 is already corrected elsewhere in the project.
+
+---
+
+## O14 — TICK FLOW COLLECTED FOR EVERY BANKED ALERT-DAY (2026-08-11, ticks lane) — DATA ONLY
+
+Full write-up in `HANDOFF_ticks.md`. **Collection only — no analysis was run and none may be
+quoted from this cache.** O14's analysis half is a separate pre-registered options-bot job; the
+ledger row stays `INPROGRESS` until that lands. **The chain freeze was not touched** — new
+directory, `data/options_ticks/`.
+
+**3,884 of 3,885 alert-days cached: 70,288,482 prints, 433,725,746 contracts traded, 4.721 GB**,
+186 names, 1,574 dates, 2016-01-19 → 2025-10-15. Zero missing, zero not attempted. The single
+`.empty` is BUD 2024-01-10, a genuine feed gap (autopsied: `option_history_trade` returns 766
+rows there and the EOD cache shows 5,883 contracts, but the trade+quote JOIN is absent for that
+name all week). Endpoint is `option_history_trade_quote`, so the aggressor side is a measurement
+rather than an inference; no DTE cap, measured rather than assumed.
+
+**Projected 2.93 GB from a 20-day stratified sample, actual 4.721 GB — the projection was 61%
+light**, because prints were fitted against EOD chain volume and the EOD cache is capped at 200
+DTE and slim-filtered, so it cannot see the LEAPS breadth an uncapped pull collects. The go/no-go
+was never close (4.7 GB is 1.9% of free disk against a 40 GB floor). **A predictor built from a
+FILTERED cache systematically understates an UNFILTERED pull** — worth knowing before the next
+job is sized nearer its limit.
+
+Three defects found and fixed, all mine, all recorded in the handoff: a **cached gRPC client that
+disabled `theta_bulk`'s only channel-recovery path** (141 units lost to the documented
+dead-channel signature, all recovered); **ticker renames bypassing `ALIASES`** (31 of 32 `.empty`
+units were FB and UTX rows filed under META and RTX — META 2016-01-28 alone returned 117,479
+prints that had been recorded as "no data"; provenance now on disk as `alias_used`); and a
+**coverage report that counted prints from the manifest but existence from the filesystem**,
+understating by 67,523 prints across units the killed first run had written.
+
+Also measured, and it inverts the obvious tuning: **concurrency buys nothing on this feed.**
+Per-call latency scales nearly linearly with workers while throughput stays flat (1.8 / 2.5 / 1.9
+units per minute at 1 / 2 / 4), because the server serialises the account. Four workers merely
+pushed every call past the 75s deadline. **Run this miner with `--workers 1`.**
+
+New files only, nothing existing edited: `mine_tick_flow.py`, `tests/test_tick_flow.py` (6/6),
+`TICK_FLOW_COVERAGE.json`. **Full gate: 25 of 25 suites pass** (edge 259/259).
 
 ---
 
