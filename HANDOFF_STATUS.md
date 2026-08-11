@@ -4,6 +4,55 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — data-spend lane (D4): DON'T BUY the Cboe Open-Close Volume Summary — and a free six-month trial means you never had to pay to find out
+
+**The last open D item is closed, so the D series is now complete.** Research only, **no code
+changed, zero trials**. Memo in `HANDOFF_data_spend_d4.md`, in the `HANDOFF_data_spend.md` house
+style; ledger row `D4` OPEN → DONE/REJECTED.
+
+**It is priced, and the audit's figure understates it badly.** The product page shows no price but
+points at fee schedules **filed with the SEC**. Verified: EOD subscription **$500/mo**; EOD ad-hoc
+historical **$400 per request per month**, with **one request = one month of data** (quoted
+verbatim); ten-minute intraday $1,000/mo; one-minute $6,000/mo. Fees are filed **per exchange**
+(C1, C2, BZX, EDGX). The 94 purchasable months of this project's own alert window
+(**2016-01-01 → 2025-10-15**) cost **$28,200–$37,600 for ONE exchange**. Against the audit's
+indicative *"roughly $600/yr"*, stated on comparable bases: the **recurring** subscription is
+**$6,000/yr per exchange (~10×)**, and the **one-time** history purchase has **no counterpart in
+the audit's figure at all** — the two are deliberately not compressed into one multiple, because a
+one-time cost divided by an annual rate means nothing. The audit's own caveat that its figure was
+for a different product was right to be there.
+
+**Three findings the audit did not have.**
+1. **A six-month FREE TRIAL of ad-hoc historical EOD Open-Close data exists** (filed Dec 2025,
+   clarified Jul 2026), open to *"both TPHs and non-TPHs who have not previously subscribed …
+   or previously received a free trial."* **Don qualifies.** The audit's "one sales call" is
+   obsolete — the correct action costs nothing. It is **one-shot**, so *when* it is spent matters.
+2. **The licence forbids what Valquo is.** *"Raw data is licensed for internal use only and may not
+   be redistributed externally in any form"*; external distribution of **derived** data is
+   **$5,000/mo ($60,000/yr) plus approval**. A score shown on valquo.co is derived data distributed
+   externally. Same shape as D1's Sharadar finding and JKP's research-only licence.
+3. **Ad-hoc history starts January 2018**, so **24 of the book's 118 months (20.3%) are unavailable
+   at any price — and they are the EARLY ones.** D4 cannot be tested by this project's own
+   both-halves standard, in a programme whose signature failure is a result holding on one half and
+   reversing on the other.
+
+**The gate was never approached, and it points one series over.** `O14` (free alert-day tick flow,
+**~7 hours on data already held**) is still OPEN and has never run. Of the twenty OPEN O and U
+items only **two** are flow items and one is `O14` itself, so **D4 names exactly one open item that
+is not its own gate: `U2`.** The audit filed D4 under options while its cited literature
+(Pan–Poteshman 2006) predicts **stock** returns — and the options entry is dead (`R2`, −5.0640pp
+split-clean) — so the only live route is `U2` into the equity composite, which `S22`'s flat
+three-month-to-two-year alpha makes a ~60× horizon mismatch.
+
+**Reported because it cuts toward running O14:** `O13` (yesterday) found the gap is entirely a
+within-bin **rate** effect — the alert loses on the **day** it picks, uniformly — and flow is a
+day-level feature. But `O13`'s own refusal rules made the other half **worse in both directions**,
+and **you cannot short the gap**.
+
+**Recommended next step: run `O14`, then `U2` — both free — and only then spend the trial. Do not
+buy.** Five bugs reported, including the gate pointing at the wrong series and nobody having checked
+the dataset's start date against the book's own window.
+
 ## 2026-08-11 — options-bot lane (O13 + O12): the anti-signal is DIFFUSE and un-tradeable, and the dead entry costs 2.75× in position size
 
 Two ledger items closed, one session, frozen book, no re-mine, no live code path touched. Both
