@@ -4,6 +4,33 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — edge lane, session 19 (S23): the exit rule raced, and nothing beats the incumbent
+
+**Ledger S23, registered blind** in `PREREG_s23_exit_rule.md` at `6a73485`. One buy rule and an
+identical `min_hold` across every arm; only the exit differs. Both TP/SL pairs named from
+published convention **before any run**, and no grid swept.
+
+**NO CHALLENGER BEATS THE INCUMBENT.** Fair-value point, fair-value lens band, O'Neil +25/−8 and
+2:1 +20/−10 all move the book by **under 0.4pp/yr in either direction** net of costs on 69 paired
+periods (|HAC *t*| ≤ 0.87), and **three of the four flip sign between halves** — including the only
+positive one, which is exactly what the both-halves requirement exists to catch.
+
+**The one measurable effect is the control: never selling costs 10.89pp/yr
+at HAC *t* -3.801**, the book growing to 417 names as
+alpha collapses 15.48% → 3.37%.
+**That CONFIRMS S22 rather than contradicting it** — S22 measured one cohort over ~8 quarters,
+while a never-sell book keeps buying and converges on the universe. **Dilution, not friction.**
+
+**Three defects found and fixed**, each reported in its own right: `build_valuation_panel` still
+carried the **B6 per-ticker tail** (110 dates from 1998-12-31 vs the corrected 69 — **any prior
+calibration conclusion wants re-running**); the point-in-time valuation was **fetching live Yahoo
+prices** through the beta ladder's corroboration rung (157 calls per 1,122 rows), now behind an
+offline mode that asserts zero network calls; and `_backtest_hold` extracted a column **once per
+name instead of once per date**, costing 61 of every 70 seconds — fixed, and **proved bit-identical
+over 1,818 leaves**.
+
+**Nothing adopted and no vintage opened.** Equity `N` 143 → 149.
+
 ## 2026-08-10 — edge lane, session 18 (S22): the edge does not decay over two years, but the long-short does
 
 **Ledger S22, registered blind** in `PREREG_s22_term_structure.md` at `6b187dd` — committed alone,
