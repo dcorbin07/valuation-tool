@@ -66,6 +66,59 @@ class TheEntryJoinReachesBackwardOnly(unittest.TestCase):
             self.assertGreater(c["entry"], c["asof"])
 
 
+class TheSplitFilterExcludesOnADateNotOnAReturn(unittest.TestCase):
+    """U1-SPLIT (register section 10). Option chains are as-traded and unadjusted; bars are
+    adjusted. GE's 1-for-8 on 2021-08-02 turned a $0.27 call into a +31,921% 'winner' worth
+    6.28pp of the whole grid's mean.
+
+    The property that matters is not that it drops that row — it is that it drops it for the
+    RIGHT REASON. An exclusion keyed on the size of a return would be selecting on the outcome,
+    which is the single thing a null exists to forbid."""
+
+    SPL = {"GE": [("2021-08-02", 0.125)], "AAPL": [("2020-08-31", 4.0)]}
+
+    def _t(self, tk, entry, expiry, pnl=0.0):
+        return {"ticker": tk, "alert_ts": entry, "expiry": expiry, "pnl_pct": pnl}
+
+    def test_a_trade_whose_life_crosses_a_split_is_dropped(self):
+        r = self._t("GE", "2021-07-23", "2021-09-17", 319.21)
+        self.assertTrue(CE.spans_split(r, self.SPL))
+
+    def test_a_trade_that_expires_before_the_split_is_kept(self):
+        r = self._t("GE", "2021-06-01", "2021-07-16", 0.4)
+        self.assertFalse(CE.spans_split(r, self.SPL))
+
+    def test_a_trade_that_starts_after_the_split_is_kept(self):
+        r = self._t("GE", "2021-08-03", "2021-10-15", 0.4)
+        self.assertFalse(CE.spans_split(r, self.SPL))
+
+    def test_the_split_day_itself_counts_as_inside_the_window(self):
+        self.assertTrue(CE.spans_split(self._t("GE", "2021-07-30", "2021-08-02"), self.SPL))
+
+    def test_a_name_with_no_split_is_never_dropped_however_large_its_return(self):
+        """The decisive test: a +50,000% return on a split-free name SURVIVES. If this ever
+        fails, the filter has started keying on magnitude and is selecting on the outcome."""
+        r = self._t("ZZZZ", "2020-01-02", "2020-03-20", 500.0)
+        self.assertFalse(CE.spans_split(r, self.SPL))
+
+    def test_a_tiny_return_on_a_split_crossing_name_is_still_dropped(self):
+        """The mirror: the filter is blind to P&L in both directions."""
+        r = self._t("AAPL", "2020-07-23", "2020-09-18", 0.001)
+        self.assertTrue(CE.spans_split(r, self.SPL))
+
+    def test_drop_split_spanners_partitions_without_loss(self):
+        rows = [self._t("GE", "2021-07-23", "2021-09-17"),
+                self._t("ZZZZ", "2021-07-23", "2021-09-17"),
+                self._t("AAPL", "2020-07-23", "2020-09-18")]
+        kept, dropped = CE.drop_split_spanners(rows, self.SPL)
+        self.assertEqual(len(kept) + len(dropped), len(rows))
+        self.assertEqual([r["ticker"] for r in dropped], ["GE", "AAPL"])
+        self.assertEqual([r["ticker"] for r in kept], ["ZZZZ"])
+
+    def test_a_row_missing_its_expiry_is_not_silently_dropped(self):
+        self.assertFalse(CE.spans_split({"ticker": "GE", "alert_ts": "2021-07-23"}, self.SPL))
+
+
 class TheArmBoundsAreThePreRegisteredOnes(unittest.TestCase):
     """`PREREG_u1_composite_entry.md` section 4 fixes three arms. If these drift, the register
     and the code disagree and the register is the authority."""

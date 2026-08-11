@@ -122,6 +122,65 @@ def grid_cells(by_date: dict, bars_by_ticker: dict, start: str, end: str) -> lis
     return cells
 
 
+# ------------------------------------------------------- corporate actions (U1-SPLIT) ------
+# FOUND 2026-08-11 WHILE CALIBRATING U1, BEFORE ANY ARM WAS SCORED. The ThetaData option chains
+# are AS-TRADED and are not adjusted for splits; `bars` (Sharadar SEP) ARE adjusted. Nothing in
+# the options lane ever consulted the split table, though `bulk.py:312` documents the hazard in
+# so many words: "an unadjusted split looks [like a huge move]".
+#
+# The signature is a REVERSE split. GE split 1-for-8 on 2021-08-02; a $14-strike call bought
+# 2021-07-23 at $0.27 settles at expiry against a ~$104 post-split underlying on a strike that
+# was never re-based, and books +31,921%. That ONE row is 6.28pp of the 5,186-trade U1 grid's
+# 9.93% mean. Forward splits (AAPL 4:1, NVDA 10:1, AVGO 10:1) do NOT show the same signature and
+# return plausible 1.1x-2.9x figures, so this is not a blanket claim that every split is corrupt
+# — it is that a trade whose contract life crosses one is not verifiable and cannot be scored.
+#
+# The exclusion is defined by an EXTERNAL table and a date comparison, never by the size of a
+# return. A rule that dropped "implausibly large" P&L would be selecting on the outcome, which is
+# the one thing a null must not let the arm do.
+def load_splits(data_root: str) -> dict:
+    """{ticker: [(iso_date, ratio)]} for every ticker with a real split. Ratio 1.0 is dropped."""
+    import os
+    import pickle
+    p = os.path.join(data_root, "bulk", "prepared", "actions.pkl")
+    with open(p, "rb") as f:
+        act = pickle.load(f)
+    out = {}
+    for t, rec in act.items():
+        ss = [(str(d)[:10], float(r)) for d, r in (rec.get("splits") or [])
+              if r and abs(float(r) - 1.0) > 1e-9]
+        if ss:
+            out[str(t)] = sorted(ss)
+    return out
+
+
+def spans_split(row, splits: dict) -> bool:
+    """True if a split falls inside this trade's contract life, `(alert_ts, expiry]`.
+
+    The window is the CONTRACT LIFE, not the realised holding period, and deliberately so: an
+    exit is priced off a quote series that the split has already corrupted, so a trade that
+    *exited before* the split can still have been marked against post-split quotes on its way
+    there. Taking the wider window over-excludes by a handful of rows and under-excludes by none.
+    """
+    ss = splits.get(str(row.get("ticker") or ""))
+    if not ss:
+        return False
+    a = str(row.get("alert_ts") or "")[:10]
+    exp = str(row.get("expiry") or "")[:10]
+    if not a or not exp:
+        return False
+    return any(a < d <= exp for d, _ in ss)
+
+
+def drop_split_spanners(rows, splits: dict) -> tuple:
+    """(kept, dropped). Applied to the GRID, so every arm and every null draw inherits it — they
+    are subsets of the grid and cannot reintroduce a row the grid does not have."""
+    kept, dropped = [], []
+    for r in rows:
+        (dropped if spans_split(r, splits) else kept).append(r)
+    return kept, dropped
+
+
 # --------------------------------------------------------------------------- the arms ------
 ARMS = {
     "TOP10": (0.90, 1.01),

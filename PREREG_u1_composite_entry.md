@@ -215,3 +215,77 @@ verdict.
 
 **Options `N` 207 → 210.** Equity `N` is untouched by this work; it reads 143 and must be
 re-read from `research_log.detail()` rather than copied from here if it is quoted anywhere.
+
+---
+
+## 10. AMENDMENT 1 — `U1-SPLIT`: a corporate-action defect, found during calibration, **before any arm was scored**
+
+**Added 2026-08-11, in the same commit as the bars, with `scripts/u1_score.py` not yet written.**
+That ordering is checkable from git and is the only reason this amendment is legitimate rather
+than a renegotiation: **no arm's gain existed, anywhere, when this rule was written.** Sections
+0–9 above are unedited.
+
+### What it is
+
+The ThetaData option chains are **as-traded and unadjusted for splits**; `bars` (Sharadar SEP)
+**are** adjusted. Nothing in the options lane has ever consulted the split table, although
+`valuation/edge/bulk.py:312` documents the hazard in so many words — *"an unadjusted split looks
+[like a huge move]"*.
+
+The signature is a **reverse** split. **GE split 1-for-8 on 2021-08-02.** A $14-strike call
+bought 2021-07-23 at **$0.27** settles at expiry against a ~$104 post-split underlying on a
+strike that was never re-based, and books **+31,921%**. That single row is **6.28pp of the
+5,186-trade grid's 9.93% mean** — 62% of the grid's entire expectancy, from one trade in 5,186.
+
+Forward splits do **not** show the signature (AAPL 4:1 → +236%, NVDA 10:1 → +225%, AVGO 10:1 →
++290% are all plausible), so this is **not** a claim that every split is corrupt. It is that a
+trade whose contract life crosses one **cannot be verified** and must not be scored.
+
+### The rule, and why it cannot select on the outcome
+
+Exclude any trade for which a split with ratio ≠ 1 falls in `(alert_ts, expiry]`, per
+`composite_entry.spans_split`. **Defined by an external table and a date comparison — never by
+the size of a return.** A rule that dropped "implausibly large" P&L would be selecting on the
+outcome, which is exactly what a null exists to forbid. The window is the **contract life**, not
+the realised holding period: an exit is priced off a quote series the split has already
+corrupted, so the wider window over-excludes by a handful of rows and under-excludes by none.
+
+It is applied to the **GRID**, so every arm and every null draw inherits it — they are subsets
+and cannot reintroduce a row the grid does not have. **18 of 5,186 rows (0.35%).**
+
+### Both bars are retained, and the verdict basis is fixed here
+
+| basis | TOP10 plain | TOP10 cap-matched |
+|---|---|---|
+| **SPLIT_CLEAN — the verdict basis** | **+7.2870pp** | **+9.4513pp** |
+| RAW (uncorrected, kept for the record) | +59.9628pp | +62.8077pp |
+
+Both are in `data/options_u1/U1_NULL.json`. Neither has been compared to an arm.
+
+### THIS IS A CROSS-LANE BUG AND IT MOVES A PUBLISHED HEADLINE
+
+Measured on the banked books, not inferred:
+
+| book | as published | split-clean | move |
+|---|---|---|---|
+| R2 alert book | +3.4103%/trade | +3.2702% | −0.1401pp (15 rows) |
+| R2 five-seed control | +10.0571%/trade | +8.3342% | **−1.7229pp** (131 rows) |
+| **R2 gap** | **−6.6468pp** | **−5.0640pp** | **24% of the published gap is an artifact** |
+
+**The control is contaminated ~12× harder than the alert book** because it draws many random days
+per name-year and therefore gets many more shots at any given split window (two GE reverse-split
+draws at +269x and +261x). **So the defect has been making R2's negative verdict look WORSE than
+it is, and correcting it runs toward the alert.** R2's sign, significance and verdict are
+**unchanged** — the alert still loses decisively — but anyone quoting "−6.65pp" should quote
+**−5.06pp** once this is repaired at source.
+
+**Owner: the options lane (this one) for the corpus, but the repair belongs upstream in the
+miner/replay path, not in U1.** U1 excludes; it does not re-price. Filing this is `RUN_RULES`
+rule 3 — report every bug, including outside your lane — and the direction it ran is stated
+because it is the flattering-to-nobody one.
+
+### Expectation E6, recorded now and scored later
+
+**E6: the split-clean grid mean is +3.65%/trade, so the GRID still beats the alert book's
++3.27% split-clean — E5 survives the correction, but narrowly, at 60/40.** Written before the
+arms were scored, like the rest.
