@@ -292,3 +292,54 @@ of already-banked artifacts (`EXITLAB_RESULTS.json`, `EXITLAB_FROZEN_2026-08-08.
 `PATHSTUDY_ARMS_SIGNAL.json`, `PATHSTUDY_STAGE2.json`) plus one read of the committed paper-track
 export. Options `N` stays **205**; equity `N` stays **135**. If Don picks Option 2, that run is
 charged **2** on landing, as committed in §5.
+
+---
+
+## 8. C1 RESULT — THE BAR, FIXED BEFORE ANY ARM WAS SCORED AGAINST IT
+
+**Don chose Option 2 on 2026-08-11.** This section records C1 and *only* C1. It is committed in
+its own commit, with the scoring code not yet written, so the ordering the memo demanded —
+**bar first, arm second** — is visible in the git history rather than merely asserted.
+
+Reproduce: `python -m scripts.tp_bar --calibrate`. The artifact
+(`data/options_pathstudy/TPBAR_NULL.json`, all 100 draws retained) is **gitignored like every
+other licensed-data output**, so the figures are transcribed here; every draw is recoverable from
+its seed alone.
+
+### The bar
+
+| quantity | value |
+|---|---|
+| **CALIBRATED BAR (p95 of the null)** | **+5.0812 pp** |
+| null minimum | −6.786 pp |
+| null p5 | −4.570 pp |
+| null median | **+0.803 pp** |
+| null maximum | +8.111 pp |
+| draws beating `shipped` | **53 of 100** |
+| draws | 100, seeds 1000–1099, each paired on all **3,885** trades |
+
+**The harness control passes before the bar means anything:** the `shipped` arm scored through
+this path re-build returns **+3.4103%/trade**, which is R2's published headline to the digit, and
+every draw is paired on the *same* 3,885 trades (`n_paired` 3885–3885 with no variation), so no
+draw can move its gain through the denominator.
+
+### Two things this null says that were not known before it was run
+
+**The shipped exit is slightly BELOW the median of its own family.** The median jitter beats it by
++0.803pp and 53 of 100 do. The inherited +100%/−50%/half-DTE is not a local optimum on this book —
+it is an ordinary member of its family.
+
+**The family's good region is coherent, not noise.** The five best draws are all the same shape —
+target 1.29–1.94, stop −0.53 to −0.69, time-stop fraction 0.70–0.90, i.e. *wider stop, higher
+target, hold longer*. A null whose tail is structured rather than scattered is exactly what makes
+a p95 from it a demanding bar, and it is why the bar landed where it did.
+
+### What the bar is, stated so it cannot be over-read later
+
+This is **not a no-effect null**. Every draw is a real policy on real paths, and this record
+already says raised targets tend to help on this book, so the null *contains* the effect. The p95
+therefore answers the selection question — **is a given arm distinguished within its own family?**
+— which is the actual hazard item A carries after three looks at one corpus. It does **not**
+answer "does raising the target do anything at all", and a failure against it must never be
+quoted as if it did. §9 will say which arms clear it; this section was written before that was
+computed.
