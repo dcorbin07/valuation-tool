@@ -935,7 +935,8 @@ def _forward_return(closes, i, h, n_cal):
 def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                             lookback_years=6, horizon=63, inst_lag_days=45,
                             keep_numbers=False, sector_neutral=False,
-                            grid_offset=None, extra_horizons=None) -> pd.DataFrame:
+                            grid_offset=None, extra_horizons=None,
+                            sector_neutral_pair=False) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -956,6 +957,17 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     The extra columns are defined on exactly the rows this panel already emits — a row still
     requires the BASE `fwd_ret` to be present — so the row set does not change either. Longer
     horizons are simply NaN on the most recent dates, which is the censoring above.
+
+    SECTOR-NEUTRAL-B6 — `sector_neutral_pair` additionally scores each cross-section with the
+    OPPOSITE `sector_neutral` setting and emits it as `sn_{theme}` columns on the SAME rows. Off
+    by default; with it off the frame is column-for-column identical to before.
+
+    Why it exists: both prior sector-neutral rejections built the two arms as two separate runs,
+    and a full backtest is NOT reproducible run to run (the `insider` theme moved median IC
+    -0.0034 / +0.0155 / -0.0034 across three identical-data runs). Scoring both arms from the one
+    `metrics` list makes that nondeterminism common-mode, so it cancels out of the difference
+    being measured, and makes the identical row set a property of the code rather than a claim.
+    Same argument as `extra_horizons` above.
 
     AUDIT X2 — `grid_offset` shifts the rebalance grid by N trading days. The grid has
     always started at exactly TD = 252 and every number this project has ever reported was
@@ -1306,6 +1318,11 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         from ..screener.factors import build_frame
         _by_ticker = {m["ticker"]: m for m in metrics}
         fr = build_frame(metrics, sector_neutral=sector_neutral, residual_momentum=False)
+        # SECTOR-NEUTRAL-B6 — the OTHER arm, scored from the SAME `metrics` list in the SAME
+        # pass. `build_frame` copies its input (`pd.DataFrame(metrics)`) and never mutates the
+        # caller's list, so the two calls differ by the flag and by nothing else.
+        fr_sn = (build_frame(metrics, sector_neutral=(not sector_neutral),
+                             residual_momentum=False) if sector_neutral_pair else None)
         for t, r in fr.iterrows():
             fr_ret = fwd.get(t)
             if fr_ret is None or fr_ret != fr_ret:
@@ -1325,6 +1342,15 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             for theme in S.FACTORS_ALL:
                 v = r.get(theme) if theme in fr.columns else None
                 row[theme] = None if (v is None or pd.isna(v)) else float(v)
+            # SECTOR-NEUTRAL-B6 — the paired arm's themes on the SAME row, so the two arms are
+            # provably scored on one identical row set and any run-to-run nondeterminism in the
+            # panel (the known `insider` one) is common-mode and cancels out of the difference.
+            if fr_sn is not None:
+                _rs = fr_sn.loc[t] if t in fr_sn.index else None
+                for theme in S.FACTORS_ALL:
+                    v = (_rs.get(theme) if (_rs is not None and theme in fr_sn.columns)
+                         else None)
+                    row["sn_" + theme] = None if (v is None or pd.isna(v)) else float(v)
             if keep_numbers:
                 for num in S.NUMBERS_ALL:
                     zc = "z_" + num
