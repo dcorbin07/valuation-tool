@@ -3471,3 +3471,141 @@ is not the precedent here: it registered an instrument that had been **built**. 
 **procedure that has not run**, and the nearer precedent is SELRULE, where declining to run a test
 cost zero and the reasoning was recorded in the ledger. **The ledger row `TP-BAR` is the record.**
 If Don picks option 2, that run gets the research-log row and the 2 trials, on landing.
+
+---
+
+# SESSION 22 — 2026-08-11 — TP-BAR: **Don chose Option 2, and item A closes REJECTED**
+
+**Don's choice, recorded with its date:** Option 2 of `PREREG_A_take_profit_bar.md`, taken
+**2026-08-11** — decide the take-profit question against a bar that is *measured* rather than
+chosen. The confirmation was run exactly as §3 pre-registered it. **No policy changed. Item A is
+closed, not re-parked.**
+
+**THE CAVEAT TRAVELS, as it must:** the options entry signal is dead (R2 — the alert book returns
++3.41%/trade against a five-seed random-entry control's +10.06%, paired sign test z −4.903).
+Nothing here is a tradeable-edge claim; it decides how a **paper** book exits.
+
+## 1 · The verdict in one table
+
+| | `tp150` | `tp200` |
+|---|---|---|
+| **C1 — clears the calibrated bar (+5.0812pp)** | +3.1948pp — **FAILS** | +3.8238pp — **FAILS** |
+| *percentile within its own family* | **82nd** | 87th |
+| **C2 — positive after winsorising the top 1%** | +2.4511pp — **PASSES** | +3.0161pp — PASSES |
+| **C3 — holds on the five pooled random seeds** | +2.5969pp — **PASSES** | +3.8986pp — PASSES |
+| **C4 — FDR / both halves / both sets / PBO** | **PASSES** | PASSES |
+| **VERDICT** | **REJECTED — fails C1 only** | **REJECTED — fails C1 only** |
+
+## 2 · The bar was committed before the arm was scored, and that is visible in git
+
+`e8e5505` contains `scripts/tp_bar.py`, its 16 tests, and §8 of the memo carrying the bar —
+**with `scripts/tp_bar_score.py` not yet written**. The scorer is a *separate module* that
+**reads** the bar from C1's artifact and `load_bar()` **refuses to run** if that artifact and the
+figure published in the memo disagree by more than 5e-4. A test also fails if the scorer ever
+defines its own ranges or percentile.
+
+**The bar: +5.0812pp**, the p95 of 100 jittered draws from the arm's own family — target
+0.50–2.00, stop −0.30 to −0.70, time-stop fraction 0.25–1.00, **endpoints read off
+`options_exitlab.POLICIES` rather than chosen here** (three tests fail if they drift), seeds
+1000–1099, identical frozen paths, identical `apply_arm`, every draw paired on all 3,885 trades.
+Null **min −6.786, p5 −4.570, median +0.803, max +8.111, 53 of 100 beating shipped**.
+
+## 3 · The harness reproduces the record independently — the control that makes it quotable
+
+This scorer was written for the **path study**, not for O1. It returns `shipped` at
+**+3.410308%/trade** (R2's headline) and gains of **+3.1948 / +3.8238pp** against O1's banked
+`expectancy_diff` of **0.031947661 / 0.038237652** — the same numbers to four decimals, from a
+separately-written path re-build. Two independent implementations agreeing to that precision is
+the strongest cross-check this lane has produced.
+
+## 4 · The result is sharper than a plain "no" — and must not be over-read
+
+**`tp150` passes every condition except the calibrated one.** The memo predicted **C2** would be
+the hazard; C2 was passed comfortably — capping the top 1% of per-trade differences at +124.3pp
+(39 trades) still leaves **77%** of the gain. So the raised target is **not tail-driven**, it is
+**not** an entry artefact, and it is FDR-significant and positive in both halves of both books.
+
+**What it is not is *distinguished within its own family*.** It sits at the **82nd percentile** of
+arbitrary jitters when the bar was the 95th. **53 of 100 random tweaks beat the shipped rule**,
+the median by +0.80pp and the best five by +5.2 to +8.1pp — all the same *wider stop, higher
+target, hold longer* shape. **When a whole region of parameter space looks good on one corpus,
+that corpus cannot tell you where inside it the optimum is**, and picking one point from it after
+five looks is choosing by hindsight. That is the hazard item A carried; the bar priced it.
+
+**The objection, stated rather than left for a reader to find:** a narrower null would give a
+lower bar and `tp150` might clear it. True — and precisely why the construction was fixed in §3
+*before* it ran and bound "whatever it comes out as". **Choosing the null after seeing which one
+passes the arm is the move the whole exercise exists to refuse.**
+
+## 5 · The by-product that is unflattering to the shipped rule
+
+**The inherited +100%/−50%/half-DTE exit sits slightly *below* the median of its own family** —
+beaten by 53 of 100 jitters, by +0.803pp at the median. It is an ordinary member of its family,
+not a local optimum. **It cannot be acted on for exactly the reason `tp150` was refused**, and it
+is recorded so that nobody later presents the shipped exit as having been *validated* here. It
+was not. It was left in place.
+
+## 6 · The pre-registered expectation was **wrong three times out of three**
+
+| prediction (memo §6, written first) | odds | outcome |
+|---|---|---|
+| bar lands **+1 to +4pp** | 60/40 | **WRONG** — +5.0812pp |
+| `tp150` **clears** it | 55/45 | **WRONG** — fails at the 82nd percentile |
+| `tp200` clears but **fails C2** where `tp150` passes | 50/50 | **WRONG both halves** — `tp200` failed C1, and C2 passed for both |
+
+Consistent with the standing record: **do not reason about the direction of an effect in this
+project; measure it.**
+
+## 7 · Accounting
+
+**2 trials** for the two winsorised re-scores, as committed. **Options `N` 205 → 207.** The C1
+calibration is charged **zero** (X7 / session-10 HAC-floor precedent — a calibration searches
+nothing). **Equity `N` is untouched by this work but is no longer 135 — it reads 143**, moved by
+S22's eight horizon arms landing from another lane mid-session; flagged because a stale `N`
+overstates every DSR-gated claim. `rows_malformed: []`.
+
+## 8 · What I did NOT do, and why
+
+* **No policy changed anywhere.** The paper options book keeps +100% / −50% / half-DTE. The
+  verdict was mechanical and it came out REJECTED, so there was nothing to ship.
+* **Did not re-run C3/C4 from scratch.** Both are already measured on this exact book by O1 and
+  are **read from `EXITLAB_FROZEN_2026-08-08.json`**, so the verdict cites banked numbers. The
+  first extraction returned `null` for the random-book gains because I used the wrong key path;
+  fixed and re-run rather than reported blank.
+* **Did not re-open the "narrower null" question.** It would be a new pre-registration, and
+  running it now — after seeing that the current null refuses the arm — is selecting the rule on
+  the result. Same reason the flipped `sl_by_dte` was left alone last session.
+* **Did not touch item A's *other* recorded claims** beyond the two the work corrects (the
+  "two independent runs" and the +10pp framing), both struck in place in
+  `HANDOFF_parked_positives.md` rather than deleted.
+
+## BUGS FOUND
+
+**1 — `VALQUO_LEDGER.md` has two rows with unescaped `|` in their note text, and one of them is
+the row that documents this exact defect class.** Found while checking my own row's shape, not
+looked for. Every well-formed ledger row splits to **12** cells; **170** do. Two do not:
+
+* **`VALQUO_LEDGER.md:341`, row `M1-PARSE` — 15 cells (3 extra).** The offender is
+  `` |Spearman(term_slope, atm_front)| `` written literally inside the cell. **This is the row
+  whose entire subject is session 12's discovery that an unescaped `|` in a markdown cell shifts
+  every column after it** — it quotes the offending O16 string without escaping it and thereby
+  reproduces the defect it describes.
+* **`VALQUO_LEDGER.md:360`, row `V2G` — 14 cells (2 extra).** The offender is `max|dev|`, the
+  absolute-value bars.
+
+**Severity: low, but not zero, and it is the harmful direction.** `build_ledger.py` preserves
+out-of-band rows verbatim so it does not corrupt them, and `research_log.detail()` reports
+`rows_malformed: []` because these are in the *ledger*, not the research log — the trial
+denominator is untouched. The exposure is to any reader or tool that addresses ledger columns
+**by position**: for these two rows the status, date and lane columns are shifted right, so a
+positional read gets prose where it expects a verdict.
+
+**Not fixed by me, deliberately.** Both rows belong to other lanes (`M1-PARSE` to the parser lane,
+`V2G` to the greeks lane) and the register's own rule is that a landed row's text is not edited by
+someone else. **The fix is one character each — escape as `\|`** — and it is theirs to make.
+
+**2 — one defect of my own**, caught by my own test and fixed before landing:
+`tests/test_tp_bar_score.py` asserted that the 99th percentile of `[0]*99 + [100]` *is* the
+outlier, so nothing would be capped. It interpolates to 1.0 and the outlier **is** capped — the
+code was right and the assertion was wrong. Corrected with the arithmetic spelled out in the
+test, rather than by loosening it.
