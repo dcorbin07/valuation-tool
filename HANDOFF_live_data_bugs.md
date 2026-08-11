@@ -3078,3 +3078,933 @@ product** and raises nothing. `_align_index` is the fix and three tests pin it.
    they are high-beta. Escalation of Part 7.7's open item from one name to a population.
 5. **`tests/test_saas.py:200` still writes a 2099-01-01 row into the real `data/screener.db`**
    (carried from Part 11, unfixed — another lane's file).
+
+## Part 13 — FREE LIVE SOURCES FOR THE THREE DEAD THEMES: BUILT, MEASURED, AND NOT SHIPPED (2026-08-10, greeks lane)
+
+Follow-up to Part 12, which found that **42.9% of the deployed composite weight reaches no live
+score**. This builds a free, public source for each of the three dead themes and measures its
+coverage against the same 500 served rows. **Everything here is an instrument. Nothing reaches
+the product**, and that is enforced by a test rather than promised in prose.
+
+Pre-registered in **`PREREG_v2g_live_theme_sources.md`, committed ALONE at `66310e7`** before any
+fetch or measurement code existed. Implementation `scripts/live_theme_sources.py`, **53 tests** in
+`tests/test_live_theme_sources.py`, artifact `data/free_analysis/V2G_LIVE_THEMES.json`.
+
+### 13.1 THE HEADLINE
+
+| theme | live state (Part 12) | **V2G measured coverage** | distinct values | floors |
+|---|---|---|---|---|
+| `institutional` | **null on 500/500** | **411 / 500 = 82.2%** | 410 | clears 0.30 and 0.05 |
+| `capital_discipline` | **null on 500/500** | **456 / 500 = 91.2%** | 441 | clears 0.30 and 0.05 |
+| `insider` | 500/500 present, **1 distinct** | **500 / 500 = 100.0%** | **297** | clears 0.30 and 0.05 |
+| `quality` ← accruals input | (quality already live) | 385 / 500 = 77.0% | 385 | clears 0.30 and 0.05 |
+
+Floors are the project's own constants, applied unchanged: `COVERAGE_FLOOR = 0.05`
+(`fundamental_panel.py:3833`), `MIN_COVERAGE = 0.30` (`pead.py:121`, `elite13f.py:90`),
+`MIN_DISTINCT = 2` (`theme_health.MIN_DISTINCT_VALUES`).
+
+**Share of deployed weight that reaches a live score, mean over the 500 served names: 56.5%
+today → 95.5% with these sources.** `insider` is counted as reaching nothing today, because it
+does: it is present, constant, and renormalised away after standardisation. **31 names would
+still sit below 80% weight coverage** — the gap is not uniformly closed and is named in §13.5.
+
+**ALL FIVE PRE-COMMITTED BOUNDS HELD.** B1 institutional ≥ 0.30 (0.822). B2 anchor pass ≥ 95%
+(423/423 = 100%). B3 external validity — most-held served name **NVDA at 5,775 distinct filers**
+(≥ 2,000) and **Spearman(holder breadth, log market cap) = +0.539** (> +0.30). B4
+`capital_discipline` usable. B6 `insider` ≥ 10 distinct (297).
+
+### 13.2 WHAT WAS BUILT, AND WHY IT IS FREE
+
+The brief's premise is correct and is what makes this possible: **SF3 is a licensed aggregation
+of 13F; the underlying filings are public record.** Nothing here touches `data/backtest`.
+
+* **`institutional`** — SEC **Form 13F structured data sets**, the quarterly zips at
+  `sec.gov/files/structureddata/data/form-13f-data-sets/`. Two periods, **31-DEC-2025 →
+  31-MAR-2026** (the `01jun2026-31aug2026` window is not published; Q2-2026 13Fs are due
+  2026-08-14). 90.3 MB + 99.4 MB, aggregated to **22,092 and 22,626 CUSIPs** from **8,625 and
+  8,741 distinct filers** over **3.08M and 3.11M** share rows. Options rows (`PUTCALL` set) and
+  bond rows (`SSHPRNAMTTYPE = PRN`) are excluded; restatement amendments supersede, new-holdings
+  amendments are additive. Then, exactly as `factors.py:267` builds it:
+  `institutional = mean(z(inst_accum), z(sm_breadth))`, where `sm_breadth` is growth in distinct
+  holder count and `inst_accum` is growth in **shares** held.
+  **`inst_accum` is share-based on purpose, fixed in the register before the run:** a
+  dollar-based change over a quarter is mostly the stock's own price move, which would have made
+  a "13F accumulation" signal a momentum signal wearing a 13F label.
+* **`capital_discipline`** — share issuance from **XBRL company facts**, two annual points,
+  `neg_issuance = -(shares_t / shares_{t-1} - 1)`, matching `factors.py:254`, which is issuance
+  **alone**.
+* **`insider`** — the repo's **already-fixed Form 4 scraper**, imported and called unmodified,
+  including its refusal contract. Then `(score - 50) / 25`, matching `factors.py:271`.
+
+**THE BRIEF'S THIRD ASK LANDS IN A DIFFERENT THEME, AND THE REGISTER SAID SO BEFORE THE RUN.**
+The brief asked for accruals under `capital_discipline`. `factors.py:254` is `neg_issuance`
+alone; `accruals_q` is a **`quality`** input (`factors.py:227`), and `quality` is one of the four
+themes that already works live. So **net issuance is the only input that can revive
+`capital_discipline`; accruals can only improve a theme that was never dead.** Built and reported
+anyway, labelled against the theme it actually feeds. No number was moved between themes to make
+a total look better.
+
+### 13.3 THE JOIN WAS THE HARD PART, AND IT IS WHERE THE INSTRUMENT IS WEAKEST
+
+13F identifies issuers by **CUSIP**; the served universe identifies them by **ticker**; there is
+no free CUSIP master. The ladder, with the rung recorded per name:
+
+| rung | names | what it is |
+|---|---|---|
+| `cusip_13g` | **398** | the company's own SC 13D/G filings carry its CUSIP; every candidate must pass the **mod-10 check digit**, and the modal validated value across up to 6 filings wins |
+| `name_exact` | 13 | normalised exact match on `NAMEOFISSUER` |
+| `too_few_holders` | 12 | matched, then refused — see §13.4 |
+| `ambiguous` | 49 | the name matched **more than one** CUSIP — a failure, never a coin flip |
+| `unmatched` | 28 | no CUSIP from either rung |
+
+**The authoritative rung did 94% of the work** (398 of 423 matched), which was predicted. The
+ownership anchor — 13F dollars held over market cap, admissible in `(0, 1.50]` — passed
+**423/423**, median **0.682**, p95 **0.992**, max **1.426**. A median of 68% institutional
+ownership across a large-cap screen is the right answer, and it is the strongest single piece of
+evidence that the join landed on the right issuers.
+
+**THE FAILURE MODES ARE COHERENT AND NAMED, not a diffuse loss.** Of the 77 unjoined names, 16
+are five-letter ADR tickers ending in `Y`, and the rest are dominated by foreign issuers whose
+13F names are abbreviated beyond exact match (`PNC FINL SVCS GROUP`) or split across ADR and
+ordinary lines (`ambiguous`: BCS, NWG, RY, EQNR, AMX, SLF, …).
+
+**AND ONE COHORT IS SYSTEMATICALLY WORSE, which matters for a screener full of banks: the join
+fails on 26.8% of Financial Services names against 13.2% everywhere else — twice the rate.**
+The cause is `edgar13d.py`'s filer-vs-subject contamination in a new place: **a company that is
+itself an asset manager files SC 13Gs ABOUT OTHER ISSUERS, and EDGAR's submissions feed for a CIK
+carries the filings it MADE as well as those naming it as subject.** PFG came back with six
+candidate CUSIPs at one vote each. **29 of 500 names hit that tie.** Caught during the smoke test,
+before the full run: a tie is now a refusal that falls through to the name rung, rather than being
+resolved by dictionary insertion order.
+
+### 13.4 THE DEFECT I FOUND IN MY OWN INSTRUMENT — the anchor is one-sided IN EFFECT
+
+**The pre-registered anchor band `0 < frac <= 1.50` rejects implausibly HIGH institutional
+ownership and waves through implausibly LOW.** A join onto a stale or wrong CUSIP that
+essentially nobody reports holding lands at `frac ≈ 1e-6` — comfortably *inside* the band.
+
+It passed **12 names**, and they are not obscure ones: **CMCSA, RIO, BTI, HSBC, MT, AMP, CM, MGA,
+SHG, IHG, TELNY, GALDY, IFNNY** — megacaps credited with **one single reporting institution**.
+Two of them (AMP, MT) produced `None` anyway because no prior-quarter record existed, i.e. they
+were caught **by luck, not by design**; had that CUSIP existed in both quarters they would have
+produced a garbage breadth-change that passed every check in the pipeline.
+
+**Fixed with a structural floor, not a tuned one.** `sm_breadth` is the *growth in holder count*,
+and a holder count of one cannot express breadth or its change at all — `MIN_HOLDERS = 2` is the
+smallest count at which the measure is **defined**, and it is not chosen to hit a coverage number.
+Recorded as a **tightening** (PREREG §8 permits tightening, not loosening), and **both figures are
+published rather than one replacing the other**:
+
+* institutional coverage under the **pre-registered** rule: **421 / 500 = 84.2%**
+* institutional coverage with the **tightening**: **411 / 500 = 82.2%** ← the number to quote
+
+**RESIDUAL RISK, STATED RATHER THAN CLOSED:** four matched names still carry only 2–5 reporting
+holders (KBGGY 2, HSBC 2, SMCI 5, CP 7 is above). They pass a floor of two and remain suspicious.
+They are listed so a reader can see them; raising the floor further would be tuning against the
+coverage number, which the register forbids.
+
+### 13.5 THE COVERAGE GAPS ARE FOREIGN ISSUERS, AND THEY ARE THE SAME NAMES EACH TIME
+
+* **`capital_discipline` misses 44 names**, of which **41 have ZERO annual share-count points**
+  in XBRL — foreign private issuers filing 20-F do not report
+  `dei:EntityCommonStockSharesOutstanding` on the US annual cadence. Three more have exactly one
+  point, and issuance needs two.
+* **Accruals misses 115 names (23%)** for the same reason one level deeper: IFRS filers have no
+  `us-gaap:Assets` / `NetCashProvidedByUsedInOperatingActivities`. So the 77.0% figure is
+  effectively "the US-GAAP share of the served universe", not a data-quality problem.
+* The 31 names still below 80% weight coverage are overwhelmingly this same ADR cohort.
+
+### 13.6 THE INSIDER THEME COMES ALIVE, AND ITS SHAPE IS THE FINDING
+
+`insider` goes from **1 distinct value to 297** across 500 names — B6 cleared by a wide margin.
+But the distribution is the part worth carrying:
+
+* median **43.68**; **179 names (35.8%) score exactly 50.0** (genuinely quiet — no qualifying
+  Form 4 activity in the 90-day window);
+* **278 names score below 50 and only 43 above.** The live theme, as constructed, is
+  overwhelmingly a **"who is selling least"** sort rather than a "who is buying" sort. That is not
+  a defect — insiders sell for liquidity and compensation far more often than they buy — but it
+  is a different signal from the one the theme's name suggests, and anyone adopting it should know
+  that before, not after.
+* **16 names pin at exactly 10.0** — the `50 + 40·tanh(pressure/4000)` floor. Zero names reach
+  the ceiling. **This is audit item S3's mechanism corroborated on live data:** the scale constant
+  (≈ √$16M) is far too small for megacap insider selling, so the strongest sellers are
+  indistinguishable from each other. ABNB, ALAB, AMAT, APP, CVX, DDOG, FANG, FLEX, HSY, ILMN, MDB,
+  MPWR, NTRA, TTWO, WDAY, XYZ all score identically.
+
+**My pre-committed prediction P4 was WRONG on its second half:** I predicted ≥50% of names would
+score exactly 50.0; measured **35.8%**.
+
+### 13.7 RATE LIMITS — V2F's lesson transferred, and the fleet DID get pushed back
+
+V2F's finding was *"batch what batches, pace what does not"*. Here **the 13F leg batches all the
+way**: two ~100MB quarterly zips replace what would otherwise be tens of thousands of per-filer
+fetches, and the whole aggregation runs in **~31 seconds**. Only the per-ticker legs (13G cover,
+XBRL facts, Form 4) are paced.
+
+Those legs are **latency-bound, not quota-bound**: one serial process reached ~3 req/s against
+SEC's published ~10 req/s ceiling, projecting **~3 hours**. Four interleaved shards at a higher
+per-process interval brought it to **~48 minutes** with the fleet under the ceiling.
+
+**SEC pushed back 27 times across the fleet, and that is reported rather than smoothed over.**
+Every one was retried with backoff and **none was recorded**: the manifest refuses a non-terminal
+status by construction, so a throttled unit is simply absent and gets retried. **Final state
+500/500 on all three legs**, confirmed by a serial closing sweep that found exactly one gap and
+filled it. Coverage cannot inflate by running into a wall.
+
+The other structural carry-over: **`report` makes ZERO network calls.** It drives the real
+construction against the cache. A measurement that consumes the resource it measures reports on
+its own exhaustion and calls it a result.
+
+### 13.8 ADOPTION IS A SEPARATE DECISION AND MUST NOT BE SHORTCUT FROM THESE NUMBERS
+
+Stated in the register **before** any coverage number existed, and repeated here because a table
+of green ticks is exactly what gets misread:
+
+**Coverage is a NECESSARY condition, not a sufficient one.** Before any of these enters the
+composite it needs, at minimum:
+
+1. **The pipeline builder's cost measurement.** Concretely, from this run: the 13F leg is ~190 MB
+   per quarter and ~31 s of CPU — trivial. The **insider leg is the expensive one**: it fetches
+   *every* Form 4 in the 90-day window with no cap, and **23 of 500 names exceeded 40 filings
+   each**. A daily scan paying that cost is a real operational decision, not a rounding error.
+2. **The held-out gate** — `holdout_theme_validate` / `holdout_compare_panels` at the standing
+   margins, **100 bps alpha and 0.25 long-short t, in BOTH split directions**. Nothing here is
+   evidence that any of these three themes *predicts returns live*. This measured whether the
+   data exists, not whether it works.
+3. **Acceptance of Rule 6's price.** Under **Amendment 1** (`PAPER_TRACK_CONTRACT.md` §5a) an
+   ADOPTED change — one that ships in the live scoring path — **closes vintage 2 and opens
+   vintage 3, resetting the entire accrued forward clock to zero and buying nothing
+   statistically** (§2: 60 months at 49% power). Vintage 2 opened **2026-08-10** with
+   `params_id 0060c5ef3dda`. Adopting these three themes on 2026-08-11 would discard a
+   one-day-old clock — cheap today, and **the price rises every day this is deferred**, which is
+   an argument for deciding soon, not for deciding casually. **V1 shadow vintages is the
+   instrument that would measure whether the adoption helped**, and it is registered and blind.
+
+**No vintage event occurred in this session.** Nothing shipped in the live scoring path.
+
+### 13.9 SCOPE, ENFORCED
+
+`git diff --stat origin/main...HEAD` for this work:
+
+```
+ PREREG_v2g_live_theme_sources.md |  239 +++++++++
+ scripts/live_theme_sources.py    | 1091 ++++++++++++++++++++++++++++++++++++++
+ tests/test_live_theme_sources.py |  627 ++++++++++++++++++++++
+ 3 files changed, 1957 insertions(+)
+```
+**Zero files under `valuation/`.** No composite change, no weight flip, no vintage event.
+
+**B5's enforcement mechanism was changed from the register's wording, and that is recorded rather
+than quietly substituted.** The register proposed asserting B5 with a raw `git diff` test. A
+git-diff test **fails for any unrelated lane that legitimately edits `valuation/`**, which makes
+it a nuisance rather than a check. The standing test asserts the invariant that actually matters
+and is strictly more durable: **no shipped module may reference `live_theme_sources`**, and the
+script may not call `build_frame`, `_decompose`, `composite_score`, `save_snapshot` or
+`run_screen`. If a later change wires one of these columns in, that test fails — which is the
+point. The one-off git diff was run by hand and its output is above.
+
+### 13.10 EVERY DEVIATION FROM THE REGISTER
+
+| # | deviation | direction | when |
+|---|---|---|---|
+| 1 | `MAX_FORM4_PER_NAME = 40` was **not enforced** — capping it requires editing the shipped scraper, which B5 forbids. Every filing was fetched, so the data is *more* complete than registered and the truncation caveat does not apply; `form4_truncated` is a descriptive flag (23 names). | more complete | during |
+| 2 | B5's enforcement mechanism (§13.9) | more durable | during |
+| 3 | CUSIP tie-break tightened to require a genuine mode | tightening | **before** any coverage number |
+| 4 | `normalise_name` strips corporate suffixes from the END only, plus a leading `THE` | narrower | **before** any coverage number |
+| 5 | `MIN_HOLDERS = 2` (§13.4) | tightening | **after**; both figures published |
+| 6 | PREREG §4.3 quoted "10,676 filings, 10,524 filers, 147 multi" for 31-DEC-2025. That ad-hoc count included **13F-NT notices**, which carry no holdings. The aggregation correctly counts `13F-HR`/`13F-HR/A` only: **8,738 filings, 8,625 filers, 108 multi (1.25%)**. The RULE is unchanged; the descriptive figure in the register is corrected here. | correction | after |
+
+### 13.11 PREDICTION SCORECARD — 2 right, 2 wrong, 1 not evaluable
+
+| # | prediction | measured | verdict |
+|---|---|---|---|
+| P1 | `institutional` coverage 0.70–0.95 | **0.822** | **RIGHT** |
+| P2 | name rung adds < 15pp | **4.0pp** (398 authoritative vs 13 by name) | **RIGHT** |
+| P3 | `capital_discipline` coverage **lower** than `institutional` | **0.912 vs 0.822 — higher** | **WRONG** |
+| P4 | `insider` clears B6 / ≥50% score exactly 50 | B6 cleared (297 distinct); **35.8%** at 50 | half **WRONG** |
+| P5 | anchor failures concentrate in ADR / multi-class | **zero anchor failures** | **NOT EVALUABLE** |
+
+Consistent with this project's record: writing the expectation down first keeps being worth it
+precisely because it keeps being wrong.
+
+### 13.12 THE OTHER HALF OF THIS QUESTION WAS ANSWERED IN PARALLEL, AND IT CHANGES THE PRIORITY
+
+While this run was fetching, the **pipeline builder lane** landed its own item off the same Part
+12 finding — ledger `V2G`, `HANDOFF_edge_audit.md` session 17 — asking what the three dead themes
+**cost in return**. It is the half this lane explicitly declined to price, and the two results
+should be read together:
+
+* **The cost is IMMATERIAL by their pre-registered rule:** the live four-theme book scores
+  **+5.86% alpha against the deployed seven-theme +7.17%**, Δ **−1.31pp** against a −1.95pp bar,
+  paired HAC t **−1.40**. **Their power caveat must travel with it** — 55.0% against a true
+  1.95pp gap, so "immaterial" means *could not be separated from zero at roughly a coin flip's
+  power*, not *shown to be small*.
+* **Their second finding is the serious one:** the live four-theme book **fails the calibrated
+  long-short floor** (HAC t 1.8811 vs 2.2837) where the deployed book clears at 2.6199 — while
+  still clearing the top-decile alpha floor (3.2087 vs 2.2913), which is the product-relevant
+  statistic for a long-only hot list.
+* **Their exploratory decomposition reorders the work this Part just made possible**, and it
+  cuts against the easiest build: dropping `institutional` is the **only** arm negative in both
+  halves (−1.41% full, −0.89% early, −1.91% late), so **13F is the source to build first** — and
+  it is the one this run covers at 82.2%. Dropping `capital_discipline` is **POSITIVE in both
+  halves** (+1.37% full) despite holding the second-strongest panel IC (+2.76), which is X3's
+  finding restated: **theme IC does not predict marginal contribution.** So the theme this run
+  covers *best* (91.2%, the cheapest of the three to wire) is the one with the least evidence it
+  helps. Carried with their own label: exploratory, no verdict.
+
+**The convergent conclusion, which neither result reaches alone: the reason to build these is
+claims integrity, not alpha.** The live product computes a **different composite** from the one
+every published figure is measured against — the same class of defect audit B7 exists to prevent —
+and that is true whether or not the return difference is separable from zero.
+
+### 13.13 TRIAL COST
+
+**ZERO for this run.** No hypothesis about returns was tested, no arm selected, no weight chosen —
+this is a coverage census of data sources, and the Deflated Sharpe chain is untouched by it.
+**The denominator in force is now `N` = 135, not 131**: the pipeline builder's parallel item
+charged four arms (131 → 135) and landed on `main` while this was running. Quote 135. A trial is
+charged here if and when one of these columns is *selected into* the composite.
+
+### 13.14 WHAT I DID NOT DO
+
+* **Did not wire anything into the composite**, by design, and a test now prevents it happening
+  silently.
+* **Did not test whether any of these predicts returns.** That is the held-out gate's job and it
+  is the whole remaining question.
+* **Did not build a sentiment source.** `sentiment` is also null on 500/500 rows but carries
+  **0.0** deployed weight, so it costs the live score nothing and was out of scope.
+* **Did not fix the insider `tanh` saturation** (§13.6 / audit S3) — it is a shipped-scoring
+  change in the screener lane, and touching it here would have been the vintage event this run
+  exists to avoid.
+* **Did not schedule anything.** These caches are a one-shot census. Accruing 13F quarter over
+  quarter needs a job, and that is a Cowork/infra decision.
+
+### BUGS FOUND (Part 13)
+
+1. **My own instrument's anchor was one-sided and passed 12 mis-joins** (CMCSA, RIO, BTI, HSBC,
+   MT, AMP, CM, MGA, SHG, IHG, TELNY, GALDY, IFNNY), two of which were caught only by luck.
+   **FIXED** with a structural `MIN_HOLDERS = 2`; both coverage figures published. Four names with
+   2–5 holders remain suspicious and are named. **Owner: me, closed.**
+2. **The Form 4 insider score saturates at its `tanh` floor for 16 of 500 served names** — the
+   scale constant `4000.0` (≈ √$16M) in `insider.py:174` is far too small for megacap insider
+   selling, so the sixteen strongest sellers are mutually indistinguishable at exactly 10.0. This
+   is **audit item S3's mechanism corroborated on live data**, not a new hypothesis. **Owner:
+   screener lane.**
+3. **A company that is itself an asset manager cannot be joined via its own EDGAR feed** — its
+   submissions carry the SC 13Gs it FILED about other issuers. 29 of 500 names hit a candidate
+   tie; join failure runs **26.8% inside Financial Services against 13.2% outside**. Refused
+   safely here, but any future EDGAR work keyed on a company's own filings inherits it. **Owner:
+   whoever next builds on EDGAR submissions.**
+4. **`insider.insider_detail` fetches every Form 4 in its window with no cap.** 23 of 500 names
+   exceeded 40 filings. Correct for a one-off census, but it makes the insider theme the dominant
+   per-scan cost of any adoption, and nothing in the function signals it. **Owner: screener lane
+   (cost note for adoption).**
+5. **`VALQUO_LEDGER.md`'s `V2G` row is MALFORMED, and it is a RECURRENCE of a defect this
+   project has already paid for once.** The pipeline builder's row writes `max|dev|` — absolute
+   value notation — unescaped inside a markdown table cell, so the row has **14 fields against an
+   11-field header** and its note is split into three columns: everything after `max` is shifted.
+   This is exactly session 12's O16 defect (`|Spearman(term_slope, atm_front)|`, same cause, same
+   shift), which cost that session a near-miss on the trial denominator.
+   **AND IT IS WORSE THAN A SHIFT — THE ROW IS INVISIBLE.** `scripts/build_ledger.read_ledger()`
+   returns **163 rows and `V2G` is not one of them**; `V2F` and `V2G-SRC` both are. So the
+   ledger — the project's own authority for "is X done?" — **does not contain that lane's
+   completed item at all**, and anyone asking whether the cost of the dead themes has been
+   priced is told no. Its own suite passes because `tests/test_build_ledger.py` checks the
+   totals it can see, not the rows it silently lost. **Not edited here** —
+   the register forbids rewriting another lane's row, and the pipes want escaping as `\|` by the
+   lane that owns them. The row is otherwise correct and its content is folded into §13.12.
+   **Owner: pipeline builder.** *(Note also that `V2G` is a genuine id collision — that lane and
+   this one independently registered the same id off the same Part 12 finding. Both rows are
+   kept; this lane's is renamed `V2G-SRC`.)*
+6. **Carried forward, still open from Part 12:** the served payload's `health` key is `null`, so
+   `theme_coverage`/`theme_contributing` reach nobody; nothing in the repository catches a
+   rate-limit exception; `BETA_HIGH_CAP = 3.0` sends 7 served names to beta 1.0; and
+   `tests/test_saas.py:200` still writes a 2099-01-01 row into the real `data/screener.db`.
+
+## Part 14 — LA1 AND LA3 FROM THE COLD AUDIT: THE LEAK IS DIAGNOSED, COUNTED AND LOUD; THE DENOMINATOR IS FIXED (2026-08-10, greeks lane)
+
+Cold-audit findings **LA1 (BLOCKING)** and **LA3 (HIGH)** from `VALQUO_LIVE_AUDIT.md`.
+Pre-registered in **`PREREG_la1_la3_repair.md`, committed alone at `b4c2a1a`** before any code
+moved — including the diagnosis, both detection rules, the two new constants and the expected
+values. Tests in `tests/test_la1_la3.py` (**37**).
+
+### 14.1 LA1 — THE DIAGNOSIS, AND IT DISCRIMINATES THE BRIEF'S THREE CANDIDATES
+
+The brief asked whether this was a stale snapshot predating the Bug A/B fix, deploy lag, or a
+scan route that skips `record_refusal`. **It is none of those, and the payload settles it without
+guessing.** Verified live 2026-08-10 on `https://valquo.co/api/hotstocks?top=3`:
+
+```
+scan_date 2026-08-08 · scored 594
+KSPI  price 90.30  fair_value 274.13  method "blended"  withheld None  ratio 3.04x
+SYF   price 78.59  fair_value 204.38  method "dcf"      withheld None  ratio 2.60x
+STT   price 184.68 fair_value 220.21  method "dcf"      withheld None  ratio 1.19x
+```
+
+**Ranks 2 and 3 of that same scan carry `fair_value_method: "dcf"`.** Only `_enrich_with_dcf`
+writes that. So the fixed code demonstrably ran, reached the network, and produced **nothing at
+all** for rank 1 — not a value, not a refusal. That rules out a stale snapshot, rules out deploy
+lag, and rules out a route that skips `record_refusal`, because it is the same single call.
+
+The engine's verdict reproduces deterministically today: `blend.value` None,
+`withheld_value` **530.2319195351978**, price 94.00, KZT statements at `fx_rate`
+0.0021434847731143236 with `fx_unresolved False`, → **publish False, ratio 5.640765101438275**,
+reason set. `record_refusal` *would* fire.
+
+**IT IS FOUR NAMES, NOT ONE, AND THE BLAST RADIUS IS LARGER THAN THE AUDIT REPORTED.** Only **8
+of the top 12** served rows carried a `dcf` method. KSPI, **DB, CIB and EC** were all peer
+estimates — and all four are foreign issuers needing an FX hop their neighbours do not. Re-run
+individually today, three of them produce a *publishable* DCF:
+
+| name | model's own DCF today | served peer estimate on 2026-08-08 | ratio |
+|---|---|---|---|
+| DB | **42.25** | 88.69 | **2.10x the model** |
+| CIB | **90.93** | 167.42 | **1.84x the model** |
+| EC | 32.80 | 30.44 | 0.93x |
+| KSPI | **refuses at 5.6x** | 274.13 | — |
+
+So the fail-open did not merely risk publishing a refused name; it published numbers **up to 2.1x
+the model's own valuation** on two more names, with nothing anywhere recording that the model had
+been asked.
+
+### 14.2 THE REPAIR, AND THE SECOND DOOR IT EXPOSED
+
+Three changes shipped, fail-open **policy** unchanged — only its invisibility:
+
+1. **The raise is retried once** (`DCF_ATTEMPTS = 2`) and then **counted**, stamped on the row as
+   `dcf_error`, and surfaced as `health.refusal_screen.errors` with the tickers.
+2. **The counter hole is closed.** `_screen_refusals` ran on `rows[run_dcf_top:]`, so the top 12
+   — the most-read rows, and the ones the audit found the defect on — were excluded from its own
+   counter by construction. Any DCF-window row that came back silent is now re-asked.
+3. **`publication_audit()` runs on every scan** and `ci_scan` prints a `LEAK` banner naming every
+   offending ticker.
+
+**THEN RE-RUNNING THE SCAN FOUND A SECOND DOOR, AND FINDING IT IS THE ARGUMENT FOR RE-RUNNING.**
+The repaired scan recorded **4 refusals against the previous scan's 0** and reported the audit
+**CLEAN** — and KSPI, now at rank 97, was served a peer estimate of 282.48 with
+`withheld: false` anyway, while refusing at 5.6x when asked on its own.
+
+The cause is not an exception: **a throttled fetch returns PARTIAL COMPANY DATA rather than
+raising.** `had` is None, and `publication.decide(None, price)` returns `publish=False` with an
+**empty reason** by design — *"Not a refusal — there is simply nothing to publish"* — so the row
+falls through to an unchecked peer estimate with `errors: 0`. Counting only exceptions cannot see
+it. **This was pre-registered as a known second hole in §1 of the register, before the first run.**
+
+**MY OWN DETECTOR MISSED IT, FOR THE SAME SHAPE OF REASON THE ORIGINAL DEFECT HAD.** D1 covered
+only the DCF window, so a name at rank 97 sat outside it — the mirror image of `_screen_refusals`
+excluding the top 12. Fixed: the probe now records **what it saw** on every row —
+`valued` / `refused` / `no_value` / `no_data` — and a `no_data` row is flagged **`unverified`**.
+`no_value` is deliberately *not* flagged: an ADR bank with no free cash flow is a legitimate
+peer-multiple name, and a detector that fires on hundreds of rows is one nobody reads.
+
+### 14.3 THE DETECTION, AND WHAT IT CAN AND CANNOT CATCH
+
+| rule | what it catches |
+|---|---|
+| **D1 `asked_but_silent`** | a DCF-window row with no value, no refusal, no error — **KSPI's exact 2026-08-08 state** |
+| **D2 `band_breach`** | a served row above `FV_BAND_HIGH` (5.0x) with `withheld` falsy |
+| **D3 `unverified`** | a row that was asked and returned **no statements at all**, so nothing could be judged |
+
+**D2 WOULD NOT HAVE CAUGHT KSPI, AND THAT IS PINNED AS A TEST RATHER THAN LEFT IN PROSE**
+(`test_D2_WOULD_NOT_HAVE_CAUGHT_KSPI`). Its served ratio is **274.13/90.30 = 3.04x**, comfortably
+inside the 5.0 band, because the refused 5.6x model was replaced by a *plausible-looking* peer
+estimate. A reader who takes a green `band_breach` as evidence that the LA1 class cannot recur
+has been misled. The register said so before any code was written.
+
+**D2's invariant also turns out to be already ENFORCED on the serving path** by
+`withhold.withhold_implausible_fair_values` (`web/app.py:504`), which is why **0 of 500** served
+rows breach it and the max served ratio is 3.984 (STLA). D2 in the scan is a belt-and-braces
+check on the scan's own writes; **D1 and D3 are the new detection that LA1 actually needed.**
+
+### 14.4 THE VERIFICATION DID NOT CLOSE, AND THE REASON IS MEASURED, NOT GUESSED
+
+**VERIFIED CLOSED ON PRODUCTION — but only on the fourth scan, and the three that failed are
+reported here because they are the finding.** Four full production scans were run with the fix (each ~35 min, universe 1500, DCF top 12,
+refusal screen 500, all ingested):
+
+| run | refusals recorded | `unverified` | probe distribution |
+|---|---|---|---|
+| **2026-08-08 (pre-fix, for reference)** | **0** across 500 served rows | not measurable | — |
+| repaired, run 1 | **4** | 0 *(D3 did not exist yet)* | — |
+| repaired, run 2 | 3 | **13** | `valued 483, no_data 13, refused 3, no_value 1` |
+| + slow mop-up, run 3 | 2 | **32** | `valued 464, no_data 32, refused 2, no_value 2` |
+
+**THE MOP-UP MADE IT WORSE AND I AM RECORDING THAT AS A FAILED FIX, NOT TRIMMING IT OUT.** The
+diagnosis behind it was measured and real — re-asked at **2 workers instead of 8, all 13
+`no_data` names returned data, 12 valued and KSPI REFUSED at 5.6x** — so I concluded the leak was
+our own instantaneous request rate and added a slow second pass. It is the wrong diagnosis at the
+wrong scale: the constraint is **cumulative Yahoo quota across the whole scan**, not concurrency,
+and the mop-up spent *more* quota, taking `no_data` from 13 to 32.
+
+**THE REAL FINDING UNDERNEATH IS BIGGER THAN LA1: THE REFUSAL SCREEN IS QUOTA-BOUND AND HAS BEEN
+DEGRADING SILENTLY SINCE IT SHIPPED.** The 2026-08-08 production scan recorded **zero refusals
+across 500 served names** — on a list whose rank-1 name refuses at 5.6x. That is not a scan that
+found nothing to refuse; it is a scan that could not look, and nothing said so. This matches
+this lane's own recorded measurement that a few hundred Yahoo names throttles and *silently
+empties* `CompanyData` rather than raising.
+
+**What is delivered, and it is the thing the audit asked for:** the screen's degradation is now
+**loud, named and counted** on every scan instead of silent. A `LEAK` banner listing 32 tickers
+is the correct output for a scan in this state — it is what a reader needed on 2026-08-08 and did
+not get.
+
+**I deliberately did not hand-patch the production snapshot** to reach this. The only write path
+is whole-snapshot `/admin/ingest-snapshot`, and re-POSTing served rows would have written peer
+estimates into the store as though they were scan output — mutating production data to make one
+row look right. The verification below is a real scan's output.
+
+### 14.8 THE VERIFICATION, ON PRODUCTION
+
+`GET https://valquo.co/api/hotstocks?top=500`, after the fourth scan:
+
+```
+scan_date 2026-08-11 · scored 786
+KSPI · rank 4 · price 94.00 · fair_value None · method "withheld" · fair_value_withheld TRUE
+withheld rows: RNR, KSPI, TLK, PSLV, PHYS, EXE, CHTR   (7)
+band breaches: 0
+```
+
+**Against 2026-08-08: `fair_value 274.13`, `method "blended"`, `withheld None`, and ZERO withheld
+rows across the whole served list.** The name the cold audit opened on now serves the refusal its
+own valuation page has always given.
+
+**WHY IT TOOK FOUR SCANS, STATED PLAINLY: KSPI reached rank 4 in this scan, which put it inside
+the DCF window, where the full pass with its retry reaches it.** At rank 97 in the previous scan
+it depended on the quota-bound refusal screen and leaked. **So this is a verification, not a
+demonstration that the class is closed** — a name that refuses and ranks outside the top 12 on a
+quota-exhausted scan will still leak, and the LEAK banner will name it. That is the honest
+reading and it is why bug 1 below stays open.
+
+**ONE LOOSE END I could not reconcile from the logs and am not going to paper over:** that same
+scan's `unverified` list *also* contains `KSPI`, while its stored row is correctly withheld.
+`publication_audit` excludes withheld rows from D3 by construction, so a row appearing in both is
+a contradiction in the detector's bookkeeping, not in the outcome. The published row is right;
+the count may over-report. **Worth a look before anyone treats `unverified_count` as exact.**
+
+### 14.5 LA3 — THE DENOMINATOR
+
+`summarize()` set `days = len(series)` — rows the recorder wrote — and used it as the
+annualisation exponent while the recorder is missing **71%** of its days.
+
+**Fixed: annualisation is on ELAPSED TRADING DAYS**, via one shared primitive
+`market_session.trading_days_between`, pinned by test to agree with `track_meter`'s own calendar
+walk so the two cannot drift — the two-sources-of-truth class this whole audit is about.
+
+Measured on the audit's own construction (one year, identical underlying daily returns, identical
+final cumulative levels, thinned three ways):
+
+| series | rows | elapsed | **before** `ann_alpha` | **after** | sharpe before → after |
+|---|---|---|---|---|---|
+| complete | 252 | 252 | 24.5861% | **24.5861%** | 0.9970 → **0.9970** |
+| every 2nd day | 127 | 252 | 56.0812% | **24.5861%** | 0.9674 |
+| every 3rd day | 85 | 252 | 96.6239% | **24.5861%** | **withheld** |
+
+**The alpha rows are an EQUALITY, and it holds to `0.000e+00` against a pre-committed 1e-9 bar.**
+All three end at the same cumulative level over the same elapsed window, so the corrected
+exponent *must* reproduce the complete series exactly. The complete series is **bit-identical**
+before and after — no published figure moves on a track that was recorded properly.
+
+**THE GATE DELIBERATELY STAYS ON RECORDED ROWS.** `MIN_LIVE_DAYS` and `MIN_SHARPE_DAYS` still
+count rows. Moving them onto elapsed time would let a gappy track reach the floor **sooner** —
+the flattering direction, advancing the public *"backtested → live"* posture on the strength of
+days nobody recorded. Rows are the conservative denominator for a **gate** and the wrong one for
+an **exponent**; the fix separates those jobs and a test pins it.
+
+**Sharpe** is rescaled by the true observation span (`sqrt(TRADING_DAYS · n_obs / elapsed)`;
+exactly 1 on a gapless series) and **WITHHELD below `MIN_COVERAGE_FOR_SHARPE = 0.5`** rather than
+corrected — the same choice `track_meter.monthly_excess` makes when a month's mark is stale. That
+constant was committed in the register **with its structural argument, before any coverage figure
+was computed**: below half coverage the typical observation spans more than two trading days, so
+the i.i.d. rescaling is doing more work than the data supports.
+
+`coverage` and `elapsed_trading_days` now ship beside the figures, so a reader can see the
+denominator rather than trust it.
+
+**Nothing published moves today** — the real track has `days = 2`, far below the floor, so both
+figures render "—". The fix changes the number that would otherwise have been published later,
+which is the only moment at which it could have done harm.
+
+### 14.6 EVERY DEVIATION FROM THE REGISTER
+
+| # | deviation | direction |
+|---|---|---|
+| 1 | D3 `unverified` added — a third rule the register did not name, for the no-exception door §1 *did* predict | stricter |
+| 2 | `NO_DATA_RETRY_WORKERS = 2` mop-up added on a measured diagnosis, then found to make things worse; **kept and reported as a failed fix** rather than quietly reverted | recorded |
+| 3 | Expected `band_breach = 0` (§2) held: **0 of 500 served rows**, max ratio 3.984 | as predicted |
+| 4 | Expected `asked_but_silent ≥ 1 including KSPI` (§2): held on the pre-fix payload shape, and the live recurrence surfaced as **D3 `unverified`** instead — the same leak through the door §1 predicted | as predicted, different rule |
+
+### 14.7 WHAT I DID NOT DO
+
+* **Did not hand-patch production** to make KSPI look right (§14.4).
+* **Did not change the fail-open policy.** Withholding every name we could not reach is a product
+  decision that would blank hundreds of rows on a genuinely bad upstream day. The leak is now
+  visible; whether to fail closed is Don's call, and it is the single open question here.
+* **Did not move `MIN_LIVE_DAYS`/`MIN_SHARPE_DAYS` onto elapsed time** — the flattering direction,
+  explicitly out of scope in the register.
+* **Did not fix the Yahoo quota ceiling.** The refusal screen cannot check 500 names against a
+  free feed in one run. Bounding the screen to what the quota supports, or moving the valuation
+  fetch to the paid FMP path, is a scoping decision for the screener/infra lane.
+
+### BUGS FOUND (Part 14)
+
+1. **The refusal screen is Yahoo-quota-bound and has been degrading silently since it shipped.**
+   The 2026-08-08 production scan recorded **0 refusals across 500 served names** while its own
+   rank-1 name refuses at 5.6x. A throttled fetch returns partial data rather than raising, so
+   the screen reports a clean bill of health it never earned. **Now loud** (D3 + the probe
+   distribution) but **not closed**. **Owner: screener/infra lane** — it needs either a smaller
+   screen or a feed that can serve it.
+2. **`publication.decide(None, price)` returns `publish=False` with an EMPTY reason**, so "we
+   could not look" and "there is nothing to publish" are indistinguishable to every caller. The
+   docstring says this is deliberate, and it is the mechanism by which a throttled name reaches
+   the public list with an unchecked peer estimate. **Owner: engine lane** — a third state
+   (`insufficient_data`) would let callers tell them apart.
+3. **`_screen_refusals` excluded the DCF window from its own counter**, so the most-read rows on
+   the site could not be counted as refused or errored. **FIXED here.**
+4. **The DCF pass's fail-open left no trace of any kind** — no counter, no log, no key on the
+   row. **FIXED here** (`dcf_error`, `dcf_probe`, `errors`, `error_tickers`).
+5. **`index_track.summarize` annualised on row count**, inflating alpha ~3.9x and Sharpe ~1.9x at
+   the observed recording rate. **FIXED here.** The module docstring's rule 2 and the UI string
+   *"withheld until 60 trading days"* both described a guard measured in trading days while the
+   guard was measured in rows — the sentence looked safe, which is why it survived.
+6. **Carried forward, still open from Parts 12–13:** the served payload's `health` key is `null`,
+   so `theme_coverage`, `theme_contributing` **and now `publication_audit`** reach nobody through
+   the API — the LEAK banner is visible only in the scan log. **This one now matters more**, and
+   it is the cheapest remaining win: exposing `health` would put the leak on a surface a human
+   reads. **Owner: screener/web.**
+
+### 14.9 FAIL CLOSED — Don's decision, 2026-08-11, and the evidence for it is our own measurement
+
+**Decision: a row whose data could not be fetched this scan publishes NO fair value.** The ~5%
+cost is accepted. The argument is not abstract — it is §14.1's table: failing open served peer
+estimates of **88.69 against the model's own 42.25 (DB)** and **167.42 against 90.93 (CIB)**,
+plus one name the model refuses outright. A peer estimate nobody checked is the
+confident-wrong-number failure this project exists to prevent.
+
+**THE TWO KINDS ARE NOW DIFFERENT CLAIMS, AND THEY RENDER DIFFERENTLY.** A new field
+`fair_value_withheld_kind` carries `refused` or `unavailable`:
+
+| kind | what it says | stability |
+|---|---|---|
+| `refused` | the model produced a number and the guard **rejected it** — a statement about the *valuation* | stable; it will say the same tomorrow |
+| `unavailable` | the data could not be fetched, so the model **never had a view** — a statement about the *fetch* | **temporary; the next scan retries it automatically** |
+
+The reason text says so in words — *"This is a temporary data problem, not a judgement about the
+company — the next scan retries it automatically"* — and the UI renders `no data` (italic)
+against `withheld`. A tooltip nobody hovers is not a distinction, so the badge itself differs,
+and `test_the_ui_renders_the_two_kinds_differently` pins it against the shipped JS.
+
+**The distinction survives the database.** `snapshot_rows` gains a `fair_value_withheld_kind`
+column via the existing ALTER pattern; an older database reads as withheld-with-unspecified-kind
+rather than losing the withholding. Without this the two would converge on the way to the
+browser, which is exactly what the decision forbids.
+
+**QUOTA DEGRADATION IS NOW A NUMBER.** `health.publication_audit` carries `withheld_no_data` and
+`withheld_refused` on every scan. On 2026-08-08 the equivalent figure was invisible and the
+screen reported zero refusals across 500 names it could not reach.
+
+**THE MOP-UP STAYS OFF, and the constant stays with the record of why.** It was measured to make
+things worse — `no_data` went **13 → 32** on the next full scan, because the binding constraint
+is cumulative quota, not concurrency. Fail-closed costs **no extra requests at all**, which is
+the second reason it is the better answer. `test_the_mopup_pass_is_OFF` fails if anyone wires it
+back in.
+
+**ONE DISCRIMINATOR HAD TO GET STRONGER, and an existing pin caught it.** The first cut judged
+"did we look?" on `company.revenue` alone. `test_not_dcf_valuable_is_not_a_refusal` — which
+exists because NVS, SAP and TD once had ordinary peer estimates of \$185.41, \$364.97 and
+\$79.73 suppressed — uses a stub company with no `revenue` attribute, so revenue alone
+mislabelled a legitimately-not-valuable name as unfetchable and blanked it. **The rule now also
+accepts a stated DIAGNOSIS as proof we looked:** if the model can say *why* it cannot value a
+name, it read the statements. A throttled fetch has nothing to say at all.
+
+**D3 `unverified` is not redundant after this — its meaning sharpened.** The leak it detected is
+now *prevented*, so it stays silent in the normal case and fires only if a `no_data` row ever
+reaches the audit **unwithheld**, i.e. if fail-closed itself broke. Pinned both ways.
+
+**48 tests in `tests/test_la1_la3.py`; full gate 42 suites, 0 failures.**
+
+
+---
+
+## Part 15 — WHY NONE OF PARTS 13 AND 14 HAD DEPLOYED: ONE F-STRING, AND THE VERSION CHECK THAT DID NOT CHECK THE VERSION (2026-08-11, greeks lane)
+
+Parts 13 and 14 were finished, green and pushed. **They were also entirely undeployed**, and had
+been for three pushes. The branch would not land, `main` took five other lanes past it, and the
+gate was green locally every time it was asked. This part is the diagnosis, because the failure
+mode is more reusable than the fix.
+
+### 15.1 The fault
+
+`scripts/live_theme_sources.py:776` contained an f-string that reused its own quote character
+inside the expression:
+
+    f'{k} {v['fetched']}+{v['done']}'
+
+**PEP 701 legalised that in Python 3.12. On 3.11 it is a hard SyntaxError**, and
+`.github/workflows/land-agent-branch.yml` pins `python-version: '3.11'`. This machine runs 3.13.
+
+So the module could not be **imported** on the runner, and the suite that imports it —
+`tests/test_live_theme_sources.py` — died at collection. **All 53 tests failed at once, for one
+reason, and the reason was not in any of them.** Every other suite stayed green, which is why CI
+named exactly one file and offered no further clue. The land step's `exit $fail` then did its job
+and left `main` untouched.
+
+**One character of quoting, in a progress log line, in a measured-only script that ships nothing.**
+It blocked the KSPI publication leak fix, the fail-closed publication policy and the LA3
+denominator repair from reaching production for a day.
+
+### 15.2 Why my own pre-push check missed it, which is the part worth keeping
+
+Before the earlier pushes I verified 3.11 compatibility with:
+
+    ast.parse(src, feature_version=(3, 11))
+
+**That argument is best-effort and does not gate tokenizer-level changes like PEP 701.** It
+accepted the file without complaint. I then reported, in writing, that Python 3.11 syntax had been
+ruled out — and it had not been. The check named a version it was not able to enforce.
+
+**A version claim needs a compiler of that version.** The fix was to fetch the official 3.11.9
+embeddable distribution (no install, no elevation) and compile against it. That took about two
+minutes and settled in one command what three pushes and a lot of reasoning did not.
+
+### 15.3 The guard, in two halves, because either alone is blind
+
+Both live in `tests/test_live_theme_sources.py`:
+
+| check | what it catches | where it fires |
+|---|---|---|
+| `compile()` every `.py` under the **running** interpreter | any construct, exhaustively | on CI, where the running interpreter **is** 3.11 — red with a file and a line instead of an unexplained import failure |
+| tokenizer scan for the specific construct | PEP 701 quote reuse; backslash in an expression | **locally, before a push** — only 3.12+ can represent it, so this is the half that would have saved the three attempts |
+
+`CI_PYTHON` is pinned to the workflow by a test, so bumping the runner cannot silently leave the
+checks describing the old version.
+
+### 15.4 The detector's rule was read off the compiler, not recalled — and its first cut was wrong
+
+The rule is empirical. A table of eight constructs was run through real CPython 3.11.9 and the
+verdicts recorded; the table is pinned **in both directions** (on 3.12+ it asserts the detector;
+on 3.11 it asserts the table against that compiler).
+
+**The first cut had two false positives on one correct line** — `fundamental_panel.py:4182`:
+
+* it compared **first characters** rather than full delimiters, so a `'''`-delimited f-string
+  containing a nested `'` was condemned. That is legal 3.11.
+* it tracked **one** delimiter instead of a **stack**, so in `f"{(f'{y:.2f}')} {d['k']}"` the
+  inner f-string's quote was still considered open and the outer one's `d['k']` was condemned.
+  Also legal 3.11.
+
+Both shapes are now rows in the fixture table. **This matters beyond tidiness: a repo-wide guard
+that cries wolf on correct code is a guard every other lane learns to route around**, and it
+would have been reported here as a finding about `fundamental_panel.py` that was purely my error.
+
+### 15.5 What was verified, and what was not
+
+* **390 files compile under real 3.11.9** — 0 failures, on the merged tree, including the other
+  lane's newly landed `scripts/exit_rule.py` and `valuation/web/hold_horizon.py`.
+* **57 of 58 tests in the suite pass under real 3.11.** The single error is `ModuleNotFoundError:
+  numpy`, an artefact of the bare embeddable interpreter; `numpy>=1.24` is in `requirements.txt`,
+  which CI installs.
+* **Full gate on the merged tree: 45 suites, 0 failures.**
+* **NOT verified: the Actions log itself.** I still cannot read it — no `gh`, no GitHub token.
+  The diagnosis rests on reproducing the failure locally against a 3.11 compiler, which is
+  stronger evidence than the log line would have been, but the causal chain to CI's specific
+  run is inferred, not read.
+
+### 15.6 The lesson, stated plainly
+
+**"Green locally" and "green on the gate" are claims about different interpreters, and this
+project had no check that knew the difference.** The repo's own standing rule — never silence a
+check — has a sibling this session paid for: *never trust a check that cannot enforce what it
+names.* `ast.parse(feature_version=...)` reads exactly like a version gate and is not one.
+
+**BUGS FOUND (Part 15)**
+
+* **`live_theme_sources.py:776` — 3.12-only f-string syntax on a 3.11 runner.** FIXED. Blocked
+  every deploy from this lane for three pushes. Class-wide guard added.
+* **No repo-wide check that the tree parses on the CI Python.** FIXED — two-part guard above.
+  Note the tradeoff, recorded rather than hidden: the guard scans the **whole tree**, so another
+  lane's 3.11-incompatible file will now redden **this** suite. That is deliberate — it is a
+  repo-wide invariant and the message names the offending file and line — but it is a shared
+  failure surface and the next lane to hit it should read this section rather than assume the
+  suite is flaky.
+
+---
+
+## Part 16 — THE SCREENER BATCH: LA4, LA5, LA7, LA9, LA12, LA14 (2026-08-11, greeks lane)
+
+Six small fixes, one branch. Every claim was verified against the code before anything moved
+(RUN_RULES A8), and **the audit was right on all six** — including the one it marked HYPOTHESIS.
+The measurements that verified them are the test fixtures, so each defect is pinned as a number
+rather than as a description of one.
+
+### 16.1 LA4 — the clock at the wrong end of a long operation
+
+`scan_date = _today()` sat on the line that SAVES the snapshot: after the universe fetch, ~800
+metric fetches, the DCF pass and a 500-name refusal screen, on a job the workflow allows 60
+minutes. `_today()` is `date.today()` — the **runner's** local date, which on GitHub is UTC — and
+`auto-scan.yml` fires a backup cron at **23:41 UTC, nineteen minutes before UTC midnight**. Any
+backup run over nineteen minutes stamped the next calendar day.
+
+**The audit's line cite had rotted**: it says `screen.py:328`; the call was at `:380`. CLAUDE.md's
+own warning that line numbers here rot within days, demonstrated again.
+
+**The damage was not only a wrong label.** `/admin/ingest-snapshot` keys idempotency on
+`hot_processed_{scan_date}`, so two dates are two keys: the forward hot10 track recorded a
+**second pick row for the same close** and the Discord digest **posted twice** — while the
+workflow comment calls the backup "a no-op if the primary already landed".
+
+Fixed by stamping once at the top. All three exits (including the two early returns, which each
+called `_today()` separately) read that one stamp. Pinned by a fixture whose provider **advances
+the clock during `get_universe`** — a fixture where no time passes cannot tell the two
+implementations apart — plus an AST test that `run_scan` contains exactly one `_today()` call.
+
+### 16.2 LA5 — the scan's own diagnostics reached nobody
+
+The posted params carried only `scope` and `universe_size`; `health` and `filtered` were built,
+printed to the Actions log, and dropped at the one boundary where they would persist.
+`app.py:522-523` serves `params.get("health")` and `params.get("filtered")` — both null on every
+served payload. Verified at **both** ends before changing either.
+
+**This is the mechanism that made LA1 and LA6 invisible**, which is why a one-line diff is worth
+more than its size. `refusal_screen` exists precisely so a silent zero is the tell that the
+publication leak is back — and the 2026-08-08 scan duly reported **zero refusals across 500 names
+it could not reach**, with nothing anywhere saying so.
+
+Payload size was **measured, not assumed**, and the worst case is bounded by the served surface
+rather than by taste: with all 500 served rows unverified (the largest `publication_audit` can
+get) plus a full `refusal_screen` error list, `health` is **6,712 bytes** and `filtered` **911** —
+**7.4 KB** added to a POST already carrying ~500 scored rows. Note `unverified` is *uncapped* in
+the data (only its console print is truncated at 25); at one entry per served name that is fine,
+but it is a list that grows with the universe, not a fixed-size field.
+
+### 16.3 LA7 — the guard that could not see, and a collision I created
+
+Three defects, all measured first:
+
+| | before | after |
+|---|---|---|
+| `status("2026-08-08")` (a **Saturday**) | `fresh` — *"As of 2026-08-08 (last close)."* | `warn`, `as_of_is_trading_day: False` |
+| `status("2026-12-24" → 12-28)` | `age_trading_days: 2` | **1** |
+| the stated justification | *"Holidays are not modelled — …far lower than the cost of crying wolf."* | corrected: not modelling them makes age **larger**, so the badge fires **earlier**. That **is** crying wolf. |
+
+`is_trading_day` lived one import away and was never asked. This is what turned LA4's misdated
+snapshot green, so it is load-bearing for the finding above it.
+
+**A FOURTH DEFECT, AND IT WAS MINE.** `freshness.trading_days_between` and
+`market_session.trading_days_between` had the **same name** in sibling modules and returned
+**different answers** for the same interval (2 vs 1 over Christmas). The second was added by LA3
+days earlier — **this batch created the collision it is now closing.** One calendar again, pinned.
+A **third** copy remains at `scripts/theme_health.py:175` and is reported, not silently changed.
+
+Deliberately **not** a new `level`: `app.js:1812-1815` switches on fresh/warn/stale/unknown and
+treats stale and unknown as red. A misdated snapshot is not a dead pipeline, so it takes `warn` —
+a visible note, not an alarm — and carries machine-readable `as_of_is_trading_day`. The one thing
+it may never be is `fresh`.
+
+### 16.4 LA9 — the hypothesis was TRUE, and settled without a run log
+
+The audit asked for `gh run view`. **`gh` is not installed on this machine and there is no GitHub
+token in `.env`**, so it was settled from the **workflow definition**, which is the authority on
+what env a job receives; a log would only have shown the symptom.
+
+The `hot` job passed `BASE_URL`, `ADMIN_TOKEN`, `ANTHROPIC_API_KEY`, `DISCORD_WEBHOOK_URL`,
+`FMP_API_KEY`, `SEC_USER_AGENT` — and **not** `TRADIER_TOKEN` (the intraday job passes it). Both
+`broker_universe.available()` and `broker_fundamentals.available()` are `bool(cfg.tradier_token)`,
+so every scheduled hot scan fell back to the SEC EDGAR filer list — no price, no market cap, no
+size ordering — truncated to `SCAN_LIMIT`, on the rate-limited free stack. The job's own comment
+claims *"whole_market now resolves to the broker's liquidity-ranked universe (~7,100 listed
+names…)"*. **That comment had been false since it was written.**
+
+**PASSING THE TOKEN ALONE WOULD HAVE BEEN A QUIETER VERSION OF THE SAME BUG**, and this is the
+part worth keeping: `CONFIG.tradier_env` defaults to `"sandbox"` (`config.py:53`) and
+`broker_universe._base` routes sandbox traffic to `sandbox.tradier.com` — the job would have *had*
+a broker and still not had the real universe. Both `TRADIER_TOKEN` and `TRADIER_ENV: live` are
+now passed, matching intraday.
+
+**Safety checked before adding a broker token to a job:** `providers.py` has no order or POST
+path, the hot path is market data only, and `config.py:55-56` records that these fields are
+deliberately **not** the paper broker's. Nothing on this path can place an order.
+
+### 16.5 LA12 — two populations in one row
+
+`/api/hotstocks` calls `sector_attractiveness(all_rows)` on rows straight from the database,
+**before** `estimate_fair_values` has run — that runs only on the served slice. Only DCF'd names
+carry an `upside`, and production runs `SCAN_DCF_TOP=12` over the whole market, so `_median`
+(which drops Nones silently) returned a median over one or two names beside a `count` reporting
+the entire sector.
+
+Fixed by shipping `median_upside_n` beside it. **No floor was invented, deliberately** — a
+threshold here would be an uncalibrated constant, whereas a denominator lets the reader apply
+their own. **`count` was not changed**: it was never wrong, it was being read against a median
+that meant something else, and "fixing" it would break the correct field to hide the symptom.
+
+### 16.6 LA14 — a set containing a date outside the year it names
+
+`market_holidays(2028)` contained `2027-12-31`; `market_holidays(2033)` contained `2032-12-31`.
+**Dropping it is the factually correct NYSE rule, not tidiness**: the exchange does not close on
+31 December when 1 January falls on a Saturday, so the holiday is not observed at all — and the
+neighbouring year must not gain it either, which is checked. Inert for `is_trading_day` (which
+asks `market_holidays(d.year)` and never saw the stray) and inert *correctly*; the exposure is to
+any caller that **iterates** the set. Nothing does today — this closes the hole first.
+
+The raw computation is split into `_holidays_unfiltered` so the filter is visible and testable,
+and a test asserts the filter actually **removed** something. A guard that passes because it never
+had anything to catch is not a guard.
+
+### 16.7 NOT ONE OF THE SIX — the ledger parser can silently lose a row
+
+Found by walking into it. My LA7 note contained the literal `fresh|warn|stale|unknown`, which
+split the row into 15 cells against a 10-column header. **The row vanished** — `read_ledger()`
+returned 177 rows without it and every "is LA7 done?" query answered no. Escaping as `\|` fixed
+the markdown **render** and **not** this parser, so the row stayed invisible while looking correct
+in the file. The text has to be pipe-free.
+
+**The silent drop was the smaller half.** `main()` re-renders the table from `read_ledger()` and
+preserves out-of-band rows via `extra = [k for k in existing …]` — so a row it cannot see is not
+in `existing`, not in `rows`, not in `order`, and is **DELETED by the next `--write`.** The
+comment a few lines below in that same function records `--write` having already deleted every
+out-of-band row once before. This is the same failure one layer lower.
+
+Same family as the `RESEARCH_LOG.md` pipe hazard, **fixed in that parser in session 12 and never
+here** — two registers, one lesson, applied to one of them.
+
+`read_ledger` now records unreadable rows and `--write` **fails closed** naming them. The
+discriminator is **too many** cells (a data row that was split), not merely "wrong count": this
+document also holds a 7-column series summary and a 3-column key, and flagging those would make
+the guard fire constantly, which is how a warning stops being read.
+
+**THREE ROWS ARE CURRENTLY INVISIBLE AND WOULD HAVE BEEN DELETED: `S23` (line 268, 12 cells),
+`M1-PARSE` (341, 13) and `V2G` (360, 12).** None are mine. They are **reported, not rewritten** —
+the register forbids editing another lane's row — so their owners should remove the stray `|`.
+Until then `--write` refuses, which is strictly safer than the status quo, where it deleted them
+without a word. A test fails if a **fourth** appears.
+
+### 16.8 What I did NOT do
+
+* **I did not read the Actions log for LA9.** No `gh`, no token. LA9 is settled from the workflow
+  definition instead, which is stronger for the question asked ("does this job get the token?")
+  but does **not** measure the runtime consequence — how much the universe actually improves with
+  the broker attached is unmeasured, and the next scheduled scan is the first observation of it.
+* **I did not fix the three malformed ledger rows.** Reported instead, per the register.
+* **I did not consolidate `scripts/theme_health.py:175`**, the third trading-day calendar.
+* **I did not verify LA4's fix end-to-end against a real backup-cron run** — that needs a run that
+  crosses 23:41 UTC. The arithmetic and the unit fixture are pinned; the production observation is
+  the next backup cron.
+
+**35 new tests in `tests/test_la_screener_batch.py`; full gate 46 suites, 0 failures.**
+
+**BUGS FOUND (Part 16)**
+
+* **LA4** snapshot stamped after the scan → next-day dates, duplicate track rows, duplicate
+  Discord digest. FIXED.
+* **LA5** `health` and `filtered` dropped in transit. FIXED.
+* **LA7** freshness endorsed non-trading-day dates; counted holidays; docstring backwards. FIXED.
+* **LA7b** two `trading_days_between` functions, same name, different answers — **introduced by
+  this lane's own LA3 work**. FIXED. A third copy remains at `theme_health.py:175`, reported.
+* **LA9** the scheduled hot scan ran with no broker token; passing the token alone would have
+  pointed it at the sandbox. FIXED (token + env).
+* **LA12** `median_upside` over a stale subset beside a full-sector `count`. FIXED.
+* **LA14** `market_holidays(y)` could contain a date in `y-1`. FIXED.
+* **NEW** `build_ledger.read_ledger` silently dropped unparseable rows and `--write` would delete
+  them; three rows (`S23`, `M1-PARSE`, `V2G`) are affected today. Guard added; rows reported, not
+  rewritten.

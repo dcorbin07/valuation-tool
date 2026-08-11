@@ -4,6 +4,151 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — options bot, session 23 (U1): the equity edge does NOT reach the options book, and a split defect moves R2 by 24%
+
+**U1 is REJECTED.** It was the ledger's oldest blocked unification item and the first test of
+whether the composite — the one thing here that survives calibration — is worth anything on the
+options side. It is not, at this horizon.
+
+**The ledger's reopen condition was met both ways at once.** `U1` said *reopen only with a
+composite built WITHIN the options universe **or** with size neutralised*. This did both:
+rankings are percentiles among the ~182 optionable names as of the same rebalance date, and the
+primary null is drawn **matched on market-cap tier per date**.
+
+**Design.** One grid mined once — 182 names × 39 rebalance dates, 6,811 cells → 5,186 trades —
+with every arm and every null draw a **subset of it**, so arms cannot differ by fill, contract,
+exit or calendar. Entry is the first trading day **strictly after** the rebalance (the U7
+backward-looking join). The shipped +100/−50/half-DTE exit is called, not copied. Pre-registered
+alone at `7d7c414`; bars committed at `e34dc9d` with the scorer not yet written.
+
+**Result.** Against a grid earning +3.6516%/trade, the top decile (n=486) gains **−1.1892pp**,
+sits at the **31st percentile** of its plain null and the **15th** of its cap-matched one, and
+**fails all four** pre-registered conditions. Calibrated bars were +7.2870pp (plain) and
++9.4513pp (cap-matched), p95 of 200 shape-matched draws.
+
+**The mechanism is cleaner than the verdict: every decile's MEDIAN trade is between −52.5% and
+−54.3% — all ten.** The composite does not move the typical option trade at all; every decile
+difference lives in a right tail that the bar calls noise. The top decile's mean is entirely
+tail-carried (best five trades = 158.9% of it).
+
+**On R2's standing statistic the top names are significantly WORSE**: paired name-year sign test
+within (ticker, year), TOP10 wins 41.8% (z −2.7840, p 0.0054), TOP20 42.9% (z −3.1203, p 0.0018).
+No calibrated bar exists for that statistic, so those p-values are conventional.
+
+**The bottom decile clears both bars at the 99th percentile and is NOT a finding** — its
+date-block CI includes zero, it is carried by the late half, and its sign test is 52.0% at
+p 0.47: it does not win more often, it wins bigger. The decile table is **unordered, not
+inverted** (D9 worst, D10 best). Do not act on it.
+
+**BUG, cross-lane, and it moves a published number — `U1-SPLIT`.** Option chains are as-traded
+and unadjusted for splits while bars are adjusted, and nothing in the options lane has ever
+consulted the split table. GE's 1-for-8 reverse split (2021-08-02) turns a $0.27 call into a
++31,921% "winner" worth 6.28pp of the raw grid's 9.93% mean. Measured on the banked books:
+**R2's gap goes −6.6468pp → −5.0640pp, so 24% of the published gap is a corporate-action
+artifact.** The control is hit ~12× harder than the alert book, so **the defect has been making
+R2 look worse than it is**. R2's sign and verdict are unchanged — the alert still loses
+decisively — but **quote −5.06pp**. **The repair belongs upstream in the miner and is NOT DONE.**
+
+**Nothing live changed.** No policy, no weight, no constant.
+
+**Accounting.** Options `N` 207 → 210 (three scored arms; the mine and both calibrations charged
+zero). **Equity `N` is 149, not 143** — S23 landed mid-session and a stale `N` overstates every
+DSR-gated claim. Test gate: **46 suites, 0 failing.**
+
+**Recommended next step.** Either (a) repair `U1-SPLIT` at source in the miner/replay path and
+re-bank the affected options artifacts — it is the only open item that changes an already-quoted
+number — or (b) take U2 (options surface → stock signals), which is now the only untested
+direction of the unification and does not inherit U1's horizon mismatch.
+## 2026-08-11 — greeks lane: the KSPI leak, fail-closed publication, and the one f-string that kept all of it off production
+
+**Everything below had been finished, tested and pushed for a day, and NONE of it was live.** The
+branch would not land, `main` took five other lanes past it, and every local check was green. The
+cause was one line — and it is worth reading before the results, because the same trap is open to
+every lane.
+
+**THE BLOCKER: the tree did not parse on the CI Python.** `scripts/live_theme_sources.py:776` used
+`f'{k} {v['fetched']}'` — an f-string reusing its own quote inside the expression. PEP 701
+legalised that in **Python 3.12**; the land workflow pins **3.11**, where it is a hard
+SyntaxError. The module could not be *imported* on the runner, so all 53 tests in its suite died
+at collection while every other suite stayed green — which is why CI named exactly one file and
+nothing else. **The pre-push check that missed it named a version it could not enforce:**
+`ast.parse(src, feature_version=(3,11))` is best-effort and does not gate tokenizer-level changes.
+A version claim needs a compiler of that version; the official 3.11 embeddable distribution needs
+no install and no elevation. **A repo-wide guard now checks this in two halves** (compile under the
+running interpreter, which fires on CI; plus a tokenizer scan that fires locally before a push).
+Note the shared surface: the guard scans the **whole tree**, so another lane's 3.11-incompatible
+file will now redden `tests/test_live_theme_sources.py`, with the offending file and line named.
+
+**LA1 — the product's #1 name published a fair value its own engine refuses. FIXED AND VERIFIED ON
+PRODUCTION.** KSPI served `fair_value 274.13` with `withheld: false` while the engine refuses it at
+5.6x. It was **four names, not one** (KSPI, DB, CIB, EC — all foreign issuers needing an FX hop),
+and the fail-open published up to **2.1x the model's own valuation** (DB 88.69 served against
+42.25; CIB 167.42 against 90.93). Today's production scan serves **KSPI at rank 4 with
+`fair_value: null`, `method: "withheld"`**, 5 withheld rows, 0 band breaches. **The finding
+underneath is bigger than the bug: the refusal screen is Yahoo-quota-bound and had been degrading
+silently since it shipped** — the 2026-08-08 scan recorded ZERO refusals across 500 names. It is
+now counted and loud on every scan, not closed.
+
+**FAIL CLOSED, adopted on Don's decision 2026-08-11.** A row whose data could not be fetched now
+publishes **no** fair value. The two silences are different claims and no longer read as one:
+`refused` is about the *valuation* and is stable; `unavailable` is about the *fetch* and is
+**temporary** — the quota resets and the next scan retries it, which the reason text says out
+loud. They render differently (`no data` vs `withheld`), and the kind survives the database in its
+own column so they cannot converge on the way to the browser. Cost ~5% of served rows, accepted.
+The per-scan withheld-for-no-data count is now in the scan health block, so quota degradation is a
+number. The mop-up pass stays **OFF** — measured, it made things worse (no_data 13 → 32; the
+binding constraint is cumulative quota, not concurrency).
+
+**LA3 — the track annualised on row count while missing 71% of its days.** Now annualises on
+**elapsed trading days**. On the audit's three-way thinning of one identical year, `ann_alpha` was
+24.59% / 56.08% / 96.62% and is now **bit-identical at 24.5861%** across all three. The complete
+series does not move. **The gate deliberately stays on recorded rows** — moving `MIN_LIVE_DAYS`
+onto elapsed time would let a gappy track reach the floor sooner, which is the flattering
+direction. Sharpe is rescaled by the true span and **withheld** below 50% coverage rather than
+corrected.
+
+**V2G — free live sources for the three dead themes. BUILT, MEASURED, NOT SHIPPED.** Part 12 found
+42.9% of deployed composite weight reaches no live score. From free public data (13F structured
+data sets, XBRL company facts, the repo's fixed Form 4 scraper): `institutional` 0 → **411/500**,
+`capital_discipline` 0 → **456/500**, `insider` 1 distinct value → **297**. Deployed weight
+reaching a live score: **56.5% → 95.5%**. All five pre-committed bounds held.
+**NOTHING WAS ADOPTED AND A TEST ENFORCES IT** — no file under `valuation/` was touched. Under
+Amendment 1 Rule 6, adopting these would **close vintage 2, open vintage 3 and reset the entire
+accrued forward clock for no statistical gain**. Do not shortcut that from a green coverage number.
+
+**THE SCREENER LA BATCH — LA4, LA5, LA7, LA9, LA12, LA14, all six verified against the code
+first and all six real.** **LA4:** the snapshot was stamped AFTER the scan, and the 23:41 UTC
+backup cron sits 19 minutes from UTC midnight — so a slow backup dated the snapshot the next day,
+and because idempotency keys on `hot_processed_{scan_date}`, the "no-op" backup wrote a **second
+forward-track pick row for the same close** and posted the Discord digest **twice**. **LA5:** the
+scan's `health` and `filtered` blocks were computed, logged, and then dropped at the only boundary
+that persists them — **this is why LA1 and LA6 were invisible**; a scan reporting zero refusals
+across 500 names it could not reach had no way to say so. **LA7:** the staleness guard called a
+Saturday "last close" and counted Christmas as a trading session, and its own docstring argued for
+the opposite of what it did. **LA9 was marked HYPOTHESIS by the audit and is CONFIRMED TRUE:** the
+scheduled hot scan passed no broker token, so it ran the EDGAR fallback universe — no price, no
+market cap, no size ordering — while the job's comment claimed the broker's liquidity-ranked one.
+Passing the token alone would have silently pointed it at the *sandbox*, so the env goes with it.
+**LA12** and **LA14** are smaller: a sector median computed over 1–2 valued names beside a
+full-sector count, and a holiday set containing a date from the previous year.
+
+**Two of these were self-inflicted and are recorded as such.** LA7's fourth defect — two
+`trading_days_between` functions with the same name in sibling modules returning different answers
+— was created by this lane's own LA3 work days earlier. And while writing the ledger rows, an
+unescaped `|` in a note split the row and made it **vanish** from `read_ledger`; chasing that found
+that `--write` re-renders from that dict and would therefore have **deleted** it. Three rows are
+affected today (`S23`, `M1-PARSE`, `V2G`) — all other lanes', **reported rather than rewritten**,
+with a fail-closed guard now stopping the deletion.
+
+**Cowork note:** nothing here needs you, but two items change what you will see. Scans dated a
+non-trading day now carry a visible "not a trading session" note instead of a green badge, and the
+next scheduled hot scan is the first to run on the broker universe — expect the served list to
+change composition, and that is the fix working, not a regression.
+
+**State: landed on `main` and deploying. Full gate 46 suites, 0 failures.** Detail in
+`HANDOFF_live_data_bugs.md` Parts 13–16; ledger rows `V2G-SRC`, `LA1-LA3`, `CI-PY311`, `LA4`, `LA5`, `LA7`, `LA9`, `LA12`, `LA14`.
+
+---
 ## 2026-08-11 — edge lane, session 20 (`SECTOR-NEUTRAL-B6`): rejected again, and the trade-off it rested on is gone
 
 **Item B of `HANDOFF_parked_positives.md` is CLOSED — REJECTED on the panel the project actually
@@ -228,6 +373,72 @@ from 2026-08-12, unchanged from sessions 15 and 16: whether the Cowork writer
 
 ---
 
+## GREEKS LANE — 2026-08-10 (V2G): the three dead themes now have free live sources, and nothing was shipped
+
+**NO ACTION REQUIRED FROM DON.** Read `HANDOFF_live_data_bugs.md` **Part 13**.
+
+Follow-up to Part 12, which found that **42.9% of the composite's deployed weight reaches no live
+score**. This session built a **free, public** source for each of the three dead themes and
+measured its coverage. Pre-registered alone at `66310e7` before any code existed.
+
+**All three sources are free.** The brief's premise is right and it is what makes this possible:
+**SF3 is a licensed aggregation of 13F — the underlying filings are public record.** Nothing here
+touched the licensed Sharadar exports.
+
+| theme | before | after (vs the same 500 served rows) |
+|---|---|---|
+| `institutional` | null on 500/500 | **411 / 500 = 82.2%**, 410 distinct values |
+| `capital_discipline` | null on 500/500 | **456 / 500 = 91.2%**, 441 distinct values |
+| `insider` | present but **1 distinct value** | **500 / 500**, **297 distinct values** |
+
+**Share of deployed weight reaching a live score: 56.5% -> 95.5%** (mean over 500 names).
+**All five pre-committed bounds held**, including the falsifiable external-validity one: the
+most widely held served name is NVDA at **5,775 distinct institutional filers**, and holder
+breadth correlates with size at Spearman **+0.539**.
+
+**NOTHING WAS SHIPPED, AND THAT IS THE POINT.** Zero files under `valuation/` were touched — so
+no composite change, no weight flip, and **no vintage event**: vintage 2's clock is untouched. A
+test enforces it rather than prose promising it, so a later change that quietly wires one of
+these in fails the suite.
+
+**ADOPTION IS A SEPARATE AND EXPENSIVE DECISION, AND NOBODY SHOULD SHORTCUT IT FROM THESE
+NUMBERS.** Coverage says the data exists; it says nothing about whether it predicts returns. That
+needs the held-out gate at the standing margins in both directions, plus the pipeline builder's
+cost measurement — and under Amendment 1 Rule 6 an adoption **closes vintage 2 and resets the
+entire accrued forward clock for no statistical gain**. Vintage 2 is one day old, so that price
+is at its cheapest today and rises every day the decision is deferred. That is an argument for
+deciding soon, not for deciding casually.
+
+**Found in my own instrument, and reported rather than smoothed over:** the pre-registered
+ownership anchor was **one-sided** — it rejected implausibly high institutional ownership and
+waved through implausibly low, passing **12 megacaps (CMCSA, RIO, BTI, HSBC and others) joined to
+a CUSIP with a single reporting holder**. Fixed with a structural floor; both the pre-registered
+(421) and tightened (411) figures are published rather than one replacing the other.
+
+**Two corroborations worth carrying:** the live insider theme is overwhelmingly a *"who is
+selling least"* sort (278 names below neutral against 43 above), and **16 names pin at exactly
+the scorer's `tanh` floor** — audit item **S3**'s saturation mechanism, confirmed on live data.
+
+**Tests: 38 suites, 0 failures.** Zero trial cost for this run; the denominator in force is
+**`N` = 135** after the pipeline builder's parallel item. **5 bugs reported.**
+
+**Read alongside the pipeline builder's session 17**, which landed while this was fetching and
+priced the same gap: the return cost of the three dead themes is **immaterial by its own rule**
+(Δ −1.31pp, paired HAC t −1.40) **but only at 55% power**, and the live four-theme book **fails
+the calibrated long-short floor** while still clearing the long-only alpha floor. Their
+exploratory decomposition reorders this work: **`institutional` (13F) is the one to build first**
+— it is the only theme whose absence hurts in both halves — while `capital_discipline`, the
+cheapest to wire and the best covered here at 91.2%, has the *least* evidence it helps.
+**The reason to build these is claims integrity, not alpha:** the live product computes a
+different composite from the one every published figure is measured against.
+
+**Recommended next step, and it is not mine to take:** decide whether to adopt. If yes, it is a
+scoring change and belongs to the screener/edge lanes with the held-out gate attached; V1 shadow
+vintages is already registered and blind and is the instrument that would measure whether the
+adoption helped.
+
+
+---
 ## ITEM A / THE TAKE-PROFIT BAR (options-bot lane, 2026-08-10) — **A DECISION IS WAITING ON DON**
 
 Memo: **`PREREG_A_take_profit_bar.md`**; ledger row `TP-BAR`; write-up in

@@ -164,7 +164,11 @@
     </h2>
     {% if track.available %}
       <div class="muted" style="font-size:13.5px">
-        Live paper track since {{ track.inception }} · {{ track.days }} trading day{{ '' if track.days == 1 else 's' }}.
+        {# LA8 — was `track.days`, the row count, worded as an age. The phrase comes from
+           index_track so this page cannot state an age the Index tab disagrees with. #}
+        Live paper track since {{ track.inception }} ·
+        {{ track.live.age.phrase if (track.live and track.live.age)
+           else (track.days ~ ' trading day' ~ ('' if track.days == 1 else 's') ~ ' recorded') }}.
         {% if track.thin %}Far too short to mean anything yet — shown because hiding it until it
         looks good is how track records lie.{% endif %}
       </div>

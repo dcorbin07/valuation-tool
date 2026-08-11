@@ -46,6 +46,27 @@ FV_BAND_LOW = 0.2
 ROW_WITHHELD = "fair_value_withheld"
 ROW_WITHHELD_REASON = "fair_value_withheld_reason"
 
+# WHICH KIND OF SILENCE THIS IS. Both blank the fair value; they are not the same claim and
+# they must not read as the same claim.
+#
+#   refused      the model produced a number and the guard REJECTED it. A statement about the
+#                VALUATION. Stable: it will say the same thing tomorrow.
+#   unavailable  the data for this name could not be fetched on this scan, so the model was
+#                never in a position to have an opinion. A statement about the FETCH, and
+#                TEMPORARY — the quota resets and the next scan retries it with no
+#                intervention.
+#
+# Collapsing these is how "we could not look" gets read as "we looked and refused", which
+# would make a transient feed problem look like a permanent verdict on a company.
+ROW_WITHHELD_KIND = "fair_value_withheld_kind"
+KIND_REFUSED = "refused"
+KIND_UNAVAILABLE = "unavailable"
+
+UNAVAILABLE_REASON = (
+    "No fair value this scan: the data for this name could not be fetched, so the model was "
+    "never able to form a view. This is a temporary data problem, not a judgement about the "
+    "company — the next scan retries it automatically.")
+
 # --------------------------------------------------------------------------------------- #
 # THE LABELS THAT DESCRIBE THE VALUE, AND WHY THEY GO WITH IT (LA10, 2026-08-10).
 #
@@ -177,3 +198,28 @@ def record_refusal(row: dict, reason: str) -> None:
     row["upside"] = None                 # explicit: `upside` is cleared even if it was absent
     row[ROW_WITHHELD] = True
     row[ROW_WITHHELD_REASON] = reason or "No fair value is published for this name."
+    row[ROW_WITHHELD_KIND] = KIND_REFUSED
+
+
+def record_unavailable(row: dict, reason: str = "") -> None:
+    """Mark a row as WITHHELD BECAUSE WE COULD NOT LOOK — the fail-closed half.
+
+    Adopted 2026-08-11 on Don's decision, and the evidence for it is this project's own
+    measurement: failing OPEN served peer estimates up to 2.1x the model's own valuation on
+    names whose data never arrived (DB 88.69 against the model's 42.25; CIB 167.42 against
+    90.93), alongside one name the model refuses outright at 5.6x. A peer estimate nobody
+    checked is the confident-wrong-number failure this module exists to prevent, and the ~5%
+    of served rows this blanks is the accepted price.
+
+    Deliberately NOT `record_refusal` with different wording. The KIND is its own field so the
+    two survive the database round trip and the UI can render them differently: a reader shown
+    the same badge for "we could not fetch this today" and "the model rejects this valuation"
+    has been told one thing when two are true. And this one is TEMPORARY — the quota resets and
+    the next scan retries the name with no intervention, which the reason text says out loud so
+    a withheld name does not read as a permanent verdict.
+    """
+    strip_derived_fields(row)
+    row["upside"] = None
+    row[ROW_WITHHELD] = True
+    row[ROW_WITHHELD_REASON] = reason or UNAVAILABLE_REASON
+    row[ROW_WITHHELD_KIND] = KIND_UNAVAILABLE

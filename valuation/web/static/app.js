@@ -765,7 +765,7 @@ async function runRank() {
       const part = r.score_partial;
       html += `<tr><td>${i + 1}</td><td><b>${r.ticker}</b></td><td>${r.name || ""}</td><td><span class="badge">${r.regime}</span></td>
         <td class="num">${money(r.price)}</td><td class="num">${part
-          ? `<span class="muted" style="font-weight:700" title="${esc(r.fair_value_withheld_reason || "")}">withheld</span>`
+          ? `<span class="muted" style="font-weight:700${r.fair_value_withheld_kind === "unavailable" ? ";font-style:italic" : ""}" title="${esc(r.fair_value_withheld_reason || "")}">${r.fair_value_withheld_kind === "unavailable" ? "no data" : "withheld"}</span>`
           : money(r.fair_value)}</td>
         <td class="num ${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</td>
         <td class="num"><b style="color:${scoreColor(r.score)}${part ? ';opacity:.7' : ''}">${r.score}</b>${part
@@ -1052,7 +1052,15 @@ function _fairValCell(r, up) {
   // A withheld estimate is not a missing one. "—" reads as "we don't have this yet" and
   // invites someone to fill it back in; this says the number existed and was refused, and
   // carries the reason with it. See web/withhold.py::withhold_implausible_fair_values.
+  //
+  // TWO KINDS, RENDERED DIFFERENTLY (2026-08-11). "the model rejects this valuation" and
+  // "we could not fetch this name today" both blank the cell, and showing one word for both
+  // turns a temporary feed problem into what reads as a permanent verdict on the company.
+  // `no data` also says, in its tooltip, that the next scan retries it automatically.
   if (r.fair_value_withheld) {
+    if (r.fair_value_withheld_kind === "unavailable") {
+      return `<span class="muted" style="font-weight:700;font-style:italic" title="${esc(r.fair_value_withheld_reason || "")}">no data</span>`;
+    }
     return `<span class="muted" style="font-weight:700" title="${esc(r.fair_value_withheld_reason || "")}">withheld</span>`;
   }
   if (r.fair_value == null) return "—";
@@ -1958,6 +1966,11 @@ function _renderIndexTrack(d) {
     <div class="muted" style="font-size:11px;margin-top:6px">${esc(bt.basis || "")}. Hypothetical —
       the model was tuned on this same history.</div>`;
 
+  // LA8 — supplied by the server (index_track.track_age) rather than derived here, so the card,
+  // the hero band, the landing page and the server's own note cannot disagree about how old
+  // the track is. Null-guarded: an older payload simply falls back to the row count.
+  const age = live && live.age ? live.age : null;
+
   let liveRows;
   if (!d.available || !live) {
     liveRows = `<div class="muted" style="margin-top:10px">${esc(d.note || "Not started yet.")}</div>`;
@@ -1973,15 +1986,22 @@ function _renderIndexTrack(d) {
       <div class="metricline" style="margin-top:6px">
         ${metric("Alpha / yr", live.ann_alpha == null ? "—" : spct(live.ann_alpha))}
         ${metric("Sharpe", live.sharpe == null ? "—" : num(live.sharpe, 2))}
-        ${metric("Days", live.days)}
+        ${/* LA8 — "Days" was live.days, the number of rows the recorder wrote, sitting beside
+              two performance figures under a word that means age. A track 7 days old with 2
+              rows read as "2". The age tile now shows the calendar; the Recorded tile appears
+              only when they differ, so the gap is a visible second number rather than a
+              silently smaller first one. */
+          metric("Days", age ? age.age : live.days)}
+        ${age && !age.complete ? metric("Recorded", age.recorded) : ""}
       </div>
       <div class="muted" style="font-size:11px;margin-top:6px">${esc(live.book || "")}${live.book
           ? " · " + esc(live.window || "") + " · source: " + esc(live.recorder || "") + ". "
           : ""}Dated model positions since
         ${esc(d.inception || live.since)}, priced forward — a model portfolio, not a traded
         account, and no capital is at risk in it. ${d.thin
-          ? `Annualised figures are withheld until ${d.min_live_days} trading days — compounding
-             ${live.days} day${live.days === 1 ? "" : "s"} to a yearly rate would invent a number.`
+          ? `Annualised figures are withheld until ${d.min_live_days} RECORDED trading days —
+             compounding ${live.days} recorded day${live.days === 1 ? "" : "s"} to a yearly rate
+             would invent a number.`
           : "Net of the same cost model as the backtest."}</div>`;
   }
 
@@ -1989,7 +2009,8 @@ function _renderIndexTrack(d) {
     + card("Backtested", liveLeads ? "reference" : "headline",
            liveLeads ? "spec" : "est", btRows, !liveLeads)
     + card("Forward, model portfolio",
-           d.available ? (d.thin ? `thin — ${live.days}d` : "headline") : "not started",
+           d.available ? (d.thin ? `thin — ${age ? esc(age.short) : live.days + "d"}` : "headline")
+                       : "not started",
            d.thin || !d.available ? "spec" : "est", liveRows, liveLeads)
     + `</div>`
     + (d.note ? `<div class="note" style="margin-top:10px">${esc(d.note)}</div>` : "");

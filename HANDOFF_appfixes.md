@@ -5,6 +5,159 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 26 — 2026-08-11 — LA8: the forward track's "Days" was a row count, and the
+number it was hiding is a recording failure
+(prompt: LA8 — "Days" on the forward-track cards is a row count rendered as an age; now that LA3
+fixed the annualization denominator underneath, make the display say what is true — elapsed
+days from inception, with recorded rows beside it when they differ, so a gap is visible instead
+of flattering. Contract posture language untouched. Pin the copy. Ledger; merge main; push and
+verify.)
+
+## 0. The headline
+
+`VALQUO_LIVE_AUDIT.md` LA8 reads as a labelling nit. It is not. Every surface showing the
+forward track's age was showing `len(series)` — the number of rows the recorder managed to
+write — under the word **"Days"**, sitting beside "Alpha / yr" and "Sharpe". The server's own
+note said:
+
+> *"Live track is 2 trading days old — far too short to judge."*
+
+The track was **7 trading days old with 2 recorded rows**. The sentence is false, and it is
+false in the flattering direction: a reader is told **the record is short**, when the true
+statement is that **the recorder is missing 71% of its rows** — a different problem, with a
+different owner (ledger `PT-WRITER`, Cowork lane), and one somebody might actually act on. The
+one number that would have made the recording failure visible on the surface where it would be
+noticed was being spent to say something else.
+
+It now reads:
+
+> *"Live track is 7 trading days old, with only 2 of those days recorded — far too short to
+> judge. It is shown for transparency, not as evidence, and the headline stays on the
+> backtest."*
+
+## 1. Three clocks, and the fix is to name all three
+
+The defect class here is one quantity standing in for another. LA3 separated two of them; this
+adds the third and gives each a job it cannot be borrowed for:
+
+| clock | what it answers | correct use | where |
+|---|---|---|---|
+| **rows** `len(series)` | how many days were written down | the **GATE** | `MIN_LIVE_DAYS` |
+| **elapsed to last row** | over what window did the return accrue | the **EXPONENT** | LA3, `_elapsed_trading_days` |
+| **age** (new) | how old is this track | the **DISPLAY** | `track_age.py`, `_age_trading_days` |
+
+**The third is not a restatement of the second, and this is the part worth remembering.**
+`_elapsed_trading_days` measures to the **last recorded row**, so a recorder that stopped three
+weeks ago leaves it *frozen* — the track appears to stop ageing at the exact moment it stopped
+being written. That is the most flattering failure mode available and it is invisible in every
+other field on the payload. Age measures to **today**, so a dead recorder shows up as a widening
+gap instead of as silence.
+
+That capability did not exist before this session and is pinned by
+`test_the_default_clock_is_today_and_not_the_last_recorded_row`, which exercises the
+**production** default. Every other test in the suite passes `today` explicitly and would pass
+with the defect fully restored — **the mutation harness found that, not reasoning.**
+
+## 2. What deliberately did not move
+
+* **The gate.** `MIN_LIVE_DAYS` still counts recorded rows. Moving it onto elapsed time would
+  let a gappy track reach the floor sooner and advance the public "backtested → live" posture
+  on the strength of days nobody recorded. LA3 wrote that reasoning down; **this change is
+  precisely where it could have been quietly undone**, so it is pinned.
+  * Note the pin needed care: `thin` alone **cannot** see the gate move, because the contract
+    gate is independently unpassed and `thin` stays `true` either way. The **note's branch** is
+    the only observable separating the two rules. The first version of that test passed against
+    the mutation; it now asserts on the note.
+* **Contract posture language**, verbatim: *"It is shown for transparency, not as evidence, and
+  the headline stays on the backtest"* and *"Elapsed time alone does not promote a live
+  number."* Pinned by `test_the_contract_posture_sentences_are_verbatim`.
+* **The annualisation denominator and every published figure.** LA3's `elapsed_trading_days` and
+  the `days` row count are untouched; the new field sits beside them.
+
+**One posture word did change, on purpose.** The floor's *unit* was ambiguous: `"past the
+60-day floor"` and `"withheld until 60 trading days"` both describe a floor counted in **rows**.
+Leaving that ambiguous beside a now-correct age re-creates the exact conflation LA8 names, so
+they read `60-recorded-day floor` and `60 RECORDED trading days`. Flagged here rather than
+buried, because the instruction was to leave posture language alone.
+
+## 3. The gapless case is byte-identical
+
+On a track written every trading day since inception, `recorded == age`, and `phrase()` returns
+**exactly** the string the old f-string built. Pinned across n = 1 / 2 / 5 / 60 / 252. So the
+display changes only where it was wrong, and no correctly-recorded track gets re-worded. Same
+property LA3 leaned on, for the same reason.
+
+## 4. Six surfaces, one source
+
+| surface | was | now |
+|---|---|---|
+| `index_track.summarize` note ×3 | `{days} trading days old` | `{age.phrase}` |
+| hero band (`index.html`) | `Days = hero.index.days` | `Days = age.age`, `+ Recorded` on a gap |
+| landing page | `{{ track.days }} trading days` | `track.live.age.phrase` |
+| track card tile (`app.js`) | `metric("Days", live.days)` | `metric("Days", age.age)` `+ Recorded` |
+| track card badge | `thin — {days}d` | `thin — 7d · 2 rec` |
+| withheld-annualisation line | `until 60 trading days` | `until 60 RECORDED trading days` |
+
+All read one `age` dict off the payload. The card is pinned against computing its own — no
+`new Date(`, `Date.parse` or `86400` may appear beside it — so the card, the band, the landing
+page and the server cannot disagree about how old the track is.
+
+**Rows are still shown**, as a *second* number ("Recorded") that appears only when it differs
+from the age. Hiding the row count would be the same defect with the other number.
+
+## 5. Verification
+
+* `tests/test_track_age.py` — **22 tests**, offline.
+* **Mutations: 16/16 caught**, each by the test that names it.
+* **Three initially MISSED, all real holes in the pins, all fixed rather than argued away:**
+  1. a duplicated literal `0` in the complete branch made the negative-gap clamp untestable —
+     the module now reads one computed `missing` in both branches;
+  2. the default-clock gap in §1;
+  3. the gate move hiding behind `thin` (§2).
+* Full gate: **46 suites, 0 non-zero exits, 1160/1161 assertions.** The single shortfall is
+  `test_guards.py` 35/36 — a pre-existing **declared XFAIL** that exits 0, options-bot lane,
+  unchanged by this work.
+* Landing fragment rendered in all three states (gap / complete / no-live-block) before landing.
+
+## 6. BUGS FOUND (0 in shipped code)
+
+None beyond LA8 itself. The three defects found this session were in **my own tests**, all by
+the mutation harness, all listed in §5. Worth stating plainly: a pin that passes against the
+edit it exists to catch is not a pin, and two of these three would have looked fine forever.
+
+## 7. Files
+
+| file | change |
+|---|---|
+| `valuation/screener/track_age.py` | **NEW** — the display vocabulary, one source |
+| `valuation/screener/index_track.py` | `_age_trading_days`, `age` on the payload, 3 notes re-worded |
+| `valuation/web/hero.py` | passes `age` through |
+| `valuation/web/templates/index.html` | hero band: age + conditional Recorded |
+| `valuation/web/templates/landing.html` | age phrase instead of the row count |
+| `valuation/web/static/app.js` | tile, badge, withheld sentence |
+| `tests/test_track_age.py` | **NEW** — 22 tests |
+| `VALQUO_LEDGER.md` | LA8 row (out-of-band) |
+
+## 8. What I did NOT do
+
+* **Did not touch `PT-WRITER`.** LA8's fix makes the missing recorder *visible*; it does not
+  write the rows. That is still the Cowork lane's and still the operational gate's real blocker.
+* **Did not change the gate, the headline rule, or any contract sentence** beyond the floor's
+  unit (§2).
+* **Did not add staleness prose.** A dead recorder now shows as "day 45 · 3 recorded", which
+  states the fact without a second copy of the freshness badge's job.
+* **`/methodology` still calls the Deflated Sharpe "undeflated"** — M1 settled that on
+  2026-08-05 and it self-reports `deflated_sharpe_ratio`. Carried forward from session 25,
+  still the oldest stale figure rendering. **Flagged, not fixed** — different finding's copy.
+
+## 9. Next
+
+`PT-WRITER`: from 2026-08-12, `/api/track` → `contract_track.recording_ok` answers whether the
+Cowork writer exists. LA8 means the *public* surfaces will now show the gap while that question
+is open, which is the right way round.
+
+---
+
 # Session 25 — 2026-08-11 — S22's hold-horizon result reaches the product, with the
 long-short spread deliberately left behind
 (prompt: S22's display follow-up, `HANDOFF_edge_audit.md` session 18 — put the hold-horizon

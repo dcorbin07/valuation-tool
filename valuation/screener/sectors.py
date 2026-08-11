@@ -40,7 +40,24 @@ def sector_attractiveness(rows: list) -> list:
             "avg_hot_score": _avg([r.get("hot_score") for r in items]),
             "n_in_top_decile": n_top,
             "top_decile_share": n_top / len(items) if items else 0.0,
+            # LA12 — THE MEDIAN AND THE COUNT IN THIS SAME OBJECT DESCRIBE DIFFERENT
+            # POPULATIONS, so the median now travels with its own denominator and can no
+            # longer be read against `count`.
+            #
+            # `/api/hotstocks` calls this on rows straight from the database, BEFORE
+            # `estimate_fair_values` has run on anything — that runs only on the served slice.
+            # Only names given a full DCF carry an `upside`, and production runs
+            # SCAN_DCF_TOP=12 over the whole market. `_median` drops Nones silently, so a
+            # sector's `median_upside` was a median over one or two names sitting beside a
+            # `count` reporting the entire sector.
+            #
+            # Reported, not suppressed, and no floor invented: a threshold here would be an
+            # uncalibrated constant, whereas a denominator lets the reader apply their own.
+            # `median_upside_n` is 0 exactly when `median_upside` is None. Nothing renders
+            # this today (`app.js` reads `avg_composite`) — which is the reason to fix it now,
+            # while it is still cheap.
             "median_upside": _median([r.get("upside") for r in items]),
+            "median_upside_n": sum(1 for r in items if r.get("upside") is not None),
         })
     out.sort(key=lambda x: (x["avg_composite"] is not None, x["avg_composite"] or -9), reverse=True)
     for i, o in enumerate(out, 1):
