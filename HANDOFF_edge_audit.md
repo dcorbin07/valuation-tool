@@ -7309,6 +7309,15 @@ while the two about magnitude (#2, #4) were wrong.
 **Five scored arms plus the control: equity `N` 143 → 149**, as registered. Charged at zero: the
 placebo calibration, the half-splits, and the coverage/book-size diagnostics.
 
+**Measured:** DSR **0.8436955925493782 → 0.8388059159836208**,  0.436077 →
+0.438357, **√(2·ln 149) = 3.1635** — still above the Harvey–Liu–Zhu hurdle of 3.0, still
+self-reporting . **Nothing else moved:** 1,217 leaves, **20 moved / 0
+ADDED / 0 REMOVED** — five the DSR chain, four provenance, eleven last-digit float. Every
+headline is **bit-identical** and  is still . **Re-run, never hand-patched** —
+and the first attempt was **killed mid-build by the harness and wrote nothing**, which is the
+correct failure mode: the artifact stayed at the previous  with clean provenance rather than
+being left half-written.
+
 
 ---
 
