@@ -139,9 +139,15 @@ VINTAGES = (
     {"vintage": 3, "run": 2, "opened": _dt.date(2026, 8, 11), "closed": None, "status": "OPEN",
      "reason": "opened by the theme restoration - capital_discipline reaches a live score from "
                "free SEC XBRL company facts, after clearing a pre-registered fidelity gate at "
-               "Spearman +0.8421 against the panel's own theme. institutional (+0.1706) and "
-               "insider (+0.3596) FAILED that gate and are deliberately still absent. No weight "
-               "or construction parameter changed."},
+               "Spearman +0.8421 against the panel's own theme. AMENDED THE SAME DAY by "
+               "FIDELITY-2: institutional and insider, which had failed that gate at +0.1706 and "
+               "+0.3596, were rebuilt to the panel's own definitions and cleared the SAME bar at "
+               "+0.9190 and +0.8726, so all seven weighted themes now reach a live score. The "
+               "amendment is made in place under the interpretation registered at ef765fc before "
+               "the rebuild was measured - a vintage with ZERO accrued complete days is amended, "
+               "not closed, because Rule 6 protects a clock and there was none to protect. The "
+               "opening date does not move and the clock is NOT reset a second time. No weight "
+               "or construction parameter changed at any point."},
 )
 
 

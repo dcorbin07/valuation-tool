@@ -162,9 +162,11 @@ PINNED: Dict[int, Dict] = {
     # clock, and buys nothing statistically. V1's shadow machinery is what earns it back — it
     # fires here for the first time, with vintage 2's four-theme composite as the shadow book.
     3: {"opened": _dt.date(2026, 8, 11),
-        "note": ("vintage 3, opened by the theme restoration: capital_discipline reaches a live "
-                 "score for the first time. Weights unchanged from vintage 2; institutional and "
-                 "insider failed the fidelity gate and are still absent."),
+        "note": ("vintage 3, opened by the theme restoration and AMENDED the same day by "
+                 "FIDELITY-2. Five themes at open (capital_discipline restored); SEVEN after "
+                 "the amendment, once institutional and insider were rebuilt to the panel's "
+                 "definitions and cleared the same bar. Weights unchanged from vintage 2 "
+                 "throughout -- the composite users receive changed, the declared model did not."),
         "predecessor": 2,
         "snapshot": snapshot({
             "theme_weights": {"quality": 0.125, "momentum": 0.125, "value": 0.125,
@@ -175,8 +177,22 @@ PINNED: Dict[int, Dict] = {
             "weighting": "score", "top_n": None,
             # The five themes that actually reach a live score from 2026-08-11. `size` is
             # computed from market cap, which the live path has always had.
-            "themes_scored_live": ["capital_discipline", "momentum", "quality", "size",
-                                   "value"]})},
+            # AMENDED 2026-08-11 by FIDELITY-2, under the interpretation registered at
+            # `ef765fc` BEFORE the rebuild was measured: an adopted change made while the
+            # current vintage has accrued ZERO complete days AMENDS that vintage rather than
+            # opening the next. Rule 6 protects a clock, and there was no clock to protect.
+            #
+            # `institutional` and `insider` had FAILED the fidelity gate (+0.1706 and +0.3596
+            # against 0.60). Rebuilt to the panel's own definitions -- dollars rather than
+            # shares, the panel's aligned quarters, the panel's unweighted signed-dollar
+            # insider statistic, and its None-on-an-empty-window semantics -- they score
+            # +0.9190 and +0.8726 on the SAME bar, which was not re-derived.
+            #
+            # THE OPENING DATE DOES NOT MOVE, so the forward clock is not reset a second time.
+            # `params_id` DOES move (441531f1de2b -> the amended hash) because the model
+            # genuinely changed; vintage 2's pin is untouched at 0060c5ef3dda.
+            "themes_scored_live": ["capital_discipline", "insider", "institutional",
+                                   "momentum", "quality", "size", "value"]})},
 }
 
 

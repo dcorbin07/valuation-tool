@@ -409,8 +409,30 @@ def download_dataset(root: str, window: str, guard: Guard | None = None) -> str:
     return path
 
 
+def _resolve_member(zf: zipfile.ZipFile, member: str) -> str:
+    """Find `member` whether the archive is flat or nested under a directory.
+
+    FOUND 2026-08-11 BY FIDELITY-2, on a REAL archive. SEC's 13F datasets are not consistently
+    packed: `01sep2025-30nov2025_form13f.zip` has `SUBMISSION.tsv` at the root, while
+    `01jun2025-31aug2025_form13f.zip` puts everything under `01JUN2025-31AUG2025_form13f/`.
+    Opening by bare name raised `KeyError: There is no item named 'SUBMISSION.tsv'` and killed
+    the run outright.
+
+    It never bit V2G because both quarters it happened to need are packed flat. A reader that
+    works on the two archives you first tried is not a reader that works on the format.
+    """
+    names = zf.namelist()
+    if member in names:
+        return member
+    tail = "/" + member
+    for n in names:
+        if n.endswith(tail):
+            return n
+    raise KeyError(f"{member!r} not in archive (has {names[:6]}...)")
+
+
 def _tsv_rows(zf: zipfile.ZipFile, member: str):
-    with zf.open(member) as fh:
+    with zf.open(_resolve_member(zf, member)) as fh:
         text = io.TextIOWrapper(fh, encoding="utf-8", errors="replace")
         header = text.readline().rstrip("\n").split("\t")
         idx = {k: i for i, k in enumerate(header)}

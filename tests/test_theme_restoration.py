@@ -3,13 +3,15 @@ Tests for the THEME RESTORATION and the vintage event it triggered.
 
 Registered in `PREREG_theme_restoration.md`, committed alone at `1d12822`.
 
-The live book scored 4 of 7 weighted themes and failed the calibrated long-short floor. Only
-`capital_discipline` cleared the pre-registered fidelity gate (Spearman +0.8421 against the
-panel's own theme); `institutional` (+0.1706) and `insider` (+0.3596) failed and are NOT wired.
+The live book scored 4 of 7 weighted themes and failed the calibrated long-short floor.
+`capital_discipline` cleared the gate first (Spearman +0.8421). `institutional` (+0.1706) and
+`insider` (+0.3596) FAILED it, and were then rebuilt to the panel's own definitions by FIDELITY-2
+(`PREREG_fidelity2_rebuild.md`, `ef765fc`) and cleared the SAME bar at +0.9190 and +0.8726. All
+seven weighted themes now reach a live score.
 
-These pin the three things that could silently rot: that exactly one theme was restored, that the
-shipped issuance source computes the SAME quantity the gate was measured on, and that the vintage
-arithmetic is what the record says.
+These pin what could silently rot: that nothing ships without clearing the bar, that the shipped
+sources compute the SAME quantities the gate was measured on, and that the vintage arithmetic is
+what the record says -- including that the same-day amendment did NOT reset the clock twice.
 
 No network: the one test that would fetch is skipped unless a cache is present.
 """
@@ -43,17 +45,22 @@ class TestOnlyTheThemeThatPassedIsWired(unittest.TestCase):
         self.assertTrue(hasattr(ISS, "share_issuance"))
         self.assertTrue(ISS.available())
 
-    def test_institutional_and_insider_have_NO_live_source_module(self):
-        for mod in ("institutional_live", "insider_live", "inst_breadth"):
-            self.assertFalse(os.path.exists(os.path.join(REPO, "valuation", "screener", mod + ".py")),
-                             f"{mod}.py exists — a theme that failed fidelity must not be wired")
+    def test_institutional_and_insider_ship_ONLY_after_passing_on_the_rebuild(self):
+        """UPDATED 2026-08-11 by FIDELITY-2. These two were absent because they FAILED the gate
+        (+0.1706, +0.3596). They ship now because they were rebuilt to the panel's own
+        definitions and cleared the SAME bar (+0.9190, +0.8726) — never because a second look
+        made them seem good enough."""
+        from valuation.screener import live_themes
+        self.assertTrue(hasattr(live_themes, "columns_for"))
+        src = io.open(live_themes.__file__, encoding="utf-8").read()
+        self.assertIn("+0.9190", src)
+        self.assertIn("+0.8726", src)
 
-    def test_the_scan_enriches_only_share_issuance(self):
+    def test_the_scan_enriches_through_the_two_reviewed_paths(self):
         src = io.open(os.path.join(REPO, "valuation", "screener", "screen.py"),
                       encoding="utf-8").read()
         self.assertIn("_enrich_with_issuance", src)
-        for forbidden in ("_enrich_with_institutional", "_enrich_with_insider"):
-            self.assertNotIn(forbidden, src)
+        self.assertIn("_enrich_with_live_themes", src)
 
     def test_the_deployed_weight_was_not_retuned(self):
         """Restoration enters at the DEPLOYED weight. A changed weight would be a different
@@ -166,11 +173,26 @@ class TestTheVintageArithmetic(unittest.TestCase):
         self.assertEqual(SV.pinned_snapshot(2)["params"]["theme_weights"],
                          SV.pinned_snapshot(3)["params"]["theme_weights"])
 
-    def test_capital_discipline_is_in_the_live_scored_list_and_the_failures_are_not(self):
+    def test_all_seven_weighted_themes_reach_a_live_score_after_the_amendment(self):
+        """The coherence goal, reached in two stages on one day: five themes at open, seven
+        after FIDELITY-2 rebuilt the two that had failed."""
         live = SV.pinned_snapshot(3)["params"]["themes_scored_live"]
-        self.assertIn("capital_discipline", live)
-        self.assertNotIn("institutional", live)
-        self.assertNotIn("insider", live)
+        for t in ("capital_discipline", "institutional", "insider",
+                  "momentum", "quality", "size", "value"):
+            self.assertIn(t, live)
+
+    def test_the_amendment_did_not_reset_the_clock_a_second_time(self):
+        """The registered zero-accrued-days rule AMENDS in place, so the opening date and every
+        date derived from it must be exactly where the restoration left them."""
+        import datetime as _d
+        self.assertEqual(TM.current_vintage()["opened"], _d.date(2026, 8, 11))
+        self.assertEqual(TM.INCEPTION, _d.date(2026, 8, 11))
+        self.assertEqual(SV.PINNED[3]["opened"], _d.date(2026, 8, 11))
+
+    def test_no_fourth_vintage_was_opened(self):
+        self.assertEqual(max(v["vintage"] for v in TM.VINTAGES), 3)
+        self.assertEqual(SV.open_pairs()[0]["shadow_vintage"], 2,
+                         "the shadow must still be vintage 2, the four-theme book")
 
 
 class TestTheShadowBookOpened(unittest.TestCase):

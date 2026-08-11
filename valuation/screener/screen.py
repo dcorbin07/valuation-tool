@@ -294,6 +294,13 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     # would put a different theme under a validated theme's name.
     _enrich_with_issuance(metrics, cfg)
 
+    # FIDELITY-2 — `institutional` and `insider`, from a pre-built cache. Both FAILED the
+    # fidelity gate once and ship only after being rebuilt to the panel's own definitions and
+    # re-scored against the same bar: institutional +0.1706 -> +0.9190, insider +0.3596 ->
+    # +0.8726. Reads a file, makes no network calls, and fails to None so a missing or stale
+    # cache costs coverage rather than correctness.
+    _enrich_with_live_themes(metrics)
+
     df = build_frame(metrics)
     est_w, spec_w = _effective_weights(store)
     df["composite"], contrib = _decompose(df, est_w, spec_w)
@@ -741,6 +748,39 @@ def _enrich_with_issuance(metrics: list, cfg) -> dict:
             else:
                 m["share_issuance"] = v
                 stats["filled"] += 1
+    return stats
+
+
+def _enrich_with_live_themes(metrics: list) -> dict:
+    """Fill `inst_accum`, `sm_breadth` and `insider_score` from the pre-built cache.
+
+    `factors.py` already reads all three (`:199`, `:275-282`); they were simply never supplied,
+    which is why `institutional` was null on every row and `insider` was the CONSTANT 0.0 that
+    `factors.py:284` writes when `insider_score` is absent. A constant column z-scores to
+    all-NaN and is renormalised away, so the theme carried weight and no information.
+
+    Never overwrites a value a provider already supplied.
+    """
+    stats = {"asked": len(metrics), "filled": 0, "fields": {}}
+    try:
+        from .live_themes import columns_for, status
+    except Exception:                                            # noqa: BLE001
+        return stats
+    st = status()
+    stats["cache"] = st
+    if not st.get("available"):
+        return stats
+    for m in metrics:
+        got = columns_for(m.get("ticker") or "")
+        if not got:
+            continue
+        wrote = False
+        for k, v in got.items():
+            if m.get(k) is None:
+                m[k] = v
+                stats["fields"][k] = stats["fields"].get(k, 0) + 1
+                wrote = True
+        stats["filled"] += 1 if wrote else 0
     return stats
 
 
