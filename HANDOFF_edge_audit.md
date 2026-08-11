@@ -6959,6 +6959,17 @@ precedent), and the half-splits (the same arms on subsets).
 `BACKTEST_RESULTS.json` regenerated from a clean tree so its Deflated Sharpe is computed at
 `N = 143` rather than going stale on the denominator — **re-run, never hand-patched.**
 
+**Measured:** DSR **0.8504129179654681 → 0.8436955925493782**, `sr0_benchmark` 0.432867 →
+0.436077, **√(2·ln 143) = 3.1505** — still above the Harvey–Liu–Zhu hurdle of 3.0, and the
+statistic still self-reports `deflated_sharpe_ratio` with `is_effectively_undeflated: false`.
+**Nothing else moved:** a leaf-by-leaf diff over 1,217 leaves gives **16 moved / 0 ADDED /
+0 REMOVED** — five are the DSR chain, four are provenance, and the remaining seven moved by
+less than 1e-9 relative (last-digit float) in cost fields. `long_short_tstat`
+**2.8360640685320595**, `top_decile_alpha` **0.07174142332098163**, `monotonicity`
+**−0.8909090909090909** and the equal-weight benchmark **0.18137118752419476** are
+**bit-identical**; `errors` is empty and `cpcv.adopt` is still `false`, so the shipped
+strategy takes no haircut.
+
 
 ---
 

@@ -116,7 +116,7 @@ the project's memory and the old versions had been repeated for months.
     **The defect named in advance and avoided: right-censoring is NOT delisting** — a last-price
     fallback on a censored window would return a shorter realized return labelled as a long-horizon
     one, for the most recent dates specifically. Pinned from both sides.
-  * **Equity `N` 135 → 143** (eight arms; tenure, the placebo and the half-splits charged at zero).
+  * **Equity `N` 135 → 143** (eight arms; tenure, the placebo and the half-splits charged at zero). **Deflated Sharpe 0.8504 → 0.8436955925493782, √(2·ln 143) = 3.1505**, and `BACKTEST_RESULTS.json` was re-run from a clean tree so the artifact matches the record (16 of 1,217 leaves moved — five the DSR chain, four provenance, seven last-digit float; every headline bit-identical, `errors` empty, `cpcv.adopt` still false).
     **THE EXPECTATIONS WERE WRONG ON BOTH HEADLINE QUESTIONS** — SATURATING predicted at 60/40 and
     the answer is CONSTANT-RATE; large-cap tenure predicted longer at 55/45 and small is longest;
     all eight incremental quarters positive against a prediction they would not be beyond k=4.
