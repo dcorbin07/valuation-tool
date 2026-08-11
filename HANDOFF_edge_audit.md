@@ -7715,7 +7715,7 @@ sector-neutral rejections built their arms as separate runs; that defect is not 
 
 | | INCUMBENT | A20 RANK | A21 NOWINSOR |
 |---|---|---|---|
-| top-decile alpha | **+7.1741%** | +3.6847% (−3.4894pp) | +9.6013% (+2.4272pp) |
+| top-decile alpha | **+7.1741%** | +3.6817% (−3.4925pp) | +9.6038% (+2.4296pp) |
 | long-short ann | +11.04% | +9.04% | +16.63% |
 | long-short *t* | +2.8361 | +2.3054 | +4.9395 |
 | **long-short HAC *t*** | **+2.6199** ✓ | **+2.0588** ✗ | +4.3612 ✓ |
@@ -7746,7 +7746,7 @@ Boundary embargoed at 2017-07-20.
 
 | | INCUMBENT | A20 | A21 |
 |---|---|---|---|
-| alpha | +4.9912% | +1.7300% | +4.6500% |
+| alpha | +4.9912% | +1.7307% | +4.6482% |
 | long-short *t* | +1.1680 | +0.9309 | +1.3763 |
 | gate | — | **reject** | **reject** |
 
@@ -7757,9 +7757,9 @@ not survive a change of weighting.
 
 | arm | window | Δalpha /yr | HAC *t* | Δlong-short /yr | HAC *t* |
 |---|---|---|---|---|---|
-| A20 | full (69) | **−3.4894pp** | **−2.3783** | −2.00pp | −1.2004 |
+| A20 | full (69) | **−3.4925pp** | **−2.3783** | −2.00pp | −1.2004 |
 | A20 | early / late | −1.32 / −5.62pp | −1.0857 / −2.1543 | | |
-| A21 | full (69) | **+2.4272pp** | **+1.9170** | +5.59pp | **+1.9365** |
+| A21 | full (69) | **+2.4296pp** | **+1.9170** | +5.59pp | **+1.9365** |
 | A21 | early / late | +0.83 / +3.69pp | +0.5568 / +1.8543 | | |
 
 **A21 does not cross even the uncalibrated bar on either metric.**

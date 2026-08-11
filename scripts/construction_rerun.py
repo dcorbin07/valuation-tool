@@ -386,7 +386,7 @@ def controls(panel, arms, a_base_dep, std_fns):
 # --------------------------------------------------------------------------- diagnostics
 
 
-def diagnostics(panel, arms, std_fns):
+def diagnostics(panel, arms, std_fns, levels=None):
     """prereg 12 expectations 4 and 5, plus a fragility diagnostic. DIAGNOSTICS ONLY.
 
     No verdict attaches to anything here - the verdicts are fixed by prereg 5a. This exists
@@ -412,9 +412,15 @@ def diagnostics(panel, arms, std_fns):
                 row[f"delta_{k}"] = v - b
                 mx[k] = max(mx[k], abs(v - b))
         per[t] = row
+    # COMPUTED, never transcribed: a hand-copied figure derived from a rounded log is exactly how
+    # a wrong digit enters a record that claims its numbers verify to the digit.
+    move = {}
+    if levels:
+        _b = levels["base"]["top_decile_alpha"]
+        move = {k: (levels[k]["top_decile_alpha"] - _b) * 100.0 for k in ("rk", "nw")}
     out["expectation4_theme_ic_vs_composite"] = {
         "per_theme_ic_tstat": per, "max_abs_delta_ic_t": mx,
-        "composite_alpha_move_pp": {"rk": -3.4894, "nw": +2.4272},
+        "composite_alpha_move_pp": move,
         "reading": "not one theme IC moves as much as 0.4 of a t while the book moves several "
                    "pp of annual alpha - P6.3's lesson for the third time"}
 
@@ -550,7 +556,8 @@ def main():
                     **books}
 
     res["controls"] = controls(panel, arms, res["weightings"]["deployed"]["levels"]["base"], std)
-    res["diagnostics"] = diagnostics(panel, arms, std)
+    res["diagnostics"] = diagnostics(panel, arms, std,
+                                     levels=res["weightings"]["deployed"]["levels"])
 
     # verdicts, by prereg 5a
     verdicts = {}
