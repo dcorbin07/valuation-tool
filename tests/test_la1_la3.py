@@ -13,6 +13,7 @@ Pre-registered in `PREREG_la1_la3_repair.md`, committed at `b4c2a1a` before any 
 from __future__ import annotations
 
 import datetime as dt
+import io
 import os
 import sys
 import unittest
@@ -27,6 +28,8 @@ from valuation.screener import screen as SC                # noqa: E402
 from valuation.screener.market_session import (            # noqa: E402
     is_trading_day, trading_days_between)
 from valuation.engine.publication import FV_BAND_HIGH      # noqa: E402
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 # ==========================================================================================
@@ -278,11 +281,25 @@ class TestTheSecondDoorNoDataWithNoException(unittest.TestCase):
             P.value_ticker = orig
         return rows[0], errs
 
-    def test_no_statements_is_recorded_as_no_data_and_flagged_unverified(self):
+    def test_no_statements_is_recorded_as_no_data_and_now_FAILS_CLOSED(self):
+        """Updated 2026-08-11 with the decision. This used to assert that D3 FLAGGED the row
+        as `unverified` — the leak detected but still published. Fail-closed PREVENTS it, so
+        the row is withheld and D3 correctly stays silent. D3 is not redundant: it now fires
+        only if a no-data row reaches the audit UNwithheld, i.e. if fail-closed itself broke,
+        which is exactly the invariant worth keeping a detector for."""
         row, errs = self._run(revenue=None)
         self.assertEqual(errs, {}, "it did not raise — that is the whole problem")
         self.assertEqual(row["dcf_probe"], "no_data")
+        self.assertTrue(row["fair_value_withheld"])
+        self.assertIsNone(row["fair_value"])
         out = SC.publication_audit([row], dcf_window=0)
+        self.assertEqual(out["unverified"], [], "prevented, so nothing left to flag")
+        self.assertEqual(out["withheld_no_data"], 1)
+
+    def test_D3_still_fires_if_a_no_data_row_ever_reaches_the_audit_unwithheld(self):
+        leaked = {"ticker": "KSPI", "price": 94.0, "dcf_probe": "no_data",
+                  "fair_value": 274.13, "fair_value_method": "blended"}
+        out = SC.publication_audit([leaked], dcf_window=0)
         self.assertEqual(out["unverified"], ["KSPI"])
         self.assertFalse(out["clean"])
 
@@ -362,6 +379,170 @@ class TestMergeScreen(unittest.TestCase):
         """13 of 500 came back with no statements at 8 workers; all 13 returned data at 2,
         including the refusal this finding is about."""
         self.assertLessEqual(SC.NO_DATA_RETRY_WORKERS, 2)
+
+
+
+class TestFailClosedOnNoData(unittest.TestCase):
+    """Don's decision, 2026-08-11: a row whose data could not be fetched publishes NOTHING.
+
+    The evidence is this project's own measurement — failing OPEN served peer estimates up to
+    2.1x the model's own valuation (DB 88.69 vs 42.25; CIB 167.42 vs 90.93) on names whose data
+    never arrived. The ~5% cost is accepted.
+    """
+
+    class _Blend:
+        value = None
+        withheld_value = None
+        growth_led = False
+
+    def _throttled_res(self):
+        """What a THROTTLED fetch actually returns: an object, no exception, no statements."""
+        blend = self._Blend()
+
+        class _C:
+            price = 94.0
+            revenue = None                 # the tell — nothing came back
+            financial_currency = currency = "USD"
+            fx_unresolved, fx_rate = False, None
+
+        class _R:
+            fair_value_blend = blend
+            base_fair_value = None
+            upside = None
+            company = _C()
+        return _R()
+
+    def _run(self, refusal_only=True):
+        import valuation.engine.pipeline as P
+        orig = P.value_ticker
+        P.value_ticker = lambda t, cfg, **kw: self._throttled_res()
+        try:
+            rows = [{"ticker": "KSPI", "price": 94.0}]
+            errs = SC._enrich_with_dcf(rows, cfg=None, refusal_only=refusal_only)
+        finally:
+            P.value_ticker = orig
+        return rows[0], errs
+
+    def test_a_throttled_fetch_emits_NO_fair_value(self):
+        """THE PIN. It did not raise, so nothing else in the pipeline can tell."""
+        row, errs = self._run()
+        self.assertEqual(errs, {}, "no exception — that is what made this invisible")
+        self.assertIsNone(row["fair_value"])
+        self.assertIsNone(row["upside"])
+        self.assertTrue(row["fair_value_withheld"])
+
+    def test_estimate_fair_values_HONOURS_it_so_no_peer_estimate_is_substituted(self):
+        """The end-to-end claim: fail-closed only matters if the serve-time estimator obeys
+        it. This is the exact substitution that published 274.13 for KSPI."""
+        from valuation.screener.fairvalue import estimate_fair_values
+        row, _ = self._run()
+        peers = [{"ticker": "P1", "price": 10.0, "extra": {}, "revenue": 1e9,
+                  "net_debt": 0.0, "market_cap": 1e10},
+                 {"ticker": "P2", "price": 20.0, "extra": {}, "revenue": 2e9,
+                  "net_debt": 0.0, "market_cap": 2e10}]
+        estimate_fair_values([row], peer_rows=peers + [row])
+        self.assertIsNone(row["fair_value"], "a peer estimate must not fill a no-data row")
+        self.assertEqual(row["fair_value_method"], "withheld")
+
+    def test_it_is_UNAVAILABLE_not_REFUSED_because_they_are_different_claims(self):
+        from valuation.engine.publication import KIND_UNAVAILABLE, ROW_WITHHELD_KIND
+        row, _ = self._run()
+        self.assertEqual(row[ROW_WITHHELD_KIND], KIND_UNAVAILABLE)
+
+    def test_the_reason_says_it_is_temporary_and_retries_itself(self):
+        """A withheld name must not read as a permanent verdict on the company."""
+        row, _ = self._run()
+        reason = row["fair_value_withheld_reason"].lower()
+        self.assertIn("temporary", reason)
+        self.assertIn("next scan", reason)
+        self.assertNotIn("refus", reason)
+
+    def test_a_real_refusal_keeps_the_refused_kind_and_its_own_wording(self):
+        """The two must not converge. A refusal is about the VALUATION and is stable."""
+        from valuation.engine.publication import (record_refusal, KIND_REFUSED,
+                                                  ROW_WITHHELD_KIND)
+        r = {"ticker": "KSPI"}
+        record_refusal(r, "Cannot value this name: the model's $530.23 is 5.6x the $94.00 price.")
+        self.assertEqual(r[ROW_WITHHELD_KIND], KIND_REFUSED)
+        self.assertIn("5.6x", r["fair_value_withheld_reason"])
+
+
+    def test_a_stated_diagnosis_means_we_LOOKED_so_it_is_not_no_data(self):
+        """The discriminator that keeps fail-closed from eating ordinary peer estimates. If
+        the model can say WHY it cannot value a name, it read the statements. Regression for
+        `test_not_dcf_valuable_is_not_a_refusal`, whose stub company carries no `revenue` at
+        all — revenue alone mislabelled NVS as unfetchable and blanked its $185.41 estimate."""
+        import valuation.engine.pipeline as P
+
+        class _B:
+            value = None
+            withheld_value = None
+            growth_led = False
+            reason = "Not DCF-valuable: the company doesn't generate positive free cash flow."
+
+        class _R:
+            fair_value_blend = _B()
+            base_fair_value = None
+            upside = None
+            company = type("CD", (), {"price": 153.67})()
+
+        orig = P.value_ticker
+        P.value_ticker = lambda t, cfg, **kw: _R()
+        try:
+            rows = [{"ticker": "NVS", "price": 153.67}]
+            SC._enrich_with_dcf(rows, cfg=None, refusal_only=True)
+        finally:
+            P.value_ticker = orig
+        self.assertFalse(rows[0].get("fair_value_withheld"))
+        self.assertEqual(rows[0]["dcf_probe"], "no_value")
+
+    def test_the_no_data_count_lands_in_the_scan_health_block(self):
+        """Quota degradation as a NUMBER. On 2026-08-08 this was invisible and the screen
+        reported zero refusals across 500 names it could not reach."""
+        from valuation.engine.publication import record_unavailable, record_refusal
+        rows = [{"ticker": "A"}, {"ticker": "B"}, {"ticker": "C", "price": 10.0,
+                                                   "fair_value": 12.0}]
+        record_unavailable(rows[0])
+        record_refusal(rows[1], "model refuses")
+        out = SC.publication_audit(rows, dcf_window=0)
+        self.assertEqual(out["withheld_no_data"], 1)
+        self.assertEqual(out["withheld_refused"], 1)
+
+    def test_the_two_kinds_survive_the_database_round_trip(self):
+        """Without this the distinction dies on the way to the browser and both render the
+        same, which is the thing the decision explicitly forbids."""
+        import tempfile
+        from valuation.screener.store import Store
+        from valuation.engine.publication import (record_unavailable, record_refusal,
+                                                  ROW_WITHHELD_KIND, KIND_UNAVAILABLE,
+                                                  KIND_REFUSED)
+        a = {"ticker": "KSPI", "rank": 1, "price": 94.0}
+        b = {"ticker": "CHTR", "rank": 2, "price": 100.0}
+        record_unavailable(a)
+        record_refusal(b, "model refuses")
+        with tempfile.TemporaryDirectory() as d:
+            st = Store(os.path.join(d, "t.db"))
+            st.save_snapshot("2026-08-11", [a, b], "test", {})
+            got = {r["ticker"]: r for r in st.load_snapshot("2026-08-11")}
+        self.assertEqual(got["KSPI"][ROW_WITHHELD_KIND], KIND_UNAVAILABLE)
+        self.assertEqual(got["CHTR"][ROW_WITHHELD_KIND], KIND_REFUSED)
+
+    def test_the_ui_renders_the_two_kinds_differently(self):
+        """Pinned against the shipped JS, because 'render distinguishably' is the requirement
+        and a tooltip nobody hovers is not a distinction."""
+        js = io.open(os.path.join(REPO, "valuation", "web", "static", "app.js"),
+                     encoding="utf-8").read()
+        self.assertIn('fair_value_withheld_kind === "unavailable"', js)
+        self.assertIn(">no data<", js.replace("</span>", "<"))
+
+    def test_the_mopup_pass_is_OFF(self):
+        """It was measured to make things worse: no_data went 13 -> 32 because the binding
+        constraint is cumulative quota, not concurrency. The constant stays only as the record."""
+        src = io.open(os.path.join(REPO, "valuation", "screener", "screen.py"),
+                      encoding="utf-8").read()
+        self.assertNotIn("_screen_refusals(residue", src)
+        self.assertIn("NO_DATA_RETRY_WORKERS = 2", src)
+        self.assertIn("MADE THINGS WORSE", src)
 
 
 # ==========================================================================================

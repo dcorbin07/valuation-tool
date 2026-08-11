@@ -3672,3 +3672,54 @@ which is the only moment at which it could have done harm.
    the API — the LEAK banner is visible only in the scan log. **This one now matters more**, and
    it is the cheapest remaining win: exposing `health` would put the leak on a surface a human
    reads. **Owner: screener/web.**
+
+### 14.9 FAIL CLOSED — Don's decision, 2026-08-11, and the evidence for it is our own measurement
+
+**Decision: a row whose data could not be fetched this scan publishes NO fair value.** The ~5%
+cost is accepted. The argument is not abstract — it is §14.1's table: failing open served peer
+estimates of **88.69 against the model's own 42.25 (DB)** and **167.42 against 90.93 (CIB)**,
+plus one name the model refuses outright. A peer estimate nobody checked is the
+confident-wrong-number failure this project exists to prevent.
+
+**THE TWO KINDS ARE NOW DIFFERENT CLAIMS, AND THEY RENDER DIFFERENTLY.** A new field
+`fair_value_withheld_kind` carries `refused` or `unavailable`:
+
+| kind | what it says | stability |
+|---|---|---|
+| `refused` | the model produced a number and the guard **rejected it** — a statement about the *valuation* | stable; it will say the same tomorrow |
+| `unavailable` | the data could not be fetched, so the model **never had a view** — a statement about the *fetch* | **temporary; the next scan retries it automatically** |
+
+The reason text says so in words — *"This is a temporary data problem, not a judgement about the
+company — the next scan retries it automatically"* — and the UI renders `no data` (italic)
+against `withheld`. A tooltip nobody hovers is not a distinction, so the badge itself differs,
+and `test_the_ui_renders_the_two_kinds_differently` pins it against the shipped JS.
+
+**The distinction survives the database.** `snapshot_rows` gains a `fair_value_withheld_kind`
+column via the existing ALTER pattern; an older database reads as withheld-with-unspecified-kind
+rather than losing the withholding. Without this the two would converge on the way to the
+browser, which is exactly what the decision forbids.
+
+**QUOTA DEGRADATION IS NOW A NUMBER.** `health.publication_audit` carries `withheld_no_data` and
+`withheld_refused` on every scan. On 2026-08-08 the equivalent figure was invisible and the
+screen reported zero refusals across 500 names it could not reach.
+
+**THE MOP-UP STAYS OFF, and the constant stays with the record of why.** It was measured to make
+things worse — `no_data` went **13 → 32** on the next full scan, because the binding constraint
+is cumulative quota, not concurrency. Fail-closed costs **no extra requests at all**, which is
+the second reason it is the better answer. `test_the_mopup_pass_is_OFF` fails if anyone wires it
+back in.
+
+**ONE DISCRIMINATOR HAD TO GET STRONGER, and an existing pin caught it.** The first cut judged
+"did we look?" on `company.revenue` alone. `test_not_dcf_valuable_is_not_a_refusal` — which
+exists because NVS, SAP and TD once had ordinary peer estimates of \$185.41, \$364.97 and
+\$79.73 suppressed — uses a stub company with no `revenue` attribute, so revenue alone
+mislabelled a legitimately-not-valuable name as unfetchable and blanked it. **The rule now also
+accepts a stated DIAGNOSIS as proof we looked:** if the model can say *why* it cannot value a
+name, it read the statements. A throttled fetch has nothing to say at all.
+
+**D3 `unverified` is not redundant after this — its meaning sharpened.** The leak it detected is
+now *prevented*, so it stays silent in the normal case and fires only if a `no_data` row ever
+reaches the audit **unwithheld**, i.e. if fail-closed itself broke. Pinned both ways.
+
+**48 tests in `tests/test_la1_la3.py`; full gate 42 suites, 0 failures.**
+

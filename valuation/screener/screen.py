@@ -32,18 +32,20 @@ from .store import Store
 # row as `dcf_error`, and re-asked by the cheap refusal-only screen.
 DCF_ATTEMPTS = 2
 
-# LA1 — THE LEAK WAS SELF-INFLICTED BY OUR OWN REQUEST RATE, and this is the measurement that
-# settled it. The bulk refusal screen runs 8 workers over ~488 names against a free
-# rate-limited feed; 13 of them came back with NO statements and NO exception, so the model had
-# nothing to judge, `decide(None, price)` returned an empty reason, and the peer estimate went
-# out unchecked. Re-asked at TWO workers, all 13 returned data — 12 valued and KSPI REFUSED at
-# 5.6x. Nothing about those names is unfetchable; we were simply asking too fast.
+# LA1 — A MOP-UP PASS WAS BUILT HERE AND IS DELIBERATELY NOT USED. The record of why is the
+# point, so it stays.
 #
-# So the residue gets a second, slow pass rather than a policy change. It is small by
-# construction (13 of 500 on the observed run), so the cost is seconds, and it keeps the
-# fail-open policy intact: the alternative — withholding every name we could not reach — is a
-# product decision that would blank hundreds of rows on a genuinely bad upstream day.
-NO_DATA_RETRY_WORKERS = 2
+# The bulk refusal screen runs 8 workers over ~488 names against a free rate-limited feed; 13
+# came back with NO statements and NO exception. Re-asked at TWO workers they ALL returned data
+# — 12 valued and KSPI refused at 5.6x — which looked like proof the leak was our own
+# instantaneous request rate, so a slow second pass was added.
+#
+# IT MADE THINGS WORSE: `no_data` went 13 -> 32 on the very next full scan, because the binding
+# constraint is CUMULATIVE quota across the whole scan, not concurrency, and the mop-up spent
+# more of it. The small-scale measurement was real and the inference from it was wrong.
+#
+# The residue now FAILS CLOSED instead, which costs no requests at all. Keep this off.
+NO_DATA_RETRY_WORKERS = 2      # unused; retained with the measurement above
 
 
 def _effective_weights(store):
@@ -310,16 +312,9 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
             again = _screen_refusals(retry, cfg, workers)
             health_refusals = _merge_screen(health_refusals, again,
                                             dcf_window_rescreened=len(retry))
-        # ...and the SLOW MOP-UP. Anything that came back with no statements at all gets
-        # re-asked at NO_DATA_RETRY_WORKERS. Measured: 13 of 500 came back empty at 8 workers
-        # and every one of them returned data at 2 — including the refusal this whole finding
-        # is about. See the constant for the measurement.
-        residue = [r for r in rows[:refusal_screen]
-                   if r.get("dcf_probe") == "no_data" and not r.get("fair_value_withheld")]
-        if residue:
-            slow = _screen_refusals(residue, cfg, NO_DATA_RETRY_WORKERS)
-            health_refusals = _merge_screen(health_refusals, slow,
-                                            no_data_rescreened=len(residue))
+        # NO MOP-UP PASS. One was built and it MADE THINGS WORSE — see NO_DATA_RETRY_WORKERS
+        # below for the measurement. The residue now fails closed instead, which needs no
+        # extra requests at all.
     else:
         health_refusals = {"screened": 0, "refused": 0, "errors": 0,
                            "note": "refusal screen off"}
@@ -429,7 +424,8 @@ def _enrich_with_dcf(rows, cfg, refusal_only: bool = False):
     errors: dict = {}
     try:
         from ..engine.pipeline import value_ticker
-        from ..engine.publication import record_refusal, decide as decide_publication, ROW_WITHHELD
+        from ..engine.publication import (record_refusal, record_unavailable,
+                                          decide as decide_publication, ROW_WITHHELD)
     except Exception as e:
         # LA1: even the import failing is a fail-open. It used to return silently, so a
         # deployment missing the engine would serve unchecked peer estimates for every name
@@ -468,11 +464,28 @@ def _enrich_with_dcf(rows, cfg, refusal_only: bool = False):
                 # `decide(None, price)` returns publish=False with an EMPTY reason by design,
                 # and the row sailed through with `errors: 0` — a clean bill of health on a
                 # name that refuses at 5.6x when asked on its own.
-                has_data = bool(getattr(res.company, "revenue", None))
+                # DID WE LOOK? Two independent signs that we did, and either is enough.
+                #
+                # A DIAGNOSIS is the stronger one: if the model can say WHY it cannot value a
+                # name ("Not DCF-valuable: the company doesn't generate positive free cash
+                # flow"), then it read the statements and formed that view. A throttled fetch
+                # has nothing to say at all. Caught by `test_not_dcf_valuable_is_not_a_refusal`
+                # — an existing pin whose stub company carries no `revenue` attribute, so
+                # revenue alone would have mislabelled NVS as unfetchable and blanked exactly
+                # the ordinary peer estimate that test exists to protect.
+                has_reason = bool((getattr(blend, "reason", "") or "").strip())
+                has_data = bool(getattr(res.company, "revenue", None)) or has_reason
                 if had is None and not has_data:
                     r["dcf_probe"] = "no_data"
                     if attempt < DCF_ATTEMPTS - 1:
                         continue          # a throttled fetch is transient; ask again
+                    # FAIL CLOSED (Don's decision, 2026-08-11). We could not look, so we
+                    # publish nothing rather than letting `estimate_fair_values` substitute a
+                    # peer estimate nothing has checked. Recorded as `unavailable`, NOT as a
+                    # refusal: it is a statement about the fetch, it is temporary, and the next
+                    # scan retries it automatically once the quota resets.
+                    record_unavailable(r)
+                    break
                 elif had is None:
                     r["dcf_probe"] = "no_value"     # the model genuinely does not apply here
                 if verdict.reason:
@@ -589,7 +602,8 @@ def publication_audit(rows, dcf_window: int = 0) -> dict:
     over a data-quality signal is a worse failure than the one being reported. `ci_scan` prints
     a LEAK banner naming every offending ticker, and `health.publication_audit` carries them.
     """
-    from ..engine.publication import FV_BAND_HIGH, ROW_WITHHELD
+    from ..engine.publication import (FV_BAND_HIGH, ROW_WITHHELD, ROW_WITHHELD_KIND,
+                                      KIND_UNAVAILABLE, KIND_REFUSED)
 
     silent, breach, unverified = [], [], []
     for i, r in enumerate(rows):
@@ -628,6 +642,15 @@ def publication_audit(rows, dcf_window: int = 0) -> dict:
         "band_breach_count": len(breach),
         "unverified": unverified,
         "unverified_count": len(unverified),
+        # QUOTA DEGRADATION AS A NUMBER, NEVER SILENT AGAIN. This is the count of rows whose
+        # fair value was withheld because the fetch failed, not because the model refused. On
+        # 2026-08-08 the equivalent figure was invisible and the screen reported zero refusals
+        # across 500 names it could not actually reach. A rising number here is the feed
+        # degrading, and it now says so on every scan.
+        "withheld_no_data": sum(1 for r in rows
+                                if r.get(ROW_WITHHELD_KIND) == KIND_UNAVAILABLE),
+        "withheld_refused": sum(1 for r in rows
+                                if r.get(ROW_WITHHELD_KIND) == KIND_REFUSED),
         "probe": dict(sorted(collections.Counter(
             r.get("dcf_probe") for r in rows if r.get("dcf_probe")).items())),
         "clean": not silent and not breach and not unverified,
