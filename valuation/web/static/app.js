@@ -1478,29 +1478,43 @@ async function edgeLearning() {
   } catch (e) { eshow("edgeErr", e.message); }
   finally { toggle("edgeLoader", false); }
 }
-const THEME_INPUTS = {
-  value: "earnings yield · FCF yield · EBIT/EV · sales multiples · book-to-price",
-  quality: "ROIC · ROE · margins · low leverage · gross profitability · FCF margin · accruals · interest coverage",
-  growth: "revenue growth · growth acceleration",
-  momentum: "12-1 return · 6-1 return · 52-week-high proximity",
-  low_risk: "low beta · low realized volatility",
-  capital_discipline: "low share issuance · low asset growth (dormant — needs data)",
-  sentiment: "estimate revisions (dormant — needs data)",
-  size: "small-cap tilt",
-  insider: "cluster insider buying",
-  institutional: "13F institutional accumulation (dormant — needs data)",
-};
+/* The theme legend — inputs, and whether a theme reaches a live score.
+
+   THIS USED TO BE A HARDCODED MAP HERE, AND IT WENT WRONG IN THE WORST POSSIBLE PLACE. On
+   2026-08-11 it described `capital_discipline` as "low share issuance · low asset growth
+   (dormant — needs data)" on the exact day that theme was restored to the live scoring path —
+   the adoption that opened vintage 3 — and it named an input (asset growth) that factors.py had
+   stopped averaging into the theme.
+
+   Worth being precise about which half was broken, because it is not the obvious one: the BARS
+   were always data-driven and picked the fifth theme up on their own, since they enumerate
+   whatever weights the payload carries. What was hardcoded was the CAPTION UNDER the bar, and a
+   confident wrong caption is worse than a missing bar — a missing bar invites a question, a
+   caption closes one.
+
+   Now served from valuation/web/theme_status.py as window.THEME_STATUS and only escaped here,
+   the same one-source rule as _SCORE_CONF and _HOLD_H. tests/test_theme_status.py fails if this
+   file grows its own copy back. */
+const _THEME_STATUS = (typeof window !== "undefined" && window.THEME_STATUS) || {};
+function _themeInputs(k) { return (_THEME_STATUS[k] || {}).inputs || ""; }
+function _themeDormant(k) { return (_THEME_STATUS[k] || {}).dormant || ""; }
 function _themeBars(w) {
   if (!w) return "<div class='muted'>—</div>";
   const entries = Object.entries(w).sort((a, b) => b[1] - a[1]);
   const max = Math.max(...entries.map(e => e[1]), 0.01);
   return entries.map(([k, v]) => {
     const label = pct(v, 0), wd = Math.round(v / max * 100);
+    // A theme carrying weight while contributing nothing is the failure mode this legend
+    // exists to make visible (`insider` is the standing example — 100% "covered", constant,
+    // renormalised away). So the dormancy note is rendered as its own flagged line rather
+    // than folded into the input list, where it read as one more ingredient.
+    const dormant = _themeDormant(k);
     return `<div style="margin:5px 0">
       <div style="display:flex;justify-content:space-between;font-size:12px">
         <span style="text-transform:capitalize"><b>${k.replace(/_/g, " ")}</b></span><span>${label}</span></div>
       <div style="background:#eef;border-radius:4px;height:8px"><div style="width:${wd}%;background:#3454a4;height:8px;border-radius:4px"></div></div>
-      <div class="muted" style="font-size:11px">${THEME_INPUTS[k] || ""}</div></div>`;
+      <div class="muted" style="font-size:11px">${esc(_themeInputs(k))}</div>
+      ${dormant ? `<div class="muted" style="font-size:11px;font-style:italic">⚠ ${esc(dormant)}</div>` : ""}</div>`;
   }).join("");
 }
 function _numberICSection(nic) {
@@ -1971,14 +1985,26 @@ function _renderIndexTrack(d) {
   // the track is. Null-guarded: an older payload simply falls back to the row count.
   const age = live && live.age ? live.age : null;
 
+  // WHICH BOOK THIS RECORD IS OF. Contract §5a Rule 4 — a verdict is a statement about a
+  // vintage and must name it. Served pre-rendered by the server (track_meter.vintage_label,
+  // derived from the register) and only escaped here: the vintage number and the inception date
+  // must move together, and a card that assembled its own sentence is where they would stop.
+  // It sits ABOVE the metrics on purpose. Printed underneath, it reads as a footnote about the
+  // past; printed above, it says what the numbers below are a record OF — which is the point,
+  // because the series restarted and the figures do not carry that on their face.
+  const vin = d.vintage || null;
+  const vintageLine = vin ? `<div class="muted" style="font-size:11px;margin-top:8px"
+      title="${esc(vin.rule || "")}"><b>${esc(vin.phrase)}</b></div>` : "";
+
   let liveRows;
   if (!d.available || !live) {
-    liveRows = `<div class="muted" style="margin-top:10px">${esc(d.note || "Not started yet.")}</div>`;
+    liveRows = vintageLine +
+      `<div class="muted" style="margin-top:10px">${esc(d.note || "Not started yet.")}</div>`;
   } else {
     // Cumulative-since-inception is the ONLY honest headline for a short track. Annualised
     // alpha and Sharpe are served as null until there is enough history, and render as "—"
     // with the reason — never as a compounded stub.
-    liveRows = `<div class="metricline" style="margin-top:8px">
+    liveRows = vintageLine + `<div class="metricline" style="margin-top:8px">
         ${metric("Index", spct(live.cum_valquo_pct / 100))}
         ${metric(esc(d.benchmark || "SPY"), spct(live.cum_spy_pct / 100))}
         ${metric("Excess", live.excess_pp == null ? "—" : spct(live.excess_pp / 100))}
