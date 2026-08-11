@@ -90,18 +90,23 @@ THEMES: Dict[str, Dict[str, str]] = {
         "inputs": "small-cap tilt",
         "dormant": "",
     },
+    # CORRECTED 2026-08-11 BY FIDELITY-2, AND THIS FILE IS USER-FACING SO THE CORRECTION IS NOT
+    # COSMETIC. Both entries below said "deliberately not wired" and quoted the FAILING
+    # Spearmans (+0.36, +0.17). That was true when written and is now false: both themes were
+    # rebuilt to the panel's own definitions and cleared the SAME 0.60 gate at +0.8726 and
+    # +0.9190, and both are wired. `insider` in particular is no longer "a constant" -- it was
+    # the constant 0.0 that `factors.py:284` writes when `insider_score` is absent, and it now
+    # carries real cross-sectional variation.
+    #
+    # Recorded as a comment rather than silently deleted: the dormancy claim was CORRECT when
+    # written, and why it stopped being correct is the useful part.
     "insider": {
         "inputs": "cluster insider buying",
-        # Weighted at 0.125 and contributing NOTHING: the live column is a constant, which
-        # standardizes to all-NaN and renormalises away. Saying so is the whole point -- this
-        # is the theme that hid in plain sight behind 100% "coverage".
-        "dormant": ("Form 4 window does not reproduce the panel's ranking "
-                    "(Spearman +0.36 against a 0.60 gate) — deliberately not wired"),
+        "dormant": "",
     },
     "institutional": {
         "inputs": "13F institutional accumulation · holder breadth",
-        "dormant": ("13F source does not reproduce the panel's ranking "
-                    "(Spearman +0.17 against a 0.60 gate) — deliberately not wired"),
+        "dormant": "",
     },
 }
 

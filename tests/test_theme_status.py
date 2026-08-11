@@ -55,7 +55,11 @@ def _read(*parts):
 
 
 #: Themes that reach a live score today. `capital_discipline` joined on 2026-08-11.
-_LIVE = {"value", "quality", "growth", "momentum", "size", "capital_discipline"}
+# UPDATED 2026-08-11 by FIDELITY-2: `institutional` and `insider` were rebuilt to the panel's
+# own definitions and cleared the SAME 0.60 gate they had failed (+0.9190 and +0.8726), so
+# they now reach a live score and must not be libelled as dormant.
+_LIVE = {"value", "quality", "growth", "momentum", "size", "capital_discipline",
+         "institutional", "insider"}
 #: Weighted in at least one book, but NOT wired live.
 _WEIGHTED_BUT_DEAD = {"insider", "institutional"}
 
@@ -98,18 +102,30 @@ def test_every_weighted_but_unwired_theme_carries_a_reason():
     weights = dict(S.WEIGHTS_ESTABLISHED)
     weights.update({k: v for k, v in S.WEIGHTS_SPECULATIVE.items() if v})
     for k in _WEIGHTED_BUT_DEAD:
+        if k in _LIVE:
+            continue          # restored since this list was written; covered by _LIVE above
         assert weights.get(k, 0) > 0, f"{k} is no longer weighted — update this test's premise"
         reason = TS.THEMES[k]["dormant"]
         assert reason, f"{k} carries weight but contributes nothing, and the legend is silent"
         assert len(reason) > 20, f"{k}'s dormancy reason does not say why: {reason!r}"
 
 
-def test_the_dormancy_reasons_name_the_gate_that_rejected_them():
-    """`institutional` and `insider` are not missing data — they FAILED a pre-registered fidelity
-    gate. 'needs data' would have implied the fix is a download; it is not."""
-    for k in ("institutional", "insider"):
-        r = TS.THEMES[k]["dormant"].lower()
-        assert "spearman" in r and "gate" in r, f"{k}: {r!r}"
+def test_a_dormant_theme_says_WHY_and_not_merely_that_it_is_dormant():
+    """REWRITTEN 2026-08-11. This used to name `institutional` and `insider` and require their
+    reasons to cite a Spearman and a gate. Both have since been rebuilt and RESTORED, so the
+    frozen list turned a legitimate restoration into a red test.
+
+    The property worth keeping is not which themes are dormant -- that changes, and should --
+    but that ANY dormant theme explains itself rather than just going quiet. 'needs data' would
+    imply the fix is a download; for a theme that failed a fidelity gate it is not."""
+    for k, v in TS.THEMES.items():
+        r = (v.get("dormant") or "").strip()
+        if not r:
+            continue
+        assert len(r) > 20, f"{k} is dormant and the legend does not say why: {r!r}"
+        assert any(w in r.lower() for w in
+                   ("gate", "spearman", "zeroed", "not for lack of data", "source")), \
+            f"{k}'s dormancy reason does not name a cause: {r!r}"
 
 
 def test_low_risk_is_described_as_switched_off_not_as_missing():
