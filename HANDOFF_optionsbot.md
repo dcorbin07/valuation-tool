@@ -4147,3 +4147,230 @@ result as a prior, which is a discouraging one.
 
 **Do not act on `dte` q2.** It is the most eye-catching cell in this session and it does not clear
 its own calibrated bar.
+
+---
+
+# SESSION 25 — 2026-08-11 — `O21` + `O26`: **the pricer's dividend gap is real, cheap, and deliberately left alone; the bucket floor cannot deliver what its comment promises**
+
+Two ledger items, one session, frozen book, no re-mine, **no live code path changed**. Both
+registers were committed **together and ALONE** at **`bf5324c`** — two `.md`, **zero `.py`**.
+
+Both rows were bare in the ledger ("no mention anywhere in the corpus"), so the scope below is
+derived rather than inherited, and each register says what it derived and why.
+
+---
+
+## 29 · `O21` — dividends and early exercise. **IMMATERIAL on the measurable part; one door left UNRESOLVED.**
+
+### 29a · The defect is the CALLER, not the model — and that changes what "fix it" means
+
+`blackscholes.bs_price`, `implied_vol` and `greeks` **already take a continuous dividend yield
+`q` and handle it correctly** — `exp(-qT)` on the spot leg, `(r − q)` in `d1`. There is nothing
+missing from the model.
+
+> **Every caller uses the default `q = 0.0`.** `enrich_chain(..., q=0.0)` is called in exactly
+> two places — `options_backtest.pick_contract:313` and `optvrp_run.py:250` — and neither passes
+> it.
+
+**Anyone who "adds dividend support to the pricer" is fixing the wrong thing.** Pinned by a test.
+
+### 29b · The scoping fact that decides what could move
+
+**The banked book's P&L comes from QUOTED bid/ask in the frozen chains, never from a model
+price.** So the pricer cannot move the recorded expectancy *directly*. It reaches the book
+through exactly three doors, measured separately because they have very different strengths:
+
+| door | mechanism | moves P&L? | result |
+|---|---|---|---|
+| **D1 early exercise** | the sim always SELLS at the bid | yes, model-free | **+0.2002pp** |
+| **D2 contract selection** | `pick_contract` targets 0.35 delta computed at `q = 0` | yes | **4.63% of entries — P&L not computable** |
+| **D3 derived fields** | banked `iv`/`target_delta` feed O13 and `delta85` | no | IV understated ~0.62 vol points |
+
+### 29c · Exposure is real and widespread. The measured cost is not.
+
+**81.4%** of the 3,870 banked trades sit on dividend payers (median trailing yield **2.02%**, p90
+4.28%, max 24.8%), and **2,107 of 3,870 calls — 54.4% — span an ex-dividend date.** So this is
+not a corner case.
+
+**D1, measured model-free:** only **34 of 3,870 exits (0.879%)** were booked below intrinsic,
+worth **+0.2002pp** of per-trade expectancy against the pre-registered **1.00pp** bar.
+
+**Early exercise is measured as `bid < S − K` and that is deliberate.** The textbook condition
+compares the dividend to remaining time value, which needs a model — and would make the answer a
+function of the very pricer under test. The inequality needs no vol, no rate and no dividend
+estimate.
+
+**Two controls, both run before any figure was quoted:**
+
+| control | result |
+|---|---|
+| put-call parity vs the stored `underlying_entry` | median rel error **0.00232**, 93.2% within 1% |
+| the sim's **own** bars `raw_close` vs `underlying_entry` | median rel error **0.00000**, **100.0%** within 1% |
+
+### 29d · D2 — the door that is NOT resolved, and it is reported as such rather than as zero
+
+> **The `q = 0` control reproduces the banked contract on 3,870 of 3,870 entries — exactly
+> 100.00%.** That is what makes the challenger quotable at all.
+
+The corrected pricer selects a **different contract on 179 entries (4.63%)**. And it is **not a
+near-substitute**, which makes the unresolved part *more* serious, not less:
+
+* median **|delta gap| 0.129** against a 0.35 target (p90 0.225)
+* **93.9% move to a LOWER strike** — the predicted direction, since a positive `q` lowers call
+  delta and the selector must go further in-the-money to reach 0.35
+* 87.7% keep the same expiry
+
+**Its P&L is NOT COMPUTABLE on the frozen book.** The freeze stores the **full chain only on
+ENTRY dates** and just the traded contract thereafter, so a contract the book never held has no
+forward price path — the median alternative has **2 chain dates** and only **10.1%** have more
+than three. Resolving D2 requires a re-mine, which this session was scoped out of. **It is
+recorded as unresolved rather than assumed to be zero.**
+
+### 29e · D3 — and the direction the register got backwards
+
+Ignoring dividends **understates** the solved implied vol by a median **0.00617** (~0.62 vol
+points, max 0.0998) and **overstates** absolute delta by a median **0.00668** (max 0.146). The
+path study's `delta85` arm moves from firing on **6** trades to **2** of 3,870 — which cannot
+disturb its recorded −0.02pp rejection.
+
+**The register predicted a "negative" IV shift and did not state the direction of subtraction.**
+Its stated arithmetic was right — at `q = 0` the model price is higher for any given σ, so the σ
+reproducing a market mid is lower — but that means the *corrected minus published* shift is
+**positive**. Scored as a miss on the label, with the arithmetic confirmed and pinned by a test.
+
+### 29f · The pricer is deliberately NOT changed
+
+Neither clause of the pre-registered materiality bar is met: D1 is +0.20pp against 1.00pp, and no
+published verdict changes its relationship to its bar. **Shipping a selection change on an unmet
+bar is exactly what the register exists to prevent** — passing `q` into `pick_contract` would
+change **which contract the live engine buys on 4.63% of entries**, at a median delta gap of
+0.129. That is a construction change, not a bug fix.
+
+**The non-change is PINNED by two tests** that fail if the live selection path ever silently
+starts passing a yield — the same discipline session 16 used for the sizing quantity and session
+20 for `zscore`.
+
+### 29g · Two defects in my own instrument, both caught before any verdict was read
+
+1. **Spot at exit was first estimated as `max(call_bid + strike)` over the chain.** Parity gives
+   `C ≥ S − K`, so every `bid + K` is an **upper** bound on spot and the **maximum** is the
+   loosest one available. It inflated intrinsic and reported an early-exercise gain of
+   **+5.62pp** on a smoke subset — **eight times** the true figure, and in the direction that
+   would have manufactured a material finding. Replaced by put-call parity, an equality.
+2. **The parity helper then rejected `put_mid <= 0`** — which discards exactly the deep-ITM-call
+   cases early exercise lives in, and scored **zero rows**.
+
+Both are pinned by tests that hold the *direction* of the old error, so neither can quietly
+return. Also found and reported: **`options_backtest.BARS_CACHE` is a RELATIVE path**, so it
+resolves to nothing from a git worktree and returns an empty bar set rather than an error.
+
+### 29h · Expectations — 4 right, 1 wrong
+
+RIGHT: IMMATERIAL (70/30); <2% of exits below intrinsic (65/35) at 0.879%; selection changing on
+<10% (55/45) at 4.63%; `delta85` moving <1pp (75/25) at 0.10pp.
+WRONG: the IV shift's stated sign, as above.
+
+---
+
+## 30 · `O26` — the per-bucket floor. **NULL: it stays 30, and that is not a vindication of 30.**
+
+### 30a · The constant states its own purpose, so the test writes itself
+
+`options_tracker.MIN_CLOSED_PER_BUCKET = 30`, with this comment:
+
+> *"Options outcomes are noisy and heavy-tailed: with ten trades a single triple-up decides the
+> sign of every statistic. 30 is not a magic number, it is 'enough that one lucky contract cannot
+> flip the verdict'."*
+
+That is a **testable property that had never been tested.** The primary statistic is its literal
+reading: **`P_flip(n)`**, the chance that removing the **single most extreme** trade flips the
+sign of a size-`n` bucket's mean. The trade removed is `argmax |R − mean|`, chosen **without**
+reference to which way it moves the mean — removing the *best* trade would build the answer's
+direction into its own definition.
+
+### 30b · It never clears the bar, anywhere on the grid
+
+| n | 10 | 20 | **30** | 50 | 100 | 150 | 200 | 300 |
+|---|---|---|---|---|---|---|---|---|
+| `P_flip` | 0.2226 | 0.2056 | **0.1848** | 0.1672 | 0.1440 | 0.1318 | 0.1206 | 0.1084 |
+
+Nothing on the pre-committed grid reaches **0.05**, on the full sample or on either half, so the
+verdict is **NULL and the constant stays at 30**.
+
+**But that is not a vindication of 30.** Going from 30 to 300 — a tenfold increase **no live
+bucket could supply** — moves the flip probability only **0.185 → 0.108**. The floor is doing far
+less work than its comment implies, and no achievable floor would change that.
+
+### 30c · The secondary is the stronger result, and I checked it against theory
+
+**Half-to-half sign agreement is a coin flip at every bucket size tested:**
+
+| n | 30 | 100 | 150 | 300 |
+|---|---|---|---|---|
+| measured agreement | 0.4942 | 0.5098 | 0.5212 | 0.5482 |
+| **predicted in closed form** | **0.5059** | — | **0.5289** | **0.5561** |
+
+**That agreement with first principles is the control.** The book's own moments — mean **0.0327**,
+per-trade sd **0.9251** — predict the whole curve without any simulation, and the simulation
+reproduces it. This is not a resampling artefact.
+
+> **A bucket would need roughly 6,148 trades before its two halves would agree on the SIGN of
+> expectancy 95% of the time.** The entire banked book is **3,870**. The largest live bucket
+> (large-cap) is **2,058**; mega 994, mid 774, **small 44**.
+
+**So per-bucket expectancy on this book is essentially unmeasurable at any floor.** That is a
+third independent corroboration of R2 and O13 rather than a new claim — the book is too noisy to
+support subgroup statements, and the floor was never the thing standing in the way.
+
+### 30d · Nothing ships, and nothing could
+
+`MIN_CLOSED_PER_BUCKET` is **untouched at 30**. **Zero live buckets change status.** The item
+cannot change live trading behaviour in any case: raising the floor only makes the project *more*
+conservative about which subgroups it will read.
+
+### 30e · Expectations — 2 right, 3 wrong
+
+RIGHT: `P_flip(30) > 0.15` (70/30) at 0.1848; the secondary being weaker than the primary
+(55/45), and by a wide margin.
+WRONG: a floor in the 75–150 range (70/30) — there is none on the grid at all; a RAISE verdict
+(60/40) — it is NULL; at least one bucket losing `enough_to_judge` (65/35) — zero did.
+
+---
+
+## 31 · What I did NOT do, and why
+
+* **Did not change the pricer, `pick_contract`, or `MIN_CLOSED_PER_BUCKET`.** No live code path
+  moved this session. Both non-changes are pinned by tests rather than left implicit.
+* **Did not re-mine.** Both items were scoped to the frozen book, which is exactly why D2's P&L
+  is reported as unresolved instead of estimated.
+* **Did not re-stamp any derived data.** The register makes re-stamping conditional on the
+  materiality bar being met, and it was not.
+* **Did not extend O26's `n` grid** past 300 to hunt for the crossing point. The grid is fixed in
+  the register and extending it after seeing the curve voids the item. The closed-form
+  extrapolation (~6,148) is reported instead and labelled as such.
+* **Did not touch O10 / O18**, per the task: they want O14's tick data, which is still collecting.
+
+## 32 · Trial cost
+
+**Options `N` 246 → 248 — one trial each, and O21's charge was CORRECTED UPWARD mid-session.**
+It was first charged **zero**, on the reasoning that a correctness measurement against a
+pre-committed bar is a `FIXED`-class row. **Another lane's research-page suite rejected that**:
+the log schema requires every non-`FIXED` row to charge at least one trial, and this row is not
+`FIXED` because **nothing was repaired**. It had a pre-committed bar and returned a verdict
+against it, so it is a trial. The correction runs against my own result, which is the right
+direction — understating `N` overstates the significance of every DSR-gated claim in the project.
+**The gate caught a trial-accounting error that no test of mine would have.**
+`research_log.detail()` verified: `{'equity': 155, 'options': 247, 'unified': 0, 'infra': 8}`,
+`rows_malformed: []`. **Equity `N` untouched**, so `BACKTEST_RESULTS.json` needs no re-run.
+
+## 33 · Recommended next step
+
+**Re-mine the 179 alternative contracts and close D2.** It is the only door either item left
+open, the substitution is large (median |delta gap| 0.129, 93.9% to a lower strike), and it is
+the one route by which the dividend omission could still turn out to matter for the headline. It
+needs a re-mine and therefore its own session — and, if it does move the book, its own
+pre-registration, because at that point the pricer change becomes a construction change with a
+measurable consequence rather than a tidy-up.
+
+**Do not raise `MIN_CLOSED_PER_BUCKET`.** O26 says the lever does not work; the useful response
+is to stop making per-bucket expectancy claims on this book, not to pick a bigger number.

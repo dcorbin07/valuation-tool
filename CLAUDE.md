@@ -44,6 +44,68 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE PRICER'S DIVIDEND GAP IS A CALLER BUG, NOT A MODEL BUG — IT IS CHEAP WHERE IT IS
+  MEASURABLE AND ONE DOOR IS UNRESOLVED; AND THE PER-BUCKET FLOOR CANNOT DELIVER WHAT ITS OWN
+  COMMENT PROMISES (2026-08-11, session 25, `O21` + `O26`).** Frozen book, no re-mine, **no live
+  code path changed**. `PREREG_o21_dividends.md` and `PREREG_o26_bucket_floor.md` were committed
+  **together and ALONE at `bf5324c`** — two `.md`, zero `.py`.
+  * **`O21`: `bs_price`, `implied_vol` and `greeks` ALREADY take a dividend yield `q` and handle
+    it correctly. Every caller uses the default `0.0`.** So **anyone who "adds dividend support
+    to the pricer" is fixing the wrong thing** — pinned by a test. And the banked P&L comes from
+    **QUOTED bid/ask**, so the pricer cannot move it directly; it reaches the book only through
+    early exercise, contract selection and stored derived fields.
+  * **EXPOSURE IS WIDESPREAD, THE MEASURED COST IS NOT.** 81.4% of trades are on dividend payers
+    (median trailing yield 2.02%) and **2,107 of 3,870 calls span an ex-div date** — yet only
+    **34 exits (0.879%) were booked below intrinsic, worth +0.2002pp** against a pre-registered
+    1.00pp bar. **Measured MODEL-FREE (`bid < S − K`)** so the answer is not a function of the
+    pricer under test. Controls first: parity recovers the stored entry spot at median relative
+    error 0.00232, and the simulation's **own** bars at **0.00000, 100% within 1%**.
+  * **THE UNRESOLVED DOOR, REPORTED AS UNRESOLVED RATHER THAN AS ZERO.** The `q = 0` control
+    reproduces the banked contract **3,870/3,870 = 100.00%**; the corrected pricer picks a
+    **different contract on 179 entries (4.63%)** and **not a near-substitute** — median
+    **|delta gap| 0.129** against a 0.35 target, **93.9% moving to a LOWER strike**, the predicted
+    direction. **Its P&L is NOT COMPUTABLE on the frozen book:** the freeze holds full chains
+    only on **ENTRY** dates, so a contract the book never held has no forward price path (median
+    **2** chain dates). **Closing it needs a re-mine and is the recommended next item.**
+  * **THE PRICER IS DELIBERATELY NOT CHANGED** — neither clause of the materiality bar is met,
+    and passing `q` into `pick_contract` would change **which contract the live engine buys on
+    4.63% of entries**: a construction change, not a bug fix. The non-change is **pinned by two
+    tests**, the discipline session 16 used for sizing and session 20 for `zscore`.
+    D3 for the record: `q = 0` **understates** solved IV by a median **0.00617** (~0.62 vol
+    points) and **overstates** |delta| by 0.00668; `delta85` firing moves 6 → 2 of 3,870, which
+    cannot disturb its −0.02pp rejection.
+  * **TWO DEFECTS IN MY OWN INSTRUMENT, both caught before any verdict was read and both pinned.**
+    Spot at exit was first estimated as `max(call_bid + strike)` — parity's **loosest UPPER
+    bound** — which inflated the early-exercise gain to **+5.62pp, eight times the truth**, in
+    the direction that manufactures a material finding; the parity replacement then rejected
+    zero-value puts and so discarded exactly the deep-ITM cases early exercise lives in, scoring
+    **zero rows**. **Also found: `options_backtest.BARS_CACHE` is a RELATIVE path**, so it
+    silently resolves to nothing from a git worktree and returns an empty bar set rather than an
+    error.
+  * **`O26`: NULL — `MIN_CLOSED_PER_BUCKET` STAYS 30, AND THAT IS NOT A VINDICATION OF 30.** The
+    constant's own comment — *"enough that one lucky contract cannot flip the verdict"* — is
+    testable and had never been tested. `P_flip(n)`, the chance that removing the single most
+    extreme trade flips a bucket's sign, **never reaches the 0.05 bar anywhere on the
+    pre-committed grid**: **0.1848 at the shipped 30** and still **0.1084 at n = 300**. Going
+    30 → 300, a tenfold rise **no live bucket could supply**, buys almost nothing.
+  * **THE SECOND HALF IS THE STRONGER RESULT AND IT WAS CHECKED AGAINST CLOSED FORM, NOT
+    TRUSTED: half-to-half sign agreement is a COIN FLIP at every bucket size** — 0.4942 at n = 30,
+    0.5482 at n = 300 — and the book's own moments (mean 0.0327, sd 0.9251) **predict that curve
+    analytically** (0.5059, 0.5561). **A bucket would need ~6,148 trades for its two halves to
+    agree on the SIGN of expectancy 95% of the time; the whole book is 3,870 and the largest live
+    bucket is 2,058, with small-cap at 44.** So **per-bucket expectancy on this book is
+    essentially unmeasurable at ANY floor** — a third independent corroboration of R2 and O13.
+    **Do not raise the floor; stop making per-bucket expectancy claims on this book.** Zero live
+    buckets change status.
+  * **Options `N` 246 → 248** — one trial each. **O21 was first charged ZERO** on the reasoning
+    that a correctness measurement is a `FIXED`-class row, and **another lane's research-page
+    test rejected it**: the log schema requires every non-`FIXED` row to charge at least one
+    trial, and this row is not `FIXED` because nothing was repaired. It had a pre-committed bar
+    and returned a verdict against it, so it is a trial — **corrected upward**, against my own
+    result. **Equity `N` untouched at 155** and `BACKTEST_RESULTS.json` needs no re-run.
+    Expectations scored **6 right, 4 wrong** across the two items.
+    `data/free_analysis/O21_DIVIDENDS.json`, `O26_BUCKET_FLOOR.json`;
+    `HANDOFF_optionsbot.md` §29-33.
 - **THE OPTIONS ANTI-SIGNAL IS DIFFUSE, ENTIRELY WITHIN-BIN, AND CANNOT BE TRADED — AND THE DEAD
   ENTRY COSTS 2.75× IN POSITION SIZE (2026-08-11, session 24, `O13` + `O12`).** Two ledger items,
   one session, on the banked split-clean books; `PREREG_o13_antisignal.md` and

@@ -4,6 +4,63 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — options-bot lane (O21 + O26): the dividend gap is real but cheap and is deliberately left alone; the bucket floor cannot deliver what its comment promises
+
+Two ledger items closed, frozen book, no re-mine, **no live code path changed**. Both registers
+committed **together and ALONE** at `bf5324c` (two `.md`, zero `.py`). Both ledger rows were bare,
+so the scope was derived and each register states what it derived.
+
+**O21 — the defect is the CALLER, not the model.** `bs_price`, `implied_vol` and `greeks` already
+take a dividend yield `q` and handle it correctly; **every caller uses the default 0.0**. Anyone
+who "adds dividend support to the pricer" is fixing the wrong thing (pinned by a test). And the
+banked P&L comes from **quoted** bid/ask, so the pricer cannot move it directly — it reaches the
+book only via early exercise, contract selection, and stored derived fields.
+
+**Exposure is widespread, the measured cost is not.** 81.4% of trades sit on dividend payers
+(median trailing yield 2.02%) and **2,107 of 3,870 calls span an ex-div date** — but only **34
+exits (0.879%) were booked below intrinsic, worth +0.2002pp** against a pre-registered 1.00pp
+bar. Measured **model-free** (`bid < S − K`) so the answer is not a function of the pricer under
+test. Two controls first: parity recovers the stored entry spot at median rel error 0.00232, and
+the sim's **own** bars at **0.00000 / 100% within 1%**.
+
+**One door is UNRESOLVED and is reported as such, not as zero.** The `q=0` control reproduces the
+banked contract **3,870/3,870 = 100.00%**; the corrected pricer picks a **different contract on
+179 entries (4.63%)**, and **not a near-substitute** — median |delta gap| **0.129** against a 0.35
+target, **93.9% moving to a lower strike** (the predicted direction). **Its P&L is not computable
+on the frozen book**: the freeze holds full chains only on ENTRY dates, so an unheld contract has
+no forward path (median 2 chain dates). Closing it needs a re-mine.
+
+**The pricer is deliberately NOT changed** — neither clause of the materiality bar is met, and
+passing `q` into `pick_contract` would change *which contract the live engine buys* on 4.63% of
+entries: a construction change, not a bug fix. Pinned by two tests.
+
+**Two defects in my own instrument, caught before any verdict was read.** A `max(bid+strike)`
+spot estimate was parity's **loosest upper bound** and inflated the early-exercise gain to
+**+5.62pp — 8× the truth**, in the direction that manufactures a material finding; then the
+parity fix rejected zero-value puts and discarded exactly the deep-ITM cases, scoring **zero
+rows**. Both pinned. Also found: **`options_backtest.BARS_CACHE` is a RELATIVE path** and silently
+resolves to nothing from a worktree.
+
+**O26 — NULL, the floor stays 30, and that is not a vindication of 30.** The constant's own
+comment ("enough that one lucky contract cannot flip the verdict") is testable and had never been
+tested. `P_flip(n)` **never reaches the 0.05 bar anywhere on the pre-committed grid**: 0.1848 at
+the shipped 30, still **0.1084 at n=300**. Going 30 → 300 — a tenfold rise no live bucket could
+supply — buys almost nothing.
+
+**The secondary is the stronger result and it was checked against closed form, not trusted.**
+Half-to-half sign agreement is a **coin flip at every size** (0.4942 at n=30, 0.5482 at n=300),
+and the book's own moments (mean 0.0327, sd 0.9251) **predict that curve analytically** (0.5059 /
+0.5561). **A bucket would need ~6,148 trades for its halves to agree on the sign of expectancy 95%
+of the time — the whole book is 3,870 and the largest live bucket is 2,058.** So per-bucket
+expectancy on this book is essentially unmeasurable **at any floor**; a third independent
+corroboration of R2/O13. **Zero live buckets change status.**
+
+Full gate **59 suites, all green** (two new: `test_dividends.py` 27, `test_bucket_floor.py` 19).
+Options `N` **246 → 248** (O21 charged 1, O26 charged 1); **equity `N` untouched at 155**, so `BACKTEST_RESULTS.json` needs no re-run. Detail in
+`HANDOFF_optionsbot.md` §29–33. **Recommended next:** re-mine the 179 alternative contracts to
+close D2 — the only open door — and **do not raise `MIN_CLOSED_PER_BUCKET`**; the lever does not
+work.
+
 ## 2026-08-11 — options-bot lane (O13 + O12): the anti-signal is DIFFUSE and un-tradeable, and the dead entry costs 2.75× in position size
 
 Two ledger items closed, one session, frozen book, no re-mine, no live code path touched. Both
