@@ -4,6 +4,68 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — greeks lane: the KSPI leak, fail-closed publication, and the one f-string that kept all of it off production
+
+**Everything below had been finished, tested and pushed for a day, and NONE of it was live.** The
+branch would not land, `main` took five other lanes past it, and every local check was green. The
+cause was one line — and it is worth reading before the results, because the same trap is open to
+every lane.
+
+**THE BLOCKER: the tree did not parse on the CI Python.** `scripts/live_theme_sources.py:776` used
+`f'{k} {v['fetched']}'` — an f-string reusing its own quote inside the expression. PEP 701
+legalised that in **Python 3.12**; the land workflow pins **3.11**, where it is a hard
+SyntaxError. The module could not be *imported* on the runner, so all 53 tests in its suite died
+at collection while every other suite stayed green — which is why CI named exactly one file and
+nothing else. **The pre-push check that missed it named a version it could not enforce:**
+`ast.parse(src, feature_version=(3,11))` is best-effort and does not gate tokenizer-level changes.
+A version claim needs a compiler of that version; the official 3.11 embeddable distribution needs
+no install and no elevation. **A repo-wide guard now checks this in two halves** (compile under the
+running interpreter, which fires on CI; plus a tokenizer scan that fires locally before a push).
+Note the shared surface: the guard scans the **whole tree**, so another lane's 3.11-incompatible
+file will now redden `tests/test_live_theme_sources.py`, with the offending file and line named.
+
+**LA1 — the product's #1 name published a fair value its own engine refuses. FIXED AND VERIFIED ON
+PRODUCTION.** KSPI served `fair_value 274.13` with `withheld: false` while the engine refuses it at
+5.6x. It was **four names, not one** (KSPI, DB, CIB, EC — all foreign issuers needing an FX hop),
+and the fail-open published up to **2.1x the model's own valuation** (DB 88.69 served against
+42.25; CIB 167.42 against 90.93). Today's production scan serves **KSPI at rank 4 with
+`fair_value: null`, `method: "withheld"`**, 5 withheld rows, 0 band breaches. **The finding
+underneath is bigger than the bug: the refusal screen is Yahoo-quota-bound and had been degrading
+silently since it shipped** — the 2026-08-08 scan recorded ZERO refusals across 500 names. It is
+now counted and loud on every scan, not closed.
+
+**FAIL CLOSED, adopted on Don's decision 2026-08-11.** A row whose data could not be fetched now
+publishes **no** fair value. The two silences are different claims and no longer read as one:
+`refused` is about the *valuation* and is stable; `unavailable` is about the *fetch* and is
+**temporary** — the quota resets and the next scan retries it, which the reason text says out
+loud. They render differently (`no data` vs `withheld`), and the kind survives the database in its
+own column so they cannot converge on the way to the browser. Cost ~5% of served rows, accepted.
+The per-scan withheld-for-no-data count is now in the scan health block, so quota degradation is a
+number. The mop-up pass stays **OFF** — measured, it made things worse (no_data 13 → 32; the
+binding constraint is cumulative quota, not concurrency).
+
+**LA3 — the track annualised on row count while missing 71% of its days.** Now annualises on
+**elapsed trading days**. On the audit's three-way thinning of one identical year, `ann_alpha` was
+24.59% / 56.08% / 96.62% and is now **bit-identical at 24.5861%** across all three. The complete
+series does not move. **The gate deliberately stays on recorded rows** — moving `MIN_LIVE_DAYS`
+onto elapsed time would let a gappy track reach the floor sooner, which is the flattering
+direction. Sharpe is rescaled by the true span and **withheld** below 50% coverage rather than
+corrected.
+
+**V2G — free live sources for the three dead themes. BUILT, MEASURED, NOT SHIPPED.** Part 12 found
+42.9% of deployed composite weight reaches no live score. From free public data (13F structured
+data sets, XBRL company facts, the repo's fixed Form 4 scraper): `institutional` 0 → **411/500**,
+`capital_discipline` 0 → **456/500**, `insider` 1 distinct value → **297**. Deployed weight
+reaching a live score: **56.5% → 95.5%**. All five pre-committed bounds held.
+**NOTHING WAS ADOPTED AND A TEST ENFORCES IT** — no file under `valuation/` was touched. Under
+Amendment 1 Rule 6, adopting these would **close vintage 2, open vintage 3 and reset the entire
+accrued forward clock for no statistical gain**. Do not shortcut that from a green coverage number.
+
+**State: landed on `main` and deploying. Full gate 45 suites, 0 failures.** Detail in
+`HANDOFF_live_data_bugs.md` Parts 13–15; ledger rows `V2G-SRC`, `LA1-LA3`, `CI-PY311`.
+
+---
+
 ## 2026-08-11 — options bot, session 22 (TP-BAR): Don chose Option 2, and item A closes REJECTED
 
 **Don's decision, with its date: Option 2 of `PREREG_A_take_profit_bar.md`, taken 2026-08-11** —
