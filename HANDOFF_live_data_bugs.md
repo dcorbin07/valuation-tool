@@ -3827,3 +3827,180 @@ names.* `ast.parse(feature_version=...)` reads exactly like a version gate and i
   repo-wide invariant and the message names the offending file and line — but it is a shared
   failure surface and the next lane to hit it should read this section rather than assume the
   suite is flaky.
+
+---
+
+## Part 16 — THE SCREENER BATCH: LA4, LA5, LA7, LA9, LA12, LA14 (2026-08-11, greeks lane)
+
+Six small fixes, one branch. Every claim was verified against the code before anything moved
+(RUN_RULES A8), and **the audit was right on all six** — including the one it marked HYPOTHESIS.
+The measurements that verified them are the test fixtures, so each defect is pinned as a number
+rather than as a description of one.
+
+### 16.1 LA4 — the clock at the wrong end of a long operation
+
+`scan_date = _today()` sat on the line that SAVES the snapshot: after the universe fetch, ~800
+metric fetches, the DCF pass and a 500-name refusal screen, on a job the workflow allows 60
+minutes. `_today()` is `date.today()` — the **runner's** local date, which on GitHub is UTC — and
+`auto-scan.yml` fires a backup cron at **23:41 UTC, nineteen minutes before UTC midnight**. Any
+backup run over nineteen minutes stamped the next calendar day.
+
+**The audit's line cite had rotted**: it says `screen.py:328`; the call was at `:380`. CLAUDE.md's
+own warning that line numbers here rot within days, demonstrated again.
+
+**The damage was not only a wrong label.** `/admin/ingest-snapshot` keys idempotency on
+`hot_processed_{scan_date}`, so two dates are two keys: the forward hot10 track recorded a
+**second pick row for the same close** and the Discord digest **posted twice** — while the
+workflow comment calls the backup "a no-op if the primary already landed".
+
+Fixed by stamping once at the top. All three exits (including the two early returns, which each
+called `_today()` separately) read that one stamp. Pinned by a fixture whose provider **advances
+the clock during `get_universe`** — a fixture where no time passes cannot tell the two
+implementations apart — plus an AST test that `run_scan` contains exactly one `_today()` call.
+
+### 16.2 LA5 — the scan's own diagnostics reached nobody
+
+The posted params carried only `scope` and `universe_size`; `health` and `filtered` were built,
+printed to the Actions log, and dropped at the one boundary where they would persist.
+`app.py:522-523` serves `params.get("health")` and `params.get("filtered")` — both null on every
+served payload. Verified at **both** ends before changing either.
+
+**This is the mechanism that made LA1 and LA6 invisible**, which is why a one-line diff is worth
+more than its size. `refusal_screen` exists precisely so a silent zero is the tell that the
+publication leak is back — and the 2026-08-08 scan duly reported **zero refusals across 500 names
+it could not reach**, with nothing anywhere saying so.
+
+Payload size was **checked, not assumed**: `filtered` is a reason→count dict with ≤8 example
+tickers per reason; `health` is counts plus short ticker lists. A few KB beside ~500 scored rows.
+
+### 16.3 LA7 — the guard that could not see, and a collision I created
+
+Three defects, all measured first:
+
+| | before | after |
+|---|---|---|
+| `status("2026-08-08")` (a **Saturday**) | `fresh` — *"As of 2026-08-08 (last close)."* | `warn`, `as_of_is_trading_day: False` |
+| `status("2026-12-24" → 12-28)` | `age_trading_days: 2` | **1** |
+| the stated justification | *"Holidays are not modelled — …far lower than the cost of crying wolf."* | corrected: not modelling them makes age **larger**, so the badge fires **earlier**. That **is** crying wolf. |
+
+`is_trading_day` lived one import away and was never asked. This is what turned LA4's misdated
+snapshot green, so it is load-bearing for the finding above it.
+
+**A FOURTH DEFECT, AND IT WAS MINE.** `freshness.trading_days_between` and
+`market_session.trading_days_between` had the **same name** in sibling modules and returned
+**different answers** for the same interval (2 vs 1 over Christmas). The second was added by LA3
+days earlier — **this batch created the collision it is now closing.** One calendar again, pinned.
+A **third** copy remains at `scripts/theme_health.py:175` and is reported, not silently changed.
+
+Deliberately **not** a new `level`: `app.js:1812-1815` switches on fresh/warn/stale/unknown and
+treats stale and unknown as red. A misdated snapshot is not a dead pipeline, so it takes `warn` —
+a visible note, not an alarm — and carries machine-readable `as_of_is_trading_day`. The one thing
+it may never be is `fresh`.
+
+### 16.4 LA9 — the hypothesis was TRUE, and settled without a run log
+
+The audit asked for `gh run view`. **`gh` is not installed on this machine and there is no GitHub
+token in `.env`**, so it was settled from the **workflow definition**, which is the authority on
+what env a job receives; a log would only have shown the symptom.
+
+The `hot` job passed `BASE_URL`, `ADMIN_TOKEN`, `ANTHROPIC_API_KEY`, `DISCORD_WEBHOOK_URL`,
+`FMP_API_KEY`, `SEC_USER_AGENT` — and **not** `TRADIER_TOKEN` (the intraday job passes it). Both
+`broker_universe.available()` and `broker_fundamentals.available()` are `bool(cfg.tradier_token)`,
+so every scheduled hot scan fell back to the SEC EDGAR filer list — no price, no market cap, no
+size ordering — truncated to `SCAN_LIMIT`, on the rate-limited free stack. The job's own comment
+claims *"whole_market now resolves to the broker's liquidity-ranked universe (~7,100 listed
+names…)"*. **That comment had been false since it was written.**
+
+**PASSING THE TOKEN ALONE WOULD HAVE BEEN A QUIETER VERSION OF THE SAME BUG**, and this is the
+part worth keeping: `CONFIG.tradier_env` defaults to `"sandbox"` (`config.py:53`) and
+`broker_universe._base` routes sandbox traffic to `sandbox.tradier.com` — the job would have *had*
+a broker and still not had the real universe. Both `TRADIER_TOKEN` and `TRADIER_ENV: live` are
+now passed, matching intraday.
+
+**Safety checked before adding a broker token to a job:** `providers.py` has no order or POST
+path, the hot path is market data only, and `config.py:55-56` records that these fields are
+deliberately **not** the paper broker's. Nothing on this path can place an order.
+
+### 16.5 LA12 — two populations in one row
+
+`/api/hotstocks` calls `sector_attractiveness(all_rows)` on rows straight from the database,
+**before** `estimate_fair_values` has run — that runs only on the served slice. Only DCF'd names
+carry an `upside`, and production runs `SCAN_DCF_TOP=12` over the whole market, so `_median`
+(which drops Nones silently) returned a median over one or two names beside a `count` reporting
+the entire sector.
+
+Fixed by shipping `median_upside_n` beside it. **No floor was invented, deliberately** — a
+threshold here would be an uncalibrated constant, whereas a denominator lets the reader apply
+their own. **`count` was not changed**: it was never wrong, it was being read against a median
+that meant something else, and "fixing" it would break the correct field to hide the symptom.
+
+### 16.6 LA14 — a set containing a date outside the year it names
+
+`market_holidays(2028)` contained `2027-12-31`; `market_holidays(2033)` contained `2032-12-31`.
+**Dropping it is the factually correct NYSE rule, not tidiness**: the exchange does not close on
+31 December when 1 January falls on a Saturday, so the holiday is not observed at all — and the
+neighbouring year must not gain it either, which is checked. Inert for `is_trading_day` (which
+asks `market_holidays(d.year)` and never saw the stray) and inert *correctly*; the exposure is to
+any caller that **iterates** the set. Nothing does today — this closes the hole first.
+
+The raw computation is split into `_holidays_unfiltered` so the filter is visible and testable,
+and a test asserts the filter actually **removed** something. A guard that passes because it never
+had anything to catch is not a guard.
+
+### 16.7 NOT ONE OF THE SIX — the ledger parser can silently lose a row
+
+Found by walking into it. My LA7 note contained the literal `fresh|warn|stale|unknown`, which
+split the row into 15 cells against a 10-column header. **The row vanished** — `read_ledger()`
+returned 177 rows without it and every "is LA7 done?" query answered no. Escaping as `\|` fixed
+the markdown **render** and **not** this parser, so the row stayed invisible while looking correct
+in the file. The text has to be pipe-free.
+
+**The silent drop was the smaller half.** `main()` re-renders the table from `read_ledger()` and
+preserves out-of-band rows via `extra = [k for k in existing …]` — so a row it cannot see is not
+in `existing`, not in `rows`, not in `order`, and is **DELETED by the next `--write`.** The
+comment a few lines below in that same function records `--write` having already deleted every
+out-of-band row once before. This is the same failure one layer lower.
+
+Same family as the `RESEARCH_LOG.md` pipe hazard, **fixed in that parser in session 12 and never
+here** — two registers, one lesson, applied to one of them.
+
+`read_ledger` now records unreadable rows and `--write` **fails closed** naming them. The
+discriminator is **too many** cells (a data row that was split), not merely "wrong count": this
+document also holds a 7-column series summary and a 3-column key, and flagging those would make
+the guard fire constantly, which is how a warning stops being read.
+
+**THREE ROWS ARE CURRENTLY INVISIBLE AND WOULD HAVE BEEN DELETED: `S23` (line 268, 12 cells),
+`M1-PARSE` (341, 13) and `V2G` (360, 12).** None are mine. They are **reported, not rewritten** —
+the register forbids editing another lane's row — so their owners should remove the stray `|`.
+Until then `--write` refuses, which is strictly safer than the status quo, where it deleted them
+without a word. A test fails if a **fourth** appears.
+
+### 16.8 What I did NOT do
+
+* **I did not read the Actions log for LA9.** No `gh`, no token. LA9 is settled from the workflow
+  definition instead, which is stronger for the question asked ("does this job get the token?")
+  but does **not** measure the runtime consequence — how much the universe actually improves with
+  the broker attached is unmeasured, and the next scheduled scan is the first observation of it.
+* **I did not fix the three malformed ledger rows.** Reported instead, per the register.
+* **I did not consolidate `scripts/theme_health.py:175`**, the third trading-day calendar.
+* **I did not verify LA4's fix end-to-end against a real backup-cron run** — that needs a run that
+  crosses 23:41 UTC. The arithmetic and the unit fixture are pinned; the production observation is
+  the next backup cron.
+
+**35 new tests in `tests/test_la_screener_batch.py`; full gate 46 suites, 0 failures.**
+
+**BUGS FOUND (Part 16)**
+
+* **LA4** snapshot stamped after the scan → next-day dates, duplicate track rows, duplicate
+  Discord digest. FIXED.
+* **LA5** `health` and `filtered` dropped in transit. FIXED.
+* **LA7** freshness endorsed non-trading-day dates; counted holidays; docstring backwards. FIXED.
+* **LA7b** two `trading_days_between` functions, same name, different answers — **introduced by
+  this lane's own LA3 work**. FIXED. A third copy remains at `theme_health.py:175`, reported.
+* **LA9** the scheduled hot scan ran with no broker token; passing the token alone would have
+  pointed it at the sandbox. FIXED (token + env).
+* **LA12** `median_upside` over a stale subset beside a full-sector `count`. FIXED.
+* **LA14** `market_holidays(y)` could contain a date in `y-1`. FIXED.
+* **NEW** `build_ledger.read_ledger` silently dropped unparseable rows and `--write` would delete
+  them; three rows (`S23`, `M1-PARSE`, `V2G`) are affected today. Guard added; rows reported, not
+  rewritten.

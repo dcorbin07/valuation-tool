@@ -3609,3 +3609,134 @@ someone else. **The fix is one character each — escape as `\|`** — and it is
 outlier, so nothing would be capped. It interpolates to 1.0 and the outlier **is** capped — the
 code was right and the assertion was wrong. Corrected with the arithmetic spelled out in the
 test, rather than by loosening it.
+
+
+# SESSION 23 — 2026-08-11 — U1: **the equity edge does NOT reach the options book**
+
+U1 was the ledger's oldest blocked unification item and the first test of whether the one thing
+this project has that survives calibration — the equity composite — is worth anything on the
+options side. It is now **REJECTED**, and a **corporate-action defect found on the way moves a
+published R2 headline by 24%.**
+
+Pre-registered in `PREREG_u1_composite_entry.md`, committed **alone at `7d7c414`** before any U1
+code existed. Bars committed at **`e34dc9d`** with the scorer not yet written.
+
+---
+
+## 1 · The verdict in one table
+
+| | TOP10 | TOP20 | BOT10 |
+|---|---|---|---|
+| n | 486 | 948 | 557 |
+| mean/trade | +2.4624% | +4.6726% | +11.3446% |
+| **gain vs grid** (grid = +3.6516%) | **−1.1892pp** | +1.0210pp | +7.6930pp |
+| V1 plain bar +7.2870pp | **FAILS** | FAILS | clears |
+| V2 cap-matched bar +9.4513pp | **FAILS** | FAILS | clears |
+| percentile in its own null | **31st / 15th** | 63rd / 48th | 99th / 99th |
+| V3 date-block CI95 | **FAILS** [−11.74, +10.29] | FAILS | FAILS [−1.53, +17.26] |
+| V4 both halves positive | **FAILS** (+5.18 / −5.61) | passes | passes |
+
+**TOP10 fails all four and its gain is NEGATIVE, so the registered rule fires REJECTED.**
+
+## 2 · The reopen condition was met both ways at once
+
+`VALQUO_LEDGER.md:300` said *DO NOT RUN AS WRITTEN … reopen only with a composite built WITHIN
+the options universe **or** with size neutralised.* This design did both: rankings are
+percentiles among the ~182 optionable names as of the same rebalance date, **and** the primary
+null is drawn **matched on market-cap tier per date**.
+
+That second null earned its keep before any arm was scored: **its median gain is +2.8933pp
+against the plain null's +0.5366pp.** The top decile's *cap-tier mix alone* is worth ~+2.4pp —
+**U7's mechanism, reproduced inside the null**. It is why the cap-matched bar is the harder one
+and why TOP10 sits lower in it (15th percentile vs 31st).
+
+## 3 · The mechanism is cleaner than the verdict
+
+**Every decile's MEDIAN trade is between −52.5% and −54.3%. All ten.**
+
+| | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | D9 | D10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| mean | +2.46 | +7.00 | +6.98 | +4.67 | +1.92 | +5.03 | +2.60 | −0.09 | −4.89 | +11.35 |
+| median | −52.8 | −52.9 | −52.5 | −52.9 | −53.0 | −52.5 | −53.3 | −53.3 | −54.3 | −52.6 |
+
+**The composite does not move the typical option trade at all.** Every decile difference lives in
+the right tail, and the right tail on ~500 trades is exactly what a +7.29pp bar calls noise.
+**TOP10's mean is entirely tail-carried — its best five trades are +3.912pp of a +2.462% mean,
+158.9% of it.** Strip them and it is negative outright; winsorised the gain worsens to −1.4911pp.
+
+## 4 · The strongest number, and it cuts against the composite
+
+On **R2's standing statistic** — the paired name-year sign test, within `(ticker, year)`, so it
+asks whether a name's top-decile quarters beat its own other quarters:
+
+* **TOP10: 119 of 285 cells, 41.8%, z −2.7840, p 0.0054**
+* **TOP20: 210 of 489 cells, 42.9%, z −3.1203, p 0.0018**
+
+Two arms, same direction, the wider one stronger. **Limit stated: no calibrated bar exists for a
+paired within-grid sign test**, so these p-values are conventional and uncalibrated.
+
+## 5 · BOT10 clears both bars and is NOT a finding — do not act on it
+
+The **worst**-composite decile gains +7.6930pp at the **99th percentile of both nulls** and
+survives winsorising. It is still refused, on grounds fixed before the run: its date-block CI
+**includes zero**; it is **carried by the late half** (+1.13 vs +12.47); and its **sign test is
+52.0%, p 0.4681** — it does not win more *often*, it wins *bigger*.
+
+**"The composite runs backwards" would be the exact error TP-BAR closed.** The decile table is
+**UNORDERED, not INVERTED** — D9 is the worst cell and D10 the best, which no monotone story
+explains. The mechanical `backwards` clause did fire and is recorded, but the negative gain alone
+was already sufficient, and **"inverted" is the wrong word and must not travel.**
+
+## 6 · BUGS FOUND — `U1-SPLIT`, and it moves a published headline
+
+**Option chains are as-traded and unadjusted for splits; bars are adjusted; nothing in the
+options lane has ever consulted the split table** — though `bulk.py:312` documents the hazard in
+so many words. The signature is a **reverse** split: **GE went 1-for-8 on 2021-08-02**, so a
+$14-strike call bought 2021-07-23 at **$0.27** settles against a ~$104 post-split underlying on a
+strike never re-based and books **+31,921%**. That **one row is 6.28pp of the raw grid's 9.93%
+mean** — 62% of its entire expectancy.
+
+| book | as published | split-clean | move |
+|---|---|---|---|
+| R2 alert book | +3.4103% | +3.2702% | −0.1401pp (15 rows) |
+| R2 five-seed control | +10.0571% | +8.3342% | **−1.7229pp** (131 rows) |
+| **R2 gap** | **−6.6468pp** | **−5.0640pp** | **24% of it is an artifact** |
+
+**The control is hit ~12× harder** (many random days per name-year = more shots at any split
+window; two GE draws at +269x and +261x), **so the defect has been making R2's negative verdict
+look WORSE than it is, and correcting it runs toward the alert.** R2's sign, significance and
+verdict are **unchanged** — the alert still loses decisively — but **quote −5.06pp, not −6.65pp.**
+
+Found **before any arm was scored**, provable: the bar commit contains no scorer. The exclusion
+is keyed on an **external table and a date**, never on the size of a return — two tests enforce
+that a +50,000% return on a split-free name **survives** and a +0.1% return on a split-crossing
+name is **dropped**. **The repair belongs upstream in the miner/replay path and is NOT DONE**;
+U1 excludes, it does not re-price.
+
+## 7 · The expectations: **3 right, 2 wrong, 1 untriggered**
+
+E1 NULL → **REJECTED, wrong**. E2 gain 0 to +4pp → **−1.19pp, wrong**. E3 cap-matched binding
+*if* V1 passes → **untriggered** (V1 failed first; spirit held). E4 decile table not monotone →
+**right**. E5 grid beats the alert → **right, +0.3814pp**. E6 E5 survives the split fix →
+**right, and narrow**.
+
+## 8 · What I did NOT do, and why
+
+* **Did not act on BOT10**, for the reasons in §5. Acting on the extreme of three arms whose own
+  date-block CI includes zero is the move this lane exists to refuse.
+* **Did not repair U1-SPLIT at source.** That is a miner/replay change touching every banked
+  options result; it needs its own register and re-bank. U1 only excludes.
+* **Did not re-run R2, TP-BAR or the path study on split-clean data.** Their verdicts are
+  unchanged in sign; their magnitudes are not, and re-banking is the upstream owner's call.
+* **Did not test a composite built within the options universe from options-native inputs.**
+  That is U2, a different hypothesis, and would need its own pre-registration.
+* **Changed no live behaviour.** No policy, no weight, no constant. The paper options book is
+  untouched; the contract binds the Index, not this book.
+
+## 9 · Accounting
+
+Three scored arms: **options `N` 207 → 210**, verified from `research_log.detail()`
+(`rows_malformed: []`). The grid mine and both calibrations charged **zero** on the X7 /
+session-10 precedent. **Equity `N` reads 149, not the 143 this session started quoting** — S23's
+six arms landed from another lane mid-run, and a stale `N` overstates every DSR-gated claim, so
+it was re-measured rather than copied.

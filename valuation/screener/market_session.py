@@ -88,7 +88,30 @@ def market_holidays(year: int) -> set:
     Computed, not hard-coded, so this keeps working after 2026. Excludes the ad-hoc closures
     (national days of mourning, hurricanes) which no rule can predict — those are rare and the
     cost of a run on one is a single duplicate-priced mark, not a corrupted book.
+
+    LA14 — THE SET NOW CONTAINS ONLY DATES IN `year`, AND DROPPING THE STRAY IS THE
+    FACTUALLY CORRECT NYSE RULE, NOT MERELY TIDINESS. `_observed` moves a Saturday holiday to
+    the preceding Friday, so a Saturday New Year's Day became 31 December of `year - 1`:
+    measured, `market_holidays(2028)` contained `2027-12-31` and `market_holidays(2033)`
+    contained `2032-12-31`.
+
+    The NYSE does **not** close on 31 December when 1 January falls on a Saturday — the
+    Saturday-to-Friday rollback is not applied across the year boundary for New Year's Day — so
+    the right answer is that the holiday is not observed at all, which is what filtering gives.
+    `market_holidays(2027)` correctly does not gain 2027-12-31 either.
+
+    It was inert for `is_trading_day`, which asks `market_holidays(d.year)` and so never saw the
+    stray, and inert *correctly* for the same reason. The exposure is to any caller that
+    ITERATES the set rather than testing membership: it would receive a date outside the year it
+    asked for, while the year that date belongs to silently lacked it. Nothing iterates it today
+    — this closes the hole before something does.
     """
+    return {h for h in _holidays_unfiltered(year) if h.year == year}
+
+
+def _holidays_unfiltered(year: int) -> set:
+    """The raw observed dates, before the year filter. Split out so LA14's filter is visible
+    and testable rather than folded into the set comprehension it corrects."""
     return {
         _observed(_dt.date(year, 1, 1)),                      # New Year's Day
         _nth_weekday(year, 1, 0, 3),                          # MLK Jr Day

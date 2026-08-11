@@ -411,15 +411,53 @@ def esc(s: str) -> str:
     return str(s).replace("|", r"\|").replace("\n", " ").strip()
 
 
+#: Table rows this parser could not read, from the most recent `read_ledger()`. Each entry is
+#: (line_number, cell_count, first_cell). See the guard in `main()`.
+MALFORMED: list = []
+
+
 def read_ledger() -> dict:
+    """Parse the ledger table. Rows it cannot read are RECORDED, not silently skipped.
+
+    Found 2026-08-11 while landing the LA screener batch, by walking into it: an LA7 note
+    containing the literal `fresh|warn|stale|unknown` split into 15 cells against an 11-cell
+    header, and the row VANISHED — `read_ledger()` returned 177 rows without it and every
+    "is LA7 done?" query answered no. Escaping the pipes as `\\|` fixes the markdown RENDER
+    and does NOT fix this parser, which splits on the raw character, so the row still
+    disappeared while looking correct in the file. The text has to be pipe-free.
+
+    THE SILENT DROP WAS THE SMALLER HALF. `main()` reads this dict, re-renders the table from
+    it, and preserves out-of-band rows via `extra = [k for k in existing ...]` — so a row this
+    function cannot see is not in `existing`, not in `rows`, not in `order`, and is therefore
+    DELETED from the file by the next `--write`. That is silent data loss in the register this
+    project uses to answer "is X done?". The comment further down in `main()` records --write
+    having already deleted every out-of-band row once before; this is the same failure one
+    layer lower, where the row is lost because it could not be parsed rather than because it
+    was not enumerated.
+
+    Same family as the `RESEARCH_LOG.md` pipe hazard, which was fixed in that parser (session
+    12) and never here — two registers, one lesson, applied to one of them.
+    """
+    del MALFORMED[:]
     if not LEDGER.exists():
         return {}
     rows = {}
-    for line in LEDGER.read_text(encoding="utf-8").splitlines():
+    for n, line in enumerate(LEDGER.read_text(encoding="utf-8").splitlines(), 1):
         if not line.startswith("|"):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) != len(COLS) or cells[0] in ("id", "---") or set(cells[0]) <= {"-", ":"}:
+        if cells[0] in ("id", "---") or set(cells[0]) <= {"-", ":"}:
+            continue
+        if len(cells) > len(COLS):
+            # TOO MANY cells means a data row was SPLIT by a stray '|' inside a cell — the
+            # failure this records. FEWER cells means a row of one of the other, narrower
+            # tables in this same document (the 7-column series summary, the 3-column
+            # disagreement key), which is not a ledger row at all and never was; flagging
+            # those would make the guard fire constantly and get ignored, which is how a
+            # warning stops working.
+            MALFORMED.append((n, len(cells), cells[0][:40]))
+            continue
+        if len(cells) != len(COLS):
             continue
         rows[cells[0]] = dict(zip(COLS, cells))
     return rows
@@ -603,6 +641,17 @@ def main() -> int:
         return 0
 
     existing = read_ledger()
+    if MALFORMED:
+        # FAIL CLOSED. Rewriting the table while holding rows we could not parse would delete
+        # them, and a register that quietly loses rows is worse than one that refuses to run.
+        print("REFUSING TO PROCEED — these ledger rows could not be parsed and would be "
+              "DELETED by a rewrite:", file=sys.stderr)
+        for n, got, first in MALFORMED:
+            print(f"  line {n}: {got} cells against {len(COLS)} in the header — starts {first!r}",
+                  file=sys.stderr)
+        print("  Almost always an unescaped '|' inside a note. Escaping it as '\\|' fixes the "
+              "markdown render but NOT this parser — remove the character.", file=sys.stderr)
+        return 2
     rows, disagreements = {}, []
     for item in items:
         p = prop[item]

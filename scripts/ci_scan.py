@@ -154,9 +154,27 @@ def run_hot() -> None:
         print(f"  display coverage: {h['display_coverage']}")
     if not rows:
         print("  nothing scored — not ingesting."); sys.exit(1)
+    # LA5 — THE SCAN'S OWN DIAGNOSTICS MUST REACH THE RECORD. This dict used to carry only
+    # `scope` and `universe_size`, so `health` and `filtered` — everything run_scan computes
+    # about its own data quality — were built, printed to the Actions log a few lines above,
+    # and then dropped at the one boundary where they would have persisted. `/api/hotstocks`
+    # serves `params.get("health")` and `params.get("filtered")`, so both were null on every
+    # served payload.
+    #
+    # THIS IS THE MECHANISM THAT MADE LA1 AND LA6 INVISIBLE, which is why it is worth more than
+    # its one-line diff. `refusal_screen` exists so that a silent zero is the tell that the
+    # publication leak is back — nobody could read it, and the 2026-08-08 scan duly reported
+    # zero refusals across 500 names it could not reach with nothing anywhere saying so.
+    # `theme_contributing` exists to separate "the column is full" from "the theme moves the
+    # score", the distinction the 42.9%-inert finding rests on — nobody could read that either.
+    #
+    # Size was checked rather than assumed before sending: `filtered` is a reason->count dict
+    # with at most 8 example tickers per reason, and `health` is counts plus short ticker lists.
+    # Measured on a real scan it is a few KB against a rows payload of ~500 scored names.
     resp = _post("/admin/ingest-snapshot", {
         "scan_date": res["scan_date"], "provider": res.get("provider", "ci"),
-        "rows": rows, "params": {"scope": scope, "universe_size": res.get("universe_size")}})
+        "rows": rows, "params": {"scope": scope, "universe_size": res.get("universe_size"),
+                                 "health": res.get("health"), "filtered": res.get("filtered")}})
     # The Valquo Index book the sandbox engine records. Printed explicitly because a book that
     # silently stopped being published is exactly how the engine came to record a 10-name book
     # while the published Index held 86 (PT-SPLIT). A refusal is a normal, reportable outcome —
