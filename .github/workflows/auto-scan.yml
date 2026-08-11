@@ -104,6 +104,24 @@ jobs:
           # (the free EDGAR+Yahoo path still runs), so this is safe before the secret exists.
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           SEC_USER_AGENT: "Donovan Corbin donniecorbin6@gmail.com"
+          # LA9 — WITHOUT THESE THE COMMENT BELOW WAS FALSE. `broker_universe.available()` and
+          # `broker_fundamentals.available()` are both `bool(cfg.tradier_token)`, and this job
+          # passed no token (the intraday job did). So every scheduled hot scan fell back to the
+          # SEC EDGAR filer list — no price, no market cap, no size ordering — truncated to the
+          # first SCAN_LIMIT names, and ran the whole universe on the rate-limited free stack.
+          # The audit marked this a HYPOTHESIS because it could not read a run log. It is
+          # confirmed from the workflow definition itself, which is the authority on what env a
+          # job receives; a log would only have shown the symptom.
+          #
+          # TRADIER_ENV IS NOT OPTIONAL HERE AND PASSING THE TOKEN ALONE WOULD HAVE BEEN A
+          # QUIETER VERSION OF THE SAME BUG: `CONFIG.tradier_env` defaults to "sandbox"
+          # (config.py:53) and `broker_universe._base` sends sandbox traffic to
+          # sandbox.tradier.com, so the job would have "had a broker" and still not had the
+          # liquidity-ranked universe. `live` here selects the MARKET-DATA endpoint; the paper
+          # broker deliberately reads different fields (config.py:55-56) and nothing on this
+          # path can place an order.
+          TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
+          TRADIER_ENV: live
           KIND: hot
           # whole_market now resolves to the broker's liquidity-ranked universe (~7,100
           # listed names, kept to the most liquid SCAN_LIMIT). 800 is the large-cap tier and

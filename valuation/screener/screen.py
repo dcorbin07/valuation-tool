@@ -180,6 +180,26 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     "rescan" button) starts making hundreds of network calls it did not ask for. The
     scheduled scan sets it to the size of the served list — see `scripts/ci_scan.py`.
     """
+    # LA4 — THE CLOCK IS READ AT THE START, NOT THE END. This used to be `_today()` on the
+    # line that saves the snapshot, i.e. AFTER the universe fetch, ~800 metric fetches, the DCF
+    # pass and a 500-name refusal screen; the workflow allows the whole thing 60 minutes.
+    #
+    # `auto-scan.yml` fires a BACKUP cron at 23:41 UTC — nineteen minutes before UTC midnight,
+    # and `_today()` is the runner's local date, which on GitHub is UTC. So any backup run
+    # lasting more than nineteen minutes stamped the NEXT CALENDAR DAY. That is not
+    # hypothetical: the live `history` carried both 2026-08-07 and 2026-08-08 for the single
+    # Friday close, and 2026-08-08 is a Saturday.
+    #
+    # The damage was not only a wrong label. `/admin/ingest-snapshot` keys idempotency on
+    # `hot_processed_{scan_date}`, so two dates are two keys: the forward hot10 track recorded a
+    # SECOND pick row for the same close, and the Discord digest posted twice. The workflow
+    # comment calls the backup "a no-op if the primary already landed" — it was not one.
+    #
+    # Stamping here makes both crons agree, because 22:23 and 23:41 UTC are the same UTC date.
+    # It does NOT by itself guarantee the date is a trading day; that is LA7's job, and
+    # `freshness.status` now refuses to call a non-trading-day snapshot fresh.
+    scan_date = _today()
+
     store = store or Store()
     provider = provider or get_provider(cfg, store)
 
@@ -255,7 +275,7 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
              "examples": filtered_examples}
 
     if not metrics:
-        return {"scan_date": _today(), "rows": [], "universe_size": total,
+        return {"scan_date": scan_date, "rows": [], "universe_size": total,
                 "scored": 0, "filtered": audit}
 
     df = build_frame(metrics)
@@ -263,7 +283,7 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     df["composite"], contrib = _decompose(df, est_w, spec_w)
     scored = df[df["composite"].notna()].copy()
     if scored.empty:
-        return {"scan_date": _today(), "rows": [], "universe_size": total, "scored": 0}
+        return {"scan_date": scan_date, "rows": [], "universe_size": total, "scored": 0}
 
     scored["hot_score"] = scored["composite"].rank(pct=True) * 99 + 1
     scored = scored.sort_values("composite", ascending=False)
@@ -377,7 +397,6 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
     if budget:
         health["api_budget"] = budget
 
-    scan_date = _today()
     if save:
         store.save_snapshot(scan_date, rows, provider.name,
                             {"universe_size": total, "scope": scope, "filtered": audit, "health": health})
