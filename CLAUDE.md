@@ -44,6 +44,58 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE OPTIONS ANTI-SIGNAL IS DIFFUSE, ENTIRELY WITHIN-BIN, AND CANNOT BE TRADED — AND THE DEAD
+  ENTRY COSTS 2.75× IN POSITION SIZE (2026-08-11, session 24, `O13` + `O12`).** Two ledger items,
+  one session, on the banked split-clean books; `PREREG_o13_antisignal.md` and
+  `PREREG_o12_kelly_ruin.md` were committed **together and ALONE at `b0f287d`** — two `.md`, zero
+  `.py`. **R2 is NOT re-opened; this characterises the corpse.**
+  * **THE FINDING THAT CLOSES OFF A FAMILY OF REPAIRS: the −5.0640pp gap is ENTIRELY a WITHIN-BIN
+    (rate) effect, not composition.** Across **all 32 feature arms** the rate component runs
+    **−4.23pp to −5.79pp** against the −5.0640pp total, while the largest **mix** component
+    anywhere is **0.7711pp — 15.2% of the gap**, most under 0.2pp. **The alert does not lose
+    because it picks different CONTRACTS from random entry; it loses inside every kind of contract
+    it picks.** So "trade longer-dated / tighter spreads / bigger names" are all composition fixes
+    aimed at the wrong thing.
+  * **Q2 DIFFUSE and Q3 (the inverse) NULL.** Nothing clears its own calibrated p95 in **both**
+    halves — 4 of 32 clear full-sample against **~1.6 expected at a 5% bar over 32 correlated
+    arms**. The decide-half refusal rule **makes the measure half WORSE in both directions**
+    (early→`dte`/q2 −0.0977pp, late→`iv`/q3 −0.7774pp) and **the two directions select DIFFERENT
+    features** — session 7's LOO pattern for the third time. `iv` q3 is the **worst** bin on the
+    late half and nearly the **best** on the early half.
+  * **YOU CANNOT SHORT THE GAP, and this is the most likely misreading.** The anti-signal is
+    **RELATIVE to the control, not absolute** — the alert book's own expectancy is **positive**
+    (+3.2702%/trade) — so mechanically reversing it is negative before any cost, with the
+    round-trip spread on top. It is a reason not to pay for the alert, not a tradeable short.
+  * **REPORTED BECAUSE IT LOOKS LIKE A FINDING AND IS NOT: `dte`.** Alert expectancy climbs
+    monotonically with tenor (**−0.35% → +7.63%**) while the control stays flat, and q2's gap is
+    **−10.84pp** — but it **fails its own calibrated bar** (0.472 vs p95 0.497) and clears in one
+    half only. **Do not act on it.** This is exactly what the X7 calibration method is for.
+  * **`O12`: `f*` = 0.0403 and the verdict is NOT USABLE — but the HALVES AGREED (1.758 against a
+    2.0 bar); the bootstrap CI95 [0.0000, 0.1001] includes zero.** Right answer, wrong reason.
+    **At full Kelly P(drawdown > 50%) is 0.753 for a median +26.7%/yr**; quarter-Kelly keeps most
+    of the growth (1.114 vs 1.267) at 0.006. **At f = 0.10 — only 2.5× Kelly — the MEDIAN outcome
+    is a LOSS on a positive-expectancy book.** Kelly here is conditional on a distribution R2 has
+    already shown is worse than random entry, so **no fraction is a recommendation for real
+    money**; live flat 1-contract sizing is **unchanged**.
+  * **R2 RESTATED IN SIZING TERMS, and it is new: the random-entry control supports `f*` 0.1110,
+    2.75× the alert book's.** The dead entry costs not only expectancy but the size the book can
+    carry. Flat sizing ($257/trade at the median premium) equals `f*` at **$6,371** equity — so
+    the live book is under-sized above that and **over-sized below it**.
+  * **THREE DEFECTS, none in the live product.** `iv_rank` is **wired and 0.0% populated on BOTH
+    books** (COVERAGE-RULE class). **`opt_right` and `horizon` are CONSTANT — the banked options
+    book is 100% calls and 100% `swing`** — so every options claim this project makes is about
+    long calls at swing horizon only, and those two arms are flagged degenerate rather than
+    reported as failures. The alert **label vocabulary is PARAMETERISED** (`Low IV 14%`…`19%`,
+    `Volume surge 1.5x`…`1.9x`), inflating 17 registered arms to **32**; the registered definition
+    was kept and the **trial cost corrected UPWARD**, against the register's own result.
+  * **17 of 100 bins DO lose money outright** — the widest-spread, least liquid ones
+    (`entry_spread_pct` q5 **−7.41%**, `pit_median_spread_pct` q5 −5.53%). That **refuted a
+    pre-registered expectation** and is the recommended next item: `entry_spread_pct` as its own
+    registered refusal rule, which inherits O13's discouraging Q3a prior.
+  * **Options `N` 210 → 246. Equity `N` UNTOUCHED at 155** and `BACKTEST_RESULTS.json` needs no
+    re-run — the trial counter is domain-scoped. Expectations scored **5 right, 2 wrong** across
+    the two items. `data/free_analysis/O13_ANTISIGNAL.json`, `O12_KELLY_RUIN.json`;
+    `HANDOFF_optionsbot.md` §24-28.
 - **THE STANDARDISER IS WORTH SEVERAL POINTS OF ALPHA AND NO THEME IC CAN SEE IT — S20 REJECTED,
   S21 NOT REPLICATED, AND THE STANDING RULE IS NOW PROVED RATHER THAN ANECDOTAL (2026-08-11,
   session 21, `S20`/`S21`).** Ledger items S20 ("rank composite, not z-sum") and S21 ("winsorise

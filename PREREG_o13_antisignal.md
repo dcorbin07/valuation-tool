@@ -157,6 +157,54 @@ consistent with session 10's HAC floor.
 **Options `N` 210 → 228** (17 + 1), logged in `RESEARCH_LOG.md` with this file as source.
 Equity `N` is untouched; the domain is options.
 
+## 9 · AMENDMENTS, made after the first run and before any verdict was read
+
+Appended, never rewritten — §1-§8 above stand as committed at `b0f287d`. **None of the three
+consults a measure-half number or any verdict.** A1 and A3 are arm counts and bin counts; A2 is
+evaluated on a **decide half only**, which is exactly where selection is permitted. Each is
+checkable against the artifact.
+
+**A1 — the label vocabulary is PARAMETERISED, so `labels` expands to 16 arms, not 1.** §3 says
+each label on ≥100 alert trades becomes an indicator. The alert labels turn out to embed their
+own threshold in the text: `Low IV 14%`, `Low IV 15%` … `Volume surge 1.5x`, `1.6x` … So one
+concept becomes many near-duplicate arms. The registered definition is **kept unchanged** — a
+normalised vocabulary would be a different feature set and choosing it now would be a
+post-hoc degree of freedom — but the **trial count is corrected upward**:
+
+> **Arms are 32, not 17** (8 Track-A expanding to 23, plus 9 Track-S), so O13 costs **33** trials
+> (32 + the inverse hypothesis), not 18. **Options `N` 210 → 243** for O13, and **246** including
+> O12's 3. Understating `N` overstates the significance of every bar in the project, so the
+> correction runs against this register's own result.
+
+A normalised-label version is a NEW registration and may not be run as a re-run of this one.
+
+**A2 — Q3a's feature must be able to EXPRESS a refusal.** §4(a) caps the refusal at 30% of
+decide-half alert trades but does not say which feature is ranked. Two structural facts
+interact badly: `s_worst` is mechanically ≈1.0 for a lopsided two-bin feature, and one alert
+label (`Uptrend (>50 & >200 DMA)`) sits on **98.5%** of the book. So an unrestricted "highest
+`s_worst`" selection lands on a feature whose only negative-gap bin has weight 0.985, larger
+than the cap — and refuses nothing, necessarily. The first run did exactly that in both
+directions and returned an improvement of +0.0000pp, which is an artefact of the statistic, not
+a null result about the data.
+
+> Q3a's selection pool is therefore restricted to features that are **not degenerate** and that
+> yield a **non-empty refusal set on the decide half**.
+
+**The second condition reads decide-half gaps, and an earlier draft of this amendment claimed it
+read bin weights alone. That was wrong and a test caught it before any verdict was read.** The
+live failure is not "every bin is too big" — it is "the only bin with a *negative gap* is too
+big", and a weights-only predicate cannot tell those apart (the 1.5% bin *is* small enough to
+refuse; it simply has a positive gap and is therefore not a candidate). Reading decide-half gaps
+during selection is legitimate — that is what a decide half is for. **The measure half is never
+consulted**, which is the property the verdict actually depends on.
+
+**A3 — two structural features are CONSTANT and are flagged, not scored.** `opt_right` and
+`horizon` have exactly one bin each: **the banked book is 100% calls and 100% `swing`**. Their
+`s_worst` is exactly 1.0 and so is every null draw, so they can never clear — which is correct,
+but "did not clear" would read as evidence about calls versus puts when the book contains no
+puts at all. They are reported as `degenerate` and excluded from the Q2 verdict. They remain in
+the charged arm count.
+
 ## 8 · What would make this register void
 
 * Any change to the exit policy, the fill model, or the frozen chains.

@@ -3860,3 +3860,290 @@ create an incentive to leave defects unrepaired. Options `N` stays **210**, equi
 research-log row**: that log is one row per pre-registered *test*. Expectations scored **6 right,
 1 wrong** (D3 assumed a correction that shrinks a mean must weaken the statistic built on it —
 different objects).
+
+---
+
+# SESSION 24 — 2026-08-11 — `O13` + `O12`: **the anti-signal is diffuse and un-tradeable, and the dead entry costs 2.75× in position size**
+
+Two ledger items, one session, frozen book, no re-mine, exit policy untouched. Both registers
+were committed **together and ALONE** at **`b0f287d`** — two `.md` files, **zero `.py`** — so the
+ordering is provable with `git show --name-only --format= b0f287d` rather than asserted.
+
+**Neither item re-opens R2.** The options entry is dead: split-clean the alert book earns
+**+3.2702%/trade** (n 3,870) against a five-seed random-entry control's **+8.3342%**
+(n 29,654), gap **−5.0640pp**, paired name-year sign test **z −4.9612**. O13 characterises the
+corpse; O12 asks what the corpse's payoff distribution implies about size.
+
+---
+
+## 24 · `O13` — where the anti-signal lives. **DIFFUSE. The inverse is a NULL.**
+
+### 24a · The structural fact that shaped the design, found before the register was written
+
+Measured on the banked books and **disclosed in §1 of the register**:
+
+| | alert book | control book |
+|---|---|---|
+| `score`, `iv`, `labels`, `flow_read` | ~100% | **0.0%** |
+| `dte`, `target_delta`, `cap_tier`, `marketcap`, spreads, `pit_*` | 100% | 100% |
+
+A random entry has no alert to describe it, so **the control carries none of the alert's own
+features**. Those reach it only through the `_control_for` back-link, which maps **29,564 of
+29,654 control rows (99.7%) to exactly one alert, with zero ambiguous**. A control row is then
+bucketed by its **parent alert's** feature value, and the comparison reads *"on alerts that
+looked like this, did the alert's chosen day beat random days on the same name?"*. The 90
+orphans are dropped, never defaulted — a control row carrying a made-up feature value would be
+silently mis-binned, which is the exact failure the join exists to avoid.
+
+### 24b · THE PRIMARY FINDING, and it is not the verdict
+
+**The gap is entirely a WITHIN-BIN effect. Essentially none of it is composition.**
+
+Across **all 32 arms** the *rate* component (alert mix held fixed, gaps measured inside bins)
+sits between **−4.23pp and −5.79pp** against a total gap of **−5.0640pp** — while the largest
+*mix* component anywhere in the 32 is **0.7711pp, i.e. 15.2% of the gap**, and most are under
+0.2pp.
+
+> **The alert does not lose because it picks different CONTRACTS from random entry. It loses
+> inside every kind of contract it picks.**
+
+That is worth more than the verdict, because it closes off a whole family of repairs. "Trade
+longer-dated", "trade tighter spreads", "trade bigger names" are all *composition* fixes, and
+composition is not where the damage is. Whatever the alert is doing wrong, it is doing it to the
+**day it chooses**, uniformly.
+
+### 24c · Q2 — concentrated or diffuse? **DIFFUSE.**
+
+The statistic was fixed in advance: `S_worst`, the share of the rate component carried by a
+feature's single worst bin — **0.20 if perfectly diffuse over five bins, 1.00 if perfectly
+concentrated**. The bar is each feature's **own p95** over 2,000 draws of a null that holds every
+row's `(book, return)` fixed and permutes bin labels **within book**, which **preserves the total
+gap exactly** and destroys only the feature↔return association.
+
+**Nothing clears its own p95 in both halves.** Four of 32 clear on the full sample — `labels:Uptrend`,
+`labels:Low IV 18%`, `labels:Volume surge 1.6x`, `pit_atm_oi` — against **~1.6 expected at a 5%
+bar over 32 correlated arms**, and none survives the both-halves requirement.
+
+**The calibration earned its keep on `dte`,** which is the one that looks like a finding:
+
+| `dte` quintile | alert | control | gap |
+|---|---|---|---|
+| q1 (shortest) | **−0.35%** | +6.29% | −6.64pp |
+| q2 | +0.36% | +11.20% | **−10.84pp** |
+| q3 | +6.35% | +8.03% | −1.67pp |
+| q4 | +4.17% | +7.88% | −3.70pp |
+| q5 (longest) | **+7.63%** | +8.05% | **−0.43pp** |
+
+The alert's own expectancy climbs monotonically with tenor while the control's stays flat, and
+q2's gap is more than twice the book average. **It does not clear its own calibrated bar**
+(`S_worst` 0.472 vs p95 0.497) and it clears in the early half only. Quote it as *suggestive and
+not distinguishable from noise by the pre-registered bar* — this is precisely the kind of
+eyeballed concentration the X7 method exists to discipline. Note also that q2's −10.84pp is
+partly the **control** having its best cell there, not only the alert having its worst.
+
+### 24d · Q3 — does the inverse carry information? **NULL, and it fails informatively.**
+
+A refusal rule was fitted on a decide half (rank bins by gap, refuse the worst, cap 30% of
+trades) and applied to the untouched measure half, **both directions**:
+
+| direction | feature selected | refused | measure-half improvement |
+|---|---|---|---|
+| early decides → late measures | `dte` | q2 | **−0.0977pp** |
+| late decides → early measures | `iv` | q3 | **−0.7774pp** |
+
+**Both refusals make the measure half WORSE**, and the two directions select **different
+features** — session 7's LOO pattern and session 11's ML-combiner pattern, for the third time.
+
+The sharpest cell: **`iv` q3 is the worst bin on the late half (−7.98pp full-sample) and nearly
+the best on the early half (−1.57pp against a −5.43pp baseline).** The "worst part of the book"
+does not stay the worst part of the book.
+
+**Q3b — the instrument inverse — is arithmetic and carries no verdict, by construction.** The
+anti-signal is **relative to the control, not absolute**: the alert book's own expectancy is
+**positive** (+3.27%/trade), so mechanically reversing it is negative before any cost, and the
+round-trip spread is paid on top. **You cannot short the gap.** The honest statement is that this
+is a reason not to pay for the alert, not a tradeable short.
+
+### 24e · Three defects found and reported
+
+1. **`iv_rank` is wired and 0.0% populated on BOTH books** — a COVERAGE-RULE-class defect. It is
+   excluded for having **no values**, not for scoring badly. Owner: whoever populates alert
+   features.
+2. **`opt_right` and `horizon` are CONSTANT: the banked options book is 100% calls and 100%
+   `swing` horizon.** Their `S_worst` is exactly 1.0 and so is every null draw, so they can never
+   clear. They are flagged `degenerate` rather than reported as failures — *"did not clear"*
+   would otherwise read as evidence about calls versus puts in a book that contains **no puts**.
+   Every options claim this project makes is about long calls at swing horizon only.
+3. **The alert label vocabulary is PARAMETERISED** — `Low IV 14%` … `19%`, `Volume surge 1.5x` …
+   `1.9x` — so one concept becomes many near-duplicate arms. The registered definition is
+   **kept** (normalising it now would be a post-hoc degree of freedom, and is a NEW registration),
+   and the **trial cost is corrected upward: 32 arms, not 17.** Understating `N` overstates
+   significance, so the correction runs against this register's own result.
+
+### 24f · A defect in my own repair, caught by a test before any verdict was read
+
+The first full run selected `labels:Uptrend` in both Q3a directions and **refused nothing**
+(+0.0000pp). `S_worst` is mechanically ≈1.0 for a lopsided two-bin feature, and `Uptrend` sits on
+**98.5%** of the book, so its only negative-gap bin was larger than the 30% cap. That is the
+selection rule finding an artefact of its own statistic, not a null result.
+
+The fix restricts Q3a's pool to features that can actually **express** a refusal. **My first
+version of that predicate tested bin *weights* only, and was wrong** — the live failure is not
+"every bin is too big", it is "the only bin with a *negative gap* is too big" (the 1.5% bin *is*
+small enough; it simply has a positive gap). A test caught it. The predicate now reads decide-half
+gaps, which is legitimate — that is what a decide half is for — and **the measure half is never
+consulted**. Both corrections are recorded as amendments §9 of the register, appended not
+rewritten.
+
+### 24g · Expectations, scored
+
+**2 right, 1 wrong** of three scored (two were arithmetic and not scored).
+
+* **E1 DIFFUSE (65/35) — RIGHT.**
+* **E3 the inverse fails out-of-sample (70/30) — RIGHT.**
+* **E4 no cut of the alert book loses money outright (55/45) — WRONG.** **17 of 100 bins have
+  negative alert expectancy**, and they are the widest-spread, least liquid ones:
+  `entry_spread_pct` q5 **−7.41%**, `pit_median_spread_pct` q5 **−5.53%**, q4 −4.38%. Economically
+  sensible — that is the cost bill — and the one place a *refusal* rule still looks worth a
+  separate registration.
+
+---
+
+## 25 · `O12` — fractional Kelly and ruin. **NOT USABLE, and the halves agreed.**
+
+**The caveat is part of the item, not a footnote: Kelly needs an edge that is real, and R2 says
+this entry is dead.** Every fraction below is conditional on a distribution already shown to be
+worse than random entry on the same names. **None of it is a sizing recommendation for real
+money.**
+
+### 25a · The distribution, and one number in the brief that does not reproduce
+
+n **3,870**, mean **+3.2702%**, median **−52.22%**, min **−101.44%**, max **+782.31%**.
+**Hit rate 35.27%.** The task brief said 37%; **that does not reproduce on either book** (35.32%
+as-published). The measured value is used throughout.
+
+**The minimum below −100% is correct accounting, not a bug** — checked, not assumed: DHR
+2016-06-30 paid $90.00 of premium and lost $91.30, the difference being commission. 4 rows
+(0.10%). It does have a consequence: **`f` is hard-bounded below 1/1.0144 = 0.98576**, because
+`log(1 + f·R)` is undefined at and above it. Arithmetic, not a finding.
+
+### 25b · Q1 — is `f*` a usable number? **NOT USABLE, but not for the predicted reason.**
+
+| | value |
+|---|---|
+| `f*` full sample | **0.0403** |
+| `f*` early / late | 0.0515 / 0.0293 |
+| half ratio | **1.758** — **clears** the pre-committed 2.0 |
+| month-block bootstrap CI95 | **[0.0000, 0.1001]**, 8.0% of 400 draws at exactly zero |
+
+**The halves agreed and the bootstrap did not.** I predicted (E2, 60/40) that the halves would
+disagree by more than 2× and that this would drive the verdict. They agreed at 1.758. The verdict
+is **NOT USABLE** because the CI includes zero — **the right answer for the wrong reason**, which
+is worth recording as a miss rather than a hit.
+
+### 25c · Q2 — where ruin lives. **The practical headline, and it is brutal.**
+
+Sequential compounding over the book's own rate of **396.9 trades/yr** (9.75-year span), 10,000
+month-block-resampled paths per fraction:
+
+| fraction | median terminal | P(drawdown > 50%) | P(terminal < 0.2×) |
+|---|---|---|---|
+| `f*` = 0.0403 | 1.267 | **0.753** | 0.049 |
+| half-Kelly 0.0202 | 1.200 | 0.222 | 0.001 |
+| quarter-Kelly 0.0101 | 1.114 | **0.006** | 0.000 |
+| 0.10 (2.5× Kelly) | **0.726** | 0.998 | 0.323 |
+| 0.25 | **0.003** | 1.000 | 0.749 |
+
+**At full Kelly you accept a 75.3% chance of halving your account to earn a median +26.7% a
+year.** And at 2.5× Kelly — not an absurd overbet — **the median outcome is a LOSS on a book with
+positive expectancy**. Quarter-Kelly buys almost all of the growth (1.114 vs 1.267) for 1/125th
+of the 50%-drawdown risk. **If any fraction of this ever gets used, it is a quarter or less.**
+
+**The concurrency caveat ships inside the payload**, not in prose: the live book holds several
+positions at once, so sequential compounding **understates** its drawdown. These are a floor on
+the pain, not an estimate of it.
+
+### 25d · Q4 — the sensitivity, and the most useful line in the item
+
+| distribution | `f*` |
+|---|---|
+| alert book | 0.0403 |
+| **random-entry control** | **0.1110** |
+| zero-edge (returns demeaned) | 0.0000 ✓ |
+
+> **The random-entry control supports 2.75× the position size the alert book does.**
+
+That is **R2 restated in sizing terms**, and it is a cost the project had not previously
+quantified: the dead entry signal costs not only expectancy, but the *size the book can safely
+carry*. The zero-edge arm returning exactly 0 is the implementation check the register demanded —
+`G'(0) = mean(R)`, so a non-positive mean admits no positive fraction.
+
+### 25e · Q3 — what the live flat sizing implies
+
+Live rule is **flat 1 contract** (`paper_contracts_per_trade`, default 1) plus the alert's own
+$1,000 budget veto. At the book's median premium of **$2.57** that is a **$257 stake**:
+
+| account equity | implied `f` | vs Kelly |
+|---|---|---|
+| $5,000 | 0.0514 | **1.27× — OVER-betting** |
+| $10,000 | 0.0257 | 0.64× |
+| $25,000 | 0.0103 | 0.25× |
+| $100,000 | 0.0026 | 0.06× |
+
+**Flat sizing equals `f*` at $6,371, half-Kelly at $12,743, quarter-Kelly at $25,486.** So the
+live book is under-sized for any account above ~$6.4k and **over-sized below it** — the one place
+the flat rule is actually dangerous, and it is the small-account case.
+
+### 25f · A conceptual point pinned by test, because it changes what "ruin" means
+
+**At any fraction below the hard bound, literal ruin is unreachable.** A total loss multiplies
+wealth by (1 − f), which is strictly positive, so an all-losses path decays geometrically toward
+zero **without arriving** — after 10 total losses at f = 0.999 terminal wealth is 1e-30, not 0.
+**A ruin study that counted bankruptcies would have reported that this book can never be
+ruined.** That is why the register fixed *threshold* metrics in advance. Pinned by
+`test_fractional_betting_decays_but_never_literally_ruins`.
+
+### 25g · Expectations, scored
+
+**3 right, 1 right-with-caveat, 1 wrong on its mechanism.**
+
+* **E1 `f*` under 0.10 (60/40) — RIGHT** (0.0403).
+* **E3 control `f*` > alert `f*` (75/25) — RIGHT**, and by 2.75×.
+* **E6 P(drawdown > 50%) > 0.5 at full Kelly (70/30) — RIGHT** (0.753).
+* **E5 flat sizing below `f*` (55/45) — RIGHT for 5 of 6 account sizes**, wrong below ~$6,371.
+* **E2 halves disagree > 2× and drive the verdict (60/40) — WRONG.** They agreed at 1.758.
+
+---
+
+## 26 · What I did NOT do, and why
+
+* **Did not re-mine anything.** Both items run on the banked split-clean books; the frozen chains
+  were not touched and no fingerprint changed.
+* **Did not change the exit policy, the fill model, or any live code path.** `paper_track`'s flat
+  1-contract rule is **unchanged** — O12 describes what it implies and recommends nothing.
+  Changing sizing on a dead entry signal would be the wrong order of operations.
+* **Did not normalise the parameterised label vocabulary.** It would be a better feature set and
+  a **new registration**, not a re-run of this one.
+* **Did not run a refusal rule on `entry_spread_pct`,** which E4's failure nominates as the one
+  cut still worth testing (its q5 loses −7.41% outright). Selecting it now, after seeing the
+  table, is exactly the degree of freedom the register forbids. **It needs its own register.**
+* **Did not re-run `BACKTEST_RESULTS.json`.** The trial counter is domain-scoped: both items are
+  options, equity `N` is untouched at **155**, and the artifact's Deflated Sharpe does not move.
+
+## 27 · Trial cost
+
+**Options `N` 210 → 246** (O13 33 arms including the corrected label expansion, O12 3).
+Calibrations — the permutation nulls, the half-splits, the bootstrap — are charged **zero**,
+consistent with session 10's HAC floor. `research_log.detail()` verified:
+`{'equity': 155, 'options': 246, 'unified': 0, 'infra': 8}`, `rows_malformed: []`.
+
+## 28 · Recommended next step
+
+**`entry_spread_pct` as a pre-registered refusal rule.** It is the only cut in either item where
+the alert book loses money **outright** (q5 −7.41%, q4 of the liquidity twin −4.38%), the
+mechanism is economic rather than statistical (it is the cost bill), and a refusal rule is
+implementable without shorting anything. It must be its own register — and it inherits O13's Q3a
+result as a prior, which is a discouraging one.
+
+**Do not act on `dte` q2.** It is the most eye-catching cell in this session and it does not clear
+its own calibrated bar.
