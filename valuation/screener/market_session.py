@@ -107,6 +107,36 @@ def is_trading_day(d: _dt.date) -> bool:
     return d.weekday() < 5 and d not in market_holidays(d.year)
 
 
+def trading_days_between(start: _dt.date, end: _dt.date, *, inclusive_start: bool = True) -> int:
+    """How many trading days ELAPSED from `start` to `end`. THE elapsed-time primitive.
+
+    Added for LA3. `index_track.summarize` annualised on `len(series)` — the number of rows the
+    recorder wrote — while the recorder was missing 71% of its days, so a missing day silently
+    became a multi-day "daily" return and the published alpha was over-annualised by the ratio
+    of elapsed days to recorded rows. Rows are the right denominator for a GATE ("have we
+    recorded enough to say anything?") and the wrong one for an EXPONENT ("over how long did
+    this return accrue?"), and those are different questions.
+
+    It lives here, beside `is_trading_day`, rather than in either caller, because
+    `valuation/edge/track_meter.py` already has a private `_trading_days` walking the same
+    calendar. Two implementations of "which days should have a row" is precisely the
+    two-sources-of-truth class the audit is full of; `tests/test_screener.py` pins the two to
+    agree so they cannot drift apart.
+
+    `inclusive_start=False` counts the half-open interval (start, end], which is what a series
+    of cumulative-since-inception levels needs: inception is day 0 and carries a return of zero
+    by definition, so the first recorded row is day 1.
+    """
+    if start is None or end is None or end < start:
+        return 0
+    n, d = 0, start
+    while d <= end:
+        if (inclusive_start or d > start) and is_trading_day(d):
+            n += 1
+        d += _dt.timedelta(days=1)
+    return n
+
+
 def session_state(now: Optional[_dt.datetime] = None) -> dict:
     """Whether the current session has closed, and why not if it hasn't.
 

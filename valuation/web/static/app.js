@@ -765,7 +765,7 @@ async function runRank() {
       const part = r.score_partial;
       html += `<tr><td>${i + 1}</td><td><b>${r.ticker}</b></td><td>${r.name || ""}</td><td><span class="badge">${r.regime}</span></td>
         <td class="num">${money(r.price)}</td><td class="num">${part
-          ? `<span class="muted" style="font-weight:700" title="${esc(r.fair_value_withheld_reason || "")}">withheld</span>`
+          ? `<span class="muted" style="font-weight:700${r.fair_value_withheld_kind === "unavailable" ? ";font-style:italic" : ""}" title="${esc(r.fair_value_withheld_reason || "")}">${r.fair_value_withheld_kind === "unavailable" ? "no data" : "withheld"}</span>`
           : money(r.fair_value)}</td>
         <td class="num ${up >= 0 ? 'pos' : 'neg'}">${up == null ? '—' : (up >= 0 ? '+' : '') + pct(up, 0)}</td>
         <td class="num"><b style="color:${scoreColor(r.score)}${part ? ';opacity:.7' : ''}">${r.score}</b>${part
@@ -1052,7 +1052,15 @@ function _fairValCell(r, up) {
   // A withheld estimate is not a missing one. "—" reads as "we don't have this yet" and
   // invites someone to fill it back in; this says the number existed and was refused, and
   // carries the reason with it. See web/withhold.py::withhold_implausible_fair_values.
+  //
+  // TWO KINDS, RENDERED DIFFERENTLY (2026-08-11). "the model rejects this valuation" and
+  // "we could not fetch this name today" both blank the cell, and showing one word for both
+  // turns a temporary feed problem into what reads as a permanent verdict on the company.
+  // `no data` also says, in its tooltip, that the next scan retries it automatically.
   if (r.fair_value_withheld) {
+    if (r.fair_value_withheld_kind === "unavailable") {
+      return `<span class="muted" style="font-weight:700;font-style:italic" title="${esc(r.fair_value_withheld_reason || "")}">no data</span>`;
+    }
     return `<span class="muted" style="font-weight:700" title="${esc(r.fair_value_withheld_reason || "")}">withheld</span>`;
   }
   if (r.fair_value == null) return "—";

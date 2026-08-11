@@ -116,7 +116,40 @@ def run_hot() -> None:
     if h.get("refusal_screen"):
         rs = h["refusal_screen"]
         print(f"  refusal screen: asked {rs.get('screened')} names, "
-              f"{rs.get('refused')} refused" + (f" ({rs['note']})" if rs.get("note") else ""))
+              f"{rs.get('refused')} refused, {rs.get('errors', 0)} errors"
+              + (f" ({rs['note']})" if rs.get("note") else ""))
+        if rs.get("error_tickers"):
+            print(f"    fetch failures (fail-open, peer estimate left unchecked): "
+                  f"{', '.join(rs['error_tickers'])}")
+    # LA1 — LOUD BY DEFAULT. The cold audit found the product's #1 name publishing a +204%
+    # fair value its own valuation page refuses, and the reason nobody knew is that no counter
+    # anywhere covered that row. This prints on every scan whether it is clean or not, so a
+    # green line is evidence the check ran rather than evidence nothing was wrong.
+    pa = h.get("publication_audit") or {}
+    if pa:
+        if pa.get("clean"):
+            print(f"  publication audit: CLEAN — {pa.get('rows_checked')} served rows, "
+                  f"0 asked-but-silent, 0 unverified, 0 outside the {pa.get('band')}x band"
+                  + (f"; probe {pa['probe']}" if pa.get("probe") else ""))
+        else:
+            print("  " + "!" * 72)
+            print(f"  LEAK — publication audit FAILED on {pa.get('rows_checked')} served rows")
+            if pa.get("asked_but_silent"):
+                print(f"    asked_but_silent ({pa['asked_but_silent_count']}): the DCF pass was "
+                      f"asked and answered nothing, so a peer estimate is being published "
+                      f"unchecked -> {', '.join(str(t) for t in pa['asked_but_silent'])}")
+            if pa.get("unverified"):
+                print(f"    unverified ({pa['unverified_count']}): asked, but NO statements "
+                      f"came back, so the model had nothing to judge and the peer estimate "
+                      f"is published unchecked -> "
+                      f"{', '.join(str(t) for t in pa['unverified'][:25])}")
+            if pa.get("probe"):
+                print(f"    probe outcomes: {pa['probe']}")
+            for b in pa.get("band_breach") or []:
+                print(f"    band_breach: {b['ticker']} at {b['ratio']}x the price "
+                      f"(method {b['method']}), not withheld")
+            print(f"    {pa.get('note', '')}")
+            print("  " + "!" * 72)
     if h.get("display_coverage"):
         print(f"  display coverage: {h['display_coverage']}")
     if not rows:
