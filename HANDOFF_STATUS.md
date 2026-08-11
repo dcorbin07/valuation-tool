@@ -4,6 +4,57 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — options bot, session 22 (TP-BAR): Don chose Option 2, and item A closes REJECTED
+
+**Don's decision, with its date: Option 2 of `PREREG_A_take_profit_bar.md`, taken 2026-08-11** —
+decide the take-profit raise against a bar that is MEASURED rather than chosen. C1–C4 were run
+exactly as pre-registered. **No policy changed. The paper options book keeps +100% target / −50%
+stop / half-DTE time stop. Item A is CLOSED, not re-parked.**
+
+**THE CALIBRATED BAR IS +5.0812pp** — the p95 of 100 jittered draws from the arm's own family
+(target 0.50–2.00, stop −0.30 to −0.70, time fraction 0.25–1.00, endpoints read off
+`options_exitlab.POLICIES`, seeds 1000–1099, identical frozen paths and scorer, every draw paired
+on all 3,885 trades). Null min −6.786, p5 −4.570, median +0.803, max +8.111, **53 of 100 draws
+beat the shipped exit**. **The bar was committed ALONE at `e8e5505` with the scoring module not
+yet written**, so bar-before-arm is visible in the history rather than asserted.
+
+**VERDICT REJECTED, and both arms fail C1 and ONLY C1.** `tp150` gains **+3.1948pp** and sits at
+the **82nd percentile** of its own family; `tp200` +3.8238pp at the 87th. C2 passes against the
+memo's own prediction that it would be the hazard — winsorising the top 1% of per-trade
+differences caps 39 trades at +124.3pp and `tp150` still retains **77%** of its gain (+2.4511pp),
+so the raised target is **not** tail-driven. C3 passes (+2.5969pp on the five pooled random
+seeds). C4 passes (FDR discovery, paired sign z +7.93 signal / +8.09 random, both halves positive
+on both books, PBO 0.00).
+
+**THE HARNESS REPRODUCES THE RECORD INDEPENDENTLY:** this scorer was written for the path study,
+not for O1, and returns shipped at **+3.410308%/trade** with gains of +3.1948 / +3.8238pp against
+O1's banked `expectancy_diff` 0.031947661 / 0.038237652 — the same figures to four decimals from a
+separately written path rebuild.
+
+**WHAT THE REJECTION DOES NOT SAY, because it is easy to over-read:** it does **not** say raising
+the take-profit does nothing. Every non-calibrated condition says the effect is real, broad and
+entry-independent. It says the arm is **not distinguished within its own family** — 53 of 100
+arbitrary jitters also beat the shipped rule, the best five by +5.2 to +8.1pp, all the same
+wider-stop/higher-target/longer-hold shape. When a whole REGION looks good on one corpus, that
+corpus cannot say where inside it the optimum is, and picking one point after five looks is
+choosing by hindsight.
+
+**BY-PRODUCT UNFLATTERING TO THE INHERITED RULE, reported because it cuts that way:** the shipped
++100%/−50%/half-DTE exit sits slightly **below** the median of its own family (beaten by 53 of
+100, +0.803pp at the median). It is an ordinary member, not a local optimum — and it **cannot** be
+acted on for exactly the reason `tp150` was refused, so this exercise must never be quoted as
+having validated it.
+
+**THE PRE-REGISTERED EXPECTATION WAS WRONG THREE TIMES OUT OF THREE** (bar called at +1 to +4pp,
+landed +5.0812; `tp150` called to clear, failed; `tp200` called to fail C2, passed it).
+
+**THE DEAD-ENTRY CAVEAT TRAVELS:** R2 stands — the alert book loses to random entry by −6.65pp —
+and no exit rule makes it tradeable. **Charged 2 trials; options `N` 205 → 207.** The calibration
+is charged zero (X7 / HAC-floor precedent). **Equity `N` untouched by this work but now reads 143,
+not 135**, after S22 landed from another lane. `rows_malformed: []`.
+`scripts/tp_bar.py`, `scripts/tp_bar_score.py`, `tests/test_tp_bar.py` (16),
+`tests/test_tp_bar_score.py` (14); `PREREG_A_take_profit_bar.md` §§8–9.
+
 ## 2026-08-10 — edge lane, session 18 (S22): the edge does not decay over two years, but the long-short does
 
 **Ledger S22, registered blind** in `PREREG_s22_term_structure.md` at `6b187dd` — committed alone,

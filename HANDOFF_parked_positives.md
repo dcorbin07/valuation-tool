@@ -33,7 +33,7 @@ Ordered by what I judge the strength of the recorded positive, not by cost.
 
 | # | item | the positive, as recorded | why not adopted | evidence obtainable with what we own? |
 |---|---|---|---|---|
-| A | **Exit: raise take-profit +100% → +150/200%** | **+3.19pp / +3.82pp per trade**, FDR discoveries on **both** entry sets; **replicated in two independent runs** | pre-committed bar was **+10pp** | **YES — already measured twice.** What is missing is a *decision about the bar*, not data |
+| A | ~~**Exit: raise take-profit +100% → +150/200%**~~ **CLOSED — REJECTED 2026-08-11** | **+3.19pp / +3.82pp per trade**, FDR discoveries on **both** entry sets; ~~replicated in two independent runs~~ **CORRECTED: the two runs share 1,099 trades (28.3% / 35.2%), so they are two partially-overlapping trade sets, not two independent replications** | ~~pre-committed bar was **+10pp**~~ **the +10pp bar was mis-specified in shape and was replaced by a CALIBRATED one; the arm fails that too** | **DONE.** Don chose Option 2 on 2026-08-11; C1–C4 run. **Calibrated bar +5.0812pp (p95 of the arm's own family); `tp150` gains +3.1948pp at the 82nd percentile — fails C1 and ONLY C1** (C2/C3/C4 all pass). Not re-parked; see `PREREG_A_take_profit_bar.md` §§8–9 |
 | B | **Sector-neutral ranking (LS-t arm)** | long-short t **3.396 → 3.896**, hit rate 64.5% → 66.4% | costs top-decile alpha **−1.58pp**, and the book is long-only | **YES, and it needs re-running anyway** — both rejections ran on the **void pre-B6 panel** (§3) |
 | C | **Reinvestment Arm B** | passes **all six** pre-registered bounds | rejected on harm **not in the register** (18 negative EVs) | **YES — entirely.** 241-name pickle on disk, no new data |
 | D | **O20 PIT liquidity filter** | book **+3.41% → +4.82%**/trade, coverage 99.2%, both halves positive | "a filter that improves a result needs a second panel" | **PARTLY.** Frozen chains are the *same* book; a second panel needs new mining |
@@ -52,7 +52,23 @@ and it is where I would look first.
 
 ## 2 · A — the exit take-profit raise (**the strongest member, and the cheapest**)
 
-**Recorded numbers.** Two independent runs, a week apart, on different collection methods, agree:
+> **CLOSED — REJECTED, 2026-08-11. Everything below is the record of the case as it stood; the
+> verdict is in `PREREG_A_take_profit_bar.md` §§8–9 and nothing here was acted on.** Don chose
+> Option 2 of that memo (calibrate the bar, then decide). The calibrated bar — the p95 of 100
+> jittered draws from the arm's own family, fixed and committed at `e8e5505` before the arm was
+> scored — is **+5.0812pp**. `tp150` gains **+3.1948pp**, the **82nd percentile** of its own
+> family, and **fails C1 and only C1**: it passes C2 (winsorised +2.4511pp, so not tail-driven),
+> C3 (+2.5969pp on the five pooled random seeds) and C4 (FDR discovery, both halves, both sets,
+> PBO 0.00). **This is not a finding that raising the target does nothing** — it is a finding
+> that the arm is not distinguished within a family where 53 of 100 arbitrary jitters also beat
+> the shipped rule. **Two claims in this section are corrected by that work and are struck
+> below: the "two independent runs" (they share 1,099 trades) and the framing of +10pp as merely
+> the wrong *level* (it was the wrong *shape*).** Item A is closed, not re-parked. The paper book
+> keeps +100%/−50%/half-DTE.
+
+**Recorded numbers.** ~~Two independent runs~~ **two partially-overlapping runs (1,099 shared
+trades — 35.2% of the first, 28.3% of the second)**, a week apart, on different collection
+methods, agree:
 
 | run | source | the effect |
 |---|---|---|
