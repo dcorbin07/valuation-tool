@@ -901,15 +901,61 @@ def _inst_accum_at(prep, as_of, lag_days=45):
     return (cur / prev - 1.0) if prev > 0 else None
 
 
+def _forward_return(closes, i, h, n_cal):
+    """S22 — delisting-aware forward return over `h` trading days from calendar index `i`.
+
+    This is the shipped `fwd_ret` rule, factored out so that additional horizons are computed
+    by the SAME code rather than by a second implementation that can drift from it.
+
+    Delisting: if the horizon-end price is NaN because the survivorship mask cut the name
+    mid-window, fall back to the last price it actually traded at, realizing the delisting
+    outcome instead of discarding the name — dropping it would quietly re-introduce the
+    survivorship bias the mask exists to remove.
+
+    RIGHT-CENSORING IS NOT DELISTING (PREREG_s22_term_structure.md §2a). If `i + h` runs past
+    the end of the shared calendar the return DOES NOT EXIST and this returns None. It must not
+    fall through to the delisting branch: that branch returns the last traded price, which for a
+    censored window would deliver a SHORTER realized return labelled as a long-horizon one, and
+    would do so precisely for the most recent dates — flattering short horizons and penalising
+    long ones. Pinned by test_s22_right_censoring_is_not_delisting.
+    """
+    if i + h >= n_cal:
+        return None
+    start = closes[i]
+    if not (start > 0):
+        return None
+    end = closes[i + h]
+    if end != end:                                      # NaN -> delisted mid-window
+        seg = closes[i + 1:i + h + 1]
+        valid = seg[~np.isnan(seg)] if len(seg) else seg
+        end = float(valid[-1]) if len(valid) else np.nan
+    return (end / start - 1.0) if end == end else None
+
+
 def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                             lookback_years=6, horizon=63, inst_lag_days=45,
                             keep_numbers=False, sector_neutral=False,
-                            grid_offset=None) -> pd.DataFrame:
+                            grid_offset=None, extra_horizons=None) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
     a diagnostic can measure one signal's standalone predictive power instead of only the
     theme it was folded into. Off by default — it widens the frame considerably.
+
+    S22 — `extra_horizons` adds a `fwd_ret_h{H}` column per requested horizon, computed inside
+    the SAME loop from the SAME price array as the shipped `fwd_ret`. Off by default; with no
+    extra horizons the frame is column-for-column identical to before.
+
+    Why it exists: the horizon is baked into this function, and the grid end is
+    `len(cal) - horizon`, so building one panel per horizon would vary the horizon AND the date
+    set AND the scored cross-sections together — no difference between two such runs could be
+    attributed to the horizon. One build keeps the scores, dates, names and composite identical
+    across every arm, so the forward window is the only thing that varies (and any run-to-run
+    nondeterminism in the panel is common to all arms and cancels).
+
+    The extra columns are defined on exactly the rows this panel already emits — a row still
+    requires the BASE `fwd_ret` to be present — so the row set does not change either. Longer
+    horizons are simply NaN on the most recent dates, which is the censoring above.
 
     AUDIT X2 — `grid_offset` shifts the rebalance grid by N trading days. The grid has
     always started at exactly TD = 252 and every number this project has ever reported was
@@ -929,6 +975,11 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     grid_offset = int(grid_offset)
     if grid_offset < 0:
         raise ValueError(f"grid_offset must be >= 0, got {grid_offset}")
+    # S22 — the additional forward windows, deduplicated and ordered. The BASE horizon is
+    # allowed here and is the study's C0 control: `fwd_ret_h63` must equal `fwd_ret` exactly.
+    _extra_h = sorted({int(h) for h in (extra_horizons or [])})
+    if any(h <= 0 for h in _extra_h):
+        raise ValueError(f"extra_horizons must all be > 0, got {sorted(extra_horizons or [])}")
     _GRID_START = TD + grid_offset
     from ..screener.factors import prefilter as _prefilter   # AUDIT B13
 
@@ -1108,6 +1159,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         "panel_end": str(_panel_end.date()) if _panel_end is not None else None,
     }
     cal = frame.index
+    _n_cal = len(cal)                  # S22 — the censoring boundary for every forward window
     _cal64 = cal.values.astype("datetime64[D]")
     benchf = bench.reindex(cal).ffill()
     benchv = benchf.values.tolist()        # for the idiosyncratic-vol regression, computed once
@@ -1128,6 +1180,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         b0, b1 = benchf.iloc[i], benchf.iloc[i + horizon]
         bret = (b1 / b0 - 1.0) if (b0 and b0 > 0) else np.nan
         metrics, fwd, mktcap = [], {}, {}
+        fwd_x = {h: {} for h in _extra_h}        # S22 — one dict per extra horizon
         for t in px:
             closes = frame[t].values
             if np.isnan(closes[i]) or closes[i] <= 0:
@@ -1245,15 +1298,9 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             # actually traded at. That realizes the delisting outcome instead of discarding
             # the name — dropping it would quietly re-introduce the survivorship bias the
             # mask exists to remove.
-            if closes[i] > 0:
-                end = closes[i + horizon]
-                if end != end:                                  # NaN -> delisted mid-window
-                    seg = closes[i + 1:i + horizon + 1]
-                    valid = seg[~np.isnan(seg)] if len(seg) else seg
-                    end = float(valid[-1]) if len(valid) else np.nan
-                fwd[t] = (end / closes[i] - 1.0) if end == end else None
-            else:
-                fwd[t] = None
+            fwd[t] = _forward_return(closes, i, horizon, _n_cal)
+            for _h in _extra_h:                                 # S22 — same rule, same array
+                fwd_x[_h][t] = _forward_return(closes, i, _h, _n_cal)
         if len(metrics) < 10:
             continue
         from ..screener.factors import build_frame
@@ -1270,6 +1317,11 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                    # concentration RISK cap, which is a different thing from the
                    # sector-NEUTRAL ranking rejected in P10.
                    "sector": (_by_ticker.get(t) or {}).get("sector") or ""}
+            # S22 — longer forward windows on the SAME row. NaN where the calendar ends before
+            # the window does; see `_forward_return` on why that may not be a last-price fallback.
+            for _h in _extra_h:
+                _v = fwd_x[_h].get(t)
+                row[f"fwd_ret_h{_h}"] = None if (_v is None or _v != _v) else float(_v)
             for theme in S.FACTORS_ALL:
                 v = r.get(theme) if theme in fr.columns else None
                 row[theme] = None if (v is None or pd.isna(v)) else float(v)
@@ -1316,6 +1368,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         "calendar_cut_days": int(_CAL_DAYS),
         "truncation": "shared_calendar",     # AUDIT B6: never per-ticker
         "horizon": int(horizon), "rebalance_days": int(rebalance_days),
+        "extra_horizons": list(_extra_h),        # S22 — provenance for the term-structure run
         # AUDIT X2 — which of the `rebalance_days` possible grids this run used. 0 is the
         # historical grid every prior number in the project was measured on.
         "grid_offset": int(grid_offset),
@@ -2246,7 +2299,8 @@ def walk_forward(panel, cols, base, top_n=25, horizon=63, halflife_days=1260, n_
             "params": params}
 
 
-def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=False):
+def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=False,
+                      ret_col="fwd_ret"):
     """The 'is the edge real and harvestable?' test. Each date, sort EVERY name by composite and
     split into n_q equal buckets; measure each bucket's forward return. A genuine signal shows
     (a) higher-composite buckets earning more (monotonic), and (b) a positive, statistically
@@ -2266,8 +2320,18 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=Fa
     This project's notes repeatedly read it the other way round ("monotonicity is negative at
     every lag - the deciles aren't cleanly ordered", and a -0.782 -> -0.855 move logged as
     "slightly worse"). Both are inverted: those were well-ordered results getting better.
-    Guarded by test_monotonicity_sign_convention."""
+    Guarded by test_monotonicity_sign_convention.
+
+    S22 — `ret_col` selects which forward-return column is scored. It defaults to the shipped
+    `fwd_ret`, so every existing caller is unchanged; the term-structure study points it at the
+    `fwd_ret_h{H}` columns `build_fundamental_panel(extra_horizons=...)` adds. Rows whose chosen
+    column is NaN are skipped by the same finite-mask the composite already uses, which is how a
+    long horizon silently loses its right-censored dates rather than scoring them short. Pass
+    `horizon=H` alongside it, or the annualization will be wrong."""
     from ..screener.cross_sectional import zscore
+    if ret_col not in panel.columns:
+        raise KeyError(f"quantile_backtest: no forward-return column {ret_col!r} in the panel "
+                       f"(build it with build_fundamental_panel(extra_horizons=[...]))")
     dates = sorted(panel["date"].unique())
     q_rets = [[] for _ in range(n_q)]
     ls, sw_long, ewb = [], [], []
@@ -2276,7 +2340,7 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=Fa
     for d in dates:
         sub = panel[panel["date"] == d]
         comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
-        fwd = sub["fwd_ret"].values
+        fwd = pd.to_numeric(sub[ret_col], errors="coerce").to_numpy(dtype=float)   # S22
         ok = np.isfinite(comp) & np.isfinite(fwd)
         comp, fwd = comp[ok], fwd[ok]
         if len(fwd) < n_q * 3:                              # need enough names for clean buckets

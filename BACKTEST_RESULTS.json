@@ -1,11 +1,11 @@
 {
   "schema_version": 4,
   "errors": [],
-  "generated_at": "2026-08-10T14:05:17",
-  "generated_at_utc": "2026-08-10T18:05:17+00:00",
+  "generated_at": "2026-08-10T23:12:29",
+  "generated_at_utc": "2026-08-11T03:12:29+00:00",
   "git": {
-    "commit": "8ad6c0f66ac417876cd6464fc41d987877fb846d",
-    "short": "8ad6c0f",
+    "commit": "6d9aac74b1e64acda573c2bbf9fec07b36a98f2a",
+    "short": "6d9aac7",
     "branch": "worktree-options-live",
     "dirty": false
   },
@@ -47,6 +47,7 @@
       "truncation": "shared_calendar",
       "horizon": 63,
       "rebalance_days": 63,
+      "extra_horizons": [],
       "grid_offset": 0,
       "n_rebalance_dates": 69,
       "cross_section_min": 1471,
@@ -249,21 +250,21 @@
       "meaning": "probability_of_backtest_overfitting"
     },
     "deflated_sharpe_detail": {
-      "probability": 0.8504129179654681,
+      "probability": 0.8436955925493782,
       "sharpe_per_period": 0.5500328707621251,
-      "sr0_benchmark": 0.43286698556205233,
-      "n_trials": 135,
+      "sr0_benchmark": 0.43607688750783635,
+      "n_trials": 143,
       "var_sr_across_trials": 0.026997967906897496,
       "n_periods": 69,
       "n_trials_from_weight_schemes": 8,
-      "n_trials_from_research_log": 135,
+      "n_trials_from_research_log": 143,
       "n_trials_source": "RESEARCH_LOG.md (audit M1)",
       "is_effectively_undeflated": false,
       "metric": "deflated_sharpe_ratio"
     },
     "pbo_scope": "weight_scheme_selection_only",
     "deflated_sharpe": {
-      "value": 0.8504129179654681,
+      "value": 0.8436955925493782,
       "want": ">0.95",
       "meaning": "probability_edge_is_real_after_trials_correction"
     },
@@ -1167,14 +1168,14 @@
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.08119856135218217,
       "net_alpha": 0.06069654078141906,
-      "realised_one_way_bps": 33.35986774800821,
+      "realised_one_way_bps": 33.359867748008234,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",
         "the equal-weight benchmark is charged ZERO cost while the strategy pays, so every 'alpha versus equal-weight' figure compares a book that trades against one that does not"
       ],
       "flat_bps": null,
-      "breakeven_one_way_bps": 134.11280625592693,
+      "breakeven_one_way_bps": 134.11280625592718,
       "curve": [
         {
           "bps": 0.0,
@@ -1203,8 +1204,8 @@
         },
         {
           "bps": 150.0,
-          "net_alpha": -0.00941914573819691,
-          "net_ann": 0.16297386246430645
+          "net_alpha": -0.009419145738196688,
+          "net_ann": 0.16297386246430667
         },
         {
           "bps": 200.0,
@@ -1218,8 +1219,8 @@
         },
         {
           "bps": 500.0,
-          "net_alpha": -0.20182916477462254,
-          "net_ann": -0.029436156572119176
+          "net_alpha": -0.20182916477462265,
+          "net_ann": -0.029436156572119287
         }
       ]
     },
@@ -1239,7 +1240,7 @@
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.14889205697196717,
       "net_alpha": 0.1163488122989853,
-      "realised_one_way_bps": 41.89480864978,
+      "realised_one_way_bps": 41.89480864977998,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",

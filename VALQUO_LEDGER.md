@@ -264,7 +264,7 @@ next proposal. A handoff file that enumerates ids **is** scanned — wrap those 
 | S19 | S | MD&A anomaly left on the table | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
 | S20 | S | Rank composite, not z-sum | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
 | S21 | S | Winsorise before standardising | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
-| S22 | S | Term structure of the signal | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| S22 | S | Term structure of the signal | DONE | CONSTANT-RATE - annualized top-decile alpha is flat from 3 months to 2 years (+6.59% to +5.10%), R(8) 6.195 vs a 6.0 bar, but the long-short spread decays to nothing (HAC t 2.72 -> 0.68) and top-decile tenure is a KM median of ONE rebalance | ec4a5d3 | HANDOFF_edge_audit.md session 18 | 2026-08-10 | manual | PREREG_s22_term_structure.md at 6b187dd, a strict ancestor of the measurement commit. Adopts nothing - holding-period changes are S23 and a vintage event |
 | S23 | S | Exit rule for the equity book | OPEN |  |  |  |  | auto | only forward references -- mentioned as a dependency, never written up |
 | S24 | S | Ensemble across draws | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
 | S25 | S | Point-in-time sector map | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
