@@ -16,9 +16,18 @@ under the heading "Valquo Index vs SPY". On **2026-08-05** that posted:
 
 — the Index beating SPY. The contract-bound recorder over that window reads **-0.2777pp**
 (2026-07-31) and **-2.8468pp** (2026-08-06): it was never above SPY on any day. Nothing was
-miscalculated; the wrong BOOK was quoted. The engine holds 10 names equal-weighted at 10%
-each from a 2026-08-03 inception, which violates `PAPER_TRACK_CONTRACT.md`'s own 8% cap, so
-it is not the Index and cannot be evidence under the contract.
+miscalculated; the wrong BOOK was quoted. The engine held 10 names against the published
+book's 86, from a 2026-08-03 inception, so it is not the Index and cannot be evidence under
+the contract.
+
+CORRECTED 2026-08-11 (cold audit LA11). That sentence used to disqualify the engine because
+its 10% weights "violate `PAPER_TRACK_CONTRACT.md`'s own 8% cap". They do not — session 16
+(`PT-SPLIT`) retracted it. `valquo_index.build_index` sets `cap = max(MAX_WEIGHT,
+1/len(picks))` by design, because ten names at 8% sum to 80%; the weights were right for the
+book, and the BOOK was wrong. What disqualifies the engine is book SIZE. The correction
+matters here because this is the file that actually shipped the false claim: a reader who
+checked the cap, found it correct, and concluded the recap fix was an overreaction would be
+reopening a defect that reached real people.
 
 Every Index-vs-SPY figure in this file now comes from `index_track.vs_spy_claim` — the
 contract-named recorder, one function, no fallback to any other source — and every line names

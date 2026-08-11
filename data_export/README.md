@@ -19,11 +19,16 @@ Read this before quoting any figure out of these files.
 2026-07-30. It is the ONLY series that may be cited as evidence under that contract, and
 `index_track.vs_spy_claim()` is the only function allowed to make a vs-SPY statement from it.
 
-**The Tradier sandbox engine** — `paper_track_*` — is a different book: 10 names,
-equal-weighted at 10% each, inception 2026-08-03. Those 10% weights break the contract's own
-8% cap, so **the sandbox is not the Index and may never be quoted as it.** On 2026-08-05 a
-Discord recap printed the sandbox's numbers under the words "Valquo Index vs SPY" and claimed
-the Index was beating SPY on a day the bound recorder had it 2.85pp behind.
+**The Tradier sandbox engine** — `paper_track_*` — is a different book: **10 names** against
+the Index's **86**, equal-weighted, inception 2026-08-03. A book that size is not a top decile
+of a large-cap tier, so **the sandbox is not the Index and may never be quoted as it.** On
+2026-08-05 a Discord recap printed the sandbox's numbers under the words "Valquo Index vs SPY"
+and claimed the Index was beating SPY on a day the bound recorder had it 2.85pp behind.
+
+*Corrected 2026-08-11:* this paragraph used to say the sandbox's 10% weights "break the
+contract's own 8% cap". They do not. `build_index` sets the cap to `max(8%, 1/n)` on purpose,
+because ten names at 8% sum to 80%; the weights were correct for the book. The two books are
+told apart by **size and inception**, not by their weights — check `n_positions`, not the cap.
 
 | File | What |
 |---|---|

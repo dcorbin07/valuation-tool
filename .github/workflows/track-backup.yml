@@ -7,10 +7,16 @@ name: Track backup (the one thing that can't be re-derived)
 #   * the CONTRACT-BOUND Valquo Index (`valquo_index_*`) — 86 names, score-weighted, 8% cap,
 #     inception 2026-07-30. This is the series `PAPER_TRACK_CONTRACT.md` binds and the only one
 #     that may ever be cited as evidence under it.
-#   * the Tradier SANDBOX engine (`paper_track_*`) — 10 names, equal-weighted at 10%, inception
-#     2026-08-03. Its weights break the contract's own 8% cap. It is not the Index.
+#   * the Tradier SANDBOX engine (`paper_track_*`) — 10 names against the Index's 86,
+#     equal-weighted, inception 2026-08-03. It is not the Index.
 # Until LA2 this job backed up the second and ZERO rows of the first, and its anti-regression
 # guard counted the second — so the record it existed to protect was never counted at all.
+#
+# CORRECTED 2026-08-11 (cold audit LA11). The sandbox bullet used to add "Its weights break the
+# contract's own 8% cap." They do not: `valquo_index.build_index` sets
+# `cap = max(MAX_WEIGHT, 1/len(picks))` on purpose, because ten names at 8% sum to 80%. Session
+# 16 (`PT-SPLIT`) retracted the cap reading; the books differ on SIZE, and the conclusion above
+# is unchanged. Tell them apart by `n_positions`, never by the cap.
 #
 # Why this workflow has to exist at all: the live record lives in the SQLite database on the
 # Render web service's persistent disk (render.yaml: disk `data`, /app/data, 1GB). That disk

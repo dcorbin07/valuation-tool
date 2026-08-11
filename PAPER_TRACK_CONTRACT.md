@@ -33,8 +33,20 @@ prevent.
    | book | **86 names, score-weighted, max weight 2.3%** | 10 names, equal-weighted at 10% each |
    | read by | `valuation/screener/index_track.py` — the number the site shows | `valuation/edge/paper_track.py` |
 
-   The engine's 10% equal weights **violate this contract's own 8% cap**, and its book is not
-   the Index. So the two are not the same track recorded twice — they are different objects,
+   ~~The engine's 10% equal weights **violate this contract's own 8% cap**~~, and its book is not
+   the Index.
+
+   > **CORRECTED 2026-08-11 (cold audit `LA11`), and the struck clause is left visible because
+   > this document does not delete.** The engine's weights are **not** a cap violation —
+   > `valquo_index.build_index` sets `cap = max(MAX_WEIGHT, 1/len(picks))` deliberately, since
+   > ten names at 8% sum to 80%. **§5b below has said so since 2026-08-10**; this line is the
+   > one place in the contract that still asserted the retracted reason, which is the more
+   > dangerous state of the two — a reader who checks the cap, finds it correct, and stops
+   > reading here would doubt the separation itself. **The conclusion is unchanged**: the two
+   > books differ on **SIZE** (10 names against the published 86), and nothing in §5 or §6
+   > depends on the retracted clause. No threshold, date or parameter moves.
+
+   So the two are not the same track recorded twice — they are different objects,
    and only one of them is the thing §5 describes. **The register binds the published Valquo
    Index.** The sandbox engine is a separate, useful, unbound record; it is not evidence for or
    against this contract, and no figure from it may be quoted as if it were.

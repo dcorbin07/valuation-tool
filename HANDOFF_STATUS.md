@@ -4,6 +4,39 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — CI lane (LA11): the retracted 8%-cap diagnosis is gone from the code, and COLD AUDIT #2 IS FULLY EXECUTED
+
+**All fifteen cold-audit items (LA1–LA15) are now resolved** — LA6 is tracked as `V2F`/`V2G`
+rather than as its own row. LA11 was the last one open.
+
+`PT-SPLIT` retracted the claim that the sandbox engine's 10% weights breach the contract's 8% cap
+(`build_index` sets `cap = max(MAX_WEIGHT, 1/len(picks))` on purpose — ten names at 8% sum to 80%).
+The **conclusion** survives on book **size** (10 names vs the published 86); only the reason moved.
+The retracted reason was still standing in prose, which is worse than no reason: check the cap,
+find it correct, doubt the separation itself.
+
+**The audit named three sites; there were eight.** The five extra were found by grepping the claim
+instead of following the citations — `web/hero.py`, `edge/track_export.py` twice,
+`.github/workflows/track-backup.yml`, and `PAPER_TRACK_CONTRACT.md` §0a.2. The `index_track.py`
+cite had drifted 82 lines in a day.
+
+**Two of them were worse than docstrings.** `track_export._README` is *emitted*, so the retracted
+claim shipped as committed **data** in `data_export/README.md` — put there by the LA2 work of one
+day earlier, i.e. this lane's own. And the **contract corrected itself in §5b while §0a.2 still
+asserted the retracted clause**; §0a.2 is now struck in place with a dated pointer, original left
+visible, **no threshold, date or parameter moved**.
+
+**A test was pinning the wrong diagnosis into the artifact.** `tests/test_track_export.py` required
+the README to state "the weight caps that tell the two books apart" — the caps are exactly what
+does *not* tell them apart, so it would have failed had the README been fixed and the test left
+alone. It now pins book size. A comment in `tests/test_paper_track.py` likewise contradicted a test
+in its own module; the test was right.
+
+Full gate **52 suites, all green**. Zero research trials — a documentation correction; equity `N`
+unchanged at **151**. Detail in `HANDOFF_ci.md`. **Unchanged and still the real blocker:** nothing
+ingests the bound series into the live store and there is **no automated daily writer** for it
+(`PT-WRITER`, Cowork lane).
+
 ## 2026-08-11 — options bot, session 23b (U1-SPLIT): R2's published gap was 24% artifact, repaired at source, and NO VERDICT MOVED
 
 **Quote R2 as −5.06pp, not −6.65pp.** That is the one thing to carry away.
