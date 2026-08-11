@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import tempfile
+import tokenize
 import unittest
 import zipfile
 
@@ -643,6 +644,189 @@ class TestScopeIsMeasuredOnly(unittest.TestCase):
         self.assertIn("from valuation.screener import insider", src)
         self.assertNotIn("def insider_detail", src)
         self.assertNotIn("def _parse_form4", src)
+
+
+# ------------------------------------------------------------------------------------------
+# THE CI PYTHON. Added 2026-08-11, after this suite failed three land attempts.
+#
+# WHAT HAPPENED. `live_theme_sources.py` contained  f'{k} {v['fetched']}'  — an f-string reusing
+# its own quote character inside the expression. PEP 701 legalised that in Python 3.12; on 3.11
+# it is a hard SyntaxError. Locally (3.13) the module imported and all 53 tests passed. On the
+# runner (`land-agent-branch.yml` pins python-version 3.11) the module could not be IMPORTED, so
+# the entire suite died at collection — which is why CI named exactly one failing file and gave
+# no other clue, and why the branch sat unlanded while every other suite stayed green.
+#
+# WHY THE PRE-PUSH CHECK MISSED IT, which is the part worth keeping. The check used was
+# `ast.parse(src, feature_version=(3, 11))`. That argument is best-effort and does NOT gate
+# tokenizer-level changes like PEP 701 — it accepted the file happily. A version claim needs a
+# compiler of that version, or a check written against the specific construct. Both are below.
+#
+# TWO CHECKS, because either alone has a blind side:
+#   1. `compile()` under the RUNNING interpreter. Exhaustive for any construct, and on CI the
+#      running interpreter IS 3.11 — so this is the one that would have gone red instead of an
+#      unexplained import failure. It proves nothing when run locally on 3.13.
+#   2. A tokenizer scan for the specific construct, which only 3.12+ can even represent. This is
+#      the half that fails LOCALLY, before a push, which is where the three wasted attempts went.
+# ------------------------------------------------------------------------------------------
+
+CI_PYTHON = (3, 11)   # land-agent-branch.yml: `python-version: '3.11'`
+
+
+def _repo_python_files():
+    skip = {".git", "data", "__pycache__", ".claude", "node_modules", ".scan-cache", "venv"}
+    for dirpath, dirs, files in os.walk(REPO):
+        dirs[:] = [d for d in dirs if d not in skip]
+        for f in files:
+            if f.endswith(".py"):
+                yield os.path.join(dirpath, f)
+
+
+def _delimiter(tok_string):
+    """The quote delimiter of a string token, prefix letters removed: ' " ''' or \"\"\"."""
+    body = tok_string.lstrip("fFrRbBuU")
+    for d in ('"""', "'''", '"', "'"):
+        if body.startswith(d):
+            return d
+    return ""
+
+
+def _pep701_offences(src, path):
+    """Report f-strings that only Python 3.12+ can parse.
+
+    THE RULE IS EMPIRICAL, not remembered — it was read off a real 3.11 compiler, and the table
+    it came from is pinned in `test_the_detector_matches_what_3_11_actually_does` below. Two
+    constructs 3.11 rejects inside the EXPRESSION part of an f-string:
+
+        a nested string whose delimiter would close an enclosing f-string   f'{d['a']}'
+        a backslash                                                        f"{'\\n'.join(v)}"
+
+    "Would close" is `nested.startswith(enclosing)`, not a first-character comparison: with a
+    ''' delimiter a nested ' is perfectly legal, and comparing first characters calls that an
+    error. That over-strict first cut flagged four legitimate lines in fundamental_panel.py.
+
+    The enclosing delimiters are a STACK because f-strings nest — `f"{(f'{y:.2f}')} {d['k']}"`
+    is legal 3.11, and tracking a single delimiter reads the inner f-string's quote as still
+    open and condemns the outer one's `d['k']`. That was the second false positive on the same
+    line, and both are in the fixture table so neither can come back.
+
+    Detectable only on 3.12+, where the tokenizer emits FSTRING_START/MIDDLE/END rather than one
+    STRING token. On 3.11 this returns nothing and the compile check carries the load — there,
+    the file simply would not have compiled.
+    """
+    start = getattr(tokenize, "FSTRING_START", None)
+    end = getattr(tokenize, "FSTRING_END", None)
+    middle = getattr(tokenize, "FSTRING_MIDDLE", None)
+    if start is None:
+        return []
+    try:
+        toks = list(tokenize.tokenize(io.BytesIO(src.encode("utf-8")).readline))
+    except (tokenize.TokenError, SyntaxError, IndentationError):
+        return []
+    out, stack = [], []
+    v = f"{CI_PYTHON[0]}.{CI_PYTHON[1]}"
+    for tok in toks:
+        if tok.type == start:
+            stack.append(_delimiter(tok.string))
+            continue
+        if tok.type == end:
+            if stack:
+                stack.pop()
+            continue
+        if not stack or tok.type == middle:
+            # FSTRING_MIDDLE is the literal text, where a backslash is fine even on 3.11.
+            continue
+        if tok.type == tokenize.STRING:
+            nested = _delimiter(tok.string)
+            closer = next((d for d in stack if nested and nested.startswith(d)), None)
+            if closer:
+                out.append(f"{path}:{tok.start[0]}: f-string delimited by {closer} reuses it "
+                           f"inside its own expression -> SyntaxError on {v}")
+                continue
+        if "\\" in tok.string:
+            out.append(f"{path}:{tok.start[0]}: backslash inside an f-string expression "
+                       f"-> SyntaxError on {v}")
+    return out
+
+
+class TestTheRepoParsesOnTheCiPython(unittest.TestCase):
+    def test_every_file_compiles_under_the_running_interpreter(self):
+        """Exhaustive, and on CI the running interpreter is the one that matters."""
+        bad = []
+        for path in _repo_python_files():
+            try:
+                with io.open(path, "rb") as fh:
+                    compile(fh.read(), path, "exec")
+            except SyntaxError as e:
+                bad.append(f"{os.path.relpath(path, REPO)}:{e.lineno}: {e.msg}")
+        self.assertEqual(bad, [], "files that do not compile:\n  " + "\n  ".join(bad))
+
+    def test_no_file_uses_an_fstring_only_python_3_12_can_parse(self):
+        """The half that fails BEFORE the push, on a developer machine running 3.12+."""
+        if sys.version_info < (3, 12):
+            self.skipTest("the construct is unrepresentable below 3.12; check (1) covers it here")
+        bad = []
+        for path in _repo_python_files():
+            with io.open(path, encoding="utf-8", errors="replace") as fh:
+                bad.extend(_pep701_offences(fh.read(), os.path.relpath(path, REPO)))
+        self.assertEqual(bad, [], "3.12-only f-strings:\n  " + "\n  ".join(bad))
+
+    #: Every row was CHECKED against a real CPython 3.11.9, not recalled. `True` = 3.11 rejects
+    #: it. The four legal rows are the ones that matter most: the first cut of this detector
+    #: compared only first characters and tracked one delimiter instead of a stack, and it
+    #: condemned `fundamental_panel.py:4182` — a correct line — on both counts at once.
+    CASES = (
+        ("delim ' , nested '",              "x = f'{d['a']}'",                    True),
+        ("delim ''' , nested '''",          "x = f'''{d['''a''']}'''",            True),
+        ("backslash in the expression",     'x = f"{\'\\n\'.join(v)}"',           True),
+        ("the line that broke the land",    "x = f'{k} {v['fetched']}'",          True),
+        ("delim \" , nested '",             'x = f"{d[\'a\']}"',                  False),
+        ("delim ' , nested \"",             "x = f'{d[\"a\"]}'",                  False),
+        ("delim ''' , nested '",            "x = f'''{d['a']}'''",                False),
+        ("nested f-string, all legal",      'x = f"{(f\'{y:.2f}\')} {d[\'k\']}"', False),
+    )
+
+    def test_the_detector_matches_what_3_11_actually_does(self):
+        """A guard nobody has seen fire is a guard nobody knows works — in both directions.
+
+        The false-negative half would have saved this branch three land attempts. The
+        false-positive half is what stops the guard becoming a nuisance every other lane
+        learns to ignore.
+        """
+        if sys.version_info < (3, 12):
+            self.skipTest("the construct is unrepresentable below 3.12")
+        for label, src, rejected_by_311 in self.CASES:
+            with self.subTest(label):
+                found = _pep701_offences(src + "\n", "fixture.py")
+                if rejected_by_311:
+                    self.assertTrue(found, f"3.11 rejects this and the detector missed it: {src}")
+                else:
+                    self.assertEqual(found, [], f"3.11 accepts this; do not flag it: {src}")
+
+    def test_the_fixture_table_agrees_with_this_interpreter_where_it_can(self):
+        """Cross-check: on 3.11 the table's own verdicts must BE this compiler's verdicts.
+
+        Below 3.12 the detector cannot see the construct, so on the CI runner this is what
+        proves the table was not simply written down wrong.
+        """
+        if sys.version_info >= (3, 12):
+            self.skipTest("3.12+ accepts all of these by design; the table describes 3.11")
+        for label, src, rejected_by_311 in self.CASES:
+            with self.subTest(label):
+                try:
+                    compile(src, "fixture.py", "exec")
+                    actually_rejected = False
+                except SyntaxError:
+                    actually_rejected = True
+                self.assertEqual(actually_rejected, rejected_by_311, src)
+
+    def test_the_ci_python_constant_matches_the_workflow(self):
+        """If the runner is bumped, this test is the thing that says the checks moved with it."""
+        wf = os.path.join(REPO, ".github", "workflows", "land-agent-branch.yml")
+        if not os.path.exists(wf):
+            self.skipTest("workflow not present in this tree")
+        with io.open(wf, encoding="utf-8", errors="replace") as fh:
+            body = fh.read()
+        self.assertIn(f"python-version: '{CI_PYTHON[0]}.{CI_PYTHON[1]}'", body)
 
 
 if __name__ == "__main__":

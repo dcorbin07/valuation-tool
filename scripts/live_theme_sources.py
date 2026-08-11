@@ -772,8 +772,15 @@ def fetch_all(root: str = DEFAULT_ROOT, legs=_LEGS, limit: int | None = None,
             manifest.mark(key, "complete")
             stats[leg]["fetched"] += 1
         if (i + 1) % 25 == 0:
-            log(root, f"fetch: {i + 1}/{len(served)} names "
-                      f"({', '.join(f'{k} {v['fetched']}+{v['done']}' for k, v in stats.items())}) "
+            # Built outside the f-string on purpose. The inline version reused single quotes
+            # INSIDE a single-quoted f-string, which PEP 701 legalised in 3.12 and which is a
+            # hard SyntaxError on 3.11 — the version CI pins. It cost this branch three land
+            # attempts: the module failed to IMPORT there, so all 53 tests in its suite died at
+            # once while every one of them passed locally. See test_the_repo_parses_on_the_ci
+            # _python in tests/test_live_theme_sources.py, which now checks the whole tree.
+            progress = ", ".join("{} {}+{}".format(k, v["fetched"], v["done"])
+                                 for k, v in stats.items())
+            log(root, f"fetch: {i + 1}/{len(served)} names ({progress}) "
                       f"calls={guard.calls} throttles={guard.throttles}")
     log(root, f"fetch: DONE {len(served)} names, calls={guard.calls}, "
               f"throttles={guard.throttles}")
