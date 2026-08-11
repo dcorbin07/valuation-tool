@@ -343,3 +343,97 @@ therefore answers the selection question — **is a given arm distinguished with
 answer "does raising the target do anything at all", and a failure against it must never be
 quoted as if it did. §9 will say which arms clear it; this section was written before that was
 computed.
+
+---
+
+## 9. C2–C4 AND THE VERDICT — **ITEM A CLOSES REJECTED**
+
+Reproduce: `python -m scripts.tp_bar_score --run` (artifact
+`data/options_pathstudy/TPBAR_VERDICT.json`). Written in a **separate module** from `tp_bar.py`,
+which was committed at `e8e5505` before this file existed, so the bar cannot have been edited
+after seeing what it refuses. `load_bar()` refuses to run at all if the artifact and the figure
+published in §8 disagree.
+
+### The four conditions
+
+| | `tp150` | `tp200` |
+|---|---|---|
+| **C1 — clears the calibrated bar (+5.0812pp)** | +3.1948pp — **FAILS** | +3.8238pp — **FAILS** |
+| *(where that sits in its own family)* | **82nd percentile** | 87th percentile |
+| **C2 — positive after winsorising the top 1%** | **+2.4511pp — PASSES** | +3.0161pp — PASSES |
+| **C3 — holds on the five pooled random seeds** | **+2.5969pp — PASSES** | +3.8986pp — PASSES |
+| **C4 — FDR / both halves / both sets / PBO** | **PASSES** (FDR discovery, sign z +7.93 signal and +8.09 random, both halves positive on both books, PBO 0.00) | PASSES (sign z +4.57 / +5.12, PBO 0.00) |
+| **VERDICT** | **REJECTED** — fails **C1 only** | **REJECTED** — fails **C1 only** |
+
+**The harness reproduces the record independently, which is what makes the verdict quotable.**
+This scorer was built for the path study, not for O1, and it returns `shipped` at
+**+3.410308%/trade** and gains of **+3.1948pp / +3.8238pp** against O1's banked
+`expectancy_diff` of 0.031947661 / 0.038237652 — the same numbers to four decimals, from a
+separately-written path re-build.
+
+### The result is sharper than a plain "no", and the shape of it is the finding
+
+**`tp150` passes every condition except the calibrated one.** It is not tail-driven — C2 caps the
+top 1% of per-trade differences at +124.3pp, capping 39 trades, and it still retains **77%** of
+its gain (+3.19 → +2.45pp). It is not an entry artefact — it earns +2.60pp on random entries. It
+is an FDR discovery, positive in both halves of both books, at PBO 0.00.
+
+**What it is not is *distinguished within its own family*.** It sits at the **82nd percentile** of
+100 arbitrary jitters of the same three levels, and the pre-committed bar was the 95th. The memo
+predicted C2 would be the hazard; C2 was comfortably passed and **C1 alone decided it**.
+
+### Read this before quoting the rejection
+
+**This does NOT say raising the take-profit does nothing.** Every other measurement says it does
+something real and repeatable. What C1 says is that on this book *a great many* exit tweaks look
+about as good or better — 53 of 100 beat the shipped rule, the median by +0.80pp and the best five
+by +5.2 to +8.1pp, all of them the same "wider stop, higher target, hold longer" shape. **When a
+whole region of parameter space looks good on one corpus, that corpus cannot tell you where inside
+it the optimum is**, and choosing one point from it after five looks is choosing by hindsight.
+That is the hazard item A carried, and it is the one the bar was built to price.
+
+**The honest objection, stated rather than left for a reader to find: a different null would give
+a different bar.** A null that jittered a narrower range, or held the stop fixed, would sit lower
+and `tp150` might clear it. That is true and it is exactly why the construction was fixed in §3
+before it was run and bound "whatever it comes out as". **Choosing the null after seeing which
+one passes the arm is the move this whole document exists to refuse.**
+
+### The by-product that is unflattering to the shipped rule, reported because it cuts that way
+
+**The inherited +100%/−50%/half-DTE exit is slightly *below* the median of its own family** —
+53 of 100 random jitters beat it, by +0.80pp at the median. The shipped rule is an ordinary member
+of its family rather than a local optimum. **It cannot be acted on for precisely the reason
+`tp150` was refused**, and it is recorded here so that nobody later presents the shipped exit as
+having been validated by this exercise. It was not; it was left in place.
+
+### Pre-registered expectation, scored — **wrong three times out of three**
+
+§6 was written before any of this ran:
+
+| prediction | odds given | outcome |
+|---|---|---|
+| calibrated bar lands **+1 to +4pp** | 60/40 | **WRONG** — +5.0812pp |
+| `tp150` **clears** it | 55/45 | **WRONG** — fails at the 82nd percentile |
+| `tp200` clears but **fails C2** where `tp150` passes | 50/50 | **WRONG both halves** — `tp200` also fails C1, and C2 passed for both |
+
+Consistent with this project's standing record: **do not reason about the direction of an effect
+here; measure it.** Writing the guess down first is worth doing precisely because it keeps being
+wrong.
+
+### Trial accounting
+
+**2 trials**, exactly as committed in §5: the two winsorised re-scores of `tp150` and `tp200`.
+**Options `N` 205 → 207.** The C1 calibration is charged **zero** on the X7 / session-10 HAC-floor
+precedent — a calibration searches nothing.
+
+**Equity `N` is untouched *by this work*, but it is no longer 135 and §7 above is now stale on
+that number: it reads 143**, moved 135 → 143 by S22's eight horizon arms landing from another
+lane while this ran. Recorded rather than left, because a stale `N` overstates the significance
+of every DSR-gated claim and this file is one of the places that number gets quoted from.
+
+### Status
+
+**Item A is CLOSED — REJECTED.** No policy changed: the paper options book keeps **+100% target /
+−50% stop / half-DTE time stop**. Per Don's instruction there is no third state and no re-park.
+The dead-entry caveat of §0 stands unchanged: R2 is untouched by any of this, and no exit rule
+makes this book tradeable.
