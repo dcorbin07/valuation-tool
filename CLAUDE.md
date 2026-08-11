@@ -44,6 +44,63 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **SECTOR-NEUTRAL IS REJECTED AGAIN — AND IT FAILED *DIFFERENTLY*: THE TRADE-OFF THE ORIGINAL
+  REJECTION RESTED ON DOES NOT EXIST ON THE CORRECTED PANEL (2026-08-11, session 20,
+  `SECTOR-NEUTRAL-B6`).** Item **B** of `HANDOFF_parked_positives.md`. Sector-neutral ranking was
+  rejected twice — P10 (2026-07-31) and 2026-08-02 — but **both rejections ran on the pre-B6
+  110-date / 2,710-name panel the project has since declared void**, and the decision turned on a
+  **−1.58pp alpha difference measured inside a panel whose alpha LEVEL moved −4.18pp when B6 was
+  removed**. `PREREG_sector_neutral_b6.md` was committed **alone at `1bdb7e0`**, a strict ancestor
+  of the measurement commit, re-running **the SAME shipped `holdout_compare_panels` gate with the
+  SAME already-committed margins** (+0.25 long-short *t* AND +100bps alpha, in **both** halves,
+  boundary embargoed) under **two** pre-specified weightings and no others.
+  * **REJECTED under BOTH weightings, failing in BOTH halves.** Deployed: top-decile alpha
+    **+7.17% → +6.09%** (Δ **−1.09pp**), long-short **+11.04% → +8.51%**, long-short *t*
+    **2.8361 → 2.3423**, HAC **2.6199 → 2.1505**, monotonicity −0.8909 → −0.8667. Flat weights
+    give the same answer, so **the verdict does not rest on a choice of weighting**.
+  * **THE FINDING IS NOT "IT FAILED AGAIN", IT IS *HOW*.** On the void panel sector-neutral
+    **BOUGHT long-short *t*** (3.396 → 3.896, **+0.500**) and **sold alpha**, and the rejection was
+    a *judgement* that a long-only book should not make that trade. **On the corrected panel the
+    gain is GONE AND ITS SIGN IS REVERSED** — **−0.494** deployed, **−0.300** flat — so
+    sector-neutral is **worse on BOTH metrics and there is no trade-off left to adjudicate.**
+    The rejection no longer depends on preferring alpha to a *t*-statistic.
+  * **THE CALIBRATED FLOOR SEPARATES THE ARMS: the shipped arm clears the long-short HAC floor
+    (2.6199 vs 2.2837) and the sector-neutral arm does NOT (2.1505).** Both clear the alpha HAC
+    floor (2.2913). Quoted where X7/session 10 calibrated them — the full-universe decile book,
+    69 dates, H = 63, lag 1 — and **labelled an extrapolation for the sector-neutral arm**.
+  * **ONE PANEL BUILD, TWO ARMS, A PROVABLY IDENTICAL ROW SET — an improvement on both prior
+    runs, which built the arms as two SEPARATE runs.** Each cross-section calls `build_frame`
+    twice on the same `metrics` list, so the **`insider` nondeterminism this file records is
+    common-mode and cancels** instead of landing inside the difference. Controls: identical
+    `(date, ticker)` key sets (113,945 rows each); the toggle is **not inert** (composite
+    correlation 0.9836, nine of ten themes move); the flat arm **reproduces the published record
+    to the digit**; **sector coverage RE-MEASURED on the corrected panel at 100.0%, 11 sectors,
+    smallest sector 50 names, ZERO singletons** (the 100% in the record was measured on the *void*
+    panel); `insider` untouched at exactly 0.000; no new missing values; `sentiment` empty.
+  * **A DEFECT FOUND AND REPORTED, DELIBERATELY NOT REPAIRED: `cross_sectional.zscore`'s
+    zero-variance guard is VALUE-DEPENDENT.** It tests `sd == 0`, but whether a constant column
+    has an exactly-zero pandas variance depends on the constant — exact for 0.0, 50.0, 2.5,
+    0.125, ~1e-16 for **0.9, 0.1, ⅓, 12.34**. When it misses, `zscore` returns **a fabricated
+    pattern with max |z| = 1.0 built from floating-point residue, not NaN** — so *a constant
+    signal does not reliably neutralise itself.* **It also corrects the record: V2G's "a constant
+    `insider` makes `zscore` return all-NaN" holds only because the live `insider` is constant at
+    exactly 0.0 (`(50−50)/25`), and is not a general property.** **Exposure MEASURED, not
+    assumed: nil** — no theme column is degenerate on any of the 69 dates, and the smallest
+    within-sector dispersion over 231 sampled cells is 0.2209. **Not repaired because `zscore` is
+    on the live scoring path, so changing it is a scoring change and therefore a VINTAGE EVENT**;
+    pinned by a test that fails if it is ever silently corrected.
+  * **CLOSED PERMANENTLY, by a clause fixed before the run: full sector-neutral ranking may NOT
+    be re-run as a re-run.** Re-opening requires **new data** (`S25`, a genuine point-in-time
+    sector map — TICKERS is today's classification and is the one non-point-in-time input in the
+    panel) or **a materially different construction** (`S15`, sector-relative on the **value
+    theme alone**, never tested at all). Both ledger rows are now scoped rather than blank.
+    **Nothing here touches the sector column's ACCEPTED use for the `max_sector_w` concentration
+    cap — a risk control, not a re-ranking.**
+  * **Equity `N` 149 → 151** (one hypothesis, two weightings, no grid), √(2·ln 151) = 3.1677.
+    **ADOPTS NOTHING and `CONFIG.sector_neutral` is untouched at `false`.** Four of five
+    pre-registered expectations were RIGHT and one split — unusual here, and the stated reasoning
+    held: the corrected window is roughly the void panel's late portion, where sector-neutral
+    already lost on both metrics.
 - **THE EXIT RULE WAS RACED AND NOTHING BEATS THE INCUMBENT — BUT NEVER SELLING COSTS
   10.89pp/yr, AND THAT CONFIRMS S22 RATHER THAN CONTRADICTING IT
   (2026-08-11, session 19, `S23`).** The live book holds a name until it falls out of the top 50,
@@ -1588,8 +1645,15 @@ score), so there is no performance excuse to judge on a subset. If you must scre
     is unchanged and still the strongest open argument in the project — the edge has only ever
     seen this one Sharadar panel, and a forward track is the only thing that tests it on data
     nobody has looked at. What remains is elapsed time and reading the track, not building it.
-13. ~~**Industry-relative ranking**~~ **DONE — unblocked (P10), then REJECTED and re-confirmed
-    2026-08-02.** Sector is wired from TICKERS at 100% coverage and pinned by
+13. ~~**Industry-relative ranking**~~ **DONE and now CLOSED PERMANENTLY — REJECTED a third time
+    on 2026-08-11, this time on the CORRECTED panel (`SECTOR-NEUTRAL-B6`).** The two rejections
+    described below both ran on the **void pre-B6 panel**; the re-run puts the same gate on the
+    69-date panel and finds sector-neutral **worse on BOTH metrics**, with the long-short gain
+    that motivated the trade-off **reversed** and the sector-neutral arm **below the calibrated
+    long-short floor**. See the session-20 bullet in CURRENT STATE. **It may not be re-run
+    again** — the only routes back are `S25` (point-in-time sector map) and `S15` (value theme
+    alone). The rest of this item is the record of the earlier runs: **unblocked (P10), then
+    REJECTED and re-confirmed 2026-08-02.** Sector is wired from TICKERS at 100% coverage and pinned by
     `tests/test_sector_neutral.py`; sector-neutral ranking fails the held-out gate in both
     directions under both flat and deployed weights (it buys long-short t and sells top-decile
     alpha — the wrong trade for a long-only book). Stays OFF. `HANDOFF_sector_neutral.md`.

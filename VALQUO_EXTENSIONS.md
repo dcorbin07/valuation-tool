@@ -145,3 +145,32 @@ commit. One buy rule, `min_hold` identical across arms, five exits plus a never-
   Yahoo hindsight in the point-in-time beta ladder, and a shipped `_backtest_hold` hot loop that
   cost 61 of every 70 seconds (fix proved bit-identical over 1,818 leaves).
 * **Adopts nothing.** Adoption is a **vintage event** and Don's call. Equity `N` 143 → 149.
+
+## SECTOR-NEUTRAL-B6 — Sector-neutral ranking, re-run on the corrected panel (edge lane) — **DONE 2026-08-11**
+
+Item **B** of `HANDOFF_parked_positives.md`. Registered blind in `PREREG_sector_neutral_b6.md` at
+`1bdb7e0`, a strict ancestor of the measurement commit. **The same shipped
+`holdout_compare_panels` gate, with the same already-committed margins** (+0.25 long-short *t* AND
++100bps alpha, in **both** halves), under two pre-specified weightings.
+
+* **REJECTED under both weightings, failing in both halves.** Why it was re-run at all: **both
+  prior rejections ran on the pre-B6 void panel**, and the decision turned on a −1.58pp alpha
+  difference measured inside a panel whose alpha *level* moved −4.18pp when B6 landed.
+* **IT FAILED *DIFFERENTLY*, AND THAT IS THE FINDING.** On the void panel sector-neutral **bought
+  long-short *t*** (+0.500) and sold alpha, so the rejection was a *judgement* a long-only book
+  had to make. On the corrected panel that gain is **gone and reversed** (−0.494 deployed, −0.300
+  flat): **worse on both metrics, so there is no trade-off left to adjudicate.**
+* **The calibrated floor separates the arms:** the shipped arm clears the long-short HAC floor
+  (**2.6199** vs 2.2837); the sector-neutral arm **does not** (**2.1505**).
+* **One panel build, two arms sharing the `metrics` list**, so the known `insider`
+  nondeterminism is common-mode — an improvement on both prior runs, which built the arms
+  separately. Seven controls pass, including **sector coverage re-measured at 100.0% with ZERO
+  singleton sectors** rather than inherited from the void panel.
+* **A defect reported, NOT repaired:** `cross_sectional.zscore`'s zero-variance guard is
+  **value-dependent** and misses on constants like 0.9 and 0.1, returning a fabricated ±1 pattern
+  instead of NaN. **Exposure measured as nil here.** Repairing it is a scoring change and
+  therefore a **vintage event**; pinned by a test so it cannot be corrected silently.
+* **CLOSED PERMANENTLY** — re-opening requires **`S25`** (a point-in-time sector map) or **`S15`**
+  (sector-relative on the value theme alone, never tested); both ledger rows are now scoped. The
+  `max_sector_w` concentration cap is untouched — a risk control, not a re-ranking.
+* **Adopts nothing.** `CONFIG.sector_neutral` untouched at `false`. Equity `N` 149 → 151.

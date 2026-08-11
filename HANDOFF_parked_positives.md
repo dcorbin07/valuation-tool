@@ -160,6 +160,25 @@ is confirmed on live data and becomes much stronger than it is today.
 pinned by `tests/test_sector_neutral.py` so it cannot have gone inert, and sector coverage is
 100%. This is a re-run, not a data project.
 
+> ### CLOSED 2026-08-11 (session 20, `SECTOR-NEUTRAL-B6`) — **REJECTED, and the trade-off above
+> no longer exists.** Pre-registered in `PREREG_sector_neutral_b6.md`, committed alone at
+> `1bdb7e0`; re-run through the SAME `holdout_compare_panels` gate with the same already-committed
+> margins, under both weightings, on one panel build whose two arms share the `metrics` list.
+>
+> **This paragraph's own prediction was right about the second branch and wrong about the first.**
+> The alpha cost did not shrink below the long-short gain's value — *the long-short gain itself
+> disappeared and reversed*. On the corrected panel sector-neutral is **worse on BOTH metrics**
+> under both weightings (deployed: alpha **+7.17% → +6.09%**, Δ **−1.09pp**; long-short *t*
+> **2.8361 → 2.3423**, Δ **−0.494**, against the void panel's **+0.500**), the gate fails in
+> **both halves**, and the sector-neutral arm **drops below the calibrated long-short HAC floor**
+> (2.1505 vs **2.2837**) while the shipped arm clears it at 2.6199.
+>
+> **So the rejection is no longer a judgement call.** It used to require preferring alpha to
+> *t*-stat for a long-only book; it now requires nothing, because there is no gain to weigh
+> against the cost. **The item is closed and may not be re-run as a re-run** — re-opening needs
+> `S25` (a point-in-time sector map) or `S15` (sector-relative on the value theme alone), both
+> still open and both untouched by this. Details in `HANDOFF_edge_audit.md` session 20.
+
 **The narrower variant, never tested at all.** `HANDOFF_sector_neutral.md:167-172` nominates
 **sector-relative on the VALUE theme alone** — *"value is where cross-sector distortion is most
 defensible on theory (a 6% earnings yield means something different in utilities than in
