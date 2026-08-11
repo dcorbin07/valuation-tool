@@ -2210,3 +2210,17 @@ session of why a single number is not a decision: by the same reasoning that jus
 - The most recent SF3 quarter is always incomplete (filings arrive over following weeks) —
   the 45-day `inst_lag_days` convention handles it.
 - The live hot-list scan runs at 22:23 UTC and uses the FMP key.
+
+---
+
+## PT-WRITER 2026-08-10
+
+**Scheduled task attempted to write run #2 / vintage 2 inception (day 1).**
+
+The mechanism for retrieving daily closing prices to calculate the Index returns is **not documented in this repository**. The contract (§0a.3, §3.1, §3.4) identifies the bound source as the published files `data/valquo_track.json` + `data/valquo_track_history.csv`, read by `index_track.py`, but those files are populated by hand on the Cowork side — there is no automated writer in this codebase. The Cowork session `HANDOFF_edge_audit.md` §3.1 explicitly states: "Nothing in this repository writes `data/valquo_track_history.csv`."
+
+The task instructions say: "Determine today's closing values per the documented mechanism (Valquo Index and SPY, same sources the mechanism names — never a different vendor because the named one is down)" and "If the mechanism is ambiguous, its data source fails, or anything cannot be done without guessing: write a dated failure note."
+
+**Result:** Cannot write today's row without (a) a documented price-fetching mechanism, or (b) guessing at a vendor. Per instructions, logging the gap rather than inventing data.
+
+**Gap:** 2026-08-10, reason = no automated price mechanism in this repository; expected source is Cowork side tracking (not implemented here).
