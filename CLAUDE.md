@@ -44,6 +44,81 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE STANDARDISER IS WORTH SEVERAL POINTS OF ALPHA AND NO THEME IC CAN SEE IT — S20 REJECTED,
+  S21 NOT REPLICATED, AND THE STANDING RULE IS NOW PROVED RATHER THAN ANECDOTAL (2026-08-11,
+  session 21, `S20`/`S21`).** Ledger items S20 ("rank composite, not z-sum") and S21 ("winsorise
+  before standardising"), both `OPEN`, both `src=auto`, neither ever run. They are the same
+  decision twice — how a cross-section becomes a number before the weighted sum — and P6.3 is why
+  they got a register: robust z-scores **halved the long-short *t*** while every per-signal IC
+  stayed flat. `PREREG_s20_s21_construction.md` was committed **alone at `27af414`**, a strict
+  ancestor of the measurement commit, running **the SAME shipped `holdout_compare_panels` gate with
+  the SAME already-committed margins** (+0.25 long-short *t* AND +100bps alpha, in **both** halves,
+  boundary embargoed) under **two** pre-specified weightings and no others. **One panel build,
+  three scorings, 113,945 identical rows.**
+  * **THE HEADLINE IS THE PAIR, NOT EITHER ARM: the two arms move top-decile alpha by −3.49pp and
+    +2.43pp per year, and NOT ONE THEME IC MOVES AS MUCH AS 0.4 OF A *t*** (max |Δ| **0.1920** and
+    **0.3558**; `insider` moves **exactly 0.0000**, `capital_discipline` +0.0001, `size` −0.0017).
+    Judged by per-signal or per-theme IC both changes look harmless. **The standing rule — never
+    judge a construction change by per-signal IC — is now demonstrated three times (P6.3, X3, here)
+    and, for a rank transform, is a mathematical IDENTITY rather than an observation:** control C5
+    measures `max |ΔIC| = 0.000e+00` across all 44 number columns, because Spearman IC is invariant
+    to a strictly monotone transform. **The composite is a weighted SUM and is scale-sensitive; the
+    book is the deliverable.**
+  * **S20 (RANK) IS REJECTED — AND IT FAILS WHILE MAKING THE DECILES *BETTER* ORDERED.** Deployed:
+    alpha **+7.17% → +3.68%** (−3.49pp), long-short **+11.04% → +9.04%**, *t* 2.8361 → 2.3054, HAC
+    **2.6199 → 2.0588**, alpha HAC **4.3762 → 2.0028** — so the rank arm **fails BOTH calibrated
+    floors** (2.2837, 2.2913; **an EXTRAPOLATION** for a challenger arm) where the shipped arm
+    clears both — while **monotonicity IMPROVES −0.8909 → −0.9515**. Rejected in **both halves** and
+    again under flat weights. **The dissociation is the finding:** ordering *across* deciles gets
+    smoother while the **top** decile, which is the product, loses its edge — D1 25.31% → 21.82%.
+    Hypothesis, not a result: rank discards the magnitude information that identifies genuinely
+    extreme names.
+  * **S21's PREMISE IS WRONG AND THE REGISTER SAYS SO BEFORE THE RUN: `zscore` ALREADY winsorises
+    at 2% before standardising**, at both layers (`cross_sectional.py:83-87`). The audit item
+    proposes the shipped behaviour — which is what `src=auto`, *"a lead, not a fact"*, exists to
+    warn about. So the arm actually run is **winsorisation OFF**, and an adopt would have meant
+    **removing** the shipped clip.
+  * **S21 IS NOT REPLICATED, AND IT IS THE MOST INTERESTING NEGATIVE IN THE FILE.** Full sample,
+    every headline improves and several hugely: alpha **+7.17% → +9.60%** (+2.43pp), long-short
+    **+11.04% → +16.63%**, *t* **2.8361 → 4.9395**, HAC **2.6199 → 4.3612**, monotonicity −0.9758.
+    **But the gate splits: the late half passes (Δt +2.0125, Δalpha +3.69pp) and the EARLY half
+    fails on the alpha margin BY 17 BASIS POINTS** (+0.83pp against the +1.00pp bar) while clearing
+    the *t* margin. **Under flat weights it REJECTS outright**, both halves negative. Paired
+    within-panel: +2.43pp/yr at HAC *t* **+1.9170**, long-short +5.59pp at **+1.9365** — **both
+    below even the UNCALIBRATED 2.0.** Ambiguous against its own threshold is a **NULL**
+    (`RUN_RULES` A6). Session 7's LOO pattern for the fourth time.
+  * **THE CAUTION THAT MUST TRAVEL WITH THAT +2.43pp, or the number will be misquoted: the
+    unclipped arm's most extreme composite averages 7.14× its OWN 99th percentile, against 1.64×
+    for the shipped arm**, and only **8 of the shipped top 25 names** survive it. An unclipped
+    z-score is a **fragile estimator** whose book is anchored by outliers. **Winsorisation is also a
+    DATA-QUALITY defence, not only a statistical choice** — P7 shipped a currency bug that computed
+    `book_to_price` **892 against a true 0.589**, and with no clip such a row dominates the whole
+    cross-section's mean and sd. *"Removing the outlier guard improved the backtest"* and *"the
+    outlier guard is not earning its keep"* are different claims and only the first is measured.
+  * **A DEFECT IN THIS REGISTER'S OWN CONTROL, FOUND BY MEASUREMENT AND CORRECTED RATHER THAN
+    DROPPED: C7 claimed a rank arm must be BIT-IDENTICAL under winsorisation. IT IS NOT.** Rank is
+    invariant to **strictly** monotone transforms; winsorisation is only **weakly** monotone — flat
+    in the clipped tails — so it creates **ties**, and a percentile rank is not invariant to ties.
+    The differences sit in the clipped tails alone and the middle of the distribution is exactly
+    invariant. **So S20 does NOT strictly subsume S21**, and the same mechanism gives the asymmetry
+    worth keeping: **S20 is invisible to a per-signal rank IC; S21 is visible to it.** Pinned by
+    test.
+  * **Single-input themes are RANK-INVARIANT under a standardiser swap and multi-input themes are
+    not** — `size`, `capital_discipline` and `insider` post a within-date rank correlation of
+    exactly **1.0000**, because a monotone transform of ONE column preserves its ranking, while
+    `quality` (ten inputs) is the most changed theme in both arms (0.9395, 0.8215). A mean of
+    monotone transforms is not a monotone transform of the mean. **The pre-registered expectation
+    said `size` would move most; it cannot, and the prediction was backwards.**
+  * **Controls: C1 reproduces the published record to the digit; C2 113,945 identical rows across
+    all three arms, 69 dates, 2,531 names; C3 both toggles far from inert (composite rank
+    correlation 0.8859 and 0.7819, ~65-69% of names change decile); C4 no new missing values;
+    C5 exactly zero; C6 `sentiment` empty and `insider`'s layer-1 exemption verified at max|diff|
+    0.0 over 94,660 rows; C7 falsified as above.**
+  * **Equity `N` 151 → 155** (two hypotheses × two weightings, no grid), √(2·ln 155) = 3.1760.
+    **ADOPTS NOTHING**, and the register fixed that in advance: an eligible arm is recorded
+    **ELIGIBLE, not adopted**, and **QUEUES BEHIND the theme restoration's vintage** rather than
+    spending a second five-year clock reset on the same restart. Expectations scored **2 right,
+    3 wrong, 1 split** — the streak continues, which is why they are written down first.
 - **SECTOR-NEUTRAL IS REJECTED AGAIN — AND IT FAILED *DIFFERENTLY*: THE TRADE-OFF THE ORIGINAL
   REJECTION RESTED ON DOES NOT EXIST ON THE CORRECTED PANEL (2026-08-11, session 20,
   `SECTOR-NEUTRAL-B6`).** Item **B** of `HANDOFF_parked_positives.md`. Sector-neutral ranking was

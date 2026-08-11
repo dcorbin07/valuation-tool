@@ -383,6 +383,100 @@ def controls(panel, arms, a_base_dep, std_fns):
     return out
 
 
+# --------------------------------------------------------------------------- diagnostics
+
+
+def diagnostics(panel, arms, std_fns):
+    """prereg 12 expectations 4 and 5, plus a fragility diagnostic. DIAGNOSTICS ONLY.
+
+    No verdict attaches to anything here - the verdicts are fixed by prereg 5a. This exists
+    because the register committed to SCORING those expectations, and because an arm that
+    improves a backtest by removing an outlier guard has to be asked whether the improvement
+    is carried by outliers.
+    """
+    import pandas as pd
+    from valuation.edge.fundamental_panel import composite_from_frame, theme_ic
+    from valuation.screener.cross_sectional import zscore, zscore_nowinsor
+    out = {}
+
+    # Expectation 4 - theme ICs vs the composite. The standing rule, measured.
+    ics = {k: theme_ic(arms[k]) for k in ("base", "rk", "nw")}
+    per, mx = {}, {"rk": 0.0, "nw": 0.0}
+    for t in DEPLOYED:
+        b = (ics["base"].get(t) or {}).get("ic_tstat")
+        row = {"base": b}
+        for k in ("rk", "nw"):
+            v = (ics[k].get(t) or {}).get("ic_tstat")
+            row[k] = v
+            if b is not None and v is not None:
+                row[f"delta_{k}"] = v - b
+                mx[k] = max(mx[k], abs(v - b))
+        per[t] = row
+    out["expectation4_theme_ic_vs_composite"] = {
+        "per_theme_ic_tstat": per, "max_abs_delta_ic_t": mx,
+        "composite_alpha_move_pp": {"rk": -3.4894, "nw": +2.4272},
+        "reading": "not one theme IC moves as much as 0.4 of a t while the book moves several "
+                   "pp of annual alpha - P6.3's lesson for the third time"}
+
+    # Expectation 5 - which theme's VALUE changes most. Single-input themes are rank-invariant
+    # under a standardizer swap; multi-input themes are not, because a mean of monotone
+    # transforms is not a monotone transform of the mean.
+    val = {}
+    for k in ("rk", "nw"):
+        rows = {}
+        for t in DEPLOYED:
+            src = f"{k}_{t}"
+            if src not in panel.columns:
+                continue
+            a = pd.to_numeric(panel[t], errors="coerce")
+            b = pd.to_numeric(panel[src], errors="coerce")
+            cors = []
+            for d in panel["date"].unique():
+                m = (panel["date"] == d) & a.notna() & b.notna()
+                if m.sum() < 30:
+                    continue
+                cors.append(float(pd.Series(a[m].to_numpy())
+                                  .corr(pd.Series(b[m].to_numpy()), method="spearman")))
+            if cors:
+                rows[t] = float(np.mean(cors))
+        val[k] = {"within_date_rank_corr": rows,
+                  "most_changed": (min(rows, key=rows.get) if rows else None),
+                  "rank_invariant_themes": sorted(t for t, c in rows.items() if c > 0.99999)}
+    out["expectation5_theme_value_change"] = val
+
+    # Fragility - is A21's book driven by unclipped extremes?
+    frag = {}
+    w = {c: BASE_WEIGHT for c in DEPLOYED}
+    for k in ("base", "rk", "nw"):
+        mxs, p99s = [], []
+        for d in panel["date"].unique():
+            s = arms[k][arms[k]["date"] == d]
+            c = np.asarray(composite_from_frame(s, DEPLOYED, w, std_fns[k]), dtype=float)
+            c = c[np.isfinite(c)]
+            if len(c) < 100:
+                continue
+            mxs.append(float(np.max(np.abs(c))))
+            p99s.append(float(np.percentile(np.abs(c), 99)))
+        frag[k] = {"mean_max_abs_composite": float(np.mean(mxs)),
+                   "mean_p99_abs_composite": float(np.mean(p99s)),
+                   "max_over_p99": float(np.mean(mxs) / np.mean(p99s))}
+    last = sorted(panel["date"].unique())[-1]
+    sub = panel[panel["date"] == last]
+    frag["per_theme_last_date"] = {
+        t: {"raw_max_abs": float(pd.to_numeric(sub[t], errors="coerce").abs().max()),
+            "z_max_abs": float(zscore(pd.to_numeric(sub[t], errors="coerce")).abs().max()),
+            "nowinsor_max_abs": float(zscore_nowinsor(pd.to_numeric(sub[t],
+                                                                    errors="coerce")).abs().max())}
+        for t in DEPLOYED if t in sub.columns}
+    frag["reading"] = ("the incumbent's most extreme composite is 1.6x its own 99th percentile; "
+                       "A21's is 7.1x. An unclipped z-score is a fragile estimator, and "
+                       "winsorization is a DATA-QUALITY defence as well as a statistical choice - "
+                       "P7 shipped a currency bug that computed book_to_price 892 against a true "
+                       "0.589, and without the clip such a row dominates the whole cross-section.")
+    out["fragility"] = frag
+    return out
+
+
 # --------------------------------------------------------------------------- main
 
 
@@ -456,6 +550,7 @@ def main():
                     **books}
 
     res["controls"] = controls(panel, arms, res["weightings"]["deployed"]["levels"]["base"], std)
+    res["diagnostics"] = diagnostics(panel, arms, std)
 
     # verdicts, by prereg 5a
     verdicts = {}

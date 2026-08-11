@@ -174,3 +174,53 @@ Item **B** of `HANDOFF_parked_positives.md`. Registered blind in `PREREG_sector_
   (sector-relative on the value theme alone, never tested); both ledger rows are now scoped. The
   `max_sector_w` concentration cap is untouched — a risk control, not a re-ranking.
 * **Adopts nothing.** `CONFIG.sector_neutral` untouched at `false`. Equity `N` 149 → 151.
+
+## S20 / S21 — The construction pair: rank composite, and winsorisation (edge lane) — **DONE 2026-08-11**
+
+Ledger `S20` ("rank composite, not z-sum") and `S21` ("winsorise before standardising"), both
+`OPEN`, both `src=auto`, neither ever run. One register, two arms, both **REJECTED / NOT
+REPLICATED**; nothing adopted.
+
+**Register:** `PREREG_s20_s21_construction.md`, committed **alone at `27af414`**, a strict git
+ancestor of the measurement commit. The **shipped** `holdout_compare_panels` at the
+**already-committed** margins (+100bps top-decile alpha AND +0.25 long-short *t*, in **both**
+halves, boundary embargoed), on the corrected **69-date / 2,531-name** panel, under **two**
+pre-specified weightings — DEPLOYED carries the verdict, FLAT tests weighting-dependence.
+**One panel build, three scorings, 113,945 provably identical rows**, so the known `insider`
+run-to-run nondeterminism is common-mode and cancels.
+
+**THE HEADLINE IS THE PAIR.** The two arms move top-decile alpha by **-3.49pp and +2.43pp per
+year** while **no theme IC moves as much as 0.4 of a *t*** (max |delta| 0.1920 and 0.3558;
+`insider` exactly 0.0000). For a rank transform this is an **identity**: control C5 measures
+`max |dIC| = 0.000e+00` across all 44 number columns, because Spearman IC is invariant to a
+strictly monotone transform. **The standing rule - never judge a construction change by per-signal
+IC - now has a proof attached, and is demonstrated three times (P6.3, X3, here).**
+
+**S20 RANK - REJECTED**, both halves, both weightings. Alpha **+7.17% -> +3.68%**; long-short HAC
+*t* **2.6199 -> 2.0588** and alpha HAC **4.3762 -> 2.0028**, failing **both** calibrated floors
+(**an extrapolation** for a challenger arm) where the shipped arm clears both. **It fails while
+making the deciles better ordered** (monotonicity -0.8909 -> **-0.9515**) - the ordering across
+deciles smooths while the top decile, which is the product, loses its edge (D1 25.31% -> 21.82%).
+
+**S21 - NOT REPLICATED, and the item's premise was wrong.** `zscore` **already** winsorises at 2%
+before standardising, at both layers, so the arm run is winsorisation **OFF**. Full sample every
+headline improves (alpha **+9.60%**, long-short *t* **4.9395**, HAC **4.3612**) - **but the early
+half misses the alpha bar by 17 basis points** while clearing the *t* margin, and under flat weights
+it **rejects outright**. Paired difference HAC *t* +1.9170, below even the **uncalibrated** 2.0.
+Ambiguous against its own threshold is a **NULL**.
+
+**THE CAUTION THAT MUST TRAVEL WITH THE +2.43pp:** the unclipped arm's most extreme composite
+averages **7.14x its own 99th percentile** against **1.64x** shipped, and only **8 of the shipped
+top 25 names** survive it. Winsorisation is a **data-quality defence** as well as a statistical
+choice - P7 shipped a currency bug computing `book_to_price` **892 against a true 0.589**.
+
+**C7 FALSIFIED and corrected rather than dropped:** the register claimed a rank arm must be
+bit-identical under winsorisation. It is not - winsorisation is only **weakly** monotone and creates
+**ties** - so **S20 does not strictly subsume S21**, and S20 is invisible to a per-signal rank IC
+while S21 is visible to it. Pinned by test.
+
+**Adopts nothing.** Either adoption is a **VINTAGE EVENT**; the register fixed in advance that an
+eligible arm is recorded **ELIGIBLE** and **queues behind the theme restoration's vintage** rather
+than spending a second clock reset. Equity `N` **151 -> 155**, sqrt(2 ln 155) = 3.1760.
+`data/free_analysis/S20_S21_CONSTRUCTION.json`; `python -m scripts.construction_rerun`;
+`HANDOFF_edge_audit.md` session 21.
