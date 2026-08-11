@@ -856,8 +856,14 @@ def test_p4_seed_book_can_still_accumulate_when_asked():
 # (3 sessions): index +3.22%, SPY +3.05% -> **+0.18 pp**" — the Valquo Index beating SPY. The
 # contract-bound recorder over that window reads -0.2777pp (2026-07-31) and -2.8468pp
 # (2026-08-06); it was never above SPY. No arithmetic was wrong. The recap read the Tradier
-# sandbox ENGINE (10 names, equal-weighted at 10%, inception 2026-08-03 — weights that violate
-# PAPER_TRACK_CONTRACT.md's own 8% cap) and printed it under the words "Valquo Index vs SPY".
+# sandbox ENGINE (10 names against the published book's 86, inception 2026-08-03) and printed
+# it under the words "Valquo Index vs SPY".
+#
+# CORRECTED 2026-08-11 (cold audit LA11). This comment used to describe the engine's weights as
+# violating "PAPER_TRACK_CONTRACT.md's own 8% cap". They do not, and session 16 (`PT-SPLIT`)
+# retracted it — see `test_ptsplit_a_ten_percent_weight_is_not_a_cap_violation` further down this
+# same file, which has pinned the correct reading since. The comment and the test it introduces
+# disagreed with a test in the same module; the test was right.
 #
 # WHY THESE ARE STRICTER THAN THE SITE'S. A wrong figure on a page is corrected by a deploy.
 # A wrong figure in Discord is delivered once, to people, and no correction ever catches it.

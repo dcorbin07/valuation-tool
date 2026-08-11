@@ -593,3 +593,89 @@ unchanged and the test is now **stricter**: it requires the bound series to be c
 
 No `RESEARCH_LOG.md` row owed; equity `N` stays **131**. Nothing here searched a hypothesis space,
 fitted anything or selected among arms — it is infrastructure, not a measurement.
+
+
+---
+
+# LA11 — the retracted 8%-cap diagnosis, still standing in eight places (2026-08-11)
+
+**Cold audit #2 is now fully executed.** LA11 was the last open item; all fifteen (LA1–LA15) are
+resolved, with LA6 tracked as `V2F`/`V2G` rather than as its own row.
+
+## What the defect was
+
+Session 16 (`PT-SPLIT`) retracted a diagnosis: the Tradier sandbox engine's 10% weights were
+reported as breaching `PAPER_TRACK_CONTRACT.md`'s own 8% cap. **They do not.**
+`valquo_index.build_index` sets `cap = max(MAX_WEIGHT, 1/len(picks))` deliberately — ten names at
+8% sum to 80%, so on a small book the cap must relax to equal weight or the redistribution loop
+never terminates — and the payload has always self-reported `effective_max_weight`. The weights
+were right for the book; the **book** was wrong, on **size** (10 names against the published 86).
+
+The **conclusion** (the engine is not the Index and may never be evidence under the contract)
+survives untouched. Only its **reason** moved. But the retracted reason was left standing in prose,
+and that is a worse state than no reason at all: a reader who checks the cap finds it correct and
+may then doubt the separation itself.
+
+## The audit named three sites. There were eight.
+
+| site | named by the audit? |
+|---|---|
+| `valuation/edge/track_meter.py` | yes |
+| `valuation/screener/index_track.py` | yes — as `:286`, actually `:368` |
+| `valuation/saas/recap.py` | yes |
+| `valuation/web/hero.py` | **no** |
+| `valuation/edge/track_export.py` (module docstring) | **no** |
+| `valuation/edge/track_export.py` (`_README`, emitted) | **no** |
+| `.github/workflows/track-backup.yml` | **no** |
+| `PAPER_TRACK_CONTRACT.md` §0a.2 | **no** |
+
+The five extra sites were found by grepping **the claim** rather than following the audit's
+citations. The `index_track.py` cite had drifted 82 lines in a day, which is CLAUDE.md's own
+warning about line cites in this project rotting within days, confirmed once more.
+
+## Two things worse than a stale docstring
+
+**1. It shipped as committed DATA, and that is mine.** `track_export._README` is *emitted*, so the
+retracted claim was written into `data_export/README.md` and committed — by my own LA2 work one day
+earlier, which carried the stale reason forward. Regenerated from the corrected source.
+
+**2. The contract asserted it in one section and corrected it in another.**
+`PAPER_TRACK_CONTRACT.md` §5b has carried the full correction since 2026-08-10 while §0a.2 still
+stated the retracted clause — exactly the shape the audit's preamble names. Struck in place with a
+dated pointer to §5b; the original text is left visible because that document does not delete.
+**No threshold, date or parameter moved**, so no void clause is engaged.
+
+## A test was pinning the retracted diagnosis into the artifact
+
+`tests/test_track_export.py` asserted `"8%" in readme and "10%" in readme` with the message *"the
+README does not state the weight caps that tell the two books apart"*. The weight caps are exactly
+what does **not** tell them apart — so that assertion **would have failed had the README been fixed
+and the test left alone**, and a future reader would have concluded the README was wrong. It now
+pins **book size** (86 vs 10 names), the ground the conclusion actually rests on. This was my own
+test from LA2.
+
+A comment in `tests/test_paper_track.py` also carried the retracted claim while
+`test_ptsplit_a_ten_percent_weight_is_not_a_cap_violation`, in the same module, pinned the correct
+reading. The comment and the test disagreed; the test was right.
+
+## Verification
+
+A regex sweep over every `.py`, `.yml` and `.md` in the tree returns **22 surviving matches**, and
+each is one of: a dated correction quoting what it used to say, `VALQUO_LIVE_AUDIT.md`'s own record
+of the defect, or a historical session handoff that already self-corrects (`HANDOFF_edge_audit.md`
+§6414 lists it as "MY OWN, TWICE-PUBLISHED"). No site asserts it live.
+
+**Full gate: 52 suites, all green.**
+
+## Trial cost: none
+
+A documentation correction — nothing searched, fitted or selected. Equity `N` unchanged at **151**
+as measured today by `research_log.detail()`.
+
+## Not done
+
+* **The correction is prose only.** Nothing about what the code computes, what the site says, or
+  what the contract binds has moved. That is deliberate and is the whole scope of LA11.
+* **The still-open blocker is unchanged and is not this:** nothing ingests the bound series into
+  the live service's store, and there is still **no automated daily writer** for it anywhere. That
+  remains the operational gate's actual blocker (`PT-WRITER`, Cowork lane).

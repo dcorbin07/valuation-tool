@@ -26,13 +26,20 @@ Plain, human-readable, deterministic files under `data_export/`:
   valquo_index_meta.json     that series' inception, benchmark and 86-name book
 
 NAMING, corrected 2026-08-09. `paper_track_index.csv` was described here as "the daily
-Valquo-Index-vs-SPY series". It is not: it is the Tradier sandbox engine's book (10 names,
-equal-weighted at 10%, inception 2026-08-03), whose weights violate the 8% cap in
-`PAPER_TRACK_CONTRACT.md`. The contract-bound Valquo Index series is the ingested Cowork
-tracker, backed up below under the `index_track` meta key. The two were conflated in prose
-here and in code in `saas/recap.py`, where it put a false "Index beating SPY" claim into
-Discord on 2026-08-05. These files are a BACKUP and make no claim of their own — but the
-label is how the confusion travels, so it is stated exactly.
+Valquo-Index-vs-SPY series". It is not: it is the Tradier sandbox engine's book (10 names
+against the published 86, inception 2026-08-03). The contract-bound Valquo Index series is
+the ingested Cowork tracker, backed up below under the `index_track` meta key. The two were
+conflated in prose here and in code in `saas/recap.py`, where it put a false "Index beating
+SPY" claim into Discord on 2026-08-05. These files are a BACKUP and make no claim of their
+own — but the label is how the confusion travels, so it is stated exactly.
+
+CORRECTED 2026-08-11 (cold audit LA11). The paragraph above used to disqualify the sandbox
+book with "whose weights violate the 8% cap in `PAPER_TRACK_CONTRACT.md`". They do not —
+session 16 (`PT-SPLIT`) retracted that reading: `cap = max(MAX_WEIGHT, 1/len(picks))` is
+deliberate, ten names at 8% sum to 80%, and the weights were right for the book. The BOOK was
+wrong, on SIZE. This file is written by the LA2 work of one day earlier, which carried the
+stale reason forward into `_README` and therefore into the COMMITTED `data_export/README.md` —
+so the retracted claim was not merely a comment here, it was shipped as data. See `_README`.
 
 LA2, 2026-08-10 — THE BACKUP WAS BACKING UP THE WRONG BOOK, AND THE GUARD WAS GUARDING IT.
 Everything above was true in prose and false in effect. `payload()` did reach for the bound
@@ -518,11 +525,16 @@ Read this before quoting any figure out of these files.
 2026-07-30. It is the ONLY series that may be cited as evidence under that contract, and
 `index_track.vs_spy_claim()` is the only function allowed to make a vs-SPY statement from it.
 
-**The Tradier sandbox engine** — `paper_track_*` — is a different book: 10 names,
-equal-weighted at 10% each, inception 2026-08-03. Those 10% weights break the contract's own
-8% cap, so **the sandbox is not the Index and may never be quoted as it.** On 2026-08-05 a
-Discord recap printed the sandbox's numbers under the words "Valquo Index vs SPY" and claimed
-the Index was beating SPY on a day the bound recorder had it 2.85pp behind.
+**The Tradier sandbox engine** — `paper_track_*` — is a different book: **10 names** against
+the Index's **86**, equal-weighted, inception 2026-08-03. A book that size is not a top decile
+of a large-cap tier, so **the sandbox is not the Index and may never be quoted as it.** On
+2026-08-05 a Discord recap printed the sandbox's numbers under the words "Valquo Index vs SPY"
+and claimed the Index was beating SPY on a day the bound recorder had it 2.85pp behind.
+
+*Corrected 2026-08-11:* this paragraph used to say the sandbox's 10% weights "break the
+contract's own 8% cap". They do not. `build_index` sets the cap to `max(8%, 1/n)` on purpose,
+because ten names at 8% sum to 80%; the weights were correct for the book. The two books are
+told apart by **size and inception**, not by their weights — check `n_positions`, not the cap.
 
 | File | What |
 |---|---|

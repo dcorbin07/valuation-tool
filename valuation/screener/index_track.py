@@ -364,10 +364,20 @@ def from_store(store) -> dict:
 # i.e. the Index was BEATING SPY. The contract-bound recorder over that window reads
 # -0.2777pp (2026-07-31) and -2.8468pp (2026-08-06): it was never above SPY, on any day.
 # Nothing was miscalculated. The recap read a DIFFERENT BOOK -- the Tradier sandbox engine
-# (`paper_track.index_summary`), 10 names equal-weighted at 10% each, inception 2026-08-03 --
-# and printed it under the words "Valquo Index vs SPY". Those 10% weights violate this
-# contract's own 8% cap, so the engine is not the Index and may never be evidence under
-# `PAPER_TRACK_CONTRACT.md`.
+# (`paper_track.index_summary`), 10 names against the published book's 86, inception
+# 2026-08-03 -- and printed it under the words "Valquo Index vs SPY". A book that size is not
+# the Index, so the engine may never be evidence under `PAPER_TRACK_CONTRACT.md`.
+#
+# CORRECTED 2026-08-11 (cold audit LA11). The two sentences above used to disqualify the engine
+# because "those 10% weights violate this contract's own 8% cap". They do not, and session 16
+# (`PT-SPLIT`) retracted it: `valquo_index.build_index` sets `cap = max(MAX_WEIGHT,
+# 1/len(picks))` on purpose -- ten names at 8% sum to 80%, so on a small book the cap must
+# relax to equal weight or the redistribution loop never terminates -- and the payload has
+# always self-reported `effective_max_weight`. The weights were correct for the book they
+# described; the BOOK was the wrong one. The conclusion is unchanged; only its reason moves,
+# from weights to book SIZE. Keeping the retracted reason would have been the more dangerous
+# state, because a reader who checks the cap finds it correct and may then doubt the
+# separation itself.
 #
 # WHY IT IS CENTRALISED RATHER THAN PATCHED. The same defect had already been found ON THE
 # SITE (audit B7: the live screener and the backtest scored names differently because two code
