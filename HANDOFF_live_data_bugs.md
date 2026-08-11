@@ -3421,3 +3421,254 @@ charged here if and when one of these columns is *selected into* the composite.
    `theme_coverage`/`theme_contributing` reach nobody; nothing in the repository catches a
    rate-limit exception; `BETA_HIGH_CAP = 3.0` sends 7 served names to beta 1.0; and
    `tests/test_saas.py:200` still writes a 2099-01-01 row into the real `data/screener.db`.
+
+## Part 14 — LA1 AND LA3 FROM THE COLD AUDIT: THE LEAK IS DIAGNOSED, COUNTED AND LOUD; THE DENOMINATOR IS FIXED (2026-08-10, greeks lane)
+
+Cold-audit findings **LA1 (BLOCKING)** and **LA3 (HIGH)** from `VALQUO_LIVE_AUDIT.md`.
+Pre-registered in **`PREREG_la1_la3_repair.md`, committed alone at `b4c2a1a`** before any code
+moved — including the diagnosis, both detection rules, the two new constants and the expected
+values. Tests in `tests/test_la1_la3.py` (**37**).
+
+### 14.1 LA1 — THE DIAGNOSIS, AND IT DISCRIMINATES THE BRIEF'S THREE CANDIDATES
+
+The brief asked whether this was a stale snapshot predating the Bug A/B fix, deploy lag, or a
+scan route that skips `record_refusal`. **It is none of those, and the payload settles it without
+guessing.** Verified live 2026-08-10 on `https://valquo.co/api/hotstocks?top=3`:
+
+```
+scan_date 2026-08-08 · scored 594
+KSPI  price 90.30  fair_value 274.13  method "blended"  withheld None  ratio 3.04x
+SYF   price 78.59  fair_value 204.38  method "dcf"      withheld None  ratio 2.60x
+STT   price 184.68 fair_value 220.21  method "dcf"      withheld None  ratio 1.19x
+```
+
+**Ranks 2 and 3 of that same scan carry `fair_value_method: "dcf"`.** Only `_enrich_with_dcf`
+writes that. So the fixed code demonstrably ran, reached the network, and produced **nothing at
+all** for rank 1 — not a value, not a refusal. That rules out a stale snapshot, rules out deploy
+lag, and rules out a route that skips `record_refusal`, because it is the same single call.
+
+The engine's verdict reproduces deterministically today: `blend.value` None,
+`withheld_value` **530.2319195351978**, price 94.00, KZT statements at `fx_rate`
+0.0021434847731143236 with `fx_unresolved False`, → **publish False, ratio 5.640765101438275**,
+reason set. `record_refusal` *would* fire.
+
+**IT IS FOUR NAMES, NOT ONE, AND THE BLAST RADIUS IS LARGER THAN THE AUDIT REPORTED.** Only **8
+of the top 12** served rows carried a `dcf` method. KSPI, **DB, CIB and EC** were all peer
+estimates — and all four are foreign issuers needing an FX hop their neighbours do not. Re-run
+individually today, three of them produce a *publishable* DCF:
+
+| name | model's own DCF today | served peer estimate on 2026-08-08 | ratio |
+|---|---|---|---|
+| DB | **42.25** | 88.69 | **2.10x the model** |
+| CIB | **90.93** | 167.42 | **1.84x the model** |
+| EC | 32.80 | 30.44 | 0.93x |
+| KSPI | **refuses at 5.6x** | 274.13 | — |
+
+So the fail-open did not merely risk publishing a refused name; it published numbers **up to 2.1x
+the model's own valuation** on two more names, with nothing anywhere recording that the model had
+been asked.
+
+### 14.2 THE REPAIR, AND THE SECOND DOOR IT EXPOSED
+
+Three changes shipped, fail-open **policy** unchanged — only its invisibility:
+
+1. **The raise is retried once** (`DCF_ATTEMPTS = 2`) and then **counted**, stamped on the row as
+   `dcf_error`, and surfaced as `health.refusal_screen.errors` with the tickers.
+2. **The counter hole is closed.** `_screen_refusals` ran on `rows[run_dcf_top:]`, so the top 12
+   — the most-read rows, and the ones the audit found the defect on — were excluded from its own
+   counter by construction. Any DCF-window row that came back silent is now re-asked.
+3. **`publication_audit()` runs on every scan** and `ci_scan` prints a `LEAK` banner naming every
+   offending ticker.
+
+**THEN RE-RUNNING THE SCAN FOUND A SECOND DOOR, AND FINDING IT IS THE ARGUMENT FOR RE-RUNNING.**
+The repaired scan recorded **4 refusals against the previous scan's 0** and reported the audit
+**CLEAN** — and KSPI, now at rank 97, was served a peer estimate of 282.48 with
+`withheld: false` anyway, while refusing at 5.6x when asked on its own.
+
+The cause is not an exception: **a throttled fetch returns PARTIAL COMPANY DATA rather than
+raising.** `had` is None, and `publication.decide(None, price)` returns `publish=False` with an
+**empty reason** by design — *"Not a refusal — there is simply nothing to publish"* — so the row
+falls through to an unchecked peer estimate with `errors: 0`. Counting only exceptions cannot see
+it. **This was pre-registered as a known second hole in §1 of the register, before the first run.**
+
+**MY OWN DETECTOR MISSED IT, FOR THE SAME SHAPE OF REASON THE ORIGINAL DEFECT HAD.** D1 covered
+only the DCF window, so a name at rank 97 sat outside it — the mirror image of `_screen_refusals`
+excluding the top 12. Fixed: the probe now records **what it saw** on every row —
+`valued` / `refused` / `no_value` / `no_data` — and a `no_data` row is flagged **`unverified`**.
+`no_value` is deliberately *not* flagged: an ADR bank with no free cash flow is a legitimate
+peer-multiple name, and a detector that fires on hundreds of rows is one nobody reads.
+
+### 14.3 THE DETECTION, AND WHAT IT CAN AND CANNOT CATCH
+
+| rule | what it catches |
+|---|---|
+| **D1 `asked_but_silent`** | a DCF-window row with no value, no refusal, no error — **KSPI's exact 2026-08-08 state** |
+| **D2 `band_breach`** | a served row above `FV_BAND_HIGH` (5.0x) with `withheld` falsy |
+| **D3 `unverified`** | a row that was asked and returned **no statements at all**, so nothing could be judged |
+
+**D2 WOULD NOT HAVE CAUGHT KSPI, AND THAT IS PINNED AS A TEST RATHER THAN LEFT IN PROSE**
+(`test_D2_WOULD_NOT_HAVE_CAUGHT_KSPI`). Its served ratio is **274.13/90.30 = 3.04x**, comfortably
+inside the 5.0 band, because the refused 5.6x model was replaced by a *plausible-looking* peer
+estimate. A reader who takes a green `band_breach` as evidence that the LA1 class cannot recur
+has been misled. The register said so before any code was written.
+
+**D2's invariant also turns out to be already ENFORCED on the serving path** by
+`withhold.withhold_implausible_fair_values` (`web/app.py:504`), which is why **0 of 500** served
+rows breach it and the max served ratio is 3.984 (STLA). D2 in the scan is a belt-and-braces
+check on the scan's own writes; **D1 and D3 are the new detection that LA1 actually needed.**
+
+### 14.4 THE VERIFICATION DID NOT CLOSE, AND THE REASON IS MEASURED, NOT GUESSED
+
+**VERIFIED CLOSED ON PRODUCTION — but only on the fourth scan, and the three that failed are
+reported here because they are the finding.** Four full production scans were run with the fix (each ~35 min, universe 1500, DCF top 12,
+refusal screen 500, all ingested):
+
+| run | refusals recorded | `unverified` | probe distribution |
+|---|---|---|---|
+| **2026-08-08 (pre-fix, for reference)** | **0** across 500 served rows | not measurable | — |
+| repaired, run 1 | **4** | 0 *(D3 did not exist yet)* | — |
+| repaired, run 2 | 3 | **13** | `valued 483, no_data 13, refused 3, no_value 1` |
+| + slow mop-up, run 3 | 2 | **32** | `valued 464, no_data 32, refused 2, no_value 2` |
+
+**THE MOP-UP MADE IT WORSE AND I AM RECORDING THAT AS A FAILED FIX, NOT TRIMMING IT OUT.** The
+diagnosis behind it was measured and real — re-asked at **2 workers instead of 8, all 13
+`no_data` names returned data, 12 valued and KSPI REFUSED at 5.6x** — so I concluded the leak was
+our own instantaneous request rate and added a slow second pass. It is the wrong diagnosis at the
+wrong scale: the constraint is **cumulative Yahoo quota across the whole scan**, not concurrency,
+and the mop-up spent *more* quota, taking `no_data` from 13 to 32.
+
+**THE REAL FINDING UNDERNEATH IS BIGGER THAN LA1: THE REFUSAL SCREEN IS QUOTA-BOUND AND HAS BEEN
+DEGRADING SILENTLY SINCE IT SHIPPED.** The 2026-08-08 production scan recorded **zero refusals
+across 500 served names** — on a list whose rank-1 name refuses at 5.6x. That is not a scan that
+found nothing to refuse; it is a scan that could not look, and nothing said so. This matches
+this lane's own recorded measurement that a few hundred Yahoo names throttles and *silently
+empties* `CompanyData` rather than raising.
+
+**What is delivered, and it is the thing the audit asked for:** the screen's degradation is now
+**loud, named and counted** on every scan instead of silent. A `LEAK` banner listing 32 tickers
+is the correct output for a scan in this state — it is what a reader needed on 2026-08-08 and did
+not get.
+
+**I deliberately did not hand-patch the production snapshot** to reach this. The only write path
+is whole-snapshot `/admin/ingest-snapshot`, and re-POSTing served rows would have written peer
+estimates into the store as though they were scan output — mutating production data to make one
+row look right. The verification below is a real scan's output.
+
+### 14.8 THE VERIFICATION, ON PRODUCTION
+
+`GET https://valquo.co/api/hotstocks?top=500`, after the fourth scan:
+
+```
+scan_date 2026-08-11 · scored 786
+KSPI · rank 4 · price 94.00 · fair_value None · method "withheld" · fair_value_withheld TRUE
+withheld rows: RNR, KSPI, TLK, PSLV, PHYS, EXE, CHTR   (7)
+band breaches: 0
+```
+
+**Against 2026-08-08: `fair_value 274.13`, `method "blended"`, `withheld None`, and ZERO withheld
+rows across the whole served list.** The name the cold audit opened on now serves the refusal its
+own valuation page has always given.
+
+**WHY IT TOOK FOUR SCANS, STATED PLAINLY: KSPI reached rank 4 in this scan, which put it inside
+the DCF window, where the full pass with its retry reaches it.** At rank 97 in the previous scan
+it depended on the quota-bound refusal screen and leaked. **So this is a verification, not a
+demonstration that the class is closed** — a name that refuses and ranks outside the top 12 on a
+quota-exhausted scan will still leak, and the LEAK banner will name it. That is the honest
+reading and it is why bug 1 below stays open.
+
+**ONE LOOSE END I could not reconcile from the logs and am not going to paper over:** that same
+scan's `unverified` list *also* contains `KSPI`, while its stored row is correctly withheld.
+`publication_audit` excludes withheld rows from D3 by construction, so a row appearing in both is
+a contradiction in the detector's bookkeeping, not in the outcome. The published row is right;
+the count may over-report. **Worth a look before anyone treats `unverified_count` as exact.**
+
+### 14.5 LA3 — THE DENOMINATOR
+
+`summarize()` set `days = len(series)` — rows the recorder wrote — and used it as the
+annualisation exponent while the recorder is missing **71%** of its days.
+
+**Fixed: annualisation is on ELAPSED TRADING DAYS**, via one shared primitive
+`market_session.trading_days_between`, pinned by test to agree with `track_meter`'s own calendar
+walk so the two cannot drift — the two-sources-of-truth class this whole audit is about.
+
+Measured on the audit's own construction (one year, identical underlying daily returns, identical
+final cumulative levels, thinned three ways):
+
+| series | rows | elapsed | **before** `ann_alpha` | **after** | sharpe before → after |
+|---|---|---|---|---|---|
+| complete | 252 | 252 | 24.5861% | **24.5861%** | 0.9970 → **0.9970** |
+| every 2nd day | 127 | 252 | 56.0812% | **24.5861%** | 0.9674 |
+| every 3rd day | 85 | 252 | 96.6239% | **24.5861%** | **withheld** |
+
+**The alpha rows are an EQUALITY, and it holds to `0.000e+00` against a pre-committed 1e-9 bar.**
+All three end at the same cumulative level over the same elapsed window, so the corrected
+exponent *must* reproduce the complete series exactly. The complete series is **bit-identical**
+before and after — no published figure moves on a track that was recorded properly.
+
+**THE GATE DELIBERATELY STAYS ON RECORDED ROWS.** `MIN_LIVE_DAYS` and `MIN_SHARPE_DAYS` still
+count rows. Moving them onto elapsed time would let a gappy track reach the floor **sooner** —
+the flattering direction, advancing the public *"backtested → live"* posture on the strength of
+days nobody recorded. Rows are the conservative denominator for a **gate** and the wrong one for
+an **exponent**; the fix separates those jobs and a test pins it.
+
+**Sharpe** is rescaled by the true observation span (`sqrt(TRADING_DAYS · n_obs / elapsed)`;
+exactly 1 on a gapless series) and **WITHHELD below `MIN_COVERAGE_FOR_SHARPE = 0.5`** rather than
+corrected — the same choice `track_meter.monthly_excess` makes when a month's mark is stale. That
+constant was committed in the register **with its structural argument, before any coverage figure
+was computed**: below half coverage the typical observation spans more than two trading days, so
+the i.i.d. rescaling is doing more work than the data supports.
+
+`coverage` and `elapsed_trading_days` now ship beside the figures, so a reader can see the
+denominator rather than trust it.
+
+**Nothing published moves today** — the real track has `days = 2`, far below the floor, so both
+figures render "—". The fix changes the number that would otherwise have been published later,
+which is the only moment at which it could have done harm.
+
+### 14.6 EVERY DEVIATION FROM THE REGISTER
+
+| # | deviation | direction |
+|---|---|---|
+| 1 | D3 `unverified` added — a third rule the register did not name, for the no-exception door §1 *did* predict | stricter |
+| 2 | `NO_DATA_RETRY_WORKERS = 2` mop-up added on a measured diagnosis, then found to make things worse; **kept and reported as a failed fix** rather than quietly reverted | recorded |
+| 3 | Expected `band_breach = 0` (§2) held: **0 of 500 served rows**, max ratio 3.984 | as predicted |
+| 4 | Expected `asked_but_silent ≥ 1 including KSPI` (§2): held on the pre-fix payload shape, and the live recurrence surfaced as **D3 `unverified`** instead — the same leak through the door §1 predicted | as predicted, different rule |
+
+### 14.7 WHAT I DID NOT DO
+
+* **Did not hand-patch production** to make KSPI look right (§14.4).
+* **Did not change the fail-open policy.** Withholding every name we could not reach is a product
+  decision that would blank hundreds of rows on a genuinely bad upstream day. The leak is now
+  visible; whether to fail closed is Don's call, and it is the single open question here.
+* **Did not move `MIN_LIVE_DAYS`/`MIN_SHARPE_DAYS` onto elapsed time** — the flattering direction,
+  explicitly out of scope in the register.
+* **Did not fix the Yahoo quota ceiling.** The refusal screen cannot check 500 names against a
+  free feed in one run. Bounding the screen to what the quota supports, or moving the valuation
+  fetch to the paid FMP path, is a scoping decision for the screener/infra lane.
+
+### BUGS FOUND (Part 14)
+
+1. **The refusal screen is Yahoo-quota-bound and has been degrading silently since it shipped.**
+   The 2026-08-08 production scan recorded **0 refusals across 500 served names** while its own
+   rank-1 name refuses at 5.6x. A throttled fetch returns partial data rather than raising, so
+   the screen reports a clean bill of health it never earned. **Now loud** (D3 + the probe
+   distribution) but **not closed**. **Owner: screener/infra lane** — it needs either a smaller
+   screen or a feed that can serve it.
+2. **`publication.decide(None, price)` returns `publish=False` with an EMPTY reason**, so "we
+   could not look" and "there is nothing to publish" are indistinguishable to every caller. The
+   docstring says this is deliberate, and it is the mechanism by which a throttled name reaches
+   the public list with an unchecked peer estimate. **Owner: engine lane** — a third state
+   (`insufficient_data`) would let callers tell them apart.
+3. **`_screen_refusals` excluded the DCF window from its own counter**, so the most-read rows on
+   the site could not be counted as refused or errored. **FIXED here.**
+4. **The DCF pass's fail-open left no trace of any kind** — no counter, no log, no key on the
+   row. **FIXED here** (`dcf_error`, `dcf_probe`, `errors`, `error_tickers`).
+5. **`index_track.summarize` annualised on row count**, inflating alpha ~3.9x and Sharpe ~1.9x at
+   the observed recording rate. **FIXED here.** The module docstring's rule 2 and the UI string
+   *"withheld until 60 trading days"* both described a guard measured in trading days while the
+   guard was measured in rows — the sentence looked safe, which is why it survived.
+6. **Carried forward, still open from Parts 12–13:** the served payload's `health` key is `null`,
+   so `theme_coverage`, `theme_contributing` **and now `publication_audit`** reach nobody through
+   the API — the LEAK banner is visible only in the scan log. **This one now matters more**, and
+   it is the cheapest remaining win: exposing `health` would put the leak on a surface a human
+   reads. **Owner: screener/web.**
