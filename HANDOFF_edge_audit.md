@@ -7309,14 +7309,15 @@ while the two about magnitude (#2, #4) were wrong.
 **Five scored arms plus the control: equity `N` 143 → 149**, as registered. Charged at zero: the
 placebo calibration, the half-splits, and the coverage/book-size diagnostics.
 
-**Measured:** DSR **0.8436955925493782 → 0.8388059159836208**,  0.436077 →
+**Measured:** DSR **0.8436955925493782 → 0.8388059159836208**, `sr0_benchmark` 0.436077 →
 0.438357, **√(2·ln 149) = 3.1635** — still above the Harvey–Liu–Zhu hurdle of 3.0, still
-self-reporting . **Nothing else moved:** 1,217 leaves, **20 moved / 0
-ADDED / 0 REMOVED** — five the DSR chain, four provenance, eleven last-digit float. Every
-headline is **bit-identical** and  is still . **Re-run, never hand-patched** —
-and the first attempt was **killed mid-build by the harness and wrote nothing**, which is the
-correct failure mode: the artifact stayed at the previous  with clean provenance rather than
-being left half-written.
+self-reporting `deflated_sharpe_ratio` with `is_effectively_undeflated: false`. **Nothing else
+moved:** 1,217 leaves, **20 moved / 0 ADDED / 0 REMOVED** — five the DSR chain, four provenance,
+eleven last-digit float. Every headline is **bit-identical** (`long_short_tstat`
+2.8360640685320595, `top_decile_alpha` 0.07174142332098163) and `cpcv.adopt` is still `false`.
+**Re-run, never hand-patched** — and the first attempt was **killed mid-build by the harness and
+wrote nothing**, which is the correct failure mode: the artifact stayed at the previous `N` with
+clean provenance rather than being left half-written, so the only cost was the time to re-run it.
 
 
 ---
