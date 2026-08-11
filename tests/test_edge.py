@@ -6948,6 +6948,177 @@ def test_b6_zscore_zero_variance_guard_does_not_fire_on_a_constant_column():
         "the shift-invariance failure on a degenerate column is the observable symptom"
 
 
+# =============================================================================================
+# S20 / S21 — the construction pair: rank composite, and winsorisation.
+# PREREG_s20_s21_construction.md, committed alone at 27af414.
+# =============================================================================================
+
+
+def test_s2021_rank_score_is_the_ONE_definition_and_standardize_factors_uses_it():
+    """Two rank implementations that drift apart is a defect class this project has paid for
+    four times (`assets`, the SF3 positional-arg bug, the five empty factors, `invcap`)."""
+    from valuation.screener.cross_sectional import rank_score, standardize_factors
+    rng = np.random.default_rng(3)
+    s = pd.Series(np.concatenate([rng.normal(size=120), [40.0, -50.0]]))
+    inline = (s.astype(float).rank(pct=True) - 0.5) * 2.0
+    assert np.allclose(rank_score(s).to_numpy(), inline.to_numpy(), equal_nan=True)
+    got = standardize_factors(pd.DataFrame({"a": s}), ["a"], method="rank")["a"]
+    assert np.allclose(got.to_numpy(), inline.to_numpy(), equal_nan=True), \
+        "standardize_factors(method='rank') must go through rank_score, not a second copy"
+    r = rank_score(s)
+    assert -1.0 <= float(r.min()) and float(r.max()) <= 1.0
+    s2 = s.copy()
+    s2.iloc[:4] = np.nan
+    assert int(rank_score(s2).isna().sum()) == 4, "NaN must propagate, not become mid-pack"
+
+
+def test_s2021_zscore_nowinsor_disables_the_clip_that_zscore_applies():
+    """S21's challenger. `winsorize(s, 0)` clips to [min, max], an exact no-op."""
+    from valuation.screener.cross_sectional import winsorize, zscore, zscore_nowinsor
+    rng = np.random.default_rng(11)
+    s = pd.Series(np.concatenate([rng.normal(size=200), [50.0, -60.0, 80.0]]))
+    assert np.allclose(winsorize(s, 0.0).to_numpy(), s.to_numpy()), \
+        "p=0 must be an exact no-op, so S21 needs no change to winsorize itself"
+    assert np.allclose(zscore_nowinsor(s).to_numpy(), zscore(s, p=0.0).to_numpy(),
+                       equal_nan=True)
+    # and it is NOT inert: the shipped 2% clip really does bind on a tailed column
+    assert float(zscore_nowinsor(s).abs().max()) > float(zscore(s).abs().max()) + 1.0, \
+        "removing the clip must let the tails back in, or S21 is testing nothing"
+
+
+def test_s2021_rank_is_NOT_invariant_to_winsorization_correcting_the_register():
+    """PREREG §3 and control C7 registered this as 'must be bit-identical'. IT IS NOT, and the
+    reason is exact: rank is invariant to STRICTLY monotone transforms, and winsorisation is only
+    WEAKLY monotone — it is flat in the clipped tails, so it creates TIES, and a percentile rank
+    is not invariant to ties. The difference is confined to the clipped tails and is ~2p of rows.
+
+    Pinned so the correction cannot be quietly lost: S20 does NOT strictly subsume S21."""
+    from valuation.screener.cross_sectional import rank_score, winsorize
+    rng = np.random.default_rng(5)
+    s = pd.Series(rng.normal(size=500))
+    d = (rank_score(s) - rank_score(winsorize(s, 0.02))).abs()
+    assert float(d.max()) > 0.0, "if this ever passes bit-identically the tie analysis is wrong"
+    frac = float((d > 1e-12).mean())
+    assert 0.01 < frac < 0.10, f"differences must sit in the clipped tails only, got {frac:.3f}"
+    # the middle of the distribution IS invariant — that half of the claim survives
+    mid = (s > s.quantile(0.05)) & (s < s.quantile(0.95))
+    assert float(d[mid].max()) == 0.0, "only the clipped tails may move"
+
+
+def test_s2021_spearman_ic_CANNOT_see_a_rank_transform_while_the_composite_moves():
+    """THE STANDING RULE, as an identity rather than an anecdote: never judge a construction
+    change by per-signal IC. Rank-IC is invariant to a monotone rescaling; the composite is a
+    weighted SUM and is scale-sensitive. P6.3 is the expensive precedent (robust z halved the
+    long-short t while every theme IC stayed flat)."""
+    from valuation.edge.fundamental_panel import _spearman, composite
+    from valuation.screener.cross_sectional import rank_score, zscore
+    rng = np.random.default_rng(17)
+    n = 400
+    a = pd.Series(rng.normal(size=n))
+    b = pd.Series(np.concatenate([rng.normal(size=n - 3), [30.0, -40.0, 60.0]]))
+    fwd = (0.4 * a + 0.2 * b + rng.normal(size=n)).to_numpy()
+    # S20 is INVISIBLE to per-signal IC: ranking is strictly monotone, so the IC is unchanged
+    # to the last bit.
+    for col in (a, b):
+        i_raw = _spearman(col.to_numpy(dtype=float), fwd)
+        i_r = _spearman(rank_score(col).to_numpy(dtype=float), fwd)
+        assert abs(float(i_raw) - float(i_r)) < 1e-12, \
+            "per-signal Spearman IC is mathematically incapable of seeing a rank transform"
+    # S21 is NOT invisible, and the asymmetry is the same tie mechanism as C7: winsorisation is
+    # only WEAKLY monotone, so clipping the tails creates ties and DOES move a rank IC. So the
+    # standing rule bites hardest on S20 — the arm whose per-signal diagnostics are provably blind.
+    i_raw_b = _spearman(b.to_numpy(dtype=float), fwd)
+    i_win_b = _spearman(zscore(b).to_numpy(dtype=float), fwd)
+    assert abs(float(i_raw_b) - float(i_win_b)) > 1e-12, \
+        "clipping creates ties, so winsorisation IS visible to a per-signal rank IC"
+    wv = np.array([0.125, 0.125])
+    cz = composite(np.column_stack([zscore(a).to_numpy(), zscore(b).to_numpy()]), wv)
+    cr = composite(np.column_stack([rank_score(a).to_numpy(), rank_score(b).to_numpy()]), wv)
+    assert float(np.max(np.abs(cz - cr))) > 0.05, \
+        "the composite MUST move even though every per-signal IC is bit-identical"
+
+
+def test_s2021_build_frame_standardizer_defaults_to_zscore_and_is_injectable():
+    """Layer 1. Default must be behaviourally identical — the live product reads this path."""
+    from valuation.screener.cross_sectional import rank_score, zscore
+    from valuation.screener.factors import build_frame
+    rng = np.random.default_rng(23)
+    metrics = [{"ticker": f"T{i}", "price": 20.0 + i, "market_cap": 1e9 * (i + 1),
+                "revenue": 1e8 * (i + 1), "net_income": 1e7 * (i + 1),
+                "operating_income": 1.2e7 * (i + 1), "gross_profit": 4e7 * (i + 1),
+                "total_equity": 5e8 * (i + 1), "total_debt": 1e8,
+                "fcf": 9e6 * (i + 1) * (1 + 0.11 * (i % 5)),
+                "ret_6_1": float(rng.normal()), "ret_12_1": float(rng.normal()),
+                "beta": 1.0 + 0.1 * (i % 4)} for i in range(40)]
+    base = build_frame(metrics, sector_neutral=False, residual_momentum=False)
+    same = build_frame(metrics, sector_neutral=False, residual_momentum=False, standardizer=zscore)
+    ranked = build_frame(metrics, sector_neutral=False, residual_momentum=False,
+                         standardizer=rank_score)
+    assert list(base.columns) == list(same.columns) == list(ranked.columns), \
+        "an arm may not add or drop columns"
+    assert np.allclose(pd.to_numeric(base["quality"], errors="coerce").to_numpy(),
+                       pd.to_numeric(same["quality"], errors="coerce").to_numpy(),
+                       equal_nan=True), "standardizer=zscore must reproduce the default exactly"
+    q_b = pd.to_numeric(base["quality"], errors="coerce")
+    q_r = pd.to_numeric(ranked["quality"], errors="coerce")
+    assert float((q_b - q_r).abs().max()) > 1e-6, "the layer-1 swap must not be inert"
+    # `insider` is (score-50)/25, NOT a z-score, so layer 1 cannot touch it (prereg §3)
+    assert np.allclose(pd.to_numeric(base["insider"], errors="coerce").to_numpy(),
+                       pd.to_numeric(ranked["insider"], errors="coerce").to_numpy(),
+                       equal_nan=True), "insider's layer-1 exemption is a documented asymmetry"
+
+
+def test_s2021_quantile_backtest_standardizer_defaults_and_injects_at_layer_three():
+    """Layer 3 — the actual 'z-sum'. The default payload must be bit-identical."""
+    from valuation.edge.fundamental_panel import quantile_backtest
+    from valuation.screener.cross_sectional import rank_score, zscore
+    rng = np.random.default_rng(29)
+    rows = []
+    for d in range(12):
+        for i in range(60):
+            v = float(rng.normal())
+            q = float(rng.normal())
+            rows.append({"date": f"20{10+d:02d}-01-15", "ticker": f"T{i}",
+                         "value": v, "quality": q if i % 9 else 25.0,
+                         "fwd_ret": 0.02 * v + 0.01 * q + float(rng.normal()) * 0.05})
+    panel = pd.DataFrame(rows)
+    cols, w = ["value", "quality"], {"value": 0.125, "quality": 0.125}
+    a = quantile_backtest(panel, cols, w, n_q=5, horizon=63)
+    b = quantile_backtest(panel, cols, w, n_q=5, horizon=63, standardizer=zscore)
+    c = quantile_backtest(panel, cols, w, n_q=5, horizon=63, standardizer=rank_score)
+    assert a["long_short_tstat"] == b["long_short_tstat"], \
+        "standardizer=None and =zscore must be the same object, digit for digit"
+    assert a["top_decile_alpha"] == b["top_decile_alpha"]
+    assert a["long_short_tstat"] != c["long_short_tstat"], \
+        "an outlier-bearing theme must score differently under a rank composite"
+
+
+def test_s2021_holdout_compare_panels_scores_each_arm_with_its_OWN_standardizer():
+    """The gate is what makes a standardisation change testable at all: the incumbent keeps the
+    shipped z-score while the challenger uses its own, on the same rows."""
+    from valuation.edge.fundamental_panel import holdout_compare_panels
+    from valuation.screener.cross_sectional import rank_score
+    rng = np.random.default_rng(31)
+    rows = []
+    for d in range(40):
+        for i in range(50):
+            v = float(rng.normal())
+            rows.append({"date": f"2010-{(d % 12) + 1:02d}-{(d // 12) + 10:02d}",
+                         "ticker": f"T{i}", "value": v if i % 11 else 40.0,
+                         "quality": float(rng.normal()),
+                         "fwd_ret": 0.03 * v + float(rng.normal()) * 0.05})
+    panel = pd.DataFrame(rows)
+    cols = ["value", "quality"]
+    same = holdout_compare_panels(panel, panel, cols, min_dates=8)
+    assert same["verdict"] in ("reject", "not_replicated", "adopt")
+    for h in same["splits"].values():
+        assert h["delta_long_short_tstat"] == 0.0 and h["delta_top_decile_alpha"] == 0.0, \
+            "identical panels and identical standardizers must difference to exactly zero"
+    diff = holdout_compare_panels(panel, panel, cols, min_dates=8, standardizer_b=rank_score)
+    assert any(h["delta_long_short_tstat"] != 0.0 for h in diff["splits"].values()), \
+        "standardizer_b must actually reach the challenger's scoring"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

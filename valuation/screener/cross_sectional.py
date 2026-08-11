@@ -87,6 +87,42 @@ def zscore(s, p=0.02, robust=None):
     return (s - mu) / sd
 
 
+def rank_score(s):
+    """Cross-sectional rank mapped to [-1, +1]. Higher = better, like every other scorer here.
+
+    LEDGER S20 ("rank composite, not z-sum") — a RESEARCH ARM, not a default. Nothing in the
+    shipped scoring path calls this; `standardize_factors(method="rank")` and the S20 study are
+    the only callers, and they share this one definition deliberately: two rank implementations
+    that drift apart is a defect class this project has already paid for four times.
+
+    Two properties that matter for the study, both exact rather than approximate:
+
+      * it is INVARIANT TO WINSORIZATION, and to any other monotone transform of its input, so
+        the S20 arm subsumes the S21 one (pinned by a test);
+      * Spearman IC is likewise invariant, so per-signal rank ICs CANNOT SEE this change at all
+        while the composite - a weighted SUM, and scale-sensitive - may move a great deal. That
+        is P6.3's lesson (`USE_ROBUST_Z` above) restated as an identity.
+
+    NaN propagates: pandas `rank` leaves missing values missing, so a name short an input is
+    renormalised away by the composite exactly as under `zscore`.
+    """
+    s = pd.to_numeric(s, errors="coerce")
+    return (s.rank(pct=True) - 0.5) * 2.0
+
+
+def zscore_nowinsor(s):
+    """`zscore` with winsorization disabled — LEDGER S21's challenger arm. RESEARCH ARM.
+
+    `winsorize(s, 0)` clips to [quantile(0), quantile(1)] = [min, max], which is an exact no-op,
+    so this needs no change to `winsorize` itself.
+
+    Note the direction, which is inverted relative to the ledger item's wording: `zscore` ALREADY
+    winsorizes before standardizing (see below), so the informative arm is winsorization OFF, and
+    an improvement here would mean REMOVING the shipped clipping. See PREREG_s20_s21_construction.md §2.
+    """
+    return zscore(s, p=0.0)
+
+
 def standardize_factors(df, factor_cols, method="zscore"):
     out = pd.DataFrame(index=df.index)
     for c in factor_cols:
@@ -95,7 +131,7 @@ def standardize_factors(df, factor_cols, method="zscore"):
             continue
         col = df[c].astype(float)
         if method == "rank":
-            out[c] = (col.rank(pct=True) - 0.5) * 2.0
+            out[c] = rank_score(col)
         else:
             out[c] = zscore(col)
     return out

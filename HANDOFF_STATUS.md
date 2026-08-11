@@ -36,6 +36,58 @@ Full gate **52 suites, all green**. Zero research trials — a documentation cor
 unchanged at **151**. Detail in `HANDOFF_ci.md`. **Unchanged and still the real blocker:** nothing
 ingests the bound series into the live store and there is **no automated daily writer** for it
 (`PT-WRITER`, Cowork lane).
+## 2026-08-11 — edge lane, session 21 (S20/S21): the standardiser is worth several points of alpha, and no theme IC can see it
+
+**Both arms failed their gate and nothing is adopted — but the pair is the most useful thing
+measured here in a while.** Two constructions that move top-decile alpha by **−3.49pp and +2.43pp
+per year** change **no theme IC by as much as 0.4 of a *t***. If you judged either by per-signal or
+per-theme IC you would call both harmless.
+
+Ledger **S20** ("rank composite, not z-sum") and **S21** ("winsorise before standardising"), both
+`OPEN`, both `src=auto`, neither ever run. `PREREG_s20_s21_construction.md` committed **alone at
+`27af414`**, a strict ancestor of the measurement commit; the **shipped**
+`holdout_compare_panels` at the **already-committed** margins (+100bps alpha AND +0.25 long-short
+*t*, in **both** halves), corrected 69-date/2,531-name panel, two pre-specified weightings.
+**One panel build, three scorings, 113,945 provably identical rows.**
+
+**S20 (RANK) — REJECTED**, both halves, both weightings. Alpha **+7.17% → +3.68%**, long-short HAC
+*t* **2.6199 → 2.0588** and alpha HAC **4.3762 → 2.0028**, so it **fails both calibrated floors**
+(extrapolated for a challenger arm) where the shipped arm clears both. **It fails while making the
+deciles BETTER ordered** (monotonicity −0.8909 → **−0.9515**): the ordering across deciles smooths
+out while the **top** decile — the product — loses its edge, D1 25.31% → 21.82%.
+
+**S21 — NOT REPLICATED, and its premise was wrong.** `zscore` **already winsorises at 2% before
+standardising**, at both layers, so the arm actually run is winsorisation **OFF**. Full sample every
+headline improves — alpha **+9.60%** (+2.43pp), long-short *t* **2.8361 → 4.9395** — **but the early
+half misses the alpha bar by 17 basis points** (+0.83pp vs +1.00pp) while clearing the *t* margin,
+and under **flat weights it rejects outright**, both halves negative. The paired difference reaches
+HAC *t* +1.9170, below even the **uncalibrated** 2.0. Ambiguous against its own threshold is a
+**NULL** (`RUN_RULES` A6).
+
+**THE CAUTION THAT MUST TRAVEL WITH THAT +2.43pp:** the unclipped arm's most extreme composite
+averages **7.14× its own 99th percentile** against **1.64×** for the shipped arm, and only **8 of
+the shipped top 25 names** survive it. An unclipped z-score is a **fragile estimator**.
+Winsorisation is also a **data-quality defence** — P7 shipped a currency bug computing
+`book_to_price` **892 against a true 0.589**, and with no clip that row dominates the whole
+cross-section.
+
+**Controls: six pass, one falsified.** C1 reproduces the record to the digit; C5 measures
+`max |ΔIC| = 0.000e+00` across 44 columns — Spearman IC is invariant to a strictly monotone
+transform, so **the per-signal diagnostics are mathematically incapable of seeing S20**. **C7 is
+FALSIFIED and corrected rather than dropped:** the register claimed a rank arm must be bit-identical
+under winsorisation; it is not, because winsorisation is only **weakly** monotone and creates
+**ties**. So S20 does **not** strictly subsume S21.
+
+**Nothing adopted, by a clause fixed before the run.** Either adoption would be a **VINTAGE EVENT**,
+and an eligible arm would have been recorded **ELIGIBLE** and **queued behind the theme
+restoration's vintage** rather than spending a second five-year clock reset. `CONFIG`,
+`settings.FACTOR_WEIGHTS` and `sector_neutral` untouched. Equity `N` **151 → 155**,
+√(2·ln 155) = 3.1760, `BACKTEST_RESULTS.json` re-run from a clean tree.
+
+**Next in this lane:** S21 is **not** closed as impossible — it is the strongest untested
+construction lead in the project, and re-opening it needs **new evidence** (a placebo calibrated
+under an unclipped composite, plus a defence against the outlier fragility), **never a plain
+re-run**. Full write-up: `HANDOFF_edge_audit.md` session 21.
 
 ## 2026-08-11 — options bot, session 23b (U1-SPLIT): R2's published gap was 24% artifact, repaired at source, and NO VERDICT MOVED
 

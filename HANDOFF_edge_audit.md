@@ -7646,3 +7646,299 @@ DSR-gated claim in the project.
 * Tests: **five** new in `tests/test_edge.py` (the paired build, plus the pinned `zscore`
   defect), **two** new in `tests/test_sector_neutral.py` (the arm split). The existing six wiring
   tests still **deliberately do not pin the verdict**.
+
+
+# SESSION 21 (2026-08-11) — S20/S21: the standardiser is worth several points of alpha, and no theme IC can see it
+
+Ledger items **S20** ("rank composite, not z-sum") and **S21** ("winsorise before standardising"),
+both `OPEN`, both `src=auto`, per their own ledger notes with *"no mention anywhere in the corpus"*.
+Neither had ever been run. They are the same decision seen twice — how a cross-section becomes a
+number before the weighted sum happens — which is why they got one register rather than two.
+
+**Why the pair is worth a register at all: P6.3.** Replacing the classic z-score with a median/MAD
+robust z-score made the composite fall apart (long-short *t* **3.485 → 1.721**, alpha
++11.77% → +8.99%) **while every per-signal IC stayed flat** (quality +3.39 → +3.35). So the project
+already knew this layer is load-bearing and that per-signal IC cannot see it. S20 and S21 are the
+two untested moves in the same layer.
+
+## 1. THE COMMITTED THRESHOLD, WRITTEN BEFORE ANY MEASUREMENT CODE EXISTED
+
+`PREREG_s20_s21_construction.md`, committed **ALONE at `27af414`** — a strict git ancestor of
+`5db4903`, which carries the measurement code. Nothing in the study restates a threshold from a
+result.
+
+* **Gate:** the **shipped** `holdout_compare_panels`, unmodified, at the **already-committed**
+  margins `MIN_HOLDOUT_ALPHA_GAIN = 0.01` and `MIN_HOLDOUT_TSTAT_GAIN = 0.25`
+  (`fundamental_panel.py:3115-3116`) — **both** margins in **both** halves, boundary embargoed.
+* **Universe:** the corrected panel, **2,531 names × 69 dates**, 2009-01-15 → 2026-01-28, H = 63.
+* **Two weightings and no others:** DEPLOYED (7 themes) carries the verdict; FLAT (9) tests whether
+  the answer depends on the weighting.
+* **Verdict rule, fixed in advance:** ADOPTED iff deployed `adopt` AND flat not `reject`; REJECTED
+  iff deployed `reject`; NOT REPLICATED otherwise.
+* **Trial cost charged in advance:** n = 4, equity `N` 151 → 155.
+
+**THE SPEC AS A BINDING CONSTRAINT:** *never judge a construction change by per-signal IC.* The
+verdict is carried by the **book**; per-signal and per-theme ICs are diagnostics that may not move a
+verdict in either direction.
+
+## 2. THE PREMISE OF S21 IS WRONG, AND THE REGISTER SAYS SO BEFORE THE RUN
+
+`cross_sectional.zscore` **already winsorises at 2% before standardising** (`cross_sectional.py:83-87`),
+at **both** standardisation layers. The audit item proposes the shipped behaviour — exactly what
+`src=auto` (*"mechanically proposed and not yet read by a person; treat as a lead, not a fact"*)
+exists to warn about.
+
+So S21's testable form is **inverted**: the challenger is **winsorisation OFF** (`p=0.0`, an exact
+no-op clip to `[min, max]`), and an `adopt` would have meant **removing** the shipped clip. Recorded
+in the register, in the V2F/V2G tradition of correcting a brief's premise before the run rather than
+discovering it in the results.
+
+## 3. DESIGN — one build, three scorings, two layers
+
+The pipeline standardises **twice**: layer 1 per number (`build_frame`, every `z_*` column), layer 3
+per theme (`composite_from_frame`, the actual "z-sum"). **Both arms change both layers** — an arm
+that swapped only one would not be what either ledger item says.
+
+| arm | standardiser at L1 and L3 |
+|---|---|
+| INCUMBENT | `zscore(s, p=0.02)` — the shipped construction |
+| **A20 RANK** | `(s.rank(pct=True) - 0.5) * 2.0` — the repo's own existing convention, implemented in `standardize_factors(method="rank")` and never called by `build_frame` |
+| **A21 NOWINSOR** | `zscore(s, p=0.0)` |
+
+**One panel build, three `build_frame` calls per cross-section on the same `metrics` list**, so the
+known `insider` run-to-run nondeterminism (median IC −0.0034 / +0.0155 / −0.0034 across three
+identical-data runs) is **common-mode and cancels** out of every difference. Both prior
+sector-neutral rejections built their arms as separate runs; that defect is not repeated.
+**113,945 rows, provably identical across all three arms.**
+
+## 4. RESULTS — DEPLOYED WEIGHTS (the verdict arm)
+
+| | INCUMBENT | A20 RANK | A21 NOWINSOR |
+|---|---|---|---|
+| top-decile alpha | **+7.1741%** | +3.6817% (−3.4925pp) | +9.6038% (+2.4296pp) |
+| long-short ann | +11.04% | +9.04% | +16.63% |
+| long-short *t* | +2.8361 | +2.3054 | +4.9395 |
+| **long-short HAC *t*** | **+2.6199** ✓ | **+2.0588** ✗ | +4.3612 ✓ |
+| **alpha HAC *t*** | **+4.3762** ✓ | **+2.0028** ✗ | +4.7145 ✓ |
+| monotonicity | −0.8909 | **−0.9515** | **−0.9758** |
+| equal-weight benchmark | +18.137% | +18.137% | +18.137% |
+
+Floors 2.2837 (long-short HAC) and 2.2913 (alpha HAC) are **an EXTRAPOLATION for the challenger
+arms** — a floor is a percentile of a null generated under the incumbent construction, and nobody
+has run a placebo under a rank composite. Labelled so wherever it appears.
+
+Deciles (annualised, %): incumbent `25.31 20.40 19.55 17.52 17.34 17.76 18.23 16.34 14.58 14.27`;
+rank `21.82 21.07 18.21 19.73 18.18 17.43 18.01 17.58 16.52 12.78`;
+nowinsor `27.74 20.14 20.38 19.52 18.00 19.31 16.17 15.70 13.22 11.11`.
+
+### The gate
+
+| arm | half | Δ long-short *t* | Δ alpha | improves |
+|---|---|---|---|---|
+| **A20** | early (n=34) | −0.4689 | −1.32pp | no |
+| **A20** | late (n=34) | −0.4171 | −5.62pp | no |
+| **A21** | early (n=34) | **+0.7863** | **+0.83pp** | **no — misses the +1.00pp bar by 17bps** |
+| **A21** | late (n=34) | +2.0125 | +3.69pp | yes |
+
+Boundary embargoed at 2017-07-20.
+
+### FLAT weights
+
+| | INCUMBENT | A20 | A21 |
+|---|---|---|---|
+| alpha | +4.9912% | +1.7307% | +4.6482% |
+| long-short *t* | +1.1680 | +0.9309 | +1.3763 |
+| gate | — | **reject** | **reject** |
+
+A21's flat halves are **both negative on alpha** (−0.40pp, −0.47pp), so its full-sample gain does
+not survive a change of weighting.
+
+### Paired within-panel difference (UNCALIBRATED 2.0 bar, per the register)
+
+| arm | window | Δalpha /yr | HAC *t* | Δlong-short /yr | HAC *t* |
+|---|---|---|---|---|---|
+| A20 | full (69) | **−3.4925pp** | **−2.3783** | −2.00pp | −1.2004 |
+| A20 | early / late | −1.32 / −5.62pp | −1.0857 / −2.1543 | | |
+| A21 | full (69) | **+2.4296pp** | **+1.9170** | +5.59pp | **+1.9365** |
+| A21 | early / late | +0.83 / +3.69pp | +0.5568 / +1.8543 | | |
+
+**A21 does not cross even the uncalibrated bar on either metric.**
+
+## 5. VERDICTS, by the rule fixed in advance
+
+* **S20 (RANK) — REJECTED.** Deployed `reject`, flat `reject`.
+* **S21 (NOWINSOR) — NOT REPLICATED.** Deployed `not_replicated`, flat `reject`. Ambiguous against
+  its own threshold is a **NULL**, per `RUN_RULES` A6.
+
+**Neither is adopted, and the register fixed that in advance:** an eligible arm would have been
+recorded **ELIGIBLE, not adopted**, and **queues behind the theme restoration's vintage**
+(`PREREG_v2g_live_theme_sources.md`) rather than spending a second five-year clock reset on the same
+restart. `CONFIG`, `settings.FACTOR_WEIGHTS` and every shipped default are untouched.
+
+## 6. THE FINDINGS — in order of how much they should change what the next person does
+
+### 6.1 The pair is the headline: several points of alpha, invisible to every theme IC
+
+| theme | incumbent IC *t* | Δ under A20 | Δ under A21 |
+|---|---|---|---|
+| value | +0.8380 | +0.1920 | −0.3558 |
+| quality | +3.1015 | +0.1092 | −0.0284 |
+| momentum | +1.3118 | −0.0619 | −0.0263 |
+| insider | −0.2362 | **+0.0000** | **+0.0000** |
+| capital_discipline | +2.7556 | +0.0001 | +0.0001 |
+| size | −0.3008 | −0.0017 | −0.0017 |
+| institutional | +1.5470 | +0.0338 | +0.0731 |
+
+**Max |Δ theme IC *t*| is 0.1920 and 0.3558 while the book moves −3.49pp and +2.43pp of annual
+alpha.** Judged by per-signal or per-theme IC, both changes look harmless; one costs 3.5pp/yr.
+
+**For a rank transform this is an IDENTITY, not an observation.** Control C5 measures
+`max |ΔIC| = 0.000e+00` across all **44** number columns, because Spearman IC is invariant to a
+strictly monotone transform. **The per-signal diagnostics are mathematically incapable of seeing
+S20.** That is the standing rule with a proof attached, and it is now demonstrated three times
+(P6.3, X3, here).
+
+### 6.2 S20 fails while making the deciles BETTER ordered
+
+Monotonicity **improves** (−0.8909 → −0.9515) as alpha collapses. Ordering *across* deciles gets
+smoother while the **top** decile — which is the shipped product — loses its edge (D1
+25.31% → 21.82%). **Hypothesis, not a result:** rank discards the magnitude information that
+identifies genuinely extreme names, which is precisely what a top-decile long book is selecting on.
+Anyone quoting monotonicity as a quality metric should read this row first.
+
+### 6.3 S21's +2.43pp must never travel without its fragility number
+
+| arm | mean max abs composite | mean p99 | ratio |
+|---|---|---|---|
+| INCUMBENT | 2.018 | 1.232 | **1.64×** |
+| A20 RANK | 0.791 | 0.582 | 1.36× |
+| **A21 NOWINSOR** | **8.150** | 1.142 | **7.14×** |
+
+The unclipped arm's most extreme composite averages **7.14× its own 99th percentile**, and only
+**8 of the shipped top 25 names** survive it. An unclipped z-score is a **fragile estimator** whose
+book is anchored by outliers.
+
+**Winsorisation is also a DATA-QUALITY defence, not only a statistical choice.** P7 shipped a
+currency bug that computed `book_to_price` **892 against a true 0.589**; with no clip such a row
+dominates the entire cross-section's mean and sd and lands at the top of the book. *"Removing the
+outlier guard improved the backtest"* and *"the outlier guard is not earning its keep"* are
+different claims and only the first is measured.
+
+### 6.4 Single-input themes are rank-invariant; multi-input themes are not
+
+Within-date rank correlation between incumbent and challenger theme values:
+
+| theme | A20 | A21 |
+|---|---|---|
+| quality (10 inputs) | 0.9395 | **0.8215** |
+| value | 0.9456 | 0.9236 |
+| institutional | 0.9880 | 0.9110 |
+| momentum | 0.9835 | 0.9932 |
+| **size / capital_discipline / insider** | **1.0000** | **1.0000** |
+
+A monotone transform of ONE column preserves its ranking exactly; a **mean** of monotone transforms
+is not a monotone transform of the mean. So the change enters **only** through multi-input themes.
+The pre-registered expectation that `size` would move most was **backwards** — being single-input is
+exactly what makes it invariant.
+
+## 7. CONTROLS — all seven measured, six pass and one is FALSIFIED
+
+* **C1 — reproduces the published record to the digit.** alpha `0.07174142332098163`, long-short *t*
+  `2.8360640685320595`, HAC `2.6199121240414884`, alpha HAC `4.376230427940328`, monotonicity
+  `-0.8909090909090909`, EW `0.18137118752419476`. **PASS.**
+* **C2 — 113,945 rows in every arm, identical `(date, ticker)` key sets**, 69 dates, 2,531 names,
+  2009-01-15 → 2026-01-28. **PASS.**
+* **C3 — not inert.** A20 composite rank correlation 0.8859 (min 0.8304), **65.21%** of names change
+  decile; A21 0.7819 (min 0.6512), **68.91%**. **PASS.**
+* **C4 — no new missing values**, per-theme non-null counts identical. **PASS.**
+* **C5 — `max |ΔIC| = 0.000e+00`** over 44 columns. **PASS, exactly.**
+* **C6 — `sentiment` empty** (0 non-null, carries no weight); **`insider` identical across arms**,
+  max abs diff `0.0` over 94,660 rows, confirming its layer-1 exemption. **PASS.**
+* **C7 — FALSIFIED, and corrected rather than dropped.** The register claimed a rank arm must be
+  **bit-identical** under winsorisation. It is not: `bit_identical = False`, max |Δ| 0.019987.
+  **Rank is invariant to STRICTLY monotone transforms; winsorisation is only WEAKLY monotone — flat
+  in the clipped tails — so it creates TIES, and a percentile rank is not invariant to ties.** The
+  differences sit in the clipped tails alone and the middle of the distribution is exactly
+  invariant. **So S20 does NOT strictly subsume S21**, and the same mechanism yields the asymmetry
+  worth keeping: **S20 is invisible to a per-signal rank IC; S21 is visible to it.** Pinned by
+  `test_s2021_rank_is_NOT_invariant_to_winsorization_correcting_the_register`.
+
+  *Scope note, stated rather than glossed:* C7 was measured on the panel's already-standardised
+  `z_*` columns (the raw metrics are not persisted), where the effect is small (0.02% of rows)
+  because those columns were already clipped once. The mechanism is demonstrated on a raw column in
+  the test, where ~1–10% of rows move. Both point the same way; the register's claim is false either
+  way.
+
+## 8. THE BOOK, BY NAME — 2026-01-28, deployed weights, 1,842 names scored. NO VERDICT ATTACHES.
+
+**INCUMBENT top 25:** FOSL, BODI, SCHL, CGAU, INDV, BNR, WDH, SSL, INTR, VEON, OPEN, ECO, POWL, TTI,
+HUT, HCSG, CTRI, TNGX, FNMA, ARIS, B, PARR, APA, OBE, MCY
+
+* **A20 RANK — overlap 14/25.** In: AMG, EFXT, GMAB, HNI, KGC, MCRI, MLI, PLGO, TIGO, WT, YALA.
+  Out: ARIS, BNR, BODI, CTRI, FNMA, FOSL, HUT, INDV, OPEN, TNGX, TTI.
+* **A21 NOWINSOR — overlap 8/25.** In: ABVX, AIV, ALXO, BGL, BLTE, CTOR, FMCC, NKTX, NNNN, ONIT,
+  PAX, PMVP, RGC, RGS, SNDK, STTK, TERN. Out: APA, ARIS, B, CGAU, CTRI, ECO, HCSG, HUT, INTR, MCY,
+  OBE, PARR, POWL, SCHL, TNGX, TTI, VEON.
+
+One date, chosen for recency and nothing else. A single cross-section is not evidence about a
+construction — it is here because **the book is the deliverable** and a change that moves statistics
+modestly can still hand the user a two-thirds different list.
+
+## 9. EXPECTATIONS — 2 right, 3 wrong, 1 split
+
+| # | expectation | outcome |
+|---|---|---|
+| 1 | A20 rejected (65/35), composite correlation 0.93–0.99 | **SPLIT** — rejected ✓, correlation 0.8859 (moved MORE than predicted) ✗ |
+| 2 | A21 rejected (70/30) with a NEGATIVE effect | **WRONG** on both — NOT REPLICATED, and +2.43pp full-sample |
+| 3 | the two arms move the composite in opposite directions (60/40) | **RIGHT** — −3.49pp vs +2.43pp |
+| 4 | C5 exact, and theme ICs move less than the composite (70/30) | **RIGHT** — 0.000e+00, and max \|ΔIC t\| 0.19 / 0.36 against pp-scale alpha moves |
+| 5 | `size` changes most under A20 (55/45) | **WRONG** — `quality` does; `size` is provably invariant |
+| 6 | top-25 overlap 15–22 under A20 (50/50) | **WRONG**, narrowly — 14 |
+
+The streak continues, which is exactly why they are written down first.
+
+## 10. BUGS FOUND
+
+* **C7's registered invariance claim was wrong** — my own, found by measurement, corrected in §7 and
+  pinned by a test rather than quietly restated. Not a code defect.
+* **No new code defects found.** The `cross_sectional.zscore` value-dependent zero-variance guard
+  reported in session 20 is unchanged and still unrepaired (it is on the live scoring path, so
+  repairing it is a **vintage event**); this study did not touch it and its exposure here is nil for
+  the same reason session 20 measured — no theme column is degenerate on any date.
+* **Reported, not a bug:** ledger `S20`/`S21` both read *"no mention anywhere in the corpus"* and
+  `src=auto`. **S21 proposed behaviour the code has always had.** Any other `src=auto` row should be
+  read against the tree before it is scoped as work — this is the second `auto` row in two sessions
+  whose premise did not survive contact with the code.
+
+## 11. WHAT I DID NOT DO, AND WHY
+
+* **No grid over the winsorisation level `p`.** One alternative and no other. Sweeping
+  `p ∈ {0, 0.01, 0.02, 0.05}` and reporting the best cell is the in-search +8.43%/yr → locked
+  hold-out −0.04%/yr failure this project has already paid for.
+* **No layer attribution.** Each arm moves L1 and L3 together, so this study **cannot** say which
+  layer produced which effect. That is a separate future register, recorded here rather than left
+  looking done.
+* **No placebo under a rank or unclipped composite**, so the calibrated floors are an
+  **extrapolation** for both challenger arms and are labelled one everywhere.
+* **No per-arm PBO, Deflated Sharpe or CPCV.** Weights are fixed; nothing is selected.
+* **Nothing adopted, and nothing queued for adoption** — both arms failed their gate. `CONFIG`,
+  `settings.FACTOR_WEIGHTS` and `sector_neutral` are untouched.
+* **S21 is NOT closed as impossible.** It is the strongest untested construction lead in the
+  project. Re-opening needs **new evidence** — a placebo calibrated under an unclipped composite,
+  and a defence against the outlier fragility in §6.3 — **never a plain re-run**.
+
+## 12. ARTIFACT AND REPRODUCTION
+
+`data/free_analysis/S20_S21_CONSTRUCTION.json` — every arm, both weightings, both halves, the
+**per-period paired draws**, all seven controls, the diagnostics and the top-25 books
+(`RUN_RULES` A9: store the draws, not only the summaries).
+
+```
+python -m scripts.construction_rerun \
+    --data-dir data/backtest \
+    --panel    data/free_analysis/panel_s20_s21.pkl \
+    --json     data/free_analysis/S20_S21_CONSTRUCTION.json
+```
+
+Equity `N` **151 → 155**, √(2·ln 155) = **3.1760**; `BACKTEST_RESULTS.json` re-run from a clean tree
+so the artifact matches the record rather than going stale on the denominator.

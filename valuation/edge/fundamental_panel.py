@@ -936,7 +936,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                             lookback_years=6, horizon=63, inst_lag_days=45,
                             keep_numbers=False, sector_neutral=False,
                             grid_offset=None, extra_horizons=None,
-                            sector_neutral_pair=False) -> pd.DataFrame:
+                            sector_neutral_pair=False, standardizer_arms=None) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -968,6 +968,12 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
     `metrics` list makes that nondeterminism common-mode, so it cancels out of the difference
     being measured, and makes the identical row set a property of the code rather than a claim.
     Same argument as `extra_horizons` above.
+
+    LEDGER S20/S21 — `standardizer_arms` is the same device generalised: a {prefix: callable}
+    mapping, where each callable replaces the PER-NUMBER standardizer for one extra scoring of the
+    SAME `metrics` list, emitted as `{prefix}_{theme}` columns on the SAME rows. Off by default;
+    with it unset the frame is column-for-column identical to before. The study passes
+    `{"rk": rank_score, "nw": zscore_nowinsor}` — see PREREG_s20_s21_construction.md §4.
 
     AUDIT X2 — `grid_offset` shifts the rebalance grid by N trading days. The grid has
     always started at exactly TD = 252 and every number this project has ever reported was
@@ -1323,6 +1329,11 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         # caller's list, so the two calls differ by the flag and by nothing else.
         fr_sn = (build_frame(metrics, sector_neutral=(not sector_neutral),
                              residual_momentum=False) if sector_neutral_pair else None)
+        # S20/S21 — one extra scoring per standardizer arm, same `metrics`, same pass, so the
+        # known run-to-run nondeterminism is common-mode and cancels out of every difference.
+        fr_std = {p: build_frame(metrics, sector_neutral=sector_neutral,
+                                 residual_momentum=False, standardizer=fn)
+                  for p, fn in (standardizer_arms or {}).items()}
         for t, r in fr.iterrows():
             fr_ret = fwd.get(t)
             if fr_ret is None or fr_ret != fr_ret:
@@ -1351,6 +1362,12 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                     v = (_rs.get(theme) if (_rs is not None and theme in fr_sn.columns)
                          else None)
                     row["sn_" + theme] = None if (v is None or pd.isna(v)) else float(v)
+            # S20/S21 — the standardizer arms' themes, on this same row.
+            for _p, _fr in fr_std.items():
+                _rr = _fr.loc[t] if t in _fr.index else None
+                for theme in S.FACTORS_ALL:
+                    v = (_rr.get(theme) if (_rr is not None and theme in _fr.columns) else None)
+                    row[f"{_p}_{theme}"] = None if (v is None or pd.isna(v)) else float(v)
             if keep_numbers:
                 for num in S.NUMBERS_ALL:
                     zc = "z_" + num
@@ -2396,7 +2413,7 @@ def walk_forward(panel, cols, base, top_n=25, horizon=63, halflife_days=1260, n_
 
 
 def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=False,
-                      ret_col="fwd_ret"):
+                      ret_col="fwd_ret", standardizer=None):
     """The 'is the edge real and harvestable?' test. Each date, sort EVERY name by composite and
     split into n_q equal buckets; measure each bucket's forward return. A genuine signal shows
     (a) higher-composite buckets earning more (monotonic), and (b) a positive, statistically
@@ -2425,6 +2442,10 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=Fa
     long horizon silently loses its right-censored dates rather than scoring them short. Pass
     `horizon=H` alongside it, or the annualization will be wrong."""
     from ..screener.cross_sectional import zscore
+    # S20/S21 — the PER-THEME standardizer (layer 3, the actual "z-sum"). Defaults to the
+    # shipped winsorized z-score, so every existing caller is unchanged; the study passes the
+    # arm's own standardizer so an arm is swapped at BOTH layers rather than half of one.
+    _std = zscore if standardizer is None else standardizer
     if ret_col not in panel.columns:
         raise KeyError(f"quantile_backtest: no forward-return column {ret_col!r} in the panel "
                        f"(build it with build_fundamental_panel(extra_horizons=[...]))")
@@ -2435,7 +2456,7 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=Fa
     used_dates, n_scored = [], []       # V2G — see `return_series`
     for d in dates:
         sub = panel[panel["date"] == d]
-        comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
+        comp = composite_from_frame(sub, cols, weights, _std)   # AUDIT B7; S20/S21 standardizer
         fwd = pd.to_numeric(sub[ret_col], errors="coerce").to_numpy(dtype=float)   # S22
         ok = np.isfinite(comp) & np.isfinite(fwd)
         comp, fwd = comp[ok], fwd[ok]
@@ -3626,7 +3647,8 @@ def cost_breakeven_bps(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
 def holdout_compare_panels(panel_a, panel_b, cols, label_a="A", label_b="B", n_q=10,
                            horizon=63, base_weight=0.125, min_dates=16,
                            min_alpha_gain=MIN_HOLDOUT_ALPHA_GAIN,
-                           min_tstat_gain=MIN_HOLDOUT_TSTAT_GAIN) -> dict:
+                           min_tstat_gain=MIN_HOLDOUT_TSTAT_GAIN,
+                           standardizer_a=None, standardizer_b=None) -> dict:
     """Held-out comparison of two PANEL CONSTRUCTIONS (not two weightings).
 
     holdout_theme_validate answers "should this theme carry weight". Some changes are not a
@@ -3635,6 +3657,11 @@ def holdout_compare_panels(panel_a, panel_b, cols, label_a="A", label_b="B", n_q
     beat A by the SAME pre-committed margin (MIN_HOLDOUT_*) in BOTH split directions.
 
     Both panels must cover the same dates; only the construction differs.
+
+    LEDGER S20/S21 — `standardizer_a` / `standardizer_b` let the two arms be scored by DIFFERENT
+    standardizers, which is what makes a standardization change testable through this gate at all:
+    the incumbent keeps the shipped winsorized z-score while the challenger uses its own. Both
+    default to None (= the shipped `zscore`), so every existing caller is unchanged.
     """
     out = {"label_a": label_a, "label_b": label_b, "splits": {},
            "min_alpha_gain": min_alpha_gain, "min_tstat_gain": min_tstat_gain}
@@ -3650,9 +3677,9 @@ def holdout_compare_panels(panel_a, panel_b, cols, label_a="A", label_b="B", n_q
     improves = []
     for name, ds in halves.items():
         ra = quantile_backtest(panel_a[panel_a["date"].isin(ds)], cols, w,
-                               n_q=n_q, horizon=horizon) or {}
+                               n_q=n_q, horizon=horizon, standardizer=standardizer_a) or {}
         rb = quantile_backtest(panel_b[panel_b["date"].isin(ds)], cols, w,
-                               n_q=n_q, horizon=horizon) or {}
+                               n_q=n_q, horizon=horizon, standardizer=standardizer_b) or {}
         dt = (None if ra.get("long_short_tstat") is None or rb.get("long_short_tstat") is None
               else rb["long_short_tstat"] - ra["long_short_tstat"])
         da = (None if ra.get("top_decile_alpha") is None or rb.get("top_decile_alpha") is None
