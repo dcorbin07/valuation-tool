@@ -473,3 +473,123 @@ visible there; it can be deleted freely now that history holds it.
 No `RESEARCH_LOG.md` row owed; equity `N` stays **129**. Nothing here searched a hypothesis space,
 fitted anything or selected among arms. No threshold was pre-committed because there is no verdict
 — this is repo hygiene, not a measurement.
+
+---
+
+# LA2 — the track backup was backing up the wrong book (r1 lane, 2026-08-10)
+
+## STATUS: fixed, tested, verified end-to-end. 34/34 suites green.
+
+Cold-audit item LA2 (`VALQUO_LIVE_AUDIT.md`). **The finding reproduces exactly, and it is worse
+than "a file was missing": the weekly job was green the entire time.**
+
+## What was wrong — measured before anything was changed
+
+The committed `data_export/paper_track_history.json` read:
+
+    "ingested_index_days": 0,   "ingested_index_track": null
+    "index_days": 4,            "index_holdings": 10,   "paper_orders": 3
+
+So the backup faithfully preserved **4 days of the Tradier sandbox engine** (10 names,
+equal-weighted at 10%, inception 2026-08-03) and **zero rows of the contract-bound Valquo Index**
+(86 names, score-weighted, 8% cap, inception 2026-07-30) — the one record
+`PAPER_TRACK_CONTRACT.md` binds, and the one thing in this project that cannot be re-derived.
+
+**Cause.** `payload()` did reach for the bound series, but only through
+`store.get_meta("index_track")` — and nothing has ever ingested that key on the live service. The
+only copy was `data/valquo_track_history.csv` on one laptop, 127 bytes, with (per CLAUDE.md) **no
+writer for it anywhere in this repository**.
+
+**Why nobody saw it.** The anti-regression guard counted `data_export/paper_track_index.csv` — the
+*sandbox* book. The bound series was never counted at all, so it could go from two rows to zero
+without tripping anything. **A relative guard cannot catch a quantity that was always zero**;
+zero is never fewer than zero. That is the transferable lesson here.
+
+## The fix, four parts
+
+1. **Gather from everywhere it can live.** `bound_series()` reads the committed backup, the local
+   `data/` tracker files, and the live store's meta; `merge_bound_rows()` unions them **by date —
+   a later source wins a shared date and no date is ever dropped.** That asymmetry is the safety
+   property: a legitimately empty source (fresh Render disk, a store that never ingested) can
+   never erase a populated one. This matters immediately, because the deployed service is still
+   running pre-LA2 code and its payload has no bound key at all.
+2. **Give it its own file.** `valquo_index_track.csv` + `valquo_index_meta.json`, using the
+   tracker's **own column names**, so restoring is `cp` and not a transformation written at 2am
+   against a lost original.
+3. **Guard the right thing.** `guard_counts()` reports `bound_index_days`; the workflow fails on a
+   regression in *either* book, **plus an absolute presence check** — because the failure above
+   was invisible to a relative one.
+4. **Fix the label.** The emitted README no longer calls `paper_track_index.csv` "daily Valquo
+   Index vs SPY". That exact mislabel put a false *"Index beating SPY"* claim into Discord on
+   2026-08-05, on a day the bound recorder had the track **2.85pp behind**. The README now leads
+   with the two-books distinction and states both weight caps (8% vs 10%), which is what tells
+   them apart.
+
+## The bound series is now in git
+
+Committed to the already-tracked `data_export/`: 2026-07-31 (−0.2777pp) and 2026-08-06
+(−2.8468pp), 86 names, inception 2026-07-30. Its existence no longer depends on one laptop.
+
+**`data/` is untouched and still gitignored.** That rule exists because `data/` holds the licensed
+Sharadar exports, which may not be redistributed; the bound series is a different object —
+Valquo's own derived, unlicensed output — so a copy lives with the rest of the backup and the hard
+rule is not bent.
+
+**It is a BACKUP, not a second recorder.** `index_track.load()` still reads `data/` and only
+`data/`, so `index_track.vs_spy_claim()` remains the single authority for a vs-SPY statement.
+Nothing reads the committed copy back into the live path. This project has already been bitten
+twice by two recorders of one number disagreeing (audit B7 on the site; the Discord recap); a
+backup that quietly became an input would be that bug a third time.
+
+## Verification — what I actually ran
+
+`gh` is not installed on this machine, so **I did not dispatch the Action**; I ran its steps
+locally against the payload the **current, pre-LA2 live service actually returns** (confirmed to
+carry no `bound_index_track` key), which is the realistic next-run scenario:
+
+    render exit 0
+    guard: committed={'bound_index_days': 2, 'sandbox_index_days': 4}
+                new={'bound_index_days': 2, 'sandbox_index_days': 4}
+    artifact valquo_index_track.csv -> both bound rows present
+
+**Negative control:** with no committed copy to merge, the same command warns loudly and the
+presence check returns 0, i.e. the workflow fails — which is exactly the state that had been
+silently green for months.
+
+The scheduled run itself is unverified until it fires (Sunday 06:17 UTC, or dispatch by hand).
+
+## Tests
+
+**`tests/test_track_export.py` — new, 18 tests. The module had NO test suite at all**, which is
+part of how this survived. They are written against the failure, not the feature: an empty payload
+cannot erase the committed series; a payload from the *older* service cannot either; the guard
+catches a bound-row regression (with a passing control, so it cannot pass by always failing); a
+corrupt committed backup **raises rather than reading as zero rows**; and a real restore through
+`index_track.load()` reproduces the published **−2.8468pp** from the backed-up copy.
+
+**A bug in my own fix, caught by its own test.** Recording the write-time merge count inside the
+artifact made two runs of identical input differ — breaking the byte-idempotence this module has
+promised in prose since it was written and never tested. The count moved to the run log.
+
+**One existing test was rewritten, not silenced.**
+`test_private.py::test_the_backup_workflow_guards_against_clobbering_a_good_backup` asserted the
+old step's *name* and the presence of bash `-lt`. Both were legitimately replaced when the
+comparison moved into `track_export --guard-against` (which counts through the `csv` module, so an
+embedded newline in a quoted field cannot inflate the count `grep -c` trusted). The intent is
+unchanged and the test is now **stricter**: it requires the bound series to be covered, and it
+**executes** the guard instead of grepping for an operator.
+
+## What I did NOT do
+
+* **Nothing ingests the bound series into the live service's store.** On a fresh Render disk the
+  API still serves an empty live column until the files are restored by hand. LA2 does not cover
+  that writer, and **there is still no automated daily writer for the bound series anywhere** —
+  which remains the operational gate's actual blocker, not this.
+* **No change to `index_track.py`, the contract, or any public surface.** Deliberate: this is a
+  backup fix. Nothing about what the site says or what the contract binds moved.
+* **`data/` unchanged**, including the gitignore rule.
+
+## Trial cost: none
+
+No `RESEARCH_LOG.md` row owed; equity `N` stays **131**. Nothing here searched a hypothesis space,
+fitted anything or selected among arms — it is infrastructure, not a measurement.

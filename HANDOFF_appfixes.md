@@ -5,6 +5,153 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 24 — 2026-08-10 — Cold-audit LA10 and LA13: a label that outlived its value, and a
+policy the suite did not enforce
+(prompt: cold audit items LA10 and LA13, `VALQUO_LIVE_AUDIT.md`; no overlap with the in-flight
+LA1/LA3 work)
+
+**BOTH SHIPPED.** Two LOW-severity items, and one of them turned out to be sitting on top of
+something that is not low severity: **no test anywhere asserted that the two admin-token API
+endpoints refuse a caller with no token.** Details in LA13 below.
+
+---
+
+## LA10 — a withheld row kept the labels that described the value it withheld
+
+`estimate_fair_values` writes `fair_value_method` (`"blended"`) and `fair_value_confidence`
+(`"medium"`) alongside the number. `withhold.withhold_implausible_fair_values` then blanked
+`fair_value` and `upside` and **left both labels standing**, so a refused row shipped as
+
+```json
+{"fair_value": null, "fair_value_method": "blended",
+ "fair_value_confidence": "medium", "fair_value_withheld": true}
+```
+
+— the confidence of a number that is not in the payload.
+
+**Why it was worth fixing despite being invisible.** It is the same shape `withhold.py` exists
+to eliminate, one level up: the original KSPI bug was a *figure* surviving its own suppression;
+this is the *description* of the figure surviving. The audit's own framing — "cosmetic today, a
+future renderer would pick it up" — is exactly right, and I confirmed the first half rather than
+assuming it: **`app.js:1039` tests `fair_value_withheld` and returns `"withheld"` before it ever
+reads the method**, so the page has always displayed the correct thing. The wire was what
+disagreed with the page.
+
+**Fixed as one definition, not two edits.** `publication.strip_derived_fields` is now the single
+rule for what a refusal does to a row, and **both** refusal paths call it — the scan-side
+`record_refusal` and the web-side band withhold. Two places decide a row is withheld; there is
+now one definition of what that means, for the same reason `publication.py` owns the band.
+
+**The two fields are treated differently, deliberately:**
+
+| field | what happens | why |
+|---|---|---|
+| `fair_value_method` | **set** to `"withheld"` | already the project's vocabulary — `fairvalue.py`'s own refusal branch writes it, `test_guards.py:316` pins it. A positive label beats an empty cell for the same reason a refusal writes a REASON rather than leaving a gap: a blank invites someone to "fix" the missing data later. |
+| `fair_value_confidence` | **cleared** | it is a graded scale (`low`/`medium`) with no withheld rung, and putting a word into a scale invites a renderer to sort or compare it. The row already carries `fair_value_withheld: true` as the positive marker. |
+
+**The catch-all was structurally blind to this, which is the durable part.**
+`_walk_fair_values` walked *ratios* — and a withheld row has no ratio, so every band assertion
+passed on precisely the rows carrying the stale labels. It now carries the two labels as well,
+and `test_no_public_api_response_describes_a_fair_value_it_withheld` asserts that a marked row
+anywhere in a public body has no live method and no confidence. It has a **non-vacuity floor**
+(`>= 2` withheld rows in the walk) so it cannot quietly become a test of nothing.
+
+**Mutation-verified 3/3**, each caught on the real production AEG row (5.25x, $49.91 against
+$9.50): the bug as reported, and **both half-fixes** — method left standing, and confidence left
+standing. A fix that did only half the job fails.
+
+---
+
+## LA13 — `surfaces.py` claimed a completeness property the suite did not enforce
+
+The docstring promised *"every registered /api route is knowingly on one side or the other — a
+new route lands in neither list and fails the suite until someone decides"*, and
+`test_public.py:127` skipped `/api/option-alerts/` with a hard-coded prefix and a comment.
+
+The exemption is **correct** — both handlers call `_admin_ok()` — but it lived in the test, so
+the module stating the policy had no record that a third category existed. A future admin-token
+route under a different prefix would have got neither the list nor the exemption, and would have
+landed on the public side by default.
+
+**Fixed by writing the third side down.** `ADMIN_TOKEN_PREFIXES` is **derived from
+`private.ADMIN_PREFIXES`**, not restated — the list that lets these routes through the lockdown
+must be the list that classifies them here, or one gets edited alone. `is_admin_token()` and
+`classify()` are the single reader, and the suite now walks `classify` instead of keeping a
+second copy of the policy.
+
+### The finding underneath, which the audit did not name
+
+**Nothing in the suite asserted that these two endpoints refuse an un-tokened caller.** All four
+references to them were:
+
+| reference | what it actually asserts |
+|---|---|
+| `test_intraday.py:327` | the two path strings appear in a source file |
+| `test_private.py:145` | `private.always_open(...)` is True — i.e. the lockdown lets them **reach** the handler. Reachability, not refusal. |
+| `test_public.py:127` | skip |
+| `test_public.py:210` | skip |
+
+So deleting `_admin_ok()` from a handler would have been caught by **nothing**. And that makes
+the classification change dangerous on its own: a named category is strictly *worse* than a
+hard-coded skip if it becomes a one-line way to move a route out of the public set while securing
+nothing. So the classification ships with its enforcement:
+`test_the_admin_token_category_is_not_a_way_to_leave_a_route_unguarded` calls every
+admin-token route **for real, with no token, on every verb it accepts**, and requires 401/403.
+
+**Mutation-verified 3/3:**
+
+| mutation | caught by | result |
+|---|---|---|
+| drop the category from `classify` | the walk | both routes report unclassified |
+| **drop `_admin_ok()` from the handler** | the enforcement pin | `GET /api/option-alerts/open` answered **200** to an anonymous caller |
+| drift `private.ADMIN_PREFIXES` from the surfaces list | the agreement pin | both lists diverge, walk fails |
+
+---
+
+## BUGS FOUND (2)
+
+1. **The admin-token endpoints' guard was never tested** (above). Not what the audit item said —
+   LA13 is written as a documentation/classification gap, and the classification gap is real, but
+   the untested guard beneath it is the part worth remembering. **Now pinned.** Recorded because
+   the generalisation is the audit's own appendix thesis in a new place: the verification effort
+   watched *what the policy says*, and nothing watched *whether the policy is enforced*.
+2. **`test_public.py` held two independent copies of the option-alerts literal** (lines 127 and
+   210), for two different properties. The second is now `+ surfaces.ADMIN_TOKEN_PREFIXES`, so a
+   route added to the category is covered by both. Same literal in two tests is how one of them
+   keeps covering a route the other stopped covering.
+
+## Files
+
+| file | change |
+|---|---|
+| `valuation/engine/publication.py` | `ROW_WITHHELD_METHOD`, `ROW_DERIVED_FIELDS`, `strip_derived_fields()`; `record_refusal` delegates to it |
+| `valuation/web/withhold.py` | the band withhold calls `strip_derived_fields` instead of blanking two fields inline |
+| `valuation/saas/surfaces.py` | third-side docstring section, `ADMIN_TOKEN_PREFIXES`, `is_admin_token()`, `classify()` |
+| `tests/test_withhold.py` | `_walk_fair_values` carries the labels; +1 test (30/30) |
+| `tests/test_public.py` | walk reads `classify`; +4 tests, 1 renamed (31/31, was 27) |
+
+**Gate: 37 suites, every one exit 0.** The single reported shortfall is `test_guards.py` 35/36,
+a pre-existing **declared** XFAIL that exits 0 and belongs to the options-bot lane.
+
+## Not done, and why
+
+* **LA10's sibling surfaces were checked, not assumed.** `unified.py:251-259` serves
+  `fair_value_method` and `fair_value_withheld` but never `fair_value_confidence`, so
+  `/api/whatdo` only ever carried half of this. Both are covered by the walk regardless.
+* **No renderer change.** The page already showed "withheld"; changing `app.js` would have been
+  a change with no defect behind it.
+* **`/admin/*` was outside LA13's wording and is now swept anyway.** Those routes are not
+  classified by `surfaces.py` at all — it only speaks about `/api` — so the classification walk
+  cannot see them, and the same "call sites asserted nowhere" gap applied. The enforcement pin
+  was already generic, so extending it cost five lines:
+  `test_every_admin_route_refuses_a_caller_with_no_token`. **Measured first, then pinned:** all
+  **13 route-verbs already answer 401**, with a real `ADMIN_TOKEN` set in the environment —
+  which is the case that means anything, since an unset token fails closed trivially. So this
+  pins a property the app already had; it did not find a hole. These are the daily scan, the
+  paper-track cycle, the recap poster and the backtest runners, i.e. the owner's vendor spend.
+
+---
+
 # Session 23 — 2026-08-10 — the daily scan publishes the Index book, so the engine records the right one
 (prompt: cross-lane item named to this lane by `HANDOFF_edge_audit.md` Session 16 §7)
 

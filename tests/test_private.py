@@ -26,6 +26,8 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import state_isolation   # noqa: E402,F401  — LA15: temp state only. Import BEFORE `valuation`.
 
 from valuation.config import CONFIG, Config          # noqa: E402
 from valuation.saas import private                   # noqa: E402
@@ -518,14 +520,40 @@ def test_an_empty_database_exports_safely_and_says_so():
 
 def test_the_backup_workflow_guards_against_clobbering_a_good_backup():
     """The export runs unattended and commits. The one unrecoverable outcome is overwriting
-    months of record with an empty file, so the workflow must refuse to shrink."""
+    months of record with an empty file, so the workflow must refuse to shrink.
+
+    REWRITTEN 2026-08-10 (audit LA2). This used to assert the step's NAME and the presence of
+    bash `-lt`. Both were legitimate to replace — the row comparison moved into
+    `track_export --guard-against`, which counts through the csv module instead of `grep -c`
+    and so cannot be fooled by a newline inside a quoted field. The intent is unchanged and
+    the test is stricter in two ways: the guard is now EXECUTED rather than grepped for, and
+    it must cover the CONTRACT-BOUND series, which is the half LA2 found was never counted at
+    all — the old guard watched the Tradier sandbox book and let the bound record go to zero.
+    """
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     wf = open(os.path.join(root, ".github", "workflows", "track-backup.yml"),
               encoding="utf-8").read()
-    assert "Refuse to overwrite a real backup" in wf
-    assert "-lt" in wf, "the shrink check must actually compare row counts"
+    assert "--guard-against" in wf, "the workflow no longer runs the anti-regression guard"
     assert "curl -fsS" in wf, "an HTTP error must fail the step, not get committed"
     assert "data_export/" in wf
+    assert "bound_index_days" in wf, \
+        "the workflow does not check the contract-bound series is present (LA2)"
+
+    # The guard itself, executed: a render that would lose bound rows must exit non-zero.
+    import json as _json
+    import tempfile as _tf
+    from valuation.edge import track_export as _T
+    with _tf.TemporaryDirectory() as old, _tf.TemporaryDirectory() as new:
+        _T._write_csv(os.path.join(old, _T.BOUND_INDEX_CSV), _T._BOUND_COLS,
+                      [{"date": "2026-07-31", "valquo_pct": 0.4126, "spy_pct": 0.6903,
+                        "excess_pp": -0.2777, "n_priced": 86}])
+        p = os.path.join(new, "payload.json")
+        with open(p, "w", encoding="utf-8") as f:
+            _json.dump({"export": {"counts": {}, "index_series": [], "index_holdings": [],
+                                   "paper_orders": [], "option_alerts": []}}, f)
+        rc = _T.main(["--from-json", p, "--out", new, "--no-merge-committed",
+                      "--guard-against", old])
+    assert rc == 1, "the guard let a run drop the contract-bound series"
 
 
 def test_data_export_is_not_gitignored():

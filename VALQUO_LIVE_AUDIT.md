@@ -667,7 +667,10 @@ silently lacks it. Nothing iterates it today.
 ### LA15 — LOW — The test suite writes a year-2099 snapshot into the real screener database
 
 **Files:** `tests/test_saas.py:200-205`
-**Status:** already recorded as HANDOFF_STATUS "BUGS FOUND (5)"; re-verified.
+**Status:** **FIXED 2026-08-10** (options-bot lane) — `tests/state_isolation.py` +
+`tests/test_state_isolation.py` (29 tests); post-fix sweep over all 38 suites reports zero
+mutations. The measured blast radius was six rows across five tables, not one, and the sweep
+found three further leaking suites the audit did not name. `HANDOFF_optionsbot.md` session 19.
 
 `test_saas.py` POSTs `/admin/ingest-snapshot` with `scan_date: "2099-01-01"` against a `Store()`
 resolving to the repository's real `data/screener.db`. `Store.latest_scan_date()` orders by

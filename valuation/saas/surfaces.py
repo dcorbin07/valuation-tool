@@ -61,10 +61,37 @@ is a considered trade: under the lockdown, forgetting a route meant leaking the 
 had to fail closed. Here, forgetting to list a route means a new ANALYTICAL surface is public
 by default, and the surfaces that matter are enumerated, stable, and pinned by a test that
 walks the app's own URL map. `PUBLIC_API` below records the other half explicitly, so the test
-can assert that every registered /api route is knowingly on one side or the other — a new
-route lands in neither list and fails the suite until someone decides.
+can assert that every registered /api route is knowingly on one of the THREE sides below — a
+new route lands in none of them and fails the suite until someone decides.
+
+THE THIRD SIDE OF THE /api SPLIT: ADMIN-TOKEN ROUTES (corrected 2026-08-10, LA13)
+--------------------------------------------------------------------------------
+This docstring used to say "one side or the other", naming two categories. There have always
+been three. `/api/option-alerts/open` and `/api/option-alerts/outcome` are in neither
+`PUBLIC_API` nor `OWNER_ONLY_PATHS`; they are session-less endpoints for the Cowork/Robinhood
+outcome filler, guarded by `X-Admin-Token` inside the handler. The test exempted them by a
+hard-coded prefix skip, so the property this module ADVERTISED — every /api route is
+knowingly classified — was not the property enforced, and this module had no record that a
+third category existed at all. A future admin-token route under a different prefix would have
+got neither a list nor the exemption, and would have landed on the public side by default.
+
+The exemption is correct and is now WRITTEN DOWN, as `ADMIN_TOKEN_PREFIXES` below, taken from
+`private.ADMIN_PREFIXES` rather than restated — the same list that lets these routes through
+the lockdown must be the list that classifies them here, or one of the two will be edited
+alone. `classify()` is the single reader, so the test walks this module's own answer instead
+of keeping a second copy of the policy in the suite.
+
+THE CLASSIFICATION IS NOT THE GUARD, and the difference is the whole lesson of LA13. Naming a
+route "admin-token" here does nothing to it: the enforcement is `_admin_ok()` in the handler.
+So `tests/test_public.py` asserts BOTH halves — that every /api route is classified, and that
+every route classified admin-token actually refuses an un-tokened caller. Without the second
+assertion this list would be a way to move a route out of the public set without securing it,
+which is strictly worse than the hard-coded skip it replaces.
 """
 from __future__ import annotations
+
+#: Safe at module scope: `private.py` imports nothing from this package, so there is no cycle.
+from .private import ADMIN_PREFIXES as _PRIVATE_ADMIN_PREFIXES
 
 # ---------------------------------------------------------------------------------------
 # OWNER-ONLY. Each entry names its reason (1/2/3 above) and the vendor behind its numbers.
@@ -109,6 +136,16 @@ PUBLIC_API = frozenset({
     "/api/export/excel",      # the visitor's own valuation, exported                 [FMP]
     "/api/export/pdf",        # ditto                                                 [FMP]
 })
+
+# ---------------------------------------------------------------------------------------
+# ADMIN-TOKEN. Neither public nor session-owner: a scheduled process authenticating with
+# `X-Admin-Token`, checked by `_admin_ok()` in the handler itself. Derived from the lockdown's
+# own list so the two cannot be edited apart — see the docstring's third-side section.
+#
+# `_admin_ok` fails CLOSED on an unset token, so the worst case for a machine with no
+# ADMIN_TOKEN is that these routes are unreachable, never that they are open.
+# ---------------------------------------------------------------------------------------
+ADMIN_TOKEN_PREFIXES = tuple(p for p in _PRIVATE_ADMIN_PREFIXES if p.startswith("/api/"))
 
 # ---------------------------------------------------------------------------------------
 # THE DEMO EXCLUSIONS. A valid demo session reads every owner surface EXCEPT these.
@@ -194,6 +231,37 @@ def is_owner(user, cfg) -> bool:
 def is_owner_only(path: str) -> bool:
     """Path-level classification, independent of who is asking."""
     return path in OWNER_ONLY_PATHS or path.startswith(OWNER_ONLY_PREFIXES)
+
+
+def is_admin_token(path: str) -> bool:
+    """Guarded by `X-Admin-Token` in the handler rather than by the session split.
+
+    Note what this does NOT do: it grants nothing and refuses nothing. `check()` deliberately
+    ignores it — an admin-token route is not owner-only (a session owner has no business
+    reaching it either) and not public (a stranger gets 401 from `_admin_ok`). It exists so
+    the route is CLASSIFIED rather than skipped, and so the suite can then go and verify that
+    the handler's own guard is really there.
+    """
+    return bool(ADMIN_TOKEN_PREFIXES) and path.startswith(ADMIN_TOKEN_PREFIXES)
+
+
+#: The three sides, in the order a path is tested against them. Owner-only is checked before
+#: public so that a path appearing in both lists is treated as the more restrictive of the
+#: two rather than silently taking the loose answer.
+def classify(path: str):
+    """Which side of the /api split a path is on: 'owner', 'admin-token', 'public', or None.
+
+    None means UNCLASSIFIED, and it is the answer `tests/test_public.py` fails on. The single
+    reader of the three lists above — the suite walks this rather than re-deriving the policy,
+    which is how the old two-category claim survived beside a three-category reality.
+    """
+    if is_owner_only(path):
+        return "owner"
+    if is_admin_token(path):
+        return "admin-token"
+    if path in PUBLIC_API:
+        return "public"
+    return None
 
 
 def may_see_owner_surfaces(user, cfg) -> bool:

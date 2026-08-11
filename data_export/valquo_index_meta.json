@@ -1,0 +1,359 @@
+{
+  "benchmark": "SPY",
+  "book": "Valquo Index — broad top decile of the large-cap tier by hot score, score-weighted, capped at 8%",
+  "inception_date": "2026-07-30",
+  "positions": [
+    {
+      "ticker": "WDS",
+      "weight": 0.02315
+    },
+    {
+      "ticker": "SKM",
+      "weight": 0.02258
+    },
+    {
+      "ticker": "APA",
+      "weight": 0.02225
+    },
+    {
+      "ticker": "RGA",
+      "weight": 0.02206
+    },
+    {
+      "ticker": "DOW",
+      "weight": 0.02174
+    },
+    {
+      "ticker": "CF",
+      "weight": 0.02155
+    },
+    {
+      "ticker": "OVV",
+      "weight": 0.02142
+    },
+    {
+      "ticker": "EG",
+      "weight": 0.02129
+    },
+    {
+      "ticker": "AGX",
+      "weight": 0.02123
+    },
+    {
+      "ticker": "HON",
+      "weight": 0.02065
+    },
+    {
+      "ticker": "INCY",
+      "weight": 0.02026
+    },
+    {
+      "ticker": "RNR",
+      "weight": 0.01994
+    },
+    {
+      "ticker": "FDX",
+      "weight": 0.0193
+    },
+    {
+      "ticker": "HPE",
+      "weight": 0.01911
+    },
+    {
+      "ticker": "JBHT",
+      "weight": 0.01898
+    },
+    {
+      "ticker": "BEN",
+      "weight": 0.01872
+    },
+    {
+      "ticker": "UMBF",
+      "weight": 0.0184
+    },
+    {
+      "ticker": "STM",
+      "weight": 0.01808
+    },
+    {
+      "ticker": "POWL",
+      "weight": 0.01788
+    },
+    {
+      "ticker": "MRNA",
+      "weight": 0.01776
+    },
+    {
+      "ticker": "TTE",
+      "weight": 0.01756
+    },
+    {
+      "ticker": "ALLY",
+      "weight": 0.0175
+    },
+    {
+      "ticker": "SNDK",
+      "weight": 0.01705
+    },
+    {
+      "ticker": "TER",
+      "weight": 0.01686
+    },
+    {
+      "ticker": "SU",
+      "weight": 0.01666
+    },
+    {
+      "ticker": "EXE",
+      "weight": 0.01628
+    },
+    {
+      "ticker": "VICR",
+      "weight": 0.01564
+    },
+    {
+      "ticker": "EOG",
+      "weight": 0.01557
+    },
+    {
+      "ticker": "TPL",
+      "weight": 0.01551
+    },
+    {
+      "ticker": "WDC",
+      "weight": 0.01538
+    },
+    {
+      "ticker": "FORM",
+      "weight": 0.01531
+    },
+    {
+      "ticker": "WTFC",
+      "weight": 0.01519
+    },
+    {
+      "ticker": "ARW",
+      "weight": 0.01499
+    },
+    {
+      "ticker": "AEIS",
+      "weight": 0.01474
+    },
+    {
+      "ticker": "BNS",
+      "weight": 0.01467
+    },
+    {
+      "ticker": "KHC",
+      "weight": 0.01454
+    },
+    {
+      "ticker": "VOD",
+      "weight": 0.01409
+    },
+    {
+      "ticker": "FIX",
+      "weight": 0.01403
+    },
+    {
+      "ticker": "STRL",
+      "weight": 0.01358
+    },
+    {
+      "ticker": "VRT",
+      "weight": 0.01326
+    },
+    {
+      "ticker": "ZION",
+      "weight": 0.013
+    },
+    {
+      "ticker": "MDGL",
+      "weight": 0.0121
+    },
+    {
+      "ticker": "FTI",
+      "weight": 0.01191
+    },
+    {
+      "ticker": "DINO",
+      "weight": 0.01159
+    },
+    {
+      "ticker": "CVE",
+      "weight": 0.01107
+    },
+    {
+      "ticker": "IX",
+      "weight": 0.01101
+    },
+    {
+      "ticker": "OXY",
+      "weight": 0.01075
+    },
+    {
+      "ticker": "VIAV",
+      "weight": 0.01069
+    },
+    {
+      "ticker": "COKE",
+      "weight": 0.01056
+    },
+    {
+      "ticker": "MEDP",
+      "weight": 0.0103
+    },
+    {
+      "ticker": "THC",
+      "weight": 0.00992
+    },
+    {
+      "ticker": "CIEN",
+      "weight": 0.00947
+    },
+    {
+      "ticker": "ZTO",
+      "weight": 0.00863
+    },
+    {
+      "ticker": "EQT",
+      "weight": 0.00837
+    },
+    {
+      "ticker": "GEN",
+      "weight": 0.00831
+    },
+    {
+      "ticker": "BPOP",
+      "weight": 0.00799
+    },
+    {
+      "ticker": "ET",
+      "weight": 0.00786
+    },
+    {
+      "ticker": "WBS",
+      "weight": 0.00779
+    },
+    {
+      "ticker": "IFF",
+      "weight": 0.00722
+    },
+    {
+      "ticker": "CGNX",
+      "weight": 0.00702
+    },
+    {
+      "ticker": "PR",
+      "weight": 0.00689
+    },
+    {
+      "ticker": "KNX",
+      "weight": 0.00561
+    },
+    {
+      "ticker": "AR",
+      "weight": 0.00522
+    },
+    {
+      "ticker": "MOD",
+      "weight": 0.00509
+    },
+    {
+      "ticker": "TSEM",
+      "weight": 0.00497
+    },
+    {
+      "ticker": "KGC",
+      "weight": 0.00458
+    },
+    {
+      "ticker": "PSA",
+      "weight": 0.00445
+    },
+    {
+      "ticker": "RPM",
+      "weight": 0.00439
+    },
+    {
+      "ticker": "ASML",
+      "weight": 0.00432
+    },
+    {
+      "ticker": "FCNCA",
+      "weight": 0.00426
+    },
+    {
+      "ticker": "ONTO",
+      "weight": 0.004
+    },
+    {
+      "ticker": "KEYS",
+      "weight": 0.00381
+    },
+    {
+      "ticker": "GGG",
+      "weight": 0.00375
+    },
+    {
+      "ticker": "JEF",
+      "weight": 0.00349
+    },
+    {
+      "ticker": "DOCN",
+      "weight": 0.00336
+    },
+    {
+      "ticker": "ACGL",
+      "weight": 0.0033
+    },
+    {
+      "ticker": "CBOE",
+      "weight": 0.00297
+    },
+    {
+      "ticker": "TD",
+      "weight": 0.00227
+    },
+    {
+      "ticker": "HAL",
+      "weight": 0.00207
+    },
+    {
+      "ticker": "GNRC",
+      "weight": 0.00201
+    },
+    {
+      "ticker": "VSAT",
+      "weight": 0.00195
+    },
+    {
+      "ticker": "RF",
+      "weight": 0.00175
+    },
+    {
+      "ticker": "TECK",
+      "weight": 0.00143
+    },
+    {
+      "ticker": "IMO",
+      "weight": 0.00137
+    },
+    {
+      "ticker": "XPO",
+      "weight": 0.00124
+    },
+    {
+      "ticker": "MU",
+      "weight": 0.00117
+    }
+  ],
+  "recorder": "data/valquo_track.json + valquo_track_history.csv",
+  "scan_date": "2026-07-24",
+  "sources": {
+    "committed_backup": 0,
+    "ingested_store": 0,
+    "tracker_files": 2
+  },
+  "what_this_is": "The contract-bound Valquo Index: the book and inception PAPER_TRACK_CONTRACT.md binds. NOT the Tradier sandbox engine, whose files are named paper_track_*."
+}

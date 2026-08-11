@@ -4,6 +4,38 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-10 — r1 lane, cold-audit LA2: the track backup was backing up the wrong book
+
+**FIXED.** The weekly `track-backup` workflow preserved 4 days of the Tradier **sandbox** engine
+and **ZERO rows of the contract-bound Valquo Index** — the record `PAPER_TRACK_CONTRACT.md`
+actually binds. Its anti-regression guard counted the sandbox file, so the bound series could go
+from two rows to zero without tripping anything; **the job was green throughout**, because zero is
+never fewer than zero.
+
+The workflow now ingests the bound series from every place it can live and merges by date (an
+empty source can never erase a populated one), writes it as its own `valquo_index_track.csv`,
+guards on **its** row count plus an absolute presence check, and the emitted README no longer
+labels the sandbox file "Valquo Index vs SPY" — the exact mislabel behind the false "Index beating
+SPY" Discord post of 2026-08-05.
+
+**The two bound rows are now committed to git** (2026-07-31 −0.2777pp, 2026-08-06 −2.8468pp, 86
+names), so the record no longer exists on one laptop only. **`data/` is untouched and still
+gitignored** — the licensed-Sharadar rule is not bent; the copy lives in the already-tracked
+`data_export/`. It is a **backup, not a second recorder**: `index_track.load()` still reads `data/`
+and only `data/`.
+
+New `tests/test_track_export.py` (**18 tests**; the module had none), including a real restore that
+reproduces the published −2.8468pp. **34/34 suites green.** Full write-up: `HANDOFF_ci.md`, LA2.
+
+**NOTHING CHANGED ABOUT WHAT THE SITE SAYS OR WHAT THE CONTRACT BINDS.** And the gate's real
+blocker is unmoved: **there is still no automated writer for the bound series** — LA2 does not
+cover it. Trial cost none; equity `N` stays 131.
+
+**Session date:** 2026-08-09 (external edge audit, **session 15** — **AMENDMENT 1**: run #1 is
+VOID, **run #2 is the live test from 2026-08-10**, and the project now has a **VINTAGE RULE**.
+The meter and gap report are wired into `/api/track`. **NO ACTION REQUIRED FROM DON, but one
+thing needs confirming: the Cowork writer `valquo-daily-track-write` is NOT visible in this
+machine's Task Scheduler.** It is checkable from 2026-08-12 with no further work.)
 **Session date:** 2026-08-10 (edge lane, **session 17** — measured what the three dead live themes
 cost: **IMMATERIAL on alpha (−1.31pp, not separable from zero), but the live four-theme book fails
 the calibrated long-short floor**. **NO ACTION REQUIRED FROM DON.** One item still needs confirming
@@ -79,6 +111,119 @@ adoption helped.
 
 
 ---
+## ITEM A / THE TAKE-PROFIT BAR (options-bot lane, 2026-08-10) — **A DECISION IS WAITING ON DON**
+
+Memo: **`PREREG_A_take_profit_bar.md`**; ledger row `TP-BAR`; write-up in
+`HANDOFF_optionsbot.md`. **It changes no policy and ends at Don's choice**, exactly as the
+paper-track contract did. **The dead-entry caveat attaches to every option, including "adopt":
+R2 stands, the alert loses to random entry by −6.65pp, and no exit rule makes this book
+tradeable.**
+
+Raising the take-profit +100% → +150/200% has been measured twice and refused by a **+10pp**
+bar that was set for adopting a *construction* change. Reconciled: look 1 (2026-08-03) gives
++2.11/+3.26pp, look 2 (O1 off the freeze, 2026-08-08) gives **+3.19/+3.82pp**, and the path
+study's same-direction arms (+1.50 to +3.60pp) lean the same way without clearing. **The
+inventory's "two independent runs" is too strong** — the two books share 1,099 trades (28.3% of
+the larger) and the path study runs on the larger one exactly.
+
+**Why the bar was wrong, from the distribution:** of all **33** exit arms ever scored on this
+book, exactly **one** clears +10pp — `tp100_only` — and it fails FDR, raises tail concentration
+to 92.75%, and fails its own sign test on the alert book. The unit is the deeper problem: the
+**top 1% of trades carry 106–210% of each arm's entire gain**, so the other 99% are collectively
+negative. **And the obvious fix is refuted** — a *relative* bar drifts +62%/+109% between the two
+books where the absolute gain drifts +17%/+52%, so absolute is the more stable unit.
+
+**The memo pre-registers a procedure, not a number** (calibrate the level as X7 did; add a
+condition that does not run through the mean), and notes the timing fact: the paper options book
+has **three open positions and ZERO closed trades**, so a change now breaks no forward-record
+continuity — which makes adopting *cheap*, not *right*, and expires with the first close.
+
+**Don's three options are in `HANDOFF_optionsbot.md` §5.** Recommendation on record: **option 2**
+— require one calibrated confirmation, then decide. Zero trials; options `N` stays 205.
+
+---
+
+## THE PATH STUDY (options-bot lane, 2026-08-10) — NOTHING CHANGES, AND THAT IS THE RESULT
+
+Full write-up in `HANDOFF_optionsbot.md`; ledger row `PATHSTUDY`; pre-registration committed at
+**`9d37241` before a single table existed**, stage-2 arm set included.
+
+**THE CAVEAT IS LOAD-BEARING: the options entry signal is dead (R2, unchanged). Nothing here is
+a tradeable-edge claim** — it is paper-book policy and structural knowledge.
+
+**The harness reproduces the record twice**, which is what makes the rest quotable: paths rebuilt
+for **3,885/3,885** banked trades and **29,783/29,785** control trades from the frozen chains,
+and replaying the shipped policy reproduces the banked book on **3,885/3,885 exit reasons and
+P&Ls to 1e-9**, at **+3.41%/trade** signal and **+10.06%/trade** control — both R2's figures to
+the digit. (`data/options_exitlab/paths.pkl` covers only 28.3% of the book and is a different
+trade set; it was not used.)
+
+**STAGE 1 — the answers.** 80.2% of trades touch −50% at some point, and a −50% touch cuts the
+chance of ever reaching +100% from **44.7% to 17.5%**, so the inherited stop sits at an
+informative level. **Recovery depends far more on TIME than on level**: from a −50% touch,
+9.2% get back to breakeven with under a week left against **41.6%** with more than 45 days.
+Winners are fast — median **20 days**, a third of the DTE — and **67.6%** of targets arrive with
+more than half the DTE unused, so the time stop is not cutting winners short. **After +100% it is
+a barbell that vindicates closing there:** 67.5% of early winners double again, but **83.2% give
+back the +100% and 58.0% end up below zero.**
+
+**STAGE 2 — REJECT, 13 pre-registered arms.** Largest gain **+3.60pp against O1's own
+pre-committed 10pp bar**; both split directions select the same arm and neither measured half
+clears; both clustered CIs straddle zero. **The finding that outlives the verdict:** on the five
+pooled random-entry seeds, every arm moves a book of RANDOM entries almost exactly as much as the
+alert's — **r 0.967, slope 0.990, 13 of 13 same sign** — so an exit rule is a property of
+*options*, not of the entry. That generalises O23 from "half" to essentially "all".
+
+**DON: no action, and nothing was deployed.** The plain-English answers to the four questions are
+in `HANDOFF_optionsbot.md` §4. Options `N` 192 → **205**; equity `N` unchanged at **135**.
+
+---
+
+## LA15 (options-bot lane, 2026-08-10) — THE TEST SUITE NO LONGER WRITES INTO THE REAL DATABASES
+
+First executed item from `VALQUO_LIVE_AUDIT.md`. Full write-up in `HANDOFF_optionsbot.md`;
+ledger row `LA15`. **Scope was `tests/**` only — no production module was edited.**
+
+`tests/state_isolation.py` redirects the screener store, the accounts store, the dated scan
+archive and the index-track files into a per-process temp directory, and **raises** on anything
+still resolving inside the real `data/` — redirection alone fails silently, which is the failure
+mode this item is about. `tests/test_state_isolation.py` (**29 tests**) pins the rule and fails
+the gate if any suite can reach default state without importing the guard.
+
+**The audit named one row; the measured blast radius is six, across five tables.** One run of
+`tests/test_saas.py` also left an `alerts_sent` row for `__HOTDIGEST__` stamped with the **real
+calendar day** — `notify.post_hot_digest` returns early on `alerted_today`, so a local test run
+**suppresses that day's real Discord hot digest**. A fingerprint sweep around each of the 37
+suites found **four** mutating, three unnamed by the audit: `test_security.py` → `data/app.db`,
+`test_screener.py` → `data/archive/scans/<today>.json.gz`, `test_private.py` → opens the real
+store. **Re-running the identical sweep after the fix: every suite `rc=0`, mutation list empty.**
+
+**Two findings travel further than the repair:**
+
+1. **The local scan archive is 100% test output and self-refreshing.** Every archived scan day —
+   5 of 5 here, 3 of 3 in the primary checkout — is `provider: "synthetic (offline test)"`, one
+   file per calendar day the suite ran. `scripts/theme_health.py` reads exactly that directory,
+   so this is the **mechanism** behind V2's NOT-QUOTABLE theme-health verdict. → **greeks lane.**
+2. **Two of the project's strongest guards fail on a developer box with messages that assert the
+   opposite of what happened.** With the real track files present the pre-fix
+   `test_paper_track.py` scores **65/70**; `test_hero_will_not_render_the_sandbox_book_as_the_index`
+   reports *"the hero rendered the Tradier sandbox book as the Valquo Index"* while printing
+   `source: 'index-track'` — the **contract-bound** recorder, read correctly. **Those local
+   failures are not a B7 sandbox leak and must never be quoted as one.** Fixed suite: 70/70,
+   which closes the long-standing "37/40 locally, don't chase it" note as diagnosed.
+
+**DON: nothing was deleted, and one thing is worth knowing.** The primary checkout's
+`data/screener.db` has `2099-01-01` as its **only** scan date, so the local app is serving the
+test fixture on every scan-derived surface; `data/app.db` holds **34** test-created accounts.
+Cleanup statements are in `HANDOFF_optionsbot.md` §8 — run them *after* this lands, or they come
+straight back. **No action is required for the fix itself.**
+
+`archive.DEFAULT_ROOT` is still a relative path (`valuation/edge/archive.py:35`) — reported and
+routed to the screener lane, since this item's scope was tests only. `FIXED` row, so `N` does
+not move: equity **135**, options 192, infra 6, total 333, `rows_malformed: []`.
+
+---
+
 ## EDGE — WHAT THE THREE DEAD LIVE THEMES COST: IMMATERIAL ON ALPHA, BUT THE LIVE BOOK FAILS THE CALIBRATED LONG-SHORT FLOOR (2026-08-10, session 17, `V2G`)
 
 Full write-up in `HANDOFF_edge_audit.md` **SESSION 17**; ledger row `V2G`; pre-registration

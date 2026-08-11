@@ -555,12 +555,19 @@ def _public_rows():
 
 
 def _walk_fair_values(obj, path="", out=None):
-    """Every (path, fair_value, price) pair anywhere in a response body."""
+    """Every fair-value-bearing object anywhere in a response body.
+
+    Carries the two DESCRIBING labels as well as the value (LA10, 2026-08-10), because the
+    band walk below is blind to them by construction: a withheld row's ratio is `None`, so
+    every ratio assertion passes while `fair_value_method: "blended"` ships beside a null.
+    """
     out = [] if out is None else out
     if isinstance(obj, dict):
         if "fair_value" in obj and "price" in obj:
-            out.append((path, obj.get("fair_value"), obj.get("price"),
-                        obj.get("fair_value_withheld")))
+            out.append({"path": path, "fv": obj.get("fair_value"), "px": obj.get("price"),
+                        "marked": obj.get("fair_value_withheld"),
+                        "method": obj.get("fair_value_method"),
+                        "confidence": obj.get("fair_value_confidence")})
         for k, v in obj.items():
             _walk_fair_values(v, f"{path}.{k}", out)
     elif isinstance(obj, list):
@@ -585,13 +592,55 @@ def test_no_public_api_response_carries_a_fair_value_past_the_band():
                 body = c.get(url).get_json()
                 pairs = _walk_fair_values(body, url)
                 assert pairs, f"{url} served no fair-value rows — the test proved nothing"
-                for path, fv, px, marked in pairs:
+                for row in pairs:
+                    fv, px = row["fv"], row["px"]
                     if fv is None:
                         continue
                     assert px and fv / px <= BAND, \
-                        f"{path} published {fv} against a price of {px} ({fv / px:.1f}x)"
+                        f"{row['path']} published {fv} against a price of {px} ({fv / px:.1f}x)"
     finally:
         webapp._store = orig
+
+
+def test_no_public_api_response_describes_a_fair_value_it_withheld():
+    """LA10. The other half of the same walk, and the half the band cannot see.
+
+    A withheld row has no ratio, so every assertion in the test above passes on it while the
+    row still ships `fair_value_method: "blended"` and `fair_value_confidence: "medium"` —
+    stating the method and the confidence of a number that is not in the payload. Same shape
+    as the original KSPI bug (a figure surviving its own suppression), one level up: here it
+    is the LABEL that survived the value.
+
+    Non-vacuous by construction: the assertion at the end fails if the fixture stops producing
+    withheld rows, so this cannot quietly become a test of nothing.
+    """
+    from valuation.engine.publication import ROW_WITHHELD_METHOD
+    from valuation.web import app as webapp
+    orig = webapp._store
+    webapp._store = lambda: _FakeStore(_public_rows())
+    webapp.app.config["TESTING"] = True
+    seen_withheld = 0
+    try:
+        with webapp.app.test_client() as c:
+            for url in ("/api/hotstocks?top=100", "/api/whatdo?ticker=AEG",
+                        "/api/whatdo?ticker=LEV", "/api/whatdo?ticker=N3"):
+                for row in _walk_fair_values(c.get(url).get_json(), url):
+                    if not row["marked"]:
+                        continue
+                    seen_withheld += 1
+                    p = row["path"]
+                    assert row["fv"] is None, f"{p} is marked withheld and still carries a value"
+                    assert row["method"] in (None, ROW_WITHHELD_METHOD), (
+                        f"{p} is withheld and still describes the method as {row['method']!r} — "
+                        f"a label that outlived the value it described")
+                    assert row["confidence"] is None, (
+                        f"{p} is withheld and still claims {row['confidence']!r} confidence in "
+                        f"a number it did not publish")
+    finally:
+        webapp._store = orig
+    assert seen_withheld >= 2, (
+        f"only {seen_withheld} withheld rows in the walk — the fixture stopped producing the "
+        f"case this test exists for, so it proved nothing")
 
 
 # FIXED 2026-08-07 and the marker is REMOVED, which is the whole point of the mechanism.

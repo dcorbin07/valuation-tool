@@ -2816,3 +2816,658 @@ in particular corrupts the comparison the whole forward track exists to make, an
 stays open is another position entered under levels no backtest describes. The instrument itself
 needs nothing further until roughly 30 exits exist — on a three-position book at the current
 alert rate, that is a long way off, which is itself worth knowing.
+
+---
+
+# LA15 — the test suite writes into the real databases (2026-08-10)
+
+**Item:** `VALQUO_LIVE_AUDIT.md` LA15, severity LOW, class `test-mutates-production-state`.
+**Scope:** `tests/**` only. No production module was edited.
+**Files:** `tests/state_isolation.py` (new), `tests/test_state_isolation.py` (new, 29 tests),
+plus a two-line guard import in eight existing suites.
+
+## 1. What the audit said, and what was actually there
+
+The audit named one row: `tests/test_saas.py:200-205` POSTs `/admin/ingest-snapshot` with
+`scan_date: "2099-01-01"` against a `Store()` that resolves to the repository's real
+`data/screener.db`, and `latest_scan_date()` orders `DESC`, so the fixture outranks every real
+scan forever.
+
+Measured on this checkout, **one run of that one suite left six rows across five tables plus a
+meta key**:
+
+| table | row |
+|---|---|
+| `meta` | `hot_processed_2099-01-01` |
+| `scans` | `2099-01-01`, provider `ci` |
+| `snapshot_rows` | `TESTX` @ `2099-01-01`, hot_score 91.0 |
+| `track_picks` | `hot10` / `2099-01-01` / `TESTX` |
+| `positions` | an **OPEN** `hot10` paper position in `TESTX` at $10.00 |
+| `alerts_sent` | `__HOTDIGEST__`, `alert_date` = **the real calendar day the test ran** |
+
+The last row is the one that is not cosmetic. `notify.post_hot_digest` returns early when
+`store.alerted_today("__HOTDIGEST__")`, and `mark_alerted` stamps *today*, not the scan date —
+so **running the suite on a box with a Discord webhook configured suppresses that day's real
+hot digest.** A test may not decide whether the product notifies its users.
+
+## 2. The primary checkout is polluted right now (read-only check, nothing was changed)
+
+| | measured |
+|---|---|
+| `data/screener.db` latest scan | **`2099-01-01`, and it is the ONLY scan_date present** |
+| open positions | 1 — the `TESTX` fixture |
+| `data/app.db` user accounts | **34**, all created by test runs |
+| `data/archive/scans/` | 3 days, **all** `provider: "synthetic (offline test)"` |
+
+Every scan-derived surface on Don's local app — `/api/hotstocks`, `/api/valquo-index`,
+`/api/whatdo`, the hero — is serving the fixture. The audit predicted this; it is confirmed
+live rather than inferred. **Nothing was deleted: that is Don's call, and the commands are in
+§8.**
+
+## 3. The sweep — measured, not read
+
+`data/`, `data_export/`, every repo-root file and `git status --porcelain` were fingerprinted
+(size + mtime + sha1) around a subprocess run of **each of the 37 suites then present**, before
+and after.
+
+**Four suites mutate real state, three of which the audit did not name:**
+
+| suite | what it wrote |
+|---|---|
+| `test_saas.py` | `data/screener.db` **and** `data/app.db` |
+| `test_security.py` | `data/app.db` |
+| `test_screener.py` | `data/archive/scans/<today>.json.gz` |
+| `test_private.py` | opened the real `screener.db` (its `-wal`/`-shm` were checkpointed away) |
+
+One reported mutation was **a false positive and is discounted**: `test_theme_health.py`'s
+`__git_status__` hit is the guard module I created while the sweep was still running. Recorded
+here rather than quietly dropped.
+
+Three further suites **read** real state without writing it — `create_saas_app` opens
+`data/app.db` — and so their results depend on those 34 accounts: `test_public.py`,
+`test_research_page.py`, `test_score_confidence.py`. `test_paper_track.py` reads
+`data/valquo_track.json`. All are covered.
+
+## 4. Four escapes, enumerated
+
+```
+create_saas_app(...)   -> UserStore(cfg.database_url)      -> data/app.db
+Store() / UserStore()  -> no path                          -> data/screener.db, data/app.db
+run_scan(..., save)    -> screen.py -> archive_scan()      -> data/archive   (RELATIVE root)
+live_hero(...)         -> index_track.default_paths()      -> data/valquo_track.json + .csv
+```
+
+The third is the interesting one. `test_screener.py` passes a **temp store** — the author did
+isolate the database — but `screen.py:336` calls `archive_scan(rows, scan_date, provider.name)`
+with no root, and `archive.DEFAULT_ROOT` is the *relative* path `data/archive`, resolved against
+the cwd and bound as a default argument at def time. A relative default root is invisible from
+the call site, which is why isolating the store was not enough. **This is the same class as the
+miner's `data/options` root already pinned in `tests/test_edge.py:4567`.**
+
+## 5. THE FINDING THAT LEAVES THIS LANE: the local scan archive is 100% test output, and it
+   grows by one fabricated day per day
+
+Every archived scan day on this checkout — **5 of 5**, and **3 of 3** in the primary checkout —
+reads `provider: "synthetic (offline test)"` with 100 `SYN####` tickers. One file per calendar
+day the suite was run:
+
+```
+2026-08-06  synthetic (offline test)  100 rows  SYN0706
+2026-08-07  synthetic (offline test)  100 rows  SYN0410
+2026-08-08  synthetic (offline test)  100 rows  SYN0807
+2026-08-09  synthetic (offline test)  100 rows  SYN0612
+2026-08-10  synthetic (offline test)  100 rows  SYN0513
+```
+
+`scripts/theme_health.py` — the **V2** instrument — reads exactly `data/archive/scans/`. V2
+reported that "every archived scan day is synthetic and the store's one row is a 2099 test
+fixture" and correctly called the theme-health meter NOT-QUOTABLE. **Both halves of that
+sentence are this audit item**: the archive days come from `test_screener.py`, the 2099 row from
+`test_saas.py`. V2 diagnosed the symptom; this is the mechanism.
+
+The dangerous property is that it is **self-refreshing**. The directory is not empty and not
+obviously broken — it accrues one more plausible-looking day every day anyone runs the tests, so
+it reads as accumulating history. → **V2's lane (greeks agent): the archive cannot be treated as
+a partially-real series with synthetic gaps. On any developer box it is synthetic in full.**
+
+## 6. The other finding: two of the project's strongest guards fail on a developer box, with
+   messages that assert the opposite of what happened
+
+`HANDOFF_STATUS` has carried "`test_paper_track` 37/40 locally, 40/40 in CI — don't chase it".
+It was worth chasing. Copying the primary checkout's real `valquo_track.json` +
+`valquo_track_history.csv` into this worktree and running the **pre-fix** suite from `HEAD`:
+
+* **pre-fix: 65/70.** Fixed suite, same files present: **70/70.**
+* The five failures are `test_hero_never_raises_and_never_takes_the_page_down`,
+  `test_hero_stays_hidden_until_the_track_actually_reports`,
+  `test_hero_will_not_render_the_sandbox_book_as_the_index`,
+  `test_no_outbound_surface_may_quote_the_sandbox_engine_as_the_index`,
+  `test_recap_will_not_quote_a_hit_rate_as_a_rate_below_the_evidence_floor`.
+
+**Read at face value, two of those say the B7 sandbox/Index split has regressed. It has not.**
+`test_hero_will_not_render_the_sandbox_book_as_the_index` fails with
+
+> the hero rendered the Tradier sandbox book as the Valquo Index: `{'available': True,
+> 'source': 'index-track', 'since': '2026-07-31', 'days': 2, 'book': 'Valquo Index (top decile,
+> large-cap tier, score-weighted, 8% cap)', ...}`
+
+— the payload it prints is `source: 'index-track'`, the **contract-bound** recorder, read
+correctly from the developer's own file. The hero did the right thing; the test asserted
+`available is False` on the assumption that no bound track exists, which is true in CI and false
+on Don's machine. Same for the outbound-surface guard, whose recap is labelled *"paper,
+contract-bound Valquo Index"*. **Nobody should quote those local failures as evidence of a
+sandbox leak.**
+
+The fix does not weaken either guard: in CI there are no track files, so pointing
+`default_paths()` at an empty temp directory reproduces CI behaviour exactly — the guards stay
+as strong as they are in the gate, and now behave that way everywhere.
+
+## 7. BUGS FOUND
+
+**B-LA15.1 — `valuation/edge/archive.py:35`: the archive root is relative, and bound at def
+time.** `DEFAULT_ROOT = os.path.join("data", "archive")` is a relative path used as a default
+argument, so (a) it resolves against whatever the cwd happens to be, and (b) reassigning the
+module constant does not change it. `valuation/screener/screen.py:336` calls
+`archive_scan(rows, scan_date, provider.name)` with no root, so **any** caller anywhere writes
+into `<cwd>/data/archive` — which is how a suite that had correctly passed a temp store still
+wrote a real archive day. Same class as the miner's `data/options` root already pinned in
+`tests/test_edge.py:4567`. **NOT FIXED — LA15's scope is `tests/**`.** → screener/engine lane:
+resolve against the repo root or require an explicit root, and pin it.
+
+**B-LA15.2 — `valuation/saas/notify.py:187,190`: the hot digest is deduped on the wall-clock
+day, but it is a digest *for* `scan_date`.** `alerted_today("__HOTDIGEST__")` keys on today
+while `mark_alerted("__HOTDIGEST__", scan_date)` stores `alert_date = today` and
+`run_time = scan_date`. The docstring says "at most once per day", so the wall-clock key is
+deliberate and this is **behaviour, not a verdict** — but two consequences follow that are worth
+someone's attention. First, it is the mechanism by which a test run suppressed a real digest.
+Second, `/admin/ingest-snapshot`'s own `already` guard is keyed on `scan_date`, so a *second,
+different* `scan_date` ingested on the same calendar day — exactly the backup-cron case the
+route's comment describes, since GitHub drops scheduled runs — passes that guard, reaches
+`post_hot_digest`, and is silently not posted. → app lane, unverified against production
+behaviour.
+
+**B-LA15.3 — `tests/test_saas.py:2` claimed something untrue.** The module docstring has read
+"offline, deterministic — temp DB, no network" throughout the period it was writing to the real
+`data/screener.db`. Fixed as a side effect of this item; noted because a docstring that asserts
+the property being violated is worse than none.
+
+**B-LA15.4 — a defect in the guard itself, found and fixed before pushing.** The first version
+of `_isolate_user_store` wrapped `UserStore.__init__` as `guarded_init(self, url=None, ...)`.
+Two faults, both silent: the real signature's parameter is named **`database_url`**, so
+`UserStore(database_url=...)` would have landed in `**kwargs` and never been checked; and the
+real signature's default is **`"sqlite:///data/app.db"` — the real accounts DB** — so a bare
+`UserStore()` would have been passed `None` and died with a confusing `TypeError` instead of the
+guard's own refusal. Now bound off `inspect.signature(real_init)` and pinned by two tests
+(`test_a_bare_user_store_raises_rather_than_opening_its_real_default`,
+`test_the_keyword_spelling_cannot_slip_past`), both of which the broken version fails. Recorded
+because a guard with a hole in it is worse than no guard: it reports safety it is not providing.
+
+## 8. What was NOT done, and who owns it
+
+1. **Nothing was deleted.** The polluted primary checkout is Don's to clear. Targeted, and only
+   after the fix is merged so it does not immediately come back:
+   ```sql
+   -- data/screener.db
+   DELETE FROM snapshot_rows WHERE scan_date LIKE '2099%';
+   DELETE FROM scans         WHERE scan_date LIKE '2099%';
+   DELETE FROM track_picks   WHERE run_date  LIKE '2099%';
+   DELETE FROM positions     WHERE entry_date LIKE '2099%';
+   DELETE FROM alerts_sent   WHERE run_time  LIKE '2099%';
+   DELETE FROM meta          WHERE key LIKE '%2099%';
+   ```
+   plus `rm data/archive/scans/*.json.gz` (all synthetic) and, if the 34 accounts are unwanted,
+   `rm data/app.db`. **Check first** — `paper_option_orders`, `paper_index_holdings` and
+   `paper_index_track` are all 0 locally, so no real fill is at risk, but that is a fact about
+   today, not a standing guarantee.
+2. **`archive.DEFAULT_ROOT` is still relative.** The test-side guard stops the leak; the
+   production smell remains and is not mine — LA15's scope is `tests/**`. → **screener/engine
+   lane:** resolve it against the repo root, or require an explicit root, and pin it the way
+   `test_edge.py` already pins the miner's cache root.
+3. **No production module was edited at all**, including the ones the escapes run through
+   (`app_saas.py`, `screen.py`, `archive.py`, `index_track.py`, `store.py`). The guard is
+   entirely test-side, so nothing shipped to Render changes and the repair cannot itself be the
+   cause of a production incident.
+4. **The detector enumerates four escapes; it does not claim to be exhaustive.** A fifth route
+   nobody has thought of would slip past the AST sweep. The runtime tripwire is the backstop for
+   that case — it refuses anything resolving inside the real `data/`, whatever called it.
+
+## 9. Verification
+
+* `tests/test_state_isolation.py` — **29/29**.
+* The eight modified suites, all green and unchanged in count: `test_saas` 30/30,
+  `test_security` 22/22, `test_screener` 83/83, `test_private` 30/30, `test_public` 27/27,
+  `test_research_page` 14/14, `test_score_confidence` 14/14, `test_paper_track` 70/70.
+* **Re-ran the identical fingerprint sweep over all 38 suites after the fix: every suite `rc=0`,
+  and the mutation list is EMPTY.** Before: 4 mutating suites. After: 0. `test_theme_health.py`
+  came back clean on the re-run, which is the check that its earlier `__git_status__` hit was
+  the guard module being created mid-sweep rather than a real write.
+* Trial accounting: the row is a `FIXED` correctness row, so **it does not count toward `N`**.
+  Measured before and after, against the shipped parser: equity **135 → 135**, options
+  **192 → 192**, infra **6 → 6**, total **333 → 333**, `rows_counted` **66 → 66**. The only
+  field that moves is `rows_fixed_not_counted` **25 → 26**, which is the row itself landing on
+  the correct side of the counting rule. `rows_malformed: []` before and after, so the new row's
+  pipes are clean — the hazard the session-12 recount exists to catch.
+
+---
+
+# THE PATH STUDY — stage 1 descriptive, stage 2 rejected (2026-08-10)
+
+Pre-registered in `PREREG_path_study.md`, committed at `9d37241` **before a single table existed**
+— including stage 2's whole arm set, so the arms cannot have been chosen to suit stage 1's
+numbers. Reproduce with `python -m scripts.path_study --stage1`, `python -m scripts.path_arms
+--run [--control]`, `python -m scripts.path_gate`.
+
+## 0. THE CAVEAT THAT TRAVELS WITH EVERY NUMBER BELOW
+
+**The options entry signal is dead.** R2 measured the real book at **+3.41%/trade against a
+five-seed random-entry control's +10.06%** — gap −6.65pp, date-block CI95 [−11.92, −2.13],
+paired sign test **z −4.903**. That stands, and this study reproduces its headline exactly as a
+by-product (§2). **Nothing here is a tradeable-edge claim.** An exit rule cannot rescue an entry
+that subtracts value, and O23 already measured that half of any exit's P&L difference is just the
+underlying. What follows is **paper-book policy and structural knowledge**, and any sentence from
+it that reads as "we found an edge" is a misquote.
+
+## 1. What was built, and the two controls that make it believable
+
+`data/options_exitlab/paths.pkl` — the obvious input — covers only **1,099 of the 3,885 banked
+trades (28.3%)** and carries 2,020 paths the book does not. It is a different trade set. Paths
+were therefore rebuilt from the frozen chains
+(`R2_CORRECTED_2026-08-08/chains.pkl.gz`, 2,870,811 rows) and from `R2_CONTROLS_2026-08-08/`
+(21,877,728 rows) for the five seeds.
+
+| | signal | control (5 seeds pooled) |
+|---|---|---|
+| banked trades | 3,885 | 29,785 |
+| **paths rebuilt** | **3,885 (100.0%)** | **29,783 (100.0%)** |
+
+**CONTROL 1 — the replay is exact.** Scoring the shipped policy on the rebuilt paths reproduces
+the banked book on **3,885 / 3,885 exit reasons AND 3,885 / 3,885 P&Ls to within 1e-9** (mean
+absolute error **0.0**), and the arm's mean return is **+3.41%/trade**, which is R2's recorded
+headline to the digit. Any difference an arm shows below is the arm, not the harness.
+*(O1's own note records a freeze replay matching only 86.950% — that was measured under the
+pre-B2 quote rule its docstring was diagnosing. Using the post-B2 rule, as the banked book did,
+takes it to 100%. O1's diagnosis is corroborated.)*
+
+**CONTROL 2 — the entry quote is derived, and the derivation is checked.** The book stores the
+fill and the spread, not both sides. At aggression 1.0 a buy fills at the ask, so
+`bid = ask·(2−s)/(2+s)`. Against the 1,099 trades that DO appear in O1's artifact with a true
+`entry_bid`, the maximum absolute error is **0.000000000**. The 28.3% overlap is useless as a
+book and is exactly the right control for that one step.
+
+## 2. STAGE 1 — the tables. This is the direct answer to the questions asked.
+
+### 2a. How deep do they dig? Deeper than the policy suggests.
+
+Max adverse excursion **before the banked exit**, sell-side marks, as a fraction of premium:
+
+| | p25 | median | p75 | mean |
+|---|---|---|---|---|
+| all trades | −58.4% | **−51.5%** | −26.1% | −39.7% |
+
+| banked outcome | n | median MAE |
+|---|---|---|
+| target | 1,053 | **−10.0%** |
+| time_stop | 527 | −32.2% |
+| stop | 2,298 | −56.8% |
+| expiry | 7 | −25.0% |
+
+**80.2% of all trades touch −50% at some point in the contract's life**; 88.8% touch −25%.
+Even the trades that ended at TARGET had a median drawdown of −10% and a p25 of −25.5% first.
+
+### 2b. Do losers come back? Mostly not — and TIME LEFT is what decides it.
+
+Measured on the **full contract life, ignoring the shipped exit** — the counterfactual the
+question is actually asking. Unconditionally, **44.7%** of trades reach +100% at some point.
+
+| first touch of | n (% of book) | back to ≥ 0 | on to +100% |
+|---|---|---|---|
+| −25% | 3,449 (88.8%) | 55.2% | 28.3% |
+| −40% | 3,244 (83.5%) | 43.6% | 21.9% |
+| −50% | 3,115 (80.2%) | **35.4%** | **17.5%** |
+| −60% | 2,971 (76.5%) | 27.2% | 13.2% |
+
+A −50% touch cuts the chance of ever making the target from **44.7% to 17.5%**. The stop is
+sitting at a level that carries real information.
+
+**And the DTE conditioning is far stronger than the level conditioning** — from a −50% touch:
+
+| DTE remaining at the touch | n | back to ≥ 0 | on to +100% |
+|---|---|---|---|
+| ≤ 7 | 153 | **9.2%** | **2.0%** |
+| 8–21 | 332 | 30.7% | 12.7% |
+| 22–45 | 1,443 | 34.2% | 16.4% |
+| > 45 | 1,187 | **41.6%** | **22.1%** |
+
+A −50% drawdown with a week left is close to terminal; the same drawdown with two months left
+recovers to breakeven **four and a half times as often**. **The single flat −50% stop is the
+crudest thing in the inherited policy** — and §3 is where that intuition gets tested and does
+not survive.
+
+### 2c. How long does a winner take? Fast — so the time stop rarely binds on winners.
+
+Of the 1,737 trades that reach +100%: median **20 calendar days**, p25 10, p75 34 — or a median
+of **one third of the original DTE**. **67.6% of all targets arrive with more than half the DTE
+still left.** The half-DTE time stop is therefore mostly adjudicating the undecided middle, not
+cutting winners short.
+
+### 2d. What happens after +100%? A barbell — and it vindicates closing there.
+
+For the **1,174** trades that reached +100% with more than half their DTE still to run:
+
+| | signal | control |
+|---|---|---|
+| went on to **+200%** | **67.5%** | 70.0% |
+| **fell back below +100%** | **83.2%** | 82.7% |
+| **fell below 0** | **58.0%** | 54.9% |
+| median best price after | +273.7% | +297.9% |
+| median FINAL outcome after | +62.2% | +108.0% |
+
+Two thirds of early winners double again. **More than half of them, held on, eventually go
+underwater.** The median final outcome is positive and the p25 is **−94.4%** — that is not a
+distribution to hold for the mean. Closing at +100% is not leaving free money on the table; it
+is swapping a barbell for a certainty.
+
+*"Final" here means the return at the contract's **last usable quote**, which for these paths is
+at or near expiry — not a settled P&L. That distinction is O1's central methodological finding
+and it is checked rather than assumed: only **6.9%** of these paths lose their last usable quote
+more than five days before expiry, so the continuation figures are not an artefact of stale
+marks. (§3c re-checks it on the arms, where it matters more.)*
+
+### 2e. THE CONTROL COMPARISON, and it is the most important line in stage 1
+
+At **every** touch level and on **both** recovery measures — eight cells out of eight — the
+**random-entry control recovers MORE often than the signal book**:
+
+| from a touch of | back to ≥0: signal → control | to +100%: signal → control |
+|---|---|---|
+| −25% | 55.2% → **61.2%** | 28.3% → **33.3%** |
+| −40% | 43.6% → **48.9%** | 21.9% → **25.5%** |
+| −50% | 35.4% → **40.6%** | 17.5% → **20.6%** |
+| −60% | 27.2% → **31.5%** | 13.2% → **15.4%** |
+
+…while the drawdowns themselves are **identical** (mean MAE −39.7% on both books, medians
+−51.5% vs −50.8%), and the control reaches +100% more often overall (**50.1% vs 44.7%**).
+
+**The alert picks entries that dig just as deep and come back less often.** That is R2's verdict
+restated in path terms, on a measurement R2 never made.
+
+**NOT a sign test, and the temptation to call it one is exactly what this project has already
+been burned by.** The four touch levels are nested subsets of one another (a −60% touch is a
+−50% touch) and the two recovery measures are nested (reaching +100% implies passing 0), so the
+eight cells are nowhere near eight independent draws — the same error SELRULE measured on X8's
+countries, where 16 co-moving units were worth an `n_eff` of 2 to 4. The honest statement is
+that **the direction is unanimous across every cut**, not that it carries a p-value. The
+magnitudes (4–6pp) are consistent with R2's −6.65pp gap, measured a different way.
+
+## 3. STAGE 2 — thirteen pre-registered arms. VERDICT: REJECT.
+
+Stage 1 cleared the pre-registered materiality bar (§3 of the register: a recovery cell ≥10pp
+from base on ≥100 trades — the ≤7-DTE cell is 26.2pp below on 153 trades), so stage 2 ran.
+
+Gain in per-trade expectancy over the shipped policy, full book, with month-block clustered CIs:
+
+| arm | family | gain | clustered CI95 | fires on |
+|---|---|---|---|---|
+| `trail50_after100` | A | **+3.60pp** | [−0.5, +7.7] | 9.6% |
+| `escalate_fast` | F | +2.40pp | [−0.6, +5.7] | 11.1% |
+| `half_at_100` | E | +1.93pp | [−0.2, +4.1] | — |
+| `clean_runner` | F | +1.50pp | **[+0.4, +2.5]** | — |
+| `time_cond25` | B | +0.12pp | [−0.4, +0.7] | — |
+| `ivcrush30` | C | −0.02pp | [−0.2, +0.1] | 1.3% |
+| `delta85` | C | −0.02pp | [−0.3, +0.2] | 2.4% |
+| `stock_stop` | D | −0.06pp | [−0.2, +0.1] | **0.4%** |
+| `be50` | A | −0.36pp | [−1.2, +0.5] | 9.9% |
+| `step50` | A | −0.36pp | [−1.2, +0.5] | 9.9% |
+| `extrinsic20` | C | −0.47pp | **[−0.9, −0.0]** | 4.4% |
+| `gap_open` | D | −1.72pp | **[−2.4, −1.1]** | 5.6% |
+| `sl_by_dte` | B | **−2.14pp** | **[−3.4, −1.0]** | — |
+
+**The wall.** Book split at its median alert date, **2021-03-08**; arms ranked on the decide half,
+the published number measured on the other; both directions:
+
+| direction | arm selected on decide | decide gain | **measured on the other half** | clustered CI95 |
+|---|---|---|---|---|
+| decide early → measure late | `trail50_after100` | +1.42pp | **+5.77pp** | [−0.03, +11.95] |
+| decide late → measure early | `trail50_after100` | +5.77pp | **+1.42pp** | [−4.15, +6.65] |
+
+**Both directions select the same arm — which is more stability than session 7's LOO managed —
+and neither measured gain clears the bar, and neither confidence interval excludes zero.**
+The bar is **O1's own `MIN_EXPECTANCY_GAIN = 0.10`**, i.e. 10 percentage points of per-trade
+expectancy, pre-committed there and re-committed in `PREREG_path_study.md` before any arm ran.
+The largest **full-book** gain in the study is **+3.60pp**, and the largest gain on any
+half-sample is the **+5.77pp** in the table above. Against a **10pp** bar, neither is close —
+and the +5.77pp is the more flattering of the two directions of a split whose other direction
+gives +1.42pp on the same arm, which is what a wall is for.
+
+**VERDICT: REJECT. No rule change is justified, and nothing ships — not to the live book, not to
+the paper book.**
+
+### 3a. THE STRONGEST RESULT IN THE STUDY IS THE CONTROL, AND IT GENERALISES O23
+
+The same thirteen arms were scored on the five pooled random-entry seeds (29,783 paths). The
+control's shipped policy returns **+10.06%/trade — R2's recorded control mean, exactly**, which
+is the second independent reproduction of the record this study produces.
+
+| arm | gain on the SIGNAL book | gain on RANDOM entries | difference |
+|---|---|---|---|
+| `trail50_after100` | +3.60pp | **+3.46pp** | +0.14pp |
+| `half_at_100` | +1.93pp | +2.04pp | −0.10pp |
+| `escalate_fast` | +2.40pp | +1.74pp | +0.66pp |
+| `clean_runner` | +1.50pp | +1.29pp | +0.20pp |
+| `gap_open` | −1.72pp | −1.27pp | −0.45pp |
+| `sl_by_dte` | −2.14pp | −2.72pp | +0.59pp |
+
+Across all thirteen: **Pearson r = 0.967, regression slope 0.990, 13 of 13 the same sign, mean
+absolute difference 0.34pp and a maximum of 0.86pp.**
+
+**Whatever an exit rule does to the alert's book, it does to a book of random entries — one for
+one.** O23 found that *half* of an exit's P&L difference is the underlying. On this arm set, on
+this book, essentially **all** of it is independent of the entry. An exit rule is a property of
+options, not of the signal.
+
+Under O1's own gate that is the *supportive* branch — `X1_adopt` requires an arm to help on both
+entry sets, precisely so that a book-specific fit is caught. These arms are not fitted to the
+book. They simply do not clear the magnitude bar, on either book.
+
+### 3b. Three things the rejection should not be allowed to bury
+
+1. **`sl_by_dte` is the worst arm in the study, and it is the one stage 1 appeared to motivate.**
+   Stage 1 says recovery collapses as DTE shrinks; the conventional stop-widening parameterisation
+   pre-registered for family B (−40% while DTE > 21, −60% at DTE ≤ 21) **widens the stop exactly
+   where stage 1 says the trade is already dead**, and it costs −2.14pp with a CI excluding zero.
+   The register fixed that parameterisation before stage 1's table existed. **The flipped version
+   — tighten near expiry — is a NEW pre-registration for a future session, and running it now on
+   the same book would be selecting the rule on the result.** That is the whole reason the arms
+   were committed first.
+2. **Families C and D are nearly inert, and that is a structural finding.** `stock_stop` fires on
+   **0.4%** of trades, `ivcrush30` on 1.3%, `delta85` on 2.4%. By the time the underlying is −8%
+   the option is already through its −50% stop: **the option-level stop dominates every
+   underlying- or state-level trigger tested.** An underlying-triggered exit has almost no room
+   to act inside this policy.
+3. **`be50` and `step50` are the same arm.** Identical exits, identical mean, to the digit —
+   because with a +50% step the first ratchet lands exactly at breakeven and the +100% target
+   closes the trade before a second step can arm. Two of the thirteen arms are one arm; the
+   register did not notice, and the run did. Counted and charged as two, because that is what was
+   pre-registered.
+
+### 3c. The stale-mark control, which is what makes the hold-longer arms quotable at all
+
+O1's central methodological finding is that marking a dying contract at its last usable quote
+manufactures a **monotone reward for holding longer**. Four of these arms hold longer. Measured:
+only 7–13 trades per arm reach the expiry path at all, and **zero of them use a stale mark** —
+every one settles at intrinsic. So `trail50_after100`'s +3.60pp is a real property of the paths
+and *still* fails the bar, rather than being an artefact that had to be argued away.
+
+## 4. Plain answer for Don
+
+**Your exit policy is in better shape than the study set out to test, and the one part that looks
+wrong is the part that refused to improve when I tried.**
+
+* **"Do my losers come back if I give them room?" — No, and the −50% stop is roughly where it
+  should be.** Once a trade touches −50%, its chance of ever reaching +100% falls from 44.7% to
+  17.5%, and only about a third ever see breakeven again.
+* **"Should I let winners run past +100%?" — The data says take the double.** Two thirds of early
+  winners do double again, but 83% give back the +100% and **58% eventually go to a loss**.
+  Holding is a lottery ticket bought with a sure thing.
+* **"Is the half-DTE time stop cutting my winners short?" — No.** Winners arrive in a median of
+  20 days, a third of the contract's life, and two thirds of them arrive with more than half the
+  time still left.
+* **"Should the stop depend on how much time is left?" — The paths say yes and the test says no.**
+  A −50% drawdown with a week to go recovers 9% of the time; with two months to go, 42%. That is
+  the strongest structure in the whole study — and the time-conditioned stop I had committed to in
+  advance made things *worse*, by −2.14pp. I am not going to rewrite the rule on the strength of a
+  pattern whose one pre-registered test failed.
+* **Nothing changes.** No rule ships, to either book. And none of this is a reason to trade the
+  options alert — the entry is still dead; this was about how the paper book exits, and about
+  knowing how these contracts behave.
+
+## 5. BUGS FOUND
+
+**B-PATH.1 — `scripts/path_study.py` would have failed the auto-land gate on a fresh checkout,
+and my own local runs could never have shown it.** `_data_root()` raised `SystemExit` at import
+when it found no `data/options_freeze`. `data/` is gitignored, so **CI has none** — and
+`tests/test_path_study.py` imports the module. On a fresh checkout the suite would have aborted
+before a single test ran. It never fired locally because a worktree finds the primary checkout's
+data three levels up, which is precisely the class of defect a developer machine cannot see.
+**Fixed** (absent data now degrades to a non-existent path, so the error lands where a file is
+opened, not where a module is imported) and **verified against the real failure mode**: copying
+the tree without `data/` and restoring the old function reproduces `no data/options_freeze
+found` with zero tests run; with the fix, 25/25 pass. Pinned by
+`TheModulesImportWithoutTheLicensedData`.
+
+*This is the same shape as LA15 earlier in this session — a test outcome that depends on
+machine-local state — arriving from the other direction: there a test read state CI lacks and
+passed anyway; here a test read state CI lacks and would have died.*
+
+## 6. What was NOT done, and where it went
+
+* **Earnings-timing arms → O17. Sizing → O12.** Excluded by the register's own scope, observed
+  and not run. One observation for O12 from §2d: the post-target distribution is so barbelled
+  (p25 −94.4% against a median +62.2%) that position sizing, not exit timing, is where the
+  variance actually lives.
+* **The flipped `sl_by_dte`** — tighten near expiry rather than widen — is the one arm this study
+  ends up wanting and may not run. New pre-registration, future session, ideally different data.
+* **No live-book or paper-book change was made**, so nothing needs deploying and nothing needs
+  reverting.
+
+## 7. Trial accounting
+
+Stage 1 is descriptive: no arm, no bar, no verdict, **zero trials**. Stage 2 charges its
+**13 arms to options `N`**, as the register committed, whatever the verdicts —
+options **192 → 205**. Equity `N` is untouched at **135**, so no DSR-gated equity claim moves.
+
+---
+
+# ITEM A — THE TAKE-PROFIT BAR: a decision memo, not a change (2026-08-10)
+
+Full memo, written as a pre-registration: **`PREREG_A_take_profit_bar.md`**. It ends at Don's
+choice and **changes no policy**, exactly as `PAPER_TRACK_CONTRACT.md` did. Ledger row `TP-BAR`.
+
+`HANDOFF_parked_positives.md` item A is the one entry on that list whose missing input is a
+judgement rather than data: raising the take-profit +100% → +150/200% is measured twice and was
+refused by a **+10pp per-trade** bar. **The caveat travels with every option below: the entry
+signal is dead (R2, −6.65pp vs a five-seed control, sign-test z −4.903), so nothing here makes the
+options alert tradeable.** This is about how a paper book exits.
+
+## 1. The three looks reconciled — and the inventory's independence claim is too strong
+
+| # | run | trade set | baseline | `tp150` | `tp200` |
+|---|---|---|---|---|---|
+| 1 | deep-research, 2026-08-03 | 3,119 / 5,986 | +4.708%/trade | +2.11pp | +3.26pp |
+| 2 | O1 off the freeze, 2026-08-08 | **3,885 / 29,785** | +3.410%/trade | **+3.19pp** | **+3.82pp** |
+| 3 | path study F-family, 2026-08-10 | **the same 3,885** | +3.410%/trade | — | — |
+
+Look 3 tested no raised target directly (its families were path-*conditional*), but everything it
+ran in that direction leans the same way and lands in the same range: `escalate_fast` **+2.40pp**,
+`clean_runner` **+1.50pp**, `trail50_after100` **+3.60pp**. None cleared.
+
+**Measured, not asserted: look 1 and look 2 share 1,099 trades — 35.2% of look 1, 28.3% of look 2
+— and look 3 runs on look 2's book exactly.** So item A's *"replicated in two independent runs"*
+overstates it. What we own is **two partially-overlapping trade sets and three analyses**. The
+direction has never disagreed (five positives from five looks, two books, two entry sets), but it
+is one option corpus examined three times. Also: the inventory's `+3.19/+3.82` are look 2's; look
+1's own artifact reads `+2.11/+3.26`. Anyone quoting item A should say which book.
+
+## 2. Why +10pp was the wrong bar — from the distribution, not from wanting to pass
+
+* **Attainability, measured over all 33 exit arms ever scored on the 3,885-trade book: exactly
+  ONE clears +10pp.** `tp100_only` at **+10.78pp** — and it **fails paired-cell FDR**, raises tail
+  concentration from 86.75% to **92.75%**, and (inventory item J) fails the name-year sign test on
+  the alert book at **z −5.76** while passing on random at +10.55. **A bar that only a discredited
+  arm can clear is not selecting for quality; on this family it is selecting for removing the
+  stop.**
+* **The unit is the real problem, and lowering the number does not fix it.** This book's
+  expectancy is a tail statistic — hit rate 35.3%, median trade −52.2%, **86.75% of gross winnings
+  from the tail**. The *gains* are worse: over the per-trade differences, the **top 1% of trades
+  carry 106–210% of each arm's entire gain**, so the other 99% are collectively negative. "+3.82pp
+  of expectancy" is a claim about a few dozen contracts.
+* **THE OBVIOUS FIX IS REFUTED BY MEASUREMENT, and it was the one I expected to endorse.** "Use a
+  relative bar, the payoff is multiplicative" fails on the two books we have: between look 1 and
+  look 2 the **absolute** gain drifts +17% (`tp200`) and +52% (`tp150`), while the **relative**
+  gain drifts **+62%** and **+109%** — because the baseline expectancy itself fell −27.6%.
+  **The absolute figure is two to four times the more stable unit.** Reported because it cuts
+  against the case for adopting.
+* **The bar is also nowhere near the design's resolution.** Month-block clustered SEs on the
+  paired gain run **0.29pp to 2.10pp**, so the design resolves ~0.6–4.2pp at |t| = 2. A 10pp bar
+  sits an order of magnitude from the noise, in a region this family never visits.
+
+## 3. What the memo pre-registers instead — a procedure, not a number
+
+**What a paper-book bar is FOR, which is what fixes its shape.** A bar on a live-money change is
+an *economic* instrument — "is this worth the cost and risk of doing?" — and a large absolute
+threshold is reasonable there because small edges do not survive frictions. A bar on a **paper**
+book is an *epistemic* one: no money moves, it reverses in one constant, and §4 shows it breaks no
+forward-record continuity. The cost of adopting a small *true* improvement is ≈ 0; essentially the
+whole downside is adopting an artefact of having looked at the same 3,885 trades three times.
+**So the bar should be sized to separation from noise, not to materiality — and a large absolute
+pp threshold is a materiality test wearing a significance test's clothes.** That, not its level,
+is why +10pp was the wrong instrument.
+
+**And it deliberately names no replacement level.** Any number argued in prose would be a number
+chosen after seeing which arms pass. X7 is the precedent: measure what the null produces and take
+a percentile. So the memo commits to **C1** a calibrated level (p95 of a null built by jittering
+exit parameters, n=100, seeds 1000–1099, identical paths and scorer, binding whatever it returns
+— including a bar above +3.82pp that refuses the change again); **C2** a condition that does not
+run through the mean (the gain must survive winsorising the top 1% of per-trade differences — a
+real hazard given the table above); **C3** entry-independence, already satisfied; **C4** the
+existing FDR / both-halves / both-sets / PBO gates. **No new market data is required for any of
+it.**
+
+## 4. The timing fact most likely to be assumed wrong
+
+**The paper options book holds three positions — TGT, ETN, MET — all OPEN, and ZERO closed
+trades** (verified against the committed export). A policy change now breaks **no** forward-record
+continuity, because no options exit has ever been recorded. That makes "adopt" *cheap*, not
+*right* — and it expires with the first closed trade. Checked and not assumed: no vintage closes
+either, because the contract binds the published **Index**, not this book.
+
+## 5. The three options, as put to Don
+
+1. **Adopt `tp150` on the paper book now.** Accepts +3.19pp against a bar revised after seeing the
+   numbers, and gives up the right to say it cleared a pre-committed bar. `tp150` over `tp200`
+   because `tp200`'s extra +0.6pp costs hit rate 35.3% → 31.3%, target exits 27.1% → 13.4%, and
+   three extra days of hold. Zero trials, reversible in one constant.
+2. **Require one confirmation (C1–C4), then decide.** No new data, one session's compute. Placebo
+   calibration charged **zero** (X7 / HACFLOOR precedent); the two winsorised re-scores charged
+   **2** to options `N` (205 → 207). May well refuse the change — which would close item A
+   properly rather than leaving it parked.
+3. **Leave it.** The shipped +100% is defensible on the path study's own evidence: **83.2%** of
+   early winners give the +100% back and **58.0%** eventually go below zero if held.
+
+**My recommendation, recorded so it can be scored later: option 2**, and the pre-registered
+expectation is that the calibrated bar lands between +1pp and +4pp (60/40) with `tp150` clearing
+it *barely* (55/45).
+
+## 6. Trial accounting
+
+**Zero.** No arm scored, no hypothesis tested, no bar applied — every figure is a re-cut of banked
+artifacts plus one read of the committed paper-track export. Options `N` stays **205**, equity
+`N` stays **135**, `rows_malformed` empty.
+
+**And deliberately NO `RESEARCH_LOG.md` row, which is a decision rather than an omission.** That
+file's counting rule is *"all non-FIXED rows count"*, so adding a row — even one marked
+`REGISTERED` — would charge a trial against a document that tests nothing. V1's `REGISTERED` row
+is not the precedent here: it registered an instrument that had been **built**. This registers a
+**procedure that has not run**, and the nearer precedent is SELRULE, where declining to run a test
+cost zero and the reasoning was recorded in the ledger. **The ledger row `TP-BAR` is the record.**
+If Don picks option 2, that run gets the research-log row and the 2 trials, on landing.
