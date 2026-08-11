@@ -71,9 +71,20 @@ TWO RULES THAT ARE ANTI-GAMING, NOT STATISTICS:
 WHICH SERIES THIS BINDS. The published Valquo Index track -- `valquo_track.json` plus
 `valquo_track_history.csv`, the source `valuation/screener/index_track.py` reads, whose book is
 the 86-name score-weighted Index the contract names. It does NOT bind the Tradier sandbox
-engine in `paper_track.py`: that engine records a DIFFERENT book (10 names, equal-weighted at
-10%, which the contract's own 8% cap forbids) from a DIFFERENT inception (2026-08-03). See
-`gap_report` and the session-14 handoff -- the divergence is recorded, not resolved here.
+engine in `paper_track.py`: that engine records a DIFFERENT book -- 10 names against the
+published 86 -- from a DIFFERENT inception (2026-08-03).
+
+CORRECTED 2026-08-11 (cold audit LA11). That last sentence used to give the reason as "10
+names, equal-weighted at 10%, WHICH THE CONTRACT'S OWN 8% CAP FORBIDS". It forbids no such
+thing, and the project retracted the diagnosis in session 16 (`PT-SPLIT`):
+`valquo_index.build_index` sets `cap = max(MAX_WEIGHT, 1/len(picks))` deliberately, because ten
+names at 8% sum to 80% and the redistribution loop would otherwise never terminate -- and the
+payload has always self-reported `effective_max_weight`. The weights were right for the book;
+the BOOK was wrong. The CONCLUSION is unchanged and now rests on book SIZE, the ground that
+holds. The retracted reason was worse than no reason at all: a reader who checks the cap finds
+it correct and may conclude the whole separation was mistaken.
+
+See `gap_report` and the session-14 handoff -- the divergence is recorded, not resolved here.
 """
 from __future__ import annotations
 
@@ -105,9 +116,32 @@ VINTAGES = (
      "reason": "growth-input fix, score fix, universe rebuild - the measured model no longer "
                "exists. Voided by Amendment 1 under §3's 'any change to how the Index is "
                "constructed'. The voided window was known to be -2.85pp; see §5a's disclosure."},
-    {"vintage": 2, "run": 2, "opened": _dt.date(2026, 8, 10), "closed": None, "status": "OPEN",
+    {"vintage": 2, "run": 2, "opened": _dt.date(2026, 8, 10),
+     "closed": _dt.date(2026, 8, 11), "status": "CLOSED",
      "reason": "opened by Amendment 1, with ZERO accrued days - so no window's sign could have "
-               "informed this start date."},
+               "informed this start date. CLOSED 2026-08-11 by the theme restoration: "
+               "capital_discipline reached a live score for the first time, which changes the "
+               "composite users receive and is therefore an ADOPTED change. It accrued ONE day."},
+    # VINTAGE 3 - opened 2026-08-11 by the theme restoration.
+    #
+    # THE PRICE IS PAID IN FULL AND IS THE POINT OF RECORDING IT HERE. Rule 6: a vintage change
+    # resets the whole accrued clock and buys nothing statistically. Vintage 2 accrued one day,
+    # so the reset costs almost nothing THIS time - which is exactly why this was the moment to
+    # do it, and why doing it later would have been far more expensive.
+    #
+    # THE ARGUMENT THAT THIS IS A BUG FIX RATHER THAN A VINTAGE EVENT, AND WHY IT LOSES:
+    # vintage 2's pinned snapshot already DECLARED all seven themes at 0.125, so restoring one
+    # could be read as bringing live into conformance with what vintage 2 always claimed. It
+    # loses because Amendment 1 defines "adopted" as SHIPS IN THE LIVE SCORING PATH, and the
+    # book users receive changes materially. Whatever the track accrued, it accrued while
+    # recording a FOUR-theme book; that record cannot be carried forward as evidence about a
+    # five-theme one.
+    {"vintage": 3, "run": 2, "opened": _dt.date(2026, 8, 11), "closed": None, "status": "OPEN",
+     "reason": "opened by the theme restoration - capital_discipline reaches a live score from "
+               "free SEC XBRL company facts, after clearing a pre-registered fidelity gate at "
+               "Spearman +0.8421 against the panel's own theme. institutional (+0.1706) and "
+               "insider (+0.3596) FAILED that gate and are deliberately still absent. No weight "
+               "or construction parameter changed."},
 )
 
 

@@ -278,6 +278,22 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
         return {"scan_date": scan_date, "rows": [], "universe_size": total,
                 "scored": 0, "filtered": audit}
 
+    # THEME RESTORATION — supply the one input `capital_discipline` was missing.
+    #
+    # `factors.py:161` has read `share_issuance` all along and `providers.py` shipped it as
+    # `None` with the comment "needs share history", so the theme was null on 500/500 served
+    # rows and 12.5% of the composite's weight renormalised away. This fills it from free SEC
+    # XBRL company facts.
+    #
+    # IT IS HERE, AFTER THE PREFILTER, ON PURPOSE: only names that will actually be scored cost
+    # a request, so the gate does the budgeting rather than a cap chosen by hand. Cached 30 days
+    # per ticker (share counts move quarterly at most), so a daily scan pays for a trickle.
+    #
+    # ONLY `capital_discipline` IS RESTORED. `institutional` and `insider` FAILED the fidelity
+    # gate in `PREREG_theme_restoration.md` and are deliberately still absent — wiring them
+    # would put a different theme under a validated theme's name.
+    _enrich_with_issuance(metrics, cfg)
+
     df = build_frame(metrics)
     est_w, spec_w = _effective_weights(store)
     df["composite"], contrib = _decompose(df, est_w, spec_w)
@@ -677,6 +693,55 @@ def publication_audit(rows, dcf_window: int = 0) -> dict:
                  "by a peer estimate that sits inside the band. D1 (asked_but_silent) is the "
                  "rule that catches it."),
     }
+
+
+def _enrich_with_issuance(metrics: list, cfg) -> dict:
+    """Fill `share_issuance` for scored names. THEME RESTORATION, 2026-08-11.
+
+    Concurrency is bounded and modest: SEC publishes a ~10 req/s ceiling and asks for a
+    descriptive User-Agent, and the cache means a warm scan makes almost no calls at all. The
+    source FAILS TO None on every error path, and `factors.py` treats None as a neutral factor,
+    so a bad day at SEC costs coverage rather than correctness — the pre-restoration behaviour.
+
+    Set SCREENER_LIVE_ISSUANCE=0 to turn it off; the theme then goes back to null and the
+    composite renormalises it away, exactly as before restoration.
+    """
+    import os as _os
+    stats = {"asked": 0, "filled": 0, "already": 0, "null": 0}
+    if _os.environ.get("SCREENER_LIVE_ISSUANCE", "1") == "0":
+        stats["disabled"] = True
+        return stats
+    try:
+        from .issuance import share_issuance
+    except Exception:                                            # noqa: BLE001
+        return stats
+    todo = []
+    for m in metrics:
+        if m.get("share_issuance") is not None:
+            stats["already"] += 1
+            continue
+        t = (m.get("ticker") or "").upper()
+        if t:
+            todo.append((t, m))
+    stats["asked"] = len(todo)
+    if not todo:
+        return stats
+    workers = max(1, min(4, int(getattr(cfg, "scan_workers", 4) or 4))) if cfg is not None else 4
+    from concurrent.futures import ThreadPoolExecutor
+    def _one(pair):
+        t, m = pair
+        try:
+            return m, share_issuance(t, cfg)
+        except Exception:                                        # noqa: BLE001
+            return m, None
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        for m, v in ex.map(_one, todo):
+            if v is None:
+                stats["null"] += 1
+            else:
+                m["share_issuance"] = v
+                stats["filled"] += 1
+    return stats
 
 
 def _today() -> str:

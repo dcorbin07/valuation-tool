@@ -122,6 +122,12 @@ jobs:
           # path can place an order.
           TRADIER_TOKEN: ${{ secrets.TRADIER_TOKEN }}
           TRADIER_ENV: live
+          # THEME RESTORATION — put the share-issuance cache inside the directory this job
+          # actually persists (the `actions/cache` step above caches `.scan-cache`, not
+          # `data/`). Without it every scheduled scan refetches the whole universe from SEC to
+          # learn share counts that change quarterly at most; with it a warm run pays for the
+          # handful of names whose 30-day entry has aged out.
+          ISSUANCE_CACHE_DIR: .scan-cache/issuance
           KIND: hot
           # whole_market now resolves to the broker's liquidity-ranked universe (~7,100
           # listed names, kept to the most liquid SCAN_LIMIT). 800 is the large-cap tier and

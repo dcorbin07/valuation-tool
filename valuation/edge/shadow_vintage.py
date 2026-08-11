@@ -78,7 +78,23 @@ MIN_WEIGHT_OVERLAP = 0.20
 # re-derivation)", and this tuple is what "the parameters" means. Adding a key here is itself a
 # construction change and belongs in a register.
 PARAM_KEYS = ("theme_weights", "sector_neutral", "residual_momentum", "ev_point_in_time",
-              "large_cap_min", "top_decile", "max_weight", "weighting", "top_n")
+              "large_cap_min", "top_decile", "max_weight", "weighting", "top_n",
+              # ADDED 2026-08-11 BY THE THEME RESTORATION, AND NOT PRE-REGISTERED. Disclosed
+              # rather than slipped in, because the comment above says adding a key here is
+              # itself a construction change.
+              #
+              # WITHOUT IT THIS MACHINERY CANNOT REPRESENT THE VINTAGE CHANGE IT EXISTS FOR.
+              # `theme_weights` records what a vintage DECLARES; vintage 2 declares all seven
+              # themes at 0.125 and the live book delivered FOUR, because three had no source.
+              # Restoring `capital_discipline` changes the composite users receive and changes
+              # no declared weight, so vintage 2 and vintage 3 would hash IDENTICAL and
+              # `same_model` would report no change while the book demonstrably changed.
+              #
+              # It records what actually reaches a score, which is the quantity the declared
+              # weights were silently assumed to equal. It changes NO score — only what the
+              # vintage comparator can see. Vintage 2's pinned entry deliberately omits it, so
+              # its `params_id` stays 0060c5ef3dda and the pin is not retroactively rewritten.
+              "themes_scored_live")
 
 
 def snapshot(params: Dict) -> Dict:
@@ -123,6 +139,44 @@ PINNED: Dict[int, Dict] = {
             "sector_neutral": False, "residual_momentum": False, "ev_point_in_time": True,
             "large_cap_min": 10e9, "top_decile": 0.10, "max_weight": 0.08,
             "weighting": "score", "top_n": None})},
+
+    # ---------------------------------------------------------------------------------------
+    # VINTAGE 3 — opened 2026-08-11 by the THEME RESTORATION.
+    #
+    # WHAT CHANGED: `capital_discipline` now reaches a live score. Its input, `share_issuance`,
+    # was shipped as None with the comment "needs share history", so the theme was null on
+    # 500/500 served rows and 12.5% of the composite's weight renormalised away. It is now
+    # supplied from free SEC XBRL company facts (`valuation/screener/issuance.py`).
+    #
+    # WHAT DID NOT CHANGE: no weight, no construction parameter, no threshold. The declared
+    # `theme_weights` are byte-identical to vintage 2's. This vintage exists because the book
+    # users receive changed, not because the model was retuned.
+    #
+    # WHY ONLY ONE THEME: `institutional` and `insider` FAILED the fidelity gate in
+    # `PREREG_theme_restoration.md` — Spearman +0.1706 and +0.3596 against their own panel
+    # themes, on a bar of 0.60. `institutional` scored BELOW the median correlation between two
+    # DIFFERENT panel themes (0.1878), i.e. it is indistinguishable from a different theme.
+    # Wiring them would have been the B7 disease with a coherence justification attached.
+    #
+    # Amendment 1 Rule 6 is paid in full: this closes vintage 2, resets the accrued forward
+    # clock, and buys nothing statistically. V1's shadow machinery is what earns it back — it
+    # fires here for the first time, with vintage 2's four-theme composite as the shadow book.
+    3: {"opened": _dt.date(2026, 8, 11),
+        "note": ("vintage 3, opened by the theme restoration: capital_discipline reaches a live "
+                 "score for the first time. Weights unchanged from vintage 2; institutional and "
+                 "insider failed the fidelity gate and are still absent."),
+        "predecessor": 2,
+        "snapshot": snapshot({
+            "theme_weights": {"quality": 0.125, "momentum": 0.125, "value": 0.125,
+                              "growth": 0.125, "capital_discipline": 0.125,
+                              "institutional": 0.125, "insider": 0.125, "low_risk": 0.0},
+            "sector_neutral": False, "residual_momentum": False, "ev_point_in_time": True,
+            "large_cap_min": 10e9, "top_decile": 0.10, "max_weight": 0.08,
+            "weighting": "score", "top_n": None,
+            # The five themes that actually reach a live score from 2026-08-11. `size` is
+            # computed from market cap, which the live path has always had.
+            "themes_scored_live": ["capital_discipline", "momentum", "quality", "size",
+                                   "value"]})},
 }
 
 
@@ -301,7 +355,27 @@ def detail() -> Dict:
             f"the first pair begins when an ADOPTED change opens the next vintage.")
         return out
     out["active"] = True
-    out["status"] = f"{len(pairs)} vintage pair(s) under shadow"
+    # THE CAVEAT MUST SURVIVE THE PAIR EXISTING. Until the first pair opened on 2026-08-11 this
+    # branch had never run, and it said only "N vintage pair(s) under shadow" — dropping the
+    # no-verdict sentence at the exact moment the machinery went live, which is when a reader is
+    # most likely to mistake "it is running" for "it is telling me something".
+    #
+    # `PREREG_v1_shadow_vintages.md` commits to carrying this sentence in the output, and the
+    # register's central honest point is that A SHADOW PAIR THAT HAS NOT CROSSED IS THE EXPECTED
+    # OUTCOME AND IS NOT EVIDENCE THE ADOPTION WAS WORTHLESS. Found by a test that was rewritten
+    # for the new state and failed anyway — correctly.
+    months = int(out.get("months_paired") or 0)
+    out["months_paired"] = months
+    if months < MIN_MONTHS_FOR_ANY_VERDICT:
+        out["status"] = (
+            f"{len(pairs)} vintage pair(s) under shadow, with {months} complete paired month(s) "
+            f"against a minimum of {MIN_MONTHS_FOR_ANY_VERDICT} — so no verdict of any kind is "
+            f"available yet, and none is due for years. A shadow pair that has not crossed is "
+            f"the EXPECTED outcome and is not evidence the adoption was worthless.")
+    else:
+        out["status"] = (
+            f"{len(pairs)} vintage pair(s) under shadow, {months} complete paired month(s). "
+            f"Any verdict is a statement about this PAIR and must name both vintages.")
     return out
 
 

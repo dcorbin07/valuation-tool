@@ -200,8 +200,17 @@ def test_the_readme_names_the_bound_file_as_the_contract_bound_one():
         assert T.BOUND_INDEX_CSV in readme
         assert "PAPER_TRACK_CONTRACT.md" in readme
         # The distinguishing fact, in the file a restorer reads first.
-        assert "8%" in readme and "10%" in readme, \
-            "the README does not state the weight caps that tell the two books apart"
+        #
+        # CORRECTED 2026-08-11 (cold audit LA11). This asserted `"8%" in readme and "10%" in
+        # readme`, with the message "the README does not state the weight caps that tell the
+        # two books apart". The weight caps are exactly what does NOT tell them apart —
+        # session 16 (`PT-SPLIT`) established that `cap = max(MAX_WEIGHT, 1/len(picks))` is
+        # deliberate and the sandbox's weights were correct for its book. So this test was
+        # pinning the retracted diagnosis INTO the emitted artifact: it would have failed had
+        # the README been fixed and left alone. It now pins what actually separates them, the
+        # book SIZE, which is the ground the conclusion really rests on.
+        assert "86" in readme and "10 names" in readme, \
+            "the README does not state the book sizes, which are what tell the two books apart"
 
 
 def test_the_two_books_are_written_as_separate_files():

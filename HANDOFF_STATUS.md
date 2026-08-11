@@ -4,6 +4,38 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — CI lane (LA11): the retracted 8%-cap diagnosis is gone from the code, and COLD AUDIT #2 IS FULLY EXECUTED
+
+**All fifteen cold-audit items (LA1–LA15) are now resolved** — LA6 is tracked as `V2F`/`V2G`
+rather than as its own row. LA11 was the last one open.
+
+`PT-SPLIT` retracted the claim that the sandbox engine's 10% weights breach the contract's 8% cap
+(`build_index` sets `cap = max(MAX_WEIGHT, 1/len(picks))` on purpose — ten names at 8% sum to 80%).
+The **conclusion** survives on book **size** (10 names vs the published 86); only the reason moved.
+The retracted reason was still standing in prose, which is worse than no reason: check the cap,
+find it correct, doubt the separation itself.
+
+**The audit named three sites; there were eight.** The five extra were found by grepping the claim
+instead of following the citations — `web/hero.py`, `edge/track_export.py` twice,
+`.github/workflows/track-backup.yml`, and `PAPER_TRACK_CONTRACT.md` §0a.2. The `index_track.py`
+cite had drifted 82 lines in a day.
+
+**Two of them were worse than docstrings.** `track_export._README` is *emitted*, so the retracted
+claim shipped as committed **data** in `data_export/README.md` — put there by the LA2 work of one
+day earlier, i.e. this lane's own. And the **contract corrected itself in §5b while §0a.2 still
+asserted the retracted clause**; §0a.2 is now struck in place with a dated pointer, original left
+visible, **no threshold, date or parameter moved**.
+
+**A test was pinning the wrong diagnosis into the artifact.** `tests/test_track_export.py` required
+the README to state "the weight caps that tell the two books apart" — the caps are exactly what
+does *not* tell them apart, so it would have failed had the README been fixed and the test left
+alone. It now pins book size. A comment in `tests/test_paper_track.py` likewise contradicted a test
+in its own module; the test was right.
+
+Full gate **52 suites, all green**. Zero research trials — a documentation correction; equity `N`
+unchanged at **151**. Detail in `HANDOFF_ci.md`. **Unchanged and still the real blocker:** nothing
+ingests the bound series into the live store and there is **no automated daily writer** for it
+(`PT-WRITER`, Cowork lane).
 ## 2026-08-11 — edge lane, session 21 (S20/S21): the standardiser is worth several points of alpha, and no theme IC can see it
 
 **Both arms failed their gate and nothing is adopted — but the pair is the most useful thing
@@ -268,8 +300,41 @@ non-trading day now carry a visible "not a trading session" note instead of a gr
 next scheduled hot scan is the first to run on the broker universe — expect the served list to
 change composition, and that is the fix working, not a regression.
 
-**State: landed on `main` and deploying. Full gate 46 suites, 0 failures.** Detail in
-`HANDOFF_live_data_bugs.md` Parts 13–16; ledger rows `V2G-SRC`, `LA1-LA3`, `CI-PY311`, `LA4`, `LA5`, `LA7`, `LA9`, `LA12`, `LA14`.
+**THE THEME RESTORATION — 1 OF 3 THEMES RESTORED, AND THE PROJECT'S FIRST VINTAGE EVENT.** The
+live book scored 4 of 7 weighted themes and failed the calibrated long-short floor (1.8811 vs
+2.2837) while the validated seven-theme composite clears it (2.6199). Adopted on COHERENCE — live
+must run what was validated — but gated on FIDELITY first, because the live sources are raw-EDGAR
+approximations of the panel's licensed themes and wiring a different theme under a validated
+theme's name would have hidden the problem rather than fixed it.
+
+**`capital_discipline` RESTORED at Spearman +0.8421** against the panel's own theme (n=416).
+**`institutional` (+0.1706) and `insider` (+0.3596) FAILED and are deliberately still absent.**
+The bar was max(0.60 floor, P95 of correlation between *different* panel themes = 0.3590).
+**`institutional` scored below the median correlation between two different panel themes** — it is
+statistically indistinguishable from a different theme, despite passing every one of its own
+coverage bounds. Coverage was never the question. Both are recorded with exactly what would fix
+them (an SF3 construction reconciliation; a date-aligned historical Form 4 crawl).
+
+**VINTAGE 2 IS CLOSED. VINTAGE 3 IS OPEN, dated 2026-08-11.** Under Amendment 1 Rule 6 the accrued
+forward clock resets and buys nothing statistically. Because `track_meter.INCEPTION` is derived
+from the open vintage, the reset applied itself: **operational gate 2027-02-10 → 2027-02-11,
+verdict date 2031-08-10 → 2031-08-11**. **It cost ONE DAY** — vintage 2 had accrued a single day —
+which is the entire argument for doing this now rather than later. `PAPER_TRACK_CONTRACT.md` §5a
+carries the new vintage row and the reset table; Amendment 1's own rows are NOT rewritten.
+
+**V1's shadow machinery fires for the first time.** One pair — live vintage 3, shadowed by vintage
+2's four-theme composite — opened 2026-08-11 with **0 complete paired months against a minimum of
+6**. It is research-only and fenced off every public surface. **A shadow pair that has not crossed
+is the EXPECTED outcome and is not evidence the adoption was worthless**; the module now says that
+in its own output, which it did not before today.
+
+**Cowork note:** the hot list's composite changes from today — `capital_discipline` now
+contributes 12.5% of the weight where it previously renormalised away. Expect the ranking to move,
+and that is the fix working. Nothing about the backtest's published figures changed; this changes
+what LIVE computes.
+
+**State: landed on `main` and deploying. Full gate 53 suites, 0 failures.** Detail in
+`HANDOFF_live_data_bugs.md` Parts 13–17; ledger rows `THEME-RESTORE`, `V2G-SRC`, `LA1-LA3`, `CI-PY311`, `LA4`, `LA5`, `LA7`, `LA9`, `LA12`, `LA14`.
 
 ---
 ## 2026-08-11 — edge lane, session 20 (`SECTOR-NEUTRAL-B6`): rejected again, and the trade-off it rested on is gone

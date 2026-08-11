@@ -48,10 +48,17 @@ def _index_block(store) -> dict:
     defect that put a false claim into Discord. When the Cowork tracker files were absent
     (i.e. on every fresh deploy, since `data/` is gitignored) this function fell back to
     `paper_track.index_summary` and rendered it under the heading "Valquo Index". That is a
-    different book: 10 names equal-weighted at 10% each from a 2026-08-03 inception, weights
-    that violate `PAPER_TRACK_CONTRACT.md`'s own 8% cap. It also took its own
-    `(idx - bench) * 100` — a second definition of excess return, free to drift from the
-    recorder's.
+    different book: 10 names against the published book's 86, from a 2026-08-03 inception. It
+    also took its own `(idx - bench) * 100` — a second definition of excess return, free to
+    drift from the recorder's.
+
+    CORRECTED 2026-08-11 (cold audit LA11, which did not list this file — found by sweeping for
+    the claim rather than by following the audit's citations). The description above used to add
+    that the engine's 10% weights "violate `PAPER_TRACK_CONTRACT.md`'s own 8% cap". They do not;
+    session 16 (`PT-SPLIT`) retracted that. `valquo_index.build_index` sets
+    `cap = max(MAX_WEIGHT, 1/len(picks))` deliberately, since ten names at 8% sum to 80%. The
+    weights were right for the book; the BOOK was wrong, on SIZE. Nothing about the removal of
+    this fallback depended on the retracted reason.
 
     Naming the source in the payload was not enough protection, and that is the lesson worth
     keeping: the old code DID set `source: "paper-sandbox"`, honestly, and the template never
