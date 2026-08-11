@@ -4,6 +4,63 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — options-bot lane (O13 + O12): the anti-signal is DIFFUSE and un-tradeable, and the dead entry costs 2.75× in position size
+
+Two ledger items closed, one session, frozen book, no re-mine, no live code path touched. Both
+registers committed **together and ALONE** at `b0f287d` (two `.md`, **zero `.py`**), a strict git
+ancestor of every measurement commit. **R2 is not re-opened** — this characterises the corpse.
+
+**O13 — the primary finding is not the verdict, it is the decomposition. The −5.0640pp gap is
+ENTIRELY a within-bin effect.** Across all 32 feature arms the *rate* component runs −4.23pp to
+−5.79pp against a −5.0640pp total, while the largest *mix* (composition) component anywhere is
+**0.7711pp — 15.2% of the gap**. **The alert does not lose by picking different contracts from
+random entry; it loses inside every kind it picks.** That closes off a family of repairs:
+"trade longer-dated / tighter spreads / bigger names" are all composition fixes, and composition
+is not where the damage is.
+
+**O13 verdicts: Q2 DIFFUSE, Q3 inverse NULL.** Nothing clears its own calibrated p95 in both
+halves (4 of 32 clear full-sample vs ~1.6 expected at a 5% bar). The refusal rule fails in the
+informative direction — early→`dte`/q2 gives **−0.0977pp** on the late half, late→`iv`/q3 gives
+**−0.7774pp** on the early half; **both make the measure half worse and the two directions select
+different features**, session 7's LOO pattern for the third time. **You cannot short the gap
+either:** the anti-signal is *relative*, the alert book's own expectancy is **+3.27%**, so
+reversing it is negative before costs.
+
+**`dte` is the cell that looks like a finding and is not.** Alert expectancy climbs monotonically
+with tenor (−0.35% → +7.63%) while the control stays flat, q2's gap is −10.84pp — and it **does
+not clear its own calibrated bar** (0.472 vs p95 0.497). **Do not act on it.**
+
+**O12 — NOT USABLE, and the halves agreed.** `f*` = **0.0403** on the empirical distribution;
+early/late 0.0515/0.0293, ratio **1.758**, which *clears* the pre-committed 2.0 — but the
+month-block bootstrap CI95 is **[0.0000, 0.1001]** with 8.0% of draws at exactly zero, so the CI
+includes zero. **Right answer, wrong reason:** the predicted instability was not what killed it.
+
+**The practical number: at full Kelly, P(drawdown > 50%) is 0.753 for a median +26.7%/yr.**
+Half-Kelly 0.222, quarter-Kelly 0.006 while keeping most of the growth (1.114 vs 1.267). At
+f = 0.10 — only 2.5× Kelly — **the median outcome is a LOSS on a positive-expectancy book**. If
+any fraction is ever used it is a quarter or less.
+
+**R2 restated in sizing terms, and it is new: the random-entry control supports `f*` 0.1110,
+2.75× the alert book's.** The dead entry costs not only expectancy but the size the book can
+carry. Live flat 1-contract sizing (median premium $2.57 → $257) equals `f*` at **$6,371** equity,
+so the live book is under-sized above that and **over-sized below it**.
+
+**Defects found and reported (none in the live product):** `iv_rank` is wired and **0.0% populated
+on both books**; `opt_right` and `horizon` are **constant — the banked options book is 100% calls
+and 100% swing**, so every options claim is about long calls only; the alert label vocabulary is
+**parameterised** (`Low IV 14%`…`19%`), inflating 17 registered arms to 32 — the trial cost was
+corrected **upward**, against my own result. A defect in my own repair was caught by a test before
+any verdict was read and is recorded as an amendment.
+
+**17 of 100 bins DO lose money outright** — the widest-spread, least liquid ones
+(`entry_spread_pct` q5 **−7.41%**). That refuted my own pre-registered expectation and is the
+**recommended next step: `entry_spread_pct` as its own pre-registered refusal rule.**
+
+Full gate **57 suites, all green** on the merged tree (two new here: `test_antisignal.py` 35,
+`test_kelly.py` 28).
+Options `N` **210 → 246**; **equity `N` untouched at 155** and `BACKTEST_RESULTS.json` needs no
+re-run — the trial counter is domain-scoped. Detail in `HANDOFF_optionsbot.md` §24–28.
+
 ## 2026-08-11 — CI lane (LA11): the retracted 8%-cap diagnosis is gone from the code, and COLD AUDIT #2 IS FULLY EXECUTED
 
 **All fifteen cold-audit items (LA1–LA15) are now resolved** — LA6 is tracked as `V2F`/`V2G`

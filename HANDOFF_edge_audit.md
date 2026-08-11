@@ -7775,6 +7775,15 @@ recorded **ELIGIBLE, not adopted**, and **queues behind the theme restoration's 
 (`PREREG_v2g_live_theme_sources.md`) rather than spending a second five-year clock reset on the same
 restart. `CONFIG`, `settings.FACTOR_WEIGHTS` and every shipped default are untouched.
 
+**THE QUEUEING CLAUSE TURNED OUT TO BIND — recorded because it is the case FOR writing such clauses
+before a result exists.** While this study was running, the theme-restoration lane **took the
+vintage event** (`c8efd00`, `PREREG_theme_restoration.md` committed alone at `1d12822`): it restored
+`capital_discipline` to the live scoring path on a fidelity gate (+0.8421 against a 0.60 bar) while
+`institutional` (+0.1706) and `insider` (+0.3596) failed it. **Nothing here conflicts, because both
+of this study's arms failed their own gate.** But had either been eligible, adopting it separately
+would have spent a **second** clock reset for one restart's worth of evidence — and the clause would
+have been unarguable to add *after* seeing a favourable arm.
+
 ## 6. THE FINDINGS — in order of how much they should change what the next person does
 
 ### 6.1 The pair is the headline: several points of alpha, invisible to every theme IC

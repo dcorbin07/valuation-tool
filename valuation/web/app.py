@@ -23,6 +23,7 @@ from ..report import excel as excel_report
 from ..report import pdf as pdf_report
 from . import resultcache, withhold
 from . import score_confidence as _score_confidence
+from . import theme_status as _theme_status
 from . import hold_horizon as _hold_horizon
 
 app = Flask(__name__)
@@ -107,6 +108,11 @@ def _site_context():
             # flattering numbers the backtest produces, and the caveats S22 registered as
             # mandatory travel with them from one source or not at all.
             "hold_horizon": _hold_horizon.for_template(),
+            # What each theme is made of, and which ones reach a live score. Same one-source
+            # rule as the two above, and for a demonstrated reason: the hand-maintained legend
+            # in app.js described `capital_discipline` as dormant on the very day it was
+            # restored, and listed an input the theme had stopped using.
+            "theme_status": _theme_status.payload(),
             "live_hero": _live_hero}
 
 
@@ -355,6 +361,20 @@ def api_index_track():
     except Exception as e:
         return jsonify({"available": False, "error": safe_error(e),
                         "note": "Live track unavailable."}), 200
+    # WHICH BOOK THIS RECORD IS OF. Contract §5a Rule 4: a verdict is a statement about a
+    # vintage and must name it. This card is the closest thing the product has to one, and until
+    # now it named an inception date but never the vintage that date belongs to -- so a reader
+    # could not tell that the series restarted, or that a predecessor is being shadowed.
+    #
+    # Derived in `track_meter` from the register itself, never typed here: the label and the
+    # clock have to move together, and this route is exactly where they would drift apart.
+    # Owner-only (`saas/surfaces.py` lists this path), and it carries no measurement -- the
+    # shadow's NUMBERS remain fenced off every outbound surface, which is what PT-OUTBOUND asks.
+    try:
+        from ..edge import track_meter
+        out["vintage"] = track_meter.vintage_label()
+    except Exception:                                    # noqa: BLE001
+        pass                                             # a label must never break the card
     out["disclaimer"] = RISK_DISCLAIMER
     return jsonify(out)
 
