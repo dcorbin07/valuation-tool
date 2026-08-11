@@ -7287,6 +7287,21 @@ while the two about magnitude (#2, #4) were wrong.
 
 ---
 
+* **C1's subset clause was also wrong, and the strays were measured rather than argued away.**
+  C1 required the valuation panel's `(date, ticker)` keys to be a subset of the factor panel's.
+  They are not: **1,221 of 108,241 (1.13%)** are absent from it, because the factor panel applies
+  the **B13 investability prefilter** and the valuation panel does not, so the latter legitimately
+  values names the former screens out.
+  **They are reachable, but immaterial, and both halves of that were measured.** Reachable because
+  `_backtest_hold` keeps a name in `held` after it leaves the cross-section, so its key can be a
+  stray while it is still being tested. Immaterial because in exactly that situation the **rank
+  exit fires simultaneously**: re-running both fair-value arms with the gates intersected down to
+  factor-panel keys leaves **every series bit-identical** — same returns, same book, same dates —
+  and moves **2 of 1,288 exits** between the `fair_value` and `rank` labels (A1 794/494 →
+  796/492). **No measured value depends on the strays; only an attribution count does.**
+  The material invariant — which is what C1 should have said — is that the two panels share a
+  calendar exactly and that removing the strays changes no series. Both hold.
+
 ## 10. What this does NOT say
 
 * **It does not say the incumbent exit is optimal.** It says four specific, conventionally-chosen
