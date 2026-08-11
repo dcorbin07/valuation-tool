@@ -196,6 +196,55 @@ def test_panel_no_longer_hardcodes_an_empty_sector():
         'build_fundamental_panel still hard-codes an empty sector — sector_neutral is inert again')
 
 
+# --------------------------------------------------------------------------- #
+#  SECTOR-NEUTRAL-B6 — splitting one paired panel into two arms
+# --------------------------------------------------------------------------- #
+def test_b6_split_arms_maps_sn_columns_onto_the_theme_names():
+    """`split_arms` must hand `holdout_compare_panels` two frames with the SAME column names.
+
+    The gate scores both panels with one `cols` list, so the sector-neutral arm has to arrive
+    with its values under the plain theme names. A silent failure here would compare the flat
+    arm against ITSELF and report a difference of exactly zero — which reads like a clean null
+    rather than like a broken harness, so it is pinned.
+    """
+    import pandas as pd
+
+    from scripts.sector_neutral_rerun import split_arms
+
+    df = pd.DataFrame({
+        "date": ["2020-01-01"] * 3, "ticker": ["A", "B", "C"], "fwd_ret": [0.1, 0.2, 0.3],
+        "sector": ["Tech", "Tech", "Utilities"],
+        "value": [1.0, 2.0, 3.0], "sn_value": [-1.0, -2.0, -3.0],
+        "quality": [4.0, 5.0, 6.0], "sn_quality": [-4.0, -5.0, -6.0],
+    })
+    flat, sn = split_arms(df)
+    assert list(flat["value"]) == [1.0, 2.0, 3.0]
+    assert list(sn["value"]) == [-1.0, -2.0, -3.0], "sn_ values must land under the theme name"
+    assert list(sn["quality"]) == [-4.0, -5.0, -6.0]
+    for frame, who in ((flat, "flat"), (sn, "sn")):
+        assert not [c for c in frame.columns if str(c).startswith("sn_")], \
+            f"{who} arm still carries sn_ columns, which would double-count the pair"
+    assert len(flat) == len(sn) == 3, "splitting must not drop rows"
+    assert list(flat["ticker"]) == list(sn["ticker"]), "the arms must keep one row order"
+
+
+def test_b6_the_two_arms_are_not_accidentally_the_same_object():
+    """Mutating one arm must not touch the other — `split_arms` copies rather than views."""
+    import pandas as pd
+
+    from scripts.sector_neutral_rerun import split_arms
+
+    df = pd.DataFrame({
+        "date": ["2020-01-01"] * 2, "ticker": ["A", "B"], "fwd_ret": [0.1, 0.2],
+        "sector": ["Tech", "Utilities"],
+        "value": [1.0, 2.0], "sn_value": [9.0, 8.0],
+    })
+    flat, sn = split_arms(df)
+    sn.loc[0, "value"] = -99.0
+    assert flat.loc[0, "value"] == 1.0, "the arms share memory — one write corrupted both"
+    assert df.loc[0, "value"] == 1.0, "split_arms mutated the caller's panel"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

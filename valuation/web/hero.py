@@ -73,6 +73,11 @@ def _index_block(store) -> dict:
         "available": True, "source": "index-track",
         "since": live.get("since") or t.get("inception"), "as_of": live.get("as_of"),
         "days": live.get("days"), "benchmark": t.get("benchmark") or "SPY",
+        # LA8 — `days` is the ROW COUNT and stays one, because the gate reads it. `age` is the
+        # display vocabulary: how old the track is, and how many of those days were recorded.
+        # A surface that renders `days` under the word "Days" is stating a coverage number as
+        # an age, which is the defect LA8 names.
+        "age": live.get("age"),
         "cum_pct": _f(live.get("cum_valquo_pct")), "bench_pct": _f(live.get("cum_spy_pct")),
         "excess_pp": _f(live.get("excess_pp")),
         # Book and window travel WITH the numbers so the template cannot render a figure

@@ -7382,3 +7382,250 @@ clean provenance rather than being left half-written, so the only cost was the t
   already sweeps it over four values. That sweep is the trap; entering it would need its own
   register with the value named in advance.
 * **Nothing adopted, and no vintage opened.**
+
+---
+
+# SESSION 20 (2026-08-11) — SECTOR-NEUTRAL-B6: the re-run on a panel that counts
+
+**Register:** `PREREG_sector_neutral_b6.md`, committed **ALONE at `1bdb7e0`**, a strict git
+ancestor of the commit that added `scripts/sector_neutral_rerun.py`. The gate, its two
+weightings, the verdict rule, the calibrated bars, the seven controls, the trial cost and the
+expectations were all fixed before any number existed. Nothing below restates a threshold from a
+result.
+
+**Item:** member **B** of `HANDOFF_parked_positives.md` §3. **Adopts nothing** — adoption is a
+**vintage event** and Don's call. `CONFIG.sector_neutral` is untouched at `false`.
+
+## 1 · Why a twice-rejected result was re-run at all
+
+Sector-neutral ranking scores every granular number against its **sector median** before the
+global z-score. It was rejected by P10 (2026-07-31) and again on 2026-08-02, in both held-out
+split directions, under both weightings. The mechanism was understood, not mysterious: it **buys
+long-short *t* and sells top-decile alpha**, and Valquo trades a long-only book.
+
+**The re-run is not doubt about that reasoning. It is that both rejections ran on a panel the
+project has since declared void.** `HANDOFF_sector_neutral.md:58` records *"2,710 usable, 136,478
+panel rows, **110 rebalance dates**"*, dated 2026-08-02. **B6 landed 2026-08-04** and cut the
+panel to **2,531 names / 69 dates**, because the first 41 dates had an inverted universe.
+`CLAUDE.md` records B6's cost to the headline as **t −0.897, alpha −4.18pp, PBO +46.7pp** —
+*"B6 is essentially the whole drop"*.
+
+**The decision turned on a −1.58pp alpha difference, measured inside a panel whose alpha level
+moved −4.18pp when the defect was removed.** That is the parked-positives sweep's own finding,
+and it is why this was the one item in that file needing no new data at all.
+
+## 2 · VERDICT: REJECTED — and it failed *differently*, which is the finding
+
+Both gates return `reject`; no control blocked the verdict.
+
+### Under the DEPLOYED weights (the seven themes that trade — this is the one that carries it)
+
+| | OFF (shipped) | ON (sector-neutral) | Δ |
+|---|---|---|---|
+| top-decile alpha | **+7.1741%** | +6.0852% | **−1.0890pp** |
+| long-short annualised | **+11.0382%** | +8.5107% | −2.5275pp |
+| long-short *t* (naive) | **+2.8361** | +2.3423 | **−0.4938** |
+| **long-short *t* (HAC, the one quoted)** | **+2.6199** | +2.1505 | **−0.4694** |
+| top-decile alpha HAC *t* | **+4.3762** | +4.0893 | −0.2869 |
+| monotonicity (−1 ideal) | **−0.8909** | −0.8667 | worse |
+| long-short hit | 66.7% | 65.2% | worse |
+| equal-weight benchmark | +18.1371% | +18.1371% | **identical — the universe control** |
+
+**The pre-committed gate, both halves, boundary 2017-07-20 embargoed:**
+
+| half | *n* | long-short *t* | top-decile alpha | improves? |
+|---|---|---|---|---|
+| early | 34 | +1.7014 → +1.6921 (**−0.0093**) | +2.8171% → +2.6712% (**−0.1459pp**) | **no** |
+| late | 34 | +2.3549 → +1.8703 (**−0.4846**) | +11.5799% → +9.5655% (**−2.0144pp**) | **no** |
+
+### THE HEADLINE IS NOT "IT FAILED AGAIN" — IT IS *HOW* IT FAILED
+
+**On the void panel sector-neutral BOUGHT long-short *t* (3.396 → 3.896, +0.500) and SOLD alpha.**
+The rejection was therefore a *judgement*: a long-only book should not buy a *t*-statistic with
+alpha. Anyone who disagreed with that preference could reasonably have re-opened it.
+
+**On the corrected panel the long-short gain is GONE AND ITS SIGN IS REVERSED — −0.4938 under the
+deployed weights and −0.3000 under the flat ones.** Sector-neutral is now **worse on both
+metrics, under both weightings, in both halves**. *There is no trade-off left to adjudicate*, and
+the rejection no longer rests on a preference. **That is a materially stronger result than the one
+it replaces, and it is the answer to the question the inventory actually asked.**
+
+### The calibrated floor separates the two arms
+
+| arm | long-short HAC *t* | floor 2.2837 | alpha HAC *t* | floor 2.2913 |
+|---|---|---|---|---|
+| OFF (shipped) | **2.6199** | **clears** | 4.3762 | clears |
+| ON (sector-neutral) | **2.1505** | **FAILS** | 4.0893 | clears |
+
+Quoted where X7 and session 10 calibrated them — the full-universe decile book, 69 dates,
+H = 63, HAC lag 1, which is exactly this configuration — and **labelled an extrapolation for the
+sector-neutral arm**, whose composite is a different transform of the same inputs.
+
+### Under the FLAT weights — same answer, so the verdict is not a weighting artefact
+
+alpha **+4.9912% → +4.2194%** (−0.7718pp), long-short *t* **+1.1680 → +0.8679** (−0.3000),
+monotonicity **−0.6121 → −0.3455** (a large degradation), gate `reject`. Neither arm clears the
+long-short floor under flat weights, which is expected — the flat vector is a comparison
+instrument, not the book.
+
+### The paired within-panel difference (secondary, UNCALIBRATED bar of 2.0)
+
+The two arms score the same dates, so differencing per date cancels the market move (the V2G
+construction, through the shipped `quantile_backtest(..., return_series=True)`).
+
+| | Δ alpha /yr | se | HAC *t* | Δ long-short /yr | HAC *t* |
+|---|---|---|---|---|---|
+| full (69) | **−1.0890pp** | 0.6629pp | **−1.6666** | −2.5275pp | **−2.5151** |
+| early (34) | −0.1459pp | 0.7054pp | −0.2701 | −0.9936pp | −0.7243 |
+| late (34) | −2.0144pp | 1.1343pp | −1.7257 | −3.9753pp | −2.8273 |
+
+**Both halves are negative on alpha**, and **the late half carries the result** — the same shape
+the void panel's late half showed. **The 2.0 is uncalibrated and cannot overturn the primary
+gate**; V2G established that no calibrated floor exists for a paired within-panel difference,
+because X7 and session 10 calibrate *levels*.
+
+## 3 · The design, and the one thing it does better than either prior run
+
+**ONE panel build. Two arms. A provably identical row set.**
+
+At each rebalance date the loop assembles one `metrics` list and calls `build_frame` **twice** —
+once flat (which defines the rows) and once sector-neutral — emitting `sn_{theme}` columns on the
+**same row**. `build_frame` copies its input and never mutates the caller's list, which was
+verified rather than assumed.
+
+**Both prior runs built the arms as two separate runs, and that is a real weakness given what
+this project knows about itself:** `CLAUDE.md` records that a full backtest is **not reproducible
+run to run**, with `insider` moving median IC −0.0034 / +0.0155 / −0.0034 across three
+identical-data runs. A per-arm build lets that land inside the difference being measured. **One
+pass makes it common-mode, so it cancels exactly** — the same argument S22 used to build one
+panel for eight horizons.
+
+## 4 · Controls — all seven pass, and one of them was worth re-measuring
+
+| # | control | result |
+|---|---|---|
+| **C1** | identical `(date, ticker)` key sets | **exact** — 113,945 rows each, 0 either way; 69 dates, 2009-01-15 → 2026-01-28, 2,531 names |
+| **C2** | the toggle is not inert | mean absolute composite change **0.0567**, cross-arm correlation **0.9836**, **9 of 10 themes move** (`low_risk` 0.275, `momentum` 0.191, `size` 0.156, `value` 0.155 …) |
+| **C3** | the flat arm reproduces the published record **to the digit** | **all six** — alpha `0.071741423321`, LS *t* `2.8360640685320595`, LS HAC 2.6199, alpha HAC 4.3762, monotonicity `-0.8909090909090909`, EW `0.18137118752419476` |
+| **C4** | **sector coverage, re-measured on the corrected panel** | **100.0% of rows and names, 11 sectors**, smallest sector on any date **50 names**, **ZERO singletons** |
+| **C5** | `insider` untouched by the toggle | **exactly 0.000** — it is a rescaled percentile, not a z-scored input |
+| **C6** | no NEW missing values | **none** on any theme, so the arms score the same names |
+| **C7** | `sentiment` empty | **0 non-null**, so excluding it from the flat set is right |
+
+**C4 was worth doing rather than inheriting.** The 100% figure in the record was measured on the
+**void** panel; the COVERAGE RULE says check before acting, and a singleton sector would have
+been a real problem — a lone name maps exactly to its own median, i.e. to 0. There are none.
+
+## 5 · A DEFECT FOUND, REPORTED, AND DELIBERATELY NOT REPAIRED
+
+**`cross_sectional.zscore`'s zero-variance guard is value-dependent and misses.**
+
+It guards degeneracy with `if not sd or np.isnan(sd) or sd == 0`, assuming a constant
+cross-section has `sd == 0`. Whether it does depends on the constant, because pandas reaches the
+variance through a sum of squares:
+
+| constant | `std(ddof=0)` | guard fires? | `zscore` result |
+|---|---|---|---|
+| 0.0, 50.0, 2.5, 0.125, 0.07 | **exactly 0.0** | yes | all-NaN (correct) |
+| **0.9, 0.1, ⅓, 12.34, 1000000.1** | **~1e-16** | **no** | **a fabricated pattern, max \|z\| = 1.0** |
+
+So **a constant signal does not reliably neutralise itself** — it can inject invented ±1 scores
+into a theme, and which behaviour you get is not predictable from the input's shape.
+
+**It corrects a claim in the record.** V2G states that a constant live `insider` means *"`zscore`
+returns all-NaN"*. That is true **only because** the live `insider` is constant at **exactly
+0.0** (`(50 − 50) / 25`), where the sum of squares really is zero. **It is not a general
+property and must not be quoted as one.**
+
+**How it was found**, because the route matters: a test asserting that with blank sectors the two
+arms must be *exactly* equal (a constant grouping makes demedianing a pure shift, which a z-score
+erases) failed at **0.28 on `quality`**. The cause was not the pair path — it was `_SynthPIT`
+emitting `fcf = 90(1+q)` and `netinc = 100(1+q)`, so `fcf/netinc` is **identically 0.9** and
+`accruals_q` is a constant column whose z-score is not shift-invariant. **The fixture was made
+non-degenerate and the assertion kept, rather than the assertion being weakened to fit.**
+
+**EXPOSURE MEASURED, NOT ASSUMED — it is nil here.** No theme column is constant or
+near-constant on any of the 69 dates, and the smallest within-sector dispersion across 231
+sampled `(date, sector, theme)` cells is **0.2209**. **No figure in this study, and nothing in
+the shipped artifact, is affected.**
+
+**NOT repaired.** `zscore` is on the live scoring path and every published figure in the project
+runs through it, so changing it is a **scoring change and therefore a vintage event** — not this
+register's to make. It is **pinned by a test that fails if it is ever silently corrected**, with
+instructions in the failure message to update the record.
+
+## 6 · What this does NOT say
+
+* **It does not say the old verdict was wrong.** Both prior runs compared their arms against each
+  other on the same panel, which cancels a great deal. What was missing was any observation of
+  the trade-off on the panel the project uses; that gap is now closed, and the answer came back
+  *stronger* than the original rather than overturning it.
+* **It is not a statement about the sector column generally.** The column is **already used, and
+  accepted**, for the `max_sector_w` concentration cap — a **risk control, not a re-ranking**.
+  Nothing here touches it.
+* **It does not close `S15` or `S25`.** Both ledger rows were blank ("no mention anywhere in the
+  corpus") and are now scoped as the only two re-open routes.
+* **It is not a forward test.** Same single in-sample Sharadar panel as every other published
+  figure.
+
+## 7 · The look-ahead caveat, which cuts against a positive rather than for it
+
+Sharadar TICKERS carries **today's** sector classification, so applying it to a 2009 row assumes
+the company was in the same sector then. This is **the one non-point-in-time input in an
+otherwise strictly point-in-time panel**, and the direction matters: it is a reason to be
+**MORE** sceptical of a positive sector result, not less.
+
+**It rejected, so nothing rests on it** — which is the same position the 2026-08-02 run recorded,
+and it remains the honest one. Had this returned ADOPTED, `S25` would have become a prerequisite
+rather than a nice-to-have.
+
+## 8 · Expectations, written down first and scored
+
+| # | prediction | conf. | outcome |
+|---|---|---|---|
+| 1 | verdict is **REJECTED** | 80/20 | **RIGHT** |
+| 2 | long-short gain shrinks below +0.25 | 70/30 | **RIGHT** — and then some: it **reversed** to −0.4938 |
+| 3 | alpha difference negative, 0 to −3pp | 75/25 | **RIGHT** (−1.09pp) |
+| 4 | paired difference does not reach \|*t*\| 2.0 | 60/40 | **SPLIT** — right on alpha (−1.6666), **WRONG on long-short** (−2.5151) |
+| 5 | both halves agree in sign on alpha | 60/40 | **RIGHT** (−0.146, −2.014) |
+
+**Four right and one split is an unusually good run for this project's directional calls**, and
+the stated reasoning held rather than the conclusion happening to land: the corrected window is
+roughly the void panel's **late** portion, and in that late half sector-neutral already lost on
+both metrics. **This does not license reasoning about direction instead of measuring it** — the
+record still runs the other way (R10, O20, the spread toll, U7, X3, and both of S22's headline
+questions).
+
+## 9 · What I did NOT do, and why
+
+* **No placebo / null distribution.** Sector-neutrality changes how the panel is *built*, so a
+  null would have to permute **sector labels and rebuild the panel per draw** — not permute a
+  finished panel, which is the trap recorded in `x7-permutation-cannot-calibrate-a-score`. The
+  primary gate is a **pre-committed margin** and needs no floor. **Registered as a limitation in
+  advance (prereg §5), not discovered afterwards.**
+* **No PBO and no Deflated Sharpe per arm**, though the 2026-08-02 run reported both. X7 measured
+  **PBO's noise median at 46.7%**, so the <50% bar sits at the noise level; and running
+  `cpcv_validate` per arm would put **weight selection inside the loop**, which X7 measured
+  manufactures **~+1.4 of long-short *t* on 27% of pure-noise draws**. Omitting them is a
+  deliberate improvement on the earlier design, not a shortcut.
+* **No grid-offset sweep, and no sweep of anything.** One construction toggle, no parameter to
+  tune; inventing one would be the param-search trap S23 paid to avoid.
+* **I did not flip `CONFIG.sector_neutral`, and I did not repair the `zscore` defect.** Both are
+  scoring changes and therefore vintage events.
+* **I did not test `S15` (sector-relative on value alone).** It is a different construction and
+  needs its own register — and it now inherits a prior it did not have this morning.
+
+## 10 · Trial cost and the artifact
+
+**One hypothesis, two pre-specified weightings, no grid: `n = 2`. Equity `N` 149 → 151**,
+√(2·ln 151) = **3.1677**, still above the Harvey–Liu–Zhu hurdle of 3.0.
+
+Charged **even though the verdict is negative**, because a re-run of a rejected hypothesis is
+another chance at the same hypothesis, and understating `N` overstates the significance of every
+DSR-gated claim in the project.
+
+* `data/free_analysis/SECTOR_NEUTRAL_B6.json` — every arm, every control, every per-date draw.
+* `python -m scripts.sector_neutral_rerun` reproduces it.
+* Tests: **five** new in `tests/test_edge.py` (the paired build, plus the pinned `zscore`
+  defect), **two** new in `tests/test_sector_neutral.py` (the arm split). The existing six wiring
+  tests still **deliberately do not pin the verdict**.

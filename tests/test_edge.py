@@ -6766,6 +6766,188 @@ def test_session12_a_row_with_unescaped_pipes_may_not_silently_lose_its_trials()
     assert mal[0]["row_width"] == 11 and mal[0]["header_width"] == 9, mal[0]
 
 
+# --------------------------------------------------------------------------- #
+#  SECTOR-NEUTRAL-B6 — the paired build (PREREG_sector_neutral_b6.md §2)
+#
+#  Both prior sector-neutral rejections built the two arms as two SEPARATE runs, and a full
+#  backtest is not reproducible run to run. These pin the property that makes the re-run
+#  interpretable: one pass, one `metrics` list, two `build_frame` calls, identical rows.
+# --------------------------------------------------------------------------- #
+def _synth_with_sectors(n=30, seed=7, sectors=("Technology", "Utilities", "Healthcare")):
+    """_SynthPIT plus a TICKERS overlay (the only source of `sector` in the panel), and with the
+    fcf/netinc proportionality BROKEN.
+
+    `_SynthPIT.fundamentals_history` emits `fcf = 90*(1+q)` and `netinc = 100*(1+q)`, so the cash
+    conversion ratio is EXACTLY 0.9 for every name and `accruals_q` is a constant column. A
+    constant column's z-score is not a well-defined object, and in this codebase it is worse than
+    undefined: `zscore`'s zero-variance guard tests `sd == 0`, but `pd.Series([0.9]*30).std()` is
+    2.2e-16 rather than 0.0, so the guard does not fire and the column standardises to garbage
+    that is not invariant under a shift. That is a real (reported) defect, but it is not what
+    these tests are about, so the fixture is made non-degenerate instead of the assertion being
+    weakened. See HANDOFF_edge_audit.md session 20.
+    """
+    prov = _SynthPIT(n, seed=seed)
+    if sectors:
+        prov.ticker_meta = lambda t, _s=sectors: {"sector": _s[int(t[1:]) % len(_s)]}
+    base = prov.fundamentals_history
+
+    def _fh(ticker, _b=base):
+        rows = _b(ticker)
+        for k, r in enumerate(rows):
+            # a per-name, per-period wobble so fcf/netinc genuinely disperses
+            r["fcf"] = r["fcf"] * (1.0 + 0.13 * ((int(ticker[1:]) % 7) - 3) + 0.02 * k)
+        return rows
+
+    prov.fundamentals_history = _fh
+    return prov
+
+
+def test_b6_sector_pair_is_off_by_default_and_only_ADDS_columns():
+    """The default payload may not move — BACKTEST_RESULTS.json is built from this frame."""
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+
+    prov = _synth_with_sectors()
+    tickers = list(prov.q.keys())
+    kw = dict(rebalance_days=63, horizon=21, lookback_years=4)
+
+    plain = build_fundamental_panel(prov, tickers, **kw)
+    assert not plain.empty
+    assert not [c for c in plain.columns if str(c).startswith("sn_")], \
+        "no paired columns may appear unless asked for"
+
+    pair = build_fundamental_panel(prov, tickers, sector_neutral_pair=True, **kw)
+    assert list(plain.columns) == [c for c in pair.columns if not str(c).startswith("sn_")], \
+        "the paired build must ADD columns and move none"
+    assert len(pair) == len(plain), "the row set must not change"
+
+
+def test_b6_the_paired_build_leaves_the_FLAT_arm_bit_identical():
+    """The row-defining arm is the shipped one and must not be perturbed by measuring the other.
+
+    If this fails, the re-run's `flat` arm is not the shipped book and control C3 (reproduce the
+    published record to the digit) would be measuring a different object.
+    """
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+    from valuation.screener import settings as S
+
+    prov = _synth_with_sectors()
+    tickers = list(prov.q.keys())
+    kw = dict(rebalance_days=63, horizon=21, lookback_years=4)
+    plain = build_fundamental_panel(prov, tickers, **kw)
+    pair = build_fundamental_panel(prov, tickers, sector_neutral_pair=True, **kw)
+
+    assert list(plain["ticker"]) == list(pair["ticker"]), "row order changed"
+    assert list(plain["date"].astype(str)) == list(pair["date"].astype(str)), "dates changed"
+    for theme in S.FACTORS_ALL:
+        a = pd.to_numeric(plain[theme], errors="coerce").to_numpy(dtype=float)
+        b = pd.to_numeric(pair[theme], errors="coerce").to_numpy(dtype=float)
+        both_nan = (~np.isfinite(a)) & (~np.isfinite(b))
+        dev = float(np.max(np.where(both_nan, 0.0, np.abs(a - b))))
+        assert dev == 0.0, f"{theme}: the paired build moved the flat arm by {dev:.3e}"
+
+
+def test_b6_paired_arms_are_EXACTLY_equal_when_every_sector_is_blank():
+    """The inertness signature, used here as proof the pair really routes through the flag.
+
+    `x - median(x)` over one group is a pure shift and the z-score that follows erases it, so
+    with no TICKERS overlay the two arms must agree to the last bit. A pair path that ignored
+    the flag would pass every other test in this block and fail nothing — except this one.
+    """
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+    from valuation.screener import settings as S
+
+    prov = _synth_with_sectors(sectors=None)          # deliberately NO ticker_meta
+    pair = build_fundamental_panel(prov, list(prov.q.keys()), sector_neutral_pair=True,
+                                   rebalance_days=63, horizon=21, lookback_years=4)
+    assert not pair.empty
+    assert (pair["sector"].astype(str).str.strip() == "").all(), "fixture must have no sectors"
+    for theme in S.FACTORS_ALL:
+        a = pd.to_numeric(pair[theme], errors="coerce").to_numpy(dtype=float)
+        b = pd.to_numeric(pair["sn_" + theme], errors="coerce").to_numpy(dtype=float)
+        both_nan = (~np.isfinite(a)) & (~np.isfinite(b))
+        dev = float(np.max(np.where(both_nan, 0.0, np.abs(a - b))))
+        assert dev < 1e-12, f"{theme}: blank sectors must make the arms identical, dev {dev:.3e}"
+
+
+def test_b6_paired_arms_diverge_when_sectors_are_real_and_add_no_missing_values():
+    """C2 (the toggle is not inert) and C6 (median-subtraction creates no NEW missing value).
+
+    C6 is not cosmetic: a new NaN would mean the two arms score different NAMES, and the whole
+    point of the one-pass build is that they cannot.
+    """
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+    from valuation.screener import settings as S
+
+    prov = _synth_with_sectors()
+    pair = build_fundamental_panel(prov, list(prov.q.keys()), sector_neutral_pair=True,
+                                   rebalance_days=63, horizon=21, lookback_years=4)
+    assert not pair.empty
+    moved = []
+    for theme in S.FACTORS_ALL:
+        a = pd.to_numeric(pair[theme], errors="coerce")
+        b = pd.to_numeric(pair["sn_" + theme], errors="coerce")
+        assert int(b.isna().sum()) <= int(a.isna().sum()), (
+            f"{theme}: sector-neutral created {int(b.isna().sum()) - int(a.isna().sum())} "
+            f"NEW missing values — the arms would score different names")
+        ok = a.notna() & b.notna()
+        if ok.any():
+            moved.append(float((b[ok] - a[ok]).abs().mean()))
+    assert max(moved) > 1e-6, f"with real sectors the arms must diverge somewhere: {moved}"
+
+
+def test_b6_zscore_zero_variance_guard_does_not_fire_on_a_constant_column():
+    """A DEFECT PINNED, NOT FIXED — found by the B6 re-run, reported, deliberately not repaired.
+
+    `cross_sectional.zscore` guards degeneracy with `if not sd or np.isnan(sd) or sd == 0`.
+    That guard assumes a constant cross-section has `sd == 0`. Whether it does is
+    VALUE-DEPENDENT, because pandas reaches the variance through a sum of squares: it is exactly
+    0.0 for 0.0, 50.0, 2.5, 0.125 and 0.07, and 1e-16-ish for 0.9, 0.1, 1/3 and 12.34. When it
+    misses, `zscore` does not return NaN — it returns a fabricated pattern with max |z| = 1.0,
+    built entirely out of floating-point residue. A constant signal therefore does not reliably
+    neutralise itself; it can inject invented ±1 scores into a theme.
+
+    Why it is pinned rather than fixed: `zscore` is on the live scoring path and every published
+    figure in this project runs through it. Changing it is a scoring change, therefore a VINTAGE
+    EVENT, and it is not this register's to make. Pinning it means a future fix cannot land
+    silently — this test fails, and whoever fixes it has to update the record.
+
+    It also corrects a claim in the record: V2G says a constant `insider` means "`zscore` returns
+    all-NaN". That is true only because the live `insider` is constant at EXACTLY 0.0
+    (`(50 - 50) / 25`), where the sum of squares really is 0. It is not a general property, and
+    quoting it as one would be wrong.
+    """
+    from valuation.screener.cross_sectional import zscore
+
+    # The guard DOES work for these — so "a constant column becomes NaN" is true sometimes,
+    # which is exactly what makes the failure hard to notice.
+    for c in (0.0, 50.0, 2.5, 0.125):
+        s = pd.Series([c] * 30)
+        assert s.std(ddof=0) == 0.0, f"expected an exact zero variance for {c}"
+        assert zscore(s).isna().all(), f"a column constant at {c} must degrade to NaN"
+
+    # And it does NOT work for these. Same shape of input, opposite behaviour.
+    for c in (0.9, 0.1, 12.34):
+        s = pd.Series([c] * 30)
+        assert s.nunique() == 1, "fixture must be constant"
+        assert s.std(ddof=0) != 0.0, (
+            f"if pandas now returns an exact 0 for a constant {c} series, the guard works and "
+            f"this defect is fixed — update HANDOFF_edge_audit.md session 20 and the record")
+        z = zscore(s)
+        assert not z.isna().all(), (
+            f"zscore({c}-constant) no longer produces garbage — the defect is FIXED. That is "
+            f"good news, but it is a scoring change: update the record and treat it as a "
+            f"vintage event rather than deleting this test")
+        assert abs(float(np.nanmax(np.abs(z.to_numpy(dtype=float)))) - 1.0) < 1e-9, (
+            "the fabricated pattern is the ±1 residue one; a different shape means the "
+            "mechanism changed and the write-up needs re-checking")
+
+    # And the consequence that matters: the output is not invariant to a shift, which is what
+    # made a constant-grouping sector-neutral pass look like a real difference.
+    near = pd.Series([0.9] * 28 + [0.9 + 1e-16, 0.9 - 1e-16])
+    assert float((zscore(near) - zscore(near - 0.9)).abs().max()) > 1.0, \
+        "the shift-invariance failure on a degenerate column is the observable symptom"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

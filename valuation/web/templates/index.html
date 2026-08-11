@@ -124,7 +124,16 @@
           <div class="lb-stat"><span class="k">Excess</span>
             <span class="v {{ 'pos' if (hero.index.excess_pp or 0) >= 0 else 'neg' }}">
               {{ "%+.2fpp"|format(hero.index.excess_pp) if hero.index.excess_pp is not none else "—" }}</span></div>
-          <div class="lb-stat"><span class="k">Days</span><span class="v">{{ hero.index.days }}</span></div>
+          {# LA8 — "Days" used to render the ROW COUNT, so a track 7 days old with 2 rows read
+             as 2 days old: a recording failure displayed as a short record. The age comes from
+             index_track's calendar, and the rows sit beside it whenever they differ, so a gap
+             is visible on the band rather than absorbed into it. #}
+          <div class="lb-stat"><span class="k">Days</span>
+            <span class="v">{{ hero.index.age.age if hero.index.age else hero.index.days }}</span></div>
+          {% if hero.index.age and not hero.index.age.complete %}
+            <div class="lb-stat"><span class="k">Recorded</span>
+              <span class="v">{{ hero.index.age.recorded }}</span></div>
+          {% endif %}
         {% endif %}
         {# Which book, and over which window. Added 2026-08-09 with the two-recorders fix: the
            hero used to be able to fall back to the Tradier sandbox book and render IT under
