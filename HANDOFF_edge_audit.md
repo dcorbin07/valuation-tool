@@ -7041,3 +7041,344 @@ arm's full per-period series (RUN_RULES A9). Pinned by **9** new tests in `tests
   a **registered gap, not an oversight**, and it is the cheapest thing for a follow-up to close.
 * **No forward-return column beyond 504 days.** Two years is where the panel runs out of
   rebalance dates fast: each extra quarter costs one date, and the study already spends seven.
+
+# SESSION 19 (2026-08-11) — S23: the exit rule for the equity book
+
+**Ledger item S23, routed in by Don as this lane's, unblocked, with S22's term structure on the
+record as the prior to beat.** The live book buys the top 25 by composite and holds each name
+until it falls out of the top 50, min-hold 2. **That exit had never been tested against an
+alternative** — an inherited rule, exactly like the 63-day horizon S22 found was never a measured
+optimum.
+
+`PREREG_s23_exit_rule.md` was committed **alone at `6a73485`, before `scripts/exit_rule.py`
+existed** — a strict git ancestor of the measurement commit `3ba5f4d`. The arms, both TP/SL pairs,
+the band definitions, the cost formula, the decision rule, the split point, the trial cost and the
+expectations are all fixed there.
+
+**ADOPTS NOTHING.** Under the vintage rule an adopted construction change closes the current
+vintage and resets the five-year clock for zero statistical gain. Nothing here changes the book.
+
+---
+
+## 1. The prior, and the direction stated before running
+
+**S22 is the prior and the register committed to a direction because of it.** Annualized
+top-decile alpha is flat from three months to two years, alpha HAC *t* never below 3.16, and rank
+IC *rises* with horizon. **An edge still accruing at two years argues against selling early on
+price**: a take-profit truncates the tail S22 says keeps paying, and a stop-loss sells a name the
+composite still ranks a buy.
+
+So §8 predicted, at **75/25**, that **no challenger would beat the incumbent** — and said so
+before a single number existed.
+
+---
+
+## 2. Two defects found and fixed, because the fair-value arm could not be honest without them
+
+Both were measured **before the register was written**, are recorded in it, and are reported here
+in their own right regardless of the race's outcome.
+
+### 2a. `build_valuation_panel` still carried the B6 defect
+
+It requested `provider.price_history(t, days=TD*lookback_years + horizon + 60)` — the **per-ticker
+tail**, the exact route `data_providers.py:352` says in its own comment *"is never the panel's
+route now"*. The consequence is B6's: the union calendar's early cross-sections consist only of
+names that had already stopped trading.
+
+**Measured on the same 25 names, before and after:**
+
+| | rebalance dates | first date |
+|---|---|---|
+| before the fix | **110** | 1998-12-31 |
+| after the fix | **69** | 2009-01-15 |
+
+The valuation panel was on **a different calendar from the factor panel** — the pre-B6
+inverted-universe window. It now cuts the **shared** calendar once, exactly as
+`build_fundamental_panel` does, and control **C1 measures the two panels' dates identical**.
+
+### 2b. The point-in-time valuation was fetching LIVE Yahoo prices — look-ahead
+
+`wacc._resolve_beta` rung 3 corroborates an unusable beta by calling `data.beta.compute_beta`,
+which fetches `yf.Ticker(...).history(...)` — **today's** prices. That is correct for the live
+product, where today *is* the as-of date. In a backtest it **values a 1999 date with a beta
+regressed on 2021-2026 returns**, and it is also a network dependency and a rate-limit hazard.
+
+**Measured: it fired 157 times over 1,122 rows on a 25-name probe** — roughly one row in seven.
+
+`calibration.offline_beta` now reproduces the ladder with **rung 3 removed**: an in-range
+point-in-time beta is used (rung 2), anything else falls to the engine's **own stated constant**
+(rung 4) — which is precisely where the ladder already lands when corroboration cannot run. The
+S23 build runs with `offline=True` and **asserts zero network calls**; the full 108,241-row panel
+was built with the tripwire armed and it never fired.
+
+**Neither fix was bundled opportunistically:** both are required by the register's own controls
+C1 and C2, and `lean_fair_value` gained exactly one optional argument, appended not inserted,
+defaulting to `None` so the website's valuations cannot move.
+
+---
+
+## 3. Controls — all pass
+
+* **C1 — the two panels are one panel.** Dates identical (69, 2009-01-15 → 2026-01-28); the
+  valuation panel covers **93.9%** of the factor panel's rows and contributes no key the factor
+  panel lacks.
+* **C2 — no network, no hindsight.** Zero calls to `compute_beta` during the build, enforced by a
+  tripwire that raises.
+* **C3 — the incumbent reproduces the shipped book exactly**, costs off:
+  `total_return` **158.09816857704106** against the shipped `_backtest_hold`'s
+  **158.09816857704106**, `n_periods` 69, `held_median` 42.
+* **C4 — the arms differ only in exits.** All six score identical dates and the identical
+  `target_n`. *(The register's C4 said buy **counts** must match; that wording was wrong and is
+  corrected in §9.)*
+* **C6 — costs bite in the right direction and in the right order.** Net ≤ gross for every arm,
+  and the **turnover ranking and the drag ranking are identical** —
+  A4 > A3 > A2 > A1 > A0 > C-NEVER.
+* **Every exit rule genuinely fires**, so no arm is a silent copy of the incumbent: A1 794 rank /
+  494 valuation, A2 606 / 703, A3 533 rank / 459 take-profit / 358 stop-loss, A4 501 / 522 / 332.
+
+**Fair-value coverage, reported before any verdict (the COVERAGE RULE):** 108,100 of 108,241 rows
+are `valuable` (**99.87%**); the point gate fires on **60,526** rows and the lens gate on
+**76,320**.
+
+---
+
+## 4. The race — costs charged, net carries the verdict
+
+| arm | net CAGR | gross CAGR | alpha vs EW | held | avg hold | **Δ net /yr vs A0** | HAC *t* |
+|---|---|---|---|---|---|---|---|
+| **A0 INCUMBENT** | 32.72% | 34.16% | +15.48% | 42 | 0.6y | — | — |
+| A1 FV-POINT | 32.53% | 34.05% | +15.29% | 42 | 0.5y | **−0.13%** | −0.368 |
+| A2 FV-LENSBAND | 33.07% | 34.62% | +15.83% | 42 | 0.5y | **+0.37%** | +0.866 |
+| A3 TPSL-ONEIL | 32.47% | 34.07% | +15.23% | 42 | 0.5y | **−0.21%** | −0.396 |
+| A4 TPSL-2TO1 | 32.54% | 34.15% | +15.30% | 42 | 0.5y | **−0.13%** | −0.254 |
+| **C-NEVER** *(control)* | 20.61% | 20.70% | +3.37% | **417** | — | **−10.89%** | **−3.801** |
+
+**HEADLINE: NO CHALLENGER BEATS THE INCUMBENT.** All four price-based exits move the book by
+**less than 0.4pp/yr in either direction**, on 69 paired periods, with |HAC *t*| ≤ 0.87.
+
+**THE LEVELS ARE NOT A NEW HEADLINE AND MUST NOT BE QUOTED AS ONE.** `_backtest_hold` is the
+concentrated top-25→50 book that audit **B17** already labels the noisiest number in the results
+file, whose realised size is ~`exit_rank` rather than `top_n`, and which every other book in the
+file is measured against with frictions it historically did not pay. S23 charges costs, but it
+measures **differences between exit rules on that object** — the differences are the finding; the
++32.72% is not a claim this register makes.
+
+### 4a. Three of the four flip sign between halves
+
+| arm | early (34 dates) | late (35 dates) | same sign? |
+|---|---|---|---|
+| A1 FV-POINT | −0.22% | −0.02% | yes |
+| A2 FV-LENSBAND | **−0.31%** | **+1.04%** | **no** |
+| A3 TPSL-ONEIL | **−0.72%** | **+0.21%** | **no** |
+| A4 TPSL-2TO1 | **−0.65%** | **+0.30%** | **no** |
+| C-NEVER | −2.09% | −18.07% | yes |
+
+**A2 is the only arm with a positive full-sample difference, and it is exactly the one that fails
+the both-halves requirement** — negative early, positive late. That is session 7's LOO pattern
+again, and it is why the register required sign agreement across halves before calling anything a
+win rather than accepting a full-sample point estimate.
+
+---
+
+## 5. The control collapses — and it CONFIRMS S22 rather than contradicting it
+
+**C-NEVER loses 10.89pp/yr at HAC *t* −3.801**, the only difference in the whole study that is
+large and well-measured. Its book grows to **417 names** and its alpha vs the equal-weighted
+universe falls from **+15.48% to +3.37%**.
+
+**This is not evidence against S22's persistence finding, and reading it that way would be the
+main way this result gets misused.** S22 measured the forward return of a **cohort selected on one
+date**, and found it beats the universe for about eight quarters. C-NEVER never sells but **keeps
+buying**, so it accumulates cohorts of every age: over 69 rebalances the average holding is far
+older than eight quarters, and the book converges toward a 417-name slice of the universe whose
+alpha must approach the universe's own. **+3.37% is what S22 predicts for a book whose average
+cohort age vastly exceeds the horizon over which the edge accrues.**
+
+Costs are not the story either — C-NEVER's gross is 20.70% against its net 20.61%, because it
+never sells and so barely trades. **The mechanism is dilution, not friction.**
+
+That is exactly why the register labelled it a **control and not a candidate**, in advance, and
+recorded that its book size is not comparable to the others.
+
+---
+
+## 6. The calibrated floor, built because none existed
+
+X7 and session 10 calibrate `quantile_backtest` statistics on the full-universe **decile**
+book. `_backtest_hold` is a different object — concentrated top-25→50, event-driven,
+variable book size — and S22 already recorded that a floor may not be quoted outside the
+configuration it was calibrated in. **So a floor was built rather than borrowed.**
+
+The shipped `placebo_panel` block permutation, **200 draws, seeds 3000–3199**, pushed through the identical arms. Under a permuted
+signal the exit rules still differ from one another, so the p95 of the paired |HAC *t*|
+answers the only question that matters here: **how big a gap between two exit rules does
+no signal at all produce?**
+
+| arm | Δ net /yr | HAC *t* | **own p95 floor** | null max | null median Δ | clears |
+|---|---|---|---|---|---|---|
+| A1 FV-POINT | -0.13% | -0.368 | **1.918** | 3.237 | -0.001% | no |
+| A2 FV-LENSBAND | +0.37% | +0.866 | **1.852** | 2.812 | +0.002% | no |
+| A3 TPSL-ONEIL | -0.21% | -0.396 | **2.026** | 3.086 | +0.006% | no |
+| A4 TPSL-2TO1 | -0.13% | -0.254 | **2.049** | 2.679 | -0.003% | no |
+| C-NEVER | -10.89% | -3.801 | **2.554** | 4.012 | +1.085% | YES |
+
+**1 of 5 challengers clear their own floor** — and the one that does is the never-sell CONTROL, not a candidate.**
+
+**C5, with one honest exception that is a property of the design rather than a broken instrument.** The null's median paired difference is essentially zero for all four price-based arms (A1 FV-POINT -0.0010%, A2 FV-LENSBAND +0.0021%, A3 TPSL-ONEIL +0.0055%, A4 TPSL-2TO1 -0.0026%), which is what C5 asks for. **C-NEVER's null median is +1.0848%, NOT zero** — and it should not be: on a worthless signal the incumbent still churns on rank while never-selling holds a large book and pays almost no turnover, so **not selling is genuinely the better rule when there is nothing to sell on.** The null captures that, which is exactly why it is the right comparison. **Against its own null the real C-NEVER is worse still** — -10.89% against a null centred at +1.08%.
+
+**A by-product worth recording: the four price-arm floors land at 1.92, 1.85, 2.03, 2.05 — i.e. right around the conventional 2.0.** The uncalibrated bar the register used as a labelled reference turns out to have been about right *for this object*, which is a happy accident and not a licence to skip calibrating the next one: C-NEVER's own floor is 2.55, so the bar is not one number even within this study.
+
+**Labelled `fixed_weights_null` in the artifact and NOT comparable with 2.2837 or
+2.2913**, for the same reason S22's was: it is a deliberately less conservative null
+(fixed weights, no CPCV) measured on a different object.
+
+---
+
+## 7. Verdicts
+
+| arm | Δ net /yr | HAC *t* | floor | halves agree | **verdict** |
+|---|---|---|---|---|---|
+| A1 FV-POINT | -0.13% | -0.368 | 1.918 | yes | **NO IMPROVEMENT** |
+| A2 FV-LENSBAND | +0.37% | +0.866 | 1.852 | **no** | **NO IMPROVEMENT** |
+| A3 TPSL-ONEIL | -0.21% | -0.396 | 2.026 | **no** | **NO IMPROVEMENT** |
+| A4 TPSL-2TO1 | -0.13% | -0.254 | 2.049 | **no** | **NO IMPROVEMENT** |
+| C-NEVER | -10.89% | -3.801 | 2.554 | yes | **WORSE** |
+
+**NO CHALLENGER BEATS THE INCUMBENT**, by the rule fixed in advance: a challenger BEATS only if its paired net difference is positive AND clears its own
+placebo floor AND agrees in sign across both halves.
+
+**The one arm with a positive full-sample difference — A2 FV-LENSBAND at +0.37%/yr — fails on the halves** (−0.31% early, +1.04% late) **and does not clear its floor.** That is the both-halves requirement doing exactly the job it was put there for.
+
+**C-NEVER is the only arm whose difference is measurable at all**, and it is measurably **WORSE**. It is a control, not a candidate — see §5.
+
+---
+
+## 8. The pre-registered expectations, scored
+
+| # | expectation | odds | outcome |
+|---|---|---|---|
+| 1 | **No challenger beats the incumbent** | 75/25 | **RIGHT** |
+| 2 | All four price-based exits **negative** | 70/30 | **WRONG** — A2 is +0.37% (though inside noise) |
+| 3 | TP/SL worse than the fair-value arms | 60/40 | **RIGHT** — mean TP/SL −0.17% vs mean FV +0.12%, all inside noise |
+| 4 | C-NEVER beats the incumbent **gross**, margin shrinking net | 55/45 | **WRONG, and badly** — gross 20.70% vs 34.16%, −13.5pp |
+| 5 | The stop-loss does more damage than the take-profit | 55/45 | **UNRESOLVED** — see below |
+| 6 | Fair-value coverage below 90% of held name-periods | 60/40 | **WRONG** — 93.9% of factor rows, 99.87% of valued rows |
+
+**Expectation 5 is recorded UNRESOLVED rather than scored, and that is a design limitation worth
+owning.** A3 (+25%/−8%) is worse than A4 (+20%/−10%), which is *consistent* with the tighter stop
+doing the damage — but the two arms differ in **both** legs at once, so nothing here separates
+them. Separating them would need a TP-only and an SL-only arm, and adding those after seeing this
+result is precisely the grid search §2b forbids. **It stays unresolved rather than being answered
+by a post-hoc arm.**
+
+**Two right, three wrong, one unresolved** — and the two headline calls (#1 and #3) were right
+while the two about magnitude (#2, #4) were wrong.
+
+---
+
+## 9. Corrections to this register's own text
+
+* **C4 as written was wrong.** It required "the count of buys per date must match A0 for all
+  arms". That is unachievable and not the right invariant: a name sold this period is immediately
+  re-bought if it is still in the top 25, so buy **counts** legitimately differ between arms
+  precisely *because* their exits differ. The invariant that actually proves the buy rule is
+  untouched is that **every arm scores the same dates with the same `target_n`**, which is what is
+  measured and reported. Found while smoke-testing, before any arm was scored.
+
+---
+
+* **C1's subset clause was also wrong, and the strays were measured rather than argued away.**
+  C1 required the valuation panel's `(date, ticker)` keys to be a subset of the factor panel's.
+  They are not: **1,221 of 108,241 (1.13%)** are absent from it, because the factor panel applies
+  the **B13 investability prefilter** and the valuation panel does not, so the latter legitimately
+  values names the former screens out.
+  **They are reachable, but immaterial, and both halves of that were measured.** Reachable because
+  `_backtest_hold` keeps a name in `held` after it leaves the cross-section, so its key can be a
+  stray while it is still being tested. Immaterial because in exactly that situation the **rank
+  exit fires simultaneously**: re-running both fair-value arms with the gates intersected down to
+  factor-panel keys leaves **every series bit-identical** — same returns, same book, same dates —
+  and moves **2 of 1,288 exits** between the `fair_value` and `rank` labels (A1 794/494 →
+  796/492). **No measured value depends on the strays; only an attribution count does.**
+  The material invariant — which is what C1 should have said — is that the two panels share a
+  calendar exactly and that removing the strays changes no series. Both hold.
+
+## 10. What this does NOT say
+
+* **It does not say the incumbent exit is optimal.** It says four specific, conventionally-chosen
+  alternatives do not beat it by a measurable margin, and that never selling is much worse. The
+  space of exit rules is not searched — deliberately, because searching it is the trap §2b closes.
+* **It does not license a TP/SL grid.** Both pairs were named in advance from published
+  convention. If a future session wants a different pair it needs its own register and it inherits
+  this null as its prior.
+* **The TP/SL arms trigger less often than real ones would.** The panel has no intra-quarter path,
+  so a name that touches +40% mid-quarter and gives it back is never seen to hit a +25%
+  take-profit. **That biases the measurement in FAVOUR of the TP/SL arms**, which is why a
+  negative result on them is the trustworthy direction and a positive one would have needed
+  path-level data before it could be believed.
+* **It changes nothing about the live book.** Adoption is a vintage event and Don's call.
+
+---
+
+## 11. Trial cost
+
+**Five scored arms plus the control: equity `N` 143 → 149**, as registered. Charged at zero: the
+placebo calibration, the half-splits, and the coverage/book-size diagnostics.
+
+**Measured:** DSR **0.8436955925493782 → 0.8388059159836208**, `sr0_benchmark` 0.436077 →
+0.438357, **√(2·ln 149) = 3.1635** — still above the Harvey–Liu–Zhu hurdle of 3.0, still
+self-reporting `deflated_sharpe_ratio` with `is_effectively_undeflated: false`. **Nothing else
+moved:** 1,217 leaves, **20 moved / 0 ADDED / 0 REMOVED** — five the DSR chain, four provenance,
+eleven last-digit float. Every headline is **bit-identical** (`long_short_tstat`
+2.8360640685320595, `top_decile_alpha` 0.07174142332098163) and `cpcv.adopt` is still `false`.
+**Re-run, never hand-patched** — and the first attempt was **killed mid-build by the harness and
+wrote nothing**, which is the correct failure mode: the artifact stayed at the previous `N` with
+clean provenance rather than being left half-written, so the only cost was the time to re-run it.
+
+
+---
+
+## 12. CORRECTIONS TO THIS SESSION'S OWN COMMIT MESSAGES
+
+* **`3ba5f4d` says "Nine new tests"; it is EIGHT.** The suite went 275 -> 283. Recorded rather
+  than amended, because the commit is already written and this file is the record that gets read.
+  **This is the second time in two sessions I have miscounted my own tests** (session 18 said 11
+  where it was 9), so the count is now taken from `grep -c "^def test_s23"` rather than from
+  memory.
+
+## 13. BUGS FOUND
+
+1. **`build_valuation_panel` carried the B6 per-ticker-tail defect** (§2a) — **FIXED** here,
+   because S23's C1 requires it. Anyone who has run `run_calibration` before today measured the
+   fair-value gap on the **110-date pre-B6 panel**, whose first third is the inverted universe.
+   **Any prior calibration conclusion should be re-run before it is quoted.**
+2. **The point-in-time valuation reached live Yahoo for ~1 row in 7** (§2b) — **FIXED** behind an
+   explicit `offline` flag. The live path is untouched and still corroborates, which is right for
+   the product.
+3. **`_backtest_hold` extracted a column once per NAME instead of once per date** — **FIXED**
+   (`112551b`). `sub["fwd_ret"]` sat inside a dict comprehension, so a 1,650-name cross-section
+   extracted the same column 1,650 times, and each extraction deep-copied the panel's `.attrs`
+   through pandas' `__finalize__`. Measured by cProfile on one call: **114,774 column
+   extractions, 27.4M deepcopy calls, 61 of 70 seconds**. Hoisting it: **15.6s → 2.7s (5.8x)**.
+   Found because the pre-registered 200-draw placebo projected **5.4 hours** — the registered
+   draw count was NOT cut to fit the budget, the cause was fixed. **The whole race was re-run
+   after the fix and is bit-identical to the run before it — 1,818 leaves, 0 moved, 0 added, 0
+   removed** — so it buys speed and changes no measured value. Not confined to S23:
+   `run_backtests` and `sweep_hold_params` both drive this function, and the latter calls it 34
+   times per invocation.
+4. **Not a defect but a live mis-quotation risk:** `_backtest_hold`'s levels (a 32.7% net CAGR
+   here) are a **different, noisier object** from the decile book every published figure uses
+   (B17). This register quotes only differences; a surface that shows the level would be
+   presenting the noisiest book in the file as the headline.
+
+## 14. What was NOT done
+
+* **No replacement family.** The challengers ADD to the rank exit; a pure price-only exit lets a
+  permanently-cheap name sit forever and answers a different question. Recorded in the register in
+  advance, not discovered as an omission.
+* **No TP-only or SL-only arm** — see expectation 5. Adding one now would be a post-hoc arm.
+* **No intra-quarter path**, so no true path-dependent TP/SL. Closing this needs daily prices in
+  the panel, which is a different build.
+* **No trailing-stop arm**, even though `_backtest_hold` supports one and `sweep_hold_params`
+  already sweeps it over four values. That sweep is the trap; entering it would need its own
+  register with the value named in advance.
+* **Nothing adopted, and no vintage opened.**

@@ -412,6 +412,18 @@
           <br><span class="muted">That is measured, not asserted: the ranking was scored against
           universes assembled by chance under a test written down before it was run.</span>
         </div>
+        {# THE HOLD HORIZON — extension S22, `HANDOFF_edge_audit.md` session 18 §6.
+         # The handoff registered ONE sentence as the only claim derivable from a measured
+         # figure with no extrapolation, and listed the caveats "without which it may not be
+         # displayed". All of it comes from valuation/web/hold_horizon.py and is pinned by
+         # tests/test_hold_horizon.py. Do NOT tidy, shorten or re-phrase it, and do NOT add a
+         # long-short figure here — that spread decays to insignificance by two years and the
+         # handoff forbids quoting it alongside this. #}
+        <div class="note hold-horizon" style="margin-top:8px">
+          <b>How long did the edge last?</b> {{ hold_horizon.defensible }}
+          <br><span class="muted">{{ hold_horizon.caveat }}</span>
+          <br><b>What that does not mean:</b> {{ hold_horizon.not_a_hold_rule }}
+        </div>
         <div id="hotTable" style="overflow-x:auto"></div>
       </div>
       <div class="grid2">
@@ -624,6 +636,9 @@
  # substring of the legend sentence, so a reader cannot be given a softer limit on a name row
  # than the one printed over the table. Injected before app.js loads. #}
 <script>window.SCORE_CONFIDENCE = {{ score_confidence|tojson }};</script>
+{# Same one-source rule: the name panel and the valuation band read these strings rather than
+ # growing their own softer copies. tests/test_hold_horizon.py asserts app.js holds none. #}
+<script>window.HOLD_HORIZON = {{ hold_horizon|tojson }};</script>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

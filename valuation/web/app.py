@@ -23,6 +23,7 @@ from ..report import excel as excel_report
 from ..report import pdf as pdf_report
 from . import resultcache, withhold
 from . import score_confidence as _score_confidence
+from . import hold_horizon as _hold_horizon
 
 app = Flask(__name__)
 
@@ -101,6 +102,11 @@ def _site_context():
             # saas/app_saas.py, and a surface that renders the score while forgetting the
             # calibration is the failure this is here to prevent. Cheap constants, no I/O.
             "score_confidence": _score_confidence.for_template(),
+            # S22's term structure governs what may be said about how long the edge lasted.
+            # Same reason it sits here and not on a route: the horizon figures are the most
+            # flattering numbers the backtest produces, and the caveats S22 registered as
+            # mandatory travel with them from one source or not at all.
+            "hold_horizon": _hold_horizon.for_template(),
             "live_hero": _live_hero}
 
 

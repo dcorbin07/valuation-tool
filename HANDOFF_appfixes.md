@@ -5,6 +5,135 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 25 — 2026-08-11 — S22's hold-horizon result reaches the product, with the
+long-short spread deliberately left behind
+(prompt: S22's display follow-up, `HANDOFF_edge_audit.md` session 18 — put the hold-horizon
+story on the product with the calibrated language, pin the copy to the registered sentence)
+
+## 0. The headline
+
+S22 measured what the composite predicts as the forward window lengthens from one quarter to
+two years and found **CONSTANT-RATE** — annualized top-decile alpha essentially flat, alpha HAC
+t never below 3.16 and 3.83 at two years. That is the most flattering shape a term-structure
+study can return, and its handoff knew it: §6 registers **one sentence** as the only claim
+derivable from a measured figure with no extrapolation, lists the caveats *"without which it may
+not be displayed"*, and then stops — *"Display is the web lane's, not this one's."*
+
+This session is that lane. The sentence now renders on the hot list, on the name row and on
+`/methodology`, from **one pinned source**, and three fences keep it from growing.
+
+## 1. The module — `valuation/web/hold_horizon.py`
+
+Built on the `score_confidence.py` precedent, which exists for the same reason: a research
+finding whose wording was chosen carefully, and a product surface that will otherwise tidy it.
+Every shipped sentence appears **verbatim** in `HANDOFF_edge_audit.md`; `tests/test_hold_horizon.py`
+normalises the markdown and fails if either side is reworded.
+
+| constant | what it is | where it renders |
+|---|---|---|
+| `DEFENSIBLE` | §6's registered sentence, verbatim | hot-list card, `/methodology` |
+| `PER_NAME` | the limit half — an **exact substring** of `DEFENSIBLE` | name attribution panel |
+| `CAVEAT_CLAUSES` | the three §6 says it may not be displayed without | both pages |
+| `NOT_A_HOLD_RULE` | §7's named misuse, opening with the handoff's own words | both pages |
+| `BAND` / `BAND_SCOPE` | the valuation band reframe — **not an S22 object** | valuation scenario note |
+
+The caveats are held as three separate clauses rather than one string because each is
+independently quoted from the handoff: a single joined sentence would straddle the handoff's
+bold markers and could only be pinned loosely. `caveat()` assembles them, and the test asserts
+every clause survives into the rendered page — so a surface cannot ship three of four.
+
+## 2. The three fences, each pinned rather than commented
+
+**(1) NO LONG-SHORT FIGURE, in the module or beside this copy on a page.** This is the one that
+mattered most. The long-short spread does *not* persist — HAC t falls **2.7167 at one quarter to
+0.6846 at two years** — and the handoff forbids quoting it beyond about a year. The persistence
+lives entirely in the **long leg**, which is fortunate because the shipped product *is* a
+long-only hot list, but it means the long-short research statistic and the product statistic
+**diverge with horizon**, and the record has been quoting them side by side. Two tests: one that
+no shipped string mentions it, and one that walks the rendered page around the claim. A third
+asserts the module still *explains* the exclusion in prose — otherwise the omission reads as an
+oversight and the next editor "completes" the picture.
+
+**(2) NO PER-NAME PROMISE.** V3 already established that where a name sits inside the decile is
+not distinguishable from chance. So the figures stay on the group, and what reaches a name row
+is the limit: *"The backtested edge is a property of the top decile as a group, not a promise
+about this name — and a given name typically stays in the top decile for only one quarterly
+rebalance."* A test fails if `6.6%`, `5.1%` or `annualized` ever appears in the name-row note.
+
+**(3) THE VALUATION BAND IS A DIFFERENT OBJECT.** Reframed as *"the zone the model considers
+full value — context for today's price, not a target"*, with `BAND_SCOPE` saying on the page that
+it comes from the valuation engine on one company's filings and that the two measurements **do
+not check each other**. Grouping them on one product invites a reader to take either as evidence
+for the other; a test fails if an S22 figure enters the band copy, and another pins that the
+band wording stays absent when the valuation is **withheld** (LA10's rule — a refusal has no zone
+to describe).
+
+## 3. §7's misuse ships, rather than staying in a research file
+
+The handoff calls it *"the most likely way this result gets misused"*: the result is **not** a
+finding that the book should rebalance less often. `cum_alpha(H)` is the buy-and-hold return of
+the cohort selected on **one** date; a quarterly-rebalanced list re-picks and compounds fresh
+selections. Different claims, only the first measured. The surface most able to cause that
+misreading is the one stating the two-year figure, so the warning renders beside it in both
+places.
+
+**One trade-off recorded openly:** the shipped sentence opens with the handoff's own words, which
+include *"the book"* — mild jargon on a consumer page. It is kept verbatim because the pin is
+worth more than the polish, and the clause immediately following says "the list", which resolves
+it in context.
+
+## 4. Verification
+
+* **`tests/test_hold_horizon.py` — 19 tests, all passing.**
+* **12/12 mutations caught**, each by the test that names it. The two most tempting edits are
+  covered: rounding `5.1%` up to `5.5%`, and dropping the caveat line while keeping the figure.
+  Also covered: the sentence being "tidied", `PER_NAME` ceasing to be a substring, `app.js`
+  growing its own copy, the band becoming a target, and the withheld branch stopping.
+* **Full gate: 41 suites, 0 non-zero exits, 1130/1131 assertions.** The single shortfall is
+  `test_guards.py` 35/36 — the pre-existing declared XFAIL that exits 0, options-bot lane.
+
+## 5. BUGS FOUND (1)
+
+**An assertion message of mine crashed the offline test runner.** The message contained `→`
+(U+2192); these suites are run with `python tests/test_x.py` on a Windows cp1252 console, and the
+runner's `print` of the failure raised `UnicodeEncodeError`. The suite exited **non-zero while
+printing nothing about why** — the pin fired correctly and reported silence. Found by the
+mutation harness, not by reasoning: a mutation came back "CAUGHT" with no named failure, which
+is what sent me looking. Fixed by keeping assertion messages inside cp1252. **The general form
+is worth knowing for other suites in this repo, which use the same runner shape.**
+
+## 6. Files
+
+| file | change |
+|---|---|
+| `valuation/web/hold_horizon.py` | **new** — the pinned copy, one source for three surfaces |
+| `tests/test_hold_horizon.py` | **new** — 19 tests |
+| `valuation/web/app.py` | `hold_horizon` in the site-wide context processor |
+| `valuation/web/templates/index.html` | hot-list block + `window.HOLD_HORIZON` injection |
+| `valuation/web/templates/methodology.html` | the finding, rank-IC corroboration, three limits |
+| `valuation/web/static/app.js` | name-row limit; band reframe on the scenario note |
+| `VALQUO_LEDGER.md` | row `S22-DISPLAY` |
+
+## 7. What I did NOT do, and why
+
+1. **No research figure was recomputed.** This is copy; every number is quoted from S22's
+   artifact via the handoff. **Zero trials — equity `N` stays 143.**
+2. **The rank-IC corroboration renders on `/methodology` only.** It is the right evidence and
+   the wrong register for a name row; a rank correlation on a hot-list card is jargon.
+3. **`/methodology`'s Deflated Sharpe paragraph is still stale** (it calls the statistic
+   undeflated; M1 settled that in 2026-08-05 and it self-reports `deflated_sharpe_ratio` now).
+   Untouched — it is a different finding's copy and not this task's scope. **Flagged, not fixed;
+   it is the oldest stale figure still rendering.**
+4. **No change to what the hot list computes.** Display only.
+
+## 8. Next
+
+Nothing is blocked. The obvious follow-on is the item in §7.3 — one paragraph on
+`/methodology` that has been wrong since M1 and would take a session-19-style stale-figure pass
+to do properly, since the same claim may render elsewhere.
+
+---
+
 # Session 24 — 2026-08-10 — Cold-audit LA10 and LA13: a label that outlived its value, and a
 policy the suite did not enforce
 (prompt: cold audit items LA10 and LA13, `VALQUO_LIVE_AUDIT.md`; no overlap with the in-flight

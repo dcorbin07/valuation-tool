@@ -125,3 +125,23 @@ forward window is the only thing that varies.
 * **Adopts nothing.** Rebalance-frequency change is **S23**'s own register and a **vintage event**.
   Display is the **web lane's**; the defensible product sentence is written in the handoff.
 * Equity `N` 135 → 143.
+
+## S23 — Exit rule for the equity book (edge lane) — **DONE 2026-08-11**
+
+Registered blind in `PREREG_s23_exit_rule.md` at `6a73485`, a strict ancestor of the measurement
+commit. One buy rule, `min_hold` identical across arms, five exits plus a never-sell control.
+
+* **NO CHALLENGER BEATS THE INCUMBENT.** All four price-based exits move the book by **under
+  0.4pp/yr in either direction** (|HAC *t*| ≤ 0.87), and **three of four flip sign across
+  halves** — including the only positive one, which is exactly what the both-halves requirement
+  exists to catch.
+* **Never selling costs 10.89pp/yr at HAC *t* -3.801** —
+  the only measurable effect in the study. The book grows to 417 names
+  and alpha falls 15.48% → 3.37%.
+  **This CONFIRMS S22 rather than contradicting it:** S22 measured one cohort over ~8 quarters,
+  while a never-sell book keeps buying and converges on the universe. **Dilution, not friction.**
+* **TP/SL pairs came from published convention and were never tuned**; no grid was swept.
+* **Three defects found and fixed** — B6's per-ticker tail still in `build_valuation_panel`, live
+  Yahoo hindsight in the point-in-time beta ladder, and a shipped `_backtest_hold` hot loop that
+  cost 61 of every 70 seconds (fix proved bit-identical over 1,818 leaves).
+* **Adopts nothing.** Adoption is a **vintage event** and Don's call. Equity `N` 143 → 149.
