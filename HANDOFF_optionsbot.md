@@ -3321,7 +3321,25 @@ wrong is the part that refused to improve when I tried.**
   options alert — the entry is still dead; this was about how the paper book exits, and about
   knowing how these contracts behave.
 
-## 5. What was NOT done, and where it went
+## 5. BUGS FOUND
+
+**B-PATH.1 — `scripts/path_study.py` would have failed the auto-land gate on a fresh checkout,
+and my own local runs could never have shown it.** `_data_root()` raised `SystemExit` at import
+when it found no `data/options_freeze`. `data/` is gitignored, so **CI has none** — and
+`tests/test_path_study.py` imports the module. On a fresh checkout the suite would have aborted
+before a single test ran. It never fired locally because a worktree finds the primary checkout's
+data three levels up, which is precisely the class of defect a developer machine cannot see.
+**Fixed** (absent data now degrades to a non-existent path, so the error lands where a file is
+opened, not where a module is imported) and **verified against the real failure mode**: copying
+the tree without `data/` and restoring the old function reproduces `no data/options_freeze
+found` with zero tests run; with the fix, 25/25 pass. Pinned by
+`TheModulesImportWithoutTheLicensedData`.
+
+*This is the same shape as LA15 earlier in this session — a test outcome that depends on
+machine-local state — arriving from the other direction: there a test read state CI lacks and
+passed anyway; here a test read state CI lacks and would have died.*
+
+## 6. What was NOT done, and where it went
 
 * **Earnings-timing arms → O17. Sizing → O12.** Excluded by the register's own scope, observed
   and not run. One observation for O12 from §2d: the post-target distribution is so barbelled
@@ -3332,7 +3350,7 @@ wrong is the part that refused to improve when I tried.**
 * **No live-book or paper-book change was made**, so nothing needs deploying and nothing needs
   reverting.
 
-## 6. Trial accounting
+## 7. Trial accounting
 
 Stage 1 is descriptive: no arm, no bar, no verdict, **zero trials**. Stage 2 charges its
 **13 arms to options `N`**, as the register committed, whatever the verdicts —

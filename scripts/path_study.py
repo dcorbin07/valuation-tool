@@ -40,11 +40,19 @@ _HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def _data_root() -> str:
+    """The licensed data lives in the primary checkout, so a worktree looks three levels up.
+
+    MUST NOT raise at import. `data/` is gitignored, so CI has no freeze at all — and this
+    module is imported by `tests/test_path_study.py`, which pins the algebra and the arm set
+    and needs none of it. An import-time `SystemExit` here would fail the whole auto-land gate
+    on a fresh checkout. The scripts that genuinely need the freeze fail when they open it,
+    which is the right place for that error.
+    """
     for cand in (os.path.join(_HERE, "data"),
                  os.path.join(_HERE, "..", "..", "..", "data")):
         if os.path.isdir(os.path.join(cand, "options_freeze")):
             return os.path.abspath(cand)
-    raise SystemExit("no data/options_freeze found; run from a checkout that has the freeze")
+    return os.path.abspath(os.path.join(_HERE, "data"))
 
 
 DATA = _data_root()

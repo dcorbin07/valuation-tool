@@ -197,6 +197,32 @@ class TheWallMeasuresOnTheHalfItDidNotSelectOn(unittest.TestCase):
         self.assertFalse(got["b"])
 
 
+class TheModulesImportWithoutTheLicensedData(unittest.TestCase):
+    """CI has no `data/` at all — it is gitignored — and this suite imports the scripts.
+
+    The first version of `path_study._data_root` raised `SystemExit` at import when no
+    `data/options_freeze` was found. Locally that never fired, because a worktree finds the
+    primary checkout's data three levels up; on a fresh CI checkout it would have aborted the
+    suite before a single test ran and failed the whole auto-land gate. VERIFIED against the
+    real failure mode, not reasoned about: copying the tree without `data/` and restoring the
+    old function reproduces `no data/options_freeze found` and zero tests run.
+    """
+
+    def test_the_data_root_never_raises(self):
+        from scripts import path_study as PS
+        self.assertIsInstance(PS._data_root(), str)
+
+    def test_it_still_returns_a_path_when_nothing_is_found(self):
+        """Absent data must degrade to a path that simply does not exist, so the error lands
+        where a file is opened rather than where a module is imported."""
+        from scripts import path_study as PS
+        self.assertTrue(os.path.isabs(PS.DATA))
+
+    def test_the_arm_modules_are_importable(self):
+        self.assertTrue(callable(PA.apply_arm))
+        self.assertTrue(callable(PG.run))
+
+
 class TheStudySaysWhatItIsNot(unittest.TestCase):
     """The dead-entry caveat is load-bearing and lives in the code, not only the write-up."""
 
