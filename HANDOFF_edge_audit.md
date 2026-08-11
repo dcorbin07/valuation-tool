@@ -6653,10 +6653,12 @@ denominator.
 **Ledger item S22, routed in by Don as this lane's, unblocked.** Two questions the project had
 never asked, and that nothing in the corpus mentions:
 
-1. **How long does a hot name's edge last?** Every performance figure this project has published
-   is measured at a **63-trading-day** forward window, because `build_fundamental_panel` computes
+1. **How long does a hot name's edge last?** Every *headline* figure this project publishes —
+   `top_decile_alpha`, the long-short *t*, monotonicity, the costs block, the calibrated bars — is
+   measured at a **63-trading-day** forward window, because `build_fundamental_panel` computes
    exactly one `fwd_ret` and the deployed rebalance period equals it. That is an inherited
-   default, not a measured optimum.
+   default, not a measured optimum. **(See §1b: the register's own wording here was too strong,
+   and it is corrected rather than quietly softened.)**
 2. **How long do names stay hot?** The top decile IS the product, and how long a name survives in
    it had never been measured.
 
@@ -6688,6 +6690,42 @@ Horizons are **1 through 8 quarters** — 63, 126, 189, 252, 315, 378, 441, 504 
 complete grid in units of the rebalance period is required because the incremental analysis
 differences adjacent horizons, and those differences are only comparable if every step is one
 quarter.
+
+### 1b. CORRECTION TO THIS REGISTER'S OWN PREMISE — found by checking, not assumed
+
+`PREREG_s22_term_structure.md` §1 says *"Nobody has ever asked what the composite predicts at 6
+months, a year, or two years."* **That is false, and the register is left unedited because a
+committed register is the record of what was committed — the correction goes here.**
+
+`BACKTEST_RESULTS.json` has always carried a **`per_horizon`** block, and `run_backtests` has
+always run **63 / 252 / 756**. What it actually reports, though, is narrow enough that the
+question S22 asks was still open:
+
+| horizon | rebalance dates | in-sample IC | **out-of-sample IC** | accepted |
+|---|---|---|---|---|
+| 63 | 69 | 0.050234 | **0.038990** | true |
+| 252 | 18 | 0.125013 | **0.058241** | false |
+| 756 | 6 | 0.135587 | **0.097671** | true |
+
+Three things make it a different object from this study, and the first is the one that matters:
+
+* **It changes the rebalance period with the horizon.** `run_backtests` sets
+  `rb = max(rebalance_days, H)` so periods stay non-overlapping — which means the 252d arm has
+  **18** dates and the 756d arm **6**, against 69 at the deployed horizon. That is precisely the
+  confound §1 was built to avoid: horizon, date set and cross-section all move together. **Six
+  dates cannot support inference**, and the 2,206-name 756d universe is not the 2,531-name one.
+* **It reports IC and weight vectors only** — no alpha, no long-short, no decile structure, no
+  tenure. The `construction` block every headline comes from is built on a single
+  `rebalance_days=63, horizon=63` panel.
+* **Nothing in the corpus ever read it as a term structure.** The ledger records S22 as "no mention
+  anywhere in the corpus", and that part holds.
+
+**AND IT CORROBORATES THE FINDING, WHICH IS THE REASON TO REPORT IT RATHER THAN BURY IT.** That
+out-of-sample IC column **rises monotonically with horizon** — 0.0390 → 0.0582 → 0.0977 — the same
+direction as this study's median rank IC (+0.034 → ~+0.072). **The project has been shipping
+evidence that its signal predicts better at long horizons, in its own results file, unread.** The
+two are *not* numerically comparable (different IC definitions, different date sets, different
+universes), so only the **direction** is claimed.
 
 ### 1a. Right-censoring is not delisting — the defect named in advance
 

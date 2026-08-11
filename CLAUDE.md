@@ -45,9 +45,20 @@ stale — they are corrected in place and the corrections are called out, becaus
 the project's memory and the old versions had been repeated for months.
 
 - **THE EDGE DOES NOT DECAY OVER TWO YEARS, THE LONG-SHORT SPREAD DOES, AND A HOT NAME LASTS
-  ONE REBALANCE (2026-08-10, session 18, `S22`).** The project had measured everything at a single
-  63-day forward window because `build_fundamental_panel` computes one `fwd_ret` and the deployed
-  rebalance equals it — an inherited default, never a measured optimum. Eight horizons (1–8
+  ONE REBALANCE (2026-08-10, session 18, `S22`).** Every HEADLINE figure the project publishes is
+  measured at a single 63-day forward window because `build_fundamental_panel` computes one
+  `fwd_ret` and the deployed rebalance equals it — an inherited default, never a measured optimum.
+  **CORRECTION TO S22's OWN REGISTER, recorded because the register is left unedited: it claimed
+  "nobody has ever asked what the composite predicts at 6 months, a year, or two years", and that
+  is FALSE.** `BACKTEST_RESULTS.json` has always carried a `per_horizon` block at 63/252/756 —
+  but it reports **IC and weight vectors only** (no alpha, no long-short, no decile structure), and
+  `run_backtests` sets `rb = max(rebalance_days, H)` so the **rebalance period moves with the
+  horizon**: 69 dates at 63d, **18** at 252d, **6** at 756d, on universes of 2,531 / 2,492 / 2,206
+  names. That is exactly the confound S22 was designed to remove, and six dates support no
+  inference. **It does CORROBORATE the finding, which is why it is reported: that block's
+  out-of-sample IC rises monotonically with horizon, 0.038990 → 0.058241 → 0.097671 — the project
+  has been shipping evidence its signal predicts better at long horizons, in its own results file,
+  unread.** Direction only; the IC definitions and date sets differ. Eight horizons (1–8
   quarters) were scored from **ONE** panel build, because the grid end is `len(cal) − horizon` and a
   build per horizon would vary the horizon **and** the date set **and** the cross-sections together.
   `PREREG_s22_term_structure.md` was committed **alone at `6b187dd`**, a strict git ancestor of the

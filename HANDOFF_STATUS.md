@@ -7,9 +7,13 @@ file directly.
 ## 2026-08-10 — edge lane, session 18 (S22): the edge does not decay over two years, but the long-short does
 
 **Ledger S22, registered blind** in `PREREG_s22_term_structure.md` at `6b187dd` — committed alone,
-a strict git ancestor of the measurement commit. Every figure this project publishes had been
+a strict git ancestor of the measurement commit. Every **headline** figure this project publishes is
 measured at a single 63-day forward window because the panel computes one `fwd_ret` and the
-deployed rebalance equals it. Eight horizons (1–8 quarters) were scored from **ONE** panel build,
+deployed rebalance equals it. (**The register's own premise overclaimed and is corrected in the
+handoff §1b, not edited away:** a `per_horizon` block at 63/252/756 has always existed, but it
+reports IC only and moves the rebalance period with the horizon — 69 dates vs 18 vs 6. Its
+out-of-sample IC nonetheless **rises** with horizon, 0.0390 → 0.0582 → 0.0977, corroborating this
+result from the project's own unread artifact.) Eight horizons (1–8 quarters) were scored from **ONE** panel build,
 because the grid end is `len(cal) − horizon` and a build per horizon would have varied the horizon
 **and** the date set **and** the cross-sections together.
 
