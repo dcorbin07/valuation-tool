@@ -7620,6 +7620,23 @@ questions).
 **One hypothesis, two pre-specified weightings, no grid: `n = 2`. Equity `N` 149 → 151**,
 √(2·ln 151) = **3.1677**, still above the Harvey–Liu–Zhu hurdle of 3.0.
 
+**`BACKTEST_RESULTS.json` re-run so the artifact matches the denominator: Deflated Sharpe
+0.8388059159836208 → 0.8372030816851322**, `sr0_benchmark` 0.438357 → 0.439094, still
+self-reporting `deflated_sharpe_ratio` with `is_effectively_undeflated: false`. **1,217 leaves,
+23 moved / 0 ADDED / 0 REMOVED** — two timestamps, two provenance, five the DSR chain, fourteen
+last-digit float. **Every headline is bit-identical** (`long_short_tstat` 2.8360640685320595,
+`top_decile_alpha` 0.07174142332098163, monotonicity −0.8909090909090909, equal-weight
+0.18137118752419476), `errors` is empty and `cpcv.adopt` is still `false`.
+
+**IT WAS RE-RUN TWICE, AND THE FIRST ONE IS REPORTED RATHER THAN QUIETLY DISCARDED.** The first
+pass finished with `git.dirty: true`, because two markdown files (`HANDOFF_STATUS.md`,
+`VALQUO_EXTENSIONS.md`) were written *while* it ran — the run began from a clean tree but the flag
+is stamped at write time. No number was affected and no code changed, but the project's own
+convention is that the artifact carries a provenance sha describing the tree that produced it, and
+the close-out check asserts `dirty: false`. **Weakening that check to accept the first run would
+have been silencing it**, so the docs were committed and the whole thing re-run from a genuinely
+clean tree (`ad0ab87`, 0 modified files verified at launch). The two runs agree on every value.
+
 Charged **even though the verdict is negative**, because a re-run of a rejected hypothesis is
 another chance at the same hypothesis, and understating `N` overstates the significance of every
 DSR-gated claim in the project.
