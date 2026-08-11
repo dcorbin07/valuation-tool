@@ -103,3 +103,25 @@ in both halves — build 13F first, if any.
 
 `PREREG_v2g_live_theme_cost.md`, `scripts/live_theme_cost.py`,
 `data/free_analysis/LIVE_THEME_COST.json`. Equity `N` 131 → 135.
+
+## S22 — Term structure of the signal and top-decile tenure (edge lane) — **DONE 2026-08-10**
+
+Registered blind in `PREREG_s22_term_structure.md` at `6b187dd`, a strict git ancestor of the
+measurement commit `ec4a5d3`. Eight horizons (1–8 quarters) scored from **one** panel build, so the
+forward window is the only thing that varies.
+
+* **VERDICT CONSTANT-RATE.** Annualized top-decile alpha is **essentially flat from three months to
+  two years, +6.59% → +5.10%**; cumulative alpha reaches **+10.20%** at eight quarters,
+  `R(8) = 6.195` against a pre-registered 6.0. Alpha HAC *t* never falls below **3.16**.
+* **But the long-short spread decays to nothing** — HAC *t* **2.72 → 0.68**, cumulative spread
+  peaking at Q5. The persistence is entirely in the **long** leg, which is the leg the product
+  ships. Do not quote a long-short figure beyond about a year.
+* **The classification does not replicate across halves** (early 8.56, late 5.47) even though the
+  persistence does. `R(8)`'s denominator is one noisy quarter.
+* **Tenure: KM median ONE rebalance**, 70.6% of spells last exactly one, retention 36.6% (inside
+  the pre-committed 20–50% band derived from the shipped 261%/yr turnover). Re-entry is the norm —
+  74% of names have more than one spell. Small caps stay **longest**, not large.
+* **Per-horizon placebo** (200 draws, fixed weights, no CPCV, labelled `fixed_weights_null` and NOT comparable with X7's floors): 8 of 8 horizons clear their own top-decile alpha floor, 4 of 8 clear their own long-short floor.
+* **Adopts nothing.** Rebalance-frequency change is **S23**'s own register and a **vintage event**.
+  Display is the **web lane's**; the defensible product sentence is written in the handoff.
+* Equity `N` 135 → 143.

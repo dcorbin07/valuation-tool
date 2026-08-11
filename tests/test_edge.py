@@ -5925,6 +5925,211 @@ def test_v2g_dropping_a_theme_equals_the_live_product_losing_it():
         assert dev <= 1e-12, f"{label}: composite differs by {dev:.3e}"
 
 
+def test_s22_right_censoring_is_not_delisting():
+    """THE defect S22 can have, pre-committed in the register as the most likely way the study
+    fabricates a result.
+
+    `_forward_return` has a delisting branch: if the horizon-end price is NaN because the
+    survivorship mask cut the name mid-window, it falls back to the last price the name actually
+    traded at, realizing the delisting instead of discarding the name. That is correct.
+
+    It is CATASTROPHIC if it also fires when the CALENDAR ends before the window does. There the
+    return simply does not exist, and a last-price fallback would return a SHORTER realized
+    return labelled as a long-horizon one — for the most recent dates specifically, flattering
+    short horizons and penalising long ones. The whole term structure is that comparison.
+    """
+    from valuation.edge.fundamental_panel import _forward_return
+
+    closes = np.array([10.0, 11.0, 12.0, 13.0, 14.0])       # a 5-day calendar, no NaNs at all
+    n = len(closes)
+
+    # in-range: an ordinary forward return
+    assert abs(_forward_return(closes, 0, 2, n) - 0.2) < 1e-12
+
+    # the last index the window can reach is n-1, so i+h == n-1 is the last OBSERVABLE window
+    assert abs(_forward_return(closes, 0, 4, n) - 0.4) < 1e-12
+
+    # i + h == n and beyond run past the calendar -> the return DOES NOT EXIST
+    assert _forward_return(closes, 1, 4, n) is None, "i+h == n must be censored, not salvaged"
+    assert _forward_return(closes, 4, 1, n) is None
+    assert _forward_return(closes, 0, 99, n) is None, "a far-future window cannot be realized"
+
+    # and the failure mode specifically: censoring must NOT return the last traded price. If it
+    # did, this would come back as +0.4 (10 -> 14) rather than None.
+    assert _forward_return(closes, 1, 4, n) != 0.2727272727272727
+
+
+def test_s22_the_delisting_branch_still_fires_inside_the_calendar():
+    """The other half of the same rule: censoring must not be implemented by refusing every NaN.
+    A name that stops trading INSIDE an observable window is a delisting and must realize its
+    last traded price, or the survivorship bias the mask exists to remove comes back."""
+    from valuation.edge.fundamental_panel import _forward_return
+
+    closes = np.array([10.0, 11.0, 12.0, np.nan, np.nan, 20.0, 21.0])
+    n = len(closes)
+    # window 0 -> 4 ends on a NaN but the name traded at 12.0 inside it
+    got = _forward_return(closes, 0, 4, n)
+    assert got is not None, "a delisting inside the calendar must still produce a return"
+    assert abs(got - 0.2) < 1e-12, f"expected the last traded price (12.0), got {got}"
+    # a name with no valid price anywhere in the window yields nothing
+    assert _forward_return(np.array([10.0, np.nan, np.nan]), 0, 2, 3) is None
+    # a non-positive or missing start price is not a return
+    assert _forward_return(np.array([0.0, 11.0, 12.0]), 0, 2, 3) is None
+    assert _forward_return(np.array([np.nan, 11.0, 12.0]), 0, 2, 3) is None
+
+
+def test_s22_extra_horizons_are_off_by_default_and_the_base_one_is_the_shipped_column():
+    """S22's controls C0 and C3, end to end on a real panel build rather than by inspection.
+
+    C3 — with no extra horizons requested the frame must be column-for-column what it was, so
+    the tracked BACKTEST_RESULTS.json cannot move.
+    C0 — asking for the BASE horizon as an "extra" must reproduce the shipped `fwd_ret` exactly.
+    If it does not, the added code path is not the shipped rule and every arm built on it is
+    measuring something else.
+    """
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+
+    prov = _SynthPIT(30, seed=7)
+    tickers = list(prov.q.keys())
+    kw = dict(rebalance_days=63, horizon=21, lookback_years=4)
+
+    plain = build_fundamental_panel(prov, tickers, **kw)
+    assert not plain.empty
+    assert not [c for c in plain.columns if str(c).startswith("fwd_ret_h")], \
+        "no extra horizon columns may appear unless asked for"
+
+    withx = build_fundamental_panel(prov, tickers, extra_horizons=[21, 42, 200], **kw)
+    assert list(plain.columns) == [c for c in withx.columns
+                                   if not str(c).startswith("fwd_ret_h")], \
+        "requesting extra horizons must ADD columns and move none"
+    assert len(withx) == len(plain), "the row set must not change"
+
+    a = pd.to_numeric(withx["fwd_ret"], errors="coerce").to_numpy(dtype=float)
+    b = pd.to_numeric(withx["fwd_ret_h21"], errors="coerce").to_numpy(dtype=float)
+    both_nan = (~np.isfinite(a)) & (~np.isfinite(b))
+    dev = np.where(both_nan, 0.0, np.abs(a - b))
+    assert float(np.max(dev)) == 0.0, f"C0: fwd_ret_h21 != fwd_ret, max dev {np.max(dev):.3e}"
+
+    # A window long enough to run past the calendar must lose whole DATES from the END. The
+    # calendar ends for every name at once, so censoring removes a SUFFIX of dates rather than
+    # scattering NaNs — and a scatter would be the signature of the delisting branch firing on
+    # censored windows, which is the defect this whole design turns on.
+    dates = sorted(withx["date"].unique())
+    obs = sorted(withx.loc[withx["fwd_ret_h200"].notna(), "date"].unique())
+    assert obs, "a 200-day window must still be observable on the early dates"
+    assert len(obs) < len(dates), "a 200-day window must censor the most recent dates"
+    assert obs == dates[:len(obs)], \
+        f"censoring must remove a suffix of dates, not a scatter; got {obs} of {dates}"
+
+
+def test_s22_extra_horizons_rejects_nonsense():
+    """A zero or negative horizon would silently produce a same-day or backward-looking
+    'forward' return."""
+    from valuation.edge.fundamental_panel import build_fundamental_panel
+
+    prov = _SynthPIT(4, seed=1)
+    for bad in ([0], [-63], [63, 0]):
+        try:
+            build_fundamental_panel(prov, list(prov.q.keys()), extra_horizons=bad,
+                                    rebalance_days=63, horizon=21, lookback_years=4)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"extra_horizons={bad} must raise")
+
+
+def test_s22_ret_col_defaults_to_the_shipped_column_and_can_select_another():
+    """`ret_col` is opt-in. The default must be bit-identical to the shipped call, and pointing
+    it at a different column must actually change the answer — otherwise the term structure
+    would be eight copies of one arm and every horizon would agree by construction."""
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=12, n_names=60, seed=11)
+    rng = np.random.default_rng(4)
+    p["fwd_ret_h126"] = p["fwd_ret"].values + rng.normal(0, 0.05, len(p))
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+
+    base = quantile_backtest(p, cols, w, n_q=10, horizon=63)
+    same = quantile_backtest(p, cols, w, n_q=10, horizon=63, ret_col="fwd_ret")
+    for k in base:
+        assert repr(base[k]) == repr(same[k]), f"{k} moved when ret_col was passed explicitly"
+
+    other = quantile_backtest(p, cols, w, n_q=10, horizon=126, ret_col="fwd_ret_h126")
+    assert other["top_decile_alpha"] != base["top_decile_alpha"], \
+        "a different forward column must give a different arm"
+
+
+def test_s22_a_censored_horizon_loses_dates_rather_than_scoring_them_short():
+    """The panel-level consequence of the censoring rule. A long-horizon column is NaN on the
+    most recent dates; `quantile_backtest` must DROP those dates, not score them on a partial
+    cross-section. A silently shortened date is indistinguishable from a real one in the output.
+    """
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=12, n_names=60, seed=11)
+    dates = sorted(p["date"].unique())
+    p["fwd_ret_h504"] = p["fwd_ret"]
+    p.loc[p["date"].isin(dates[-3:]), "fwd_ret_h504"] = np.nan     # right-censor the last 3
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+
+    full = quantile_backtest(p, cols, w, n_q=10, horizon=63, return_series=True)
+    cens = quantile_backtest(p, cols, w, n_q=10, horizon=504, ret_col="fwd_ret_h504",
+                             return_series=True)
+    assert cens["n_periods"] == full["n_periods"] - 3
+    assert cens["series"]["dates"] == full["series"]["dates"][:-3]
+    # and the dates it DID score are scored identically — the censoring removed dates, nothing else
+    for a, b in zip(cens["series"]["alpha"], full["series"]["alpha"][:-3]):
+        assert abs(a - b) < 1e-12
+
+
+def test_s22_quantile_backtest_refuses_an_absent_return_column():
+    """A typo in a column name must not silently fall back to `fwd_ret` and report the 63-day
+    answer under a 504-day label."""
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=8, n_names=40, seed=5)
+    try:
+        quantile_backtest(p, ["quality"], {"quality": 1.0}, ret_col="fwd_ret_h999")
+    except KeyError as exc:
+        assert "fwd_ret_h999" in str(exc)
+    else:
+        raise AssertionError("a missing forward-return column must raise, not fall back")
+
+
+def test_s22_hac_lag_is_the_overlap_the_grid_induces():
+    """At horizon H with a 63-day rebalance, consecutive windows overlap by H/63 - 1 periods.
+    The lag is a property of the design and is pinned so it cannot drift into a tuned choice.
+    At H=63 it must be 1 — the shipped R9 convention, not 0."""
+    from scripts.term_structure import hac_lag, ret_col, HORIZONS
+
+    assert [hac_lag(h) for h in HORIZONS] == [1, 1, 2, 3, 4, 5, 6, 7]
+    assert hac_lag(63) == 1, "the base horizon keeps the shipped lag-1 convention"
+    assert ret_col(63) == "fwd_ret", "the base horizon must read the SHIPPED column"
+    assert ret_col(252) == "fwd_ret_h252"
+
+
+def test_s22_kaplan_meier_is_censoring_aware():
+    """Tenure spells still open at the panel end are right-censored. Discarding them biases the
+    median DOWN, which is why KM is the primary and the naive median is reported beside it."""
+    from scripts.term_structure import _km
+
+    # four spells end at 1, one runs to 4 and is still open
+    spells = [(1, False), (1, False), (1, False), (1, False), (4, True)]
+    curve, median = _km(spells)
+    assert median == 1, f"four of five leave at t=1, so the median is 1; got {median}"
+    assert abs(curve[0]["survival"] - 0.2) < 1e-12
+
+    # censoring must RAISE the survival curve relative to treating censored spells as events
+    a, _ = _km([(1, False), (2, True), (2, True), (2, True)])
+    b, _ = _km([(1, False), (2, False), (2, False), (2, False)])
+    assert a[-1]["survival"] > b[-1]["survival"], \
+        "treating an ongoing spell as an exit must not survive better than censoring it"
+
+    # a single ongoing spell yields no events, so the median is undefined rather than 0
+    _, none_median = _km([(3, True)])
+    assert none_median is None
+
+
 def test_x3_deflated_sharpe_at_round_trips_and_falls_with_n():
     """X3's eight arms raise N, and a higher N must LOWER the Deflated Sharpe. That direction
     is the entire point of M1; a re-derivation that moved it the other way would be wrong."""
