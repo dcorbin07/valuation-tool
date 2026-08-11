@@ -7951,3 +7951,221 @@ python -m scripts.construction_rerun \
 
 Equity `N` **151 → 155**, √(2·ln 155) = **3.1760**; `BACKTEST_RESULTS.json` re-run from a clean tree
 so the artifact matches the record rather than going stale on the denominator.
+
+---
+
+# SESSION 22 (2026-08-11) — M2/M6: clustered inference as the default, and the schema guard that found ten dropped fields
+
+Two audit items, one session, both **infrastructure**: no hypothesis, no verdict.
+**Equity `N` is UNCHANGED at 155** — the denominator every DSR-gated claim uses, and the
+Deflated Sharpe is bit-identical at 0.8340367318547941. The two rows are logged to the **infra**
+domain at n=1 each (infra 8 → 10) on the V1/HACFLOOR precedent; infra `N` gates no published
+claim. That is stated exactly rather than as a flat "zero trials", because the flat version
+would be wrong.
+
+`PREREG_m2_m6.md` was committed **alone at `af88533`**, a strict git ancestor of the
+implementation, because M2 touches the statistic every pre-committed gate reads and a scope
+chosen after seeing the numbers move would be worth nothing.
+
+## 0. SCOPING CAME FIRST AND REMOVED MOST OF THE WORK
+
+Three findings before any code changed, each verified against the tree rather than the item
+text:
+
+* **The `M2`/`M6` ids collide, and the ledger warns about it.** `SECURITY_AUDIT.md` has an M2
+  and an M6 (LLM output escaping) — **already fixed at `96fd8bf`**. The real items are
+  `VALQUO_EDGE_AUDIT.md:1507` and `:1557`.
+* **M2's trade-level half was already DONE by `R3`**: `options_stats.py` carries the date-block
+  bootstrap (`:210`), purge/embargo for the CSCV splits (`:363`), the paired name-year sign
+  test, and **two** `n_eff` estimates that are explicitly never presented alone, gated on a
+  **shuffled null**. R3's rule — *a raw design effect is not evidence of clustering* — is the
+  precedent this session adopted on the equity side.
+* **M6's block-level half was already DONE by `B22`** (`RESULT_BLOCKS`, `missing_result_blocks`),
+  and **the options-bot lane had already published the correct remaining scope** while declining
+  to edit another lane's row (`HANDOFF_optionsbot.md:1280-1295`): *"the FIELD-level half does not
+  exist at all, and that is the half the R9 loss actually came through."* That report was
+  correct and is adopted here.
+
+**A correction to the prompt's own framing, recorded because it would mislead a later reader:**
+`statistics.py` did **not** "default to naive inference" — it had no inference function at all.
+The naive defaults were **four hand-rolled copies** scattered across `fundamental_panel` (x2),
+`engine/calibration.py` and `ev_multiples_study.py`.
+
+## 1. M2 — WHAT "CLUSTERED BY DEFAULT" COULD AND COULD NOT MEAN
+
+**The binding constraint, fixed in the register before any code existed: nothing in the
+published record moves, and no gate silently changes basis.**
+
+`long_short_tstat` — the **naive** statistic — is read by `holdout_compare_panels`
+(`fundamental_panel.py:3683-3696`), whose **+0.25 t** and **+100bps** margins were committed
+against it and which decided `SECTOR-NEUTRAL-B6`, `S20` and `S21`; by `holdout_theme_validate`;
+by `ablation.py:154`; by `ev_multiples_study.py:294`. And the calibrated floors are
+**statistic- AND lag-specific**: naive **2.1437**, HAC **2.2837**, alpha HAC **2.2913**, all at
+the full-universe decile book, 69 dates, H = 63, **lag 1**. Session 10 exists precisely because
+X7 calibrated 2.14 on the naive statistic, R9 then made the HAC one the quoted number, and the
+two were compared to each other for two sessions.
+
+So clustered became the default **by being what the one shared function returns as its
+unqualified `t`** — not by redefining keys the record and the gates depend on.
+
+* `valuation/edge/statistics.py::mean_inference` is now **the** cross-date definition. `t` = HAC;
+  `t_naive` = the i.i.d. figure, explicitly labelled a diagnostic; **`n_eff` beside `n`**.
+* `fundamental_panel`'s `_tstat`, `_nw_tstat`, `_ljung_box` and `_chi2_sf` are **thin
+  delegations**, verified **bit-identical over 400 random series including None/NaN injection:
+  max |Δ| = 0.000e+00** on both estimators. That is control C1.
+* Five sites gained an additive `*_inference` block: long-short, top-decile alpha, benchmark
+  excess, `per_signal_ic`, `theme_ic`.
+
+**THE SUBSTANTIVE GAP: the theme IC *t* — the statistic carrying X7's calibrated 2.71 bar, the
+bar `quality` and `capital_discipline` are said to clear — had no clustered variant computed
+anywhere, ever.** Nor did `per_signal_ic`. `ic_tstat` is untouched, so the 2.71 bar still
+applies to exactly the number it was calibrated on; `ic_inference.t` is a **new statistic with
+no calibrated floor** and **may not be compared to 2.71**.
+
+### C4 — clustered vs naive, MEASURED, and the expectation was WRONG
+
+| series | n | rho(1) | n_eff | naive t | HAC t | Ljung-Box p |
+|---|---|---|---|---|---|---|
+| long-short spread | 69 | +0.189046 | 47.06 | 2.8361 | 2.6199 | 0.0365 |
+| top-decile alpha | 69 | +0.081237 | 58.63 | 4.5174 | 4.3762 | 0.0359 |
+
+| theme | naive t | HAC t | rho | n_eff |
+|---|---|---|---|---|
+| quality | 3.1015 | 2.9837 | +0.0964 | 56.86 |
+| capital_discipline | 2.7556 | 2.6342 | +0.1104 | 55.28 |
+| institutional | 1.5470 | 1.6830 | −0.1375 | 49.00 |
+| momentum | 1.3118 | 1.4182 | −0.1318 | 69.00 |
+| value | 0.8380 | 0.7892 | +0.1442 | 51.61 |
+| growth | 0.7517 | 0.7507 | +0.0174 | 66.64 |
+| low_risk | 0.4623 | 0.5093 | −0.1637 | 69.00 |
+| insider | −0.2362 | −0.2319 | +0.0522 | 62.16 |
+| size | −0.3008 | −0.3275 | −0.1442 | 69.00 |
+
+**REPORTED BECAUSE IT CUTS AGAINST THE CHANGE: the theme IC series are NOT materially
+autocorrelated.** The clustered *t* is below the naive one in only **5 of 9**, the largest |ρ| is
+**0.164**, and **four of nine are negative** — which *improves* precision, hence `n_eff` clipped
+at 69. Unlike the long-short spread, there is little serial correlation to correct. **The
+pre-registered expectation (60/40 that they ARE autocorrelated) was wrong, and the gap closed is
+completeness rather than a moved number.** `institutional` shows n = 49 not 69 because the theme
+is empty before 2013-06-30, consistent with the record; `sentiment` is empty, likewise.
+
+### Deliberately NOT done (RUN_RULES A4)
+
+* **The autocorrelation-derived lag is REPORTED, NOT ADOPTED.** Schwert gives **3** at n = 69.
+  Adopting it would move the published HAC *t* of 2.6199 **and** invalidate the 2.2837 floor
+  calibrated at lag 1 — a re-quote and a re-calibration, not a refactor. Ships as `auto_lag` /
+  `t_auto_lag` with a note in the payload itself.
+* **The gates still read the naive statistic they were calibrated on.** Pinned by test.
+* **The CPCV embargo is NOT fixed.** `ret_12_1` reaches back 252 trading days — four rebalance
+  periods — against a **one-period** embargo, so a test period's realised returns feed the
+  momentum features of the next four training dates. Real, probably material, and a **results
+  change**: it moves PBO, the Deflated Sharpe and the adopt gate. **Still open, needs its own
+  register.**
+
+## 2. M6 — THE GUARD, AND THE FIVE LIVE DROPS IT FOUND
+
+The class: a hand-written fixed list of field names projects a producer's dict into the payload,
+and anything not on the list is dropped **silently**. It had bitten twice, both caught by a human
+reading two files side by side — R9's `top_decile_alpha_tstat = 4.517421601141459` recorded as
+`None`, and `archive_scan` storing `fair_value` but not *why* it was blank.
+
+`valuation/edge/payload_schema.py` enumerates **from the producer at runtime**, never from a
+registry, because M3's census established that a registry-reading guard cannot see an
+unregistered field — exactly the thing it exists to catch. Every source key must be **carried,
+renamed, or allowlisted with a reason**; an allowlist entry is a decision somebody wrote down and
+left in a diff.
+
+| block | dropped | why it matters |
+|---|---|---|
+| `portfolio` | `label_warning`, `target_n`, `exit_rank`, `held_min/median/max`, `charges_costs`, `charges_taxes` | **B17's ENTIRE disclosure**, computed by `_backtest_hold` and carried nowhere. `portfolio.cagr` shipped as "the top-25 hold book" with no warning that it holds ~`exit_rank` names and pays neither costs nor taxes. **The fix for B17 was being computed and thrown away.** The canonical file now carries **`held_median = 42`** for the book labelled "top 25". |
+| `cpcv` | `adopt_detail`, `challenger_weights_cols` | Session 12 banked these **specifically** so "what would this run have scored one haircut lower" is arithmetic, after the X7 8%-vs-7% discrepancy proved undiagnosable without them. Neither reached the canonical file — the only place a later session would look. **Banking a number into a dict nobody serialises is not banking it.** |
+| `ev_freshness` | `rows` | The **denominator** of the `fresh` fraction. "100% of rows priced at the rebalance date" over 12 rows and over 113,945 rows are not the same claim. |
+
+All ten now ship. `SCHEMA_VERSION` 4 → 5, purely additive; a v4 reader still works.
+
+### The tenth field is the best evidence for the guard, because it found it against its author
+
+`ev_freshness.rows` was caught **by the guard on its first real run** — it had escaped the
+hand-built `BLOCK_SPEC` because that spec was derived by walking each producer's `return`
+statements in the AST, and `ev_freshness` builds its dict **incrementally**
+(`out["rows"] = int(n)`) rather than returning a literal. **Static analysis could not see it; a
+runtime producer-enumerating guard could.** That is M3's thesis demonstrated on my own static
+pass, which is a better argument for the design than any test I wrote.
+
+### A defect in my own change, caught before it shipped
+
+**The guard would have been swallowed.** `main()` wraps the results write in
+`try/except Exception` commented *"Never allowed to fail a completed backtest"*. That intent is
+right — a serialisation hiccup must not discard 40 minutes of work — but it would have caught
+`PayloadSchemaError` and printed it as a warning nobody reads. **A check that cannot fail
+anything is not a check, which is the exact pattern M6 exists to close.** The schema error now
+has its own handler **ordered ahead of** the blanket one; the run keeps every artifact it already
+wrote and then exits **non-zero**. Pinned by an AST test that fails if a blanket handler is ever
+placed in front of it.
+
+**No environment-variable escape hatch was built** (RUN_RULES A5). Pinned by a test that looks
+for an actual env *read* — its first version tripped on the comment *saying* no escape hatch
+exists, which is the wrong kind of failure and was fixed rather than loosened.
+
+### The integration test FAILED first, which is why it is worth anything
+
+* **Run 1** was killed externally at rebalance 60/69 and left **no partial state** (tree clean,
+  artifact untouched).
+* **Run 2** completed every computation and then **failed at the write step** on
+  `ev_freshness.rows`, writing both files first and exiting non-zero exactly as designed.
+* **Run 3**, after the fix, passes with `errors: []` and exit 0.
+
+A guard whose first live run passes silently proves much less than one that fails on a real
+defect nobody knew about and then passes once it is fixed.
+
+## 3. CONTROLS
+
+* **C1 — nothing moved.** Delegations bit-identical (max |Δ| 0.000e+00 over 400 series), and the
+  artifact leaf diff reads **1,217 → 2,423 leaves, 1,206 ADDED, ZERO REMOVED**, 14 moved of which
+  5 are timestamp/provenance and **9 are last-digit float noise** in the cost curves
+  (41.894808649779975 → 41.89480864977999). Every headline bit-identical: `long_short_tstat`
+  2.8360640685320595, `long_short_tstat_nw` 2.6199121240414884, `top_decile_alpha`
+  0.07174142332098163, `monotonicity` −0.8909090909090909, `deflated_sharpe` 0.8340367318547941,
+  `n_trials` 155, `cpcv.adopt` false.
+* **C2 — the guard fires on the real historical bug** (R9's dropped `top_decile_alpha_tstat`) and
+  on the options-bot lane's own `a_brand_new_metric` demonstration.
+* **C3 — `archive_scan` records WHY a row was blank**, verified by writing and re-reading the gzip.
+* **C4 — clustered vs naive measured and reported both ways** (§1, and the finding cuts against
+  the change).
+* **C5 — the guard is NOT vacuous**: it passes on a complete realistic payload, and it passed the
+  real pipeline on run 3.
+* **C6 — a new naive t-stat cannot be added silently**; the delegation is pinned.
+* Plus: a block that **threw** is not also reported as dropping fields — keeping the two error
+  classes distinct is the same lesson `missing_result_blocks` carries.
+
+## 4. TESTS
+
+`tests/test_edge.py` **295 → 312** (17 new, each guard with a known-bad fixture per M3).
+Full sweep **56/57** with the only red being `test_guards`, which I had already fixed after that
+sweep ran it; a targeted re-run of the six suites touching the changed surfaces is **6/6 green**,
+with `test_guards` back at its recorded baseline (35 pass, 1 xfail, 0 failed).
+
+**One assertion in another lane's test was NARROWED, and it is called out rather than buried.**
+`test_a_block_that_threw_is_caught_by_the_writer_not_by_the_block_check` asserted
+`[e["block"] for e in errs] == ["cpcv"]`. Its synthetic `{"x": 1}` blocks are legitimately
+reported by the new field-level guard, which is not what that test pins, so it now filters to the
+threw-class errors it is about. Intent unchanged; the change is commented in place.
+
+## 5. BUGS FOUND
+
+1. **`valuation/engine/calibration.py:737`** — a **fourth** hand-rolled naive t-stat, identical in
+   shape to `quantile_backtest`'s local one. **Engine lane.** Not touched.
+2. **The CPCV one-period embargo vs a 252-day feature lookback** (M2's own last paragraph).
+   Materially affects PBO/DSR. **Still open.**
+3. **`main()`'s blanket `except Exception`** would have swallowed the new guard — fixed for the
+   schema error, but the same handler still swallows every *other* results-write failure into a
+   printed line. Pre-existing design, left alone, flagged as the same family.
+4. **Five live payload drops, ten fields** (§2) — all fixed.
+
+## 6. WHAT I DID NOT DO
+
+* Did not re-quote, re-run or re-calibrate any published figure.
+* Did not change any gate, threshold, weight or `CONFIG` value.
+* Did not adopt the auto lag; did not fix the CPCV embargo.
+* Did not touch the options, engine or research lanes.
+* Did not charge an equity trial: **equity `N` stays 155**.

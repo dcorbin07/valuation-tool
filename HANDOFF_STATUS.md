@@ -4,6 +4,65 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — edge lane, session 22 (M2 + M6): clustered inference is the default, and the schema guard found TEN dropped fields
+
+Two audit items, both **infrastructure**: no hypothesis, no verdict. **Equity `N` is UNCHANGED at
+155** and the Deflated Sharpe is bit-identical at 0.8340367318547941; the two rows go to the
+**infra** domain at n=1 each (infra 8 → 10), and infra `N` gates no published claim.
+`PREREG_m2_m6.md` was committed **alone at `af88533`**, a strict ancestor, because M2 touches the
+statistic every pre-committed gate reads.
+
+**Scoping removed most of the work, and it was checked against the code rather than the item
+text.** The `M2`/`M6` in `SECURITY_AUDIT.md` are a **different pair, already fixed at `96fd8bf`**.
+Of the real items, **M2's whole trade-level half was already delivered by R3** and **M6's
+block-level half by B22** — the options-bot lane had already published the correct remaining
+scope, and that report was adopted rather than re-derived.
+
+**M2 — "clustered by default" could NOT mean redefining the existing keys.** `long_short_tstat` is
+naive and is what `holdout_compare_panels` reads; its **+0.25 t** margin was committed against it,
+and the floors are statistic- AND lag-specific (naive 2.1437 / HAC 2.2837 / alpha HAC 2.2913, all
+at **lag 1**). So clustered is the default by being what the one shared function returns as its
+unqualified `t`. `statistics.py::mean_inference` is now THE definition; four hand-rolled copies
+delegate to it, **bit-identical over 400 random series, max |Δ| 0.000e+00**. **`n_eff` now travels
+with `n`**: long-short ρ **+0.189046** (reproducing R9's +0.189) → **n_eff 47.06 of 69**.
+
+**The theme IC t — the statistic carrying X7's 2.71 bar — had no clustered variant computed
+anywhere, ever.** It has one now; `ic_tstat` is untouched so the bar still applies to the number it
+was calibrated on, and the new figure has **no calibrated floor** and may not be compared to 2.71.
+**Reported because it cuts against the change: the theme IC series are NOT materially
+autocorrelated** — clustered below naive in only **5 of 9**, max |ρ| 0.164, four of nine negative.
+**The pre-registered expectation was WRONG**; the gap closed is completeness, not a moved number.
+
+**M6 — the field-level guard found FIVE live drops, TEN fields, none previously known.**
+`_backtest_hold` computes **B17's entire disclosure** and `build_payload` carried none of it, so
+`portfolio.cagr` shipped with no warning that the book holds ~`exit_rank` names and pays neither
+costs nor taxes — **the fix for B17 was being computed and thrown away.** The canonical file now
+carries **`held_median = 42`** for the book labelled "top 25". Session 12's `adopt_detail` /
+`challenger_weights_cols` were likewise never serialised. `SCHEMA_VERSION` 4 → 5, additive.
+
+**The tenth field is the best evidence for the guard: it found it against its author.**
+`ev_freshness.rows` — the denominator of the `fresh` fraction — was caught **on the guard's first
+real run**, having escaped my hand-built spec because that spec came from walking each producer's
+AST and `ev_freshness` builds its dict incrementally. Static analysis could not see it; a runtime
+producer-enumerating guard could.
+
+**A defect in my own change, caught before shipping: the guard would have been SWALLOWED** by
+`main()`'s blanket `except Exception`. A check that cannot fail anything is not a check — the exact
+pattern M6 closes. It now has its own handler ahead of the blanket one and exits **non-zero**;
+no env-var escape hatch (RUN_RULES A5). **The integration test FAILED first and then passed**,
+which is why it is worth anything.
+
+**Suites:** `test_edge` 295 → **312**; full sweep 56/57 (the one red since fixed) plus **6/6**
+affected suites re-run green. One assertion in another lane's `test_guards.py` was **narrowed**,
+intent unchanged, and it is called out rather than buried.
+
+**STILL OPEN, reported not fixed:** the **CPCV embargo is ONE rebalance period against a 252-day
+`ret_12_1` lookback** — a results change that moves PBO/DSR and needs its own register; and
+`valuation/engine/calibration.py:737` is a **fourth** hand-rolled naive t-stat (engine lane).
+
+**Recommended next step:** the CPCV embargo, pre-registered on its own, since it is the one M2
+item left and the only one that can move a published number.
+
 ## 2026-08-11 — options-bot lane (O13 + O12): the anti-signal is DIFFUSE and un-tradeable, and the dead entry costs 2.75× in position size
 
 Two ledger items closed, one session, frozen book, no re-mine, no live code path touched. Both
