@@ -178,7 +178,7 @@ not be tidied away.
 | O11 | O | Portfolio layer for single-leg | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
 | O12 | O | Fractional Kelly / ruin | OPEN |  |  | HANDOFF_edge_audit.md |  | human | Unblocked by B3 (tail and sizing work). No write-up yet. |
 | O13 | O | Anti-signal decomposition | OPEN |  |  |  |  | auto | prose mentions only, no section, no commit |
-| O14 | O | Tick flow, alert days only | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
+| O14 | O | Tick flow, alert days only | INPROGRESS | collection done, analysis not started |  | HANDOFF_ticks.md | 2026-08-11 | human | COLLECTION HALF DONE. 3,884 of 3,885 alert-days cached to data/options_ticks/ (70,288,482 prints, 4.72GB, one genuine feed gap at BUD 2024-01-10). NO analysis was run and none may be quoted; the analysis half is a separate pre-registered options-bot job and this row stays open until it lands. |
 | O15 | O | Re-mine beyond 90 DTE | DONE |  | 06e44fe | HANDOFF_miner_remine.md | 2026-08-06 | human | Re-mined to 200 DTE, 100 names deep; a silent symbol-year loss was found and fixed. |
 | O16 | O | Is term_slope a front-IV level? | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |
 | O17 | O | Earnings filter for the long arm | OPEN |  |  |  |  | auto | no mention anywhere in the corpus |

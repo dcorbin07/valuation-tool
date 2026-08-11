@@ -18,6 +18,45 @@ file directly.
 
 ---
 
+## O14 — TICK FLOW COLLECTED FOR EVERY BANKED ALERT-DAY (2026-08-11, ticks lane) — DATA ONLY
+
+Full write-up in `HANDOFF_ticks.md`. **Collection only — no analysis was run and none may be
+quoted from this cache.** O14's analysis half is a separate pre-registered options-bot job; the
+ledger row stays `INPROGRESS` until that lands. **The chain freeze was not touched** — new
+directory, `data/options_ticks/`.
+
+**3,884 of 3,885 alert-days cached: 70,288,482 prints, 433,725,746 contracts traded, 4.721 GB**,
+186 names, 1,574 dates, 2016-01-19 → 2025-10-15. Zero missing, zero not attempted. The single
+`.empty` is BUD 2024-01-10, a genuine feed gap (autopsied: `option_history_trade` returns 766
+rows there and the EOD cache shows 5,883 contracts, but the trade+quote JOIN is absent for that
+name all week). Endpoint is `option_history_trade_quote`, so the aggressor side is a measurement
+rather than an inference; no DTE cap, measured rather than assumed.
+
+**Projected 2.93 GB from a 20-day stratified sample, actual 4.721 GB — the projection was 61%
+light**, because prints were fitted against EOD chain volume and the EOD cache is capped at 200
+DTE and slim-filtered, so it cannot see the LEAPS breadth an uncapped pull collects. The go/no-go
+was never close (4.7 GB is 1.9% of free disk against a 40 GB floor). **A predictor built from a
+FILTERED cache systematically understates an UNFILTERED pull** — worth knowing before the next
+job is sized nearer its limit.
+
+Three defects found and fixed, all mine, all recorded in the handoff: a **cached gRPC client that
+disabled `theta_bulk`'s only channel-recovery path** (141 units lost to the documented
+dead-channel signature, all recovered); **ticker renames bypassing `ALIASES`** (31 of 32 `.empty`
+units were FB and UTX rows filed under META and RTX — META 2016-01-28 alone returned 117,479
+prints that had been recorded as "no data"; provenance now on disk as `alias_used`); and a
+**coverage report that counted prints from the manifest but existence from the filesystem**,
+understating by 67,523 prints across units the killed first run had written.
+
+Also measured, and it inverts the obvious tuning: **concurrency buys nothing on this feed.**
+Per-call latency scales nearly linearly with workers while throughput stays flat (1.8 / 2.5 / 1.9
+units per minute at 1 / 2 / 4), because the server serialises the account. Four workers merely
+pushed every call past the 75s deadline. **Run this miner with `--workers 1`.**
+
+New files only, nothing existing edited: `mine_tick_flow.py`, `tests/test_tick_flow.py` (6/6),
+`TICK_FLOW_COVERAGE.json`. **Full gate: 25 of 25 suites pass** (edge 259/259).
+
+---
+
 ## GREEKS — THE DERIVED LAYER GREW 315 → 502 NAMES (2026-08-08, greeks lane)
 
 Full write-up in `HANDOFF_greeks.md`. Pure local compute: zero vendor option calls, and
