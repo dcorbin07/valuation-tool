@@ -18,6 +18,9 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+import state_isolation   # noqa: E402,F401  — LA15: temp state only. Import BEFORE `valuation`.
 
 from valuation.screener import index_track as IT           # noqa: E402
 from valuation.screener import screen as SC                # noqa: E402
