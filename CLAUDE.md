@@ -44,6 +44,53 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE EXIT RULE WAS RACED AND NOTHING BEATS THE INCUMBENT — BUT NEVER SELLING COSTS
+  10.89pp/yr, AND THAT CONFIRMS S22 RATHER THAN CONTRADICTING IT
+  (2026-08-11, session 19, `S23`).** The live book holds a name until it falls out of the top 50,
+  min-hold 2, and that exit had never been tested against an alternative. One buy rule and an
+  identical `min_hold` across every arm, so only the exit differs.
+  `PREREG_s23_exit_rule.md` was committed **alone at `6a73485`**, a strict ancestor of the
+  measurement commit, with **both TP/SL pairs named from published convention and NO grid swept** —
+  `sweep_hold_params` already sweeps `trailing_stop` over four values and picking its best cell is
+  the in-search +8.43%/yr → locked hold-out −0.04%/yr failure already paid for.
+  * **NO CHALLENGER BEATS THE INCUMBENT.** Fair-value point -0.13pp/yr
+    (HAC *t* -0.368), fair-value lens band
+    +0.37pp (+0.866),
+    O'Neil +25/−8 -0.21pp (-0.396),
+    2:1 +20/−10 -0.13pp (-0.254) —
+    **all under 0.4pp/yr in either direction on 69 paired periods, net of costs**; per-arm placebo floors A1_FV_POINT 1.9181, A2_FV_LENSBAND 1.8518, A3_TPSL_ONEIL 2.0260, A4_TPSL_2TO1 2.0489, C_NEVER 2.5543.
+    **THREE OF THE FOUR FLIP SIGN BETWEEN HALVES**, and the only arm with a positive full-sample
+    difference is exactly the one that fails the both-halves requirement. Session 7's LOO pattern
+    again.
+  * **THE CONTROL IS THE ONE MEASURABLE EFFECT AND IT IS LARGE: never selling costs
+    10.89pp/yr at HAC *t* -3.801**, the book grows to
+    **417 names** and alpha vs the equal-weighted universe collapses
+    **15.48% → 3.37%**.
+    **THIS DOES NOT CONTRADICT S22, AND READING IT THAT WAY IS THE MAIN WAY IT GETS MISUSED.**
+    S22 measured a cohort selected on ONE date beating the universe for ~8 quarters; a never-sell
+    book keeps **buying**, so it accumulates cohorts of every age and over 69 rebalances converges
+    on a 417-name slice of the universe. **Dilution, not friction** —
+    its gross 20.61% barely differs from its net because it never
+    trades. *"The edge persists" and "hold forever" are different claims, and only the first is
+    true.*
+  * **THE LEVELS ARE NOT A NEW HEADLINE.** `_backtest_hold` is the concentrated top-25→50 book
+    **B17** already calls the noisiest number in the results file. S23 quotes **differences
+    between exit rules** on that object; the incumbent's own CAGR is not a claim it makes.
+  * **THREE DEFECTS FOUND AND FIXED, all reported in their own right.** (a) **`build_valuation_panel`
+    still carried the B6 per-ticker tail** — measured on the same 25 names it gave **110 rebalance
+    dates from 1998-12-31** (the inverted-universe window) against the corrected **69 from
+    2009-01-15**; **any prior `run_calibration` conclusion should be re-run before it is quoted.**
+    (b) **The point-in-time valuation was fetching LIVE Yahoo prices** through `_resolve_beta`'s
+    corroboration rung — valuing 1999 with a beta regressed on 2021-2026 returns — **157 calls per
+    1,122 rows**; there is now an explicit offline mode and the build **asserts zero network
+    calls**. (c) **`_backtest_hold` extracted a column once per NAME instead of once per date**,
+    114,774 extractions per call, each deep-copying the panel's `.attrs`: **61 of 70 seconds**,
+    fixed 15.6s → 2.7s and **proved bit-identical over 1,818 leaves**.
+  * **Equity `N` 143 → 149.** **ADOPTS NOTHING** — adoption is a **VINTAGE EVENT** that resets the
+    five-year clock for zero statistical gain, and is Don's call on this evidence. Whether the
+    stop-loss or the take-profit does the damage is recorded **UNRESOLVED**, because the two
+    arms differ in both legs at once and adding a one-legged arm now is the grid search the
+    register forbids.
 - **THE EDGE DOES NOT DECAY OVER TWO YEARS, THE LONG-SHORT SPREAD DOES, AND A HOT NAME LASTS
   ONE REBALANCE (2026-08-10, session 18, `S22`).** Every HEADLINE figure the project publishes is
   measured at a single 63-day forward window because `build_fundamental_panel` computes one
