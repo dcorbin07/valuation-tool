@@ -112,12 +112,13 @@ CONTRACT_VERSION = "option-E-2026-08-09+amendment-1"
 # explicitly NOT the object of a contract verdict, because it mixes models.
 VINTAGES = (
     {"vintage": 1, "run": 1, "opened": _dt.date(2026, 7, 30), "closed": _dt.date(2026, 8, 9),
-     "status": "VOID",
+     "status": "VOID", "label": "growth-input and score fixes, universe rebuild",
      "reason": "growth-input fix, score fix, universe rebuild - the measured model no longer "
                "exists. Voided by Amendment 1 under §3's 'any change to how the Index is "
                "constructed'. The voided window was known to be -2.85pp; see §5a's disclosure."},
     {"vintage": 2, "run": 2, "opened": _dt.date(2026, 8, 10),
      "closed": _dt.date(2026, 8, 11), "status": "CLOSED",
+     "label": "opened by Amendment 1",
      "reason": "opened by Amendment 1, with ZERO accrued days - so no window's sign could have "
                "informed this start date. CLOSED 2026-08-11 by the theme restoration: "
                "capital_discipline reached a live score for the first time, which changes the "
@@ -137,6 +138,7 @@ VINTAGES = (
     # recording a FOUR-theme book; that record cannot be carried forward as evidence about a
     # five-theme one.
     {"vintage": 3, "run": 2, "opened": _dt.date(2026, 8, 11), "closed": None, "status": "OPEN",
+     "label": "capital_discipline restored",
      "reason": "opened by the theme restoration - capital_discipline reaches a live score from "
                "free SEC XBRL company facts, after clearing a pre-registered fidelity gate at "
                "Spearman +0.8421 against the panel's own theme. institutional (+0.1706) and "
@@ -151,6 +153,65 @@ def current_vintage() -> dict:
     if len(live) != 1:
         raise RuntimeError(f"expected exactly one OPEN vintage, found {len(live)}")
     return live[0]
+
+
+def vintage_label() -> dict:
+    """How the OPERATED RECORD names itself, computed from the register above.
+
+    WHY THIS IS DERIVED AND NOT A STRING SOMEBODY TYPES
+    ---------------------------------------------------
+    §5a Rule 4: "a verdict is a statement about a vintage, and must name it." A surface showing
+    a forward track is showing exactly such a statement, so it has to say WHICH vintage -- and
+    the moment that name is hand-written on a page it starts drifting from the register. This
+    session is the proof: the work was commissioned as "vintage 2 since 2026-08-11, vintage 1 in
+    shadow", and the register says the live vintage is 3 and the shadowed one is 2. The theme
+    restoration had already opened a vintage that the request had not caught up with. Deriving
+    the label means the page cannot be wrong about this even for a day.
+
+    That is also why the test pins the DERIVATION and not the number. `test_track_meter.py`
+    already learned this the hard way -- it used to assert "it is vintage 2", and a legitimate
+    vintage event then failed a test that exists to catch two vintages being open at once.
+
+    THE SHADOW HALF, AND WHY IT IS COMPUTED HERE RATHER THAN IMPORTED
+    ----------------------------------------------------------------
+    The predecessor is the highest-numbered vintage below the open one -- a fact about THIS
+    register. `shadow_vintage.open_pairs()` answers the neighbouring question of whether that
+    predecessor can actually be SCORED (it needs a pinned parameter snapshot), and importing it
+    here would invert this module's dependency direction for a number it already holds.
+    The two are cross-checked by `tests/test_vintage_label.py`, which may import both.
+
+    NOTHING MEASURED CROSSES THIS FUNCTION. It returns bookkeeping -- which vintage, opened
+    when, what opened it -- and no return, excess or paired difference. That distinction is what
+    keeps `V1`'s outbound fence meaningful: PT-OUTBOUND leaked a research FIGURE, and the fence
+    exists to stop that, not to make the vintage's existence a secret from its own owner.
+    """
+    cur = current_vintage()
+    n = int(cur["vintage"])
+    earlier = [int(v["vintage"]) for v in VINTAGES if int(v["vintage"]) < n]
+    shadow = max(earlier) if earlier else None
+    since = cur["opened"].isoformat()
+    reason = (cur.get("label") or "").strip()
+
+    # "Book vintage 3 since 2026-08-11 (capital_discipline restored)" -- then the shadow clause
+    # only when there IS a predecessor. Vintage 1 had none, and a trailing "; None runs in
+    # shadow" is exactly the kind of stub that reads as a bug on the one surface nobody revisits.
+    head = f"Book vintage {n} since {since}"
+    if reason:
+        head += f" ({reason})"
+    phrase = head if shadow is None else f"{head}; vintage {shadow} runs in shadow"
+
+    return {
+        "vintage": n,
+        "since": since,
+        "label": reason,
+        "shadow_vintage": shadow,
+        "phrase": phrase,
+        # The contract's own words for what this record is and is not. Carried WITH the label
+        # so a surface cannot show the vintage name while dropping the reason it matters.
+        "rule": ("An adopted change to scoring, weights or construction closes the current "
+                 "vintage and opens the next. Each vintage carries its own clock, and a verdict "
+                 "is a statement about a vintage, not about the system as a whole."),
+    }
 
 
 def _months_after(d: _dt.date, n: int) -> _dt.date:
@@ -554,6 +615,10 @@ def detail(series: Sequence[dict] = None, as_of: _dt.date = None,
             "source": "published Valquo Index (valquo_track_history.csv)",
             "not_the_sandbox_engine": True,
             "vintage": v["vintage"], "run": v["run"],
+            # The register's own rendering of itself. `vintage` above is the number a caller
+            # computes with; this is the sentence a surface prints, and it exists so that
+            # printing one never means re-deriving the other by hand.
+            "vintage_label": vintage_label(),
             "inception": v["opened"].isoformat(),
             "operational_gate_date": OPERATIONAL_GATE.isoformat(),
             "verdict_date": VERDICT_DATE.isoformat(),

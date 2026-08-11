@@ -5,6 +5,154 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 27 — 2026-08-11 — the operated record now names its vintage, and the
+label it was commissioned with was wrong
+(prompt: vintage 2 is live (theme restoration, 2026-08-11); surface the vintage on the
+owner/track pages — "Book vintage 2 since 2026-08-11 (capital_discipline restored); vintage 1
+runs in shadow" — and verify the theme bars/legend picked up the fifth theme correctly from
+data (they should be data-driven; confirm, do not assume). Public posture language unchanged.
+Pin the label to the vintage register. Ledger; merge main first; push and verify.)
+
+## 0. The headline, and it is the label itself
+
+`PAPER_TRACK_CONTRACT.md` §5a Rule 4: *"a verdict is a statement about a vintage, and must name
+it."* The forward-track card is the closest thing the product publishes to such a statement, and
+it named an inception date without ever naming the vintage that date belongs to.
+
+**The label this work was commissioned with is off by one on both numbers.** Measured against
+the register in the same hour, not inferred:
+
+```
+current_vintage()      -> vintage 3, opened 2026-08-11
+open_pairs()           -> live 3, shadowed by 2
+asked for              -> "Book vintage 2 ...; vintage 1 runs in shadow"
+```
+
+Vintage 2 was opened by Amendment 1 on 2026-08-10 and **closed after ONE accrued day** by the
+theme restoration. Vintage 1 is the *voided* run #1. So the requested string would have
+published a wrong vintage number **and** a wrong shadow, on the one surface whose entire job is
+to say which book the numbers describe — and it would have been wrong from the day it shipped,
+because the restoration had already taken the vintage.
+
+It now renders:
+
+> **Book vintage 3 since 2026-08-11 (capital_discipline restored); vintage 2 runs in shadow**
+
+## 1. Derived, never typed — and pinned to the derivation
+
+`track_meter.vintage_label()` rebuilds the sentence from `VINTAGES`: the open vintage's number,
+its opening date, its own short label, and the immediately preceding vintage as the shadow. Each
+register row gained a `label` field (≤60 chars) so even the parenthetical comes from the
+register rather than being invented at a surface.
+
+**No test asserts "3".** `tests/test_track_meter.py` already learned that the hard way — it used
+to assert *"it is vintage 2"*, and a legitimate vintage event then failed a test that exists to
+catch two vintages being open at once. The tests here reconstruct the phrase from the register
+and compare, and mutate a single-vintage register in to prove the no-predecessor branch emits no
+`"; None runs in shadow"` stub.
+
+## 2. Two sources for one fact, cross-checked rather than merged
+
+`track_meter` answers *which vintage is open*. `shadow_vintage.open_pairs()` answers the
+neighbouring question of whether that predecessor can actually be **scored** (it needs a pinned
+parameter snapshot). The label computes the predecessor from its own register — importing
+`shadow_vintage` into `track_meter` would invert the module's dependency direction for a number
+it already holds — and a test asserts the two never disagree.
+
+## 3. V1's outbound fence held, and was re-asserted from the new surface
+
+`test_shadow_vintage.py` forbids the string `shadow_vintage` anywhere under `valuation/web` or
+`valuation/saas`, because **PT-OUTBOUND** published a research *figure* to Discord. The label
+reaches the web layer through `track_meter` only, and a mutation that adds `shadow_vintage` to
+`app.py`'s import is caught.
+
+The label also carries **no measurement** — no return, excess or paired difference — pinned by a
+test that rejects float values and measurement-shaped keys. **Naming a vintage is bookkeeping;
+publishing its paired difference is the thing the fence exists to stop.** Both carriers
+(`/api/index-track`, and `/api/track` via `contract_track`) are in `OWNER_ONLY_PATHS`, pinned,
+because the argument that this is safe to render rests on it.
+
+## 4. The theme legend — and the answer is split
+
+**The bars were always data-driven, and picked the fifth theme up on their own.** `_themeBars`
+enumerates `Object.entries(w)` over whatever weights the payload carries, and
+`health.theme_contributing` is computed server-side over `settings.FACTORS_ALL`. Confirmed by
+running them, not by reading them.
+
+**What was hardcoded was the caption under the bar, and it was wrong on two counts about the one
+theme the whole day was about:**
+
+```
+capital_discipline: "low share issuance · low asset growth (dormant — needs data)"
+```
+
+* It was **not dormant** — it had just become the fifth live theme, the adoption that opened
+  vintage 3.
+* `factors.py:265` computes it as `df[["z_neg_issuance"]].mean(axis=1)` — **issuance only**.
+  Asset growth was deliberately removed for cancelling out the one input that works.
+
+A confident wrong caption is worse than a missing bar: a missing bar invites a question, a
+caption closes one.
+
+Fixed by moving the copy to `valuation/web/theme_status.py`, following the
+`score_confidence.py` / `hold_horizon.py` convention already in the tree — injected as
+`window.THEME_STATUS`, escaped but never reworded in `app.js`. Dormancy renders as its own
+flagged line instead of being folded into the ingredient list. The dead themes now say **why**:
+`institutional` and `insider` FAILED `PREREG_theme_restoration.md`'s fidelity gate (Spearman
++0.17 and +0.36 against 0.60) — *"needs data"* would have implied the fix is a download, and it
+is not. `low_risk` is described as zeroed on evidence, not as missing.
+
+**Deliberately not derived from a live scan.** `health.theme_contributing` measures what survived
+standardization *today*, and is the right instrument for the scan-health warning. But
+`issuance.py` fails to `None` on an SEC outage **by design**, so driving the legend off it would
+make a transient outage read as a retired theme. The legend states the **design**; the health
+block states the **day**.
+
+## 5. The live book is now five themes of seven declared
+
+| | themes |
+|---|---|
+| declared (weighted 0.125, established) | value, quality, momentum, size, capital_discipline, insider, institutional |
+| **reaching a live score** | value, quality, momentum, size, **capital_discipline** |
+| weighted but contributing nothing | insider, institutional |
+
+## 6. Verification
+
+* `tests/test_vintage_label.py` **16**, `tests/test_theme_status.py` **14** — offline.
+* **Mutations: 19/19 caught, 0 missed, 0 skipped.**
+* **A first pass reported 6 SKIPPED and that was the useful part.** Multi-line anchors were
+  written with `\n` against CRLF files, and one reason string carries an em dash — so six
+  mutations matched nothing and were silently credited. A skipped mutation tests nothing while
+  reading exactly like a pass. Fixed and re-run before any of them was counted.
+* Routes exercised through a real test client, not asserted from source.
+
+## 7. BUGS FOUND
+
+1. **The commissioned label was wrong** (§0) — the substantive one.
+2. **`THEME_INPUTS.capital_discipline` was false on both halves** (§4).
+3. In my own test: a regex bounded by `[^;]+` stopped inside a CSS `style` attribute and
+   "passed" without reaching the code it checked. Caught by the failure it should have produced.
+
+## 8. What I did NOT do
+
+* **No scoring, weight or construction change — so NO vintage event.** This is labelling and
+  copy. Equity `N` unchanged.
+* **Public posture untouched.** The backtested/live gate still reads
+  `long_enough = days >= MIN_LIVE_DAYS`; the landing page has no vintage on it, pinned.
+* **Did not rewrite `providers.py:162`'s stale `"share_issuance": None  # needs share history`
+  comment.** It is now misleading — `screen.py` enriches it after the provider — but it is the
+  screener lane's file and a comment, not a rendered claim. **Flagged, not fixed.**
+* **`/methodology` still calls the Deflated Sharpe "undeflated"** — carried forward from
+  sessions 25 and 26, still the oldest stale figure rendering. Different finding's copy.
+
+## 9. Next
+
+`PT-WRITER` remains the operational gate's real blocker: nothing in this repository writes the
+contract-bound series. The vintage label makes the record say *which book* it is of; it does not
+make anything record it.
+
+---
+
 # Session 26 — 2026-08-11 — LA8: the forward track's "Days" was a row count, and the
 number it was hiding is a recording failure
 (prompt: LA8 — "Days" on the forward-track cards is a row count rendered as an age; now that LA3
