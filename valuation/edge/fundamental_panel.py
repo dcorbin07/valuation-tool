@@ -1798,7 +1798,13 @@ def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, h
         comp = composite_from_frame(sub, cols, weights, zscore)   # AUDIT B7
         order = np.argsort(-comp)
         rank = {tickers[order[r]]: r + 1 for r in range(len(order))}
-        fwd = {tickers[j]: sub["fwd_ret"].values[j] for j in range(len(tickers))}
+        # PERFORMANCE (S23) — hoist the column out of the comprehension. `sub["fwd_ret"]` inside
+        # it was re-evaluated once per NAME, so a 1,650-name cross-section extracted the column
+        # 1,650 times and each extraction deep-copied the panel's `.attrs` through pandas'
+        # `__finalize__`. Measured: 114,774 column extractions and 61 of 70 seconds per call, on
+        # a function `run_backtests` and `sweep_hold_params` both drive. Identical results.
+        _fwd_vals = sub["fwd_ret"].values
+        fwd = {tickers[j]: _fwd_vals[j] for j in range(len(tickers))}
         n_sold_i = 0
         for t in list(held):                              # SELL: band drop-out (past min-hold) or stop
             entry_i, cum, peak = held[t]
