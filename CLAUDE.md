@@ -48,6 +48,57 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **EVERY PRE-REGISTERED INTERACTION IS REJECTED, ONE OF THE AUDIT'S FOUR CANNOT BE BUILT AT ALL,
+  AND A CROWDING EXCLUSION MAKES DRAWDOWN WORSE — INDEPENDENTLY REPLICATING S10
+  (2026-08-12, session 32, `S7`+`S18`).** One register for both,
+  `PREREG_s7_s18_interactions.md`, committed **alone at `7fc6ab2`**. No panel rebuild — every
+  input was already banked. **ADOPTS NOTHING.**
+  * **`size × liquidity` IS NOT BUILDABLE, AND IS REPORTED RATHER THAN PROXIED.** The audit names
+    four interactions; this one needs a liquidity measure and **there is none on this path** — the
+    price export carries **date and close only**, so `avg_dollar_volume` cannot be computed in the
+    panel at all (audit **B13**, whose ledger row was corrected last session to
+    `PARTIAL — BLOCKED ON DATA` for this reason). **A market-cap or price stand-in would be a
+    different hypothesis wearing this one's name**, and a test pins that no such proxy appeared.
+    It charges **no trial**.
+  * **SHORT INTEREST DOES NOT REACH HALF THE PANEL, AND THE MEASURED NUMBER IS NOT THE AUDIT'S.**
+    The cache is real (48,539 tickers, 3,866,270 records, 2018-01-27 → 2026-07-30) but the audit
+    says 40% of dates and it measures **32 of 69, 46.4%**, first covered **2018-04-20**, row
+    coverage on covered dates **0.9269**. **Every covered date is in the LATE portion of a panel
+    starting 2009-01-15, so S18 CANNOT satisfy a both-halves gate on the full panel** — an
+    impossibility, not a power caveat. The register fixed the replacement first: S18's arms are
+    gated on halves of the **covered subsample — 32 dates, 16 per half**, which is exactly
+    `min_dates=16`, the thinnest split the shipped gate accepts. **A pass on 16-date halves is not
+    the same object as a pass on 34-date halves.**
+  * **ALL SIX TESTABLE ARMS REJECTED.** `value × quality` −1.17pp/−0.84pp; `momentum × vol
+    regime` −0.48pp/−0.19pp; `value × institutional` −0.05pp/−1.09pp (coverage 0.7172, the
+    handicap pre-registered); `value × short_interest` −0.49pp/−0.86pp. **`momentum ×
+    short_interest` is NOT_REPLICATED — it clears the LATE half alone (+1.85pp, Δ*t* +0.812) and
+    fails the early (−2.39pp).** That is **the second consecutive session in which exactly one arm
+    clears exactly one half**, so the family-wise labelling clause has now earned its keep twice:
+    **1 of 6 sibling arms, not eligible, not adopted.**
+  * **THE EXCLUSION ARM INDEPENDENTLY REPLICATES S10 ON A DIFFERENT CRITERION.** Dropping the top
+    5% most-shorted removed 4.83% of top-decile rows and moved return +27.08% → +26.77%
+    (−0.31pp), while **max drawdown went −0.2809 → −0.2863 — a gain of −0.5404pp, i.e. WORSE.**
+    S10 found a *valuation-band* screen worsened drawdown by 2.61pp and 3.35pp; a *crowding*
+    screen worsens it too, same direction, smaller size. S10's caveats travel verbatim:
+    `max_drawdown` is **negative** so the gain is `arm − base` (pinned by a test carrying the real
+    measured pair), and **X7 calibrates no drawdown floor**, so this is a measurement carrying no
+    verdict.
+  * **THE AUDIT'S BONFERRONI PRESCRIPTION WAS DECLINED EXPLICITLY, WITH THE REASON REGISTERED
+    FIRST.** It asks for *p* < 0.0125; **this project's gate is a MARGIN gate whose floors X7
+    calibrated against a placebo**, and translating one into the other would invent an
+    uncalibrated correspondence — the error X3 and session 10 both paid for. Multiplicity is
+    honoured by **labelling** instead.
+  * **CONTROL C7 IS THE CLEAN SURPRISE.** Adding an eighth input moves every theme's *relative*
+    weight 1/7 → 1/8, so each arm is a **compound** change — registered in advance. Re-scoring
+    with a **constant** eighth column isolates it: **+0.000173 and +0.000146 of alpha, essentially
+    nil.** So the arms measure the interactions and nothing else. **This refutes the one
+    expectation that missed** (I predicted the dilution would matter, 65/35).
+  * **C5 zero point-in-time violations; C6 no interaction is a proxy for a parent** (largest
+    |parent correlation| 0.4584). **Equity `N` 170 → 176.** Expectations **6 right, 1 wrong**.
+    **Nothing was searched beyond the audit's named list** — searching the quadratic space is
+    exactly what the tree combiner already did, and it *reversed* out of sample.
+    `data/free_analysis/S7_S18_INTERACTIONS.json`; `HANDOFF_edge_audit.md` §1-6.
 - **FIVE ALTERNATIVE WEIGHTING SCHEMES, ALL FIVE REJECTED — AND CPCV'S OWN BEST CHALLENGER MISSES
   ITS BAR BY A FACTOR OF SEVENTY-NINE (2026-08-12, session 31, `S5`+`S6`+`S13`+`S24`+`S27`).**
   ONE register for all five, `PREREG_s5_s6_s13_s24_s27_weighting.md`, committed **alone at
