@@ -8989,6 +8989,19 @@ Both were checked against the tree, not against their own text.
    repaired.
 4. **`scripts/build_ledger.py` will DROP the rows touched this session** if regenerated — S16, S28,
    O14 and B13 are curated. Pre-existing, reported each time it bites.
+5. **`session 29` NOW NAMES TWO DIFFERENT LANES' WORK ON `main`.** The options-bot lane
+   stamped `O3`+`O4`+`O5` as session 29 (`CLAUDE.md:119`, `HANDOFF_optionsbot.md` §38-41) while
+   this lane's `S3`+`S25` had already landed as session 29 (`CLAUDE.md:177` and `:234`). Both are
+   dated 2026-08-12 and both are now in the file every lane reads, so "session 29" resolves to
+   two different results. **Found by the merge, not by either lane's own checks** — the same
+   id-collision class `VALQUO_LEDGER.md` warns about and the same one this lane hit at session
+   23. **NOT unilaterally renumbered:** their work landed second but is already referenced from
+   their own handoff, ledger and research-log rows, and editing another lane's landed entry is
+   how a fix silently eats a record. This session took **30**, which is free either way.
+   **→ Routed to the options-bot lane, or to Don as a convention call.** The mechanical rule that
+   would have prevented it, and that this lane now follows: take the next number above the GLOBAL
+   maximum in `CLAUDE.md` at the moment you stamp, and re-check it after any merge.
+
 
 ## 6. Next
 

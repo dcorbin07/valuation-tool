@@ -20,9 +20,13 @@ purely-statistical, out-of-sample-gated self-learning loop re-tunes weights.
 - 13F due-diligence: `python -m valuation.edge.fundamental_panel --data-dir data/backtest --validate-institutional` (or `validate_13f.bat`).
 - Tests (keep green, **currently 249/249**): `python tests/test_edge.py`. **CORRECTED 2026-08-07
   (claims audit): this line read "currently 16/16" — measured today it is 249/249, exit 0.** It is
-  also not the whole gate: `tests/` holds **24** suites and the auto-land Action runs EVERY one of
+  also not the whole gate: `tests/` holds **62** suites and the auto-land Action runs EVERY one of
   them (audit C7), so verify with a loop over `tests/test_*.py` before pushing, not with
-  `test_edge.py` alone.
+  `test_edge.py` alone. **CORRECTED 2026-08-12 (session 29): this read "24" — measured today it is
+  62, all passing. Judge them by EXIT CODE, not by grepping for `OK`:** the suites print at least
+  three different summary formats (`OK`, `20 passed, 0 failed`, `14/14 bulk tests passed`), and a
+  loop that scrapes for `OK` reports `test_build_ledger`, `test_bulk` and `test_calibration` as
+  FAILING when they pass. A gate that cries wolf is one you learn to ignore.
 - Deploy: Don runs `git_push.bat` himself (pushes to GitHub -> Render; Actions run the scans).
 
 ## HARD RULES (do not violate)
@@ -112,6 +116,63 @@ the project's memory and the old versions had been repeated for months.
     compares or branches on a distribution field — **and that guard was checked for vacuity**: it
     inspects 14 code-level references, so it is not passing by seeing nothing. **Zero equity
     trials**; infra `N` 10 → 11 on the M2/M6 precedent, and infra `N` gates no published claim.
+- **THE SURFACE-ANOMALY FAMILY IS NULL ON ALL THREE ARMS — AND THE PRIOR LANE'S ONE SUGGESTIVE
+  RESULT REVERSES ITS SIGN ONCE THE INSTRUMENT IS FIXED (2026-08-12, session 29, `O3`+`O4`+`O5`).**
+  One register, three arms, `PREREG_o3_o4_o5_surface.md` committed **ALONE at `d2aa5f9`** — one
+  `.md`, zero `.py`. Frozen book, no re-mine, **no live code path changed, nothing adopted.**
+  * **THIS IS A SECOND LOOK AT AN ALREADY-REJECTED HYPOTHESIS AND IS CHARGED AS ONE.** `64955ef`
+    (now on `main`) tested all three characteristics with the published sign declared first and
+    **REJECTED** them, and `HANDOFF_free_analysis.md` concluded they *"should be considered
+    answered by that same run, not re-opened separately."* **The sole justification for re-opening
+    is a deviation that lane declared itself and never closed:** it used a **straddle**, which is
+    delta-neutral **only at inception**. This register changes the **INSTRUMENT** and nothing else
+    that can be held fixed — A1 reuses that lane's own `idio_vol` values and the panel's own strike
+    and expiry.
+  * **THE POWER ARGUMENT HELD, WHICH IS THE ONLY REASON THE TRIALS WERE WORTH SPENDING: delta-hedged
+    return dispersion is sd 0.0303 against the straddle's 0.9055 on the identical events — a 30-fold
+    reduction**, and every arm's |t| rose against its straddle counterpart.
+  * **ALL THREE NULL, EACH ON TWO INDEPENDENT LEGS.** `idio_vol` n 3,289, monotonicity −0.1717,
+    LS *t* 2.5158 vs its **own permutation p95** 2.016; `exp_idio_skew` n 3,154, −0.0380, 1.9143 vs
+    1.9229; `vol_of_vol` n 3,318, −0.0690, **2.9703 vs 1.9459 — the largest margin in the register
+    and still NULL.** Monotonicity misses the 0.6 bar three- to fifteen-fold in **both halves of
+    all three**, and the both-halves *t* leg fails separately — **the two arms that clear
+    full-sample fail in OPPOSITE halves** (A1 late 1.1509, A3 early 1.8189). Session 7's LOO
+    pattern again. **A2 misses its own bar by 0.0086 of a *t* and is recorded a NULL, not rounded
+    into a pass** (`RUN_RULES` A6).
+  * **THE FINDING IS THE SIGN REVERSAL, AND IT RETIRES A CLAIM RATHER THAN ADDING ONE.** On the
+    straddle `idio_vol` sorted **+0.9 CONTRADICTING** the published sign (LS *t* −1.2142) — that
+    lane's single most suggestive result. On the delta-hedged instrument the same characteristic on
+    the same panel sorts in the **CONFIRMING** direction (+2.5158). **Both readings are now
+    unquotable as settled:** this one is far too weak to clear, and the prior CONTRADICTS reading
+    is an artefact of an instrument that lets the underlying's move dominate.
+  * **THE INSTRUMENT BEHAVES AS THE LITERATURE SAYS, which is corroboration it is real rather than
+    a bug:** mean delta-hedged gain **−0.0072** and **every quintile of every arm negative** — the
+    volatility risk premium, reproduced without being targeted. Separately, `idio_vol` is **+0.8444**
+    rank-correlated with ATM IV, so A1 is close to a **pure implied-vol sort**.
+  * **THE FROZEN CHAINS NAMED IN THE TASK PROVABLY CANNOT DO THIS, MEASURED BEFORE THE REGISTER.**
+    The freeze holds a full chain only on **ENTRY** dates: median **1** full-chain name per date,
+    max 17, and **0 of 2,498 dates and 0 of 120 month-ends** reach the ~20 a quintile sort needs.
+    The panel is the EOD chain cache instead — **a forced substitution, disclosed in §1 rather than
+    quietly made.**
+  * **A DIAGNOSTIC WITH NO VERDICT, AND BOTH OBVIOUS EXPLANATIONS ARE REFUTED: Q5 is the WORST
+    bucket in ALL THREE arms while Q1–Q4 are unordered** — exactly how a significant long-short
+    coexists with near-zero monotonicity. It is **not one effect three times** (`idio_vol` vs
+    `vol_of_vol` rank-correlate **−0.2920**, Q5 overlap **14.0%**) and **not illiquidity** (the
+    gradient runs in **opposite** directions — `idio_vol`'s Q5 is the most liquid corner,
+    `vol_of_vol`'s the least). **Left OPEN for its own register; testing it here would be the fourth
+    arm my own void condition 3 forbids.**
+  * **A DEFECT OUTSIDE THIS LANE: in the prior lane's `panel.pkl`, `illiq` and `spread_pct` are THE
+    SAME COLUMN, identical on all 3,373 rows.** Its `illiq` was **the only characteristic in that
+    published run with |t| > 2 (2.46)** and is described as a mechanical liquidity control; it is
+    the option's quoted spread percentage under a second name. **Reported, not repaired.**
+  * **Options `N` 258 → 261** (one per arm, exactly as pre-committed); **equity untouched BY THIS
+    ROW, though it now reads 161** — the `S3` lane landed three equity trials the same day, which
+    is why an equity figure must be re-read after every merge rather than quoted from a session's
+    own measurement. `BACKTEST_RESULTS.json` needs no re-run **for this item**; the `S3` lane
+    already refreshed it at its own denominator. Expectations scored **4 right, 2 wrong** — the misses
+    being the sign reversal and the fact that Boyer–Vorkink's **expected** skew is **stronger** than
+    the realised version the prior lane used (1.9143 vs 1.5805).
+    `data/free_analysis/O3_O4_O5_SURFACE.json`; `HANDOFF_optionsbot.md` §38-41.
 - **ALL THREE INSIDER REBUILDS ARE REJECTED, AND THE AUDIT'S OWN THRESHOLD WOULD HAVE REJECTED
   THEM FOR A REASON UNRELATED TO WHAT THE COMPOSITE DID (2026-08-12, session 29, `S3`).**
   `PREREG_s3_insider_rebuild.md` was committed **alone at `b3a85fa`** — one `.md`, zero `.py`, a

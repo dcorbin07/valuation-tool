@@ -53,6 +53,8 @@ nothing in progress: it is a settled partial state blocked on data the price exp
 (date and close only, so `avg_dollar_volume` cannot be computed there at all), now
 **PARTIAL - BLOCKED ON DATA**.
 
+**CROSS-LANE, FOUND BY THE MERGE: `session 29` now names TWO different lanes' work on `main`** — the options-bot lane's `O3`+`O4`+`O5` and this lane's `S3`+`S25`, both dated 2026-08-12. Not unilaterally renumbered (theirs is already referenced from their own handoff and ledger rows); this session took **30**. Routed to the options-bot lane or to Don as a convention call. The rule that prevents it: take the next number above the GLOBAL maximum in `CLAUDE.md` at the moment you stamp, and re-check after any merge.
+
 **Next:** S10's accounting half, or the CPCV embargo (still the only open item that can move a
 published number). **And the dated freebie: read `/api/track` → `contract_track.recording_ok` on or
 after 2026-08-13.**
@@ -61,6 +63,68 @@ Full write-up: `HANDOFF_edge_audit.md` session 30.
 
 ---
 
+## options-bot lane, session 29 (2026-08-12) — the surface-anomaly family is NULL on all three arms, and a prior published result reverses its sign
+
+**`O3` + `O4` + `O5`, one register, three arms, `PREREG_o3_o4_o5_surface.md` committed ALONE at
+`d2aa5f9`** (one `.md`, zero `.py`, a strict ancestor of every measurement commit). Frozen book, no
+re-mine, **no live code path changed and nothing adopted.**
+
+**THIS WAS A SECOND LOOK AT AN ALREADY-REJECTED HYPOTHESIS, AND IS CHARGED AS ONE.** Commit
+`64955ef` (now on `main`) already tested all three characteristics with the published sign declared
+first and **REJECTED** them; `HANDOFF_free_analysis.md` concluded they should be considered
+answered. **The only justification for re-opening was a deviation that lane declared itself and
+never closed** — it used a **straddle**, delta-neutral only at inception. This register changed the
+**instrument** and nothing else that could be held fixed.
+
+**The power argument held, and it is the whole reason the trials were worth spending: delta-hedged
+return dispersion is sd 0.0303 against the straddle's 0.9055 on the identical events — a 30-fold
+reduction.**
+
+| arm | n | monotonicity (bar 0.6) | LS t | own permutation p95 | verdict |
+|---|---|---|---|---|---|
+| O3 `idio_vol` | 3,289 | -0.1717 | 2.5158 | 2.016 | **NULL** |
+| O4 `exp_idio_skew` | 3,154 | -0.0380 | 1.9143 | 1.9229 | **NULL** |
+| O5 `vol_of_vol` | 3,318 | -0.0690 | 2.9703 | 1.9459 | **NULL** |
+
+**Every arm is NULL on two independent legs.** Monotonicity misses its bar in **both halves of all
+three**, and the both-halves *t* leg fails separately — **the two arms that clear full-sample fail
+in OPPOSITE halves**. O4 misses its own bar by **0.0086 of a t** and is recorded a NULL rather than
+rounded into a pass (`RUN_RULES` A6).
+
+**THE FINDING RETIRES A CLAIM RATHER THAN ADDING ONE.** On the straddle, `idio_vol` sorted **+0.9
+CONTRADICTING** the published sign (LS *t* -1.2142) — the prior run's single most suggestive result.
+On the delta-hedged instrument the same characteristic on the same panel sorts in the **CONFIRMING**
+direction (+2.5158). **Neither reading is quotable as settled:** this one is far too weak to clear
+its bar, and the prior CONTRADICTS reading is an artefact of an instrument whose variance is
+dominated by the underlying's move.
+
+**The frozen chains named in the task provably cannot support a cross-section** — median 1
+full-chain name per date, **0 of 2,498 dates** reaching the ~20 a quintile sort needs — so the panel
+came from the EOD chain cache. **A forced substitution, disclosed in the register rather than made
+quietly.**
+
+**REPORTED FOR ANOTHER LANE (`RUN_RULES` rule 3): in the options-xsection panel, `illiq` and
+`spread_pct` are THE SAME COLUMN, identical on all 3,373 rows.** That lane's `illiq` was the **only
+characteristic in its published run with |t| > 2 (2.46)** and is described as a mechanical liquidity
+control; it is the option's quoted spread percentage under a second name. **Reported, not repaired.**
+
+**Also corrected in `CLAUDE.md`: the project brief said the auto-land Action runs "24" test suites.
+It runs 62** — all passing — **and they must be judged by EXIT CODE**, since the suites print at
+least three different summary formats and a loop grepping for `OK` falsely reports three passing
+suites as failures.
+
+**Trial cost: options `N` 258 -> 261**, one per arm exactly as pre-committed; infra untouched at 10.
+**Equity `N` is untouched by this item but now reads 161, not the 158 measured while running it** -
+the `S3` lane landed three equity trials the same day. **Re-read `by_domain` after merging rather
+than quoting a figure measured mid-session.** `BACKTEST_RESULTS.json` needs no re-run for this item;
+the `S3` lane already refreshed it at its own denominator. Expectations scored **4 right, 2 wrong**.
+
+**Recommended next step: register the Q5 question.** All three arms put their **worst** delta-hedged
+bucket at Q5 while Q1-Q4 are unordered, and both obvious explanations are refuted by measurement —
+they are not one effect (`idio_vol` vs `vol_of_vol` rank-correlate **-0.2920**, Q5 overlap **14.0%**)
+and not illiquidity (the gradient runs in **opposite** directions). **Deliberately not tested here:
+it would be the fourth arm my own register's void condition forbids.** Full write-up:
+`HANDOFF_optionsbot.md` sections 38-41.
 ## edge lane, session 29 (2026-08-12) — S3's three insider rebuilds all REJECTED; S25 closed as unobtainable
 
 **S3.** `PREREG_s3_insider_rebuild.md` committed **alone at `b3a85fa`**. One panel build, four
