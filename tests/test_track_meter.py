@@ -421,6 +421,84 @@ def test_empty_series_is_a_normal_state_not_a_crash():
     assert out["n_months"] == 0
 
 
+# ---------------------------------- session 28: the guard must not demand an unwritable row
+def test_a_perfect_writer_is_never_reported_as_missing_a_row():
+    """THE DEFECT THIS PINS, measured 2026-08-12.
+
+    A trading day's row is written after that day's close. `gap_report` counted the current day
+    as due from midnight, so a writer holding every row it could possibly have written still
+    read `recording_ok: false` every trading-day morning, naming the current day. That is a red
+    light nobody can clear, on public surfaces (LA8), and it is the exact mirror of the vacuous
+    PASS session 15 caught in this same function.
+    """
+    inc = dt.date(2026, 7, 1)
+    bad = []
+    for k in range(30):
+        day = dt.date(2026, 8, 12) - dt.timedelta(days=k)
+        if not TM.is_trading_day(day):
+            continue
+        # every trading day since inception EXCEPT the day itself, which is not writable yet
+        rows = [{"date": d.isoformat(), "valquo": 1.0, "spy": 1.0}
+                for d in TM._trading_days(inc, day) if inc < d < day]
+        g = TM.gap_report(rows, as_of=day, inception=inc)
+        if not g["complete"]:
+            bad.append((day.isoformat(), g["missing_dates"]))
+    assert not bad, f"a perfect writer was reported incomplete on {len(bad)} mornings: {bad[:3]}"
+
+
+def test_the_days_own_row_is_demanded_once_the_next_trading_day_begins():
+    """The other half: the fix must not stop the guard detecting a real miss, only delay it."""
+    inc = dt.date(2026, 7, 1)
+    due = dt.date(2026, 8, 11)                      # a Tuesday, genuinely owed
+    detect = dt.date(2026, 8, 12)                   # the next trading day
+    rows = [{"date": d.isoformat(), "valquo": 1.0, "spy": 1.0}
+            for d in TM._trading_days(inc, detect) if inc < d < detect and d != due]
+    on_the_day = TM.gap_report(rows, as_of=due, inception=inc)
+    assert due.isoformat() not in on_the_day["missing_dates"], "demanded a row on the day itself"
+    after = TM.gap_report(rows, as_of=detect, inception=inc)
+    assert due.isoformat() in after["missing_dates"], "a real miss stopped being detected"
+    assert after["complete"] is False
+
+
+def test_a_vintage_event_does_not_erase_a_dated_miss():
+    """Vintage 1 owed six rows and got two. Those four dates are invisible to `recording_ok`.
+
+    `recording_ok` is scoped to the open vintage by contract, so the misses legitimately leave
+    that field -- but they must not leave the RECORD, or "logged, not voided" cannot be honoured.
+    """
+    live = [{"date": "2026-07-31", "valquo": 0.4126, "spy": 0.6903},
+            {"date": "2026-08-06", "valquo": 0.776, "spy": 3.6228}]
+    hist = TM.recording_history(live, as_of=dt.date(2026, 8, 12))
+    v1 = [h for h in hist if h["vintage"] == 1][0]
+    assert v1["expected_trading_days"] == 6 and v1["present"] == 2, v1
+    assert v1["missing_dates"] == ["2026-08-03", "2026-08-04", "2026-08-05", "2026-08-07"], v1
+
+    # ...and none of them is reachable from the open vintage's own gap report, which is the
+    # whole reason this record has to exist separately.
+    assert TM.gap_report(live)["missing_dates"] == []
+
+    # Vintage 2 owed NOTHING: it closed 2026-08-11, and that day's row does not fall due until
+    # 2026-08-12. Pinned because the first draft of this test asserted the opposite, having
+    # computed the miss under the off-by-one the same change repairs.
+    v2 = [h for h in hist if h["vintage"] == 2][0]
+    assert v2["expected_trading_days"] == 0 and v2["complete"] is True, v2
+    assert [h for h in hist if h["status"] == "OPEN"], hist
+
+
+def test_detail_says_which_row_is_awaited_and_when_it_becomes_assessable():
+    """Without these, a morning `None`/`false` is indistinguishable from a writer failure.
+
+    On 2026-08-12 the open vintage (3) began the previous day, so the row awaited is 2026-08-12's
+    and it is not demanded until 2026-08-13 -- which is the whole reason this session could not
+    close PT-WRITER either way.
+    """
+    d = TM.detail(series=[], as_of=dt.date(2026, 8, 12))
+    assert d["recording_ok"] is None, "claimed a verdict before any row was due"
+    assert d["row_awaited"] == "2026-08-12", d.get("row_awaited")
+    assert d["assessable_from"] == "2026-08-13", d.get("assessable_from")
+    assert any(h["vintage"] == 2 for h in d["per_vintage_recording"])
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

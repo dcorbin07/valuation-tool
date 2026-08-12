@@ -8389,3 +8389,183 @@ uses more than one quarter of information.
 as a genuine red-flag veto, which is a different instrument and inherits none of this verdict; or
 (b) the **CPCV embargo** carried over from session 22, still the only open item that can move a
 published number.
+
+---
+
+# SESSION 28 (2026-08-12) — the date-gated PT-WRITER reading, which returned `None` and found two defects in the instrument that was supposed to answer it
+
+**The one item sessions 15 and 16 both deferred to this date.** Read `/api/track` →
+`contract_track.recording_ok`; close `PT-WRITER` on evidence if `true`, escalate a dated day-1
+gap to Cowork if `false`. It was read. **Neither branch fired.**
+
+## 0. The headline
+
+**`recording_ok` is `None` — not `true`, not `false`. `PT-WRITER` is neither closed nor refuted
+and the ledger row stays `BLOCKED`.** Two independent reasons, and the second is worse than the
+first:
+
+1. **The clock moved under the prediction.** The theme-restoration lane closed vintage 2 and
+   opened **vintage 3 on 2026-08-11**. The bound inception is **2026-08-11**, not 2026-08-10; the
+   operational gate is **2027-02-11**, not 2027-02-10; **vintage 2 lasted one day**; and vintage
+   3's first row is not owed until **2026-08-13**. So no trading day is yet due and the contract's
+   not-vacuously-green rule correctly returns `None`.
+2. **`gap_report` was demanding a row nobody could have written yet** — so every previous
+   morning's reading of this field was meaningless, in the alarming direction.
+
+The prompt's own framing ("if the row is missing, the likely cause is the write or push dying
+mid-restart") is **refuted by timing**, checked rather than argued: the machine restarted at
+**03:33 on 2026-08-12**, which is **7.5 hours after** the 20:01 window on 2026-08-11. A write
+dying in the restart would have had to be in flight at 03:33.
+
+## 1. The defect that made the reading unreadable
+
+A trading day's row is written **after that day's close**. `gap_report` computed
+
+```python
+expected = [d for d in _trading_days(inception, as_of) if d > inception]
+```
+
+and `_trading_days` is inclusive of its endpoint, so **`as_of` itself was always demanded** —
+from midnight, roughly fourteen hours before the writer could supply it.
+
+**Measured, not reasoned:** a synthetic writer holding a row for every trading day since
+inception *except the current one* — i.e. every row it could possibly have written — reads
+`recording_ok: false` on **11 of 11 replayed trading-day mornings**, always naming the current
+day.
+
+Three things make this worse than an off-by-one:
+
+* It is the **exact mirror** of the vacuous-PASS defect session 15 caught in this same function.
+  That one reported `true` before anything was due; this one reports `false` when nothing is
+  wrong. Both were guards that could not fail correctly.
+* **LA8 put the gap on public surfaces.** So the site carried "the operational gate cannot pass
+  while this is true" every weekday morning — the fastest way to make a real recording failure
+  unreadable is to show a false one daily.
+* The contract's own description of this function (§7) says it "does not demand a row on
+  inception day, which is day 0" — it documents the day-0 exemption and **no current-day
+  exemption**, so this was undocumented behaviour rather than an intended design.
+
+**The fix:** a row falls due at the **start of the next trading day**.
+
+```python
+expected = [d for d in _trading_days(inception, as_of) if inception < d < as_of]
+```
+
+Deliberately keyed to the **calendar, not to the writer's 20:01 cron** — hard-coding a clock time
+here would couple the contract's operational gate to one implementation's schedule and change the
+gate silently if that schedule moved. The cost is that a genuine miss is detected one trading day
+later, which sits well inside the contract's own **LOGGED-NOT-VOIDED** allowance for "missing a
+single day's write that is filled the same week".
+
+**Permitted, checked before making it:** `PAPER_TRACK_CONTRACT.md` §3 fixes the bound source, the
+book, the benchmark, the statistic, the thresholds, the cost constant and every §6 meter
+parameter — and then says *"Repairs to the recording (§7) are not changes to any of these and are
+expected — they are what the operational gate is for."* This is a §7 repair. No threshold, date
+or meter parameter moved, so no void clause is engaged.
+
+## 2. A correction against my own first cut
+
+I first reported, in this session, that **vintage 2 owed a row for 2026-08-11 and never received
+it**. That is **wrong. Vintage 2 owed nothing.** Under the corrected rule 2026-08-11's row does
+not fall due until 2026-08-12, and vintage 2 had already closed.
+
+The claim was an artefact of **the very off-by-one this change repairs** — computed with the old
+rule while arguing for the new one. It was caught by the test written to pin it, which is the
+only reason it is a correction here rather than a false escalation to Cowork.
+
+It is recorded in the code as well as here, because a wrong reason attached to a right conclusion
+is what LA11 exists to warn about.
+
+## 3. The second defect: a vintage event silently clears the recording gap
+
+`gap_report` is scoped to the **open** vintage. That is correct — the contract attaches the gate
+and the meter to the current vintage (§5a rule 5). But it means **a dated miss stops being
+reported the moment the next vintage opens.**
+
+**Vintage 1 owed six rows and received two.** Its four missing dates — 2026-08-03, -04, -05, -07 —
+are **unreachable from anything `recording_ok` reports today**. The contract tolerates a missed
+day as LOGGED-NOT-VOIDED, but it can only be *logged* if something records it, and until now
+nothing did.
+
+New `track_meter.recording_history()` reports **every vintage side by side** and reproduces the
+contract's own "2 of 6 due rows (33.3%)" figure independently:
+
+| vintage | status | window | due | got | missing |
+|---|---|---|---|---|---|
+| 1 | VOID | 2026-07-30 → 2026-08-09 | 6 | 2 | 2026-08-03, -04, -05, -07 |
+| 2 | CLOSED | 2026-08-10 → 2026-08-11 | 0 | 0 | — |
+| 3 | OPEN | 2026-08-11 → | 0 | 0 | — |
+
+**`recording_ok` is deliberately unchanged** and still reads the open vintage alone. This is the
+audit trail beside it, not a widening of what the gate demands.
+
+## 4. What the block now says, and when it can next say something
+
+Two new fields, kept **separate on purpose** because collapsing them into one is how this gets
+misread:
+
+* **`row_awaited`** — the trading day whose row is next owed (`2026-08-12`).
+* **`assessable_from`** — the date that row starts being demanded (`2026-08-13`).
+
+Without these, a `None` or a `false` read on a morning is indistinguishable from a writer failure,
+which is exactly what happened today.
+
+## 5. On the writer itself — evidence, not proof
+
+Independent of all the arithmetic above, nothing suggests the writer ran:
+
+* `data/valquo_track_history.csv` has mtime **2026-08-07 18:07** and was untouched across **both**
+  2026-08-10 and 2026-08-11. A write that died mid-flight would still have touched the file.
+* **No scheduled task** matching the reported `valquo-daily-track-write` exists (219 tasks
+  enumerate non-elevated; the only Valquo match is `Valquo D Backup`). Session 15 found the same
+  at 413 tasks elevated.
+* **No code in this repository writes the file** — session 13's finding, re-checked and still
+  true. `index_track.py` only ever reads it.
+* **The local copy is not a stale mirror of a healthy remote.** The weekly `track-backup` cron
+  pulled the LIVE service's bound Index on 2026-08-10 18:09 and committed **the same two rows** to
+  `data_export/valquo_index_track.csv`. `/api/track` itself is owner-only and returns **403**
+  unauthenticated, so it could not be read directly from here.
+
+**This is still not proof** — the task could be registered under another account or on another
+machine, and the honest test is now simply one day away.
+
+## 6. What I did NOT do
+
+1. **I did not close or refute `PT-WRITER`.** The reading does not support either, and reporting
+   a `false` that a perfect writer would also produce would have been a false escalation.
+2. **I did not escalate to Cowork.** The prompt's escalation branch was conditional on a `false`
+   naming 2026-08-11; there is no such gap, and vintage 2's apparent miss was my own artefact
+   (§2). Escalating a date that is not owed would waste the one credible alarm this project has.
+3. **I did not backfill anything.** A back-fill voids the whole run under §3.
+4. **I did not touch `recording_ok`'s scope, the meter, σ, ρ, α or any contract threshold.**
+5. **I did not fix the stale dates elsewhere.** `PAPER_TRACK_CONTRACT.md` §7 and several handoffs
+   still say the first row is due 2026-08-11 and the gate is 2027-02-10. Those were correct for
+   vintage 2. The ledger row and `CLAUDE.md` are corrected; the contract document is a register
+   that does not delete, and re-dating it is a contract edit I should not make unilaterally.
+6. **I did not investigate the sandbox engine** (`PT-SPLIT`'s remaining provenance question).
+
+## 7. BUGS FOUND
+
+1. **`gap_report` demanded the current day's row** (§1). Mine, fixed, pinned by two tests.
+2. **A vintage event silently cleared the recording gap** (§3). Mine, fixed additively.
+3. **My own first cut mis-attributed a miss to vintage 2** (§2). Caught by its own test.
+4. **`RESEARCH_LOG.md` has TWO tables with different 9-column schemas**, and an append lands under
+   the second (`id|date|domain|pre|hypothesis|metric|verdict|n|source`). My first row used the
+   first table's layout, so the parser could not locate its verdict cell and **counted a `FIXED`
+   repair as an infra trial**. Caught by diffing `by_domain` against `HEAD`, not by re-reading the
+   row. The inflation direction is conservative, but the row was still wrong. **Anyone appending
+   to that log must match the LAST header, not the first.**
+5. **Stale dates in the contract and handoffs** (§6.5) — reported, not fixed, out of my lane to
+   re-date unilaterally.
+
+## 8. Next
+
+**Tomorrow, 2026-08-13, the reading finally means something.** `row_awaited` is 2026-08-12 and
+`assessable_from` is 2026-08-13, so from then a missing row is a **dated writer failure** and
+`PT-WRITER` can be escalated to Cowork with a specific date — or closed on evidence for the first
+time. **No human action is required to unblock it.**
+
+Then the lane's own queue, unchanged from session 27: either **S10's accounting half** (Beneish,
+Altman, external financing, NT late filings — a different instrument that inherits none of the
+valuation-band verdict) or the **CPCV embargo** carried over from session 22, which remains the
+only open item that can move a published number.

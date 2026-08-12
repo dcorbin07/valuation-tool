@@ -1,3 +1,54 @@
+# HANDOFF STATUS — shared project state
+
+## edge lane, session 28 (2026-08-12) — the PT-WRITER reading returned `None`, and the guard that was supposed to answer it was broken
+
+**The date-gated item sessions 15 and 16 both deferred to 2026-08-12 was read. Neither predicted
+branch fired.** `/api/track` -> `contract_track.recording_ok` is **`None`** — not `true`, not
+`false`. **`PT-WRITER` is neither closed nor refuted; the ledger row stays `BLOCKED`.**
+
+**TWO DATES EVERY LANE MUST PICK UP.** The theme-restoration lane closed vintage 2 and opened
+**vintage 3 on 2026-08-11**, so the bound inception is **2026-08-11** (not 2026-08-10) and the
+operational gate is **2027-02-11** (not 2027-02-10). Vintage 2 lasted **one day**. Vintage 3's
+first row is not owed until **2026-08-13**, which is why `recording_ok` correctly reads `None`.
+**Derive the vintage from the register; do not quote it from a prompt or a handoff.**
+
+**THE INSTRUMENT WAS BROKEN, IN THE ALARMING DIRECTION.** `track_meter.gap_report` counted the
+CURRENT trading day as due from midnight, but a day's row is written after that day's close.
+**Measured: a writer holding every row it could possibly have written still read
+`recording_ok: false` on 11 of 11 replayed trading-day mornings**, always naming the current day.
+That is the mirror of the vacuous-PASS defect session 15 caught in the same function, and since
+LA8 it has been on **public surfaces** — a red light that was on every weekday morning. Fixed: a
+row now falls due at the start of the **next trading day**, keyed to the calendar rather than to
+the writer's 20:01 cron. Detection is delayed at most one trading day, inside the contract's own
+LOGGED-NOT-VOIDED allowance. Permitted as a §7 recording repair; no threshold or meter parameter
+moved.
+
+**A CORRECTION AGAINST MY OWN FIRST CUT.** I first reported that vintage 2 owed 2026-08-11 and
+missed it. **It owed nothing** — that row does not fall due until 2026-08-12 and vintage 2 had
+closed. The claim was an artefact of the very off-by-one being repaired, caught by the test
+written to pin it. It would have been a false escalation to Cowork.
+
+**A SECOND DEFECT: a vintage event silently clears the recording gap.** Vintage 1 owed six rows
+and got two, and its four missing dates (2026-08-03, -04, -05, -07) are unreachable from anything
+`recording_ok` reports today. New `track_meter.recording_history()` reports every vintage side by
+side and reproduces the contract's own 2-of-6 figure; `recording_ok` is deliberately unchanged.
+
+**ON THE WRITER — EVIDENCE, NOT PROOF, AND THE RESTART HYPOTHESIS IS REFUTED.** The bound file
+has mtime **2026-08-07 18:07** and was untouched across both 2026-08-10 and 2026-08-11; no
+matching scheduled task exists; no code in this repo writes it. The machine restarted at **03:33
+on 2026-08-12**, **7.5 hours after** the 20:01 window on 2026-08-11, so it cannot have interrupted
+that write. The live service is not healthier: the weekly `track-backup` cron pulled it on
+2026-08-10 18:09 and committed the same two rows.
+
+**NEXT, AND IT NEEDS NO HUMAN ACTION: read it again on 2026-08-13.** `row_awaited` is 2026-08-12
+and `assessable_from` is 2026-08-13, so from then a missing row is a dated writer failure.
+
+**ZERO TRIAL COST** — a correctness repair, logged `FIXED`. **Equity `N` stays 158**, options 258,
+infra 10; `BACKTEST_RESULTS.json` needs no re-run. Full write-up: `HANDOFF_edge_audit.md`
+session 28.
+
+---
+
 # Valquo — handoff status
 
 Written at the end of every Claude Code session. Overwritten each time, so this is always

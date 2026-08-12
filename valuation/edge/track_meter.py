@@ -332,10 +332,26 @@ def gap_report(series: Sequence[dict], as_of: _dt.date = None,
     as_of = as_of or _dt.date.today()
     have = {_d(r.get("date")) for r in series}
     have.discard(None)
-    # Inception is day 0: cumulative return is 0 there by definition and the recorded series
-    # starts at day 1. Counting the inception date itself as a missing row would report a
-    # permanent, uncloseable gap -- the guard has to be right about what it demands.
-    expected = [d for d in _trading_days(inception, as_of) if d > inception]
+    # TWO days are deliberately NOT demanded, for the same reason: a guard that asks for a row
+    # nothing could have written reports a failure no writer can avoid, and a red light that is
+    # on every morning is one nobody reads.
+    #
+    #   * INCEPTION is day 0. Cumulative return is 0 there by definition and the recorded series
+    #     starts at day 1, so demanding it would report a permanent, uncloseable gap.
+    #   * `as_of` ITSELF is not yet due. A trading day's row is written AFTER that day's close
+    #     (the writer runs in the evening), so between midnight and the write the day's own row
+    #     cannot exist. Demanding it made `recording_ok` read False every trading-day morning:
+    #     measured 2026-08-12, a writer holding every row it could possibly have written still
+    #     read False on 11 of 11 replayed mornings, always naming the current day. That is the
+    #     exact mirror of the vacuous-pass defect session 15 caught in this same function, and
+    #     since LA8 put the gap on public surfaces it was a daily false alarm.
+    #
+    # A row therefore becomes DUE at the start of the next trading day. Deliberately keyed to the
+    # calendar and not to the writer's 20:01 schedule: hard-coding a clock time here would couple
+    # the contract's gate to one implementation's cron and change the gate silently if it moved.
+    # The cost is that a miss is detected one trading day later, which is well inside the
+    # contract's own "missing a single day's write that is filled the same week" allowance.
+    expected = [d for d in _trading_days(inception, as_of) if inception < d < as_of]
     missing = [d for d in expected if d not in have]
     # A row on a non-trading day is its own defect: it means something marked the book when
     # there was no close, which is the failure auto-scan's session guard exists to prevent.
@@ -351,6 +367,52 @@ def gap_report(series: Sequence[dict], as_of: _dt.date = None,
         "complete": not missing and not unexpected,
         "coverage": (len(expected) - len(missing)) / len(expected) if expected else None,
     }
+
+
+def recording_history(series: Sequence[dict], as_of: _dt.date = None) -> list:
+    """The gap report for EVERY vintage, not only the open one. Additive; changes no verdict.
+
+    WHY THIS EXISTS, and it was found the hard way. `gap_report` is scoped to the CURRENT
+    vintage, which is correct -- the contract attaches the gate and the meter to the current
+    vintage (§5a rule 5). But it means **a vintage event silently clears the recording gap**:
+    a day that was owed and never written stops being reported the moment the next vintage
+    opens, because the new inception is later than the miss.
+
+    That is not hypothetical. VINTAGE 1 owed six rows and received two -- 2026-08-03, -04, -05
+    and -07 were never written -- and because vintage 1 closed on 2026-08-09, not one of those
+    four dates appears anywhere in what `recording_ok` reports today. The contract tolerates
+    "missing a single day's write that is filled the same week" as LOGGED-NOT-VOIDED, but it can
+    only be logged if something records it, and until this function nothing did.
+
+    CORRECTION TO THIS FUNCTION'S OWN FIRST DRAFT, kept because the error is instructive. It
+    claimed vintage 2 (2026-08-10 -> 2026-08-11) "owed exactly one row, 2026-08-11, and never
+    received it". It owed NOTHING: under the corrected due-date rule above, 2026-08-11's row
+    does not fall due until 2026-08-12, and vintage 2 had already closed. The claim was an
+    artefact of the very off-by-one this change repairs -- computed with the old rule while
+    arguing for the new one -- and it was caught by the test written to pin it.
+
+    This does NOT widen what the gate demands. `recording_ok` still reads the open vintage
+    alone. This is the audit trail beside it.
+    """
+    as_of = as_of or _dt.date.today()
+    out = []
+    for v in VINTAGES:
+        opened = v["opened"]
+        if opened > as_of:
+            continue
+        end = min(v["closed"], as_of) if v["closed"] else as_of
+        g = gap_report(series, as_of=end, inception=opened)
+        out.append({
+            "vintage": v["vintage"], "run": v["run"], "status": v["status"],
+            "opened": opened.isoformat(),
+            "closed": v["closed"].isoformat() if v["closed"] else None,
+            "expected_trading_days": g["expected_trading_days"],
+            "present": g["present"],
+            "missing_count": g["missing_count"],
+            "missing_dates": g["missing_dates"],
+            "complete": g["complete"],
+        })
+    return out
 
 
 def monthly_excess(series: Sequence[dict], as_of: _dt.date = None,
@@ -648,6 +710,24 @@ def detail(series: Sequence[dict] = None, as_of: _dt.date = None,
         started = gaps["expected_trading_days"] > 0
         out["started"] = started
         out["recording_ok"] = bool(gaps["complete"]) if started else None
+        # A vintage event clears the current vintage's gap window, so the misses owed under a
+        # PREVIOUS vintage stop being reported the moment the next one opens. `recording_ok`
+        # above is still the open vintage alone (the contract scopes the gate that way); this
+        # is the audit trail that keeps a dated miss from vanishing with the clock.
+        out["per_vintage_recording"] = recording_history(series, as_of=as_of)
+        # WHEN THIS BOUND CAN NEXT SAY SOMETHING, as two separate facts because collapsing them
+        # into one field is how it gets misread: `row_awaited` is the trading day whose row is
+        # next owed, and `assessable_from` is the date that row starts being demanded (the next
+        # trading day, since a row is written after its own close). Without these, a `false` or
+        # a `None` read on a morning is indistinguishable from a writer failure -- which is
+        # exactly what happened on 2026-08-12.
+        fwd = [d for d in _trading_days(as_of - _dt.timedelta(days=10),
+                                        as_of + _dt.timedelta(days=10)) if d > v["opened"]]
+        awaited = next((d for d in fwd if d.isoformat() not in
+                        {r.get("date") for r in series} and d <= as_of), None)
+        after = next((d for d in fwd if awaited is not None and d > awaited), None)
+        out["row_awaited"] = awaited.isoformat() if awaited else None
+        out["assessable_from"] = after.isoformat() if after else None
         out["recording_note"] = (
             f"vintage {v['vintage']} has not started - inception {v['opened'].isoformat()}, "
             f"no trading day due yet, so nothing is verified either way" if not started else

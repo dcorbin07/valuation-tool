@@ -44,6 +44,63 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE FORWARD TRACK'S RECORDING GUARD DEMANDED A ROW NOBODY COULD HAVE WRITTEN YET, SO
+  `recording_ok` READ FALSE EVERY WEEKDAY MORNING — AND THE ONE READING THIS SESSION EXISTED TO
+  TAKE RETURNS `None`, NOT A VERDICT (2026-08-12, session 28, `PT-GAPDUE`).** Sessions 15 and 16
+  both set 2026-08-12 as the date `/api/track` → `contract_track.recording_ok` would finally
+  settle `PT-WRITER`. It was read. **Neither predicted branch fired, `PT-WRITER` is NOT closed
+  and NOT refuted, and the ledger row stays `BLOCKED`.**
+  * **THE CLOCK MOVED UNDER THE PREDICTION, AND THIS IS THE PART EVERY LANE MUST PICK UP: the
+    bound inception is 2026-08-11 and the operational gate is 2027-02-11**, not the 2026-08-10 /
+    2027-02-10 this file and the ledger both still assumed. The theme-restoration lane closed
+    vintage 2 and opened **vintage 3** on 2026-08-11 (capital_discipline reaching a live score is
+    an ADOPTED change), so **vintage 2 lasted ONE DAY** and vintage 3's first row is not owed
+    until **2026-08-13**. `recording_ok` is therefore `None` — the contract's own
+    not-vacuously-green rule working correctly, since no trading day is yet due. **Derive the
+    vintage, never quote it from a prompt or a handoff.**
+  * **A DEFECT IN THE INSTRUMENT, MINE, AND IT MADE EVERY PREVIOUS MORNING'S READING
+    MEANINGLESS.** `gap_report` counted the CURRENT day as due from midnight, but a trading day's
+    row is written after that day's close. **Measured: a writer holding every row it could
+    possibly have written still read `recording_ok: false` on 11 of 11 replayed trading-day
+    mornings, always naming the current day.** That is the exact mirror of the vacuous-PASS
+    defect session 15 caught in this same function, and since **LA8 put the gap on PUBLIC
+    surfaces** it was a daily false alarm on a red light that is supposed to be loud. A row now
+    falls due at the start of the **next trading day**, keyed to the calendar and deliberately
+    NOT to the writer's 20:01 cron — hard-coding a clock time would couple the contract's gate to
+    one implementation's schedule. Detection is delayed by at most one trading day, well inside
+    the contract's own **LOGGED-NOT-VOIDED** allowance for a single day's write filled the same
+    week.
+  * **A CORRECTION AGAINST MY OWN FIRST CUT, kept because the error is the instructive part.** I
+    first reported that vintage 2 owed a row for 2026-08-11 and never received it. **It owed
+    NOTHING** — under the corrected rule that row does not fall due until 2026-08-12, and vintage
+    2 had already closed. The claim was an artefact of **the very off-by-one the same change
+    repairs**, computed with the old rule while arguing for the new one, and it was caught by the
+    test written to pin it.
+  * **A SECOND REAL DEFECT: A VINTAGE EVENT SILENTLY CLEARS THE RECORDING GAP.** `gap_report` is
+    scoped to the open vintage, which is correct — the contract attaches the gate to the current
+    vintage — but it means a dated miss stops being reported the moment the next vintage opens.
+    **Vintage 1 owed six rows and got two, and its four missing dates (2026-08-03, -04, -05, -07)
+    are unreachable from anything `recording_ok` reports today.** The contract tolerates a missed
+    day as LOGGED-NOT-VOIDED, but **it can only be logged if something records it, and nothing
+    did.** New `track_meter.recording_history` reports every vintage side by side and reproduces
+    the contract's own 2-of-6 figure; **`recording_ok` is deliberately unchanged.**
+  * **ON THE WRITER ITSELF — EVIDENCE, NOT PROOF, AND THE SESSION'S OWN HYPOTHESIS IS REFUTED.**
+    The bound `data/valquo_track_history.csv` has mtime **2026-08-07 18:07** and was untouched
+    across **both** 2026-08-10 and 2026-08-11; no scheduled task matching the reported name
+    exists; and no code in this repository writes the file (session 13's finding, still true).
+    **The "the write died in the overnight restart" hypothesis is refuted by timing:** the
+    machine restarted at **03:33 on 2026-08-12**, which is **7.5 hours AFTER** the 20:01 window
+    on 2026-08-11, so it cannot have interrupted that write. **And the local copy is not a stale
+    mirror of a healthy remote** — the weekly `track-backup` cron pulled the LIVE service's bound
+    Index on 2026-08-10 18:09 and committed the same two rows; `/api/track` is owner-only and
+    returns 403 unauthenticated.
+  * **ZERO TRIAL COST — a correctness repair, logged `FIXED`. Equity `N` stays 158**, options
+    258, infra 10, and `BACKTEST_RESULTS.json` needs no re-run. **A near-miss worth carrying:
+    `RESEARCH_LOG.md` holds TWO tables with DIFFERENT 9-column schemas, and an append lands under
+    the SECOND** (`id|date|domain|pre|hypothesis|metric|verdict|n|source`). My first row used the
+    first table's layout, so the parser could not find its verdict cell and **counted a `FIXED`
+    repair as an infra trial**; caught by diffing `by_domain` against `HEAD` rather than by
+    reading the row. `HANDOFF_edge_audit.md` §1-6.
 - **THE DOWNSIDE-EXCLUSION SCREEN IS NOT MERELY INERT, IT IS COUNTERPRODUCTIVE — THE NAMES IT
   DELETES OUTPERFORM THE NAMES IT KEEPS AND CRASH AT HALF THE RATE (2026-08-11, session 27,
   `S10`).** Don's own question, formalised: *should a top-decile name whose point-in-time BULL
