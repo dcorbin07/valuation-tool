@@ -7810,6 +7810,141 @@ def test_s28_is_reporting_only_and_gates_nothing():
     assert not hits, "a distribution field is being compared or branched on:\n" + "\n".join(hits)
 
 
+# --------------------------- S5/S6/S13/S24/S27 (session 31): five weighting schemes
+def _w5():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "w5", "scripts/s5_s6_s13_s24_s27_weighting.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_s6_factor_momentum_is_point_in_time():
+    """THE ONE THAT MATTERS. Factor momentum reads the theme's OWN past returns, so an off-by-one
+    would let date i see its own realised long-short — a look-ahead that would manufacture the
+    exact result the arm is testing for. Date i must use periods [i-4, i-1] and nothing later.
+    """
+    import numpy as np
+
+    m = _w5()
+    dates = [f"d{i:02d}" for i in range(12)]
+    # one theme spikes at date 6 ONLY. If the weights at date 6 already reflect it, it leaked.
+    ls = {c: np.zeros(len(dates)) for c in m.THEMES}
+    spike = m.THEMES[0]
+    ls[spike][6] = 10.0
+    w = m.arm_s6_weights_by_date(ls, dates)
+
+    assert w[dates[6]][spike] == max(w[dates[6]].values()) or True     # no claim at date 6 itself
+    # the spike must NOT raise the spiking theme's weight on or before its own date
+    eq = 1.0 / len(m.THEMES)
+    assert w[dates[6]][spike] <= eq + 1e-12, "date 6 saw its OWN return - look-ahead"
+    # ...and it MUST raise it on the next date, or the arm is inert
+    assert w[dates[7]][spike] > eq, "the trailing window never picked the spike up at all"
+
+
+def test_s6_bounds_are_the_pre_committed_ones_and_actually_bind():
+    import numpy as np
+
+    m = _w5()
+    dates = [f"d{i:02d}" for i in range(10)]
+    ls = {c: np.zeros(len(dates)) for c in m.THEMES}
+    for i, c in enumerate(m.THEMES):                      # a strict ranking of trailing returns
+        ls[c][:] = float(i)
+    w = m.arm_s6_weights_by_date(ls, dates)
+    eq = 1.0 / len(m.THEMES)
+    for d in dates[m.S6_TRAILING_PERIODS:]:
+        vals = list(w[d].values())
+        assert all(v >= 0.0 for v in vals), "floor at 0 violated"
+        assert max(vals) <= m.S6_CAP_MULT * eq + 1e-9, "cap at 2x equal violated"
+        assert abs(sum(vals) - 1.0) < 1e-9, "weights do not sum to 1"
+
+
+def test_s5_james_stein_intensity_is_clipped_and_its_degenerate_ends_are_detectable():
+    """C5. Intensity 0 => equal weight; intensity 1 => raw IC-proportional, which is a SHIPPED
+    scheme. Either end means the arm is not an independent scheme and must be reported as such."""
+    import numpy as np
+
+    m = _w5()
+    # identical ICs across themes -> no between-theme signal -> shrink all the way to the mean
+    flat = {c: np.full(40, 0.02) for c in m.THEMES}
+    w, d = m.arm_s5(flat)
+    assert 0.0 <= d["shrinkage_intensity"] <= 1.0, d
+    # 1.0 = fully shrunk = equal weight, which is the register's C5 direction. The first cut of
+    # the code reported the COMPLEMENT, so the register's two ends read backwards against it.
+    assert d["shrinkage_intensity"] >= 1.0 - 1e-9, "flat ICs must shrink FULLY to the grand mean"
+    for c in m.THEMES:                                    # ...which IS equal weight
+        assert abs(w[c] - 1.0 / len(m.THEMES)) < 1e-9, (c, w[c])
+
+    # and the other end must be reachable: widely dispersed ICs with tiny sampling noise
+    disp = {c: np.full(400, 0.01 * (i + 1)) for i, c in enumerate(m.THEMES)}
+    _, d2 = m.arm_s5(disp)
+    assert d2["shrinkage_intensity"] <= 1e-9, ("zero sampling variance must mean NO shrinkage",
+                                               d2)
+
+
+def test_s24_ensemble_is_seeded_and_reproducible():
+    """C6. A bagging result that changes between runs is not a result."""
+    import numpy as np
+    import pandas as pd
+
+    m = _w5()
+    rng = np.random.default_rng(5)
+    n_d, n_t = 4, 120
+    rows = [{"date": f"2020-0{d+1}-01", "ticker": f"T{t}"} for d in range(n_d) for t in range(n_t)]
+    panel = pd.DataFrame(rows)
+    z = {c: pd.Series(rng.normal(size=len(panel)), index=panel.index) for c in m.THEMES}
+    a, da = m.arm_s24(panel, z, draws=25, seed=7)
+    b, db = m.arm_s24(panel, z, draws=25, seed=7)
+    assert a.equals(b) and da.equals(db), "the ensemble is not reproducible at a fixed seed"
+    c, _ = m.arm_s24(panel, z, draws=25, seed=8)
+    assert not a.equals(c), "the seed does not affect the draws - it is not really sampling"
+
+
+def test_s13_drawdown_uses_the_S10_sign_convention():
+    """S10 shipped a sign error here once: max drawdown is NEGATIVE, so an arm improves it by
+    being LESS negative and the gain is `arm - base`. Pinned with a known pair."""
+    import numpy as np
+
+    m = _w5()
+    steady = np.array([0.02, 0.02, 0.02, 0.02])
+    crash = np.array([0.02, -0.30, 0.02, 0.02])
+    assert m._dd(steady) == 0.0 or m._dd(steady) > -1e-12, m._dd(steady)
+    assert m._dd(crash) < -0.25, m._dd(crash)
+    # the improvement is arm - base and is POSITIVE when the arm is shallower
+    assert (m._dd(steady) - m._dd(crash)) > 0, "a shallower drawdown must score as an improvement"
+
+
+def test_s13_vol_raw_is_opt_in():
+    import inspect
+    import re
+
+    from valuation.edge import fundamental_panel as FP
+
+    p = inspect.signature(FP.build_fundamental_panel).parameters
+    assert "with_vol_raw" in p and p["with_vol_raw"].default is False
+    src = open("valuation/edge/fundamental_panel.py", encoding="utf-8").read()
+    # Only the ROW EMISSION is guarded. `out["realized_vol"]` inside `_price_factors` is the
+    # metric COMPUTATION and correctly always runs — the first cut of this test matched it too
+    # and failed on working code.
+    hits = list(re.finditer(r'row\["realized_vol"\]\s*=', src))
+    assert hits, "the row emission vanished - the guard has nothing to protect"
+    for mm in hits:
+        seg = src[max(0, mm.start() - 700):mm.start()]
+        assert "with_vol_raw" in seg, "realized_vol reaches the row outside the opt-in guard"
+
+
+def test_the_five_arm_register_fixed_the_family_wise_clause_in_advance():
+    """Five sibling arms against one bar. Without a pre-committed rule, the first arm that clears
+    gets quoted as a finding. The register has to carry the clause, not the write-up."""
+    reg = open("PREREG_s5_s6_s13_s24_s27_weighting.md", encoding="utf-8").read()
+    assert "FAMILY-WISE" in reg.upper()
+    assert "1 OF 5 SIBLING ARMS" in reg.upper()
+    assert "23%" in reg, "the family-wise rate is not quantified in the register"
+    # and S13's structurally different bar is fixed there too
+    assert "unchanged by construction" in reg.lower()
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

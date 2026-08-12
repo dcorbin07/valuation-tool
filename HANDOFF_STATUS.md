@@ -1,5 +1,58 @@
 # HANDOFF STATUS — shared project state
 
+## edge lane, session 31 (2026-08-12) — five alternative weighting schemes, all five REJECTED
+
+`PREREG_s5_s6_s13_s24_s27_weighting.md` committed **alone at `8b0917e`** — one register for all
+five. One panel build, six scorings on one frame. **ADOPTS NOTHING.**
+
+**THE NUMBER THAT PRICES THE WHOLE FAMILY: CPCV's own best challenger (`positive-equal`) beat the
+deployed default by a margin of `0.000265` against a required bar of `0.020830` — it would have to
+be about 79× LARGER to clear.** `adopt=false`, PBO 0.80. Weight tuning on this panel is not
+marginal; it is nowhere near.
+
+**Three of the five propose behaviour already shipped** (all five rows were `src=auto` — the S21
+pattern for the third time). **`S27` is already shipped at the audit's own middle half-life**:
+`halflife_days=1260` (≈5y) is the default of `_weighted_optimize`, `walk_forward` and
+`cpcv_validate`, while the audit proposes 3, 5 and 10. **`S5`'s shrinkage is half-shipped** as
+`ic-shrunk-50` (fixed 50%), already CPCV-rejected. **`S13`'s inverse-vol is shipped at the wrong
+level** (`risk-parity` is across *themes*; S13 asks for it across *names*). And **X6, S27's stated
+dependency, is DONE and NULL** — no confirmed break for recency weighting to respond to.
+
+**Verdicts.** S5 REJECTED (−2.12/−1.68pp, shrinkage intensity 0.5641, so genuinely partial).
+S24 REJECTED and **very nearly the incumbent at rank corr 0.9907** — a seven-signal set has almost
+nothing to bag. S27 REJECTED at **both** half-lives by the widest margins of the five.
+
+**`S6` is the only arm to clear any half and gets the full skeptical treatment the register fixed
+first:** late +3.30pp at Δt +0.678 (improves), early −1.61pp at Δt −1.289 (does not) — a sign flip
+between halves, **and 1 of 5 sibling arms** (at-least-one-clears ≈23% under independence).
+**NOT eligible, NOT adopted, and the +3.30pp may not be quoted without both labels.**
+
+**`S13` fails the alpha gate while improving exactly what it exists to improve**, which the
+register called in advance as an instrument mismatch: equal weight +25.29%/yr, Sharpe 0.5866,
+maxDD −0.2809 → capped inverse-vol +23.53%/yr, **Sharpe 0.6261**, maxDD −0.2804. Its long-short
+leg is unchanged **by construction**, so its *t* margin is N/A and may never read as a pass.
+
+**A defect in my own instrument, resolved under the session-11 protocol.** The register's C5
+defines the reported intensity as the *shrinkage* intensity; the first cut reported its
+*complement*. Caught by its own test before any verdict was read, and **proven presentational by
+a leaf-by-leaf artifact diff: the S5 weight vector is bit-identical (max |Δ| 0.000e+00) and ZERO
+gate cells moved on any arm.** No conclusion needed re-deriving.
+
+**A limitation reported, not glossed:** `cpcv_validate` selects among its own eight
+`_weight_schemes` and cannot evaluate an arbitrary vector, so its authority operates here as a
+blanket keep-the-defaults rule rather than an arm-by-arm verdict — weaker than the register's
+wording implies.
+
+**Equity `N` 165 → 170.** **Expectations 6 right, 0 wrong — the first clean sweep in this record**,
+because the prior was the project's own *measured* standing result rather than intuition.
+
+**Next:** S10's accounting half, or the CPCV embargo. **And the dated one: read `/api/track` →
+`contract_track.recording_ok` on or after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 31.
+
+---
+
 ## edge lane, session 30 (2026-08-12) — S16 all four arms rejected (and the audit's proposal is a rank identity), S28 shipped, two lying ledger rows corrected
 
 **S16.** `PREREG_s16_issuance_decomposition.md` committed **alone at `afc7578`**. One panel build,

@@ -974,7 +974,8 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                             keep_numbers=False, sector_neutral=False,
                             grid_offset=None, extra_horizons=None,
                             sector_neutral_pair=False, standardizer_arms=None,
-                            with_insider_raw=False, with_issuance_raw=False) -> pd.DataFrame:
+                            with_insider_raw=False, with_issuance_raw=False,
+                            with_vol_raw=False) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -1424,6 +1425,14 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                 _v16 = _src16.get("share_issuance")
                 row["share_issuance"] = (None if (_v16 is None or pd.isna(_v16))
                                          else float(_v16))
+            # S13 — the RAW trailing volatility, in levels. An inverse-volatility book needs
+            # magnitudes, and the panel otherwise carries only `z_neg_vol`, from which a level
+            # cannot be recovered. Opt-in, so the default column set is untouched.
+            if with_vol_raw:
+                _src13 = _by_ticker.get(t) or {}
+                _v13 = _src13.get("realized_vol")
+                row["realized_vol"] = (None if (_v13 is None or pd.isna(_v13))
+                                       else float(_v13))
             # S20/S21 — the standardizer arms' themes, on this same row.
             for _p, _fr in fr_std.items():
                 _rr = _fr.loc[t] if t in _fr.index else None

@@ -48,6 +48,61 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **FIVE ALTERNATIVE WEIGHTING SCHEMES, ALL FIVE REJECTED — AND CPCV'S OWN BEST CHALLENGER MISSES
+  ITS BAR BY A FACTOR OF SEVENTY-NINE (2026-08-12, session 31, `S5`+`S6`+`S13`+`S24`+`S27`).**
+  ONE register for all five, `PREREG_s5_s6_s13_s24_s27_weighting.md`, committed **alone at
+  `8b0917e`**. One panel build, six scorings on one frame. **ADOPTS NOTHING.**
+  * **THE NUMBER TO REMEMBER, because it prices the whole family: CPCV's best challenger scheme
+    (`positive-equal`) beat the deployed default by a margin of `0.000265` against a required bar
+    of `0.020830` — it would have to be about 79× LARGER to clear.** `adopt=false`, PBO **0.80**.
+    Weight tuning on this panel is not marginal; it is nowhere near.
+  * **THREE OF THE FIVE PROPOSE BEHAVIOUR ALREADY SHIPPED, IN WHOLE OR IN PART** — all five rows
+    were `src=auto`, and this is the S21 pattern for the third time. **`S27` is already shipped at
+    the audit's own middle half-life**: `_theme_ic_stats` computes `0.5 ** (days_ago/halflife)`
+    and **`halflife_days=1260` (≈5y) is the default of `_weighted_optimize`, `walk_forward` AND
+    `cpcv_validate`**, while the audit proposes 3, 5 and 10. **`S5`'s shrinkage is half-shipped**
+    as `ic-shrunk-50` (fixed 50% toward equal weight), already CPCV-rejected. **`S13`'s
+    inverse-vol is shipped at the WRONG LEVEL** — `risk-parity` is inverse-vol across *themes*;
+    S13 asks for it across *names*, a different object.
+  * **VERDICTS.** `S5` REJECTED (−2.12pp / −1.68pp, rank corr 0.8933, shrinkage intensity
+    **0.5641** so genuinely partial and not degenerate at either end). `S24` REJECTED and **very
+    nearly the incumbent at rank corr 0.9907** — bagging a seven-signal set has almost nothing to
+    bag. `S27` REJECTED at **both** half-lives by the widest margins of the five (−4.29pp / −2.98pp
+    at 3y; −4.21pp / −2.66pp at 10y).
+  * **`S6` IS THE ONLY ARM TO CLEAR ANY HALF, AND IT GETS THE FULL SKEPTICAL TREATMENT THE
+    REGISTER FIXED IN ADVANCE.** Late half **+3.30pp at Δ*t* +0.678 — improves**; early half
+    **−1.61pp at Δ*t* −1.289 — does not.** That is a sign flip between halves, this project's most
+    repeated pattern, **and it is 1 OF 5 SIBLING ARMS**: five arms against one bar make
+    at-least-one-clears roughly a **23%** event under independence. **NOT eligible, NOT adopted,
+    and the +3.30pp may not be quoted without both labels.**
+  * **`S13` FAILS THE ALPHA GATE WHILE IMPROVING EXACTLY WHAT IT EXISTS TO IMPROVE, AND THAT WAS
+    REGISTERED AS AN INSTRUMENT MISMATCH RATHER THAN DISCOVERED.** Equal weight **+25.29%/yr,
+    Sharpe 0.5866, maxDD −0.2809**; inverse-vol capped **+23.53%/yr, Sharpe 0.6261, maxDD
+    −0.2804**. **Sharpe +0.0395 (≈6.7% relative), return −1.76pp, drawdown flat.** Its long-short
+    leg is unchanged **by construction**, so its *t* margin is **N/A and may never be read as a
+    pass**. X7 calibrates no floor for Sharpe, drawdown or turnover, so those carry no verdict.
+    The drawdown barely moving is consistent with S10's finding that this book's maxDD is decided
+    by one quarter (COVID 2020Q1).
+  * **EXPECTATIONS SCORED 6 RIGHT, 0 WRONG — the first clean sweep in this record, and the reason
+    matters more than the score.** The prior was not intuition; it was the project's own measured
+    standing result — CPCV adopts nothing, the tree combiner **REVERSED** out of sample, and
+    weight tuning went **+8.43%/yr in-search → −0.04%/yr on the locked hold-out**. **When the
+    prior is a measurement, the calls stop being wrong.**
+  * **A DEFECT IN MY OWN INSTRUMENT, resolved under the session-11 protocol.** The register's C5
+    defines the reported intensity as the **shrinkage** intensity; the first cut of the code
+    reported its **complement**, so the register's two degenerate ends read backwards against the
+    implementation. Caught by the test written to pin it, before any verdict was read. **Proven
+    presentational by diffing the pre-fix and post-fix artifacts leaf by leaf: the S5 weight
+    vector is BIT-IDENTICAL (max |Δ| 0.000e+00) and ZERO gate cells moved on any arm in either
+    half**, so no conclusion needed re-deriving. The register is left unedited; the code now
+    matches it.
+  * **A LIMITATION OF THE DESIGN AGAINST ITS OWN REGISTER, REPORTED NOT GLOSSED.** The register
+    says CPCV is the authority "for every arm that produces a weight vector". **`cpcv_validate`
+    selects among its OWN eight `_weight_schemes` and cannot evaluate an arbitrary vector**, so it
+    does not bless or decline S5/S6/S27 individually; its authority operates here as a blanket
+    keep-the-defaults rule, which is weaker than the register's wording implies.
+  * **Equity `N` 165 → 170**, one trial per item. `data/free_analysis/S5_S6_S13_S24_S27.json`;
+    `HANDOFF_edge_audit.md` §1-7.
 - **SPLITTING NET ISSUANCE INTO TWO INPUTS CANNOT CHANGE AN ORDERING — IT IS A RANK IDENTITY,
   NOT A MEASUREMENT — AND BUYBACKS CARRY MORE OF THE THEME'S IC THAN DILUTION DOES
   (2026-08-12, session 30, `S16`).** `PREREG_s16_issuance_decomposition.md` committed **alone at

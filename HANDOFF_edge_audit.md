@@ -9012,3 +9012,163 @@ published number.
 **And the dated one, which needs no work: read `/api/track` → `contract_track.recording_ok` on or
 after 2026-08-13.** `row_awaited` is 2026-08-12 and `assessable_from` is 2026-08-13, so from then
 a missing row is a dated writer failure and `PT-WRITER` can finally be escalated or closed.
+
+---
+
+# SESSION 31 (2026-08-12) — five alternative weighting schemes, one register, all five rejected
+
+`PREREG_s5_s6_s13_s24_s27_weighting.md` committed **alone at `8b0917e`** — one `.md`, zero `.py`,
+a strict ancestor of the measurement commit. **One panel build, six scorings on one frame.**
+
+## 0. The headline
+
+**All five rejected, and the family is priced by one number: CPCV's own best challenger scheme
+(`positive-equal`) beat the deployed default by a margin of `0.000265` against a required bar of
+`0.020830` — it would have to be about 79× LARGER to clear.** `adopt=false`, PBO **0.80**. Weight
+tuning on this panel is not marginal. It is nowhere near.
+
+## 1. The premise check — three of five are already shipped, in whole or in part
+
+All five rows were `src=auto`. This is the S21 pattern for the third time.
+
+* **`S27` IS ALREADY SHIPPED, AT THE AUDIT'S OWN MIDDLE HALF-LIFE.** The item claims *"every IC is
+  a full-sample median, every weight is fixed"* — true only of the reported diagnostics.
+  `_theme_ic_stats` (`fundamental_panel.py:2135-2145`) computes `0.5 ** (days_ago/halflife_days)`,
+  and **`halflife_days=1260` (≈5y) is the default of `_weighted_optimize`, `walk_forward` AND
+  `cpcv_validate`**. The audit proposes 3, 5 and 10 years; **5 is the shipped default.**
+* **`S5`'s SHRINKAGE IS HALF-SHIPPED AND THE SHIPPED HALF IS ALREADY REJECTED.** `_weight_schemes`
+  contains `ic-shrunk-50` — `0.5 × ic_proportional + 0.5 × equal` — a shrinkage estimator with
+  intensity **fixed at 50%**, one of the eight CPCV has repeatedly declined. S5's real
+  contribution is *data-determined* shrinkage, not shrinkage.
+* **`S13`'s INVERSE-VOL IS SHIPPED AT THE WRONG LEVEL.** `risk-parity = norm(1/vol)` is inverse
+  volatility across **themes**, already rejected. S13 asks for it across **names inside the
+  book** — position sizing, not signal weighting. Conflating them would report a shipped
+  rejection as a new one.
+* **`S27`'s STATED DEPENDENCY IS SATISFIED AND CUTS AGAINST IT.** *"Run this after X6"* — **X6 is
+  `DONE` and `NULL`**: the structural-break test was null under Holm–Bonferroni and the 2012 story
+  is not confirmed. There is no confirmed break for recency weighting to respond to.
+* **`S6` and `S24` are genuinely untested.** Nothing like either exists in the tree.
+
+## 2. Verdicts
+
+| arm | Δalpha early | Δalpha late | Δ*t* early | Δ*t* late | rank corr | verdict |
+|---|---|---|---|---|---|---|
+| **S5** hierarchical shrinkage | −2.12pp | −1.68pp | −1.598 | −0.833 | 0.8933 | REJECTED |
+| **S6** factor momentum | −1.61pp | **+3.30pp** | −1.289 | **+0.678** | 0.9489 | **NOT_REPLICATED** |
+| **S24** ensemble (200 draws) | −0.31pp | −1.24pp | +0.252 | +0.311 | **0.9907** | REJECTED |
+| **S27** half-life 3y | −4.29pp | −2.98pp | −2.272 | −1.081 | 0.7352 | REJECTED |
+| **S27** half-life 10y | −4.21pp | −2.66pp | −2.328 | −1.062 | 0.7189 | REJECTED |
+
+**S5's shrinkage intensity is 0.5641** — genuinely partial, and degenerate at neither end
+(control C5): it is neither equal weight nor raw IC-proportional, so the arm is a real third
+thing and its rejection is informative rather than definitional.
+
+**S24 is very nearly the incumbent (rank corr 0.9907)**, pre-registered as expected above 0.98.
+Bagging over a signal set of **seven** shrinks every draw toward the same mean composite; there is
+almost nothing to bag. Its stated secondary value was delivered — mean per-name rank dispersion
+**0.18301** — but putting a per-name confidence figure on the product surface is the web lane's
+decision and was scoped out.
+
+## 3. S6 is the only arm to clear any half — and gets the treatment the register fixed first
+
+**Late half +3.30pp at Δ*t* +0.678 (improves). Early half −1.61pp at Δ*t* −1.289 (does not).**
+
+That is a **sign flip between halves** — this project's single most repeated pattern, now recorded
+six-plus times — and **it is 1 of 5 sibling arms**. Five arms against one bar make
+"at least one clears" roughly a **23%** event under independence, and the arms are positively
+correlated (all functions of the same theme IC series), so 23% is an upper bound on the *arms*
+being independent, not a floor on the noise.
+
+**NOT eligible. NOT adopted. The +3.30pp may not be quoted without both labels.** The register
+fixed that clause before any arm ran, precisely so that the first arm to clear anything could not
+be written up as a finding.
+
+Also recorded: **S6's cap did not bind** (max theme weight 0.2000 against a 0.2857 ceiling), so
+the rejection is not an artefact of the bounds. And its point-in-timeness is **pinned by a test** —
+date *i* uses periods *i−4 … i−1* and nothing later, because an off-by-one would let a date see
+its own realised long-short and manufacture exactly the result the arm tests for.
+
+## 4. S13 fails the alpha gate while improving what it exists to improve
+
+| | ann return | Sharpe (per period) | max drawdown |
+|---|---|---|---|
+| equal weight (incumbent) | **+25.29%** | 0.5866 | −0.2809 |
+| inverse-vol, capped 2× (**primary**) | +23.53% | **0.6261** | −0.2804 |
+
+**Sharpe +0.0395 (≈6.7% relative), return −1.76pp, drawdown flat.** That is the classic
+inverse-vol shape and **exactly what expectation 3 predicted**, including that it would fail an
+alpha-margin gate **by construction**.
+
+The register fixed the structural difference in advance: S13 leaves the composite alone, so the
+decile **membership** is unchanged and **the long-short leg is unchanged by construction** — its
+*t* margin is recorded **N/A and may never be read as a pass**. X7 calibrates no floor for Sharpe,
+drawdown or turnover, so those three are measurements carrying no verdict. Volatility fallback
+rate **0.0055**, so the arm is not quietly the incumbent.
+
+**That the drawdown barely moves is consistent with S10's finding** that this book's max drawdown
+is decided by a single quarter (COVID 2020Q1) — an inverse-vol overlay cannot help much against a
+one-quarter market event.
+
+## 5. A defect in my own instrument, under the session-11 protocol
+
+The register's **C5** defines the reported quantity as the **shrinkage** intensity — 1.0 = fully
+shrunk = equal weight. **The first cut of `arm_s5` reported its COMPLEMENT**, so the register's two
+degenerate ends read backwards against the implementation.
+
+Caught by the test written to pin it, **before any verdict was read**. Then, per the protocol,
+the question asked was not *"was the label wrong"* but ***"did any verdict-half move"*** — answered
+by diffing the pre-fix artifact against the post-fix one leaf by leaf rather than by reasoning
+about the algebra:
+
+* **The S5 weight vector is BIT-IDENTICAL: max |Δ| `0.000e+00` across all seven themes.**
+* **ZERO gate cells moved** — no verdict, no half, no delta, on any of the five arms.
+* The only change is the reported number: `0.4359` (keep) → `0.5641` (shrink), complements
+  summing to exactly 1.0.
+
+**So the defect was presentational and no conclusion needed re-deriving.** The register is left
+unedited; the code now matches it.
+
+## 6. A limitation of the design against its own register
+
+The register says CPCV is the authority *"for every arm that produces a weight vector (S5, S6,
+S27)"*. **`cpcv_validate` selects among its OWN eight `_weight_schemes` and cannot evaluate an
+arbitrary weight vector**, so it does not bless or decline those three individually. Its authority
+operates here as a **blanket keep-the-defaults rule** — which is weaker than the register's wording
+implies, and is recorded as such rather than glossed. It does not change any verdict: all five
+arms fail the held-out gate on their own.
+
+## 7. Trial cost, adoption, expectations
+
+**Equity `N` 165 → 170**, one trial per item; options 261 and infra 11 untouched. **ADOPTS
+NOTHING** — adoption would be a vintage event and the vintage is **derived** per `PT-GAPDUE`.
+
+**Expectations scored 6 right, 0 wrong — the first clean sweep in this record**, and the reason is
+worth more than the score: the prior was not intuition but the project's own **measured** standing
+result (CPCV adopts nothing; the tree combiner *reversed* out of sample; weight tuning went
++8.43%/yr in-search → −0.04%/yr on the locked hold-out). **When the prior is a measurement, the
+directional calls stop being wrong.**
+
+## 8. What I did NOT do
+
+1. **I did not re-test the eight shipped `_weight_schemes`.** CPCV has answered that repeatedly.
+2. **I did not implement the full Bayesian/MCMC version of S5** — the audit calls it a stretch
+   goal and says empirical Bayes captures most of the benefit.
+3. **I did not change `halflife_days` anywhere in the live path**, whatever S27 returned.
+4. **I did not put S24's per-name dispersion on the product surface** — web lane's decision.
+5. **I did not touch `low_risk`**, whose removal S13 is described as complementing.
+6. **I did not extend `cpcv_validate` to score arbitrary vectors** (§6). That would change the
+   authority every past weight verdict was read from, and is its own item.
+
+## 9. BUGS FOUND
+
+1. **My own S5 intensity/complement mismatch against the register** (§5) — presentational, proven.
+2. **`cpcv_validate` cannot evaluate an arbitrary weight vector** (§6) — reported as a scope
+   limitation of the register's own wording.
+3. **`scripts/build_ledger.py` will DROP all five rows** if regenerated — curated. Pre-existing.
+
+## 10. Next
+
+**S10's accounting half** (Beneish, Altman, external financing, NT late filings) or the **CPCV
+embargo** from session 22 — still the only open item that can move a published number.
+
+**And the dated one: read `/api/track` → `contract_track.recording_ok` on or after 2026-08-13.**
