@@ -1,5 +1,56 @@
 # HANDOFF STATUS — shared project state
 
+## edge lane, session 32 (2026-08-12) — S7 + S18: every pre-registered interaction REJECTED
+
+`PREREG_s7_s18_interactions.md` committed **alone at `7fc6ab2`**, one register for both items. No
+panel rebuild. **ADOPTS NOTHING.**
+
+**One of the audit's four named interactions cannot be built.** `size × liquidity` needs a
+liquidity measure and the price export carries **date and close only**, so `avg_dollar_volume`
+cannot be computed in the panel at all — audit B13's blocker. **Reported, not proxied**: a
+stand-in would be a different hypothesis wearing this one's name, and a test pins that none
+appeared. Charges no trial.
+
+**Short interest does not reach half the panel, and the audit's number is understated.** 48,539
+tickers and 3,866,270 records, but coverage is **32 of 69 dates (46.4%)**, not 40%, first covered
+2018-04-20. **Every covered date is in the LATE portion**, so S18 cannot satisfy a both-halves gate
+on the full panel — an impossibility, not a caveat. Its arms are gated on halves of the **covered
+subsample, 16 dates each**, exactly the shipped gate's `min_dates` floor. **A pass on 16-date
+halves is not the same object as a pass on 34-date halves.**
+
+**All six testable arms rejected.** `value × quality` −1.17/−0.84pp; `momentum × vol regime`
+−0.48/−0.19pp; `value × institutional` −0.05/−1.09pp; `value × short_interest` −0.49/−0.86pp.
+**`momentum × short_interest` is NOT_REPLICATED — late half alone (+1.85pp, Δt +0.812), early half
+fails (−2.39pp).** That is **the second consecutive session in which exactly one arm clears exactly
+one half**; the family-wise clause has earned its keep twice. **1 of 6 siblings, not adopted.**
+
+**THE MOST USEFUL RESULT: the short-interest exclusion made drawdown WORSE**, independently
+replicating S10 on a different criterion. Dropping the top 5% most-shorted removed 4.83% of
+top-decile rows, moved return +27.08% → +26.77%, and moved max drawdown **−0.2809 → −0.2863, a
+gain of −0.5404pp**. S10 found a *valuation-band* screen worsened drawdown by 2.61/3.35pp; a
+*crowding* screen worsens it too. S10's caveats travel verbatim — drawdown is negative so the gain
+is `arm − base`, and X7 calibrates no drawdown floor.
+
+**The audit's Bonferroni prescription (p < 0.0125) was declined explicitly**, with the reason
+registered first: it assumes a p-value gate while this project's gate is a margin gate whose
+floors X7 calibrated. Multiplicity is honoured by labelling instead.
+
+**C7 is the clean surprise and the one expectation that missed.** An eighth input dilutes every
+theme 1/7 → 1/8, so each arm is a compound change — registered in advance. Isolated with a
+constant eighth column it is **essentially nil (+0.00017 / +0.00015)**, so the arms measure the
+interactions and nothing else. C5 zero PIT violations; C6 no interaction is a parent proxy
+(largest |corr| 0.4584).
+
+**Equity `N` 170 → 176.** Expectations 6 right, 1 wrong. **Nothing was searched beyond the audit's
+named list.**
+
+**Next:** S10's accounting half, or the CPCV embargo. **And the dated one: read `/api/track` →
+`contract_track.recording_ok` on or after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 32.
+
+---
+
 ## edge lane, session 31 (2026-08-12) — five alternative weighting schemes, all five REJECTED
 
 `PREREG_s5_s6_s13_s24_s27_weighting.md` committed **alone at `8b0917e`** — one register for all

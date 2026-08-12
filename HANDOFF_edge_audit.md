@@ -9172,3 +9172,146 @@ directional calls stop being wrong.**
 embargo** from session 22 — still the only open item that can move a published number.
 
 **And the dated one: read `/api/track` → `contract_track.recording_ok` on or after 2026-08-13.**
+
+---
+
+# SESSION 32 (2026-08-12) — S7 + S18: every pre-registered interaction rejected
+
+`PREREG_s7_s18_interactions.md` committed **alone at `7fc6ab2`** — one `.md`, zero `.py`, a strict
+ancestor of the measurement commit. **No panel rebuild:** every input was already on the banked
+corrected 69-date panel, and short interest joined from the cache point-in-time.
+
+## 0. The headline
+
+**All six testable arms rejected. One of the audit's four named interactions cannot be built at
+all. And the short-interest exclusion made drawdown WORSE — independently replicating S10 on a
+completely different criterion.**
+
+## 1. `size × liquidity` is unbuildable, and is reported rather than proxied
+
+The audit names four interactions. The fourth needs a liquidity measure and **there is none on
+this path**: the price export carries **date and close only**, so `avg_dollar_volume` cannot be
+computed in the panel at all. That is audit **B13**'s blocker, stated in the panel's own
+`prefilter_note`, and the B13 ledger row was corrected last session from `IN PROGRESS` to
+**`PARTIAL — BLOCKED ON DATA`** for exactly this reason.
+
+**Deliberately not proxied.** A market-cap or price-based stand-in would be a *different
+hypothesis wearing this one's name*, and a test pins that the script grew no such proxy. It
+charges **no trial**, on session 8's precedent that a test which cannot be run keeps the
+denominator.
+
+## 2. Short interest does not reach half the panel
+
+The cache is real — **48,539 tickers, 3,866,270 records, 2018-01-27 → 2026-07-30**. The audit says
+coverage is *"40% of the panel dates"*. **Measured: 32 of 69, 46.4%**, first covered date
+**2018-04-20**, row coverage on covered dates **0.9269**.
+
+**The consequence is structural and decided S18's design before any arm ran: every covered date is
+in the LATE portion of a panel that starts 2009-01-15, so S18 cannot satisfy a both-halves gate on
+the full panel — the early half has no data at all.** That is an impossibility, not a caveat to
+note afterwards, so the register fixed the replacement first: **S18's arms are gated on the two
+halves of the covered subsample — 32 dates, 16 per half.** Sixteen is exactly
+`holdout_compare_panels`' `min_dates` floor, the thinnest split the shipped gate accepts.
+**A pass on 16-date halves is not the same object as a pass on 34-date halves, and no S18 result
+may be compared directly with an S7 one.**
+
+## 3. Verdicts
+
+| arm | Δalpha early | Δalpha late | Δ*t* early | Δ*t* late | rank corr | coverage | verdict |
+|---|---|---|---|---|---|---|---|
+| A1 `value × quality` | −1.17pp | −0.84pp | −0.764 | +0.490 | 0.9446 | 0.9791 | REJECTED |
+| A2 `momentum × vol regime` | −0.48pp | −0.19pp | −0.933 | −0.033 | 0.9547 | 0.6710 | REJECTED |
+| A3 `value × institutional` | −0.05pp | −1.09pp | −0.293 | −0.526 | 0.9633 | 0.7172 | REJECTED |
+| A4 `value × short_interest` | −0.49pp | −0.86pp | −0.432 | −0.000 | 0.9691 | 0.4621 | REJECTED |
+| A5 `momentum × short_interest` | −2.39pp | **+1.85pp** | −0.321 | **+0.812** | 0.9676 | 0.4540 | **NOT_REPLICATED** |
+
+**A5 clears the late half alone.** That is a sign flip between halves — **and the second
+consecutive session in which exactly one arm clears exactly one half** (S6 did it last session).
+The family-wise labelling clause has now earned its keep twice: **`ELIGIBLE — UNREPLICATED, 1 OF 6
+SIBLING ARMS`**, not eligible on the gate, not adopted, and the +1.85pp may not be quoted without
+both labels.
+
+**A3's coverage handicap was pre-registered**: `institutional` has the panel's worst coverage, so
+the interaction is missing on nearly three rows in ten — which is why it was expected to fail for
+a reason unrelated to the hypothesis.
+
+## 4. A6 — the exclusion replicates S10 on a different criterion
+
+Dropping the **top 5% most-shorted** from the top decile:
+
+| | value |
+|---|---|
+| top-decile rows dropped | **4.83%** |
+| annualised return | +27.08% → **+26.77%** (−0.31pp) |
+| **max drawdown** | −0.2809 → **−0.2863** |
+| **drawdown gain** | **−0.5404pp — WORSE** |
+
+**S10 found a *valuation-band* exclusion worsened drawdown by 2.61pp and 3.35pp. A *crowding*
+exclusion worsens it too** — same direction, smaller magnitude, entirely different criterion.
+That is an independent replication of the finding S10 called counterproductive, and it is the most
+useful thing in this session.
+
+Both S10 caveats travel verbatim: **`max_drawdown` is NEGATIVE**, so the gain is `arm − base` —
+pinned by a test carrying the real measured pair — and **X7 calibrates no drawdown floor
+anywhere**, so this is a measurement carrying no verdict. S10 additionally measured that this
+book's worst drawdown spans a single quarter (COVID 2020Q1), which the covered window contains and
+which an exclusion screen cannot dodge.
+
+## 5. Bonferroni, declined explicitly
+
+The audit prescribes *p* < 0.0125 for four interactions. **That assumes a p-value gate; this
+project's gate is a MARGIN gate whose floors X7 calibrated against a placebo.** Translating one
+into the other would invent an uncalibrated correspondence — the error X3 and session 10 both paid
+for. So the margin gate is primary and unadjusted, and multiplicity is honoured by **labelling**,
+exactly as the five-scheme register did.
+
+## 6. Controls
+
+* **C1** reproduces the published record; the run aborts before any arm otherwise.
+* **C5 — zero point-in-time violations** on the short-interest join. Pinned by a test using a
+  fixture where a settlement dated *on* the scoring date and one dated *after* it must both be
+  excluded, because a leak here would manufacture exactly the crowding effect being tested.
+* **C6 — no interaction is a proxy for a parent.** Largest |parent correlation| across all five
+  columns is **0.4584** (`value × quality` against `value`); most are far lower.
+* **C7 — THE CLEAN SURPRISE, and the one expectation that missed.** Adding an eighth input moves
+  every theme's *relative* weight 1/7 → 1/8, so each arm is a **compound** change — registered in
+  advance. Re-scoring with a **constant** eighth column isolates the dilution: **+0.000173 early
+  and +0.000146 late, essentially nil.** So the arms measure the interactions and nothing else.
+  I predicted (65/35) the dilution would account for a non-trivial share; **it accounts for none**,
+  which is a cleaner result than predicted.
+
+## 7. Trial cost and expectations
+
+**Equity `N` 170 → 176** (six arms; the unbuildable fourth interaction charges nothing).
+**Expectations 6 right, 1 wrong** — the miss is C7 above.
+
+**Nothing was searched beyond the audit's named list.** That is the single design choice that
+makes the exercise worth anything: searching the quadratic interaction space is exactly what the
+ML tree combiner did, and it *reversed* out of sample.
+
+## 8. What I did NOT do
+
+1. **I did not build a liquidity proxy** to rescue `size × liquidity` (§1). Pinned by a test.
+2. **I did not re-test short interest standalone** — already rejected, and S18's thesis is that it
+   conditions rather than predicts.
+3. **I did not search for additional interactions**, or mention any as promising.
+4. **I did not wire SEP volume into the loader** to unblock §1 — data plumbing, different lane,
+   and it would change the universe.
+5. **I did not adopt anything.** Adoption would be a vintage event.
+
+## 9. BUGS FOUND
+
+1. **One of the audit's four named interactions is unbuildable** (§1) — reported.
+2. **The audit's short-interest coverage figure is understated** — 46.4%, not 40% (§2). Minor, but
+   it is the number that decides whether a both-halves gate is possible.
+3. **My own first cut crashed on the C5 check** — `si_used` carried `None` for missing rows and
+   pandas coerced the Series to float, so `is not None` was true for NaN and the comparison threw.
+   Fixed with an explicit `isinstance(..., str)` and an object dtype. Caught by running it.
+4. **`scripts/build_ledger.py` will DROP both rows** if regenerated — curated. Pre-existing.
+
+## 10. Next
+
+**S10's accounting half** (Beneish, Altman, external financing, NT late filings) or the **CPCV
+embargo** from session 22 — still the only open item that can move a published number.
+
+**And the dated one: read `/api/track` → `contract_track.recording_ok` on or after 2026-08-13.**

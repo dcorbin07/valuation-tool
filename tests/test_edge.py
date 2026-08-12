@@ -7945,6 +7945,91 @@ def test_the_five_arm_register_fixed_the_family_wise_clause_in_advance():
     assert "unchanged by construction" in reg.lower()
 
 
+# ------------------------------------ S7/S18 (session 32): pre-registered interactions
+def _s7():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("s7", "scripts/s7_s18_interactions.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_s18_short_interest_join_is_strictly_point_in_time():
+    """C5, and the one that matters. Short interest settles on a date and is PUBLISHED later;
+    joining a settlement dated on or after the scoring date would manufacture exactly the
+    crowding effect the arms test for."""
+    import pandas as pd
+
+    m = _s7()
+    panel = pd.DataFrame({"date": ["2020-06-30"] * 3, "ticker": ["AAA", "BBB", "CCC"]})
+    si = {
+        "AAA": [("2020-05-15", 1.0, 0, 0), ("2020-06-30", 99.0, 0, 0)],   # ON the date
+        "BBB": [("2020-07-15", 77.0, 0, 0)],                              # AFTER the date
+        "CCC": [("2020-06-15", 3.0, 0, 0)],                               # before -> usable
+    }
+    si = {k: sorted(v) for k, v in si.items()}
+    vals, used = m.join_si(panel, si)
+    assert vals.iloc[0] == 1.0, "a settlement dated ON as_of leaked in"
+    assert used.iloc[0] == "2020-05-15"
+    assert pd.isna(vals.iloc[1]), "a settlement dated AFTER as_of leaked in"
+    assert vals.iloc[2] == 3.0
+
+
+def test_s18_exclusion_drawdown_uses_the_S10_sign_convention():
+    """S10 shipped this backwards once and reported a 2.61pp WORSENING as an IMPROVEMENT.
+    max_drawdown is NEGATIVE; the gain is `arm - base`."""
+    import numpy as np
+
+    m = _s7()
+    shallow = np.array([0.02, -0.05, 0.03, 0.02])
+    deep = np.array([0.02, -0.35, 0.03, 0.02])
+    assert m._dd(deep) < m._dd(shallow) < 0
+    assert (m._dd(shallow) - m._dd(deep)) > 0, "a shallower drawdown must score as a gain"
+    # and the measured A6 pair must read as a WORSENING, which is what it was
+    base, arm = -0.2809334725979583, -0.2863372461981234
+    assert (arm - base) * 100.0 < 0, "the measured A6 drawdown change must read NEGATIVE"
+
+
+def test_s7_market_vol_regime_is_point_in_time():
+    """A2 conditions momentum on the market's realised volatility. Using the CURRENT date's
+    benchmark return would be a look-ahead on the market itself."""
+    import numpy as np
+    import pandas as pd
+
+    m = _s7()
+    dates = [f"2020-{i:02d}-01" for i in range(1, 13)]
+    # a benchmark that is calm then explodes at the LAST date
+    bench = [0.01] * 11 + [5.0]
+    panel = pd.DataFrame({"date": dates, "bench_ret": bench})
+    reg = m.market_vol_regime(panel)
+    assert np.isnan(reg.iloc[0]), "no history at the first date"
+    last = reg.iloc[-1]
+    prev = reg.iloc[-2]
+    assert abs(last - prev) < 1e-9, "the last date saw its OWN benchmark move - look-ahead"
+
+
+def test_s7_register_records_the_unbuildable_arm_rather_than_proxying_it():
+    """One of the audit's four named interactions needs a liquidity measure that does not exist
+    on this path (B13). The register must say so, and the script must not quietly substitute."""
+    reg = open("PREREG_s7_s18_interactions.md", encoding="utf-8").read()
+    assert "size × liquidity" in reg or "size x liquidity" in reg
+    assert "NOT BUILDABLE" in reg.upper() or "UNBUILDABLE" in reg.upper()
+    src = open("scripts/s7_s18_interactions.py", encoding="utf-8").read()
+    assert "UNBUILDABLE" in src, "the script must record the omission in its own artifact"
+    # and it must not have grown a liquidity proxy
+    for bad in ("liquidity_proxy", "z_liquidity", "adv_proxy"):
+        assert bad not in src, f"a liquidity proxy ({bad}) appeared - the register forbids it"
+
+
+def test_s7_register_declines_the_audits_bonferroni_translation_explicitly():
+    """The audit prescribes p < 0.0125. This project's gate is a MARGIN gate whose floors X7
+    calibrated; converting one into the other would invent an uncalibrated correspondence."""
+    reg = open("PREREG_s7_s18_interactions.md", encoding="utf-8").read()
+    assert "0.0125" in reg, "the audit's own bar is not quoted"
+    assert "MARGIN gate" in reg or "margin gate" in reg
+    assert "1 OF 6 SIBLING ARMS" in reg.upper()
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
