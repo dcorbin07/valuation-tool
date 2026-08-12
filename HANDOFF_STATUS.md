@@ -1,5 +1,54 @@
 # HANDOFF STATUS — shared project state
 
+## edge lane, session 35 (2026-08-12) — the no-trade band CLEARS, and sector-neutral is finished
+
+`PREREG_s14_s15_band_sectorvalue.md` committed **alone at `32051c0`**. **ADOPTS NOTHING.**
+
+**`S14` IS ADOPT-ELIGIBLE — the first arm to clear in eight sessions, and it cleared in BOTH
+directions.** Sweeping the shipped grid on the decide half and measuring the argmax on the held-out
+half: both pick width **0.30**, net alpha **+1.78pp / +1.77pp**, gross alpha **+1.02pp / +0.77pp**,
+measured cost saving +0.76pp / +1.00pp. **Turnover roughly halves.**
+
+**TWO CORRECTIONS TO MY OWN REGISTER, BOTH AGAINST IT.** (1) **The "pure cost mechanism, no signal
+claim" framing is WRONG** — gross alpha improves, so **roughly half the gain is a signal effect**:
+holding a name until it leaves the top 30% rather than the top 10% stops the book churning on rank
+noise. The audit's category-error argument is therefore only **half** applicable. (2) **My
+indictment of the audit's 1.5pp allowance was too strong** — I computed the saving at ~26bps and
+called the allowance 6× the prize; **measured it is 76–100bps**, so ~1.5×.
+
+**THE CAVEAT THAT MUST TRAVEL WITH IT: the argmax sits at the GRID BOUNDARY in both directions.**
+0.30 is the widest width the shipped grid holds and it won twice, so **the optimum is at or beyond
+the edge and the knee is not identified.** **A wider grid is the next test, not an adoption.** C6
+confirms the audit's noise warning — the surface is non-monotone on the late half.
+
+**A mechanism supports it:** S22 measured alpha still accruing at two years while a name typically
+stays in the decile for ONE rebalance, so a wider band harvests persistence the tight exit throws
+away. **Recorded ELIGIBLE, not adopted** (vintage event, Don's call). Note the band is **already
+live in `taxable`**, so an adopt changes the *default*; and **B13 is only PARTIAL**, so the book is
+investable on the categorical screen and not the liquidity one.
+
+**`S15` IS REJECTED AND ESSENTIALLY INERT — AND SECTOR-NEUTRAL IS NOW FINISHED IN EVERY FORM.**
+Δalpha −0.01pp / −0.36pp, rank corr 0.9879, 5 of 25 names changed. **C4 is exact: every non-value
+theme is BIT-IDENTICAL at 0.000e+00** while `value` moves 1.5568, so the intervention is provably
+confined to one theme. `SECTOR-NEUTRAL-B6` named exactly two routes back — **`S25` (closed
+UNOBTAINABLE, session 29) and `S15` (rejected here). Both shut.**
+
+**The standing sector caveat now has no remedy:** TICKERS gives today's sector applied to 1998
+rows, and `S25` was the fix. **Any future sector-aware result inherits a look-ahead that cannot be
+repaired on data we own.**
+
+**Equity `N` 183 → 185.** Expectations **4 right, 3 wrong** — the worst here, and informative:
+both consequential misses are on S14, which was predicted to fail.
+
+**Next: S14's own follow-up — widen the width grid past 0.30** and re-run the same held-out design,
+since the current verdict cannot say where the optimum is. Otherwise S10's accounting half or the
+CPCV embargo. **And the dated one: read `/api/track` → `contract_track.recording_ok` on or after
+2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 35.
+
+---
+
 ## edge lane, session 34 (2026-08-12) — S11 + S12: a real turnover cut at 11-23x its cost, and an arm that misses by 18bps
 
 `PREREG_s11_s12_horizon_bucket.md` committed **alone at `d867fe3`**, one register for both. **All

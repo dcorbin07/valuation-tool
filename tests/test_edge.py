@@ -8213,6 +8213,85 @@ def test_s12_adopts_the_audits_own_metric_priority():
     assert "top-decile alpha decides" in reg
 
 
+# ------------------ S14/S15 (session 35): no-trade band on net alpha, sector-relative value
+def test_s15_sector_relative_cols_is_opt_in():
+    import inspect
+    import warnings
+
+    from valuation.screener.factors import build_frame
+
+    p = inspect.signature(build_frame).parameters
+    assert "sector_relative_cols" in p and p["sector_relative_cols"].default is None
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m = _mets()
+        a, b = build_frame(m), build_frame(m, sector_relative_cols=None)
+    assert a["value"].equals(b["value"]), "the default path moved"
+
+
+def test_s15_touches_the_value_inputs_and_NOTHING_else():
+    """C4's property, at the unit level. If the subset leaked into other granular columns, the
+    arm would be a broad sector-neutral run wearing a narrow label - which is exactly the thing
+    three prior rejections already settled."""
+    import warnings
+
+    import numpy as np
+
+    from valuation.edge.fundamental_panel import VALUE_INPUTS
+    from valuation.screener.factors import build_frame
+
+    rng = np.random.default_rng(9)
+    m = []
+    for i in range(240):
+        rev = float(rng.lognormal(19, 1))
+        m.append({"ticker": f"T{i}", "sector": ("Fin" if i % 2 else "Tech"),
+                  "earnings_yield": float(rng.normal(0.05, 0.02)),
+                  "fcf_yield": float(rng.normal(0.04, 0.02)),
+                  "ebit_ev": float(rng.normal(0.08, 0.03)),
+                  "book_to_price": float(rng.normal(0.5, 0.2)),
+                  "ps": float(rng.lognormal(1, 0.4)),
+                  "ev_sales": float(rng.lognormal(1, 0.4)),
+                  "ret_12_1": float(rng.normal(0.1, 0.3)),
+                  "ret_6_1": float(rng.normal(0.05, 0.2)),
+                  "roe": float(rng.normal(0.12, 0.05)),
+                  "revenue": rev, "net_income": rev * 0.1,
+                  "marketcap": float(rng.lognormal(22, 1.5))})
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        base = build_frame(m)
+        arm = build_frame(m, sector_relative_cols=VALUE_INPUTS)
+
+    assert not base["value"].equals(arm["value"]), "the value theme did not move - a no-op"
+    for theme in ("quality", "momentum", "size"):
+        if theme in base.columns and base[theme].notna().any():
+            a, b = base[theme], arm[theme]
+            both = a.notna() & b.notna()
+            assert float((a[both] - b[both]).abs().max()) == 0.0, \
+                f"{theme} moved - the subset leaked beyond the value inputs"
+
+
+def test_s15_value_input_list_is_the_audits_own():
+    from valuation.edge.fundamental_panel import VALUE_INPUTS
+
+    assert VALUE_INPUTS == ["earnings_yield", "fcf_yield", "ebit_ev", "book_to_price",
+                            "neg_ev_sales", "neg_ps", "neg_ev_ebitda"], VALUE_INPUTS
+
+
+def test_s14_width_sweep_is_held_out_and_the_guard_is_the_measured_saving():
+    """The audit's rule is 'adopt the width that maximises net alpha' - a sweep-and-pick, which
+    on the full sample is the in-sample selection this project already paid for. The argmax must
+    be taken on the DECIDE half and measured on the other, and the gross-alpha guard must be the
+    MEASURED saving rather than the audit's flat 1.5pp."""
+    src = open("scripts/s14_s15_band_sectorvalue.py", encoding="utf-8").read()
+    assert "band_sweep(panel, halves[decide])" in src, "the sweep is not run on the decide half"
+    assert "band_sweep(panel, halves[measure])" in src, "the argmax is not measured held-out"
+    assert '("early_half", "late_half"), ("late_half", "early_half")' in src
+    assert "(-d_gross) <= saving" in src, "the guard is not the measured saving"
+    assert "passes_audits_own_allowance" in src, "the audit's own allowance is not reported beside"
+    # and the shipped grid is used, not one invented here
+    assert "WIDTHS = (0.12, 0.15, 0.20, 0.25, 0.30)" in src
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
