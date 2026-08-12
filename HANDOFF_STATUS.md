@@ -4,6 +4,73 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 — edge lane, session 23 (S10): the downside-exclusion screen is REJECTED, and it is counterproductive
+
+Don's own question, formalised and measured: **should a top-decile name whose point-in-time BULL
+case already sits at or below price make the book at all?** **No.**
+`PREREG_s10_downside_exclusion.md` was committed **alone at `a041e09`** — one `.md`, zero `.py` —
+a strict ancestor of the measurement commit. **ADOPTS NOTHING and no live code path changed.**
+
+**THE SCOPE DIFFERS FROM THE AUDIT'S OWN S10, DELIBERATELY, AND THE REGISTER SAID SO FIRST.**
+`VALQUO_EDGE_AUDIT.md:739` specifies S10 as an **accounting** red-flag veto — Beneish M-score,
+Altman Z-score, external financing, NT filings. **None of those four was tested.** The ledger row
+is therefore **`PARTIAL`, not `DONE`**: closing it would tell the next session that work had been
+done. **S10's accounting half is still open and is a legitimate next item.**
+
+**THE VERDICT.** Against the audit's own asymmetric bar — drawdown better by >2.0pp AND alpha worse
+by <1.0pp, in both halves — **both arms fail**. Drawdown does not merely fail to improve, it gets
+**worse**: −2.61pp (DROP) and −3.35pp (BACKFILL), with alpha down 0.24pp and 0.93pp. The alpha
+effect **flips sign between halves** (helps early, hurts late) — session 7's LOO pattern again.
+
+**THE FINDING THAT OUTLIVES THE VERDICT, and it refutes the premise rather than failing a bar.**
+Within the top decile the **flagged** names return **+6.5125%/63d** against the unflagged
+**+6.2677%** — the names the screen would delete very slightly **OUTPERFORM** the ones it keeps
+(+0.98pp/yr, HAC *t* +0.4775, a clean NULL that flips sign between halves). **And they crash
+LESS**: flagged names fall more than 50% at **0.479%** against **0.832%** for the names retained —
+**roughly half the rate**, on the very count the audit calls *"the number that matters most"*.
+
+**WHY.** Flagged names carry **higher momentum** (+0.9530 vs +0.6741) and **much lower value**
+(+0.2728 vs +0.7362). R1 puts the book on **UMD +0.205 (t 3.65)**, so the screen deletes exactly
+the momentum exposure R1 says is real and tilts the remainder further into value — the FNMA
+value-trap direction. **It is also substantially a SECTOR bet** (U7's failure mode): flagged rate
+**51.38%** for the financial regime and **48.88%** for Financial Services against **15.79%** for
+Industrials.
+
+**A DEFECT IN MY OWN INSTRUMENT, caught before any verdict was read.** `max_drawdown` is negative,
+so improvement is `arm − base`; the first cut had it backwards and **reported a 2.61pp worsening
+as a 2.61pp improvement**. The verdict would not have moved — both arms were already failing — but
+**the reported reason would have been inverted**. Same sign error this project read into
+`monotonicity` for months; now pinned by a known-bad fixture carrying the real measured pair.
+
+**A LIMIT ON THE DRAWDOWN CRITERION GENERALLY, measured rather than asserted:** the worst
+peak-to-trough spans **exactly ONE 63-day period on every arm**, at the same trough (COVID 2020Q1).
+The entire 2.0pp drawdown leg is decided by a single quarter, and **X7 calibrates no drawdown floor
+anywhere**, so that bar is UNCALIBRATED and labelled so. Separately, the audit's 1.0pp alpha leg
+sits **below** X7's calibrated 1.95pp margin and survives only as a non-inferiority allowance.
+
+**CONTROLS.** C1 — the rebuilt valuation panel reproduces S23's banked panel on **all 108,241
+shared keys at `max |Δ| = 0.000e+00`**, so adding the scenario band did not disturb the base by a
+bit. C2 — the band **imports** `pipeline._blend_scenarios`, so it is the same number the site
+renders. C3 — **zero** `bear ≤ base ≤ bull` violations over 108,100 trios. C5 — the harness
+reproduces the published record to sixteen digits, and the run aborts before reading any arm if it
+does not. Coverage first: 11,426 top-decile rows, bull coverage 92.42%, flagged 27.38%; a name
+with no bull case is **kept**, never excluded.
+
+**BUG FOUND OUTSIDE MY LANE, reported not fixed.** Three rows in the main `VALQUO_LEDGER.md` table
+carry **unescaped pipes** — S23 (13), M1-PARSE (14), V2G (13) against an 11-pipe header.
+`test_build_ledger.py` passes, so its parser tolerates them, but this is the class that shifted
+columns in one register and made a row vanish from another. They want escaping by the lanes that
+own them.
+
+**Equity `N` 155 → 158** (three arms charged). `BACKTEST_RESULTS.json` re-run from a clean tree so
+the Deflated Sharpe matches the honest denominator. Tests 312 → **317**, all suites green.
+Expectations scored **5 right, 1 wrong** — unusually good, and for a stated reason: they were
+derived from measured facts already in the record rather than from intuition.
+
+**RECOMMENDED NEXT:** either **S10's accounting half** (Beneish/Altman/external financing/NT — a
+different instrument that inherits none of this verdict), or the **CPCV embargo** carried over from
+session 22, still the only open item that can move a published number.
+
 ## 2026-08-11 — edge lane, session 22 (M2 + M6): clustered inference is the default, and the schema guard found TEN dropped fields
 
 Two audit items, both **infrastructure**: no hypothesis, no verdict. **Equity `N` is UNCHANGED at

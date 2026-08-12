@@ -44,6 +44,81 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE DOWNSIDE-EXCLUSION SCREEN IS NOT MERELY INERT, IT IS COUNTERPRODUCTIVE — THE NAMES IT
+  DELETES OUTPERFORM THE NAMES IT KEEPS AND CRASH AT HALF THE RATE (2026-08-11, session 23,
+  `S10`).** Don's own question, formalised: *should a top-decile name whose point-in-time BULL
+  case already sits at or below price make the book at all?* `PREREG_s10_downside_exclusion.md`
+  was committed **alone at `a041e09`** — one `.md`, zero `.py` — a strict ancestor of the
+  measurement commit. **ADOPTS NOTHING and no live code path changed.**
+  * **THE SCOPE DIFFERS FROM THE AUDIT'S OWN S10, DELIBERATELY, AND THE REGISTER SAID SO BEFORE
+    ANY RESULT.** `VALQUO_EDGE_AUDIT.md:739` specifies S10 as an **accounting red-flag veto** —
+    Beneish M-score, Altman Z-score, external financing, NT late-filing notices. **This tested
+    NONE of those four.** It ran the **valuation-band** exclusion instead. The ledger row is
+    therefore **`PARTIAL`, not `DONE`**: *the accounting half has never been tested and closing
+    the row would tell the next session it had been.*
+  * **THE MECHANISM ARM IS THE FINDING, AND IT REFUTES THE PREMISE RATHER THAN FAILING A BAR.**
+    Within the top decile the **flagged** names return **+6.5125%/63d** against the unflagged
+    **+6.2677%** — the names the screen would delete very slightly **OUTPERFORM** the ones it
+    keeps (**+0.98pp/yr, HAC *t* +0.4775**, a clean NULL that flips sign between halves at
+    −0.41pp early and +2.12pp late). **There is no information in the flag in either direction.**
+  * **THE AUDIT'S OWN KEY COUNT GOES THE WRONG WAY TOO.** Its argument is that an exclusion screen
+    *"only needs to avoid a small number of catastrophic outcomes"*. Measured: flagged names fall
+    more than 50% in **15 of 3,129 (0.479%)** against **69 of 8,297 (0.832%)** for the names
+    retained. **The screen preferentially removes the names that crash LESS often, at roughly half
+    the rate of the ones it keeps.**
+  * **REJECTED on both arms, and drawdown does not merely fail to improve — it WORSENS.** Against
+    the audit's asymmetric bar (drawdown better by >2.0pp AND alpha worse by <1.0pp, both halves):
+    `A1 DROP` −2.61pp of drawdown and −0.24pp of alpha; `A2 BACKFILL` −3.35pp and −0.93pp, with
+    the late half −2.14pp. The alpha effect **flips sign between halves** (helps early, hurts
+    late) — session 7's LOO pattern for the fifth time.
+  * **WHY, MEASURED ON THEME z-SCORES: the screen deletes the exposure R1 says is real.** Flagged
+    names carry **higher momentum** (+0.9530 vs +0.6741) and **much lower value** (+0.2728 vs
+    +0.7362, the largest move in the table). R1's re-run puts the book on **UMD +0.205 (t 3.65)**
+    and **HML +0.251 (t 2.93)**, so a DCF-based bull case sits below price for exactly the names
+    that have already run. The screen strips momentum and tilts the remainder further into value —
+    the **FNMA value-trap direction** the free-analysis lane documented. Illustration, not
+    evidence: on the last scored date the screen drops 8 of 25 names and **adds Freddie Mac and
+    MBIA**.
+  * **IT IS ALSO SUBSTANTIALLY A SECTOR EXCLUSION WEARING A VALUATION SCREEN'S NAME — U7's failure
+    mode in a new costume.** The flagged **rate** runs **51.38%** for the financial valuation
+    regime against **12.66%** for hypergrowth, and by sector **48.88%** for Financial Services and
+    **40.32%** for Real Estate against **15.79%** for Industrials. A three-fold spread: much of
+    what this "valuation screen" does is **hold fewer banks and REITs**.
+  * **A DEFECT IN MY OWN INSTRUMENT, CAUGHT BEFORE ANY VERDICT WAS READ.** `max_drawdown` is
+    **negative**, so an arm improves it by being **less** negative and the gain is `arm − base`.
+    The first cut computed `base − arm` and **reported a 2.61pp WORSENING as a 2.61pp
+    IMPROVEMENT** — it would have left the REJECT verdict standing while **inverting the reported
+    reason for it**. This is the `monotonicity` sign error one lane over, and it is now pinned by
+    a **known-bad fixture carrying the real measured pair**.
+  * **THE DRAWDOWN LEG IS DECIDED BY ONE QUARTER, AND THAT IS MEASURED RATHER THAN ASSERTED.** The
+    worst peak-to-trough spans **exactly ONE 63-day period on every arm**, at the same trough
+    index **44 of 69** — COVID 2020Q1. The register called max drawdown *"a single order
+    statistic"*; this is that caveat with a number on it. **X7 calibrates no drawdown floor
+    anywhere**, so the 2.0pp bar is **UNCALIBRATED** and is labelled so.
+  * **THE ALPHA LEG CANNOT RESOLVE ITS OWN BAR, AND THE REGISTER SAID SO FIRST.** The audit's
+    1.0pp allowance sits **BELOW X7's calibrated 1.95pp** alpha margin. It survives only because
+    it is a **non-inferiority** allowance, so **a pass means "no alpha loss detectable at this
+    panel's resolution", NEVER "the loss is under 1pp"** — X3's error, named in advance.
+  * **CONTROLS ALL PASS. C1 is the strong one: the rebuilt panel reproduces S23's banked
+    fair-value panel on all 108,241 shared keys at `max |Δ| = 0.000e+00`** across twelve base
+    fields, with `valuable`/`regime`/`method`/`growth_led` **100.000000% identical** — so adding
+    the band did not disturb the base by a bit. **C2** the band **IMPORTS
+    `pipeline._blend_scenarios`** rather than re-implementing it, so it is the same number the
+    site renders as its scenario card (B7's defect class, pinned). **C3 ZERO** ordering violations
+    of `bear ≤ base ≤ bull` over 108,100 full trios. **C5 the harness reproduces the published
+    record to sixteen digits and the run ABORTS before reading any arm if it does not.**
+  * **Coverage first, per the COVERAGE RULE: 11,426 top-decile rows, bull-case coverage 92.42%,
+    flagged 27.38%.** A name with **no** computable bull case is **KEPT, never excluded** —
+    excluding on missing data is a data-availability screen wearing a valuation screen's name,
+    and it would correlate silently with era, domicile and regime.
+  * **Equity `N` 155 → 158** (three arms — DROP, BACKFILL, MECHANISM — each of which could
+    independently have been reported as a positive finding). Expectations scored **5 right, 1
+    wrong**, unusually good here **and for a stated reason: they were derived from measured facts
+    already in the record** (R1's UMD/HML loadings, the free-analysis down-quarter result) rather
+    than from intuition. The one miss is the audit's premise itself — the screen was predicted to
+    catch a non-trivial number of genuine disasters, and it catches them at **half** the rate of
+    the names it retains. `data/free_analysis/S10_DOWNSIDE_EXCLUSION.json`;
+    `HANDOFF_edge_audit.md` §34-38.
 - **THE PRICER'S DIVIDEND GAP IS A CALLER BUG, NOT A MODEL BUG — IT IS CHEAP WHERE IT IS
   MEASURABLE AND ONE DOOR IS UNRESOLVED; AND THE PER-BUCKET FLOOR CANNOT DELIVER WHAT ITS OWN
   COMMENT PROMISES (2026-08-11, session 25, `O21` + `O26`).** Frozen book, no re-mine, **no live

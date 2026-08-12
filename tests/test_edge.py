@@ -7556,6 +7556,42 @@ def test_s10_backfill_holds_book_size_and_drop_shrinks_it():
     assert not fl[backfill].any(), "BACKFILL must never contain a flagged name"
 
 
+def test_s10_C7_the_offline_build_can_never_reach_the_network_rung():
+    """C7 — the register promised zero network calls ASSERTED, not merely intended.
+
+    `wacc._resolve_beta` rung 3 corroborates an unusable vendor beta by fetching TODAY'S prices,
+    which in a backtest values a 2011 cross-section with a 2021-2026 regression (S23's defect,
+    measured at 157 calls per 1,122 rows). The offline build is safe for a structural reason
+    worth pinning rather than re-deriving: `offline_beta` NEVER returns None — an out-of-range,
+    NaN or missing beta falls to the engine's own stated constant — so the override branch in
+    `_resolve_beta` always fires and the ladder returns before any network rung exists.
+
+    If someone ever lets `offline_beta` return None, the override branch stops firing and the
+    fetch silently comes back. This fails first.
+    """
+    import inspect
+
+    from valuation.engine.calibration import offline_beta
+    from valuation.engine.wacc import BETA_FALLBACK, BETA_HIGH_CAP, _resolve_beta
+
+    for probe in (None, float("nan"), 0.0, -1.0, BETA_HIGH_CAP * 10, 1e9):
+        got = offline_beta(probe)
+        assert got is not None, f"offline_beta({probe!r}) returned None — the ladder resumes"
+        assert isinstance(got, float) and got == got, got
+    # An unusable beta must land on the engine's OWN constant, not on a fetched one.
+    assert offline_beta(None) == float(BETA_FALLBACK)
+    assert offline_beta(float("nan")) == float(BETA_FALLBACK)
+    # ...and a usable point-in-time beta is passed through untouched.
+    assert offline_beta(1.15) == 1.15
+
+    # The override must be consumed BEFORE anything that could reach out.
+    src = inspect.getsource(_resolve_beta)
+    head = src.split("if beta_override is not None:")[0]
+    for rung in ("compute_beta", "yf.", "history("):
+        assert rung not in head, \
+            f"{rung} appears BEFORE the override short-circuit — offline is not offline"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

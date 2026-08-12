@@ -8169,3 +8169,223 @@ threw-class errors it is about. Intent unchanged; the change is commented in pla
 * Did not adopt the auto lag; did not fix the CPCV embargo.
 * Did not touch the options, engine or research lanes.
 * Did not charge an equity trial: **equity `N` stays 155**.
+
+---
+
+# SESSION 23 (2026-08-11) — S10, the downside-exclusion screen
+
+**One ledger item, one session. `PREREG_s10_downside_exclusion.md` committed ALONE at `a041e09`
+— one `.md`, zero `.py` — a strict git ancestor of the measurement commit `ddb09a0`.**
+
+**VERDICT: REJECTED on both arms, and the screen is counterproductive rather than merely inert.**
+**ADOPTS NOTHING. No live code path changed. Equity `N` 155 → 158.**
+
+## 34. What was asked, and what was actually run
+
+Don's question, formalised: *should a top-decile name whose point-in-time BULL case already sits
+at or below price make the book at all?*
+
+**The scope differs from the audit's own S10 on purpose, and §0 of the register says so before any
+result exists.** `VALQUO_EDGE_AUDIT.md:739` specifies S10 as an **accounting red-flag veto** built
+from Beneish M-score, Altman Z-score, combined external financing and NT late-filing notices.
+**None of those four was tested.** This ran a **valuation-band** exclusion — a different instrument
+on different data.
+
+**Consequence for the ledger, and it is deliberate: the S10 row is `PARTIAL`, not `DONE`.** Closing
+it would tell the next session the Beneish/Altman work had been done. The row's `src` is now
+`manual`, which makes it authoritative against `build_ledger.py` regeneration.
+
+### Scoping was done against the CODE, not the item text, and it moved the design twice
+
+The ledger row is `src=auto` — *"a lead, not a fact"* — the same provenance class that made
+**S21's premise wrong** (it proposed behaviour the code already shipped). So the premise was
+checked first:
+
+1. **Nothing in the equity path screens entry on valuation.** `_backtest_hold` accepts
+   `fv_at_or_above`, but that is **S23's EXIT** — price has *reached* fair value, so **sell**.
+   S10 is the opposite direction. The premise is genuinely unshipped; this is not S21's situation.
+2. **`lean_fair_value` computes the BASE case only** — no bear/bull band. So the band could not be
+   read off S23's banked panel and had to be added to the point-in-time path.
+3. **The faithful instrument is `pipeline._blend_scenarios`**, which runs bear/base/bull through
+   the **same blend as the headline** and sets `blend.value_low`/`value_high` — the number the
+   site renders as the top of its scenario card.
+4. **Cost was measured before choosing it** (scoping, zero trial cost): ~1.0 ms per base valuation
+   against ~0.7 ms per scenario-band valuation. **The band is not more expensive than the base**,
+   so there was **no cost argument for a cheaper lens-max proxy** and none was used.
+
+## 35. The result
+
+**Coverage first, per the COVERAGE RULE.** 11,426 top-decile rows; bull-case coverage **92.42%**;
+**flagged 3,129 = 27.38%** of the decile. Far from degenerate (control C6).
+
+**A name with no computable bull case is KEPT, never excluded.** Excluding on missing data is a
+data-availability screen wearing a valuation screen's name, and it would correlate silently with
+era, domicile and valuation regime. Pinned by test.
+
+| arm | alpha/yr | Δ vs A0 | HAC *t* | max DD | Δ DD | book |
+|---|---|---|---|---|---|---|
+| A0 INCUMBENT | +7.1741% | — | — | −0.2809 | — | 166 |
+| A1 DROP | +6.9336% | **−0.2405pp** | −0.4632 | −0.3070 | **−2.61pp** | 120 |
+| A2 BACKFILL | +6.2395% | **−0.9346pp** | −1.5098 | −0.3145 | **−3.35pp** | 166 |
+
+Against the audit's own asymmetric bar — drawdown better by **>2.0pp** AND alpha worse by
+**<1.0pp**, in **both halves**:
+
+* **`A1 DROP`** — drawdown leg **fails**, alpha leg passes. **NOT ELIGIBLE.**
+* **`A2 BACKFILL`** — **both legs fail** (late-half alpha −2.14pp). **NOT ELIGIBLE.**
+
+**Drawdown does not merely fail to improve; it gets materially WORSE.** And the alpha effect
+**flips sign between halves** — the screen helps early (+0.38pp) and hurts late (−2.14pp), which is
+session 7's LOO instability pattern for the fifth time in this record.
+
+**WHY THE TWO ARMS DIFFER, and it is the reason both were registered.** `A1 DROP` isolates the
+**removal** alone: it holds the 120 unflagged names and costs 0.24pp. `A2 BACKFILL` restores the
+book to 166 names by pulling in the next-ranked unflagged names — which come from **below the
+decile boundary** — and costs 0.93pp. **So roughly 0.69pp of `A2`'s loss is not the screen at all;
+it is the dilution of refilling a concentrated book from outside the decile.** A real deployment
+must pay that, which is why `BACKFILL` is the deployable arm and `DROP` is the mechanism check.
+
+## 36. The finding that outlives the verdict
+
+**M1 MECHANISM — the flagged names OUTPERFORM the names the screen would keep.** Within the top
+decile, paired by date:
+
+* flagged **+6.5125%** per 63 days (mean 45 names)
+* unflagged **+6.2677%** per 63 days (mean 120 names)
+* difference **+0.9794pp/yr at HAC *t* +0.4775** — a clean **NULL**, flipping sign between halves
+  (early −0.4137pp, late +2.1161pp).
+
+**There is no information in the flag in either direction.** This is the cleanest possible answer
+to the question, and it needs no book construction at all.
+
+**The audit's own key count goes the wrong way too.** Its argument is that an exclusion screen
+*"does not need to beat anything — it only needs to avoid a small number of catastrophic
+outcomes"*. Measured, on the count the audit itself calls *"the number that matters most"*:
+
+| | fell >50% | rate |
+|---|---|---|
+| flagged (would be excluded) | 15 of 3,129 | **0.479%** |
+| unflagged (retained) | 69 of 8,297 | **0.832%** |
+
+**The screen preferentially removes the names that crash LESS often, at roughly half the rate of
+the ones it keeps.**
+
+### Why — and it is the mechanism the register predicted
+
+Theme z-scores within the decile, flagged vs unflagged:
+
+| theme | flagged | unflagged | diff |
+|---|---|---|---|
+| momentum | +0.9530 | +0.6741 | **+0.2788** |
+| institutional | +1.1748 | +0.9513 | +0.2235 |
+| quality | +0.7935 | +0.6658 | +0.1278 |
+| **value** | **+0.2728** | **+0.7362** | **−0.4634** |
+
+R1's re-run puts the book on **UMD +0.205 (t 3.65)** and **HML +0.251 (t 2.93)**. A DCF/comps bull
+case sits below price for exactly the names that have already run, so **the screen deletes the
+momentum exposure R1 says is real and tilts the remainder further into value** — the value-trap
+direction the free-analysis lane documented on FNMA.
+
+**Illustration, explicitly NOT evidence** (that lane retracted its own "vivid cases" reading): on
+the last scored date the screen changes 8 of 25 names and **adds Freddie Mac (FMCC) and MBIA
+(MBI)**.
+
+### It is also substantially a SECTOR exclusion — U7's failure mode in a new costume
+
+| valuation regime | flagged rate | | sector | flagged rate |
+|---|---|---|---|---|
+| financial | **51.38%** | | Financial Services | **48.88%** |
+| cyclical | 28.38% | | Real Estate | 40.32% |
+| mature | 27.15% | | Energy | 32.58% |
+| growth | 21.63% | | Technology | 23.96% |
+| hypergrowth | **12.66%** | | Industrials | **15.79%** |
+
+A three-fold spread. **Much of what this "valuation screen" does is hold fewer banks and REITs** —
+a property of how the engine values asset-heavy names, not of those names' prospects. U7 found the
+same shape: *"the veto vetoes a cap bucket, which is a property of the underlying."*
+
+## 37. Two defects in my own instrument, both caught before any verdict was read
+
+**(a) THE DRAWDOWN SIGN WAS INVERTED, AND IT IS THE MOST IMPORTANT THING IN THIS SECTION.**
+`max_drawdown` is **negative** (−0.28 is a 28% peak-to-trough), so an arm improves it by being
+**less** negative: the gain is `arm − base`. The first cut computed `base − arm` and therefore
+**reported a 2.61pp WORSENING as a 2.61pp IMPROVEMENT**.
+
+The verdict would not have changed — both arms were already failing — but **the reported REASON
+would have been inverted**, and the file would have said "the screen improves drawdown by 2.6-3.4pp
+on the full sample but does not replicate" when the truth is that it makes drawdown worse. That is
+precisely the `monotonicity` sign error this project read backwards for months, one lane over.
+Now pinned by a **known-bad fixture carrying the real measured pair**
+(`test_s10_a_deeper_drawdown_is_never_reported_as_an_improvement`).
+
+**(b) A TEST THAT MATCHED ITS OWN DOCUMENTATION.** The opt-in test scanned the function source for
+`bear_value`/`bull_value` outside the conditional — and the **docstring** names both, so it failed
+for the wrong reason. Diagnosed as a test bug, not a code bug, and fixed by stripping the docstring
+first. Same shape as M6's env-var test matching its own comment last session.
+
+## 38. Controls, what I did not do, and bugs found elsewhere
+
+**Controls — all pass.**
+
+* **C1 (the strong one).** The rebuilt panel reproduces **S23's banked fair-value panel** on **all
+  108,241 shared keys** at **`max |Δ| = 0.000e+00`** across twelve base fields, with
+  `valuable`/`regime`/`method`/`growth_led` **100.000000% identical**. Adding the band did not
+  disturb the base by a bit.
+* **C2.** `_scenario_band` **IMPORTS** `pipeline._blend_scenarios`; a private copy would be free to
+  drift from the number the site shows (B7's defect class). Pinned, including the financial-regime
+  P/B–ROE substitution the live pipeline performs.
+* **C3.** **ZERO** violations of `bear ≤ base ≤ bull` over 108,100 full trios — measured, not
+  assumed, because the engine's own comment records a real case where a bear case came out above a
+  bull case.
+* **C5.** The harness reproduces the published record to **sixteen digits** (alpha
+  `0.07174142332098163`, LS naive `2.8360640685320595`, LS HAC `2.6199121240414884`, monotonicity
+  `-0.8909090909090909`) and the run **aborts before reading any arm** if it does not.
+* **C6** flag not degenerate. **C7** the build is offline — S23's beta pin, so the WACC ladder
+  cannot fetch a live quote for a historical valuation.
+
+**WHAT I DID NOT DO (RUN_RULES A4).**
+
+* **The audit's four accounting components are untested.** S10's accounting half stays OPEN.
+* **`A1 DROP` is not reported on the top-25 hold book.** True DROP there would need a new argument
+  on a shipped function for a non-deployable arm; the MECHANISM arm answers the same question more
+  directly. `A2 BACKFILL` **is** reported (32.72% → **27.29%** CAGR) and is **labelled a stronger
+  intervention**, because removing flagged rows screens at *continuation* as well as entry.
+* **No bear-case or base-case variant was tested.** Don's question is about the band's **top**
+  edge; either variant is a second hypothesis and would cost its own trial.
+* **One weighting only** (deployed flat 1/7). No grid was swept.
+
+**BUGS FOUND, REPORTED NOT FIXED (RUN_RULES A3 — another lane's rows).** Three rows in the **main**
+`VALQUO_LEDGER.md` table carry **unescaped pipes**: **S23 (13 pipes)**, **M1-PARSE (14)** and
+**V2G (13)** against an **11-pipe header**. `tests/test_build_ledger.py` passes 20/20, so that
+parser tolerates them — but this is the class of defect that, in `RESEARCH_LOG.md`, shifted columns
+in one register and made a row **vanish** from another. **They want escaping as `\|` by the lanes
+that own them**; this register does not edit another lane's row.
+
+**Trial cost.** **Equity `N` 155 → 158** — three arms, each of which could independently have been
+reported as a positive finding, so each is charged. Understating `N` overstates the significance of
+every DSR-gated claim. `BACKTEST_RESULTS.json` re-run from a clean tree so the artifact's Deflated
+Sharpe matches the honest denominator. Options and infra `N` untouched — the counter is
+domain-scoped.
+
+**Expectations: 5 right, 1 wrong.** Unusually good for this project, **and for a stated reason —
+they were derived from measured facts already in the record** (R1's UMD/HML loadings, the
+free-analysis down-quarter finding) rather than from intuition. The single miss is the audit's own
+premise: the screen was predicted to catch a non-trivial number of genuine disasters, and it
+catches them at **half** the rate of the names it retains.
+
+**A CONSEQUENCE THAT TRANSFERS TO OTHER OPEN ITEMS, and it is worth more than this verdict.**
+`VALQUO_EDGE_AUDIT.md:1646` proposes **B21** (sector concentration caps) as a risk intervention
+*"on the same asymmetric logic as S10"*, and **S13** (volatility-targeted weighting) is gated the
+same way — *"expect a Sharpe improvement and a drawdown improvement with a small return give-up"*.
+**Every such rule inherits the two limits measured here:** on this book the worst peak-to-trough is
+**a single 63-day period** (the same quarter for every arm tested), and **X7 calibrates no drawdown
+floor anywhere in this project**. So a "drawdown improves by Xpp" adoption gate on the 69-date panel
+is **one order statistic against an uncalibrated bar**, in both directions. B21 already ships its
+`sector_caps` numbers **measured and not adopted**, which is the right posture; this says why that
+posture should stay until a drawdown floor is calibrated or the criterion is replaced with one that
+uses more than one quarter of information.
+
+**Recommended next.** Either (a) **S10's accounting half** — Beneish/Altman/external-financing/NT
+as a genuine red-flag veto, which is a different instrument and inherits none of this verdict; or
+(b) the **CPCV embargo** carried over from session 22, still the only open item that can move a
+published number.
