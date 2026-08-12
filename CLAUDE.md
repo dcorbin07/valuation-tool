@@ -100,6 +100,58 @@ the project's memory and the old versions had been repeated for months.
     this item. Expectations **4 right, 2 wrong, 2 split**.
     `data/free_analysis/O11_O19_O22_O25_PORTFOLIO.json`, `O19_SIZING_ARTEFACT.json`;
     `HANDOFF_optionsbot.md` §46-49.
+- **13F STALENESS IS COMMON ACROSS NAMES, NOT CROSS-SECTIONAL — SO DECAYING IT CANNOT RE-RANK
+  ANYTHING — AND THE FRESHNESS GRADIENT THE WHOLE ITEM RESTS ON IS ABSENT
+  (2026-08-12, session 33, `S8`+`S9`).** One register for both,
+  `PREREG_s8_s9_freshness.md`, committed **alone at `b7804d8`**. **ADOPTS NOTHING.**
+  * **THE STRUCTURAL FINDING, AND IT KILLS S8's 13F LEG OUTRIGHT: `days_since_13f` takes a mean of
+    1.25 DISTINCT VALUES PER DATE** (median within-date sd **2.054 days**), because 13F
+    quarter-ends are **common calendar dates** — at any rebalance every name's 13F is the same
+    age. Its decay multiplier spans p05 **0.5163** to p95 **0.5427** with a **within-date sd of
+    0.00587**, so the arm is not a staleness adjustment at all but a **uniform ~0.54×
+    down-weighting of `institutional`** — a weight change, and the weighting family was rejected
+    wholesale last session. Its rank correlation is **0.9880**, nearly inert.
+  * **THE AUDIT'S PREMISE CONFLATES TWO DECAYS.** The 13F signal genuinely decays as the quarter
+    ages — that is measured and real (alive Q−2 at *t* 1.36, dead Q−3 at −0.04) — but that is a
+    **TIME-SERIES** decay common to every name, **not a CROSS-SECTIONAL one that could re-rank
+    them.** By contrast `days_since_filing` takes **86.81 distinct values per date** (within-date
+    sd ≈ 39 days), so the fundamental arm is a genuine cross-sectional variable.
+  * **THE S9 DIAGNOSTIC IS THE RESULT, AND IT REFUTES THE PREMISE.** Top-decile forward return by
+    filing-age quartile: **Q1 +6.15%@38d, Q2 +6.12%@66d, Q3 +6.66%@71d, Q4 +6.35%@88d.** **Not
+    monotone**, whole spread ~half a point on a 6.3% base, and **Q1−Q4 = −0.78%/yr — the STALEST
+    quartile very slightly outperformed the freshest.**
+  * **MY REGISTERED LEAN WAS WRONG, IN THE INFORMATIVE DIRECTION.** The register was asked to
+    state a lean and did: **the gradient is real, the weighted arms fail.** The weighted arms did
+    fail — **but the gradient is not there either**, so both halves of the lean pointed at
+    something in freshness and there is nothing.
+  * **VERDICTS: all four REJECTED.** A2 freshness-as-input +0.61pp/−1.61pp; **A3 fundamental decay
+    (90d) NOT_REPLICATED — late half alone at +1.73pp, Δ*t* +0.710, early −0.22pp**; A4 13F decay
+    +0.03pp/−1.03pp; A5 combined −0.16pp/+0.41pp, landing **between A3 and A4 exactly as
+    pre-registered**. A3 is **the THIRD CONSECUTIVE SESSION in which exactly one arm clears
+    exactly one half** — the family-wise clause has now earned its keep three times. **1 of 4
+    siblings, not eligible, not adopted.**
+  * **C6 CONFIRMS THE PRE-REGISTERED CAVEAT: the freshness quartiles differ materially by
+    sector**, largest fresh-vs-stale gap **Consumer Cyclical at 15.62pp** — fiscal year-ends
+    cluster by industry, so any gradient would have been partly compositional (U7's failure mode,
+    and S10's). Moot here since there is no gradient, but it binds on any re-opening.
+  * **NO HALF-LIFE WAS FITTED** — 90d for fundamentals (a labelled convention), 180d for 13F from
+    the project's own measured decay. Fitting on this panel then scoring on it is the in-sample
+    selection already paid for (+8.43%/yr in-search → −0.04%/yr locked hold-out). **C5: zero
+    negative ages**, which would have been look-ahead; **C7: the fundamental decay bites hard**
+    (mean multiplier 0.4894), so A3's failure is not an inert-multiplier artefact.
+  * **A DEFECT REPORTED, NOT FIXED: `bulk.prepare_daily` down-samples DAILY to ONE ROW PER
+    TICKER-MONTH**, so the point-in-time market cap and the re-priced EV equity leg can be **up to
+    31 days stale** while the price feeding `_price_factors` is same-day. Its docstring keeps the
+    last date actually present and never a future one, so this is a **precision** defect, not a
+    correctness one — and fixing it moves `size`, every EV-based ratio and the published headline,
+    which needs its own register.
+  * **TWO ARGUMENTS THAT LOOK SUPPORTIVE AND ARE NOT THE SAME HYPOTHESIS, separated in the
+    register before running:** P6's *"recency beats smoothing"* (quarterly ROE beat TTM) is about
+    the **WINDOW** a number is measured over, not the **AGE** of the observation — a quarterly
+    figure filed 89 days ago is still quarterly; and **S27**, rejected last session, weighted
+    **dates**, while these weight **names within a date**. **Equity `N` 176 → 180.** Expectations
+    **6 right, 1 wrong**. `data/free_analysis/S8_S9_FRESHNESS.json`;
+    `HANDOFF_edge_audit.md` §1-7.
 - **THE SPLIT-ADJUSTED-SPOT DEFECT (U1-SPLIT'S CLASS) RECURRED IN A NEW INSTRUMENT AND WAS CAUGHT
   ONLY BY DISBELIEVING A NUMBER — READ THIS BEFORE MATCHING ANY STRIKE AGAINST A PRICE
   (2026-08-12, session 30, `O6`+`O7`+`O17`).** All ten arms NULL; two failed on exactly one

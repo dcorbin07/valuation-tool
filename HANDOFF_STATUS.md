@@ -54,6 +54,59 @@ split. Full write-up: `HANDOFF_optionsbot.md` sections 46-49.
 
 **Recommended next: `O14`'s justifying studies are the only O-row left** - the put/call and
 unusual-volume analyses the tick cache was collected for.
+## edge lane, session 33 (2026-08-12) — S8 + S9: freshness has no cross-section to work with
+
+`PREREG_s8_s9_freshness.md` committed **alone at `b7804d8`**, one register for both. **All four
+verdict arms REJECTED. ADOPTS NOTHING.**
+
+**THE STRUCTURAL FINDING KILLS S8's 13F LEG OUTRIGHT: `days_since_13f` takes a mean of 1.25
+DISTINCT VALUES PER DATE** (median within-date sd 2.054 days), because 13F quarter-ends are common
+calendar dates — at any rebalance every name's 13F is the same age. Its decay multiplier spans p05
+0.5163 → p95 0.5427 with a **within-date sd of 0.00587**, so the arm is a **uniform ~0.54×
+down-weighting of `institutional`** — a weight change, and the weighting family was rejected
+wholesale last session. Rank correlation 0.9880, nearly inert.
+
+**The audit's premise conflates two decays.** The 13F signal genuinely decays as the quarter ages
+(alive Q−2 at *t* 1.36, dead Q−3 at −0.04) — but that is a **time-series** decay common to every
+name, **not a cross-sectional one that could re-rank them**. `days_since_filing` *is*
+cross-sectional (86.81 distinct values per date); `days_since_13f` is not.
+
+**THE S9 DIAGNOSTIC IS THE RESULT AND IT REFUTES THE PREMISE.** Top-decile return by filing-age
+quartile: Q1 +6.15%@38d, Q2 +6.12%@66d, Q3 +6.66%@71d, Q4 +6.35%@88d — **not monotone**, spread
+~half a point on a 6.3% base, and **Q1−Q4 = −0.78%/yr**, i.e. the stalest quartile very slightly
+outperformed the freshest.
+
+**MY REGISTERED LEAN WAS WRONG, IN THE INFORMATIVE DIRECTION.** The register stated a lean because
+the task asked for one: *the gradient is real, the weighted arms fail*. The weighted arms did fail
+— **but the gradient is not there either.**
+
+**Verdicts:** A2 freshness-as-input REJECTED (+0.61/−1.61pp); **A3 fundamental decay 90d
+NOT_REPLICATED — late half alone (+1.73pp, Δt +0.710)**; A4 13F decay REJECTED; A5 combined
+REJECTED, landing between A3 and A4 exactly as pre-registered. **A3 is the THIRD CONSECUTIVE
+SESSION in which exactly one arm clears exactly one half** — the family-wise clause has earned its
+keep three times. **1 of 4 siblings, not adopted.**
+
+**C6 confirms the pre-registered caveat:** freshness quartiles differ by sector, largest gap
+**Consumer Cyclical 15.62pp** — fiscal year-ends cluster by industry, so any gradient would have
+been partly compositional. Moot here, but it binds on any re-opening. **C5 zero negative ages;
+C7 the fundamental decay bites hard (mean 0.4894).** **No half-life was fitted.**
+
+**A DEFECT REPORTED, NOT FIXED:** `bulk.prepare_daily` down-samples DAILY to **one row per
+ticker-month**, so the point-in-time market cap and re-priced EV equity leg can be **up to 31 days
+stale** while `_price_factors`' price is same-day. It keeps the last date actually present and
+never a future one, so it is a **precision** defect, not correctness — and fixing it moves `size`,
+every EV-based ratio and the published headline, needing its own register.
+
+**Equity `N` 176 → 180.** Expectations 6 right, 1 wrong.
+
+**CROSS-LANE, AND NOW THE SECOND TIME IN FOUR SESSIONS: `session 30` names TWO lanes' work** — the options-bot lane's `O6` and this lane's `S16`+`S28`. The same class as the `session 29` collision reported in session 30, both found by a merge rather than by either lane's checks. Not renumbered (theirs is referenced from their own handoff and ledger); this session took **33**. **The rule is not "check once" but check the GLOBAL maximum at stamp time AND re-check after every merge** — the push→land window is long enough for another lane to take your number, which is what happened both times. Routed to the options-bot lane or to Don as a convention call.
+
+**Next:** S10's accounting half, or the CPCV embargo. **And the dated one: read `/api/track` →
+`contract_track.recording_ok` on or after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 33.
+
+---
 
 ## options-bot lane, session 30 (2026-08-12) — all ten arms NULL, and a split-adjusted-spot defect that every lane should read
 
@@ -98,7 +151,7 @@ tenor confound that should have killed it is **refuted** - within every DTE quar
 positive.
 
 **Trial cost: options `N` 261 -> 271**, exactly as pre-committed. **Equity and infra untouched by
-this item; after merging they read 176 and 11**, not the 161 and 10 measured while the arms ran -
+this item; after merging they read 180 and 11**, not the 161 and 10 measured while the arms ran -
 other lanes landed the same day. **Re-read `by_domain` after merging; do not quote a mid-session
 figure.**
 Expectations 6 right, 1 wrong.

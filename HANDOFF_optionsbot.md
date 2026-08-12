@@ -5159,9 +5159,14 @@ downgraded to a return flag, and the register makes downgrading it a void condit
 ## 48 · Trial cost
 
 **Options `N` 271 → 280** — 2 (O19) + 4 (O11) + 1 (O22) + 2 (O25), **exactly as §7
-pre-committed.** Equity and infra untouched by this item; **after merging they read equity 176 and
-infra 11** — re-read `by_domain` after the merge rather than quoting a mid-session figure, which is
-now a standing lesson in this lane.
+pre-committed.** Equity and infra are untouched **by this item**; **after merging they read equity
+180 and infra 11.**
+
+**THIS IS THE THIRD CONSECUTIVE SESSION IN WHICH A MID-SESSION EQUITY FIGURE WENT STALE BEFORE THE
+PUSH** — 158→161, 161→176, and now 176→180, each time because another lane landed while this one
+ran. It is no longer worth patching quietly. **The rule for this lane: an equity or infra `N`
+measured while your arms run is a DRAFT. Re-read `research_log.detail()["by_domain"]` after the
+merge and quote that.** Only the domain you charged is yours to state from memory.
 
 Charged **zero**: the λ band, O25's risk-side statistics, the alert-clustering diagnostic, the
 volume-over-open-interest diagnostic and every control.
