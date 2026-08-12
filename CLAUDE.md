@@ -110,9 +110,185 @@ the project's memory and the old versions had been repeated for months.
     issuer** filing 20-F/6-K. **A filter reading "no date" as "no announcement" FAILS OPEN on a
     non-random tenth of the book** — the mode this lane refused once before. `refuse_within` returns
     **`None` for UNKNOWN** and callers must drop; four tests pin it.
-  * **Options `N` 261 → 271** (4+2+4, exactly as pre-committed); **equity untouched at 161**.
+  * **Options `N` 261 → 271** (4+2+4, exactly as pre-committed); **equity untouched BY THIS ITEM,
+    though it reads 176 after the merge** (other lanes landed 15 equity trials the same day) —
+    **re-read `by_domain` after merging rather than quoting a figure measured mid-session.**
     Expectations **6 right, 1 wrong**. `data/free_analysis/O6_O7_O17_EARNINGS.json`;
     `HANDOFF_optionsbot.md` §42-45.
+- **EVERY PRE-REGISTERED INTERACTION IS REJECTED, ONE OF THE AUDIT'S FOUR CANNOT BE BUILT AT ALL,
+  AND A CROWDING EXCLUSION MAKES DRAWDOWN WORSE — INDEPENDENTLY REPLICATING S10
+  (2026-08-12, session 32, `S7`+`S18`).** One register for both,
+  `PREREG_s7_s18_interactions.md`, committed **alone at `7fc6ab2`**. No panel rebuild — every
+  input was already banked. **ADOPTS NOTHING.**
+  * **`size × liquidity` IS NOT BUILDABLE, AND IS REPORTED RATHER THAN PROXIED.** The audit names
+    four interactions; this one needs a liquidity measure and **there is none on this path** — the
+    price export carries **date and close only**, so `avg_dollar_volume` cannot be computed in the
+    panel at all (audit **B13**, whose ledger row was corrected last session to
+    `PARTIAL — BLOCKED ON DATA` for this reason). **A market-cap or price stand-in would be a
+    different hypothesis wearing this one's name**, and a test pins that no such proxy appeared.
+    It charges **no trial**.
+  * **SHORT INTEREST DOES NOT REACH HALF THE PANEL, AND THE MEASURED NUMBER IS NOT THE AUDIT'S.**
+    The cache is real (48,539 tickers, 3,866,270 records, 2018-01-27 → 2026-07-30) but the audit
+    says 40% of dates and it measures **32 of 69, 46.4%**, first covered **2018-04-20**, row
+    coverage on covered dates **0.9269**. **Every covered date is in the LATE portion of a panel
+    starting 2009-01-15, so S18 CANNOT satisfy a both-halves gate on the full panel** — an
+    impossibility, not a power caveat. The register fixed the replacement first: S18's arms are
+    gated on halves of the **covered subsample — 32 dates, 16 per half**, which is exactly
+    `min_dates=16`, the thinnest split the shipped gate accepts. **A pass on 16-date halves is not
+    the same object as a pass on 34-date halves.**
+  * **ALL SIX TESTABLE ARMS REJECTED.** `value × quality` −1.17pp/−0.84pp; `momentum × vol
+    regime` −0.48pp/−0.19pp; `value × institutional` −0.05pp/−1.09pp (coverage 0.7172, the
+    handicap pre-registered); `value × short_interest` −0.49pp/−0.86pp. **`momentum ×
+    short_interest` is NOT_REPLICATED — it clears the LATE half alone (+1.85pp, Δ*t* +0.812) and
+    fails the early (−2.39pp).** That is **the second consecutive session in which exactly one arm
+    clears exactly one half**, so the family-wise labelling clause has now earned its keep twice:
+    **1 of 6 sibling arms, not eligible, not adopted.**
+  * **THE EXCLUSION ARM INDEPENDENTLY REPLICATES S10 ON A DIFFERENT CRITERION.** Dropping the top
+    5% most-shorted removed 4.83% of top-decile rows and moved return +27.08% → +26.77%
+    (−0.31pp), while **max drawdown went −0.2809 → −0.2863 — a gain of −0.5404pp, i.e. WORSE.**
+    S10 found a *valuation-band* screen worsened drawdown by 2.61pp and 3.35pp; a *crowding*
+    screen worsens it too, same direction, smaller size. S10's caveats travel verbatim:
+    `max_drawdown` is **negative** so the gain is `arm − base` (pinned by a test carrying the real
+    measured pair), and **X7 calibrates no drawdown floor**, so this is a measurement carrying no
+    verdict.
+  * **THE AUDIT'S BONFERRONI PRESCRIPTION WAS DECLINED EXPLICITLY, WITH THE REASON REGISTERED
+    FIRST.** It asks for *p* < 0.0125; **this project's gate is a MARGIN gate whose floors X7
+    calibrated against a placebo**, and translating one into the other would invent an
+    uncalibrated correspondence — the error X3 and session 10 both paid for. Multiplicity is
+    honoured by **labelling** instead.
+  * **CONTROL C7 IS THE CLEAN SURPRISE.** Adding an eighth input moves every theme's *relative*
+    weight 1/7 → 1/8, so each arm is a **compound** change — registered in advance. Re-scoring
+    with a **constant** eighth column isolates it: **+0.000173 and +0.000146 of alpha, essentially
+    nil.** So the arms measure the interactions and nothing else. **This refutes the one
+    expectation that missed** (I predicted the dilution would matter, 65/35).
+  * **C5 zero point-in-time violations; C6 no interaction is a proxy for a parent** (largest
+    |parent correlation| 0.4584). **Equity `N` 170 → 176.** Expectations **6 right, 1 wrong**.
+    **Nothing was searched beyond the audit's named list** — searching the quadratic space is
+    exactly what the tree combiner already did, and it *reversed* out of sample.
+    `data/free_analysis/S7_S18_INTERACTIONS.json`; `HANDOFF_edge_audit.md` §1-6.
+- **FIVE ALTERNATIVE WEIGHTING SCHEMES, ALL FIVE REJECTED — AND CPCV'S OWN BEST CHALLENGER MISSES
+  ITS BAR BY A FACTOR OF SEVENTY-NINE (2026-08-12, session 31, `S5`+`S6`+`S13`+`S24`+`S27`).**
+  ONE register for all five, `PREREG_s5_s6_s13_s24_s27_weighting.md`, committed **alone at
+  `8b0917e`**. One panel build, six scorings on one frame. **ADOPTS NOTHING.**
+  * **THE NUMBER TO REMEMBER, because it prices the whole family: CPCV's best challenger scheme
+    (`positive-equal`) beat the deployed default by a margin of `0.000265` against a required bar
+    of `0.020830` — it would have to be about 79× LARGER to clear.** `adopt=false`, PBO **0.80**.
+    Weight tuning on this panel is not marginal; it is nowhere near.
+  * **THREE OF THE FIVE PROPOSE BEHAVIOUR ALREADY SHIPPED, IN WHOLE OR IN PART** — all five rows
+    were `src=auto`, and this is the S21 pattern for the third time. **`S27` is already shipped at
+    the audit's own middle half-life**: `_theme_ic_stats` computes `0.5 ** (days_ago/halflife)`
+    and **`halflife_days=1260` (≈5y) is the default of `_weighted_optimize`, `walk_forward` AND
+    `cpcv_validate`**, while the audit proposes 3, 5 and 10. **`S5`'s shrinkage is half-shipped**
+    as `ic-shrunk-50` (fixed 50% toward equal weight), already CPCV-rejected. **`S13`'s
+    inverse-vol is shipped at the WRONG LEVEL** — `risk-parity` is inverse-vol across *themes*;
+    S13 asks for it across *names*, a different object.
+  * **VERDICTS.** `S5` REJECTED (−2.12pp / −1.68pp, rank corr 0.8933, shrinkage intensity
+    **0.5641** so genuinely partial and not degenerate at either end). `S24` REJECTED and **very
+    nearly the incumbent at rank corr 0.9907** — bagging a seven-signal set has almost nothing to
+    bag. `S27` REJECTED at **both** half-lives by the widest margins of the five (−4.29pp / −2.98pp
+    at 3y; −4.21pp / −2.66pp at 10y).
+  * **`S6` IS THE ONLY ARM TO CLEAR ANY HALF, AND IT GETS THE FULL SKEPTICAL TREATMENT THE
+    REGISTER FIXED IN ADVANCE.** Late half **+3.30pp at Δ*t* +0.678 — improves**; early half
+    **−1.61pp at Δ*t* −1.289 — does not.** That is a sign flip between halves, this project's most
+    repeated pattern, **and it is 1 OF 5 SIBLING ARMS**: five arms against one bar make
+    at-least-one-clears roughly a **23%** event under independence. **NOT eligible, NOT adopted,
+    and the +3.30pp may not be quoted without both labels.**
+  * **`S13` FAILS THE ALPHA GATE WHILE IMPROVING EXACTLY WHAT IT EXISTS TO IMPROVE, AND THAT WAS
+    REGISTERED AS AN INSTRUMENT MISMATCH RATHER THAN DISCOVERED.** Equal weight **+25.29%/yr,
+    Sharpe 0.5866, maxDD −0.2809**; inverse-vol capped **+23.53%/yr, Sharpe 0.6261, maxDD
+    −0.2804**. **Sharpe +0.0395 (≈6.7% relative), return −1.76pp, drawdown flat.** Its long-short
+    leg is unchanged **by construction**, so its *t* margin is **N/A and may never be read as a
+    pass**. X7 calibrates no floor for Sharpe, drawdown or turnover, so those carry no verdict.
+    The drawdown barely moving is consistent with S10's finding that this book's maxDD is decided
+    by one quarter (COVID 2020Q1).
+  * **EXPECTATIONS SCORED 6 RIGHT, 0 WRONG — the first clean sweep in this record, and the reason
+    matters more than the score.** The prior was not intuition; it was the project's own measured
+    standing result — CPCV adopts nothing, the tree combiner **REVERSED** out of sample, and
+    weight tuning went **+8.43%/yr in-search → −0.04%/yr on the locked hold-out**. **When the
+    prior is a measurement, the calls stop being wrong.**
+  * **A DEFECT IN MY OWN INSTRUMENT, resolved under the session-11 protocol.** The register's C5
+    defines the reported intensity as the **shrinkage** intensity; the first cut of the code
+    reported its **complement**, so the register's two degenerate ends read backwards against the
+    implementation. Caught by the test written to pin it, before any verdict was read. **Proven
+    presentational by diffing the pre-fix and post-fix artifacts leaf by leaf: the S5 weight
+    vector is BIT-IDENTICAL (max |Δ| 0.000e+00) and ZERO gate cells moved on any arm in either
+    half**, so no conclusion needed re-deriving. The register is left unedited; the code now
+    matches it.
+  * **A LIMITATION OF THE DESIGN AGAINST ITS OWN REGISTER, REPORTED NOT GLOSSED.** The register
+    says CPCV is the authority "for every arm that produces a weight vector". **`cpcv_validate`
+    selects among its OWN eight `_weight_schemes` and cannot evaluate an arbitrary vector**, so it
+    does not bless or decline S5/S6/S27 individually; its authority operates here as a blanket
+    keep-the-defaults rule, which is weaker than the register's wording implies.
+  * **Equity `N` 165 → 170**, one trial per item. `data/free_analysis/S5_S6_S13_S24_S27.json`;
+    `HANDOFF_edge_audit.md` §1-7.
+- **SPLITTING NET ISSUANCE INTO TWO INPUTS CANNOT CHANGE AN ORDERING — IT IS A RANK IDENTITY,
+  NOT A MEASUREMENT — AND BUYBACKS CARRY MORE OF THE THEME'S IC THAN DILUTION DOES
+  (2026-08-12, session 30, `S16`).** `PREREG_s16_issuance_decomposition.md` committed **alone at
+  `afc7578`**, a strict ancestor of the measurement commit. One panel build, five scorings, every
+  arm a column on ONE frame. **ALL FOUR ARMS REJECTED. ADOPTS NOTHING.**
+  * **THE PREMISE CHECK REMOVED HALF THE AUDIT'S METHOD BEFORE ANY ARM RAN.** All 671,417 ACTIONS
+    rows carry one of nineteen action types and **NONE is a repurchase authorisation**, so
+    buyback-announcement drift is **not testable on data we own**; and **`initiated` is
+    index/security listing initiation** (its earliest rows are `^VIX`, `^RUT`, `^IXIC`, all
+    1997-12-31), **not dividend initiation**. What IS there is `acquisitionof`/`acquisitionby` —
+    8,248 dated rows each with deal values — which is the M&A leg. Same class as S25.
+  * **THE DEEPEST FINDING IS AN IDENTITY, AND IT KILLS THE AUDIT'S ACTUAL PROPOSAL.** S16C's
+    within-date rank correlation against the incumbent is **1.000000000000 on all 69 dates**,
+    because `buyback = max(0, −net)` and `−dilution = −max(0, net)` are **both non-increasing in
+    `net`** (verified directly on the real series), so the mean of their z-scores preserves the
+    ordering of `neg_issuance = −net` **exactly**. **So "separate them into two inputs so the
+    composite can weight them independently" cannot express any ordering the single input cannot
+    — it only shrinks the theme's per-date dispersion 1.000315 → 0.774730, a 22.5% cut in
+    effective weight.** The S20/S21 rank-invariance lesson in a new costume.
+  * **BUYBACK CARRIES MORE OF THE IC THAN DILUTION, WHICH REFUTES TWO PRE-REGISTERED
+    EXPECTATIONS.** Theme IC *t*: **S16A buyback-only +3.2066**, incumbent **+2.7530**, **S16B
+    dilution-only +2.5623**. **S16A is the ONLY arm clearing X7's calibrated 2.71 theme-IC bar —
+    and it still fails the gate**, which is the **fifth** demonstration that theme IC does not
+    judge a construction change.
+  * **VERDICTS: all four REJECTED** against the already-committed margins — S16A Δalpha
+    +0.47pp / +0.05pp; S16B +0.23pp / −0.26pp; S16C +0.20pp / −0.06pp; S16D +0.17pp / −0.19pp.
+    **S16D is FLAGGED DEGENERATE** by the pre-committed C6 rule (`mna_dilution` non-zero on only
+    **3.19%** of rows) even though C7's own bar passed — the M&A flag fires on **5.53%** of
+    dilution rows, inside the pre-registered 5–25% band.
+  * **C3 DID NOT PASS ITS BAR AND IS REPORTED AS A FAILURE, NOT RECLASSIFIED.** The rebuilt
+    incumbent differs from the shipped `capital_discipline` by up to **0.006676** (0.67% of one
+    sd), because `build_frame` standardises over every scored name that date while the panel then
+    drops names with no forward return. **Diagnosed, not asserted** — within-date rank correlation
+    exactly **1.00000000**, median deviation exactly **0.000e+00**, a per-date affine rescaling
+    with worst residual 1.0e-03 — **and bounded: re-running every gate against the SHIPPED column
+    as baseline returns the same four rejects with deltas identical to four decimals.**
+  * **ADOPTION WOULD COST MORE HERE THAN USUAL AND THE REGISTER SAID SO FIRST.** The current
+    vintage is **DERIVED** per `PT-GAPDUE` — **vintage 3, opened 2026-08-11 — and its recorded
+    reason IS the `capital_discipline` restoration.** So changing this theme's construction would
+    close a vintage days old and open vintage 4, a second five-year clock reset on the same theme.
+  * **Equity `N` 161 → 165**; options 258 untouched. Expectations **3 right, 3 wrong**. **NOT
+    tested and named so it is not mistaken for tested:** buyback-announcement drift (no such data)
+    and dividend-initiation drift (derivable, different signal, out of scope).
+    `data/free_analysis/S16_ISSUANCE.json`; `HANDOFF_edge_audit.md` §2.
+- **THE HEADLINE ALPHA IS NEGATIVE IN 29% OF QUARTERS, AND THE RESULTS FILE NOW SAYS SO
+  (2026-08-12, session 30, `S28`).** Reporting infrastructure — **no hypothesis, no threshold, no
+  verdict, and no published claim moves.** `statistics.distribution()` ships n, mean, sd,
+  min/p05/p25/median/p75/p95/max, the count and fraction of **negative** periods, and the **dated**
+  worst and best period, wired into four payload blocks (`construction.top_decile_alpha_
+  distribution`, `construction.long_short_distribution`, `portfolio.return_distribution`,
+  `portfolio.excess_vs_equal_weight_distribution`). `SCHEMA_VERSION` **5 → 6**, purely additive.
+  * **WHAT IT SHOWS ON THE SHIPPED BOOK, which is why it was worth doing.** The published
+    **+7.17%/yr** top-decile alpha is the mean of 69 quarterly draws of which **TWENTY ARE
+    NEGATIVE (28.99%)**, with a **worst quarter of −6.83% (2016-01-20)** and a best of +11.47%
+    (2022-07-22) — and a **median of +1.41% against a mean of +1.79%**, so the headline is
+    **right-skewed and the typical quarter is worse than the average one**. The long-short spread
+    is negative in **33.3%** of quarters, worst **−20.01% (2025-07-29)**.
+  * **THE UNITS TRAVEL IN THE BLOCK, because the obvious misuse is annualising a quantile.**
+    `top_decile_alpha` is periods-per-year × the **mean**; that scaling is a statement about a
+    mean and **never about an order statistic**.
+  * **CONSISTENCY IS ASSERTED, NOT ASSUMED: 4 × the distribution's mean reproduces
+    `top_decile_alpha` to 4e-17** on the real panel and exactly on a synthetic one — the check
+    that the block describes the SAME series the headline is a mean of. A distribution attached
+    to the wrong series would look reasonable and quietly mislabel the worst quarter in the record.
+  * **PINNED AS REPORTING-ONLY** by a test that fails if any threshold, gate or verdict ever
+    compares or branches on a distribution field — **and that guard was checked for vacuity**: it
+    inspects 14 code-level references, so it is not passing by seeing nothing. **Zero equity
+    trials**; infra `N` 10 → 11 on the M2/M6 precedent, and infra `N` gates no published claim.
 - **THE SURFACE-ANOMALY FAMILY IS NULL ON ALL THREE ARMS — AND THE PRIOR LANE'S ONE SUGGESTIVE
   RESULT REVERSES ITS SIGN ONCE THE INSTRUMENT IS FIXED (2026-08-12, session 29, `O3`+`O4`+`O5`).**
   One register, three arms, `PREREG_o3_o4_o5_surface.md` committed **ALONE at `d2aa5f9`** — one

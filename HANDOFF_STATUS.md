@@ -42,13 +42,182 @@ retention is 0.5706 against the pre-committed 0.70 floor. **The floor was not re
 tenor confound that should have killed it is **refuted** - within every DTE quartile the gain stays
 positive.
 
-**Trial cost: options `N` 261 -> 271**, exactly as pre-committed. **Equity untouched at 161.**
+**Trial cost: options `N` 261 -> 271**, exactly as pre-committed. **Equity and infra untouched by
+this item; after merging they read 176 and 11**, not the 161 and 10 measured while the arms ran -
+other lanes landed the same day. **Re-read `by_domain` after merging; do not quote a mid-session
+figure.**
 Expectations 6 right, 1 wrong.
 
 **Recommended next: give C4 its own register as a CONSTRUCTION rule rather than a filter** - it is
 the only arm in three sessions to clear both halves and its calibrated null, and it fails only a
 threshold written for a different kind of rule. Full write-up: `HANDOFF_optionsbot.md` sections
 42-45.
+## edge lane, session 32 (2026-08-12) — S7 + S18: every pre-registered interaction REJECTED
+
+`PREREG_s7_s18_interactions.md` committed **alone at `7fc6ab2`**, one register for both items. No
+panel rebuild. **ADOPTS NOTHING.**
+
+**One of the audit's four named interactions cannot be built.** `size × liquidity` needs a
+liquidity measure and the price export carries **date and close only**, so `avg_dollar_volume`
+cannot be computed in the panel at all — audit B13's blocker. **Reported, not proxied**: a
+stand-in would be a different hypothesis wearing this one's name, and a test pins that none
+appeared. Charges no trial.
+
+**Short interest does not reach half the panel, and the audit's number is understated.** 48,539
+tickers and 3,866,270 records, but coverage is **32 of 69 dates (46.4%)**, not 40%, first covered
+2018-04-20. **Every covered date is in the LATE portion**, so S18 cannot satisfy a both-halves gate
+on the full panel — an impossibility, not a caveat. Its arms are gated on halves of the **covered
+subsample, 16 dates each**, exactly the shipped gate's `min_dates` floor. **A pass on 16-date
+halves is not the same object as a pass on 34-date halves.**
+
+**All six testable arms rejected.** `value × quality` −1.17/−0.84pp; `momentum × vol regime`
+−0.48/−0.19pp; `value × institutional` −0.05/−1.09pp; `value × short_interest` −0.49/−0.86pp.
+**`momentum × short_interest` is NOT_REPLICATED — late half alone (+1.85pp, Δt +0.812), early half
+fails (−2.39pp).** That is **the second consecutive session in which exactly one arm clears exactly
+one half**; the family-wise clause has earned its keep twice. **1 of 6 siblings, not adopted.**
+
+**THE MOST USEFUL RESULT: the short-interest exclusion made drawdown WORSE**, independently
+replicating S10 on a different criterion. Dropping the top 5% most-shorted removed 4.83% of
+top-decile rows, moved return +27.08% → +26.77%, and moved max drawdown **−0.2809 → −0.2863, a
+gain of −0.5404pp**. S10 found a *valuation-band* screen worsened drawdown by 2.61/3.35pp; a
+*crowding* screen worsens it too. S10's caveats travel verbatim — drawdown is negative so the gain
+is `arm − base`, and X7 calibrates no drawdown floor.
+
+**The audit's Bonferroni prescription (p < 0.0125) was declined explicitly**, with the reason
+registered first: it assumes a p-value gate while this project's gate is a margin gate whose
+floors X7 calibrated. Multiplicity is honoured by labelling instead.
+
+**C7 is the clean surprise and the one expectation that missed.** An eighth input dilutes every
+theme 1/7 → 1/8, so each arm is a compound change — registered in advance. Isolated with a
+constant eighth column it is **essentially nil (+0.00017 / +0.00015)**, so the arms measure the
+interactions and nothing else. C5 zero PIT violations; C6 no interaction is a parent proxy
+(largest |corr| 0.4584).
+
+**Equity `N` 170 → 176.** Expectations 6 right, 1 wrong. **Nothing was searched beyond the audit's
+named list.**
+
+**Next:** S10's accounting half, or the CPCV embargo. **And the dated one: read `/api/track` →
+`contract_track.recording_ok` on or after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 32.
+
+---
+
+## edge lane, session 31 (2026-08-12) — five alternative weighting schemes, all five REJECTED
+
+`PREREG_s5_s6_s13_s24_s27_weighting.md` committed **alone at `8b0917e`** — one register for all
+five. One panel build, six scorings on one frame. **ADOPTS NOTHING.**
+
+**THE NUMBER THAT PRICES THE WHOLE FAMILY: CPCV's own best challenger (`positive-equal`) beat the
+deployed default by a margin of `0.000265` against a required bar of `0.020830` — it would have to
+be about 79× LARGER to clear.** `adopt=false`, PBO 0.80. Weight tuning on this panel is not
+marginal; it is nowhere near.
+
+**Three of the five propose behaviour already shipped** (all five rows were `src=auto` — the S21
+pattern for the third time). **`S27` is already shipped at the audit's own middle half-life**:
+`halflife_days=1260` (≈5y) is the default of `_weighted_optimize`, `walk_forward` and
+`cpcv_validate`, while the audit proposes 3, 5 and 10. **`S5`'s shrinkage is half-shipped** as
+`ic-shrunk-50` (fixed 50%), already CPCV-rejected. **`S13`'s inverse-vol is shipped at the wrong
+level** (`risk-parity` is across *themes*; S13 asks for it across *names*). And **X6, S27's stated
+dependency, is DONE and NULL** — no confirmed break for recency weighting to respond to.
+
+**Verdicts.** S5 REJECTED (−2.12/−1.68pp, shrinkage intensity 0.5641, so genuinely partial).
+S24 REJECTED and **very nearly the incumbent at rank corr 0.9907** — a seven-signal set has almost
+nothing to bag. S27 REJECTED at **both** half-lives by the widest margins of the five.
+
+**`S6` is the only arm to clear any half and gets the full skeptical treatment the register fixed
+first:** late +3.30pp at Δt +0.678 (improves), early −1.61pp at Δt −1.289 (does not) — a sign flip
+between halves, **and 1 of 5 sibling arms** (at-least-one-clears ≈23% under independence).
+**NOT eligible, NOT adopted, and the +3.30pp may not be quoted without both labels.**
+
+**`S13` fails the alpha gate while improving exactly what it exists to improve**, which the
+register called in advance as an instrument mismatch: equal weight +25.29%/yr, Sharpe 0.5866,
+maxDD −0.2809 → capped inverse-vol +23.53%/yr, **Sharpe 0.6261**, maxDD −0.2804. Its long-short
+leg is unchanged **by construction**, so its *t* margin is N/A and may never read as a pass.
+
+**A defect in my own instrument, resolved under the session-11 protocol.** The register's C5
+defines the reported intensity as the *shrinkage* intensity; the first cut reported its
+*complement*. Caught by its own test before any verdict was read, and **proven presentational by
+a leaf-by-leaf artifact diff: the S5 weight vector is bit-identical (max |Δ| 0.000e+00) and ZERO
+gate cells moved on any arm.** No conclusion needed re-deriving.
+
+**A limitation reported, not glossed:** `cpcv_validate` selects among its own eight
+`_weight_schemes` and cannot evaluate an arbitrary vector, so its authority operates here as a
+blanket keep-the-defaults rule rather than an arm-by-arm verdict — weaker than the register's
+wording implies.
+
+**Equity `N` 165 → 170.** **Expectations 6 right, 0 wrong — the first clean sweep in this record**,
+because the prior was the project's own *measured* standing result rather than intuition.
+
+**Next:** S10's accounting half, or the CPCV embargo. **And the dated one: read `/api/track` →
+`contract_track.recording_ok` on or after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 31.
+
+---
+
+## edge lane, session 30 (2026-08-12) — S16 all four arms rejected (and the audit's proposal is a rank identity), S28 shipped, two lying ledger rows corrected
+
+**S16.** `PREREG_s16_issuance_decomposition.md` committed **alone at `afc7578`**. One panel build,
+five scorings, every arm a column on one frame. **All four arms REJECTED.**
+
+**The premise check removed half the audit's method before any arm ran:** all 671,417 ACTIONS rows
+carry one of nineteen action types and **none is a repurchase authorisation**, so
+buyback-announcement drift is **not testable on data we own**; and `initiated` is index/security
+listing initiation (`^VIX`, `^RUT`, `^IXIC`, 1997-12-31), **not** dividend initiation. The M&A leg
+is real — `acquisitionof`/`acquisitionby`, 8,248 dated rows each.
+
+**THE DEEPEST FINDING IS AN IDENTITY, NOT A MEASUREMENT.** S16C's within-date rank correlation
+against the incumbent is **1.000000000000 on all 69 dates**, because `buyback = max(0, −net)` and
+`−dilution = −max(0, net)` are **both non-increasing in `net`** (verified directly). So the
+audit's actual proposal — two inputs *"so the composite can weight them independently"* —
+**cannot express any ordering the single input cannot**. It only shrinks the theme's dispersion
+**1.000315 → 0.774730**, a 22.5% cut in effective weight. S20/S21's rank-invariance lesson again.
+
+**Buyback carries more of the theme's IC than dilution**, refuting two pre-registered
+expectations: theme IC *t* **+3.2066** (buyback-only) vs **+2.7530** (incumbent) vs **+2.5623**
+(dilution-only). **S16A is the only arm clearing X7's calibrated 2.71 bar — and it still fails the
+gate**, the fifth demonstration that theme IC does not judge a construction change. S16D is
+**FLAGGED DEGENERATE** (`mna_dilution` non-zero on 3.19% of rows) though C7's own bar passed.
+
+**C3 FAILED ITS BAR AND IS REPORTED AS A FAILURE.** The rebuilt incumbent is not bit-identical to
+the shipped column (max |Δ| **0.006676**, 0.67% of one sd) because `build_frame` standardises over
+every scored name while the panel drops names with no forward return. Diagnosed — rank correlation
+exactly **1.00000000**, median deviation exactly **0.000e+00**, a per-date affine rescaling — and
+**bounded: every gate re-run against the SHIPPED baseline returns the same four rejects with
+deltas identical to four decimals.**
+
+**Equity `N` 161 → 165. ADOPTS NOTHING**, and adoption costs more here than usual: the vintage is
+**derived** per `PT-GAPDUE` — **vintage 3, opened 2026-08-11, and its reason IS the
+`capital_discipline` restoration** — so a change would close a vintage days old. Expectations 3
+right, 3 wrong.
+
+**S28 — SHIPPED, reporting only, no claim moves.** Four additive payload blocks with quantiles,
+negative-period counts and the **dated** worst/best period; `SCHEMA_VERSION` 5 → 6. **What it
+shows: the published +7.17%/yr top-decile alpha is negative in 20 of 69 quarters (28.99%), with a
+median quarter (+1.41%) BELOW the mean (+1.79%) and a worst quarter of −6.83% on 2016-01-20;** the
+long-short is negative in 33.3% of quarters, worst −20.01%. Units travel in the block because
+**a quantile may not be annualised the way a mean is**. `4 × mean` reproduces `top_decile_alpha` to
+**4e-17** — the check that the block describes the right series. Pinned as reporting-only by a
+guard that was itself checked for vacuity. **Zero equity trials; infra 10 → 11.**
+
+**Two ledger rows were lying about their own state, both corrected.** `O14` read INPROGRESS /
+*"analysis not started"* — false since 2026-08-11, when the tickflow module, script, tests and a
+44KB artifact landed; it stays OPEN for the reason its note already gave (the put/call and
+unusual-volume studies remain undone), not the one the cell gave. `B13` read IN PROGRESS with
+nothing in progress: it is a settled partial state blocked on data the price export does not carry
+(date and close only, so `avg_dollar_volume` cannot be computed there at all), now
+**PARTIAL - BLOCKED ON DATA**.
+
+**CROSS-LANE, FOUND BY THE MERGE: `session 29` now names TWO different lanes' work on `main`** — the options-bot lane's `O3`+`O4`+`O5` and this lane's `S3`+`S25`, both dated 2026-08-12. Not unilaterally renumbered (theirs is already referenced from their own handoff and ledger rows); this session took **30**. Routed to the options-bot lane or to Don as a convention call. The rule that prevents it: take the next number above the GLOBAL maximum in `CLAUDE.md` at the moment you stamp, and re-check after any merge.
+
+**Next:** S10's accounting half, or the CPCV embargo (still the only open item that can move a
+published number). **And the dated freebie: read `/api/track` → `contract_track.recording_ok` on or
+after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 30.
+
+---
 
 ## options-bot lane, session 29 (2026-08-12) — the surface-anomaly family is NULL on all three arms, and a prior published result reverses its sign
 

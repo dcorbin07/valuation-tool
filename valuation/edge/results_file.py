@@ -44,7 +44,15 @@ MD_NAME = "BACKTEST_RESULTS.md"
 # disclosure on `portfolio` (`label_warning`, `held_*`, `exit_rank`, `charges_*`) which was
 # being computed and silently dropped; and `cpcv.adopt_detail` / `cpcv.challenger_weights`,
 # banked by session 12 and likewise never serialised. A v4 reader still works.
-SCHEMA_VERSION = 5
+# 6 adds, all additive (LEDGER S28 — "distribution, not just the mean"): four distribution
+# blocks — `construction.top_decile_alpha_distribution`, `construction.long_short_distribution`,
+# `portfolio.return_distribution` and `portfolio.excess_vs_equal_weight_distribution`. Each
+# carries n, mean, sd, min/p05/p25/median/p75/p95/max, the count and fraction of NEGATIVE
+# periods, and the DATED worst and best period. REPORTING ONLY: no threshold reads them and no
+# verdict depends on them, so no published claim moves. Each block carries its own `units`
+# string saying the figures are PER-PERIOD and that a quantile may not be annualised the way a
+# mean is. A v5 reader still works.
+SCHEMA_VERSION = 6
 
 
 def repo_root(start: str | None = None) -> str:
@@ -189,7 +197,16 @@ def build_payload(res: dict, universe_label: str | None = None,
                       "held_min": hue.get("held_min"), "held_median": hue.get("held_median"),
                       "held_max": hue.get("held_max"),
                       "charges_costs": hue.get("charges_costs"),
-                      "charges_taxes": hue.get("charges_taxes")},
+                      "charges_taxes": hue.get("charges_taxes"),
+                      # LEDGER S28 — the hold book's own per-period shape, and the shape of its
+                      # EXCESS over the equal-weight benchmark (the series `alpha_vs_equal_
+                      # weight` above is a mean of). CLAUDE.md calls `cagr` the noisiest number
+                      # in this file; this is what that noise actually looks like. Reporting
+                      # only, and `label_warning` above governs these exactly as it governs
+                      # every other figure in the block.
+                      "return_distribution": hue.get("return_distribution"),
+                      "excess_vs_equal_weight_distribution":
+                          hue.get("excess_vs_equal_weight_distribution")},
 
         "cpcv": {"n_paths": cp.get("n_paths"),
                  "pbo": {"value": _num(cp.get("pbo")), "want": "<0.50",
@@ -254,7 +271,16 @@ def build_payload(res: dict, universe_label: str | None = None,
                          "top_decile_alpha_ljung_box": cn.get("top_decile_alpha_ljung_box"),
                          "top_decile_alpha_inference": cn.get("top_decile_alpha_inference"),
                          "top_decile_alpha_hit": _num(cn.get("top_decile_alpha_hit")),
-                         "signal_weighted_top_decile_alpha": _num(cn.get("sw_top_decile_alpha"))},
+                         "signal_weighted_top_decile_alpha": _num(cn.get("sw_top_decile_alpha")),
+                         # LEDGER S28 — the SHAPE beside the mean. Every headline above is a
+                         # mean or a t on a mean, and a mean cannot show a book carried by
+                         # three quarters out of sixty-nine. Quantiles plus the DATED worst and
+                         # best periods. REPORTING ONLY: no threshold reads these and no verdict
+                         # depends on them. The blocks carry their own `units` string because a
+                         # QUANTILE MAY NOT BE ANNUALISED the way `top_decile_alpha` is —
+                         # annualising is a statement about a mean, not an order statistic.
+                         "top_decile_alpha_distribution": cn.get("top_decile_alpha_distribution"),
+                         "long_short_distribution": cn.get("long_short_distribution")},
 
         # AUDIT R10 — the top decile against benchmarks a person could actually hold, beside
         # the uninvestable equal-weight universe every historical figure used.

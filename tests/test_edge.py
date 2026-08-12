@@ -7716,6 +7716,320 @@ def test_s25_the_pit_valuation_still_reads_a_non_point_in_time_sector():
     assert pe[-1] / pe[0] >= 2.0, "the comps PE spread collapsed; re-measure S25's exposure"
 
 
+# ------------------------------------------- S28 (session 30): distribution, not just the mean
+def test_s28_distribution_reproduces_hand_computed_order_statistics():
+    from valuation.edge.statistics import distribution
+
+    d = distribution([0.10, -0.05, 0.20, 0.0, -0.30])
+    assert d["n"] == 5
+    assert abs(d["min"] - (-0.30)) < 1e-12 and abs(d["max"] - 0.20) < 1e-12
+    assert abs(d["median"] - 0.0) < 1e-12
+    assert abs(d["mean"] - (-0.01)) < 1e-12
+    assert d["negative_periods"] == 2 and abs(d["negative_fraction"] - 0.4) < 1e-12
+    # monotone through the quantiles, by construction
+    qs = [d["min"], d["p05"], d["p25"], d["median"], d["p75"], d["p95"], d["max"]]
+    assert qs == sorted(qs), qs
+
+
+def test_s28_dated_extremes_survive_holes_in_the_series():
+    """The dates are matched against the ORIGINAL series, not the cleaned one. Pairing a cleaned
+    value with an uncleaned date is exactly how an off-by-one mislabels the worst quarter."""
+    from valuation.edge.statistics import distribution
+
+    vals = [0.1, float("nan"), None, -0.4, 0.3]
+    dts = ["d0", "d1", "d2", "d3", "d4"]
+    d = distribution(vals, dts)
+    assert d["n"] == 3 and d["n_dated"] == 3
+    assert d["worst"] == {"date": "d3", "value": -0.4}, d["worst"]
+    assert d["best"] == {"date": "d4", "value": 0.3}, d["best"]
+
+
+def test_s28_carries_its_units_so_a_quantile_is_not_annualised():
+    """`top_decile_alpha` is ppy * mean(alpha). A quantile is an order statistic and may NOT be
+    scaled that way, so the block has to say so wherever it is picked up."""
+    from valuation.edge.statistics import distribution
+
+    for d in (distribution([0.1, 0.2]), distribution([])):
+        assert "units" in d and "not annualised" in d["units"]
+
+
+def test_s28_the_payload_projects_every_distribution_block():
+    """M6's guard catches a field computed and dropped; this pins the projection itself, so a
+    reader cannot lose the block by editing results_file alone."""
+    import re
+
+    src = open("valuation/edge/results_file.py", encoding="utf-8").read()
+    for key in ("top_decile_alpha_distribution", "long_short_distribution",
+                "return_distribution", "excess_vs_equal_weight_distribution"):
+        assert re.search(rf'"{key}":', src), f"{key} is not projected into the payload"
+    m = re.search(r"^SCHEMA_VERSION = (\d+)", src, re.M)
+    assert m and int(m.group(1)) >= 6, "S28 is additive and must bump the schema version"
+
+
+def test_s28_the_distribution_describes_the_SAME_series_the_headline_is_a_mean_of():
+    """The one check that matters. A distribution attached to the wrong series would look
+    perfectly reasonable and quietly mislabel the worst quarter in the record, so the identity
+    `4 * mean(distribution) == top_decile_alpha` is asserted rather than assumed. Measured on the
+    real 69-date panel it holds to 4e-17; here on a synthetic one it must hold exactly.
+    """
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=14, n_names=60, seed=23)
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    r = quantile_backtest(p, cols, w, n_q=10, horizon=63)
+
+    for key, headline in (("top_decile_alpha_distribution", "top_decile_alpha"),
+                          ("long_short_distribution", "long_short_ann")):
+        d = r[key]
+        assert d["n"] == r["n_periods"], (key, d["n"], r["n_periods"])
+        assert abs(d["mean"] * 4.0 - r[headline]) < 1e-12, (key, d["mean"] * 4.0, r[headline])
+        assert d["min"] <= d["median"] <= d["max"]
+        assert 0.0 <= d["negative_fraction"] <= 1.0
+        assert "worst" in d and "best" in d
+        assert d["worst"]["value"] == d["min"] and d["best"]["value"] == d["max"]
+
+
+def test_s28_is_reporting_only_and_gates_nothing():
+    """S28 adds NO claim. If a threshold, gate or verdict ever reads a distribution field, this
+    fails — which is the only thing standing between 'honest shape' and a new bar nobody
+    calibrated. Docstrings and comments are stripped so the test cannot pass on its own prose.
+    """
+    import re
+
+    hits = []
+    for path in ("valuation/edge/fundamental_panel.py", "valuation/edge/results_file.py",
+                 "valuation/edge/statistics.py"):
+        src = open(path, encoding="utf-8").read()
+        src = re.sub(r'""".*?"""', "", src, flags=re.S)
+        src = re.sub(r"#.*", "", src)
+        for m in re.finditer(r"_distribution\b", src):
+            line = src[src.rfind("\n", 0, m.start()) + 1:src.find("\n", m.start())]
+            # a comparison or a branch on a distribution field would make it a threshold
+            if re.search(r"(if|while|assert|[<>]=?|==)\s", line) and "def " not in line:
+                hits.append(f"{path}: {line.strip()[:100]}")
+    assert not hits, "a distribution field is being compared or branched on:\n" + "\n".join(hits)
+
+
+# --------------------------- S5/S6/S13/S24/S27 (session 31): five weighting schemes
+def _w5():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "w5", "scripts/s5_s6_s13_s24_s27_weighting.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_s6_factor_momentum_is_point_in_time():
+    """THE ONE THAT MATTERS. Factor momentum reads the theme's OWN past returns, so an off-by-one
+    would let date i see its own realised long-short — a look-ahead that would manufacture the
+    exact result the arm is testing for. Date i must use periods [i-4, i-1] and nothing later.
+    """
+    import numpy as np
+
+    m = _w5()
+    dates = [f"d{i:02d}" for i in range(12)]
+    # one theme spikes at date 6 ONLY. If the weights at date 6 already reflect it, it leaked.
+    ls = {c: np.zeros(len(dates)) for c in m.THEMES}
+    spike = m.THEMES[0]
+    ls[spike][6] = 10.0
+    w = m.arm_s6_weights_by_date(ls, dates)
+
+    assert w[dates[6]][spike] == max(w[dates[6]].values()) or True     # no claim at date 6 itself
+    # the spike must NOT raise the spiking theme's weight on or before its own date
+    eq = 1.0 / len(m.THEMES)
+    assert w[dates[6]][spike] <= eq + 1e-12, "date 6 saw its OWN return - look-ahead"
+    # ...and it MUST raise it on the next date, or the arm is inert
+    assert w[dates[7]][spike] > eq, "the trailing window never picked the spike up at all"
+
+
+def test_s6_bounds_are_the_pre_committed_ones_and_actually_bind():
+    import numpy as np
+
+    m = _w5()
+    dates = [f"d{i:02d}" for i in range(10)]
+    ls = {c: np.zeros(len(dates)) for c in m.THEMES}
+    for i, c in enumerate(m.THEMES):                      # a strict ranking of trailing returns
+        ls[c][:] = float(i)
+    w = m.arm_s6_weights_by_date(ls, dates)
+    eq = 1.0 / len(m.THEMES)
+    for d in dates[m.S6_TRAILING_PERIODS:]:
+        vals = list(w[d].values())
+        assert all(v >= 0.0 for v in vals), "floor at 0 violated"
+        assert max(vals) <= m.S6_CAP_MULT * eq + 1e-9, "cap at 2x equal violated"
+        assert abs(sum(vals) - 1.0) < 1e-9, "weights do not sum to 1"
+
+
+def test_s5_james_stein_intensity_is_clipped_and_its_degenerate_ends_are_detectable():
+    """C5. Intensity 0 => equal weight; intensity 1 => raw IC-proportional, which is a SHIPPED
+    scheme. Either end means the arm is not an independent scheme and must be reported as such."""
+    import numpy as np
+
+    m = _w5()
+    # identical ICs across themes -> no between-theme signal -> shrink all the way to the mean
+    flat = {c: np.full(40, 0.02) for c in m.THEMES}
+    w, d = m.arm_s5(flat)
+    assert 0.0 <= d["shrinkage_intensity"] <= 1.0, d
+    # 1.0 = fully shrunk = equal weight, which is the register's C5 direction. The first cut of
+    # the code reported the COMPLEMENT, so the register's two ends read backwards against it.
+    assert d["shrinkage_intensity"] >= 1.0 - 1e-9, "flat ICs must shrink FULLY to the grand mean"
+    for c in m.THEMES:                                    # ...which IS equal weight
+        assert abs(w[c] - 1.0 / len(m.THEMES)) < 1e-9, (c, w[c])
+
+    # and the other end must be reachable: widely dispersed ICs with tiny sampling noise
+    disp = {c: np.full(400, 0.01 * (i + 1)) for i, c in enumerate(m.THEMES)}
+    _, d2 = m.arm_s5(disp)
+    assert d2["shrinkage_intensity"] <= 1e-9, ("zero sampling variance must mean NO shrinkage",
+                                               d2)
+
+
+def test_s24_ensemble_is_seeded_and_reproducible():
+    """C6. A bagging result that changes between runs is not a result."""
+    import numpy as np
+    import pandas as pd
+
+    m = _w5()
+    rng = np.random.default_rng(5)
+    n_d, n_t = 4, 120
+    rows = [{"date": f"2020-0{d+1}-01", "ticker": f"T{t}"} for d in range(n_d) for t in range(n_t)]
+    panel = pd.DataFrame(rows)
+    z = {c: pd.Series(rng.normal(size=len(panel)), index=panel.index) for c in m.THEMES}
+    a, da = m.arm_s24(panel, z, draws=25, seed=7)
+    b, db = m.arm_s24(panel, z, draws=25, seed=7)
+    assert a.equals(b) and da.equals(db), "the ensemble is not reproducible at a fixed seed"
+    c, _ = m.arm_s24(panel, z, draws=25, seed=8)
+    assert not a.equals(c), "the seed does not affect the draws - it is not really sampling"
+
+
+def test_s13_drawdown_uses_the_S10_sign_convention():
+    """S10 shipped a sign error here once: max drawdown is NEGATIVE, so an arm improves it by
+    being LESS negative and the gain is `arm - base`. Pinned with a known pair."""
+    import numpy as np
+
+    m = _w5()
+    steady = np.array([0.02, 0.02, 0.02, 0.02])
+    crash = np.array([0.02, -0.30, 0.02, 0.02])
+    assert m._dd(steady) == 0.0 or m._dd(steady) > -1e-12, m._dd(steady)
+    assert m._dd(crash) < -0.25, m._dd(crash)
+    # the improvement is arm - base and is POSITIVE when the arm is shallower
+    assert (m._dd(steady) - m._dd(crash)) > 0, "a shallower drawdown must score as an improvement"
+
+
+def test_s13_vol_raw_is_opt_in():
+    import inspect
+    import re
+
+    from valuation.edge import fundamental_panel as FP
+
+    p = inspect.signature(FP.build_fundamental_panel).parameters
+    assert "with_vol_raw" in p and p["with_vol_raw"].default is False
+    src = open("valuation/edge/fundamental_panel.py", encoding="utf-8").read()
+    # Only the ROW EMISSION is guarded. `out["realized_vol"]` inside `_price_factors` is the
+    # metric COMPUTATION and correctly always runs — the first cut of this test matched it too
+    # and failed on working code.
+    hits = list(re.finditer(r'row\["realized_vol"\]\s*=', src))
+    assert hits, "the row emission vanished - the guard has nothing to protect"
+    for mm in hits:
+        seg = src[max(0, mm.start() - 700):mm.start()]
+        assert "with_vol_raw" in seg, "realized_vol reaches the row outside the opt-in guard"
+
+
+def test_the_five_arm_register_fixed_the_family_wise_clause_in_advance():
+    """Five sibling arms against one bar. Without a pre-committed rule, the first arm that clears
+    gets quoted as a finding. The register has to carry the clause, not the write-up."""
+    reg = open("PREREG_s5_s6_s13_s24_s27_weighting.md", encoding="utf-8").read()
+    assert "FAMILY-WISE" in reg.upper()
+    assert "1 OF 5 SIBLING ARMS" in reg.upper()
+    assert "23%" in reg, "the family-wise rate is not quantified in the register"
+    # and S13's structurally different bar is fixed there too
+    assert "unchanged by construction" in reg.lower()
+
+
+# ------------------------------------ S7/S18 (session 32): pre-registered interactions
+def _s7():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("s7", "scripts/s7_s18_interactions.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_s18_short_interest_join_is_strictly_point_in_time():
+    """C5, and the one that matters. Short interest settles on a date and is PUBLISHED later;
+    joining a settlement dated on or after the scoring date would manufacture exactly the
+    crowding effect the arms test for."""
+    import pandas as pd
+
+    m = _s7()
+    panel = pd.DataFrame({"date": ["2020-06-30"] * 3, "ticker": ["AAA", "BBB", "CCC"]})
+    si = {
+        "AAA": [("2020-05-15", 1.0, 0, 0), ("2020-06-30", 99.0, 0, 0)],   # ON the date
+        "BBB": [("2020-07-15", 77.0, 0, 0)],                              # AFTER the date
+        "CCC": [("2020-06-15", 3.0, 0, 0)],                               # before -> usable
+    }
+    si = {k: sorted(v) for k, v in si.items()}
+    vals, used = m.join_si(panel, si)
+    assert vals.iloc[0] == 1.0, "a settlement dated ON as_of leaked in"
+    assert used.iloc[0] == "2020-05-15"
+    assert pd.isna(vals.iloc[1]), "a settlement dated AFTER as_of leaked in"
+    assert vals.iloc[2] == 3.0
+
+
+def test_s18_exclusion_drawdown_uses_the_S10_sign_convention():
+    """S10 shipped this backwards once and reported a 2.61pp WORSENING as an IMPROVEMENT.
+    max_drawdown is NEGATIVE; the gain is `arm - base`."""
+    import numpy as np
+
+    m = _s7()
+    shallow = np.array([0.02, -0.05, 0.03, 0.02])
+    deep = np.array([0.02, -0.35, 0.03, 0.02])
+    assert m._dd(deep) < m._dd(shallow) < 0
+    assert (m._dd(shallow) - m._dd(deep)) > 0, "a shallower drawdown must score as a gain"
+    # and the measured A6 pair must read as a WORSENING, which is what it was
+    base, arm = -0.2809334725979583, -0.2863372461981234
+    assert (arm - base) * 100.0 < 0, "the measured A6 drawdown change must read NEGATIVE"
+
+
+def test_s7_market_vol_regime_is_point_in_time():
+    """A2 conditions momentum on the market's realised volatility. Using the CURRENT date's
+    benchmark return would be a look-ahead on the market itself."""
+    import numpy as np
+    import pandas as pd
+
+    m = _s7()
+    dates = [f"2020-{i:02d}-01" for i in range(1, 13)]
+    # a benchmark that is calm then explodes at the LAST date
+    bench = [0.01] * 11 + [5.0]
+    panel = pd.DataFrame({"date": dates, "bench_ret": bench})
+    reg = m.market_vol_regime(panel)
+    assert np.isnan(reg.iloc[0]), "no history at the first date"
+    last = reg.iloc[-1]
+    prev = reg.iloc[-2]
+    assert abs(last - prev) < 1e-9, "the last date saw its OWN benchmark move - look-ahead"
+
+
+def test_s7_register_records_the_unbuildable_arm_rather_than_proxying_it():
+    """One of the audit's four named interactions needs a liquidity measure that does not exist
+    on this path (B13). The register must say so, and the script must not quietly substitute."""
+    reg = open("PREREG_s7_s18_interactions.md", encoding="utf-8").read()
+    assert "size × liquidity" in reg or "size x liquidity" in reg
+    assert "NOT BUILDABLE" in reg.upper() or "UNBUILDABLE" in reg.upper()
+    src = open("scripts/s7_s18_interactions.py", encoding="utf-8").read()
+    assert "UNBUILDABLE" in src, "the script must record the omission in its own artifact"
+    # and it must not have grown a liquidity proxy
+    for bad in ("liquidity_proxy", "z_liquidity", "adv_proxy"):
+        assert bad not in src, f"a liquidity proxy ({bad}) appeared - the register forbids it"
+
+
+def test_s7_register_declines_the_audits_bonferroni_translation_explicitly():
+    """The audit prescribes p < 0.0125. This project's gate is a MARGIN gate whose floors X7
+    calibrated; converting one into the other would invent an uncalibrated correspondence."""
+    reg = open("PREREG_s7_s18_interactions.md", encoding="utf-8").read()
+    assert "0.0125" in reg, "the audit's own bar is not quoted"
+    assert "MARGIN gate" in reg or "margin gate" in reg
+    assert "1 OF 6 SIBLING ARMS" in reg.upper()
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

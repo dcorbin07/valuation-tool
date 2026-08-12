@@ -4967,8 +4967,13 @@ the refused trades actually **outperform** (+13.976% against a kept +9.316%).
 ## 44 · Trial cost
 
 **Options `N` 261 → 271** — 4 (O6a–d) + 2 (O7 B1, B2) + 4 (O17 C1–C4), **exactly as §7
-pre-committed.** **Equity `N` untouched at 161, infra at 10** — the counter is domain-scoped, and
-the equity figure is re-read after merge rather than quoted from mid-session.
+pre-committed.** The counter is domain-scoped, so **equity and infra are untouched BY THIS ITEM**.
+
+**Their LEVELS are not what I measured mid-session, and that is the point: after merging `main`
+they read equity 176 and infra 11, against the 161 and 10 in front of me while the arms ran.**
+Other lanes landed 15 equity trials and one infra trial the same day. **This is the second session
+running that a mid-session equity figure went stale before the push — re-read `by_domain` after
+the merge and quote that, never the number the session measured.**
 `BACKTEST_RESULTS.json` needs no re-run.
 
 Charged at **zero**: the random-entry control arm, the `term_slope` decomposition, the tenor and
