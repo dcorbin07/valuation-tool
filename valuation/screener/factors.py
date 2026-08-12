@@ -68,7 +68,7 @@ _GRANULAR = list(S.NUMBERS_ALL)
 
 
 def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None,
-                value_ev_multiples=None, standardizer=None) -> pd.DataFrame:
+                value_ev_multiples=None, standardizer=None, bucket_relative=None) -> pd.DataFrame:
     """Return a DataFrame indexed by ticker with the theme columns standardized across
     the universe. sector_neutral scores each number relative to its sector peers (removes
     accidental sector bets); residual_momentum strips the beta component out of momentum.
@@ -209,6 +209,31 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
             if col in df.columns:
                 s = pd.to_numeric(df[col], errors="coerce")
                 df[col] = s - s.groupby(_grp).transform("median")
+
+    # LEDGER S12 — bucket-relative ranking, the audit's "add a `bucket_relative` toggle to the
+    # standardisation step". Architecturally IDENTICAL to sector_neutral above (subtract the
+    # group median, then let the global z-score below standardise the group-relative value); the
+    # only difference is WHICH column defines the group. `bucket_relative` names that column:
+    # "bucket" for the valuation split the audit specifies (established vs speculative), or a
+    # cap-tier label for the framing the task asked about. Defaults to None, so every existing
+    # caller is unchanged and the shipped panel is untouched.
+    if bucket_relative:
+        # `bucket` is not a column yet at this point — it is derived below, AFTER the granular
+        # standardisation — so asking for it by name here would silently find nothing and make
+        # the whole arm a NO-OP that still reports a verdict. Derive it from the metrics instead,
+        # which is exactly what the line below does; any other group (e.g. `cap_tier`) is a
+        # genuine metrics column and is read from the frame.
+        if bucket_relative == "bucket":
+            _bgrp = pd.Series([classify_bucket(m) for m in metrics], index=df.index).fillna("?")
+        elif bucket_relative in df.columns:
+            _bgrp = df[bucket_relative].fillna("?")
+        else:
+            _bgrp = None
+        if _bgrp is not None:
+            for col in _GRANULAR:
+                if col in df.columns:
+                    s = pd.to_numeric(df[col], errors="coerce")
+                    df[col] = s - s.groupby(_bgrp).transform("median")
 
     # Standardize granular metrics across the universe.  [S20/S21 — layer 1]
     _std = zscore if standardizer is None else standardizer

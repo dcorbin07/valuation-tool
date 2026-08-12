@@ -48,6 +48,55 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE HORIZON ENSEMBLE BUYS A REAL TURNOVER REDUCTION AT 11× TO 23× ITS OWN COST, AND THE
+  BUCKET ARM MISSES BY 18 BASIS POINTS (2026-08-12, session 34, `S11`+`S12`).** One register for
+  both, `PREREG_s11_s12_horizon_bucket.md`, committed **alone at `d867fe3`**. **ADOPTS NOTHING.**
+  * **S11's PRIOR WAS REAL AND IS RECORDED: S22 measured the out-of-sample rank IC RISING with
+    horizon (+0.034 → ~+0.072).** The counter-prior won anyway. **REJECTED in both halves and by
+    the widest margin of the three arms** — Δalpha **−4.22pp / −2.05pp**, Δ*t* −2.353 / −0.927 —
+    and the long-short leg moved against it **exactly as pre-registered**, because S22 had already
+    measured that the persistence lives entirely in the long leg while the spread's HAC *t*
+    collapses 2.7167 → 0.6846.
+  * **THE AUDIT'S SECONDARY CLAIM IS CONFIRMED AND IS THE MOST USEFUL NUMBER HERE — AND IT IS A
+    TERRIBLE TRADE.** Turnover falls **0.6352 → 0.4976** per rebalance, ~55pp of book per year.
+    **At the project's own measured 33.4 bps one-way that saves roughly 18 bps/yr against 205–422
+    bps of alpha given up — the trade runs 11× to 23× AGAINST.**
+  * **C6 CONFIRMS THE COUNTER-PRIOR DIRECTLY: the two horizons' weight vectors correlate +0.9013
+    and +0.9674**, so the ensemble is largely **one composite twice**. **A CONFOUND NAMED
+    HONESTLY:** the blend's rank correlation against the *deployed* composite is only **0.6939**
+    while the two horizons agree above 0.90 — so most of the arm's deviation comes from using
+    **IC-proportional weights at all**, one of the eight schemes CPCV has always declined, not
+    from blending horizons. The audit's own construction makes that unavoidable, since two
+    flat-weighted composites would be identical.
+  * **A SCOPE DIVERGENCE ON S12, NAMED BEFORE ANY RESULT (S10's class).** The audit's S12 is the
+    **VALUATION bucket** — *"defined by how a name is valued, not by industry"* — while the task
+    framed it as the **cap tier**. **Both tested as separate arms**, so the row closes on both
+    readings and neither is reported as the other.
+  * **A2 (VALUATION BUCKET) IS NOT_REPLICATED AND IS THE CLOSEST ANY ARM HAS COME IN THESE
+    SESSIONS.** Positive on alpha in **both** halves (**+1.36pp / +0.82pp**) and positive on Δ*t*
+    in both (**+0.478 / +0.347**) — it fails only because the late half misses the pre-committed
+    +1.00pp bar **by 18 basis points**. **That is S21's shape exactly** (which missed by 17bps and
+    was recorded not-replicated); ambiguous against a pre-committed threshold is a **NULL**
+    (`RUN_RULES` A6), and it is **1 of 3 sibling arms**. Small intervention — rank corr 0.9807,
+    top-25 changed 4 of 25. **NOT eligible, NOT adopted, and +1.36pp may not be quoted without
+    both labels.** **The fourth consecutive session in which exactly one arm clears exactly one
+    half.**
+  * **A3 (CAP TIER) IS REJECTED AND NEARLY INERT** — Δalpha +0.09pp / +0.07pp. **C8 confirms the
+    pre-registered mechanism**: the book's mean `size` z-score falls **0.5885 → 0.5092 (13.5%
+    shrink)**, so it does neutralise the exposure X3 says carries the composite's entire
+    significance — **but the alpha effect is ZERO rather than negative**, so it fails by being
+    inert rather than harmful, a milder outcome than predicted.
+  * **THE AUDIT'S OWN METRIC PRIORITY WAS ADOPTED VERBATIM** — *"top-decile alpha decides, not the
+    t-statistic"* — and **no arm triggered the bought-*t*-sold-alpha flag**, so sector-neutral's
+    failure shape did **not** recur.
+  * **A NEAR-MISS CAUGHT BEFORE THE BUILD AND PINNED:** `bucket` is derived **after** the granular
+    standardisation, so a naive lookup by column name would have found nothing, done nothing, and
+    still reported a verdict on **an arm that never ran**. **A CONTROL THAT DID NOT RUN, REPORTED
+    AS SUCH:** C7's bucket half came back empty for the same reason (the diagnostic column emitted
+    `None`); the **arms are unaffected**, and the number was recovered from the key-identical
+    corrected panel — **established 1,312 / speculative 339 per date**, both substantial.
+  * **Equity `N` 180 → 183.** Expectations **7 right, 0 wrong**.
+    `data/free_analysis/S11_S12.json`; `HANDOFF_edge_audit.md` §1-8.
 - **13F STALENESS IS COMMON ACROSS NAMES, NOT CROSS-SECTIONAL — SO DECAYING IT CANNOT RE-RANK
   ANYTHING — AND THE FRESHNESS GRADIENT THE WHOLE ITEM RESTS ON IS ABSENT
   (2026-08-12, session 33, `S8`+`S9`).** One register for both,

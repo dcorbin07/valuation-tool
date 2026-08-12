@@ -993,7 +993,8 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                             grid_offset=None, extra_horizons=None,
                             sector_neutral_pair=False, standardizer_arms=None,
                             with_insider_raw=False, with_issuance_raw=False,
-                            with_vol_raw=False, with_freshness=False) -> pd.DataFrame:
+                            with_vol_raw=False, with_freshness=False,
+                            bucket_relative_arms=None) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -1397,7 +1398,27 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             continue
         from ..screener.factors import build_frame
         _by_ticker = {m["ticker"]: m for m in metrics}
+        # S12 — the CAP TIER, computed WITHIN this date's cross-section (terciles, pre-committed;
+        # not quintiles, so the smallest group stays large). Written onto the metrics dicts
+        # before `build_frame` sees them, so the bucket-relative arm can group on it exactly the
+        # way sector_neutral groups on `sector`.
+        if bucket_relative_arms:
+            _mc = [(m.get("ticker"), m.get("market_cap")) for m in metrics]
+            _ok = sorted([x for x in _mc if x[1] is not None and x[1] == x[1]],
+                         key=lambda x: x[1])
+            _n = len(_ok)
+            _tier = {}
+            for _i, (_tk, _v) in enumerate(_ok):
+                _tier[_tk] = "small" if _i < _n / 3 else ("mid" if _i < 2 * _n / 3 else "large")
+            for m in metrics:
+                m["cap_tier"] = _tier.get(m.get("ticker"), "?")
         fr = build_frame(metrics, sector_neutral=sector_neutral, residual_momentum=False)
+        # S12 — one extra scoring per bucket-relative arm, from the SAME `metrics` list in the
+        # SAME pass, so the arms are provably scored on one identical row set and the known
+        # `insider` nondeterminism is common-mode and cancels out of every difference.
+        fr_br = {p: build_frame(metrics, sector_neutral=sector_neutral, residual_momentum=False,
+                                bucket_relative=col)
+                 for p, col in (bucket_relative_arms or {}).items()}
         # SECTOR-NEUTRAL-B6 — the OTHER arm, scored from the SAME `metrics` list in the SAME
         # pass. `build_frame` copies its input (`pd.DataFrame(metrics)`) and never mutates the
         # caller's list, so the two calls differ by the flag and by nothing else.
@@ -1470,6 +1491,18 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                 for _k in ("days_since_filing", "days_since_13f"):
                     _vf = _srcf.get(_k)
                     row[_k] = None if (_vf is None or pd.isna(_vf)) else float(_vf)
+            # S12 — the bucket-relative arms' themes, on this same row, plus the group labels
+            # so control C7 can report group sizes and C8 the book's size exposure.
+            if fr_br:
+                _srcb = _by_ticker.get(t) or {}
+                row["cap_tier"] = _srcb.get("cap_tier")
+                row["bucket"] = _srcb.get("bucket")
+                for _p, _fb in fr_br.items():
+                    _rb = _fb.loc[t] if t in _fb.index else None
+                    for theme in S.FACTORS_ALL:
+                        v = (_rb.get(theme) if (_rb is not None and theme in _fb.columns)
+                             else None)
+                        row[f"{_p}_{theme}"] = None if (v is None or pd.isna(v)) else float(v)
             # S20/S21 — the standardizer arms' themes, on this same row.
             for _p, _fr in fr_std.items():
                 _rr = _fr.loc[t] if t in _fr.index else None

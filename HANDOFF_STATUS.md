@@ -1,5 +1,56 @@
 # HANDOFF STATUS — shared project state
 
+## edge lane, session 34 (2026-08-12) — S11 + S12: a real turnover cut at 11-23x its cost, and an arm that misses by 18bps
+
+`PREREG_s11_s12_horizon_bucket.md` committed **alone at `d867fe3`**, one register for both. **All
+three arms REJECTED. ADOPTS NOTHING.**
+
+**S11's prior was real** — S22 measured the out-of-sample rank IC rising with horizon (+0.034 →
+~+0.072) — **and the counter-prior won.** REJECTED in both halves by the widest margin of the
+three: Δalpha **−4.22pp / −2.05pp**, Δ*t* −2.353 / −0.927. The long-short leg moved against it
+**exactly as pre-registered**, since S22 had already measured the persistence living entirely in
+the long leg.
+
+**THE AUDIT'S TURNOVER CLAIM IS CONFIRMED AND IS A TERRIBLE TRADE.** Turnover falls **0.6352 →
+0.4976** per rebalance, ~55pp of book a year. **At the measured 33.4bps one-way that saves ~18
+bps/yr against 205–422 bps of alpha given up — 11× to 23× against.**
+
+**C6 confirms the counter-prior directly:** the two horizons' weight vectors correlate **+0.9013
+and +0.9674**, so the ensemble is largely **one composite twice**. **A confound is named:** the
+blend's rank corr against the *deployed* composite is only 0.6939, so most of its deviation comes
+from using **IC-proportional weights at all** (a scheme CPCV has always declined), not from
+blending — unavoidable in the audit's construction, since two flat-weighted composites would be
+identical.
+
+**A scope divergence on S12, named before any result (S10's class):** the audit's S12 is the
+**valuation bucket**, the task framed it as the **cap tier**. Both tested; the row closes on both.
+
+**A2 (valuation bucket) is NOT_REPLICATED and is the closest any arm has come in these sessions** —
+positive on alpha in **both** halves (+1.36pp / +0.82pp) and on Δ*t* in both, failing only because
+the late half misses the +1.00pp bar **by 18 basis points**. That is **S21's shape exactly** (which
+missed by 17bps). Ambiguous is a NULL; **1 of 3 siblings; the fourth consecutive session in which
+exactly one arm clears exactly one half. Not eligible, not adopted.**
+
+**A3 (cap tier) is nearly inert** (+0.09/+0.07pp). **C8 confirms the mechanism** — the book's mean
+`size` z falls 0.5885 → 0.5092, a 13.5% shrink — **but the alpha effect is zero rather than
+negative**, so it fails by being inert, milder than predicted. **No arm triggered the
+bought-*t*-sold-alpha flag**, so sector-neutral's failure shape did not recur.
+
+**A NEAR-MISS CAUGHT BEFORE THE BUILD:** `bucket` is derived *after* the granular standardisation,
+so a naive column lookup would have made the whole arm a **silent no-op that still reported a
+verdict**. Fixed and pinned. **A CONTROL THAT DID NOT RUN, reported as such:** C7's bucket half
+came back empty for the same root cause; **the arms are unaffected** and the number was recovered
+from the key-identical corrected panel — established 1,312 / speculative 339 per date.
+
+**Equity `N` 180 → 183.** Expectations **7 right, 0 wrong**.
+
+**Next:** S10's accounting half, or the CPCV embargo. **And the dated one: read `/api/track` →
+`contract_track.recording_ok` on or after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 34.
+
+---
+
 ## edge lane, session 33 (2026-08-12) — S8 + S9: freshness has no cross-section to work with
 
 `PREREG_s8_s9_freshness.md` committed **alone at `b7804d8`**, one register for both. **All four

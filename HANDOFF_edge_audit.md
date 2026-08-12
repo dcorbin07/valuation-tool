@@ -9482,3 +9482,146 @@ the miss is expectation 1 — the gradient — which is the one that mattered.
 embargo** from session 22 — still the only open item that can move a published number.
 
 **And the dated one: read `/api/track` → `contract_track.recording_ok` on or after 2026-08-13.**
+
+---
+
+# SESSION 34 (2026-08-12) — S11 + S12: a real turnover reduction at 11-23x its own cost, and an arm that misses by 18bps
+
+`PREREG_s11_s12_horizon_bucket.md` committed **alone at `d867fe3`**. One panel build, three arms,
+every arm a column on that frame. **All three rejected. ADOPTS NOTHING.**
+
+## 1. S11 — the prior was real, the counter-prior won
+
+**The prior, recorded before running:** S22 measured the composite's out-of-sample rank IC
+**rising** with horizon, +0.034 at one quarter to ~+0.072 at three-plus. That is a genuine
+mechanism, not a hunch.
+
+**REJECTED in both halves and by the widest margin of the three:** Δalpha **−4.22pp** early,
+**−2.05pp** late; Δ*t* **−2.353** and **−0.927**. Rank correlation against the deployed composite
+**0.6939**; top-25 changed **21 of 25**.
+
+**The long-short leg moved against it exactly as pre-registered**, because S22 had already measured
+that the persistence lives entirely in the **long** leg while the spread's HAC *t* collapses
+**2.7167 → 0.6846** with horizon.
+
+### 1.1 The audit's secondary claim is confirmed — and quantified into a terrible trade
+
+The audit predicted a slower component would cut turnover. **It does:**
+
+| | per-rebalance turnover |
+|---|---|
+| deployed | **0.6352** |
+| horizon blend | **0.4976** |
+| saving | **13.76pp**, ~55pp of book per year |
+
+**At the project's own measured 33.4 bps one-way cost, that saves roughly 18 bps a year — against
+205 to 422 bps of alpha given up. The trade runs 11× to 23× AGAINST.** The turnover claim is true
+and the saving is nowhere near the cost, which is a more useful statement than either alone.
+
+### 1.2 C6 confirms the counter-prior directly, and a confound is named
+
+**The two horizons' weight vectors correlate +0.9013 and +0.9674** across the two decide halves.
+So the ensemble is largely **one composite twice** — precisely the counter-prior the register
+stated.
+
+**The confound, named rather than glossed:** the blend's rank correlation against the *deployed*
+composite is only **0.6939** while the two horizons agree above 0.90. That means **most of the
+arm's deviation comes from using IC-proportional weights at all** — one of the eight shipped
+schemes CPCV has always declined — **not from blending horizons**. The audit's own construction
+makes this unavoidable: two flat-weighted composites at different horizons would be *identical*,
+so some horizon-specific weighting is required for the arm to exist at all. The arm therefore
+partly re-tests a rejected weighting, and its −4.22pp should not be read as the cost of blending.
+
+## 2. S12 — a scope divergence, and the closest call in these sessions
+
+**The audit's S12 is the VALUATION bucket** (established vs speculative — *"defined by how a name
+is valued, not by industry"*). **The task framed it as the CAP TIER.** Both were tested as separate
+arms, so the row closes on both readings and neither is reported as the other. Same class as S10's
+divergence.
+
+| arm | Δalpha early | Δalpha late | Δ*t* early | Δ*t* late | rank corr | top-25 changed | verdict |
+|---|---|---|---|---|---|---|---|
+| **A2** valuation bucket | **+1.36pp** | +0.82pp | +0.478 | +0.347 | 0.9807 | 4/25 | **NOT_REPLICATED** |
+| **A3** cap tier | +0.09pp | +0.07pp | −0.106 | +0.048 | 0.9557 | 9/25 | REJECTED |
+
+**A2 IS THE CLOSEST ANY ARM HAS COME IN THESE SESSIONS.** It is **positive on alpha in both
+halves** and **positive on Δ*t* in both**, and it fails only because the late half's alpha misses
+the pre-committed **+1.00pp** bar **by 18 basis points**.
+
+**That is S21's shape exactly** — S21 also passed one half and missed the other by 17bps, and was
+recorded not-replicated. **Ambiguous against a pre-committed threshold is a NULL** (`RUN_RULES`
+A6). It is **1 of 3 sibling arms**, and **the fourth consecutive session in which exactly one arm
+clears exactly one half**. **NOT eligible, NOT adopted, and the +1.36pp may not be quoted without
+both labels.**
+
+It is also a **small** intervention — rank correlation 0.9807, only 4 of 25 names changed,
+turnover 0.6358 against the deployed 0.6352 — with a small positive effect that does not clear.
+
+**A3 is nearly inert.** **C8 confirms the pre-registered mechanism**: the book's mean `size`
+z-score falls **0.5885 → 0.5092, a 13.5% shrink**, so the arm does neutralise the exposure X3 says
+carries the composite's entire significance. **But the alpha effect is zero rather than negative**
+— it fails by being inert rather than harmful, which is milder than the register predicted.
+
+**The audit's own metric priority was adopted verbatim** — *"top-decile alpha decides, not the
+t-statistic"* — and **no arm triggered the bought-*t*-sold-alpha flag**, so sector-neutral's
+failure shape did **not** recur.
+
+## 3. A near-miss caught before the build, and a control that did not run
+
+**THE NEAR-MISS.** `df["bucket"]` is derived **after** the granular standardisation step. A naive
+`if bucket_relative in df.columns` would therefore have **found nothing, done nothing, and still
+reported a verdict on an arm that never ran.** Caught while wiring the toggle, fixed by deriving
+the group from `classify_bucket` directly, and **pinned by a test whose fixture is checked to
+produce both buckets** — otherwise the test itself could not detect a no-op.
+
+**THE CONTROL THAT DID NOT RUN, reported as such.** C7 was to report per-date group sizes for both
+groupings. **Its bucket half came back empty**, for the same root cause one level up: the
+diagnostic column read `bucket` from the metrics dict, where it does not exist, so it emitted
+`None` on all 113,945 rows.
+
+**The arms are unaffected** — the `br_*` columns were computed inside `build_frame` from
+`classify_bucket`. The missing number was **recovered from the corrected panel, whose row set is
+identical (113,945, verified)**: **established 1,312 and speculative 339 per date**, so both groups
+are substantial and neither arm was degenerate. Reported as a control that failed to run rather
+than quietly omitted.
+
+## 4. Controls
+
+* **C1** reproduces the published record; aborts otherwise.
+* **C4** — `fwd_ret_h252` coverage **0.9510**.
+* **C5** — the horizon weights are fitted on the **decide half only** and applied to the measure
+  half, in both directions, with the weight vectors reported per direction so the separation is
+  checkable rather than asserted. A violation here would have manufactured the result.
+* **C7** — §3.
+* **C8** — §2.
+
+## 5. Trial cost and expectations
+
+**Equity `N` 180 → 183.** **Expectations 7 right, 0 wrong** — the second clean sweep, and again
+because the priors came from measured facts already in the record (S22's horizon IC, X3's `size`
+finding, sector-neutral's three rejections) rather than from intuition.
+
+## 6. What I did NOT do
+
+1. **I did not sweep horizons.** Exactly two were blended — 63 and 252, the audit's own pair.
+2. **I did not re-open sector-neutral**, closed permanently.
+3. **I did not change the rebalance frequency.** S22 explicitly warned its horizon result is *not*
+   a finding that the book should rebalance less often, and §1.1 is the cost arithmetic for why.
+4. **I did not promote A2** despite it being the closest call in these sessions.
+5. **I did not repair the C7 emission bug** beyond recovering its number — it is a diagnostic, the
+   arms are unaffected, and touching the panel again for it would be a rebuild for no verdict.
+
+## 7. BUGS FOUND
+
+1. **A silent no-op in my own toggle, caught before the build** (§3). Fixed and pinned.
+2. **C7's bucket half did not run** (§3) — same root cause, reported, number recovered.
+3. **S11's construction confounds the horizon blend with IC-proportional weighting** (§1.2) —
+   inherent to the audit's method, named so the −4.22pp is not misread.
+4. **`scripts/build_ledger.py` will DROP both rows** if regenerated — curated. Pre-existing.
+
+## 8. Next
+
+**S10's accounting half** (Beneish, Altman, external financing, NT late filings) or the **CPCV
+embargo** from session 22 — still the only open item that can move a published number.
+
+**And the dated one: read `/api/track` → `contract_track.recording_ok` on or after 2026-08-13.**

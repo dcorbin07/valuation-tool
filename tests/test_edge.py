@@ -8116,6 +8116,103 @@ def test_s8_register_separates_P6s_hypothesis_from_this_one():
     assert "WHICH WAY I LEAN" in reg.upper(), "the task required a stated lean"
 
 
+# ------------------- S11/S12 (session 34): horizon ensemble and bucket-relative ranking
+def _mets(n=300, seed=5, spread_profit=True):
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    out = []
+    for i in range(n):
+        rev = float(rng.lognormal(19, 1))
+        out.append({
+            "ticker": f"T{i}", "sector": "X",
+            "cap_tier": ("small" if i % 3 == 0 else "mid" if i % 3 == 1 else "large"),
+            "earnings_yield": float(rng.normal(0.05, 0.02)),
+            "fcf_yield": float(rng.normal(0.04, 0.02)),
+            "book_to_price": float(rng.normal(0.5, 0.2)),
+            "ret_12_1": float(rng.normal(0.1, 0.3)),
+            "revenue": rev, "marketcap": float(rng.lognormal(22, 1.5)),
+            # drive `classify_bucket` to BOTH sides so the bucket arm has two groups
+            "net_income": (rev * 0.1 if (spread_profit and i % 2 == 0) else -rev * 0.1),
+            "op_income": (rev * 0.12 if (spread_profit and i % 2 == 0) else -rev * 0.12),
+        })
+    return out
+
+
+def test_s12_bucket_relative_is_opt_in_and_leaves_every_existing_caller_alone():
+    import inspect
+    import warnings
+
+    from valuation.screener.factors import build_frame
+
+    p = inspect.signature(build_frame).parameters
+    assert "bucket_relative" in p and p["bucket_relative"].default is None
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m = _mets()
+        a, b = build_frame(m), build_frame(m, bucket_relative=None)
+    assert a["value"].equals(b["value"]), "the default path moved"
+
+
+def test_s12_asking_for_the_bucket_by_name_is_NOT_a_silent_no_op():
+    """THE NEAR-MISS THIS PINS. `df["bucket"]` is derived AFTER the granular standardisation, so
+    a naive `if bucket_relative in df.columns` finds nothing, does nothing, and still reports a
+    verdict on an arm that never ran. Caught before launching the build; pinned so it cannot
+    come back.
+    """
+    import warnings
+
+    from valuation.screener.factors import build_frame
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m = _mets()
+        base = build_frame(m)
+        arm = build_frame(m, bucket_relative="bucket")
+    assert set(base["bucket"].unique()) >= {"established", "speculative"}, \
+        ("the fixture must produce BOTH buckets or this test cannot detect a no-op",
+         base["bucket"].value_counts().to_dict())
+    assert not base["value"].equals(arm["value"]), \
+        "bucket_relative='bucket' was a SILENT NO-OP - the arm never ran"
+
+
+def test_s12_cap_tier_grouping_also_bites():
+    import warnings
+
+    from valuation.screener.factors import build_frame
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        m = _mets()
+        base = build_frame(m)
+        arm = build_frame(m, bucket_relative="cap_tier")
+    assert not base["value"].equals(arm["value"]), "cap_tier grouping was a no-op"
+    # an unknown group column must be a safe no-op rather than a crash
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        safe = build_frame(m, bucket_relative="no_such_column")
+    assert base["value"].equals(safe["value"])
+
+
+def test_s11_weights_are_fitted_on_the_decide_half_only():
+    """C5. If a horizon's weights were fitted on the half they are scored against, the arm would
+    manufacture its own result. Checked structurally on the script, since the run is a build."""
+    src = open("scripts/s11_s12_horizon_bucket.py", encoding="utf-8").read()
+    assert "ic_weights(panel, z, dd," in src, "weights are not fitted on the decide half `dd`"
+    assert "sel = panel[\"date\"].isin(dm)" in src, "the blend is not written only to `dm`"
+    # and the two directions must both exist
+    assert '("early_half", "late_half"), ("late_half", "early_half")' in src
+
+
+def test_s12_adopts_the_audits_own_metric_priority():
+    """The audit says for S12: 'top-decile alpha decides, not the t-statistic.' An arm that buys
+    t and sells alpha - sector-neutral's exact shape, three times - must be flagged."""
+    src = open("scripts/s11_s12_horizon_bucket.py", encoding="utf-8").read()
+    assert "bought_t_sold_alpha" in src
+    assert "alpha_decides=name.startswith((\"A2\", \"A3\"))" in src
+    reg = open("PREREG_s11_s12_horizon_bucket.md", encoding="utf-8").read()
+    assert "top-decile alpha decides" in reg
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
