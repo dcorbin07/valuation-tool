@@ -8030,6 +8030,92 @@ def test_s7_register_declines_the_audits_bonferroni_translation_explicitly():
     assert "1 OF 6 SIBLING ARMS" in reg.upper()
 
 
+# ---------------------------- S8/S9 (session 33): freshness and staleness
+def _f89():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("f89", "scripts/s8_s9_freshness.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_s8_inst_age_describes_the_same_window_the_signal_uses():
+    """The age must describe the observation the SIGNAL is built from. If `_inst_age_at` picked a
+    different quarter from `_inst_accum_at`, the decay would be shrinking one number by another
+    number's staleness."""
+    import numpy as np
+
+    from valuation.edge import fundamental_panel as FP
+
+    d = np.array(["2019-12-31", "2020-03-31", "2020-06-30", "2020-09-30"],
+                 dtype="datetime64[D]")
+    v = np.array([100.0, 110.0, 120.0, 130.0])
+    prep = (d, v)
+    as_of = "2020-09-30"
+    # lag 45 -> cutoff 2020-08-16 -> latest usable quarter is 2020-06-30
+    assert FP._inst_accum_at(prep, as_of) is not None
+    age = FP._inst_age_at(prep, as_of)
+    assert age == 92.0, age                      # 2020-06-30 -> 2020-09-30
+    # and both must vanish together on the SAME inputs
+    thin = (d[:1], v[:1])
+    assert FP._inst_accum_at(thin, as_of) is None and FP._inst_age_at(thin, as_of) is None
+
+
+def test_s8_ages_are_opt_in():
+    import inspect
+    import re
+
+    from valuation.edge import fundamental_panel as FP
+
+    p = inspect.signature(FP.build_fundamental_panel).parameters
+    assert "with_freshness" in p and p["with_freshness"].default is False
+    src = open("valuation/edge/fundamental_panel.py", encoding="utf-8").read()
+    hits = list(re.finditer(r'row\[_k\] = None if \(_vf is None', src))
+    assert hits, "the freshness row emission vanished"
+    for m in hits:
+        assert "with_freshness" in src[max(0, m.start() - 800):m.start()], \
+            "the ages reach the row outside the opt-in guard"
+
+
+def test_s9_a_missing_age_is_left_undecayed_never_punished():
+    """Register 3: imputing staleness for a row with no age would convert an availability gap
+    into a signal - S10's failure mode. A missing age must yield multiplier 1.0."""
+    import numpy as np
+    import pandas as pd
+
+    m = _f89()
+    age = pd.Series([0.0, 90.0, np.nan, 180.0])
+    mult = m.decay(age, 90.0)
+    assert abs(mult.iloc[0] - 1.0) < 1e-12
+    assert abs(mult.iloc[1] - math.exp(-1.0)) < 1e-12
+    assert mult.iloc[2] == 1.0, "a MISSING age was punished instead of left undecayed"
+    assert abs(mult.iloc[3] - math.exp(-2.0)) < 1e-12
+    assert (mult > 0).all() and (mult <= 1.0).all()
+
+
+def test_s8_half_lives_are_pre_committed_and_not_fitted():
+    """The audit asks for a half-life ESTIMATED from each signal's decay curve. Fitting on this
+    panel and then scoring on it is the in-sample selection the project has already paid for."""
+    m = _f89()
+    assert m.HL_FUND == 90.0 and m.HL_13F == 180.0
+    src = open("scripts/s8_s9_freshness.py", encoding="utf-8").read()
+    for bad in ("curve_fit", "minimize(", "optimize(", "best_hl", "for hl in"):
+        assert bad not in src, f"a half-life search ({bad}) appeared - the register forbids it"
+    reg = open("PREREG_s8_s9_freshness.md", encoding="utf-8").read()
+    assert "NO HALF-LIFE IS FITTED" in reg.upper()
+    assert m.FUND_THEMES == ["value", "quality", "capital_discipline"], m.FUND_THEMES
+
+
+def test_s8_register_separates_P6s_hypothesis_from_this_one():
+    """P6 measured that quarterly beats TTM - a result about the WINDOW a number is measured
+    over, not the AGE of the observation. Leaning on it here would be a category error, and the
+    register has to say so rather than the write-up."""
+    reg = open("PREREG_s8_s9_freshness.md", encoding="utf-8").read()
+    assert "NOT THE SAME HYPOTHESIS" in reg.upper()
+    assert "S27" in reg, "the register must also separate S27's date-weighting sense of recency"
+    assert "WHICH WAY I LEAN" in reg.upper(), "the task required a stated lean"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

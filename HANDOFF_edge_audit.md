@@ -9315,3 +9315,157 @@ ML tree combiner did, and it *reversed* out of sample.
 embargo** from session 22 — still the only open item that can move a published number.
 
 **And the dated one: read `/api/track` → `contract_track.recording_ok` on or after 2026-08-13.**
+
+---
+
+# SESSION 33 (2026-08-12) — S8 + S9: freshness has no cross-section to work with
+
+`PREREG_s8_s9_freshness.md` committed **alone at `b7804d8`** — one `.md`, zero `.py`, a strict
+ancestor of the measurement commit. One panel build with `with_freshness=True`; every arm a column
+on that frame. **All four verdict arms rejected. ADOPTS NOTHING.**
+
+## 1. The structural finding, which kills S8's 13F leg outright
+
+**`days_since_13f` has essentially no cross-sectional variation.** Measured on the panel:
+
+| | days_since_filing | days_since_13f |
+|---|---|---|
+| distinct values per date (mean) | **86.81** | **1.25** |
+| within-date sd (median) | ~37.9 days | **2.054 days** |
+| decay multiplier, p05 → p95 | — | **0.5163 → 0.5427** |
+| decay multiplier, within-date sd | — | **0.00587** |
+
+**13F quarter-ends are common calendar dates, so at any rebalance every name's 13F is the same
+age.** Arm A4 is therefore not a staleness adjustment at all — it is a **uniform ~0.54×
+down-weighting of the `institutional` theme**, i.e. a weight change, and the weighting family was
+rejected wholesale last session. Its rank correlation against the deployed composite is **0.9880**,
+the highest of the four and nearly inert, which is the same fact from the other side.
+
+**The audit's premise conflates two different decays.** The 13F signal genuinely decays as the
+quarter ages — peaks Q−1, alive Q−2 (*t* 1.36), dead Q−3 (−0.04) — and that measurement is real.
+But it is a **TIME-SERIES** decay, common to every name at a given date. It is **not** a
+**CROSS-SECTIONAL** difference that could re-rank names against each other. `days_since_filing`
+*is* cross-sectional; `days_since_13f` is not.
+
+**Reported honestly: I found this in the results, not in the premise check.** The register's
+premise section verified that the ages were *buildable* and point-in-time; it did not ask whether
+they *varied across names*. That question belongs in a premise check and will next time.
+
+## 2. The S9 diagnostic is the result, and it refutes the premise
+
+The audit's own method: split the top decile by staleness quartile and look for a gradient
+**before** turning anything into a weight. That sequencing is what makes the item worth having.
+
+| quartile | mean fwd return | mean age |
+|---|---|---|
+| Q1 (freshest) | **+6.15%** | 38d |
+| Q2 | +6.12% | 66d |
+| Q3 | **+6.66%** | 71d |
+| Q4 (stalest) | +6.35% | 88d |
+
+**Not monotone.** The whole spread is about half a point on a 6.3% base, and **Q1 − Q4 = −0.78%/yr
+— the stalest quartile very slightly outperformed the freshest.** By `days_since_13f` the four
+quartiles have mean ages of 113, 113, 113 and 114 days, which is §1 restated: there is nothing to
+quartile on.
+
+**MY REGISTERED LEAN WAS WRONG, AND IN THE INFORMATIVE DIRECTION.** The task asked which way I
+leaned and the register said: **the gradient is real, the weighted arms fail.** The weighted arms
+did fail — **but the gradient is not there either.** Both halves of the lean pointed at *something*
+in freshness, and there is nothing. That is the useful outcome: the mechanism argument was
+genuine, it was stated in advance, and it did not survive contact with the data.
+
+## 3. Verdicts
+
+| arm | Δalpha early | Δalpha late | Δ*t* early | Δ*t* late | rank corr | verdict |
+|---|---|---|---|---|---|---|
+| A2 freshness as an input | +0.61pp | −1.61pp | +0.171 | +0.110 | 0.9143 | REJECTED |
+| A3 fundamental decay 90d | −0.22pp | **+1.73pp** | −0.407 | **+0.710** | 0.9203 | **NOT_REPLICATED** |
+| A4 13F decay 180d | +0.03pp | −1.03pp | −0.019 | −0.500 | **0.9880** | REJECTED |
+| A5 combined | −0.16pp | +0.41pp | +0.010 | +0.660 | 0.9268 | REJECTED |
+
+**A3 clears the late half alone — the THIRD CONSECUTIVE SESSION in which exactly one arm clears
+exactly one half** (S6 in session 31, A5 in session 32, A3 here). The family-wise labelling clause
+has now earned its keep three times: **`ELIGIBLE — UNREPLICATED, 1 OF 4 SIBLING ARMS`**, not
+eligible on the gate, not adopted, and the +1.73pp may not be quoted without both labels.
+
+**A5 landed between A3 and A4 exactly as pre-registered**, because the two decays touch disjoint
+themes.
+
+## 4. Controls
+
+* **C1** reproduces the published record; aborts otherwise.
+* **C5 — ZERO negative ages**, either of which would have been a look-ahead (a filing dated after
+  the scoring date). `days_since_filing` coverage 1.0000, median 73d, p95 89d — consistent with a
+  quarterly reporting cycle. `days_since_13f` coverage 0.7190, matching `institutional`'s own.
+* **C6 — the pre-registered sector caveat is CONFIRMED.** The freshness quartiles differ materially
+  in sector composition, largest fresh-vs-stale gap **Consumer Cyclical at 15.62pp**. Fiscal
+  year-ends cluster by industry, so any gradient would have been partly compositional — U7's
+  failure mode and S10's. **Moot here because there is no gradient to explain, but it binds on any
+  future re-opening.**
+* **C7 — the fundamental decay bites hard** (mean multiplier 0.4894, p05 0.3720), so A3's failure
+  is not an artefact of an inert multiplier. The 13F multiplier's near-constancy is §1.
+
+## 5. No half-life was fitted
+
+The audit asks for *"a half-life estimated per signal from its own measured decay curve"*.
+**Estimating on this panel and then scoring on it is the in-sample selection the project has
+already paid for** (+8.43%/yr in-search → −0.04%/yr on the locked hold-out). Both were fixed in the
+register: **90 days** for fundamentals (one reporting quarter, labelled a convention) and **180
+days** for 13F, taken from the project's own measured decay — the only half-life here with backing
+that pre-dates the register. Pinned by a test that fails if a search appears.
+
+## 6. A defect reported, not fixed
+
+**`bulk.prepare_daily` down-samples DAILY to one row per ticker-month** — its own docstring says
+so — so the point-in-time market cap and the re-priced EV equity leg can be **up to ~31 days
+stale**, while the price feeding `_price_factors` is same-day. The audit flagged this and it is
+confirmed.
+
+**But it is staleness, not look-ahead:** the same docstring is careful to keep the last date
+actually present and never a future one. So it is a **precision** defect. Fixing it would move
+`size`, every EV-based value ratio and therefore the published headline — a results change needing
+its own register. It is also **not name-specific** the way filing dates are, so it does not
+confound these arms.
+
+## 7. Two arguments that look supportive and are not the same hypothesis
+
+Separated in the register **before** running, so neither could be leaned on afterwards:
+
+* **P6's "recency beats smoothing"** (quarterly ROE/ROIC beat TTM, *t* +2.84 vs +2.01) is about the
+  **WINDOW** a number is measured over, not the **AGE** of the observation. A quarterly figure
+  filed 89 days ago is still quarterly.
+* **S27**, rejected last session, weighted **dates** in the time series. S8/S9 weight **names**
+  within a date.
+
+Three different senses of "recency"; only one of them has now been tested.
+
+## 8. Trial cost and expectations
+
+**Equity `N` 176 → 180** (four verdict arms). **A1 charges nothing** — a measurement with no
+threshold, the same treatment S7's dilution control got. **Expectations 6 right, 1 wrong**, and
+the miss is expectation 1 — the gradient — which is the one that mattered.
+
+## 9. What I did NOT do
+
+1. **I did not fix the DAILY month-end down-sampling** (§6).
+2. **I did not fit any half-life** (§5).
+3. **I did not decay `momentum`, `size` or `insider`** — price-based or on a different clock.
+4. **I did not put a per-name "data from N days ago" qualifier on the product.** The data now
+   exists on the panel to support it; whether to surface it is the web lane's decision.
+5. **I did not re-open S27** (§7).
+
+## 10. BUGS FOUND
+
+1. **`days_since_13f` has no cross-sectional variation** (§1) — a structural fact that makes the
+   audit's 13F leg unbuildable as specified. Reported.
+2. **The DAILY month-end staleness** (§6) — confirmed, reported, not fixed.
+3. **My own premise check did not ask whether the ages VARY across names** (§1) — it verified they
+   were buildable and point-in-time and stopped there. That question belongs in a premise check.
+4. **`scripts/build_ledger.py` will DROP both rows** if regenerated — curated. Pre-existing.
+
+## 11. Next
+
+**S10's accounting half** (Beneish, Altman, external financing, NT late filings) or the **CPCV
+embargo** from session 22 — still the only open item that can move a published number.
+
+**And the dated one: read `/api/track` → `contract_track.recording_ok` on or after 2026-08-13.**

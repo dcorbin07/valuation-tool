@@ -938,6 +938,24 @@ def _inst_accum_at(prep, as_of, lag_days=45):
     return (cur / prev - 1.0) if prev > 0 else None
 
 
+def _inst_age_at(prep, as_of, lag_days=45):
+    """S8 — CALENDAR DAYS since the 13F quarter-end `_inst_accum_at` actually used.
+
+    Repeats that function's window arithmetic and nothing else, so the age describes the SAME
+    observation the signal is built from. Returns None on exactly the inputs that make the
+    signal None.
+    """
+    if prep is None:
+        return None
+    dts, vals = prep
+    cutoff = np.datetime64(as_of[:10], "D") - np.timedelta64(lag_days, "D")
+    b = int(np.searchsorted(dts, cutoff, side="right"))
+    if b < 2:
+        return None
+    return float((np.datetime64(as_of[:10], "D") - dts[b - 1]).astype("timedelta64[D]")
+                 .astype(int))
+
+
 def _forward_return(closes, i, h, n_cal):
     """S22 — delisting-aware forward return over `h` trading days from calendar index `i`.
 
@@ -975,7 +993,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                             grid_offset=None, extra_horizons=None,
                             sector_neutral_pair=False, standardizer_arms=None,
                             with_insider_raw=False, with_issuance_raw=False,
-                            with_vol_raw=False) -> pd.DataFrame:
+                            with_vol_raw=False, with_freshness=False) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -1298,6 +1316,16 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                 _raw = _insider_raw_at(insh.get(t), as_of)
                 if _raw is not None:
                     m["ins_net"], m["ins_buys"] = _raw
+            if with_freshness:
+                # S9 — days since the SF1 filing this row's fundamentals came from. The panel
+                # already picks that row point-in-time; only its AGE was never carried.
+                _dk = str((sf1 or {}).get("datekey") or (sf1 or {}).get("date") or "")
+                if _dk:
+                    m["days_since_filing"] = float(
+                        (pd.Timestamp(as_of[:10]) - pd.Timestamp(_dk[:10])).days)
+                _ia_age = _inst_age_at(inst.get(t), as_of, lag_days=inst_lag_days)
+                if _ia_age is not None:
+                    m["days_since_13f"] = float(_ia_age)
             ia = _inst_accum_at(inst.get(t), as_of, lag_days=inst_lag_days)
             if ia is not None:
                 m["inst_accum"] = ia                              # → institutional theme
@@ -1433,6 +1461,15 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                 _v13 = _src13.get("realized_vol")
                 row["realized_vol"] = (None if (_v13 is None or pd.isna(_v13))
                                        else float(_v13))
+            # S8/S9 — HOW OLD each row's inputs are at this rebalance. `days_since_filing` is
+            # what S9 asks to be ported from the options autopsy; `days_since_13f` is the age
+            # of the quarter-end the institutional signal actually used. Opt-in, so the default
+            # column set is untouched.
+            if with_freshness:
+                _srcf = _by_ticker.get(t) or {}
+                for _k in ("days_since_filing", "days_since_13f"):
+                    _vf = _srcf.get(_k)
+                    row[_k] = None if (_vf is None or pd.isna(_vf)) else float(_vf)
             # S20/S21 — the standardizer arms' themes, on this same row.
             for _p, _fr in fr_std.items():
                 _rr = _fr.loc[t] if t in _fr.index else None
