@@ -4374,3 +4374,226 @@ measurable consequence rather than a tidy-up.
 
 **Do not raise `MIN_CLOSED_PER_BUCKET`.** O26 says the lever does not work; the useful response
 is to stop making per-bucket expectancy claims on this book, not to pick a bigger number.
+
+---
+
+## 34 · `O10` + `O18` — tick-flow execution. **NO VERDICT: MY OWN VOID CONDITION FIRED, AND IT DISQUALIFIED THE ARM THAT WOULD HAVE CLEARED THE BAR.**
+
+Session 26, 2026-08-11. `PREREG_o10_passive_fills.md` and `PREREG_o18_spread_cost.md` were committed
+**together and ALONE at `34b0c11`** — two `.md`, zero `.py` — before any measurement code for either
+item existed. Frozen book, no re-mine, **no live code path changed**.
+`data/free_analysis/O10_O18_TICKFLOW.json`; `scripts/o10_o18_tickflow.py`;
+`valuation/edge/tickflow.py`; `tests/test_tickflow.py` (39 tests).
+
+### 34.1 Three scope facts, measured before the registers were written
+
+O14's cache is **exactly the alert-days and nothing else** — 3,884 cached symbol-days, and for the
+3,870 split-clean banked entries the **immediate next session is cached for 0 of 3,870** and the
+**exit day for 0 of 3,870**. Consequences, both fixed in the registers before anything was run:
+
+* **The live order-working question is NOT ANSWERABLE.** `auto-scan.yml` runs after the close, so
+  the live bot's order rests on **D+1**, and D+1 is not in this cache for a single entry. Anyone
+  reading this item as *"we measured what the live bot's limit orders fill at"* has misread it.
+* **Only the ENTRY leg is coverable** while a round trip crosses the spread twice, so every
+  round-trip statement here is an extrapolation and is labelled as one.
+
+What is answerable, cleanly: the **execution environment** of the exact contracts the book traded,
+on the day it traded them, measured **quote-relatively** — every quantity is defined against the
+NBBO prevailing at the same instant, so nothing needs a decision time and nothing carries
+look-ahead. **The join is complete: 3,869 of 3,869 units have the traded contract on tape**, the
+one missing alert-day being `BUD` 2024-01-10 (O14's census), which costs **exactly one book row**.
+
+### 34.2 The verdict is that there is no verdict, and why that is the honest outcome
+
+`PREREG_o10 §3 C2` required the behavioural condition-code split to replicate on the full book, and
+said in advance that if it did not, `SINGLE_LEG_CODES` is **void** and only the all-codes arm is
+reported, **with no verdict**. **It did not replicate, and the cause is a single code.**
+
+| code | share | at-touch (full book) | at-touch (120-entry probe) | verdict |
+|---|---|---|---|---|
+| 18 | 0.5384 | 0.5873 | 0.561 | touch-seeking, as classified |
+| 95 | 0.0544 | 0.8054 | 0.871 | touch-seeking, as classified |
+| 0 | 0.0337 | 0.6747 | 0.727 | touch-seeking, as classified |
+| 106 | 0.0290 | 0.4374 | 0.450 | touch-seeking, as classified |
+| **35** | **0.0494** | **0.2496** | **0.439** | **MISCLASSIFIED — behaves package-like** |
+| 125 | 0.1207 | 0.2649 | 0.185 | package-like |
+| 130 | 0.1109 | 0.1793 | 0.136 | package-like |
+| 131 | 0.0389 | 0.1347 | 0.056 | package-like |
+
+Four of five hold with room to spare. **Code 35 sits below package code 125**, so strict separation
+fails and the gate fires. The probe saw 619 of its prints; the full book has 18,922.
+
+**THE VOID IS NOT A TECHNICALITY, AND THIS IS THE PART TO REMEMBER: the arm the register
+disqualified is the one that crosses the bar.** The all-codes fallback reads
+**NPA 1.0029pp against a 1.00pp bar**; the registered primary reads **0.6318pp**. The register said
+in advance that the all-codes arm **credits package liquidity to a single-leg resting order and is
+therefore an OPTIMISTIC bound** — and it is exactly the arm that would have manufactured a
+material finding. A register that only ever confirms what you were going to conclude is not doing
+any work; this one cost a verdict.
+
+**The void did not conceal a crossing, and that is reported because it cuts the other way.** On the
+fallback arm the halves read **1.0760 early and 0.9352 late**, so the both-halves condition is not
+satisfied there either. That is arithmetic on published numbers, **not a verdict, and it may not be
+quoted as one.**
+
+**A PROCESS DEFECT, MINE.** C2 and the outcome statistics were computed in the **same pass**, so I
+cannot claim the control was read before the numbers. A gating control must run and be read in a
+**separate pass**. That is a flaw in the runner, not in the rule, and the successor register fixes it.
+
+### 34.3 What survives as measurement (no verdict is drawn from any of it)
+
+**O10 — a passive fill is not a free half-spread, and the second term is most of the story.**
+At the registered primary cell (rest at the mid, 30-minute horizon), on the void primary arm:
+
+| | gross saving | adverse selection | NPA | fill rate |
+|---|---|---|---|---|
+| full | +2.4555pp | **−1.8237pp** | +0.6318pp, CI95 [0.5014, 0.7643] | 0.5726 |
+| early | +2.6399pp | −1.7240pp | +0.9159pp | 0.5940 |
+| late | +2.2593pp | −1.9298pp | +0.3295pp | 0.5500 |
+
+**Adverse selection eats 74.3% of the gross saving.** The naive answer — *"resting at the mid saves
+you half the spread"* — is 2.46pp; what is left after the fills you actually get is 0.63pp.
+
+The grid (fill rate / NPA pp), void primary arm:
+
+| level | h5 | h15 | h30 | h60 | rest-of-session |
+|---|---|---|---|---|---|
+| ask (+1.0) | 0.61 / −0.07 | 0.72 / −0.30 | 0.79 / −0.44 | 0.85 / −0.59 | 0.90 / −0.40 |
+| +0.5 | 0.44 / +0.58 | 0.57 / +0.21 | 0.65 / −0.01 | 0.72 / −0.16 | 0.79 / +0.26 |
+| mid (0.0) | 0.37 / +1.37 | 0.49 / +0.92 | **0.57 / +0.63** | 0.65 / +0.45 | 0.73 / +1.04 |
+| −0.5 | 0.29 / +1.77 | 0.39 / +1.23 | 0.48 / +0.91 | 0.55 / +0.70 | 0.65 / +1.55 |
+| bid (−1.0) | 0.26 / +2.13 | 0.36 / +1.65 | 0.44 / +1.38 | 0.52 / +1.19 | 0.61 / +2.14 |
+
+Fill rate is monotone in the limit level at every horizon, as it must be.
+
+**A MEASURED BIAS IN MY OWN INSTRUMENT, REPORTED RATHER THAN LEFT IMPLICIT: the `ask` row is the
+instrument's own null and it does not read zero.** By construction the gross saving there is
+exactly 0, so NPA should be ~0; it reads **−0.07 to −0.59pp**, because the reference moments that
+fail to fill at the ask are precisely the late-session ones with truncated windows. So the NPA
+scale carries a bias of that order and the +0.6318pp should be read against it rather than against
+a perfect zero. The bias runs **against** the passive arm, so it does not manufacture the null.
+
+**O18 — trades print well inside the quoted spread, and the decomposition keeps the two reasons
+apart.** Size-weighted `ρ` = **0.6743** (CI95 [0.6617, 0.6871]) on the void primary arm and
+**0.6054** on the fallback; unweighted 0.6737 and 0.5928, so the weighting does not change the
+story. In dollars per share, primary arm:
+
+```
+q_eod_half 0.1544   ->   q_print_half 0.0999   ->   effective 0.0591
+                 availability 0.0545      price improvement 0.0408
+```
+
+**Only the $0.0408 is a property of execution.** The $0.0545 availability term is a **selected**
+quantity — you only avoid it if you trade when the market is there — and the register forbids
+quoting it as a saving. Total apparent overcharge is $0.0953/share = **$9.53 per contract**, of
+which only **$4.08** is defensible as price improvement.
+
+**The strongest conditioning is the one nobody registered as most likely: entry premium, not
+quoted spread.** `ρ` falls monotonically with premium — **0.778, 0.700, 0.674, 0.626, 0.597** —
+with `R_range` 0.1812 against a permutation p95 of 0.0376 (**4.8× the null**) and a negative
+Spearman in both halves and both arms. **A cheap option pays nearly its whole quoted half-spread
+and an expensive one pays under 60% of it**, which is what a fixed tick on a small premium implies.
+`F1` (quoted spread-pct) clears full-sample but not both halves on the primary arm; `F3` (DTE)
+clears nothing; `F4` (market cap) clears full-sample only; `F5` (time of day) clears both halves on
+the primary arm and not on the fallback.
+
+**`F6` (print size) is DEGENERATE and is flagged rather than reported as a failure** — two of its
+five quintile bins are **empty** (`bin_n` `[0, 0, 2771, 2707, 2490]`) because print size is
+overwhelmingly one contract, so the 20th and 40th percentile edges coincide. A bin that cannot
+exist is not evidence about the thing it would have measured. Same treatment O13 gave `opt_right`
+and `horizon`.
+
+### 34.4 The coverage caveat, which is the most important limitation here
+
+**C4 coverage is 0.7162** — 2,771 of 3,869 — clearing the pre-committed 0.70 bar, but only just,
+**and the excluded 28% is not a random subsample**:
+
+| | n | median spread% | median mcap | median ATM OI | pit_liquid | median prints | mean P&L |
+|---|---|---|---|---|---|---|---|
+| included | 2,771 | 0.0571 | $127.8B | 1,575 | 0.901 | 42 | **+5.82%** |
+| excluded | 1,098 | **0.0923** | $69.8B | 736 | 0.772 | 5 | **−3.11%** |
+
+The contracts too thin to support a fill study have **62% wider spreads, roughly half the market
+cap and half the ATM open interest, and NEGATIVE expectancy**. So **every number above is measured
+on the liquid part of the book**, and it is the illiquid part where costs bite hardest — O13
+already found `entry_spread_pct` q5 at −7.41%. A cost model calibrated here would be calibrated on
+the good half and would understate cost exactly where it matters most.
+
+### 34.5 Two things that must travel with any quotation of this work
+
+* **NOTHING IS ADOPTED. `DEFAULT_AGGRESSION` is untouched at 1.0**, no book was re-banked, no
+  published options figure was re-stated, and a test pins the non-change. Both registers fixed that
+  routing in advance: a material result is **routed to Don as a policy change**, because changing
+  the fill constant would re-price every options figure the project has ever published.
+* **CHEAPER FILLS DO NOT RESCUE R2.** The random-entry control is filled by the identical rule, so
+  a cheaper entry lifts the alert book and its control together and leaves the **−5.0640pp** gap
+  exactly where it is. This is arithmetic, not a prediction, and it is the single most likely
+  misreading of the ρ = 0.67 figure.
+
+**The O14 caveat that turned out not to bite, checked rather than assumed:** `HANDOFF_ticks.md`
+warns that `quote_timestamp` can lag `trade_timestamp` by hours, which would make the signed
+aggression meaningless. On the traded contracts the **median lag is 0.0s and only 0.19% of prints
+lag by more than 60 seconds**. Real hazard, negligible exposure here.
+
+## 35 · What I did NOT do, and why
+
+* **Did not change `DEFAULT_AGGRESSION`, any cost constant, or any book.** Pre-committed routing.
+* **Did not claim a verdict for either item.** My own C2 gate fired. Amending the code set after
+  reading outcomes is void condition 3 in both registers.
+* **Did not re-classify code 35 and re-run.** That is the obvious next move and it is precisely
+  what the register forbids doing in the same session, because I have now seen the outcome numbers.
+  It needs a successor register.
+* **Did not extrapolate to the round trip.** Zero exit-day coverage; the exit leg is unmeasured.
+* **Did not touch O14's cache, the frozen chains, or the banked book.**
+
+## 36 · Trial cost
+
+**10 options trials, exactly as pre-committed** — 4 for O10 (the non-incumbent limit levels) and 6
+for O18 (one per family). **Options `N` 248 → 258. Equity `N` untouched at 155**, and
+`BACKTEST_RESULTS.json` needs no re-run because the counter is domain-scoped.
+
+**Charged in full even though neither item returns a verdict**, and the reasoning is worth stating
+because it cuts against my own result: session 8's precedent is that **declining to run** keeps the
+denominator, but these arms *were* run and measured against their bars. A void verdict does not
+refund the search. The fallback arm's 10 further cells are charged at zero because the registers
+pre-declared sensitivities as zero-charge and no verdict is drawn from them — the one place the
+count is arguable, and it is noted rather than buried.
+
+**Expectations scored 8 right, 3 wrong, 1 split, 1 unscorable.**
+
+| # | expectation | outcome |
+|---|---|---|
+| O10 E1 | effective < quoted half-spread | **RIGHT** (ρ 0.674) |
+| O10 E2 | NPA at the primary cell is MATERIAL | **WRONG** — 0.6318pp against a 1.00pp bar |
+| O10 E3 | adverse selection eats ≥ 40% of the gross saving | **RIGHT** — 74.3% |
+| O10 E4 | fill rate at the primary cell ≥ 0.50 | **RIGHT** — 0.5726 |
+| O10 E5 | fill rate monotone in the limit level | **RIGHT** at every horizon |
+| O10 E6 | the package arm shows a HIGHER fill rate | **RIGHT** — 0.6097 vs 0.5726 |
+| O18 E1 | ρ < 1 | **RIGHT** |
+| O18 E2 | WARRANTED in ≥ 1 family | **UNSCORABLE** — no verdict; both arms would have said yes |
+| O18 E3 | F1 has the largest `R_range` | **WRONG** — F2 does, by 4× |
+| O18 E4 | ρ falls as the quoted spread widens | **SPLIT** — right in direction (Spearman −0.087) but it fails both-halves |
+| O18 E5 | F5 clears in both halves | **RIGHT** on the primary arm, wrong on the fallback |
+| O18 E6 | size-weighted and unweighted ρ agree in direction | **RIGHT** — 0.6743 vs 0.6737 |
+
+## 37 · Recommended next step
+
+**Two items, in this order.**
+
+1. **A successor register with the corrected code set, and the gate read in a separate pass.**
+   Code 35 belongs with the package group on its measured behaviour; the fix is one constant. The
+   successor must (a) commit the corrected set **before** any outcome is recomputed, (b) run C2 and
+   **read it** before the outcome statistics exist, and (c) inherit this session's numbers as a
+   disclosed prior. It is cheap — the extract is cached, so a full re-analysis is about 90 seconds.
+   Expect it to land between the two arms measured here, i.e. **near but probably under the 1.00pp
+   bar**, which is why it needs a register rather than a re-run.
+
+2. **The genuinely valuable data item: pull tick flow for EXIT days and D+1.** Everything unresolved
+   here is unresolved for the same reason — the cache has only alert-days. D+1 makes the **live**
+   order-working question answerable for the first time; exit days make the **second half of the
+   round trip** measurable, which is where the cost model is currently pure assumption. O14's lane
+   has the cost model for this: roughly the same again as the first pull.
+
+**Not recommended: acting on ρ = 0.67 to lower the cost line.** It is measured on the liquid 72% of
+the book, covers one leg of two, and carries no verdict. That is three reasons, any one of which is
+enough.

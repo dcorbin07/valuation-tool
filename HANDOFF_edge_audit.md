@@ -8172,7 +8172,7 @@ threw-class errors it is about. Intent unchanged; the change is commented in pla
 
 ---
 
-# SESSION 23 (2026-08-11) — S10, the downside-exclusion screen
+# SESSION 27 (2026-08-11) — S10, the downside-exclusion screen
 
 **One ledger item, one session. `PREREG_s10_downside_exclusion.md` committed ALONE at `a041e09`
 — one `.md`, zero `.py` — a strict git ancestor of the measurement commit `ddb09a0`.**
@@ -8180,7 +8180,7 @@ threw-class errors it is about. Intent unchanged; the change is commented in pla
 **VERDICT: REJECTED on both arms, and the screen is counterproductive rather than merely inert.**
 **ADOPTS NOTHING. No live code path changed. Equity `N` 155 → 158.**
 
-## 34. What was asked, and what was actually run
+## 1. What was asked, and what was actually run
 
 Don's question, formalised: *should a top-decile name whose point-in-time BULL case already sits
 at or below price make the book at all?*
@@ -8213,7 +8213,7 @@ checked first:
    against ~0.7 ms per scenario-band valuation. **The band is not more expensive than the base**,
    so there was **no cost argument for a cheaper lens-max proxy** and none was used.
 
-## 35. The result
+## 2. The result
 
 **Coverage first, per the COVERAGE RULE.** 11,426 top-decile rows; bull-case coverage **92.42%**;
 **flagged 3,129 = 27.38%** of the decile. Far from degenerate (control C6).
@@ -8245,7 +8245,7 @@ decile boundary** — and costs 0.93pp. **So roughly 0.69pp of `A2`'s loss is no
 it is the dilution of refilling a concentrated book from outside the decile.** A real deployment
 must pay that, which is why `BACKFILL` is the deployable arm and `DROP` is the mechanism check.
 
-## 36. The finding that outlives the verdict
+## 3. The finding that outlives the verdict
 
 **M1 MECHANISM — the flagged names OUTPERFORM the names the screen would keep.** Within the top
 decile, paired by date:
@@ -8304,7 +8304,7 @@ A three-fold spread. **Much of what this "valuation screen" does is hold fewer b
 a property of how the engine values asset-heavy names, not of those names' prospects. U7 found the
 same shape: *"the veto vetoes a cap bucket, which is a property of the underlying."*
 
-## 37. Two defects in my own instrument, both caught before any verdict was read
+## 4. Two defects in my own instrument, both caught before any verdict was read
 
 **(a) THE DRAWDOWN SIGN WAS INVERTED, AND IT IS THE MOST IMPORTANT THING IN THIS SECTION.**
 `max_drawdown` is **negative** (−0.28 is a 28% peak-to-trough), so an arm improves it by being
@@ -8323,7 +8323,7 @@ Now pinned by a **known-bad fixture carrying the real measured pair**
 for the wrong reason. Diagnosed as a test bug, not a code bug, and fixed by stripping the docstring
 first. Same shape as M6's env-var test matching its own comment last session.
 
-## 38. Controls, what I did not do, and bugs found elsewhere
+## 5. Controls, what I did not do, and bugs found elsewhere
 
 **Controls — all pass.**
 
