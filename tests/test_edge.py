@@ -6262,7 +6262,11 @@ def test_s23_lean_fair_value_beta_override_is_opt_in():
 
     sig = inspect.signature(lean_fair_value)
     assert sig.parameters["beta_override"].default is None
-    assert list(sig.parameters) == ["cd", "cfg", "with_reverse", "beta_override"], \
+    # S10 appended `with_scenarios` AFTER this, which is the behaviour this test demands, so
+    # the assertion checks the PREFIX rather than an exact list. The guarantee is unchanged —
+    # nothing may be inserted ahead of an existing positional — and it no longer breaks every
+    # time a later register legitimately appends one.
+    assert list(sig.parameters)[:4] == ["cd", "cfg", "with_reverse", "beta_override"], \
         "the override must be appended, never inserted ahead of an existing positional"
 
 
@@ -7433,6 +7437,123 @@ def test_m6_archive_scan_records_WHY_a_row_was_blank():
     assert got["fair_value_withheld"] is True
     assert got["fair_value_withheld_reason"] == "insufficient history", \
         "a refused row must archive WHY, not just a bare None"
+
+
+# --------------------------------------------------------------------------- S10
+# The downside-exclusion screen (PREREG_s10_downside_exclusion.md, committed alone at a041e09).
+
+
+def _s10_script():
+    import importlib
+    return importlib.import_module("scripts.s10_downside_exclusion")
+
+
+def test_s10_a_deeper_drawdown_is_never_reported_as_an_improvement():
+    """KNOWN-BAD FIXTURE — this is the defect the first cut of the S10 script actually shipped.
+
+    `max_drawdown` is negative, so an arm improves it by being LESS negative. Writing the
+    difference the other way round turns a 2.6pp WORSENING into a 2.6pp improvement, which
+    would have inverted the stated reason for the verdict while leaving the verdict's wording
+    intact. Exactly the `monotonicity` sign error, one lane over.
+    """
+    gain = _s10_script().drawdown_gain_pp
+
+    # The real measured pair: incumbent -0.2809, screened arm -0.3070. The arm is WORSE.
+    got = gain(-0.30697, -0.28089)
+    assert got < 0, f"a deeper drawdown must report a NEGATIVE gain, got {got}"
+    assert abs(got - (-2.608)) < 1e-2, got
+
+    # ...and the genuinely better arm reports a positive gain.
+    assert gain(-0.20, -0.28) > 0
+    # Symmetry: swapping the arms flips the sign exactly.
+    assert abs(gain(-0.31, -0.28) + gain(-0.28, -0.31)) < 1e-12
+    assert gain(None, -0.28) is None and gain(-0.28, None) is None
+
+
+def test_s10_the_band_uses_the_SHIPPED_blend_scenarios():
+    """C2 — the bear/bull band must come from the LIVE pipeline, never a second copy.
+
+    A private re-implementation is free to drift from the number the site actually shows,
+    which is audit B7's defect class ("no shipped code path reproduces the backtested
+    composite exactly"). If someone inlines it, this fails.
+    """
+    import inspect
+    from valuation.engine import calibration as C
+    from valuation.engine import pipeline as P
+
+    src = inspect.getsource(C._scenario_band)
+    assert "from .pipeline import _blend_scenarios" in src, \
+        "the band must IMPORT the live blend, not re-implement it"
+    assert callable(P._blend_scenarios)
+    # The band must not hand-roll a blend of its own.
+    assert "def _blend" not in src, "a second blend implementation appeared inside the band"
+    # And the financial-regime substitution must be present, or a bank's band would be
+    # DCF-derived while its own base case is the justified P/B-ROE model.
+    assert "financial_scenarios" in src, \
+        "financials must get the P/B-ROE cone the live pipeline gives them"
+
+
+def test_s10_the_scenario_band_is_opt_in():
+    """The band is additive: `lean_fair_value` must not grow keys unless it is asked to.
+
+    S23's banked panel and every other caller read this dict, and control C1 (base fields
+    reproduce that panel to 0.000e+00) only means anything if the default path is untouched.
+    """
+    import inspect
+    from valuation.engine.calibration import lean_fair_value
+
+    sig = inspect.signature(lean_fair_value)
+    assert sig.parameters["with_scenarios"].default is False, \
+        "the scenario band must default OFF"
+    src = inspect.getsource(lean_fair_value)
+    assert "if with_scenarios:" in src, \
+        "the band keys must be added inside a conditional, not unconditionally"
+    # The two keys must appear only under the flag. The DOCSTRING names them too, so it is
+    # stripped first — the first cut of this test matched its own documentation and failed for
+    # the wrong reason, the same way M6's env-var test matched its own comment.
+    body = src.split('"""')[-1]
+    head = body.split("if with_scenarios:")[0]
+    assert "bear_value" not in head and "bull_value" not in head, \
+        "band keys leaked into the default return dict"
+
+
+def test_s10_a_name_with_no_bull_case_is_KEPT_not_excluded():
+    """§3 — excluding on MISSING data is a data-availability screen wearing a valuation
+    screen's name, and it would correlate silently with era, domicile and regime."""
+    import numpy as np
+
+    bull = np.array([10.0, np.nan, 5.0, np.nan])
+    price = np.array([20.0, 20.0, 1.0, 1.0])
+    has_bull = np.isfinite(bull) & np.isfinite(price) & (price > 0)
+    flagged = has_bull & (bull <= price)
+
+    assert list(flagged) == [True, False, False, False], list(flagged)
+    # The two NaN-bull names are KEPT whatever their price.
+    assert not flagged[1] and not flagged[3], "a name with no bull case must never be excluded"
+
+
+def test_s10_backfill_holds_book_size_and_drop_shrinks_it():
+    """The two arms answer different questions and must not be conflated.
+
+    DROP removes flagged names and lets the book shrink, which confounds the screen with
+    concentration. BACKFILL refills from the next unflagged name, so book size is constant
+    and only membership changes — which is why it, not DROP, is the deployable arm.
+    """
+    import numpy as np
+
+    comp = np.array([9.0, 8.0, 7.0, 6.0, 5.0, 4.0])
+    fl = np.array([True, False, True, False, False, False])
+    order = np.argsort(-comp)
+    top = order[:3]                      # the "decile": ranks 0,1,2
+    k = len(top)
+
+    drop = top[~fl[top]]
+    backfill = np.array([j for j in order if not fl[j]][:k], dtype=int)
+
+    assert len(drop) == 1, "DROP must shrink the book"
+    assert len(backfill) == k, "BACKFILL must preserve book size"
+    assert list(backfill) == [1, 3, 4], list(backfill)
+    assert not fl[backfill].any(), "BACKFILL must never contain a flagged name"
 
 
 def _run_all():

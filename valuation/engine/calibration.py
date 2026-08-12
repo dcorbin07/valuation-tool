@@ -287,13 +287,20 @@ def offline_beta(pit_beta):
     return float(BETA_FALLBACK)
 
 
-def lean_fair_value(cd: CompanyData, cfg=CONFIG, with_reverse=True, beta_override=None) -> dict:
+def lean_fair_value(cd: CompanyData, cfg=CONFIG, with_reverse=True, beta_override=None,
+                    with_scenarios=False) -> dict:
     """The blended fair value for one company, by the same path as the website.
 
     Mirrors pipeline.value_from_company exactly up to `blend.value`; Monte Carlo,
     sensitivity and scoring are omitted because none of them can change it (pinned by
     test_lean_path_matches_the_full_pipeline). The reverse DCF does not change it
     either, but it IS the growth-name headline, so it is computed when asked for.
+
+    S10 — `with_scenarios=True` additionally returns the blended bear/bull band as
+    `bear_value` / `bull_value`, the same pair the live pipeline stores as
+    `blend.value_low` / `blend.value_high` and the site renders as the scenario card.
+    It is OPT-IN, so with the default every caller (including S23's) is unchanged and
+    bit-identical; pinned by test_s10_the_scenario_band_is_opt_in_and_changes_nothing.
     """
     cls = classify(cd)
     # S23 — `beta_override` defaults to None, so the live path is unchanged. A point-in-time
@@ -321,7 +328,7 @@ def lean_fair_value(cd: CompanyData, cfg=CONFIG, with_reverse=True, beta_overrid
 
     price = cd.price
     fv = blend.value if blend.valuable else None
-    return {
+    out = {
         "fair_value": fv,
         "gap": (math.log(fv / price) if (fv and price and price > 0 and fv > 0) else None),
         "upside": (fv / price - 1.0) if (fv and price and price > 0) else None,
@@ -337,6 +344,40 @@ def lean_fair_value(cd: CompanyData, cfg=CONFIG, with_reverse=True, beta_overrid
         "ev_ebitda_used": ("ev_ebitda" in (comps.implied or {})),
         "ev_sales_used": ("ev_sales" in (comps.implied or {})),
     }
+    # S10 — the keys are added ONLY when asked for, so the default return dict is
+    # identical key-for-key to what every existing caller already receives.
+    if with_scenarios:
+        band = _scenario_band(cd, cls, base, wacc_value, comps, rev, maturity, parts,
+                              mature_rate, w.cost_of_equity)
+        out["bear_value"], out["bull_value"] = band.get("bear"), band.get("bull")
+    return out
+
+
+def _scenario_band(cd, cls, base, wacc_value, comps, rev, maturity, parts,
+                   mature_rate, cost_of_equity) -> dict:
+    """The blended bear/base/bull band — the SAME object the site shows on its scenario card.
+
+    `_blend_scenarios` is IMPORTED from the live pipeline, never re-implemented here. A second
+    copy would be free to drift from the number the reader is shown, which is precisely audit
+    B7's defect class ("no shipped code path reproduces the backtested composite exactly").
+    Pinned by test_s10_the_band_uses_the_SHIPPED_blend_scenarios.
+    """
+    from .growth import build_growth_scenarios
+    from .pipeline import _blend_scenarios
+    from .scenarios import build_scenarios
+
+    scen = build_scenarios(cd, cls, base, wacc_value)
+    # Banks/insurers: the live pipeline REPLACES the per-share cone with the justified
+    # P/B-ROE model before blending, and `lean_fair_value` already does the equivalent for
+    # the base case. Without this the band would be DCF-derived while its own base is not.
+    if cls.regime == "financial":
+        fin = financial_scenarios(cd, cost_of_equity, base.terminal_growth)
+        if fin:
+            scen.bear.per_share, scen.base.per_share, scen.bull.per_share = fin
+    gscn = ({} if cls.regime == "financial"
+            else build_growth_scenarios(cd, cls, base, wacc_value, maturity,
+                                        comps.benchmark, mature_rate=mature_rate))
+    return _blend_scenarios(cd, cls, scen, comps, rev, gscn, maturity, parts)
 
 
 # --------------------------------------------------------------------------- #
@@ -371,7 +412,8 @@ def _beta_at(closes, benchv, i, window=120) -> Optional[float]:
 
 def build_valuation_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                           lookback_years=18, horizon=63, progress=True,
-                          risk_free=None, offline=False) -> pd.DataFrame:
+                          risk_free=None, offline=False,
+                          with_scenarios=False) -> pd.DataFrame:
     """Point-in-time fair value + forward return per (date, ticker).
 
     Same calendar, same delisting mask and same forward-return convention as
@@ -490,7 +532,8 @@ def build_valuation_panel(provider, tickers, benchmark="SPY", rebalance_days=63,
                 # S23 — `offline=True` pins the beta point-in-time so the ladder cannot reach
                 # its network rung and fetch TODAY'S prices for a historical valuation.
                 v = lean_fair_value(cd, beta_override=(offline_beta(_pit_beta) if offline
-                                                       else None))
+                                                       else None),
+                                    with_scenarios=with_scenarios)
             except Exception as e:               # counted, never silent — see below
                 n_failed += 1
                 if len(first_errors) < 5:
