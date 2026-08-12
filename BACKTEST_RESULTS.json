@@ -1,11 +1,11 @@
 {
   "schema_version": 6,
   "errors": [],
-  "generated_at": "2026-08-12T15:03:41",
-  "generated_at_utc": "2026-08-12T19:03:41+00:00",
+  "generated_at": "2026-08-12T16:08:26",
+  "generated_at_utc": "2026-08-12T20:08:26+00:00",
   "git": {
-    "commit": "f653a1c5a322605f96d1b0b5ccb9ab259b59b161",
-    "short": "f653a1c",
+    "commit": "d6a652ca3b63f55dacff39208d6613b565b12393",
+    "short": "d6a652c",
     "branch": "worktree-options-live",
     "dirty": false
   },
@@ -306,21 +306,21 @@
       "meaning": "probability_of_backtest_overfitting"
     },
     "deflated_sharpe_detail": {
-      "probability": 0.822605378410405,
+      "probability": 0.8182164979508564,
       "sharpe_per_period": 0.5500328707621251,
-      "sr0_benchmark": 0.4456044201671367,
-      "n_trials": 170,
+      "sr0_benchmark": 0.4474947809950569,
+      "n_trials": 176,
       "var_sr_across_trials": 0.026997967906897496,
       "n_periods": 69,
       "n_trials_from_weight_schemes": 8,
-      "n_trials_from_research_log": 170,
+      "n_trials_from_research_log": 176,
       "n_trials_source": "RESEARCH_LOG.md (audit M1)",
       "is_effectively_undeflated": false,
       "metric": "deflated_sharpe_ratio"
     },
     "pbo_scope": "weight_scheme_selection_only",
     "deflated_sharpe": {
-      "value": 0.822605378410405,
+      "value": 0.8182164979508564,
       "want": ">0.95",
       "meaning": "probability_edge_is_real_after_trials_correction"
     },
@@ -344,9 +344,9 @@
       "margin": -0.0005030049974298345,
       "se": 0.006725017557615581,
       "folds_positive": 0.9333333333333333,
-      "haircut": 3.204933208992119,
-      "n_trials_used": 170,
-      "bar": 0.021553232101457247
+      "haircut": 3.2157375499372307,
+      "n_trials_used": 176,
+      "bar": 0.02162589148401159
     },
     "challenger_weights": {
       "value": 0.16666666666666666,
@@ -2816,18 +2816,18 @@
       "n_names": null,
       "top_frac": 0.1,
       "gross_sharpe": 1.1780646069384122,
-      "net_sharpe": 1.0994339357566514,
+      "net_sharpe": 1.0994339357566516,
       "net_max_drawdown": -0.28479315035703734,
       "net_vol_ann": 0.21564331159305783,
       "equal_weight_sharpe": 0.9084245982678518,
-      "annual_turnover": 2.6069687969064415,
+      "annual_turnover": 2.606968796906442,
       "gross_ann": 0.25359156955468554,
       "net_ann": 0.23308954898392242,
       "cost_drag_ann": 0.020502020570763113,
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.08119856135218217,
       "net_alpha": 0.06069654078141906,
-      "realised_one_way_bps": 33.359867748008234,
+      "realised_one_way_bps": 33.35986774800823,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",
@@ -2878,8 +2878,8 @@
         },
         {
           "bps": 500.0,
-          "net_alpha": -0.20182916477462265,
-          "net_ann": -0.029436156572119287
+          "net_alpha": -0.20182916477462254,
+          "net_ann": -0.029436156572119176
         }
       ]
     },
@@ -2906,7 +2906,7 @@
         "the equal-weight benchmark is charged ZERO cost while the strategy pays, so every 'alpha versus equal-weight' figure compares a book that trades against one that does not"
       ],
       "flat_bps": null,
-      "breakeven_one_way_bps": 198.21638220997386,
+      "breakeven_one_way_bps": 198.21638220997417,
       "curve": [
         {
           "bps": 0.0,
@@ -2940,8 +2940,8 @@
         },
         {
           "bps": 200.0,
-          "net_alpha": -0.0012944629431470567,
-          "net_ann": 0.1710985452593563
+          "net_alpha": -0.0012944629431468346,
+          "net_ann": 0.17109854525935653
         },
         {
           "bps": 300.0,
@@ -3009,7 +3009,7 @@
     "enter_frac": 0.1,
     "widths": {
       "none": {
-        "annual_turnover": 2.6069687969064415,
+        "annual_turnover": 2.606968796906442,
         "gross_alpha": 0.08119856135218217,
         "net_alpha": 0.06069654078141906,
         "after_tax_alpha": -0.008980829427339465,
