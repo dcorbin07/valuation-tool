@@ -9308,6 +9308,19 @@ ML tree combiner did, and it *reversed* out of sample.
    pandas coerced the Series to float, so `is not None` was true for NaN and the comparison threw.
    Fixed with an explicit `isinstance(..., str)` and an object dtype. Caught by running it.
 4. **`scripts/build_ledger.py` will DROP both rows** if regenerated — curated. Pre-existing.
+5. **`session 31` NOW NAMES TWO LANES' WORK — THE THIRD SUCH COLLISION IN FIVE SESSIONS.** The
+   options-bot lane stamped `O11` as session 31 while this lane's five-scheme register
+   (`S5`+`S6`+`S13`+`S24`+`S27`) had already landed as session 31. **`session 29`, `session 30`
+   and now `session 31` each name two different results in the file every lane reads.** Three
+   occurrences in five sessions is not bad luck; **the numbering convention does not work with
+   two lanes landing on the same day**, and no amount of care by either lane fixes it, because
+   both were correct at the moment they stamped. **DELIBERATELY NOT RENUMBERED**, for the reason
+   given twice before: their number is already referenced from their own handoff, ledger and
+   research-log rows. **This session took 34, which was free.**
+   → **This now needs a convention change rather than another report.** The obvious candidates
+   are a lane prefix (`E31` / `O31`) or a date-plus-item stamp instead of a bare counter. **That
+   is Don's call, not a lane's**, which is why it is routed rather than unilaterally adopted.
+
 5. **`session 30` NOW NAMES TWO LANES' WORK — THE SECOND SUCH COLLISION IN FOUR SESSIONS.** The
    options-bot lane stamped `O6` as session 30 while this lane's `S16`+`S28` had already landed as
    session 30. This is the same class as the `session 29` collision reported in session 30 §5

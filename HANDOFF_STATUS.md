@@ -44,6 +44,8 @@ from the key-identical corrected panel — established 1,312 / speculative 339 p
 
 **Equity `N` 180 → 183.** Expectations **7 right, 0 wrong**.
 
+**CROSS-LANE — THIRD COLLISION IN FIVE SESSIONS, AND IT NOW NEEDS A CONVENTION CHANGE.** `session 31` names both the options-bot lane's `O11` and this lane's five-scheme register, joining `session 29` and `session 30`. **Three occurrences is not bad luck: the bare-counter convention does not work with two lanes landing on the same day**, and both lanes were correct at the moment they stamped. Not renumbered (theirs is referenced from their own handoff and ledger); this session took **34**. **Candidates: a lane prefix (`E31`/`O31`) or a date-plus-item stamp. That is Don's call, not a lane's.**
+
 **Next:** S10's accounting half, or the CPCV embargo. **And the dated one: read `/api/track` →
 `contract_track.recording_ok` on or after 2026-08-13.**
 
@@ -51,6 +53,60 @@ Full write-up: `HANDOFF_edge_audit.md` session 34.
 
 ---
 
+## options-bot lane, session 31 (2026-08-12) — the options book is NOT survivable at realistic sizing, and the O-series is one row from done
+
+**`O11` + `O19` + `O22` + `O25`, one register, nine arms, `PREREG_o11_o19_o22_o25_portfolio.md`
+committed ALONE at `1203a85`.** Frozen book, **no live code path changed, nothing adopted.**
+
+**THE O-SERIES IS NOT CLOSED, AND THE WORDING WAS FIXED BEFORE ANY RESULT EXISTED.** After this
+batch **25 of 26 O-rows are DONE**. **`O14` remains OPEN**: its collection is complete and its
+first analysis landed, but the **put/call and unusual-volume studies the 4.72GB tick cache was
+justified by are still untested.** The accurate sentence is *"this closes the last four OPEN audit
+HYPOTHESIS rows"* - not *"the O-series is closed"*.
+
+**THE HEADLINE: a book with POSITIVE +3.27 pct per-trade expectancy LOSES MONEY at realistic
+sizing.** Applying the shipped portfolio layer (imported, not re-implemented) to the single-leg
+book for the first time: **three of four cells UNSURVIVABLE, the fourth MARGINAL, none
+SURVIVABLE.** At $50,000 with a concurrency cap of 10 the book ends at **$37,059** after a **67 pct
+drawdown** - a **-25.9 pct** total return. Per-trade expectancy and survivability are different
+questions and only the first had ever been measured here.
+
+**THE MECHANISM IS MEASURED AND IS THE MOST PORTABLE RESULT: alerts CLUSTER and the edge lives in
+the crowd.** Over 483 weeks (median 7 alerts, max 38), expectancy is **-4.51 pct in quiet weeks**
+and **+14.28 pct in weeks above the 90th percentile**, with 51.5 pct of trades in weeks of more
+than 10 alerts. A concurrency cap therefore refuses trades **exactly when the opportunity is
+richest** - 1,677 of 3,870 skipped at cap 10. That is the audit's own third possibility, confirmed.
+
+**O19 ran FIRST by mechanism, not promise** - the O11 stage refuses to run without O19's artifact
+and embeds its verdict, demonstrated by invoking it with the artifact absent. This repairs session
+26's process defect, where a gating control and its outcomes were computed in one pass. Verdict
+**NOT-AN-ARTEFACT**: equal +3.270 pct, contract-weighted +3.407 pct, dollar-weighted +3.141 pct.
+The audit's premise barely applies here - the median position is **three** contracts, not twenty.
+
+**O22 capacity approximately $76.6M on the registered depth measure - and it may NOT be compared
+with P1's equity $23M.** Open interest is a STOCK; P1's ADV is a FLOW. Measured: the traded
+contract's daily volume is a median **0.1326** of its open interest, so an OI-based capacity
+overstates a flow-based one by **~7.5x**, putting the flow-equivalent near $10M. The registered
+headline stands as measured and the correction is reported beside it.
+
+**O25 NULL on both arms and not marginally - the wing is reliably worse**, -9.34pp vs closing and
+-9.69pp vs holding at +75 pct, negative in both halves against both comparators. The audit's own
+prediction is confirmed: sd falls 0.823 to 0.707 and the share of outcomes above +100 pct falls
+74.2 pct to 56.6 pct.
+
+**THE SPLIT GUARD IS NOW SHARED AND RAISES**, as instructed after session 30's recurrence:
+`assert_raw_spot` runs before any instrument touches a price, raises rather than warns, and also
+raises when it can check nothing. It read 3,870 entries at median relative error 0.00e+00.
+
+**THE LEDGER WAS WRONG ABOUT ALL FOUR ROWS - the third session running.** All four were `src=auto`
+with "no mention anywhere in the corpus"; the audit has full sections for each. That note is not
+evidence of absence.
+
+**Trial cost: options `N` 271 -> 280**, exactly as pre-committed. Expectations 4 right, 2 wrong, 2
+split. Full write-up: `HANDOFF_optionsbot.md` sections 46-49.
+
+**Recommended next: `O14`'s justifying studies are the only O-row left** - the put/call and
+unusual-volume analyses the tick cache was collected for.
 ## edge lane, session 33 (2026-08-12) — S8 + S9: freshness has no cross-section to work with
 
 `PREREG_s8_s9_freshness.md` committed **alone at `b7804d8`**, one register for both. **All four
@@ -148,7 +204,7 @@ tenor confound that should have killed it is **refuted** - within every DTE quar
 positive.
 
 **Trial cost: options `N` 261 -> 271**, exactly as pre-committed. **Equity and infra untouched by
-this item; after merging they read 176 and 11**, not the 161 and 10 measured while the arms ran -
+this item; after merging they read 180 and 11**, not the 161 and 10 measured while the arms ran -
 other lanes landed the same day. **Re-read `by_domain` after merging; do not quote a mid-session
 figure.**
 Expectations 6 right, 1 wrong.

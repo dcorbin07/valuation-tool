@@ -97,6 +97,58 @@ the project's memory and the old versions had been repeated for months.
     corrected panel — **established 1,312 / speculative 339 per date**, both substantial.
   * **Equity `N` 180 → 183.** Expectations **7 right, 0 wrong**.
     `data/free_analysis/S11_S12.json`; `HANDOFF_edge_audit.md` §1-8.
+- **A BOOK WITH POSITIVE PER-TRADE EXPECTANCY LOSES MONEY AT REALISTIC SIZING, AND THE REASON IS
+  MEASURED: THE EDGE LIVES IN THE CROWDED WEEKS AND A CONCURRENCY CAP REFUSES EXACTLY THOSE
+  (2026-08-12, session 31, `O11`+`O19`+`O22`+`O25`).** `PREREG_o11_o19_o22_o25_portfolio.md`
+  committed **ALONE at `1203a85`**. Frozen book, **no live code path changed, nothing adopted.**
+  * **THE O-SERIES IS NOT CLOSED, AND THE WORDING WAS FIXED BEFORE ANY RESULT EXISTED.** After this
+    batch **25 of 26 O-rows are DONE**; **`O14` remains OPEN** — its collection is complete and its
+    first analysis landed, but the **put/call and unusual-volume studies the tick cache was
+    justified by are still untested.** The accurate sentence is *"this closes the last four OPEN
+    audit HYPOTHESIS rows"*, not *"the O-series is closed"*.
+  * **`O11`: THREE OF FOUR CELLS UNSURVIVABLE, THE FOURTH MARGINAL, NONE SURVIVABLE.** Max drawdown
+    (full): $50k/conc10 **0.6710**, $50k/conc50 **0.7769**, $250k/conc10 0.3589, $250k/conc50
+    0.5842. **THE HEADLINE CONFIRMS THE AUDIT'S OWN HYPOTHESIS: a book with +3.27%/trade POSITIVE
+    expectancy ENDS AT $37,059 FROM $50,000 — a −25.9% total return — at a concurrency cap of 10.**
+    *Per-trade expectancy and survivability are different questions and only the first had ever
+    been measured here.*
+  * **THE MECHANISM, MEASURED AND THE MOST PORTABLE THING IN THE BATCH: ALERTS CLUSTER AND THE EDGE
+    LIVES IN THE CROWD.** Over 483 weeks (median 7 alerts, max 38), expectancy is **−4.51% in quiet
+    weeks** and **+14.28% in weeks above the 90th percentile**, with **51.5% of trades in weeks of
+    >10 alerts.** So a concurrency cap refuses trades **exactly when opportunity is richest** —
+    1,677 of 3,870 skipped at cap 10 — which is why the constrained small book is loss-making
+    rather than merely volatile. This is the audit's own third possibility, confirmed.
+  * **`O19` NOT-AN-ARTEFACT, and it RAN FIRST BY MECHANISM: the O11 stage REFUSES to run without
+    O19's artifact** and embeds its verdict — demonstrated by invoking it with the artifact absent.
+    This repairs session 26's defect, where a gating control and its outcomes ran in one pass.
+    Equal +3.270%, contract-weighted +3.407%, dollar-weighted +3.141% — same sign, 0.27pp apart;
+    premium floors move expectancy by 0.10pp. **The audit's premise barely applies here: the median
+    position is THREE contracts, not twenty, because median premium is $2.57.**
+  * **`O22` CAPACITY ≈ $76.6M ON THE REGISTERED MEASURE — AND IT MAY NOT BE COMPARED WITH P1's
+    EQUITY $23M, FOR A MEASURED REASON: OPEN INTEREST IS A STOCK, ADV IS A FLOW.** The traded
+    contract's daily volume is a median **0.1326** of its open interest (179 traded vs 1,373
+    outstanding), so an OI-based capacity **overstates a flow-based one by ~7.5×** — flow-equivalent
+    near **$10M**. **The registered headline stands as measured** (swapping the depth measure after
+    reading the number is what the void conditions forbid) and the correction is reported beside it.
+    Upper bound, λ is an assumption, and **mechanical rather than a recommendation** given R2.
+  * **`O25` NULL ON BOTH ARMS, AND NOT MARGINALLY — THE WING IS RELIABLY WORSE.** At +75%
+    (n 1,332) **−9.34pp vs closing and −9.69pp vs holding**; at +100% (n 1,082) **−13.03pp and
+    −7.76pp** — negative in **both halves against both comparators, every CI excluding zero.**
+    **The audit's own prediction is confirmed:** sd falls 0.823 → 0.707 and the share above +100%
+    falls **74.2% → 56.6%**. Free by-product, no verdict: at +100% **closing BEATS holding by
+    5.3pp**.
+  * **THE SPLIT GUARD IS NOW SHARED AND RAISES**, as instructed after session 30's recurrence:
+    `portfolio_capacity.assert_raw_spot` runs before any instrument touches a price, **raises
+    rather than warns, and also raises when it can check nothing** (an empty overlap reporting
+    success is the same failure in a new costume). It read **3,870 entries at median relative error
+    0.00e+00**; six tests pin it and downgrading it is a void condition.
+  * **THE LEDGER WAS WRONG ABOUT ALL FOUR ROWS — the third session running.** All four were
+    `src=auto` / *"no mention anywhere in the corpus"*; the audit has full sections at `:1066`,
+    `:1985`, `:2023`, `:2061`. **That note is not evidence of absence.** All four corrected.
+  * **Options `N` 271 → 280** (2+4+1+2, exactly as pre-committed); equity and infra untouched by
+    this item. Expectations **4 right, 2 wrong, 2 split**.
+    `data/free_analysis/O11_O19_O22_O25_PORTFOLIO.json`, `O19_SIZING_ARTEFACT.json`;
+    `HANDOFF_optionsbot.md` §46-49.
 - **13F STALENESS IS COMMON ACROSS NAMES, NOT CROSS-SECTIONAL — SO DECAYING IT CANNOT RE-RANK
   ANYTHING — AND THE FRESHNESS GRADIENT THE WHOLE ITEM RESTS ON IS ABSENT
   (2026-08-12, session 33, `S8`+`S9`).** One register for both,
