@@ -214,6 +214,63 @@ def ljung_box(series, lags=4):
             "lag1_autocorr": (float(acf[0]) if acf else None)}
 
 
+# --------------------------------------------------------- S28: distribution, not just the mean
+def distribution(values, dates=None) -> dict:
+    """The SHAPE of a per-period series, beside the mean the payload already publishes.
+
+    LEDGER S28. Every headline this project ships is a mean, or a t on a mean, and a mean is the
+    one summary that cannot show a book being carried by three quarters out of sixty-nine. This
+    adds quantiles and the DATED worst/best periods. It is REPORTING ONLY: no new claim, no
+    threshold, no verdict, and nothing here gates anything.
+
+    THE UNITS ARE PER-PERIOD AND THE BLOCK SAYS SO. These are 63-trading-day draws, not annual
+    figures. `top_decile_alpha` is `ppy * mean(alpha)`; a QUANTILE may NOT be scaled that way,
+    because annualising is a statement about a mean and not about an order statistic. The block
+    carries a `units` string so a figure cannot be picked up without it.
+    """
+    s = _clean(values)
+    if not len(s):
+        return {"n": 0, "units": "per-period (not annualised)"}
+
+    srt = sorted(float(x) for x in s)
+    n = len(srt)
+
+    def q(p):
+        if n == 1:
+            return srt[0]
+        i = p * (n - 1)
+        lo = int(i)
+        hi = min(lo + 1, n - 1)
+        return srt[lo] + (srt[hi] - srt[lo]) * (i - lo)
+
+    mean = sum(srt) / n
+    var = sum((x - mean) ** 2 for x in srt) / (n - 1) if n > 1 else 0.0
+    neg = sum(1 for x in srt if x < 0)
+    out = {
+        "n": n,
+        "units": ("per-period (not annualised) - a quantile is an order statistic and may not "
+                  "be scaled by periods-per-year the way a mean is"),
+        "mean": mean, "sd": var ** 0.5,
+        "min": srt[0], "p05": q(0.05), "p25": q(0.25), "median": q(0.50),
+        "p75": q(0.75), "p95": q(0.95), "max": srt[-1],
+        "negative_periods": neg, "negative_fraction": neg / n,
+    }
+
+    # The DATED extremes. `_clean` may drop non-finite entries, so the dates are matched against
+    # the ORIGINAL series rather than against the cleaned one - pairing a cleaned value with an
+    # uncleaned date is exactly how an off-by-one mislabels the worst quarter in the record.
+    if dates is not None:
+        pairs = [(d, float(v)) for d, v in zip(dates, values)
+                 if v is not None and v == v and abs(float(v)) != float("inf")]
+        if pairs:
+            w = min(pairs, key=lambda p: p[1])
+            b = max(pairs, key=lambda p: p[1])
+            out["worst"] = {"date": str(w[0]), "value": w[1]}
+            out["best"] = {"date": str(b[0]), "value": b[1]}
+            out["n_dated"] = len(pairs)
+    return out
+
+
 def auto_lag(n):
     """Schwert/Greene automatic HAC truncation lag: floor(4*(n/100)^(2/9)).
 

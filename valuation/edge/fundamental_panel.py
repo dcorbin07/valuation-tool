@@ -974,7 +974,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                             keep_numbers=False, sector_neutral=False,
                             grid_offset=None, extra_horizons=None,
                             sector_neutral_pair=False, standardizer_arms=None,
-                            with_insider_raw=False) -> pd.DataFrame:
+                            with_insider_raw=False, with_issuance_raw=False) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -1415,6 +1415,15 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                 for _k in ("ins_net", "ins_buys", "insider_score"):
                     _v3 = _src3.get(_k)
                     row[_k] = None if (_v3 is None or pd.isna(_v3)) else float(_v3)
+            # S16 — the RAW net share change `capital_discipline` reduces to a single z-score.
+            # The decomposition into buyback / dilution / M&A is a function of this one number
+            # plus a dated ACTIONS join, so emitting it is enough and the panel stays the
+            # authority for the window. Opt-in, so the default column set is untouched.
+            if with_issuance_raw:
+                _src16 = _by_ticker.get(t) or {}
+                _v16 = _src16.get("share_issuance")
+                row["share_issuance"] = (None if (_v16 is None or pd.isna(_v16))
+                                         else float(_v16))
             # S20/S21 — the standardizer arms' themes, on this same row.
             for _p, _fr in fr_std.items():
                 _rr = _fr.loc[t] if t in _fr.index else None
@@ -1993,8 +2002,31 @@ def _backtest_hold(panel, cols, weights, top_n=20, exit_rank=None, min_hold=2, h
                            "held": [int(x) for x in held_counts],
                            "bought": bought_series, "sold": sold_series}}
                if return_series else {}),
+            # S28 — the shape of the hold book's own per-period returns, and of its EXCESS over
+            # the equal-weight benchmark. Reporting only. The excess is the object `alpha_vs_
+            # equal_weight` is a mean of, so its distribution is the honest companion to that
+            # number; B17's label_warning below applies to every figure in this block, the
+            # distribution included.
+            **_hold_distribution(used_dates, port, ew),
             "label_warning": ("realised book size is ~exit_rank, NOT top_n; gross of costs and "
                               "taxes unlike every other book in this file (audit B17)")}
+
+
+def _hold_distribution(dates, port, ew):
+    """S28 — per-period shape for the hold book. Never raises: a reporting block must not be
+    able to fail a completed backtest, and an empty series degrades to an empty dict."""
+    try:
+        from .statistics import distribution as _dist
+        p, e = list(port), list(ew)
+        if not p:
+            return {}
+        out = {"return_distribution": _dist(p, dates)}
+        if len(e) == len(p):
+            out["excess_vs_equal_weight_distribution"] = _dist(
+                [a - b for a, b in zip(p, e)], dates)
+        return out
+    except Exception:                                       # noqa: BLE001
+        return {}
 
 
 def sweep_hold_params(panel, cols, weights, top_n=25, horizon=63):
@@ -2510,8 +2542,17 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=Fa
     series = {"dates": used_dates, "n_scored": n_scored,
               "long_short": [float(x) for x in ls],
               "alpha": [float(x) for x in alpha_series]}
+    # S28 — the SHAPE of the two series the headlines are means of. Computed ALWAYS (it is a
+    # handful of order statistics, not the series) and deliberately NOT gated on
+    # `return_series`, because the point of the item is that the distribution should be as
+    # available as the mean. Reporting only: no threshold reads it and no verdict depends on it.
+    from .statistics import distribution as _dist
+    _alpha_dist = _dist(alpha_series, used_dates)
+    _ls_dist = _dist(ls, used_dates)
     return {"n_periods": len(ls), "n_quantiles": n_q, "horizon": horizon,
             **({"series": series} if return_series else {}),
+            "top_decile_alpha_distribution": _alpha_dist,
+            "long_short_distribution": _ls_dist,
             "decile_ann_return": decile, "equal_weight_ann": ew_ann,
             "long_short_ann": annmean(ls), "long_short_tstat": tstat(ls),
             # AUDIT R9 — HAC inference and a visible serial-correlation diagnostic. The naive

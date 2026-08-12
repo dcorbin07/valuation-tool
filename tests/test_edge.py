@@ -7716,6 +7716,100 @@ def test_s25_the_pit_valuation_still_reads_a_non_point_in_time_sector():
     assert pe[-1] / pe[0] >= 2.0, "the comps PE spread collapsed; re-measure S25's exposure"
 
 
+# ------------------------------------------- S28 (session 30): distribution, not just the mean
+def test_s28_distribution_reproduces_hand_computed_order_statistics():
+    from valuation.edge.statistics import distribution
+
+    d = distribution([0.10, -0.05, 0.20, 0.0, -0.30])
+    assert d["n"] == 5
+    assert abs(d["min"] - (-0.30)) < 1e-12 and abs(d["max"] - 0.20) < 1e-12
+    assert abs(d["median"] - 0.0) < 1e-12
+    assert abs(d["mean"] - (-0.01)) < 1e-12
+    assert d["negative_periods"] == 2 and abs(d["negative_fraction"] - 0.4) < 1e-12
+    # monotone through the quantiles, by construction
+    qs = [d["min"], d["p05"], d["p25"], d["median"], d["p75"], d["p95"], d["max"]]
+    assert qs == sorted(qs), qs
+
+
+def test_s28_dated_extremes_survive_holes_in_the_series():
+    """The dates are matched against the ORIGINAL series, not the cleaned one. Pairing a cleaned
+    value with an uncleaned date is exactly how an off-by-one mislabels the worst quarter."""
+    from valuation.edge.statistics import distribution
+
+    vals = [0.1, float("nan"), None, -0.4, 0.3]
+    dts = ["d0", "d1", "d2", "d3", "d4"]
+    d = distribution(vals, dts)
+    assert d["n"] == 3 and d["n_dated"] == 3
+    assert d["worst"] == {"date": "d3", "value": -0.4}, d["worst"]
+    assert d["best"] == {"date": "d4", "value": 0.3}, d["best"]
+
+
+def test_s28_carries_its_units_so_a_quantile_is_not_annualised():
+    """`top_decile_alpha` is ppy * mean(alpha). A quantile is an order statistic and may NOT be
+    scaled that way, so the block has to say so wherever it is picked up."""
+    from valuation.edge.statistics import distribution
+
+    for d in (distribution([0.1, 0.2]), distribution([])):
+        assert "units" in d and "not annualised" in d["units"]
+
+
+def test_s28_the_payload_projects_every_distribution_block():
+    """M6's guard catches a field computed and dropped; this pins the projection itself, so a
+    reader cannot lose the block by editing results_file alone."""
+    import re
+
+    src = open("valuation/edge/results_file.py", encoding="utf-8").read()
+    for key in ("top_decile_alpha_distribution", "long_short_distribution",
+                "return_distribution", "excess_vs_equal_weight_distribution"):
+        assert re.search(rf'"{key}":', src), f"{key} is not projected into the payload"
+    m = re.search(r"^SCHEMA_VERSION = (\d+)", src, re.M)
+    assert m and int(m.group(1)) >= 6, "S28 is additive and must bump the schema version"
+
+
+def test_s28_the_distribution_describes_the_SAME_series_the_headline_is_a_mean_of():
+    """The one check that matters. A distribution attached to the wrong series would look
+    perfectly reasonable and quietly mislabel the worst quarter in the record, so the identity
+    `4 * mean(distribution) == top_decile_alpha` is asserted rather than assumed. Measured on the
+    real 69-date panel it holds to 4e-17; here on a synthetic one it must hold exactly.
+    """
+    from valuation.edge.fundamental_panel import quantile_backtest
+
+    p = _u7_panel(n_dates=14, n_names=60, seed=23)
+    cols, w = ["quality", "momentum"], {"quality": 0.5, "momentum": 0.5}
+    r = quantile_backtest(p, cols, w, n_q=10, horizon=63)
+
+    for key, headline in (("top_decile_alpha_distribution", "top_decile_alpha"),
+                          ("long_short_distribution", "long_short_ann")):
+        d = r[key]
+        assert d["n"] == r["n_periods"], (key, d["n"], r["n_periods"])
+        assert abs(d["mean"] * 4.0 - r[headline]) < 1e-12, (key, d["mean"] * 4.0, r[headline])
+        assert d["min"] <= d["median"] <= d["max"]
+        assert 0.0 <= d["negative_fraction"] <= 1.0
+        assert "worst" in d and "best" in d
+        assert d["worst"]["value"] == d["min"] and d["best"]["value"] == d["max"]
+
+
+def test_s28_is_reporting_only_and_gates_nothing():
+    """S28 adds NO claim. If a threshold, gate or verdict ever reads a distribution field, this
+    fails — which is the only thing standing between 'honest shape' and a new bar nobody
+    calibrated. Docstrings and comments are stripped so the test cannot pass on its own prose.
+    """
+    import re
+
+    hits = []
+    for path in ("valuation/edge/fundamental_panel.py", "valuation/edge/results_file.py",
+                 "valuation/edge/statistics.py"):
+        src = open(path, encoding="utf-8").read()
+        src = re.sub(r'""".*?"""', "", src, flags=re.S)
+        src = re.sub(r"#.*", "", src)
+        for m in re.finditer(r"_distribution\b", src):
+            line = src[src.rfind("\n", 0, m.start()) + 1:src.find("\n", m.start())]
+            # a comparison or a branch on a distribution field would make it a threshold
+            if re.search(r"(if|while|assert|[<>]=?|==)\s", line) and "def " not in line:
+                hits.append(f"{path}: {line.strip()[:100]}")
+    assert not hits, "a distribution field is being compared or branched on:\n" + "\n".join(hits)
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

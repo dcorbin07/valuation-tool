@@ -1,5 +1,66 @@
 # HANDOFF STATUS — shared project state
 
+## edge lane, session 30 (2026-08-12) — S16 all four arms rejected (and the audit's proposal is a rank identity), S28 shipped, two lying ledger rows corrected
+
+**S16.** `PREREG_s16_issuance_decomposition.md` committed **alone at `afc7578`**. One panel build,
+five scorings, every arm a column on one frame. **All four arms REJECTED.**
+
+**The premise check removed half the audit's method before any arm ran:** all 671,417 ACTIONS rows
+carry one of nineteen action types and **none is a repurchase authorisation**, so
+buyback-announcement drift is **not testable on data we own**; and `initiated` is index/security
+listing initiation (`^VIX`, `^RUT`, `^IXIC`, 1997-12-31), **not** dividend initiation. The M&A leg
+is real — `acquisitionof`/`acquisitionby`, 8,248 dated rows each.
+
+**THE DEEPEST FINDING IS AN IDENTITY, NOT A MEASUREMENT.** S16C's within-date rank correlation
+against the incumbent is **1.000000000000 on all 69 dates**, because `buyback = max(0, −net)` and
+`−dilution = −max(0, net)` are **both non-increasing in `net`** (verified directly). So the
+audit's actual proposal — two inputs *"so the composite can weight them independently"* —
+**cannot express any ordering the single input cannot**. It only shrinks the theme's dispersion
+**1.000315 → 0.774730**, a 22.5% cut in effective weight. S20/S21's rank-invariance lesson again.
+
+**Buyback carries more of the theme's IC than dilution**, refuting two pre-registered
+expectations: theme IC *t* **+3.2066** (buyback-only) vs **+2.7530** (incumbent) vs **+2.5623**
+(dilution-only). **S16A is the only arm clearing X7's calibrated 2.71 bar — and it still fails the
+gate**, the fifth demonstration that theme IC does not judge a construction change. S16D is
+**FLAGGED DEGENERATE** (`mna_dilution` non-zero on 3.19% of rows) though C7's own bar passed.
+
+**C3 FAILED ITS BAR AND IS REPORTED AS A FAILURE.** The rebuilt incumbent is not bit-identical to
+the shipped column (max |Δ| **0.006676**, 0.67% of one sd) because `build_frame` standardises over
+every scored name while the panel drops names with no forward return. Diagnosed — rank correlation
+exactly **1.00000000**, median deviation exactly **0.000e+00**, a per-date affine rescaling — and
+**bounded: every gate re-run against the SHIPPED baseline returns the same four rejects with
+deltas identical to four decimals.**
+
+**Equity `N` 161 → 165. ADOPTS NOTHING**, and adoption costs more here than usual: the vintage is
+**derived** per `PT-GAPDUE` — **vintage 3, opened 2026-08-11, and its reason IS the
+`capital_discipline` restoration** — so a change would close a vintage days old. Expectations 3
+right, 3 wrong.
+
+**S28 — SHIPPED, reporting only, no claim moves.** Four additive payload blocks with quantiles,
+negative-period counts and the **dated** worst/best period; `SCHEMA_VERSION` 5 → 6. **What it
+shows: the published +7.17%/yr top-decile alpha is negative in 20 of 69 quarters (28.99%), with a
+median quarter (+1.41%) BELOW the mean (+1.79%) and a worst quarter of −6.83% on 2016-01-20;** the
+long-short is negative in 33.3% of quarters, worst −20.01%. Units travel in the block because
+**a quantile may not be annualised the way a mean is**. `4 × mean` reproduces `top_decile_alpha` to
+**4e-17** — the check that the block describes the right series. Pinned as reporting-only by a
+guard that was itself checked for vacuity. **Zero equity trials; infra 10 → 11.**
+
+**Two ledger rows were lying about their own state, both corrected.** `O14` read INPROGRESS /
+*"analysis not started"* — false since 2026-08-11, when the tickflow module, script, tests and a
+44KB artifact landed; it stays OPEN for the reason its note already gave (the put/call and
+unusual-volume studies remain undone), not the one the cell gave. `B13` read IN PROGRESS with
+nothing in progress: it is a settled partial state blocked on data the price export does not carry
+(date and close only, so `avg_dollar_volume` cannot be computed there at all), now
+**PARTIAL - BLOCKED ON DATA**.
+
+**Next:** S10's accounting half, or the CPCV embargo (still the only open item that can move a
+published number). **And the dated freebie: read `/api/track` → `contract_track.recording_ok` on or
+after 2026-08-13.**
+
+Full write-up: `HANDOFF_edge_audit.md` session 30.
+
+---
+
 ## edge lane, session 29 (2026-08-12) — S3's three insider rebuilds all REJECTED; S25 closed as unobtainable
 
 **S3.** `PREREG_s3_insider_rebuild.md` committed **alone at `b3a85fa`**. One panel build, four

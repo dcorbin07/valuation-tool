@@ -8811,3 +8811,191 @@ published number.
 **And a dated one that needs no work: read `/api/track` → `contract_track.recording_ok` on or
 after 2026-08-13** (`row_awaited` 2026-08-12, `assessable_from` 2026-08-13). From then a missing
 row is a dated writer failure and `PT-WRITER` can finally be escalated or closed.
+
+---
+
+# SESSION 30 (2026-08-12) — S16, S28, and two ledger rows that were lying about their own state
+
+Four items. **S16** got a blind register, `PREREG_s16_issuance_decomposition.md`, committed
+**alone at `afc7578`** — one `.md`, zero `.py`, a strict ancestor of every measurement commit.
+**S28** is reporting infrastructure with no hypothesis. The two ledger corrections are facts
+checked against the tree.
+
+## 1. S16 — all four arms rejected, and the audit's actual proposal is a rank identity
+
+### 1.1 The premise check removed half the audit's method
+
+The audit's method is *"extract buyback announcements and dividend initiations"* from ACTIONS.
+Measured against the table before any arm ran:
+
+* **There are no buyback announcements.** All **671,417** ACTIONS rows carry one of nineteen
+  action types — `dividend`, `listed`, `delisted`, `tickerchangeto/from`, `split`, `relation`,
+  `initiated`, `acquisitionof`/`acquisitionby`, `bankruptcyliquidation`, `regulatorydelisting`,
+  `spinoff`, `spunofffrom`, `spinoffdividend`, `adrratiosplit`, `voluntarydelisting`, `mergerto`,
+  `mergerfrom` — and **none is a repurchase authorisation.** Buyback-announcement drift is **not
+  testable on data we own.**
+* **`initiated` is not dividend initiation.** It is index/security listing initiation; its
+  earliest rows are `^VIX`, `^RUT` and `^IXIC`, all dated 1997-12-31.
+* **The M&A leg is real**: `acquisitionof`/`acquisitionby`, 8,248 dated rows each with deal values
+  and both counterparties.
+* **The sign split is not degenerate**: across 185,958 year-over-year share-count observations,
+  **34.07%** fell, **58.26%** rose, 7.67% flat — with wildly asymmetric tails (p01 **−13.2%**,
+  p99 **+107.2%**), which is itself the argument for separating them.
+
+### 1.2 The identity — the most useful thing in this session
+
+**S16C's within-date rank correlation against the incumbent is `1.000000000000` on all 69 dates.**
+
+That is arithmetic, not luck, and it was verified directly rather than inferred:
+`buyback = max(0, −net)` and `−dilution = −max(0, net)` are **both non-increasing in `net`**
+(checked on the real sorted series), so the mean of their z-scores preserves the ordering of
+`neg_issuance = −net` exactly.
+
+**So the audit's actual proposal — "separate the theme into two inputs rather than one blended
+score, so the composite can weight them independently" — cannot express any ordering the single
+input cannot.** What it *can* do is change scale, and it does: the theme's mean per-date
+dispersion falls **1.000315 → 0.774730**, a **22.5% cut in effective weight** in a composite that
+is a weighted sum. That is P6.3/S20's lesson in a new costume, and it means anyone reading this
+item as *"give buybacks and dilution their own weights"* is describing something the construction
+cannot deliver.
+
+### 1.3 Verdicts
+
+**All four REJECTED** against the already-committed margins (+0.25 long-short *t* AND +100bps
+alpha, both halves, boundary embargoed, deployed flat 1/7, no grid):
+
+| arm | Δalpha early | Δalpha late | Δ*t* early | Δ*t* late | rank corr | theme IC *t* |
+|---|---|---|---|---|---|---|
+| **S16A** buyback only | +0.47pp | +0.05pp | −0.188 | +0.248 | 0.8707 | **+3.2066** |
+| **S16B** dilution only | +0.23pp | −0.26pp | +0.147 | −0.100 | 0.9641 | +2.5623 |
+| **S16C** two inputs | +0.20pp | −0.06pp | −0.206 | +0.175 | **1.0000** | +2.7530 |
+| **S16D** M&A split | +0.17pp | −0.19pp | −0.141 | +0.157 | 0.9920 | +2.7634 |
+| *A0 incumbent* | — | — | — | — | — | +2.7530 |
+
+**BUYBACK carries more of the theme's IC than DILUTION does**, which refutes two pre-registered
+expectations at once. **S16A is the only arm clearing X7's calibrated 2.71 theme-IC bar — and it
+still fails the gate**, the fifth demonstration that theme IC does not judge a construction change.
+
+**S16D is FLAGGED DEGENERATE** by the pre-committed C6 rule: `mna_dilution` is non-zero on only
+**3.19%** of rows. Note C7's own bar *passed* — the M&A flag fires on **5.53%** of dilution rows,
+inside the pre-registered 5–25% band — so the flag works; there simply is not enough
+M&A-coincident dilution for a separate z-scored input to mean anything.
+
+### 1.4 C3 failed its bar, and is reported as a failure
+
+**The rebuilt incumbent is NOT bit-identical to the shipped `capital_discipline`: max |Δ|
+0.006676**, against a 1e-9 bar. Reported as a failed control rather than quietly reclassified.
+
+Diagnosed rather than asserted: **within-date rank correlation exactly `1.00000000`**, **median
+deviation exactly `0.000e+00`**, and the two differ by a **per-date affine rescaling** (β = 1.0
+and α = 0.0 on most dates, worst residual 1.0e-03). The cause is that `build_frame` standardises
+over every scored name that date, while the panel then drops names with no forward return — so
+the two z-scores share an ordering but not a mean and sd.
+
+**And bounded, which is what makes the verdicts survivable: re-running every gate against the
+SHIPPED column as the baseline returns the same four `reject` verdicts with deltas identical to
+four decimal places.** The seam is real and it changes nothing here.
+
+### 1.5 Trial cost and adoption
+
+**Equity `N` 161 → 165** (four arms, one weighting, no grid); options 258 untouched.
+**ADOPTS NOTHING.** Adoption would be a **vintage event**, and it costs more here than usual: the
+current vintage is **DERIVED** per `PT-GAPDUE` — **vintage 3, opened 2026-08-11, and its recorded
+reason IS the `capital_discipline` restoration** — so changing this theme's construction would
+close a vintage days old and open vintage 4. **Expectations 3 right, 3 wrong.**
+
+## 2. S28 — the distribution beside the mean
+
+Reporting infrastructure: **no hypothesis, no threshold, no verdict, and no published claim
+moves.** `statistics.distribution()` returns n, mean, sd, min/p05/p25/median/p75/p95/max, the
+count and fraction of **negative** periods, and the **dated** worst and best period. Wired into
+four payload blocks; `SCHEMA_VERSION` **5 → 6**, purely additive.
+
+**What it shows on the shipped book — which is the reason the item was worth doing:**
+
+| | value |
+|---|---|
+| published top-decile alpha | **+7.17%/yr** (the mean of 69 quarterly draws) |
+| quarters NEGATIVE | **20 of 69 — 28.99%** |
+| median quarter vs mean quarter | **+1.41%** vs **+1.79%** — right-skewed |
+| worst quarter | **−6.83%, 2016-01-20** |
+| best quarter | +11.47%, 2022-07-22 |
+| long-short quarters negative | **33.3%**, worst **−20.01%, 2025-07-29** |
+
+So the headline is a mean that is **better than the typical quarter**, and it is negative in
+almost three quarters out of ten. Nothing about the claim changes; what changes is that the file
+now says so without being asked.
+
+**Three things that make it safe:**
+
+1. **The units travel in the block.** The obvious misuse is annualising a quantile.
+   `top_decile_alpha` is periods-per-year × the **mean**, and that scaling is a statement about a
+   mean, never about an order statistic. Every block carries a `units` string saying so.
+2. **Consistency is asserted, not assumed.** `4 × distribution.mean` reproduces
+   `top_decile_alpha` to **4e-17** on the real panel and exactly on a synthetic one. A
+   distribution attached to the wrong series would look perfectly reasonable and quietly mislabel
+   the worst quarter in the record.
+3. **Pinned as reporting-only** by a test that fails if any threshold, gate or verdict ever
+   compares or branches on a distribution field — **and that guard was checked for vacuity**, since
+   it would otherwise pass by seeing nothing (M6's lesson). It inspects 14 code-level references.
+
+The dated extremes are matched against the **original** series rather than the cleaned one,
+because pairing a cleaned value with an uncleaned date is exactly how an off-by-one mislabels a
+quarter.
+
+**Zero equity trials**; infra `N` 10 → 11 on the M2/M6 precedent.
+
+## 3. Two ledger rows that were lying about their own state
+
+Both were checked against the tree, not against their own text.
+
+* **`O14` — the STATUS was stale, the NOTE was already correct.** The cell read `INPROGRESS` with
+  the reason *"collection done, analysis not started"*, which had been **false since
+  2026-08-11**: the cache holds 195 ticker directories and the analysis half shipped as
+  `valuation/edge/tickflow.py`, `scripts/o10_o18_tickflow.py`, `tests/test_tickflow.py` and a
+  44KB `O10_O18_TICKFLOW.json`. The note below the cell already said so; the status did not, so
+  anyone scanning statuses saw the wrong state. **The row still stays OPEN** — but for the reason
+  the note gives, not the one the cell gave: O10/O18 used the cache for execution cost only, and
+  the put/call and unusual-volume studies that justified 4.72GB of collection have still never run.
+* **`B13` — the NOTE was accurate and the STATUS was wrong.** `IN PROGRESS` since 2026-08-04, with
+  nothing in progress. This is a **settled partial state with a named, unmet data prerequisite**,
+  and calling it in-progress implied work underway and invited a reader to wait for it. The panel
+  says so itself at `fundamental_panel.py:1488-1492`, which ships the reason in the results file:
+  `MIN_AVG_DOLLAR_VOLUME` has never bound on this path and still cannot, because the price export
+  carries **date and close only**, so `avg_dollar_volume` cannot be computed there at all. Wiring
+  it needs SEP volume in the panel loader — data plumbing, not a fix to this filter. Now
+  **`PARTIAL - BLOCKED ON DATA, NOT IN PROGRESS`**.
+
+## 4. What I did NOT do
+
+1. **I did not test buyback-announcement drift or dividend-initiation drift** (§1.1). The first is
+   not on data we own; the second is derivable from the `dividend` stream but is a different
+   signal. Both named so neither is later mistaken for tested-and-failed.
+2. **I did not repair the C3 seam** (§1.4). Making the panel's z-scores match `build_frame`'s
+   cross-section is a scoring change, and it would be a vintage event for a 0.67%-of-a-sd
+   difference that changes no verdict.
+3. **I did not add SEP volume to the panel loader** to unblock B13 — different lane's plumbing,
+   and it would change the universe.
+4. **I did not touch `bulk.prepare_actions`.** Adding an acquisitions key would leave a **stale
+   pickle silently yielding an empty M&A flag** — a degenerate arm with no warning, which is what
+   the COVERAGE RULE exists to stop. The map is read in the script with a row-count assertion.
+5. **I did not let S28 change any number.** It is additive and pinned as such.
+
+## 5. BUGS FOUND
+
+1. **The audit's S16 method is half unbuildable** (§1.1) — reported, not worked around.
+2. **`O14` and `B13` statuses contradicted their own notes** (§3) — both corrected.
+3. **C3's seam between the panel's z-scores and `build_frame`'s** (§1.4) — reported, bounded, not
+   repaired.
+4. **`scripts/build_ledger.py` will DROP the rows touched this session** if regenerated — S16, S28,
+   O14 and B13 are curated. Pre-existing, reported each time it bites.
+
+## 6. Next
+
+Unchanged and now shorter: **S10's accounting half** (Beneish, Altman, external financing, NT late
+filings) or the **CPCV embargo** from session 22, still the only open item that can move a
+published number.
+
+**And the dated one, which needs no work: read `/api/track` → `contract_track.recording_ok` on or
+after 2026-08-13.** `row_awaited` is 2026-08-12 and `assessable_from` is 2026-08-13, so from then
+a missing row is a dated writer failure and `PT-WRITER` can finally be escalated or closed.

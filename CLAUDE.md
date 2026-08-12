@@ -44,6 +44,74 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **SPLITTING NET ISSUANCE INTO TWO INPUTS CANNOT CHANGE AN ORDERING — IT IS A RANK IDENTITY,
+  NOT A MEASUREMENT — AND BUYBACKS CARRY MORE OF THE THEME'S IC THAN DILUTION DOES
+  (2026-08-12, session 30, `S16`).** `PREREG_s16_issuance_decomposition.md` committed **alone at
+  `afc7578`**, a strict ancestor of the measurement commit. One panel build, five scorings, every
+  arm a column on ONE frame. **ALL FOUR ARMS REJECTED. ADOPTS NOTHING.**
+  * **THE PREMISE CHECK REMOVED HALF THE AUDIT'S METHOD BEFORE ANY ARM RAN.** All 671,417 ACTIONS
+    rows carry one of nineteen action types and **NONE is a repurchase authorisation**, so
+    buyback-announcement drift is **not testable on data we own**; and **`initiated` is
+    index/security listing initiation** (its earliest rows are `^VIX`, `^RUT`, `^IXIC`, all
+    1997-12-31), **not dividend initiation**. What IS there is `acquisitionof`/`acquisitionby` —
+    8,248 dated rows each with deal values — which is the M&A leg. Same class as S25.
+  * **THE DEEPEST FINDING IS AN IDENTITY, AND IT KILLS THE AUDIT'S ACTUAL PROPOSAL.** S16C's
+    within-date rank correlation against the incumbent is **1.000000000000 on all 69 dates**,
+    because `buyback = max(0, −net)` and `−dilution = −max(0, net)` are **both non-increasing in
+    `net`** (verified directly on the real series), so the mean of their z-scores preserves the
+    ordering of `neg_issuance = −net` **exactly**. **So "separate them into two inputs so the
+    composite can weight them independently" cannot express any ordering the single input cannot
+    — it only shrinks the theme's per-date dispersion 1.000315 → 0.774730, a 22.5% cut in
+    effective weight.** The S20/S21 rank-invariance lesson in a new costume.
+  * **BUYBACK CARRIES MORE OF THE IC THAN DILUTION, WHICH REFUTES TWO PRE-REGISTERED
+    EXPECTATIONS.** Theme IC *t*: **S16A buyback-only +3.2066**, incumbent **+2.7530**, **S16B
+    dilution-only +2.5623**. **S16A is the ONLY arm clearing X7's calibrated 2.71 theme-IC bar —
+    and it still fails the gate**, which is the **fifth** demonstration that theme IC does not
+    judge a construction change.
+  * **VERDICTS: all four REJECTED** against the already-committed margins — S16A Δalpha
+    +0.47pp / +0.05pp; S16B +0.23pp / −0.26pp; S16C +0.20pp / −0.06pp; S16D +0.17pp / −0.19pp.
+    **S16D is FLAGGED DEGENERATE** by the pre-committed C6 rule (`mna_dilution` non-zero on only
+    **3.19%** of rows) even though C7's own bar passed — the M&A flag fires on **5.53%** of
+    dilution rows, inside the pre-registered 5–25% band.
+  * **C3 DID NOT PASS ITS BAR AND IS REPORTED AS A FAILURE, NOT RECLASSIFIED.** The rebuilt
+    incumbent differs from the shipped `capital_discipline` by up to **0.006676** (0.67% of one
+    sd), because `build_frame` standardises over every scored name that date while the panel then
+    drops names with no forward return. **Diagnosed, not asserted** — within-date rank correlation
+    exactly **1.00000000**, median deviation exactly **0.000e+00**, a per-date affine rescaling
+    with worst residual 1.0e-03 — **and bounded: re-running every gate against the SHIPPED column
+    as baseline returns the same four rejects with deltas identical to four decimals.**
+  * **ADOPTION WOULD COST MORE HERE THAN USUAL AND THE REGISTER SAID SO FIRST.** The current
+    vintage is **DERIVED** per `PT-GAPDUE` — **vintage 3, opened 2026-08-11 — and its recorded
+    reason IS the `capital_discipline` restoration.** So changing this theme's construction would
+    close a vintage days old and open vintage 4, a second five-year clock reset on the same theme.
+  * **Equity `N` 161 → 165**; options 258 untouched. Expectations **3 right, 3 wrong**. **NOT
+    tested and named so it is not mistaken for tested:** buyback-announcement drift (no such data)
+    and dividend-initiation drift (derivable, different signal, out of scope).
+    `data/free_analysis/S16_ISSUANCE.json`; `HANDOFF_edge_audit.md` §2.
+- **THE HEADLINE ALPHA IS NEGATIVE IN 29% OF QUARTERS, AND THE RESULTS FILE NOW SAYS SO
+  (2026-08-12, session 30, `S28`).** Reporting infrastructure — **no hypothesis, no threshold, no
+  verdict, and no published claim moves.** `statistics.distribution()` ships n, mean, sd,
+  min/p05/p25/median/p75/p95/max, the count and fraction of **negative** periods, and the **dated**
+  worst and best period, wired into four payload blocks (`construction.top_decile_alpha_
+  distribution`, `construction.long_short_distribution`, `portfolio.return_distribution`,
+  `portfolio.excess_vs_equal_weight_distribution`). `SCHEMA_VERSION` **5 → 6**, purely additive.
+  * **WHAT IT SHOWS ON THE SHIPPED BOOK, which is why it was worth doing.** The published
+    **+7.17%/yr** top-decile alpha is the mean of 69 quarterly draws of which **TWENTY ARE
+    NEGATIVE (28.99%)**, with a **worst quarter of −6.83% (2016-01-20)** and a best of +11.47%
+    (2022-07-22) — and a **median of +1.41% against a mean of +1.79%**, so the headline is
+    **right-skewed and the typical quarter is worse than the average one**. The long-short spread
+    is negative in **33.3%** of quarters, worst **−20.01% (2025-07-29)**.
+  * **THE UNITS TRAVEL IN THE BLOCK, because the obvious misuse is annualising a quantile.**
+    `top_decile_alpha` is periods-per-year × the **mean**; that scaling is a statement about a
+    mean and **never about an order statistic**.
+  * **CONSISTENCY IS ASSERTED, NOT ASSUMED: 4 × the distribution's mean reproduces
+    `top_decile_alpha` to 4e-17** on the real panel and exactly on a synthetic one — the check
+    that the block describes the SAME series the headline is a mean of. A distribution attached
+    to the wrong series would look reasonable and quietly mislabel the worst quarter in the record.
+  * **PINNED AS REPORTING-ONLY** by a test that fails if any threshold, gate or verdict ever
+    compares or branches on a distribution field — **and that guard was checked for vacuity**: it
+    inspects 14 code-level references, so it is not passing by seeing nothing. **Zero equity
+    trials**; infra `N` 10 → 11 on the M2/M6 precedent, and infra `N` gates no published claim.
 - **ALL THREE INSIDER REBUILDS ARE REJECTED, AND THE AUDIT'S OWN THRESHOLD WOULD HAVE REJECTED
   THEM FOR A REASON UNRELATED TO WHAT THE COMPOSITE DID (2026-08-12, session 29, `S3`).**
   `PREREG_s3_insider_rebuild.md` was committed **alone at `b3a85fa`** — one `.md`, zero `.py`, a
