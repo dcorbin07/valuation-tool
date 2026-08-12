@@ -709,6 +709,20 @@ def _yoy(m, rows, as_of, shares_now, rev_now, assets_now, cut1=None, cut2=None):
             m["growth_accel"] = m["revenue_growth"] - (rev0 / rev2 - 1.0)
 
 
+def _insider_formula(net, buys):
+    """The shipped 0-100 insider score. ONE definition, called by both paths.
+
+    S3 PREMISE CHECK (b): this expression used to be written out twice -- once in
+    `_insider_score` (the row-iterating fallback) and once in `_insider_score_at` (the prepped
+    fast path) -- and the B26 comment in each said the two paths must agree. Two copies of a
+    formula that MUST agree is the B7 defect class, so there is now one copy and the duplicates
+    delegate to it. Bit-identical to what both sites computed before; pinned by
+    `test_s3_both_insider_paths_agree`.
+    """
+    import math
+    return max(0.0, min(100.0, 50 + 40 * math.tanh(net / 5e6) + min(10, 2 * buys)))
+
+
 def _insider_score(rows, as_of, lookback_days=90):
     """0-100 (50 = neutral) net insider buying over the trailing window, by FILING date
     (point-in-time). Mirrors the live insider factor so the two are comparable."""
@@ -734,7 +748,7 @@ def _insider_score(rows, as_of, lookback_days=90):
             buys += 1
     if net == 0 and buys == 0:
         return None
-    return max(0.0, min(100.0, 50 + 40 * math.tanh(net / 5e6) + min(10, 2 * buys)))
+    return _insider_formula(net, buys)
 
 
 def _inst_accum(rows, as_of, lag_days=45):
@@ -797,7 +811,28 @@ def _insider_score_at(prep, as_of, lookback_days=90):
         return None
     w = vals[a:b]
     net, buys = float(w.sum()), int((w > 0).sum())
-    return max(0.0, min(100.0, 50 + 40 * math.tanh(net / 5e6) + min(10, 2 * buys)))
+    return _insider_formula(net, buys)
+
+
+def _insider_raw_at(prep, as_of, lookback_days=90):
+    """The `(net, buys)` pair `_insider_score_at` reduces to a score, exposed unreduced.
+
+    S3 needs the two raw quantities to build its variants, and it must build them from the SAME
+    window the shipped score uses or the arms differ in more than the formula. So this repeats
+    the window arithmetic and nothing else; `_insider_score_at` remains the only scorer.
+    Returns None on exactly the inputs that make the score None.
+    """
+    if prep is None:
+        return None
+    dts, vals = prep
+    hi = np.datetime64(as_of[:10], "D")
+    lo = hi - np.timedelta64(lookback_days, "D")
+    a = int(np.searchsorted(dts, lo, side="left"))
+    b = int(np.searchsorted(dts, hi, side="left"))
+    if b <= a:
+        return None
+    w = vals[a:b]
+    return float(w.sum()), int((w > 0).sum())
 
 
 def _prep_inst(rows):
@@ -938,7 +973,8 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                             lookback_years=6, horizon=63, inst_lag_days=45,
                             keep_numbers=False, sector_neutral=False,
                             grid_offset=None, extra_horizons=None,
-                            sector_neutral_pair=False, standardizer_arms=None) -> pd.DataFrame:
+                            sector_neutral_pair=False, standardizer_arms=None,
+                            with_insider_raw=False) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -1254,6 +1290,13 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
             isc = _insider_score_at(insh.get(t), as_of)
             if isc is not None:
                 m["insider_score"] = isc                          # → insider theme (now backtestable)
+            if with_insider_raw:
+                # S3 — the unreduced (net, buys) the score is built from, so the register's
+                # variants are functions of the SAME window rather than a re-mined one. Opt-in,
+                # so the default panel's column set is untouched.
+                _raw = _insider_raw_at(insh.get(t), as_of)
+                if _raw is not None:
+                    m["ins_net"], m["ins_buys"] = _raw
             ia = _inst_accum_at(inst.get(t), as_of, lag_days=inst_lag_days)
             if ia is not None:
                 m["inst_accum"] = ia                              # → institutional theme
@@ -1364,6 +1407,14 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                     v = (_rs.get(theme) if (_rs is not None and theme in fr_sn.columns)
                          else None)
                     row["sn_" + theme] = None if (v is None or pd.isna(v)) else float(v)
+            # S3 — the unreduced insider inputs on this same row, so the register's variants are
+            # rebuilt from the SAME window the shipped score used. `insider_score` travels too,
+            # so the incumbent arm can be reproduced from the panel rather than trusted.
+            if with_insider_raw:
+                _src3 = _by_ticker.get(t) or {}
+                for _k in ("ins_net", "ins_buys", "insider_score"):
+                    _v3 = _src3.get(_k)
+                    row[_k] = None if (_v3 is None or pd.isna(_v3)) else float(_v3)
             # S20/S21 — the standardizer arms' themes, on this same row.
             for _p, _fr in fr_std.items():
                 _rr = _fr.loc[t] if t in _fr.index else None

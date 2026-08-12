@@ -7592,6 +7592,130 @@ def test_s10_C7_the_offline_build_can_never_reach_the_network_rung():
             f"{rung} appears BEFORE the override short-circuit — offline is not offline"
 
 
+# ------------------------------------------------ S3 (session 29): the insider rebuild
+def test_s3_both_insider_paths_agree():
+    """CONTROL C5. The score used to be written out TWICE -- `_insider_score` (the row-iterating
+    fallback) and `_insider_score_at` (the prepped fast path) -- and the B26 comment in each said
+    the two must agree. Two copies of a formula that MUST agree is the B7 defect class. There is
+    now one `_insider_formula` and both delegate; this fails if either grows its own copy again.
+    """
+    import random
+
+    import numpy as np
+    import pandas as pd
+
+    from valuation.edge import fundamental_panel as FP
+
+    rng = random.Random(20260812)
+    for _ in range(60):
+        n = rng.randint(1, 9)
+        as_of = "2020-06-30"
+        rows, vals, dates = [], [], []
+        for k in range(n):
+            d = pd.Timestamp(as_of) - pd.Timedelta(days=rng.randint(1, 80))
+            v = rng.choice([1, -1]) * rng.uniform(1e3, 3e7)
+            rows.append({"filingdate": d.strftime("%Y-%m-%d"),
+                         "transactionshares": v / 10.0, "transactionpricepershare": 10.0})
+            dates.append(np.datetime64(d.strftime("%Y-%m-%d"), "D"))
+            vals.append(v)
+        order = np.argsort(np.array(dates))
+        prep = (np.array(dates)[order], np.array(vals, dtype=float)[order])
+        slow = FP._insider_score(rows, as_of)
+        fast = FP._insider_score_at(prep, as_of)
+        assert (slow is None) == (fast is None), (slow, fast)
+        if slow is not None:
+            assert abs(slow - fast) < 1e-12, (slow, fast)
+
+
+def test_s3_the_formula_has_exactly_one_definition():
+    """The literal must not reappear. Read from source, docstrings stripped, so this test
+    cannot be satisfied by its own text (the M6 lesson)."""
+    import re
+
+    src = open("valuation/edge/fundamental_panel.py", encoding="utf-8").read()
+    src = re.sub(r'""".*?"""', "", src, flags=re.S)          # strip docstrings AND comments
+    src = re.sub(r"#.*", "", src)
+    hits = re.findall(r"40\s*\*\s*math\.tanh", src)
+    assert len(hits) == 1, f"the insider formula appears {len(hits)} times; it must appear once"
+
+
+def test_s3_the_raw_insider_pair_is_opt_in():
+    """`with_insider_raw` must not change the default panel. Checked on the SIGNATURE and on the
+    emission site, because the panel itself is a 20-minute build."""
+    import inspect
+    import re
+
+    from valuation.edge import fundamental_panel as FP
+
+    p = inspect.signature(FP.build_fundamental_panel).parameters
+    assert "with_insider_raw" in p, "the flag vanished"
+    assert p["with_insider_raw"].default is False, "the raw pair became the default"
+    src = open("valuation/edge/fundamental_panel.py", encoding="utf-8").read()
+    for key in ("ins_net", "ins_buys"):
+        for m in re.finditer(rf'"{key}"', src):
+            seg = src[max(0, m.start() - 900):m.start()]
+            assert "with_insider_raw" in seg, f"{key} is emitted outside the opt-in guard"
+
+
+def test_s3_raw_pair_reduces_to_the_shipped_score():
+    """`_insider_raw_at` must describe the SAME window `_insider_score_at` scores, or the
+    variants are built on a different book from the incumbent."""
+    import numpy as np
+
+    from valuation.edge import fundamental_panel as FP
+
+    dates = np.array(["2020-01-15", "2020-04-01", "2020-06-01", "2020-06-30"], dtype="datetime64[D]")
+    #                 [0] BEFORE the 90d lookback   [1] [2] in-window   [3] ON as_of
+    vals = np.array([7e9, -2e6, 3e6, 9e9], dtype=float)
+    prep = (dates, vals)
+    raw = FP._insider_raw_at(prep, "2020-06-30")
+    assert raw is not None
+    net, buys = raw
+    assert abs(FP._insider_formula(net, buys) - FP._insider_score_at(prep, "2020-06-30")) < 1e-12
+    # 2020-06-30 minus 90 days is 2020-04-01, so ONLY rows [1] and [2] are in the window.
+    assert buys == 1 and abs(net - (-2e6 + 3e6)) < 1e-6, raw
+    # Both exclusions are load-bearing and each has its own 7e9/9e9 tripwire: the lookback's
+    # lower bound (row 0) and B26's same-day upper bound (row 3). Either leak blows `net` up
+    # by three orders of magnitude, so a silent regression cannot hide inside the tolerance.
+    assert abs(net) < 1e8, "a row outside the window leaked in (lookback or B26 regression)"
+
+
+def test_s3b_never_imputes_a_neutral_score_for_a_missing_market_cap():
+    """Register 2: imputing 50 would turn an availability gap into a signal -- S10's failure
+    mode, deliberately introduced. A missing market cap must yield None."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("s3mod", "scripts/s3_insider_rebuild.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    for bad in (None, 0, -1.0, float("nan")):
+        assert mod.score_s3b(4e6, 2, bad) is None, f"imputed a score for market cap {bad}"
+    ok = mod.score_s3b(4e6, 2, 4e9)
+    assert ok is not None and 50.0 < ok <= 100.0, ok
+    assert mod.S3B_SCALE == 0.001, "the pre-committed S3b scale moved"
+
+
+def test_s25_the_pit_valuation_still_reads_a_non_point_in_time_sector():
+    """S25, reported NOT repaired. `build_valuation_panel` pins BETA point-in-time (S23) and
+    passes TODAY's TICKERS sector into the same point-in-time valuation, where it selects the
+    sustainable-margin anchor and the comps multiple. This test does not assert the defect is
+    fixed -- it fails if the exposure silently CHANGES shape, so the finding cannot rot.
+    """
+    import re
+
+    src = open("valuation/engine/calibration.py", encoding="utf-8").read()
+    assert re.search(r"sector=md\.get\(\"sector\"\)", src), \
+        "the PIT panel's sector source moved; re-check the S25 finding before editing this test"
+
+    from valuation.engine import assumptions as A
+    from valuation.engine import comps as C
+    tm = A.SECTOR_TARGET_MARGIN
+    assert min(tm.values()) <= 0.10 and max(tm.values()) >= 0.27, \
+        "the sector margin anchors moved; S25's measured 2.70x spread needs re-measuring"
+    pe = sorted(d["pe"] for d in C.SECTOR_MULTIPLES.values() if d.get("pe"))
+    assert pe[-1] / pe[0] >= 2.0, "the comps PE spread collapsed; re-measure S25's exposure"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
