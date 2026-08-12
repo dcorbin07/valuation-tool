@@ -5000,3 +5000,187 @@ kills A4 is the **tail clause**, not the null.
 3. **Not recommended: any cheapest-on-surface variant.** Three of four rules lose money, the worst
    is the audit's own headline suggestion, and the diagnostic shows why — on this candidate set a
    cheapness criterion cannot change the contract without changing the delta.
+
+
+## 46 · `O11` + `O19` + `O22` + `O25` — the portfolio-and-capacity batch. **A BOOK WITH POSITIVE PER-TRADE EXPECTANCY LOSES MONEY AT REALISTIC SIZING, AND THE REASON IS MEASURED.**
+
+**One register, four items, nine arms, `PREREG_o11_o19_o22_o25_portfolio.md` committed ALONE at
+`1203a85`** — one `.md`, zero `.py`. Frozen book, no re-mine, **no live code path changed, nothing
+adopted.**
+
+### 46.1 · THE O-SERIES — what this does and does not close
+
+**Counted from the ledger after this batch: 25 of 26 O-rows are `DONE`. `O14` is the only one
+left, and it is not closed by this work.** Its collection is complete and its first analysis
+landed (O10/O18 used the tick cache for execution cost), but the **put/call ratio and
+unusual-volume studies the cache was justified by remain untested.**
+
+**So the accurate sentence — fixed in the register's §0.2 before any result existed, so it could
+not be inflated afterwards — is: this batch closes the last four OPEN audit HYPOTHESIS rows in the
+O-series, leaving `O14` open as a data-collection row whose justifying analyses are still undone.**
+It is **not** "the O-series is closed", and the difference is one real piece of unfinished work.
+
+### 46.2 · The ledger was wrong about ALL FOUR rows — the third session running
+
+Every one was `src=auto` / *"no mention anywhere in the corpus"*. **All four false**:
+`VALQUO_EDGE_AUDIT.md:1066`, `:1985`, `:2023`, `:2061` are full sections specifying methods.
+Session 29 hit this on O6 and O17, session 30 corrected both, and this session found four more.
+**That note is not evidence of absence and should stop being read as one.** All four corrected.
+
+### 46.3 · The execution order was a MECHANISM, and it was demonstrated before it was needed
+
+The register fixed that **O19 runs first, in its own pass**, and that the O11 stage **refuses** to
+run without O19's artifact, reads its verdict and embeds it. **This was proved by invoking the main
+stage with the artifact absent and getting the refusal**, before O19 had ever been run.
+
+This is the direct repair of **session 26's own process defect**, where O10's gating control `C2`
+and its outcome statistics were computed in one pass, so it could not be claimed the control was
+read first. **The order is load-bearing, not ceremony: O11 sizes in WHOLE CONTRACTS and therefore
+inherits whatever O19 finds about whole-contract arithmetic.**
+
+### 46.4 · O19 — NOT-AN-ARTEFACT, and the audit's premise is largely absent here
+
+| weighting | expectancy |
+|---|---|
+| equal-weighted (current) | **+3.270%** |
+| contract-weighted | **+3.407%** |
+| dollar-weighted | **+3.141%** |
+
+Same sign, **0.27pp apart**. Premium floors move it trivially: **$1.00 keeps 84.8% of trades and
+moves expectancy −0.103pp; $2.00 keeps 60.3% and moves it +0.107pp** — an order of magnitude inside
+the 2.00pp bar.
+
+**WHY THE AUDIT'S PREMISE DOES NOT BITE, and it is worth recording rather than just passing:** the
+median position is **three contracts, not twenty**, because the median entry premium is **$2.57**.
+The twenty-contract penny-option case the audit describes is **rare in a megacap book** — the
+mechanism is real, the exposure is small.
+
+### 46.5 · O11 — THREE OF FOUR CELLS UNSURVIVABLE, THE FOURTH MARGINAL, NONE SURVIVABLE
+
+All 3,870 trades acquired a mark path from the freeze, so the void floor did not fire.
+
+| cell | taken | max drawdown (full / early / late) | total return | verdict |
+|---|---|---|---|---|
+| $50k, conc 10 | 1,842 | **0.6710** / 0.5085 / 0.5129 | **−25.9%** | **UNSURVIVABLE** |
+| $50k, conc 50 | 3,515 | **0.7769** / 0.6158 / 0.6671 | +52.6% | **UNSURVIVABLE** |
+| $250k, conc 10 | 1,902 | 0.3589 / 0.3143 / 0.2820 | +25.9% | **MARGINAL** |
+| $250k, conc 50 | 3,852 | **0.5842** / 0.3782 / 0.6419 | +103.5% | **UNSURVIVABLE** |
+
+**THE HEADLINE IS THE FIRST ROW AND IT CONFIRMS THE AUDIT'S OWN HYPOTHESIS EXACTLY: a book with
+POSITIVE per-trade expectancy of +3.27% LOSES MONEY at $50,000 with a concurrency cap of 10**,
+finishing at **$37,059** from $50,000 after a **67% drawdown**. *Per-trade expectancy and
+survivability are different questions, and this project had only ever measured the first.*
+
+**THE MECHANISM IS MEASURED, NOT ASSERTED — and it is the audit's own third possibility.** Alerts
+**cluster**, and the book's entire edge lives in the crowded weeks:
+
+* over **483 weeks**, median **7** alerts, max **38**;
+* expectancy in quiet weeks (≤ median): **−4.51%**;
+* expectancy in weeks above the 90th percentile: **+14.28%**;
+* **51.5%** of all trades fall in weeks of more than 10 alerts.
+
+**A concurrency cap therefore refuses trades exactly when the opportunity is richest** — 1,677 of
+3,870 skipped on concurrency at cap 10 — which is why the constrained small-capital book is not
+merely more volatile but **outright loss-making**.
+
+**Two disclosures.** `MAX_CONCURRENT` is a module constant in `options_vrp`, not a parameter of
+`simulate_book`, so each cell sets it and the original is restored in a `finally`.
+`MAX_CONTRACTS_PER_SPREAD = 10` also binds.
+
+**The long-leg mapping is the place a sign error would have hidden**, so it is a named function
+with six tests: the layer marks `(credit_ps − mark)`, the P&L of something *sold*, so a long call
+maps by `credit_ps = −debit` with every mark negated, making the layer's own expression
+`mark − debit` exactly. **A sign error there would not raise — it would print the equity curve
+upside down.**
+
+### 46.6 · O22 — capacity ≈ $76.6M on the registered measure, and the measure is a STOCK
+
+Median ATM open-interest notional **$14,986,450**; gross edge **327.0 bps/trade**. Capacity
+**$121.6M / $76.6M / $48.3M** at λ = 0.5 / **1.0** / 2.0. At the headline the median position is
+**10.2%** of the contract's ATM open interest, with **78.4%** of positions above 5%.
+
+**THIS NUMBER MAY NOT BE COMPARED WITH P1's EQUITY $23M, AND THE REASON IS MEASURED RATHER THAN
+ASSERTED: OPEN INTEREST IS A STOCK; P1's ADV IS A FLOW.** On 3,665 matched entry-day quotes the
+traded contract's daily volume is a median **0.1326** of its open interest — **179 contracts traded
+against 1,373 outstanding** — so an OI-based capacity **overstates a flow-based one by ~7.5×**,
+putting the flow-equivalent figure near **$10M**.
+
+**The registered headline STANDS as measured.** Swapping the depth measure after reading the number
+is exactly what §8.2 forbids; the correction is reported beside it. Three caveats travel with every
+figure: **upper bound** (depth from mined names, and mining selected on liquidity), **λ is an
+assumption**, and **mechanical rather than a recommendation** — R2 shows this book's entry loses to
+random entry, so this answers *how much it could hold*, never *how much should be deployed*.
+
+### 46.7 · O25 — NULL on both arms, and not marginally: the wing is reliably WORSE
+
+| arm | n | wing | vs CLOSING | vs HOLDING | verdict |
+|---|---|---|---|---|---|
+| +75% | 1,332 | +0.9928 | **−9.34pp** [−0.1237, −0.0639] | **−9.69pp** [−0.1114, −0.0836] | **NULL** |
+| +100% | 1,082 | +1.2656 | **−13.03pp** [−0.1450, −0.1155] | **−7.76pp** [−0.0857, −0.0699] | **NULL** |
+
+**Negative in both halves against both comparators, every interval excluding zero.** That is
+stronger than a NULL: the wing does not merely fail a bar, it **reliably costs expectancy**.
+
+**THE AUDIT'S OWN PREDICTION IS CONFIRMED ON BOTH LEGS** — reported without a verdict, as
+registered. At +75%: standard deviation falls **0.823 → 0.707** and the share of outcomes above
++100% falls **74.2% → 56.6%**. At +100%: sd 0.648 → 0.635, tail 91.3% → 77.6%. **Whether that trade
+is worth making depends on O12**, which found no fraction is a recommendation for real money on a
+distribution R2 has already shown is worse than random entry.
+
+**A free by-product, no verdict** (it is the path study's territory): closing at the crossing and
+holding to the banked exit are near-identical at +75% (+1.0862 vs +1.0897), but **at +100% CLOSING
+BEATS HOLDING by 5.3pp** (+1.3959 vs +1.3431).
+
+### 46.8 · The split-adjusted-spot guard, built in as instructed
+
+Session 30 found the U1-SPLIT defect class recurring in its own instrument. **`assert_raw_spot` is
+now a shared guard in `portfolio_capacity` that RAISES rather than warns**, is called before any
+instrument here touches a price, and **also raises when it can check nothing** — a guard with an
+empty overlap that reports success is the same failure in a new costume. **It read 3,870 entries at
+a median relative error of exactly 0.00e+00.** Six tests pin it, including one that fails if it is
+downgraded to a return flag, and the register makes downgrading it a void condition.
+
+## 47 · What I did NOT do, and why
+
+* **I did not claim the O-series is closed.** `O14` remains open; §46.1 states exactly what is and
+  is not finished, and the register fixed that wording before any result existed.
+* **I did not swap O22's depth measure after seeing the capacity number**, even though open
+  interest is the wrong kind of quantity for P1's method. The registered headline stands and the
+  7.5× correction is reported next to it.
+* **I did not re-implement the portfolio layer** — the shipped `simulate_book` is imported, so this
+  is the arithmetic the VRP arm was judged by.
+* **I did not sweep a grid on O11.** Four cells were named in advance; the in-search-to-holdout
+  collapse is already paid for once.
+* **I did not adopt anything.** `RISK_PER_TRADE`, `DEFAULT_AGGRESSION`, `pick_contract` and every
+  exit constant are untouched, and pinned by test.
+* **I did not treat O11's result as a verdict on the strategy.** R2 already killed the entry; this
+  is a construction finding on a book whose entry is dead.
+
+## 48 · Trial cost
+
+**Options `N` 271 → 280** — 2 (O19) + 4 (O11) + 1 (O22) + 2 (O25), **exactly as §7
+pre-committed.** Equity and infra untouched by this item; **after merging they read equity 176 and
+infra 11** — re-read `by_domain` after the merge rather than quoting a mid-session figure, which is
+now a standing lesson in this lane.
+
+Charged **zero**: the λ band, O25's risk-side statistics, the alert-clustering diagnostic, the
+volume-over-open-interest diagnostic and every control.
+
+**Expectations scored 4 right, 2 wrong, 2 split.** Right: E1, E3, E6, E8. Wrong: **E2** (a $1.00
+floor was predicted to raise expectancy; it lowered it by 0.103pp) and **E5** (capacity predicted
+under $10M; it is $76.6M on the registered measure, though the flow-adjusted figure lands near the
+predicted value — scored against the registered definition, not the flattering one). Split: **E4**
+($50k/conc50 is worst by drawdown but $50k/conc10 is worst by return) and **E7** (sd falls on both
+arms, but share-positive rises only at +75%).
+
+## 49 · Recommended next step
+
+1. **`O14`'s justifying studies are the only O-row left.** The put/call ratio and unusual-volume
+   analyses are what the 4.72GB tick cache was collected for, and until they run the cache's
+   justification is unpaid. That is the honest last item in this series.
+2. **O11's clustering result deserves its own register.** That the edge lives in crowded weeks
+   (+14.28% vs −4.51%) is a property of the *alert generator*, not of sizing, and it was found as
+   a diagnostic here. It bears on any future book that has to allocate under a cap.
+3. **Not recommended: deploying capital against O22's number.** It is mechanical, it is an upper
+   bound, its depth measure is a stock, and R2 says the entry loses to random entry. Four
+   independent reasons, any one sufficient.

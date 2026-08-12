@@ -1,5 +1,60 @@
 # HANDOFF STATUS — shared project state
 
+## options-bot lane, session 31 (2026-08-12) — the options book is NOT survivable at realistic sizing, and the O-series is one row from done
+
+**`O11` + `O19` + `O22` + `O25`, one register, nine arms, `PREREG_o11_o19_o22_o25_portfolio.md`
+committed ALONE at `1203a85`.** Frozen book, **no live code path changed, nothing adopted.**
+
+**THE O-SERIES IS NOT CLOSED, AND THE WORDING WAS FIXED BEFORE ANY RESULT EXISTED.** After this
+batch **25 of 26 O-rows are DONE**. **`O14` remains OPEN**: its collection is complete and its
+first analysis landed, but the **put/call and unusual-volume studies the 4.72GB tick cache was
+justified by are still untested.** The accurate sentence is *"this closes the last four OPEN audit
+HYPOTHESIS rows"* - not *"the O-series is closed"*.
+
+**THE HEADLINE: a book with POSITIVE +3.27 pct per-trade expectancy LOSES MONEY at realistic
+sizing.** Applying the shipped portfolio layer (imported, not re-implemented) to the single-leg
+book for the first time: **three of four cells UNSURVIVABLE, the fourth MARGINAL, none
+SURVIVABLE.** At $50,000 with a concurrency cap of 10 the book ends at **$37,059** after a **67 pct
+drawdown** - a **-25.9 pct** total return. Per-trade expectancy and survivability are different
+questions and only the first had ever been measured here.
+
+**THE MECHANISM IS MEASURED AND IS THE MOST PORTABLE RESULT: alerts CLUSTER and the edge lives in
+the crowd.** Over 483 weeks (median 7 alerts, max 38), expectancy is **-4.51 pct in quiet weeks**
+and **+14.28 pct in weeks above the 90th percentile**, with 51.5 pct of trades in weeks of more
+than 10 alerts. A concurrency cap therefore refuses trades **exactly when the opportunity is
+richest** - 1,677 of 3,870 skipped at cap 10. That is the audit's own third possibility, confirmed.
+
+**O19 ran FIRST by mechanism, not promise** - the O11 stage refuses to run without O19's artifact
+and embeds its verdict, demonstrated by invoking it with the artifact absent. This repairs session
+26's process defect, where a gating control and its outcomes were computed in one pass. Verdict
+**NOT-AN-ARTEFACT**: equal +3.270 pct, contract-weighted +3.407 pct, dollar-weighted +3.141 pct.
+The audit's premise barely applies here - the median position is **three** contracts, not twenty.
+
+**O22 capacity approximately $76.6M on the registered depth measure - and it may NOT be compared
+with P1's equity $23M.** Open interest is a STOCK; P1's ADV is a FLOW. Measured: the traded
+contract's daily volume is a median **0.1326** of its open interest, so an OI-based capacity
+overstates a flow-based one by **~7.5x**, putting the flow-equivalent near $10M. The registered
+headline stands as measured and the correction is reported beside it.
+
+**O25 NULL on both arms and not marginally - the wing is reliably worse**, -9.34pp vs closing and
+-9.69pp vs holding at +75 pct, negative in both halves against both comparators. The audit's own
+prediction is confirmed: sd falls 0.823 to 0.707 and the share of outcomes above +100 pct falls
+74.2 pct to 56.6 pct.
+
+**THE SPLIT GUARD IS NOW SHARED AND RAISES**, as instructed after session 30's recurrence:
+`assert_raw_spot` runs before any instrument touches a price, raises rather than warns, and also
+raises when it can check nothing. It read 3,870 entries at median relative error 0.00e+00.
+
+**THE LEDGER WAS WRONG ABOUT ALL FOUR ROWS - the third session running.** All four were `src=auto`
+with "no mention anywhere in the corpus"; the audit has full sections for each. That note is not
+evidence of absence.
+
+**Trial cost: options `N` 271 -> 280**, exactly as pre-committed. Expectations 4 right, 2 wrong, 2
+split. Full write-up: `HANDOFF_optionsbot.md` sections 46-49.
+
+**Recommended next: `O14`'s justifying studies are the only O-row left** - the put/call and
+unusual-volume analyses the tick cache was collected for.
+
 ## options-bot lane, session 30 (2026-08-12) — all ten arms NULL, and a split-adjusted-spot defect that every lane should read
 
 **`O6` + `O7` + `O17`, one register, ten arms, `PREREG_o6_o7_o17_earnings_surface.md` committed
