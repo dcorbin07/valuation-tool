@@ -9308,6 +9308,19 @@ ML tree combiner did, and it *reversed* out of sample.
    pandas coerced the Series to float, so `is not None` was true for NaN and the comparison threw.
    Fixed with an explicit `isinstance(..., str)` and an object dtype. Caught by running it.
 4. **`scripts/build_ledger.py` will DROP both rows** if regenerated — curated. Pre-existing.
+5. **`session 30` NOW NAMES TWO LANES' WORK — THE SECOND SUCH COLLISION IN FOUR SESSIONS.** The
+   options-bot lane stamped `O6` as session 30 while this lane's `S16`+`S28` had already landed as
+   session 30. This is the same class as the `session 29` collision reported in session 30 §5
+   (their `O3`+`O4`+`O5` against this lane's `S3`+`S25`), and it has now happened **twice**, which
+   makes it a process problem rather than an accident. **Both were found by a merge, neither by
+   either lane's own checks.** DELIBERATELY NOT RENUMBERED, for the reason given last time: their
+   number is already referenced from their own handoff, ledger and research-log rows, and editing
+   a landed entry is how a fix silently eats a record. **This session took 33, which was free.**
+   → Routed to the options-bot lane, or to Don as a convention call. **The mechanical rule that
+   would prevent it is not "check once": it is check the GLOBAL maximum in `CLAUDE.md` at the
+   moment you stamp AND re-check after every merge**, because the push→land window is long enough
+   for another lane to take your number — which is exactly what happened both times.
+
 
 ## 10. Next
 

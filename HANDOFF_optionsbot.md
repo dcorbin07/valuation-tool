@@ -4786,3 +4786,217 @@ is **stronger**).
    legs each. The one durable result is negative-going and belongs in the record as such — **the
    straddle-based CONTRADICTS reading for `idio_vol` does not survive a properly delta-hedged
    instrument**, so that prior finding should stop being quoted too.
+
+
+## 42 · `O6` + `O7` + `O17` — the earnings-and-surface-selection family. **ALL TEN ARMS NULL — and the two that came closest each failed on exactly ONE pre-committed leg.**
+
+**One register, three items, ten arms, `PREREG_o6_o7_o17_earnings_surface.md` committed ALONE at
+`779d42c`** — one `.md`, zero `.py`, a strict ancestor of every measurement commit. Frozen book,
+no re-mine, **no live code path changed, nothing adopted.**
+
+### 42.1 · The ledger was wrong about two of these three rows
+
+`VALQUO_LEDGER.md` marked **O6** `src=auto` — *"prose mentions only, no section, no commit"* — and
+**O17** `src=auto` — *"no mention anywhere in the corpus"*. **Both false.**
+`VALQUO_EDGE_AUDIT.md:964` and `:1150` are full sections naming four rules each. **So every
+definition here is QUOTED from the audit rather than invented, which is the opposite of what
+`src=auto` would have licensed.** Both ledger notes are corrected in place.
+
+### 42.2 · The scope fact that governs O7 and O17: coverage is systematic, not thin
+
+`bulk.py` warns that EVENTS code 22 gives *"~2.83 times per ticker per year"* against a full
+calendar's ~4. **On this book's 186 megacaps that is wrong in the reassuring direction: median
+3.96, mean 4.14, and only 0.3% of entries show an entry-to-next gap over 120 days.** The 2.83 is a
+repo-wide average over 17,779 mostly thin tickers.
+
+**The real hole is a systematic exclusion. 29 of 186 names have ZERO earnings dates — 388 trades,
+10.0% of the book — and every one is a foreign private issuer** (ASML, AZN, BABA, BHP, the Canadian
+banks, SHEL, TM, TSM, TTE, UL …) filing 20-F/6-K rather than 8-K. **A filter reading "no date" as
+"no announcement" fails open on a systematically non-random, disproportionately non-US tenth of the
+book** — the exact failure mode this lane declined to ship once already
+(`EarningsCalendar.unknown_means_safe`, §1526).
+
+**Enforced in code rather than intended:** `refuse_within` and `owns_the_event` return **`None` for
+UNKNOWN**, `partition` returns the unknown bucket separately so a caller cannot fold it into either
+side, and four tests fail if `None` ever collapses to `False`. The unknown count in every O17 arm
+is **zero by construction**, because those names are dropped rather than defaulted.
+
+### 42.3 · O6 — all four NULL, and the strongest number in the item is the CONTROL
+
+Entry date, expiry and holding period held fixed; **only the strike changes**; the incumbent is
+re-priced under the identical matched-horizon rule. 3,851 events against a 2,000 void floor.
+
+| arm | gain/trade vs incumbent | own random-alternative p95 | verdict |
+|---|---|---|---|
+| **A1** lowest IV within ±0.05 delta | **+0.074pp** | −11.31pp | **NULL** |
+| **A2** lowest IV vs own trailing IV rank | **−3.505pp** | −11.39pp | **NULL** |
+| **A3** lowest IV vs the fitted smile | **−11.099pp** | −11.24pp | **NULL** |
+| **A4** highest vega per unit spread | **+0.464pp** | −11.39pp | **NULL** |
+
+**THE RANDOM-ALTERNATIVE p95 SITS AT ABOUT −11.3pp, AND THAT IS THE RESULT WORTH KEEPING.**
+Switching to an arbitrary in-band contract costs roughly **eleven percentage points per trade**, so
+**the mechanical 35-delta rule the audit proposed replacing is already far better than arbitrary
+selection.** That is evidence *for* the incumbent, and it was not what the register expected.
+
+**A3 is the audit's own headline suggestion — the ORATS "smoothed market value" idea — and it is
+the WORST arm in the register at −11.1pp/trade.**
+
+**A4 is the near miss and fails on ONE leg only:** positive in **both** halves (+0.534pp early,
++0.401pp late) and clearing its own p95 in both — **NULL solely because tail concentration RISES**
+(0.041→0.042 early, 0.034→0.043 late) against the audit's own no-increase clause.
+
+**THE MECHANISM, and it invalidates the audit's framing** (diagnostic, no verdict, zero trials):
+**the cheapness rules do not hold the trade fixed and improve its price — they change the DELTA.**
+Mean |delta gap| against the incumbent: **A1 0.004, A2 0.248, A3 0.310, A4 0.125**, with A3
+drifting 0.374 → **0.458** — deeper in the money and materially more directional. So A3's −11.1pp
+is an **exposure** effect wearing a cheapness rule's name. The audit argues this *"cleanly separates
+which name from which contract"*; on this candidate set **it does not**.
+
+**A corollary that limits A1, stated because it is the arm most likely to be misread:** a delta gap
+of **0.004** means the ±0.05 band pins A1 to essentially the incumbent contract. **Its near-zero
+gain is close to tautological and is NOT evidence that cheapness is uninformative.**
+
+**PORTABILITY — the pre-registered random-entry control arm, no verdict, zero trials, and the most
+useful thing in the item.** The identical four rules on the five-seed random-entry control book
+(5,984 events) reproduce the same ordering and nearly the same magnitudes: **+0.057, −4.140,
+−9.382, +0.310pp.** So this is a property of **contract selection generally**, not of the dead
+alert days — and it therefore carries to any future book.
+
+### 42.4 · O7 — the diagnostic contradicts the published sign, and the backtest is dead
+
+**Coverage 0.4459** (6,013 of 13,484 events), which **clears its own pre-committed 0.40 floor**, so
+B2 is *not* coverage-bound and carries a verdict.
+
+* **B1 — RICH, contradicting Gao–Xing–Zhang.** Mean implied move **5.4512%** against a mean
+  realised move **4.7773%**; difference **−0.6739pp**, month-block CI95 **[−0.8475, −0.5070]**
+  excluding zero, and realised exceeds implied on only **35.07%** of events. **On this megacap
+  universe earnings options are RICH, not cheap.** Stated as universe-specific rather than as a
+  refutation: their sample is far broader and their own conditioners say the effect is strongest in
+  **smaller** firms, of which this book has none.
+* **B2 — REJECTED decisively.** **−10.340%** per straddle net of four crossings, median −25.468%,
+  only **31.73%** positive, **negative in both halves** (−11.435%, −9.335%) with both CI95
+  excluding zero. The audit predicted the spread would be brutal; it is — the gross event edge is
+  under a percentage point and a straddle crosses the spread four times.
+* **A DEVIATION STATED PLAINLY:** the register specified a non-announcement-date permutation null
+  for B2 and **it was not computed**, because B2 fails the *positivity* leg of its own conjunction
+  in both halves and no null could change the verdict. Reported as a deviation rather than left to
+  look like a control that ran.
+
+### 42.5 · THREE DEFECTS IN MY OWN INSTRUMENT — the first is the U1-SPLIT defect class recurring
+
+**All three were found by disbelieving a number, not by a test failing**, and all were fixed before
+any verdict was read.
+
+1. **THE SPLIT DEFECT, and it is the serious one.** Option chains are as-traded and unadjusted;
+   the bars cache's `close` is split- and dividend-**adjusted** — **NVDA in 2012 reads 0.27 against
+   a raw 11.97, a 43× ratio.** Matching an as-traded strike against an adjusted spot picks a
+   contract nowhere near the money, and it fails **silently**: the straddle still prices, it is
+   simply mostly intrinsic. **Measured against the book's own `underlying_entry` over 1,173 banked
+   entries: `raw_close` agrees EXACTLY (median relative error 0.00000, nothing over 5% off) while
+   the adjusted `close` is off by a median 10.3% and by more than 5% on 67% of entries.**
+   **The first cut reported a mean implied move of 19.57% against a realised 5.26% and a confident
+   RICH verdict — an ARTEFACT**, with 2.82% of events sitting more than 20% from the money and up
+   to 30× off. Repaired to **`raw_close` for anything touching a STRIKE and adjusted `close` only
+   for a RETURN** (an adjusted series cannot manufacture a move when a split lands inside the
+   window). **Coverage rose 0.2738 → 0.4459 and the implied move fell to a credible 5.45%.**
+   It also corrupted the **O6 control arm** and the **O6b IV-rank history** — though **not** the O6
+   alert arm, which used the book's own spot throughout. A control that must stay empty now records
+   any raw close disagreeing with the book's spot and **reads ZERO**; three tests pin the
+   distinction.
+2. **The expiry rule priced the wrong thing.** The first cut took the nearest expiry with DTE ≥ 7,
+   which prices the move **to expiry** — often 30+ days — against a realised move measured over
+   ~4 days. Repaired to the first expiry strictly **after** the announcement and no more than 45
+   days out.
+3. **A copy-paste:** B2's confidence interval was the *diagnostic's* bootstrap, so two different
+   quantities reported bit-identical intervals.
+
+### 42.6 · O17 — all four NULL, and C4 fails on the retention floor ALONE
+
+3,482 usable trades after excluding the 388 foreign-issuer trades. Null = removing a **random**
+subset of the same size, because a filter that removes trades changes expectancy mechanically.
+
+| arm | gain/trade | own null p95 | retention | verdict |
+|---|---|---|---|---|
+| **C1** avoid ≤5d before | +0.797pp | +0.956pp | 0.8745 | **NULL** |
+| **C2** avoid ≤10d | −0.479pp | +1.199pp | 0.8202 | **NULL** |
+| **C3** avoid ≤15d | −1.429pp | +1.485pp | 0.7588 | **NULL** |
+| **C4** own the event | **+4.686pp** | +2.208pp | **0.5706** | **NULL** |
+
+**AVOIDING THE EVENT GETS MONOTONICALLY WORSE AS THE WINDOW WIDENS** (+0.797 → −0.479 → −1.429pp),
+and none clears its own null. **The loser autopsy's IV-crush hypothesis is not merely unsupported —
+the data points the other way.**
+
+**C4 IS THE HEADLINE AND IT FAILS ON EXACTLY ONE PRE-COMMITTED LEG.** Gain **+4.686pp/trade**,
+**positive in BOTH halves** (+5.748pp early, +3.730pp late), **clearing its own calibrated null in
+BOTH** (+3.241pp, +2.941pp) — **NULL solely because retention is 0.5706 against the 70% floor**,
+refusing 43% of the book. **That floor was fixed before any number existed and for a stated
+reason** — a filter achieving its number by refusing almost everything is a *different product*,
+not the one-line rule the audit describes. **The verdict stands and the reason is reported; the
+floor is not relaxed to fit the result.**
+
+**THE CONFOUND I EXPECTED TO KILL C4 IS REFUTED BY MEASUREMENT, and that is the diagnostic worth
+carrying.** Owning the event necessarily selects **longer-dated** contracts, and O13 already
+measured that alert expectancy climbs monotonically with tenor — so C4 could have been a **DTE
+filter wearing an earnings filter's name**, the failure mode U7 and S10 both recorded. **It is
+not.** The tenor difference is small (mean DTE **60.0** kept vs **56.4** refused), and re-scoring
+C4 **within** DTE quartiles leaves the gain positive in **every** bucket: **+6.416, +6.310, +2.138,
++2.711pp**. Tenor itself is strong and independently reconfirms O13 — unfiltered expectancy by DTE
+quartile runs **+0.376, −0.877, +6.736, +8.584pp** — but **C4 is not that effect**.
+
+**THE `term_slope` INTERACTION THE AUDIT REQUIRED** (reported, no verdict): the refused share under
+the 5-day rule falls from **28.9%** in the bottom `term_slope` tercile to **1.7%** in the top, so
+the filter and `term_slope` overlap substantially in *which* trades they touch; in the top tercile
+the refused trades actually **outperform** (+13.976% against a kept +9.316%).
+
+## 43 · What I did NOT do, and why
+
+* **I did not relax the 70% retention floor to let C4 through.** It is the one arm that cleared
+  every statistical leg, and moving a pre-committed threshold after seeing which arm it blocks is
+  the precise thing pre-registration exists to prevent.
+* **I did not compute O7-B2's registered non-announcement null**, because the arm fails positivity
+  in both halves and the conjunction cannot be rescued. Declared as a deviation.
+* **I did not adopt anything.** `pick_contract`, `DEFAULT_AGGRESSION` and every cost constant are
+  untouched, and the register fixed that before any number existed.
+* **I did not re-open R2.** A CANDIDATE here would have been a candidate for a **future** book that
+  does not exist; nothing here is evidence the alert entry works.
+* **I did not treat a missing earnings date as "no announcement" anywhere**, and I did not include
+  the 29 zero-coverage names in any O7 or O17 arm.
+* **I did not repair `bulk.py`'s stale ~2.83 caveat** — it is accurate repo-wide and wrong only for
+  this universe. Reported here instead.
+
+## 44 · Trial cost
+
+**Options `N` 261 → 271** — 4 (O6a–d) + 2 (O7 B1, B2) + 4 (O17 C1–C4), **exactly as §7
+pre-committed.** The counter is domain-scoped, so **equity and infra are untouched BY THIS ITEM**.
+
+**Their LEVELS are not what I measured mid-session, and that is the point: after merging `main`
+they read equity 176 and infra 11, against the 161 and 10 in front of me while the arms ran.**
+Other lanes landed 15 equity trials and one infra trial the same day. **This is the second session
+running that a mid-session equity figure went stale before the push — re-read `by_domain` after
+the merge and quote that, never the number the session measured.**
+`BACKTEST_RESULTS.json` needs no re-run.
+
+Charged at **zero**: the random-entry control arm, the `term_slope` decomposition, the tenor and
+delta-drift diagnostics, and every C-control — none carries a verdict or can produce a claim.
+
+**Expectations scored 6 right, 1 wrong.** Right: E1 (no O6 arm reaches CANDIDATE), E3 (B1 reads
+RICH against the published sign), E4 (B2 negative net of four crossings), E5 (no O17 arm reaches
+CANDIDATE), E6 (C4 beats C1–C3 in point estimate — by a wide margin), E7 (the `term_slope`
+interaction is material). **Wrong: E2**, which predicted a raw O6 improvement killed by the null —
+instructive, because the null sits far *below* zero and both positive arms clear it easily; what
+kills A4 is the **tail clause**, not the null.
+
+## 45 · Recommended next step
+
+1. **C4 deserves its own register as a CONSTRUCTION rule, not a filter.** It is the only arm in
+   three sessions to clear both halves and its calibrated null, its tenor confound is measured and
+   refuted, and it fails only a threshold written for a different kind of rule. A register that
+   treats "expiry must span the next announcement" as a **contract-selection constraint** — where
+   refusing 43% of candidate days is normal rather than disqualifying — is the honest way to ask
+   the question. It inherits this session's numbers as a disclosed prior.
+2. **Re-check every other options result that used the bars cache for spot.** The split defect was
+   silent, and this lane found it only because an implied move of 19.6% was too large to believe.
+   Anything matching an as-traded strike against `close` rather than `raw_close` is suspect.
+3. **Not recommended: any cheapest-on-surface variant.** Three of four rules lose money, the worst
+   is the audit's own headline suggestion, and the diagnostic shows why — on this candidate set a
+   cheapness criterion cannot change the contract without changing the delta.

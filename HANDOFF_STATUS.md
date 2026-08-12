@@ -45,6 +45,8 @@ every EV-based ratio and the published headline, needing its own register.
 
 **Equity `N` 176 → 180.** Expectations 6 right, 1 wrong.
 
+**CROSS-LANE, AND NOW THE SECOND TIME IN FOUR SESSIONS: `session 30` names TWO lanes' work** — the options-bot lane's `O6` and this lane's `S16`+`S28`. The same class as the `session 29` collision reported in session 30, both found by a merge rather than by either lane's checks. Not renumbered (theirs is referenced from their own handoff and ledger); this session took **33**. **The rule is not "check once" but check the GLOBAL maximum at stamp time AND re-check after every merge** — the push→land window is long enough for another lane to take your number, which is what happened both times. Routed to the options-bot lane or to Don as a convention call.
+
 **Next:** S10's accounting half, or the CPCV embargo. **And the dated one: read `/api/track` →
 `contract_track.recording_ok` on or after 2026-08-13.**
 
@@ -52,6 +54,58 @@ Full write-up: `HANDOFF_edge_audit.md` session 33.
 
 ---
 
+## options-bot lane, session 30 (2026-08-12) — all ten arms NULL, and a split-adjusted-spot defect that every lane should read
+
+**`O6` + `O7` + `O17`, one register, ten arms, `PREREG_o6_o7_o17_earnings_surface.md` committed
+ALONE at `779d42c`** (one `.md`, zero `.py`). Frozen book, **no live code path changed, nothing
+adopted.**
+
+**THE MOST TRANSFERABLE FINDING IS A DEFECT IN MY OWN INSTRUMENT, AND IT IS THE U1-SPLIT CLASS
+RECURRING.** Option chains are as-traded and UNADJUSTED; `data/bulk/prepared/bars`'s `close` is
+split- and dividend-ADJUSTED (NVDA 2012: 0.27 against a raw 11.97, a 43x ratio). Matching an
+as-traded strike against an adjusted spot picks a contract nowhere near the money and **fails
+silently** - the option still prices, it is just mostly intrinsic. Measured against the book's own
+`underlying_entry` on 1,173 banked entries, **`raw_close` agrees EXACTLY** (median relative error
+0.00000) while `close` is off by **>5 pct on 67 pct of entries**. **RULE: `raw_close` for anything
+touching a STRIKE, `close` only for a RETURN.** My first cut reported a mean implied move of
+**19.57 pct** and a confident RICH verdict; that was an artefact. **Anything in this project that
+matches a strike against `close` is suspect and should be re-checked.**
+
+**THE LEDGER WAS WRONG ABOUT TWO OF THE THREE ROWS.** O6 and O17 were both `src=auto` with notes
+saying no audit section exists; `VALQUO_EDGE_AUDIT.md:964` and `:1150` are full sections naming four
+rules each. Definitions were quoted, not invented. Both notes corrected.
+
+**O6 - all four NULL, and the strongest number is the CONTROL.** The random-alternative-contract
+p95 sits near **-11.3pp/trade**, so **the mechanical 35-delta rule the audit proposed replacing
+already beats arbitrary in-band selection by about eleven points.** Gains: A1 +0.074pp, A2
+-3.505pp, A3 -11.099pp, A4 +0.464pp. **A3 is the audit's own headline suggestion and is the worst
+arm.** A4 is positive in both halves and clears both nulls, failing only the tail-concentration
+clause. **Mechanism: the cheapness rules CHANGE THE DELTA rather than repricing a fixed trade**
+(|delta gap| 0.004 / 0.248 / 0.310 / 0.125), so the audit's claim that this separates "which name"
+from "which contract" does not hold. **The same ordering reproduces on the random-entry CONTROL
+book**, so it is a property of contract selection generally and carries to any future book.
+
+**O7 - earnings options are RICH on this universe, contradicting the published sign.** Implied move
+5.4512 pct vs realised 4.7773 pct (difference -0.6739pp, CI95 excludes zero). Backtest dead at
+-10.34 pct per straddle net of four crossings, negative in both halves.
+
+**O17 - avoiding earnings gets monotonically WORSE** (+0.797, -0.479, -1.429pp at 5/10/15 days), so
+the loser autopsy's IV-crush hypothesis points the other way. **C4 "own the event" fails on ONE leg
+only**: +4.686pp/trade, positive in both halves and clearing its null in both, NULL solely because
+retention is 0.5706 against the pre-committed 0.70 floor. **The floor was not relaxed to fit.** The
+tenor confound that should have killed it is **refuted** - within every DTE quartile the gain stays
+positive.
+
+**Trial cost: options `N` 261 -> 271**, exactly as pre-committed. **Equity and infra untouched by
+this item; after merging they read 176 and 11**, not the 161 and 10 measured while the arms ran -
+other lanes landed the same day. **Re-read `by_domain` after merging; do not quote a mid-session
+figure.**
+Expectations 6 right, 1 wrong.
+
+**Recommended next: give C4 its own register as a CONSTRUCTION rule rather than a filter** - it is
+the only arm in three sessions to clear both halves and its calibrated null, and it fails only a
+threshold written for a different kind of rule. Full write-up: `HANDOFF_optionsbot.md` sections
+42-45.
 ## edge lane, session 32 (2026-08-12) — S7 + S18: every pre-registered interaction REJECTED
 
 `PREREG_s7_s18_interactions.md` committed **alone at `7fc6ab2`**, one register for both items. No
