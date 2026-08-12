@@ -738,3 +738,42 @@ rather than inferred, because the whole cost estimate scales on it. `federalregi
   $500-vs-$600/$300 structure, and whether C1 sells history back to 2005 as the audit claims. **If
   C1 does, the 24-month hole closes and the cost roughly triples.** Listed in UNRESOLVED, not
   estimated.
+
+# Branch triage — the last stranded ref deleted, and Part 2 had written up a deletion it never did (2026-08-12)
+
+Full record in `HANDOFF_branch_triage.md` **Part 3 (§J–§O)**; this is the pointer.
+
+`worktree-p6-costs-and-robustness` (`428f4de`) was still live on `origin` **and** locally, five
+days after that file's §F was written about it in the past tense and §E listed it under **"Three
+refs deleted"**. Two of the three had gone; this one had not.
+
+**The cause is legible in the file, and it is the transferable lesson: §4's `THEN DELETE` block
+lists the commands, and it lists TWO.** `p6-costs` appears there only as the *precedent* for how to
+prune, then acquired a verification section (§F) and a row in the deleted table — **but never a
+command.** The ref with prose written about it and no runbook line is exactly the one that
+survived. §E now carries a correction marker so it cannot be misread as completion again.
+
+**Re-verified by content, because §F's line cites had already rotted** — `score_universe_now()` was
+cited at `fundamental_panel.py:1355`, now `:1453`; the sector guard at `valquo_index.py:41-51`, now
+`:67/:178/:200/:217`. Only `attribution.py:46` still resolved. All seven content items confirmed on
+`main`; the `score_universe_now` body diff shows **main is a strict superset** (33 insertions, all
+of them main's own market-cap-divergence guard).
+
+**Two things reported that cut against the tidy version.** (a) **§F's evidence table was
+incomplete** — it omitted *both* `test_screener` flake fixes. The commit message enumerates four
+repairs under two headings, and §F's table covered the first and skipped the second entirely. They
+are on `main`, so the conclusion held, but on evidence that did not cover the whole commit. (b) **The branch's only unique content is prose, and merging it would have
+regressed the record** — its `method` string (a payload the Cowork agent parses) carries five
+void pre-B6 figures where `main` carries the current ones: 2,710/110 vs **2,531/69**, +11.8%/yr vs
+**+7.2%**, breakeven 236bps vs ~37bps against **134bps vs 33bps measured**. The original suspicion
+— a stale `BACKTEST_RESULTS.json` — stays false; **the commit does not touch that file at all.**
+
+**Scan clean for the first time:** of 57 refs, 56 were merged and exactly 1 was ahead; after
+deletion, 58 refs / 0 ahead (the total moved because other lanes landed mid-run — both counts
+quoted rather than one). Identity banked for recovery: tip `428f4de0…`, tree `85dbae31…`, parent
+`b0f70b6c…` (on `main`, so exactly one commit). **Nothing rescued — there was nothing unique worth
+keeping.** No code changed; zero trials; equity `N` unmoved.
+
+**Not done, and why:** the 56 merged refs were left alone. They are the auto-land Action's normal
+residue, not stranded work, and a sweep of 56 remote deletions is a far larger action than the one
+asked for. §I's four open items were not touched.
