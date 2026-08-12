@@ -44,6 +44,97 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **ALL THREE INSIDER REBUILDS ARE REJECTED, AND THE AUDIT'S OWN THRESHOLD WOULD HAVE REJECTED
+  THEM FOR A REASON UNRELATED TO WHAT THE COMPOSITE DID (2026-08-12, session 29, `S3`).**
+  `PREREG_s3_insider_rebuild.md` was committed **alone at `b3a85fa`** — one `.md`, zero `.py`, a
+  strict ancestor of the measurement commit. One panel build, four scorings, all arms columns on
+  ONE frame so the row set is identical by construction. **ADOPTS NOTHING.**
+  * **REJECTED on all three arms** against the already-committed margins (+0.25 long-short *t*
+    AND +100bps top-decile alpha, BOTH halves, boundary embargoed, deployed flat 1/7, no grid):
+    **S3A** (drop the `buys` bonus) Δalpha **+0.01pp / +0.79pp**, Δ*t* +0.116 / +0.110;
+    **S3B** (scale by market cap) Δalpha **+0.82pp / +0.52pp**, Δ*t* +0.095 / +0.079;
+    **S3C** (split into two z-scored inputs) Δalpha **−0.92pp / −1.24pp**, Δ*t* −0.332 / −0.120.
+  * **THE UNUSUAL PART IS THE SIGN-STABILITY, AND IT CUTS BOTH WAYS.** Session 7's LOO pattern —
+    arms flipping sign between halves — is this file's most repeated finding, recorded five
+    times. **Here every arm is sign-stable on both metrics in both halves.** But the gains are
+    far below the bar, and **V2G established there is NO CALIBRATED FLOOR for a paired
+    within-panel difference**, so *"small but consistent"* is an observation, not a result.
+  * **S3B IS THE BEST OF THE THREE, EXACTLY AS THE AUDIT PREDICTED** — the only arm with a
+    positive theme IC (**+0.5763**) and the only one positive on alpha in both halves by more
+    than a basis point. It is also the most different from the incumbent (within-date rank
+    correlation **0.8721** against S3A's 0.9668). **It still does not clear.**
+  * **THE AUDIT'S OWN BAR IS REFUTED AS AN INSTRUMENT, AND THE REGISTER DEMOTED IT IN ADVANCE.**
+    Its threshold is *"theme IC t clears +1.0"*. **NO ARM CLEARS IT** — not even the two that
+    improve alpha in both halves — **and neither does the shipped incumbent, at −0.2259.** So the
+    audit's gate rejects all three for a reason unrelated to what the composite did, and +1.0
+    sits far below **X7's calibrated 2.71** anyway. **Never judge a construction change by theme
+    IC** — P6.3, X3, S20/S21, and now this.
+  * **THE MOST INTERESTING NUMBER IS THE AVAILABILITY DIAGNOSTIC, AND IT DOES NOT CONVICT.**
+    `insider` is the only theme with a materially non-zero mean (**−0.1031**) at **83.1%**
+    coverage, so a name that HAS an insider score takes a small systematic negative tilt a name
+    without one does not — S10's data-availability failure mode. Measured: the pure indicator
+    *"has an insider score at all"* carries median IC **+0.01345 at t +1.4471**, **NOT separable
+    from zero**, so the artefact is **not demonstrated**. Reported because the indicator's |*t*|
+    is **LARGER than the insider theme's own (−0.2259)**: the mere presence of filings carries
+    more forward-return information than the score's direction does. **Neither is significant;
+    the comparison is the point.**
+  * **THREE PREMISE FINDINGS, all in the register before any arm ran.** (a) One of the audit's
+    own S3 items — `searchsorted(..., "right")` making a same-day Form 4 usable — is **ALREADY
+    FIXED by B26** and was not re-tested. (b) **The formula was DUPLICATED** at `:737` and
+    `:800`; there is now one `_insider_formula` and both paths delegate, **proved bit-identical
+    to both pre-refactor copies over 20,006 cases against git HEAD's own source**. (c) **MY OWN
+    OPENING HYPOTHESIS WAS REFUTED BEFORE THE REGISTER WAS WRITTEN** — I expected the non-z-scored
+    affine map to leave `insider` under-dispersed and so under-weighted; measured, its per-date
+    sd is **0.9600 against 0.8296** averaged over the other six, about **116% of nominal**,
+    because the **multi-input** themes are the compressed ones (`quality`, ten inputs, 0.50).
+  * **CONTROLS: C1 reproduces the record to sixteen digits and the run ABORTS before reading any
+    arm if it does not; C3 the incumbent rebuilt from the banked raw `(net, buys)` is
+    bit-identical to the shipped column, max |Δ| 0.000e+00 over 94,660 rows; C6 coverage 0.8308
+    IDENTICAL across all four arms**, so S3B's comparison is not partly a universe change.
+  * **A DEFECT IN MY OWN FIRST CUT: it used `build_fundamental_panel`'s DEFAULT
+    `lookback_years=6` and produced a 21-date / 2,151-name panel** — a **SMOKE TEST**, from which
+    the METHODOLOGY RULE forbids a verdict. Re-run at the canonical
+    `CONFIG.backtest_lookback_years=18`; the script now **asserts** the shape rather than warning.
+  * **Equity `N` 158 → 161**, options 258 and infra 10 untouched. **Adoption would be a VINTAGE
+    EVENT** — the current vintage is **DERIVED** per `PT-GAPDUE` (**vintage 3, opened
+    2026-08-11**), so it would open vintage 4 — and no arm is eligible in any case. Expectations
+    scored **5 right, 2 wrong**. **Zeroing `insider` is NOT re-opened as a fallback conclusion of
+    this register**; that needs its own, with its own trial charge.
+    `data/free_analysis/S3_INSIDER_REBUILD.json`; `HANDOFF_edge_audit.md` §2.
+- **THE POINT-IN-TIME SECTOR MAP IS UNOBTAINABLE FROM ANYTHING WE OWN — AND THE LOOK-AHEAD REACHES
+  THE POINT-IN-TIME *VALUATION*, NOT JUST THE REJECTED RANKING (2026-08-12, session 29, `S25`).**
+  Closed as **UNOBTAINABLE-WITHOUT-NEW-DATA**. No register and **zero trials**: every finding is a
+  fact about what data exists and what the code reads, not a hypothesis tested against a
+  threshold (session 8's precedent).
+  * **OBTAINABILITY, MEASURED.** The TICKERS snapshot carries six fields — `sector`, `industry`,
+    `country`, `exchange`, `category`, `scale` — and **ZERO date fields**, so it cannot say *when*
+    a classification took effect and cannot bound reclassification even for names it covers. SF1
+    `fundamentals.csv` has **112 columns and no sector or SIC**; `bulk/actions|events|sf3|daily`
+    carry none; no prepared cache holds a SIC; and `valuation/data/edgar.py` fetches only
+    `company_tickers.json` and companyfacts XBRL, neither of which carries a historical SIC.
+  * **THE SOURCE NAMED FOR THE D-SERIES: the EDGAR filing-header `ASSIGNED-SIC`**, which IS the
+    classification as of the filing date (~1 fetch per filing, ~180k for this universe). **What
+    does NOT work, because it is the obvious first try: `data.sec.gov/submissions/CIK*.json`
+    carries only the CURRENT `sic`** — a second snapshot, not a history.
+  * **A CONFOUND THAT MUST TRAVEL WITH ANY SUCH BUILD: SIC IS NOT THE SHIPPED TAXONOMY.** The
+    panel's sector is an 11-value GICS-like string, so a SIC-derived map changes point-in-timeness
+    **and** taxonomy at once and **cannot cleanly measure what reclassification changes**.
+    Isolating that needs the SAME taxonomy at two dates — a historical GICS snapshot, not sold as
+    history.
+  * **THE FINDING THE LEDGER DID NOT HAVE.** The row said *"nothing currently rests on it because
+    every sector result has rejected"* — true of the RANKING, **false of the VALUATION**.
+    `calibration.py:523-527` passes **today's** TICKERS sector into `pit_company` for a 1998 or
+    2009 valuation, where it selects `assumptions.SECTOR_TARGET_MARGIN` (**0.100 → 0.270, a 2.70×
+    spread**) and `comps.SECTOR_MULTIPLES` (**PE 2.50×, EV/Sales 6.15×**). **S23's own code pins
+    BETA point-in-time two lines below while passing today's sector straight through**, so S23's
+    exit-rule arms and **S10's bull-case band** both inherit it. **Not repaired — there is no data
+    to repair it with — but pinned by test so it cannot rot.**
+  * **CONSEQUENCE: full sector-neutral ranking stays permanently closed.** `SECTOR-NEUTRAL-B6`
+    named `S25` as one of only two routes back; that route is **shut until the D-series delivers
+    the EDGAR map**. `S15` (sector-relative on the value theme alone) is untouched and remains the
+    other. Nothing here affects the accepted `max_sector_w` cap. **A correction against my own
+    probe: its first cut reported a date-like field on the snapshot — the regex alternation
+    contained `to`, which matched "sec*to*r". There is none.** `HANDOFF_edge_audit.md` §1.
 - **THE FORWARD TRACK'S RECORDING GUARD DEMANDED A ROW NOBODY COULD HAVE WRITTEN YET, SO
   `recording_ok` READ FALSE EVERY WEEKDAY MORNING — AND THE ONE READING THIS SESSION EXISTED TO
   TAKE RETURNS `None`, NOT A VERDICT (2026-08-12, session 28, `PT-GAPDUE`).** Sessions 15 and 16
