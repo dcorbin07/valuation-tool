@@ -4597,3 +4597,185 @@ count is arguable, and it is noted rather than buried.
 **Not recommended: acting on ρ = 0.67 to lower the cost line.** It is measured on the liquid 72% of
 the book, covers one leg of two, and carries no verdict. That is three reasons, any one of which is
 enough.
+
+
+## 38 · `O3` + `O4` + `O5` — the surface-anomaly family. **ALL THREE NULL — and the headline is that the prior lane's one suggestive result REVERSES ITS SIGN when the instrument is fixed.**
+
+**One register, three arms, committed ALONE at `d2aa5f9`** — one `.md`, zero `.py`, a strict git
+ancestor of every measurement commit. Frozen book, no re-mine, **no live code path changed, nothing
+adopted.**
+
+### 38.1 · The scope fact that comes first: these were already tested once, and rejected
+
+**This is not a fresh question and it is charged as a second look.** `64955ef` (now on `main`)
+shipped `valuation/edge/options_xsection.py` and tested **all three characteristics with the
+published sign declared before any sort**, returning **REJECT — nothing clears the gate, one
+characteristic sorts backwards**. `HANDOFF_free_analysis.md` audited that run and concluded O3, O4
+and O5 *"should be considered answered by that same run, not re-opened separately."*
+
+**The sole justification for re-opening is a deviation that lane declared in its own write-up and
+never closed:** it used a **straddle**, which is delta-neutral **only at inception**. It accumulates
+directional exposure immediately, so its return variance is dominated by the underlying's move —
+exactly the variance Cao–Han's daily-rebalanced hedge removes. **This register changes the
+INSTRUMENT and nothing else that can be held fixed:** A1 reuses that lane's own `idio_vol` values
+and the panel's own strike and expiry, so it differs from the published rejection **in the
+instrument alone**.
+
+**The power argument held, and it is the reason the re-run was worth its trials.** Delta-hedged
+return dispersion is **sd 0.0303 against the straddle's 0.9055 on the identical events — a 30-fold
+reduction** (E6, predicted at 80/20, right by a wide margin). Every arm's |t| rose against its
+straddle counterpart (E2, 75/25, right on all four comparisons).
+
+### 38.2 · A second scope fact, measured: the frozen chains named in the task cannot do this
+
+The task named the frozen chains as the instrument. **They cannot support a cross-section, and this
+was measured before the register was written.** The freeze holds a **full chain only on the banked
+book's ENTRY dates** — median **1** full-chain name per date, maximum 17, and **0 of 2,498 dates and
+0 of 120 month-ends** reach the ~20 names a quintile sort needs. **The substitution is therefore
+forced and is disclosed in §1 of the register rather than quietly made:** the panel is the prior
+lane's EOD-chain panel, and the freeze is used for nothing here.
+
+### 38.3 · The three arms
+
+Panel: **3,373 formation events, 3,323 priceable** (refusals: 43 unpriceable, 7 no-life), **117
+formation dates, median 25 names per date** — the register's own void condition (fewer than 50 dates
+or fewer than 15 names/date) **did not fire**. Bars are each arm's **own within-date label
+permutation p95**, never the conventional 2.0.
+
+| arm | n | monotonicity (bar 0.6) | LS mean | LS t | own p95 | verdict |
+|---|---|---|---|---|---|---|
+| **A1 — O3 `idio_vol`** | 3,289 | −0.1717 | +0.006043 | 2.5158 | 2.016 | **NULL** |
+| **A2 — O4 `exp_idio_skew`** | 3,154 | −0.0380 | +0.004795 | 1.9143 | 1.9229 | **NULL** |
+| **A3 — O5 `vol_of_vol`** | 3,318 | −0.0690 | +0.006299 | 2.9703 | 1.9459 | **NULL** |
+
+**EVERY ARM IS NULL ON TWO INDEPENDENT LEGS, WHICH IS WHY NOTHING TURNS ON ANY SINGLE BAR.**
+Monotonicity misses 0.6 by three- to fifteen-fold in **both halves of all three arms**, and the
+both-halves *t* leg fails independently: A1 clears early (2.2884 vs 2.0508) and **fails late**
+(1.1509 vs 2.0122); A3 **fails early** (1.8189 vs 1.8877) and clears late (2.5231 vs 1.9431); A2
+clears early (2.2219 vs 1.9608) and fails late (0.4201 vs 1.9201). **The two arms that clear
+full-sample fail in opposite halves** — session 7's LOO pattern again.
+
+**A2 misses its own bar by 0.0086 of a *t*.** Recorded a **NULL**, not rounded into a pass
+(`RUN_RULES` A6). It is the narrowest miss in the register and it changes nothing, because A2 also
+fails monotonicity in both halves and the late-half *t* by 1.5.
+
+### 38.4 · The finding: the published contradiction does not survive the instrument
+
+**This is the part worth carrying.** On the straddle, `idio_vol` sorted at monotonicity **+0.9 with
+LS mean −0.0770 and t −1.2142** — flagged by that lane's own machinery as
+`contradicts_published_sign`, and the single most suggestive result in its run. **On the
+delta-hedged instrument, the same characteristic on the same panel sorts in the CONFIRMING
+direction: mean +0.006043, t +2.5158.**
+
+**Both readings are now unquotable as settled.** The confirming ordering here is far too weak to
+clear the bar, so **O3 is NULL** — but the prior **CONTRADICTS** reading is an artefact of an
+instrument that lets the underlying's move dominate, and **should not be quoted as a finding
+either**. E3 predicted the contradiction would repeat, at 60/40, and was **wrong**.
+
+**Mechanism worth carrying:** `idio_vol` is within-date rank-correlated **+0.8444** with the
+option's own ATM implied vol, so A1 is close to a **pure implied-vol sort** — high idio-vol means
+expensive option, which is Cao–Han's own premise.
+
+**The instrument behaves as the literature says it should, which is corroboration it is real rather
+than a bug:** mean delta-hedged gain **−0.0072**, and **every quintile of every arm is negative** —
+the volatility risk premium stylised fact, reproduced without being targeted.
+
+### 38.5 · A diagnostic run after the arms were read, labelled as such, carrying no verdict
+
+**The three arms share a shape the register did not anticipate: Q5 is the WORST bucket in all three,
+while Q1–Q4 are unordered.** That is precisely how a significant long-short coexists with near-zero
+monotonicity. **Both obvious explanations are REFUTED, and refuting them is the useful part:**
+
+* **Not one effect wearing three names.** `idio_vol` and `vol_of_vol` are **negatively**
+  rank-correlated within date (**−0.2920**) and share only **14.0%** of their Q5 membership
+  (`idio_vol`/`exp_idio_skew` +0.2201 and 42.8%; `exp_idio_skew`/`vol_of_vol` −0.1373 and 21.9%).
+* **Not an illiquidity artefact.** The liquidity gradient runs in **opposite directions**:
+  `idio_vol`'s Q5 is the **most** liquid corner (mean spread 0.0764 against 0.1063 in Q1), while
+  `vol_of_vol`'s Q5 is the **least** liquid (0.0980 against 0.0809).
+
+**Why three largely independent sorts all put their worst bucket at Q5 is left OPEN and needs its
+own register.** Testing it here would be **the fourth arm the register's own void condition 3
+forbids**, and declining keeps the denominator (session 8's precedent).
+
+### 38.6 · A defect reported outside this lane (`RUN_RULES` rule 3)
+
+**In the prior lane's `panel.pkl`, `illiq` and `spread_pct` are THE SAME COLUMN — identical on all
+3,373 rows.** That lane's `illiq` was **the only characteristic in its published run with |t| > 2
+(2.46)** and is described as a mechanical liquidity control. It is the option's **quoted spread
+percentage under a second name**. Not necessarily a wrong definition — a spread *is* a liquidity
+measure — but the panel carries two names for one column, and a reader of that run would reasonably
+believe two independent things were measured. **Reported, not repaired: not this lane's file.**
+
+### 38.7 · Two defects in my own instrument, both caught before any verdict was read
+
+1. **My first tests asserted a delta-hedged gain of exactly zero while ignoring the financing term
+   `−r(C − ΔS)dt`** that the register's own formula specifies. **The model was right and the tests
+   were wrong** — fixed by isolating hedge mechanics at `rate=0.0` and adding a test that pins the
+   financing term's sign explicitly.
+2. **`score_arm` crashed on the disclosed-comparison arms** (`KeyError: 'idio_skew'`), because it
+   read `PUBLISHED_SIGNS[key]` unconditionally and those arms deliberately carry no published sign.
+   It crashed **after** the three registered arms had printed, so no registered number was affected —
+   **proved, not asserted: all three arms reproduce bit-identically after the repair.** The
+   comparison arms now compute **no verdict at all** rather than defaulting a sign and discarding
+   the answer, which would have left a scored-then-hidden arm in the code.
+
+### 38.8 · Disclosed comparisons — the prior lane's own definitions, on the new instrument
+
+No verdict, zero trial cost. Both are **weaker** than the registered versions:
+
+| comparison | LS t | own p95 | vs the registered arm |
+|---|---|---|---|
+| `prior_lane_realised_skew` | 1.5805 | 1.9749 | A2's **expected** skew is STRONGER (1.9143) |
+| `prior_lane_vol_of_vol_60dte` | 1.1236 | 1.9204 | A3's **tenor-aligned** series is STRONGER (2.9703) |
+
+**E4 was wrong in the informative direction** — it predicted the expected-skew construction would be
+weaker than the realised one, and the construction the literature actually specifies is the stronger
+of the two. **E5 was right**: tenor-aligning vol-of-vol moves it materially, so measuring it at a
+tenor the instrument does not trade **understates it by a factor of 2.6**.
+
+## 39 · What I did NOT do, and why
+
+* **I did not test what drives the shared Q5 pattern.** It is the most interesting thing in the
+  file and it would be **a fourth arm**, which §9.3 of my own register forbids. It needs its own
+  register.
+* **I did not adopt anything, and nothing could have been adopted whatever the result.** §6 fixed
+  that before the numbers existed: a CANDIDATE here would be a candidate for **a future book that
+  does not exist**, never a revival of the options entry signal and never evidence R2 was wrong.
+  All three arms are NULL in any case.
+* **I did not re-open R2.** The entry signal is dead; these are cross-sectional characteristics of
+  the option surface, a different object.
+* **I did not use the frozen chains** the task named, because §38.2 measured that they cannot
+  support a cross-section. The substitution is disclosed, not silent.
+* **I did not re-mine any data.** Frozen book throughout.
+* **I did not edit the prior lane's `panel.pkl` or its results file** despite finding the
+  `illiq`/`spread_pct` collision. Reported to its owner instead.
+
+## 40 · Trial cost
+
+**Options `N` 258 → 261**, one trial per arm, **exactly as §8 pre-committed.** Equity `N` untouched
+at **158**, infra at **10** — the counter is domain-scoped. `BACKTEST_RESULTS.json` needs no re-run.
+
+**Charged in full even though all three hypotheses were rejected once already.** A second look at
+the same hypothesis with a better instrument is **another chance for the same hypothesis to clear**,
+which is exactly what the counter exists to price. Diagnostics (mid-to-mid, 0 bps hedge, the prior
+lane's two definitions, the Q5 correlation work) are charged at **zero**: they search nothing and
+carry no verdict.
+
+**Expectations scored 4 right, 2 wrong.** Right: E1 (no arm reaches CANDIDATE, 70/30), E2
+(delta-hedged |t| larger than the straddle's, 75/25), E5 (tenor alignment material, 50/50), E6
+(dispersion well under half, 80/20 — it is **3.3%**). Wrong: E3 (`idio_vol` sorts against the
+published sign again, 60/40 — it **reversed**), E4 (expected skew weaker than realised, 55/45 — it
+is **stronger**).
+
+## 41 · Recommended next step
+
+1. **Register the Q5 question properly.** Three largely independent — in one pair *negatively*
+   correlated — sorts all place their worst delta-hedged bucket at Q5, and neither the
+   one-effect nor the illiquidity explanation survives measurement. That is the only live thread
+   here, and it must be a fresh register with its own bar, not an arm bolted onto this one.
+2. **Fix the prior lane's `illiq`/`spread_pct` collision** before anything else cites that run's
+   2.46. Owner: the options-xsection lane.
+3. **Not recommended: quoting any arm here as a positive.** All three are NULL on two independent
+   legs each. The one durable result is negative-going and belongs in the record as such — **the
+   straddle-based CONTRADICTS reading for `idio_vol` does not survive a properly delta-hedged
+   instrument**, so that prior finding should stop being quoted too.
