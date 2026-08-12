@@ -4752,8 +4752,15 @@ tenor the instrument does not trade **understates it by a factor of 2.6**.
 
 ## 40 · Trial cost
 
-**Options `N` 258 → 261**, one trial per arm, **exactly as §8 pre-committed.** Equity `N` untouched
-at **158**, infra at **10** — the counter is domain-scoped. `BACKTEST_RESULTS.json` needs no re-run.
+**Options `N` 258 → 261**, one trial per arm, **exactly as §8 pre-committed.** Infra untouched at
+**10** — the counter is domain-scoped.
+
+**Equity `N` is untouched BY THIS ITEM but now reads 161, not the 158 I measured while running it.**
+The `S3` lane landed three equity trials the same day and I merged them before pushing. Recorded
+because it is the reusable lesson rather than a footnote: **an equity figure measured during a
+session is stale the moment another lane lands, so re-read `by_domain` after the merge and quote
+that.** `BACKTEST_RESULTS.json` needs no re-run for this item — the `S3` lane already refreshed it
+at its own denominator.
 
 **Charged in full even though all three hypotheses were rejected once already.** A second look at
 the same hypothesis with a better instrument is **another chance for the same hypothesis to clear**,

@@ -8569,3 +8569,245 @@ Then the lane's own queue, unchanged from session 27: either **S10's accounting 
 Altman, external financing, NT late filings — a different instrument that inherits none of the
 valuation-band verdict) or the **CPCV embargo** carried over from session 22, which remains the
 only open item that can move a published number.
+
+---
+
+# SESSION 29 (2026-08-12) — S25 closed as unobtainable, and S3's insider rebuild
+
+Two ledger items. **S25 needed no register and cost no trials — everything it returns is a fact
+about what data exists and what the code reads.** S3 got a blind register,
+`PREREG_s3_insider_rebuild.md`, committed **alone at `b3a85fa`** — one `.md`, zero `.py`, a strict
+ancestor of every measurement commit.
+
+## 1. S25 — UNOBTAINABLE WITHOUT NEW DATA, and the exposure is wider than the ledger said
+
+### 1.1 The obtainability answer, measured rather than assumed
+
+A point-in-time sector map is **not buildable from anything in this repository.** Four
+independent checks:
+
+* **The TICKERS snapshot we own carries six fields — `sector`, `industry`, `country`,
+  `exchange`, `category`, `scale` — and ZERO date fields of any kind.** So it cannot say *when* a
+  classification took effect, and cannot bound reclassification even for the names it covers. It
+  is one photograph, not a history.
+* **SF1 `fundamentals.csv` has 112 columns and no sector or SIC among them.**
+* **`bulk/actions.csv`, `events.csv`, `sf3.csv` and `daily.csv` carry none either**, and no
+  prepared cache holds a SIC.
+* **`valuation/data/edgar.py` fetches only `company_tickers.json` and the companyfacts XBRL**,
+  neither of which carries a historical SIC.
+
+**A correction against my own probe, recorded because it is the kind of error that manufactures a
+finding.** The first cut reported a date-like field on the snapshot. It had not found one: my
+regex alternation contained `to`, which matched "sec**to**r". The corrected answer is NONE.
+
+### 1.2 The source named for the D-series
+
+**EDGAR filing-header `ASSIGNED-SIC`**, carried in each submission's SGML header, which *is* the
+classification as of the filing date. Roughly one fetch per filing — about 180k fetches for this
+universe at the SEC's 10/s limit.
+
+**Note what does NOT work, because it is the obvious first try:**
+`data.sec.gov/submissions/CIK##########.json` carries only the **current** `sic` and
+`sicDescription`. That is a second snapshot, not a history, and building on it would produce a map
+that looks point-in-time and is not.
+
+**A confound that must travel with any such build: SIC is not the shipped taxonomy.** The panel's
+sector is an 11-value GICS-like string; a SIC-derived map changes point-in-timeness **and**
+taxonomy at once. So it cannot cleanly answer *"what does reclassification change"* — isolating
+that needs the **same** taxonomy at two dates, i.e. a historical GICS snapshot, which is not sold
+as history. Anyone who builds the EDGAR map and diffs it against today's Sharadar sector will be
+measuring mostly the taxonomy difference and should not report it as reclassification.
+
+### 1.3 THE FINDING THE LEDGER DID NOT HAVE: it reaches the point-in-time VALUATION
+
+The ledger row said *"nothing currently rests on it because every sector result has rejected"*.
+That is true of the **ranking** path and false of the **valuation** path.
+
+`calibration.py:523-527` — inside `build_valuation_panel`, the S23/S10 point-in-time machinery —
+passes `sector=md.get("sector")`, i.e. **today's TICKERS classification**, into `pit_company` for a
+1998 or 2009 valuation. From there `CompanyData.sector` selects:
+
+| constant | measured spread |
+|---|---|
+| `assumptions.SECTOR_TARGET_MARGIN` (sustainable operating margin anchor) | **0.100** Consumer Cyclical → **0.270** Technology, a **2.70×** spread |
+| `comps.SECTOR_MULTIPLES` PE | **12.00** → **30.00**, a **2.50×** spread |
+| `comps.SECTOR_MULTIPLES` EV/Sales | **1.30** → **8.00**, a **6.15×** spread |
+
+**The sharpest way to put it: S23's own code pins BETA point-in-time — its comment two lines below
+says so explicitly — while passing today's sector straight through.** So S23's exit-rule arms and
+**S10's bull-case band, which I built last session**, both inherit a sector look-ahead that nobody
+had named.
+
+**Not repaired, because there is no data to repair it with.** It is pinned by
+`test_s25_the_pit_valuation_still_reads_a_non_point_in_time_sector`, which fails if the exposure
+changes shape — so the finding cannot rot the way this project's line-number citations do.
+
+### 1.4 What S25 does NOT license
+
+* It does **not** re-open full sector-neutral ranking. `SECTOR-NEUTRAL-B6` closed that permanently
+  and named `S25` as one of only two routes back; **S25 is now closed as unobtainable, so that
+  route is shut until the D-series delivers the EDGAR map.** `S15` (sector-relative on the value
+  theme alone) is untouched and remains the other.
+* It does **not** affect the accepted `max_sector_w` concentration cap, which is a risk control.
+* **Zero trials.** Nothing here was a hypothesis tested against a threshold, so on session 8's
+  precedent the denominator is untouched.
+
+
+## 2. S3 — all three insider rebuilds REJECTED
+
+`PREREG_s3_insider_rebuild.md` committed **alone at `b3a85fa`** — one `.md`, zero `.py`, a strict
+ancestor of the measurement commit. **One panel build, four scorings, every arm a column on ONE
+frame**, so the row set is identical by construction rather than by assertion.
+
+### 2.1 Premise checks, all done BEFORE the register and reported in it
+
+`S3` is `src=auto` — *"a lead, not a fact"* — and S21 is the precedent for an `auto` row proposing
+behaviour the code already ships. Three findings:
+
+* **One of the audit's own S3 items is ALREADY FIXED.** It says `_insider_score_at` uses
+  `searchsorted(dts, hi, "right")`, making a Form 4 dated exactly `as_of` usable at that day's
+  close. The shipped code is `side="left"` with a comment naming **B26** as the fix. Not re-tested.
+* **THE FORMULA WAS DUPLICATED** at `fundamental_panel.py:737` (the row-iterating fallback) and
+  `:800` (the prepped fast path) — two copies of an expression whose own B26 comments say the two
+  paths must agree, which is the **B7 defect class**. There is now one `_insider_formula` and both
+  delegate. **Proved bit-identical to both pre-refactor copies over 20,006 cases**, with the old
+  expression reconstructed from `git HEAD`'s source rather than retyped, so the check could not
+  pass by my copying the same typo into both sides.
+* **MY OWN OPENING HYPOTHESIS WAS REFUTED BEFORE THE REGISTER WAS WRITTEN.** `insider` is the one
+  theme that is **not z-scored** — a fixed affine map `(score − 50)/25` (`factors.py:281`) — so I
+  expected it to be under-dispersed and therefore under-weighted relative to its nominal 0.125.
+  Measured on 113,945 banked rows, **the opposite**: per-date sd **0.9600** against **0.8296**
+  averaged over the other six themes, about **116% of nominal**. The **multi-input** themes are
+  the compressed ones, because a mean of imperfectly-correlated z-scores has sd below 1
+  (`quality`, ten inputs, sits at **0.50**). Had this not been measured the register would have
+  been built on a false premise.
+
+### 2.2 The verdict
+
+**All three REJECTED** against the already-committed margins — **+0.25 long-short *t* AND +100bps
+top-decile alpha, in BOTH halves**, boundary embargoed, deployed flat 1/7 weighting, no grid.
+
+| arm | Δalpha early | Δalpha late | Δ*t* early | Δ*t* late | rank corr vs incumbent | theme IC *t* |
+|---|---|---|---|---|---|---|
+| **S3A** drop the `buys` bonus | +0.01pp | +0.79pp | +0.116 | +0.110 | 0.9668 | −0.0793 |
+| **S3B** scale by market cap | **+0.82pp** | **+0.52pp** | +0.095 | +0.079 | 0.8721 | **+0.5763** |
+| **S3C** split into two inputs | −0.92pp | −1.24pp | −0.332 | −0.120 | 0.8385 | −0.9685 |
+| *A0 incumbent* | — | — | — | — | — | −0.2259 |
+
+**THE UNUSUAL PART IS THE SIGN-STABILITY, AND IT CUTS BOTH WAYS.** Session 7's LOO pattern — arms
+flipping sign between halves — is this project's most repeated finding, recorded five times.
+**Here every arm is sign-stable on both metrics in both halves.** But the gains sit far below the
+bar, and **V2G established there is NO CALIBRATED FLOOR for a paired within-panel difference**, so
+*"small but consistent"* is an observation and **not** a result. Nobody may quote S3B's +0.8pp as
+an effect.
+
+**S3B is the best of the three, exactly as the audit predicted** — the only positive theme IC, the
+only arm positive on alpha in both halves by more than a basis point, and the most different from
+the incumbent. It still does not clear.
+
+### 2.3 The audit's own threshold is refuted as an instrument
+
+The audit's bar is *"theme IC *t* clears +1.0"*. **No arm clears it** — not even the two that
+improve alpha in both halves — **and neither does the shipped incumbent, at −0.2259.**
+
+So the audit's gate would have rejected all three, **for a reason unrelated to what the composite
+actually did**. And +1.0 sits far below **X7's calibrated 2.71**, where 39% of pure-noise draws
+clear even 2.0 because eight themes are tested and the bar is applied to whichever looks best.
+The register demoted this bar to a diagnostic **before** the run, on P6.3, X3 and S20/S21. It is
+now demoted on its own evidence too.
+
+### 2.4 The availability diagnostic — the most interesting number, and it does not convict
+
+Premise (e): `insider` is the only theme with a materially non-zero mean (**−0.1031**) at **83.1%**
+coverage, so a name that HAS an insider score takes a small systematic negative tilt a name
+without one does not. That is **S10's data-availability failure mode**, and it would mean part of
+the theme's measured IC is an artefact of who files rather than of what they filed.
+
+**Measured: the pure indicator *"has an insider score at all"* carries median IC +0.01345 at
+t +1.4471 — NOT separable from zero at any calibrated bar. The artefact is NOT demonstrated.**
+
+Reported anyway, because the comparison is striking: **that |*t*| is LARGER than the insider
+theme's own (−0.2259)**. The mere *presence* of filings carries more forward-return information
+than the *direction* of the score does. **Neither is significant, and the comparison is the point,
+not either number.**
+
+### 2.5 Controls
+
+* **C1** — the harness reproduces the published record to sixteen digits (alpha
+  0.07174142332098163, LS *t* 2.8360640685320595, HAC 2.6199121240414884, monotonicity
+  −0.8909090909090909), and **the run ABORTS before reading any arm if it does not**.
+* **C3** — the incumbent rebuilt from the banked raw `(net, buys)` is **bit-identical to the
+  shipped `insider` column, max |Δ| 0.000e+00 over 94,660 rows**. So the variants are perturbations
+  of the shipped construction, not of a reimplementation of it.
+* **C6** — **coverage 0.8308, IDENTICAL across all four arms.** S3B loses no rows, so its
+  comparison is not partly a universe change (it needed `marketcap`, and every row with insider
+  data had one).
+* **C2** all arms are columns on one frame; **C4** no arm is inert (rank correlations 0.84–0.97);
+  **C5** both formula paths agree over a randomised fixture; **C7** as §2.4.
+
+### 2.6 A defect in my own first cut
+
+The first run used `build_fundamental_panel`'s **default `lookback_years=6`** and produced a
+**21-date / 2,151-name** panel. That is a **smoke test**, and the METHODOLOGY RULE forbids a
+verdict from one. Re-run at the canonical `CONFIG.backtest_lookback_years=18` for the 69-date /
+2,531-name corrected panel. **The script now ASSERTS the shape rather than warning**, so the same
+mistake fails loudly instead of producing a plausible-looking table.
+
+Two smaller ones, both caught by reading signatures rather than by the run: C1 originally passed
+the weights dict as `cols` to `quantile_backtest`, and the gate's split keys were printed under
+the wrong names.
+
+### 2.7 Trial cost and adoption
+
+**Equity `N` 158 → 161** (three arms, one weighting, no grid); options 258 and infra 10 untouched,
+the counter being domain-scoped. `BACKTEST_RESULTS.json` re-run from a clean tree so the Deflated
+Sharpe carries the honest denominator.
+
+**ADOPTS NOTHING and no live scoring path changed.** Adoption would be a **VINTAGE EVENT**; the
+current vintage is **DERIVED** per `PT-GAPDUE` rather than assumed — **vintage 3, opened
+2026-08-11** — so an adoption would open vintage 4. No arm is eligible in any case.
+
+**Expectations scored 5 right, 2 wrong.** Right: no variant clears; S3B is best; S3A moves the
+composite least; S3A's rank correlation stays above 0.90 and S3B's falls below it. Wrong: the
+availability indicator was predicted non-zero and is not separable from zero (**the one I said I
+most wanted to be wrong about, and was**); and no arm's theme IC clears +1.0, so the predicted
+*"clears the audit bar while failing the real gate"* dissociation never arose — the audit's bar
+turned out to be even less useful than predicted, failing on every arm including the incumbent.
+
+## 3. What I did NOT do
+
+1. **I did not re-open zeroing `insider`.** The register fixed in advance that if all three
+   variants reject, zeroing becomes a live proposal **needing its own register and its own trial
+   charge** — not a fallback conclusion of this one.
+2. **I did not touch `bulk.prepare_insiders`' sign-precedence hazard** (it prefers
+   `transactionvalue`, which mis-signs every sale if that column is unsigned). Verified **still
+   unused** by the panel and reported; switching loaders would silently invert the theme.
+3. **I did not repair S25's sector look-ahead** — there is no data to repair it with. Pinned
+   instead.
+4. **I did not build the EDGAR SIC harvest.** It is new data, ~180k fetches, and it carries the
+   taxonomy confound in §1.2 — it belongs to the D-series with that caveat attached.
+5. **I did not change any weight, the 90-day lookback, or the 5e6 scale in the incumbent arm.**
+
+## 4. BUGS FOUND
+
+1. **The insider formula was duplicated** across two paths that must agree (§2.1). Fixed, proved
+   bit-identical.
+2. **The point-in-time valuation reads a non-point-in-time sector** (§1.3). Mine to report, no
+   data to fix it with; pinned.
+3. **My own first cut ran on a smoke-test panel** (§2.6). Fixed, and the shape is now asserted.
+4. **My own S25 probe reported a date-like field that does not exist** — a regex alternation
+   containing `to` matched "sec*to*r" (§1.1).
+5. **`scripts/build_ledger.py` will DROP both rows touched this session** if regenerated — S25 and
+   S3 are `manual`/`auto` curated rows and the generator rebuilds from the 134 audit ids only.
+   Pre-existing, reported each time it bites.
+
+## 5. Next
+
+The lane's queue is unchanged and now shorter by two: **S10's accounting half** (Beneish, Altman,
+external financing, NT late filings — a different instrument inheriting none of the valuation-band
+verdict) or the **CPCV embargo** from session 22, still the only open item that can move a
+published number.
+
+**And a dated one that needs no work: read `/api/track` → `contract_track.recording_ok` on or
+after 2026-08-13** (`row_awaited` 2026-08-12, `assessable_from` 2026-08-13). From then a missing
+row is a dated writer failure and `PT-WRITER` can finally be escalated or closed.

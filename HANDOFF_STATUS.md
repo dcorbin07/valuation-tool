@@ -50,9 +50,11 @@ It runs 62** — all passing — **and they must be judged by EXIT CODE**, since
 least three different summary formats and a loop grepping for `OK` falsely reports three passing
 suites as failures.
 
-**Trial cost: options `N` 258 -> 261**, one per arm exactly as pre-committed. **Equity `N` untouched
-at 158**, infra at 10; `BACKTEST_RESULTS.json` needs no re-run. Expectations scored **4 right, 2
-wrong**.
+**Trial cost: options `N` 258 -> 261**, one per arm exactly as pre-committed; infra untouched at 10.
+**Equity `N` is untouched by this item but now reads 161, not the 158 measured while running it** -
+the `S3` lane landed three equity trials the same day. **Re-read `by_domain` after merging rather
+than quoting a figure measured mid-session.** `BACKTEST_RESULTS.json` needs no re-run for this item;
+the `S3` lane already refreshed it at its own denominator. Expectations scored **4 right, 2 wrong**.
 
 **Recommended next step: register the Q5 question.** All three arms put their **worst** delta-hedged
 bucket at Q5 while Q1-Q4 are unordered, and both obvious explanations are refuted by measurement —
@@ -60,6 +62,70 @@ they are not one effect (`idio_vol` vs `vol_of_vol` rank-correlate **-0.2920**, 
 and not illiquidity (the gradient runs in **opposite** directions). **Deliberately not tested here:
 it would be the fourth arm my own register's void condition forbids.** Full write-up:
 `HANDOFF_optionsbot.md` sections 38-41.
+## edge lane, session 29 (2026-08-12) — S3's three insider rebuilds all REJECTED; S25 closed as unobtainable
+
+**S3.** `PREREG_s3_insider_rebuild.md` committed **alone at `b3a85fa`**. One panel build, four
+scorings, every arm a column on ONE frame. **All three variants REJECTED** against the
+already-committed margins (+0.25 long-short *t* AND +100bps alpha, both halves, boundary
+embargoed, deployed flat 1/7, no grid): **S3A** drop the `buys` bonus Δalpha +0.01pp/+0.79pp;
+**S3B** scale by market cap **+0.82pp/+0.52pp**; **S3C** split into two inputs
+**−0.92pp/−1.24pp**.
+
+**The unusual part is sign-stability, and it cuts both ways.** Session 7's LOO pattern — arms
+flipping sign between halves — is this project's most repeated finding, recorded five times, and
+here **every arm is sign-stable on both metrics in both halves**. But the gains are far below the
+bar and **V2G established there is no calibrated floor for a paired within-panel difference**, so
+small-but-consistent is an observation, not a result. **Nobody may quote S3B's +0.8pp as an
+effect.**
+
+**THE AUDIT'S OWN THRESHOLD IS REFUTED AS AN INSTRUMENT.** Its bar is *"theme IC t clears +1.0"*.
+**No arm clears it, and neither does the shipped incumbent at −0.2259** — so the audit's gate
+rejects all three for a reason unrelated to what the composite did, and +1.0 sits far below X7's
+calibrated **2.71** anyway.
+
+**The most interesting number does not convict.** `insider` is the only theme with a materially
+non-zero mean (−0.1031) at 83.1% coverage, so having a score at all applies a small negative tilt
+— S10's data-availability failure mode. Measured, the pure indicator carries median IC **+0.01345
+at t +1.4471, not separable from zero**, so the artefact is **not demonstrated**. Reported because
+that |t| is **larger than the insider theme's own**: the presence of filings carries more
+forward-return information than the direction of the score. Neither is significant.
+
+**Premise checks before the register:** one audit item was **already fixed by B26**; the formula
+was **duplicated** at `:737`/`:800` and now has one definition, proved bit-identical over 20,006
+cases against `git HEAD`; and **my own opening hypothesis was refuted** — I expected the
+non-z-scored `insider` to be under-weighted, and its per-date sd is **0.9600 vs 0.8296** averaged
+over the other six (~116% of nominal), because the *multi-input* themes are the compressed ones.
+
+**Controls:** C1 reproduces the record to sixteen digits and the run **aborts** before reading any
+arm if it does not; **C3 max |Δ| 0.000e+00 over 94,660 rows**; C6 coverage 0.8308 identical across
+all four arms. **A defect in my own first cut:** it used the default `lookback_years=6` and
+produced a **21-date smoke-test panel**; re-run at the canonical 18, and the shape is now asserted.
+
+**Equity `N` 158 → 161**; options 258, infra 10 untouched. **ADOPTS NOTHING** — adoption is a
+vintage event and the current vintage is **derived** per `PT-GAPDUE` (**vintage 3, opened
+2026-08-11**). Expectations 5 right, 2 wrong.
+
+**S25 — CLOSED as UNOBTAINABLE-WITHOUT-NEW-DATA, zero trials, no register.** The TICKERS snapshot
+has six fields and **zero date fields**; SF1 has no sector or SIC in 112 columns; no bulk file or
+prepared cache holds one. **Source named for the D-series: the EDGAR filing-header
+`ASSIGNED-SIC`** — note `data.sec.gov/submissions` carries only the CURRENT sic and does **not**
+work. **A confound that must travel with any such build: SIC is not the shipped taxonomy**, so a
+SIC map changes point-in-timeness and taxonomy at once.
+
+**And S25 has a finding the ledger did not: the non-PIT sector reaches the point-in-time
+VALUATION, not just the rejected ranking.** `calibration.py:523-527` passes today's sector into
+`pit_company` for a 1998 valuation, selecting `SECTOR_TARGET_MARGIN` (**2.70× spread**) and
+`SECTOR_MULTIPLES` (PE 2.50×, EV/Sales 6.15×). **S23's own code pins beta point-in-time two lines
+below while passing today's sector straight through**, so S23's exit-rule arms and S10's
+bull-case band both inherit it. No data exists to repair it; pinned by test instead.
+
+**Next:** S10's accounting half, or the CPCV embargo (still the only open item that can move a
+published number). **And a dated freebie: read `/api/track` → `contract_track.recording_ok` on or
+after 2026-08-13**, when a missing row finally becomes a dated writer failure.
+
+Full write-up: `HANDOFF_edge_audit.md` session 29.
+
+---
 
 ## edge lane, session 28 (2026-08-12) — the PT-WRITER reading returned `None`, and the guard that was supposed to answer it was broken
 
