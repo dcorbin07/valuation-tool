@@ -4,6 +4,70 @@ Written at the end of every Claude Code session. Overwritten each time, so this 
 the current state, not a log. Plain text, no colour codes — the Cowork agent reads this
 file directly.
 
+## 2026-08-11 - options-bot lane, session 26 (O10 + O18): real trades pay two thirds of the quoted half-spread, a passive fill is not a free half-spread, and BOTH ITEMS RETURN NO VERDICT
+
+First use of O14's tick cache. `PREREG_o10_passive_fills.md` and `PREREG_o18_spread_cost.md` were
+committed **together and ALONE at `34b0c11`** - two `.md`, zero `.py`. Frozen book, no re-mine,
+**no live code path changed**. **Options `N` 248 -> 258** (4 + 6, exactly as pre-committed);
+**equity `N` untouched at 155**, so `BACKTEST_RESULTS.json` needs no re-run.
+
+**THE SCOPE FACTS WERE MEASURED BEFORE THE REGISTERS WERE WRITTEN, AND THEY RULE OUT THE QUESTION
+MOST PEOPLE WILL THINK WAS ANSWERED.** O14's cache is exactly the alert-days and nothing else: for
+the 3,870 banked entries the **next session is cached for 0 of 3,870** and the **exit day for 0 of
+3,870**. The live bot submits after the close and its order rests on D+1, so *"what the live bot's
+limit orders fill at"* is **NOT ANSWERABLE** on this cache and no verdict is issued about it. Only
+the **entry leg** is coverable while a round trip crosses the spread twice. What is answerable is
+the execution environment of the exact contracts the book traded, measured quote-relatively, so it
+needs no decision time and carries no look-ahead. The join is complete at **3,869 of 3,869**, the
+one missing alert-day (`BUD` 2024-01-10) costing exactly one book row.
+
+**THE HEADLINE IS THE VOID, AND IT IS NOT A TECHNICALITY.** Control C2 required the behavioural
+condition-code split to replicate on the full book. It failed on **one code**: code 35, 4.94% of
+prints, reads at-touch **0.2496** on the full book against **0.439** on the 120-entry probe that
+classified it, putting it below package code 125 at 0.2649. The other four hold with room to spare.
+By the register's own clause the primary is void and only the all-codes arm may be reported, with
+no verdict - **and the all-codes arm, disqualified in advance for crediting multi-leg package
+liquidity to a single-leg resting order, reads NPA 1.0029pp against the 1.00pp bar while the
+registered primary reads 0.6318pp.** The arm ruled out first is exactly the one that crosses.
+Reported because it cuts the other way: **the void concealed no crossing** - the fallback's halves
+are 1.0760 and 0.9352, so both-halves fails there too. Arithmetic, not a verdict.
+
+**WHAT SURVIVES AS MEASUREMENT (no verdict is drawn from any of it).** Resting at the mid over a
+30-minute horizon: gross saving **+2.4555pp**, adverse selection **-1.8237pp**, net **+0.6318pp**
+(CI95 0.5014 to 0.7643), fill rate **0.5726**. **Adverse selection eats 74.3% of the gross saving**
+- a resting bid fills when sellers are aggressive, and *"you save half the spread"* overstates by
+nearly fourfold. Size-weighted **rho = 0.6743** (CI95 0.6617 to 0.6871): a real trade pays about
+two thirds of the quoted half-spread. The decomposition keeps apart two things that would flatter
+the answer if added - EOD half-spread **$0.1544** -> prevailing-at-print **$0.0999** -> effective
+**$0.0591** - and the **$0.0545 availability term is SELECTED** and may never be quoted as a
+saving; only the **$0.0408** price-improvement term is an execution property. Of an apparent
+**$9.53/contract** overcharge, **$4.08** is defensible. The strongest conditioning is **entry
+premium, not quoted spread** (the registered expectation was wrong): rho falls monotonically
+**0.778 -> 0.597**, 4.8x its permutation null, in both halves and both arms.
+
+**THE LIMITATION THAT MUST TRAVEL WITH EVERY FIGURE ABOVE:** coverage is **0.7162** and the
+excluded 28% is not random - **62% wider spreads, about half the market cap and half the ATM open
+interest, and NEGATIVE expectancy (-3.11% against +5.82%)**. Every number is measured on the
+**liquid** part of the book, and cost bites hardest on the part excluded.
+
+**Defects reported, both mine.** C2 and the outcome statistics were computed in the **same pass**,
+so it cannot be claimed the control was read before the numbers; a gating control must run and be
+read in a separate pass. And the `lambda = +1` row is the instrument's own null, should read zero
+by construction and reads **-0.07 to -0.59pp**, a measured bias that runs against the passive arm
+and so does not manufacture the null. Separately, O14's quote-staleness caveat was checked rather
+than assumed and **does not bite here**: median quote lag 0.0s, 0.19% of prints over 60 seconds.
+
+**NOTHING IS ADOPTED.** `DEFAULT_AGGRESSION` is untouched at 1.0 and pinned by test; a material
+result is **routed to Don**, because changing the fill constant re-prices every options figure the
+project publishes. **Cheaper fills do NOT rescue R2** - the random-entry control is filled by the
+identical rule, so the -5.0640pp gap is untouched.
+
+**Recommended next step:** (1) a successor register with code 35 reclassified and the gate read in
+a **separate pass** - cheap, since the extract is cached; (2) the genuinely valuable data item,
+**pull tick flow for exit days and D+1**, which is what makes the live order-working question and
+the second leg of the round trip measurable at all. Full write-up in `HANDOFF_optionsbot.md`
+sections 34-37; artifact `data/free_analysis/O10_O18_TICKFLOW.json`.
+
 ## 2026-08-11 — edge lane, session 22 (M2 + M6): clustered inference is the default, and the schema guard found TEN dropped fields
 
 Two audit items, both **infrastructure**: no hypothesis, no verdict. **Equity `N` is UNCHANGED at

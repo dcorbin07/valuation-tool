@@ -44,6 +44,70 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **REAL TRADES PAY ABOUT TWO THIRDS OF THE QUOTED HALF-SPREAD, A PASSIVE FILL IS NOT A FREE
+  HALF-SPREAD — AND BOTH ITEMS RETURN **NO VERDICT** BECAUSE MY OWN VOID CONDITION FIRED AND
+  DISQUALIFIED THE ARM THAT WOULD HAVE CLEARED THE BAR (2026-08-11, session 26, `O10` + `O18`).**
+  First use of O14's tick cache. `PREREG_o10_passive_fills.md` and `PREREG_o18_spread_cost.md` were
+  committed **together and ALONE at `34b0c11`** — two `.md`, zero `.py`. Frozen book, no re-mine,
+  **no live code path changed**.
+  * **THE SCOPE FACTS WERE MEASURED BEFORE THE REGISTERS WERE WRITTEN, AND THEY RULE OUT THE
+    QUESTION MOST PEOPLE WILL THINK WAS ANSWERED.** O14's cache is **exactly the alert-days and
+    nothing else**: for the 3,870 banked entries the **next session is cached for 0 of 3,870 and
+    the exit day for 0 of 3,870**. The live bot submits after the close and its order rests on
+    **D+1**, so **"what the live bot's limit orders fill at" is NOT ANSWERABLE on this cache** and
+    no verdict is issued about it. **Only the ENTRY leg is coverable while a round trip crosses the
+    spread twice.** What *is* answerable is the execution environment of the exact contracts the
+    book traded, measured **quote-relatively** — no decision time, no look-ahead. Join complete:
+    **3,869 of 3,869**, the one missing day (`BUD` 2024-01-10) costing exactly one row.
+  * **THE VOID IS THE HEADLINE AND IT IS NOT A TECHNICALITY.** C2 required the behavioural
+    condition-code split to replicate; it failed on **one code** — code 35, 4.94% of prints, reads
+    at-touch **0.2496** on the full book against **0.439** on the 120-entry probe that classified
+    it, below package code 125's 0.2649. **The all-codes fallback the register had already
+    disqualified — for crediting multi-leg package liquidity to a single-leg resting order, an
+    OPTIMISTIC bound — reads NPA 1.0029pp against the 1.00pp bar, while the registered primary
+    reads 0.6318pp.** The arm ruled out in advance is exactly the one that crosses. **Reported
+    because it cuts the other way: the void concealed no crossing** — the fallback's halves are
+    1.0760 and 0.9352, so both-halves fails there too. Arithmetic, **not a verdict**.
+  * **A PASSIVE FILL IS NOT A FREE HALF-SPREAD, AND THIS IS THE QUOTABLE MEASUREMENT.** Resting at
+    the mid over 30 minutes: gross saving **+2.4555pp**, adverse selection **−1.8237pp**, net
+    **+0.6318pp** (CI95 [0.5014, 0.7643]), fill rate **0.5726**. **ADVERSE SELECTION EATS 74.3% OF
+    THE GROSS SAVING** — a resting bid fills when sellers are aggressive, and *"you save half the
+    spread"* overstates by nearly fourfold.
+  * **`ρ` = 0.6743: A REAL TRADE PAYS TWO THIRDS OF THE QUOTED HALF-SPREAD** (CI95
+    [0.6617, 0.6871]; 0.6054 all-codes; unweighted agrees at 0.6737). **The decomposition keeps
+    apart two things that would flatter the answer if added:** EOD half-spread **$0.1544** →
+    prevailing-at-print **$0.0999** → effective **$0.0591**. The **$0.0545 availability term is
+    SELECTED** — you avoid it only if you trade when the market is there — and **may never be
+    quoted as a saving**; only the **$0.0408** price-improvement term is an execution property. So
+    of an apparent **$9.53/contract** overcharge just **$4.08** is defensible.
+  * **THE STRONGEST CONDITIONING IS ENTRY PREMIUM, NOT QUOTED SPREAD** (the registered expectation
+    was wrong): `ρ` falls monotonically **0.778 → 0.597** with premium, range 0.1812 against a
+    permutation p95 of 0.0376 — **4.8× the null**, negative Spearman in both halves and both arms.
+    A cheap option pays nearly its whole quoted half-spread; a fixed tick on a small premium is why.
+    **`F6` (print size) is DEGENERATE** — two of five bins **empty**, print size being overwhelmingly
+    one contract — and is flagged, not reported as a failure, per O13's treatment of `opt_right`.
+  * **THE LIMITATION THAT MUST TRAVEL WITH EVERY FIGURE ABOVE: coverage is 0.7162 and the excluded
+    28% is NOT random.** The tape-thin contracts carry **62% wider spreads, ~half the market cap and
+    ~half the ATM open interest, and NEGATIVE expectancy (−3.11% vs +5.82%)**. **Every number here
+    is measured on the LIQUID part of the book**, and cost bites hardest on the part excluded —
+    O13 already found `entry_spread_pct` q5 at −7.41%.
+  * **A PROCESS DEFECT, MINE: C2 and the outcome statistics were computed in the SAME pass**, so it
+    cannot be claimed the control was read before the numbers. A gating control must run and be read
+    in a **separate pass**. Also: the `λ=+1` row is the instrument's own null, should read 0 by
+    construction and reads **−0.07 to −0.59pp** (late-session reference moments with truncated
+    windows) — a measured bias that runs **against** the passive arm, so it does not manufacture the
+    null. **The O14 staleness caveat was checked and does NOT bite here: median quote lag 0.0s,
+    0.19% over 60s.**
+  * **NOTHING IS ADOPTED. `DEFAULT_AGGRESSION` is untouched at 1.0 and pinned by test**; a material
+    result is **routed to Don**, because changing the fill constant re-prices every options figure
+    the project publishes. **AND CHEAPER FILLS DO NOT RESCUE R2** — the random-entry control is
+    filled by the identical rule, so the **−5.0640pp** gap is untouched. That `ρ < 1` means every
+    options expectancy in the record is **understated** is *not* evidence the signal works.
+  * **Options `N` 248 → 258** (4 + 6, exactly as pre-committed), **charged in full despite no
+    verdict** — declining to run keeps the denominator (session 8), but running and then voiding
+    does not refund the search. **Equity `N` untouched at 155.** Expectations scored **8 right,
+    3 wrong, 1 split, 1 unscorable**. `data/free_analysis/O10_O18_TICKFLOW.json`;
+    `HANDOFF_optionsbot.md` §34-37.
 - **THE PRICER'S DIVIDEND GAP IS A CALLER BUG, NOT A MODEL BUG — IT IS CHEAP WHERE IT IS
   MEASURABLE AND ONE DOOR IS UNRESOLVED; AND THE PER-BUCKET FLOOR CANNOT DELIVER WHAT ITS OWN
   COMMENT PROMISES (2026-08-11, session 25, `O21` + `O26`).** Frozen book, no re-mine, **no live
