@@ -48,6 +48,71 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE SPLIT-ADJUSTED-SPOT DEFECT (U1-SPLIT'S CLASS) RECURRED IN A NEW INSTRUMENT AND WAS CAUGHT
+  ONLY BY DISBELIEVING A NUMBER — READ THIS BEFORE MATCHING ANY STRIKE AGAINST A PRICE
+  (2026-08-12, session 30, `O6`+`O7`+`O17`).** All ten arms NULL; two failed on exactly one
+  pre-committed leg. `PREREG_o6_o7_o17_earnings_surface.md` committed **ALONE at `779d42c`**.
+  Frozen book, **no live code path changed, nothing adopted.**
+  * **THE DEFECT, AND IT IS THE MOST TRANSFERABLE THING HERE. Option chains are as-traded and
+    UNADJUSTED; `data/bulk/prepared/bars`'s `close` is split- AND dividend-adjusted — NVDA in 2012
+    reads 0.27 against a raw 11.97, a 43× ratio.** Matching an as-traded strike against an adjusted
+    spot picks a contract nowhere near the money and **fails SILENTLY** — the option still prices,
+    it is simply mostly intrinsic. **Measured against the book's own `underlying_entry` on 1,173
+    banked entries: `raw_close` agrees EXACTLY (median rel err 0.00000, nothing >5% off) while
+    `close` is off by a median 10.3% and by >5% on 67% of entries.** **RULE: `raw_close` for
+    anything touching a STRIKE, `close` only for a RETURN.** My first cut reported a mean implied
+    move of **19.57%** against a realised 5.26% and a confident RICH verdict — an **artefact**
+    (2.82% of events >20% from the money, up to 30×). Repaired, coverage rose 0.2738 → 0.4459 and
+    the implied move fell to a credible **5.45%**. **Anything else in this project matching a
+    strike against `close` is suspect.** Pinned by three tests; a control that must stay empty
+    reads ZERO.
+  * **THE LEDGER WAS WRONG ABOUT TWO OF THE THREE ROWS**, both `src=auto`: O6 read *"prose mentions
+    only, no section"* and O17 *"no mention anywhere in the corpus"*, yet `VALQUO_EDGE_AUDIT.md:964`
+    and `:1150` are full sections naming four rules each. **Definitions were QUOTED, not invented.**
+  * **`O6` ALL FOUR NULL, AND THE STRONGEST NUMBER IS THE CONTROL: the random-alternative-contract
+    p95 is about −11.3pp/trade, so the mechanical 35-delta rule the audit wanted replaced ALREADY
+    BEATS ARBITRARY IN-BAND SELECTION BY ~11 POINTS.** Gains: A1 lowest-IV **+0.074pp**, A2 IV-rank
+    **−3.505pp**, A3 smile-residual **−11.099pp**, A4 vega/spread **+0.464pp**. **A3 is the audit's
+    OWN headline suggestion (ORATS smoothed market value) and is the worst arm in the register.**
+    **A4 is the near miss** — positive in both halves, clears both p95s, **NULL only on the audit's
+    tail-concentration clause.**
+  * **WHY THEY FAIL, AND IT INVALIDATES THE AUDIT'S FRAMING: the cheapness rules CHANGE THE DELTA
+    rather than repricing a fixed trade.** Mean |delta gap| 0.004 / 0.248 / **0.310** / 0.125, A3
+    drifting 0.374 → **0.458**. The audit claims this *"cleanly separates which NAME from which
+    CONTRACT"*; on this candidate set **it cannot** — a cheapness criterion moves the exposure too.
+    **A1's 0.004 gap means it is essentially the incumbent, so its null is near-tautological.**
+  * **PORTABLE, from the zero-cost random-entry control arm: the same four rules reproduce the same
+    ordering and magnitudes on the CONTROL book** (+0.057, −4.140, −9.382, +0.310pp over 5,984
+    events). **This is contract selection generally, not the dead alert days** — so it carries to
+    any future book.
+  * **`O7`: EARNINGS OPTIONS ARE *RICH* ON THIS UNIVERSE, CONTRADICTING GAO–XING–ZHANG'S PUBLISHED
+    SIGN.** Implied move **5.4512%** vs realised **4.7773%**, difference **−0.6739pp** (CI95
+    [−0.8475, −0.5070], excludes zero); realised exceeds implied on only **35.07%** of events.
+    Stated as universe-specific, not a refutation — their effect is strongest in **small** firms
+    and this book has none. **The backtest is dead: −10.34% per straddle net of four crossings,
+    negative in both halves.** A **declared deviation**: B2's registered non-announcement null was
+    NOT computed, because it fails positivity in both halves and no null could change the
+    conjunction.
+  * **`O17`: AVOIDING EARNINGS GETS MONOTONICALLY WORSE** (+0.797 → −0.479 → −1.429pp at 5/10/15
+    days, none clearing its null) — **the loser autopsy's IV-crush hypothesis is not merely
+    unsupported, the data points the other way.** **C4 OWN-THE-EVENT fails on ONE leg only: gain
+    +4.686pp/trade, POSITIVE IN BOTH HALVES (+5.748, +3.730) and CLEARING ITS NULL IN BOTH (+3.241,
+    +2.941) — NULL solely because retention is 0.5706 against the pre-committed 0.70 floor.** The
+    floor was fixed first and is **reported, not relaxed to fit**.
+  * **THE CONFOUND THAT SHOULD HAVE KILLED C4 IS REFUTED BY MEASUREMENT.** Owning the event selects
+    longer-dated contracts and O13 found expectancy climbs with tenor, so C4 could have been a
+    **DTE filter wearing an earnings filter's name** (U7/S10's mode). It is not: DTE 60.0 kept vs
+    56.4 refused, and **within every DTE quartile the gain stays positive** (+6.416, +6.310, +2.138,
+    +2.711pp). Tenor independently reconfirms O13 (+0.376, −0.877, +6.736, +8.584pp by quartile).
+  * **EARNINGS COVERAGE IS BETTER THAN `bulk.py` SAYS AND ITS HOLE IS SYSTEMATIC.** That file warns
+    ~2.83 code-22 dates per ticker-year; on these megacaps it is **median 3.96 / mean 4.14**. But
+    **29 of 186 names have ZERO coverage (388 trades, 10.0%) and EVERY ONE is a foreign private
+    issuer** filing 20-F/6-K. **A filter reading "no date" as "no announcement" FAILS OPEN on a
+    non-random tenth of the book** — the mode this lane refused once before. `refuse_within` returns
+    **`None` for UNKNOWN** and callers must drop; four tests pin it.
+  * **Options `N` 261 → 271** (4+2+4, exactly as pre-committed); **equity untouched at 161**.
+    Expectations **6 right, 1 wrong**. `data/free_analysis/O6_O7_O17_EARNINGS.json`;
+    `HANDOFF_optionsbot.md` §42-45.
 - **THE SURFACE-ANOMALY FAMILY IS NULL ON ALL THREE ARMS — AND THE PRIOR LANE'S ONE SUGGESTIVE
   RESULT REVERSES ITS SIGN ONCE THE INSTRUMENT IS FIXED (2026-08-12, session 29, `O3`+`O4`+`O5`).**
   One register, three arms, `PREREG_o3_o4_o5_surface.md` committed **ALONE at `d2aa5f9`** — one
