@@ -134,6 +134,97 @@ the project's memory and the old versions had been repeated for months.
     mid-run measurement.** Expectations **5 right, 3 wrong, 1 split** — and the streak breaks: this is the first
     session in five in which **no** arm cleared **either** half.
     `data/free_analysis/U2_SURFACE_STOCK.json`; `HANDOFF_optionsbot.md` §55.
+- **THE S-SERIES RESEARCH ROWS ARE CLOSED: TWELVE ARMS, TWELVE NULLS — AND BOTH NULLS ARE THE
+  INFORMATIVE KIND, ONE BECAUSE IT IS NOT INERT AND THE OTHER BECAUSE IT COULD NOT HAVE DETECTED
+  WHAT IT WAS HUNTING (2026-08-13, `S17`+`S19`).** One register for both,
+  `PREREG_s17_s19_events_mdna.md`, committed **alone at `a92996d`**. **ADOPTS NOTHING.**
+  * **`S17`'S METHOD STEP 1 CANNOT BE EXECUTED, AND THAT IS PERMANENT UNTIL `D10` RUNS.** The
+    audit says *"obtain the code legend from Sharadar's documentation"*. **Sharadar ships no
+    legend with the EVENTS download** (`bulk.py:20`, `:235`) and `D10` records the docs were
+    never extracted. So the codes were tested **BY NUMBER, UNLABELLED** — and the register said
+    in advance what that costs: **a signal on an unlabelled code is uninterpretable even if it
+    works.** A positive would have been a lead requiring the legend, never an adoption. **Do not
+    re-run `S17` without the legend** — it would buy the same uninterpretable numbers for another
+    10 trials.
+  * **THE MECHANISM QUESTION IS ANSWERED *NO*, AND THE PROJECT HAD ALREADY MEASURED IT.** The
+    empirical decode that identified code 22 scored every registered arm on the way past
+    (`bulk.py:243-247`): day-of median absolute return against a 1.292% baseline — **code 22 at
+    1.64×**, and **91 1.15×, 71 1.13×, 81 0.98×, 52 0.96×, 34 0.94×**. Code 22's mechanism is an
+    *information shock* and PEAD is drift **following** it; **the other codes have no shock for
+    drift to follow.**
+  * **BUT THE ARMS ARE NOT INERT, WHICH REFUTES MY OWN PRIOR WHILE THE VERDICT MATCHED IT.** All
+    10 are **NULL** — **not one clears the both-halves leg** — yet **8 of 10 clear their own
+    permutation p95 full-sample, 8 of 10 survive Benjamini–Hochberg at q 0.05, and ALL TEN are
+    sign-stable across halves.** Annualised: code 91 **−2.2%**, code 71 **−2.0%**, code 34
+    **+3.2% to +4.9%**. **They fail by being ERA-CONCENTRATED** (code 91 early *t* −3.476 / late
+    −1.862; code 71 early −1.342 / late **−3.098**). **The register's hedge — day-of VOLATILITY
+    is not directional DRIFT, and the two come apart for scheduled or slow-diffusing events — is
+    the load-bearing part, not the prior it hedged.**
+  * **"8 OF 10 CLEAR" IS NOT EIGHT FINDINGS, AND THIS CAVEAT MUST TRAVEL WITH THE NUMBER.** Two
+    dependencies stack. **By construction the ten arms are FIVE signals at TWO horizons, and a
+    code's 21d and 63d arms share a BIT-IDENTICAL event indicator.** **Measured**, the codes
+    correlate up to **0.4227 (91~71)** at name-date level (mean |ρ| 0.1330 over 93,997
+    name-dates) and the four negative codes all point the same way. **Effective independent tests
+    are nearer three or four** — the SELRULE lesson, where 16 co-moving countries were worth 2–4
+    draws — so **BH was fed correlated tests.**
+  * **TWO EXPLANATIONS REFUTED BY MEASUREMENT, WHICH IS WHY THE ARMS ARE INTERESTING RATHER THAN
+    DISMISSABLE.** They are **NOT market-cap sorts**: median cap of event vs non-event names is
+    **0.93×** for code 91 and **1.07×** for code 71 (only code 81, the weakest arm, tilts at
+    1.86×), so **U7's and S10's failure mode does not apply.** And **differential survival is not
+    the driver** — drop rates 2.4–3.2% with gaps **under 1pp on every negative arm**.
+  * **CONTROLS. C1 GATES AND RAN IN ITS OWN PASS**, aborting before any arm on failure — session
+    26's defect repaired. Code 22 reproduces at **1.7423×** against 1.64×. **The ordering of the
+    other codes reproduces only BROADLY, stated rather than rounded into a clean pass:** 91 and
+    71 swap (within 0.007, effectively tied) and code 11 moves up two places. **C3 refutes the B6
+    signature directly: 89.1% of names in the earliest cross-sections were still trading ten
+    years later**, where a per-ticker tail drives that toward zero. 328 month-ends, cross-section
+    median **1,649**.
+  * **`S19`: BOTH ARMS NULL — AND THE NULL DOES NOT MEAN THE EFFECT IS ABSENT.** On **418
+    held-out names with ZERO overlap** with the original 195 (15,893 filing pairs newly collected,
+    **2.2×** the original study): **A1 `mdna_cosine_tf`@21d residual IC +0.012202 at NW *t*
+    +1.1876**, **A2 `mdna_jaccard`@63d +0.021737 at +1.4012**. Neither reaches the audit's 2.0.
+  * **THE SIGN DID NOT REVERSE AND THE MAGNITUDES GREW.** The register fixed the direction in
+    writing first — *more MD&A change → outperform* — and **all four half-cells are POSITIVE**,
+    against the original's own **+0.009607 at *t* 0.6463**. A sign flip between halves is this
+    project's most repeated failure pattern and **it did not happen here.**
+  * **THE DESIGN COULD NOT HAVE RETURNED A POSITIVE VERDICT EVEN IF THE EFFECT WERE EXACTLY TRUE
+    — QUOTE THIS WITH THE NULL OR DO NOT QUOTE IT.** A1's **minimum detectable incremental IC at
+    |*t*| = 2 is +0.020549** (A2's +0.031026) against an original effect of **+0.0096**. Its
+    observed +0.0122 sits **below its own detection threshold**. **NULL means "could not be
+    separated from zero at this resolution", NEVER "absent"** — V2G's lesson on a new instrument.
+  * **THE BINDING CONSTRAINT IS THE PANEL'S FREQUENCY, NOT THE NAME COUNT, so collecting more
+    names cannot re-open it.** MD&A scores start 2016-08 against a panel starting 2009-01-15, so
+    **41 of 69 dates are covered and all sit late** — a full-panel both-halves gate is
+    **impossible, not merely weak** (`S18`'s class) — and the original tested **111 MONTHLY**
+    dates while the theme panel is **QUARTERLY**. Re-opening needs a **monthly theme panel**, a
+    rebuild with its own register.
+  * **C6 REPRODUCES ONLY LOOSELY AND THE EVIDENCE IS CONTRADICTORY, reported rather than rounded.**
+    It passes on the **corrected** panel (+0.011227 vs the published +0.009607) while the **VOID
+    pre-B6 panel matches the original's date count exactly (37 vs 37)** and its IC not at all.
+    **Most likely neither banked panel IS the original's** — `lazy_prices_ic` builds its own.
+    **A finding in passing: the original study's orthogonality block was computed on a pre-B6
+    panel the project has since declared VOID**, so its numbers may not be quoted as
+    corrected-panel measurements.
+  * **`S10`'s ACCOUNTING HALF WAS ASSESSED FOR THIS REGISTER AND EXCLUDED, ON MEASUREMENT.** Every
+    SF1 input for Beneish, Altman and external financing **exists** in the export, but **eight
+    columns are absent from `WRDSProvider._KEEP`** (`assetsc`, `ppnenet`, `depamor`,
+    `workingcapital`, `retearn`, `liabilities`, `ncfcommon`, `ncfdebt`), so it forces a **panel
+    rebuild** where `S17`/`S19` needed none; **NT filings are not buildable from anything we own**,
+    so the audit's *"flagged by two or more"* of **four** would silently become **two of three** —
+    a different rule chosen after seeing what exists. **Still OPEN, scoped, charged nothing.**
+  * **A DEFECT IN MY OWN REGISTER, CORRECTED HERE AND NOT EDITED AWAY.** §7 says *"equity `N` 186
+    → 198"*; **186 was quoted from this file instead of re-measured after the session's own
+    merge**, which brought in `U2`'s four equity trials. **The honest figure is `N` 190 → 202**
+    and the charge of 12 is unchanged. **This is the exact error the record already warns about**
+    — *re-read `by_domain` after merging* — committed with the warning in view.
+    **`BACKTEST_RESULTS.json` was ALREADY stale at 186 against a live 190 before this session
+    touched it**, so the refresh corrects `U2`'s drift too.
+  * **Equity `N` 190 → 202.** Expectations **8 right, 0 wrong — and the sweep should be
+    discounted, not celebrated:** three of the eight predicted NULL in a project where
+    essentially everything is null, and **the reasoning behind the `S17` call was wrong even
+    though its verdict was right.** Both ledger rows were `src=auto` and wrong — the **eleventh
+    and twelfth** *"no section"* note to be false. `data/free_analysis/S17_EVENT_CODES.json`,
+    `S19_MDNA.json`; `HANDOFF_edge_audit.md` S17+S19 §0-11.
 - **THE NO-TRADE BAND'S KNEE IS IDENTIFIED AND IT IS EXACTLY WHERE THE BOUNDARY WAS — GIVEN THREE
   WIDER WIDTHS, BOTH HALVES STILL PICKED 0.30, SO `S14` IS NOW AN ADOPTION DECISION FOR DON
   (2026-08-13, `S14-WIDTH`).** `PREREG_s14_width_extension.md` committed **alone at `e63295e`**.
