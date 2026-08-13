@@ -48,80 +48,6 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
-- **THE "CONVEX OVERLAY AS INSURANCE" IS NOT INSURANCE — IT IS LEVERAGE, AND IT LOSES THREE TIMES
-  WHAT IT WAS SUPPOSED TO BE DIVERSIFYING; THE U-SERIES IS NOW CLOSED, THREE OF ITS ROWS BY DESIGN
-  MEMO RATHER THAN BY MEASUREMENT (2026-08-13, session 37, `U3`+`U4`+`U6`+`U8`).**
-  `PREREG_u3_convex_overlay.md` committed **ALONE at `9603e64`** — one `.md`, zero `.py`, a strict
-  ancestor of the measurement commit. Frozen books on both sides, no panel rebuild. **ADOPTS
-  NOTHING.** `U4`/`U6`/`U8` are `DESIGN-RECORDED` in `DESIGN_u4_u6_u8.md` at **zero trials** —
-  the task asked for memos where a memo is the honest deliverable, and no backtest was
-  manufactured for them.
-  * **THE AUDIT'S PREMISE IS REFUTED BY MEASURING WHAT THE SLEEVE IS MADE OF.** It calls the
-    options book a long-volatility sleeve *"built by accident"* whose conditional correlation to
-    the equity book *"is the whole question"*. Measured: `opt_right` is **`call` on 3,870 of
-    3,870 rows** at mean delta **+0.3725** — long vega **AND** long delta. Correlation with the
-    equity top decile **+0.4371**; in the equity book's worst four covered quarters the sleeve
-    returns **−84.39%** against its own **+27.52%** average quarter; in **COVID 2020Q1 the equity
-    top decile fell −28.09% and the sleeve fell −76.14%**. **No capital weight can make this
-    insurance.**
-  * **`A1` REJECTED AT BOTH O11 CONCURRENCY CAPS, AND NOT MARGINALLY: MAXIMUM DRAWDOWN IS WORSE
-    THAN THE EQUITY BOOK ALONE IN ALL TWENTY CELLS** (cap 10 ΔmaxDD −0.0002 to −0.0021; cap 50
-    −0.0048 to −0.0480), improving **monotonically toward X = 100** — so a drawdown-minimising
-    optimiser puts **ZERO** in the sleeve, which is `U8`'s answer for free.
-  * **THE AUDIT'S OWN TWO-LEG BAR IS WHAT CATCHES IT, AND IT EARNED ITS KEEP.** Sharpe **does**
-    improve at cap 10 (1.1296 → **1.2041** at X=96) — purely by **raising return** (+27.01%/yr →
-    +34.19%/yr). That is exactly the case `:1284` disqualified in advance: *"a long-vol sleeve
-    that improves Sharpe by raising return is not doing the job it is being hired for."* **A
-    one-leg Sharpe bar would have adopted this.**
-  * **THE AUDIT CONTRADICTS ITSELF AND MEASUREMENT SETTLES IT.** Its step 2 (`:1279`) conditions
-    on the equity book's worst decile — **precisely the return-based conditioning its own
-    `:1282` warns is an artefact** — and the two give **OPPOSITE SIGNS**: **−0.6504**
-    return-conditioned on n=4, against **+0.5478** and **+0.5819** on the high- and low-IV halves.
-    **The conditional MEAN is the informative statistic; the conditional CORRELATION is the trap.**
-  * **THE ASYMMETRY WAS FIXED BEFORE THE RUN, from the audit's own `:1549`**: a crash-insurance
-    rule cannot clear a both-halves gate unless the sample holds two comparable crashes and this
-    one holds **one** (S10's trough index 44 of 69). So the register committed that **a decisive
-    REJECT was available and a decisive ADOPT was not** — a clearing arm would have been recorded
-    `ELIGIBLE-BUT-UNRESOLVED`, never adopted. **Nobody may read this rejection as evidence that
-    portfolio insurance does not work.**
-  * **NON-BLINDNESS DISCLOSED IN THE REGISTER (§0.5), not after.** A crude probe of A2's **sign**
-    was run before the register existed, to decide whether U3 was measurable at all. The register
-    says so, excludes that expectation from scoring, and leans on the audit's **verbatim** bar
-    rather than one chosen afterwards.
-  * **COVERAGE: 40 of 69 quarters, 28 uncovered EARLY and 1 late**, halves **20 and 19** after
-    embargoing 2021-01-21 — **S18's and U2's situation for the third time**, so a full-panel gate
-    is impossible rather than weak.
-  * **`U6` IS NOT BUILDABLE AND THE REASON IS A NUMBER: 1.81% CHAIN COVERAGE.** Of **7,132**
-    names entering the top decile over 68 transitions only **129** have mined chains; **median 2
-    per rebalance** against a mean top-decile size of **165.6**, and **ZERO on 18 of 68 dates**.
-    Second, independent blocker: the entry leg is a cash-secured **put** and the cache is **100%
-    calls**, so no put-chain history exists to replay against. Same class as `S25` and `B13` —
-    **unobtainable without new data**, and it stays the most tradeable idea in the catalogue if
-    the data is ever bought.
-  * **`U4`'s GATE HAS RESOLVED, NEGATIVE.** It was gated on `U1`/`U2`; both rejected, as did
-    `U7`. So one object may carry **two independently-sourced expressions with an explicit
-    statement that they are independent** — no combined score, no combined confidence, no arrow
-    from view to trade. And **O11 forces an addition to the copy rule**: expectancy framing is
-    necessary but **not sufficient**, so any surface quoting per-trade expectancy must quote the
-    survivability result beside it.
-  * **A DEFECT IN MY OWN INSTRUMENT, PRESENTATIONAL AND PROVEN SO RATHER THAN ASSERTED.** A3's
-    column was named `drag_vs_equity_pp` while computing `combined − equity`, which is **positive
-    when the sleeve adds return** — a gain printed under a loss's name. Renamed; the pre-fix and
-    post-fix artifacts diff at **344 shared leaves, ZERO moved, 6 added, 0 removed.** Also
-    disclosed: the combined book is **rebalanced to weight X every quarter** per the register, so
-    the sleeve's geometric **−33.35%/yr** coexists with a **+27.52%/quarter arithmetic** mean and
-    the construction **tops the sleeve back up after a crash quarter**, which flatters it.
-  * **CONTROLS: C1 reproduces the record at alpha 0.07174142332098163; C3 ZERO look-ahead over
-    161,610 marks; C4 `top == alpha + equal_weight` at max abs deviation 0.000e+00; C5 at ρ = 1.0
-    the largest improvement is +0.000e+00; C8 X=100 reproduces the equity book at 0.000e+00.
-    C7 is the one that cuts: the sleeve is closer to the equal-weighted universe (+0.4837) than
-    to the top decile (+0.4371), so it is BETA, not book-specific.**
-  * **THE ONLY PRODUCTION CHANGE IS ONE ADDITIVE KEY**: `quantile_backtest`'s opt-in `series`
-    dict now carries `equal_weight`, because `top = alpha + equal_weight` is an identity and **you
-    cannot compound an alpha**. Inside the existing `return_series` gate, so every current
-    caller's payload is bit-identical; pinned by test. **Options `N` 285 → 287** (A1 and A2; A3
-    charges nothing); **equity untouched at 190**. Expectations **4 right, 2 wrong, 1 excluded**.
-    `data/free_analysis/U3_CONVEX_OVERLAY.json`; `HANDOFF_optionsbot.md` §56.
 - **THE DIP DETECTOR'S CLAIM IS NOT SUPPORTED - FOUR ARMS, FOUR NULLS - AND THE USEFUL NUMBER
   IS THAT A DRAWDOWN IS SUBSTANTIALLY AN INVERSE-MOMENTUM SORT (2026-08-13, `V6`).**
   `PREREG_v6_dip_detector.md` committed **ALONE at `93e3e60`**, one `.md`, zero `.py`, a strict
@@ -205,6 +131,80 @@ the project's memory and the old versions had been repeated for months.
     rather than quoted from this file - the S17/S19 defect, not repeated. Expectations **3 right,
     4 wrong, 1 split**. `data/free_analysis/V6_DIP_DETECTOR.json`; `HANDOFF_edge_audit.md` V6
     sections 0-11.
+- **THE "CONVEX OVERLAY AS INSURANCE" IS NOT INSURANCE — IT IS LEVERAGE, AND IT LOSES THREE TIMES
+  WHAT IT WAS SUPPOSED TO BE DIVERSIFYING; THE U-SERIES IS NOW CLOSED, THREE OF ITS ROWS BY DESIGN
+  MEMO RATHER THAN BY MEASUREMENT (2026-08-13, session 37, `U3`+`U4`+`U6`+`U8`).**
+  `PREREG_u3_convex_overlay.md` committed **ALONE at `9603e64`** — one `.md`, zero `.py`, a strict
+  ancestor of the measurement commit. Frozen books on both sides, no panel rebuild. **ADOPTS
+  NOTHING.** `U4`/`U6`/`U8` are `DESIGN-RECORDED` in `DESIGN_u4_u6_u8.md` at **zero trials** —
+  the task asked for memos where a memo is the honest deliverable, and no backtest was
+  manufactured for them.
+  * **THE AUDIT'S PREMISE IS REFUTED BY MEASURING WHAT THE SLEEVE IS MADE OF.** It calls the
+    options book a long-volatility sleeve *"built by accident"* whose conditional correlation to
+    the equity book *"is the whole question"*. Measured: `opt_right` is **`call` on 3,870 of
+    3,870 rows** at mean delta **+0.3725** — long vega **AND** long delta. Correlation with the
+    equity top decile **+0.4371**; in the equity book's worst four covered quarters the sleeve
+    returns **−84.39%** against its own **+27.52%** average quarter; in **COVID 2020Q1 the equity
+    top decile fell −28.09% and the sleeve fell −76.14%**. **No capital weight can make this
+    insurance.**
+  * **`A1` REJECTED AT BOTH O11 CONCURRENCY CAPS, AND NOT MARGINALLY: MAXIMUM DRAWDOWN IS WORSE
+    THAN THE EQUITY BOOK ALONE IN ALL TWENTY CELLS** (cap 10 ΔmaxDD −0.0002 to −0.0021; cap 50
+    −0.0048 to −0.0480), improving **monotonically toward X = 100** — so a drawdown-minimising
+    optimiser puts **ZERO** in the sleeve, which is `U8`'s answer for free.
+  * **THE AUDIT'S OWN TWO-LEG BAR IS WHAT CATCHES IT, AND IT EARNED ITS KEEP.** Sharpe **does**
+    improve at cap 10 (1.1296 → **1.2041** at X=96) — purely by **raising return** (+27.01%/yr →
+    +34.19%/yr). That is exactly the case `:1284` disqualified in advance: *"a long-vol sleeve
+    that improves Sharpe by raising return is not doing the job it is being hired for."* **A
+    one-leg Sharpe bar would have adopted this.**
+  * **THE AUDIT CONTRADICTS ITSELF AND MEASUREMENT SETTLES IT.** Its step 2 (`:1279`) conditions
+    on the equity book's worst decile — **precisely the return-based conditioning its own
+    `:1282` warns is an artefact** — and the two give **OPPOSITE SIGNS**: **−0.6504**
+    return-conditioned on n=4, against **+0.5478** and **+0.5819** on the high- and low-IV halves.
+    **The conditional MEAN is the informative statistic; the conditional CORRELATION is the trap.**
+  * **THE ASYMMETRY WAS FIXED BEFORE THE RUN, from the audit's own `:1549`**: a crash-insurance
+    rule cannot clear a both-halves gate unless the sample holds two comparable crashes and this
+    one holds **one** (S10's trough index 44 of 69). So the register committed that **a decisive
+    REJECT was available and a decisive ADOPT was not** — a clearing arm would have been recorded
+    `ELIGIBLE-BUT-UNRESOLVED`, never adopted. **Nobody may read this rejection as evidence that
+    portfolio insurance does not work.**
+  * **NON-BLINDNESS DISCLOSED IN THE REGISTER (§0.5), not after.** A crude probe of A2's **sign**
+    was run before the register existed, to decide whether U3 was measurable at all. The register
+    says so, excludes that expectation from scoring, and leans on the audit's **verbatim** bar
+    rather than one chosen afterwards.
+  * **COVERAGE: 40 of 69 quarters, 28 uncovered EARLY and 1 late**, halves **20 and 19** after
+    embargoing 2021-01-21 — **S18's and U2's situation for the third time**, so a full-panel gate
+    is impossible rather than weak.
+  * **`U6` IS NOT BUILDABLE AND THE REASON IS A NUMBER: 1.81% CHAIN COVERAGE.** Of **7,132**
+    names entering the top decile over 68 transitions only **129** have mined chains; **median 2
+    per rebalance** against a mean top-decile size of **165.6**, and **ZERO on 18 of 68 dates**.
+    Second, independent blocker: the entry leg is a cash-secured **put** and the cache is **100%
+    calls**, so no put-chain history exists to replay against. Same class as `S25` and `B13` —
+    **unobtainable without new data**, and it stays the most tradeable idea in the catalogue if
+    the data is ever bought.
+  * **`U4`'s GATE HAS RESOLVED, NEGATIVE.** It was gated on `U1`/`U2`; both rejected, as did
+    `U7`. So one object may carry **two independently-sourced expressions with an explicit
+    statement that they are independent** — no combined score, no combined confidence, no arrow
+    from view to trade. And **O11 forces an addition to the copy rule**: expectancy framing is
+    necessary but **not sufficient**, so any surface quoting per-trade expectancy must quote the
+    survivability result beside it.
+  * **A DEFECT IN MY OWN INSTRUMENT, PRESENTATIONAL AND PROVEN SO RATHER THAN ASSERTED.** A3's
+    column was named `drag_vs_equity_pp` while computing `combined − equity`, which is **positive
+    when the sleeve adds return** — a gain printed under a loss's name. Renamed; the pre-fix and
+    post-fix artifacts diff at **344 shared leaves, ZERO moved, 6 added, 0 removed.** Also
+    disclosed: the combined book is **rebalanced to weight X every quarter** per the register, so
+    the sleeve's geometric **−33.35%/yr** coexists with a **+27.52%/quarter arithmetic** mean and
+    the construction **tops the sleeve back up after a crash quarter**, which flatters it.
+  * **CONTROLS: C1 reproduces the record at alpha 0.07174142332098163; C3 ZERO look-ahead over
+    161,610 marks; C4 `top == alpha + equal_weight` at max abs deviation 0.000e+00; C5 at ρ = 1.0
+    the largest improvement is +0.000e+00; C8 X=100 reproduces the equity book at 0.000e+00.
+    C7 is the one that cuts: the sleeve is closer to the equal-weighted universe (+0.4837) than
+    to the top decile (+0.4371), so it is BETA, not book-specific.**
+  * **THE ONLY PRODUCTION CHANGE IS ONE ADDITIVE KEY**: `quantile_backtest`'s opt-in `series`
+    dict now carries `equal_weight`, because `top = alpha + equal_weight` is an identity and **you
+    cannot compound an alpha**. Inside the existing `return_series` gate, so every current
+    caller's payload is bit-identical; pinned by test. **Options `N` 285 → 287** (A1 and A2; A3
+    charges nothing); **equity untouched at 190**. Expectations **4 right, 2 wrong, 1 excluded**.
+    `data/free_analysis/U3_CONVEX_OVERLAY.json`; `HANDOFF_optionsbot.md` §56.
 - **THE OPTIONS SURFACE IS GENUINELY ORTHOGONAL TO THE EQUITY PANEL AND PREDICTS NOTHING WITH
   THAT ORTHOGONALITY — THE AUDIT'S CENTRAL PREMISE IS CONFIRMED AND ITS CONCLUSION REFUTED, AND
   THE LAST LIVE DIRECTION OF THE UNIFICATION IS NOW SHUT (2026-08-13, session 36, `U2`).**
