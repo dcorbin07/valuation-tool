@@ -1,5 +1,58 @@
 # HANDOFF STATUS — shared project state
 
+## options-bot lane, session 32 (2026-08-12) — THE O-SERIES IS CLOSED, 26 of 26, and the last item's best arm is a NULL that cleared every bar but one
+
+**`O14`, one register, five arms, `PREREG_o14_tickflow_signals.md` committed ALONE at `ea48f6b`.**
+Frozen book, **no live code path changed, nothing adopted.**
+
+**EVERY OPTIONS IDEA IN THE CATALOGUE HAS NOW BEEN TESTED.** The `O14` ledger row is `DONE`, so all
+26 O-rows are `DONE` and none is open. The register's own void condition forbade saying this before
+the row actually flipped, which is why the three previous sessions each had to qualify the claim.
+**These were the studies the 4.72GB alert-day tick cache was collected FOR**, so its justification
+is now paid.
+
+**ALL FIVE ARMS NULL** on 3,863 rows over 118 months. Full-sample long-short Q1 minus Q5, absolute
+t against each arm's OWN within-month permutation p95: `signed_volume` +0.0324 at 0.658 vs 1.960;
+`pc_flow_imbalance` -0.0106 at 0.256 vs 1.963; `block_share` -0.0212 at 0.437 vs 1.946;
+`unusual_volume` +0.0771 at 1.511 vs 2.003; **`sweep_share` -0.1390 at 3.061 vs 1.952**.
+
+**`sweep_share` IS THE CLOSEST THIS PROGRAMME HAS COME TO A DISCOVERY AND IS STILL A NULL.** It
+clears its full-sample bar widely, its two-sided permutation p is **0.00249**, it is the **only arm
+to survive Benjamini-Hochberg**, and its sign is **stable across halves** (-0.1689, -0.1086) in the
+institutional-FOLLOW direction - high sweep share earns MORE. **It is NULL because the LATE half
+misses its own bar, 1.7741 against 1.9357**, while the early half clears at 2.6443 against 2.1740 -
+and the late bar is the LOWER of the two, so this is not a bar artefact. The both-halves rule was
+fixed before any number existed. **The autopsy's record was 0 discoveries in 126 hypotheses, twice.
+This is 0 in 131.**
+
+**NO SIGN COULD BE DECLARED, SO EVERY ARM IS TWO-SIDED** - the only options register where that is
+true, and the audit's own argument forces it. Pan-Poteshman found buyer-initiated put/call ratios
+predict, on proprietary data with participant identification; Bryzgalova et al. found retail is over
+60 pct of options volume and LOSES money, making signed retail flow a FADE candidate; and public
+tick data cannot separate the two populations. Two-sided costs power and that is the honest price. A
+sign-agreement clause between halves does the work a declared sign would.
+
+**CONTROLS.** The look-ahead control reproduces an independent measurement EXACTLY: `entry_premium`
+against the traded contract's last prevailing ask reads a median relative error of **0.0233 over
+3,827 rows** - the same 0.0233 session 26 measured with a different implementation. Lee-Ready
+classified a median **98.54 pct** of eligible prints. 7 alert-days unusable: one the known BUD feed
+gap, six with too few eligible single-leg prints - a different thing from a missing file, reported
+as such.
+
+**THREE DEFECTS IN MY OWN INSTRUMENT, all caught before any verdict was read**, including
+`classify_side` contradicting its own docstring (Lee-Ready's tick test needs the previous DIFFERENT
+price) and a look-ahead control that first measured the wrong contract entirely.
+
+**Trial cost: options `N` 280 -> 285**, one per arm. Expectations 4 right, 2 wrong.
+
+**RECOMMENDED NEXT: this lane has no catalogued options work left.** `sweep_share` deserves ONE
+successor register - measured on the contract actually bought rather than across the whole chain,
+inheriting this session's late-half failure as a disclosed prior rather than something to re-roll
+until it passes. If it fails again it is finished. **Nothing here rescues the options book**: R2
+stands, O11 showed it is unsurvivable at realistic sizing, and 131 hypotheses have produced no
+adoption. The defensible summary of the whole options programme is that it is a **well-measured
+negative result**. Full write-up: `HANDOFF_optionsbot.md` sections 50-53.
+
 ## edge lane, session 34 (2026-08-12) — S11 + S12: a real turnover cut at 11-23x its cost, and an arm that misses by 18bps
 
 `PREREG_s11_s12_horizon_bucket.md` committed **alone at `d867fe3`**, one register for both. **All

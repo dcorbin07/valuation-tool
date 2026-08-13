@@ -97,6 +97,52 @@ the project's memory and the old versions had been repeated for months.
     corrected panel — **established 1,312 / speculative 339 per date**, both substantial.
   * **Equity `N` 180 → 183.** Expectations **7 right, 0 wrong**.
     `data/free_analysis/S11_S12.json`; `HANDOFF_edge_audit.md` §1-8.
+- **THE O-SERIES IS CLOSED — 26 OF 26 — AND THE LAST ITEM'S BEST ARM IS A NULL THAT CLEARED
+  EVERY BAR BUT ONE (2026-08-12, session 32, `O14`).** `PREREG_o14_tickflow_signals.md` committed
+  **ALONE at `ea48f6b`**. Frozen book, **no live code path changed, nothing adopted.**
+  * **EVERY OPTIONS IDEA IN THE CATALOGUE HAS NOW BEEN TESTED.** The `O14` ledger row is `DONE`,
+    so all 26 O-rows are `DONE` and none is open. The register's own void condition forbade saying
+    this before the row flipped, which is why the three previous sessions each had to qualify it.
+    **These were the studies the 4.72GB alert-day tick cache was collected FOR**, so its
+    justification is now paid.
+  * **`sweep_share` IS THE CLOSEST THIS PROGRAMME HAS COME TO A DISCOVERY AND IS STILL A NULL.**
+    Full sample LS **−0.1390 at |t| 3.061 against its own permutation p95 of 1.952**, two-sided
+    permutation **p 0.00249**, and **the ONLY arm of five to survive Benjamini–Hochberg**. Its sign
+    is **stable across halves** (−0.1689, −0.1086) and negative means **high sweep share earns
+    MORE** — the institutional-FOLLOW direction. **It is NULL because the LATE half misses its own
+    bar, 1.7741 vs 1.9357**, while the early clears at 2.6443 vs 2.1740 — **and the late bar is the
+    LOWER of the two, so this is not a bar artefact.** The both-halves rule was fixed before any
+    number existed and is the only thing between this and a reported discovery. **The autopsy's
+    record was 0 in 126 hypotheses twice; this is 0 in 131.**
+  * **NO SIGN COULD BE DECLARED, SO EVERY ARM IS TWO-SIDED — the only options register where that
+    is true, and the audit's own argument forces it.** Pan–Poteshman found buyer-initiated
+    put/call ratios predict, **on proprietary data with participant identification**; Bryzgalova
+    et al. found retail is **>60% of options volume and LOSES money**, making signed retail flow a
+    **fade** candidate; **public tick data cannot separate the two populations.** Two-sided costs
+    power and that is the honest price. A **sign-agreement clause between halves** does the work a
+    declared sign would.
+  * **THE OTHER FOUR ARMS ARE NOWHERE**: `signed_volume` +0.0324 at 0.658, `pc_flow_imbalance`
+    −0.0106 at **0.256 — the smallest of the five**, refuting my own prediction that it would be
+    the largest — `block_share` −0.0212 at 0.437, `unusual_volume` +0.0771 at 1.511, none clearing
+    its p95 or BH.
+  * **A DAILY CROSS-SECTION IS IMPOSSIBLE, so the sort is MONTHLY**: per date median 2 names, max
+    17, **ZERO dates reach 20**; per month median 31, 89 of 118 months reach 20. The same
+    structural fact that redirected O3/O4/O5 and O25.
+  * **THE LOOK-AHEAD CONTROL REPRODUCES AN INDEPENDENT MEASUREMENT EXACTLY**: `entry_premium`
+    against the **traded contract's** last prevailing ask reads **0.0233 over 3,827 rows — the same
+    0.0233 session 26 measured with a different implementation.** Lee–Ready classified a median
+    **98.54%** of eligible prints.
+  * **THE ONE LEDGER ROW A HUMAN WROTE IS THE ONE THAT WAS RIGHT.** Six `src=auto` rows in this
+    series claimed no audit section existed and **all six were wrong**; `O14`'s `src=human` row
+    named precisely the gap this register closed.
+  * **THREE DEFECTS IN MY OWN INSTRUMENT, all caught before any verdict.** `classify_side`
+    **contradicted its own docstring** (Lee–Ready's tick test needs the previous *different* price;
+    the first cut carried the immediately preceding one, leaving runs of identical mid-prints
+    unclassified) — caught by the test written to pin it. **The look-ahead control first measured
+    the wrong instrument entirely**, reading a meaningless 1.5746. Plus dead code. A 4.4× speedup
+    was verified **inert** on bit-identical feature values.
+  * **Options `N` 280 → 285**, one per arm. Expectations **4 right, 2 wrong**.
+    `data/free_analysis/O14_TICKFLOW_SIGNALS.json`; `HANDOFF_optionsbot.md` §50-53.
 - **A BOOK WITH POSITIVE PER-TRADE EXPECTANCY LOSES MONEY AT REALISTIC SIZING, AND THE REASON IS
   MEASURED: THE EDGE LIVES IN THE CROWDED WEEKS AND A CONCURRENCY CAP REFUSES EXACTLY THOSE
   (2026-08-12, session 31, `O11`+`O19`+`O22`+`O25`).** `PREREG_o11_o19_o22_o25_portfolio.md`

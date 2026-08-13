@@ -5189,3 +5189,154 @@ arms, but share-positive rises only at +75%).
 3. **Not recommended: deploying capital against O22's number.** It is mechanical, it is an upper
    bound, its depth measure is a stock, and R2 says the entry loses to random entry. Four
    independent reasons, any one sufficient.
+
+
+## 50 · `O14` — the tick-flow signal studies. **ALL FIVE NULL — AND THE O-SERIES IS CLOSED: 26 OF 26.**
+
+**One register, five arms, `PREREG_o14_tickflow_signals.md` committed ALONE at `ea48f6b`** — one
+`.md`, zero `.py`. Frozen book, no re-mine, **no live code path changed, nothing adopted.**
+
+### 50.1 · THE SENTENCE, AND IT IS NOW LICENSED
+
+**The `O14` ledger row is `DONE`. Counted from the ledger: 26 of 26 O-rows are `DONE`, none
+open. Every options idea in the catalogue has been tested.**
+
+The register's own void condition 6 forbade saying this before the row actually flipped, and the
+three previous sessions each had to qualify it. It flipped in this commit, so the sentence stands
+without qualification for the first time.
+
+**These were the studies the 4.72GB alert-day tick cache was collected FOR.** The cache's
+justification is now paid: the collection landed 2026-08-11, O10/O18 used it for execution cost,
+and the put/call-ratio and unusual-volume studies it was actually justified by are these.
+
+### 50.2 · The one ledger row a human wrote is the one that was right
+
+Six rows in this series carried `src=auto` notes claiming no audit section existed — `O6`, `O17`,
+`O11`, `O19`, `O22`, `O25` — **and all six were wrong.** `O14`'s row is `src=human`, and it named
+precisely the gap this register closes: *"the put/call and unusual-volume studies this cache was
+justified by are still not done."* **Correct in every particular.** That is the strongest argument
+yet for reading `src=auto` as a lead and never as a fact.
+
+### 50.3 · No sign could be declared, so every arm is two-sided
+
+This is the only register in the options programme that **cannot** declare a published sign, and
+the reason is the audit's own literature note. Pan–Poteshman (2006) found buyer-initiated put-call
+ratios predict returns — **on proprietary data with participant identification**. Bryzgalova et al.
+(2023) found retail is **over 60% of options volume and loses money**, making signed retail flow a
+**fade** candidate. **Public tick data cannot separate the two populations.**
+
+So the same feature is predicted to point one way if the flow is institutional and the other if it
+is retail. **Every arm is therefore tested two-sided on |t|, which costs power, and that is
+accepted as the honest price** — not as licence to read whichever tail is larger. **A
+sign-agreement clause between halves does the work a declared sign would otherwise do**: without
+it, an arm strongly positive in one half and strongly negative in the other clears twice on |t|
+while carrying no usable information.
+
+### 50.4 · A daily cross-section is impossible, so the sort is monthly
+
+Measured before the register: **per date median 2 names, max 17, and ZERO dates reach the ~20 a
+quintile sort needs.** Per month median 31, with **89 of 118 months reaching 20**. A forced choice,
+disclosed rather than discovered later — the same structural fact that redirected O3/O4/O5 and O25.
+
+### 50.5 · Results — all five NULL
+
+3,863 rows over 118 months. Long-short is Q1 − Q5; the bar is each arm's **own** within-month
+label-permutation p95 of |t|.
+
+| arm | LS mean | \|t\| | own p95 | perm p (2-sided) | BH | verdict |
+|---|---|---|---|---|---|---|
+| `signed_volume` | +0.0324 | 0.658 | 1.960 | 0.479 | no | **NULL** |
+| `pc_flow_imbalance` | −0.0106 | 0.256 | 1.963 | 0.818 | no | **NULL** |
+| `sweep_share` | **−0.1390** | **3.061** | 1.952 | **0.00249** | **YES** | **NULL** |
+| `block_share` | −0.0212 | 0.437 | 1.946 | 0.626 | no | **NULL** |
+| `unusual_volume` | +0.0771 | 1.511 | 2.003 | 0.175 | no | **NULL** |
+
+### 50.6 · `sweep_share` is the closest this programme has come to a discovery, and it is still a NULL
+
+It clears its full-sample bar by a wide margin, its two-sided permutation p is **0.00249**, it is
+**the only arm to survive Benjamini–Hochberg**, and its **sign is stable across halves** (−0.1689
+early, −0.1086 late). The negative sign means **high sweep share earns MORE** — the
+**institutional-follow** direction rather than the retail-fade one, which is informative precisely
+because the audit said the sign could not be predicted in advance.
+
+**It is NULL because the late half misses its own bar: |t| 1.7741 against 1.9357**, while the early
+half clears at 2.6443 against 2.1740. **This is not a bar artefact — the late half's bar is the
+LOWER of the two.** The both-halves rule was fixed before any number existed, and it is the only
+thing standing between this and a reported discovery. **That is what pre-registration is for.**
+
+**Two caveats travel with it, both pre-registered rather than added afterwards:**
+
+1. **It is measured across the WHOLE CHAIN on the alert day, not on a tradeable instrument**, and
+   carries no execution model. §4 of the register names this as the most likely misreading.
+2. **It sits on a book whose entry R2 already showed loses to random entry by −5.0640pp.** At best
+   it separates better trades from worse ones *inside a book that should not be traded*.
+
+**The autopsy's record was 0 discoveries in 126 hypotheses, twice. This is 0 in 131.**
+
+### 50.7 · Controls, and one that reproduces an independent measurement exactly
+
+* **Look-ahead:** the banked entry is struck at the alert-day close, so the whole tape precedes it.
+  `entry_premium` against the **traded contract's** last prevailing ask reads a median relative
+  error of **0.0233 over 3,827 rows** — **the same 0.0233 session 26 measured with a different
+  implementation.** Two sessions, two codebases, one number.
+* **Lee–Ready classified a median 98.54%** of eligible single-leg prints.
+* **7 alert-days unusable**, and the composition matters: **one** is the known `BUD` 2024-01-10
+  feed gap, **six** are days whose eligible single-leg print count fell below the floor. **A file
+  that exists but cannot be used is a different thing from a missing file**, and both are reported.
+
+### 50.8 · Three defects in my own instrument, all caught before any verdict was read
+
+1. **`classify_side` contradicted its own docstring.** Lee–Ready's tick test must compare against
+   the previous **different** price; the first cut carried the immediately preceding one, so every
+   print after the first in a run of identical mid-prints went unclassified. **Caught by the test
+   written to pin exactly that behaviour.**
+2. **The look-ahead control measured the wrong instrument** — the last ask of whatever contract
+   printed last anywhere in the chain, rather than the contract the book bought. It read a
+   meaningless **1.5746**. **A control measuring the wrong thing is worse than no control**, and
+   the corrected version is what reproduces session 26's figure.
+3. **Two pieces of dead code in the runner**, including a no-op p-value loop.
+
+A **4.4× speedup** (2.0s → 0.45s per alert-day) was verified **inert**: all four feature values
+reproduce bit-identically.
+
+## 51 · What I did NOT do, and why
+
+* **I did not promote `sweep_share`.** It fails a pre-registered leg. Moving a both-halves rule
+  after seeing which arm it blocks is the precise thing pre-registration exists to prevent, and
+  this arm is the most tempting one the programme has produced.
+* **I did not declare a sign for any arm**, before or after the fact. §7.3 makes that a void
+  condition, and the two-sided treatment is the whole reason the `sweep_share` result can be
+  quoted at all.
+* **I did not say "26 of 26" until the ledger row flipped** — the register forbade it and three
+  earlier sessions had to qualify the claim.
+* **I did not use a tick feature with a trailing cross-session window.** The cache is alert-days
+  only; `unusual_volume` comes from the EOD chain and that substitution is disclosed.
+* **I did not adopt anything.** No live path, no constant.
+
+## 52 · Trial cost
+
+**Options `N` 280 → 285**, one per arm, **exactly as §6 pre-committed.** Equity and infra untouched
+by this item; after merging they read **equity 183, infra 11** — re-read `by_domain` after the
+merge, never quote a mid-session figure.
+
+**Expectations scored 4 right, 2 wrong.** Right: E1 (no arm reaches CANDIDATE), E2 (at least one
+arm clears its own p95 full-sample — `sweep_share` does), E4 (at least one arm flips sign between
+halves — `block_share` and `pc_flow_imbalance` both do), E6 (the one arm needing no tick data is
+not the best — `sweep_share` is a tick feature, so the pull bought something). **Wrong: E3**
+(`pc_flow_imbalance` was predicted to have the largest |t| and has the **smallest**, 0.256) and
+**E5** (BH was predicted to remove an arm that cleared its own bar; it removed nothing, because
+the only arm that cleared also survived it).
+
+## 53 · Recommended next step
+
+**The O-series is finished, so the honest recommendation is that this lane has no catalogued
+options work left.** What remains is a choice, not a queue:
+
+1. **`sweep_share` deserves one successor register, and only one.** It is the single arm in 131
+   hypotheses to clear a calibrated bar and survive BH. A successor must (a) make it *tradeable* —
+   measured on the contract actually bought rather than across the chain — and (b) inherit this
+   session's late-half failure as a disclosed prior, not as something to be re-rolled until it
+   passes. **If it fails again, it is finished.**
+2. **Nothing here rescues the options book.** R2 stands, O11 showed the book is unsurvivable at
+   realistic sizing, and 131 hypotheses have produced no adoption. **The defensible summary of the
+   whole options programme is that it is a well-measured negative result.**
