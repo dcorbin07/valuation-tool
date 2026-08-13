@@ -5580,3 +5580,185 @@ It inherits this session's result as a **disclosed prior**: three orthogonal sur
 same universe and the same 40 dates produced nothing. **A successor must also carry the 55.4
 limitation — that the incremental statistic has no available power control — or it will read its
 own null as stronger than it is.**
+
+---
+
+## 56 · U3 + U4 + U6 + U8 — THE U-SERIES TAIL. THE "INSURANCE" IS LEVERAGE, AND THREE ROWS CLOSE AS DESIGN RECORDS RATHER THAN AS MEASUREMENTS
+
+**Session 37, 2026-08-13.** `PREREG_u3_convex_overlay.md` committed **ALONE at `9603e64`** — one
+`.md`, zero `.py`, a strict git ancestor of the measurement commit. Frozen books on both sides
+(`state_r2_splitclean.pkl`, 3,870 trades; `panel_corrected_69d.pkl`, 69 dates). No re-mine, no
+panel rebuild, **nothing adopted**. `U4`, `U6` and `U8` are filed as `DESIGN_u4_u6_u8.md` at
+**zero trials**.
+
+### 56.1 The headline, and it settles U8 as a by-product
+
+The audit (`VALQUO_EDGE_AUDIT.md:1268`) argues the equity book is short volatility in the tail,
+that the options book is a long-volatility sleeve *"built by accident"*, and that the sleeve's
+conditional correlation to the equity book in its worst quarters *"is the whole question"*.
+
+**The premise is refuted by measuring what the sleeve is made of.** `opt_right` is **`call` on
+3,870 of 3,870 rows**, `horizon` is `swing` on all 3,870, and mean `target_delta` is **+0.3725**.
+A long call is long vega **and** long delta, and for a large adverse move the delta leg dominates.
+
+| measurement | value |
+|---|---|
+| sleeve vs equity top decile, unconditional | **+0.4371** |
+| sleeve vs equal-weighted universe (C7) | **+0.4837** |
+| sleeve mean return, all 40 covered quarters | **+27.52%** |
+| sleeve mean return, equity book's worst 4 quarters | **−84.39%** (equity −14.49%) |
+| COVID 2020Q1 | equity top decile **−28.09%**, sleeve **−76.14%** |
+| sleeve's OWN worst quarter | **2025-01-27, −94.69%** — a quarter in which equity was only −7.22% |
+
+**It is not insurance. It is leverage.** And because C7 puts the sleeve *closer* to the
+equal-weighted universe than to the top decile (gap 0.0466), what it carries is **beta**, not
+information about this book.
+
+### 56.2 A1 — rejected at both concurrency caps, in all twenty cells
+
+Maximum drawdown is **worse than the equity book alone at every X and both caps**, improving
+monotonically toward X = 100:
+
+* cap 10: ΔmaxDD **−0.0002** (X=99) to **−0.0021** (X=90)
+* cap 50: ΔmaxDD **−0.0048** (X=99) to **−0.0480** (X=90)
+
+So a drawdown-minimising allocator over this pair returns a **corner solution at zero sleeve** —
+which is `U8`'s prescribed method answered without running it.
+
+**THE AUDIT'S OWN TWO-LEG BAR IS WHAT CATCHES THIS, AND IT EARNED ITS KEEP.** Sharpe **does**
+improve at cap 10 — 1.1296 → **1.2041** at X = 96 — but purely by raising return
+(+27.01%/yr → **+34.19%/yr**). That is precisely the case `:1284` disqualified in advance:
+*"a long-vol sleeve that improves Sharpe by raising return is not doing the job it is being hired
+for."* **A one-leg Sharpe bar would have adopted this.** The bar was the audit's, quoted
+verbatim, and I could not have tuned it.
+
+### 56.3 THE AUDIT CONTRADICTS ITSELF, AND MEASUREMENT SETTLES WHICH HALF IS RIGHT
+
+Its step 2 (`:1279`) conditions on the equity book's **worst decile of quarters**. Its own
+`:1282` warns that a **return-based** split is a conditioning artefact and prescribes an
+**implied-vol** split instead. Those are the same test with opposite instructions, and measured
+they give **opposite signs**:
+
+| conditioning | correlation |
+|---|---|
+| unconditional (conditions on nothing) | **+0.4371** |
+| high-IV half (the audit's PRIMARY prescription) | **+0.5478** |
+| low-IV half | **+0.5819** |
+| equity worst decile (the audit's own step 2, RETURN-conditioned, n=4) | **−0.6504** |
+
+**The conditional MEAN is the informative statistic and the conditional CORRELATION is the
+trap.** A within-selected-subset correlation on four points reads −0.65 and would have been
+quoted as "an excellent hedge", while the sleeve was simultaneously losing 84% in those very
+quarters. The register named the primary before the run.
+
+### 56.4 The asymmetry, fixed before the run from the audit's own warning
+
+`:1549` states that *"a crash-insurance rule cannot clear a both-halves gate unless the sample
+contains two comparable crashes. The panel has one"*, and `:1553` that recording such a result as
+a failed test when it is an **untestable hypothesis under the chosen protocol** is the error to
+avoid *"so nobody re-runs the same doomed test."*
+
+The register therefore committed an **asymmetric** verdict rule:
+
+* a decisive **REJECT** is available — the failure is one of **sign**, measurable in all 40
+  quarters, not of magnitude;
+* a decisive **ADOPT** is **not** — a clearing arm would have been recorded
+  `ELIGIBLE-BUT-UNRESOLVED`, never adopted, with its drawdown-episode count attached.
+
+**Nobody may read this rejection as evidence that portfolio insurance does not work.** It is a
+statement about a 100%-long-call sleeve on a one-crash sample.
+
+### 56.5 Non-blindness, disclosed in the register rather than after it
+
+Register **§0.5** states that a crude probe of A2's **sign** was run *before* the register was
+written, to decide whether U3 was measurable at all, and reports that probe's numbers. The
+register does not claim blindness. What makes it worth writing anyway: the adoption bar is the
+audit's **verbatim** and was fixed by someone else; the probe computed **none** of A1's
+statistics; and its construction (an unweighted attribution with no capital constraint, no cap
+and no costs) is not the instrument's. Expectation 1 was **excluded from scoring** on that basis.
+
+### 56.6 Coverage forbids a full-panel gate, for the third time
+
+Options alerts span 2016-01-19 → 2025-10-15 against a panel spanning 2009-01-15 → 2026-01-28.
+**40 of 69 quarters covered, 28 uncovered EARLY and 1 late**; halves **20 and 19** after
+embargoing 2021-01-21, both above the shipped `min_dates=16`. S18's and U2's situation exactly.
+**A pass on 20-date halves is not the same object as a pass on 34-date halves.**
+
+### 56.7 U6 is not buildable, and the reason is a number
+
+The audit's method (`:2103`) replays the equity book's entries and exits *"using the mined chains
+for the names where they exist"*. Measured against the 187-name mined universe:
+
+| quantity | measured |
+|---|---|
+| mean top-decile size | **165.6** names |
+| names ENTERING the decile, 68 transitions | **7,132**, of which **129 have chains = 1.81%** |
+| names LEAVING | **7,095**, of which **128 = 1.80%** |
+| covered entries per rebalance | **median 2**, max 8, **ZERO on 18 of 68 dates** |
+
+The replay would substitute the option expression on **two names out of 166** and still print a
+number. **Second, independent blocker:** the entry leg is a cash-secured **put** and the banked
+book is **100% calls**, so no put-chain history exists; the derived layer's `iv_put_25d` is a
+surface point, not a quote with a bid, an ask and an open interest — and O18 measured that spread
+cost (ρ = 0.6743) is the leg that decides the answer. Closed
+**`DESIGN-RECORDED — NOT BUILDABLE ON DATA WE OWN`**, the `S25`/`B13` class. **It remains the most
+tradeable idea in the catalogue if the data is ever bought.**
+
+### 56.8 U4's gate has resolved, and it resolved negative
+
+The row was `src=human` and deliberately gated on U1/U2. **Both rejected, as did U7** — so there
+is no measured signal relationship between the composite and the options book in either
+direction. What is buildable is **one object with two independently-sourced expressions and an
+explicit statement that they are independent**: no combined score, no combined confidence, no
+arrow from view to trade, and V2G's live caveat attached to the fundamental view. **O11 forces an
+addition to the audit's copy rule**: expectancy framing is necessary but **not sufficient**, since
+a user told "positive expectancy per trade" and given $50,000 reproduces O11's **−25.9%**. Product
+work, **web/app lane**. This is U4 *specified*, not U4 *done*.
+
+### 56.9 Defects, controls, and the one production change
+
+* **A DEFECT IN MY OWN INSTRUMENT, PRESENTATIONAL AND PROVEN SO.** A3's column was named
+  `drag_vs_equity_pp` while computing `combined − equity`, which is **positive when the sleeve
+  adds return** — a gain printed under a loss's name. Renamed. The pre-fix and post-fix artifacts
+  diff at **344 shared leaves, ZERO moved, 6 added, 0 removed**, so no conclusion needed
+  re-deriving.
+* **DISCLOSED, because it flatters the sleeve:** the combined book is **rebalanced to weight X
+  every quarter** (register A1), so the sleeve's **geometric −33.35%/yr** coexists with a
+  **+27.52%/quarter arithmetic** mean, and the construction **tops the sleeve back up after a
+  crash quarter**. Both figures ship side by side rather than only the flattering one.
+* **THE LEDGER WAS WRONG ABOUT TWO OF THE FOUR ROWS.** `U3` and `U8` were `src=auto` /
+  *"no mention anywhere in the corpus"*, and `VALQUO_EDGE_AUDIT.md:1268` and `:2123` are full
+  sections. That is **eight** such rows in this lane. Definitions were **quoted, not invented**.
+* **Controls.** C1 reproduces the record at alpha **0.07174142332098163** (published
+  0.071741423321) and aborts the run before any arm otherwise; C2 the book's mean P&L
+  **+3.2702%** on 3,870 trades; C3 **ZERO** look-ahead over **161,610** marks; C4
+  `top == alpha + equal_weight` at max abs deviation **0.000e+00**; C5 at ρ = 1.0 the largest
+  improvement is **+0.000e+00**; C8 X = 100 reproduces the equity book at **0.000e+00**.
+* **THE ONLY PRODUCTION CHANGE IS ONE ADDITIVE KEY.** `quantile_backtest`'s opt-in `series` dict
+  now carries `equal_weight`, because `top = alpha + equal_weight` is an identity of the shipped
+  code and **you cannot compound an alpha**. Inside the existing `return_series` gate, so every
+  current caller's payload is **bit-identical**; pinned by two tests, including one asserting a
+  default payload carries no `series` at all.
+* **Trials: options `N` 285 → 287** (A1 and A2; A3 has no bar and charges nothing, and the three
+  memos charge nothing). **Equity untouched at 190.** Tests **67/67 suites green** by exit code.
+* Expectations **4 right, 2 wrong, 1 excluded**. The two misses: I predicted the sleeve would be
+  a **drag** on combined return and it **adds** to it (the rebalancing effect above), and I
+  predicted the crash quarter would be the sleeve's own worst — it is not, 2025-01-27 is, at
+  **−94.69%** in a quarter the equity book was down only 7.22%.
+
+### 56.10 What this does NOT say, and the recommended next step
+
+* **It does not close portfolio insurance as an idea.** A *put* sleeve, a straddle sleeve or an
+  index hedge is a different instrument and would need its own register. U3 measured the sleeve
+  that exists.
+* **A DESIGN RECORD IS NOT A MEASUREMENT.** `U4`, `U6` and `U8` carry no verdict and no trial.
+  Anyone re-opening one re-opens a live question.
+* **Recommended next step: nothing in the U-series.** All eight rows now carry either a verdict
+  or a design record. The buildable residue — U4's two-expression object and U8's combined
+  exposure report with a **policy** cap rather than a fitted one — is **app/portfolio lane work
+  requiring no new research**. If this lane takes another item, `U6` is the one worth funding,
+  and what it needs is **data** (a put-chain mine over the equity book's own names), not
+  analysis.
+
+Artifact: `data/free_analysis/U3_CONVEX_OVERLAY.json`. Reproduce:
+`python -m scripts.u3_convex_overlay`. Memos: `DESIGN_u4_u6_u8.md`.
