@@ -8575,6 +8575,203 @@ def test_s19_thresholds_are_the_registered_ones():
     assert abs(s19.C6_TARGET_T - 0.6463239752818024) < 1e-15
 
 
+def _v6():
+    import importlib
+    return importlib.import_module("scripts.v6_dip_detector")
+
+
+def test_v6_registered_constants_are_the_ones_in_the_register():
+    """The register fixes every one of these. A swept floor is void condition 6.3."""
+    v6 = _v6()
+    assert v6.DEPTHS == (0.20, 0.30), v6.DEPTHS
+    assert v6.HORIZONS == (63, 126), v6.HORIZONS
+    assert v6.TRAIL_DAYS == 252, "the 52-week trailing-high window is NOT swept"
+    assert v6.QUALITY_FLOOR == 0.0, "the cross-sectional midpoint, untuned"
+    assert v6.HEALTH_FLOOR == 50.0, "the shipped 0-100 scale's midpoint, untuned"
+    assert v6.N_PERM == 500 and v6.SEED == 20260813
+    assert v6.MIN_NAMES_PER_DATE == 10 and v6.MIN_DATES_PER_HALF == 24
+    # exactly four arms, no fifth
+    assert len(v6.ARMS) == 4, v6.ARMS
+    assert {(d, h) for _, d, h in v6.ARMS} == {(0.20, 63), (0.20, 126),
+                                               (0.30, 63), (0.30, 126)}
+
+
+def test_v6_trailing_high_never_reads_a_price_after_the_rebalance_date():
+    """C3. A crash AFTER the date must not move the flag; a crash BEFORE it must."""
+    import tempfile
+    v6 = _v6()
+    days = [str(d.date()) for d in pd.bdate_range(end="2021-01-01", periods=400)]
+    d_mid = days[300]
+    with tempfile.TemporaryDirectory() as td:
+        # flat at 100 through the date, then collapses to 10 AFTERWARDS
+        later = [100.0] * 301 + [10.0] * (len(days) - 301)
+        pd.DataFrame({"date": days, "close": later}).to_csv(
+            os.path.join(td, "LATE.csv"), index=False)
+        # collapses to 50 BEFORE the date
+        early = [100.0] * 200 + [50.0] * (len(days) - 200)
+        pd.DataFrame({"date": days, "close": early}).to_csv(
+            os.path.join(td, "EARLY.csv"), index=False)
+        out = v6.trailing_drawdown(td, ["LATE", "EARLY"], [d_mid])
+    g = {r.ticker: r.drawdown for r in out.itertuples()}
+    assert abs(g["LATE"]) < 1e-12, (
+        f"a post-date crash leaked into the trailing high: {g['LATE']}")
+    assert abs(g["EARLY"] - (-0.5)) < 1e-12, (
+        f"a pre-date crash must be visible: {g['EARLY']}")
+
+
+def test_v6_a_raw_split_reads_as_a_dip_and_the_adjusted_basis_does_not():
+    """C5, the split trap, pinned from BOTH sides.
+
+    A 2-for-1 split on an UNADJUSTED series looks like an instantaneous -50% drawdown.
+    Since companies split after they RISE, that would flag exactly the strongest names
+    and invert the whole feature. SEP's `close` is already split-adjusted, which is why
+    the register fixes the adjusted basis.
+    """
+    import tempfile
+    v6 = _v6()
+    days = [str(d.date()) for d in pd.bdate_range(end="2021-01-01", periods=400)]
+    d_mid = days[350]
+    with tempfile.TemporaryDirectory() as td:
+        # what the ADJUSTED series looks like: flat, no real drawdown
+        pd.DataFrame({"date": days, "close": [100.0] * len(days)}).to_csv(
+            os.path.join(td, "ADJ.csv"), index=False)
+        # what the RAW series looks like across a 2-for-1: halves and stays halved
+        raw = [200.0] * 300 + [100.0] * (len(days) - 300)
+        pd.DataFrame({"date": days, "close": raw}).to_csv(
+            os.path.join(td, "RAW.csv"), index=False)
+        out = v6.trailing_drawdown(td, ["ADJ", "RAW"], [d_mid])
+    g = {r.ticker: r.drawdown for r in out.itertuples()}
+    assert abs(g["ADJ"]) < 1e-12, "the adjusted basis must show no dip"
+    assert g["RAW"] <= -0.20, "a raw split MUST look like a dip - that is the trap"
+    assert g["ADJ"] > -0.20, "and the adjusted basis must NOT trip the 20% arm"
+
+
+def test_v6_reads_the_whole_price_series_and_never_a_per_ticker_tail():
+    """Audit B6 (C6). A per-ticker tail is what inverted the early universe."""
+    import inspect
+    src = inspect.getsource(_v6().trailing_drawdown)
+    assert ".tail(" not in src, "audit B6: no per-ticker truncation in the price read"
+    assert "side=\"right\"" in src or "side='right'" in src, (
+        "the <= d cut must be an explicit searchsorted bound")
+
+
+def test_v6_health_calls_the_shipped_scoring_function_and_never_retypes_it():
+    """Audit B7's class: a re-implemented shipped mapping drifts from the shipped one."""
+    import inspect
+    v6 = _v6()
+    from valuation.engine import scoring
+    assert v6._health_score is scoring._health_score, (
+        "the health score must BE the shipped function, not a copy")
+    src = inspect.getsource(v6)
+    for literal in ("(3.0, 50)", "(6.0, 8)", "(12.0, 100)"):
+        assert literal not in src, (
+            f"breakpoint {literal} is retyped in the script - import, never restate")
+
+
+def test_v6_health_moves_the_right_way_and_the_floor_bites():
+    """A floor that never bites is not a floor. Behavioural, not just structural."""
+    import types as _t
+    v6 = _v6()
+    def h(nde, cov, fcf):
+        cd = _t.SimpleNamespace(net_debt_to_ebitda=nde, interest_coverage=cov,
+                                cash_runway_years=None, fcf=fcf)
+        return v6._health_score(cd, _t.SimpleNamespace(is_cash_burning=False))[0]
+    strong = h(0.0, 12.0, 1e9)      # no net debt, huge coverage, positive FCF
+    weak = h(6.0, 0.5, -1e9)        # levered, uncovered, burning
+    assert strong > weak, (strong, weak)
+    assert strong >= v6.HEALTH_FLOOR > weak, (
+        f"the floor must SEPARATE these two, not sit outside both: "
+        f"{weak} < {v6.HEALTH_FLOOR} <= {strong}")
+
+
+def test_v6_never_reads_the_empty_roic_and_roe_columns():
+    """Register 1c: both are 0.0% populated in ARQ. Reading them conditions on nothing."""
+    import inspect
+    src = inspect.getsource(_v6().health_panel)
+    for dead in ('"roic"', "'roic'", '"roe"', "'roe'"):
+        assert dead not in src, f"{dead} is 0.0% populated in the ARQ export"
+
+
+def test_v6_the_l2_null_draws_ONLY_from_dipped_names():
+    """Register 3.6. If L2's null drew from the whole cross-section it would be asking a
+    different question - and would answer it with a huge spurious t."""
+    v6 = _v6()
+    # non-dipped names are wildly different; every dipped name is identical.
+    f = np.array([1000.0] * 10 + [5.0] * 20)
+    dip = np.array([False] * 10 + [True] * 20)
+    cond = np.array([False] * 10 + [True] * 5 + [False] * 15)
+    cells = [(f, dip, cond)] * 8
+    rng = np.random.default_rng(1)
+    for _ in range(25):
+        t = v6._perm_t(cells, rng, "L2")
+        # every dipped value is 5.0, so ANY draw from the dipped set gives exactly 0.
+        assert t is None or abs(t) < 1e-9 or not np.isfinite(t), (
+            f"L2's null reached a non-dipped name (t={t})")
+    # POSITIVE CONTROL, so the assertion above cannot pass vacuously: the L1 scheme draws
+    # from the WHOLE cross-section, reaches the 1000-valued names, and must give a
+    # finite, non-zero t on the very same cells.
+    seen = [v6._perm_t(cells, rng, "L1") for _ in range(25)]
+    finite = [x for x in seen if x is not None and np.isfinite(x) and abs(x) > 1e-9]
+    assert finite, ("the L1 scheme produced nothing finite on these cells, so the L2 "
+                    "assertion above proves nothing")
+
+
+def test_v6_coverage_floor_returns_no_number_rather_than_a_thin_one():
+    """Register 3.7: a number computed on six names is worse than no number."""
+    v6 = _v6()
+    f = np.arange(100, dtype=float)
+    dip = np.zeros(100, dtype=bool); dip[:40] = True
+    cond = np.zeros(100, dtype=bool); cond[:5] = True      # below MIN_NAMES_PER_DATE
+    l1, l2, n_c, n_d, n_t = v6.legs_for_date(f, dip, cond)
+    assert l1 is None and l2 is None and n_c == 5
+    cond[:15] = True                                        # now above it
+    l1b, l2b, n_c2, _, _ = v6.legs_for_date(f, dip, cond)
+    assert l1b is not None and l2b is not None and n_c2 == 15
+
+
+def test_v6_clearing_L1_but_not_L2_is_not_a_pass():
+    """The single most important branch: the tab's claim is the CONDITIONING."""
+    v6 = _v6()
+    clear = {"both_halves_clear": True, "halves_same_sign": True,
+             "both_halves_below_p5": False}
+    fail = {"both_halves_clear": False, "halves_same_sign": True,
+            "both_halves_below_p5": False}
+    rev = {"both_halves_clear": False, "halves_same_sign": True,
+           "both_halves_below_p5": True}
+    assert v6.verdict_of(clear, fail, True) == "NULL - THE DIP DOES THE WORK"
+    assert v6.verdict_of(clear, clear, True) == "POSITIVE"
+    assert v6.verdict_of(fail, fail, True) == "NULL"
+    assert v6.verdict_of(clear, rev, True) == "REJECTED - SIGN REVERSED"
+    assert v6.verdict_of(clear, clear, False) == "VOID - UNDERPOWERED BY CONSTRUCTION", (
+        "the coverage floor must outrank a pass")
+
+
+def test_v6_scores_end_to_end_and_reports_an_MDE_on_a_null():
+    """Integration. V2G/S19: a null quoted without its MDE is being misquoted."""
+    v6 = _v6()
+    rng = np.random.default_rng(3)
+    rows = []
+    dates = [f"20{y:02d}-01-15" for y in range(10, 70)]     # 60 dates
+    for d in dates:
+        for i in range(120):
+            rows.append({"date": d, "ticker": f"T{i:03d}",
+                         "drawdown": -0.5 * rng.random(),
+                         "quality": rng.normal(), "health": 100 * rng.random(),
+                         "fwd_ret": rng.normal(0, 0.1),
+                         "size": rng.normal(), "marketcap": 1e9})
+    p = pd.DataFrame(rows)
+    r = v6.score_arm(p, 0.20, 63, np.random.default_rng(5))
+    assert r["n_dates"] >= 24, r["n_dates"]
+    for leg in ("L1", "L2"):
+        full = r["legs"][leg]["full"]
+        assert full["mde_at_t2"] is not None, f"{leg} reports no MDE"
+        assert full["perm_p95"] is not None and full["n_perm_ok"] > 0
+        assert len(full["perm_draws"]) == full["n_perm_ok"], "RUN_RULES A9: draws banked"
+    # pure noise must not manufacture a pass
+    assert r["verdict"] in ("NULL", "NULL - THE DIP DOES THE WORK",
+                            "VOID - UNDERPOWERED BY CONSTRUCTION"), r["verdict"]
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
