@@ -5551,9 +5551,16 @@ caught only by re-reading `by_domain` on the merged tree.** The rule is not "rem
 it is: **an equity `N` may only be quoted from `research_log.detail()` run on the tree that is
 actually being pushed.** The per-item charge (4) is the stable number; the denominator is not.
 
-**The unification is now closed in every direction that was ever opened**: `U1` REJECTED (the
-composite as an options entry signal), `U7` REJECTED (the composite as an options veto), `U2`
-REJECTED on the level half. **`U2`'s row is `PARTIAL`, not `DONE`** — the parity-deviation and
+**The three SIGNAL-TRANSFER directions of the unification are now all closed**: `U1` REJECTED
+(the composite as an options entry signal), `U7` REJECTED (the composite as an options veto),
+`U2` REJECTED on the level half.
+
+**THAT IS NOT THE SAME AS CLOSING THE U-SERIES, AND THE DISTINCTION IS THE ONE THE O-SERIES
+REGISTERS SPENT THREE SESSIONS ENFORCING.** Measured on `main` after this landed: the U-series
+reads **3 DONE, 1 PARTIAL, 4 OPEN** — `U3` (convex overlay as insurance), `U4` (one decision
+object), `U6` (CSPs in, covered calls out), `U8` (one risk budget across books). None of the four
+is a signal-transfer question; all four are portfolio, product or risk items. **Nobody may write
+"the unification is closed" until those rows flip.** **`U2`'s row is `PARTIAL`, not `DONE`** — the parity-deviation and
 21-day-change halves are untested, not null, and section 0.5 of the register fixed that before
 any number existed.
 

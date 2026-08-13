@@ -137,8 +137,12 @@ tree reads 190**, because the `S14-WIDTH` lane landed one equity trial concurren
 `by_domain` after every merge rather than quoting a mid-session figure. Options untouched at 285,
 infra at 11, zero malformed log rows. Tests **66/66 suites green** by exit code.
 
-**THE UNIFICATION IS NOW CLOSED IN EVERY DIRECTION THAT WAS EVER OPENED**: `U1` REJECTED,
-`U7` REJECTED, `U2` REJECTED on its level half and `PARTIAL` on the row.
+**THE THREE SIGNAL-TRANSFER DIRECTIONS OF THE UNIFICATION ARE NOW ALL CLOSED**: `U1` REJECTED
+(composite to options entry), `U7` REJECTED (composite as an options veto), `U2` REJECTED on its
+level half and `PARTIAL` on the row. **THIS DOES NOT CLOSE THE U-SERIES** — measured on `main`,
+it reads 3 DONE, 1 PARTIAL, **4 OPEN**: `U3` convex overlay, `U4` one decision object, `U6` CSPs
+in/covered calls out, `U8` one risk budget across books. None is a signal-transfer question, but
+the O-series discipline holds: do not report a series closed while its rows are open.
 
 **RECOMMENDED NEXT STEP, and it is narrow.** Do not re-open U2 on these features. The
 orthogonality result gives a successor a genuine reason to exist, but it must be the **untested**

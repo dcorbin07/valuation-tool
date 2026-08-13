@@ -123,8 +123,12 @@ the project's memory and the old versions had been repeated for months.
     arithmetic and X7's 2.71 would then apply to a statistic it was not calibrated on. A
     degeneracy check gates the verdict instead, so an absurd *t* can never be READ as a pass.
     **Edge lane's to fix.**
-  * **THE UNIFICATION IS NOW CLOSED IN EVERY DIRECTION THAT HAS BEEN OPENED**: `U1` REJECTED,
-    `U7` REJECTED, `U2` REJECTED on the level half and PARTIAL on the row. **Equity `N` 185 → 189 for this item's four arms — though it reads
+  * **THE SIGNAL-TRANSFER DIRECTIONS OF THE UNIFICATION ARE NOW ALL CLOSED, AND THAT IS NOT
+    THE SAME AS CLOSING THE U-SERIES**: `U1` REJECTED (composite → options entry), `U7` REJECTED
+    (composite as an options veto), `U2` REJECTED on its level half and `PARTIAL` on the row.
+    **FOUR U-ROWS REMAIN OPEN** — `U3` convex overlay, `U4` one decision object, `U6` CSPs in,
+    `U8` one risk budget. None is a signal-transfer question, but the O-series discipline
+    applies: do not report a series closed while its rows are open. **Equity `N` 185 → 189 for this item's four arms — though it reads
     190 after the concurrent `S14-WIDTH` landing the same day, which is why an equity figure
     must be RE-READ from `by_domain` after every merge and never quoted from a session's own
     mid-run measurement.** Expectations **5 right, 3 wrong, 1 split** — and the streak breaks: this is the first
