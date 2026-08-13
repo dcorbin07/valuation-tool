@@ -4210,3 +4210,44 @@ Landed on `main` as b459d9a. Summary retained for continuity:
 - **Formatting**: one `mcap()` ($B/$T/$M, 2dp) everywhere; removed two local `pct`/`num` shadows;
   added `spct()` and `esc()`.
 - Scan health gained `display_coverage` and a recorded reason for universe fallbacks.
+
+---
+
+## FROM THE GREEKS LANE — the scream-buy logger's field contract (2026-08-13)
+
+Backend for `PROMPT_dip_detector_and_screamtrack.md` ITEM 2 is landed. Full write-up in
+`HANDOFF_live_data_bugs.md` Part 20. **Consume these, do not recompute them, and do not build a
+second logger.**
+
+    from valuation.edge import scream_log as SL
+
+    recs = SL.records(store)                          # the table rows, current epoch
+    recs = SL.attach_live_marks(recs, SL.live_quotes_for(recs))   # adds the live price
+    foot = SL.record_summary(store)                   # epoch, counts, reset note
+
+* `SL.RECORD_FIELDS` - authoritative names: `alert_id, alert_ts, ticker, occ_symbol, opt_right,
+  strike, expiry, entry_premium, target_premium, stop_premium, target_pct, stop_pct,
+  policy_is_default, dte_at_alert, dte_remaining, status, exit_reason, exit_premium, exit_ts,
+  pnl_pct, record_epoch, underlying_price, score, horizon, contract_source`
+* `SL.LIVE_FIELDS` - added at READ time, never stored: `current_premium, current_premium_ts,
+  current_premium_stale, current_premium_age_seconds, current_premium_source, pnl_pct_live`
+* `SL.ALL_STATUSES` - **LIVE, HIT TARGET, STOPPED, TIME-STOPPED, EXPIRED, CLOSED (unscoreable)**.
+  The sixth exists because a closed row whose reason maps to none of Don's five (`record_outcome`
+  writes "no entry premium") must not be forced into one that misdescribes it.
+* `foot["reset"]` is the archive manifest + the register note for the footer, or `None` if the
+  record has never been reset. `foot["n_prior_epochs"]` is what makes a reset visible: a table
+  showing three rows reads very differently when the footer says 41 alerts sit in an earlier
+  epoch.
+
+**THREE THINGS NOT TO DO.** `dte_at_alert` and `dte_remaining` are different quantities - do not
+render them as one. `entry_premium` is the ALERT-TIME premium and is NOT the paper track's broker
+FILL; the two books are different objects and session 16 exists because they were conflated.
+`current_premium_stale` must be shown when true - a stale mark rendered bare is the failure the
+whole read-time design is built around.
+
+**THE RECORD HAS NOT ACTUALLY BEEN RESET YET** and cannot be from a dev box: every local database
+holds ZERO scream-buy rows, the real record being on Render's disk. The reset is
+`SL.reset_record(store, out_dir)` behind an admin route (web lane) or
+`python -m valuation.edge.scream_log --reset --out-dir data_export` on the service. It archives
+first and moves the epoch only if that succeeded, and it DELETES NOTHING - the prior record stays
+queryable at its old `record_epoch`. Until it runs the tab correctly shows the original epoch.

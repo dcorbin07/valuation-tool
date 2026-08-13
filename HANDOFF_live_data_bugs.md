@@ -4490,3 +4490,174 @@ failures**.
 nothing to hold, so the first export after this ships is necessarily a plain top-N book. That is
 correct rather than degraded, and `no_trade_band.applied` records which happened — but nobody
 should read the first book and conclude the band is not working.
+
+---
+
+## Part 20 — THE SCREAM-BUY RECORD REBUILT: AN ARCHIVED RESET, NOT A WIPE (2026-08-13, greeks lane)
+
+Don's direction, `PROMPT_dip_detector_and_screamtrack.md` item 2: *"the options scream buys track
+record wiped, and include target sale, price bought in, and current price, same as our paper
+account tracks."* This is the backend half — schema, archive, status vocabulary and the read-time
+quote. The rendering is the app fixer's; the field contract it consumes is at the end of this
+part and repeated in `HANDOFF_appfixes.md`.
+
+New module `valuation/edge/scream_log.py`, 14 test groups in `tests/test_scream_log.py`.
+
+### THE FINDING THAT DECIDES HOW THE RESET HAD TO BE BUILT: THE RECORD IS NOT HERE
+
+**Every local database holds ZERO scream-buy alerts.** Measured, not assumed:
+
+| database | `option_alerts` rows |
+|---|---|
+| `.scan-cache/screener.db` | 0 |
+| `data/screener.db` | 0 |
+| `data/live_cache/served.db` | 0 |
+| `data/app.db` | table absent |
+
+The real record lives in SQLite on the Render web service's persistent disk — the same fact
+`track-backup.yml` exists to work around, and the same class as the memory note that the local
+scan archive is entirely test output. **So the reset could not be executed here, and no code path
+was written that pretends otherwise.** What shipped is the machinery plus a CLI; running it
+against the live record is the one step still outstanding, named at the end of this part.
+
+This also means a "did the archive capture anything?" check that merely counts rows would pass
+vacuously on this machine. `archive_record` returns a manifest with `n_rows`, `n_by_status` and
+`n_by_epoch` so an empty archive is *visibly* empty rather than quietly successful — LA2's
+lesson, where a relative guard could not catch a quantity that was always zero.
+
+### THE RESET ARCHIVES, AND THEN DOES NOT DELETE EITHER
+
+A silent wipe is the one thing this project must never do, and Don's own prompt says *"ARCHIVE,
+never delete."* But **archive-then-delete still destroys the rows**, and a dated JSON file is a
+strictly weaker object than a database row — it cannot be queried, joined or scored.
+
+So the reset **stamps an epoch** and starts a new one. `record_epoch` says which era a row belongs
+to; the prior record stays in `option_alerts`, queryable and scoreable, forever. This is the
+reasoning `paper_index_closed` already carries in this codebase: rows leave a book when they do
+badly, so erasing them flatters what remains.
+
+* `reset_record()` writes the archive **first** and moves the epoch **only if that succeeded** —
+  the other order leaves a reset record with no archive, which is the silent wipe itself. Pinned
+  by a test that makes the archive directory unwritable and asserts the epoch did not move.
+* A second reset on the same day **cannot overwrite the first archive** — it takes a `-2` suffix.
+  Overwriting would destroy exactly what the function exists to preserve.
+* A NULL `record_epoch` reads as the **original record**, never as "unknown". Rows written before
+  this module existed are precisely the original record.
+* The register note is Don's wording with two substitutions, so the repo and the tab cannot drift:
+  *"record reset {date} at Don's direction; prior record archived at {path}; reason: predates the
+  corrected alert stack (B1 price basis, C-series fixes) and lacked entry/target/current fields"*.
+  It is stored in store meta as well as in the file, so the footer renders without needing to find
+  a file that lives on the service's own disk.
+
+### THE STATUS IS DERIVED, NOT STORED — A DELIBERATE DEPARTURE FROM THE LITERAL ASK
+
+The prompt asks for *"a status field the close path maintains"*. **It is derived instead**, and
+the reason is worth carrying:
+
+1. The close path already maintains two fields the status is a pure function of (`status`,
+   `exit_reason`). A third, stored, is a copy that can disagree with them — the B7 disease in
+   miniature.
+2. **Deriving answers a case storing cannot.** An alert whose contract simply EXPIRED with nobody
+   closing it keeps `status='open'` forever, because no close path ever ran on it. A stored field
+   would read **LIVE for a contract that has not existed for months**. `display_status` reads
+   EXPIRED off the expiry date with no write required.
+
+**THE TRAP THIS VOCABULARY WALKS INTO, AND THE TEST THAT HOLDS IT: `"time_stop"` CONTAINS
+`"stop"`.** A substring match that checked `stop` first reports every scheduled close as a
+stop-out — and a strategy that closed on schedule would be recorded as one that got stopped out,
+which is the opposite claim about expectancy. Matching is on the **leading token**, and audit
+B5d's `" [pnl vs fill]"` suffix is stripped rather than tripping the mapping.
+
+An unmapped close reason (`record_outcome` writes `"no entry premium"` for an unscoreable close)
+reads **`CLOSED (unscoreable)`**, never LIVE. Forcing it into one of the five would be a lie, and
+reading it as LIVE would put a closed trade back in the book.
+
+**The coverage test is vacuity-proof:** it parses `paper_track._exit_decision` out of its own
+SOURCE with `ast`, collects the literal strings it can return, and fails if any lacks a status —
+plus an assertion that the enumeration found at least four tokens, so it cannot pass by seeing
+nothing. That is M3's finding applied: a registry-driven guard cannot see an unregistered value.
+
+### CURRENT PRICE IS NEVER PERSISTED
+
+Don asked for it on the row; it is on the row, fetched at **read** time and marked stale. Nothing
+in this module writes it. **A stored "current" price is a price that was current once, and it
+begins lying the moment it is written.**
+
+* `attach_live_marks()` takes a `{occ_symbol: quote}` map in exactly the shape
+  `PaperBroker.quotes` returns — the same convention the paper track already marks against, so
+  there is one quote convention and not two.
+* **Absent is not fresh and is not zero.** A missing quote, or a quote carrying no timestamp,
+  reads `current_premium_stale: True` with a `None` price. The failure that matters is a
+  months-old price rendered as today's.
+* **Tradier reports epoch MILLISECONDS.** Reading them as seconds dates every quote to 1970 and
+  marks it stale forever — fail-safe, but it would make the staleness flag useless rather than
+  informative. Handled and pinned.
+* `live_quotes_for()` quotes **only LIVE contracts**, so the broker fan-out does not grow by one
+  call per historical alert forever, and it degrades to stale marks on an outage rather than
+  taking the tab down.
+
+### ONE DERIVATION OF THE EXIT LEVELS, AND IT REMOVED A DUPLICATE
+
+`paper_track` had the target/stop arithmetic written out **twice** — inline in `_place_entry` and
+again in `_levels_from`. That is how a corrected level and an uncorrected one come to coexist,
+which is the exact defect session 16 found in these same exit levels. Both now call
+`scream_log.levels_for`, and a test asserts the inline form is gone from the source.
+
+`levels_for` returns `{}` for a missing or non-positive entry rather than zeros: a target derived
+from no entry price is not a level, and the caller must be able to tell "no policy could be
+applied" from "the target happens to be 0".
+
+**The +100% target is a DEFAULT, not a constant.** An alert that logged its own policy keeps it —
+which is the whole reason the policy is stored on the row rather than read from settings at
+display time. A later change of policy must not retroactively re-price old alerts.
+`policy_is_default` says which happened.
+
+### M6's SCHEMA GUARD, ON THIS PAYLOAD
+
+`records()` raises `PayloadSchemaError` if a stored column reaches the projection unaccounted
+for. It iterates the columns the **database actually returned**, not a registry, so a column added
+to `option_alerts` by any lane is loud until somebody decides in a diff whether the tab carries
+it. Every `_RECORD_ALLOW` entry carries its reason; an entry without one should be read as a bug
+in that table, not a settled decision.
+
+Tested both ways: a column added behind the projection's back fails the run, **and** the guard is
+shown to be inspecting 25+ real columns, so it is not passing by seeing nothing.
+
+### FIELD CONTRACT FOR THE APP FIXER
+
+`from valuation.edge import scream_log as SL`
+
+* `SL.records(store)` → rows. `SL.RECORD_FIELDS` is the authoritative name list:
+  `alert_id, alert_ts, ticker, occ_symbol, opt_right, strike, expiry, entry_premium,
+  target_premium, stop_premium, target_pct, stop_pct, policy_is_default, dte_at_alert,
+  dte_remaining, status, exit_reason, exit_premium, exit_ts, pnl_pct, record_epoch,
+  underlying_price, score, horizon, contract_source`
+* `SL.attach_live_marks(recs, SL.live_quotes_for(recs))` adds `SL.LIVE_FIELDS`:
+  `current_premium, current_premium_ts, current_premium_stale, current_premium_age_seconds,
+  current_premium_source, pnl_pct_live`
+* `SL.record_summary(store)` → the footer: `epoch`, `n_current_epoch`, `n_prior_epochs`,
+  `n_by_epoch`, `reset` (the manifest + register note, `None` if never reset), `statuses`,
+  `stale_after_seconds`.
+* Statuses are exactly `SL.ALL_STATUSES`: **LIVE, HIT TARGET, STOPPED, TIME-STOPPED, EXPIRED,
+  CLOSED (unscoreable)**.
+
+**Three things not to do with these.** `dte_at_alert` and `dte_remaining` are different
+quantities and must not be rendered as one. `entry_premium` is the ALERT-TIME premium, which is
+not the paper track's broker FILL — the two books are different objects and session 16 exists
+because they were conflated. And `current_premium_stale` must be shown when true; a stale mark
+rendered bare is the failure this design is built around.
+
+### WHAT IS NOT DONE, AND WHOSE IT IS
+
+* **THE LIVE RECORD HAS NOT BEEN RESET.** It cannot be from here — see the first section. The
+  step is `python -m valuation.edge.scream_log --reset --out-dir data_export` **on the service**,
+  or an admin route calling `SL.reset_record(store, out_dir)`. The route is the web lane's, and
+  the archive file it writes lands on Render's disk, so it needs exposing through the same
+  `/admin/export-track` path the backup Action already uses if it is to reach the repo. Until
+  that runs, the tab shows the ORIGINAL epoch — which is correct, not broken.
+* The reset is deliberately **not** wired into any scan. It is a dated act on Don's direction and
+  takes an explicit flag.
+* `notify.log_scream_buys` was **not** edited — the epoch is stamped in `options_tracker.log_alert`
+  instead, so every caller of the logger lands in the right era without touching `saas/`.
+
+Full gate: **69 suites, 0 failures.**

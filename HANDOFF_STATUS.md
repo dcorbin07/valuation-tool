@@ -1,5 +1,57 @@
 # HANDOFF STATUS - shared project state
 
+## greeks lane, the SCREAM-BUY RECORD rebuilt (2026-08-13) - an archived reset, not a wipe
+
+Don's direction (`PROMPT_dip_detector_and_screamtrack.md` item 2): *"the options scream buys track
+record wiped, and include target sale, price bought in, and current price, same as our paper
+account tracks."* **Backend half only** - schema, archive, status vocabulary, read-time quote. The
+tab is the app fixer's. New `valuation/edge/scream_log.py`; field contract in
+`HANDOFF_appfixes.md`, full write-up in `HANDOFF_live_data_bugs.md` Part 20.
+
+**THE FINDING THAT DECIDED THE DESIGN: the record is not on this machine.** Every local database
+holds **ZERO** scream-buy alerts (`.scan-cache/screener.db` 0, `data/screener.db` 0,
+`data/live_cache/served.db` 0, `data/app.db` has no such table). The real record lives in SQLite on
+the Render service's disk - the same fact `track-backup.yml` exists to work around. **So the reset
+could not be executed here, and nothing was written that pretends otherwise.** The archive manifest
+reports `n_rows`, `n_by_status` and `n_by_epoch` so an empty archive is *visibly* empty rather than
+quietly successful - LA2's lesson, where a relative guard could not catch a quantity that was
+always zero.
+
+**THE RESET ARCHIVES AND THEN DOES NOT DELETE EITHER.** Archive-then-delete still destroys the
+rows, and a dated JSON file is a strictly weaker object than a database row - it cannot be queried,
+joined or scored. So the reset stamps a `record_epoch` and starts a new one; the prior record stays
+in `option_alerts` forever. Same reasoning `paper_index_closed` already carries: rows leave a book
+when they do badly, so erasing them flatters what remains. It writes the archive **first** and moves
+the epoch **only if that succeeded** - the other order leaves a reset record with no archive, which
+is the silent wipe itself. A second reset on one day cannot overwrite the first.
+
+**THE STATUS IS DERIVED, NOT STORED - a deliberate departure from the literal ask.** The close path
+already maintains two fields the status is a pure function of, so a third stored copy can disagree
+with them. And deriving answers a case storing cannot: an alert whose contract **expired with nobody
+closing it** keeps `status='open'` forever, so a stored field would read **LIVE for a contract that
+has not existed for months**. **The trap in the vocabulary is that `time_stop` CONTAINS `stop`** - a
+substring match reports every scheduled close as a stop-out, the opposite claim about expectancy.
+Matching is on the leading token, and the coverage test parses `paper_track._exit_decision` out of
+its own **source** with `ast` rather than trusting a list.
+
+**CURRENT PRICE IS NEVER PERSISTED** - fetched at read time and stale-marked, because a stored
+"current" price begins lying the moment it is written. A missing quote, or one with no timestamp,
+reads stale with a `None` price: absent is not fresh and is not zero. Tradier reports epoch
+**milliseconds**; reading them as seconds would date every quote to 1970 and make the staleness flag
+useless. Handled and pinned.
+
+**A DUPLICATE REMOVED:** `paper_track` had the target/stop arithmetic written out **twice** (inline
+in `_place_entry`, again in `_levels_from`) - how a corrected level and an uncorrected one come to
+coexist, the exact defect session 16 found in these same levels. Both now call one function.
+
+**NOT DONE, AND NAMED: the live record has NOT been reset.** The step is
+`python -m valuation.edge.scream_log --reset --out-dir data_export` on the service, or an admin
+route calling `SL.reset_record(store, out_dir)` - **the route is the web lane's**. Until it runs the
+tab correctly shows the original epoch. The reset is deliberately not wired into any scan.
+
+Zero trials - reporting/product, no hypothesis and no threshold. Full gate **69 suites, 0 failures**.
+
+
 ## greeks lane, S14 ADOPTED (2026-08-13) - the band is LIVE, and it had never been applied before
 
 Don adopted S14, the no-trade band at **width 0.30**, on its double-clear (session 35 +

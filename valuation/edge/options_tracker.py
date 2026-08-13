@@ -45,7 +45,7 @@ DEFAULT_TIME_STOP_FRAC = 0.50  # or close at half the original DTE, whichever co
 _FIELDS = ("alert_ts", "ticker", "opt_right", "strike", "expiry", "occ_symbol",
            "entry_premium", "underlying_price", "score", "momentum_score", "technical_score",
            "iv", "iv_rank", "horizon", "target_delta", "dte", "flow_read", "labels",
-           "features")
+           "features", "record_epoch")
 
 
 def _f(x) -> Optional[float]:
@@ -88,6 +88,12 @@ def log_alert(store, alert: dict) -> Optional[int]:
     for k in ("labels", "features"):
         if isinstance(a.get(k), (list, dict)):
             a[k] = json.dumps(a[k], sort_keys=True)
+    # Stamp the epoch here rather than at the call site, so every caller of the logger lands in
+    # the right era of the record. A row written without one would silently join the ORIGINAL
+    # record, which after a reset is precisely the record it does not belong to.
+    from . import scream_log as _SL
+    _SL.ensure_schema(store)
+    a.setdefault("record_epoch", _SL.current_epoch(store))
     cols = [c for c in _FIELDS if c in a]
     sql = (f"INSERT OR IGNORE INTO option_alerts ({','.join(cols)}, status) "
            f"VALUES ({','.join('?' * len(cols))}, 'open')")
