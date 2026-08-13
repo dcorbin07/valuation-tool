@@ -938,6 +938,13 @@ def _inst_accum_at(prep, as_of, lag_days=45):
     return (cur / prev - 1.0) if prev > 0 else None
 
 
+# S15 — the VALUE theme's raw inputs, and nothing else. `neg_ev_sales`, `neg_ps` and
+# `neg_ev_ebitda` are DERIVED inside `build_frame` before the sector block runs, so they
+# are available to be de-meaned by the time S15 needs them.
+VALUE_INPUTS = ["earnings_yield", "fcf_yield", "ebit_ev", "book_to_price",
+                "neg_ev_sales", "neg_ps", "neg_ev_ebitda"]
+
+
 def _inst_age_at(prep, as_of, lag_days=45):
     """S8 — CALENDAR DAYS since the 13F quarter-end `_inst_accum_at` actually used.
 
@@ -994,7 +1001,7 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                             sector_neutral_pair=False, standardizer_arms=None,
                             with_insider_raw=False, with_issuance_raw=False,
                             with_vol_raw=False, with_freshness=False,
-                            bucket_relative_arms=None) -> pd.DataFrame:
+                            bucket_relative_arms=None, sector_value_arm=False) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -1419,6 +1426,12 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
         fr_br = {p: build_frame(metrics, sector_neutral=sector_neutral, residual_momentum=False,
                                 bucket_relative=col)
                  for p, col in (bucket_relative_arms or {}).items()}
+        # S15 — sector-relative on the VALUE theme's inputs ALONE, the narrow variant the three
+        # broad sector-neutral rejections left explicitly open. Same pass, same `metrics` list,
+        # so the arms are provably scored on one identical row set.
+        fr_sv = (build_frame(metrics, sector_neutral=sector_neutral, residual_momentum=False,
+                             sector_relative_cols=VALUE_INPUTS)
+                 if sector_value_arm else None)
         # SECTOR-NEUTRAL-B6 — the OTHER arm, scored from the SAME `metrics` list in the SAME
         # pass. `build_frame` copies its input (`pd.DataFrame(metrics)`) and never mutates the
         # caller's list, so the two calls differ by the flag and by nothing else.
@@ -1503,6 +1516,15 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                         v = (_rb.get(theme) if (_rb is not None and theme in _fb.columns)
                              else None)
                         row[f"{_p}_{theme}"] = None if (v is None or pd.isna(v)) else float(v)
+            # S15 — the sector-relative-VALUE arm's themes, on this same row. Control C4 checks
+            # that every NON-value theme comes back bit-identical to the deployed one, which is
+            # what makes this the narrow experiment it claims to be.
+            if fr_sv is not None:
+                _rv = fr_sv.loc[t] if t in fr_sv.index else None
+                for theme in S.FACTORS_ALL:
+                    v = (_rv.get(theme) if (_rv is not None and theme in fr_sv.columns)
+                         else None)
+                    row["sv_" + theme] = None if (v is None or pd.isna(v)) else float(v)
             # S20/S21 — the standardizer arms' themes, on this same row.
             for _p, _fr in fr_std.items():
                 _rr = _fr.loc[t] if t in _fr.index else None

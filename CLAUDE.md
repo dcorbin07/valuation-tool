@@ -48,6 +48,56 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE NO-TRADE BAND CLEARS — THE FIRST ARM TO DO SO IN EIGHT SESSIONS — BUT NOT FOR THE REASON
+  ITS REGISTER CLAIMED, AND ITS OPTIMUM SITS AT THE GRID BOUNDARY; SECTOR-NEUTRAL IS NOW FINISHED
+  IN EVERY FORM (2026-08-12, session 35, `S14`+`S15`).** One register for both,
+  `PREREG_s14_s15_band_sectorvalue.md`, committed **alone at `32051c0`**. **ADOPTS NOTHING.**
+  * **`S14` IS ADOPT-ELIGIBLE, IN BOTH DIRECTIONS.** Sweeping the shipped width grid on the
+    **decide** half and measuring the argmax on the **held-out** half, both directions pick width
+    **0.30** and both clear: net alpha **+1.78pp / +1.77pp**, gross alpha **+1.02pp / +0.77pp**,
+    measured cost saving **+0.76pp / +1.00pp**. **Turnover roughly HALVES** (2.6078 → 1.3514 and
+    2.5800 → 1.4198) and the measured drag falls 0.0227 → 0.0126 and 0.0182 → 0.0106.
+  * **CORRECTION TO MY OWN REGISTER #1, AND IT CHANGES WHAT THE RESULT MEANS: THE "PURE COST
+    MECHANISM, NO SIGNAL CLAIM" FRAMING IS WRONG.** **Gross alpha IMPROVES**, so roughly **half**
+    the gain is a *signal* effect, not a cost saving — holding a name until it leaves the top 30%
+    rather than the top 10% stops the book churning on rank noise. That is a construction change
+    with a real return consequence, and it means the audit's category-error argument (don't apply
+    a signal margin to a mechanical saving) is only **half** applicable.
+  * **CORRECTION #2: MY INDICTMENT OF THE AUDIT'S 1.5pp ALLOWANCE WAS TOO STRONG.** The register
+    computed the saving at ~26 bps from the audit's quoted turnover and called the allowance **6×**
+    wider than the prize. **The measured saving is 76–100 bps**, so it is ~**1.5×**. Tightening the
+    guard was still right and the arm passes either way, but the magnitude asserted before the run
+    was wrong.
+  * **THE CAVEAT THAT MUST TRAVEL WITH THE VERDICT: THE ARGMAX IS AT THE GRID BOUNDARY IN BOTH
+    DIRECTIONS.** 0.30 is the widest width the shipped grid contains and it won both times, so
+    **the optimum is at or beyond the edge and the knee is NOT identified** — the selected width is
+    an artefact of where the grid stops. **A wider grid is the obvious next test, not an
+    adoption.** **C6 confirms the audit's noise warning**: the net-alpha surface is monotone on the
+    early half and **not** on the late, where 0.20 dips below 0.15.
+  * **A MECHANISM THAT SUPPORTS IT: S22 measured that top-decile alpha is still accruing at two
+    years while a name typically stays in the decile for ONE rebalance.** A wider band harvests
+    persistence the incumbent's tight exit throws away — the direction S22 pointed at and declined
+    to test. **Recorded ELIGIBLE, not adopted** (a vintage event, and Don's call); **1 of 2 sibling
+    arms**, though stronger than that label implies since it cleared **both** halves in **both**
+    directions. **The band is ALREADY LIVE in the `taxable` configuration**, so an adopt would
+    change the *default*, not introduce it. **B13 is only PARTIAL**, so "the book is investable"
+    holds for the categorical screen and **not** the liquidity one.
+  * **`S15` IS REJECTED AND ESSENTIALLY INERT — AND WITH IT, SECTOR-NEUTRAL IS FINISHED IN EVERY
+    FORM.** `SECTOR-NEUTRAL-B6` named exactly two routes back: **`S25`** (closed **UNOBTAINABLE**
+    in session 29) and **`S15`** (rejected here). **Both are shut.** Measured: Δalpha −0.01pp /
+    −0.36pp, rank correlation **0.9879**, only **5 of 25** top names changed.
+  * **CONTROL C4 IS EXACT AND IS WHAT MAKES S15 THE NARROW EXPERIMENT IT CLAIMS TO BE: every
+    NON-value theme comes back BIT-IDENTICAL at max |Δ| 0.000e+00**, while `value` moves by
+    1.5568. It moves the book **less** than the broad version did (0.9879 vs B6's 0.9836), as
+    pre-registered. The buy-*t*-sell-alpha flag **did** fire on the late half — predicted at 55/45
+    that it would not — but at −0.36pp for +0.037 of *t*, **inert describes it better than
+    trade-off**.
+  * **THE STANDING SECTOR CAVEAT NOW HAS NO REMEDY.** TICKERS supplies **today's** sector applied
+    to 1998 rows; `S25` was the item that would have fixed it and it is closed. **Any future
+    sector-aware result on this panel inherits a look-ahead that cannot be repaired on data we
+    own.** **Equity `N` 183 → 185.** Expectations **4 right, 3 wrong** — the worst score in these
+    sessions, and informative for it: both consequential misses are on S14, predicted to fail.
+    `data/free_analysis/S14_S15.json`; `HANDOFF_edge_audit.md` §1-8.
 - **THE HORIZON ENSEMBLE BUYS A REAL TURNOVER REDUCTION AT 11× TO 23× ITS OWN COST, AND THE
   BUCKET ARM MISSES BY 18 BASIS POINTS (2026-08-12, session 34, `S11`+`S12`).** One register for
   both, `PREREG_s11_s12_horizon_bucket.md`, committed **alone at `d867fe3`**. **ADOPTS NOTHING.**

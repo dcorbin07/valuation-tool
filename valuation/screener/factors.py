@@ -68,7 +68,8 @@ _GRANULAR = list(S.NUMBERS_ALL)
 
 
 def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None,
-                value_ev_multiples=None, standardizer=None, bucket_relative=None) -> pd.DataFrame:
+                value_ev_multiples=None, standardizer=None, bucket_relative=None,
+                sector_relative_cols=None) -> pd.DataFrame:
     """Return a DataFrame indexed by ticker with the theme columns standardized across
     the universe. sector_neutral scores each number relative to its sector peers (removes
     accidental sector bets); residual_momentum strips the beta component out of momentum.
@@ -209,6 +210,19 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
             if col in df.columns:
                 s = pd.to_numeric(df[col], errors="coerce")
                 df[col] = s - s.groupby(_grp).transform("median")
+
+    # LEDGER S15 — sector-relative on a COLUMN SUBSET. The broad `sector_neutral` above
+    # de-means EVERY granular metric, which is what SECTOR-NEUTRAL-B6 rejected three times;
+    # S15 is the narrow variant that rejection left explicitly open, applying the same
+    # operation to the VALUE theme's inputs alone. Same group, same median subtraction, same
+    # global z-score below — only the column list differs. Defaults to None, so every existing
+    # caller and the shipped panel are untouched.
+    if sector_relative_cols and "sector" in df.columns:
+        _sgrp = df["sector"].fillna("?")
+        for col in sector_relative_cols:
+            if col in df.columns:
+                s = pd.to_numeric(df[col], errors="coerce")
+                df[col] = s - s.groupby(_sgrp).transform("median")
 
     # LEDGER S12 — bucket-relative ranking, the audit's "add a `bucket_relative` toggle to the
     # standardisation step". Architecturally IDENTICAL to sector_neutral above (subtract the

@@ -9638,3 +9638,146 @@ finding, sector-neutral's three rejections) rather than from intuition.
 embargo** from session 22 — still the only open item that can move a published number.
 
 **And the dated one: read `/api/track` → `contract_track.recording_ok` on or after 2026-08-13.**
+
+---
+
+# SESSION 35 (2026-08-12) — the no-trade band clears, and sector-neutral is finished
+
+`PREREG_s14_s15_band_sectorvalue.md` committed **alone at `32051c0`**. **ADOPTS NOTHING.**
+
+## 0. The headline
+
+**`S14` is ADOPT-ELIGIBLE — the first arm to clear in eight sessions, and it cleared in both
+directions.** But **not for the reason its own register claimed**, and **its optimum sits at the
+grid boundary**, so the honest reading is "a real effect whose size is unidentified", not "adopt
+this width".
+
+**`S15` is rejected and essentially inert — and with it, sector-neutral is finished in every
+form**, because `SECTOR-NEUTRAL-B6` named exactly two routes back and both are now shut.
+
+## 1. S14 — the result
+
+Sweeping the shipped width grid on the **decide** half and measuring the argmax on the
+**held-out** half, in both directions:
+
+| decide → measure | picked | Δ net alpha | Δ gross alpha | measured cost saving |
+|---|---|---|---|---|
+| early → late | **0.30** | **+1.78pp** | **+1.02pp** | +0.76pp |
+| late → early | **0.30** | **+1.77pp** | **+0.77pp** | +1.00pp |
+
+Turnover roughly **halves** (2.6078 → 1.3514 and 2.5800 → 1.4198); measured drag falls
+0.0227 → 0.0126 and 0.0182 → 0.0106.
+
+## 2. Two corrections to my own register, both against it
+
+**#1 — THE "PURE COST MECHANISM, NO SIGNAL CLAIM" FRAMING IS WRONG.** The register asserted this
+arm makes no signal claim at all. **Gross alpha improves** (+1.02pp / +0.77pp), so **roughly half
+the gain is a signal effect**, not a cost saving. Holding a name until it leaves the top 30% rather
+than the top 10% stops the book churning on rank noise — a construction change with a real return
+consequence.
+
+That is not a defect in the result; it is a defect in how the result was framed, and it matters
+because it means **the audit's category-error argument is only half applicable.** The cost half is
+mechanical; the gross half is a signal claim and deserves signal-grade scepticism.
+
+**#2 — MY INDICTMENT OF THE AUDIT'S 1.5pp ALLOWANCE WAS TOO STRONG.** The register computed the
+saving at ~26 bps from the audit's quoted turnover and the 33.4 bps rate, and called the allowance
+**6× wider than the prize**. **The measured saving is 76–100 bps**, so the allowance is about
+**1.5×**. Tightening the guard to the measured saving was still the right call, and the arm passes
+under either version — but the magnitude I asserted before the run was wrong.
+
+## 3. The caveat that must travel with the verdict
+
+**THE ARGMAX IS AT THE GRID BOUNDARY IN BOTH DIRECTIONS.** 0.30 is the widest width the shipped
+grid contains, and it won both times. **The optimum is therefore at or beyond the edge and the
+knee is NOT identified** — the selected width is an artefact of where the grid stops.
+
+**A wider grid is the obvious next test. An adoption is not.**
+
+**C6 confirms the audit's own noise warning**: the net-alpha surface is **monotone on the early
+half and NOT monotone on the late**, where 0.20 dips below 0.15. The audit saw exactly this on the
+void panel and it persists on the corrected one.
+
+## 4. A mechanism that supports it
+
+**S22 measured that top-decile alpha is still accruing at two years, while a name typically stays
+in the decile for ONE rebalance** (70.6% of spells last exactly one). A wider band harvests
+persistence the incumbent's tight exit throws away — the direction S22 pointed at and explicitly
+declined to test, noting that a cohort's buy-and-hold return and a re-selecting book are different
+claims. **This is the first measurement in that direction that clears a held-out gate.**
+
+**Recorded ELIGIBLE, not adopted** — a vintage event, and Don's call. **1 of 2 sibling arms** per
+the register's family-wise clause, though stronger than that label implies: it cleared **both**
+halves in **both** directions with near-identical magnitudes (+1.78 / +1.77pp).
+
+**Two limitations carried forward.** The band is **already live in the `taxable` configuration**,
+so an adopt would change the *default*, not introduce the band. And **B13 is only PARTIAL** —
+`MIN_AVG_DOLLAR_VOLUME` cannot bind on this path — so "the book is investable" holds for the
+categorical screen and **not** the liquidity one.
+
+## 5. S15 — rejected, and both routes back are now shut
+
+| | early half | late half |
+|---|---|---|
+| Δ top-decile alpha | −0.01pp | −0.36pp |
+| Δ long-short *t* | −0.086 | +0.037 |
+
+Rank correlation against deployed **0.9879**; only **5 of 25** top names changed. **The arm is
+close to inert — it neither helps nor hurts.**
+
+**CONTROL C4 IS EXACT, and it is what makes this the narrow experiment it claims to be: every
+NON-value theme comes back BIT-IDENTICAL at max |Δ| 0.000e+00**, while `value` itself moves by
+1.5568. So the intervention is provably confined to one theme — this is not a broad sector-neutral
+run wearing a narrow label.
+
+It **moves the book less** than the broad version did (0.9879 against B6's measured 0.9836), as
+pre-registered. **The buy-*t*-sell-alpha flag did fire on the late half** — predicted at 55/45 that
+it would not — but at −0.36pp of alpha for +0.037 of *t*, **inert describes it better than
+trade-off**, and no verdict rests on it.
+
+**THE CLOSURE.** `SECTOR-NEUTRAL-B6` named exactly two routes back: **`S25`**, a genuine
+point-in-time sector map — **closed as UNOBTAINABLE in session 29**, because no such map is
+buildable from anything we own — and **`S15`**, rejected here. **Both are shut. Sector-neutral in
+every form is finished and should be recorded as such rather than left dormant.**
+
+**And the standing caveat now has no remedy.** TICKERS supplies **today's** sector applied to 1998
+rows; `S25` was the item that would have fixed it. **Any future sector-aware result on this panel
+inherits a look-ahead that cannot be repaired on data we own.**
+
+## 6. Trial cost and expectations
+
+**Equity `N` 183 → 185.** S14's width sweep is charged as **one** trial, not five: the argmax is
+taken on the decide half and only the selected width is measured.
+
+**Expectations 4 right, 3 wrong — the worst score in these sessions, and informative for it.** The
+two consequential misses are both on S14: it was predicted to fail (70/30) and cleared, and the
+cost saving was predicted under 40 bps and measured at 76–100. The third miss is S15's
+buy-*t*-sell-alpha flag firing at trivial magnitude.
+
+## 7. What I did NOT do
+
+1. **I did not adopt anything.** Either arm is a vintage event.
+2. **I did not widen the grid** to find S14's true knee — that is a new measurement and needs its
+   own register, and it is the recommended next step.
+3. **I did not touch the `taxable` configuration** where the band already lives.
+4. **I did not sweep `enter_frac`**, which stays at the shipped 0.10.
+5. **I did not re-open broad sector-neutral** — S15 was a different construction, and its failure
+   closes the item rather than reviving the broad one.
+
+## 8. BUGS FOUND
+
+1. **My own register's mechanism claim was wrong** (§2 #1) — corrected against myself.
+2. **My own pre-run arithmetic was too strong** (§2 #2) — corrected against myself.
+3. **The shipped width grid does not contain S14's optimum** (§3) — reported; it bounds what the
+   verdict can say.
+4. **`scripts/build_ledger.py` will DROP both rows** if regenerated — curated. Pre-existing.
+
+## 9. Next
+
+**The recommended next item is now S14's own follow-up: widen the width grid past 0.30** and
+re-run the same held-out design, because the current verdict cannot say where the optimum is.
+
+Otherwise unchanged: **S10's accounting half**, or the **CPCV embargo** from session 22 — still
+the only open item that can move a published number.
+
+**And the dated one: read `/api/track` → `contract_track.recording_ok` on or after 2026-08-13.**
