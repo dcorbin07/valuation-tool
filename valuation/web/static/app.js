@@ -1211,6 +1211,9 @@ function renderDip(d) {
    register note below renders with the table every time. Entry / target / stop / current are
    READ from the stored columns — see web/scream_track.py for why re-deriving them would look
    right and be wrong. */
+/* Six statuses, not five. `CLOSED (unscoreable)` is the logger's own sixth: a closed row whose
+   exit reason maps to none of Don's five must not be forced into one that misdescribes it. It
+   is deliberately muted rather than red — unscoreable is not a loss. */
 function _screamStatusColor(s) {
   if (s === "HIT TARGET") return "var(--green)";
   if (s === "STOPPED") return "var(--red)";
@@ -1228,53 +1231,81 @@ async function loadScreamTrack() {
 }
 
 function renderScreamTrack(d) {
-  const reg = d.register || {};
+  const foot = d.summary || {};
+  const reset = d.reset || null;
   setHtml("screamContext", esc(d.context || ""));
   const rows = d.rows || [];
 
   let body;
   if (!rows.length) {
-    body = `<div class="muted">No alerts since the ${esc(reg.reset_date || "reset")} reset yet.
-      ${d.n_archived ? num(d.n_archived) + " earlier alert(s) are in the archive." : ""}
-      ${d.unavailable ? "The record could not be read just now." : ""}</div>`;
+    body = `<div class="muted">${d.unavailable
+      ? "The record could not be read just now."
+      : "No scream-buy alerts in the current record yet."}</div>`;
   } else {
     body = `<div class="metricline" style="margin:6px 0 12px">
       ${metric("Live", d.n_live)}${metric("Closed", d.n_closed)}
-      ${metric("Since", reg.reset_date || "—")}</div>`;
+      ${metric("Record", foot.epoch || "—")}</div>`;
+    /* dte_at_alert and dte_remaining are DIFFERENT QUANTITIES and the logger's contract says
+       not to render them as one. Both columns, both labelled. */
     body += `<table><tr><th>Alert</th><th>Contract</th><th>Status</th>
       <th class="num">Bought in</th><th class="num">Target sale</th><th class="num">Stop</th>
-      <th class="num">Current</th><th class="num">P&amp;L</th><th class="num">DTE</th></tr>`;
+      <th class="num">Current</th><th class="num">P&amp;L</th>
+      <th class="num">DTE now</th><th class="num">DTE at alert</th></tr>`;
     rows.forEach(r => {
       const col = _screamStatusColor(r.status);
-      /* A stale mark is LABELLED, never silently rendered as current, and an unmarked live
-         position counts as stale — nobody has priced it. */
-      const stale = r.mark_stale
-        ? ` <span class="muted" title="Last marked ${esc(r.last_mark_ts || "never")}${r.mark_age_days == null ? "" : " — " + r.mark_age_days + " day(s) ago"}">⚠ stale</span>`
+      /* A stale mark is LABELLED, never silently rendered as current. The logger sets
+         current_premium_stale true when the quote is older than its own window OR when no
+         quote arrived at all — absent is not fresh, and a row the market could not price must
+         never render as a live price. */
+      const age = r.current_premium_age_seconds;
+      const stale = r.current_premium_stale
+        ? ` <span class="muted" title="Quoted ${esc(r.current_premium_ts || "never")}${age == null ? "" : " — " + Math.round(age / 60) + " min ago"}">⚠ stale</span>`
         : "";
       const contract = [r.opt_right ? String(r.opt_right).toUpperCase() : "",
         r.strike == null ? "" : money(r.strike, 2), r.expiry || ""].filter(Boolean).join(" ");
+      /* A non-default exit policy is flagged, because the whole point of reading the stored
+         level rather than deriving it is that the policy can differ from +100%/-50%. */
+      const pol = (r.policy_is_default === false)
+        ? ` <span class="muted" title="This alert carries its own exit policy, not the default +100%/-50%.">·custom</span>` : "";
+      const live = r.pnl_pct_live;
       body += `<tr>
         <td><b>${esc(r.ticker || "—")}</b><div class="muted" style="font-size:11px">${esc(String(r.alert_ts || "").slice(0, 10))}</div></td>
         <td style="font-size:12px">${esc(contract || r.occ_symbol || "—")}</td>
         <td style="color:${col};font-weight:700">${esc(r.status)}${stale}</td>
         <td class="num">${money(r.entry_premium)}</td>
-        <td class="num">${money(r.target_premium)}${r.target_pct == null ? "" : ` <span class="muted">(${spct(r.target_pct, 0)})</span>`}</td>
+        <td class="num">${money(r.target_premium)}${r.target_pct == null ? "" : ` <span class="muted">(${spct(r.target_pct, 0)})</span>`}${pol}</td>
         <td class="num">${money(r.stop_premium)}${r.stop_pct == null ? "" : ` <span class="muted">(${spct(r.stop_pct, 0)})</span>`}</td>
         <td class="num">${money(r.current_premium)}</td>
-        <td class="num ${r.current_pct == null ? "" : (r.current_pct >= 0 ? "pos" : "neg")}">${r.current_pct == null ? "—" : spct(r.current_pct, 0)}</td>
-        <td class="num">${r.dte == null ? "—" : r.dte + "d"}</td></tr>`;
+        <td class="num ${live == null ? "" : (live >= 0 ? "pos" : "neg")}">${live == null ? (r.pnl_pct == null ? "—" : spct(r.pnl_pct, 0)) : spct(live, 0)}</td>
+        <td class="num">${r.dte_remaining == null ? "—" : r.dte_remaining + "d"}</td>
+        <td class="num muted">${r.dte_at_alert == null ? "—" : r.dte_at_alert + "d"}</td></tr>`;
     });
     body += "</table>";
   }
 
-  const lc = d.level_conformance;
+  const lc = d.paper_level_conformance;
   if (lc && lc.off_spec) {
     body += `<div class="note" style="margin-top:10px;border-left:3px solid #c0392b;padding-left:9px">
-      ⚠️ <b>${num(lc.off_spec)} live position(s) are trading to a target or stop the strategy
-      does not specify.</b> Reported read-only; the next paper cycle repairs them.</div>`;
+      ⚠️ <b>${num(lc.off_spec)} live PAPER position(s) are trading to a target or stop the
+      strategy does not specify.</b> That is the paper book, a different object from this
+      record. Reported read-only; the next paper cycle repairs them.</div>`;
   }
   setHtml("screamBody", body);
-  setHtml("screamRegister", esc(reg.note || ""));
+
+  /* THE FOOTER. `reset` is null until a reset has ACTUALLY run — the record cannot be reset
+     from a dev box — so the surface says the record is original rather than implying a reset
+     happened. `n_prior_epochs` is what makes a reset visible rather than merely honest. */
+  let note;
+  if (reset && reset.note) {
+    note = esc(reset.note);
+    if (foot.n_prior_epochs) {
+      note += ` <b>${num(foot.n_prior_epochs)} earlier record${foot.n_prior_epochs === 1 ? "" : "s"}</b> remain queryable — nothing was deleted.`;
+    }
+  } else {
+    note = "This is the original record — it has not been reset. Nothing here has ever been "
+      + "deleted, and a reset would archive first and keep the prior rows queryable.";
+  }
+  setHtml("screamRegister", note);
 }
 
 async function buildPortfolio() {

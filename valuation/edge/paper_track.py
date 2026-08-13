@@ -53,6 +53,7 @@ from typing import Optional
 
 from ..config import CONFIG
 from . import options_tracker as OT
+from . import scream_log as SL
 from .paper_broker import DATA_CAVEAT, PaperBroker, now_iso, today_iso
 
 # An alert older than this is NOT submitted. The forward track's only claim is that it was
@@ -246,13 +247,14 @@ def _policy_for(store, order_row: dict) -> dict:
 
 
 def _levels_from(store, order_row: dict, price) -> dict:
-    """`target_premium` / `stop_premium` for an order row at `price`, on the alert's own policy."""
-    px = _f(price)
-    if px is None or px <= 0:
-        return {}
-    pol = _policy_for(store, order_row)
-    return {"target_premium": round(px * (1.0 + (pol["target_pct"] or 0)), 4),
-            "stop_premium": round(px * (1.0 + (pol["stop_pct"] or 0)), 4)}
+    """`target_premium` / `stop_premium` for an order row at `price`, on the alert's own policy.
+
+    The arithmetic itself lives in `scream_log.levels_for` and is not repeated here. It used to
+    be written out twice in this file — once here and once inline in `_place_entry` — which is
+    how a corrected level and an uncorrected one come to coexist, the exact defect session 16
+    found in these same exit levels.
+    """
+    return SL.levels_for(price, _policy_for(store, order_row))
 
 
 def _sizing(alert: dict) -> dict:
@@ -435,10 +437,10 @@ def _place_entry(store, broker: PaperBroker, alert_id, ticker, occ, contracts,
     oid = PaperBroker.order_id(res)
     fields = {"state": "submitted", "entry_order_id": oid, "entry_ts": now_iso()}
     if policy:
-        px = _f(price)
-        if px:
-            fields["target_premium"] = round(px * (1.0 + (policy["target_pct"] or 0)), 4)
-            fields["stop_premium"] = round(px * (1.0 + (policy["stop_pct"] or 0)), 4)
+        # Same one derivation the fill path uses (`_levels_from`), so a submit-anchored level and
+        # a fill-anchored level can never disagree about the ARITHMETIC — only about the price
+        # they are anchored to, which is the real distinction session 16 drew.
+        fields.update(SL.levels_for(price, policy))
     if res.get("dry_run"):
         # A preview validated the order at the broker but created nothing. Record that
         # plainly instead of leaving a row that looks like a live position.

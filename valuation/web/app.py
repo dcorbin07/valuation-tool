@@ -613,15 +613,17 @@ def api_dip():
 
 @app.route("/api/scream-track")
 def api_scream_track():
-    """The scream-buy options record, as reset on 2026-08-13 and rebuilt with real fields.
+    """The scream-buy record: every alert with what it was bought at, sold at and is worth now.
 
-    Entry, target, stop and current premium are READ from `paper_option_orders`, never
-    recomputed — session 16 found 2 of 3 open positions trading to levels no backtest
-    describes, and a display that re-derived `entry x 2.0` would have agreed with the fixed
-    code by coincidence and stopped agreeing the moment an alert carried its own policy.
+    A pure CONSUMER of `edge/scream_log.py`, which the greeks lane owns — see that module's
+    field contract in `HANDOFF_appfixes.md`. Nothing here recomputes a premium, a status, a
+    staleness flag or the epoch boundary, and this route cannot trigger the reset.
 
-    The register note and the archive path ship with every response, so the reset can never
-    be rendered without its reason.
+    `entry_premium` is the ALERT-TIME premium and is NOT the paper broker's fill. Those are
+    two different books, and session 16 exists because they were once conflated.
+
+    The footer travels with the table on every response, including `n_prior_epochs` — the
+    number that makes a reset visible rather than merely honest.
     """
     from . import scream_track
     try:
@@ -629,7 +631,8 @@ def api_scream_track():
     except Exception as e:
         log_exception()
         return jsonify({"error": safe_error(e), "rows": [], "n_rows": 0,
-                        "register": scream_track.register()}), 200
+                        "summary": {"epoch": None, "reset": None,
+                                    "n_prior_epochs": None, "unavailable": True}}), 200
 
 
 @app.route("/api/whatdo")

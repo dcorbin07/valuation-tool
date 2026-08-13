@@ -112,71 +112,70 @@ that truncates silently reads as coverage.
 **Public tier**, per the split — model output over names, no book, no weights, no contract, and
 no forward-return claim at all while V6 is open. `/api/dip` added to `surfaces.PUBLIC_API`.
 
-## 2. ITEM 2 — the scream-buy record, reset and rebuilt
+## 2. ITEM 2 — the scream-buy record: a TAB that consumes the logger
 
 `valuation/web/scream_track.py`, `/api/scream-track`, a card on Signals,
-`SCREAM_TRACK_RESET.md` (the register note as a tracked document), `tests/test_scream_track.py`
-(30 tests).
+`tests/test_scream_track.py` (19 tests).
 
-**A wipe is the one thing this project must not do silently**, so this is not one. It is a
-dated, reasoned **display epoch** — a date comparison — with the prior record intact in two
-places:
+**THIS SECTION WAS REWRITTEN MID-SESSION, AND THE REWRITE IS THE MOST USEFUL THING IN IT.**
+The prompt says the greeks lane owns the logger and warns *"do not build a second logger"*.
+When this lane started, `valuation/edge/scream_log.py` did not exist, so it built the display
+against the columns that did — `paper_option_orders`. Greeks landed at `7e4ddf2` while this
+work was in flight. The tab is now a **pure consumer** of `scream_log`, and reconciling
+against their field contract turned up **three ways the standalone version was wrong**, not
+merely duplicated:
 
-1. **The database.** Nothing is deleted, updated or hidden at the source. The module contains
-   no write; a test parses every `execute(...)` in it and asserts no write verb appears, and a
-   companion test calibrates that scan against a known-bad string so it cannot pass vacuously.
-2. **`data_export/paper_track_history.json`** — already a tracked archive before this change,
-   written by the weekly `track-backup` Action, carrying the full `option_alerts` and
-   `paper_option_orders` tables. Tests assert the file exists **and** that it actually contains
-   the alerts table, because a register note pointing at an archive of something else is worse
-   than no note.
+1. **"Price bought in" was the BROKER FILL.** `scream_log.entry_premium` is the **alert-time**
+   premium; `paper_option_orders.entry_premium` is what the sandbox broker filled at. Two
+   different books. **Session 16 exists because those two were conflated — and the standalone
+   version quoted session 16 at length in its own docstring while making the same mistake one
+   layer up.** This is the correction that would otherwise have put a wrong number on screen.
+2. **The epoch was a DATE COMPARISON** (`alert_ts >= "2026-08-13"`). The real boundary is
+   `record_epoch`, a value stamped on the row by `reset_record`. **The record has not been
+   reset and cannot be from a dev box** — every local database holds zero scream-buy rows and
+   the real one is on Render's disk. So a date-based epoch would have hidden every earlier row
+   **as though a reset had already run**. For a track record that is the worst available
+   failure: it *looks* reset.
+3. **Staleness was a two-day calendar rule.** The logger marks a quote stale at **15 minutes**,
+   because a live option premium is a different object from a daily scan's freshness.
+   Borrowing one constant across two clocks is the `MIN_LIVE_DAYS` / `MIN_DAYS_FOR_MEANING`
+   defect, and this had it.
 
-An **undated** row counts as archived rather than current. Treating "no date" as "after the
-reset" would let the old record leak back in through exactly the rows whose provenance is least
-clear.
+Also: there are **six** statuses, not five. `CLOSED (unscoreable)` exists so a closed row whose
+exit reason maps to none of Don's five is not forced into one that misdescribes it.
 
-**The reason is recorded and it is not performance:** B1 re-based every underlying price the
-book was measured against (trades 3,042 → 3,885; median entry IV 1.4200 → 0.2497 — 142% was
-never a vol), U1-SPLIT removed a corporate-action artifact worth 24% of the published R2 gap,
-and the old rows lacked the entry/target/current fields, which is Don's actual complaint. The
-disclosure that travels with it: discarding a stretch of a record is the flattering direction
-by default, so the cause has to be independent of the outcome and the reader has to be able to
-check — which is why the archive path is **on the surface**, not merely in a docstring. Same
-standard `PAPER_TRACK_CONTRACT.md` §5a set when Amendment 1 voided run #1 at −2.85pp.
+`SCREAM_TRACK_RESET.md`, written earlier this session, **was deleted** — it described the
+date-based epoch and a register note this lane no longer owns, and leaving it would have been a
+second, contradictory account of the same reset. A test asserts it is gone.
 
-**CONSUME, DO NOT RECOMPUTE — and this is a correctness rule, not tidiness.**
+**What the tab does now**, and it is deliberately only three things: calls
+`records` → `attach_live_marks` → `record_summary`; carries the R2 context line quoted from
+`web/payoff.py`; and fails soft, returning its footer even when the record cannot be read. It
+issues no SQL, defines no status, computes no level and **cannot trigger the reset** — pinned,
+because a display module that could reset a track record is one refresh away from erasing one.
 
-| display | column |
-|---|---|
-| price bought in | `paper_option_orders.entry_premium` (the **fill**) |
-| target sale | `paper_option_orders.target_premium` (+100% default) |
-| stop level | `paper_option_orders.stop_premium` (−50% default) |
-| current price | `paper_option_orders.last_mark` + `last_mark_ts` |
-| DTE | derived from `expiry`; **negative shown, not clamped** |
-| status | `state` + `exit_reason` → LIVE / HIT TARGET / STOPPED / TIME-STOPPED / EXPIRED |
+**The footer does not imply a reset that has not happened.** `reset` is `None` until one
+actually runs, so the tab says *"This is the original record — it has not been reset"* rather
+than printing a register note for an archive that does not exist. When a reset does run,
+`n_prior_epochs` renders beside it — the number that makes a reset **visible** rather than
+merely honest, since three rows read very differently when the footer says 41 alerts sit in an
+earlier epoch.
 
-Session 16 found `_place_entry` anchoring target and stop to the *submit* price while
-`mark_open` overwrote `entry_premium` with the *fill* — **2 of 3 open positions were trading to
-levels no backtest describes**, MET sitting 10.2% above a stop the strategy would never have
-taken. A display that re-derived `entry × 2.0` would look right, agree with the repaired code
-by coincidence, and stop agreeing the first time an alert carried a non-default policy. The
-test for this feeds a stored target of 3.00 on a 2.00 entry and asserts the surface shows 3.00,
-not 4.00.
+**Both DTE columns are rendered and labelled apart** (`DTE now` / `DTE at alert`), per the
+contract's explicit warning that they are different quantities. A non-default exit policy is
+flagged `·custom`, which is the whole point of reading the stored level instead of deriving it.
 
-**A stale mark is labelled, and no mark at all is stale** — rendering an unmarked live position
-as currently priced is the failure the flag exists for. A **closed** row shows its exit, not a
-leftover mark, so a reader is not invited to compute a third P&L. `options_summary.level_conformance`
-renders read-only beside the table, because the first time this book was inspected 2 of 3
-positions were off spec and nothing anywhere said so.
+Verified live: `/api/scream-track` returns `epoch: "original"`, `reset: None`,
+`n_prior_epochs: 0`, and the six statuses straight from `SL.ALL_STATUSES`.
 
-**The R2 context line stays**, quoted from `payoff.NOT_A_CLAIM` — the module that owns it —
-rather than restated; a test asserts the scream module holds no second copy of the −5.06pp
-figure. **Owner-only**, per the split: it is a forward performance record *and* it names live
-open contracts with the levels they are trading to.
+**Owner-only**, per the split: a forward performance record that also names live open
+contracts with the levels they are trading to.
 
 ## 3. Verification
 
-* `tests/test_dip.py` **39/39**; `tests/test_scream_track.py` **30/30**.
+* `tests/test_dip.py` **39/39**; `tests/test_scream_track.py` **19/19** (rewritten against the
+  logger's contract — see §2); the greeks lane's own `tests/test_scream_log.py` still green
+  after this lane consumed it, and `tests/test_paper_track.py` **70/70**.
 * `tests/test_public.py` **31/31** — the catch-all walk classifies both new routes; a route in
   neither `PUBLIC_API` nor `OWNER_ONLY_PATHS` fails that suite by design, so the split is a
   decision rather than an omission.
@@ -184,7 +183,10 @@ open contracts with the levels they are trading to.
   shortfall is `tests/test_guards.py` 35/36, the pre-existing declared XFAIL (exit 0,
   options-bot lane), unchanged by this session.
 * **Mutations: 32/32 caught, 0 missed, 0 skipped** — after a first pass that caught 30 and
-  **missed 2**, both of which were my own tests being weaker than they read. See §3a.
+  **missed 2**, both of which were my own tests being weaker than they read. See §3a. The
+  scream-track half of that pass was run against the standalone version; those mutations were
+  retired with it, and the rewritten suite carries the strengthened staleness pin plus five
+  new no-second-authority pins (no statuses, no levels, no epoch, no paper-fill read, no SQL).
 * Rendered and checked, not assumed: `GET /` as a visitor and as an owner, `GET /api/dip`,
   `GET /api/scream-track`.
 * `tests/test_shadow_vintage.py` **26/26** and `tests/test_build_ledger.py` **20/20**
@@ -233,7 +235,15 @@ honesty-critical paths — the budget-spending rule and the staleness badge.
    `last_mark` nor `last_mark_ts` — so the committed archive can answer "what was it bought and
    sold at" but not "what was it *trying* to sell at". The live table reads the database
    directly and is unaffected; the **archive** is the poorer record. Edge lane. **NOT FIXED.**
-4. **Two of my own first-cut tests failed on prose rather than code** — the module's register
+4. **THE SCREAM TAB WAS BUILT AS A SECOND LOGGER AND HAD TO BE REWRITTEN — see §2.** Filed as
+   a bug against this lane's own work rather than a design note, because the three defects it
+   carried (paper fill read as the alert premium, a date-based epoch that would have looked
+   like a reset, staleness in days against the logger's minutes) were all live on a branch
+   that was already pushed. The prompt's *"do not build a second logger"* was followed in
+   intent and violated in fact, because the logger did not exist yet at the time. **The
+   general lesson: when a prompt names a parallel lane's deliverable, re-check for it before
+   pushing, not only before starting.**
+5. **Two of my own first-cut tests failed on prose rather than code** — the module's register
    note contains the sentence "Nothing was deleted", and its docstring names
    `freshness.WARN_AFTER` precisely in order to explain why it is *not* used. Both scans were
    flagging the explanation as the defect it documents. Fixed by scanning stripped code (and,
@@ -4460,3 +4470,44 @@ Landed on `main` as b459d9a. Summary retained for continuity:
 - **Formatting**: one `mcap()` ($B/$T/$M, 2dp) everywhere; removed two local `pct`/`num` shadows;
   added `spct()` and `esc()`.
 - Scan health gained `display_coverage` and a recorded reason for universe fallbacks.
+
+---
+
+## FROM THE GREEKS LANE — the scream-buy logger's field contract (2026-08-13)
+
+Backend for `PROMPT_dip_detector_and_screamtrack.md` ITEM 2 is landed. Full write-up in
+`HANDOFF_live_data_bugs.md` Part 20. **Consume these, do not recompute them, and do not build a
+second logger.**
+
+    from valuation.edge import scream_log as SL
+
+    recs = SL.records(store)                          # the table rows, current epoch
+    recs = SL.attach_live_marks(recs, SL.live_quotes_for(recs))   # adds the live price
+    foot = SL.record_summary(store)                   # epoch, counts, reset note
+
+* `SL.RECORD_FIELDS` - authoritative names: `alert_id, alert_ts, ticker, occ_symbol, opt_right,
+  strike, expiry, entry_premium, target_premium, stop_premium, target_pct, stop_pct,
+  policy_is_default, dte_at_alert, dte_remaining, status, exit_reason, exit_premium, exit_ts,
+  pnl_pct, record_epoch, underlying_price, score, horizon, contract_source`
+* `SL.LIVE_FIELDS` - added at READ time, never stored: `current_premium, current_premium_ts,
+  current_premium_stale, current_premium_age_seconds, current_premium_source, pnl_pct_live`
+* `SL.ALL_STATUSES` - **LIVE, HIT TARGET, STOPPED, TIME-STOPPED, EXPIRED, CLOSED (unscoreable)**.
+  The sixth exists because a closed row whose reason maps to none of Don's five (`record_outcome`
+  writes "no entry premium") must not be forced into one that misdescribes it.
+* `foot["reset"]` is the archive manifest + the register note for the footer, or `None` if the
+  record has never been reset. `foot["n_prior_epochs"]` is what makes a reset visible: a table
+  showing three rows reads very differently when the footer says 41 alerts sit in an earlier
+  epoch.
+
+**THREE THINGS NOT TO DO.** `dte_at_alert` and `dte_remaining` are different quantities - do not
+render them as one. `entry_premium` is the ALERT-TIME premium and is NOT the paper track's broker
+FILL; the two books are different objects and session 16 exists because they were conflated.
+`current_premium_stale` must be shown when true - a stale mark rendered bare is the failure the
+whole read-time design is built around.
+
+**THE RECORD HAS NOT ACTUALLY BEEN RESET YET** and cannot be from a dev box: every local database
+holds ZERO scream-buy rows, the real record being on Render's disk. The reset is
+`SL.reset_record(store, out_dir)` behind an admin route (web lane) or
+`python -m valuation.edge.scream_log --reset --out-dir data_export` on the service. It archives
+first and moves the epoch only if that succeeded, and it DELETES NOTHING - the prior record stays
+queryable at its old `record_epoch`. Until it runs the tab correctly shows the original epoch.
