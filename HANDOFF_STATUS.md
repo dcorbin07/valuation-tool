@@ -158,6 +158,53 @@ names), not analysis.
 
 Full write-up: `HANDOFF_optionsbot.md` section 56. Artifact:
 `data/free_analysis/U3_CONVEX_OVERLAY.json`. Reproduce: `python -m scripts.u3_convex_overlay`.
+## edge lane, S17 + S19 (2026-08-13) - the last two S-series research rows, both NULL
+
+`PREREG_s17_s19_events_mdna.md` committed **alone at `a92996d`** - one `.md`, zero `.py`.
+**ADOPTS NOTHING. Twelve arms, twelve nulls** - but both nulls are the informative kind.
+
+**`S17` (decode the rest of EVENTS): ALL TEN ARMS NULL, AND NOT BECAUSE THE CODES ARE INERT.**
+Not one clears the both-halves leg - but **8 of 10 clear their own permutation p95 full sample,
+8 of 10 survive Benjamini-Hochberg, and ALL TEN are sign-stable across halves.** They fail by
+being **era-concentrated**: code 91 reads early *t* -3.476 / late -1.862, code 71 early -1.342 /
+late -3.098. Annualised, code 91 -2.2%, code 71 -2.0%, code 34 +3.2% to +4.9%.
+
+**THE MECHANISM QUESTION IS ANSWERED AND THE ANSWER IS NO.** Code 22's mechanism is an
+information shock (it moves **1.64x** a typical day); the project's own decode had already
+scored every arm tested here at **0.94x-1.15x**. PEAD is drift *after* a shock, and these codes
+have no shock. What the register got right was the hedge - day-of **volatility** is not
+directional **drift** - not the prior it hedged.
+
+**THE AUDIT'S METHOD STEP 1 COULD NOT BE EXECUTED: Sharadar ships no legend with the EVENTS
+download**, so codes were tested **by number, unlabelled**, and a positive would have been
+uninterpretable rather than adoptable. **Do not re-run S17 without the legend (`D10`).**
+
+**"8 of 10" IS NOT EIGHT FINDINGS.** The ten arms are five signals at two horizons sharing a
+bit-identical event indicator, and the codes correlate up to **0.4227** at name-date level, so
+the effective number of independent tests is nearer three or four.
+
+**`S19` (MD&A anomaly): BOTH ARMS NULL - BUT THE NULL DOES NOT MEAN THE EFFECT IS ABSENT.** On
+**418 held-out names with ZERO overlap** with the original 195 (15,893 filing pairs newly
+collected from EDGAR, 2.2x the original study): residual IC **+0.012202 at NW *t* +1.1876** and
+**+0.021737 at +1.4012**, neither reaching the audit's 2.0 bar.
+
+**The sign did not reverse - all four half-cells are POSITIVE in the direction committed in
+writing before any new return was joined - and the magnitudes are LARGER than the original's own
++0.009607 at *t* 0.6463.** Critically, **the minimum detectable IC at |*t*|=2 is +0.020549
+against an original effect of +0.0096**, so a positive verdict was **unreachable even if the
+effect were exactly true**. The binding constraint is the **quarterly** theme panel against a
+**monthly** signal (41 of 69 dates covered, all late), **not the name count** - so collecting
+more names cannot re-open it.
+
+**`S10`'s accounting half is NOT closed and was excluded on measurement**, not preference: eight
+SF1 columns it needs are absent from `WRDSProvider._KEEP` so it forces a panel rebuild, and NT
+filings are not buildable from anything we own, which would silently turn the audit's
+"two or more of four" veto into "two of three".
+
+**Equity `N` 190 -> 202.** A defect in my own register is corrected in the open: it said
+186 -> 198, because 186 was quoted from `CLAUDE.md` instead of re-measured after this session's
+merge brought in `U2`'s four equity trials. **`BACKTEST_RESULTS.json` was already stale at 186
+before this session started**, so the refresh corrects that drift too. 66/66 suites green.
 
 ## edge lane, S14-WIDTH (2026-08-13) - the knee IS identified, and it is where session 35 found it
 
