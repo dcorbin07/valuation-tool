@@ -10472,5 +10472,42 @@ session's merge** rather than quoted from `CLAUDE.md` — the defect the S17/S19
 corrected. Options 287 and infra 11 are untouched. `BACKTEST_RESULTS.json` refreshed from a clean
 tree at the new denominator.
 
-**Suite 372 → 384**, all green. Ledger row `V6`; `VALQUO_EXTENSIONS.md` gains its V6 row and
-section.
+**Suite 372 → 384** (`test_edge.py`), and **68/68 suites** pass end to end, judged by **exit code**
+— CLAUDE.md's warning that an `OK`-scraper falsely fails three of them still applies. Ledger row
+`V6`; `VALQUO_EXTENSIONS.md` gains its V6 row and section.
+
+### 11a. A BY-PRODUCT OF THE REFRESH THAT IS NOT V6's, AND IT IS REPORTED RATHER THAN ABSORBED
+
+The artifact refresh moved **32 leaves of 2,495, with ZERO added and ZERO removed**. Eleven are the
+`N` chain (202 → 206, haircut, bar, `sr0_benchmark`, Deflated Sharpe **0.8003 → 0.7977**) and
+provenance; ten are last-digit float noise in the cost curves. **All four headlines are
+bit-identical** — `top_decile_alpha` 0.071741…, LS naive 2.836064…, HAC 2.619912…, monotonicity
+−0.890909… — and `cpcv.adopt` is still `false`.
+
+**The other seven are `book_configs.taxable` and they are NOT V6's.** `settings.py:151` records that
+the width moved **0.20 → 0.30 by the S14 adoption (Don's call, 2026-08-13)**, and that lane
+deliberately did **not** restate its `measured` figures, saying *"no run has measured this config at
+0.30"*. **This refresh is that run**, so the computed block reflects the 30% band for the first
+time:
+
+| field | 20% band (previous artifact) | **30% band (now)** |
+|---|---|---|
+| `after_tax_alpha` | 0.008138 | **0.021133** |
+| `after_tax_sharpe` | 0.8997 | **0.9768** |
+| `annual_turnover` | 1.8440 | **1.3747** |
+| `net_alpha` | 0.069774 | **0.077520** |
+| `net_sharpe` | 1.1513 | **1.2096** |
+| `net_max_drawdown` | −0.28300 | **−0.27548** |
+
+Every move is in the direction S14 measured, and the turnover fall reproduces its "roughly halves"
+finding on the live config.
+
+**CONSEQUENCE, REPORTED NOT FIXED: `settings.BOOK_CONFIGS["taxable"]["measured"]` is now STALE
+against the artifact** — it still holds `after_tax_alpha 0.0081, after_tax_sharpe 0.90, net_alpha
+0.0698, annual_turnover 1.84`, the 20%-band numbers — and it is **surface-reachable**, via
+`index_track.summarize()` at `:516`, which copies it into the `backtested` block shown beside the
+live track. **The exposure is bounded: `DEFAULT_BOOK_CONFIG` is `roth`, not `taxable`**, and
+`roth`'s figures did not move at all. **It is not repaired here because restating an ADOPTED book's
+published figures is the adopting lane's call and needs their sign-off, not a side effect of a V6
+artifact refresh** — this is the *stale figures hide in config dicts* failure mode, and the right
+fix is theirs to make deliberately. **Owner: the greeks / S14 lane.**
