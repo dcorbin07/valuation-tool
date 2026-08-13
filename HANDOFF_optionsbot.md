@@ -5541,10 +5541,15 @@ theoretical** — but the defect is real and it is in a function every calibrate
 
 ### 55.9 · Trial cost and what closes
 
-**Four arms, four equity trials. Equity `N` 185 → 189**, exactly as pre-committed; options
-untouched at **285**, infra at **11**, zero malformed rows. **Re-read `by_domain` after merging
-rather than quoting this figure** — five consecutive sessions in this lane have found the equity
-count moved under them between the register and the push.
+**Four arms, four equity trials, exactly as pre-committed. Equity `N` 185 → 189 for THIS item
+— and it reads 190 on the merged tree**, because the `S14-WIDTH` lane landed one equity trial
+while this one was running. Options untouched at **285**, infra at **11**, zero malformed rows.
+
+**That is the sixth consecutive session in this lane where the equity count moved under the work
+between the register and the push, and this time it moved AFTER the write-up was drafted and was
+caught only by re-reading `by_domain` on the merged tree.** The rule is not "remember to check" —
+it is: **an equity `N` may only be quoted from `research_log.detail()` run on the tree that is
+actually being pushed.** The per-item charge (4) is the stable number; the denominator is not.
 
 **The unification is now closed in every direction that was ever opened**: `U1` REJECTED (the
 composite as an options entry signal), `U7` REJECTED (the composite as an options veto), `U2`

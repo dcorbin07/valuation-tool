@@ -8292,6 +8292,124 @@ def test_s14_width_sweep_is_held_out_and_the_guard_is_the_measured_saving():
     assert "WIDTHS = (0.12, 0.15, 0.20, 0.25, 0.30)" in src
 
 
+def test_s14width_grid_is_the_registered_one_and_adds_nothing_finer():
+    """S14-WIDTH void condition 1: the grid is FINAL. Session 35's verdict could not say where
+    the optimum sat because 0.30 was the boundary; the repair is ONE documented extension, not a
+    licence to keep adding widths until something wins. A finer step near the incumbent winner is
+    how a grid search manufactures a knee, so the register forbids that too."""
+    import importlib
+    m = importlib.import_module("scripts.s14_width_extension")
+    assert m.SHIPPED_WIDTHS == (0.12, 0.15, 0.20, 0.25, 0.30), "the shipped grid was altered"
+    assert m.NEW_WIDTHS == (0.40, 0.50, 0.75), "the registered extension was altered"
+    assert m.WIDTHS == m.SHIPPED_WIDTHS + m.NEW_WIDTHS
+    wide = [w for w in m.WIDTHS if w > 0.30]
+    assert all(b - a >= 0.10 - 1e-9 for a, b in zip(wide, wide[1:])), "a finer width was added"
+    assert m.ENTER_FRAC == 0.10, "enter_frac is shipped and NOT swept (void condition 3)"
+
+
+def test_s14width_the_no_band_baseline_is_plain_topN_as_a_SET():
+    """C3, and the correction to my own first cut of it.
+
+    `none` is the baseline every width is compared against, and it runs through `_band_select`
+    too (exit_rank == n_target), so it has to BE plain top-N or the sweep compares two
+    constructions rather than one at eight settings. The claim is SET equality: `_band_select`
+    returns survivors FIRST and then fills, so the ORDER routinely differs. My first cut asserted
+    LIST equality and failed 176 of 200 draws on ordering alone - a defect in the control, not in
+    the baseline. `test_s14width_selection_order_cannot_move_a_number` pins the other half."""
+    from valuation.edge.fundamental_panel import _band_select
+    rng = np.random.default_rng(11)
+    tick = np.array([f"T{i:03d}" for i in range(120)])
+    for _ in range(60):
+        comp = rng.standard_normal(120)
+        held = set(rng.choice(tick, 12, replace=False))
+        plain = list(tick[np.argsort(-comp)][:12])
+        got = list(_band_select(comp, tick, held, 12, 12))
+        assert set(got) == set(plain), "the no-band book is not the plain top-N set"
+        assert len(got) == len(set(got)) == 12
+
+
+def test_s14width_selection_order_cannot_move_a_number():
+    """The other half of C3, and the reason the ordering difference above is harmless rather than
+    tolerated: the book is EQUAL-WEIGHTED, so only the selected SET can reach a return, a
+    turnover or a cost. Pinned on a synthetic panel by scoring the same book in two different
+    orders - if anyone ever makes the weighting order-dependent (a score tilt, a cap), this fails
+    and the no-band baseline stops being a baseline."""
+    from valuation.edge import fundamental_panel as FP
+    rng = np.random.default_rng(5)
+    rows = []
+    for d in range(8):
+        for i in range(60):
+            rows.append({"date": f"2020-{d + 1:02d}-01", "ticker": f"T{i:02d}",
+                         "fwd_ret": float(rng.standard_normal() * 0.1),
+                         "market_cap": float(10 ** (9 + rng.random() * 2)),
+                         "value": float(rng.standard_normal()),
+                         "quality": float(rng.standard_normal())})
+    panel = pd.DataFrame(rows)
+    cols, wts = ["value", "quality"], {"value": 0.5, "quality": 0.5}
+    orig = FP._band_select
+
+    def _reversed(comp, tickers, held, n_target, exit_rank):
+        return list(orig(comp, tickers, held, n_target, exit_rank))[::-1]
+
+    a = FP.turnover_and_costs(panel, cols, wts, top_frac=0.2, horizon=63, exit_frac=None)
+    try:
+        FP._band_select = _reversed
+        b = FP.turnover_and_costs(panel, cols, wts, top_frac=0.2, horizon=63, exit_frac=None)
+    finally:
+        FP._band_select = orig
+    for f in ("annual_turnover", "gross_ann", "net_ann", "cost_drag_ann"):
+        assert abs(a[f] - b[f]) < 1e-12, f"{f} depends on selection ORDER, not just the book"
+
+
+def test_s14width_a_universe_wide_band_freezes_the_book():
+    """The structural fact the register rests on (its §2), pinned so it cannot rot.
+
+    `_band_select` holds book SIZE fixed, so widening the band does not grow the book - it makes
+    the book stop turning over. At an exit rank equal to the universe every incumbent survives
+    and the book FREEZES. That is what bounds the experiment: exit_frac 1.0 is buy-and-hold of
+    the first cross-section, so a true interior optimum must exist and 'wider is always better'
+    cannot be the answer however the measured surface happens to look."""
+    from valuation.edge.fundamental_panel import _band_select
+    rng = np.random.default_rng(3)
+    tick = np.array([f"T{i:02d}" for i in range(40)])
+    held, first = set(), None
+    for step in range(8):
+        sel = _band_select(rng.standard_normal(40), tick, held, 6, 40)
+        assert len(sel) == 6, "book size must not drift with the band width"
+        if first is None:
+            first = sorted(sel)
+        else:
+            assert sorted(sel) == first, f"book changed at step {step} - it did not freeze"
+        held = set(sel)
+
+
+def test_s14width_selection_is_held_out_and_never_reads_the_measure_half():
+    """C7. The argmax over eight widths is the selection step; taking it on the same half the
+    result is read from is the in-sample selection this project has already paid for twice
+    (+8.43%/yr in-search -> -0.04%/yr on the locked hold-out)."""
+    src = open("scripts/s14_width_extension.py", encoding="utf-8").read()
+    assert "cands = {k: v for k, v in dsw.items()" in src, "candidates are not built from decide"
+    assert 'pick = max(cands, key=lambda k: cands[k]["net_alpha"])' in src
+    assert '("early_half", "late_half"), ("late_half", "early_half")' in src, "not both directions"
+    assert 'base, arm = msw.get("none") or {}, msw.get(pick) or {}' in src
+    assert "max(msw" not in src and "msw.items()" not in src, "the argmax reads the measure half"
+    assert "(-d_gross) <= saving" in src, "the guard is not the MEASURED cost saving"
+
+
+def test_s14width_boundary_and_ambiguity_rules_are_implemented_as_registered():
+    """Register §4 resolves ambiguity to the more conservative branch: a boundary pick DOMINATES
+    an interior one, because an interior pick cannot identify a knee the other direction
+    contradicts. Pinned because it is the rule deciding whether this becomes an adoption
+    decision, and it would be easy to quietly read it the flattering way."""
+    src = open("scripts/s14_width_extension.py", encoding="utf-8").read()
+    assert "if any_boundary and all_improve:" in src, "the boundary branch is not checked FIRST"
+    assert src.index("if any_boundary and all_improve:") < \
+           src.index("elif both_interior and all_improve:"), \
+           "an interior pick must not be able to outrank a boundary pick"
+    for branch in ("b_UNBOUNDED_ON_THIS_GRID", "a_INTERIOR_OPTIMUM", "c_DIRECTIONS_DISAGREE"):
+        assert branch in src
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

@@ -9781,3 +9781,176 @@ Otherwise unchanged: **S10's accounting half**, or the **CPCV embargo** from ses
 the only open item that can move a published number.
 
 **And the dated one: read `/api/track` → `contract_track.recording_ok` on or after 2026-08-13.**
+
+---
+
+# S14-WIDTH (2026-08-13) — the knee is identified, and it is where session 35 found it
+
+`PREREG_s14_width_extension.md` committed **alone at `e63295e`**, a strict ancestor of the
+measurement commit. **ADOPTS NOTHING** — it routes a decision.
+
+## 0. The headline
+
+**Given three wider widths to choose from, both halves still picked 0.30.** The optimum is
+therefore **INTERIOR**, the knee **is identified**, and session 35's boundary caveat is
+**discharged** rather than repeated. That is outcome **(a)** of the three committed in advance,
+so **`S14` becomes an adoption decision routed to Don as a vintage event.**
+
+**And the correction that matters is to my own reasoning, not to session 35's:** a boundary
+argmax is evidence that a grid is *uninformative about what lies beyond it* — it is **not**
+evidence that the optimum lies beyond it. I registered the opposite lean at 60/40 and it was
+wrong in the most direct way available: the extension moved the answer not at all.
+
+## 1. The surface — the deliverable, reported whatever the verdict
+
+Net top-decile alpha (pp/yr), decide-half sweeps, deployed flat 1/7, shipped cost table:
+
+| width | early half | late half | turnover (early) | incumbent share (early) |
+|---|---|---|---|---|
+| none | +1.11 | +10.94 | 2.6078 | 0.359 |
+| 0.12 | +0.87 | +11.88 | 2.4485 | 0.402 |
+| 0.15 | +2.02 | +12.17 | 2.1940 | 0.471 |
+| 0.20 | +2.08 | +11.91 | 1.8411 | 0.567 |
+| 0.25 | +2.17 | +12.39 | 1.5768 | 0.640 |
+| **0.30** | **+2.88** | **+12.72** | **1.3514** | **0.701** |
+| 0.40 | +2.32 | +12.44 | 1.0466 | 0.785 |
+| 0.50 | +2.56 | +11.84 | 0.8214 | 0.848 |
+| 0.75 | +2.74 | +9.14 | 0.4885 | 0.943 |
+
+**0.30 is the argmax on both halves**, and the three new widths are the three lowest-turnover
+cells on the grid — so this is not a case of the extension failing to bite. **Turnover at 0.75 is
+about a fifth of the no-band book and it still loses.**
+
+## 2. The mechanism, measured — and it is the register's own §2 confirmed on the real panel
+
+**GROSS alpha peaks at exactly 0.30 on BOTH halves and falls away**: early +3.38 (none) → **+4.14
+(0.30)** → +3.34 → +3.38 → +3.26; late +12.77 → **+13.79 (0.30)** → +13.33 → +12.56 → **+9.65**.
+
+That is the predicted shape and the reason the optimum is bounded. **The cost saving is capped and
+the staleness cost is not.** At 0.30 the drag is already down to 0.0127 / 0.0106, so at most
+~1.1–1.3pp of further saving exists even if turnover fell to zero — while gross alpha gives up
+0.89pp (early) and **4.14pp** (late) by 0.75.
+
+**And the freezing argument is now measured rather than asserted.** The share of the book that is
+a surviving incumbent climbs **0.359 → 0.701 at 0.30 → 0.943 at 0.75** (early; 0.373 → 0.697 →
+0.919 late). At 0.75 the book replaces about one name in sixteen per rebalance — it is
+approaching the frozen limit the register derived from the code before running, and a book that
+has stopped selecting cannot express a selection edge.
+
+## 3. What this register does NOT add, stated plainly
+
+**It adds no new held-out evidence about the SIZE of the effect.** Because the pick did not move,
+the held-out measurement is **numerically identical to session 35's** — Δ net alpha +1.780125pp
+and +1.768484pp, agreeing to ten decimal places. The +1.78pp figure is **the same measurement,
+not a replication of it.**
+
+What the trial buys is the **location** finding: that 0.30 is a genuine interior maximum rather
+than an artefact of where the grid stopped. That was the one thing session 35 could not say, and
+it is the whole reason this register exists.
+
+## 4. A defect in my own control, caught by running it
+
+**C3 failed on its first cut and the failure was in the control, not the baseline.** It asserted
+that `_band_select` with `exit_rank == n_target` returns **exactly** plain top-N, implemented as
+LIST equality — and it failed **176 of 200** draws. `_band_select` returns survivors **first** and
+then fills, so the ORDER differs while the SET is identical (**200/200**).
+
+**Proven harmless rather than argued harmless**, per the session-11 protocol — the question is not
+whether my label was wrong but whether any verdict-half moved. Swapping a strict-rank selector
+into the real panel and diffing every reported field gives **max |Δ| 2.13e-14** across turnover,
+gross, net, drag, Sharpe and drawdown. The book is equal-weighted, so only the selected set can
+reach a number. **Zero verdict cells move.** Both halves are now pinned by tests, including one
+that fails if anyone ever makes the weighting order-dependent.
+
+## 5. A correction to session 35's C6, produced by the extension itself
+
+Session 35 reported the net-alpha surface as **monotone on the early half and not on the late**.
+**On the extended grid the early half is non-monotone too** — it dips at 0.40 and recovers. The
+monotonicity was an artefact of the grid stopping at its own argmax. **The audit's noise warning
+applies to both halves, not one.**
+
+## 6. The caveat that must travel with the routing
+
+**The knee replicates in location but NOT in sharpness.** On the late half it is decisive — 0.30 →
+0.75 costs **3.59pp** of net alpha. On the early half the surface is nearly **flat** from 0.30 to
+0.75: the second-best cell is **0.75 at +2.74pp**, only **0.14pp** below the peak. So the early
+half identifies 0.30 as the argmax while being close to indifferent across the whole upper half of
+the grid. **An adopt at 0.30 is well supported by the late half and weakly supported by the early
+one.**
+
+## 7. Routed to Don, not adopted
+
+Outcome (a) makes this an **adoption decision**, and the register was explicit that even (a)
+produces a routed decision rather than a change. What Don is being asked to weigh:
+
+* **Width 0.30**, measured effect **+1.78pp / +1.77pp** of net alpha held out, with **turnover
+  roughly halved** (2.61 → 1.35, 2.58 → 1.42).
+* **It is already live in the `taxable` configuration**, so an adopt changes the **default**, not
+  whether the band exists.
+* **It is a VINTAGE EVENT under Rule 6.** The vintage was **derived, not assumed**
+  (`track_meter.current_vintage()`): **vintage 3, run 2, opened 2026-08-11, OPEN.** It is **two
+  days old.** Adopting would close it and open vintage 4 — a second five-year clock reset inside
+  three days, for a construction change on the same book.
+* **Roughly half the gain is a SIGNAL effect, not a cost saving** (session 35's correction to its
+  own register), so it carries signal-grade uncertainty and not the determinism the original
+  framing claimed.
+* **B13 is only PARTIAL**, so "the book is investable" holds for the categorical screen and not
+  the liquidity one.
+
+## 8. Controls
+
+* **C1** reproduces the published record to the digit; the run aborts before reading any width
+  otherwise. **C1b (strengthened, not separately pre-registered — a reproduction check carrying no
+  verdict): all 48 shipped-width cells reproduce session 35's raw artifact at max |Δ| 1.33e-15.**
+* **C2** the three new widths genuinely bite: turnover is **strictly decreasing across all nine
+  settings on both halves**.
+* **C3** as above — set equality 200/200, order irrelevance max |Δ| 2.13e-14.
+* **C4** **book size is IDENTICAL at every width** — 154.1 names (147–159) early, 175.6 (152–195)
+  late. So no comparison here is confounded by book size, which is the dilution mechanism that
+  made S23's never-sell arm look bad for a different reason.
+* **C5** the incumbent-share ladder in §2 — the freezing mechanism, measured.
+* **C6** non-monotone on **both** halves (§5).
+* **C7** the argmax reads the decide half only, pinned by a test.
+
+## 9. Expectations: 2 right, 4 wrong, 1 split — and the misses share one root
+
+| # | call | outcome |
+|---|---|---|
+| E1 | optimum is interior (60/40) | **RIGHT** |
+| E2 | picked width is 0.40 or 0.50 (70/30) | **WRONG** — 0.30 held |
+| E3 | net alpha keeps rising 0.30 → 0.40 somewhere (65/35) | **WRONG** — falls on both |
+| E4 | gross peaks and turns down *before* net (70/30) | **SPLIT** — gross does turn down, but at the *same* width as net, not before |
+| E5 | the two directions pick different widths (55/45) | **WRONG** — they agree |
+| E6 | non-monotone on the late half (75/25) | **RIGHT** — and on the early half too |
+| E7 | the verdict is NOT (a) (55/45) | **WRONG** — it is (a) |
+
+**Four of the five misses are the same mistake**: E2, E3, E5 and E7 all assumed the optimum would
+move outward or that the two halves would diverge once given more room. **They did neither.** The
+prior was "a boundary win means the true optimum is beyond the boundary", and it is simply
+invalid — 0.30 happened to be both the boundary and the maximum.
+
+## 10. What I did NOT do
+
+1. **Adopted nothing.** Outcome (a) routes a decision; it does not take one.
+2. **Did not extend the grid a third time** — forbidden by the register, and §2's freezing
+   argument makes the region past 0.75 degenerate anyway.
+3. **Did not refine near 0.30**, which is where a grid search manufactures a knee.
+4. **Did not sweep `enter_frac`**, still the shipped 0.10.
+5. **Did not re-measure the effect size** — §3; the pick did not move, so there was nothing new to
+   measure.
+
+## 11. BUGS FOUND
+
+1. **My own C3 asserted a stricter property than the docstring means** (§4) — corrected, and
+   proved to move zero verdict cells.
+2. **Session 35's C6 monotonicity finding was a grid artefact** (§5) — corrected here.
+3. **My own registered lean was wrong for an invalid reason** (§0, §9) — recorded because the
+   invalid inference is more portable than the result.
+
+## 12. Next
+
+**S14 is now a decision for Don, not a measurement for me.** Nothing further should be run on the
+band width — the register forbids a third extension and the surface is documented end to end.
+
+Otherwise unchanged: **S10's accounting half**, or the **CPCV embargo** from session 22 — still
+the only open item that can move a published number.
