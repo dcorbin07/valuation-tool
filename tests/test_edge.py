@@ -8410,6 +8410,166 @@ def test_s14width_boundary_and_ambiguity_rules_are_implemented_as_registered():
         assert branch in src
 
 
+# --------------------------------------------------------------------------------------- #
+#  S17 + S19 — PREREG_s17_s19_events_mdna.md
+# --------------------------------------------------------------------------------------- #
+def _s17_mod():
+    import importlib
+    return importlib.import_module("scripts.s17_event_codes")
+
+
+def _s19_src():
+    p = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "scripts", "s19_mdna_heldout.py")
+    with open(p, encoding="utf-8") as f:
+        return f.read()
+
+
+def test_s17_arm_set_is_the_registered_five_and_excludes_the_already_decoded_code():
+    """The register fixes the arms at the five most frequent EXCLUDING 22 (already rejected
+    as PEAD). Testing any other code voids the item (register section 6.1)."""
+    m = _s17_mod()
+    assert m.ARM_CODES == ("91", "81", "34", "71", "52"), m.ARM_CODES
+    assert "22" not in m.ARM_CODES, "code 22 is already decoded and rejected; re-testing it " \
+                                    "would charge a trial to re-derive a known answer"
+    assert m.DECODED_CODE == "22"
+    assert m.HORIZONS == (21, 63), m.HORIZONS
+    assert len(m.ARM_CODES) * len(m.HORIZONS) == 10, "the register charges exactly 10 S17 arms"
+
+
+def test_s17_the_event_window_is_STRICTLY_BEFORE_the_rebalance_date():
+    """An event ON the rebalance date is look-ahead. Exercised on a real synthetic panel
+    rather than asserted from the source."""
+    m = _s17_mod()
+    days = np.array([np.datetime64("2020-01-01", "D") + i for i in range(200)])
+    px = np.full(200, 10.0)
+    caps = {"AAA": (days, np.full(200, 1000.0))}
+    prices = {"AAA": (days, px)}
+    d = days[100]
+    code = m.ARM_CODES[0]
+
+    def ind(offset_days):
+        ev = {"AAA": [(str(d + np.timedelta64(offset_days, "D")), [code])]}
+        out = m.build_panel(prices, ev, caps, [d])
+        return out["per_date"][str(d)]["ev"][code][0]
+
+    assert ind(0) == 0, "an event ON the rebalance date must NOT count — that is look-ahead"
+    assert ind(1) == 0, "an event AFTER the rebalance date must not count"
+    assert ind(-1) == 1, "an event the day before must count"
+    assert ind(-m.LOOKBACK_CAL_DAYS + 1) == 1, "inside the 21-calendar-day window"
+    assert ind(-m.LOOKBACK_CAL_DAYS - 1) == 0, "outside the 21-calendar-day window"
+
+
+def test_s17_reads_whole_price_series_and_never_a_per_ticker_tail():
+    """AUDIT B6 — a per-ticker tail is what made early cross-sections consist only of names
+    that had already stopped trading. `load_prices` must expose no truncation knob."""
+    import inspect
+    m = _s17_mod()
+    sig = inspect.signature(m.load_prices)
+    assert "days" not in sig.parameters, "a `days` tail is the B6 defect"
+    src = inspect.getsource(m.load_prices)
+    assert ".tail(" not in src and "[-4659" not in src
+
+
+def test_s17_benjamini_hochberg_matches_a_worked_example():
+    """A wrong FDR implementation would silently manufacture discoveries across 10 arms."""
+    m = _s17_mod()
+    # Benjamini & Hochberg (1995) worked example, m=15, q=0.05 -> exactly 4 rejections.
+    # The largest k with p_(k) <= q*k/m is k=4 (0.0095 <= 0.01333); k=5 fails (0.0201 > 0.01667).
+    p = [0.0001, 0.0004, 0.0019, 0.0095, 0.0201, 0.0278, 0.0298, 0.0344,
+         0.0459, 0.3240, 0.4262, 0.5719, 0.6528, 0.7590, 1.0000]
+    keep = m.benjamini_hochberg(p, 0.05)
+    assert sum(keep) == 4, (sum(keep), keep)
+    assert keep[:4] == [True, True, True, True], keep
+    assert not any(keep[4:]), keep
+    # and BH must be strictly less conservative than Bonferroni here
+    assert sum(keep) >= sum(1 for x in p if x <= 0.05 / len(p))
+    assert m.benjamini_hochberg([0.9, 0.8], 0.05) == [False, False]
+    # a single tiny p-value must survive
+    assert m.benjamini_hochberg([1e-9] + [0.9] * 9, 0.05)[0] is True
+
+
+def test_s17_hac_t_reduces_to_the_plain_t_at_lag_zero():
+    m = _s17_mod()
+    rng = np.random.default_rng(7)
+    x = rng.normal(0.4, 1.0, 400)
+    t, mu, se, n = m.hac_t(x, 0)
+    plain = x.mean() / (x.std(ddof=0) / math.sqrt(len(x)))
+    assert abs(t - plain) < 1e-9, (t, plain)
+    assert n == 400 and abs(mu - x.mean()) < 1e-12
+
+
+def test_s19_only_the_two_flagged_cells_are_tested_and_no_grid_is_swept():
+    """The original was a 28-cell grid filed as a null. Re-sweeping it is the sin the
+    register forbids (section 6.1)."""
+    src = _s19_src()
+    assert 'ARMS = (("A1", "mdna_cosine_tf", 21), ("A2", "mdna_jaccard", 63))' in src
+    for banned in ("cosine_tfidf", "risk_cosine_tf", "risk_jaccard"):
+        assert f'"{banned}", 21' not in src and f'"{banned}", 63' not in src
+
+
+def test_s19_the_committed_sign_makes_a_significant_negative_a_REJECT():
+    """Reading the sign backwards is what the register exists to prevent (section 6.5)."""
+    src = _s19_src()
+    assert 'committed_direction' in src
+    assert '"REJECTED" if (t_change is not None and np.isfinite(t_change)' in src
+    assert "t_change < -2.0" in src, "a significant negative must land in REJECTED"
+    assert 'signs[0] > 0' in src, "a POSITIVE verdict must require the committed sign"
+
+
+def test_s19_change_ic_is_exactly_minus_similarity_ic():
+    """change = 1 - similarity is strictly decreasing, so Spearman flips sign EXACTLY.
+    If this ever stopped holding, the two conventions in the artifact would disagree and the
+    committed direction would be unreadable."""
+    import importlib
+    s19 = importlib.import_module("scripts.s19_mdna_heldout")
+    rng = np.random.default_rng(11)
+    sim = rng.uniform(0.5, 1.0, 300)
+    fwd = rng.normal(0, 0.1, 300) + 0.3 * sim
+    a = s19.spearman(sim, fwd)
+    b = s19.spearman(1.0 - sim, fwd)
+    assert abs(a + b) < 1e-12, (a, b)
+
+
+def test_s19_a_score_dated_ON_the_rebalance_date_is_not_used():
+    """EDGAR filings land after the close, so same-day use is a free look-ahead — the
+    original study's own rule, re-pinned here on the real join."""
+    import importlib
+    s19 = importlib.import_module("scripts.s19_mdna_heldout")
+    days = np.array([np.datetime64("2020-01-01", "D") + i for i in range(200)])
+    date = "2020-03-01"
+    # a REAL cross-section, else MIN_NAMES_PER_DATE suppresses every cell and the test
+    # would pass for the wrong reason
+    tks = [f"T{i:03d}" for i in range(s19.MIN_NAMES_PER_DATE + 10)]
+    prices = {t: (days, np.linspace(10.0, 20.0, 200)) for t in tks}
+    panel = pd.DataFrame([{"date": date, "ticker": t,
+                           **{th: float(i % 3) for th in s19.THEMES}, "fwd_ret": 0.01}
+                          for i, t in enumerate(tks)])
+
+    def n_rows(avail):
+        sc = pd.DataFrame([{"ticker": t, "available_from": avail,
+                            "mdna_cosine_tf": 0.5 + 0.01 * i} for i, t in enumerate(tks)])
+        cells = s19.build_cells(sc, "mdna_cosine_tf", panel, prices, 21, set(tks))
+        return sum(len(r) for _, r in cells)
+
+    prior = n_rows("2020-02-28")
+    assert prior == len(tks), f"a score filed BEFORE the date must be used ({prior})"
+    same_day = n_rows(date)
+    assert same_day == 0, "a score available_from == the rebalance date must be excluded"
+    stale = n_rows("2019-01-01")
+    assert stale == 0, "a score older than MAX_STALE_DAYS must be excluded"
+
+
+def test_s19_thresholds_are_the_registered_ones():
+    import importlib
+    s19 = importlib.import_module("scripts.s19_mdna_heldout")
+    assert s19.MIN_HELDOUT_NAMES == 100 and s19.MIN_COVERED_DATES == 24
+    assert s19.MIN_NAMES_PER_DATE == 30
+    assert s19.MAX_STALE_DAYS == 120 and s19.MIN_DOC_WORDS == 2000
+    assert abs(s19.C6_TARGET_IC - 0.00960710146449202) < 1e-15
+    assert abs(s19.C6_TARGET_T - 0.6463239752818024) < 1e-15
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
