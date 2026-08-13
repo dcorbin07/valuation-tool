@@ -5340,3 +5340,42 @@ options work left.** What remains is a choice, not a queue:
 2. **Nothing here rescues the options book.** R2 stands, O11 showed the book is unsurvivable at
    realistic sizing, and 131 hypotheses have produced no adoption. **The defensible summary of the
    whole options programme is that it is a well-measured negative result.**
+
+
+## 54 · A CROSS-LANE BUG THAT BLOCKED EVERY LAND, FOUND AND FIXED — `tests/test_track_meter.py`
+
+**This is not my lane's file and the fix is one line, but it stopped `main` accepting anything
+from any lane, so it is reported at length rather than in a footnote.**
+
+**Symptom.** My O14 push passed the full 65-suite gate locally and the auto-land Action **failed**
+(run `31654262421`), leaving `main` untouched. `tests/test_track_meter.py` reported **33 of 34**,
+failing on `test_a_vintage_event_does_not_erase_a_dated_miss`. The same suite passes **34/34**
+locally.
+
+**Cause — a time bomb, and it had detonated about an hour before I pushed.** The test pins
+`as_of=dt.date(2026, 8, 12)` for its `recording_history` call and then, two lines later, calls
+`TM.gap_report(live)` **with no `as_of`**, so that one reads the wall clock. Measured both ways:
+
+| `as_of` | `gap_report(...)["missing_dates"]` |
+|---|---|
+| 2026-08-12 | `[]` — the assertion holds |
+| 2026-08-13 | `['2026-08-12']` — the assertion fails |
+
+**CI runs in UTC.** Local was still 2026-08-12 EDT while CI was already 2026-08-13, so the open
+vintage's 2026-08-12 row had fallen due and gone missing — which is the real, documented
+`PT-WRITER` state, correctly reported. **The test, not the code, was wrong.**
+
+**Why this was urgent rather than tidy: dates only advance.** This was not a flake. From the
+moment UTC crossed midnight the assertion could never pass again, in any lane, on any branch.
+Every subsequent push would have failed the gate with a message pointing at a file the pushing
+lane had never touched.
+
+**Fix.** Pin `as_of=dt.date(2026, 8, 12)` on that call — the same date the sibling call two lines
+above already pins, so the test's evident intent is preserved exactly and nothing about what it
+asserts changes. 34/34 locally, and the suite was swept for other unpinned wall-clock calls: there
+is exactly one other, and it already pins `as_of` on its continuation line.
+
+**Owner: the paper-track / edge-audit lane.** I fixed it because it blocked every land including
+lanes with no involvement in it, and because the correct value was unambiguous. **The general
+lesson is worth more than the fix: a test that reads "today" is a test with an expiry date, and
+this one expired between a green local run and a red CI run on the same commit.**

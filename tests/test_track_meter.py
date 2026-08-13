@@ -475,7 +475,15 @@ def test_a_vintage_event_does_not_erase_a_dated_miss():
 
     # ...and none of them is reachable from the open vintage's own gap report, which is the
     # whole reason this record has to exist separately.
-    assert TM.gap_report(live)["missing_dates"] == []
+    #
+    # `as_of` MUST be pinned here, and it is the same 2026-08-12 the `recording_history` call
+    # above already pins. Without it `gap_report` reads the wall clock, and this assertion was a
+    # TIME BOMB: it held while "today" was 2026-08-12 and began failing the moment UTC rolled
+    # into 2026-08-13, when the open vintage's 2026-08-12 row fell due and went missing. Measured
+    # both ways: as_of 2026-08-12 gives [], as_of 2026-08-13 gives ['2026-08-12']. CI runs in UTC,
+    # so it broke there several hours before it would have broken locally, and it blocked EVERY
+    # lane's land rather than just the one that happened to push.
+    assert TM.gap_report(live, as_of=dt.date(2026, 8, 12))["missing_dates"] == []
 
     # Vintage 2 owed NOTHING: it closed 2026-08-11, and that day's row does not fall due until
     # 2026-08-12. Pinned because the first draft of this test asserted the opposite, having
