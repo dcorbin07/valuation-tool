@@ -48,6 +48,88 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE OPTIONS SURFACE IS GENUINELY ORTHOGONAL TO THE EQUITY PANEL AND PREDICTS NOTHING WITH
+  THAT ORTHOGONALITY — THE AUDIT'S CENTRAL PREMISE IS CONFIRMED AND ITS CONCLUSION REFUTED, AND
+  THE LAST LIVE DIRECTION OF THE UNIFICATION IS NOW SHUT (2026-08-13, session 36, `U2`).**
+  `PREREG_u2_surface_stock_signals.md` committed **ALONE at `e8e222b`** — one `.md`, zero `.py`,
+  a strict ancestor of the measurement commit. No panel rebuild. **ADOPTS NOTHING.**
+  * **THE ROW CLOSES `PARTIAL`, NOT `DONE`, AND THE REGISTER FIXED THAT BEFORE ANY RESULT.** The
+    audit's U2 names four features; this tested the **levels** and declined two. **The put–call
+    parity deviation on matched strikes — Cremers–Weinbaum's ACTUAL measure and the largest
+    effect the section cites (51 bps/week) — needs matched call/put pairs from the raw chains and
+    is a NEW feature**, which the task forbade; the 21-day changes are a different hypothesis
+    (surface *momentum*, not surface *level*). **Neither is a null.** Marking the row `DONE`
+    would tell the next session they had been tested. S10's precedent.
+  * **A DUPLICATE ARM KILLED BEFORE THE REGISTER: `skew_25d` IS EXACTLY `iv_put_25d −
+    iv_call_25d`**, max |Δ| **0.000e+00** over 217,706 rows. So the audit's separately-named
+    *"ATM call-minus-put implied-vol spread"* is, at 25 delta, **exactly `−skew_25d`** — one
+    column and its negation, whose rank ICs are exact negatives. **ONE arm, not two.** This is
+    the `illiq`/`spread_pct` defect class the O3/O4/O5 lane found in a prior lane's panel,
+    **caught before the register rather than after the verdict**, and pinned by C5.
+  * **THE NEAR-MISS THAT WOULD HAVE ANSWERED A DIFFERENT QUESTION ENTIRELY: the shipped
+    `term_slope_60_30` is NOT the O16-validated construction.** It is exactly `atm_iv_60 −
+    atm_iv_30`; O16 validated `atm_mid − atm_front`. **Spearman between them is only 0.5281** on
+    the covered names. A lookup by column name computes cleanly, raises nothing, and **reports a
+    U2 verdict on a construction O16 never validated** — while O16's whole finding was about
+    separating `term_slope` from a front-end IV level. The arm uses **`atm_iv_60 −
+    atm_iv_front`** and a **source-level test pins that the shipped column never enters the arm
+    path**.
+  * **COVERAGE FORBIDS A FULL-PANEL GATE — AN IMPOSSIBILITY, NOT A POWER CAVEAT.** The derived
+    layer spans **2016-01-04 → 2025-12-31** against a panel starting **2009-01-15**, so **29 of
+    69 rebalance dates carry ZERO coverage and ALL of them are early**; the final date
+    (2026-01-28) is uncovered too. **Every split is of the COVERED SUBSAMPLE — 40 dates, 20 and
+    19 after embargoing 2021-01-21**, both above the shipped `min_dates=16`. **S18's situation
+    exactly, and the same replacement.** A pass on 20-date halves is not the same object as a
+    pass on 34-date halves. Coverage is **~25%** of the panel cross-section (mean **436.9** names
+    per covered date), better than the audit's predicted 4–14%.
+  * **ALL FOUR ARMS REJECTED** against X7's calibrated **2.71** theme-IC bar in both halves.
+    Incremental IC *t*, full sample: `term_slope` **+0.9862**, `iv_rank` **+0.1931**, `skew_25d`
+    **+0.3471**; the composite **+0.7797 / +0.1508** across its two decide-then-measure
+    directions. Raw IC *t*: **+0.6729**, **+0.0377**, **+1.4870**.
+  * **THE HEADLINE IS THE DISSOCIATION, AND IT SETTLES THE AUDIT'S ARGUMENT IN BOTH DIRECTIONS.**
+    The audit's case was that an options-derived signal is *"structurally orthogonal to
+    everything already in the panel"* — and **it is: the seven incumbents explain only 5.5% to
+    8.8% of these features' variance**, against **41.3% of `gp_on_capital`** and **78.4% of
+    `ret_6_1`**. **The features really are new information. The new information does not
+    predict.** Orthogonality was the audit's reason for expecting value and it is confirmed;
+    what fails is the prediction, not the premise.
+  * **THE POWER CONTROL THE AUDIT ITSELF DEMANDED CLEARS, SO THESE NULLS ARE INTERPRETABLE —
+    AND THE SAME NUMBER CUTS AGAINST THE VERDICT.** `gp_on_capital` **2.4776** and `ret_6_1`
+    **2.4762** on the identical covered rows, against the audit's 2.0 bar. **But both land BELOW
+    2.71**, so the panel's own best-known signals would *not* clear the bar the arms were judged
+    against on this subsample. **And there is NO valid power control for the INCREMENTAL
+    statistic at all**, because every known-real signal here is already an *input* to an
+    incumbent theme (which is exactly why their R² is 41% and 78%). Reported, not glossed.
+  * **THE SMIRK'S PUBLISHED SIGN DOES NOT REPRODUCE.** Xing–Zhang–Zhao's negative direction was
+    **declared before the run**; measured, `skew_25d`'s raw IC is **POSITIVE** (median +0.02056,
+    *t* +1.4870). Far too weak to refute a published result — but on this megacap universe the
+    declared direction is **not reproduced**, and a positive result on it could never have been
+    a pass. Same shape as O3/O4/O5's sign reversal.
+  * **C6 REFUTES THE OBVIOUS ALTERNATIVE OUTRIGHT.** A volatility-surface feature is a prime
+    candidate to be a volatility theme in a new costume (U7's failure mode). The largest |mean
+    per-date correlation| against ANY incumbent is **0.0844** (`skew_25d` vs `momentum`), and all
+    three sit under **0.05** against `low_risk`. **These are not repackaged incumbents.**
+  * **CONTROLS: C1 reproduces the record to 1e-9; C3 ZERO point-in-time violations over 17,411
+    joined cells** — the join is **STRICTLY BEFORE** the rebalance date, stricter than `fwd_ret`
+    requires, to remove the argument rather than win it; C5 no arm is another arm's negation.
+    **The book gate and the 2.2837 long-short floor were NOT run and are NOT quoted**: the
+    register runs them only on an eligible composite. **Both calibrated bars would be
+    EXTRAPOLATIONS here in any case** — they were measured on the full 69-date 2,531-name panel.
+  * **A DEFECT IN THE SHIPPED IC ARITHMETIC, REPORTED NOT REPAIRED, AND IT IS THE
+    `SECTOR-NEUTRAL-B6` ZERO-VARIANCE GUARD IN A NEW PLACE.** `theme_ic`'s guard is `if sd > 0`,
+    and whether a constant series has an exactly-zero floating-point sd is **value-dependent**:
+    `[0.1, 0.1, 0.1]` has sd ≈ 5.8e-17, so the guard passes and the *t* comes back **~1.0e16**.
+    Not repaired here, because repairing it would make this lane's copy stop being the shipped
+    arithmetic and X7's 2.71 would then apply to a statistic it was not calibrated on. A
+    degeneracy check gates the verdict instead, so an absurd *t* can never be READ as a pass.
+    **Edge lane's to fix.**
+  * **THE UNIFICATION IS NOW CLOSED IN EVERY DIRECTION THAT HAS BEEN OPENED**: `U1` REJECTED,
+    `U7` REJECTED, `U2` REJECTED on the level half and PARTIAL on the row. **Equity `N` 185 → 189 for this item's four arms — though it reads
+    190 after the concurrent `S14-WIDTH` landing the same day, which is why an equity figure
+    must be RE-READ from `by_domain` after every merge and never quoted from a session's own
+    mid-run measurement.** Expectations **5 right, 3 wrong, 1 split** — and the streak breaks: this is the first
+    session in five in which **no** arm cleared **either** half.
+    `data/free_analysis/U2_SURFACE_STOCK.json`; `HANDOFF_optionsbot.md` §55.
 - **THE NO-TRADE BAND'S KNEE IS IDENTIFIED AND IT IS EXACTLY WHERE THE BOUNDARY WAS — GIVEN THREE
   WIDER WIDTHS, BOTH HALVES STILL PICKED 0.30, SO `S14` IS NOW AN ADOPTION DECISION FOR DON
   (2026-08-13, `S14-WIDTH`).** `PREREG_s14_width_extension.md` committed **alone at `e63295e`**.
