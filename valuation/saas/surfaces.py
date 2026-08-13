@@ -102,6 +102,11 @@ OWNER_ONLY_PATHS = frozenset({
     "/api/index-track",       # the Index's live equity curve vs SPY                  [Tradier sandbox / FMP]
     "/api/options-paper",     # the paper option book vs its backtest reference       [Tradier sandbox / ThetaData ref]
     "/api/options-scorecard",  # expectancy of closed alerts                          [broker fills / ThetaData ref]
+    "/api/scream-track",      # the rebuilt scream-buy record: entry, target, stop,
+                              # current mark and status per alert. Category (1) twice
+                              # over — it is a forward performance record AND it names
+                              # live open contracts with the levels they are trading
+                              # to.                                                    [Tradier sandbox]
 
     # (2) Actionable live picks.
     "/api/valquo-index",      # the constructed book: names AND weights, today        [FMP]
@@ -129,6 +134,12 @@ PUBLIC_API = frozenset({
     "/api/value",             # the DCF for one ticker the visitor asked for          [FMP]
     "/api/rank",              # score a small watchlist                               [FMP]
     "/api/hotstocks",         # the ranking — analysis, and the product               [FMP]
+    "/api/dip",               # the Dip Detector: the same snapshot the hot list
+                              # publishes, filtered on drawdown and health. Public for
+                              # the same reason /api/hotstocks is — it is model output
+                              # over names, not a book, a weight or a contract — and it
+                              # carries no forward-return claim at all until the V6
+                              # register closes (see web/dip_posture.py).              [FMP]
     "/api/whatdo",            # one name across the product; book/options half is
                               # stripped for non-owners inside `unified.name_view`    [FMP]
     "/api/tickers",           # local typeahead, no network                           [none]

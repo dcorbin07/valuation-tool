@@ -30,13 +30,14 @@ const scoreClass = (s) => s >= 66 ? "g" : (s >= 46 ? "a" : "r");
 /* ---------- tabs ---------- */
 function switchTab(t) {
   document.querySelectorAll(".tab").forEach(el => el.classList.toggle("active", el.dataset.tab === t));
-  ["single", "hot", "index", "signals", "track", "rank", "edge"].forEach(name => {
+  ["single", "hot", "dip", "index", "signals", "track", "rank", "edge"].forEach(name => {
     const el = document.getElementById("tab-" + name);
     if (el) el.style.display = (name === t) ? "block" : "none";
   });
   if (t === "hot" && !STATE.hotLoaded) { STATE.hotLoaded = true; loadHotStocks(); }
+  if (t === "dip" && !STATE.dipLoaded) { STATE.dipLoaded = true; loadDip(); }
   if (t === "index" && !STATE.indexLoaded) { STATE.indexLoaded = true; loadValquoIndex(); loadIndexTrack(); }
-  if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); loadOptionsScorecard(); }
+  if (t === "signals" && !STATE.sigLoaded) { STATE.sigLoaded = true; loadSignals(); loadOptionsScorecard(); loadScreamTrack(); }
   if (t === "track" && !STATE.trackLoaded) { STATE.trackLoaded = true; loadTrack(); }
   // The Edge Lab has no autoload for the owner — every button on it is expensive, so it
   // waits to be asked. A READ-ONLY session has no such buttons, so the tab would open
@@ -1091,6 +1092,189 @@ function renderSectors(sectors) {
       <span style="width:96px;text-align:right;color:${col};font-weight:700">${z(s.avg_composite)} <span class="muted" style="font-weight:400">(${s.count})</span></span></div>`;
   });
   document.getElementById("sectorBox").innerHTML = html;
+}
+
+/* ====================== DIP DETECTOR ======================
+   Healthy names trading well below their own 52-week high.
+
+   THE COPY IS NOT HERE. Every claim-bearing sentence on this tab is server-rendered from
+   `web/dip_posture.py` into the template, because it is written to be replaced when the V6
+   register closes. This file renders NUMBERS and the per-check badges, and the one string it
+   does own — the "not checked" label — describes the payload rather than the world.
+
+   WHY A CHECK THAT DID NOT RUN GETS ITS OWN BADGE. Two of the four disqualifiers need a full
+   DCF. Rendering "not checked" as a tick would tell a reader that four things were verified
+   when two were, which is the same defect as an out-of-sample block reporting zero directions
+   tested as a pass. The badge is deliberately neutral-coloured: not a warning, not a tick. */
+const _DIP_CHECK_LABEL = { pass: "✓", fail: "✕", not_run: "–" };
+
+function _dipChecks(row, defs) {
+  const ch = row.checks || {};
+  return Object.keys(ch).sort().map(k => {
+    const v = ch[k], mark = _DIP_CHECK_LABEL[v] || "?";
+    const col = v === "pass" ? "var(--green)" : (v === "fail" ? "var(--red)" : "var(--muted)");
+    const why = v === "not_run"
+      ? "Not checked — this one needs a full discounted-cash-flow valuation, which this screen does not run for every name."
+      : ((defs || {})[k] || k);
+    return `<span class="chip" style="color:${col}" title="${esc(why)}">${mark} ${esc(k.replace(/_/g, " "))}</span>`;
+  }).join(" ");
+}
+
+function _dipHealthChips(row, floors) {
+  const h = row.health || {};
+  return Object.keys(h).sort().map(k => {
+    const v = h[k];
+    const floor = (floors || {})[k];
+    const col = (v == null) ? "var(--muted)" : scoreColor(v);
+    return `<span class="chip" style="color:${col}" title="${esc(k)} ${v == null ? "not computed" : Math.round(v)} of 100, floor ${floor == null ? "—" : Math.round(floor)}">`
+      + `${esc(k)} ${v == null ? "—" : Math.round(v)}</span>`;
+  }).join(" ");
+}
+
+async function loadDip() {
+  eshow("dipErr", "");
+  toggle("dipLoader", true);
+  const sel = document.getElementById("dipThreshold");
+  const thr = sel ? sel.value : "0.20";
+  try {
+    const d = await (await fetch("/api/dip?min_drawdown=" + encodeURIComponent(thr))).json();
+    renderDip(d);
+  } catch (e) {
+    eshow("dipErr", e.message);
+    setHtml("dipResults", "");
+  }
+  toggle("dipLoader", false);
+}
+
+function renderDip(d) {
+  d = d || {};
+  setHtml("dipDisclaimer", esc(d.disclaimer || ""));
+  setHtml("dipFreshness", d.freshness ? freshnessBanner(d.freshness) : "");
+  if (d.error) { eshow("dipErr", d.error); setHtml("dipResults", ""); return; }
+  if (d.empty) {
+    setHtml("dipResults", `<div class="card"><div class="muted">${esc(d.message || "Nothing to screen yet.")}</div></div>`);
+    setHtml("dipMeta", "");
+    return;
+  }
+  const rows = d.rows || [];
+
+  /* THE BOUNDS ARE REPORTED, ALWAYS — including when they did not bite. A screen that says
+     "12 names" without saying "out of 340 eligible, 12 measured" reads as coverage, and this
+     project has paid for silent truncation before. */
+  const bits = [];
+  bits.push(`${num(d.n_universe)} names scanned`);
+  bits.push(`${num(d.n_eligible)} passed the pre-filter`);
+  /* `n_measured` counts measurement ATTEMPTS, not successes — the ones that failed are in
+     `n_unmeasured` below. "fully measured" would overstate it whenever a valuation fell over. */
+  bits.push(`${num(d.n_measured)} examined in detail`);
+  if (d.capped) bits.push(`<b>${num(d.capped)} more not measured (per-request limit)</b>`);
+  if (d.n_unmeasured) bits.push(`${num(d.n_unmeasured)} could not be measured`);
+  setHtml("dipMeta", bits.join(" · "));
+
+  if (!rows.length) {
+    setHtml("dipResults", `<div class="card"><div class="muted">No name cleared a
+      ${pct(d.min_drawdown, 0)} fall from its 52-week high while also scoring healthy today.
+      ${d.capped ? "Note the per-request measurement limit above — this is not a statement about every name in the universe." : ""}</div></div>`);
+    return;
+  }
+
+  let html = `<div class="card"><h3>Down ${pct(d.min_drawdown, 0)}+ from the 52-week high, fundamentals still healthy</h3>
+    <div class="section-hint">${esc(d.health_floor_note || "")}</div>
+    <table><tr><th>Ticker</th><th class="num">Fall from high</th><th class="num">Price</th>
+      <th class="num">52-wk high</th><th>Health</th><th class="num">Fair value</th><th>Checks</th></tr>`;
+  rows.forEach(r => {
+    const fv = r.fair_value_withheld_reason
+      ? `<span class="muted" title="${esc(r.fair_value_withheld_reason)}">withheld</span>`
+      : (r.fair_value == null ? "—" : money(r.fair_value));
+    html += `<tr>
+      <td><a href="#" onclick="gotoValue('${esc(r.ticker)}');return false"><b>${esc(r.ticker)}</b></a>
+        <div class="muted" style="font-size:11px">${esc(String(r.name || "").slice(0, 28))}</div></td>
+      <td class="num neg">−${pct(r.drawdown, 1)}</td>
+      <td class="num">${money(r.price)}</td>
+      <td class="num">${money(r.high_52w)}</td>
+      <td>${_dipHealthChips(r, d.health_floors)}</td>
+      <td class="num">${fv}</td>
+      <td>${_dipChecks(r, d.checks)}</td></tr>`;
+  });
+  html += "</table>";
+  if (rows.some(r => (r.checks_not_run || []).length)) {
+    html += `<div class="note" style="margin-top:10px">A “–” means that check was <b>not run</b>
+      for this name, not that it passed. Two of the four need a full discounted-cash-flow
+      valuation, which this screen does not run for every name.</div>`;
+  }
+  html += "</div>";
+  setHtml("dipResults", html);
+}
+
+/* ====================== SCREAM-BUY TRACK RECORD ======================
+   Reset 2026-08-13 at Don's direction; the prior record is archived, not deleted, and the
+   register note below renders with the table every time. Entry / target / stop / current are
+   READ from the stored columns — see web/scream_track.py for why re-deriving them would look
+   right and be wrong. */
+function _screamStatusColor(s) {
+  if (s === "HIT TARGET") return "var(--green)";
+  if (s === "STOPPED") return "var(--red)";
+  if (s === "LIVE") return "var(--navy)";
+  return "var(--muted)";
+}
+
+async function loadScreamTrack() {
+  const box = document.getElementById("screamTrack");
+  if (!box) return;
+  let d;
+  try { d = await (await fetch("/api/scream-track")).json(); } catch (e) { return; }
+  box.style.display = "";
+  renderScreamTrack(d || {});
+}
+
+function renderScreamTrack(d) {
+  const reg = d.register || {};
+  setHtml("screamContext", esc(d.context || ""));
+  const rows = d.rows || [];
+
+  let body;
+  if (!rows.length) {
+    body = `<div class="muted">No alerts since the ${esc(reg.reset_date || "reset")} reset yet.
+      ${d.n_archived ? num(d.n_archived) + " earlier alert(s) are in the archive." : ""}
+      ${d.unavailable ? "The record could not be read just now." : ""}</div>`;
+  } else {
+    body = `<div class="metricline" style="margin:6px 0 12px">
+      ${metric("Live", d.n_live)}${metric("Closed", d.n_closed)}
+      ${metric("Since", reg.reset_date || "—")}</div>`;
+    body += `<table><tr><th>Alert</th><th>Contract</th><th>Status</th>
+      <th class="num">Bought in</th><th class="num">Target sale</th><th class="num">Stop</th>
+      <th class="num">Current</th><th class="num">P&amp;L</th><th class="num">DTE</th></tr>`;
+    rows.forEach(r => {
+      const col = _screamStatusColor(r.status);
+      /* A stale mark is LABELLED, never silently rendered as current, and an unmarked live
+         position counts as stale — nobody has priced it. */
+      const stale = r.mark_stale
+        ? ` <span class="muted" title="Last marked ${esc(r.last_mark_ts || "never")}${r.mark_age_days == null ? "" : " — " + r.mark_age_days + " day(s) ago"}">⚠ stale</span>`
+        : "";
+      const contract = [r.opt_right ? String(r.opt_right).toUpperCase() : "",
+        r.strike == null ? "" : money(r.strike, 2), r.expiry || ""].filter(Boolean).join(" ");
+      body += `<tr>
+        <td><b>${esc(r.ticker || "—")}</b><div class="muted" style="font-size:11px">${esc(String(r.alert_ts || "").slice(0, 10))}</div></td>
+        <td style="font-size:12px">${esc(contract || r.occ_symbol || "—")}</td>
+        <td style="color:${col};font-weight:700">${esc(r.status)}${stale}</td>
+        <td class="num">${money(r.entry_premium)}</td>
+        <td class="num">${money(r.target_premium)}${r.target_pct == null ? "" : ` <span class="muted">(${spct(r.target_pct, 0)})</span>`}</td>
+        <td class="num">${money(r.stop_premium)}${r.stop_pct == null ? "" : ` <span class="muted">(${spct(r.stop_pct, 0)})</span>`}</td>
+        <td class="num">${money(r.current_premium)}</td>
+        <td class="num ${r.current_pct == null ? "" : (r.current_pct >= 0 ? "pos" : "neg")}">${r.current_pct == null ? "—" : spct(r.current_pct, 0)}</td>
+        <td class="num">${r.dte == null ? "—" : r.dte + "d"}</td></tr>`;
+    });
+    body += "</table>";
+  }
+
+  const lc = d.level_conformance;
+  if (lc && lc.off_spec) {
+    body += `<div class="note" style="margin-top:10px;border-left:3px solid #c0392b;padding-left:9px">
+      ⚠️ <b>${num(lc.off_spec)} live position(s) are trading to a target or stop the strategy
+      does not specify.</b> Reported read-only; the next paper cycle repairs them.</div>`;
+  }
+  setHtml("screamBody", body);
+  setHtml("screamRegister", esc(reg.note || ""));
 }
 
 async function buildPortfolio() {
