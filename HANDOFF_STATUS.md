@@ -22,12 +22,75 @@ of its copy was written. ADOPTS NOTHING; no file under `valuation/` changed.
   1.73x larger by median market cap - which is a live caveat on the dipped-vs-dipped leg.
 - **The HEALTH floor binds harder than quality** (keeps 35.9% vs 41.1%), refuting my own
   registered prediction.
-- **Explainer constant NAMED for the app lane: `valuation/web/dip_confidence.py`**, modelled on
-  the shipped `score_confidence.py`, `VERDICT = "NULL"`. The tab may call the screen **a filter,
-  not a forecast**. No file under `valuation/web/` was touched - that boundary was set in the
-  register before the result existed.
+- **THE APP LANE SHIPPED THE TAB WHILE THIS WAS MEASURING IT, AND BUILT THE SAME MECHANISM
+  INDEPENDENTLY.** `6b7c358` landed twelve minutes before this did, carrying
+  `valuation/web/dip_posture.py` - modelled on the same `score_confidence.py`, owning the copy,
+  pinned by test, with a three-state `STATUS` gated on **this register** and a designed close-out.
+  **The close-out was performed on THEIR module** (`STATUS = NULL`, verdict fields filled, 39/39
+  `test_dip.py`) rather than a second one being created, so V6 touches `valuation/web/` in exactly
+  one file - a scope change against the register's own section 8, **declared not absorbed**. The
+  alternative was leaving a **live** surface saying *"we are testing it, and this page will say the
+  answer when the register closes"* after it had closed. The tab now says the screen is **a filter,
+  not a forecast**, and that it was tested.
+- **TWO DEFECTS FOUND DOING THE CLOSE-OUT, and the second is the serious one.** Their `REGISTER`
+  cited `PREREG_v6_healthy_drawdown.md`, **a file that does not exist**, against a docstring saying
+  the citation is there so a reader can check it does. And **`digest_eligible` was `STATUS != OPEN`,
+  so the arrival of a NULL - evidence the claim is NOT supported - would have SILENTLY UNBLOCKED an
+  outbound push of a dip list.** Now `STATUS == POSITIVE`. **Whether that list ever goes out is
+  routed to Don, not decided here.** `PT-OUTBOUND`'s family, caught before it could fire.
 - Equity `N` 202 -> 206; suite 372 -> 384 green. `HANDOFF_edge_audit.md` V6 sections 0-11;
   `data/free_analysis/V6_DIP_DETECTOR.json`.
+## greeks lane, the SCREAM-BUY RECORD rebuilt (2026-08-13) - an archived reset, not a wipe
+
+Don's direction (`PROMPT_dip_detector_and_screamtrack.md` item 2): *"the options scream buys track
+record wiped, and include target sale, price bought in, and current price, same as our paper
+account tracks."* **Backend half only** - schema, archive, status vocabulary, read-time quote. The
+tab is the app fixer's. New `valuation/edge/scream_log.py`; field contract in
+`HANDOFF_appfixes.md`, full write-up in `HANDOFF_live_data_bugs.md` Part 20.
+
+**THE FINDING THAT DECIDED THE DESIGN: the record is not on this machine.** Every local database
+holds **ZERO** scream-buy alerts (`.scan-cache/screener.db` 0, `data/screener.db` 0,
+`data/live_cache/served.db` 0, `data/app.db` has no such table). The real record lives in SQLite on
+the Render service's disk - the same fact `track-backup.yml` exists to work around. **So the reset
+could not be executed here, and nothing was written that pretends otherwise.** The archive manifest
+reports `n_rows`, `n_by_status` and `n_by_epoch` so an empty archive is *visibly* empty rather than
+quietly successful - LA2's lesson, where a relative guard could not catch a quantity that was
+always zero.
+
+**THE RESET ARCHIVES AND THEN DOES NOT DELETE EITHER.** Archive-then-delete still destroys the
+rows, and a dated JSON file is a strictly weaker object than a database row - it cannot be queried,
+joined or scored. So the reset stamps a `record_epoch` and starts a new one; the prior record stays
+in `option_alerts` forever. Same reasoning `paper_index_closed` already carries: rows leave a book
+when they do badly, so erasing them flatters what remains. It writes the archive **first** and moves
+the epoch **only if that succeeded** - the other order leaves a reset record with no archive, which
+is the silent wipe itself. A second reset on one day cannot overwrite the first.
+
+**THE STATUS IS DERIVED, NOT STORED - a deliberate departure from the literal ask.** The close path
+already maintains two fields the status is a pure function of, so a third stored copy can disagree
+with them. And deriving answers a case storing cannot: an alert whose contract **expired with nobody
+closing it** keeps `status='open'` forever, so a stored field would read **LIVE for a contract that
+has not existed for months**. **The trap in the vocabulary is that `time_stop` CONTAINS `stop`** - a
+substring match reports every scheduled close as a stop-out, the opposite claim about expectancy.
+Matching is on the leading token, and the coverage test parses `paper_track._exit_decision` out of
+its own **source** with `ast` rather than trusting a list.
+
+**CURRENT PRICE IS NEVER PERSISTED** - fetched at read time and stale-marked, because a stored
+"current" price begins lying the moment it is written. A missing quote, or one with no timestamp,
+reads stale with a `None` price: absent is not fresh and is not zero. Tradier reports epoch
+**milliseconds**; reading them as seconds would date every quote to 1970 and make the staleness flag
+useless. Handled and pinned.
+
+**A DUPLICATE REMOVED:** `paper_track` had the target/stop arithmetic written out **twice** (inline
+in `_place_entry`, again in `_levels_from`) - how a corrected level and an uncorrected one come to
+coexist, the exact defect session 16 found in these same levels. Both now call one function.
+
+**NOT DONE, AND NAMED: the live record has NOT been reset.** The step is
+`python -m valuation.edge.scream_log --reset --out-dir data_export` on the service, or an admin
+route calling `SL.reset_record(store, out_dir)` - **the route is the web lane's**. Until it runs the
+tab correctly shows the original epoch. The reset is deliberately not wired into any scan.
+
+Zero trials - reporting/product, no hypothesis and no threshold. Full gate **69 suites, 0 failures**.
+
 
 ## greeks lane, S14 ADOPTED (2026-08-13) - the band is LIVE, and it had never been applied before
 

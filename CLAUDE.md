@@ -120,12 +120,46 @@ the project's memory and the old versions had been repeated for months.
     (U2's near-miss class); and a speedup **whose stated justification was false** - a 500-draw
     sweep costs ~2 seconds, not minutes, and on one leg the "optimization" is **slower** - kept
     only because it is **verified inert** (KS *p* 0.4599 / 0.5089).
+  * **THE APP LANE SHIPPED THE TAB WHILE THIS WAS MEASURING IT, AND BUILT THE SAME MECHANISM
+    INDEPENDENTLY - SO THE CLOSE-OUT WAS DONE ON THEIRS.** `6b7c358` landed **twelve minutes
+    before this pushed**, carrying `valuation/web/dip_posture.py`: modelled on the same
+    `score_confidence.py`, owning the copy, pinned by test, with a three-state `STATUS`
+    (`OPEN`/`POSITIVE`/`NULL`) explicitly gated on **this register** and a designed close-out.
+    **Creating a second module owning the same copy is the exact defect both lanes wrote their
+    docstring to prevent**, so `STATUS = NULL` and the verdict fields were filled on theirs;
+    **39/39 `test_dip.py` pass.** **Their design is better than mine in one respect and it should
+    be carried forward: they enumerated what may never be said in ANY state** - a `BANNED` tuple
+    (*"buy the dip"*, *"will recover"*, *"oversold"*, *"sentiment-driven"*) asserted **against the
+    RENDERED payload, not the source**, because rendering is where copy leaks.
+  * **TWO DEFECTS THE CLOSE-OUT EXPOSED, both invisible until a real verdict existed, and the
+    second is the serious one.** **(a)** `REGISTER` cited **`PREREG_v6_healthy_drawdown.md`, a file
+    that does not exist** - the register is `PREREG_v6_dip_detector.md` - against a docstring
+    saying the citation is there so a reader *"can check that the file exists rather than taking
+    the citation on trust"*. Two lanes named the same unbuilt thing differently, which is the
+    ordinary cost of registering ahead of a product; the replacement test now asserts **the file is
+    on disk** rather than that the string starts with `PREREG_`. **(b) A NULL VERDICT WOULD HAVE
+    SILENTLY UNBLOCKED AN OUTBOUND PUSH.** `digest_eligible` was `STATUS != OPEN`, under the comment
+    *"an outbound push of a dip list is a recommendation-shaped message, so it waits for the
+    evidence"* - but **a NULL is evidence NOT arriving**, so its arrival would have flipped the
+    digest ON. The rule it came from (*a NULL must be exactly as reachable as a POSITIVE*) is right
+    and the **copy** still obeys it; it had been carried one step too far, because **the digest does
+    not push the verdict, it pushes a LIST OF NAMES.** Now `STATUS == POSITIVE`, so the close-out
+    leaves the push where it was rather than opening it. **ROUTED, NOT DECIDED - whether a dip list
+    should ever go out is Don's and the app lane's call.** `PT-OUTBOUND`'s family, caught before it
+    could fire.
+  * **THIS IS THE ONE PLACE V6 TOUCHES `valuation/web/`, AND IT IS A SCOPE CHANGE AGAINST THE
+    REGISTER'S OWN SECTION 8, MADE AFTER THE RESULT EXISTED - DECLARED, NOT ABSORBED.** The
+    alternative was leaving a **live** surface telling users *"we are testing it, and this page will
+    say the answer when the register closes"* after it had closed - the module's own stated failure
+    mode (*"Prose in a template does not stop; someone has to remember"*). Both changes move the
+    product **more** conservative, and neither touches an arm.
   * **THE EXPLAINER CONSTANT IS NAMED AND IS THE APP LANE's TO BUILD:
     `valuation/web/dip_confidence.py`**, modelled on the shipped `valuation/web/score_confidence.py`
     (V3's precedent - one module owns the calibrated wording, pinned **verbatim** by a test).
     **`VERDICT = "NULL"`**, and the tab may call the screen **a filter, not a forecast**: it finds
     names well below their recent high, and the project has **not** shown they beat the market.
-    **No file under `valuation/web/` was touched by any V6 commit** - the boundary the register set
+    **AMENDED BY THE CLOSE-OUT ABOVE: V6 touches `valuation/web/` in exactly ONE file,
+    `dip_posture.py`, and nowhere else** - the boundary the register set
     before the result existed.
   * **Equity `N` 202 -> 206**, re-measured from `research_log.detail()` after this session's merge
     rather than quoted from this file - the S17/S19 defect, not repeated. Expectations **3 right,

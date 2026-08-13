@@ -25,6 +25,7 @@ from . import resultcache, withhold
 from . import score_confidence as _score_confidence
 from . import theme_status as _theme_status
 from . import hold_horizon as _hold_horizon
+from . import dip_posture as _dip_posture
 
 app = Flask(__name__)
 
@@ -113,6 +114,12 @@ def _site_context():
             # in app.js described `capital_discipline` as dormant on the very day it was
             # restored, and listed an input the theme had stopped using.
             "theme_status": _theme_status.payload(),
+            # What the Dip Detector is allowed to claim, gated on the V6 register. Site-wide
+            # for the same reason as the three above — index.html has two renderers — and
+            # because this one has a deadline: the copy is written to be REPLACED when V6
+            # closes, and a surface holding its own copy is a surface that keeps saying "we
+            # are testing it" after the answer has landed.
+            "dip_posture": _dip_posture.posture(),
             "live_hero": _live_hero}
 
 
@@ -547,6 +554,85 @@ def api_hotstocks():
                     "freshness": _freshness(scan_date, label="ranking"),
                     "disclaimer": RISK_DISCLAIMER,
                     "history": [s["scan_date"] for s in scans][:12]})
+
+
+@app.route("/api/dip")
+def api_dip():
+    """The Dip Detector: healthy names trading well below their own 52-week high.
+
+    A SCREEN, NOT A PREDICTION, and the payload says so in its own `posture` block rather
+    than leaving it to the template — see `dip_posture` for why that is a module and what the
+    V6 close-out flips.
+
+    THE COST MODEL IS THE INTERESTING PART. The whole universe is sieved for free off the
+    cached scan snapshot (publication flags, then a cross-sectional prefilter), ordered
+    EXACTLY by drawdown using the persisted `z_high_prox` — standardisation within a date is
+    strictly monotone, so the ordering is identical to ordering by the raw ratio — and only
+    the top few names are actually valued. Each valuation goes through the SAME TTL cache the
+    single-name page uses, so a row here can never disagree with that name's own page, and a
+    reader who opens one has warmed the cache for the other.
+
+    Everything the bound dropped is reported (`capped`, `n_unmeasured`): a screen that
+    silently truncates reads as coverage.
+    """
+    from . import dip
+    try:
+        st = _store()
+        scan_date = st.latest_scan_date()
+        posture = _dip_posture.posture()
+        if not scan_date:
+            return jsonify({"empty": True, "posture": posture, "rows": [],
+                            "disclaimer": RISK_DISCLAIMER,
+                            "message": "The daily scan hasn't loaded into this site yet — the "
+                                       "Dip Detector reads the same snapshot the hot list does."})
+        rows = st.load_snapshot(scan_date)
+        # The same two passes `/api/hotstocks` runs, in the same order and from the same
+        # modules, so a name withheld there is withheld here. Duplicating the RULE rather
+        # than the CODE is how the Index and the hot list came to disagree once already.
+        from ..screener.fairvalue import estimate_fair_values
+        estimate_fair_values(rows, peer_rows=rows)
+        withhold.withhold_implausible_fair_values(rows)
+
+        shortlist = max(1, min(int(request.args.get("shortlist", dip.DEFAULT_SHORTLIST)),
+                               dip.MAX_SHORTLIST))
+        out = dip.screen(rows,
+                         min_drawdown=request.args.get("min_drawdown"),
+                         measure=dip.engine_measure(_get_or_compute, budget=shortlist),
+                         shortlist=shortlist)
+        out["scan_date"] = scan_date
+        out["posture"] = posture
+        out["disclaimer"] = RISK_DISCLAIMER
+        from ..screener.freshness import status as _freshness
+        out["freshness"] = _freshness(scan_date, label="screen")
+        return jsonify(out)
+    except Exception as e:
+        log_exception()
+        return jsonify({"error": safe_error(e), "rows": [],
+                        "posture": _dip_posture.posture()}), 200
+
+
+@app.route("/api/scream-track")
+def api_scream_track():
+    """The scream-buy record: every alert with what it was bought at, sold at and is worth now.
+
+    A pure CONSUMER of `edge/scream_log.py`, which the greeks lane owns — see that module's
+    field contract in `HANDOFF_appfixes.md`. Nothing here recomputes a premium, a status, a
+    staleness flag or the epoch boundary, and this route cannot trigger the reset.
+
+    `entry_premium` is the ALERT-TIME premium and is NOT the paper broker's fill. Those are
+    two different books, and session 16 exists because they were once conflated.
+
+    The footer travels with the table on every response, including `n_prior_epochs` — the
+    number that makes a reset visible rather than merely honest.
+    """
+    from . import scream_track
+    try:
+        return jsonify(scream_track.summary(_store()))
+    except Exception as e:
+        log_exception()
+        return jsonify({"error": safe_error(e), "rows": [], "n_rows": 0,
+                        "summary": {"epoch": None, "reset": None,
+                                    "n_prior_epochs": None, "unavailable": True}}), 200
 
 
 @app.route("/api/whatdo")

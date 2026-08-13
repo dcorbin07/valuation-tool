@@ -64,6 +64,11 @@
     <div class="tabs">
       <button class="tab active" data-tab="single" onclick="switchTab('single')">Single valuation</button>
       <button class="tab" data-tab="hot" onclick="switchTab('hot')">🔥 Hot stocks</button>
+      {# PUBLIC, like the hot list. It is model output over names — no book, no weights, no
+       # contract — and it makes no forward-return claim while the V6 register is open. The
+       # posture that keeps that true is server-rendered from `dip_posture`, not written
+       # here, so the copy cannot be edited on one surface and left stale on the other. #}
+      <button class="tab" data-tab="dip" onclick="switchTab('dip')">📉 Dip Detector</button>
       {# OWNER-ONLY TABS (saas/surfaces.py). The Index is a live book of positions, Signals is
        # a live actionable alert, Track Record is a paper-account performance claim, and the
        # Edge Lab is the research bench. They are removed from the DOM rather than hidden with
@@ -457,6 +462,44 @@
     </div>
   </div>
 
+  <!-- DIP DETECTOR — public, like the hot list it reads.
+       THE POSTURE IS SERVER-RENDERED AND IS NOT WRITTEN HERE. Every claim-bearing sentence
+       comes from `dip_posture.posture()` via the site context processor, because this copy is
+       written to be REPLACED the day the V6 register closes and prose in a template is prose
+       someone has to remember. The one thing the close-out flips is `dip_posture.STATUS`. -->
+  <div id="tab-dip" style="display:none">
+    <div class="search-card">
+      <div class="section-hint" style="margin-top:0"><b>{{ dip_posture.headline }}</b>
+        {{ dip_posture.what_it_is }}</div>
+      <div class="note" style="margin-top:10px">{{ dip_posture.explainer }}</div>
+      <div class="note" style="margin-top:8px">{{ dip_posture.always }}</div>
+      <div class="search-row" style="align-items:center;margin-top:12px;flex-wrap:wrap">
+        <label class="opt" style="margin:0">Minimum fall from the 52-week high
+          <select id="dipThreshold" class="selin" onchange="loadDip()">
+            <option value="0.10">10%</option>
+            <option value="0.15">15%</option>
+            <option value="0.20" selected>20%</option>
+            <option value="0.25">25%</option>
+            <option value="0.30">30%</option>
+            <option value="0.35">35%</option>
+            <option value="0.40">40%</option>
+          </select>
+        </label>
+        <span class="note" id="dipMeta" style="margin:0"></span>
+      </div>
+      <div id="dipFreshness"></div>
+      <div class="note" id="dipDisclaimer"></div>
+    </div>
+    <div class="loader" id="dipLoader"><div class="spinner"></div>
+      <div>Measuring drawdowns and health…</div></div>
+    <div class="err" id="dipErr"></div>
+    <div id="dipResults"></div>
+  </div>
+
+  {# The owner-only region starts HERE, after the Dip Detector. It used to open before it,
+   # which put a tab the split calls PUBLIC inside the owner gate: the button rendered for
+   # everyone and the panel it opened rendered for nobody. Caught by rendering the page and
+   # grepping for the block rather than for the button. #}
   {% if may_see_owner %}
   <!-- VALQUO INDEX — OWNER-ONLY, and deliberately so (decision recorded in
        HANDOFF_appfixes.md, Session 13). Two independent reasons, either one sufficient:
@@ -565,6 +608,17 @@
         <div class="note" id="optScoreNote" style="margin-bottom:10px"></div>
         <div id="optStreak" style="margin-bottom:10px"></div>
         <div id="optScoreBody"></div>
+      </div>
+      <!-- The rebuilt scream-buy track record (reset 2026-08-13). Entry, target, stop and
+           current premium are READ from paper_option_orders, never recomputed — see
+           web/scream_track.py for why that distinction cost session 16 two off-spec
+           positions. The footer carries the reset's register note and the archive path, so
+           the record can never render without saying what happened to the old one. -->
+      <div id="screamTrack" class="card" style="margin-top:14px;display:none">
+        <h3 style="margin:0 0 8px">🚨 Scream-buy track record</h3>
+        <div class="note" id="screamContext" style="margin-bottom:10px"></div>
+        <div id="screamBody"></div>
+        <div class="disclaimer" id="screamRegister" style="margin-top:12px"></div>
       </div>
       <div class="search-row" style="align-items:center">
         <label class="opt" style="margin:0"><input type="checkbox" id="sigAuto" onchange="toggleSigAuto()"> Auto-refresh (60s)</label>

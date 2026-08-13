@@ -10419,9 +10419,61 @@ VERDICT  = "NULL"
 a forward expectation; or anything derived from the late half alone.
 
 **Ownership: the constant and the tab are the APP LANE's to build.** This register fixes the
-verdict and the wording contract and deliberately ships no web surface — **no file under
-`valuation/web/` is touched by any V6 commit**, which is the boundary the register set in §8
-before the result existed.
+verdict and the wording contract and deliberately shipped no web surface — **until the close-out,
+for which see §8a.**
+
+### 8a. THE APP LANE SHIPPED THE TAB WHILE THIS WAS MEASURING IT, AND BUILT THE SAME MECHANISM INDEPENDENTLY
+
+Twelve minutes before this work was pushed, `origin/main` gained **`6b7c358` — "The Dip Detector"**
+(523-line `tests/test_dip.py`, `valuation/web/dip.py`, and **`valuation/web/dip_posture.py`**).
+
+**The convergence is close to exact and neither lane saw the other's work.** §8 above named
+`valuation/web/dip_confidence.py`, modelled on `score_confidence.py`, owning the copy, pinned by
+test. They built **`dip_posture.py`**, modelled on `score_confidence.py`, owning the copy, pinned by
+test — with a three-state `STATUS` (`OPEN`/`POSITIVE`/`NULL`) explicitly gated on **this register**
+and a designed close-out: *"Closing the register is: set `STATUS`, fill `VERDICT_*`, done."* Their
+docstring's reasoning is this project's own record, cited the same way mine was: *"the public
+landing page rendered a pre-B6 `+17.4%/yr` for weeks because the figure lived in a config dict
+nobody thought to grep."*
+
+**Their design is better than mine in one respect and it is worth carrying: they enumerated what may
+never be said in ANY state** — a `BANNED` tuple (`"buy the dip"`, `"will recover"`, `"oversold"`,
+`"sentiment-driven"`, …) asserted **against the rendered payload rather than against the source**,
+because rendering is where copy leaks. My §8 fixed the wording per verdict and did not fix a floor
+under all of them.
+
+**So the close-out was performed on THEIR module rather than a second one being created** — a
+second module owning the same copy is the exact defect both lanes wrote their docstring to prevent.
+`STATUS = NULL`, `VERDICT_HEADLINE` and `VERDICT_DETAIL` filled from §0-§3 above. Their four
+state-pinning tests were rewritten to pin the closed state with their intent preserved; **39/39
+`test_dip.py` pass.**
+
+**TWO DEFECTS THE CLOSE-OUT EXPOSED, both invisible until a real verdict existed:**
+
+1. **`REGISTER` cited a file that does not exist.** It read `PREREG_v6_healthy_drawdown.md`; the
+   register was committed as **`PREREG_v6_dip_detector.md`**. Their docstring says the citation is
+   there so a reader *"can check that the file exists rather than taking the citation on trust"* —
+   and on the shipped value that check fails. **Two lanes named the same unbuilt thing differently,
+   which is the ordinary cost of registering ahead of a product, not a defect in either.** Corrected,
+   and the replacement test now asserts **the file exists on disk** rather than that the string
+   merely starts with `PREREG_`.
+
+2. **A NULL VERDICT WOULD HAVE SILENTLY UNBLOCKED AN OUTBOUND PUSH — and this is the serious one.**
+   `digest_eligible` was `STATUS != OPEN`, with the comment *"An outbound push of a dip list is a
+   recommendation-shaped message, so it waits for the evidence."* **A NULL is evidence not
+   arriving**, and on `!= OPEN` its arrival would have flipped the digest ON. The rule it came from
+   — *a NULL must be exactly as reachable as a POSITIVE* — is right, and the **copy** still obeys it;
+   it had been carried one step too far, because **the digest does not push the verdict, it pushes a
+   LIST OF NAMES.** Changed to `STATUS == POSITIVE`, so this close-out leaves the push exactly where
+   it was rather than opening it. **ROUTED, NOT DECIDED: whether a dip list should ever go out is
+   Don's and the app lane's call.** `PT-OUTBOUND`'s family, caught before it could fire.
+
+**This is the one place V6 touches `valuation/web/`, and it is a scope change against §8 made after
+the result existed — declared here rather than quietly absorbed.** The justification, and the
+alternative considered: leaving `STATUS = OPEN` would have left a **live** surface telling users
+*"we are testing it, and this page will say the answer when the register closes"* after it had
+closed — the module's own stated failure mode (*"Prose in a template does not stop; someone has to
+remember"*). Both changes move the product **more** conservative, and neither touches the arms.
 
 ## 9. What this does NOT settle — named so it is not mistaken for tested
 

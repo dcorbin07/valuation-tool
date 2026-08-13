@@ -5,6 +5,266 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 28 — 2026-08-13 — The Dip Detector, and the scream-buy record rebuilt
+
+**Lane:** app fixer. **Prompt:** `PROMPT_dip_detector_and_screamtrack.md` (out-of-band, product,
+Don's direction). **Branch:** `worktree-demo-link`.
+
+## 0. Headline
+
+Two surfaces shipped, and the interesting finding is in neither of them: **the quantity the
+Dip Detector screens on is computed by every scan and then thrown away.**
+
+`prices.get_quote` computes `high_prox = price / max(close, trailing 252 sessions)` for every
+name, because the momentum theme z-scores it. Drawdown from the 52-week high is exactly
+`1 - high_prox`. But `screen.py::_rows_from` builds `extra` from a fixed list of raw fields
+and `high_prox` is not on it — what survives is `extra["numbers"]["high_prox"]`, the
+**cross-sectional z-score**.
+
+**A z-score cannot be turned back into a percentage.** It is `(x - mean) / sd` over that
+date's cross-section, so the same z is a different drawdown on every scan date — deep on a
+calm day, shallow on a day the whole market is down. Rendering it as a percentage would put a
+fabricated, confident, per-name number on a public surface, which is the failure class
+`withhold.py` exists to prevent. (The other tempting inversion — "some name is always at its
+high, so `max(high_prox) = 1.0` anchors it" — needs a *second* anchor to solve two unknowns,
+and "some name is always at its high" is an assumption about the cross-section rather than a
+measurement of it.)
+
+**What IS true about the z-score, and is what makes the tab affordable:** standardisation
+within a date is a strictly monotone affine transform, so ordering by `z_high_prox` ascending
+is *exactly* ordering by drawdown descending. Not approximately — identically. So the z-score
+is a perfect **ranking** key and a useless **threshold** key, and the screen uses it for
+precisely the first: rank, take a bounded shortlist, then measure the real percentage for that
+shortlist only. **Every drawdown the tab reports is a measured ratio of two prices.**
+
+## 1. ITEM 1 — the Dip Detector tab
+
+`valuation/web/dip.py` (the screen), `valuation/web/dip_posture.py` (what it may say),
+`/api/dip`, a public tab, `tests/test_dip.py` (39 tests).
+
+**The gates, in cost order.** The row-level disqualifiers and a cross-sectional prefilter are
+free (they read the cached snapshot); measuring is not. Filtering first and measuring second
+gives the same set as the reverse — a conjunction does not care about order — while measuring
+far fewer names.
+
+| stage | cost | what it does |
+|---|---|---|
+| publication flags | free | drops withheld / fail-closed rows |
+| prefilter `z_quality`, `z_growth` ≥ 0 | free | **not the health gate** — a budget-saver |
+| order by `z_high_prox` | free | **exact** drawdown order |
+| measure top N (default 12, max 25) | a valuation each | drawdown, sub-scores, DCF checks |
+
+**Why a full valuation and not a cheap quote.** A price lookup gives the drawdown for pennies.
+It does not give the three 0-100 sub-scores the health gate is defined on, and it leaves two of
+the four disqualifiers permanently `not_run`. One valuation supplies all four — and it is the
+**same** valuation the name's own page renders, from the same TTL cache, so a name cannot show
+one health score on the Dip Detector and a different one when the reader clicks it.
+
+**The health floor is derived, not invented: 66.** That is where `scoring._recommendation`
+stops saying "Hold" and starts saying "Buy", and `app.js::scoreColor` independently uses the
+same boundary for green. Two places already treat 66 as healthy, so the screen takes it rather
+than adding a third opinion. Pinned by a test that fails if that calibration moves.
+
+**Momentum is deliberately excluded from the health gate.** A name 20% off its high has poor
+momentum *by construction* — `_momentum_score` reads price vs the 200-day average and the
+6-month return — so requiring healthy momentum would reject the entire population the screen
+exists to find. Valuation is excluded for a different reason: it is the sub-score the
+withholding machinery suppresses, and gating on a sometimes-withheld figure would make the
+screen's membership depend on data availability.
+
+**A CHECK THAT DID NOT RUN IS NOT A CHECK THAT PASSED.** Don named four disqualifiers and they
+do not live on one surface. `withheld` and the fail-closed `no_data` kind are on every snapshot
+row. `terminal_share` and `beta_provenance` exist only where a full DCF ran. Rows carry a
+per-check `pass` / `fail` / `not_run`, the badge for `not_run` is neutral-coloured and says so
+on hover, and the table footer explains it. This is the same distinction
+`holdout_theme_validate` had to learn: `oos_directions_tested = 0` means no test was run, which
+is a different statement from a negative result.
+
+**THE POSTURE LINE, and it is the part with a deadline.** The screen is measurement. The
+interesting claim — *"no good reason besides sentiment"*, *"will very likely pass over"* — is a
+statement about forward returns that nothing in this repository has measured, and is exactly
+what the pipeline lane is pre-registering as **V6**. So:
+
+* every claim-bearing sentence is server-rendered from `dip_posture.posture()`; **the template
+  holds none of it**, pinned by a test that strips Jinja and asserts the prose is absent.
+* the close-out flips **one constant**, `dip_posture.STATUS`. `OPEN` → `POSITIVE` or `NULL`.
+* `NULL` is exactly as reachable as `POSITIVE` — same rule as `shadow_vintage`'s missing sign
+  branch, and pinned. The state nobody wants to publish must be as easy to publish as the one
+  everybody does.
+* a half-finished flip is **visibly empty rather than plausible**: a test simulates flipping
+  `STATUS` without filling `VERDICT_DETAIL` and asserts the headline comes back blank.
+* **the digest stays blocked** while the register is open, derived from `STATUS` rather than
+  set by hand — an outbound "dip alert" is a recommendation-shaped push and waits for the
+  evidence. A close-out that upgrades the copy and forgets the digest would otherwise leave the
+  two disagreeing.
+* `BANNED` lists the phrasings that may never appear in any state, in two families:
+  **recommendation** ("buy the dip", "load up") and **prediction** ("will recover",
+  "temporary", "oversold", "sentiment-driven"). Enforced against the **rendered HTML** in both
+  the public and the owner render — rendering is where copy leaks, which is what V4 learned.
+  Note `sentiment-driven` is banned *even though Don used the phrase*: attributing a drawdown
+  to sentiment is a causal claim about why a price moved, and this screen reads no news, no
+  flow and no positioning. It sees a price and a balance sheet.
+
+**The bounds are reported, always.** `n_universe`, `n_eligible`, `n_measured`, `capped`,
+`n_unmeasured` all render in the tab's meta line, including when the cap did not bite. A screen
+that truncates silently reads as coverage.
+
+**Public tier**, per the split — model output over names, no book, no weights, no contract, and
+no forward-return claim at all while V6 is open. `/api/dip` added to `surfaces.PUBLIC_API`.
+
+## 2. ITEM 2 — the scream-buy record: a TAB that consumes the logger
+
+`valuation/web/scream_track.py`, `/api/scream-track`, a card on Signals,
+`tests/test_scream_track.py` (19 tests).
+
+**THIS SECTION WAS REWRITTEN MID-SESSION, AND THE REWRITE IS THE MOST USEFUL THING IN IT.**
+The prompt says the greeks lane owns the logger and warns *"do not build a second logger"*.
+When this lane started, `valuation/edge/scream_log.py` did not exist, so it built the display
+against the columns that did — `paper_option_orders`. Greeks landed at `7e4ddf2` while this
+work was in flight. The tab is now a **pure consumer** of `scream_log`, and reconciling
+against their field contract turned up **three ways the standalone version was wrong**, not
+merely duplicated:
+
+1. **"Price bought in" was the BROKER FILL.** `scream_log.entry_premium` is the **alert-time**
+   premium; `paper_option_orders.entry_premium` is what the sandbox broker filled at. Two
+   different books. **Session 16 exists because those two were conflated — and the standalone
+   version quoted session 16 at length in its own docstring while making the same mistake one
+   layer up.** This is the correction that would otherwise have put a wrong number on screen.
+2. **The epoch was a DATE COMPARISON** (`alert_ts >= "2026-08-13"`). The real boundary is
+   `record_epoch`, a value stamped on the row by `reset_record`. **The record has not been
+   reset and cannot be from a dev box** — every local database holds zero scream-buy rows and
+   the real one is on Render's disk. So a date-based epoch would have hidden every earlier row
+   **as though a reset had already run**. For a track record that is the worst available
+   failure: it *looks* reset.
+3. **Staleness was a two-day calendar rule.** The logger marks a quote stale at **15 minutes**,
+   because a live option premium is a different object from a daily scan's freshness.
+   Borrowing one constant across two clocks is the `MIN_LIVE_DAYS` / `MIN_DAYS_FOR_MEANING`
+   defect, and this had it.
+
+Also: there are **six** statuses, not five. `CLOSED (unscoreable)` exists so a closed row whose
+exit reason maps to none of Don's five is not forced into one that misdescribes it.
+
+`SCREAM_TRACK_RESET.md`, written earlier this session, **was deleted** — it described the
+date-based epoch and a register note this lane no longer owns, and leaving it would have been a
+second, contradictory account of the same reset. A test asserts it is gone.
+
+**What the tab does now**, and it is deliberately only three things: calls
+`records` → `attach_live_marks` → `record_summary`; carries the R2 context line quoted from
+`web/payoff.py`; and fails soft, returning its footer even when the record cannot be read. It
+issues no SQL, defines no status, computes no level and **cannot trigger the reset** — pinned,
+because a display module that could reset a track record is one refresh away from erasing one.
+
+**The footer does not imply a reset that has not happened.** `reset` is `None` until one
+actually runs, so the tab says *"This is the original record — it has not been reset"* rather
+than printing a register note for an archive that does not exist. When a reset does run,
+`n_prior_epochs` renders beside it — the number that makes a reset **visible** rather than
+merely honest, since three rows read very differently when the footer says 41 alerts sit in an
+earlier epoch.
+
+**Both DTE columns are rendered and labelled apart** (`DTE now` / `DTE at alert`), per the
+contract's explicit warning that they are different quantities. A non-default exit policy is
+flagged `·custom`, which is the whole point of reading the stored level instead of deriving it.
+
+Verified live: `/api/scream-track` returns `epoch: "original"`, `reset: None`,
+`n_prior_epochs: 0`, and the six statuses straight from `SL.ALL_STATUSES`.
+
+**Owner-only**, per the split: a forward performance record that also names live open
+contracts with the levels they are trading to.
+
+## 3. Verification
+
+* `tests/test_dip.py` **39/39**; `tests/test_scream_track.py` **19/19** (rewritten against the
+  logger's contract — see §2); the greeks lane's own `tests/test_scream_log.py` still green
+  after this lane consumed it, and `tests/test_paper_track.py` **70/70**.
+* `tests/test_public.py` **31/31** — the catch-all walk classifies both new routes; a route in
+  neither `PUBLIC_API` nor `OWNER_ONLY_PATHS` fails that suite by design, so the split is a
+  decision rather than an omission.
+* **Full gate: 70 suites, 1360/1361 assertions, 0 non-zero exits.** The single assertion
+  shortfall is `tests/test_guards.py` 35/36, the pre-existing declared XFAIL (exit 0,
+  options-bot lane), unchanged by this session.
+* **Mutations: 32/32 caught, 0 missed, 0 skipped** — after a first pass that caught 30 and
+  **missed 2**, both of which were my own tests being weaker than they read. See §3a. The
+  scream-track half of that pass was run against the standalone version; those mutations were
+  retired with it, and the rewritten suite carries the strengthened staleness pin plus five
+  new no-second-authority pins (no statuses, no levels, no epoch, no paper-fill read, no SQL).
+* Rendered and checked, not assumed: `GET /` as a visitor and as an owner, `GET /api/dip`,
+  `GET /api/scream-track`.
+* `tests/test_shadow_vintage.py` **26/26** and `tests/test_build_ledger.py` **20/20**
+  (188 rows = 133 audit + 55 out-of-band).
+
+## 3a. The two mutations that were MISSED, and why that matters more than the 30 that were not
+
+A pin that is never exercised is a decoration. The first mutation pass caught 30 of 32 and the
+two it missed were both tests that *looked* right:
+
+1. **"unknown drawdown sorts FIRST and eats the measurement budget."** The rule is that a name
+   with no `z_high_prox` sorts LAST — unknown is not "shallow", and letting unknowns lead would
+   spend the whole budget on names nobody can even rank. Deleting the rule left my test green,
+   because the fixture compared the unknown against a name at **z = −3.0**: a broken
+   implementation hands an unknown `0.0`, and `−3.0` still sorts first, so the assertion held
+   for the wrong reason. The fixture now includes a name at **z = +1.5** — barely off its high —
+   which is the only case that separates the two implementations.
+2. **"the renderer stops labelling a stale mark."** My test asserted the string `mark_stale`
+   *appears* in `renderScreamTrack`. That survives `const stale = false && r.mark_stale`, which
+   renders every stale mark as fresh while keeping the identifier in the file. The test now
+   pins the **assignment**: the expression must start with `r.mark_stale` and must contain no
+   short-circuit.
+
+Both are the same failure: **an assertion that a name is present is not an assertion that it is
+load-bearing.** Neither would have been found by re-reading the tests, and both were on the
+honesty-critical paths — the budget-spending rule and the staleness badge.
+
+## 4. BUGS FOUND
+
+1. **The Dip Detector tab shipped inside the owner gate on the first cut.** The tab *button*
+   sits outside `{% if may_see_owner %}` and the *panel* landed inside it, so every visitor saw
+   a button that opened nothing. Caught by rendering the page and grepping for the **panel**;
+   grepping for the button would have passed. Fixed by moving the gate to open immediately
+   before the Index block, and pinned by a test that asserts the panel renders for a visitor
+   while the owner-only neighbours do not. **Class of defect worth naming: a feature-flag test
+   that checks the entry point rather than the thing it opens.**
+2. **`screen.py::_rows_from` drops raw `high_prox`.** The scan computes it for every name and
+   persists only its z-score, so the drawdown has to be re-measured at request time. **One line
+   in the screener lane** — add `"high_prox"` to the raw-field list in `_rows_from` alongside
+   `ret_12_1`. **NOT FIXED HERE** (screener lane is read-only for this lane). *Recorded
+   because it is the obvious guess and it is wrong:* this would **not** remove the shortlist
+   cap. The cap pays for the **valuation**, not the price history — the health gate is defined
+   on sub-scores only a valuation produces, and so are two of the four disqualifiers.
+3. **`track_export._trade_rows` drops the fields this display needs.** The weekly backup joins
+   `option_alerts` to `paper_option_orders` but keeps neither `target_premium`, `stop_premium`,
+   `last_mark` nor `last_mark_ts` — so the committed archive can answer "what was it bought and
+   sold at" but not "what was it *trying* to sell at". The live table reads the database
+   directly and is unaffected; the **archive** is the poorer record. Edge lane. **NOT FIXED.**
+4. **THE SCREAM TAB WAS BUILT AS A SECOND LOGGER AND HAD TO BE REWRITTEN — see §2.** Filed as
+   a bug against this lane's own work rather than a design note, because the three defects it
+   carried (paper fill read as the alert premium, a date-based epoch that would have looked
+   like a reset, staleness in days against the logger's minutes) were all live on a branch
+   that was already pushed. The prompt's *"do not build a second logger"* was followed in
+   intent and violated in fact, because the logger did not exist yet at the time. **The
+   general lesson: when a prompt names a parallel lane's deliverable, re-check for it before
+   pushing, not only before starting.**
+5. **Two of my own first-cut tests failed on prose rather than code** — the module's register
+   note contains the sentence "Nothing was deleted", and its docstring names
+   `freshness.WARN_AFTER` precisely in order to explain why it is *not* used. Both scans were
+   flagging the explanation as the defect it documents. Fixed by scanning stripped code (and,
+   for the write check, by parsing `execute(...)` calls rather than bare words). **Same trap as
+   last session's ban-list test.** Recorded because the wrong fix — deleting the explanation to
+   make the check green — is the tempting one.
+
+## 5. Still open, other lanes, unchanged by this session
+
+* **`PT-WRITER`** (Cowork) — nothing in this repository writes the contract-bound series.
+* **`/methodology` still calls the Deflated Sharpe "undeflated"**; M1 settled that 2026-08-05.
+  Carried forward from sessions 25–27.
+* **`providers.py:162`** still reads `"share_issuance": None,  # ... (needs share history)`,
+  stale since `screen.py::_enrich_with_issuance` fills it. Screener lane; a comment, not a
+  rendered claim.
+* **`tests/test_guards.py`** XFAIL (35/36, exit 0) — pre-existing, options-bot lane.
+* **Greeks' scream-buy logger** has not landed. This lane built the **display** against the
+  columns that exist today (`paper_option_orders`), so nothing here waits on it and there is no
+  second logger. If greeks emits the same fields on the **alert** side, `scream_track.build_rows`
+  takes an `alerts` dict already and the join is one line.
+
 # Session 27 — 2026-08-11 — the operated record now names its vintage, and the
 label it was commissioned with was wrong
 (prompt: vintage 2 is live (theme restoration, 2026-08-11); surface the vintage on the
@@ -4210,3 +4470,44 @@ Landed on `main` as b459d9a. Summary retained for continuity:
 - **Formatting**: one `mcap()` ($B/$T/$M, 2dp) everywhere; removed two local `pct`/`num` shadows;
   added `spct()` and `esc()`.
 - Scan health gained `display_coverage` and a recorded reason for universe fallbacks.
+
+---
+
+## FROM THE GREEKS LANE — the scream-buy logger's field contract (2026-08-13)
+
+Backend for `PROMPT_dip_detector_and_screamtrack.md` ITEM 2 is landed. Full write-up in
+`HANDOFF_live_data_bugs.md` Part 20. **Consume these, do not recompute them, and do not build a
+second logger.**
+
+    from valuation.edge import scream_log as SL
+
+    recs = SL.records(store)                          # the table rows, current epoch
+    recs = SL.attach_live_marks(recs, SL.live_quotes_for(recs))   # adds the live price
+    foot = SL.record_summary(store)                   # epoch, counts, reset note
+
+* `SL.RECORD_FIELDS` - authoritative names: `alert_id, alert_ts, ticker, occ_symbol, opt_right,
+  strike, expiry, entry_premium, target_premium, stop_premium, target_pct, stop_pct,
+  policy_is_default, dte_at_alert, dte_remaining, status, exit_reason, exit_premium, exit_ts,
+  pnl_pct, record_epoch, underlying_price, score, horizon, contract_source`
+* `SL.LIVE_FIELDS` - added at READ time, never stored: `current_premium, current_premium_ts,
+  current_premium_stale, current_premium_age_seconds, current_premium_source, pnl_pct_live`
+* `SL.ALL_STATUSES` - **LIVE, HIT TARGET, STOPPED, TIME-STOPPED, EXPIRED, CLOSED (unscoreable)**.
+  The sixth exists because a closed row whose reason maps to none of Don's five (`record_outcome`
+  writes "no entry premium") must not be forced into one that misdescribes it.
+* `foot["reset"]` is the archive manifest + the register note for the footer, or `None` if the
+  record has never been reset. `foot["n_prior_epochs"]` is what makes a reset visible: a table
+  showing three rows reads very differently when the footer says 41 alerts sit in an earlier
+  epoch.
+
+**THREE THINGS NOT TO DO.** `dte_at_alert` and `dte_remaining` are different quantities - do not
+render them as one. `entry_premium` is the ALERT-TIME premium and is NOT the paper track's broker
+FILL; the two books are different objects and session 16 exists because they were conflated.
+`current_premium_stale` must be shown when true - a stale mark rendered bare is the failure the
+whole read-time design is built around.
+
+**THE RECORD HAS NOT ACTUALLY BEEN RESET YET** and cannot be from a dev box: every local database
+holds ZERO scream-buy rows, the real record being on Render's disk. The reset is
+`SL.reset_record(store, out_dir)` behind an admin route (web lane) or
+`python -m valuation.edge.scream_log --reset --out-dir data_export` on the service. It archives
+first and moves the epoch only if that succeeded, and it DELETES NOTHING - the prior record stays
+queryable at its old `record_epoch`. Until it runs the tab correctly shows the original epoch.
