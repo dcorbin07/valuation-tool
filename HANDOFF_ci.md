@@ -777,3 +777,140 @@ keeping.** No code changed; zero trials; equity `N` unmoved.
 **Not done, and why:** the 56 merged refs were left alone. They are the auto-land Action's normal
 residue, not stranded work, and a sweep of 56 remote deletions is a far larger action than the one
 asked for. §I's four open items were not touched.
+
+---
+
+# The blocked-R recheck — one lane rule held four items shut for a week, and R8's premise was false all along (2026-08-13)
+
+`R4`, `R5`, `R6`, `R8` had sat `BLOCKED` in `VALQUO_LEDGER.md` for weeks. Read-only routing pass,
+no measurement: establish what each blocker actually was, whether it still holds, and route.
+All four rows updated. Merged `origin/main` first (85 commits); gate **71 suites, 0 failed**.
+
+## The blocker was the same for all four, it was never technical, and it had already expired
+
+The four rows all read *"sits in `valuation/edge/**` which pipeline builder holds (AGENTS.md)."*
+That is **lane ownership, not evidence** — `AGENTS.md:15` says *"Only one terminal may ever hold
+this lane"* and `:20` says r1's items are *"blocked until pipeline builder frees that lane."*
+
+**That workflow no longer exists.** Measured: **59 non-merge commits have touched
+`valuation/edge/**` since 2026-08-06**, from at least five different worktree branches
+(`options-live`, `optionsbot-lane`, `close-the-leak`, `crowding-p2`, `p24-shortinterest`), landing
+through the gated auto-land Action (`RUN_RULES.md:76`). The single-holder model was replaced by
+worktree branches. `AGENTS.md` is dated 2026-08-05/06, its own second table is marked stale, and
+the closeout it waits on — Session 5, `0fb22a8` — landed **2026-08-05**, with twenty-odd sessions
+since.
+
+**The ledger recorded the override and the reasoning that made it stick.** Its own
+proposal-vs-verdict table had a row reading *"Script proposes OPEN, item is BLOCKED … Defensible
+either way; kept as BLOCKED because that is what a reader needs to know."* The script was right and
+the human override was wrong. **A hand-verified override is only as fresh as the document it was
+verified against**, and *"defensible either way"* is the phrasing to distrust — it recorded a
+judgement call with no re-check date and held four items shut after its premise expired. That row
+is corrected in place rather than deleted, because it is the mechanism.
+
+## R8 — OBSOLETE, premise refuted. The panel's returns are already total return
+
+R8 asserts every forward return is `close_end/close_start − 1` on a series that *"handles splits
+but excludes dividend income."* **It does not exclude them.** The panel's `close` **is** Sharadar
+`closeadj`, which is split- **and dividend**-adjusted.
+
+Four independent lines, because one would not have been enough:
+
+1. `SharadarProvider.price_history` requests `date,closeadj` (`data_providers.py:149`).
+2. `sharadar_freeze._split_prices` writes `prices/<T>.csv` as `date,close` **taking the `closeadj`
+   column**, and says so in its docstring — *"close is `closeadj` (split- AND dividend-adjusted),
+   which is what the live export wrote and what the panel expects"* (`sharadar_freeze.py:326,339`).
+   `WRDSProvider.price_history` reads exactly that file (`data_providers.py:335-357`).
+3. **Measured on the very file the panel reads.** SPY compounds **15.27%/yr 2009-01-15 →
+   2026-01-15** — the total-return level, matching the record's own *"SPY total return +15.32%"*
+   from `benchmarks.spy`; price-only would be ~2pp lower. And per-name adjustment factors track
+   each name's **own yield**: 2009-01 file price against actual split-adjusted price gives
+   **MSFT 1.41×, JNJ 1.67×, KO 1.76×, XOM 1.90×** — monotone in dividend yield, which is the
+   signature of dividend adjustment and of nothing else.
+4. **Audit B1, from a different lane with no stake in R8, found and fixed a bug *caused by* this
+   series being dividend-adjusted** — *"corrupts every dividend payer on every date by a factor
+   that grows with lookback"* (`options_backtest.py:208`).
+
+**The audit told the reader to check first** — *"`closeadj` is dividend-adjusted retroactively …
+resolve which series is actually feeding forward returns before assuming a direction"* — and nobody
+did. The item sat `BLOCKED` for eight days on a premise ten minutes of reading refutes.
+
+Two things that follow, stated so they are not re-litigated. **No look-ahead from the retroactive
+adjustment** (argument, not measurement): in a ratio of two adjusted prices, every factor for a
+dividend *after* the window cancels, and dividends *inside* it are correctly included. **The tilt
+concern cannot arise at all** — the benchmark leg is computed from the same `fwd_ret` column, so
+both legs sit on one total-return basis, and R8's central worry (the top decile losing more to the
+omission than the benchmark) has no mechanism.
+
+### The defect this turned up — reported, not fixed, and it runs the flattering way
+
+`fundamental_panel.py:3597-3598` states the **opposite** in a shipped docstring — *"NO dividends
+anywhere. The panel's forward returns are price-only"* — and uses it to justify omitting dividend
+**tax** from the after-tax block, calling the pair *"Consistent."* They are not consistent.
+**Dividend income IS in the gross return, so the after-tax figures omit tax on income they do
+include, and net-of-tax is OVERSTATED.** Not repaired here: it is a numbers change on the edge
+lane's after-tax block, it needs its own item, and it is not R8.
+
+## R4 — OPEN. Two of three bullets were already delivered
+
+- **Delivered:** the real `N` feeds the Deflated Sharpe (M1, `2f3529b`, hardened by session 12's
+  parser fix), and the **Harvey–Liu–Zhu hurdle at the real `N`** is `_trials_haircut`,
+  `sqrt(2·ln max(2, n_trials, _trial_N()))` (`fundamental_panel.py:2402`), quoted every session.
+- **Remaining scope is one bullet:** Benjamini–Hochberg across the family of **equity** signal
+  tests. BH exists in this tree but only in the options and tickflow lanes (`options_autopsy.py`,
+  `tickflow_signals.py:288`) — there is no equity-side FDR pass.
+- **Next session:** one small edge-lane session running BH over the existing per-signal IC table,
+  shipped in the results file. **Zero trial cost** — it searches nothing, the argument that made
+  session 10's HAC-floor calibration free.
+
+## R5 / R6 — OPEN, cheap, and they are one commit
+
+Both were blocked on **B12** (the alphabetical universe) as well as the lane. **B12 is DONE**
+(`3def852`).
+
+- **R5 is three signals, not four.** The low-volatility anomaly is already registered and measured
+  (`neg_vol` → `low_risk`, `settings.py:212`; theme IC +0.46 on the corrected panel). `neg_ret_1m`,
+  `neg_max_ret`, `neg_idio_vol` remain absent from `NUMBER_THEME` — no `z_` column, no coverage
+  entry, no IC, exactly as the audit found.
+- **R6's three** (`sm_conviction`, `sm_holders`, `sm_avg_position`) are likewise absent; they are
+  computed into the frame (`factors.py:199-202`) but unmeasured.
+- **The pattern to copy is in the same file:** S2 `cash_op_prof` (`settings.py:227-242`) registers a
+  number so it is **MEASURED without SCORING** — `factors.py` must name it in a theme mean for that
+  — and the composite was verified bit-identical with it registered.
+- **The trial-cost objection no longer bites.** Equity `N` is **202** today, so R5's three trials
+  move the haircut `sqrt(2·ln N)` from **3.2583 to 3.2628** (under 0.005 of a *t*), and R5+R6
+  together to **3.2673**. At this `N` a cheap registration is close to free.
+- **R6's expected value is low and the record says why** — a routing fact, not a verdict. Both
+  family members measured on the full universe came back weak: `sm_breadth` fell **2.37 → +1.73**,
+  and the close cousin `sm_elite_conviction` was **rejected at t +1.32** (2026-08-01). That lowers
+  the prior; it does not substitute for the measurement, and a marginal rejection resting on a
+  voided universe is exactly what B12 exists to force a re-run of.
+- **Take them in one commit** — the dependency map already says so (`:343`): both edit the same
+  `NUMBER_THEME` dict, and two branches on one dict conflict textually.
+
+**Stale claim found, not fixed:** `settings.py:224` still records R5's three as *"all wrong-signed
+here"*, and `settings.py:243-251` still quotes R6's rejections as the 800-name figures. Both are
+**alphabetical-era findings B12 voided**, sitting in live comments as though current. Whoever runs
+R5/R6 should replace them with the full-universe numbers rather than adding to them.
+
+## Also found in the ledger, reported not repaired
+
+The counts table's `BLOCKED` column was **already stale before this change**. Its remaining `1` is
+`O16`, which went **DONE on 2026-08-08** without the table being refreshed. Measured across all 192
+rows today, exactly **two** carry BLOCKED in a status cell: `B13` (`PARTIAL - BLOCKED ON DATA`,
+still counted under `IN PROGRESS` from before its 2026-08-12 correction) and `PT-WRITER` (Cowork
+lane, outside the 134). **The true count of plain-BLOCKED audit items is now zero.** Only the `R`
+cells were re-derived — these counts are `build_ledger.py`'s generated snapshot, and hand-patching
+a generated block is how it drifts from the rows it summarises. Owner: whoever next runs
+`python scripts/build_ledger.py --write`.
+
+## Not done, and why
+
+- **`AGENTS.md` was left alone** even though it carries the false blocker. It is another lane's
+  coordination document, the task scoped this to the four ledger rows, and the ledger is the
+  documented authority for *"where do we stand"* — so correcting the rows is sufficient. Flagged
+  here so the next agent to touch `AGENTS.md` knows its ownership table has expired.
+- **No measurement of any kind**, per the task. Routing searches no hypothesis space: **zero
+  trials, equity `N` unchanged at 202**, no shipped number, weight or code path touched.
+- The R5/R6 registrations themselves were **not** performed — that is the next session's work, and
+  doing it here would have been a measurement.
