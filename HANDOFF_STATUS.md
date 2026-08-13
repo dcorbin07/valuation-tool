@@ -1,5 +1,34 @@
 # HANDOFF STATUS - shared project state
 
+## edge lane, V6 (2026-08-13) - the Dip Detector's claim is NOT supported: four arms, four nulls
+
+`PREREG_v6_dip_detector.md` committed ALONE at `93e3e60`, BEFORE the tab exists and before any
+of its copy was written. ADOPTS NOTHING; no file under `valuation/` changed.
+
+- **ALL FOUR ARMS NULL** (20%/30% drawdown x 63d/126d). Not one clears either leg in both
+  halves. Bars are each leg's OWN within-date permutation p95 (500 draws, t 1.44-1.86); X7's
+  floors were NOT quoted, being calibrated on a different object.
+- **THE NUMBER THE PRODUCT NEEDS IS NOT THE VERDICT: a drawdown is substantially an
+  INVERSE-MOMENTUM SORT on this panel - Spearman(drawdown, `momentum` theme) = +0.6642.** So a
+  dip tab would systematically surface names the live composite is marking down. I registered
+  that correlation below 0.4 at 60/40 and was wrong.
+- **SEVEN OF EIGHT LEG-SERIES FLIP SIGN BETWEEN HALVES, ALL THE SAME WAY** (negative
+  2009-2017, positive 2017-2026). **A Dip Detector validated on the last eight years alone
+  would have looked like it worked** - the early half is the only thing that stops it. Two
+  half-cells clear, both LATE, both on the dipped-vs-dipped leg, one by 0.0148 of a t.
+- **NULL MEANS "COULD NOT BE SEPARATED", NOT "ABSENT": no full-sample cell's observed effect
+  reaches its own MDE** on either reference (own-bar or the conventional |t|=2). S19's lesson.
+- **The conditioning is partly a SIZE screen** - it keeps 26.8% of dipped names and they are
+  1.73x larger by median market cap - which is a live caveat on the dipped-vs-dipped leg.
+- **The HEALTH floor binds harder than quality** (keeps 35.9% vs 41.1%), refuting my own
+  registered prediction.
+- **Explainer constant NAMED for the app lane: `valuation/web/dip_confidence.py`**, modelled on
+  the shipped `score_confidence.py`, `VERDICT = "NULL"`. The tab may call the screen **a filter,
+  not a forecast**. No file under `valuation/web/` was touched - that boundary was set in the
+  register before the result existed.
+- Equity `N` 202 -> 206; suite 372 -> 384 green. `HANDOFF_edge_audit.md` V6 sections 0-11;
+  `data/free_analysis/V6_DIP_DETECTOR.json`.
+
 ## greeks lane, S14 ADOPTED (2026-08-13) - the band is LIVE, and it had never been applied before
 
 Don adopted S14, the no-trade band at **width 0.30**, on its double-clear (session 35 +

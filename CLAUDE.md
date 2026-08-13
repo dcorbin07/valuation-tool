@@ -122,6 +122,89 @@ the project's memory and the old versions had been repeated for months.
     caller's payload is bit-identical; pinned by test. **Options `N` 285 → 287** (A1 and A2; A3
     charges nothing); **equity untouched at 190**. Expectations **4 right, 2 wrong, 1 excluded**.
     `data/free_analysis/U3_CONVEX_OVERLAY.json`; `HANDOFF_optionsbot.md` §56.
+- **THE DIP DETECTOR'S CLAIM IS NOT SUPPORTED - FOUR ARMS, FOUR NULLS - AND THE USEFUL NUMBER
+  IS THAT A DRAWDOWN IS SUBSTANTIALLY AN INVERSE-MOMENTUM SORT (2026-08-13, `V6`).**
+  `PREREG_v6_dip_detector.md` committed **ALONE at `93e3e60`**, one `.md`, zero `.py`, a strict
+  ancestor of every measurement commit - and **registered BEFORE the tab exists and before any of
+  its copy was written**, which is the strongest ordering available. Measured, not assumed: no Dip
+  Detector tab, no `V6` row anywhere, and the word "dip" appears nowhere in `valuation/`.
+  **ADOPTS NOTHING; no file under `valuation/` changed.**
+  * **ALL FOUR ARMS NULL** (20%/30% below a 252-day trailing high x 63d/126d). Full-sample
+    vs-universe: **+0.585pp, +0.705pp, -0.480pp, +0.174pp**/yr; vs-unconditioned-dips **+2.108,
+    +0.977, +2.081, +0.881**. Bars are **each leg's OWN within-date permutation p95** (500 draws,
+    landing at *t* **1.44-1.86**). **X7's 2.2837 and 1.95pp were NOT quoted** - X7 calibrated a
+    decile-book long-short *t* and a top-decile alpha margin, and this is neither object.
+  * **THE FINDING THAT IS NOT THE VERDICT, AND IT IS THE ONE THE PRODUCT NEEDS: on this panel a
+    drawdown is substantially an INVERSE-MOMENTUM SORT - Spearman(drawdown, `momentum` theme)
+    = +0.6642** (`low_risk` +0.4196, `size` -0.2914, `value` -0.0834). **So a dip tab would
+    systematically surface names the live composite is marking down** - two screens that disagree
+    by construction. **I registered that correlation below 0.4 at 60/40 and was wrong**, and the
+    register's "a drawdown is a different object" claim is half right: different from *short-term
+    reversal* (which is not a panel column at all), **not** different from *momentum*.
+  * **SEVEN OF EIGHT LEG-SERIES FLIP SIGN BETWEEN HALVES, ALL THE SAME WAY** - negative over
+    2009-01-15 -> 2017-04-20, positive over 2017-10-18 -> 2026-01-28 (2017-07-20 embargoed).
+    Session 7's LOO pattern again, but **systematic rather than scattered, which sharpens the
+    warning: A DIP DETECTOR BUILT AND VALIDATED ON THE LAST EIGHT YEARS ALONE WOULD HAVE LOOKED
+    LIKE IT WORKED.** The early half is the only thing that stops it. **Two half-cells clear their
+    own p95 - both LATE, both on the dipped-vs-dipped leg** - A1 at *t* **1.6782 vs 1.6634, a
+    margin of 0.0148**, and A4 at 1.6387 vs 1.4381. **1 arm of 4 clearing 1 half of 2**; the
+    family-wise clause earns its keep for the fourth time.
+  * **NULL MEANS "COULD NOT BE SEPARATED AT THIS RESOLUTION", NEVER "ABSENT" - QUOTE IT WITH THE
+    MDE OR DO NOT QUOTE IT.** **No full-sample cell's observed effect reaches its own minimum
+    detectable effect on either reference**: A1's dipped-vs-dipped **+2.108pp against an MDE of
+    +3.371pp at the register's own bar** and +4.177pp at the conventional |*t*|=2. **Both
+    references are reported deliberately** - a *t*=2 MDE against a p95 bar of 1.6 overstates how
+    coarse the design is, and no MDE at all understates it. S19's lesson on a new instrument.
+  * **THE CONDITIONING IS PARTLY A SIZE SCREEN, WHICH IS A CAVEAT ON THE DIPPED-VS-DIPPED LEG.**
+    The floors keep only **26.8%** of dipped names at 20% (22.3% at 30%) and what they keep is
+    **1.73x larger by median market cap** ($4.654B vs $2.690B; 1.82x at 30%). Since that leg
+    compares conditioned names against ALL dipped names, part of it is large-dipped vs
+    small-dipped - **U7's and S10's failure mode**. It does not threaten a NULL verdict.
+  * **THE HEALTH FLOOR BINDS HARDER THAN QUALITY, REFUTING MY OWN REGISTERED PREDICTION.** Of
+    37,982 dipped rows, quality alone keeps **41.15%** and health alone **35.88%** (both 26.83%).
+    The 0-100 health scale's midpoint of 50 sits above the panel's own median health of **46.02**.
+  * **THE PRIOR THE TASK CITED IS REAL BUT WEAKER THAN IT SOUNDS, AND WAS FIXED IN THE REGISTER
+    BEFORE ANY RESULT.** `P4-3` rejected short-term reversal on **2026-07-29** - the 800-name era
+    audit **B12** showed was an **ALPHABETICAL A-C slice**, which `CLAUDE.md` already lists as
+    needing a full-universe re-run. **So this null is NOT a re-rejection of short-term reversal
+    and may not be reported as one**; that item is still open.
+  * **THE BINDING LIMIT, COMMITTED AS AN ASYMMETRY BEFORE THE RUN: the tab's own live sub-scores
+    are NOT computable point-in-time** (quality needs a WACC, and **S23** measured that path
+    fetching **LIVE Yahoo prices** to value 1999). The arm used the panel's `quality` theme plus a
+    point-in-time health score that **CALLS the shipped `_health_score`** rather than retyping its
+    breakpoints. **So a NULL here IS informative** - it used the panel's strongest theme, IC *t*
+    **+3.10** - **but a POSITIVE would NOT have licensed the tab's copy** without a separate
+    live-vs-panel fidelity check. *Coverage is not fidelity.*
+  * **CONTROLS: C1 GATED AND RAN IN ITS OWN PASS** (`--controls-only` exits before any arm is
+    scored - session 26's defect stays repaired), reproducing the record to **all 16 digits**;
+    **C2** 69 dates / 2,531 names asserted not warned; **C3** zero point-in-time violations, pinned
+    by a synthetic panel where a post-date crash must not move the flag; **C4** drawdown coverage
+    **98.33%**, health **100.00%**, and **zero rows took the cash-burner branch** - reported, not
+    silently routed; **C5 THE SPLIT TRAP PINNED FROM BOTH SIDES** - a 2-for-1 split reads as a
+    **-50% drawdown on a RAW series and as no dip at all on the adjusted basis**, and since
+    companies split **after they rise**, a raw basis would have flagged the strongest names in the
+    universe; **C6** no per-ticker tail (B6).
+  * **FOUR DEFECTS IN MY OWN INSTRUMENT, ALL CAUGHT BEFORE ANY VERDICT EXISTED.** A degenerate
+    permutation draw crashed the run, and **treating it as 0.0 would have padded the null with
+    fake draws and LOWERED the p95 - i.e. made the bar EASIER**; a test of mine could have passed
+    vacuously and got a positive control; **two controls were pointed at column names the panel
+    does not have** - C8 read `marketcap` where the panel's column is **`market_cap`**, so a
+    `.get()` would have returned `None` and read as *"no size tilt"* rather than *"this control
+    never ran"*, removing the only guard against reporting a size sort as a quality finding
+    (U2's near-miss class); and a speedup **whose stated justification was false** - a 500-draw
+    sweep costs ~2 seconds, not minutes, and on one leg the "optimization" is **slower** - kept
+    only because it is **verified inert** (KS *p* 0.4599 / 0.5089).
+  * **THE EXPLAINER CONSTANT IS NAMED AND IS THE APP LANE's TO BUILD:
+    `valuation/web/dip_confidence.py`**, modelled on the shipped `valuation/web/score_confidence.py`
+    (V3's precedent - one module owns the calibrated wording, pinned **verbatim** by a test).
+    **`VERDICT = "NULL"`**, and the tab may call the screen **a filter, not a forecast**: it finds
+    names well below their recent high, and the project has **not** shown they beat the market.
+    **No file under `valuation/web/` was touched by any V6 commit** - the boundary the register set
+    before the result existed.
+  * **Equity `N` 202 -> 206**, re-measured from `research_log.detail()` after this session's merge
+    rather than quoted from this file - the S17/S19 defect, not repeated. Expectations **3 right,
+    4 wrong, 1 split**. `data/free_analysis/V6_DIP_DETECTOR.json`; `HANDOFF_edge_audit.md` V6
+    sections 0-11.
 - **THE OPTIONS SURFACE IS GENUINELY ORTHOGONAL TO THE EQUITY PANEL AND PREDICTS NOTHING WITH
   THAT ORTHOGONALITY — THE AUDIT'S CENTRAL PREMISE IS CONFIRMED AND ITS CONCLUSION REFUTED, AND
   THE LAST LIVE DIRECTION OF THE UNIFICATION IS NOW SHUT (2026-08-13, session 36, `U2`).**

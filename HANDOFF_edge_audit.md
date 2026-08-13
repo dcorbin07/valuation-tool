@@ -10243,3 +10243,234 @@ well as adding these 12.
   it means a monthly theme panel, which is a rebuild with its own register.
 * **The CPCV embargo** from session 22 — still the only open item that can move a published
   number.
+
+---
+
+# V6 — the Dip Detector's testable claim (2026-08-13)
+
+**Register:** `PREREG_v6_dip_detector.md`, committed **ALONE at `93e3e60`** — one `.md`, zero
+`.py`, a strict git ancestor of every measurement commit.
+**Artifact:** `data/free_analysis/V6_DIP_DETECTOR.json` (every permutation draw banked,
+`RUN_RULES` A9). **Instrument:** `scripts/v6_dip_detector.py`, `scripts/v6_addendum.py`.
+**ADOPTS NOTHING. No file under `valuation/` changed. No vintage event.**
+
+## 0. The verdict
+
+**ALL FOUR ARMS NULL.** Not one clears either leg in both halves. The claim under test — *a
+quality-conditioned drawdown recovers better than the market* — **is not supported on this
+panel**, and the explainer constant takes `VERDICT = "NULL"` (§8).
+
+| arm | depth | horizon | L1 vs universe (full) | L2 vs unconditioned dips (full) | verdict |
+|---|---|---|---|---|---|
+| A1 | 20% | 63d | +0.585pp/yr, *t* +0.4066 | +2.108pp/yr, *t* +1.0093 | **NULL** |
+| A2 | 20% | 126d | +0.705pp/yr, *t* +0.5232 | +0.977pp/yr, *t* +0.5737 | **NULL** |
+| A3 | 30% | 63d | −0.480pp/yr, *t* −0.2295 | +2.081pp/yr, *t* +0.7541 | **NULL** |
+| A4 | 30% | 126d | +0.174pp/yr, *t* +0.0787 | +0.881pp/yr, *t* +0.4098 | **NULL** |
+
+Bars are each leg's **own** within-date permutation p95 (500 draws), which land at *t* **1.44 to
+1.86** — X7's 2.2837 and 1.95pp were **not** quoted, because X7 calibrated a decile-book
+long-short *t* and a top-decile alpha margin and this is neither object.
+
+## 1. THE FINDING THAT IS NOT THE VERDICT, AND IT IS THE ONE THE PRODUCT NEEDS: THE DIP FLAG IS SUBSTANTIALLY AN INVERSE-MOMENTUM SORT
+
+**C7: Spearman(drawdown, `momentum` theme) = +0.6642** on 113,945 panel rows. Also
+`low_risk` **+0.4196**, `size` **−0.2914**, `value` **−0.0834**.
+
+A drawdown is a *level*, momentum is a *change*, and I registered at 60/40 that they would
+correlate **below 0.4**. **That was wrong, and it is the most useful number in the item.** Being
+20% below a 252-day high is, on this panel, largely the same statement as scoring badly on the
+momentum theme — which is one of the seven weighted themes in the live composite, carrying IC
+*t* **+1.31**.
+
+**So a Dip Detector as specified would systematically surface names the product's own composite
+is marking down.** That is not a defect in either object — they are answering different
+questions — but a tab that presents dip names beside a hot-score list is presenting two screens
+that disagree by construction, and the copy should not imply otherwise.
+
+**The register's own §1a claim is therefore half right and half wrong, and I am recording both.**
+A drawdown is genuinely a different object from *short-term reversal* (which does not exist as a
+panel column at all — C7 names it as unmeasurable rather than returning an empty dict). But it is
+**not** a different object from *momentum*, and I asserted the general independence too broadly.
+
+## 2. THE SHAPE OF THE FAILURE: SEVEN OF EIGHT LEG-SERIES FLIP SIGN BETWEEN HALVES, ALL THE SAME WAY
+
+Halves: early **2009-01-15 → 2017-04-20** (34 dates), **2017-07-20 embargoed**, late
+**2017-10-18 → 2026-01-28** (34 dates).
+
+| arm·leg | early *t* | late *t* | flips? |
+|---|---|---|---|
+| A1·L1 | −0.4273 | +1.2135 | yes |
+| A1·L2 | −0.2166 | **+1.6782** | yes |
+| A2·L1 | −0.7272 | +1.4674 | yes |
+| A2·L2 | −0.5339 | +1.2571 | yes |
+| A3·L1 | −0.6098 | −0.3323 | **no** |
+| A3·L2 | −0.6891 | +1.5384 | yes |
+| A4·L1 | −0.7549 | +0.5518 | yes |
+| A4·L2 | −1.0002 | **+1.6387** | yes |
+
+**Every flip runs the same way: negative early, positive late.** This is session 7's LOO pattern
+again — this project's single most repeated finding — but here it is *systematic* rather than
+scattered, which makes the practical warning sharper:
+
+> **A Dip Detector built and validated on the last eight years alone would have looked like it
+> worked.** The early half is the only thing that stops it. That is exactly what the both-halves
+> rule is for, and it is the whole margin between this item and a shipped claim.
+
+Two half-cells **do** clear their own p95 — **both LATE, both L2**: A1 at *t* **1.6782 vs 1.6634**
+(a margin of **0.0148**) and A4 at **1.6387 vs 1.4381**. Neither arm passes, because the rule was
+fixed before any number existed. **1 arm of 4 clearing 1 half of 2 is the family-wise labelling
+clause earning its keep for the fourth time.**
+
+## 3. NULL MEANS "COULD NOT BE SEPARATED", NEVER "ABSENT" — QUOTE THIS WITH THE VERDICT
+
+**No full-sample cell's observed effect reaches its own minimum detectable effect, on either
+reference** (D1):
+
+| arm·leg | observed | MDE at this register's own bar | MDE at the conventional \|*t*\|=2 |
+|---|---|---|---|
+| A1·L1 | +0.585pp | +2.131pp | +2.877pp |
+| A1·L2 | +2.108pp | +3.371pp | +4.177pp |
+| A2·L2 | +0.977pp | +2.632pp | +3.405pp |
+| A3·L2 | +2.081pp | +4.477pp | +5.520pp |
+| A4·L2 | +0.881pp | +3.105pp | +4.298pp |
+
+**Both references are reported deliberately.** Quoting a *t*=2 MDE against a p95 bar of 1.6
+overstates how coarse the design is; quoting no MDE at all understates it. **S19's lesson on a
+new instrument** — and the same conclusion: an effect the size of the one the tab hopes for would
+not have been detectable here even if it were exactly true.
+
+## 4. THE CONDITIONING IS PARTLY A SIZE SCREEN, WHICH IS A CAVEAT ON L2 SPECIFICALLY
+
+**C8.** The quality+health floors keep only **26.8%** of dipped names at 20% and **22.3%** at 30%,
+and what they keep is **bigger**: median market cap **$4.654B vs $2.690B** (ratio **1.73×**) at
+20%, and **$3.704B vs $2.037B** (**1.82×**) at 30%. The universe median is $5.000B.
+
+Since **L2 compares conditioned names against *all* dipped names on the same date**, part of what
+L2 measures is *large dipped names versus small dipped names*. That is **U7's and S10's failure
+mode** — a screen wearing another screen's name — and it is a live caveat on the two L2 half-cells
+that cleared. It does **not** threaten the verdict, because the verdict is NULL either way.
+
+## 5. WHICH FLOOR BINDS — AND MY PREDICTION WAS BACKWARDS
+
+**D2.** Of 37,982 dipped rows at 20%: **quality alone keeps 41.15%**, **health alone keeps
+35.88%**, both keep 26.83%. At 30% (23,837 rows): 35.99% / 30.58% / 22.25%.
+
+**The HEALTH floor is the tighter one, not quality.** I registered the opposite at 60/40. The
+health scale's midpoint of 50 sits above the panel's own median health of **46.02**, so it removes
+slightly more than half the cross-section; `quality > 0` removes slightly less than half by
+construction. Both floors bite and neither is degenerate, which is what the register needed them
+to do.
+
+## 6. Controls
+
+* **C1 GATED AND RAN IN ITS OWN PASS**, with `--controls-only` exiting before any arm was scored —
+  session 26's defect stays repaired. Reproduces the shipped record to all 16 digits:
+  `top_decile_alpha` 0.07174142332098163, LS naive 2.8360640685320595, HAC 2.6199121240414884,
+  monotonicity −0.8909090909090909.
+* **C2** canonical panel asserted, not warned: **69 dates, 2,531 names, 113,945 rows**, `full`.
+* **C3** zero point-in-time violations — pinned by a synthetic panel in which a crash *after* the
+  rebalance date must leave the flag unchanged and a crash *before* it must not.
+* **C4 coverage first:** drawdown **98.33%**, health **100.00%**, quality **97.91%**. Median
+  drawdown −0.1182, median health 46.02. **Zero rows took the cash-burner branch** (it needs
+  `cash_runway_years`, a live-engine quantity) — reported rather than silently routed. `roic`/`roe`
+  **never read**, both being 0.0% populated.
+* **C5 the split trap, pinned from both sides:** a synthetic 2-for-1 split reads as a −50%
+  drawdown on a raw series and as **no dip at all** on the adjusted basis. Since companies split
+  *after* they rise, a raw basis would have flagged the strongest names in the universe.
+* **C6** no per-ticker tail in the price read (audit B6).
+* **C7 / C8 / D1 / D2** as above.
+
+## 7. Expectations — 3 right, 4 wrong, 1 split
+
+| # | expectation | odds | outcome |
+|---|---|---|---|
+| 1 | all four arms NULL | 70/30 | **RIGHT** |
+| 2 | L1 looks better than L2 on ≥3 arms | 75/25 | **WRONG** — L2 is better on **all four** |
+| 3 | quality removes far more names than health | 60/40 | **WRONG** — health binds harder |
+| 4 | an arm trips the L2 sign-reversal branch in ≥1 half | 55/45 | **WRONG** — no cell reaches p5 |
+| 5 | 126d shows a larger effect than 63d on both legs | 55/45 | **SPLIT** — true on L1, false on L2 |
+| 6 | the 30% arms are noisier and not better | 65/35 | **RIGHT** |
+| 7 | \|ρ(drawdown, reversal/momentum)\| < 0.4 | 60/40 | **WRONG** — +0.6642, the item's key number |
+| 8 | conditioned names are larger than unconditioned dipped | 60/40 | **RIGHT** |
+
+Expectation 2's miss is instructive rather than embarrassing: **L2 beats L1 on every arm** because
+dipped names underperform the market outright, so clearing the *dipped* benchmark is an easier bar
+than clearing the *market*. I had the direction backwards.
+
+## 8. THE EXPLAINER CONSTANT — named, with the value this verdict assigns
+
+**`valuation/web/dip_confidence.py`**, modelled on the shipped `valuation/web/score_confidence.py`
+(V3's precedent: one module owns the calibrated wording, read by every surface, pinned **verbatim**
+to its handoff by a test that normalises whitespace and fails on a rewording).
+
+```python
+SOURCE   = "HANDOFF_edge_audit.md"        # this section
+REGISTER = "PREREG_v6_dip_detector.md"
+VERDICT  = "NULL"
+```
+
+**What the tab may say, per the register's §8 mapping for a NULL:**
+
+> The dip screen is a **filter, not a forecast**. It finds names trading well below their recent
+> high. Valquo has **not** shown that such names — even filtered for quality and financial
+> health — go on to beat the market.
+
+**What it may NOT say:** that the conditioning improves outcomes; any magnitude from this item as
+a forward expectation; or anything derived from the late half alone.
+
+**Ownership: the constant and the tab are the APP LANE's to build.** This register fixes the
+verdict and the wording contract and deliberately ships no web surface — **no file under
+`valuation/web/` is touched by any V6 commit**, which is the boundary the register set in §8
+before the result existed.
+
+## 9. What this does NOT settle — named so it is not mistaken for tested
+
+* **The tab's own live sub-scores.** They are **not computable point-in-time** (quality needs a
+  WACC; S23 measured that path fetching *live* Yahoo prices to value 1999), so the arm used the
+  panel's `quality` theme and a point-in-time health score built by **calling the shipped
+  `_health_score`**. The register's §2 asymmetry stands: **a NULL here is informative** — I used
+  the panel's strongest theme, IC *t* +3.10 — **but a POSITIVE would not have licensed the tab's
+  copy** without a separate live-vs-panel fidelity check.
+* **Any other floor, depth, horizon or trailing-high window.** Two floors, two depths, two
+  horizons, 252 days, no sweep. A swept floor was a void condition.
+* **Whether to trade it.** Gross of costs, no book, no turnover.
+* **P4-3's classic anomalies on the corrected universe.** Still open — the 2026-07-29 rejection ran
+  on audit B12's **alphabetical A–C slice** and has never been re-run. **A null here is NOT a
+  re-rejection of short-term reversal**, and may not be reported as one.
+* **A dead fallback, reported not repaired:** `_KEEP` requests `ebitmargin` and the export has no
+  such column (it ships `ebitdamargin` and `netmargin`), so `fundamental_panel.py:405`'s fallback
+  is unreachable. Moves no number; the neighbouring `grossmargin` fallback **is** live, so the two
+  lines look identical and are not.
+
+## 10. Defects in my own instrument, all caught before any verdict existed
+
+1. **A degenerate permutation draw crashed the run.** When every permuted mean is identical the
+   HAC *t* is undefined and `mean_inference` returns `t=None`; `_perm_t` coerced that to `float()`
+   and raised. **Treating it as 0.0 instead would have padded the null with fake draws and LOWERED
+   the p95 — i.e. made the bar easier.** Degenerate draws are dropped and `n_perm_ok` reports the
+   survivors. Same family as `zscore`'s `sd == 0` and `theme_ic`'s `sd > 0`.
+2. **A test of mine could have passed vacuously.** With every dipped value equal, "`t` is None" is
+   the correct signature of a correct L2 null — and also what a broken one returns. A positive
+   control was added: the L1 scheme on the *same* cells must give a finite non-zero *t*.
+3. **Two controls were pointed at column names the panel does not have.** C8 read `marketcap`; the
+   panel's column is **`market_cap`**, and the `.get()` lookup would have returned `None` — which
+   reads as *"no size tilt"* rather than *"this control never ran"*, removing the only guard
+   against reporting a size sort as a quality finding. C7 read `ret_6_1`/`ret_12_1`/`ret_1_0`,
+   which are metric inputs folded into `momentum` and are not panel columns at all. Both now name
+   what they could not find; **U2's near-miss class.**
+4. **A speedup whose justification was false, reported against myself.** I replaced a full
+   permutation with a direct subset draw expecting minutes of saving; measured, a 500-draw sweep
+   costs about **2 seconds** and on L2 the "optimization" is **slower** (0.86×). Kept only because
+   it is **verified inert** — p95 moves +0.0038 (L1) and −0.0328 (L2), two-sample KS *p* 0.4599 and
+   0.5089.
+
+## 11. Cost and record
+
+**Equity `N` 202 → 206** (four arms; the two legs of an arm are a conjunction producing one
+verdict, so they are one search). The 202 was **re-measured from `research_log.detail()` after this
+session's merge** rather than quoted from `CLAUDE.md` — the defect the S17/S19 register made and
+corrected. Options 287 and infra 11 are untouched. `BACKTEST_RESULTS.json` refreshed from a clean
+tree at the new denominator.
+
+**Suite 372 → 384**, all green. Ledger row `V6`; `VALQUO_EXTENSIONS.md` gains its V6 row and
+section.

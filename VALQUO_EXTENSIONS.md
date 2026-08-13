@@ -12,6 +12,7 @@ on landing). **First agent to execute any section commits this file.**
 | V3 | Noise-calibrated hot score | r1 | **DONE 2026-08-10 — NOT DISTINGUISHABLE at rank 10 (real 1.0909 vs noise p95 1.1117, p 0.116); holds on 45 of 69 dates, so the confidence language must weaken. `HANDOFF_extensions_v3.md`** — **AND IT HAS, 2026-08-10 (app fixer):** the one dependency r1 left open is closed. `valuation/web/score_confidence.py` is the single source for the calibrated wording; the hot-list legend, the discovery blurb, the per-name attribution panel and `/methodology` all read it, and every sentence is pinned **verbatim** to the handoff by `tests/test_score_confidence.py` (mutation-tested, 4 of 4 drifts caught). Scope held deliberately: this weakens the **score's** precision claim and **not** the backtested return spread, which V3 explicitly does not settle. `HANDOFF_appfixes.md` session 22, ledger `V3-COPY`. **STILL OPEN — V3's finding 3:** the thin-coverage tilt (p 0.018) is now *disclosed* but not *corrected*; a minimum-coverage floor or a variance penalty on thinly-scored names is a new edge-lane pre-registration. |
 | V4 | Public research-log page | app fixer | **DONE 2026-08-09** — `/work/research`, linked from `/work`; see `HANDOFF_appfixes.md` session 21 |
 | V5 | Measured slippage vs modeled costs | options bot | **DONE 2026-08-09** — `scripts/slippage_report.py`, pre-reg `PREREG_v5_slippage.md`, 57 tests, `HANDOFF_optionsbot.md`. Headline **INSUFFICIENT and that is the pre-registered outcome**: the paper book holds **3 entry fills and ZERO exits**, so the exit half-spread has n=0 against a minimum of 30. **The bar is measured, not assumed — 410.0 bps of premium (mean) on 3,885 of 3,885 banked trades — and the brief's "modelled 33.4bps" is audit B11's EQUITY cost in bps of stock notional, a ~12x category error.** Two shipped-code bugs found in the first three real fills (exit levels anchored to the pre-fill submit price; the alert's own sizing veto ignored), both routed not repaired. |
+| V6 | Dip Detector - the testable claim behind the tab | edge lane | **DONE 2026-08-13 - NULL on all four arms.** `PREREG_v6_dip_detector.md` committed ALONE at `93e3e60`, **before the tab existed and before any of its copy was written**; `HANDOFF_edge_audit.md` V6. A 20% and a 30% drawdown from a 252-day trailing high, crossed with 63d and 126d, conditioned on the panel `quality` theme above its midpoint AND a point-in-time health score at or above the shipped scale's midpoint - each arm requiring a vs-universe leg AND a vs-UNCONDITIONED-dips leg to clear in BOTH halves against that leg's own permutation p95. **Not one arm clears either leg in both halves.** **The number the product needs is not the verdict: Spearman(drawdown, `momentum`) = +0.6642**, so a dip tab would systematically surface names the live composite is marking down. **Seven of eight leg-series flip sign between halves, all the same way** - negative 2009-2017, positive 2017-2026 - so **a Dip Detector validated on the last eight years alone would have looked like it worked**. **No cell's effect reaches its own MDE**, so NULL means could-not-be-separated, never absent. The conditioning keeps 26.8% of dipped names and they are 1.73x larger, making that leg partly a size screen. **Explainer constant named for the app lane: `valuation/web/dip_confidence.py`, `VERDICT = "NULL"` - the tab may call the screen a filter, not a forecast.** ADOPTS NOTHING; no file under `valuation/` touched. Equity `N` 202 -> 206. |
 
 ---
 
@@ -224,3 +225,39 @@ eligible arm is recorded **ELIGIBLE** and **queues behind the theme restoration'
 than spending a second clock reset. Equity `N` **151 -> 155**, sqrt(2 ln 155) = 3.1760.
 `data/free_analysis/S20_S21_CONSTRUCTION.json`; `python -m scripts.construction_rerun`;
 `HANDOFF_edge_audit.md` session 21.
+
+
+## V6 — Dip Detector: the testable claim behind the tab (edge lane) — **DONE 2026-08-13**
+
+**Don's question, formalised:** *does a QUALITY-CONDITIONED drawdown recover better than the
+market?* Registered **before the tab existed and before any of its copy was written** —
+`PREREG_v6_dip_detector.md`, committed **ALONE at `93e3e60`** (one `.md`, zero `.py`), a strict
+ancestor of every measurement commit.
+
+**VERDICT: NULL on all four arms.** A 20% and a 30% drawdown from a 252-day trailing high, crossed
+with 63d and 126d forward returns, conditioned on `quality > 0` **and** a point-in-time financial
+health score `>= 50` (both scale midpoints, untuned; sweeping either was a void condition). Each
+arm required a **conjunction**: beat the equal-weighted universe **and** beat UNCONDITIONED dips of
+the same depth, in **both** halves, against **each leg's own** within-date permutation p95.
+**Not one arm clears either leg in both halves.**
+
+**Why the two legs, and why the second decides it.** The vs-universe leg is the tab's literal
+sentence. The vs-dipped leg is the control that separates *"healthy dip"* from *"any dip"* — and it
+is also the leg immune to the flag's violent time-variation (the share of the universe sitting 20%
+below its high ranges **4.35% to 82.32%**, so on a crash date "is this name dipped" carries almost
+no cross-sectional information). Clearing the first while failing the second was pre-defined as a
+NULL reported as *"the dip does the work, not the quality"*.
+
+**The finding that outlives the verdict:** on this panel a drawdown is substantially an
+**inverse-momentum sort** — Spearman against the `momentum` theme **+0.6642**. A dip tab would
+systematically surface names the live composite is marking down. That is not a defect in either
+object, but the copy must not imply the two screens agree.
+
+**The warning for anyone who builds this later:** **seven of eight leg-series flip sign between
+halves, all the same way** — negative 2009-2017, positive 2017-2026. **A Dip Detector built and
+validated on the last eight years alone would have looked like it worked.**
+
+**The explainer constant** — `valuation/web/dip_confidence.py`, modelled on the shipped
+`valuation/web/score_confidence.py`, `VERDICT = "NULL"` — is **the app lane's to build**. The
+register fixed the wording contract in advance and deliberately shipped no web surface; **no file
+under `valuation/web/` is touched by any V6 commit.**
