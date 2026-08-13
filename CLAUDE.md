@@ -48,6 +48,61 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE NO-TRADE BAND'S KNEE IS IDENTIFIED AND IT IS EXACTLY WHERE THE BOUNDARY WAS — GIVEN THREE
+  WIDER WIDTHS, BOTH HALVES STILL PICKED 0.30, SO `S14` IS NOW AN ADOPTION DECISION FOR DON
+  (2026-08-13, `S14-WIDTH`).** `PREREG_s14_width_extension.md` committed **alone at `e63295e`**.
+  **ADOPTS NOTHING — it routes a decision.** The grid gained 0.40, 0.50 and 0.75 (round
+  extensions, nothing finer, `enter_frac` untouched) and the identical decide/held-out procedure
+  re-ran in both directions.
+  * **OUTCOME (a) OF THREE COMMITTED IN ADVANCE: THE OPTIMUM IS INTERIOR.** 0.30 is the argmax on
+    **both** halves against three wider candidates, so session 35's grid-boundary caveat is
+    **DISCHARGED, not repeated.** Net alpha by width, early / late: none +1.11/+10.94, 0.12
+    +0.87/+11.88, 0.15 +2.02/+12.17, 0.20 +2.08/+11.91, 0.25 +2.17/+12.39, **0.30
+    +2.88/+12.72**, 0.40 +2.32/+12.44, 0.50 +2.56/+11.84, 0.75 +2.74/+9.14.
+  * **THE PORTABLE LESSON IS A CORRECTION TO MY OWN REASONING, NOT TO SESSION 35's: A BOUNDARY
+    ARGMAX IS EVIDENCE THAT A GRID IS UNINFORMATIVE ABOUT WHAT LIES BEYOND IT — IT IS NOT EVIDENCE
+    THAT THE OPTIMUM LIES BEYOND IT.** I registered the opposite lean at 60/40 and the extension
+    moved the answer not at all. 0.30 happened to be both the boundary and the maximum.
+  * **THE MECHANISM IS MEASURED, AND IT BOUNDS THE AXIS. Gross alpha PEAKS at exactly 0.30 on BOTH
+    halves and falls away** (late +12.77 → **+13.79** → +13.33 → +12.56 → **+9.65**), because the
+    cost saving is **capped** and staleness is not — at 0.30 the drag is already down to
+    0.0127/0.0106, so at most ~1.1–1.3pp more exists even at zero turnover. **And the freezing
+    argument, derived from the CODE before running, is now measured: the book's incumbent share
+    climbs 0.359 → 0.701 at 0.30 → 0.943 at 0.75**, i.e. at 0.75 the book replaces one name in
+    sixteen per rebalance and has largely stopped selecting. `_band_select` holds book SIZE fixed,
+    so at an exit rank equal to the universe the book **FREEZES** — pinned by test.
+  * **WHAT IT DOES NOT ADD, STATED PLAINLY: NO NEW HELD-OUT EVIDENCE ABOUT THE SIZE OF THE
+    EFFECT.** The pick did not move, so the held-out measurement is **numerically identical** to
+    session 35's (+1.780125pp / +1.768484pp, agreeing to **ten decimals**). The trial buys the
+    **LOCATION** finding only.
+  * **THE KNEE REPLICATES IN LOCATION BUT NOT IN SHARPNESS.** Decisive on the late half (0.30 →
+    0.75 costs **3.59pp**); nearly **FLAT** on the early, where 0.75 is second best at **+2.74pp**,
+    only **0.14pp** below the peak. **An adopt at 0.30 is well supported by the late half and
+    weakly by the early one.**
+  * **A DEFECT IN MY OWN CONTROL, AND IT MOVED NOTHING.** C3's first cut asserted **LIST** equality
+    of the no-band book against plain top-N and failed **176 of 200** — `_band_select` returns
+    survivors **first**, so the ORDER differs while the **SET is identical (200/200)**. Proved
+    harmless rather than argued: a strict-rank selector swapped into the real panel moves every
+    reported field by at most **2.13e-14** (the book is equal-weighted, so only the set can reach
+    a number). **ZERO verdict cells moved.** **Session 35's C6 is also corrected: the EARLY-half
+    surface is non-monotone too**, its monotonicity having been an artefact of the grid stopping
+    at its own argmax.
+  * **CONTROLS: C4 book size IDENTICAL at every width** (154.1 names early, 175.6 late), so no
+    comparison is confounded by book size — S23's dilution mechanism cannot be operating here;
+    **C2 turnover strictly decreasing across all nine settings on both halves** (0.75 runs about a
+    fifth of the no-band book **and still loses**); **C1b all 48 shipped-width cells reproduce
+    session 35's raw artifact at max |Δ| 1.33e-15.**
+  * **FOR DON, AND THIS IS THE DECISION.** Width **0.30**, +1.78pp/+1.77pp net alpha held out,
+    turnover roughly halved. It is **already live in the `taxable` configuration**, so an adopt
+    changes the **DEFAULT**, not whether the band exists. It is a **VINTAGE EVENT**: the vintage
+    was **DERIVED, not assumed** — **vintage 3, run 2, opened 2026-08-11, OPEN, i.e. TWO DAYS
+    OLD** — so adopting resets the five-year clock a second time inside three days. And **roughly
+    half the gain is a SIGNAL effect**, not the deterministic cost saving the original framing
+    claimed. **B13 is only PARTIAL.**
+  * **A THIRD EXTENSION IS FORBIDDEN by the register**, and the surface is documented end to end.
+    **Equity `N` 185 → 186.** Expectations **2 right, 4 wrong, 1 split** — four of the five misses
+    are the same invalid inference above. `data/free_analysis/S14_WIDTH.json`;
+    `HANDOFF_edge_audit.md` S14-WIDTH.
 - **THE NO-TRADE BAND CLEARS — THE FIRST ARM TO DO SO IN EIGHT SESSIONS — BUT NOT FOR THE REASON
   ITS REGISTER CLAIMED, AND ITS OPTIMUM SITS AT THE GRID BOUNDARY; SECTOR-NEUTRAL IS NOW FINISHED
   IN EVERY FORM (2026-08-12, session 35, `S14`+`S15`).** One register for both,

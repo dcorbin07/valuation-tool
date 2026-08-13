@@ -1,4 +1,58 @@
-# HANDOFF STATUS — shared project state
+# HANDOFF STATUS - shared project state
+
+## edge lane, S14-WIDTH (2026-08-13) - the knee IS identified, and it is where session 35 found it
+
+`PREREG_s14_width_extension.md` committed **alone at `e63295e`**. **ADOPTS NOTHING - it routes a
+decision.**
+
+**GIVEN THREE WIDER WIDTHS TO CHOOSE FROM, BOTH HALVES STILL PICKED 0.30.** The optimum is
+**INTERIOR**, the knee is identified, and session 35's grid-boundary caveat is **discharged**.
+That is outcome (a) of the three committed in advance, so **`S14` becomes an ADOPTION DECISION
+ROUTED TO DON as a vintage event.**
+
+**THE CORRECTION IS TO MY OWN REASONING, AND IT IS THE PORTABLE PART: a boundary argmax is
+evidence a grid is uninformative about what lies beyond it - NOT evidence the optimum lies
+beyond it.** I registered the opposite lean at 60/40 and the extension moved the answer not at
+all.
+
+**THE MECHANISM IS MEASURED. Gross alpha peaks at exactly 0.30 on BOTH halves and falls away**
+(late +12.77 -> **+13.79** -> +13.33 -> +12.56 -> **+9.65** at 0.75), because the cost saving is
+capped and staleness is not - at 0.30 the drag is already down to ~0.011, so at most ~1.1-1.3pp
+more exists even at zero turnover. **And the freezing argument is now measured: the book's
+incumbent share climbs 0.359 -> 0.701 at 0.30 -> 0.943 at 0.75**, i.e. at 0.75 the book replaces
+one name in sixteen per rebalance and has largely stopped selecting.
+
+**WHAT THIS DOES NOT ADD, STATED PLAINLY: no new held-out evidence about the SIZE of the effect.**
+The pick did not move, so the held-out measurement is numerically **identical** to session 35's
+(+1.780125pp / +1.768484pp, agreeing to ten decimals). The trial buys the **location** finding
+only.
+
+**THE CAVEAT THAT MUST TRAVEL: the knee replicates in LOCATION but not in SHARPNESS.** Late half
+decisive (0.30 -> 0.75 costs 3.59pp); early half nearly **flat** - 0.75 is second best at +2.74pp,
+only 0.14pp below the peak.
+
+**A DEFECT IN MY OWN CONTROL, and it moved nothing.** C3's first cut asserted LIST equality of the
+no-band book against plain top-N and failed 176/200 - `_band_select` returns survivors first, so
+the ORDER differs while the SET is identical (200/200). Proved harmless by swapping a strict-rank
+selector into the real panel: **max |delta| 2.13e-14** across every reported field. **Session 35's
+C6 is also corrected: the early-half surface is non-monotone too**, its monotonicity having been
+an artefact of the grid stopping at its own argmax.
+
+**FOR DON.** Width 0.30, +1.78pp/+1.77pp net alpha held out, turnover roughly halved. It is
+**already live in `taxable`**, so an adopt changes the **default**. It is a **VINTAGE EVENT**: the
+vintage was DERIVED, not assumed - **vintage 3, opened 2026-08-11, two days old** - so adopting
+resets the five-year clock a second time inside three days. And **roughly half the gain is a
+SIGNAL effect**, not the deterministic cost saving the original framing claimed.
+
+**Equity `N` 185 -> 186.** Expectations **2 right, 4 wrong, 1 split**; four of the five misses are
+the same invalid inference above.
+
+**Next: nothing further on the band - a third extension is forbidden and the surface is documented
+end to end.** Otherwise S10's accounting half or the CPCV embargo.
+
+Full write-up: `HANDOFF_edge_audit.md`, S14-WIDTH.
+
+---
 
 ## options-bot lane, session 32 (2026-08-12) — THE O-SERIES IS CLOSED, 26 of 26, and the last item's best arm is a NULL that cleared every bar but one
 
