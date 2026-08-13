@@ -410,16 +410,25 @@ def main():
          f"health cov {p['health'].notna().mean():.4f}")
 
     # ---- C7: drawdown vs momentum - the "different object" claim, measured ----
-    c7 = {}
-    for col in ("momentum", "ret_6_1", "ret_12_1", "ret_1_0"):
-        if col in p.columns:
-            a = pd.to_numeric(p["drawdown"], errors="coerce")
-            b = pd.to_numeric(p[col], errors="coerce")
-            m = a.notna() & b.notna()
-            if m.sum() > 1000:
-                c7[col] = round(float(a[m].corr(b[m], method="spearman")), 4)
-    out["controls"]["C7_drawdown_vs_momentum_spearman"] = c7
-    _log(f"[C7] drawdown vs momentum: {c7}")
+    # A control that finds no column and reports {} looks identical to a control that ran
+    # and found nothing. `ret_6_1`/`ret_12_1` are metric INPUTS folded into the `momentum`
+    # theme and are not panel columns, so the absent ones are NAMED rather than skipped.
+    c7, c7_absent = {}, []
+    for col in ("momentum", "value", "size", "low_risk", "ret_6_1", "ret_12_1", "ret_1_0"):
+        if col not in p.columns:
+            c7_absent.append(col)
+            continue
+        a = pd.to_numeric(p["drawdown"], errors="coerce")
+        b = pd.to_numeric(p[col], errors="coerce")
+        m = a.notna() & b.notna()
+        c7[col] = (round(float(a[m].corr(b[m], method="spearman")), 4)
+                   if m.sum() > 1000 else None)
+    out["controls"]["C7_drawdown_vs_theme_spearman"] = {
+        "measured": c7, "absent_from_panel": c7_absent,
+        "note": ("the panel carries THEMES, not the granular momentum inputs; a 1-month "
+                 "reversal column does not exist on this panel at all"),
+        "ran": bool(c7)}
+    _log(f"[C7] drawdown vs themes: {c7}  absent: {c7_absent}")
 
     # ---- arms ----
     rng = np.random.default_rng(SEED)
@@ -441,14 +450,18 @@ def main():
         h = pd.to_numeric(p["health"], errors="coerce")
         dip = pd.to_numeric(p["drawdown"], errors="coerce") <= -depth
         cond = dip & (q > QUALITY_FLOOR) & (h >= HEALTH_FLOOR)
-        sz = pd.to_numeric(p.get("size"), errors="coerce")
-        mc = pd.to_numeric(p.get("marketcap"), errors="coerce")
+        # the panel's column is `market_cap`, NOT `marketcap` - a lookup by the wrong name
+        # computes cleanly and reports None, which reads as "no tilt" rather than "no data".
+        sz = pd.to_numeric(p["size"], errors="coerce")
+        mc = pd.to_numeric(p["market_cap"], errors="coerce")
         c8[f"depth_{int(depth*100)}"] = {
-            "mean_size_z_cond": (float(sz[cond].mean()) if sz is not None else None),
-            "mean_size_z_dip": (float(sz[dip].mean()) if sz is not None else None),
-            "mean_size_z_universe": (float(sz.mean()) if sz is not None else None),
-            "median_mcap_cond": (float(mc[cond].median()) if mc is not None else None),
-            "median_mcap_dip": (float(mc[dip].median()) if mc is not None else None),
+            "mean_size_z_cond": float(sz[cond].mean()),
+            "mean_size_z_dip": float(sz[dip].mean()),
+            "mean_size_z_universe": float(sz.mean()),
+            "median_mcap_cond": float(mc[cond].median()),
+            "median_mcap_dip": float(mc[dip].median()),
+            "median_mcap_universe": float(mc.median()),
+            "mcap_ratio_cond_vs_dip": float(mc[cond].median() / mc[dip].median()),
             "cond_share_of_dipped": float(cond.sum() / max(1, dip.sum())),
         }
     out["controls"]["C8_characteristic_tilt"] = c8

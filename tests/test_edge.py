@@ -8772,6 +8772,25 @@ def test_v6_scores_end_to_end_and_reports_an_MDE_on_a_null():
                             "VOID - UNDERPOWERED BY CONSTRUCTION"), r["verdict"]
 
 
+def test_v6_controls_use_the_panels_real_column_names():
+    """A lookup by the WRONG column name computes cleanly and reports None - which reads
+    as "no tilt" rather than "no data". The panel's column is `market_cap`, not
+    `marketcap`, and the granular momentum inputs are not panel columns at all."""
+    import inspect
+    from valuation.edge import fundamental_panel as _fp
+    src = inspect.getsource(_v6().main)
+    assert '"market_cap"' in src, "C8 must read the panel's real market-cap column"
+    assert 'p.get("marketcap")' not in src and 'p["marketcap"]' not in src, (
+        "`marketcap` is NOT a panel column - `market_cap` is")
+    # and the panel really does emit it under that name, so this is pinned to the source
+    # of truth rather than to my memory of it
+    psrc = inspect.getsource(_fp)
+    assert '"market_cap": mktcap' in psrc, (
+        "the panel stopped emitting `market_cap`; C8 needs re-pointing")
+    # C7 must NAME what it could not measure rather than silently returning {}
+    assert "absent_from_panel" in src, "C7 must report the columns it could not find"
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
