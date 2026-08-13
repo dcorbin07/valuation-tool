@@ -94,7 +94,22 @@ PARAM_KEYS = ("theme_weights", "sector_neutral", "residual_momentum", "ev_point_
               # weights were silently assumed to equal. It changes NO score — only what the
               # vintage comparator can see. Vintage 2's pinned entry deliberately omits it, so
               # its `params_id` stays 0060c5ef3dda and the pin is not retroactively rewritten.
-              "themes_scored_live")
+              "themes_scored_live",
+              # ADDED 2026-08-13 BY THE S14 ADOPTION, and registered in
+              # `PREREG_s14_adoption.md` §5 before the wiring existed -- unlike
+              # `themes_scored_live` above, which was disclosed after the fact.
+              #
+              # WITHOUT IT THE FIRST REAL SHADOW PAIR WOULD BE INVISIBLE TO THIS MACHINERY.
+              # The band changes no weight and no theme; it changes WHICH RANKED NAMES BECOME
+              # THE BOOK. Every existing key would hash identically across vintages 3 and 4, so
+              # `same_model` would report no change while the book demonstrably changed -- the
+              # exact failure `themes_scored_live` was added to fix, in a new costume.
+              #
+              # Vintage 3's pinned entry deliberately OMITS this key, so its published
+              # `params_id` stays 24878e43a1e3 and the pin is not retroactively rewritten.
+              # `snapshot()` skips absent keys, so absence means "this vintage had no band",
+              # which is exactly true of vintage 3.
+              "no_trade_band")
 
 
 def snapshot(params: Dict) -> Dict:
@@ -193,6 +208,39 @@ PINNED: Dict[int, Dict] = {
             # genuinely changed; vintage 2's pin is untouched at 0060c5ef3dda.
             "themes_scored_live": ["capital_discipline", "insider", "institutional",
                                    "momentum", "quality", "size", "value"]})},
+    # VINTAGE 4 - the no-trade band at width 0.30, adopted by Don 2026-08-13.
+    #
+    # THIS OPENS THE FIRST REAL SHADOW PAIR. V1 shipped as instrumentation with no pair to
+    # measure ("blinder than any previous register here: no vintage pair exists"), which was
+    # the point -- no parameter could have been tuned to a comparison that did not exist. The
+    # pair 4-over-3 is now live, and vintage 3's parameters were pinned two days before this
+    # adoption was known about, so the predecessor is a genuine snapshot rather than a
+    # reconstruction.
+    #
+    # WHAT DIFFERS FROM VINTAGE 3 IS EXACTLY ONE KEY. Every weight, theme and construction
+    # parameter is carried over verbatim; only `no_trade_band` appears. That is the honest
+    # description of this adoption -- it changes selection, not scoring -- and it means the
+    # shadow difference is attributable to the band alone.
+    4: {"vintage": 4, "opened": _dt.date(2026, 8, 13),
+        "label": "no-trade band, width 0.30",
+        "predecessor": 3,
+        "snapshot": snapshot({
+            "theme_weights": {"quality": 0.125, "momentum": 0.125, "value": 0.125,
+                              "growth": 0.125, "capital_discipline": 0.125,
+                              "institutional": 0.125, "insider": 0.125, "low_risk": 0.0},
+            "sector_neutral": False, "residual_momentum": False, "ev_point_in_time": True,
+            "large_cap_min": 10e9, "top_decile": 0.10, "max_weight": 0.08,
+            "weighting": "score", "top_n": None,
+            "themes_scored_live": ["capital_discipline", "insider", "institutional",
+                                   "momentum", "quality", "size", "value"],
+            # A LITERAL, deliberately, and this is the one place in the codebase where writing
+            # 0.30 again is correct. Every other pinned value here is a literal for the same
+            # reason: a PIN records what the vintage WAS, so it must not track a live constant.
+            # Importing `BAND_WIDTH` here would mean that a future adoption of a different width
+            # retroactively rewrote vintage 4's history AND made vintages 4 and 5 hash
+            # IDENTICAL, which would defeat the comparator entirely. A test asserts this literal
+            # equals the adopted constant TODAY, so a width change with no new vintage is loud.
+            "no_trade_band": 0.30})},
 }
 
 

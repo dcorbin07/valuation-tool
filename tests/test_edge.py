@@ -1414,7 +1414,12 @@ def test_book_configs_are_defined_and_coherent():
     roth, tax = S.BOOK_CONFIGS["roth"], S.BOOK_CONFIGS["taxable"]
     # roth rotates freely (no band); taxable uses one — that is the whole distinction.
     assert roth["exit_frac"] is None and roth["exit_mult"] is None
-    assert tax["exit_frac"] == 0.20
+    # WIDTH MOVED 0.20 -> 0.30 ON 2026-08-13 by Don's adoption of S14. Asserted against the
+    # adopted CONSTANT rather than a fresh literal, so the config and the shipped band cannot
+    # drift apart the way this line just did — and so the next width change is a one-line
+    # deliberate act rather than a mystery failure here.
+    from valuation.edge.no_trade_band import BAND_WIDTH
+    assert tax["exit_frac"] == BAND_WIDTH == 0.30
     # roth is the tighter, faster book; taxable is the broader, slower one.
     assert roth["top_n"] == 25 and tax["top_frac"] == 0.10
     assert roth["rebalance_days"] < tax["rebalance_days"]

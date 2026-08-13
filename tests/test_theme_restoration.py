@@ -137,10 +137,18 @@ class TestItFailsToNoneNeverToAGuess(unittest.TestCase):
 
 
 class TestTheVintageArithmetic(unittest.TestCase):
-    def test_exactly_one_vintage_is_open_and_it_is_three(self):
-        cv = TM.current_vintage()
-        self.assertEqual(cv["vintage"], 3)
-        self.assertEqual(cv["status"], "OPEN")
+    def test_the_restoration_opened_vintage_three_and_exactly_one_is_ever_open(self):
+        """REWRITTEN 2026-08-13 (S14 adoption). This asserted that the CURRENT vintage is 3,
+        which stopped being true the moment a later adoption opened vintage 4 — a legitimate
+        vintage event failing a test about the theme restoration.
+
+        Two durable properties replace it: the restoration's own record (vintage 3 exists and
+        was opened by it), and the real invariant `current_vintage` protects (exactly one open
+        vintage, ever). Neither needs editing at the next adoption."""
+        v3 = next(v for v in TM.VINTAGES if v["vintage"] == 3)
+        self.assertIn("theme restoration", v3["reason"])
+        self.assertEqual(len([v for v in TM.VINTAGES if v["status"] == "OPEN"]), 1)
+        self.assertGreaterEqual(TM.current_vintage()["vintage"], 3)
 
     def test_vintage_two_is_closed_not_deleted(self):
         v2 = next(v for v in TM.VINTAGES if v["vintage"] == 2)
@@ -182,16 +190,32 @@ class TestTheVintageArithmetic(unittest.TestCase):
             self.assertIn(t, live)
 
     def test_the_amendment_did_not_reset_the_clock_a_second_time(self):
-        """The registered zero-accrued-days rule AMENDS in place, so the opening date and every
-        date derived from it must be exactly where the restoration left them."""
-        import datetime as _d
-        self.assertEqual(TM.current_vintage()["opened"], _d.date(2026, 8, 11))
-        self.assertEqual(TM.INCEPTION, _d.date(2026, 8, 11))
-        self.assertEqual(SV.PINNED[3]["opened"], _d.date(2026, 8, 11))
+        """The registered zero-accrued-days rule AMENDS in place, so vintage 3's opening date
+        and every date derived from it must be exactly where the restoration left them.
 
-    def test_no_fourth_vintage_was_opened(self):
-        self.assertEqual(max(v["vintage"] for v in TM.VINTAGES), 3)
-        self.assertEqual(SV.open_pairs()[0]["shadow_vintage"], 2,
+        REWRITTEN 2026-08-13: this read the date off `current_vintage()`, which is only vintage
+        3 until the next adoption. It now reads vintage 3's OWN record, which is the thing the
+        FIDELITY-2 amendment is a claim about and which no later event may alter."""
+        import datetime as _d
+        v3 = next(v for v in TM.VINTAGES if v["vintage"] == 3)
+        self.assertEqual(v3["opened"], _d.date(2026, 8, 11))
+        self.assertEqual(SV.PINNED[3]["opened"], _d.date(2026, 8, 11))
+        # The amendment folded FIDELITY-2 into vintage 3 rather than opening a vintage for it,
+        # so vintage 3 carries all seven live themes and no separate vintage was spent on them.
+        self.assertEqual(len(SV.PINNED[3]["snapshot"]["params"]["themes_scored_live"]), 7)
+
+    def test_the_restoration_and_fidelity_2_together_cost_exactly_one_vintage(self):
+        """RENAMED from `test_no_fourth_vintage_was_opened` on 2026-08-13. The old name asserted
+        a permanent ceiling on the vintage counter, but "no fourth vintage" was a fact about
+        FIDELITY-2's own day, not an invariant — Don's S14 adoption legitimately opened one.
+
+        What FIDELITY-2 actually claimed, and what is pinned here, is that the amendment cost
+        NO EXTRA vintage: exactly one vintage (3) covers both the restoration and the rebuild,
+        and the book it shadows is vintage 2, the four-theme composite the comparison is about."""
+        opened_that_day = [v for v in TM.VINTAGES
+                           if v["opened"].isoformat() == "2026-08-11"]
+        self.assertEqual([v["vintage"] for v in opened_that_day], [3])
+        self.assertEqual(SV.PINNED[3]["predecessor"], 2,
                          "the shadow must still be vintage 2, the four-theme book")
 
 
@@ -203,10 +227,18 @@ class TestTheShadowBookOpened(unittest.TestCase):
         pairs = SV.open_pairs()
         self.assertEqual(len(pairs), 1)
 
-    def test_the_pair_is_live_three_shadowed_by_two(self):
+    def test_the_open_pair_is_the_current_vintage_over_its_predecessor(self):
+        """REWRITTEN 2026-08-13: asserted the literal pair 3-over-2, so the S14 adoption failed
+        it. Pins the derivation instead — whatever is open is shadowed by its predecessor."""
         p = SV.open_pairs()[0]
-        self.assertEqual(p["live_vintage"], 3)
-        self.assertEqual(p["shadow_vintage"], 2)
+        cur = TM.current_vintage()["vintage"]
+        self.assertEqual(p["live_vintage"], cur)
+        self.assertEqual(p["shadow_vintage"], cur - 1)
+
+    def test_vintage_three_is_still_pinned_after_it_stopped_being_current(self):
+        """The restoration's snapshot must remain readable and unchanged once it becomes a
+        shadowed predecessor — that is the whole point of pinning it."""
+        self.assertEqual(SV.PINNED[3]["snapshot"]["params_id"], "24878e43a1e3")
 
     def test_the_shadow_runs_a_pinned_snapshot_not_a_reconstruction(self):
         self.assertIsNotNone(SV.pinned_snapshot(SV.open_pairs()[0]["shadow_vintage"]))

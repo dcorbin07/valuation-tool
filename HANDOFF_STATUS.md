@@ -1,5 +1,58 @@
 # HANDOFF STATUS - shared project state
 
+## greeks lane, S14 ADOPTED (2026-08-13) - the band is LIVE, and it had never been applied before
+
+Don adopted S14, the no-trade band at **width 0.30**, on its double-clear (session 35 +
+S14-WIDTH). Executed as a **VINTAGE EVENT**. `PREREG_s14_adoption.md` committed **alone at
+`793f777`** before any wiring existed.
+
+**THE FINDING THAT REFRAMED THE TASK, and it corrects the S14 ledger row: the band had NEVER been
+applied to a live book.** `exit_frac` was consumed in exactly three live places - payload
+metadata, a CLI banner and a web display - and **none of them applied it**. `build_index` was a
+pure top-N selection with no band and no notion of a held name, and the code said so: the band
+"requires the PREVIOUS book, so it is applied at rebalance time, not in this snapshot", emitted
+as an **instruction for a human rebalancer**. So this adoption **wired the band into live
+construction for the first time**, and the `taxable` config's declared 20% band had never
+affected a book anyone received.
+
+**THE CONSTRUCTION-FIDELITY GATE PASSED, and it is provably not vacuous.** The rule moved to
+`valuation/edge/no_trade_band.py` and **both callers import it** - `fundamental_panel._band_select`
+**IS** `no_trade_band.band_select`, one code object, pinned by an identity test. The **live entry
+point** applied to the panel's most recent cross-section reproduced the measured arm's book
+**name-for-name: 184 names, identical set AND identical order, 0 mismatches across all 69 dates**.
+Non-vacuity is asserted rather than hoped for - the band is chained across all 69 dates, and at the
+gate date the banded book differs from plain top-N by **65 of 184 names**; the run **aborts** if
+it does not.
+
+**VINTAGE 4 OPENED 2026-08-13, DERIVED NOT ASSUMED (PT-GAPDUE).** The FIDELITY-2 amendment clause
+applies only at ZERO accrued days and is self-limiting; vintage 3 had accrued **two**, so Amendment
+1's ordinary rule resumed. **Rule 6 is paid in full: the clock resets to zero and vintage 3's two
+days are spent.** **THE FIRST SHADOW PAIR IS NOW OPEN (4 over 3)** - V1 shipped with no pair to
+measure, and vintage 3's parameters were pinned **two days before this adoption was known about**.
+Vintage 2 and 3 pins are NOT retroactively rewritten (0060c5ef3dda, 24878e43a1e3).
+
+**WHERE IT DELIBERATELY DOES NOT APPLY:** `roth` stays band-less. S14 measured the DECILE book and
+`exit_frac` is a fraction of the ranked UNIVERSE; on a 25-name book it would hold nearly every
+name nearly forever. A banded top-25 book is a construction nobody measured.
+
+**TWO FURTHER DIVERGENCES FOUND AND FIXED:** `/api/valquo-index` and `unified._index_membership`
+each rebuilt the book with **no band** while publishing a config block advertising one - they would
+have served a DIFFERENT book from the exported Index under the same name.
+
+**REPORTED, NOT FIXED (other lanes):** three pre-existing malformed ledger rows (`S23`,
+`M1-PARSE`, `V2G`) carry unescaped pipes and are refused by `build_ledger.py`'s fail-closed
+guard; verified present on `origin/main`. `id` and `status` still parse, so "is X done?" is
+unaffected. Also reported: the live book-size rule differs from the panel's on **32 of 69 dates**
+(live rounds and floors at MIN_NAMES, the panel truncates) - predates the band, not folded in.
+
+**THE OPEN ITEM:** the band's effect begins at the **SECOND** rebalance - with no previous book
+there is nothing to hold, so the first export is necessarily plain top-N. `no_trade_band.applied`
+records which happened; nobody should read the first book and conclude the band is broken.
+
+Equity `N` **unchanged** (an adoption searches nothing). 37 new tests; full gate **67 suites, 0
+failures**. Detail: `HANDOFF_live_data_bugs.md` Part 19.
+
+
 ## edge lane, S14-WIDTH (2026-08-13) - the knee IS identified, and it is where session 35 found it
 
 `PREREG_s14_width_extension.md` committed **alone at `e63295e`**. **ADOPTS NOTHING - it routes a

@@ -127,6 +127,12 @@ BOOK_CONFIGS = {
         "label": "Tax-free (Roth/IRA): Sharpe-optimal, full rotation, ~2-month rebalance",
         # 42 TRADING days ~= 2 calendar months. Best Sharpe of the cadences tested.
         "top_n": 25, "top_frac": None, "rebalance_days": 42, "horizon": 42,
+        # STAYS BAND-LESS AFTER THE S14 ADOPTION (2026-08-13), and this is a fidelity decision
+        # rather than an oversight. S14 measured the DECILE book; `exit_frac` is a fraction of
+        # the ranked UNIVERSE, which is not a meaningful band for a fixed 25-name book (against
+        # a large universe it would hold nearly every name nearly forever -- the panel's own
+        # comment says exit_mult is "the only one meaningful for a fixed-N book"). A banded
+        # top-25 book is a construction nobody has measured, so it is not shipped.
         "exit_frac": None, "exit_mult": None,          # no band: no tax cost to churning
         # RE-MEASURED 2026-08-08 on the corrected 2,531-name / 69-date panel (P2 sweep).
         # These were the PRE-B6 2,710-name figures (net_alpha 0.1737, net_sharpe 1.17,
@@ -140,9 +146,18 @@ BOOK_CONFIGS = {
                      "cost_drag_ann": 0.0440},
     },
     "taxable": {
-        "label": "Taxable: after-tax-optimal, decile + 20% no-trade band",
+        "label": "Taxable: after-tax-optimal, decile + 30% no-trade band",
         "top_n": None, "top_frac": 0.10, "rebalance_days": 63, "horizon": 63,
-        "exit_frac": 0.20, "exit_mult": None,
+        # WIDTH MOVED 0.20 -> 0.30 BY THE S14 ADOPTION (Don's call, 2026-08-13), on S14's
+        # double-clear: sweeping the shipped grid -- which CONTAINS 0.20 -- on a decide half and
+        # measuring the argmax on the held-out half picked 0.30 in both directions, and
+        # S14-WIDTH then confirmed the optimum is interior rather than a grid-edge artefact.
+        # The `measured` figures below are still the 20%-band numbers and are NOT restated,
+        # because no run has measured this config at 0.30; S14's own held-out figures are
+        # differences, not levels, so they cannot be substituted here. Flagged rather than
+        # silently re-labelled -- see `measured_width` below.
+        "exit_frac": 0.30, "exit_mult": None,
+        "measured_width": 0.20,
         # RE-MEASURED 2026-08-08, same sweep and same source (book_configs.taxable).
         # Was: after_tax_alpha 0.0486, after_tax_sharpe 0.89, net_alpha 0.1169,
         # turnover 1.72. The after-tax alpha moved most — 4.86% -> 0.81%, a sixfold

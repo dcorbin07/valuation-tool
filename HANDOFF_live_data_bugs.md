@@ -4344,3 +4344,149 @@ time this project's directional calls have failed in a row where the register sa
 3. **The live Form 4 parser exposes unsigned values only**, so a naive sum is gross turnover.
    Worked around with a signed parser; the shipped parser is unchanged and still correct for its
    own purpose.
+
+---
+
+## Part 19 — S14 ADOPTED: THE NO-TRADE BAND AT 0.30, AND IT HAD NEVER BEEN APPLIED TO A LIVE BOOK (2026-08-13, greeks lane)
+
+Don adopted S14 — the no-trade band at width **0.30** — on its double-clear (session 35 +
+S14-WIDTH). Executed as a vintage event. `PREREG_s14_adoption.md` committed **ALONE at `793f777`**,
+one `.md` and zero `.py`, before any wiring existed.
+
+### The finding that reframed the task
+
+The S14 ledger row said *"the band is ALREADY LIVE in the taxable configuration, so an adopt would
+change the DEFAULT rather than introduce the band."* **That is false, and it was verified false
+before the register was written.** `exit_frac` was consumed live in exactly three places and none
+of them applied it:
+
+| site | what it did |
+|---|---|
+| `valquo_index.py:306` | wrote it into the payload as metadata |
+| `valquo_index.py:358` | printed it in the CLI banner |
+| `web/app.py:331` | displayed it |
+
+The only code that had ever *applied* a band was the backtest. `build_index` was a pure top-N
+selection with **no band and no notion of a held name**, and `valquo_index.py:298` said so: the
+band *"requires the PREVIOUS book, so it is applied at rebalance time, not in this snapshot"* —
+emitted as an **instruction for a human rebalancer** rather than executed.
+
+**So this adoption wired the band into live construction for the first time.** The `taxable`
+config's declared 20% band had never affected a book anyone received, and the fidelity gate was
+load-bearing rather than ceremonial.
+
+### The construction-fidelity gate — PASSED
+
+The rule moved to `valuation/edge/no_trade_band.py` and **both callers import it**, so
+`fundamental_panel._band_select` **is** `no_trade_band.band_select` — one code object, not two
+equivalent implementations. Pinned by an identity test.
+
+The **live entry point** (`build_index`) was then applied to the panel's most recent cross-section:
+
+* **184 names, identical set AND identical order**;
+* **0 mismatches across all 69 dates**;
+* exact composite ties at the gate date: **0**, so no argsort ambiguity.
+
+**Non-vacuity is asserted, not hoped for.** With no held set both paths collapse to plain top-N and
+the comparison proves nothing, so the band is **chained across all 69 dates** exactly as
+`turnover_and_costs` chains it. At the gate date the banded book differs from plain top-N by
+**65 of 184 names**, with 65 retained — and the run **aborts** if that is not so.
+
+### Where it applies, and where it deliberately does not
+
+S14 measured the **decile** book. `exit_frac` is a fraction of the ranked **universe**, meaningful
+for a decile book and not for a fixed-N one — on a 25-name book against a large universe it would
+hold nearly every name nearly forever, and the panel's own comment says `exit_mult` is the only
+band meaningful for a fixed-N book. So **`taxable` moves 0.20 → 0.30 and `roth` stays band-less**.
+A banded top-25 book is a construction nobody has measured; shipping one would borrow S14's
+evidence for it.
+
+### Vintage 4 — derived, not assumed
+
+Per **PT-GAPDUE**, `current_vintage()` returned **vintage 3, opened 2026-08-11**. The FIDELITY-2
+amendment clause is explicitly self-limiting — it amends in place only at **zero** accrued complete
+days and *"stops applying the moment vintage 3 has accrued one complete day."* Vintage 3 had
+accrued **two**, so the clause did not apply, Amendment 1's ordinary rule resumed, and **vintage 4
+opened 2026-08-13**. That this agrees with Don's instruction is checkable rather than coincidental.
+
+**Rule 6 is paid in full and not hidden:** the accrued forward clock resets to zero and vintage 3's
+two days are spent.
+
+### The first shadow pair is open
+
+V1 shipped as instrumentation with **no pair to measure** — that was the point. The pair **4 over
+3** is now live, and **vintage 3's parameters were pinned two days before this adoption was known
+about**, so the predecessor is a genuine snapshot rather than a reconstruction.
+
+`no_trade_band` was added to `PARAM_KEYS` — **pre-registered this time**, unlike
+`themes_scored_live` — because without it vintages 3 and 4 hash **identical** (the band changes no
+weight and no theme) and `same_model` would report no change while the book demonstrably changed.
+**Exactly one key separates the pair**, which is the honest description of this adoption: it
+changes selection, not scoring.
+
+Vintage 3's published `params_id` stays **24878e43a1e3** and vintage 2's stays **0060c5ef3dda** —
+neither retroactively rewritten. Vintage 4's pin is a **literal 0.30, not an import**, because a
+pin records what a vintage *was*: importing the constant would let a future width change rewrite
+vintage 4's history **and make vintages 4 and 5 hash identical**.
+
+### Display honesty
+
+* A retained name carries **"held - challenger within band"** in the why-attribution, at row level
+  and in the owner index block.
+* `vintage_label()` (derived, so it cannot drift) now reads: *"Book vintage 4 since 2026-08-13
+  (no-trade band, width 0.30); vintage 3 runs in shadow."*
+* A new `headline_scope` block states the published backtest figures were measured **without** a
+  band. **The `method` string is unchanged** and still describes the validated composite, because
+  S14's evidence is a held-out **difference**, not a re-measured level.
+
+### Two further divergences found and fixed — the same disease
+
+`/api/valquo-index` and `unified._index_membership` each **rebuilt the book with no band while
+publishing a config block advertising one**, so they would have served a *different book from the
+exported Index under the same name*. Both now apply the same band through the same imported rule.
+
+The config block itself is now built in **one place**: `export()` and the route each carried their
+own copy of `band_note`. One would have been corrected and the other left telling readers to apply
+the band by hand — after which it would have run **twice**.
+
+### Reported, not gated and not fixed
+
+* **The live book-size rule differs from the panel's** — live rounds and floors at `MIN_NAMES`, the
+  panel truncates — so they disagree on **32 of 69 dates**. That predates the band and is not
+  something S14 changed, so it is measured and recorded rather than folded into this adoption.
+* **Three pre-existing malformed ledger rows** (`S23`, `M1-PARSE`, `V2G`) carry unescaped pipes and
+  are refused by `build_ledger.py`'s fail-closed guard. Verified present on `origin/main` and
+  untouched by this work. `id` and `status` still parse correctly, so "is X done?" is unaffected;
+  the shift hits later columns only. Left for the lanes that own them.
+* **The `taxable` config's `measured` figures were measured at width 0.20 and are NOT restated** —
+  no run has measured that config at 0.30. They now ship beside an explicit `measured_width` so
+  the two cannot be conflated.
+
+### Six tests had frozen a vintage number
+
+They failed on a legitimate vintage event — including one named
+`test_no_fourth_vintage_was_opened`, which was a true statement about FIDELITY-2's own day rather
+than an invariant. All were rewritten to pin the **derivation** rather than the literal, the lesson
+this codebase had already learned once.
+
+**One of them had been rendered VACUOUS rather than red:** a gap-report test skipped the literal
+date `2026-08-13`, which became the new inception — so the skip stopped matching any row and the
+test asserted a gap report with nothing missing.
+
+### Expectations — 1 right, 2 wrong
+
+1. Gate passes first time (40/60) — **WRONG**, it passed.
+2. Fewer than 20% of names change (70/30) — **WRONG**: 65 of 184, **35.3%**.
+3. At least one further defect in the live path (60/40) — **RIGHT**, three.
+
+### State
+
+Equity `N` **unchanged** — an adoption searches nothing. 37 new tests; full gate **67 suites, 0
+failures**.
+
+### The open item this leaves
+
+**The band's effect begins at the SECOND rebalance.** With no previous book on disk there is
+nothing to hold, so the first export after this ships is necessarily a plain top-N book. That is
+correct rather than degraded, and `no_trade_band.applied` records which happened — but nobody
+should read the first book and conclude the band is not working.

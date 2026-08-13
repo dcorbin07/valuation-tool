@@ -42,6 +42,20 @@ def _series(start, n_days, valquo_daily_pp, spy_daily_pp, skip=()):
     return rows
 
 
+def _nth_trading_day_after(start, n):
+    """The nth trading day strictly after `start` — matching `_series`'s own stepping.
+
+    Exists so tests can name a day RELATIVE to inception instead of hardcoding a date that a
+    later vintage event can silently invalidate.
+    """
+    d, i = start, 0
+    while i < n:
+        d += dt.timedelta(days=1)
+        if TM.is_trading_day(d):
+            i += 1
+    return d
+
+
 # ------------------------------------------------- the frozen pre-registration
 def test_frozen_constants_are_exactly_what_the_contract_says():
     # Amendment 1 (2026-08-09) voided run #1 and opened vintage 2. The CLOCK moved; the
@@ -385,9 +399,18 @@ def test_gap_report_does_not_demand_a_row_on_the_inception_day():
 
 
 def test_gap_report_names_the_missing_dates_not_just_a_count():
-    s = _series(TM.INCEPTION, 6, 0.05, 0.01, skip=("2026-08-13",))
-    g = TM.gap_report(s, as_of=dt.date(2026, 8, 18))
-    assert g["missing_dates"] == ["2026-08-13"], g
+    """REWRITTEN 2026-08-13 (S14 adoption). This used to skip the literal date "2026-08-13",
+    which was the second trading day of vintage 3's clock. Opening vintage 4 moved `INCEPTION`
+    onto that very date, so the skip stopped matching any row and the test passed VACUOUSLY --
+    a gap report with nothing missing, asserting nothing.
+
+    The property is unchanged; only the coupling is removed. The skipped day is now DERIVED from
+    `INCEPTION`, so the next vintage event cannot quietly hollow this out. Same lesson the
+    vintage-label tests already learned: pin the derivation, never the literal."""
+    missing = _nth_trading_day_after(TM.INCEPTION, 2)
+    s = _series(TM.INCEPTION, 6, 0.05, 0.01, skip=(missing.isoformat(),))
+    g = TM.gap_report(s, as_of=_nth_trading_day_after(TM.INCEPTION, 6))
+    assert g["missing_dates"] == [missing.isoformat()], g
     assert g["complete"] is False and g["missing_count"] == 1
 
 
@@ -465,10 +488,20 @@ def test_a_vintage_event_does_not_erase_a_dated_miss():
 
     `recording_ok` is scoped to the open vintage by contract, so the misses legitimately leave
     that field -- but they must not leave the RECORD, or "logged, not voided" cannot be honoured.
+
+    REWRITTEN 2026-08-13 (S14 adoption). `as_of` was the literal 2026-08-12, chosen because the
+    then-open vintage 3 had started the day before. Opening vintage 4 on 2026-08-13 put the open
+    vintage in the FUTURE relative to that `as_of`, so `recording_history` correctly excluded it
+    and the final assertion -- that the record contains an open vintage -- became unsatisfiable.
+
+    `as_of` is now the current inception, derived. Vintage 1's figures are untouched by the
+    change (it closed 2026-08-09, long before any candidate `as_of`), which is what lets this
+    keep pinning the historical miss it exists for.
     """
     live = [{"date": "2026-07-31", "valquo": 0.4126, "spy": 0.6903},
             {"date": "2026-08-06", "valquo": 0.776, "spy": 3.6228}]
-    hist = TM.recording_history(live, as_of=dt.date(2026, 8, 12))
+    as_of = TM.INCEPTION
+    hist = TM.recording_history(live, as_of=as_of)
     v1 = [h for h in hist if h["vintage"] == 1][0]
     assert v1["expected_trading_days"] == 6 and v1["present"] == 2, v1
     assert v1["missing_dates"] == ["2026-08-03", "2026-08-04", "2026-08-05", "2026-08-07"], v1
@@ -483,7 +516,7 @@ def test_a_vintage_event_does_not_erase_a_dated_miss():
     # both ways: as_of 2026-08-12 gives [], as_of 2026-08-13 gives ['2026-08-12']. CI runs in UTC,
     # so it broke there several hours before it would have broken locally, and it blocked EVERY
     # lane's land rather than just the one that happened to push.
-    assert TM.gap_report(live, as_of=dt.date(2026, 8, 12))["missing_dates"] == []
+    assert TM.gap_report(live, as_of=as_of)["missing_dates"] == []
 
     # Vintage 2 owed NOTHING: it closed 2026-08-11, and that day's row does not fall due until
     # 2026-08-12. Pinned because the first draft of this test asserted the opposite, having
@@ -496,14 +529,22 @@ def test_a_vintage_event_does_not_erase_a_dated_miss():
 def test_detail_says_which_row_is_awaited_and_when_it_becomes_assessable():
     """Without these, a morning `None`/`false` is indistinguishable from a writer failure.
 
-    On 2026-08-12 the open vintage (3) began the previous day, so the row awaited is 2026-08-12's
-    and it is not demanded until 2026-08-13 -- which is the whole reason this session could not
-    close PT-WRITER either way.
+    Originally: on 2026-08-12 the open vintage (3) began the previous day, so the row awaited is
+    2026-08-12's and it is not demanded until 2026-08-13 -- which is the whole reason that
+    session could not close PT-WRITER either way.
+
+    REWRITTEN 2026-08-13 (S14 adoption). Those literals were the open vintage's own first days,
+    so opening vintage 4 moved the whole frame and `detail(as_of=2026-08-12)` began describing a
+    vintage that had not started. The SHAPE is what matters and it is now derived: one trading
+    day into the open vintage, that day's row is awaited and is not assessable until the next
+    trading day. True of every vintage, so this needs no edit at the next adoption.
     """
-    d = TM.detail(series=[], as_of=dt.date(2026, 8, 12))
+    day1 = _nth_trading_day_after(TM.INCEPTION, 1)
+    day2 = _nth_trading_day_after(TM.INCEPTION, 2)
+    d = TM.detail(series=[], as_of=day1)
     assert d["recording_ok"] is None, "claimed a verdict before any row was due"
-    assert d["row_awaited"] == "2026-08-12", d.get("row_awaited")
-    assert d["assessable_from"] == "2026-08-13", d.get("assessable_from")
+    assert d["row_awaited"] == day1.isoformat(), d.get("row_awaited")
+    assert d["assessable_from"] == day2.isoformat(), d.get("assessable_from")
     assert any(h["vintage"] == 2 for h in d["per_vintage_recording"])
 
 

@@ -322,16 +322,19 @@ def api_valquo_index():
         kw["top_n"] = cfg["top_n"]
     if cfg.get("top_frac"):
         kw["top_decile"] = cfg["top_frac"]
+    # S14 ADOPTION (2026-08-13): this route used to build the book with NO band while publishing
+    # a config block that advertised one, so it served a DIFFERENT book from the exported Index
+    # under the same name -- the B7 disease on a public surface. It now applies the same band,
+    # against the same previous book on disk, through the same imported rule.
+    #
+    # A fixed-N config (roth) stays band-less: `exit_frac` is a fraction of the ranked UNIVERSE
+    # and is not the arm S14 measured for a 25-name book.
+    from ..edge.valquo_index import config_block, _previous_book, DEFAULT_PATH
+    if cfg.get("exit_frac") and not cfg.get("top_n"):
+        kw["exit_frac"] = cfg["exit_frac"]
+        kw["held"] = _previous_book(DEFAULT_PATH)
     payload = build_index(rows, **kw)
-    payload["config"] = {
-        "name": name, "label": cfg.get("label"),
-        "rebalance_days": cfg.get("rebalance_days"),
-        "rebalance_months": (round(cfg["rebalance_days"] / 21.0, 1)
-                             if cfg.get("rebalance_days") else None),
-        "exit_frac": cfg.get("exit_frac"),
-        "band_note": ("hold a position until it falls past this fraction; applied at rebalance "
-                      "against the previous book, not in this snapshot"),
-        "measured": cfg.get("measured")}
+    payload["config"] = config_block(name, cfg)
     payload["scan_date"] = scan_date
     payload["available_configs"] = sorted(S.BOOK_CONFIGS or {})
     payload["source_note"] = ("built from the same scan snapshot as the Hot Stocks ranking — "

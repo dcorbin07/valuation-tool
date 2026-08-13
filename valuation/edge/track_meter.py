@@ -137,7 +137,8 @@ VINTAGES = (
     # book users receive changes materially. Whatever the track accrued, it accrued while
     # recording a FOUR-theme book; that record cannot be carried forward as evidence about a
     # five-theme one.
-    {"vintage": 3, "run": 2, "opened": _dt.date(2026, 8, 11), "closed": None, "status": "OPEN",
+    {"vintage": 3, "run": 2, "opened": _dt.date(2026, 8, 11),
+     "closed": _dt.date(2026, 8, 13), "status": "CLOSED",
      "label": "capital_discipline restored",
      "reason": "opened by the theme restoration - capital_discipline reaches a live score from "
                "free SEC XBRL company facts, after clearing a pre-registered fidelity gate at "
@@ -149,7 +150,44 @@ VINTAGES = (
                "the rebuild was measured - a vintage with ZERO accrued complete days is amended, "
                "not closed, because Rule 6 protects a clock and there was none to protect. The "
                "opening date does not move and the clock is NOT reset a second time. No weight "
-               "or construction parameter changed at any point."},
+               "or construction parameter changed at any point. CLOSED 2026-08-13 by the S14 "
+               "adoption, having accrued TWO complete days."},
+    # VINTAGE 4 - opened 2026-08-13 by Don's adoption of S14, the no-trade band at width 0.30.
+    #
+    # WHY THIS OPENS A VINTAGE RATHER THAN AMENDING VINTAGE 3, derived and not assumed. The
+    # FIDELITY-2 clause (`PREREG_fidelity2_rebuild.md` §4) amends in place ONLY at ZERO accrued
+    # complete days, and it is explicitly self-limiting: "the moment vintage 3 has accrued one
+    # complete day, this clause stops applying and Amendment 1's ordinary rule resumes." Vintage
+    # 3 opened 2026-08-11 and today is 2026-08-13, so it accrued TWO complete days. The clause
+    # does not apply and vintage 4 OPENS. That this agrees with Don's instruction is checkable
+    # rather than coincidental, which is the reason the derivation is written down.
+    #
+    # RULE 6 IS PAID IN FULL AND IS NOT HIDDEN: this resets the accrued forward clock to zero
+    # and buys nothing statistically. Vintage 3's two days are spent. That was Don's call to
+    # make on S14's evidence, and V1's shadow machinery is the only thing that recovers any of
+    # it -- vintage 3, the BAND-LESS book, keeps being scored in shadow so the adoption is
+    # forward-measured from day one and the market risk cancels in the pair.
+    #
+    # THIS IS A CONSTRUCTION CHANGE, NOT A SCORING ONE, and it is the first of its kind here.
+    # No weight, theme or composite input moves; what changes is WHICH RANKED NAMES BECOME THE
+    # BOOK. Amendment 1 covers "scoring, weights or construction", so it qualifies squarely.
+    {"vintage": 4, "run": 2, "opened": _dt.date(2026, 8, 13), "closed": None, "status": "OPEN",
+     "label": "no-trade band, width 0.30",
+     "reason": "no-trade band, width 0.30, adopted on S14's double-clear (sessions 35 + "
+               "S14-WIDTH). A held name is now kept until it falls out of the top 30% of the "
+               "ranked tier, instead of being sold the moment it leaves the top 10%. Session 35 "
+               "swept the shipped width grid on a decide half and measured the argmax on the "
+               "held-out half: BOTH directions picked 0.30 and both cleared (net alpha +1.78pp "
+               "and +1.77pp, gross +1.02pp and +0.77pp, turnover roughly halving). S14-WIDTH "
+               "then discharged the grid-boundary caveat - given 0.40/0.50/0.75 as well, both "
+               "halves still picked 0.30, so the optimum is interior. CARRIED WITH IT: roughly "
+               "HALF the gain is a signal effect rather than a cost saving, since gross alpha "
+               "improves too, and the knee replicates in LOCATION but not in SHARPNESS (decisive "
+               "on the late half, nearly flat on the early). BEFORE THIS THE BAND HAD NEVER BEEN "
+               "APPLIED TO A LIVE BOOK - it was declared in configs and emitted as an "
+               "instruction for a human rebalancer - so this vintage wires it for the first "
+               "time, gated by a construction-fidelity check that reproduced the measured arm's "
+               "book name-for-name on all 69 panel dates."},
 )
 
 

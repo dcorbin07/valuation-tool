@@ -109,8 +109,21 @@ def conformance(n_positions: int, effective_max_weight: float,
 
 def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
                 top_decile: float = TOP_DECILE, weighting: str = "score",
-                top_n: int | None = None) -> dict:
-    """Top-decile, large-cap-tilted book from scan rows. Pure function — easy to test."""
+                top_n: int | None = None, held=None,
+                exit_frac: float | None = None) -> dict:
+    """Top-decile, large-cap-tilted book from scan rows. Pure function — easy to test.
+
+    `held` + `exit_frac` apply the NO-TRADE BAND adopted 2026-08-13 (S14, width 0.30). `held` is
+    the previous book's tickers; a held name is kept until it falls past `exit_frac` of the
+    ranked eligible tier, instead of being sold the moment it slips out of the top decile.
+
+    BOTH are required for the band to do anything, and that is deliberate rather than defensive:
+    with no previous book there is nothing to hold, so the first rebalance after this ships is
+    necessarily a plain top-N book. The band's effect begins at the SECOND one.
+
+    The rule itself is imported from `no_trade_band` — the same object the backtest applies — so
+    this path cannot drift from the measured one.
+    """
     scored = [r for r in rows if _f(r.get("hot_score")) is not None and _f(r.get("price"))]
 
     large = [r for r in scored if (_f(r.get("market_cap")) or 0) >= large_cap_min]
@@ -132,7 +145,26 @@ def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
     # config is a 25-name book; taxable is the decile.
     n = int(top_n) if top_n else max(MIN_NAMES, int(round(len(large) * top_decile)))
     n = max(MIN_NAMES, n)
-    picks = large[:min(n, len(large))]
+
+    # --- NO-TRADE BAND (S14, adopted 2026-08-13 at width 0.30) -----------------------------
+    # Enter on the top `n`; keep a name already held until it falls past `exit_rank`. The rule
+    # and the rank derivation are IMPORTED, never restated here.
+    from .no_trade_band import (band_select, exit_rank_for, held_within_band,
+                                BAND_HELD_NOTE)
+    import numpy as _np
+
+    _held = {t for t in (held or []) if t}
+    _exit_rank = exit_rank_for(len(large), n, exit_frac)
+    band_retained: set = set()
+    if _held and _exit_rank > n and large:
+        _comp = _np.array([_f(r.get("hot_score")) for r in large], dtype=float)
+        _ticks = _np.array([r["ticker"] for r in large], dtype=object)
+        _sel = band_select(_comp, _ticks, _held, min(n, len(large)), _exit_rank)
+        band_retained = held_within_band(_comp, _ticks, _held, min(n, len(large)), _exit_rank)
+        _by_ticker = {r["ticker"]: r for r in large}
+        picks = [_by_ticker[t] for t in _sel if t in _by_ticker]
+    else:
+        picks = large[:min(n, len(large))]
 
     if weighting == "equal" or not picks:
         raw = {r["ticker"]: 1.0 for r in picks}
@@ -173,6 +205,12 @@ def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
         "price": round(_f(r.get("price")), 4),
         "market_cap": _f(r.get("market_cap")),
         "weight": round(weights.get(r["ticker"], 0.0), 5),
+        # DISPLAY HONESTY (S14 adoption): a name the BAND retained is not an ordinary top-N
+        # pick — it is held while a higher-ranked challenger was passed over. Presenting it
+        # without saying so would show the user a book they cannot derive from the ranking
+        # they are looking at.
+        "band_retained": r["ticker"] in band_retained,
+        "why_band": (BAND_HELD_NOTE if r["ticker"] in band_retained else ""),
     } for r in picks]
 
     sectors, sector_data = _sector_block(positions)
@@ -195,6 +233,38 @@ def build_index(rows, large_cap_min: float = LARGE_CAP_MIN,
                      "top_n": (int(top_n) if top_n else None),
                      "tilt": tilt, "weighting": weighting,
                      "max_weight": MAX_WEIGHT, "effective_max_weight": round(cap, 5)},
+        # The band, as APPLIED — not as declared. `applied` is false whenever there was no
+        # previous book to hold from, which is the honest state at the first rebalance and
+        # must not read as "the band is off".
+        "no_trade_band": {
+            "width": exit_frac, "exit_rank": (_exit_rank if exit_frac else None),
+            "n_held_supplied": len(_held), "applied": bool(_held and exit_frac),
+            "n_band_retained": len(band_retained),
+            "band_retained": sorted(band_retained),
+            "note": ("names kept because they are still inside the band, while a higher-ranked "
+                     "challenger was passed over" if band_retained else
+                     ("no previous book supplied, so the band could not apply" if not _held
+                      else "no held name sits inside the band on this cross-section")),
+        },
+        # WHERE THE PUBLISHED HEADLINE AND THE LIVE BOOK NOW DIFFER (S14 adoption, 2026-08-13).
+        # `method` above is UNCHANGED and still describes the validated composite -- the plain
+        # top-decile book every published figure was measured on. From this vintage the live
+        # book also applies a no-trade band, which those figures do NOT include. Saying so here
+        # is the alternative to the two tempting errors: quietly re-pointing the headline at a
+        # construction nobody measured, or letting a reader assume the +7.2%/yr describes the
+        # book in front of them.
+        "headline_scope": {
+            "headline_describes": "plain top-decile book, no no-trade band",
+            "live_book_applies_band": bool(exit_frac),
+            "differs": bool(exit_frac),
+            "note": ("the published backtest figures in `method` were measured WITHOUT a "
+                     "no-trade band. The live book applies one from vintage 4 (2026-08-13). "
+                     "S14's own evidence is a held-out DIFFERENCE (+1.78pp and +1.77pp net "
+                     "alpha in the two split directions), not a re-measured level, so the "
+                     "headline is deliberately not restated." if exit_frac else
+                     "no band applied; the live book matches the construction the headline "
+                     "describes"),
+        },
         "contract_conformance": conformance(len(positions), cap, len(large)),
         "n_scored": len(scored), "n_eligible": len(large), "n_positions": len(positions),
         "sector_data_available": sector_data,
@@ -245,6 +315,66 @@ def _full_universe_rows(data_dir: str, limit: int = 3000):
     return res["rows"], res.get("as_of"), (res.get("dropped_mc_divergence") or [])
 
 
+def config_block(name: str | None, cfg_meta: dict | None) -> dict:
+    """The `config` block a payload publishes, in ONE place.
+
+    CONSOLIDATED 2026-08-13 BY THE S14 ADOPTION, because it had drifted. `export()` and the
+    `/api/valquo-index` route each built this dict separately with their own copy of
+    `band_note`, and when the band became real one copy would have been corrected and the other
+    left telling readers to apply the band by hand -- after which it would have been applied
+    twice. Same class of defect as the duplicated publication text; fixed the same way.
+    """
+    if not cfg_meta:
+        return {}
+    xf = cfg_meta.get("exit_frac")
+    return {
+        "name": name, "label": cfg_meta.get("label"),
+        "rebalance_days": cfg_meta.get("rebalance_days"),
+        # TRADING days -> calendar months, which is what a human schedules on.
+        "rebalance_months": (round(cfg_meta["rebalance_days"] / 21.0, 1)
+                             if cfg_meta.get("rebalance_days") else None),
+        "exit_frac": xf, "exit_mult": cfg_meta.get("exit_mult"),
+        "band_note": (("hold an existing position until it falls past this fraction of the "
+                       "ranked tier. APPLIED AUTOMATICALLY as of the S14 adoption (2026-08-13) "
+                       "against the previous book on disk - do NOT apply it again by hand. See "
+                       "the payload's `no_trade_band` block for whether it actually bound, and "
+                       "which names it retained.") if xf else
+                      "no no-trade band on this configuration"),
+        # The `measured` figures were measured at `measured_width`, which is NOT necessarily the
+        # width now shipped. Published together so the two can never be silently conflated.
+        "measured": cfg_meta.get("measured"),
+        "measured_width": cfg_meta.get("measured_width"),
+        "measured_width_note": (
+            "the `measured` figures were measured at a band width of "
+            f"{cfg_meta.get('measured_width')}, not the {xf} now shipped; no run has measured "
+            "this configuration at the adopted width"
+            if cfg_meta.get("measured_width") not in (None, xf) else ""),
+    }
+
+
+def _previous_book(path: str) -> list:
+    """Tickers of the book currently on disk — the `held` set the band needs.
+
+    Returns [] when there is no prior book, which makes the first rebalance after the adoption
+    a plain top-N book. That is correct rather than a degraded mode: hysteresis with nothing to
+    hold from is just selection.
+
+    FAILS TO [] on any unreadable or malformed file, deliberately. A band that silently held the
+    wrong names would be worse than one that does not apply, because the resulting book would
+    still look like a valid book. `no_trade_band.applied` in the payload records which happened,
+    so an empty read is visible rather than inferred.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            prev = json.load(f)
+    except (OSError, ValueError):
+        return []
+    if not isinstance(prev, dict):
+        return []
+    return [p.get("ticker") for p in (prev.get("positions") or [])
+            if isinstance(p, dict) and p.get("ticker")]
+
+
 def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
            limit: int = 3000, config: str | None = None, **kw) -> dict:
     """Build the book and write the JSON. Returns the payload.
@@ -265,6 +395,24 @@ def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
             kw["top_n"] = cfg_meta["top_n"]
         if cfg_meta.get("top_frac"):
             kw["top_decile"] = cfg_meta["top_frac"]
+
+    # --- NO-TRADE BAND (S14, adopted by Don 2026-08-13 at width 0.30) ----------------------
+    # Until today the band was DECLARED in configs and emitted as an instruction string for a
+    # human rebalancer; nothing applied it. It is now applied here, which is the whole content
+    # of the adoption.
+    #
+    # WHERE IT APPLIES, and why not everywhere: S14 measured the DECILE book (enter on the top
+    # 10%, hold to the top 30%). `exit_frac` is a fraction of the ranked UNIVERSE, which is
+    # meaningful for a decile book and NOT for a fixed-N one -- on a 25-name book against a
+    # large universe it would hold almost every name almost forever. So a config carrying
+    # `top_n` (roth) stays band-less, and that is a fidelity decision rather than an omission:
+    # a banded 25-name book is a construction S14 never measured.
+    from .no_trade_band import BAND_WIDTH
+    if "exit_frac" not in kw:
+        _w = cfg_meta.get("exit_frac") if cfg_meta else BAND_WIDTH
+        kw["exit_frac"] = None if kw.get("top_n") else _w
+    if "held" not in kw:
+        kw["held"] = _previous_book(path)
     dropped, scan_date = [], None
     if data_dir:
         rows, scan_date, dropped = _full_universe_rows(data_dir, limit=limit)
@@ -295,20 +443,14 @@ def export(store=None, path: str = DEFAULT_PATH, data_dir: str | None = None,
         {"ticker": d["ticker"], "daily_mc": d["daily_mc"], "derived_mc": d["derived_mc"],
          "ratio": round(d["ratio"], 2)} for d in dropped]
     if cfg_meta:
-        # The band is a REBALANCE rule (it compares against the previous book), so a one-shot
-        # export cannot apply it — it is emitted as instruction for whoever rebalances.
-        payload["config"] = {
-            "name": config, "label": cfg_meta.get("label"),
-            "rebalance_days": cfg_meta.get("rebalance_days"),
-            # TRADING days -> calendar months, which is what a human schedules on.
-            "rebalance_months": (round(cfg_meta["rebalance_days"] / 21.0, 1)
-                                 if cfg_meta.get("rebalance_days") else None),
-            "exit_frac": cfg_meta.get("exit_frac"),
-            "exit_mult": cfg_meta.get("exit_mult"),
-            "band_note": ("hold an existing position until it falls past this rank/fraction; "
-                          "requires the PREVIOUS book, so it is applied at rebalance time, not "
-                          "in this snapshot"),
-            "measured": cfg_meta.get("measured")}
+        # CORRECTED 2026-08-13 BY THE S14 ADOPTION. This comment used to read: "The band is a
+        # REBALANCE rule (it compares against the previous book), so a one-shot export cannot
+        # apply it — it is emitted as instruction for whoever rebalances." The premise was
+        # right and the conclusion was wrong: the band does need the previous book, but the
+        # previous book is ON DISK at `path`, so the export CAN apply it and now does. The
+        # `band_note` below is corrected with it — leaving it would have told a reader the
+        # band still had to be applied by hand, and it would then have been applied twice.
+        payload["config"] = config_block(config, cfg_meta)
     payload["generated_at"] = _dt.datetime.now().replace(microsecond=0).isoformat()
 
     d = os.path.dirname(path)

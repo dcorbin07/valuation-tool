@@ -3404,33 +3404,17 @@ def _sector_capped(order, tickers, sectors, n_target, max_sector_w):
     return picked
 
 
-def _band_select(comp, tickers, held, n_target, exit_rank):
-    """Which names to hold, given a NO-TRADE BAND (hysteresis).
-
-    Enter on the top `n_target`; keep an existing holding until it falls past `exit_rank`.
-    Without a band a name is sold the instant it slips one place out of the book, and the
-    round-trip costs and — far more expensively — realizes a short-term gain. The band lets a
-    still-good name drift instead of churning.
-
-    Book SIZE is held at `n_target` so the comparison across widths is like-for-like: survivors
-    are kept best-first, then the remaining slots go to the highest-ranked names not held. With
-    `exit_rank == n_target` this reduces exactly to plain top-N, which is what makes the
-    no-band case a true baseline rather than a different code path.
-    """
-    order = np.argsort(-comp)
-    rank = {tickers[order[r]]: r for r in range(len(order))}
-    keep = sorted((t for t in held if rank.get(t, 1 << 30) < exit_rank), key=lambda t: rank[t])
-    out = keep[:n_target]
-    if len(out) < n_target:
-        chosen = set(out)
-        for r in range(len(order)):
-            t = tickers[order[r]]
-            if t not in chosen:
-                out.append(t)
-                chosen.add(t)
-                if len(out) >= n_target:
-                    break
-    return out
+# MOVED 2026-08-13 by the S14 ADOPTION. The band rule used to be defined here, and here only,
+# because only the backtest applied it. Adopting it into the live book meant a second caller, and
+# writing the rule again next to `build_index` would have created two definitions of one
+# construction. So the body moved to `no_trade_band.py` and BOTH callers import it.
+#
+# This is an ALIAS, not a re-implementation: `_band_select is no_trade_band.band_select` is true,
+# and a test pins that identity. The measured path and the live path therefore cannot drift apart
+# by any amount, which is what the construction-fidelity gate needs in order to mean something.
+# Call sites below are unchanged.
+from .no_trade_band import band_select as _band_select        # noqa: E402  (kept at its old site)
+from .no_trade_band import exit_rank_for as _exit_rank_for    # noqa: E402
 
 
 def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=63,
@@ -3476,7 +3460,11 @@ def turnover_and_costs(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         if exit_mult is not None:
             _xr = max(k, int(round(k * exit_mult)))
         elif exit_frac is not None:
-            _xr = max(k, int(len(sub) * exit_frac))
+            # S14 ADOPTION 2026-08-13: the FRACTION derivation now lives in one place and the
+            # live path imports the same function. Exactly equivalent to the inline
+            # `max(k, int(len(sub) * exit_frac))` this replaces -- the truncation is preserved
+            # deliberately, and a test pins the equivalence over a grid rather than asserting it.
+            _xr = _exit_rank_for(len(sub), k, exit_frac)
         _sel = _band_select(comp, _all_t, set(prev_w), k, _xr)
         if max_sector_w:
             _secmap = dict(zip(_all_t, sub["sector"].values)) if "sector" in sub.columns else {}
@@ -3637,7 +3625,11 @@ def after_tax_backtest(panel, cols, weights, top_frac=0.1, top_n=None, horizon=6
         if exit_mult is not None:
             _xr = max(k, int(round(k * exit_mult)))
         elif exit_frac is not None:
-            _xr = max(k, int(len(sub) * exit_frac))
+            # S14 ADOPTION 2026-08-13: the FRACTION derivation now lives in one place and the
+            # live path imports the same function. Exactly equivalent to the inline
+            # `max(k, int(len(sub) * exit_frac))` this replaces -- the truncation is preserved
+            # deliberately, and a test pins the equivalence over a grid rather than asserting it.
+            _xr = _exit_rank_for(len(sub), k, exit_frac)
         _sel = _band_select(comp, _all_t, set(lots), k, _xr)
         if max_sector_w:
             _secmap = dict(zip(_all_t, sub["sector"].values)) if "sector" in sub.columns else {}
