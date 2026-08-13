@@ -187,14 +187,17 @@ def _perm_t(cells, rng, leg):
     for f, dip, cond in cells:
         n_c = int(cond.sum())
         if leg == "L1":
-            idx = rng.permutation(f.size)[:n_c]
+            # `choice(n, k, replace=False)` is the SAME object as taking the first k of a
+            # full permutation - a uniformly random size-k subset - and is far cheaper on a
+            # 1,650-name cross-section. The scheme is unchanged; only the cost is.
+            idx = rng.choice(f.size, size=n_c, replace=False)
             mc = float(f[idx].mean())
             vals.append(mc - float(f.mean()))
         else:
             di = np.flatnonzero(dip)
             if di.size < n_c or n_c == 0:
                 return None
-            pick = rng.permutation(di.size)[:n_c]
+            pick = rng.choice(di.size, size=n_c, replace=False)
             mc = float(f[di[pick]].mean())
             vals.append(mc - float(f[di].mean()))
     if len(vals) < 3:
