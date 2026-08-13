@@ -1,5 +1,101 @@
 # HANDOFF STATUS — shared project state
 
+## options-bot lane, session 36 (2026-08-13) — U2: the options surface is genuinely ORTHOGONAL to the equity panel and predicts nothing with that orthogonality
+
+**`U2`, one register, four arms, `PREREG_u2_surface_stock_signals.md` committed ALONE at
+`e8e222b`** (one `.md`, zero `.py`), a strict git ancestor of the measurement commit. No panel
+rebuild. **Nothing adopted, no live code path changed.**
+
+**ALL FOUR ARMS REJECTED** against X7's calibrated **2.71** theme-IC bar, required in both halves
+with sign agreement. Incremental IC *t*, full sample: `term_slope` **+0.9862**, `iv_rank`
+**+0.1931**, `skew_25d` **+0.3471**, the composite **+0.7797 / +0.1508** across its two
+decide-then-measure directions. Raw IC *t*: +0.6729, +0.0377, +1.4870. Nothing reaches half the
+bar.
+
+**THE AUDIT'S CENTRAL PREMISE IS CONFIRMED AND ITS CONCLUSION IS REFUTED, AND THAT IS THE RESULT
+WORTH CARRYING.** The audit argued U2 was the highest-expected-value item in the whole catalogue
+because an options-derived signal is *"structurally orthogonal to everything already in the
+panel"*. **It is.** The seven incumbent themes explain only **5.5%–8.8%** of these features'
+variance, against **41.3%** of `gp_on_capital` and **78.4%** of `ret_6_1`. **The features really
+are new information; the new information does not predict.**
+
+**THE POWER CONTROL THE AUDIT ITSELF DEMANDED CLEARS, so these nulls are interpretable rather
+than underpowered**: `gp_on_capital` **+2.4776** and `ret_6_1` **+2.4762** on the identical
+covered rows, against its 2.0 bar. **Two qualifications travel with that and neither is
+optional.** Both land **BELOW 2.71**, so the panel's own best-known signals would not clear the
+bar the arms were judged against on this subsample; and **there is NO valid power control for the
+INCREMENTAL statistic at all**, because every known-real signal here is already an *input* to an
+incumbent theme — which is exactly what the 41% and 78% R2 figures show.
+
+**THE ROW CLOSES `PARTIAL`, NOT `DONE`, AND THE REGISTER FIXED THAT BEFORE ANY RESULT.** The
+audit's U2 names four features; this tested the **levels**. The **put–call parity deviation on
+matched strikes** — Cremers–Weinbaum's actual measure and the largest effect the section cites at
+51 bps/week — needs matched call/put pairs from the raw chains and is a **new feature**, which
+the task forbade; the 21-day changes are a different hypothesis. **Neither is a null.**
+
+**TWO PREMISE FINDINGS REMOVED AN ARM AND REDIRECTED ANOTHER, both measured before the register
+existed.** (a) **`skew_25d` IS EXACTLY `iv_put_25d - iv_call_25d`**, max absolute difference
+**0.000e+00** over 217,706 rows — so the audit's separately-named call-minus-put IV spread is
+exactly `-skew_25d`. **One arm, not two**; the `illiq`/`spread_pct` duplicate-column class,
+caught before the register rather than after a verdict. (b) **The shipped `term_slope_60_30` is
+NOT the O16-validated construction** — it is `atm_iv_60 - atm_iv_30`, while O16 validated
+`atm_mid - atm_front`, and **Spearman between them is only 0.5281**. A lookup by column name
+would have computed cleanly, raised nothing, and reported a U2 verdict on a construction O16
+never validated. A source-level test now pins that the shipped column never enters the arm path.
+
+**COVERAGE FORBIDS A FULL-PANEL GATE — an impossibility, not a power caveat.** The derived layer
+spans 2016-01-04 to 2025-12-31 against a panel starting 2009-01-15, so **29 of 69 rebalance dates
+carry ZERO coverage and ALL are early**. Every split is of the **covered subsample — 40 dates,
+20 and 19 after embargoing 2021-01-21**, both above the shipped `min_dates=16`. S18's situation
+and S18's replacement. **A pass on 20-date halves is not the same object as a pass on 34-date
+halves.**
+
+**`skew_25d`'S PUBLISHED SIGN DOES NOT REPRODUCE.** Xing–Zhang–Zhao's negative direction was
+declared before the run; measured, the raw IC is **positive** (median +0.02056, *t* +1.4870).
+Far too weak to refute them, and a positive result on that arm could never have been a pass — but
+the declared direction is not reproduced on this megacap universe.
+
+**C6 REFUTES THE VOLATILITY-PROXY EXPLANATION OUTRIGHT.** The largest absolute mean per-date
+correlation against ANY incumbent is **0.0844** (`skew_25d` vs `momentum`); against `low_risk`
+all three sit under 0.05. These are not repackaged incumbents — which is what makes the
+orthogonality claim measured rather than asserted.
+
+**CONTROLS.** C1 reproduces the published record to **1e-9** and the run aborts before any arm is
+read if it does not. C3 finds **ZERO** point-in-time violations over **17,411** joined cells —
+the join takes the last derived row **strictly before** the rebalance date, stricter than
+`fwd_ret` requires, to remove the argument rather than win it. C5 confirms no arm is another
+arm's negation. **The book gate and the 2.2837 long-short floor were NOT run and are NOT
+quoted**: the register runs them only on an eligible composite, and both bars would be
+**extrapolations** on a 40-date subsample regardless.
+
+**A DEFECT IN THE SHIPPED IC ARITHMETIC, REPORTED NOT REPAIRED — EDGE LANE'S.**
+`fundamental_panel.theme_ic` guards its t-stat with `if sd > 0`, and whether a constant series
+has an exactly-zero floating-point sd is **value-dependent**: `[0.1, 0.1, 0.1]` has sd about
+5.8e-17, so the guard passes and the t-stat returns about **1.0e16**. This is the
+`SECTOR-NEUTRAL-B6` zero-variance defect **in a second location nobody had checked**. Not
+repaired here, because repairing it would make this lane's copy stop being the shipped arithmetic
+and X7's 2.71 bar would then apply to a statistic it was not calibrated on; a degeneracy check
+gates the verdict instead. Exposure on real data is theoretical, but the function is one every
+calibrated equity bar reads.
+
+**TRIALS.** Four arms, four equity trials: **equity `N` 185 → 189**. Options untouched at 285,
+infra at 11, zero malformed log rows. Tests **66/66 suites green** by exit code.
+
+**THE UNIFICATION IS NOW CLOSED IN EVERY DIRECTION THAT WAS EVER OPENED**: `U1` REJECTED,
+`U7` REJECTED, `U2` REJECTED on its level half and `PARTIAL` on the row.
+
+**RECOMMENDED NEXT STEP, and it is narrow.** Do not re-open U2 on these features. The
+orthogonality result gives a successor a genuine reason to exist, but it must be the **untested**
+half — the **put–call parity deviation on matched strikes**, built from the raw chains, which is
+Cremers–Weinbaum's actual measure and the only one of the audit's four features with a large
+published effect that this item did not touch. It inherits this session's result as a disclosed
+prior: three orthogonal surface levels on the same universe and the same 40 dates produced
+nothing. It must also carry the limitation above — that the incremental statistic has no
+available power control — or it will read its own null as stronger than it is.
+
+Full write-up: `HANDOFF_optionsbot.md` section 55. Artifact:
+`data/free_analysis/U2_SURFACE_STOCK.json`. Reproduce: `python -m scripts.u2_surface_stock`.
+
 ## options-bot lane, session 32 (2026-08-12) — THE O-SERIES IS CLOSED, 26 of 26, and the last item's best arm is a NULL that cleared every bar but one
 
 **`O14`, one register, five arms, `PREREG_o14_tickflow_signals.md` committed ALONE at `ea48f6b`.**

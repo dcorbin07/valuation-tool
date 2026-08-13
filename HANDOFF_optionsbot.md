@@ -5379,3 +5379,192 @@ is exactly one other, and it already pins `as_of` on its continuation line.
 lanes with no involvement in it, and because the correct value was unambiguous. **The general
 lesson is worth more than the fix: a test that reads "today" is a test with an expiry date, and
 this one expired between a green local run and a red CI run on the same commit.**
+
+
+## 55 · U2 — THE OPTIONS SURFACE AS A STOCK SIGNAL. ALL FOUR ARMS REJECTED; THE ROW CLOSES PARTIAL
+
+`PREREG_u2_surface_stock_signals.md`, committed **ALONE at `e8e222b`** (one `.md`, zero `.py`),
+a strict git ancestor of the measurement commit. No panel rebuild — the corrected 69-date panel
+is banked and the surface joins to it point-in-time. **Nothing is adopted and no live code path
+changed.**
+
+### 55.1 · The one-sentence result
+
+**The options surface is genuinely orthogonal to the equity panel and predicts nothing with that
+orthogonality.** The audit's central argument for U2 — that an options-derived signal is
+*"structurally orthogonal to everything already in the panel"* and is therefore the most
+plausible occupant of the empty `sentiment` slot — **is confirmed by measurement.** Its
+conclusion is not. The seven incumbent themes explain **5.5%–8.8%** of these features' variance;
+the orthogonal 91%–94% carries no forward-return information at this panel's resolution.
+
+### 55.2 · Verdicts
+
+| arm | construction | raw IC *t* | **incremental IC *t*** | early / late | verdict |
+|---|---|---|---|---|---|
+| A1 `term_slope` | `atm_iv_60 - atm_iv_front` (O16) | +0.6729 | **+0.9862** | +0.3939 / +1.4742 | REJECTED |
+| A2 `iv_rank` | shipped | +0.0377 | **+0.1931** | +0.2798 / +0.1847 | REJECTED |
+| A3 `skew_25d` | shipped | +1.4870 | **+0.3471** | -0.2870 / +0.3895 | REJECTED |
+| A4 `surface` | decide-then-measure blend | — | **+0.7797 / +0.1508** | (two directions) | REJECTED |
+
+Bar: X7's calibrated **2.71** theme-IC *t*, required in **both halves** with **sign agreement**.
+Nothing comes within a factor of two of it. A3 additionally **flips sign between halves**, which
+is a NULL by the register's own two-sided clause even had the magnitudes cleared.
+
+### 55.3 · Three premise findings, all measured BEFORE the register, each of which changed the design
+
+**(a) A duplicate arm, killed before it was charged.** `skew_25d` is **exactly**
+`iv_put_25d - iv_call_25d` — max absolute difference **0.000e+00** over 217,706 rows, Pearson
+**+1.000000**. The audit names the smirk and *"the ATM call-minus-put implied-vol spread"* as two
+separate features; at 25 delta on this layer the second is **exactly `-skew_25d`**. Their rank
+ICs are exact negatives, so carrying both would have charged two trials for one hypothesis and
+reported the same number twice as two independent results. **This is the `illiq`/`spread_pct`
+defect class the O3/O4/O5 lane found in a prior lane's `panel.pkl` — caught here BEFORE the
+register instead of after a verdict.** Pinned by C5, which raises rather than warns.
+
+**(b) The near-miss, and it is the most transferable thing in this item.** The derived layer
+ships a column called `term_slope_60_30`. It is **exactly `atm_iv_60 - atm_iv_30`**. The
+construction **O16 validated** is `atm_mid - atm_front` — the **front expiry**, not the 30-day
+tenor. Measured on the covered names, **Spearman between the two is only 0.5281**.
+
+A lookup by column name would have found `term_slope_60_30`, computed cleanly, raised nothing,
+and **delivered a U2 verdict on a construction O16 never validated** — while O16's entire finding
+was about separating `term_slope` from a front-end IV level. The arm uses
+`atm_iv_60 - atm_iv_front`, and a **source-level test asserts the shipped column never appears in
+the arm path**, checked for vacuity by also requiring the two O16 legs to be present.
+
+**(c) Coverage forbids a full-panel gate — an impossibility, not a power caveat.** The derived
+layer spans **2016-01-04 → 2025-12-31**; the panel spans **2009-01-15 → 2026-01-28**. So **29 of
+69 rebalance dates carry ZERO coverage and every one of them is early**, and the final panel date
+is uncovered because the layer ends first.
+
+| | |
+|---|---|
+| covered dates (at least 20 names) | **40**, 2016-01-20 … 2025-10-27 |
+| halves after embargoing 2021-01-21 | **20 / 19** — both above the shipped `min_dates=16` |
+| mean covered names per covered date | **436.9** |
+| covered share of the panel cross-section | **~25%** (audit predicted 4–14%) |
+
+**This is S18's situation exactly and it takes S18's replacement:** every half-split in this
+register is a split of the **covered subsample**, never of the full panel. **A pass on 20-date
+halves is not the same object as a pass on 34-date halves and may not be quoted as one.**
+
+### 55.4 · The power control clears — and the same number cuts against the verdict
+
+The audit's own U2 threshold demands a subset power control, *"so a null is interpretable as a
+null rather than as low power."* Measured on the identical covered rows:
+
+| control | raw IC *t* | incremental IC *t* | R2 on the incumbents |
+|---|---|---|---|
+| `z_gp_on_capital` | **+2.4776** | +0.5776 | **0.4130** |
+| `z_ret_6_1` | **+2.4762** | +0.3891 | **0.7843** |
+
+Both clear the audit's 2.0 bar, **so the nulls above are interpretable rather than underpowered.**
+
+**Two qualifications travel with that, and neither is optional.**
+
+1. **Both land BELOW 2.71.** The panel's own best-known signals would not clear the bar the arms
+   were judged against, on this subsample. A null against 2.71 here is weaker evidence than the
+   bar's provenance suggests.
+2. **There is NO valid power control for the INCREMENTAL statistic on this panel at all**, and
+   the R2 column is why: every known-real signal available is already an *input* to an incumbent
+   theme, so residualising it destroys it by construction. This is a genuine limitation of the
+   verdict statistic and it is reported rather than worked around — a control that cannot exist
+   is not the same as a control that passed.
+
+**The surface features are the exception that makes the test meaningful at all**: their R2 on the
+incumbents is **0.0552 / 0.0874 / 0.0880**, so they retain 91%–94% of their variance after
+residualisation. The incremental IC is measuring something real about them; it is simply zero.
+
+### 55.5 · The smirk's published sign does not reproduce
+
+**Declared before the run**, from Xing–Zhang–Zhao (2010): steepest-smirk stocks **underperform**,
+so `skew_25d` (put-minus-call IV) should carry a **negative** IC. Measured: raw median IC
+**+0.02056** at *t* **+1.4870** — **positive**, the contradicting direction.
+
+Stated with its limit: *t* +1.49 refutes nothing, and the register's rule makes a positive result
+on A3 unquotable as a pass however large. What is reportable is that **the declared direction is
+not reproduced on this megacap universe**, which is the same shape as O3/O4/O5's sign reversal
+and consistent with McLean–Pontiff's 58% post-publication decay on the most efficiently priced
+names in the market.
+
+### 55.6 · C6 refutes the obvious alternative explanation outright
+
+A volatility-surface feature is a prime candidate to be a volatility or size exposure wearing a
+new name — **U7's failure mode**, where the "composite veto" turned out to be a market-cap sort.
+Mean per-date Spearman against the incumbents:
+
+| arm | `low_risk` | `size` | `momentum` |
+|---|---|---|---|
+| `term_slope` | -0.0382 | +0.0007 | +0.0141 |
+| `iv_rank` | -0.0334 | -0.0181 | -0.0663 |
+| `skew_25d` | -0.0466 | +0.0569 | -0.0844 |
+
+**The largest absolute value anywhere in the table is 0.0844.** These are not repackaged
+incumbents. Diagnostic, no verdict — but it is what makes 55.1's orthogonality claim measured
+rather than asserted.
+
+### 55.7 · Controls, and what was deliberately NOT run
+
+- **C1 (gate)** — the seven-theme flat-weight book reproduces the published record to **1e-9**
+  (alpha 0.07174142332098163, LS *t* 2.8360640685320595, NW 2.6199121240414884, monotonicity
+  -0.8909090909090909). The run aborts before any arm is read if it does not.
+- **C3** — **ZERO** point-in-time violations over **17,411** joined cells. The join takes the
+  last derived row **STRICTLY BEFORE** the rebalance date. `fwd_ret` runs from that date's
+  *close*, so a same-day EOD surface would have been contemporaneous rather than look-ahead;
+  strictly-before is used anyway because it costs one day of staleness on a quarterly signal and
+  **removes the argument instead of winning it**.
+- **C5** — no arm is another arm's negation. **C4** — the O16 construction is the one used.
+  **C8** — coverage per arm per half, reported before any IC.
+- **NOT RUN AND NOT QUOTED: the book gate and the 2.2837 long-short HAC floor.** The register
+  runs them only on an eligible composite (section 4.3) and A4 is REJECTED. **Both calibrated
+  bars would be EXTRAPOLATIONS here regardless** — X7 and session 10 measured them on the full
+  69-date 2,531-name panel at h63 lag 1, and this is a 40-date ~437-name subsample.
+  Re-calibrating on the subsample after seeing the arms is a void condition.
+
+### 55.8 · A defect in the SHIPPED IC arithmetic — reported, not repaired. Edge lane's.
+
+`fundamental_panel.theme_ic` guards its t-stat with `if sd > 0`. **Whether a constant series has
+an exactly-zero floating-point sd is VALUE-DEPENDENT**: `[0.0, 0.0, 0.0]` gives exactly 0 and the
+guard fires, but **`[0.1, 0.1, 0.1]` has sd about 5.8e-17, so the guard passes and the t-stat
+comes back about 1.0e16.**
+
+**This is precisely the `SECTOR-NEUTRAL-B6` zero-variance defect** — documented there in
+`cross_sectional.zscore`, exact for 0.0 / 50.0 / 2.5 / 0.125 and about 1e-16 for 0.9 / 0.1 / one
+third / 12.34 — **in a second location nobody had checked.**
+
+**Deliberately not repaired here.** Repairing it would make this lane's `ic_tstat` stop being the
+shipped arithmetic, and X7's 2.71 bar would then apply to a statistic it was not calibrated on —
+the exact mismatch session 10 exists to close. A **degeneracy check gates the verdict instead**,
+so an absurd *t* can never be read as a pass, and two tests pin both halves of the behaviour.
+On real data an IC series over 20 dates is never exactly constant, so **the exposure here is
+theoretical** — but the defect is real and it is in a function every calibrated equity bar reads.
+
+### 55.9 · Trial cost and what closes
+
+**Four arms, four equity trials. Equity `N` 185 → 189**, exactly as pre-committed; options
+untouched at **285**, infra at **11**, zero malformed rows. **Re-read `by_domain` after merging
+rather than quoting this figure** — five consecutive sessions in this lane have found the equity
+count moved under them between the register and the push.
+
+**The unification is now closed in every direction that was ever opened**: `U1` REJECTED (the
+composite as an options entry signal), `U7` REJECTED (the composite as an options veto), `U2`
+REJECTED on the level half. **`U2`'s row is `PARTIAL`, not `DONE`** — the parity-deviation and
+21-day-change halves are untested, not null, and section 0.5 of the register fixed that before
+any number existed.
+
+Expectations scored **5 right, 3 wrong, 1 split**. The three misses are informative: the residual
+IC was predicted smaller than the raw IC *for every arm* and is smaller on median IC but **larger
+on *t* for two of three**; the largest incumbent correlation was predicted against `low_risk` and
+is against `momentum`; and **at least one NOT_REPLICATED arm was predicted at 60/40 and none
+appeared — breaking a four-session streak in which exactly one arm cleared exactly one half.**
+
+### 55.10 · The recommendation, and it is a narrow one
+
+**Do not re-open U2 on these features.** The orthogonality result means a future attempt has a
+genuine reason to exist, but it must be the **untested** half: **the put–call parity deviation on
+matched strikes**, built from the raw chains, which is Cremers–Weinbaum's actual measure and the
+only one of the audit's four features with a large published effect that this item did not touch.
+It inherits this session's result as a **disclosed prior**: three orthogonal surface levels on the
+same universe and the same 40 dates produced nothing. **A successor must also carry the 55.4
+limitation — that the incremental statistic has no available power control — or it will read its
+own null as stronger than it is.**
