@@ -5316,7 +5316,7 @@ reproduce bit-identically.
 ## 52 · Trial cost
 
 **Options `N` 280 → 285**, one per arm, **exactly as §6 pre-committed.** Equity and infra untouched
-by this item; after merging they read **equity 183, infra 11** — re-read `by_domain` after the
+by this item; after merging they read **equity 185, infra 11** — re-read `by_domain` after the
 merge, never quote a mid-session figure.
 
 **Expectations scored 4 right, 2 wrong.** Right: E1 (no arm reaches CANDIDATE), E2 (at least one
