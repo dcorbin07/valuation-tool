@@ -2640,9 +2640,15 @@ def quantile_backtest(panel, cols, weights, n_q=10, horizon=63, return_series=Fa
     # `dates`/`n_scored` are returned because two arms need NOT score the same dates or the same
     # names: an arm can rank a name the other cannot (the other's themes are all absent on it),
     # so alignment has to be checkable rather than assumed.
+    # U3 — `equal_weight` joins the opt-in dict for the same reason `alpha` did. The top-decile
+    # book's own per-period RETURN is `alpha[i] + equal_weight[i]` by construction (see the two
+    # appends above), and a combined equity/options curve needs the LEVEL, not the excess: you
+    # cannot compound an alpha. Purely additive and inside the existing `return_series` gate, so
+    # every current caller's payload stays bit-identical. The identity is pinned by test.
     series = {"dates": used_dates, "n_scored": n_scored,
               "long_short": [float(x) for x in ls],
-              "alpha": [float(x) for x in alpha_series]}
+              "alpha": [float(x) for x in alpha_series],
+              "equal_weight": [float(x) for x in ewb]}
     # S28 — the SHAPE of the two series the headlines are means of. Computed ALWAYS (it is a
     # handful of order statistics, not the series) and deliberately NOT gated on
     # `return_series`, because the point of the item is that the distribution should be as
