@@ -1,5 +1,49 @@
 # HANDOFF STATUS - shared project state
 
+## edge lane, PT-WRITER's ripe reading (2026-08-14) - THE FAILURE IS DATED; `recording_ok` STILL CANNOT SAY SO
+
+**Zero trials** (facts about disk and code, no threshold, no verdict). Equity `N` stays **224**.
+**`PT-WRITER` STAYS BLOCKED - ROUTED TO COWORK.** The board is **QUIET**, with one qualification.
+
+- **THE CLOCK MOVED UNDER THE PREDICTION FOR THE THIRD TIME.** Don's **S14** adoption (no-trade
+  band, width 0.30) closed vintage 3 and opened **VINTAGE 4 on 2026-08-13**. So `recording_ok`
+  reads **`None`** - `expected_trading_days` on the open vintage is **0**, `row_awaited` is today
+  and **`assessable_from` is 2026-08-17**. **PREMISE CORRECTION: the operational gate is
+  2027-02-13, NOT the 2027-02-11 the record and the task both carried**; verdict 2031-08-13.
+  **Three five-year clock resets in four days.** Derive the vintage from `track_meter.VINTAGES`;
+  every hard-coded copy in the corpus has now been wrong within days.
+- **THE GAP IS DATED AND NAMED - AND ONE INSTRUMENT ALONE SEES IT: vintage 3 owed exactly ONE
+  trading day, `2026-08-12`, and got ZERO.** It closed 2026-08-13, so `recording_ok` - scoped to
+  the open vintage - says nothing about it. **Session 28's second defect firing for real**
+  (*a vintage event silently clears the recording gap*); `track_meter.recording_history`, built
+  for exactly this, is the only place it is visible: v1 **2 of 6**, v2 0/0, **v3 0 of 1**, v4 0/0.
+- **THE DECISIVE EVIDENCE IS A DATED FAILURE NOTE THE WRITER LANE WROTE ITSELF, STRANDED UNPUSHED
+  FOR FOUR DAYS.** Commit **`41d7b12`** on the SHARED CHECKOUT's local `main` (2026-08-10 20:06):
+  *"cannot write row - mechanism for daily prices not documented in repo … Cannot write today's
+  row without (a) a documented price-fetching mechanism, or (b) guessing at a vendor. Per
+  instructions, logging the gap rather than inventing data."* **That is correct behaviour and it
+  is the answer to the row** - the blocker is a **missing documented price mechanism**, not a
+  scheduler fault. It is invisible on `origin/main` because it was never pushed. **→ DON: run
+  `sync.bat`** (RUN_RULES calls it idempotent and safe). This lane did **not** push it - it sits
+  on `main`, and pushing `main` by hand is forbidden.
+- **CONTROLS.** The local copy is **not** a stale mirror of a healthy remote - the live service's
+  own export (2026-08-10 21:27) carries the **same two rows**. Nothing in the repo writes the file
+  (third confirmation). `data/valquo_track_history.csv` mtime still **2026-08-07 18:07** - five
+  further trading days of silence. **HONEST LIMIT: the last authoritative remote read is
+  2026-08-10 21:27** (backup cron is weekly, Sunday 06:17 UTC, next **2026-08-16**), so
+  2026-08-12's absence is confirmed **locally** and not yet on the live service; `workflow_dispatch`
+  is enabled and can settle it on demand.
+- **BOARD QUIET? YES, WITH ONE QUALIFICATION.** Zero `IN PROGRESS` rows (the one string match is
+  `B13`, whose cell reads *"NOT IN PROGRESS"*). **All 57 remote `worktree-*` branches are ancestors
+  of `origin/main`** - none unmerged, no lane mid-session. **The qualification: local `main` is +1,
+  and that commit is `41d7b12` above** - so the board is quiet but **not fully RECORDED**.
+- **NEXT HONEST READING: 2026-08-17**, when vintage 4's first row (2026-08-14) falls due - provided
+  no vintage event lands first, which on the last four days' record is a real proviso.
+
+`HANDOFF_edge_audit.md` 2026-08-14; ledger row `PT-WRITER`.
+
+---
+
 ## edge lane, X5+M4+B23+S10ACCT (2026-08-14) - THE CATALOGUE IS EXECUTED
 
 `PREREG_x5_m4_b23_s10acct.md` committed ALONE at `264cc49`. Four rows, two measured and two

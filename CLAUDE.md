@@ -48,6 +48,56 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE WRITER FAILURE IS DATED AND EVIDENCED AT LAST - AND `recording_ok` STILL CANNOT SAY SO,
+  FOR THE THIRD READING RUNNING (2026-08-14, `PT-WRITER`).** **Zero trials** - facts about what is
+  on disk and what the code reads, no threshold, no verdict (`S25`/`PT-GAPDUE` precedent). Equity
+  `N` stays **224**. **`PT-WRITER` STAYS BLOCKED, ROUTED TO COWORK.**
+  * **THE CLOCK MOVED UNDER THE PREDICTION FOR THE THIRD TIME, AND THE GATE DATE IN THIS FILE WAS
+    WRONG.** Don's adoption of **S14** (no-trade band, width 0.30) closed vintage 3 and opened
+    **VINTAGE 4 on 2026-08-13**. So the bound inception is 2026-08-13, **the operational gate is
+    2027-02-13 and NOT the 2027-02-11 the record carried**, and the verdict date is 2031-08-13.
+    `expected_trading_days` on the open vintage is **0**, `row_awaited` is 2026-08-14 (today, not
+    yet due), `assessable_from` is **2026-08-17**. **Three five-year clock resets in four days**;
+    Rule 6 is paid in full each time. **The vintage was DERIVED from the register, not quoted** -
+    the task, this file and the ledger row all carried the superseded date.
+  * **THE GAP IS DATED AND NAMED, AND ONE INSTRUMENT ALONE CAN SEE IT: vintage 3 owed exactly ONE
+    trading day, 2026-08-12, and received ZERO.** It then CLOSED on 2026-08-13, so `recording_ok` -
+    scoped to the open vintage because the contract scopes the gate that way - reports nothing about
+    it. **This is session 28's second defect firing for real rather than hypothetically** (*a vintage
+    event silently clears the recording gap*), and `track_meter.recording_history`, built in that
+    session for exactly this case, is now the **only** place the failure is visible: v1 VOID 2 of 6,
+    v2 0 of 0, **v3 0 of 1**, v4 OPEN 0 of 0. **Without that audit trail this session would have read
+    `None` and had nothing to report.**
+  * **THE DECISIVE EVIDENCE IS NOT THE METER - IT IS A DATED FAILURE NOTE THE WRITER LANE WROTE
+    ITSELF, STRANDED UNPUSHED FOR FOUR DAYS.** Commit **`41d7b12`** on the **shared checkout's local
+    `main`**, 2026-08-10 20:06: *"cannot write row - mechanism for daily prices not documented in
+    repo … Cannot write today's row without (a) a documented price-fetching mechanism, or (b)
+    guessing at a vendor. Per instructions, logging the gap rather than inventing data."* **That is
+    the correct behaviour and it is the answer to the row** - the blocker is **a missing documented
+    price mechanism**, not a scheduler fault, a crash or a conditional write. It is invisible on
+    `origin/main` because it was never pushed, which is the exact stranded-work failure `RUN_RULES`
+    Part A rule 1 exists to prevent, **and the reason three sessions hunted for evidence written on
+    day one.** **NOT PUSHED BY THIS LANE** - it sits on `main` and pushing `main` by hand is
+    forbidden; the sanctioned route is **Don's `sync.bat`**.
+  * **THE INNOCENT EXPLANATIONS ARE REFUTED, CHECKED NOT ASSUMED.** The local copy is **not** a stale
+    mirror of a healthy remote: `data_export/valquo_index_track.csv`, pulled from the LIVE service by
+    the weekly cron at 2026-08-10 21:27, carries the **same two rows**. Nothing in the repo writes the
+    file (third independent confirmation; all five referencing files **read**, and `track-backup.yml`
+    is a **backup** whose own docstring restores the other way). `data/valquo_track_history.csv` still
+    reads mtime **2026-08-07 18:07** - **five further trading days of silence**.
+  * **AN HONEST LIMIT: the last AUTHORITATIVE remote read is 2026-08-10 21:27**, because the backup
+    cron is weekly (Sunday 06:17 UTC, next **2026-08-16**) and `/admin/export-track` needs a token
+    this lane must never print. **So 2026-08-12's absence is confirmed LOCALLY and not yet on the live
+    service.** `workflow_dispatch` is enabled, so it can be settled on demand.
+  * **THE BOARD IS QUIET, WITH ONE QUALIFICATION.** No `IN PROGRESS` rows (the single string match is
+    `B13`, whose cell reads *"NOT IN PROGRESS"* - a negation); **all 57 remote `worktree-*` branches
+    are ancestors of `origin/main`**, none unmerged. **The qualification: local `main` is +1, and that
+    one commit is `41d7b12` above.** So the board is quiet but **not fully RECORDED**, and the
+    stranded commit is the one carrying the answer to the last live row.
+  * **WHAT IT DOES NOT SAY:** the row's own test - a dated miss on an **OPEN** vintage, reported by
+    `recording_ok` - has still never been reached, a vintage event having intervened on all three
+    attempts. **The next honest reading is 2026-08-17**, provided no vintage event lands first, and on
+    the last four days' record that proviso is doing real work. `HANDOFF_edge_audit.md` 2026-08-14.
 - **THE CATALOGUE IS EXECUTED - EVERY ROW ADJUDICATED. AND THE LAST FOUR ROWS DELIVER THE
   PROJECT'S STRONGEST POSITIVE RESULT AND ITS MOST INSTRUCTIVE REVERT (2026-08-14,
   `X5`+`M4`+`B23`+`S10-ACCT`).** `PREREG_x5_m4_b23_s10acct.md` committed **ALONE at `264cc49`**, a
@@ -1494,7 +1544,11 @@ the project's memory and the old versions had been repeated for months.
   settle `PT-WRITER`. It was read. **Neither predicted branch fired, `PT-WRITER` is NOT closed
   and NOT refuted, and the ledger row stays `BLOCKED`.**
   * **THE CLOCK MOVED UNDER THE PREDICTION, AND THIS IS THE PART EVERY LANE MUST PICK UP: the
-    bound inception is 2026-08-11 and the operational gate is 2027-02-11**, not the 2026-08-10 /
+    bound inception is 2026-08-11 and the operational gate is 2027-02-11** *(**SUPERSEDED
+    2026-08-14: vintage 4 opened 2026-08-13 on Don's S14 adoption, so the live figures are
+    inception 2026-08-13 and gate 2027-02-13. Kept as the record of what vintage 3 was — and as
+    the third demonstration in four days that a hard-coded vintage date rots within days. DERIVE
+    it from `track_meter.VINTAGES`; never quote one from this file.*)*, not the 2026-08-10 /
     2027-02-10 this file and the ledger both still assumed. The theme-restoration lane closed
     vintage 2 and opened **vintage 3** on 2026-08-11 (capital_discipline reaching a live score is
     an ADOPTED change), so **vintage 2 lasted ONE DAY** and vintage 3's first row is not owed

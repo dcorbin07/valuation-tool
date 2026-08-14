@@ -64,8 +64,12 @@ def test_frozen_constants_are_exactly_what_the_contract_says():
     assert TM.CONTRACT_VERSION == "option-E-2026-08-09+amendment-1"
     # THE CLOCK ATTACHES TO THE CURRENT VINTAGE and is DERIVED, so a vintage event moves it
     # mechanically rather than by anyone remembering to. Asserted as a relationship, which is
-    # the property the contract actually states; the literal dates moved when the theme
-    # restoration opened vintage 3 (gate 2027-02-10 -> 2027-02-11).
+    # the property the contract actually states -- and that choice has now paid for itself
+    # THREE TIMES in four days, because the literal gate date has moved three times and not one
+    # assertion here needed editing: 2027-02-10 (vintage 2) -> 2027-02-11 (vintage 3, theme
+    # restoration) -> 2027-02-13 (vintage 4, Don's S14 no-trade-band adoption, 2026-08-13).
+    # Pinning the literal would have made every vintage event a test edit, and a test that must
+    # be edited to stay green is one that gets edited without being read.
     assert TM.INCEPTION == TM.current_vintage()["opened"]
     assert TM.OPERATIONAL_GATE == TM._months_after(TM.INCEPTION, TM.GATE_MONTHS)
     assert TM.FIRST_RENDER == TM.OPERATIONAL_GATE

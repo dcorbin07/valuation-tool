@@ -11483,3 +11483,127 @@ overwhelming majority are rejections, nulls and corrections, which is the record
 should stay the headline. Nor does it mean the project is finished — X5's own scope limit, B23's
 follow-up, S10's unbuildable fourth flag and the options lane's replay harness are all named open
 work created *by* this catalogue rather than left over from it.
+
+---
+
+## 2026-08-14 — `PT-WRITER`'s ripe reading: the failure is dated at last, and `recording_ok` still cannot say so
+
+**Zero trials. No register, no threshold, no verdict** — every finding here is a fact about what is
+on disk and what the code reads (`S25`'s and `PT-GAPDUE`'s precedent). Equity `N` stays **224**.
+
+### 0. The answer, in one line
+
+**`recording_ok` is `None` for the THIRD consecutive reading — neither branch of the task fired —
+but the writer failure is now DATED AND EVIDENCED for the first time, from two sources that are not
+the meter.** `PT-WRITER` stays **BLOCKED** and is **routed to Cowork**.
+
+### 1. The clock moved under the prediction. Again. For the third time.
+
+The task's premise was that vintage 3+ rows are now due and detectable. Half right, and the half
+that is wrong is the half that decides the reading:
+
+| | assumed by the task | **measured 2026-08-14** |
+|---|---|---|
+| open vintage | 3 | **4**, opened 2026-08-13 |
+| bound inception | 2026-08-11 | **2026-08-13** |
+| operational gate | 2027-02-11 | **2027-02-13** |
+| verdict date | 2031-08-11 | **2031-08-13** |
+| `expected_trading_days` (open vintage) | ≥ 1 | **0** |
+| `recording_ok` | true or false | **`None`** |
+
+Vintage 4 was opened by **Don's adoption of S14**, the no-trade band at width 0.30 — a construction
+change, squarely a vintage event under Amendment 1. `row_awaited` is **2026-08-14**, today, which is
+not yet due because a row is written after its own close; `assessable_from` is **2026-08-17**.
+**The vintage was DERIVED from the register, not quoted** — which is the whole reason the register
+is the authority, since the task, this file and the ledger row all carried 2027-02-11.
+
+**Three five-year clock resets in four days** (vintage 2 → 3 on 2026-08-11, 3 → 4 on 2026-08-13).
+Rule 6 is paid in full each time and it is not hidden: vintage 3 accrued two complete days and they
+are spent.
+
+### 2. The gap IS dated — and only one instrument can see it
+
+**Vintage 3 owed exactly ONE trading day, `2026-08-12`, and received ZERO.** It then closed on
+2026-08-13, so `recording_ok` — scoped to the open vintage, because the contract scopes the gate
+that way — reports nothing about it.
+
+That is **session 28's second defect firing for real rather than hypothetically**: *a vintage event
+silently clears the recording gap.* `track_meter.recording_history`, built in that session for
+exactly this case, is now the **only** instrument in which the failure is visible:
+
+| vintage | status | expected | present | missing |
+|---|---|---|---|---|
+| 1 | VOID | 6 | 2 | 2026-08-03, -04, -05, -07 |
+| 2 | CLOSED | 0 | 0 | — |
+| **3** | **CLOSED** | **1** | **0** | **2026-08-12** |
+| 4 | OPEN | 0 | 0 | — |
+
+Had `recording_history` not existed, this session would have read `recording_ok: None` and had
+nothing to report. **A gate that a vintage event can silently clear is not a gate**, and the audit
+trail is the only thing between that and a five-month-late discovery.
+
+### 3. The decisive evidence is a dated failure note the writer lane wrote itself — stranded unpushed for four days
+
+Commit **`41d7b12`**, on the **shared checkout's local `main`**, authored **2026-08-10 20:06**:
+
+> **PT-WRITER 2026-08-10: cannot write row — mechanism for daily prices not documented in repo**
+>
+> "The mechanism for retrieving daily closing prices to calculate the Index returns is **not
+> documented in this repository** … Cannot write today's row without (a) a documented price-fetching
+> mechanism, or (b) guessing at a vendor. Per instructions, logging the gap rather than inventing
+> data. **Gap: 2026-08-10, reason = no automated price mechanism in this repository.**"
+
+**This is the correct behaviour and it is the answer to the row.** The writer lane attempted the
+write, refused to invent data, and dated its refusal. It answers a question three sessions of
+meter-reading could not: the blocker is **a missing documented price mechanism**, not a scheduler
+fault, not a crash, not a conditional write.
+
+**It is invisible on `origin/main` because it was never pushed** — the exact stranded-work failure
+`RUN_RULES` Part A rule 1 exists to prevent, and the reason three sessions hunted for evidence that
+had already been written on day one.
+
+**NOT PUSHED BY THIS LANE.** It sits on `main`, and pushing `main` by hand is forbidden. The
+sanctioned route is **Don's `sync.bat`**, which `RUN_RULES` calls idempotent and safe. → **Don.**
+
+### 4. Controls — the obvious innocent explanations, refuted
+
+* **"The local copy is a stale mirror of a healthy remote."** Refuted. `data_export/valquo_index_track.csv`,
+  pulled from the **live service** by the weekly `track-backup` cron at **2026-08-10 21:27**, carries
+  the **same two rows** (2026-07-31, 2026-08-06).
+* **"Something in the repo writes it and we missed it."** Refuted, third independent time. Five files
+  reference `valquo_track_history.csv`; all **read**. `track-backup.yml` pulls `/admin/export-track`
+  and commits to `data_export/` — a **backup**, and its own docstring says restoring means copying
+  back the other way.
+* **File state.** `data/valquo_track_history.csv` still reads mtime **2026-08-07 18:07** — untouched
+  across 2026-08-10, -11, -12, -13 and -14. **Five further trading days of silence.**
+
+**AN HONEST LIMIT, STATED NOT GLOSSED.** The last **authoritative** remote read is 2026-08-10 21:27,
+because the backup cron is weekly (Sunday 06:17 UTC, **next 2026-08-16**) and `/admin/export-track`
+needs a token this lane must never print. So **2026-08-12's absence is confirmed LOCALLY and not yet
+on the live service.** `workflow_dispatch` is enabled on that workflow, so Cowork or Don can settle
+it on demand rather than waiting for Sunday.
+
+### 5. Is the board QUIET?
+
+By the definition the task supplies — **no `IN PROGRESS` rows, no lane mid-session** — **YES, with
+one qualification that must travel with it.**
+
+* **`IN PROGRESS` rows: ZERO.** Exactly one row in `VALQUO_LEDGER.md` matches the string, and it is
+  `B13`, whose status cell reads *"PARTIAL — BLOCKED ON DATA, **NOT IN PROGRESS**"* — a negation, not
+  a live row.
+* **Lanes mid-session: NONE.** All **57** remote `worktree-*` branches are ancestors of `origin/main`;
+  not one is unmerged. The nine live worktree directories sit on landed branches.
+* **THE QUALIFICATION:** local `main` is **+1** against `origin/main`, and that one commit is
+  `41d7b12` — the PT-WRITER failure note above. The two other unlanded locals are `backup/*` refs
+  from 2026-07-28, archival rather than lanes.
+
+**So the board is quiet but not fully RECORDED**, and the single stranded commit is the one carrying
+the answer to the last live row. `sync.bat` closes both facts at once.
+
+### 6. What this does not say
+
+It does **not** close `PT-WRITER`, and it does not refute it. The row's own test — a dated miss on an
+**open** vintage, reported by `recording_ok` — has still never been reached, because a vintage event
+has intervened on all three attempts. **The next honest reading is 2026-08-17**, when vintage 4's
+first row (2026-08-14) falls due, *provided no vintage event lands before then* — and on the record
+of the last four days that proviso is doing real work.
