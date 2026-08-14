@@ -48,6 +48,76 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **SELLING A 25-DELTA PUT IS SELLING A 25% ASSIGNMENT PROBABILITY *BY CONSTRUCTION*, SO THE
+  STRIKE HAS ALREADY SPENT THE RISK EDGE — THE CSP ON HEALTHY DIPS IS REJECTED BY THE ONE CONTROL
+  THAT MATTERED, AND THE `U6` "100% CALLS" BLOCKER IS RETRACTED (2026-08-13, `V6-OPT`).**
+  `PREREG_v6opt_csp.md` committed **ALONE at `88685c9`** — one `.md`, zero `.py`, a strict
+  ancestor of every measurement commit — and it fixed **BOTH stages** before either ran, so
+  stage 2 could not be designed on stage 1's numbers. **ADOPTS NOTHING**; no live code path
+  changed.
+  * **STAGE 1 IS DESCRIPTIVE AND THE GATE OPENED, WHICH IS WHY STAGE 2 IS INTERPRETABLE.** On
+    4,855 covered dipped rows: post-dip `atm_iv_30` sits **+17.71%** above the name's **own**
+    trailing 252-day median against **+13.29%** for unhealthy dips (**ratio 1.3328**, so the
+    market does **NOT** price the `M1` distinction); a real 25-delta 30–45 DTE put pays a median
+    **2.550% of strike** over 32 days — **27.73% annualised** — net of the **shipped** fill
+    engine at the touch; and the variance risk premium is **+0.0391** vol points (implied 0.430
+    against realised 0.389). **The elevation decays away almost entirely inside 30 trading days**
+    (−1.72%, −5.64%, −14.42%, **−16.56%** at t+5/10/20/30).
+  * **STAGE 2 IS REJECTED, AND IT FAILS *ONLY* ON THE DISCRIMINATOR THE REGISTER NAMED AS
+    DECIDING.** The healthy arm clears three of four conditions and is not marginal about it:
+    **+1.1342%/trade** on the cash secured, **positive in BOTH halves** (+1.1348, +1.1178), an
+    **84.39% win rate**, and it **beats random entry decisively** — pooled **+0.2612%** over five
+    seeds, paired name-year sign test **z +7.2506, p 4.15e-13**, 66.96% of 457 cells positive.
+    **It fails condition 2: the IDENTICAL trade on UNHEALTHY dips earns MORE (+1.2651%) and beats
+    it in BOTH halves.** So the health floors do no work and the trade is **just short vol** —
+    which `A3` already rejected at **−7.99%/trade**.
+  * **THE MECHANISM IS MEASURED AND IT IS THE MOST PORTABLE THING HERE.** Assignment comes back
+    **25.30% healthy against 25.73% unhealthy** — a 0.43pp gap — while the unhealthy name pays
+    **2.978% of strike against 2.550%** because its implied vol is higher (0.474 vs 0.424).
+    **A delta-targeted rule sets the strike from the name's own volatility, so it neutralises the
+    very risk difference the trade was built to exploit.** Deltas are like-for-like (median
+    **−0.2638** vs **−0.2658**, DTE 32 vs 31), so this is not a confound. **A risk signal can only
+    pay through an option if the MONEYNESS is held fixed, not the DELTA** — and that is a **NEW
+    hypothesis** needing its own register, forbidden here by void condition 3.
+  * **THE RISK EDGE IS A QUARTER OF ITS HEADLINE WHERE IT CAN ACTUALLY BE TRADED, AND THE REGISTER
+    PREDICTED THIS AT 80/20 BEFORE MEASURING IT.** `C5` re-measured `M1` on the covered rows at
+    **−2.797pp** (healthy 29.26% vs unhealthy 32.06%) against `V6-B`'s full-panel **−10.84pp** —
+    *below* even its megacap quintile's −3.787pp — because options exist on the large end and
+    `V6-B` measured the separation **weakest exactly there**. Covered dips carry a median market
+    cap of **$17.92bn against $2.17bn**, an **8.26× tilt**. **Any future options result on this
+    population must be quoted against −2.797pp, never against −10.84pp.**
+  * **A PREMISE FINDING THAT CORRECTS MY OWN PRIOR SESSION — see the `U6` bullet below.** The
+    chain cache is **not** 100% calls: **1,288,750 puts against 1,288,751 calls**, zero tickers
+    with no puts. The 3,870-of-3,870 measurement was of the **TRADED BOOK** and the inference from
+    it was wrong. U6's **coverage** blocker stands and still carries its verdict alone.
+  * **THE SETTLEMENT TRAP, CAUGHT BEFORE THE RUN RATHER THAN AFTER.** Strikes are **as-traded**
+    while `data/backtest/prices` is split- **and** dividend-adjusted: AAPL's derived `spot` reads
+    **300.35 against an adjusted 72.34** on 2020-01-02, and the two differ by >5% on **46.66%** of
+    its days. Settling a $300 strike against $72 books a fake ~76% assignment loss **silently**.
+    Session 30's rule is applied in **both** directions — the option settles on the as-traded
+    `spot`, and only the **STOCK** control uses the adjusted close.
+  * **COVERAGE FORBIDS A FULL-PANEL GATE FOR THE FOURTH TIME** (`S18`, `U2`, `U3`, now this):
+    **4,855 of 37,982 dipped rows = 12.78%**, over **40 of 69** dates, **28 of the 29 gaps EARLY**,
+    halves **20 and 19** after embargoing 2021-01-21.
+  * **CONTROLS: C1 reproduces the premise counts and ABORTS otherwise; C2 ZERO point-in-time
+    violations over 4,836 events; C3 `skew_25d` equals `iv_put_25d − iv_call_25d` at max abs diff
+    0.000e+00 over 902,851 rows — reproducing `U2` on four times the rows, so it is ONE column and
+    never two pieces of evidence; C-QUOTE the derived `mid`/`spread_frac` reconstruct the RAW
+    chain's own bid to 3.815e-06 over 216,872 rows; C-D the mirror loses 1.5263%, so both sides
+    are not profitable.**
+  * **TWO DEFECTS IN MY OWN INSTRUMENT, both caught before the verdict and both PROVED inert by
+    leaf diff rather than asserted** — the halves split each arm at its own median date instead of
+    the register's single embargoed boundary (289 shared leaves, **ZERO moved**, 5 documentation
+    leaves added), and stage 1 banked a contract without its `expiration` (re-run: 668 leaves,
+    **ZERO moved**). **REPORTED AGAINST THE ARM:** the survivability leg compounds per-trade
+    returns **sequentially** rather than simulating a capital-weighted book, so it **overstates**
+    drawdown — it passes anyway, so it cannot have produced the verdict — and the absolute levels
+    are severe (**−55.52%** for the arm against **−82.56%** for the stock control at cap 10).
+  * **NOBODY MAY READ THIS AS EVIDENCE THAT CASH-SECURED PUTS DO NOT WORK.** The register declared
+    the asymmetry in advance because the covered sample holds **one** crash, so a decisive REJECT
+    was available and a decisive ADOPT was not. **Options `N` 287 → 292; equity untouched at 212;
+    72 suites, 0 failures.** Expectations **4 right, 3 wrong**.
+    `data/free_analysis/V6OPT_STAGE1.json`, `V6OPT_STAGE2.json`; `HANDOFF_optionsbot.md` §57.
 - **THE DIP BRANCH LIVES: A HEALTHY 20% DRAWDOWN FALLS A FURTHER 20% A QUARTER LESS OFTEN, AND IT
   IS NOT A SIZE SORT - BUT THE WORD "DIED" IS NOT EARNED (2026-08-13, `V6-B`).**
   `PREREG_v6b_dip_survival.md` committed **ALONE at `dc5ae98`**, a strict ancestor of every
@@ -282,10 +352,19 @@ the project's memory and the old versions had been repeated for months.
   * **`U6` IS NOT BUILDABLE AND THE REASON IS A NUMBER: 1.81% CHAIN COVERAGE.** Of **7,132**
     names entering the top decile over 68 transitions only **129** have mined chains; **median 2
     per rebalance** against a mean top-decile size of **165.6**, and **ZERO on 18 of 68 dates**.
-    Second, independent blocker: the entry leg is a cash-secured **put** and the cache is **100%
-    calls**, so no put-chain history exists to replay against. Same class as `S25` and `B13` —
-    **unobtainable without new data**, and it stays the most tradeable idea in the catalogue if
-    the data is ever bought.
+    ~~Second, independent blocker: the entry leg is a cash-secured **put** and the cache is
+    **100% calls**, so no put-chain history exists to replay against.~~ **RETRACTED 2026-08-13
+    (`V6-OPT`), against my own prior session: THE CACHE IS NOT 100% CALLS.** That measurement —
+    `opt_right == "call"` on 3,870 of 3,870 rows — is of the **TRADED BOOK**, and the **CACHE**
+    was never checked. Measured: `data/options` holds **1,288,750 puts against 1,288,751 calls**
+    across 40 sampled tickers, **exactly 0.5000 put share, ZERO tickers with no puts**, with bid,
+    ask, volume and open interest; `data/options_derived` carries the same contracts with `iv`,
+    `delta`, `mid` and `spread_frac`. **`V6-OPT` then priced 2,038 real 25-delta puts from that
+    cache and settled them to expiry.** The **coverage** blocker is untouched and still carries
+    U6's verdict on its own, so the row's status does not change — but it rests on **one**
+    measured reason, not two. **A composition fact about a BOOK is not a coverage fact about a
+    CACHE.** Same class as `S25` and `B13` — **unobtainable without new data**, and it stays the
+    most tradeable idea in the catalogue if the data is ever bought.
   * **`U4`'s GATE HAS RESOLVED, NEGATIVE.** It was gated on `U1`/`U2`; both rejected, as did
     `U7`. So one object may carry **two independently-sourced expressions with an explicit
     statement that they are independent** — no combined score, no combined confidence, no arrow

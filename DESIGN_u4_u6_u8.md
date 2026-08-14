@@ -108,15 +108,44 @@ names out of a 166-name book.** That is not a test of U6; it is a rounding error
 test's name. And on 18 of 68 rebalances it would substitute nothing at all while still
 producing a number.
 
-### A SECOND, INDEPENDENT BLOCKER: THE PUT SIDE HAS NEVER BEEN MINED
+### ~~A SECOND, INDEPENDENT BLOCKER: THE PUT SIDE HAS NEVER BEEN MINED~~ — **RETRACTED 2026-08-13 (V6-OPT). THIS BLOCKER DOES NOT EXIST, AND IT WAS HALF THE STATED REASON FOR CLOSING THIS ROW.**
 
-`U6`'s entry leg is a **cash-secured put**. The banked options book is `opt_right == "call"` on
-**3,870 of 3,870 rows** — 100% calls, measured. The mined cache was built for a long-call alert
-strategy, so there is no banked put-chain history to replay a CSP against. The derived layer
-carries `iv_put_25d`, which is an implied-vol surface point, **not a tradeable put quote with a
-bid, an ask and an open interest** — and O18 measured that spread cost on this book is
-**ρ = 0.6743 of the quoted half-spread**, so a CSP study without quoted put spreads would price
-the one leg that decides the answer by assumption.
+**What this section said, kept verbatim because the error is the instructive part:**
+
+> `U6`'s entry leg is a **cash-secured put**. The banked options book is `opt_right == "call"` on
+> **3,870 of 3,870 rows** — 100% calls, measured. The mined cache was built for a long-call alert
+> strategy, so there is no banked put-chain history to replay a CSP against. The derived layer
+> carries `iv_put_25d`, which is an implied-vol surface point, **not a tradeable put quote with a
+> bid, an ask and an open interest** — and O18 measured that spread cost on this book is
+> **ρ = 0.6743 of the quoted half-spread**, so a CSP study without quoted put spreads would price
+> the one leg that decides the answer by assumption.
+
+**THE MEASUREMENT IS RIGHT AND THE INFERENCE FROM IT IS WRONG.** `3,870 of 3,870` is a fact about
+the **traded book** — the contracts the alert strategy happened to buy. It is not a fact about the
+**chain cache**, and the cache was never checked. Measured (`scripts/v6opt_premise.py`, artifact
+`data/free_analysis/V6OPT_PREMISE.json`), on 40 randomly sampled tickers and 2,577,501
+contract-days:
+
+| | measured |
+|---|---|
+| puts in `data/options` | **1,288,750** |
+| calls | **1,288,751** |
+| put share | **exactly 0.5000** |
+| tickers with **zero** puts | **0 of 40** |
+
+The cache stores **full chains, both rights**, with `bid`, `ask`, `volume` and `open_interest`;
+`data/options_derived` carries the same contracts with `iv`, `delta`, `mid` and `spread_frac`.
+**So quoted put spreads exist, and `V6-OPT` went on to price 2,038 real 25-delta puts from them
+and settle them to expiry.** The third requirement below — *"point-in-time quoted spreads on those
+puts"* — was already satisfied when this memo was written.
+
+**The FIRST blocker (1.81% chain coverage of the equity book's own entering names) is untouched
+and still stands**, so `U6` as the audit specifies it — replaying *the equity book's* entries —
+remains not buildable. But it is now blocked on **one** measured reason, not two, and the row is
+corrected in the ledger to say so. **The lesson is the transferable part: a composition fact about
+a BOOK is not a coverage fact about a CACHE, and this lane has now made that exact substitution
+twice** — the other being `O13`'s `opt_right` degeneracy, which is the same observation used
+correctly.
 
 ### What it would take to be worth building
 
@@ -137,7 +166,9 @@ the one leg that decides the answer by assumption.
 ### Verdict
 
 **`DESIGN-RECORDED — NOT BUILDABLE ON DATA WE OWN.** The reason is measured (1.81% chain
-coverage, 100%-call cache), not asserted.** Same class as `S25` (point-in-time sectors) and the
+coverage ~~, 100%-call cache~~ — **the second half of that parenthesis was RETRACTED on
+2026-08-13, see above; the coverage blocker alone carries the verdict**), not asserted.** Same
+class as `S25` (point-in-time sectors) and the
 `B13` liquidity blocker: the honest close is *unobtainable without new data*, and inventing a
 proxy universe would answer a different question under this one's name. **It remains the most
 tradeable idea in the catalogue if the data is ever bought** — the audit is right about that,
