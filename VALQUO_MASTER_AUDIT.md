@@ -184,9 +184,16 @@ to avoid. It would also move the live product away from the composite `M4`'s liv
 harness just proved bit-identical to the backtest (ρ 1.0, max |Δ| exactly 0.0), silently, since
 M4 replays the *code path*, not the *stored weights*.
 
-**Corroborating context:** `CLAUDE.md` roadmap item **#19** reads *"**Later:** gated auto-apply
-of adopted weights"* — the project believes auto-apply is not built. `screen.py:53` is
-auto-apply, shipped and tested.
+**Corroborating context, from two independent documents that both describe a world the code does
+not implement:**
+
+* `CLAUDE.md` roadmap item **#19** reads *"**Later:** gated auto-apply of adopted weights"* — the
+  project believes auto-apply is not built. `screen.py:53` is auto-apply, shipped and tested.
+* `BACKTEST_RUNBOOK.md`'s opening diagram states the architecture as *"the ONLY thing that
+  travels to Render is the **optimized weights** … via a normal code commit."* That is exactly
+  the property MA1 and MA3 break: weights also reach Render by being written into **Render's own
+  database**, by a monthly cron and by an admin endpoint, **with no code commit at all** — so
+  they leave no diff, no review, and no trace in the history the runbook assumes is the record.
 
 **`LEARN_ENABLED` is undocumented.** Measured: it appears in no `.md`, `.yml`, `.yaml`,
 `.example` or `.bat` file in the repository. Its default is on.
@@ -607,10 +614,16 @@ gitignored, and (per `D1`) covered by terms that are *personal-use only and forb
 use of the data "or any derivation"*. `BACKTEST_RESULTS.json` is tracked, so the stranger can
 read the outputs and audit the *arithmetic between them*, but cannot re-derive them.
 
-**The gaps a stranger would hit, in order:** (1) no single document takes them from a clone to a
-number — `BACKTEST_RUNBOOK.md` assumes the data is already in place; (2) `CLAUDE.md` is 344 KB
-and its own "IMMEDIATE NEXT TASKS" section warns it is "the least trustworthy section in the
-file"; (3) the entry point to *state* is `VALQUO_LEDGER.md`, which `README.md` does not name.
+**The gaps a stranger would hit, in order.** (1) **The data path is documented and it is not
+free.** `BACKTEST_RUNBOOK.md` *does* take a reader from nothing to a run — Step 1 exports prices,
+fundamentals, insiders and institutional holdings with a `SHARADAR_API_KEY`. *(This corrects my
+own first draft, which said the runbook assumed the data was already in place. It does not.)* The
+real barrier is narrower and worse: `D1` verified that Sharadar's terms are **personal-use only
+and forbid commercial use of the data "or any derivation"**, so a stranger can reproduce the
+numbers only under a licence that would not let them publish what they derived. (2) `CLAUDE.md`
+is 344 KB and its own "IMMEDIATE NEXT TASKS" section warns it is *"the least trustworthy section
+in the file"*. (3) The entry point to *state* is `VALQUO_LEDGER.md`, and **`README.md` names
+neither it, nor `RUN_RULES.md`, nor `CLAUDE.md`** — measured: zero matches.
 
 **Cheapest hardening:** a twenty-line `START_HERE.md` naming, in order, `RUN_RULES.md` →
 `VALQUO_LEDGER.md` → `CLAUDE.md` (with the warning) → `BACKTEST_RUNBOOK.md`, plus the one
