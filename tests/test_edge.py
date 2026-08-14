@@ -8938,6 +8938,147 @@ def test_v6b_controls_read_the_panels_real_column_names():
     assert 'p.get("marketcap")' not in src and '"marketcap"' not in src
 
 
+def _r56():
+    import importlib
+    return importlib.import_module("scripts.r5_r6_alphabetical_rerun")
+
+
+def test_r5_r6_the_six_signals_are_REGISTERED_for_measurement():
+    """Registration gives a z_ column, a coverage entry and a per-signal IC row."""
+    from valuation.screener import settings as _S
+    r = _r56()
+    assert r.R5_SIGNALS == ("neg_ret_1m", "neg_max_ret", "neg_idio_vol")
+    assert r.R6_SIGNALS == ("sm_conviction", "sm_holders", "sm_avg_position")
+    for s in r.R5_SIGNALS + r.R6_SIGNALS:
+        assert s in _S.NUMBER_THEME, f"{s} is not registered, so it gets no z_ column"
+        assert s in _S.NUMBERS_ALL
+
+
+def test_r5_r6_registration_is_MEASUREMENT_and_scores_NOTHING():
+    """The S2 pattern, and the whole reason this is not a vintage event.
+
+    Every theme mean must remain an EXPLICIT column list that does not name the six. If a
+    theme mean were derived from NUMBER_THEME, registering would silently change the score.
+    """
+    import inspect
+    from valuation.screener import factors as _f
+    src = inspect.getsource(_f)
+    r = _r56()
+    assert 'df["low_risk"] = df[["z_neg_beta", "z_neg_vol"]].mean(axis=1)' in src, (
+        "the low_risk mean is no longer the explicit pair - registration may now SCORE")
+    assert 'df["institutional"] = df[["z_inst_accum", "z_sm_breadth"]].mean(axis=1)' in src, (
+        "the institutional mean is no longer the explicit pair")
+    for s in r.R5_SIGNALS + r.R6_SIGNALS:
+        assert f'"z_{s}"' not in src, f"z_{s} appears in factors.py - it would SCORE"
+
+
+def test_r5_r6_the_composite_gate_is_EXACT_equality_not_a_tolerance():
+    """C1 is a bit-identity gate. A tolerance would let a real scoring change through."""
+    import inspect
+    src = inspect.getsource(_r56().main)
+    assert "got.get(k) == v" in src, "C1 must test EXACT equality, not abs(...) < eps"
+    assert "VINTAGE EVENT" in src, "a failing C1 must say what it means"
+
+
+def test_r5_r6_SIGN_a_positive_IC_means_the_anomaly_REPRODUCES():
+    """The convention that decides every verdict. The R5 signals arrive PRE-NEGATED from
+    _price_extras, so positive = the published effect reproduces and negative = backwards.
+
+    Built as a real IC on a synthetic frame rather than asserted in prose."""
+    r = _r56()
+    rng = np.random.default_rng(4)
+    rows = []
+    for i in range(40):
+        z = rng.normal(size=80)
+        # forward return built to be POSITIVELY related to the signal
+        fwd = 0.5 * z + rng.normal(scale=0.5, size=80)
+        for j in range(80):
+            rows.append({"date": f"2{i:03d}-01-15", "z_fake": z[j], "fwd_ret": fwd[j]})
+    p = pd.DataFrame(rows)
+    _d, ics, _c = r._ic_series(p, "z_fake")
+    assert len(ics) == 40
+    assert np.median(ics) > 0.2, np.median(ics)
+    # and flipping the signal must flip the IC's sign - the pre-negation property
+    p["z_fake"] = -p["z_fake"]
+    _d2, ics2, _c2 = r._ic_series(p, "z_fake")
+    assert np.median(ics2) < -0.2, np.median(ics2)
+
+
+def test_r5_r6_CONTRADICTS_is_its_own_verdict_and_not_folded_into_null():
+    """The 400-name comment claims all three were wrong-signed. If that reproduces at
+    significance it is a FINDING, not a rejection - O3/O4/O5's treatment."""
+    r = _r56()
+    base = {"halves_same_sign": True, "full": {"median_ic": +0.02}}
+    assert r.verdict_of(dict(base, both_halves_clear=True,
+                             both_halves_below_p5=False)) == "REPLICATES"
+    assert r.verdict_of(dict(base, both_halves_clear=False, both_halves_below_p5=True,
+                             full={"median_ic": -0.02})) == "CONTRADICTS-PUBLISHED-SIGN"
+    assert r.verdict_of(dict(base, both_halves_clear=False,
+                             both_halves_below_p5=False)) == "NULL"
+    # a positive t in both halves but a NEGATIVE median IC must not read as a replication
+    assert r.verdict_of(dict(base, both_halves_clear=True, both_halves_below_p5=False,
+                             full={"median_ic": -0.01})) == "NULL"
+    assert r.verdict_of({"verdict": "VOID - x"}).startswith("VOID")
+
+
+def test_r5_r6_bars_are_the_signals_OWN_permutation_not_X7s():
+    """X7's 2.71 calibrates the MAXIMUM theme IC across nine themes, not a named per-signal
+    IC. It is reported as a labelled reference and must not be the verdict."""
+    import inspect
+    r = _r56()
+    src = inspect.getsource(r.score_signal)
+    assert "clears_own_p95" in src and "perm_p95" in src
+    vsrc = inspect.getsource(r.verdict_of)
+    assert "X7" not in vsrc and "2.71" not in vsrc, (
+        "the verdict must not read X7's theme bar")
+    assert "vs_x7_theme_bar_2_71" in src, "but it must still be REPORTED for continuity"
+
+
+def test_r5_r6_the_permutation_is_the_WITHIN_COLUMN_scheme():
+    """placebo_panel is exactly invariant on a composite and cannot calibrate a column."""
+    import inspect
+    src = inspect.getsource(_r56()._perm)
+    assert "rng.permutation(a)" in src, "the signal must be shuffled WITHIN each date"
+    # "not CALLED", not "not mentioned" - the docstring explains WHY placebo_panel is
+    # unsuitable here, and a bare substring test flagged that explanation as the defect.
+    body = "\n".join(l for l in src.split("\n")
+                     if not l.strip().startswith("#") and '"""' not in l)
+    assert "placebo_panel(" not in body, "the composite-invariant machinery must not be called"
+
+
+def test_r5_r6_coverage_floor_returns_VOID_not_NULL():
+    """pead_drift's own precedent: 25.1% against a 30% floor."""
+    r = _r56()
+    assert r.MIN_COVERAGE == 0.30
+    rows = [{"date": f"2{i:03d}-01-15", "z_thin": (np.nan if j % 5 else 1.0),
+             "fwd_ret": 0.01} for i in range(30) for j in range(60)]
+    p = pd.DataFrame(rows)
+    out = r.score_signal(p, "thin", np.random.default_rng(1))
+    assert out["verdict"].startswith("VOID"), out["verdict"]
+
+
+def test_r5_r6_records_the_four_stale_sites_verbatim():
+    """C5. The correction has to be checkable against what was actually there."""
+    r = _r56()
+    assert len(r.STALE_SITES) == 4
+    assert any("400 names" in v for v in r.STALE_SITES.values())
+    assert any("800 large caps" in v for v in r.STALE_SITES.values())
+    assert any("LIVE SCORING DECISION" in v for v in r.STALE_SITES.values())
+    assert "factors.py:314-316" in r.STALE_SITES
+
+
+def test_r5_r6_byproducts_carry_no_verdict_and_no_trial():
+    """Already-registered numbers read off the same frame are not a new search."""
+    import inspect
+    r = _r56()
+    assert "sm_breadth" in r.BYPRODUCTS and "inst_breadth" in r.BYPRODUCTS
+    assert "neg_vol" in r.BYPRODUCTS, "low-vol is a by-product, not an arm"
+    for s in r.BYPRODUCTS:
+        assert s not in r.R5_SIGNALS + r.R6_SIGNALS, f"{s} cannot be both"
+    src = inspect.getsource(r.main)
+    assert "FREE BY-PRODUCT - NO VERDICT, NO TRIAL" in src
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

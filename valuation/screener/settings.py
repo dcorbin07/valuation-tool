@@ -224,6 +224,20 @@ NUMBER_THEME = {
     # neg_ret_1m / neg_max_ret / neg_idio_vol (all wrong-signed here). Adding a name back
     # here is all it takes to re-test one.
     "f_score": "quality", "inst_breadth": "institutional",
+    # R5 (2026-08-13) — the three short-horizon price anomalies, REGISTERED so they are
+    # MEASURED on the corrected universe for the first time. The 400-name figures quoted
+    # above are void under audit B12 (the universe was an ALPHABETICAL slice) and under B6
+    # (110 rebalances is the inverted-universe panel), so the comment above them records a
+    # rejection nothing on a permitted universe ever made. Same S2 pattern as
+    # `cash_op_prof`: this gives them a z_ column, a coverage entry and a per-signal IC row,
+    # and they SCORE only if factors.py names them in a theme mean — which it does not
+    # (`low_risk` is the explicit pair z_neg_beta/z_neg_vol). PREREG_r5_r6_alphabetical_rerun.md.
+    "neg_ret_1m": "low_risk", "neg_max_ret": "low_risk", "neg_idio_vol": "low_risk",
+    # R6 (2026-08-13) — the three SF3 conviction signals that were never re-run. Same
+    # registration-is-measurement rule; `institutional` is the explicit pair
+    # z_inst_accum/z_sm_breadth, so these do not score. PREREG_r5_r6_alphabetical_rerun.md.
+    "sm_conviction": "institutional", "sm_holders": "institutional",
+    "sm_avg_position": "institutional",
     # S2 (2026-08-06) — cash-based operating profitability. TESTED AND REJECTED, twice, and
     # now LISTED so it stays MEASURED, exactly like roe_ttm/roic_ttm below: registering a
     # number here gives it a z_ column and puts it in the coverage guard and the per-signal
