@@ -8791,6 +8791,153 @@ def test_v6_controls_use_the_panels_real_column_names():
     assert "absent_from_panel" in src, "C7 must report the columns it could not find"
 
 
+def _v6b():
+    import importlib
+    return importlib.import_module("scripts.v6b_dip_survival")
+
+
+def test_v6b_registered_constants_and_v6_floors_are_IMPORTED_not_restated():
+    """Re-tuning V6's floors is void condition 6.3 - that would make V6-B a second look at
+    V6's own search space. Identity, not equality: a restated copy could drift."""
+    v6b, v6 = _v6b(), _v6()
+    assert v6b.QUALITY_FLOOR is v6.QUALITY_FLOOR or v6b.QUALITY_FLOOR == v6.QUALITY_FLOOR
+    assert v6b.HEALTH_FLOOR == v6.HEALTH_FLOOR == 50.0
+    assert v6b.trailing_drawdown is v6.trailing_drawdown, "the drawdown must BE V6's"
+    assert v6b.health_panel is v6.health_panel, "the health score must BE V6's"
+    assert v6b.DEPTH == 0.20 and v6b.FWD_TD == 126 and v6b.DISTRESS_CAL_DAYS == 252
+    assert v6b.INSIDER_WINDOW_CAL == 126 and v6b.FURTHER_DROP == -0.20
+    assert v6b.M1_ECONOMIC_PP == 3.0, "the pre-committed economic floor"
+    assert v6b.MIN_DISTRESS_EVENTS_PER_HALF == 30
+
+
+def test_v6b_distress_EXCLUDES_acquisitions_and_mergers():
+    """The single most consequential definition in the register. 82.63% of delistings on this
+    universe are acquisitions; counting a takeover premium as a death would invert the arm."""
+    v6b = _v6b()
+    assert "bankruptcyliquidation" in v6b.DISTRESS_ACTIONS
+    assert "regulatorydelisting" in v6b.DISTRESS_ACTIONS
+    for good in ("acquisitionby", "mergerto", "delisted", "voluntarydelisting"):
+        assert good not in v6b.DISTRESS_ACTIONS, f"{good} must NEVER count as distress"
+    assert "acquisitionby" in v6b.ACQUIRED_ACTIONS and "mergerto" in v6b.ACQUIRED_ACTIONS
+    # and the umbrella must not silently become the distress set
+    assert "delisted" not in v6b.DISTRESS_ACTIONS + v6b.ACQUIRED_ACTIONS
+
+
+def test_v6b_M1_SIGN_a_lower_bad_outcome_for_the_HEALTHY_set_is_what_clears():
+    """THE crux, and the S10 sign error in a new place.
+
+    M1 is (healthy - unhealthy) on P(a further -20%), a BAD outcome. The claim needs that
+    difference NEGATIVE. A verdict function that rewarded a POSITIVE difference would report
+    'healthy dips survive better' when the data said the exact opposite.
+    """
+    v6b = _v6b()
+    good = {"enough_dates_per_half": True, "both_halves_below_p5": True,
+            "both_halves_clear_high": False, "halves_same_sign": True,
+            "early": {"mean_diff_pp": -5.0}, "late": {"mean_diff_pp": -4.0}}
+    assert v6b.m1_verdict(good) == "REAL - HEALTHY DIPS SURVIVE BETTER"
+    # same statistics, sign flipped: healthy do WORSE. Must NOT be a pass.
+    bad = dict(good, both_halves_below_p5=False, both_halves_clear_high=True,
+               early={"mean_diff_pp": +5.0}, late={"mean_diff_pp": +4.0})
+    assert v6b.m1_verdict(bad) == "NULL", (
+        "a HIGHER further-drop rate for the healthy set must never read as a pass")
+
+
+def test_v6b_M1_economic_floor_is_separately_binding():
+    """Register 2.1: statistical AND economic. A risk claim that clears a t and moves 0.4pp
+    is not worth a sentence on a product page."""
+    v6b = _v6b()
+    thin = {"enough_dates_per_half": True, "both_halves_below_p5": True,
+            "halves_same_sign": True,
+            "early": {"mean_diff_pp": -0.4}, "late": {"mean_diff_pp": -0.5}}
+    assert v6b.m1_verdict(thin) == "NULL - CLEARS STATISTICALLY, MISSES THE 3.0pp ECONOMIC FLOOR"
+    # and one half missing the floor is enough to fail it
+    half = dict(thin, early={"mean_diff_pp": -9.0}, late={"mean_diff_pp": -0.5})
+    assert "MISSES THE 3.0pp" in v6b.m1_verdict(half)
+    assert v6b.m1_verdict({"status": "insufficient dates"}).startswith("VOID")
+
+
+def test_v6b_forward_window_starts_strictly_after_the_date_and_censoring_DROPS():
+    """C3. A window that included d would let the dip day's own close define the minimum;
+    a short window scored anyway would silently mix horizons (S22's rule)."""
+    import tempfile
+    v6b = _v6b()
+    days = [str(d.date()) for d in pd.bdate_range(end="2024-01-01", periods=600)]
+    d_mid, d_late = days[300], days[560]
+    with tempfile.TemporaryDirectory() as td:
+        # flat 100 up to and including d_mid, then halves the very next day
+        px = [100.0] * 301 + [50.0] * (len(days) - 301)
+        pd.DataFrame({"date": days, "close": px}).to_csv(
+            os.path.join(td, "DROP.csv"), index=False)
+        out = v6b.forward_paths(td, ["DROP"], [d_mid, d_late])
+    got = {r.date: r.fwd_min_ret for r in out.itertuples()}
+    assert d_mid in got, "a date with a full forward window must be scored"
+    assert abs(got[d_mid] - (-0.5)) < 1e-12, got[d_mid]
+    assert d_late not in got, (
+        "a date with fewer than 126 forward rows must be DROPPED, not scored short")
+
+
+def test_v6b_two_group_cell_refuses_a_thin_side():
+    """A number computed on four names is worse than no number."""
+    v6b = _v6b()
+
+    def frame(n_true):
+        rows = []
+        for i in range(30):                      # 30 dates
+            for j in range(60):                  # 60 names each
+                rows.append({"date": f"2{i:03d}-01-15", "v": float(j), "lab": j < n_true})
+        return pd.DataFrame(rows)
+
+    thin = v6b.two_group_cell(frame(4), "v", "lab", np.random.default_rng(1))
+    assert thin.get("status") == "insufficient dates" or thin.get("n_dates", 0) == 0, thin
+    # POSITIVE CONTROL, so the assertion above cannot pass for the wrong reason: the SAME
+    # shape with both sides above MIN_PER_SIDE must score.
+    fat = v6b.two_group_cell(frame(20), "v", "lab", np.random.default_rng(1))
+    assert fat.get("n_dates", 0) == 30, fat.get("n_dates")
+    assert fat["coverage"]["dates_dropped_for_thin_side"] == 0
+
+
+def test_v6b_arm3_counts_only_open_market_purchases_and_only_before_the_date():
+    """Audit B26 (strictly before d) plus the register's conservative unclassified rule."""
+    import inspect
+    src = inspect.getsource(_v6b().insider_buy_flags)
+    assert '== "P"' in src, "only transactioncode P is an open-market purchase"
+    assert 'side="left"' in src, "the window must be half-open, strictly before d"
+    assert "INSIDER_WINDOW_CAL" in src
+    # unclassified rows are filtered out by the == "P" test, i.e. counted as NO BUY
+    assert "fillna(0.0)" in inspect.getsource(_v6b().main), (
+        "a name with no P filing must read as no-buy, not as missing")
+
+
+def test_v6b_arm2_uses_the_SHIPPED_decile_construction():
+    """Arm 2's top decile must be the same object the published top_decile_alpha describes."""
+    import inspect
+    src = inspect.getsource(_v6b().main)
+    assert "composite_from_frame" in src, "must use the shipped composite"
+    assert "np.argsort(-comp" in src, "highest composite first, as quantile_backtest does"
+    assert "np.array_split(order, 10)" in src, "the shipped bucketing"
+    assert "buckets[0]" in src
+
+
+def test_v6b_alpha_verdict_reports_a_reversal_rather_than_calling_it_null():
+    v6b = _v6b()
+    base = {"enough_dates_per_half": True, "halves_same_sign": True}
+    assert v6b.alpha_verdict(dict(base, both_halves_clear_high=True,
+                                  both_halves_below_p5=False)) == "REAL"
+    assert v6b.alpha_verdict(dict(base, both_halves_clear_high=False,
+                                  both_halves_below_p5=True)) == "REJECTED - SIGN REVERSED"
+    assert v6b.alpha_verdict(dict(base, both_halves_clear_high=False,
+                                  both_halves_below_p5=False)) == "NULL"
+    assert v6b.alpha_verdict({"status": "x"}).startswith("VOID")
+
+
+def test_v6b_controls_read_the_panels_real_column_names():
+    """V6's own lesson: `marketcap` is not a panel column, `market_cap` is."""
+    import inspect
+    src = inspect.getsource(_v6b().main)
+    assert '"market_cap"' in src
+    assert 'p.get("marketcap")' not in src and '"marketcap"' not in src
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
