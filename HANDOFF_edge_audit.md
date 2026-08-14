@@ -10781,3 +10781,191 @@ and understating `N` overstates significance. The `n` column is written as the l
 form `research_log._parse` requires — this session already caught a row that silently charged 1 of 4.
 
 `BACKTEST_RESULTS.json` refreshed from a clean tree at the new denominator.
+
+---
+
+# R5 + R6 — the two re-derivations B12 voided (2026-08-13)
+
+**Register:** `PREREG_r5_r6_alphabetical_rerun.md`, committed **ALONE at `4b9706b`** — one `.md`,
+zero `.py`, a strict ancestor of every measurement commit.
+**Artifact:** `data/free_analysis/R5_R6_ALPHABETICAL.json` (every permutation draw banked).
+**Instrument:** `scripts/r5_r6_alphabetical_rerun.py`.
+**ADOPTS NOTHING, SCORES NOTHING, and is NOT a vintage event — C1 proves it.**
+
+## 0. Verdicts — six signals, six NULLs, and not one clears even the retired 2.0 convention
+
+| row | signal | median IC | IC *t* | own p95 | verdict |
+|---|---|---|---|---|---|
+| **R5** | `neg_ret_1m` (short-term reversal) | +0.00715 | +0.4546 | 1.8142 | **NULL** |
+| **R5** | `neg_max_ret` (MAX / lottery) | +0.02634 | +1.1510 | 1.5002 | **NULL** |
+| **R5** | `neg_idio_vol` (idiosyncratic vol) | **+0.05452** | +1.2105 | 1.7531 | **NULL** |
+| **R6** | `sm_conviction` | +0.01597 | +1.2786 | 1.7775 | **NULL** |
+| **R6** | `sm_holders` | +0.03285 | **+1.6111** | 1.5285 | **NULL** |
+| **R6** | `sm_avg_position` | +0.03240 | +1.3296 | 1.6462 | **NULL** |
+
+**No arm clears its own within-date permutation p95 in both halves. No arm clears the retired 2.0
+convention in ANY window** — so none would have passed under the old, permissive, uncalibrated bar
+either. Coverage is comfortable throughout (R5 99.5–100%, R6 73.8%, floor 30%), so **not one of the
+six is a power failure.**
+
+## 1. THE HEADLINE IS NOT THE VERDICT: THE LIVE "ALL WRONG-SIGNED" CLAIM IS REFUTED
+
+`settings.py:222-224` and `factors.py:294-296` both recorded the three anomalies as **wrong-signed**
+— median IC **−0.014 / −0.072 / −0.025** — and that measurement was taken on **400 names over 110
+rebalances**, which is **void twice**: under **B12** (alphabetical slice) and under **B6** (the
+inverted-universe panel).
+
+**On the corrected 2,531-name / 69-date panel all three signs are POSITIVE:**
+
+| signal | 400-name figure (void) | **corrected panel** |
+|---|---|---|
+| `neg_ret_1m` | −0.014 | **+0.00715** |
+| `neg_max_ret` | −0.072 | **+0.02634** |
+| `neg_idio_vol` | −0.025 | **+0.05452** |
+
+**Every sign flipped when the universe was corrected.** The three are still rejected — **but they
+are rejected for being WEAK, not for being BACKWARDS**, and a live comment had been asserting the
+opposite as current evidence. That distinction is the whole of B12's argument, and it is now
+measured rather than argued.
+
+`neg_idio_vol` is the largest of the three at **+0.05452**, and **+0.09658 on the late half** — a
+big IC by this panel's standards (the record's strongest single number, `f_score`, is +0.061) —
+carried on an *t* of only +1.2105 because the early half is +0.1726. **Large and unstable, not
+strong.** Its being the closest was the one directional call I got right on mechanism.
+
+## 2. R6: ALL THREE NULL, AND THE MECHANISM IS THAT THEY ARE A MARKET-CAP SORT
+
+**C6 is decisive.** The three SF3 conviction signals correlate with the panel's `size` theme at
+**−0.815, −0.855 and −0.854**, and with **each other** at **+0.777 to +0.833**.
+
+**So they are close to ONE signal, and that signal is largely market capitalisation** — more
+managers hold bigger companies, and the average position in a bigger company is bigger. The panel
+already scores `size`. That is U7's and S10's failure mode, and here it is the *reason* rather than
+a caveat: there is nothing left for these to add.
+
+**`sm_holders` is the near miss and gets the full sceptical treatment.** It **clears its own p95 on
+the full sample** (+1.6111 against 1.5285) — the only cell in the register to clear anything — and
+then reads **+0.0118 on the early half** and +1.8193 against 1.8975 on the late. **One half of two,
+on one arm of six.** The both-halves rule was fixed before any number existed and is the only thing
+between this and a reported finding.
+
+**THE SF3 CONVICTION FAMILY IS NOW CLOSED.** Five of five members have been measured on the
+corrected universe with none clearing: `sm_breadth` **+1.85**, `sm_elite_conviction` **+1.45**,
+`sm_holders` +1.61, `sm_avg_position` +1.33, `sm_conviction` +1.28.
+
+## 3. SIX ARMS ARE NOT SIX INDEPENDENT TESTS, AND THIS CAVEAT MUST TRAVEL WITH THE COUNT
+
+By C6's own numbers: R6's three inter-correlate **+0.78 to +0.83**, and R5's two volatility cousins
+`neg_max_ret`/`neg_idio_vol` correlate **+0.698**. **The effective number of independent tests here
+is nearer three than six.** The SELRULE lesson — 16 co-moving countries were worth 2–4 draws —
+applies directly. **The trial charge of six is paid in full anyway**, because understating `N`
+overstates significance; but nobody should read "six independent nulls" off this row.
+
+## 4. THE FREE BY-PRODUCTS ARE WHERE THE CONSEQUENTIAL NUMBERS ARE
+
+Already-registered numbers read off the same frame. **No verdict, no trial** (register §4).
+
+### 4a. The live `sm_breadth` swap survives its voided justification — and its own recorded number was ALSO void
+
+`factors.py:314-316` swapped `inst_breadth` for `sm_breadth` in the **LIVE** institutional theme
+mean, justified by *"IC t +2.37 vs +1.48 on 800 large caps"* — a comparison B12 voided. Measured
+head to head on the corrected panel, 49 covered dates, near-identical coverage (0.7169 vs 0.7185):
+
+| | voided figure | **corrected panel** |
+|---|---|---|
+| `sm_breadth` | +2.37 | **+1.8481** |
+| `inst_breadth` | +1.48 | **+1.2371** |
+
+**THE ORDERING HOLDS**, so a live scoring decision that was resting on a voided number turns out to
+be supported by a valid one. **The gap narrowed from 0.89 to 0.61 of a *t*, and neither clears
+2.0.**
+
+**A REFINEMENT OF THE LEDGER'S OWN CLAIM, and it is the kind of thing this register exists to
+catch.** The R6 ledger row says `sm_breadth` *"fell from t +2.37 (800 alphabetical) to +1.73"*,
+treating +1.73 as the corrected value. **It is not.** That figure sits in `settings.py:276-282`
+inside a note dated **2026-08-01** — **three days BEFORE the B6/B7/B13 corrections landed on
+2026-08-04**. So **+1.73 was never a corrected-panel figure either, and +1.8481 is the first.**
+
+### 4b. Both inputs the live `low_risk` theme DOES use are weaker than the two it rejects
+
+| input | in the live theme mean? | corrected-panel IC *t* |
+|---|---|---|
+| `neg_vol` | **YES** | **+0.8873** |
+| `neg_beta` | **YES** | **−0.3937** |
+| `neg_max_ret` | no (rejected) | +1.1510 |
+| `neg_idio_vol` | no (rejected) | +1.2105 |
+
+**The two deployed inputs are the two weakest of the four, and one is wrong-signed.** **The
+consequence is bounded and must be stated with it: `low_risk` carries ZERO weight in the live
+composite** (it was zeroed in P5), so nothing scores on this today. **But anyone un-zeroing that
+theme should read these four numbers first**, and the register's scope correction — that low-vol
+"needs no re-test because it is already measured" — is procedurally right and turns out to be
+unflattering.
+
+## 5. Controls
+
+* **C1 — THE ONE THAT MATTERS, AND IT GATED IN ITS OWN PASS.** Registering six numbers in
+  `NUMBER_THEME` left the composite **BIT-IDENTICAL**: `long_short_tstat` exactly
+  **2.8360640685320595**, `top_decile_alpha` 0.07174142332098163, HAC 2.6199121240414884,
+  monotonicity −0.8909090909090909, tested by **exact equality, not a tolerance**. **So this is
+  MEASUREMENT, not SCORING, and NOT a vintage event.** Verified in the code first — every theme
+  mean is an explicit column list — and then gated on the real panel.
+* **C2** canonical panel **and** the six `z_` columns actually materialised: 69 dates, 2,531 names,
+  113,945 rows, 82 columns, `z_columns_missing: []`. `NUMBERS_ALL` 47 → 53.
+* **C3 coverage first**, before any IC was read: `neg_ret_1m` 0.9969, `neg_max_ret` 0.9998,
+  `neg_idio_vol` 0.9947, the SF3 three 0.7376. **Nothing near the 0.30 floor.**
+* **C5** the four stale sites are quoted **verbatim in the artifact**, so each correction is
+  checkable against what was actually there.
+* **C6** as §2 and §3.
+* **C7 NOT TRIGGERED, and reported as not-run rather than skipped.** R5's own earlier
+  pre-registration binds a size-interaction check *if* a volatility cousin replicates. Neither did,
+  so the check did not run — which is a different statement from a negative result.
+
+## 6. The four stale sites, corrected in place
+
+| site | was | now |
+|---|---|---|
+| `settings.py:222-224` | anomalies "all wrong-signed", 400 names / 110 rebalances | the corrected positive ICs, with the void reason named |
+| `settings.py:243-251` | SF3 rejections on 800 alphabetical / 110 rebalances | the corrected ICs, the size-sort mechanism, and the family closed |
+| `factors.py:294-296` | the same 400-name "wrong sign" claim | corrected, **plus** the §4b comparison against the deployed pair |
+| `factors.py:314-316` | the swap justified by +2.37 vs +1.48 | the corrected head-to-head, the narrowed gap, and the +1.73 dating catch |
+
+**The comments are corrected; the DECISIONS are not touched.** The `sm_breadth` swap stays exactly
+as it is — changing a theme input is a construction change and a vintage event, and it is **ROUTED,
+not made**.
+
+## 7. Expectations — 6 right, 2 wrong
+
+| # | expectation | odds | outcome |
+|---|---|---|---|
+| 1 | all three R5 anomalies NULL or CONTRADICTS | 70/30 | **RIGHT** (all NULL) |
+| 2 | at least one R5 signal is CONTRADICTS-PUBLISHED-SIGN | 55/45 | **WRONG** — all three are positive |
+| 3 | `neg_idio_vol` is the closest of the three | 50/50 | **RIGHT** |
+| 4 | all three R6 conviction signals NULL | 80/20 | **RIGHT** |
+| 5 | the SF3 family closes | 75/25 | **RIGHT** |
+| 6 | `inst_breadth` does not overtake `sm_breadth` | 60/40 | **RIGHT** |
+| 7 | at least one signal is below the 30% coverage floor | 45/55 | **WRONG** — the minimum is 68% |
+| 8 | C1 holds and the composite is bit-identical | 90/10 | **RIGHT** |
+
+**Expectation 2 is the informative miss**: I priced a better-than-even chance that "wrong-signed"
+would survive the universe correction, on the reasoning that a sign is coarser than a *t*. It did
+not survive — **all three signs flipped**, which is a stronger statement about how badly an
+alphabetical slice distorts a cross-sectional measurement than the *t*-statistics alone convey.
+
+## 8. Cost and record
+
+**Six equity trials. Equity `N` 212 → 218**, re-measured from `research_log.detail()` after this
+session's merge. The haircut moves **√(2·ln 212) = 3.2731 → √(2·ln 218) = 3.2816** — under 0.009 of
+a *t*, which is the ledger's own "trial cost is now negligible" argument confirmed at today's `N`.
+Options 287 and infra 11 untouched. `BACKTEST_RESULTS.json` refreshed from a clean tree, and this
+run's refresh carries the six new signals into the per-signal IC table for the first time.
+
+## 9. What this does NOT do
+
+* **It changes no score.** Registration is measurement-only, gated bit-identical, no theme mean
+  touched, **not a vintage event**.
+* **It does not re-open any of the six.** Both kill conditions bind: no re-cut at another horizon,
+  window or screen. R6's family is **closed**.
+* **It does not change the `sm_breadth` swap** — routed, not made (§6).
+* **It does not re-test low-vol, `sm_breadth` or `sm_elite_conviction` as arms** — all three were
+  already measured and are reported as by-products, charged nothing.

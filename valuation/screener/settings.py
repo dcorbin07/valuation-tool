@@ -220,9 +220,20 @@ NUMBER_THEME = {
     # Kept: f_score
     # (median IC +0.061, IC t +5.66 - the strongest single number in the panel),
     # accruals_q (+0.026, t +3.08, newly populated) and inst_breadth (+0.024, t +2.71).
-    # Rejected and deliberately NOT listed: the short-horizon price anomalies
-    # neg_ret_1m / neg_max_ret / neg_idio_vol (all wrong-signed here). Adding a name back
-    # here is all it takes to re-test one.
+    # CORRECTED 2026-08-13 (R5). This used to read: "Rejected and deliberately NOT listed:
+    # the short-horizon price anomalies neg_ret_1m / neg_max_ret / neg_idio_vol (all
+    # wrong-signed here)." That rejection was measured on 400 names over 110 rebalances --
+    # VOID TWICE OVER, under B12 (the universe was an ALPHABETICAL slice) and under B6 (110
+    # rebalances is the inverted-universe panel) -- and it sat in a live comment as current
+    # evidence. Re-measured on the corrected 2,531-name / 69-date panel, ALL THREE SIGNS ARE
+    # POSITIVE, i.e. the published direction, not the reverse:
+    #     neg_ret_1m    median IC +0.00715  t +0.45   (was -0.014)
+    #     neg_max_ret   median IC +0.02634  t +1.15   (was -0.072)
+    #     neg_idio_vol  median IC +0.05452  t +1.21   (was -0.025)
+    # NONE clears its own within-date permutation p95 in both halves, and none clears even
+    # the old 2.0 convention in any window, so all three remain REJECTED -- but they are
+    # rejected for being WEAK, not for being backwards. They are now listed below so they
+    # stay MEASURED. PREREG_r5_r6_alphabetical_rerun.md.
     "f_score": "quality", "inst_breadth": "institutional",
     # R5 (2026-08-13) — the three short-horizon price anomalies, REGISTERED so they are
     # MEASURED on the corrected universe for the first time. The 400-name figures quoted
@@ -255,14 +266,24 @@ NUMBER_THEME = {
     # 400 names, which this project's own methodology rule calls a smoke test.
     "cash_op_prof": "quality",
     # SF3 per-manager 13F detail (smart money), 45-day filing lag like the rest of the 13F
-    # data. Measured on 800 large caps / 110 rebalances / 63d forward:
-    #     sm_breadth       +0.0293  t +2.37   KEPT
-    #     sm_avg_position  +0.0203  t +1.26   rejected
-    #     sm_holders       +0.0175  t +1.57   rejected
-    #     sm_conviction    +0.0040  t +1.25   rejected (position-vs-AUM carries little signal)
-    # sm_breadth also beats the aggregate inst_breadth (t +1.48) — same quantity, but SF3
-    # counts actual managers rather than a vendor holder tally, so it replaces it in the
-    # theme mean. The rejected three stay computed in the panel, so re-testing is one line.
+    # data. The figures that stood here — sm_breadth +2.37, sm_avg_position +1.26,
+    # sm_holders +1.57, sm_conviction +1.25 — were measured on "800 large caps / 110
+    # rebalances" and are VOID TWICE: B12 (that universe was an ALPHABETICAL slice, not the
+    # 800 largest) and B6 (110 rebalances is the inverted-universe panel).
+    # RE-MEASURED 2026-08-13 (R6) on the corrected 2,531-name / 69-date panel, 50 covered
+    # dates, coverage 0.7376:
+    #     sm_holders       median IC +0.03285  t +1.61   (was +1.57)
+    #     sm_avg_position  median IC +0.03240  t +1.33   (was +1.26)
+    #     sm_conviction    median IC +0.01597  t +1.28   (was +1.25)
+    # ALL THREE NULL: none clears its own within-date permutation p95 in BOTH halves, and
+    # none clears the old 2.0 convention anywhere. sm_holders is the near miss — it clears
+    # full-sample (+1.6111 vs its own p95 1.5285) and then reads +0.0118 on the early half.
+    # THE MECHANISM IS A SIZE SORT: all three correlate with the `size` theme at -0.815,
+    # -0.855 and -0.854, and with each other at +0.78 to +0.83, so they are close to ONE
+    # signal and that signal is largely market cap — which the panel already scores.
+    # With sm_breadth (+1.85) and sm_elite_conviction (+1.45) this makes FIVE of five family
+    # members measured on the corrected universe with none clearing: the SF3 conviction
+    # family is CLOSED. PREREG_r5_r6_alphabetical_rerun.md.
     "sm_breadth": "institutional",
     # P6.2 — trailing-twelve-month ROE/ROIC. TESTED AND REJECTED; kept here so they stay
     # MEASURED (z-scored, in the per-signal IC table) but they are deliberately NOT in the

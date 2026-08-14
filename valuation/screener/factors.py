@@ -290,10 +290,20 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
             _bc = _b[_mask] - _b[_mask].mean()
             _slope = float((_bc * (_m[_mask] - _m[_mask].mean())).sum() / (_bc ** 2).sum())
             df.loc[_mask, "momentum"] = _m[_mask] - _slope * _bc
-    # The short-horizon anomalies (short-term reversal, MAX, idiosyncratic vol) were built,
-    # measured on the Sharadar panel, and REJECTED - every one carried the wrong sign
-    # (median IC -0.014 / -0.072 / -0.025, none significant). They are still computed in
-    # _price_extras so re-testing is one line, but they do not feed the theme.
+    # The short-horizon anomalies (short-term reversal, MAX, idiosyncratic vol) are built in
+    # _price_extras, are MEASURED (registered in NUMBER_THEME since R5) and do NOT feed this
+    # theme. CORRECTED 2026-08-13 (R5): this comment used to say "every one carried the wrong
+    # sign (median IC -0.014 / -0.072 / -0.025)". That was the 400-name / 110-rebalance
+    # measurement, void under B12 and B6. On the corrected 2,531-name / 69-date panel all
+    # three signs are POSITIVE (+0.00715 / +0.02634 / +0.05452) and all three are still
+    # rejected -- for being weak, not for being backwards. None clears its own permutation
+    # p95 in both halves. PREREG_r5_r6_alphabetical_rerun.md.
+    #
+    # REPORTED BECAUSE IT CUTS AGAINST THE PAIR THIS THEME DOES USE: on the same corrected
+    # panel `neg_vol` reads t +0.89 and `neg_beta` reads t -0.39, so BOTH deployed inputs are
+    # weaker than the two rejected volatility cousins (+1.15, +1.21). The theme carries ZERO
+    # weight in the live composite, which bounds the consequence -- but anyone un-zeroing it
+    # should read those four numbers first.
     df["low_risk"] = df[["z_neg_beta", "z_neg_vol"]].mean(axis=1)
     # Capital discipline is now share issuance ALONE. neg_asset_growth was DROPPED: on the
     # full 2,710-name / 110-date panel it measures median IC -0.0141 with t -0.70 — the wrong
@@ -313,7 +323,20 @@ def build_frame(metrics: list[dict], sector_neutral=None, residual_momentum=None
     # available stand-in for "how many funds are buying".
     # Dollar accumulation + breadth of manager buying. sm_breadth (SF3 per-manager holder
     # counts) replaces inst_breadth (aggregate tally) as the breadth term: same quantity,
-    # measured better, IC t +2.37 vs +1.48 on 800 large caps.
+    # measured better.
+    # RE-JUSTIFIED 2026-08-13 (R6). This swap's stated reason was "IC t +2.37 vs +1.48 on 800
+    # large caps" — a comparison VOID under B12, because that universe was an ALPHABETICAL
+    # slice. A LIVE SCORING DECISION was resting on it. Re-measured head to head on the
+    # corrected 2,531-name / 69-date panel, on 49 covered dates at near-identical coverage
+    # (0.7169 vs 0.7185):
+    #     sm_breadth    median IC +0.02504  t +1.8481
+    #     inst_breadth  median IC +0.02175  t +1.2371
+    # THE ORDERING HOLDS, so the swap survives its own voided justification — but the gap
+    # narrowed from 0.89 to 0.61 of a t, and NEITHER clears 2.0. Note also that the +1.73
+    # recorded for sm_breadth below was dated 2026-08-01, three days BEFORE the B6/B7/B13
+    # corrections landed, so it was never a corrected-panel figure either; +1.8481 is the
+    # first. Measured, not changed: swapping a theme input is a construction change and a
+    # vintage event. PREREG_r5_r6_alphabetical_rerun.md.
     df["institutional"] = df[["z_inst_accum", "z_sm_breadth"]].mean(axis=1)
 
     # Insider factor: metrics may carry an insider_score (0-100, 50 neutral).
