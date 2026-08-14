@@ -1,11 +1,11 @@
 {
   "schema_version": 6,
   "errors": [],
-  "generated_at": "2026-08-14T02:03:24",
-  "generated_at_utc": "2026-08-14T06:03:24+00:00",
+  "generated_at": "2026-08-14T02:23:56",
+  "generated_at_utc": "2026-08-14T06:23:56+00:00",
   "git": {
-    "commit": "9626ac8c5c2fa870730a5b9c73037147461d0767",
-    "short": "9626ac8",
+    "commit": "57bc3f2c7d0f3c94b3db5dbff81a9c319a55757c",
+    "short": "57bc3f2",
     "branch": "worktree-options-live",
     "dirty": false
   },
@@ -306,21 +306,21 @@
       "meaning": "probability_of_backtest_overfitting"
     },
     "deflated_sharpe_detail": {
-      "probability": 0.7887843107304089,
+      "probability": 0.7863213339664521,
       "sharpe_per_period": 0.5500328707621251,
-      "sr0_benchmark": 0.4595000971860062,
-      "n_trials": 220,
+      "sr0_benchmark": 0.4604580339477429,
+      "n_trials": 224,
       "var_sr_across_trials": 0.026997967906897496,
       "n_periods": 69,
       "n_trials_from_weight_schemes": 8,
-      "n_trials_from_research_log": 220,
+      "n_trials_from_research_log": 224,
       "n_trials_source": "RESEARCH_LOG.md (audit M1)",
       "is_effectively_undeflated": false,
       "metric": "deflated_sharpe_ratio"
     },
     "pbo_scope": "weight_scheme_selection_only",
     "deflated_sharpe": {
-      "value": 0.7887843107304089,
+      "value": 0.7863213339664521,
       "want": ">0.95",
       "meaning": "probability_edge_is_real_after_trials_correction"
     },
@@ -344,9 +344,9 @@
       "margin": -0.0005030049974298345,
       "se": 0.006725017557615581,
       "folds_positive": 0.9333333333333333,
-      "haircut": 3.284395696730941,
-      "n_trials_used": 220,
-      "bar": 0.02208761872667264
+      "haircut": 3.2898772171176964,
+      "n_trials_used": 224,
+      "bar": 0.022124482047515995
     },
     "challenger_weights": {
       "value": 0.16666666666666666,
@@ -3095,25 +3095,25 @@
     "hlz": {
       "statistic": "construction.long_short_tstat_nw",
       "value": 2.6199121240414884,
-      "n_trials_equity": 220,
-      "hurdle_sqrt_2_ln_N": 3.284395696730941,
+      "n_trials_equity": 224,
+      "hurdle_sqrt_2_ln_N": 3.2898772171176964,
       "clears_hlz_hurdle": false,
-      "shortfall": 0.6644835726894525,
+      "shortfall": 0.669965093076208,
       "x7_calibrated_floor": 2.2837,
       "clears_x7_calibrated_floor": true,
       "the_tension": "CLEARS the bar measured against the project's own placebo and FAILS the bar derived from counting its own trials. Neither is 'the' answer. HLZ prices the best of N draws; the deployed composite is flat 1/7, never tuned, and cpcv.adopt is false on every run, so the logged trials are overwhelmingly REJECTED ALTERNATIVES to it rather than candidates it beat."
     },
     "by_domain": {
-      "equity": 220,
+      "equity": 224,
       "options": 292,
       "unified": 0,
-      "infra": 12
+      "infra": 14
     },
     "unified_domain_declared_but_zero": true,
     "unified_note": "research_log.DOMAINS declares `unified` and it reads zero: every U-series item testing unified equity+options hypotheses was charged to equity or options. Three parallel single-lane families and one dead bucket. Measured and ROUTED \u2014 deciding whether cross-lane claims need their own denominator would move every published N and is not made here.",
-    "trials_logged_all_domains": 524,
+    "trials_logged_all_domains": 530,
     "audit_estimate": 146,
-    "gap_to_audit_estimate": -378
+    "gap_to_audit_estimate": -384
   },
   "per_theme": {
     "available": true,
@@ -3706,7 +3706,7 @@
         "the equal-weight benchmark is charged ZERO cost while the strategy pays, so every 'alpha versus equal-weight' figure compares a book that trades against one that does not"
       ],
       "flat_bps": null,
-      "breakeven_one_way_bps": 134.11280625592718,
+      "breakeven_one_way_bps": 134.1128062559273,
       "curve": [
         {
           "bps": 0.0,
@@ -3730,8 +3730,8 @@
         },
         {
           "bps": 100.0,
-          "net_alpha": 0.020224685293041222,
-          "net_ann": 0.19261769349554458
+          "net_alpha": 0.020224685293041444,
+          "net_ann": 0.1926176934955448
         },
         {
           "bps": 150.0,
@@ -3750,8 +3750,8 @@
         },
         {
           "bps": 500.0,
-          "net_alpha": -0.20182916477462254,
-          "net_ann": -0.029436156572119176
+          "net_alpha": -0.20182916477462265,
+          "net_ann": -0.029436156572119287
         }
       ]
     },
@@ -3764,14 +3764,14 @@
       "net_max_drawdown": -0.26212347635832645,
       "net_vol_ann": 0.2666640308161228,
       "equal_weight_sharpe": 0.9084245982678518,
-      "annual_turnover": 3.1690792919718653,
+      "annual_turnover": 3.1690792919718658,
       "gross_ann": 0.32128506517447053,
       "net_ann": 0.28874182050148867,
       "cost_drag_ann": 0.032543244672981864,
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.14889205697196717,
       "net_alpha": 0.1163488122989853,
-      "realised_one_way_bps": 41.89480864977998,
+      "realised_one_way_bps": 41.894808649779996,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",
@@ -3888,7 +3888,7 @@
         "cost_drag_ann": 0.020502020570763113
       },
       "0.12": {
-        "annual_turnover": 2.4388625876979897,
+        "annual_turnover": 2.438862587697989,
         "gross_alpha": 0.08300357706698791,
         "net_alpha": 0.06371136083058992,
         "after_tax_alpha": -0.004702249042870754,
@@ -3932,7 +3932,7 @@
       "net_alpha": 0.1163488122989853,
       "net_sharpe": 1.1017733621085182,
       "net_max_drawdown": -0.26212347635832645,
-      "annual_turnover": 3.1690792919718653,
+      "annual_turnover": 3.1690792919718658,
       "after_tax_alpha": 0.020442996157761906,
       "after_tax_sharpe": 0.8029400283519644
     },
