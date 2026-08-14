@@ -32,7 +32,7 @@ checkout is 508 commits behind `origin/main`.** `VALQUO_LEDGER.md`, `RUN_RULES.m
 `VALQUO_LIVE_AUDIT.md` — three of the five documents the commission names as required reading —
 do not exist in it. Audit #2 recorded the same thing at 265 commits on 2026-08-10; the project's
 own memory recorded it at 472. It is now 508. **I audited `origin/main` instead.** This is
-finding **MA22** and it is a process finding, not a footnote: the instruction that opens a cold
+finding **MA20** and it is a process finding, not a footnote: the instruction that opens a cold
 audit pointed the auditor at a tree four days and five hundred commits stale, and nothing in the
 system detects that.
 
@@ -40,7 +40,7 @@ The local checkout also carries **one unpushed commit**, `41d7b12`, and that com
 answer to one of the two rows still open (`PT-WRITER`). It has been stranded for four days.
 
 I ran the full gate as CI runs it: **74 suites, 74 passed, 0 failed**, on a worktree with **no
-licensed `data/` directory at all**. That is a real and load-bearing fact — see MA18.
+licensed `data/` directory at all**. That is a real and load-bearing fact — see MA17.
 
 ---
 
