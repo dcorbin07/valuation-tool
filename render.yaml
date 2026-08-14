@@ -37,6 +37,25 @@ services:
       # OWNER_SPLIT=false publishes all of it — do not set that without reading the Terms.
       - key: OWNER_SPLIT
         value: "true"
+      # PUBLIC_FULL_VIEW — ANONYMOUS == DEMO, TEMPORARILY. Don's decision, 2026-08-13:
+      #   "/app must be 100% ungated - I know the risks - I've submitted applications with
+      #    the non-master link; when I hear back we regate."
+      # Applications went out carrying the plain /app URL rather than the master link, so
+      # recruiters were landing on the public half. This lifts an anonymous visitor to the
+      # DEMO tier — the same read-only full view the /work button already grants — and
+      # nothing more. Track Record, Edge Lab, Index, Signals and Watchlist become readable
+      # signed out.
+      #
+      # ==> THE REGATE IS THIS ONE VALUE. Set it to "false" when Don hears back. Nothing
+      #     else needs touching; OWNER_SPLIT stays "true" underneath and is still enforced.
+      #
+      # DO NOT regate by flipping OWNER_SPLIT instead: that also makes may_act true for
+      # everyone, opening /api/scan/run, /api/signals/run and both Edge Lab runners to
+      # anonymous callers. This flag is read-only by construction and cannot do that.
+      # What does NOT move under it: mutation endpoints, admin/account/billing surfaces,
+      # raw Sharadar/ThetaData rows, and every disclaimer, vintage and paper-account label.
+      - key: PUBLIC_FULL_VIEW
+        value: "true"
       # The unlisted portfolio page Don puts on a résumé — static prose plus statistics
       # computed in-house, reading no store and calling no API. It kept its own flag through
       # the posture change: it survived private mode, and it is independent of the split

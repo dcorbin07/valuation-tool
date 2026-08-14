@@ -5,6 +5,130 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 30 — 2026-08-13 — `/app` ungated: anonymous == demo, temporarily
+
+**Lane:** app fixer. **Ledger:** `PUBLIC-FULL`. **Branch:** `worktree-demo-link`.
+
+## 0. THE REGATE — read this first
+
+> **Set `PUBLIC_FULL_VIEW` to `false` in the Render dashboard.**
+> Service → Environment → `PUBLIC_FULL_VIEW` → `false` → save. Render redeploys.
+
+That is the whole regate. **One value. No code change, nothing deleted.** `OWNER_SPLIT` stays
+`true` underneath and is still enforced and still tested in both states. The key is in
+`render.yaml` with the same instruction beside it, and a test asserts it is really there — so
+the promise is not just prose in a handoff.
+
+**Do NOT regate by flipping `OWNER_SPLIT` instead.** See §2.
+
+## 1. The decision
+
+Don, 2026-08-13, recorded verbatim because the code cannot justify itself here:
+
+> *"/app must be 100% ungated - I know the risks - I've submitted applications with the
+> non-master link; when I hear back we regate."*
+
+Applications went out carrying the plain `/app` URL rather than the recruiter master link, so
+recruiters were landing on the public half and seeing a fraction of the tool.
+
+**Implemented as ANONYMOUS == DEMO.** One flag lifts the anonymous tier to the read-only full
+view the `/work` button already grants — Track Record, Edge Lab, Index, Signals, Watchlist —
+and nothing beyond it.
+
+## 2. Why a new flag and not `OWNER_SPLIT=false`
+
+`OWNER_SPLIT=false` is the obvious lever and it is the wrong one. It also makes
+`surfaces.may_act` true for **everyone**, which hands anonymous callers:
+
+* `/api/scan/run` — writes a scan snapshot, 3 FMP requests per uncached name
+* `/api/signals/run` — writes intraday rows, one Anthropic call per run
+* `/api/backtest/run`, `/api/edge/backtest`, `/api/edge/optimize` — CPU-heavy on a 512 MB box
+
+That is a free DoS lever that spends Don's data budget on every request. **`PUBLIC_FULL_VIEW`
+cannot do that**: `may_act` does not consult it, and that is pinned *structurally* — the test
+reads `may_act`'s source (docstring stripped, since the docstring discusses the flag) rather
+than trusting only the combinations someone thought to enumerate.
+
+## 3. What does not move
+
+| line | status under the flag |
+|---|---|
+| mutation endpoints | **refused** — all six triggers stay 403 to a stranger |
+| admin / account / billing | **refused** — `/account`, `/account/alerts`, `/billing/*` |
+| raw Sharadar / ThetaData rows | **unchanged** — see §5 |
+| disclaimers, vintage, paper-account labels | **unchanged** — same templates, same code path |
+
+It **reuses the demo rail entirely** rather than adding a parallel one, which is what keeps the
+blast radius small: `DEMO_DENIED_PATHS` applies to a stranger under the flag exactly as it does
+to a demo session. A test asserts anonymous and demo return the **identical decision on every
+owner-only path** — i.e. the lift is exactly the demo tier and not a millimetre wider.
+
+## 4. A defect caught while wiring it
+
+Extending the demo-denied rule to anonymous would have **refused the owner his own `/account`
+and billing pages** the moment the flag went on, because that rule fires *before* the owner
+check. A flag that exists to widen a stranger's reach would have quietly narrowed Don's.
+Guarded with `not is_owner(...)` and pinned by
+`test_the_owner_is_not_NARROWED_by_a_flag_that_exists_to_widen`.
+
+## 5. The licence line, which "I know the risks" does not cover
+
+**"I know the risks" answers for LIABILITY. It cannot answer for a vendor's licence terms.**
+Sharadar and ThetaData are individual-plan, backtest-only vendors whose terms forbid
+redistribution.
+
+Nothing moves here, and the reason is structural rather than a fresh promise: this grants the
+**demo tier**, so the route-by-route audit that cleared demo (Session 18 — no READ route returns
+a vendor row verbatim) applies unchanged. A test asserts `DEMO_DENIED_VENDOR_ROWS` still exists
+**and is still consulted**, so the next Sharadar-backed READ route cannot be published by
+default.
+
+## 6. Both states pinned, no posture test deleted
+
+Per the instruction. The regate is *planned*, not hypothetical — so a suite pinning only the
+ungated state would go green on regate day while proving nothing about it, and one that had
+deleted the old assertions could not tell anyone what the posture used to be.
+
+* `tests/test_public_full_view.py` — **14/14**, runs every assertion in **both** flag states and
+  cites the decision and the planned regate in its own docstring.
+* `tests/test_public.py` **31/31** and `tests/test_private.py` **30/30** — **untouched**, still
+  pinning the flag-off world in full.
+
+**The live-app test carries its own control**, because `create_saas_app` is **idempotent**: a
+test that builds a "second app" with different flags gets the *first* app back and passes
+vacuously. So the flag is flipped on the live `CONFIG`, and the test **fails if flipping it
+changed nothing observable**.
+
+**The code default stays `false`** so a fork, a test box or a fresh instance is never ungated by
+accident; production opts in through `render.yaml`. Only an explicit `"true"` ungates — `"yes"`
+fails closed.
+
+## 7. Verification
+
+* `tests/test_public_full_view.py` 14/14; `test_public.py` 31/31; `test_private.py` 30/30.
+* **Full gate: 72/72 suites exited 0** (71 + the new suite), judged by exit code.
+* **Mutations 11/11 caught, 0 missed, 0 skipped.** The ones that matter: `may_act` made to read
+  the flag; the `not is_owner(...)` guard removed; the denied set stopped applying to anonymous;
+  the lift widened past the demo tier; the config default flipped to unsafe; the flag made to
+  fail OPEN on a junk value; `render.yaml` losing the regate key. Every one is caught.
+* Post-mutation the worktree is clean and both safety-critical lines are verified intact —
+  `may_act` contains **zero** references to `public_full_view`.
+
+## 8. FOR DON — check this yourself before assuming recruiters see it
+
+1. **Hard-refresh** (Ctrl+Shift+R) — the old page is cached and will lie to you.
+2. Open **`/app` in a private/incognito window** so you are genuinely signed out.
+3. You should see **Track Record, Edge Lab, Index, Signals and Watchlist** — the same view the
+   `/work` button gives.
+4. Sanity-check that the limits held: **Run scan** and the Edge Lab runners should refuse, and
+   `/account` should refuse.
+
+**Render must redeploy for the new env key to exist.** If `/app` still looks gated, check the
+Render dashboard actually shows `PUBLIC_FULL_VIEW=true` — `render.yaml` sets it on a fresh
+provision, and an existing service may need the key added by hand.
+
+---
+
 # Session 29 — 2026-08-13 — V6-B lands on the surface: one dead claim, one live one
 
 **Lane:** app fixer. **Prompt:** out-of-band, product, Don's direction — flip the Dip Detector's
