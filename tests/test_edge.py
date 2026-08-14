@@ -9349,34 +9349,30 @@ def test_s10acct_drawdown_sign_is_arm_minus_base():
     assert (arm_dd - base_dd) * 100.0 < 0, "S10's real worsening must read negative"
 
 
-def test_b23_the_63_day_panel_is_built_once_and_injected():
-    """AUDIT B23. `run_backtests` built four panels, two of them at 63 days differing only in
-    the diagnostic `z_*` columns. The 63-day `keep_numbers` frame is now built once and
-    injected into BOTH the 63-day horizon and the hold-until-exit block."""
+def test_b23_the_reuse_was_TRIED_and_REVERTED_and_the_reason_is_recorded():
+    """B23's gate was bit-identity and the reuse FAILED it, so it is reverted.
+
+    Sharing the 63-day keep_numbers panel left every HEADLINE bit-identical but moved
+    `cleanups.panel_window` and `cleanups.survivorship_mask_coverage` — because those blocks
+    are written as a SIDE EFFECT of whichever panel was built LAST. Removing a build
+    re-pointed them at the 756-day panel: horizon 63 -> 756, calendar_cut_days 4659 -> 5352,
+    64 per-date entries dropped. The register said revert, not explain.
+
+    This pins the reverted state AND the reason, so the next reader does not re-apply the
+    same change without also binding those diagnostics.
+    """
     import inspect
     from valuation.edge import fundamental_panel as _fp
     src = inspect.getsource(_fp.run_backtests)
-    assert "_panel_63" in src, "the shared 63-day panel is gone"
-    assert "panel=_inject" in src, "the horizon loop no longer injects it"
-    assert src.count("build_fundamental_panel(") <= 2, (
-        "run_backtests builds more panels than the shared one plus its fallback")
-    # run_backtest must accept an injected panel and still default to building its own
+    assert "_panel_63" not in src, "the reverted reuse is back without its diagnostics fix"
+    # the injection point survives - inert at its default, and the mechanism any correct
+    # version of B23 would use
     sig = inspect.signature(_fp.run_backtest).parameters
-    assert "panel" in sig and sig["panel"].default is None, (
-        "injection must be opt-in, so every existing caller is unchanged")
-
-
-def test_b23_a_build_failure_changes_speed_and_never_output():
-    """The shared build is wrapped so a failure falls back to the old path. A speed fix that
-    can change a RESULT when it fails is not a speed fix."""
-    import inspect
-    from valuation.edge import fundamental_panel as _fp
-    src = inspect.getsource(_fp.run_backtests)
-    assert "_panel_63 = None" in src and "except Exception" in src
-    hold = src[src.index("hold_until_exit") - 2000:] if "hold_until_exit" in src else src
-    assert "_panel_63 is not None else build_fundamental_panel" in _fp.run_backtests.__doc__ \
-        or "_panel_63 if _panel_63 is not None" in src, (
-        "the hold block must fall back to building its own panel")
+    assert "panel" in sig and sig["panel"].default is None
+    assert "REVERTED" in (_fp.run_backtest.__doc__ or ""), (
+        "the reason for the revert must travel with the parameter")
+    assert "panel_window" in (_fp.run_backtest.__doc__ or ""), (
+        "the specific blocks that moved must be named")
 
 
 def test_m4_the_harness_raises_rather_than_warning():
