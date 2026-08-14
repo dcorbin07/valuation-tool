@@ -106,8 +106,24 @@ def check_request(path: str, method: str, body: dict, user, store) -> tuple | No
         # POST runners stay shut — they recompute, they write, and they spend the budget.
         # `surfaces.DEMO_DENIED_PATHS` already refuses them in `_guard` before this runs;
         # the method test here is the second, independent line of that defence.
-        demo_read = (path == "/api/edge/learning" and method == "GET"
-                     and bool(user) and bool(user.get("is_demo")))
+        #
+        # PUBLIC_FULL_VIEW (2026-08-13) joins the demo session on the SAME single read, and
+        # this is the SECOND gate that had to learn it. The flag was wired into
+        # `surfaces.check` and not here, so an anonymous visitor passed the surface split,
+        # reached `/api/edge/learning`, and was refused by this line instead — and because
+        # `switchTab` auto-calls `edgeLearning()` for any session without the runner buttons,
+        # the Edge Lab tab opened onto a red "Owner-only research tools." bar. A gate the
+        # ungating did not know about is exactly the failure a THREE-gate stack invites, and
+        # the first ungating's tests missed it because they exercised `surfaces` as a pure
+        # function plus two non-`/api/edge/` routes end to end.
+        #
+        # Scoped to the IDENTICAL path and method as the demo session, deliberately: the flag
+        # means anonymous == demo, so widening this to `/api/edge/` generally would make an
+        # anonymous visitor strictly WIDER than the preview it is supposed to equal. The three
+        # POST runners stay shut for both, here and in `surfaces.DEMO_DENIED_PATHS`.
+        from .surfaces import public_full_view
+        read_tier = (bool(user) and bool(user.get("is_demo"))) or public_full_view(CONFIG)
+        demo_read = path == "/api/edge/learning" and method == "GET" and read_tier
         if not (owner or demo_read):
             return ({"error": "Owner-only research tools.", "owner_only": True}, 403)
 

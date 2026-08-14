@@ -253,6 +253,136 @@ def test_the_disclaimers_and_labels_are_untouched_by_the_flag():
         CONFIG.public_full_view = orig
 
 
+def test_the_ungated_view_shows_no_locked_door_banners():
+    """Don, 2026-08-13: hide the section entirely rather than showing a locked-door notice —
+    "the ungated view should read as complete, not as a view with holes labelled".
+
+    Asserted against the RENDERED page with HTML COMMENTS STRIPPED. That is not a detail: the
+    template carries four `owner-only` mentions and three are comments explaining WHY a block
+    is gated. A naive substring scan over the raw HTML fails on those forever, so the next
+    person deletes the test instead of the banner.
+    """
+    app = _client()
+    orig = CONFIG.public_full_view
+    try:
+        CONFIG.public_full_view = True
+        with app.test_client() as c:
+            page = c.get("/app").get_data(as_text=True)
+        visible = re.sub(r"<!--.*?-->", " ", page, flags=re.S)
+        for phrase in ("Owner-only", "owner-only", "owner only",
+                       "visitors see nothing here"):
+            assert phrase.lower() not in visible.lower(), (
+                f"a locked-door banner is still rendered to an anonymous visitor: {phrase!r}")
+    finally:
+        CONFIG.public_full_view = orig
+
+
+def test_the_edge_lab_read_actually_answers_instead_of_painting_the_red_bar():
+    """THE DEFECT THIS PINS, and it is a gap the first ungating left.
+
+    `switchTab` auto-calls `edgeLearning()` for any session without the runner buttons, so the
+    Edge Lab tab opens by fetching `/api/edge/learning`. PUBLIC_FULL_VIEW was wired into
+    `surfaces.check` but NOT into `gating.check_request`, which tested `user.get("is_demo")` —
+    false for an anonymous visitor. The request passed the surface split and was refused by the
+    second gate, and the JS painted "Owner-only research tools." across the tab.
+
+    Three gates stack on this path (`private`, `surfaces`, `gating`). Wiring a flag into one of
+    them is not wiring it in. Both directions are pinned so the regate is covered too.
+    """
+    app = _client()
+    orig = CONFIG.public_full_view
+    try:
+        CONFIG.public_full_view = True
+        with app.test_client() as c:
+            assert c.get("/api/edge/learning").status_code == 200, (
+                "the Edge Lab read still refuses an anonymous visitor under the flag — the "
+                "tab will open onto the red owner-only bar")
+        CONFIG.public_full_view = False
+        with app.test_client() as c:
+            assert c.get("/api/edge/learning").status_code == 403, (
+                "the regate must close the Edge Lab read again")
+    finally:
+        CONFIG.public_full_view = orig
+
+
+def test_the_edge_lab_RUNNERS_never_open_no_matter_the_flag():
+    """"The tools behind it stay owner-locked (they mutate records - that line never moves)."""
+    app = _client()
+    orig = CONFIG.public_full_view
+    try:
+        for state in (True, False):
+            CONFIG.public_full_view = state
+            with app.test_client() as c:
+                for p in ("/api/edge/backtest", "/api/edge/optimize", "/api/edge/track"):
+                    r = c.post(p, json={})
+                    assert r.status_code in (403, 405), (
+                        f"{p} answered {r.status_code} to anonymous with flag={state}")
+    finally:
+        CONFIG.public_full_view = orig
+
+
+def test_the_gating_layers_own_scoping_holds_INDEPENDENTLY_of_the_surface_split():
+    """Pin `gating.check_request` DIRECTLY, not through the app.
+
+    WHY THIS EXISTS, and it is a mutation finding. Widening `gating`'s `demo_read` to every
+    `/api/edge/` path, or dropping its method test, does NOT change what the app returns —
+    because `surfaces.DEMO_DENIED_PATHS` refuses those routes in `_guard` BEFORE `gating` runs.
+    Defence in depth working exactly as designed, and the end-to-end test passes.
+
+    But that means the end-to-end test pins the OUTER layer, not this one. `gating`'s own
+    comment calls itself "the second, independent line of that defence", and a second line that
+    is only ever exercised through the first is not independent — it is unverified. If a future
+    edit removed the `surfaces` entry, nothing would catch the widening here.
+
+    So the two layers are pinned separately, which is the only way "independent" is a fact
+    rather than a claim.
+    """
+    from valuation.saas import gating
+    orig = CONFIG.public_full_view
+    try:
+        CONFIG.public_full_view = True
+        # The ONE read the demo session gets, anonymous, with no store needed.
+        assert gating.check_request("/api/edge/learning", "GET", {}, None, None) is None, (
+            "the Edge Lab read is still blocked at the gating layer")
+        # ...and nothing wider. These must stay blocked HERE, regardless of `surfaces`.
+        for path, method in (("/api/edge/backtest", "POST"), ("/api/edge/optimize", "POST"),
+                             ("/api/edge/track", "POST"), ("/api/edge/summary", "GET"),
+                             ("/api/edge/learning", "POST")):
+            r = gating.check_request(path, method, {}, None, None)
+            assert r is not None and r[1] == 403, (
+                f"gating stopped refusing {method} {path} to anonymous — the flag means "
+                f"anonymous == demo, and the demo tier gets GET /api/edge/learning only")
+        # With the flag off, even the one read closes again.
+        CONFIG.public_full_view = False
+        r = gating.check_request("/api/edge/learning", "GET", {}, None, None)
+        assert r is not None and r[1] == 403, "the regate must close the read at this layer too"
+    finally:
+        CONFIG.public_full_view = orig
+
+
+def test_the_owner_still_sees_the_owner_notices():
+    """"Owner view unchanged." The fix hides a banner from VISITORS; it must not delete it.
+
+    The not-started forward-track bar is a note to Don. Moving it from `may_see_owner` to
+    `is_owner` is only correct if the owner still gets it — otherwise this "fix" quietly
+    removed a piece of his dashboard.
+    """
+    from flask import render_template
+    from valuation.web.app import app as tool_app
+    hero = {"label": "X", "index": None}
+    with tool_app.test_request_context("/"):
+        owner = render_template("index.html", may_see_owner=True, may_act=True, is_owner=True,
+                                ai_enabled=False, ai_provider="", hero=hero)
+        visitor = render_template("index.html", may_see_owner=True, may_act=False,
+                                  is_owner=False, ai_enabled=False, ai_provider="", hero=hero)
+    assert "visitors see nothing here" in owner, "the owner lost his own not-started notice"
+    assert "visitors see nothing here" not in visitor, "the visitor still sees the notice"
+    # The runners are the owner's; the read the preview came for is not.
+    assert "edgeBacktest()" in owner and "edgeBacktest()" not in visitor
+    assert "edgeLearning()" in visitor, (
+        "hiding the banner must not also hide the one thing a read-only session can do")
+
+
 def test_the_config_default_is_the_SAFE_one_so_a_fork_is_never_ungated_by_accident():
     """Production opts in through render.yaml. The code default stays false, so a fresh
     instance, a test box or a fork is gated unless somebody deliberately says otherwise."""

@@ -5,6 +5,101 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 31 — 2026-08-13 — The full view had holes with labels on them
+
+**Lane:** app fixer. **Branch:** `worktree-demo-link`. Follow-up to Session 30.
+
+## 0. Headline
+
+Two leftover gating banners rendered to anonymous visitors under `PUBLIC_FULL_VIEW`. Both are
+gone. **The owner view is unchanged and the mutating tools stay owner-locked** — that line does
+not move.
+
+**The Edge Lab one was a gap in Session 30's own work, not a cosmetic leftover.**
+
+## 1. The Edge Lab red bar — a THIRD gate the ungating did not know about
+
+`switchTab` auto-calls `edgeLearning()` for any session without the runner buttons, so opening
+the Edge Lab tab fetches `/api/edge/learning`. Session 30 wired `PUBLIC_FULL_VIEW` into
+`surfaces.check` — but **`gating.check_request` is a separate gate** and tested
+`user.get("is_demo")`, which is false for an anonymous visitor. The request passed the surface
+split and was refused by the second gate, and the JS painted **"Owner-only research tools."**
+across the tab.
+
+**Three gates stack on this path** — `private.check`, `surfaces.check`, `gating.check_request`.
+Wiring a flag into one of them is not wiring it in.
+
+**Why Session 30's tests missed it:** they exercised `surfaces` as a *pure function*, plus two
+end-to-end routes (`/api/index-track`, `/api/scream-track`) — neither under `/api/edge/`, which
+is the only prefix `gating` treats specially. The end-to-end coverage was real but did not touch
+the one path with a third gate on it.
+
+**Fixed at the source rather than by suppressing the bar.** The read now answers `200`, so the
+tab opens onto the self-learning log — the thing a read-only session came to see. Suppressing
+the banner would have left the hole and removed the sign.
+
+**Scoped to the identical path and method the demo session gets** (`GET /api/edge/learning`).
+Widening to `/api/edge/` generally would make an anonymous visitor strictly *wider* than the
+preview it is defined to equal. The three POST runners stay shut for both, in both gates.
+
+## 2. The bar that told visitors they could not see it
+
+`index.html` rendered, on `{% elif may_see_owner %}`:
+
+> *Live forward track — … owner-only notice, visitors see nothing here*
+
+It is a note to **Don** that the forward track has not started. Under `PUBLIC_FULL_VIEW` a
+visitor *is* a `may_see_owner` reader, so a stranger was shown a bar stating that strangers
+cannot see it — self-contradictory, and a hole with a label on it. Changed to `{% elif is_owner %}`.
+
+## 3. The sweep
+
+Done empirically rather than by eye: render `/app` signed out under the flag, strip HTML
+comments, and search for the whole class of phrasing.
+
+* **Before:** 4 matches for `owner-only` — **3 were HTML comments** explaining why a block is
+  gated (invisible, correct, left alone) and **1 was the live bar above**.
+* **After:** **0 visible occurrences.**
+* JS carries exactly two 403→banner handlers, both `"Owner-only research tools."`, both on the
+  Edge Lab; the runner one is unreachable for a non-owner because the buttons are not rendered.
+* The template's `{% if may_act %}` split was already correct — runners hidden, and a
+  **"Read-only preview"** note that explains what the session *is*, not what it lacks.
+
+**The comment-stripping is load-bearing.** The template legitimately contains three `owner-only`
+comments; a naive substring scan over raw HTML fails on those forever, and the next person
+deletes the test rather than the banner.
+
+## 4. Verification
+
+* `tests/test_public_full_view.py` **19/19** (14 + 5 new).
+* **Full gate 73/73 suites exited 0.** Mutations **6/6 caught, 0 missed, 0 skipped.**
+* **A MUTATION FINDING WORTH THE SPACE — "independent" was a claim, not a fact.** Two mutations
+  initially MISSED: widening `gating`'s `demo_read` to every `/api/edge/` path, and dropping its
+  method test. Neither changed what the app returns, because `surfaces.DEMO_DENIED_PATHS`
+  refuses those routes in `_guard` *before* `gating` runs. **Defence in depth working exactly as
+  designed** — and precisely because it worked, the end-to-end test was pinning the OUTER layer
+  while proving nothing about the inner one. `gating`'s own comment calls itself *"the second,
+  independent line of that defence"*, but a second line only ever exercised through the first is
+  not independent, it is unverified: remove the `surfaces` entry later and nothing catches the
+  widening here. Added
+  `test_the_gating_layers_own_scoping_holds_INDEPENDENTLY_of_the_surface_split`, which calls
+  `gating.check_request` directly. Both mutations now caught. **The safety was never in
+  question; the coverage claim was.**
+* Confirmed directly: anonymous `/api/edge/learning` → **200** with the flag on, **403** with it
+  off (the regate still closes it); signed-out page has **0** visible owner-only phrases; the
+  owner still sees his not-started notice and all three runners; the visitor keeps the
+  self-learning log button.
+
+## 5. What did NOT change
+
+* The Edge Lab runners (`/api/edge/backtest`, `/optimize`, `/track`) — refused in **both** gates,
+  under **both** flag states, pinned.
+* `may_act` — still does not read the flag.
+* Every disclaimer, vintage and paper-account label.
+* The regate is still one value: `PUBLIC_FULL_VIEW=false`.
+
+---
+
 # Session 30 — 2026-08-13 — `/app` ungated: anonymous == demo, temporarily
 
 **Lane:** app fixer. **Ledger:** `PUBLIC-FULL`. **Branch:** `worktree-demo-link`.

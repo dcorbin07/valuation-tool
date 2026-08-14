@@ -177,7 +177,15 @@
     </div>
     {% endif %}
   </div>
-  {% elif may_see_owner %}
+  {% elif is_owner %}
+  {# `is_owner`, NOT `may_see_owner`. This bar is a note to DON that the forward track has not
+   # started; its own text says "visitors see nothing here". Under PUBLIC_FULL_VIEW a visitor
+   # IS a `may_see_owner` reader, so the old condition rendered a bar telling a stranger that
+   # strangers cannot see it — a hole with a label on it, and self-contradictory besides.
+   #
+   # The rule this follows, from Don: hide the section entirely rather than showing a
+   # locked-door notice. A reader who cannot have a thing should not be told there is a thing
+   # they cannot have; the ungated view should read as complete. #}
   <div class="livebar notstarted">
     <div class="lb-head"><span class="lb-dot off"></span>
       <b>Live forward track</b>
