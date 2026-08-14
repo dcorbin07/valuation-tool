@@ -49,6 +49,88 @@ stale — they are corrected in place and the corrections are called out, becaus
 the project's memory and the old versions had been repeated for months.
 
 <<<<<<< HEAD
+- **THE HEADLINE SURVIVES A SPLIT BY NAME - AN INDEPENDENCE AXIS IT HAD NEVER BEEN TESTED ON -
+  AND IN THE SAME SESSION IT IS FOUND NOT TO CLEAR THE HARVEY-LIU-ZHU HURDLE (2026-08-13,
+  `X1`+`R4`).** `PREREG_r4_x1_accounting_and_universe_split.md` committed **ALONE at `9aee4f7`**, a
+  strict ancestor of every measurement commit. **No score moved and this is NOT a vintage event** -
+  C1 gated the full-universe headline bit-identical before any split was read.
+  * **X1 IS THE STRONGEST POSITIVE RESULT THIS PROGRAMME HAS PRODUCED, AND THE AUDIT SAID IT WOULD
+    BE THE MOST VALUABLE TEST IN THE DOCUMENT.** Every held-out gate this project has ever run
+    splits by **DATES**, which conflates *"does the signal generalise"* with *"does the PERIOD
+    generalise"*. A **universe** split has **no regime confound at all**. Splitting the 2,531 names
+    into disjoint halves - the audit's own stable key, `sha1(ticker) % 2`, **1266/1265**, no seed,
+    reproducible by anyone holding the ticker list - plus **100 seeded random splits**, against a
+    null **rebuilt for half books**:
+  * **A1 (top-decile alpha) SURVIVES, and emphatically. 200 of 200 half-books clear their own bar;
+    100 of 100 splits clear on BOTH sides; the median half-book is +0.07233 against the full
+    universe's +0.07174; and ZERO of 400 half-book measurements came back negative.** The minimum
+    across 200 half-books is **+0.04382**, nearly three times the null's p95 of +0.01724. **Halving
+    the universe widened the error bars and did not move the centre** - which is what a broad,
+    uniform cross-sectional effect looks like.
+  * **A2 (long-short HAC *t*) SURVIVES BUT DISTINCTLY MORE MARGINALLY, and the pre-registered bars
+    are what separate them:** 93.0% of half-books and 86.0% of splits, against A1's 100%/100%. Its
+    median half-book *t* **+2.3617** sits BELOW the full-universe **+2.6199**, as a half-sized book
+    sorting a noisier spread should, and **14 of 200 half-books fail their own bar. A1 is the
+    stronger claim and should be quoted as the stronger one.**
+  * **A SCOPE LIMIT FIXED BEFORE THE RUN, AND SAYING IT IS NOT A DODGE.** The audit asks to
+    *"decide on half A, measure on half B"*; **that half cannot bind, because the deployed strategy
+    fits NOTHING** - flat 1/7, never tuned, `cpcv.adopt` false on every run - **so there is no
+    decision to leak** and X1 as run tests **generalisation across NAMES**, not decision leakage.
+    **Re-running every theme decision and the weight selection under the split is NOT done** and is
+    named so it is not mistaken for done.
+  * **A CROSS-CHECK THAT CORROBORATES AN INDEPENDENT MEASUREMENT.** The half-universe null reads
+    **ls_hac p95 1.7405**; S22 separately measured the **FULL**-universe fixed-weights null at
+    **1.7494**. **Halving the universe moved the null by 0.009 of a *t*** - so the gap to X7's
+    **2.2837** is almost entirely the **CPCV selection step**, which S22 already priced at
+    **+0.5343**. Both are fixed-weights nulls and X1's arms use fixed weights, so it is the right
+    null; two independent routes to the same number is the best evidence available that it is
+    calibrated rather than merely computed.
+  * **R4 CLOSES `DONE`, AND THE BULLET NOBODY HAD DELIVERED IS THE ONE THAT FAILS.** Of its four
+    method bullets M1 shipped two (the log - 121 rows, **521 trials** - and the real `N` into the
+    Deflated Sharpe); this session shipped the other two.
+  * **BULLET 3: BH ACROSS THE EQUITY FAMILY LEAVES THREE OF FIFTY-THREE - AND THE SET CHANGES WITH
+    THE INFERENCE CHOICE.** `fcf_margin` and `gp_on_capital` survive under both; **`fcf_yield` only
+    under the plain *t* and `roic` only under the clustered one**, so *"three survive FDR"* is
+    weaker than it sounds. **Rejected by BH:** `roic` +2.8172, `neg_issuance` +2.7556, `roe`
+    +2.7303, `pead_car` +2.4572 - several of which the record has quoted as individually
+    significant against the retired 2.0 convention. **The audit's analogue is the options autopsy's
+    126 FEATURES, not log rows** - which matters, because `RESEARCH_LOG.md` has **no p-value
+    column**, so BH across the log is **not computable and never was.**
+  * **BULLET 4 IS THE FINDING, AND IT REFUTES R4'S OWN PREDICTION. THE HEADLINE DOES NOT CLEAR THE
+    HLZ HURDLE:** long-short HAC ***t* 2.6199121240414884** against **√(2·ln 218) =
+    3.2816139513322065**, a shortfall of **0.6617**. R4 predicted it *"probably clears"*; that 3.52
+    was the **pre-B6 void panel**, and `N` went **8 → 218** meanwhile, so **the statistic FELL as
+    the hurdle ROSE**. **The haircut was already computed on every run and used by the CPCV adopt
+    gate - nothing had ever compared it to the HEADLINE**, and no `harvey`/`hlz`/`hurdle` string
+    existed anywhere in the canonical file.
+  * **BOTH SIDES SHIP, BECAUSE THE ANSWER IS A TENSION AND NEITHER NUMBER IS "THE" ANSWER.** The
+    project **CLEARS** X7's empirically calibrated **2.2837** and **FAILS** the bar derived from
+    counting its own trials. The counter-argument was **registered before the run**: **HLZ prices
+    the BEST OF N draws, and the deployed composite is not the best of anything** - flat 1/7, never
+    tuned, `cpcv.adopt` false - **so the 218 logged trials are overwhelmingly REJECTED ALTERNATIVES
+    to it rather than candidates it beat.**
+  * **IT SHIPS IN THE CANONICAL RESULTS FILE, NOT A SIDE ARTIFACT** - `multiple_testing`,
+    **registered with M6's field-level guard**, no renames and nothing allow-listed, because a
+    number that lives only in a study JSON is **exactly the failure R4 exists to end**.
+    `statistics.benjamini_hochberg` is the shared definition; **BH already existed THREE times in
+    the options lane and consolidating those is theirs to do.**
+  * **A DEFECT IN MY OWN WORK, CAUGHT BY THE DOCSTRING I HAD JUST WRITTEN.** The first cut of the
+    script carried **its own BH** - a **FOURTH** copy, which is the audit-B7 defect the shared
+    definition exists to end, committed in the same change that argued against it. It now
+    delegates, and a test pins the identity.
+  * **R4's PERMANENT RESIDUAL:** BH across the **LOG** is not computable without inventing
+    p-values; and **`research_log.DOMAINS` declares `unified` and it reads ZERO** - every U-series
+    item testing explicitly unified equity+options hypotheses was charged to equity or options, so
+    there are **three parallel single-lane families and one dead bucket**. **Measured and ROUTED**,
+    since deciding it would move every published `N`. **R5's ledger row already leaned on R4's note
+    as routing input.**
+  * **A CORRECTION TO MY OWN REGISTER:** it said a half universe gives *"~126-name deciles against
+    ~253"*; measured, it is **82.3 against 165.1** - I divided the 2,531-name universe by ten where
+    the panel carries **~1,650 names per DATE** after coverage. Direction unaffected.
+  * **Equity `N` 218 → 220, infra 11 → 12.** Expectations **5 right, 1 wrong, 1 split, 1
+    unscorable** - the miss being that I expected at least one of 400 half-books to come back
+    negative and **none did**. `data/free_analysis/R4_X1_ACCOUNTING_UNIVERSE.json`;
+    `HANDOFF_edge_audit.md` R4+X1.
 - **SELLING A 25-DELTA PUT IS SELLING A 25% ASSIGNMENT PROBABILITY *BY CONSTRUCTION*, SO THE
   STRIKE HAS ALREADY SPENT THE RISK EDGE — THE CSP ON HEALTHY DIPS IS REJECTED BY THE ONE CONTROL
   THAT MATTERED, AND THE `U6` "100% CALLS" BLOCKER IS RETRACTED (2026-08-13, `V6-OPT`).**

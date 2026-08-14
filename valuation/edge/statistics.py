@@ -332,3 +332,58 @@ def mean_inference(series, lag=DEFAULT_HAC_LAG, ljung_lags=4) -> dict | None:
         "auto_lag_note": ("REPORTED, NOT ADOPTED — adopting it would move the published "
                           "HAC t and invalidate the placebo floor calibrated at lag 1."),
     }
+
+
+# ------------------------------------------------------------------------------------------
+# AUDIT R4 — false-discovery control across a FAMILY of tests
+# ------------------------------------------------------------------------------------------
+
+def two_sided_p(t) -> float | None:
+    """Two-sided p from a t statistic, normal approximation.
+
+    A 69-date IC series has df in the sixties, where the normal and the exact t differ by
+    <1e-3 — and BH decides on the ORDERING of p, which is invariant to any strictly monotone
+    transform, so the approximation cannot change which hypotheses are rejected.
+    """
+    if t is None:
+        return None
+    t = float(t)
+    if t != t or t in (float("inf"), float("-inf")):
+        return None
+    return float(math.erfc(abs(t) / math.sqrt(2.0)))
+
+
+def benjamini_hochberg(pvals, q: float = 0.05) -> list:
+    """Benjamini–Hochberg step-up, returning the reject vector in the INPUT order.
+
+    AUDIT R4 asked for this "across the family of *equity* signal tests, as the options
+    autopsy already does for its 126 features". It had never existed on the equity side: BH
+    was implemented three separate times in the OPTIONS lane (`tickflow_signals`,
+    `s17_event_codes`, `path_gate`) and nowhere else. This is the shared definition, so a
+    fourth copy is not what closes R4 — that would be audit B7's defect class, three copies
+    of a formula that must agree. **Consolidating the existing three is the options lane's
+    to do; this does not touch them.**
+
+    STEP-UP, NOT STEP-DOWN, and the distinction decides discoveries: rejections run to the
+    LARGEST k with p(k) <= q·k/m, so every hypothesis ranked above a qualifying one is
+    rejected even where it fails its own threshold. An implementation that stops at the first
+    failure is the step-DOWN procedure and is strictly less powerful. Pinned against
+    Benjamini and Hochberg's own 1995 worked example (m=15, q=0.05 → exactly 4 rejections).
+
+    `None`/NaN entries never reject and never enter the denominator's ordering.
+    """
+    idx = [i for i, p in enumerate(pvals)
+           if p is not None and isinstance(p, (int, float)) and p == p]
+    rej = [False] * len(pvals)
+    if not idx:
+        return rej
+    order = sorted(idx, key=lambda i: pvals[i])
+    m = len(order)
+    k_max = 0
+    for rank, i in enumerate(order, start=1):
+        if pvals[i] <= q * rank / m:
+            k_max = rank
+    for rank, i in enumerate(order, start=1):
+        if rank <= k_max:
+            rej[i] = True
+    return rej

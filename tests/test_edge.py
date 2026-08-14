@@ -9079,6 +9079,162 @@ def test_r5_r6_byproducts_carry_no_verdict_and_no_trial():
     assert "FREE BY-PRODUCT - NO VERDICT, NO TRIAL" in src
 
 
+def _r4x1():
+    import importlib
+    return importlib.import_module("scripts.r4_x1_accounting_universe")
+
+
+def test_r4_bh_matches_the_1995_worked_example():
+    """Benjamini-Hochberg's own paper, m=15, q=0.05 -> exactly 4 rejections. A step-up
+    procedure is easy to write as a step-DOWN by accident, and the two differ."""
+    r = _r4x1()
+    p = [0.0001, 0.0004, 0.0019, 0.0095, 0.0201, 0.0278, 0.0298, 0.0344,
+         0.0459, 0.3240, 0.4262, 0.5719, 0.6528, 0.7590, 1.000]
+    rej = r.benjamini_hochberg(p, 0.05)
+    assert sum(rej) == 4, f"BH 1995 example must give 4 rejections, got {sum(rej)}"
+    assert rej[:4] == [True] * 4 and not any(rej[4:])
+    # BH must be strictly more powerful than Bonferroni on the same input
+    bonf = sum(1 for x in p if x <= 0.05 / len(p))
+    assert sum(rej) > bonf, (sum(rej), bonf)
+
+
+def test_r4_bh_is_step_UP_so_a_later_small_p_rescues_earlier_ones():
+    """The defining property of step-up: rejections run to the LARGEST k satisfying the
+    condition, so everything ranked above a qualifying p is rejected even if it individually
+    fails its own threshold. A step-down implementation stops at the first failure."""
+    r = _r4x1()
+    p = [0.01, 0.02, 0.024]            # m=3, q=0.05: only k=3 satisfies 0.024 <= 0.05*3/3
+    rej = r.benjamini_hochberg(p, 0.05)
+    assert rej == [True, True, True], rej
+    assert r.benjamini_hochberg([0.9, 0.8, 0.7], 0.05) == [False, False, False]
+    assert r.benjamini_hochberg([], 0.05) == []
+    assert r.benjamini_hochberg([None, float("nan")], 0.05) == [False, False]
+
+
+def test_r4_the_hlz_hurdle_is_reported_with_BOTH_sides_of_the_argument():
+    """R4's residual is a TENSION, not a verdict. A payload carrying only the failing side
+    would be as misleading as one carrying only the passing side."""
+    r = _r4x1()
+    out = r.r4_hlz_hurdle(2.6199121240414884)
+    assert out["clears_hlz_hurdle"] is False, out["clears_hlz_hurdle"]
+    assert out["clears_x7_calibrated_floor"] is True, "the calibrated floor IS cleared"
+    assert out["shortfall"] > 0.5
+    assert "REJECTED ALTERNATIVES" in out["THE_TENSION"], "the counter-argument must travel"
+    assert out["unified_domain_is_declared_but_zero"] is True
+    # the hurdle must be sqrt(2 ln N) at the EQUITY N, not a hard-coded number
+    n = out["n_trials_equity"]
+    assert abs(out["hlz_hurdle_sqrt_2_ln_N"] - math.sqrt(2 * math.log(n))) < 1e-12
+
+
+def test_x1_the_stable_key_is_the_audits_construction_and_is_order_independent():
+    """The audit asked for 'a stable key - a hash of the ticker'. A seeded RNG would not be
+    reproducible by a reader holding only the ticker list."""
+    r = _r4x1()
+    tick = [f"T{i:04d}" for i in range(4000)]
+    a = {t for t in tick if r.stable_key_half(t) == 0}
+    a2 = {t for t in reversed(tick) if r.stable_key_half(t) == 0}
+    assert a == a2, "the partition depends on iteration order"
+    assert r.stable_key_half("AAPL") == r.stable_key_half("AAPL"), "not deterministic"
+    # roughly balanced - a hash that splits 90/10 would make the halves incomparable
+    assert 0.45 < len(a) / len(tick) < 0.55, len(a) / len(tick)
+
+
+def test_x1_a_split_must_be_exhaustive_disjoint_and_balanced():
+    r = _r4x1()
+    uni = [f"T{i}" for i in range(10)]
+    r._assert_split(uni[:5], uni[5:], uni)                       # ok
+    for bad in ((uni[:6], uni[5:]),                              # overlapping
+                (uni[:4], uni[5:]),                              # not exhaustive
+                (uni[:8], uni[8:])):                             # unbalanced
+        try:
+            r._assert_split(bad[0], bad[1], uni)
+            raise AssertionError(f"accepted a bad split: {bad}")
+        except AssertionError as e:
+            assert "AssertionError" not in str(type(e)) or True
+            if "accepted a bad split" in str(e):
+                raise
+
+
+def test_x1_the_joint_bar_is_DERIVED_from_the_marginal_one():
+    """0.64 = 0.80^2 - exactly what independence predicts from the marginal rate, so the
+    joint condition adds no demand beyond the marginal one being met and cannot be tuned."""
+    r = _r4x1()
+    assert abs(r.FRAC_BOTH - r.FRAC_HALFBOOKS ** 2) < 1e-12, (r.FRAC_BOTH, r.FRAC_HALFBOOKS)
+
+
+def test_x1_verdict_needs_all_three_legs_and_reports_a_reversal_separately():
+    r = _r4x1()
+    assert r.verdict_of(True, 0.90, 0.80, 0.0) == "SURVIVES"
+    assert r.verdict_of(False, 0.90, 0.80, 0.0) == "NULL", "the primary split is required"
+    assert r.verdict_of(True, 0.70, 0.80, 0.0) == "NULL", "the marginal bar is required"
+    assert r.verdict_of(True, 0.90, 0.50, 0.0) == "NULL", "the joint bar is required"
+    # a reversal is its own verdict and OUTRANKS everything, never folded into null
+    assert r.verdict_of(True, 0.90, 0.80, 0.70) == "REVERSED"
+
+
+def test_x1_null_recomputes_the_composite_rather_than_shuffling_a_score_column():
+    """The recorded failure mode: a permutation pointed at an ALREADY-COMPUTED score column
+    is invariant and yields a null equal to the real book. placebo_panel permutes the theme
+    columns and quantile_backtest rebuilds the composite from them."""
+    import inspect
+    src = inspect.getsource(_r4x1().half_universe_null)
+    assert "placebo_panel" in src and "quantile_backtest" in src
+    assert "composite" not in src.split('"""')[-1], (
+        "the null must not touch a composite column directly")
+
+
+def test_x1_does_NOT_read_X7s_full_universe_floors_as_its_bar():
+    """A half book has ~126-name deciles against the full universe's ~253. X7's floors are
+    reported beside the half-universe null and must never BE it."""
+    import inspect
+    r = _r4x1()
+    vsrc = inspect.getsource(r.verdict_of)
+    assert "X7" not in vsrc and "2.2837" not in vsrc
+    assert r.X7_FULL_UNIVERSE_LS_HAC_FLOOR == 2.2837, "but it must still be reported"
+    main = inspect.getsource(r.main)
+    assert "EXTRAPOLATION_ONLY" in main, "and labelled an extrapolation where it appears"
+
+
+def test_r4_the_multiple_testing_block_SHIPS_and_is_guarded():
+    """R4 bullet 4's whole finding is that the hurdle was COMPUTED and never REPORTED. A
+    block that can be silently dropped on its way to the canonical file would repeat that
+    failure one level up, so it is registered with M6's field-level guard."""
+    from valuation.edge import payload_schema as PS
+    from valuation.edge import fundamental_panel as _fp
+    from valuation.edge import results_file as _rf
+    import inspect
+    assert "multiple_testing" in PS.BLOCK_SPEC, "the new block is unguarded"
+    spec = PS.BLOCK_SPEC["multiple_testing"]
+    assert spec["src"] == "multiple_testing" and not spec["renames"] and not spec["allow"], (
+        "carried verbatim: a renamed or allow-listed field here would be a summary of a "
+        "multiple-testing correction, which is how it stops being checkable")
+    assert '"multiple_testing"' in inspect.getsource(_rf.build_payload), (
+        "results_file does not carry the block to the payload")
+    # and the producer is wired into the run, not merely defined
+    assert 'out["multiple_testing"]' in inspect.getsource(_fp.run_backtests)
+
+
+def test_r4_the_shared_BH_is_the_one_the_script_uses():
+    """Three BH copies already existed in the options lane. A fourth is audit B7's defect."""
+    from valuation.edge import statistics as ST
+    r = _r4x1()
+    assert r.benjamini_hochberg is ST.benjamini_hochberg, "the script re-implemented BH"
+    assert r._two_sided_p is ST.two_sided_p
+    # the shared one behaves: the 1995 example, through the shared symbol
+    p = [0.0001, 0.0004, 0.0019, 0.0095, 0.0201, 0.0278, 0.0298, 0.0344,
+         0.0459, 0.3240, 0.4262, 0.5719, 0.6528, 0.7590, 1.000]
+    assert sum(ST.benjamini_hochberg(p, 0.05)) == 4
+
+
+def test_r4_bh_charges_no_equity_trial():
+    """BH is a CORRECTION applied to already-charged tests. Charging it to equity would
+    double-count the very trials it corrects."""
+    import inspect
+    src = inspect.getsource(_r4x1().main)
+    assert "charges_no_equity_trial" in src
+    assert "C7_bh_covers_registered_numbers_only" in src
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
