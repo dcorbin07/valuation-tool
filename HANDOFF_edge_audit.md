@@ -10563,3 +10563,221 @@ live track. **The exposure is bounded: `DEFAULT_BOOK_CONFIG` is `roth`, not `tax
 published figures is the adopting lane's call and needs their sign-off, not a side effect of a V6
 artifact refresh** — this is the *stale figures hide in config dicts* failure mode, and the right
 fix is theirs to make deliberately. **Owner: the greeks / S14 lane.**
+
+---
+
+# V6-B — the dip branch reframed as a RISK question (2026-08-13)
+
+**Register:** `PREREG_v6b_dip_survival.md`, committed **ALONE at `dc5ae98`** — one `.md`, zero
+`.py`, a strict ancestor of every measurement commit.
+**Artifact:** `data/free_analysis/V6B_DIP_SURVIVAL.json` (every permutation draw banked).
+**Instrument:** `scripts/v6b_dip_survival.py`, `scripts/v6b_addendum.py`.
+**ADOPTS NOTHING. No file under `valuation/` changed. No vintage event.**
+
+## 0. The verdicts
+
+| arm | question | verdict |
+|---|---|---|
+| **ARM 1 · M1** | among 20%+ dips, does the HEALTHY set fall a **further −20%** less often? | **REAL — HEALTHY DIPS SURVIVE BETTER** |
+| ARM 1 · M2 | …go to **bankruptcy / regulatory delisting** less often? | **VOID — UNDERPOWERED BY CONSTRUCTION** |
+| ARM 1 · M3 | forward drawdown distribution | DESCRIPTIVE — no verdict by register 2.1 |
+| **ARM 2a/2b** | within the TOP DECILE, do dipped names outperform? (63d / 126d) | **NULL / NULL** |
+| **ARM 3** | dip × insider open-market purchase | **NULL** |
+
+**The kill condition did NOT fire. M1 separated, so the dip branch LIVES and `V6-OPT` unlocks.**
+
+## 1. M1 IS THE FIRST LARGE, REPLICATED, ECONOMICALLY MEANINGFUL RESULT THIS PROGRAMME HAS PRODUCED IN A LONG TIME
+
+On **37,014 dipped rows** with a full forward window, over 68 dates:
+
+| | healthy | unhealthy |
+|---|---|---|
+| `P(a further −20% within 126 trading days)` | **32.51%** | **43.35%** |
+
+**Absolute reduction 10.84pp pooled; the registered per-date statistic is −10.228pp at HAC
+*t* −10.5847** against its own permutation p5 of −1.7072. **A 25.0% relative reduction.**
+
+**It replicates in both halves and is nowhere near its own detection threshold:**
+
+| window | difference | *t* | own p5 | MDE at \|*t*\|=2 |
+|---|---|---|---|---|
+| full | **−10.228pp** | −10.5847 | −1.7072 | 1.933pp |
+| early (2009-01-15 → 2017-04-20) | **−9.064pp** | −6.7680 | −1.8969 | 2.678pp |
+| late (2017-10-18 → 2026-01-28) | **−11.515pp** | −8.2940 | −1.7594 | 2.777pp |
+
+**The effect is roughly four to five times its own MDE in every window** — the exact opposite of
+V6 and S19, where no cell reached its detection threshold. It clears the pre-committed **3.0pp
+economic floor by more than threefold in both halves**, and the sign is stable.
+
+**M3 corroborates on a completely different statistic and clears its own bar in all three
+windows** (+5.853pp, *t* +10.9212). The tail is where it shows:
+
+| forward 126d drawdown | mean | median | **p05** | worst |
+|---|---|---|---|---|
+| healthy dips | −0.1590 | −0.1206 | **−0.4635** | −0.8907 |
+| unhealthy dips | −0.2211 | −0.1644 | **−0.6472** | −0.9954 |
+
+**At the 5th percentile the healthy set's further fall is 18.4 points shallower.** That is the
+"thinner left tail" the arm was built to look for, and it is visible in the distribution's shape
+rather than only in a mean.
+
+## 2. THE CAVEAT THAT DECIDED THE RESULT — AND IT SURVIVED
+
+**C8 measured the healthy dipped set at 2.06× the median market cap of the unhealthy one**
+($4.617B vs $2.239B). **A size sort reported as a health finding is U7's and S10's failure mode**,
+and with an arm this large the tilt alone could not settle it — so C8 was deepened into a
+within-size stratification. **POST-HOC, LABELLED, AND CARRYING NO VERDICT** (the registered
+verdict stands exactly as the arm pass computed it):
+
+| market-cap quintile | median cap | M1 difference | *t* | clears both halves |
+|---|---|---|---|---|
+| Q1 | $0.37B | **−14.287pp** | −4.901 | yes |
+| Q2 | $1.30B | **−9.436pp** | −5.462 | yes |
+| Q3 | $2.79B | **−10.442pp** | −6.847 | yes |
+| Q4 | $6.52B | **−4.482pp** | −3.377 | yes |
+| Q5 | $21.85B | **−3.787pp** | −2.827 | **no — full sample only** |
+
+**Five of five quintiles negative, five of five clearing their own p5 on the full sample, four of
+five in both halves, and the smallest effect anywhere is 3.787pp — still above the pre-committed
+economic floor. M1 is NOT a size sort.**
+
+**But the gradient is itself the product-relevant finding and it cuts against the shipped book: the
+effect is LARGEST in the smallest names and WEAKEST in megacaps**, where it is a third of its
+small-cap size and is the one quintile that fails the both-halves leg. **The live hot list is
+megacap-tilted, so the claim is strongest exactly where the product is not.**
+
+## 3. THE WORD "DIED" IS NOT EARNED — AND THIS IS THE MOST IMPORTANT SENTENCE IN THIS SECTION
+
+The task's proposed copy was *"historically, dips like this died less often"*. **The metric that
+separated is M1 — a further −20% — which is DEEPENING, not DYING. The metric that actually measures
+death, M2, is VOID on power.**
+
+**M2: 42 distress events among dipped rows against a pre-committed floor of 30 per half (60).**
+Reported as **VOID — UNDERPOWERED BY CONSTRUCTION**, not as a null, exactly as §1b registered
+before any count was read. Its point estimate happens to run the same way (−0.120pp, *t* −4.3218
+full) and its **early half fails its own bar** (*t* −1.9683 against p5 −1.9683 — equal to four
+decimals, which is what a coarse permutation distribution on 42 events looks like). **None of that
+is quotable.**
+
+**So the sentence the tab has earned is about falling further, not about dying:**
+
+> *Historically, healthy names already down 20% have gone on to fall another 20% about a quarter
+> less often than unhealthy ones in the same drawdown — 33% of the time against 43%.*
+
+**A bankruptcy claim is NOT earned and must not be made.**
+
+## 4. MY OWN §1a REASONING WAS WRONG ABOUT THE DIRECTION, AND THE MEASUREMENT SAYS SO
+
+The register argued that counting acquisitions as distress would run **against** the healthy set,
+because acquirers prefer good businesses. **Measured (D3, post-hoc, no verdict):**
+
+| | P(acquired within 252d) | n |
+|---|---|---|
+| healthy dips | **0.292%** | 29 |
+| unhealthy dips | **0.484%** | 131 |
+
+**Ratio 0.604 — the UNHEALTHY set is acquired MORE often, not less.** So a naive `P(delisted)`
+would have counted 131 unhealthy acquisitions as deaths against 29 healthy ones, **exaggerating the
+healthy set's advantage rather than reversing it**.
+
+**The decision to separate them was still right — a takeover premium is not a death whichever way it
+cuts — but the reason I gave for it was backwards, and pre-registering a wrong mechanism alongside a
+right rule is worth recording.** Expectation 4 was scored WRONG on this.
+
+## 5. ARM 2 — NULL on both horizons, and it fails differently on each
+
+Top decile only, built with the **shipped** `composite_from_frame` → `argsort(-comp)` →
+`array_split(order, 10)` → `buckets[0]`. **C7 gives 11,426 top-decile rows over 69 dates — the
+identical count S10 reported independently**, which is what makes this the same object the
+published `top_decile_alpha` describes.
+
+* **A2a (63d): NULL, and the sign FLIPS between halves** — early −0.095pp/yr (*t* −0.0187), late
+  **+10.919pp/yr** (*t* +1.5072), full +4.993pp at *t* +1.1188 against a p95 of 1.6421.
+* **A2b (126d): NULL, sign-stable but neither half clears** — early +3.243pp, late +9.775pp, full
+  +6.375pp at *t* +1.3840 against 1.6084.
+
+**Both are "large-looking and unresolvable":** the late-half point estimates are big, the MDEs are
++2.2 to +8.1pp, and nothing clears. **Reported because a +10.9pp/yr late-half figure is exactly the
+kind of number that gets quoted without its early half**, which is −0.095pp.
+
+**C8 shows the tilt runs the OTHER way here**: dipped names inside the decile are **0.58×** the size
+of the rest of it. So Arm 1's size story and Arm 2's are not the same story.
+
+## 6. ARM 3 — NULL, and NOT on coverage, which refutes half my own expectation
+
+Median **106** buy-flagged dipped names per date against a floor of 10 — **abundant, not void**.
+Full sample +1.147pp/yr at *t* +0.5904 against a p95 of 1.7229; early +3.298pp (*t* +1.2312), late
+**+0.011pp (*t* +0.0041)** — the effect is entirely absent in the late half.
+
+**C6 confirms the arm is not the shipped theme wearing a new name: Spearman between the code-`P`
+buy flag and the shipped `insider` theme is +0.2935** — related, clearly distinct, and inside the
+|ρ| < 0.3 I predicted.
+
+## 7. Controls
+
+* **C1 GATED AND RAN IN ITS OWN PASS** (`--controls-only` exits before any arm), reproducing the
+  shipped record to 16 digits.
+* **C2** canonical panel: 69 dates, 2,531 names, 113,945 rows.
+* **C3 ZERO point-in-time violations** on all three routes — no forward price inside the trailing
+  high, **no ACTIONS event dated on or before the rebalance date counted as a forward outcome**, no
+  insider filing dated on or after it read.
+* **C4 coverage first:** 37,982 dipped rows, **37,014 with a full 126-day forward window** (968
+  censored and DROPPED, 2.5%, a recent-date suffix); healthy dipped **9,924**, unhealthy **27,090**;
+  42 distress events, **160 acquisitions**, 9,418 buy-flagged.
+* **C5** distress and acquisition are exclusive by construction, both published.
+* **C6 FIDELITY: the healthy share of dipped rows is 26.8%, reproducing V6's own
+  `cond_share_of_dipped` of 0.2683** — proof the floors were not re-tuned, which is void
+  condition 6.3.
+* **C7** 11,426 top-decile rows, matching S10's independent count.
+* **C8** as §2.
+
+## 8. Expectations — 5 right, 2 wrong, 1 split
+
+| # | expectation | odds | outcome |
+|---|---|---|---|
+| 1 | M1 separates | 60/40 | **RIGHT**, and by far more than expected |
+| 2 | M1 clears statistically but misses the 3.0pp floor | 50/50 | **WRONG** — cleared it 3× over |
+| 3 | M2 is VOID on power, not NULL | 65/35 | **RIGHT** — 42 events against a floor of 60 |
+| 4 | the healthy set is ACQUIRED more often | 70/30 | **WRONG** — 0.604×, the reverse |
+| 5 | Arm 2 is NULL | 75/25 | **RIGHT** |
+| 6 | Arm 3 is VOID or NULL **on coverage** | 60/40 | **SPLIT** — NULL, but coverage was ample |
+| 7 | buy flag vs insider theme \|ρ\| < 0.3 | 65/35 | **RIGHT** — +0.2935 |
+| 8 | healthy dipped names are LARGER | 75/25 | **RIGHT** — 2.06× |
+
+**The two misses are the informative ones**, and both are about *mechanism* rather than verdict:
+the effect was much larger than I priced, and the acquisition channel runs the opposite way from the
+argument I registered.
+
+## 9. What this unlocks, and what it does NOT
+
+**`V6-OPT` (the cash-secured-put branch) is UNLOCKED** by M1, per the register — and it inherits
+three things that must travel with it: the claim is about **falling further, not defaulting** (§3);
+it is **weakest in megacaps** (§2); and **V6 already showed the same population carries no return
+edge** (four nulls), so a CSP case rests on the risk profile and the premium, never on expected
+appreciation.
+
+**Still NOT established:** any return claim (V6 settled that); a bankruptcy/distress claim (M2 VOID);
+causation of any kind; and anything about the tab's own live sub-scores, which remain not computable
+point-in-time.
+
+**The dip branch does NOT close.** Its kill condition required M1 to fail and M1 did not.
+
+## 10. Defects and corrections
+
+1. **A defect in my own test, caught before the run.** The thin-side test built **16** names on the
+   side it called thin, above the floor of 10, so it passed for the wrong reason. Rebuilt with a
+   real thin side **plus a positive control** — the same shape with both sides fat must score 30 of
+   30 dates — so it cannot pass vacuously again.
+2. **A correction to my own premise probe**, recorded in the register: it reported `transactioncode`
+   coverage as **1.0** via a bad `astype(str) != "nan"` test. The direct `notna()` measure is
+   **0.726**, and those unclassifiable 27.4% count as no-buy.
+3. **§1a's mechanism was backwards** (§4), while its rule was right.
+
+## 11. Cost and record
+
+**Equity `N` 206 → 212** — six trials: Arm 1 three (M1/M2/M3), Arm 2 two (63d/126d), Arm 3 one.
+**Charged in full even for the risk arm**: the counter is a search counter, not an alpha counter,
+and understating `N` overstates significance. The `n` column is written as the literal **`n=6`**
+form `research_log._parse` requires — this session already caught a row that silently charged 1 of 4.
+
+`BACKTEST_RESULTS.json` refreshed from a clean tree at the new denominator.

@@ -1,5 +1,39 @@
 # HANDOFF STATUS - shared project state
 
+## edge lane, V6-B (2026-08-13) - the dip branch LIVES: a real, replicated RISK effect
+
+`PREREG_v6b_dip_survival.md` committed ALONE at `dc5ae98`. ADOPTS NOTHING; no file under
+`valuation/` changed. **The kill condition did NOT fire.**
+
+- **ARM 1 M1 is REAL and it is the largest replicated effect this programme has produced in a
+  long time.** Among 20%+ dips, the HEALTHY set falls a further 20% within 126d on **32.51%**
+  of occasions against **43.35%** for the unhealthy set - **a 10.8pp absolute, 25.0% relative
+  reduction**, HAC *t* **-10.58**, replicated in BOTH halves (-9.06pp early, -11.52pp late) and
+  clearing the pre-committed 3.0pp economic floor threefold. **The effect is 4-5x its own MDE
+  in every window** - the opposite of V6 and S19, where nothing reached detection.
+- **IT IS NOT A SIZE SORT, and that was the caveat that decided it.** Healthy dips are 2.06x
+  larger, so C8 was deepened into a within-size stratification (POST-HOC, no verdict):
+  **5 of 5 market-cap quintiles negative, 5 of 5 clearing their own bar, 4 of 5 in both
+  halves, smallest effect 3.79pp - still above the economic floor.** But the gradient cuts
+  against the shipped book: **-14.3pp in the smallest quintile, -3.8pp in megacaps**, where it
+  is also the one quintile failing both halves. **The claim is strongest where the product is
+  not.**
+- **THE WORD "DIED" IS NOT EARNED.** The metric that separated is a further -20% - DEEPENING,
+  not DYING. **M2, the actual bankruptcy/regulatory-delisting metric, is VOID on power** (42
+  events against a pre-committed floor of 60) and none of its numbers are quotable. The earned
+  sentence is about falling further, not about defaulting.
+- **ARM 2 NULL on both horizons** (63d flips sign between halves: -0.1pp early, +10.9pp late;
+  126d sign-stable but neither half clears). **ARM 3 NULL with ABUNDANT coverage** - 106
+  buy-flagged names per date - so not a power failure.
+- **A premise finding that rewrote the task's own second metric: 82.63% of delistings on this
+  universe are ACQUISITIONS.** Distress is bankruptcy + regulatory only. And my registered
+  reason was backwards - measured, the UNHEALTHY set is acquired MORE (0.604x), so a naive
+  P(delisted) would have EXAGGERATED the healthy set's advantage rather than reversing it.
+- **`V6-OPT` (cash-secured puts) is UNLOCKED**, inheriting three caveats: falling-further not
+  defaulting, weakest in megacaps, and V6's four return nulls on the same population.
+- Equity `N` 206 -> 212; expectations 5 right, 2 wrong, 1 split.
+  `data/free_analysis/V6B_DIP_SURVIVAL.json`; `HANDOFF_edge_audit.md` V6-B sections 0-11.
+
 ## edge lane, V6 (2026-08-13) - the Dip Detector's claim is NOT supported: four arms, four nulls
 
 `PREREG_v6_dip_detector.md` committed ALONE at `93e3e60`, BEFORE the tab exists and before any
