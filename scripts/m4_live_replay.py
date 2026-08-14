@@ -26,7 +26,6 @@ from valuation.config import CONFIG as CFG                    # noqa: E402
 from valuation.edge import fundamental_panel as FP            # noqa: E402
 from valuation.edge import live_replay as LR                  # noqa: E402
 from valuation.edge.data_providers import WRDSProvider        # noqa: E402
-from valuation.screener import settings as S                  # noqa: E402
 
 REC = {"top_decile_alpha": 0.07174142332098163,
        "long_short_tstat": 2.8360640685320595,
@@ -107,8 +106,8 @@ def main():
     _log(f"[m4] earliest {d0}: rho {out['replay_earliest'].get('rank_correlation')}")
 
     out["config_at_replay"] = {
-        "sector_neutral": bool(getattr(S.CONFIG, "sector_neutral", None)),
-        "residual_momentum": bool(getattr(S.CONFIG, "residual_momentum", None)),
+        "sector_neutral": bool(getattr(CFG, "sector_neutral", None)),
+        "residual_momentum": bool(getattr(CFG, "residual_momentum", None)),
         "why_it_matters": ("the panel hard-codes residual_momentum=False while the live path "
                            "reads CONFIG; they agree today only because the defaults were "
                            "changed to match, and nothing structurally holds them together."),

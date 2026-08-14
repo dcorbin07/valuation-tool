@@ -41,7 +41,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ..screener import settings as S
+from ..config import CONFIG as _CFG
 from ..screener.cross_sectional import composite_score
 from ..screener.factors import build_frame
 
@@ -98,9 +98,11 @@ def replay(metrics: list, date: str = "", raise_on_divergence: bool = True) -> d
         "top25_overlap": (len(top_live & top_back) if n else None),
         "top25_changed": (top_n - len(top_live & top_back) if n else None),
         "threshold": MIN_RANK_CORRELATION,
-        "config_sector_neutral": bool(getattr(S, "CONFIG", None) and
-                                      getattr(S.CONFIG, "sector_neutral", False))
-        if hasattr(S, "CONFIG") else None,
+        # The two CONFIG flags whose defaults are the ONLY thing holding the live path and
+        # the backtest together (see the module docstring). Recorded WITH the result, so a
+        # future divergence can be read against the settings that produced it.
+        "config_sector_neutral": bool(getattr(_CFG, "sector_neutral", False)),
+        "config_residual_momentum": bool(getattr(_CFG, "residual_momentum", False)),
         "ok": bool(n >= 3 and rho == rho and rho >= MIN_RANK_CORRELATION),
     }
     if raise_on_divergence and not out["ok"]:
