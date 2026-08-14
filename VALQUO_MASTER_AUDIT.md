@@ -366,19 +366,28 @@ calls `_parse` directly). Harmless; the parameter is a lie.
 
 ---
 
-### MA7 — MEDIUM — `/api/value` is unlimited and makes the calls the limiter exists to protect
+### MA7 — MEDIUM — Two public endpoints spend the owner's vendor quota with no cap, and one of them does it 25 names at a time
 
 `valuation/saas/ratelimit.py:33-47` limits `/api/scan/run` to 3/hour because *"FMP quota, 3
 requests per uncached name"*, and deliberately leaves `/api/value` unlimited unless `run_ai` is
-set, because *"the plain valuation is the product's core action."* But `/api/value` reaches the
-same upstream: a full adaptive DCF on a name the caller chooses. An anonymous loop over
-**distinct** tickers is a cache miss every time, so it spends the same FMP quota the 22:23 UTC
-scan depends on — the failure the module's docstring names — one name per request instead of
-one universe per request, and with no cap at all. The cache defends against repeats; nothing
-defends against enumeration, and the universe is ~7,100 names.
+set, because *"the plain valuation is the product's core action."*
+
+**But `/api/value` reaches the same upstream.** `valuation/web/app.py:158-170` calls
+`value_ticker(ticker, CONFIG, ...)` on a caller-supplied symbol — the full adaptive DCF, which
+fetches that name's fundamentals. An anonymous loop over **distinct** tickers is a cache miss
+every time, so it spends exactly the FMP quota the 22:23 UTC scan depends on — the failure the
+module's own docstring names — one name per request, uncapped. The cache defends against repeats;
+nothing defends against enumeration, and the universe is ~7,100 names.
+
+**`/api/rank` is the sharper case and it is not in `LIMITS` at all.** `app.py:193-199` accepts a
+list and runs `value_ticker(t, CONFIG, run_ai=run_ai, mc_trials=2000)` for **up to 25 tickers per
+request**. It is in `PUBLIC_API`, it appears in no limit bucket, and it multiplies the per-request
+cost of `/api/value` by twenty-five — including 2,000 Monte Carlo trials per name on a 512 MB
+box. Whatever the correct cap on `/api/value` is, `/api/rank`'s is 1/25th of it.
 
 **Suggested shape (not applied):** a generous per-IP cap on `/api/value` regardless of `run_ai`
-— say 120/hour — which no human clicking around will reach.
+— say 120/hour, which no human clicking around will reach — and a proportionally tighter one on
+`/api/rank`, whose per-request cost is bounded only by the length of the list it is handed.
 
 ---
 

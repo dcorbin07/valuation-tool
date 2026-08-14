@@ -177,7 +177,7 @@
     "note": "Understating N overstates the significance of every DSR- and HLZ-gated claim - M1's own stated error, in M1's own parser, for the second time."
   },
   "MA7": {
-    "title": "/api/value is unlimited and makes the same upstream calls the limiter exists to protect",
+    "title": "Two public endpoints spend the owner's vendor quota with no cap, and one of them does it 25 names at a time",
     "mandate": "2 - code / 6 - adversarial",
     "severity": "MEDIUM",
     "modifies": [
@@ -188,16 +188,19 @@
     "readonly": true,
     "files": [
       "valuation/saas/ratelimit.py:33-47,58-62",
+      "valuation/web/app.py:158-170",
+      "valuation/web/app.py:193-199",
+      "valuation/saas/surfaces.py (PUBLIC_API)",
       "valuation/saas/app_saas.py:856-871"
     ],
     "registers": [
       "SECURITY_AUDIT.md H1"
     ],
     "evidence_needed": "FMP call counts per /api/value request on a cold cache - one instrumented run",
-    "verification": "bucket_for returns a bucket for /api/value only when body.run_ai is set. The plain path runs a full adaptive DCF, i.e. the same 3-requests-per-uncached-name the module limits /api/scan/run for. An enumeration loop over distinct tickers misses the cache every time.",
+    "verification": "bucket_for returns a bucket for /api/value only when body.run_ai is set. VERIFIED: app.py:158-170 calls value_ticker(ticker, CONFIG, ...) on a caller-supplied symbol - the full adaptive DCF - so the plain path makes the same upstream fundamentals calls the module limits /api/scan/run for. AND /api/rank IS IN NO LIMIT BUCKET AT ALL: app.py:193-199 accepts a list and runs value_ticker(t, CONFIG, run_ai=run_ai, mc_trials=2000) for up to 25 tickers per request, while sitting in PUBLIC_API - a 25x amplification of /api/value's per-request cost, including 2,000 Monte Carlo trials per name on a 512 MB box.",
     "trial_cost": "0",
     "kill_condition": "If /api/value is measured to make zero uncached upstream calls, this is void.",
-    "note": "Suggested shape: a generous per-IP cap (~120/hour) regardless of run_ai."
+    "note": "Suggested shape: a generous per-IP cap on /api/value regardless of run_ai (~120/hour, which no human clicking around will reach) and a proportionally tighter one on /api/rank, whose per-request cost is bounded only by the length of the list it is handed."
   },
   "MA8": {
     "title": "client_ip's rightmost-XFF rule has two opposite failure modes, neither visible from code",
