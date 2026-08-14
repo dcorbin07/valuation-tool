@@ -9195,6 +9195,37 @@ def test_x1_does_NOT_read_X7s_full_universe_floors_as_its_bar():
     assert "EXTRAPOLATION_ONLY" in main, "and labelled an extrapolation where it appears"
 
 
+def test_r4_the_multiple_testing_block_SHIPS_and_is_guarded():
+    """R4 bullet 4's whole finding is that the hurdle was COMPUTED and never REPORTED. A
+    block that can be silently dropped on its way to the canonical file would repeat that
+    failure one level up, so it is registered with M6's field-level guard."""
+    from valuation.edge import payload_schema as PS
+    from valuation.edge import fundamental_panel as _fp
+    from valuation.edge import results_file as _rf
+    import inspect
+    assert "multiple_testing" in PS.BLOCK_SPEC, "the new block is unguarded"
+    spec = PS.BLOCK_SPEC["multiple_testing"]
+    assert spec["src"] == "multiple_testing" and not spec["renames"] and not spec["allow"], (
+        "carried verbatim: a renamed or allow-listed field here would be a summary of a "
+        "multiple-testing correction, which is how it stops being checkable")
+    assert '"multiple_testing"' in inspect.getsource(_rf.build_payload), (
+        "results_file does not carry the block to the payload")
+    # and the producer is wired into the run, not merely defined
+    assert 'out["multiple_testing"]' in inspect.getsource(_fp.run_backtests)
+
+
+def test_r4_the_shared_BH_is_the_one_the_script_uses():
+    """Three BH copies already existed in the options lane. A fourth is audit B7's defect."""
+    from valuation.edge import statistics as ST
+    r = _r4x1()
+    assert r.benjamini_hochberg is ST.benjamini_hochberg, "the script re-implemented BH"
+    assert r._two_sided_p is ST.two_sided_p
+    # the shared one behaves: the 1995 example, through the shared symbol
+    p = [0.0001, 0.0004, 0.0019, 0.0095, 0.0201, 0.0278, 0.0298, 0.0344,
+         0.0459, 0.3240, 0.4262, 0.5719, 0.6528, 0.7590, 1.000]
+    assert sum(ST.benjamini_hochberg(p, 0.05)) == 4
+
+
 def test_r4_bh_charges_no_equity_trial():
     """BH is a CORRECTION applied to already-charged tests. Charging it to equity would
     double-count the very trials it corrects."""

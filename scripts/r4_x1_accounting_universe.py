@@ -29,6 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from valuation.edge import fundamental_panel as FP            # noqa: E402
 from valuation.edge import research_log as RL                 # noqa: E402
+from valuation.edge import statistics as ST                   # noqa: E402
 from valuation.screener import settings as S                  # noqa: E402
 
 THEMES = ["value", "quality", "momentum", "insider", "capital_discipline", "size",
@@ -64,32 +65,12 @@ def _w(path, obj):
 # ---------------------------------------------------------------------------------
 # R4
 # ---------------------------------------------------------------------------------
-def _two_sided_p(t, df):
-    """Two-sided p from a t statistic. Normal approximation at large df, which is what a
-    69-date IC series is; the exact t-distribution moves these by <1e-3 and BH's ORDERING
-    - which is what decides discoveries - is invariant to a monotone transform of p."""
-    if t is None or not np.isfinite(t):
-        return None
-    z = abs(float(t))
-    return float(math.erfc(z / math.sqrt(2.0)))
-
-
-def benjamini_hochberg(pvals, q=BH_Q):
-    """Standard BH step-up. Returns the boolean reject vector in the INPUT order."""
-    idx = [i for i, p in enumerate(pvals) if p is not None and np.isfinite(p)]
-    if not idx:
-        return [False] * len(pvals)
-    order = sorted(idx, key=lambda i: pvals[i])
-    m = len(order)
-    k_max = 0
-    for rank, i in enumerate(order, start=1):
-        if pvals[i] <= q * rank / m:
-            k_max = rank
-    rej = [False] * len(pvals)
-    for rank, i in enumerate(order, start=1):
-        if rank <= k_max:
-            rej[i] = True
-    return rej
+# DELEGATED, NOT RE-IMPLEMENTED. BH already existed three times in the options lane
+# (`tickflow_signals`, `s17_event_codes`, `path_gate`); this session added the canonical
+# definition to `statistics.py`, and a FOURTH copy here would be exactly the audit-B7 defect
+# the shared one exists to end. The first cut of this file did carry its own copy.
+_two_sided_p = ST.two_sided_p
+benjamini_hochberg = ST.benjamini_hochberg
 
 
 def r4_bh_equity_family(panel):
@@ -106,8 +87,8 @@ def r4_bh_equity_family(panel):
         rows.append({"signal": n, "median_ic": r.get("median_ic"),
                      "coverage": r.get("coverage"), "n_dates": r.get("n_dates"),
                      "ic_tstat": t_plain, "ic_t_hac": t_hac,
-                     "p_plain": _two_sided_p(t_plain, r.get("n_dates")),
-                     "p_hac": _two_sided_p(t_hac, r.get("n_dates"))})
+                     "p_plain": _two_sided_p(t_plain),
+                     "p_hac": _two_sided_p(t_hac)})
     for key, pk in (("bh_reject_plain", "p_plain"), ("bh_reject_hac", "p_hac")):
         rej = benjamini_hochberg([x[pk] for x in rows], BH_Q)
         for x, v in zip(rows, rej):

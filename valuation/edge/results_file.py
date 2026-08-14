@@ -300,6 +300,15 @@ def build_payload(res: dict, universe_label: str | None = None,
         # dict with available=false means "not computed this run", not "no signal".
         "per_signal": {"available": bool(per_signal), "signals": per_signal or {}},
 
+        # AUDIT R4 — project-level multiple-testing accounting. M1 built the trial log and fed
+        # the real N into the Deflated Sharpe; it did NOT apply Benjamini-Hochberg across the
+        # equity signal family, and it never compared the HEADLINE to the Harvey-Liu-Zhu
+        # hurdle it was already computing for the CPCV gate. Both ship here, with the
+        # counter-argument travelling beside the failing comparison rather than being left to
+        # a reader. Carried through VERBATIM: a summary of a multiple-testing correction is
+        # how the correction stops being checkable.
+        "multiple_testing": res.get("multiple_testing") or {"status": "not computed"},
+
         # Same measurement one level up: the IC of each composite THEME. An input can be
         # worthless while the theme it feeds is worth carrying, or the reverse, so the
         # keep/drop decisions need both.

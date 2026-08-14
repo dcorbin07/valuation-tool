@@ -3205,6 +3205,109 @@ def validate_institutional(provider, tickers, lags=INST_LAG_GRID, lookback_years
     return out
 
 
+def multiple_testing_accounting(per_signal: dict, headline_ls_hac) -> dict:
+    """AUDIT R4 — the two method bullets M1 did not deliver.
+
+    M1 built the append-only log and fed the real `N` into the Deflated Sharpe. It did NOT do
+    either of R4's other two:
+
+      3. "Apply Benjamini–Hochberg across the family of *equity* signal tests, as the options
+         autopsy already does for its 126 features."  BH existed only in the options lane.
+         The equity analogue of "126 features" is the PER-SIGNAL IC TABLE — not the research
+         log, which records verdicts and has NO p-value column, so BH across it is not
+         computable and never was. That is R4's permanent residual.
+
+      4. "Report the Harvey–Liu–Zhu adjusted hurdle for the number of trials actually run."
+         `_trials_haircut` computed it and the CPCV adopt gate USED it, but nothing ever
+         compared it to the HEADLINE, and no `harvey`/`hlz`/`hurdle` string existed anywhere
+         in the canonical file. This block is that comparison, shipped so it cannot go unread
+         a second time.
+
+    THE ANSWER IS A TENSION AND BOTH SIDES SHIP. The headline HAC *t* clears X7's empirically
+    CALIBRATED floor (2.2837) and FAILS the theoretical HLZ hurdle √(2·ln N) at the honest
+    denominator. The counter-argument travels in the payload rather than being left to a
+    reader: HLZ prices the BEST OF N draws, and the deployed composite is not the best of
+    anything — flat 1/7, never tuned, `cpcv.adopt` false on every run — so the logged trials
+    are overwhelmingly REJECTED ALTERNATIVES to it rather than candidates it beat.
+
+    R4's own prediction was that the long-short *t* "probably clears a properly-computed
+    hurdle". It does not, and both movements ran against it: that 3.52 was the pre-B6 void
+    panel, while `N` went 8 → 200+, so the statistic fell as the hurdle rose.
+    """
+    from . import research_log as _rl
+    sig = (per_signal or {})
+    names = sorted(sig)
+    rows = []
+    for n in names:
+        r = sig[n] or {}
+        t_plain = r.get("ic_tstat")
+        t_hac = (r.get("ic_inference") or {}).get("t")
+        rows.append({"signal": n, "median_ic": r.get("median_ic"),
+                     "coverage": r.get("coverage"), "n_dates": r.get("n_dates"),
+                     "ic_tstat": t_plain, "ic_t_hac": t_hac,
+                     "p_plain": _stats.two_sided_p(t_plain),
+                     "p_hac": _stats.two_sided_p(t_hac)})
+    for key, pk in (("bh_reject_plain", "p_plain"), ("bh_reject_hac", "p_hac")):
+        for x, v in zip(rows, _stats.benjamini_hochberg([x[pk] for x in rows], 0.05)):
+            x[key] = bool(v)
+
+    det = {}
+    try:
+        det = _rl.detail() or {}
+    except Exception:
+        det = {}
+    by = det.get("by_domain") or {}
+    n_eq = int(by.get("equity") or 0)
+    hurdle = float(np.sqrt(2.0 * np.log(max(2, n_eq)))) if n_eq else None
+    t = (float(headline_ls_hac)
+         if headline_ls_hac is not None and headline_ls_hac == headline_ls_hac else None)
+
+    return {
+        "bh": {
+            "family": ("per-signal IC table — the equity analogue of the options autopsy's "
+                       "126 features"),
+            "q": 0.05, "n_signals": len(rows),
+            "n_discoveries_plain": sum(x["bh_reject_plain"] for x in rows),
+            "n_discoveries_hac": sum(x["bh_reject_hac"] for x in rows),
+            "discoveries_plain": sorted(x["signal"] for x in rows if x["bh_reject_plain"]),
+            "discoveries_hac": sorted(x["signal"] for x in rows if x["bh_reject_hac"]),
+            "signals": rows,
+            "not_computable_across_the_log": (
+                "RESEARCH_LOG.md records verdicts and has no p-value column; reconstructing "
+                "one for heterogeneous rows measured against different statistics on "
+                "different universes would be invention. R4's permanent residual."),
+        },
+        "hlz": {
+            "statistic": "construction.long_short_tstat_nw",
+            "value": t,
+            "n_trials_equity": n_eq,
+            "hurdle_sqrt_2_ln_N": hurdle,
+            "clears_hlz_hurdle": (None if (t is None or hurdle is None) else bool(t > hurdle)),
+            "shortfall": (None if (t is None or hurdle is None) else float(hurdle - t)),
+            "x7_calibrated_floor": 2.2837,
+            "clears_x7_calibrated_floor": (None if t is None else bool(t > 2.2837)),
+            "the_tension": (
+                "CLEARS the bar measured against the project's own placebo and FAILS the bar "
+                "derived from counting its own trials. Neither is 'the' answer. HLZ prices "
+                "the best of N draws; the deployed composite is flat 1/7, never tuned, and "
+                "cpcv.adopt is false on every run, so the logged trials are overwhelmingly "
+                "REJECTED ALTERNATIVES to it rather than candidates it beat."),
+        },
+        "by_domain": by,
+        "unified_domain_declared_but_zero": bool("unified" in (_rl.DOMAINS or ())
+                                                 and (by.get("unified") or 0) == 0),
+        "unified_note": (
+            "research_log.DOMAINS declares `unified` and it reads zero: every U-series item "
+            "testing unified equity+options hypotheses was charged to equity or options. "
+            "Three parallel single-lane families and one dead bucket. Measured and ROUTED — "
+            "deciding whether cross-lane claims need their own denominator would move every "
+            "published N and is not made here."),
+        "trials_logged_all_domains": det.get("trials_logged"),
+        "audit_estimate": det.get("audit_estimate"),
+        "gap_to_audit_estimate": det.get("gap_to_audit_estimate"),
+    }
+
+
 def per_signal_ic(panel, horizon_col="fwd_ret", min_names=20, min_dates=8) -> dict:
     """{signal: {median_ic, ic_tstat, coverage, n_dates}} for EVERY wired number.
 
@@ -4709,6 +4812,9 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
         # stale value raises nothing and leaves coverage and sanity both perfectly happy.
         out["ev_freshness"] = ev_freshness(panel)
         out["per_signal"] = per_signal_ic(panel)
+        # AUDIT R4 — the two bullets M1 did not deliver. See `multiple_testing_accounting`.
+        out["multiple_testing"] = multiple_testing_accounting(
+            out["per_signal"], (out.get("construction") or {}).get("long_short_tstat_nw"))
         out["per_theme"] = theme_ic(panel)      # the level keep/drop decisions operate at
         if not panel.empty and panel["date"].nunique() >= 6:
             cols = [c for c in S.BUCKET_FACTORS[bucket] if c in panel.columns and panel[c].notna().any()]

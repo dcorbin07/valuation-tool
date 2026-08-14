@@ -1,5 +1,45 @@
 # HANDOFF STATUS - shared project state
 
+## edge lane, R4+X1 (2026-08-13) - the headline survives a NAME split; the HLZ hurdle does not
+
+`PREREG_r4_x1_accounting_and_universe_split.md` committed ALONE at `9aee4f7`. **No score moved,
+no vintage event** - C1 gated the full-universe headline bit-identical before any split.
+
+- **X1: THE HEADLINE SURVIVES AN INDEPENDENCE AXIS IT HAD NEVER BEEN TESTED ON.** Splitting the
+  universe by NAME (the audit's own sha1-of-ticker key, plus 100 random splits) against a null
+  rebuilt for half books: **A1 top-decile alpha SURVIVES with 200 of 200 half-books clearing and
+  100 of 100 splits clearing on both sides**, median half-book **+0.07233** against the full
+  universe's **+0.07174**, and **ZERO of 400 half-book measurements negative**. **A2 long-short
+  HAC t also SURVIVES but distinctly more marginally** (93% / 86%). A time split conflates "does
+  the signal generalise" with "does the period generalise"; a universe split has **no regime
+  confound at all**, which is why the audit called X1 possibly its highest-value methodological
+  change.
+- **R4 closes DONE, and the bullet nobody had delivered is the one that FAILS.** Of its four
+  method bullets, M1 shipped two; this session shipped the other two. **BH across the 53-signal
+  equity family leaves THREE discoveries** - and **the SET CHANGES with the inference choice**
+  (`fcf_margin`+`gp_on_capital` under both, `fcf_yield` under the plain t, `roic` under HAC), so
+  "three survive FDR" is weaker than it sounds.
+- **THE HEADLINE DOES NOT CLEAR THE HARVEY-LIU-ZHU HURDLE.** Long-short HAC **t 2.6199** against
+  **sqrt(2 ln 218) = 3.2816** - a shortfall of **0.66**. R4 predicted it "probably clears"; that
+  3.52 was the pre-B6 void panel, and meanwhile N went 8 -> 218, so **the statistic fell as the
+  hurdle rose**. **The haircut was already computed on every run and used by the CPCV gate -
+  nothing had ever compared it to the headline.**
+- **BOTH SIDES SHIP, because the answer is a tension.** The project **clears** X7's empirically
+  calibrated 2.2837 and **fails** the trial-count hurdle. The counter-argument was registered
+  before the run: **HLZ prices the BEST OF N draws, and the deployed composite is not the best of
+  anything** - flat 1/7, never tuned, `cpcv.adopt` false - so the logged trials are overwhelmingly
+  **rejected alternatives to it**.
+- **Now in the CANONICAL results file, not a side artifact** - `multiple_testing`, registered with
+  M6's field-level guard, because a number that lives only in a study JSON is exactly the failure
+  R4 exists to end. `statistics.benjamini_hochberg` is the shared definition; **BH already existed
+  three times in the options lane and consolidating those is theirs to do.**
+- **R4's permanent residual:** BH across the LOG is **not computable** (no p-value column), and the
+  **`unified` domain is declared and reads ZERO** - every U-series item was charged to equity or
+  options, so there are three parallel single-lane families and one dead bucket. Routed, not
+  decided.
+- Equity `N` 218 -> 220, infra 11 -> 12. Expectations 5 right, 1 wrong, 1 split, 1 unscorable.
+  `data/free_analysis/R4_X1_ACCOUNTING_UNIVERSE.json`; `HANDOFF_edge_audit.md` R4+X1.
+
 ## options-bot lane, V6-OPT (2026-08-13) — cash-secured puts on healthy dips: the premium is real, the entry beats random, and the STRIKE has already spent the risk edge
 
 `PREREG_v6opt_csp.md` committed **ALONE at `88685c9`** — one `.md`, zero `.py`, a strict ancestor

@@ -70,6 +70,11 @@ BLOCK_SPEC = {
                     "bench_return": "benchmark_total_return"},
         "allow": {"status": "surfaced by the `errors` block instead"},
     },
+    # AUDIT R4 — carried through verbatim, so there are no renames and nothing to allow. It
+    # is registered here rather than left unguarded precisely because R4's own finding is
+    # that bullet 4 was COMPUTED and never REPORTED: a multiple-testing correction that can
+    # be silently dropped on its way to the file would repeat that failure one level up.
+    "multiple_testing": {"src": "multiple_testing", "renames": {}, "allow": {}},
     "cpcv": {
         "src": "cpcv",
         "renames": {"recommended_weights_cols": "recommended_weights",
