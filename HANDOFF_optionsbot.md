@@ -5805,6 +5805,8 @@ On **4,855 covered dipped rows** (1,631 healthy / 3,224 unhealthy) over **40 of 
 | **elevation over own baseline** | **+17.71%** | **+13.29%** |
 | median credit, 25-delta 30–45 DTE put | **2.550% of strike** | 2.978% |
 | annualised | **27.73%** | 32.94% |
+| **`skew_25d` at the dip** | **0.05125** | 0.05432 |
+| **`skew_25d` minus its own 252d median** | **+0.00885** | +0.00914 |
 | median `spread_frac` | 0.1040 | 0.1124 |
 | **VRP (implied − realised 30d)** | **+0.0391** | +0.0377 |
 
@@ -5815,6 +5817,8 @@ anything healthy dips' vol rises *proportionally more*.
 **REPORTED BECAUSE IT CUTS AGAINST THE GATE:** in **level** terms the healthy name is the cheaper
 one (IV 0.430 vs 0.467, credit 2.550% vs 2.978%). G2 was specified on **elevation** in advance and
 passes on it; the level reading is the less favourable one and travels with it.
+
+**THE FEAR SHOWS UP IN THE LEVEL OF IMPLIED VOL, NOT IN THE SKEW — and that is worth knowing before anyone builds a skew-conditioned version of this.** `skew_25d` sits at 0.0513 on healthy dips against its own trailing median of 0.0424, i.e. **only +0.0089 richer**, while `atm_iv_30` is **+17.71%** above its baseline. A 20% drawdown re-prices the whole surface up; it barely steepens it. The healthy/unhealthy skew gap is **0.0031**, smaller than either group's own move from baseline, so skew discriminates between the two sets even less than the level does. (`skew_25d` **is** `iv_put_25d − iv_call_25d` exactly — C3 — so this is ONE measurement, never two.)
 
 **The elevation decays away almost entirely inside the horizon it is sold over** — −1.72%,
 −5.64%, −14.42%, **−16.56%** at t+5/10/20/30 against a +17.71% starting elevation.
