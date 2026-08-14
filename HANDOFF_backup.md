@@ -19,7 +19,13 @@ opposite policies, on two schedules.** That is what filled the disk.
 
 ---
 
-## 0. Status — the three questions, answered (final, 2026-08-06)
+## 0. Status — the three questions, answered (2026-08-06)
+
+> **SUPERSEDED BY §9 (2026-08-13). This section says "final" and it is not.** A 465 GB replacement
+> drive is attached and a correct allowlist run has completed on it: **45.84 GB, 24,586 files, all
+> 17 KEEP entries present.** Every answer below changed — D: is writable, the script has now run,
+> and the 38.01 GB projection is stale (`data\options` grew to 25.14 GB). It is kept because it is
+> the record of the dead Lexar. **Read §9 first.**
 
 | question | answer |
 |---|---|
@@ -511,3 +517,196 @@ already rescued to `data\_from_D_quarantine\` on C: (§4), so nothing is waiting
 **State this plainly to anyone who asks: the script is finished, and the backup does not exist.**
 `.env`, `data\backtest_freeze_2026-08` and the paper track have no current off-machine copy. That
 is the open risk, and it stays open until a replacement drive is attached.
+
+---
+
+# 9. THE REPLACEMENT DRIVE, ONE WEEK ON — THE SCRIPT NEVER RAN, AND §8 SAID WHY (2026-08-13)
+
+**A 465 GB replacement drive is attached and healthy. The backup on it was still the old design,
+because the machine that runs the backup never received the new one.** Forensic pass, read-only
+until the diagnosis was settled; then the source was killed, the drive pruned and a guard added.
+
+## 9a. The headline: it was not a stale task. It was a stale *checkout*.
+
+The prompt's hypothesis — a scheduled task pointing at an old script copy inside a worktree — is
+reasonable and wrong, the same way §1a's was. **Both scheduled tasks point at the correct canonical
+paths.** Neither points into a worktree. What is stale is the file at the end of the path:
+
+| | |
+|---|---|
+| `C:\Users\donni\Downloads\valuation-tool` local `main` | **`41d7b12`, 2026-08-10 20:06** |
+| forked from `origin/main` at | **`5d4636d`, 2026-08-04 06:30** |
+| commits behind `origin/main` | **472** (and 1 local commit ahead — it has *diverged*, not merely lagged) |
+| `backup_to_D.ps1` at that commit | **does not exist** |
+| the allowlist rewrite landed | **`3d80dcf`, 2026-08-06 08:11** — two days *after* the fork point |
+
+So `backup_to_D.bat` on disk is still the **2026-08-03 exclusion-based** version: `/MIR` with
+`/XD .git .claude __pycache__ node_modules .venv venv`. **The allowlist script has never run on
+this machine — not once.** `D:\valquo_backup_log.txt`, which looked like evidence of a clean run,
+is that old script's log. Reading it as the new script's output is the trap here: it is a
+well-formed robocopy log reporting success, from the wrong program.
+
+**The 472-commit gap is the finding to act on beyond backups.** Anything else the repo has shipped
+since 2026-08-04 is also absent from the machine — every `.bat` Don double-clicks is seven days old.
+
+## 9b. What wrote the 16,000 files, proved three ways
+
+**`backup_now.bat`, via the `ValuationToolBackup` task** — which `setup_backup_schedule.bat` creates
+as `/sc HOURLY /mo 6 /st 08:00`, i.e. **four runs a day** at 08:00, 14:00, 20:00 and 02:00. In the
+stale checkout that file is still the *second, independent* backup §1b identified:
+
+```
+set XD=/XD ".venv" "__pycache__" ".pytest_cache" "node_modules"     <- no .git, no .claude
+set OPTS=/E ... %XD%                                                <- /E never deletes; no /XJ
+copy /Y "%SRC%.env" "%SNAP%\.env"                                   <- sprays .env into dated dirs
+```
+
+Three independent proofs, not one:
+
+1. **A 40-byte file at `D:\valuation-tool`** containing ` Backing up valuation-tool  - (Backup)`.
+   That is this script's own `echo  Backing up valuation-tool  ->  %DST%` line, where **cmd parsed
+   the `>` in `->` as a redirection operator** and wrote the rest of the line into a file named
+   after the first token of `%DST%`. Its mtime was **2026-08-13 20:00** — the task's own last-run
+   time. A latent bug in the script, and it date-stamps the culprit.
+2. **The worktree mirrors carry tonight's source timestamps** — `r1` 19:54, `options-live` 19:40,
+   `worktree-public-free` 19:08. robocopy preserves source mtimes, so that is this evening's copy,
+   not historical residue.
+3. **`daily-data\20260813\` existed, holding a copy of `.env`** — that dated-snapshot block appears
+   in no other script.
+
+**And the two schedules actively fought each other.** The exclusion-based `/MIR` run at 02:00
+*purged* `daily-data\20260812\` (visible as `*EXTRA File` in its log, including a `.env` and a
+1.7 GB `c5_pit_mirror.db`) but **could not touch `.claude` or `.git`, because `/MIR` does not purge
+a directory it is excluding** — §1b's lesson, now observed running in production. One writer
+created what the other was structurally unable to remove, four times a day.
+
+## 9c. Killed, pruned, verified
+
+**Source killed** — both tasks disabled (they are user-owned, so no elevation was needed, contrary
+to the usual expectation):
+
+```
+Disable-ScheduledTask -TaskName 'ValuationToolBackup'   # the writer
+Disable-ScheduledTask -TaskName 'Valquo D Backup'       # the stale /MIR script; it would have
+                                                        # re-bloated D: to 88 GB at 02:00
+```
+`ValuationToolAutoPush` was left alone — it pushes to git and is unrelated.
+
+**Checked before deleting anything, because this is the failure mode that kills drives:**
+`Get-ChildItem -Recurse -Directory` over the whole backup root returned **zero reparse points**, so
+no recursive delete could follow a junction back to the real `data\` on C:. (It also confirms
+robocopy had *materialised* the junction targets as real directories — which is why the worktree
+copies existed at all.) Every worktree mirror also still exists on C:, and 10 of the 11 branch
+names resolve on `origin`; the only one that does not, `audit-baseline`, is present in the live
+checkout. D: held no unique copy of anything.
+
+**Pruned:** `.claude` (16,517 files), `.git` (7,735), `daily-data\` (the rogue dated snapshot, with
+its stray `.env`), and the 40-byte `D:\valuation-tool` artifact.
+
+**Then the real script was run for the first time** — from this worktree, which is safe *because*
+the script pins `$SRC` rather than deriving it from `$PSScriptRoot`, exactly as its own comment
+says it must. `-DryRun` first, then `-Prune`.
+
+| | files | size |
+|---|---|---|
+| before | 60,721 | **88.31 GB** |
+| after | **24,586** | **45.84 GB** |
+| removed | 36,135 | 42.47 GB |
+
+Drive: **48.73 GB used, 416.99 GB free of 465.71 GB.** All **17 KEEP entries present** — `.env`,
+the freeze, `data\options`, `data\raw`, `data\archive`, `data_export`, both track files, both
+`.db`s, `data\backtest`, `data\filings`, `data\factors`, `data\bulk\prepared`,
+`data\_from_D_quarantine`, `valquo_index.json`, `c5_survivorship.json`. Top level is now exactly
+`data`, `data_export`, `daily-state`, `.env`.
+
+**Against §6's ~38 GB projection: the honest number is 45.84 GB, and the projection is stale rather
+than missed.** `data\options` has grown to **25.14 GB** as the miner ran; the freeze is 17.37 GB.
+Nothing outside the allowlist is on the drive.
+
+## 9d. A defect in the pruner, found by arithmetic and deliberately NOT fixed
+
+The script reported 45.84 GB; the drive measured **50.95 GB**. That 5.11 GB gap is a real finding,
+not rounding: **`data\bulk` held the four loose Sharadar CSVs** (`daily.csv` 2.32 GB, `sf3.csv`
+2.70 GB, `actions.csv`, `events.csv`) — the exact set `$SKIP` names as "the unzipped form of
+`data\raw`, which we DO back up."
+
+**Why `-Prune` cannot see them:** the ownership map is built at `data\<first-level>` granularity
+(`$ownedData[$parts[1]]`), so `data\bulk\prepared` being in `$KEEP` marks the whole of `data\bulk`
+as owned, and anything else inside it becomes invisible to the pruner. **The pruner is blind inside
+a partially-owned directory** — the same shape as the original bug, one level down.
+
+They were removed by hand (`prepared\` intact and verified), after which the drive measures
+**45.84 GB — matching the script's own report exactly**, which is what makes the accounting
+checkable. **The pruner itself was not changed**: it is a second behavioural change to the deletion
+path, it deserves its own test, and the brief asked for one specific guard. It is stable meanwhile,
+because a file outside the allowlist is never *copied* — it can only be inherited from an older
+policy, as these were.
+
+## 9e. The guard this earned
+
+`backup_to_D.ps1` now **aborts if the destination contains a `.claude` or `.git` directory**, top
+level or nested, before measuring or copying anything.
+
+**The point is not the two directory names — it is that neither can have been written by this
+script.** It is an allowlist and neither is in `$KEEP`, so finding one is proof that *a second
+process is writing to the same destination under a different policy*. That is a cheap, reliable
+second-writer detector, and it is precisely the condition that killed the first drive and had
+silently returned on the second. The abort names what it found, explains that something else is
+writing, prints the `Get-ScheduledTask` one-liner to find it, and names `-Prune` as the remedy.
+
+**`-Prune` is deliberately allowed through.** It is the documented way to clear the destination;
+blocking it would leave D: in a state the script itself could not repair — a guard that bricks its
+own escape hatch.
+
+**Tests: 55/55** (was 40, +15). They pin both directions — that a poisoned destination aborts with
+exit 1 and copies *and deletes* nothing; that a nested `.git` is caught, so a top-level-only check
+cannot pass a destination still full of worktree mirrors; that `-Prune` gets through and then backs
+up normally; and that a clean destination does not trip it. The clean path was also exercised live
+against the real D: on both the dry run and the real run.
+
+## 9f. FOR DON — three commands, in this order
+
+The backup on D: is **correct and current as of 2026-08-13**. Both scheduled tasks are **disabled**,
+so it will not refresh itself until the checkout is updated. Nothing is urgent tonight.
+
+**1. Update the checkout** (this is the actual fix — it is 472 commits behind):
+```
+cd C:\Users\donni\Downloads\valuation-tool
+git fetch origin
+git merge --no-edit origin/main
+```
+The checkout has **one local commit of its own** (`41d7b12`, the PT-WRITER note from 2026-08-10),
+which the merge preserves. If it reports a conflict, run `git merge --abort` and hand it to an
+agent rather than resolving it by hand.
+
+**2. Check it worked** — this file must now exist, and it is the whole point:
+```
+dir backup_to_D.ps1
+```
+
+**3. Re-enable both backups:**
+```
+Enable-ScheduledTask -TaskName 'Valquo D Backup'
+Enable-ScheduledTask -TaskName 'ValuationToolBackup'
+```
+Both are safe **once step 1 is done**, because on `main` `backup_now.bat` is a nine-line launcher
+that calls the same script — "two schedules, one destination, one policy." Re-enabling them
+*before* step 1 puts the old design straight back.
+
+**Do not double-click `setup_backup_schedule.bat` until step 1 is done.** It is unchanged on `main`
+and recreates the `ValuationToolBackup` task with `/f`; harmless afterwards, since the task lands on
+the launcher, but it is the one way to resurrect the rogue writer.
+
+## 9g. Not done, and why
+
+- **The checkout was not updated by me.** It is the shared working copy, other agents' worktrees
+  hang off its object store, and it carries an unpushed commit — a merge there is Don's call, not a
+  background job's. It is step 1 above.
+- **The pruner blind spot (§9d) was not fixed** — reported, with the mechanism and the line that
+  causes it.
+- **`setup_backup_schedule.bat` was not changed.** It is correct on `main` and only dangerous in
+  combination with the stale checkout, which step 1 removes.
+- **The old `Lexar` drive is untouched.** §8's advice stands: it holds a stale 112 GB copy; now that
+  a correct run has completed on the replacement, it is safe to wipe whenever Don wants the shelf
+  space back.
+- **No `.env` contents were read or printed** at any point; the file was handled only by path.

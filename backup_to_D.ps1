@@ -168,6 +168,63 @@ if (-not $TESTMODE -and -not $DryRun) {
     }
 }
 
+# ------------------------------------------------------------------ second-writer guard
+# A .claude or .git directory under the backup root cannot have been put there by THIS script.
+# This is an allowlist and neither is in $KEEP, so finding one is proof that something else is
+# writing to the same destination under the opposite policy -- and that is the exact failure
+# that killed the first drive.
+#
+# What it caught on 2026-08-13: backup_now.bat was still a SECOND, independent backup on its own
+# schedule. It mirrored the whole tree with /E (which never deletes) and without /XJ (so robocopy
+# followed all ten worktree junctions and copied data\ once per worktree). The exclusion-based
+# backup that ran afterwards could not undo any of it, because /MIR does not purge a directory it
+# is excluding. Two schedules, one destination, opposite policies -- and the drive fills.
+#
+# So the check is not really about these two directories. It is a cheap, reliable detector for a
+# second writer, and a backup that quietly runs alongside one is reporting a success it cannot
+# support. -Prune is deliberately allowed through: it is the documented remedy, and blocking it
+# would leave the destination in a state the script itself could not repair.
+if (Test-Path -LiteralPath $DST) {
+    $poison = @()
+    foreach ($n in @(".claude", ".git")) {
+        if (Test-Path -LiteralPath (Join-Path $DST $n)) { $poison += $n }
+    }
+    # Nested copies count too -- a worktree mirror carries its own .git, and a check that only
+    # looked at the top level would pass a destination that is still full of them.
+    Get-ChildItem -LiteralPath $DST -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -eq ".claude" -or $_.Name -eq ".git" } |
+        ForEach-Object { $poison += $_.FullName.Substring($DST.Length).TrimStart('\') }
+    $poison = @($poison | Sort-Object -Unique)
+
+    if ($poison.Count -gt 0) {
+        Say ""
+        Say "  Found $($poison.Count) director$(if ($poison.Count -eq 1) { 'y' } else { 'ies' }) named .claude or .git in the destination:"
+        foreach ($p in ($poison | Select-Object -First 8)) { Say "      $p" }
+        if ($poison.Count -gt 8) { Say "      ... and $($poison.Count - 8) more" }
+        if (-not $Prune) {
+            Say ""
+            Say "  [ABORT] The destination contains directories this script never writes."
+            Say "          It is an ALLOWLIST -- .claude and .git are not in it -- so something"
+            Say "          ELSE is backing up to $DST under a different policy."
+            Say "          Backing up alongside a second writer reports a success it cannot support,"
+            Say "          and .claude holds the worktree junctions that filled the last drive."
+            Say ""
+            Say "  Do this, in order:"
+            Say "    1. Find the other writer. Check the scheduled tasks and what they actually run:"
+            Say "         Get-ScheduledTask | Where-Object { `$_.TaskName -match 'backup' } |"
+            Say "           ForEach-Object { `$_.TaskName; `$_.Actions.Execute }"
+            Say "       Every task must land on backup_to_D.bat. If one runs a different script,"
+            Say "       or an OLD copy of this one, that is the writer -- disable it."
+            Say "    2. Clear what it left behind, then re-run:"
+            Say "         powershell -File backup_to_D.ps1 -Prune"
+            Say ""
+            Say "  Nothing was copied and nothing was deleted."
+            exit 1
+        }
+        Say "  -Prune was given, so these are treated as strays and removed below."
+    }
+}
+
 # ---------------------------------------------------------------------------- measure
 Say ""
 Say "Measuring what needs to be backed up (this takes a minute) ..."
