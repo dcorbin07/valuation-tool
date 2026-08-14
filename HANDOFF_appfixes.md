@@ -5,6 +5,178 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 32 — 2026-08-14 — `PT-WRITER`'s missing ingredient, supplied
+
+**Lane:** app fixer. **Branch:** `worktree-demo-link`.
+
+## 0. Headline
+
+`PT-WRITER` has been BLOCKED since 2026-08-09 and the 2026-08-14 reading finally dated *why*:
+the writer lane tried, refused, and said what it lacked (commit `41d7b12`, 2026-08-10 20:06) —
+
+> *"The mechanism for retrieving daily closing prices to calculate the Index returns is NOT
+> DOCUMENTED IN THIS REPOSITORY ... Cannot write today's row without (a) a documented
+> price-fetching mechanism, or (b) guessing at a vendor. Per instructions, logging the gap
+> rather than inventing data."*
+
+**That was the correct call. The ingredient is now in the repo**, documented in the contract's
+own recorder section so a fresh session finds it by reading rather than by digging.
+
+| | |
+|---|---|
+| **Module** | `valuation/screener/index_mark.py` — `contract_row()` returns the Index mark, the SPY mark and the date |
+| **In-repo writer** | `python -m scripts.track_row` (`--csv`, `--append`, `--date`, `--book`) |
+| **Off-box writer** | `GET /admin/track-row` with the existing `X-Admin-Token`; `?append=1` writes |
+| **Docs** | `PAPER_TRACK_CONTRACT.md` §7.2a, inside the blocker it answers |
+| **Tests** | `tests/test_index_mark.py` — **22/22** |
+
+**No new vendor**, which was the other half of the blocker: prices come from
+`valuation/screener/prices.py` (Stooq → yfinance), the module the momentum factor and the
+liquidity gate already run on. No API key, no licensed row. The "guess at a vendor" the failure
+note refused is refused here too, by there not being one to guess at.
+
+**`PT-WRITER` STAYS BLOCKED AND STAYS COWORK'S.** This supplies the mechanism; it does not
+schedule itself and does not decide to write. Scheduling the recorder is the Cowork lane's call
+under §7.2, and the row should not be closed until something actually runs.
+
+## 0a. It was run for real, end to end, against the live 86-name book
+
+`python -m scripts.track_row --date 2026-08-13 --book <real book>` — **exit 0**, all 86 names
+priced, nothing unpriced:
+
+```json
+{"date": "2026-08-13", "day_n": 10, "valquo_pct": 4.3232,
+ "spy_pct": 4.8794, "excess_pp": -0.5562, "n_priced": 86}
+```
+
+**That row is exactly what `PT-WRITER` could not produce on 2026-08-10.** The mechanism is not a
+design — it ran, it priced the whole book, and it emitted a complete, schema-correct row.
+
+**It was NOT written.** No `--append`, so the bound series is untouched; this was a read.
+
+**Do not quote the −0.5562pp as the track's record.** It is this mechanism's output, not a
+recorded row, and it carries the ~0.02pp book-leg seam described in §1. The recorded series
+still ends at 2026-08-06.
+
+## 1. How closely it reproduces the recorded rows — and the two legs differ
+
+Re-derived both existing rows against live prices, all 86 names:
+
+| row | field | recorded | re-derived | gap |
+|---|---|---|---|---|
+| 2026-08-06 | `spy_pct` | 3.6228 | 3.6228 | **EXACT** |
+| 2026-08-06 | `valquo_pct` | 0.7760 | 0.7961 | +0.0201pp |
+| 2026-07-31 | `spy_pct` | 0.6903 | 0.7200 | +0.0297pp |
+
+**The benchmark leg reproduces exactly and the book leg does not.** The exact hit on SPY is what
+confirms the *convention* — closing prices, cumulative-since-inception, this vendor — because a
+wrong base date or a daily-return convention would miss by percent, not by nothing. The book leg
+sits 0.0201pp away with all 86 names priced on both sides.
+
+**I corrected my own first draft here.** It said this module "is the source of the recorded
+series, not a new estimate of it". That is true of the benchmark leg and false of the book leg,
+and the wording is now measured rather than asserted. **Hypothesis, not diagnosed:**
+dividend/adjustment treatment across 86 names, or a different quote vendor for the equity leg.
+Not chased — the rows were hand-made and nobody recorded how they were priced.
+
+**Consequence, disclosed rather than rounded away:** a series that switches to this mechanism
+acquires a **~0.02pp seam**. Against the contract's own **σ of 3.9847pp/month** that is about
+half a percent of one month's noise, and far inside §3's LOGGED-NOT-VOIDED tolerances — but it
+is a real discontinuity and it is written down.
+
+**The day-1 row is not a usable comparison in either direction:** only 78 of 86 names have a
+2026-07-31 close in this tape against a recorded `n_priced` of 86, so its book leg compares two
+different books. Its benchmark leg misses by 0.0297pp in the same direction. **Hypothesis, not a
+finding:** that row looks marked from an *intraday* quote rather than the close — consistent in
+sign and size, and exactly what the close refusal now prevents.
+
+## 2. Refusing is a first-class outcome
+
+Every failure path returns `ok: false` with a reason and **`row: None`** — never a partial
+number. Pinned by `test_no_refusal_path_ever_leaks_a_number`, which walks all five: session not
+closed, non-trading day, unreadable book, unpriceable benchmark, and under 95% of the book's
+**weight** priced (weight, not name count — losing one 2.3% name is not the same event as losing
+one 0.4% name).
+
+The CLI exits **2** on a refusal and **0** on a row. **Exit 2 is normal** — "the session has not
+closed yet" is the common case, and a scheduler treating it as a hard failure will page somebody
+every weekend. The endpoint returns a refusal as **200, not 500**, for the same reason: a 5xx
+tells a scheduler to retry something that is not broken.
+
+## 2a. A hole I put in myself, found by re-reading rather than by a failure
+
+The close guard originally sat **inside the `as_of is None` branch**, so it only ever protected
+the default path. **`--date <today>` walked straight past it** — and a vendor returning a partial
+bar for a live session would then have priced the row against an intraday quote under a
+closing-price column. That is exactly the failure the recorded day-1 row appears to carry, in a
+module written to prevent it.
+
+The guard is now on the **date**, not on how the date was chosen: it refuses when the mark date
+*is* the current unclosed session, while still allowing backfill of any day that has ended.
+Pinned by `test_naming_todays_date_explicitly_does_not_buy_what_omitting_it_refuses`, which
+asserts both halves — the refusal *and* that an already-closed earlier day still succeeds, so
+the fix cannot freeze backfill.
+
+## 3. A gap the live run found, that the tests could not
+
+The first live invocation **could not reach the book at all**: `data/` is gitignored, so a
+recorder running from a git worktree — or any fresh clone — has no `data/valquo_track.json` at
+the default path. The mechanism was unusable from exactly the places an automated writer is most
+likely to run. Fixed with `--book`, and pinned by
+`test_the_cli_can_be_pointed_at_a_book_outside_its_own_checkout`.
+
+## 4. Posture — nothing widened
+
+`/admin/track-row` inherits `private.ADMIN_PREFIXES` (`/admin/`), so it is owner-only by
+construction and **needed no new entry in any posture allowlist**. Same `X-Admin-Token` as
+`/admin/export-track`, which is the call pattern the weekly backup cron already uses. Read-only
+unless `?append=1`. The unauthenticated 401 is asserted in the endpoint test.
+
+## 5. One function, two doors
+
+The endpoint and the CLI both delegate to `index_mark.contract_row`; neither does its own
+arithmetic. Pinned three ways: source-level (`test_the_endpoint_returns_exactly_what_the_module_
+computes`, `test_the_script_delegates_to_the_same_module`) and **end to end through Flask**
+(`test_the_LIVE_endpoint_row_equals_what_index_track_reads_back`), which is the only one that
+could catch a route growing its own maths. Two doors onto one function is fine; two
+implementations is the B7 split this project keeps paying for.
+
+## 6. The required pin
+
+`test_the_emitted_row_reads_back_through_index_track_unchanged` — the row this mechanism emits
+is written and then read back by `index_track.load()`, and every field must match. A writer that
+emits a column the reader ignores fails **silently on both sides**, so the round trip is asserted
+rather than the header eyeballed.
+
+## 7. Verification
+
+* **Full gate 74/74 suites exit 0** — judged by exit code, never by grepping for `OK`.
+* **`tests/test_index_mark.py` 23/23.**
+* **Mutations 11/11 caught, 0 missed, 0 skipped.** Every pin was broken deliberately and every
+  one failed: holding an unpriced name flat, counting coverage by name instead of weight, a
+  refusal leaking a row, removing the explicit-today close guard, flipping `refuse_before_close`
+  to default False, `day_n` counting inception as day 1, dropping `excess_pp` from the header,
+  `append_row` duplicating a date, skipping the benchmark refusal, the endpoint answering without
+  a token, and a refusal returned as 500. **Zero skipped — a skipped mutation is a harness
+  failure, not a pass.**
+* **The contract's gate row is unaffected by the §7.2a insertion** — `index_track.gate_state()`
+  still reads `pending`, `passed: False`. That parser is deliberately dumb and one-directional,
+  and a documentation edit inside §7.2 must not be able to flip it.
+* **Python 3.11 parse-checked** (`ast.parse(feature_version=(3,11))`) on all four touched files —
+  CI is 3.11 and a 3.12-only f-string has silently blocked three lands before.
+* **Ledger column integrity**: the PT-WRITER row still carries 11 pipes, matching the header;
+  `tests/test_build_ledger.py` 20/20, 194 rows = 133 audit + 61 out-of-band.
+
+## 8. What is NOT done
+
+* **Nothing is scheduled.** No cron, no task, no workflow. Cowork's call.
+* **No row was written to the real track.** The live run was read-only.
+* **The book leg's 0.02pp gap is not diagnosed**, only bounded and disclosed.
+* **`recording_ok` still cannot see a closed vintage's miss** — that is session 28's second
+  defect and `recording_history` remains the only instrument that shows it. Untouched here.
+
+---
+
 # Session 31 — 2026-08-13 — The full view had holes with labels on them
 
 **Lane:** app fixer. **Branch:** `worktree-demo-link`. Follow-up to Session 30.

@@ -451,6 +451,46 @@ def create_saas_app(cfg=CONFIG):
         except Exception as e:
             return jsonify({"ok": False, "error": safe_error(e)}), 500
 
+    @app.route("/admin/track-row", methods=["GET", "POST"])
+    def admin_track_row():
+        """Today's contract row for the bound Valquo Index track: the Index mark, the SPY
+        mark and the date. THE ANSWER TO `PT-WRITER`.
+
+        The recorder lane refused to write on 2026-08-10 because "the mechanism for
+        retrieving daily closing prices ... is NOT DOCUMENTED IN THIS REPOSITORY", and
+        would not guess at a vendor. `screener/index_mark.py` is that mechanism and this is
+        its HTTP door, for a writer that runs off-box; `python -m scripts.track_row` is the
+        same call for a writer that runs in the repo. Both delegate to the one function, so
+        there is no second implementation to drift — the B7 split this project keeps paying
+        for.
+
+        READ-ONLY BY DEFAULT, and the default is the safe one. `?append=1` writes the row
+        into the recorded CSV; without it this computes and returns, touching nothing. The
+        write is offered because a writer hand-building the CSV can emit a column
+        `index_track.load()` silently ignores, and that failure is invisible on both sides.
+
+        GET as well as POST for the same reason `export-track` allows both: curl is the
+        whole client. Same `X-Admin-Token`, and it inherits `/admin/` — no new entry in any
+        posture allowlist, because this is a performance-record surface and those are
+        owner-only across the board.
+
+        A REFUSAL IS A 200, NOT A 500. `ok: false` with a reason is the mechanism working —
+        most often "the session has not closed yet". A 5xx would tell a scheduler to retry
+        something that is not broken.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..screener import index_mark
+            body = request.get_json(silent=True) or {}
+            date = request.args.get("date") or body.get("date")
+            res = index_mark.contract_row(date)
+            if res.get("ok") and (request.args.get("append") or body.get("append")):
+                res["append"] = index_mark.append_row(res["row"])
+            return jsonify(res)
+        except Exception as e:
+            return jsonify({"ok": False, "error": safe_error(e)}), 500
+
     @app.route("/admin/ingest-sample", methods=["POST"])
     def admin_ingest_sample():
         """The landing page's sample valuation, computed in CI and posted here.

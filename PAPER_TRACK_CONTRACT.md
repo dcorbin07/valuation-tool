@@ -714,6 +714,82 @@ Recorded so they are not mistaken for oversights, and so the operational gate ha
    > run #2's inception the meter block reports every missing trading day on every request. **If
    > 2026-08-11 shows no row for 2026-08-10, the writer is not running.** That is a one-day test
    > and it needs no further investigation now.
+   >
+   > ---
+   >
+   > ### 7.2a THE PRICE MECHANISM — the missing ingredient, supplied 2026-08-14
+   >
+   > **THE BLOCKER WAS NAMED BY THE WRITER LANE ITSELF, AND IT WAS NOT A SCHEDULER FAULT.** On
+   > 2026-08-10 the writer attempted the day's row, could not produce it, and dated its refusal
+   > (commit `41d7b12`): *"The mechanism for retrieving daily closing prices to calculate the
+   > Index returns is NOT DOCUMENTED IN THIS REPOSITORY ... Cannot write today's row without
+   > (a) a documented price-fetching mechanism, or (b) guessing at a vendor. Per instructions,
+   > logging the gap rather than inventing data."* **That was the correct call.** Refusing to
+   > invent a number is the behaviour this contract wants; what was missing was the ingredient.
+   >
+   > **THE INGREDIENT IS `valuation/screener/index_mark.py`.** It computes today's contract row
+   > — the Valquo Index mark, the SPY mark and the date — from the book this contract binds, and
+   > hands it back. Two doors, one function, so there is no second implementation to drift:
+   >
+   > | | |
+   > |---|---|
+   > | **In-repo writer** | `python -m scripts.track_row` — prints the row; `--csv` for the recorded line, `--append` to write it, `--date YYYY-MM-DD` to backfill one past trading day |
+   > | **Off-box writer** | `GET /admin/track-row` with the same `X-Admin-Token` as `/admin/export-track`; `?append=1` writes |
+   > | **Library** | `screener.index_mark.contract_row()` -> `{"ok": bool, "row": {...}, "reason": str}` |
+   >
+   > **NO NEW VENDOR, WHICH WAS THE OTHER HALF OF THE BLOCKER.** Prices come from
+   > `valuation/screener/prices.py` — Stooq primary, yfinance fallback — the module the momentum
+   > factor and the liquidity gate already run on. No API key, no licensed row, nothing a fresh
+   > deploy does not already have. The "guess at a vendor" the failure note refused is refused
+   > here too, by there not being one to guess at.
+   >
+   > **HOW CLOSELY IT REPRODUCES THE RECORDED ROWS — MEASURED 2026-08-14 AGAINST LIVE PRICES,
+   > AND THE TWO LEGS DIFFER.**
+   >
+   > | row | field | recorded | re-derived | gap |
+   > |---|---|---|---|---|
+   > | 2026-08-06 | `spy_pct` | 3.6228 | 3.6228 | **EXACT** |
+   > | 2026-08-06 | `valquo_pct` | 0.7760 | 0.7961 | +0.0201pp |
+   > | 2026-07-31 | `spy_pct` | 0.6903 | 0.7200 | +0.0297pp |
+   >
+   > **THE BENCHMARK LEG REPRODUCES EXACTLY AND THE BOOK LEG DOES NOT.** The exact hit on SPY is
+   > what confirms the CONVENTION — closing prices, cumulative since inception, this vendor —
+   > since a wrong base date or a daily-return convention would miss by percent, not by nothing.
+   > The book leg sits 0.0201pp away with all 86 names priced on both sides. **So this mechanism
+   > is CLOSE to the recorded series and is NOT the same arithmetic, and it may not be described
+   > as the source of it.** **HYPOTHESIS, NOT DIAGNOSED:** dividend/adjustment treatment across
+   > 86 names, or a different quote vendor for the equity leg. Not chased — the rows were
+   > hand-made and nobody recorded how they were priced.
+   >
+   > **CONSEQUENCE, STATED SO NOBODY DISCOVERS IT LATER: a series that switches to this
+   > mechanism acquires a ~0.02pp seam** against the two hand-made rows. Against this contract's
+   > own **sigma of 3.9847pp per month** that is immaterial — about half a percent of one
+   > month's noise, and far inside the LOGGED-NOT-VOIDED tolerances in §3 — but it is a real
+   > discontinuity and it is disclosed rather than rounded away.
+   >
+   > **THE DAY-1 ROW IS NOT A USABLE COMPARISON IN EITHER DIRECTION:** only 78 of 86 names have
+   > a 2026-07-31 close in this tape against a recorded `n_priced` of 86, so its book leg
+   > compares two different books. Its benchmark leg misses by 0.0297pp in the same direction.
+   > **HYPOTHESIS, NOT A FINDING:** that row looks marked from an intraday quote rather than the
+   > close — consistent in sign and size, and exactly what `contract_row`'s close refusal now
+   > prevents. Not confirmed and not claimed; reported because **anyone re-deriving the series
+   > will hit the same 0.03pp on day 1 and should know it is expected.**
+   >
+   > **REFUSING IS A FIRST-CLASS OUTCOME AND RETURNS NO NUMBER.** `ok: false` with a reason, and
+   > `row: None`, on: the session not having closed; a non-trading day; an unreadable book; a
+   > benchmark that cannot be priced at both ends; or under 95% of the book's **weight** pricing.
+   > The CLI exits **2** on a refusal and **0** on a row. **Exit 2 is normal** — "the session has
+   > not closed yet" is the common case, and a scheduler that treats it as a hard failure will
+   > page somebody every weekend.
+   >
+   > **WHAT THIS DOES NOT DO, AND THE ROW STAYS OPEN BECAUSE OF IT.** It does not schedule
+   > itself and it does not decide to write. `PT-WRITER` is a **Cowork-lane** row and remains
+   > one; this repository now documents the mechanism so that lane has something to call. It
+   > also never re-derives the BOOK — the 86 names and weights are read from the recorded
+   > `valquo_track.json`, because re-scoring the universe on the mark date would substitute
+   > today's book for the one the track has been recording since inception, which is a different
+   > series wearing the same name. Pinned by `tests/test_index_mark.py`, whose required test is
+   > that the row this emits reads back through `index_track.load()` unchanged.
 3. **The engine that this contract governs has never been fed** — 0 rows in all three paper
    tables, while the accrued 5 days come from a different mechanism. Either the sandbox engine
    becomes the source of truth or the contract should name the Cowork file as the source. **This

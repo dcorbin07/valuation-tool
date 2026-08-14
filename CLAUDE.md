@@ -98,6 +98,37 @@ the project's memory and the old versions had been repeated for months.
     `recording_ok` - has still never been reached, a vintage event having intervened on all three
     attempts. **The next honest reading is 2026-08-17**, provided no vintage event lands first, and on
     the last four days' record that proviso is doing real work. `HANDOFF_edge_audit.md` 2026-08-14.
+  * **THE MISSING INGREDIENT IS SUPPLIED THE SAME DAY, AND THE ROW STILL STAYS BLOCKED
+    (2026-08-14, app-fixer lane).** The blocker the failure note named now exists in the repo:
+    **`valuation/screener/index_mark.py::contract_row()`** returns the contract row (Index mark,
+    SPY mark, date) for the bound book, with **two doors onto ONE function** so there is nothing
+    to drift - `python -m scripts.track_row` (`--csv`, `--append`, `--date`, `--book`) for a
+    writer running in the repo, and `GET /admin/track-row` on the existing `X-Admin-Token` for
+    one running off-box. Documented in **`PAPER_TRACK_CONTRACT.md` §7.2a**, inside the blocker it
+    answers. **NO NEW VENDOR** - prices come from the shipped `screener/prices.py` (Stooq ->
+    yfinance), no key, nothing a fresh deploy lacks. **IT RAN FOR REAL: 2026-08-13, all 86 names
+    priced, `valquo_pct` 4.3232 / `spy_pct` 4.8794 / `excess_pp` -0.5562, exit 0** - and it was
+    **NOT written** (read-only, no `--append`), so the recorded series still ends 2026-08-06 and
+    **that -0.5562pp is NOT a track record and may not be quoted as one.**
+    **HOW CLOSELY IT REPRODUCES THE RECORDED ROWS, AND THE TWO LEGS DIFFER: the BENCHMARK leg is
+    EXACT** (2026-08-06 `spy_pct` 3.6228 re-derived against a recorded 3.6228, which is what
+    confirms the convention - closing prices, cumulative-since-inception, this vendor - since a
+    wrong base date would miss by percent rather than by nothing) **and the BOOK leg is NOT**
+    (0.7961 against a recorded 0.7760, **+0.0201pp**, all 86 names priced both sides). **So it is
+    CLOSE to the recorded series and is NOT the same arithmetic, and it may not be called the
+    SOURCE of it** - a correction against this lane's own first draft, which said exactly that.
+    Cause **NOT diagnosed**; hypothesis is dividend/adjustment treatment or a different quote
+    vendor for the equity leg. **A switch acquires a ~0.02pp seam**, immaterial against the
+    contract's own **sigma of 3.9847pp per MONTH** but real and disclosed. The day-1 row is **not
+    a usable comparison in either direction** (78 of 86 names priced against a recorded
+    `n_priced` of 86); its benchmark leg misses by 0.0297pp and **hypothesis, not a finding,** it
+    looks marked from an **intraday** quote - which is what the new close refusal prevents.
+    **WHY THE ROW STAYS BLOCKED: this supplies the MECHANISM and schedules NOTHING** - no cron,
+    no task, no workflow, and nothing written to the bound series. Scheduling is Cowork's under
+    §7.2 and the row should not close until something actually runs. **Zero trials**, equity `N`
+    stays **224**. `tests/test_index_mark.py` 23/23, whose required pin is that the emitted row
+    reads back through `index_track.load()` unchanged; mutations 11/11 caught, 0 missed, 0
+    skipped; full gate 74/74. `HANDOFF_appfixes.md` session 32.
 - **THE CATALOGUE IS EXECUTED - EVERY ROW ADJUDICATED. AND THE LAST FOUR ROWS DELIVER THE
   PROJECT'S STRONGEST POSITIVE RESULT AND ITS MOST INSTRUCTIVE REVERT (2026-08-14,
   `X5`+`M4`+`B23`+`S10-ACCT`).** `PREREG_x5_m4_b23_s10acct.md` committed **ALONE at `264cc49`**, a
