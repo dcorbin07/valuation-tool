@@ -146,6 +146,50 @@ Check "-Prune removes the stray subdirectory" (-not (Test-Path "$($f.Dst)\data\o
 Check "-Prune removes the stray top-level"    (-not (Test-Path "$($f.Dst)\some_old_top_level"))
 Check "-Prune leaves the real backup intact"  (Test-Path "$($f.Dst)\data\options\aapl\AAPL-2018.pkl")
 
+# ------------------------------------------------------------------ second-writer guard
+# A .claude or .git under the backup root can only come from a writer that is not this script.
+# That is what happened on 2026-08-13: backup_now.bat was a second schedule with /E and no /XJ,
+# so it followed the worktree junctions, and the exclusion-based backup could not purge what it
+# was excluding. The guard turns a silent two-writer race into a refusal that names the cause.
+$f = Reset-Fixture
+New-Item -ItemType Directory -Path "$($f.Dst)\.claude\worktrees\r1" -Force | Out-Null
+Set-Content "$($f.Dst)\.claude\worktrees\r1\stray.txt" "left by another writer" -Encoding utf8
+$r = Run-Backup $f.Src $f.Dst @()
+Check "a .claude in the destination aborts the run"   ($r.Code -eq 1) "(got $($r.Code))"
+Check "the abort names the offending directory"       ($r.Out -match "\.claude")
+Check "the abort says something else is writing"      ($r.Out -match "ELSE is backing up")
+Check "the abort points at the scheduled tasks"       ($r.Out -match "Get-ScheduledTask")
+Check "the abort names -Prune as the remedy"          ($r.Out -match "-Prune")
+Check "the aborted run copied NOTHING"        (-not (Test-Path "$($f.Dst)\data\backtest_freeze_2026-08\bulk\sep.csv"))
+Check "the aborted run deleted NOTHING"       (Test-Path "$($f.Dst)\.claude\worktrees\r1\stray.txt")
+
+# -Prune is the documented way out, so it must NOT be blocked -- otherwise the guard leaves the
+# destination in a state the script itself cannot repair.
+$r = Run-Backup $f.Src $f.Dst @("-Prune")
+Check "-Prune is allowed through the guard"           ($r.Code -eq 0) "(got $($r.Code))"
+Check "-Prune removes the second writer's .claude"    (-not (Test-Path "$($f.Dst)\.claude"))
+Check "-Prune then backs up normally"                 (Test-Path "$($f.Dst)\data\backtest_freeze_2026-08\bulk\sep.csv")
+
+# the same for .git, which is the other half of what the old backup left behind
+$f = Reset-Fixture
+New-Item -ItemType Directory -Path "$($f.Dst)\.git\objects" -Force | Out-Null
+$r = Run-Backup $f.Src $f.Dst @()
+Check "a .git in the destination aborts the run"      ($r.Code -eq 1) "(got $($r.Code))"
+
+# a NESTED one counts: a worktree mirror carries its own .git, so a top-level-only check would
+# pass a destination that is still full of them.
+$f = Reset-Fixture
+New-Item -ItemType Directory -Path "$($f.Dst)\data\options\aapl\.git" -Force | Out-Null
+$r = Run-Backup $f.Src $f.Dst @()
+Check "a NESTED .git aborts the run too"              ($r.Code -eq 1) "(got $($r.Code))"
+Check "the nested path is named, not just the leaf"   ($r.Out -match "options")
+
+# and the guard must stay quiet on a clean destination, or every normal run pays for it
+$f = Reset-Fixture
+$r = Run-Backup $f.Src $f.Dst @()
+Check "a clean destination does not trip the guard"   ($r.Code -eq 0) "(got $($r.Code))"
+Check "a clean run says nothing about a second writer" (-not ($r.Out -match "ELSE is backing up"))
+
 # ------------------------------------------------------------------ missing source item
 $f = Reset-Fixture
 Remove-Item -LiteralPath "$($f.Src)\data\archive" -Recurse -Force
