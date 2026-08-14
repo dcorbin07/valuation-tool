@@ -9260,6 +9260,163 @@ def test_r4_bh_charges_no_equity_trial():
     assert "C7_bh_covers_registered_numbers_only" in src
 
 
+def _x5():
+    import importlib
+    return importlib.import_module("scripts.x5_bootstrap_pipeline")
+
+
+def _s10a():
+    import importlib
+    return importlib.import_module("scripts.s10_accounting_veto")
+
+
+def test_x5_resamples_WITH_replacement_and_keeps_duplicates():
+    """A bootstrap draws n from n WITH replacement; de-duplicating makes it a SUBSAMPLE and
+    understates the variance, which is the entire quantity X5 exists to measure."""
+    x5 = _x5()
+    rng = np.random.default_rng(3)
+    uni = np.array([f"T{i:04d}" for i in range(300)])
+    panel = pd.DataFrame({"ticker": np.repeat(uni, 4),
+                          "date": ["2020-01-15", "2020-04-15"] * 600,
+                          "v": np.arange(1200, dtype=float)})
+    by = {t: g for t, g in panel.groupby("ticker", sort=False)}
+    frame, n_distinct = x5.bootstrap_frame(panel, by, uni, rng)
+    # the resample has the SAME number of rows as the original ...
+    assert len(frame) == len(panel), (len(frame), len(panel))
+    # ... but strictly FEWER distinct names, because some were drawn twice and others not at all
+    assert n_distinct < len(uni), n_distinct
+    # 1 - 1/e ~ 0.632 of names appear at least once
+    assert 0.55 < n_distinct / len(uni) < 0.72, n_distinct / len(uni)
+    # and at least one name must appear MORE than its original row count
+    counts = frame["ticker"].value_counts()
+    assert counts.max() > 4, counts.max()
+
+
+def test_x5_verdict_is_the_audits_own_fifth_percentile_rule():
+    import inspect
+    src = inspect.getsource(_x5().main)
+    assert "STRADDLES ZERO" in src, "a p05 below zero must be its own verdict, not a null"
+    assert "np.percentile(v, 5)" in src
+    assert _x5().B_DRAWS == 200
+
+
+def test_x5_declares_what_it_does_NOT_resample():
+    """Register 0c: the panel is not rebuilt per draw, so layers 1-2 are held fixed and the
+    interval is a LOWER BOUND. A scope limit that is not in the artifact is not stated."""
+    import inspect
+    src = inspect.getsource(_x5())
+    assert "LOWER BOUND" in src
+    assert "pbo" in src.lower() and "declared" in src.lower(), (
+        "PBO must be declared absent, not silently dropped")
+
+
+def test_s10acct_reproduces_beneish_and_altman_hand_worked():
+    """C6. An eight-variable index is exactly where a transcription error hides, and it would
+    change every flag without changing anything visible."""
+    s = _s10a()
+    flat = dict(receivables=100, revenue=1000, cor=600, assetsc=200, ppnenet=300,
+                assets=1000, depamor=50, sgna=100, liabilities=400, ncfo=80, netinc=80)
+    m = s.beneish_m(flat, dict(flat))
+    # every index is 1.0 and TATA is 0, so M is the constant plus the sum of the coefficients
+    expected = -4.84 + 0.920 + 0.528 + 0.404 + 0.892 + 0.115 - 0.172 - 0.327
+    assert abs(m - expected) < 1e-9, (m, expected)
+    z = s.altman_z(dict(workingcapital=100, retearn=200, ebit=150, assets=1000,
+                        marketcap=2000, liabilities=400, revenue=1000))
+    assert abs(z - (1.2 * 0.1 + 1.4 * 0.2 + 3.3 * 0.15 + 0.6 * 5.0 + 1.0 * 1.0)) < 1e-9, z
+    # a missing component makes the WHOLE score None - not a neutral 1.0
+    assert s.beneish_m({k: v for k, v in flat.items() if k != "ncfo"}, dict(flat)) is None
+    assert s.altman_z({k: v for k, v in flat.items() if k != "retearn"}) is None
+
+
+def test_s10acct_uses_the_PUBLISHED_thresholds():
+    """Fitting either on this panel and scoring on it is the in-search collapse already paid
+    for, and is a void condition."""
+    s = _s10a()
+    assert s.BENEISH_FLAG_ABOVE == -1.78
+    assert s.ALTMAN_FLAG_BELOW == 1.81
+    assert s.MIN_FLAGS_TO_VETO == 2
+
+
+def test_s10acct_drawdown_sign_is_arm_minus_base():
+    """S10's FIRST half computed base - arm and reported a 2.61pp WORSENING as a 2.61pp
+    IMPROVEMENT. max_drawdown is NEGATIVE, so an arm improves it by being LESS negative."""
+    import inspect
+    src = inspect.getsource(_s10a().main)
+    assert "float(a_dd) - float(b_dd)" in src, "the drawdown gain must be arm - base"
+    # a known-bad fixture carrying S10's real measured pair: base -0.2809, arm -0.2863 was a
+    # WORSENING and must produce a NEGATIVE gain
+    base_dd, arm_dd = -0.2809334725979583, -0.2863
+    assert (arm_dd - base_dd) * 100.0 < 0, "S10's real worsening must read negative"
+
+
+def test_b23_the_63_day_panel_is_built_once_and_injected():
+    """AUDIT B23. `run_backtests` built four panels, two of them at 63 days differing only in
+    the diagnostic `z_*` columns. The 63-day `keep_numbers` frame is now built once and
+    injected into BOTH the 63-day horizon and the hold-until-exit block."""
+    import inspect
+    from valuation.edge import fundamental_panel as _fp
+    src = inspect.getsource(_fp.run_backtests)
+    assert "_panel_63" in src, "the shared 63-day panel is gone"
+    assert "panel=_inject" in src, "the horizon loop no longer injects it"
+    assert src.count("build_fundamental_panel(") <= 2, (
+        "run_backtests builds more panels than the shared one plus its fallback")
+    # run_backtest must accept an injected panel and still default to building its own
+    sig = inspect.signature(_fp.run_backtest).parameters
+    assert "panel" in sig and sig["panel"].default is None, (
+        "injection must be opt-in, so every existing caller is unchanged")
+
+
+def test_b23_a_build_failure_changes_speed_and_never_output():
+    """The shared build is wrapped so a failure falls back to the old path. A speed fix that
+    can change a RESULT when it fails is not a speed fix."""
+    import inspect
+    from valuation.edge import fundamental_panel as _fp
+    src = inspect.getsource(_fp.run_backtests)
+    assert "_panel_63 = None" in src and "except Exception" in src
+    hold = src[src.index("hold_until_exit") - 2000:] if "hold_until_exit" in src else src
+    assert "_panel_63 is not None else build_fundamental_panel" in _fp.run_backtests.__doc__ \
+        or "_panel_63 if _panel_63 is not None" in src, (
+        "the hold block must fall back to building its own panel")
+
+
+def test_m4_the_harness_raises_rather_than_warning():
+    """A detector that returns a warning nobody reads is the failure class this catalogue
+    keeps finding."""
+    from valuation.edge import live_replay as LR
+    assert LR.MIN_RANK_CORRELATION == 0.99
+    assert issubclass(LR.LiveReplayDivergence, AssertionError)
+    # an empty replay is reported, not raised on - "no data" is not "divergence"
+    out = LR.replay([], date="2020-01-15")
+    assert out["ok"] is False and out["n"] == 0
+
+
+def test_m4_compares_RANKS_not_values():
+    """The composite is a weighted sum of z-scores; an affine rescale moves every value and
+    changes no book. What a user receives is an ORDER."""
+    import inspect
+    src = inspect.getsource(_import_live_replay().replay)
+    assert 'method="spearman"' in src, "the comparison must be on ranks"
+    assert "build_frame(metrics)" in src, "one side must be the LIVE call, with no keywords"
+    assert "sector_neutral=False, residual_momentum=False" in src, "the other the BACKTEST call"
+
+
+def _import_live_replay():
+    from valuation.edge import live_replay
+    return live_replay
+
+
+def test_m4_metrics_are_CAPTURED_not_rederived():
+    """Re-deriving the metrics inside the harness would be audit B7's defect class — a second
+    assembly of a quantity that must agree — which is the very thing M4 detects."""
+    import inspect
+    from valuation.edge import fundamental_panel as _fp
+    psrc = inspect.getsource(_fp.build_fundamental_panel)
+    assert "metrics_sink" in psrc, "the panel no longer exposes its own metrics"
+    assert "if metrics_sink is not None:" in psrc, "the capture must be opt-in"
+    sig = inspect.signature(_fp.build_fundamental_panel).parameters
+    assert sig["metrics_sink"].default is None, "capture must default OFF"
+
+
 def test_no_unresolved_conflict_markers_in_the_project_record():
     """THIS ONE ACTUALLY LANDED ON MAIN, and nothing in the repo would have caught it.
 

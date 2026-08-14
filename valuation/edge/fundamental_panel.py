@@ -1001,7 +1001,8 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                             sector_neutral_pair=False, standardizer_arms=None,
                             with_insider_raw=False, with_issuance_raw=False,
                             with_vol_raw=False, with_freshness=False,
-                            bucket_relative_arms=None, sector_value_arm=False) -> pd.DataFrame:
+                            bucket_relative_arms=None, sector_value_arm=False,
+                            metrics_sink=None) -> pd.DataFrame:
     """Point-in-time panel of the theme columns per (date, ticker).
 
     keep_numbers=True additionally persists each individual standardized number (z_*), so
@@ -1419,6 +1420,13 @@ def build_fundamental_panel(provider, tickers, benchmark="SPY", rebalance_days=6
                 _tier[_tk] = "small" if _i < _n / 3 else ("mid" if _i < 2 * _n / 3 else "large")
             for m in metrics:
                 m["cap_tier"] = _tier.get(m.get("ticker"), "?")
+        # AUDIT M4 — an opt-in capture of the RAW metrics for a date, so the live-replay
+        # harness can score the SAME inputs through the LIVE `build_frame` call and compare
+        # ranks. It exists because the alternative is for the harness to REBUILD these
+        # metrics itself, which is audit B7's defect class exactly: a second assembly of a
+        # quantity that must agree. Off by default; when off this line does nothing.
+        if metrics_sink is not None:
+            metrics_sink[str(as_of)[:10]] = [dict(m) for m in metrics]
         fr = build_frame(metrics, sector_neutral=sector_neutral, residual_momentum=False)
         # S12 — one extra scoring per bucket-relative arm, from the SAME `metrics` list in the
         # SAME pass, so the arms are provably scored on one identical row set and the known
@@ -4411,12 +4419,20 @@ def ev_freshness(panel, floor=EV_FRESH_FLOOR, warn=True) -> dict:
 
 
 def run_backtest(provider, tickers, top_n=25, rebalance_days=63, horizon=63, lookback_years=18,
-                 recency_halflife_days=1260, bucket="established") -> dict:
+                 recency_halflife_days=1260, bucket="established", panel=None) -> dict:
+    """AUDIT B23 — `panel` lets a caller inject an already-built frame instead of building a
+    second identical one. `run_backtests` builds the 63-day panel ONCE with
+    `keep_numbers=True` and passes it here for the 63-day horizon; the `keep_numbers` frame is
+    a strict SUPERSET of the plain one (the flag only ADDS `z_*` columns and touches nothing
+    else), so every number downstream is unchanged. **That equivalence is the whole item and
+    is gated on bit-identity, not argued.** Default None preserves every existing caller.
+    """
     ok, msg = provider.ready()
     if not ok:
         return {"ready": False, "provider": provider.name, "message": msg}
-    panel = build_fundamental_panel(provider, tickers, rebalance_days=rebalance_days,
-                                    lookback_years=lookback_years, horizon=horizon)
+    if panel is None:
+        panel = build_fundamental_panel(provider, tickers, rebalance_days=rebalance_days,
+                                        lookback_years=lookback_years, horizon=horizon)
     if panel.empty or panel["date"].nunique() < 6:
         return {"ready": True, "provider": provider.name, "status": "insufficient history",
                 "dates": 0 if panel.empty else int(panel["date"].nunique())}
@@ -4767,10 +4783,27 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
         return {"ready": False, "provider": provider.name, "message": msg}
     out = {"ready": True, "provider": provider.name, "survivorship_free": provider.survivorship_free,
            "recency_halflife_years": round(recency_halflife_days / 252.0, 1), "horizons": {}}
+    # AUDIT B23 — four panel builds per run, two of them at 63 days differing ONLY in the
+    # diagnostic `z_*` columns. The 63-day `keep_numbers` frame is built ONCE here and reused
+    # for BOTH the 63-day horizon and the hold-until-exit block below, removing one full build
+    # from every run. `keep_numbers=True` only ADDS columns, so the reuse must be exactly
+    # equivalent — and that is GATED on bit-identity of the results file rather than argued.
+    _panel_63 = None
+    try:
+        if 63 in [int(h) for h in horizons] and max(rebalance_days, 63) == 63:
+            _panel_63 = build_fundamental_panel(provider, tickers, rebalance_days=63,
+                                                lookback_years=lookback_years, horizon=63,
+                                                keep_numbers=True)
+    except Exception as _be:                                  # a build failure must not change
+        print(f"[b23] shared 63d panel unavailable, falling back: {_be}", flush=True)
+        _panel_63 = None                                      # the run's OUTPUT, only its speed
+
     for H in horizons:
         rb = max(rebalance_days, int(H))          # rebalance ≥ horizon → NON-overlapping periods
+        _inject = _panel_63 if (int(H) == 63 and rb == 63) else None
         r = run_backtest(provider, tickers, top_n=top_n, rebalance_days=rb, horizon=int(H),
-                         lookback_years=lookback_years, recency_halflife_days=recency_halflife_days, bucket=bucket)
+                         lookback_years=lookback_years, recency_halflife_days=recency_halflife_days,
+                         bucket=bucket, panel=_inject)
         out["horizons"][str(int(H))] = r
     done = [h for h, r in out["horizons"].items() if r.get("optimized_weights")]
     out["primary_horizon"] = max(done, key=lambda x: int(x)) if done else None
@@ -4782,9 +4815,12 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
         # standardized per-number columns, and this is the SAME panel (63d, validated
         # horizon) they used to be rebuilt from — building it once instead of twice removes
         # a full duplicate panel build from every run.
-        panel = build_fundamental_panel(provider, tickers, rebalance_days=63,
-                                        lookback_years=lookback_years, horizon=63,
-                                        keep_numbers=True)
+        # AUDIT B23 — reuse the frame the 63-day horizon already built rather than building a
+        # fourth identical panel. Falls back to building it when the shared one is absent, so
+        # the block's OUTPUT never depends on whether the reuse was available.
+        panel = _panel_63 if _panel_63 is not None else build_fundamental_panel(
+            provider, tickers, rebalance_days=63,
+            lookback_years=lookback_years, horizon=63, keep_numbers=True)
         # Optional dump of the scored panel. Building it is the expensive part of a run
         # (~12 min); a follow-up study that only re-reads the stored z-columns should not
         # have to pay for it twice. Diagnostic only — nothing in the run reads it back.
