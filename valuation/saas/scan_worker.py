@@ -30,6 +30,21 @@ def run_weekly(cfg=CONFIG, scope="whole_market", limit=1500, dcf_top=12) -> dict
     except Exception:
         pass
 
+    # The Dip Detector digest. SHIPPED AT THE V6-B CLOSE-OUT and gated on that register inside
+    # `post_dip_digest`, which refuses unless `dip_posture.RISK_STATUS` is POSITIVE — so this
+    # call is safe to leave here permanently: if the risk verdict is ever revised the push stops
+    # by itself rather than by someone remembering to delete a line.
+    #
+    # Wrapped like its neighbour. A digest that raises must not take the weekly email run down
+    # with it; the scan and the subscriber mail below are the job, this is an extra.
+    try:
+        from ..web.app import _get_or_compute
+        from ..web import dip as _dip
+        _screen = _dip.screen_snapshot(store, _get_or_compute)
+        notify.post_dip_digest(cfg, store, res["scan_date"], _screen.get("rows") or [])
+    except Exception:
+        pass
+
     users = UserStore(cfg.database_url)
     html = weekly_digest_html(res["scan_date"], rows, sectors)
     sent = 0

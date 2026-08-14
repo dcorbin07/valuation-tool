@@ -5,6 +5,163 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 29 — 2026-08-13 — V6-B lands on the surface: one dead claim, one live one
+
+**Lane:** app fixer. **Prompt:** out-of-band, product, Don's direction — flip the Dip Detector's
+explainer to the V6-B verdict. **Branch:** `worktree-demo-link`.
+**Ledger:** `V6B-PRODUCT`. **Research half:** `HANDOFF_edge_audit.md` V6-B (edge lane).
+
+## 0. Headline
+
+The Dip Detector now publishes **two verdicts that disagree, on purpose**, and the entire design
+risk is a reader collapsing them into "healthy dips are good buys":
+
+| register | question | verdict | on the surface |
+|---|---|---|---|
+| **V6** (`STATUS`) | do these names **beat the market**? | **NULL** — four arms | kept, unchanged |
+| **V6-B** (`RISK_STATUS`) | do they **fall further** less often? | **POSITIVE** — M1 | new, with numbers |
+
+The risk claim shipped with its effect size on the surface — **32.5% against 43.4%**, a 10.8-point
+absolute and ~25% relative reduction, 37,014 episodes, 2,531 names — plus replication in both
+halves, the size-tier gradient, and the one-panel caveat. The Discord digest is unblocked and
+**regated onto the risk register**, risk-framed by construction.
+
+**Adopts nothing, measures nothing.** This lane publishes what the edge lane measured.
+
+## 1. Two constants, not one overloaded status
+
+`STATUS` was documented as "the one thing the V6 close-out flips". There are now two registers
+with two answers, so there are two constants. `RISK_STATUS` is separate because overloading a
+single status would have forced a choice about which verdict the tab "really" says — and it says
+both.
+
+`headline`/`explainer` stay bound to the **return** register, so every pin previously written
+against them still holds; the risk claim arrives on its own keys beside them. The template
+renders them as two visually distinct blocks rather than one merged paragraph.
+
+**A test asserts the dead verdict is not dropped once good news landed beside it** — and it
+asserts both its **headline and its detail**, which a mutation forced: deleting the explainer
+block left the headline standing, so an assertion on the headline alone passed while the null's
+actual content had stopped rendering.
+
+## 2. The copy is pinned to the handoff, not paraphrased
+
+`RISK_REGISTERED_SENTENCE` is asserted to appear **verbatim in `HANDOFF_edge_audit.md`**. If the
+edge lane revises it, the suite fails rather than the product drifting. §3 of that handoff exists
+precisely because the originally proposed wording described an arm that is VOID.
+
+## 3. The distress family is now banned — the only banned family whose neighbour is TRUE
+
+M1 measured **a further −20% fall** and separated decisively. **M2 measured actual bankruptcy and
+regulatory delisting and is VOID on power** (42 events against a floor of 60).
+
+> "fell further less often" and "went bust less often" have the **same shape**. One is replicated;
+> the other is unmeasured.
+
+So `BANNED` gained `bankrupt`, `insolven`, `goes to zero`, `blow up`, `went bust`, `died less`,
+`goes under` and ~18 more, enforced against the **rendered HTML** alongside the advice and
+prediction families.
+
+**Flagged deliberately:** the commissioning note's own phrase — *"less likely to blow up"* — is
+among the banned phrasings, on the edge lane's own reasoning (§3, "the word DIED is not earned")
+rather than against it. The tab says these names **fell a further 20% less often**. It does not
+say they survived, failed less, or avoided going under.
+
+## 4. One number in the brief did not match the measurement
+
+The brief said the result replicated "across both halves and **every size tier**".
+
+* **Both halves — correct.** −9.064pp early, −11.515pp late.
+* **Every size tier — narrower than stated.** Five of five quintiles separate **on the full
+  sample**; only **four of five** also hold **in both halves**. The exception is **Q5, the
+  megacaps** ($21.85B median), which is also the **weakest** tier at −3.787pp against −14.287pp
+  in the smallest.
+
+The surface says the narrower true thing, and states the gradient explicitly — **the effect is
+largest in the smallest companies and weakest in the very largest, which is the opposite of where
+this site's coverage sits.** That caveat matters more than usual here: the live hot list is
+megacap-tilted, so the claim is weakest exactly where the product lives.
+
+## 5. The digest — unblocked, regated, and unable to frame itself any other way
+
+`digest_eligible` moves `STATUS == POSITIVE` → `RISK_STATUS == POSITIVE`. That is **strictly
+tighter** than what it replaces: the return register can no longer unblock an outbound push at
+**any** value, so a future revision of V6 cannot start a digest going out on its own. Both
+directions are pinned. The previous close-out's reasoning is **amended in the test comment, not
+deleted**.
+
+Three structural guarantees, each mutation-caught:
+
+1. **The digest cannot write its own claim.** It renders `posture["digest_claim"]`, which is the
+   registered sentence, and the "not a promise" qualifier — pinned to be present, because the ban
+   list catches *wrong* sentences and cannot catch a *missing* one.
+2. **It re-checks its own finished message** against `violations()` before sending, and refuses
+   rather than sends on a trip. V4's assert-against-what-*renders*, moved one step out to
+   assert-against-what-**sends**.
+3. **A refused send does not mark the day done — and neither does a failed one**, so a transient
+   outage does not silently skip the next day.
+
+## 6. One screen, two callers
+
+`dip.screen_snapshot` now holds the snapshot load, both publication passes, the screen and the
+call budget. Written the moment there was a second caller: two copies of that sequence is how the
+Index and the hot list once disagreed, and **a digest that skipped `withhold` would push a name
+the site itself refuses to display — outbound, where the discrepancy is invisible until after it
+has been sent.** `/api/dip` and `scan_worker.run_weekly` both call it; a test pins that the route
+no longer re-implements the passes.
+
+## 7. Verification
+
+* **`tests/test_dip.py` 46/46.**
+* **Mutations 15/15 caught, 0 missed, 0 skipped** — including the three that initially MISSED and
+  exposed real test weaknesses (§1 detail-vs-headline, §5 missing-qualifier, §5 failed-send
+  marking). All three tests were strengthened, not the mutations retargeted, except one that was
+  genuinely pointed at the wrong test.
+* **Full gate: 71/71 suites exited 0.** Judged by exit code, never by grepping for `OK` —
+  `CLAUDE.md` records that the suites print at least three summary formats and that an
+  `OK`-scraping loop reports three passing suites as failing. `test_shadow_vintage.py` 26/26, so
+  the **V1 outbound fence is intact** with the new copy in place; `test_public.py` green, so the
+  surface split still classifies every route; `test_scream_track.py` 19/19 unaffected.
+  `test_guards.py` carries its pre-existing XFAIL note at exit 0 (options-bot lane, untouched).
+* **CI is Python 3.11 and this machine only has 3.13**, so all six changed `.py` files were
+  scanned for PEP 701 constructs (same-quote nesting and backslashes inside f-string braces):
+  **0 suspect**. A 3.12-only f-string has silently blocked three lands on this repo before.
+* Ledger `V6B-PRODUCT`; `tests/test_build_ledger.py` 20 passed, 192 rows = 133 audit + 59
+  out-of-band.
+
+## 8. BUGS FOUND
+
+1. **A test that passed on the headline while the body had stopped rendering.** `..._two_verdicts
+   _are_rendered_as_two` asserted only `VERDICT_HEADLINE`; deleting the `explainer` div left it
+   green. Mutation-caught, now asserts the detail too. *This is the shape of every stale-copy
+   defect in this project's record — the summary survives, the substance quietly leaves.*
+2. **A ban list cannot catch a missing sentence.** The digest's risk/return qualifier could be
+   deleted and the message still passed every check, because `violations()` only ever sees what
+   *is* there. Presence is now pinned separately.
+3. **A failed Discord send marked the day as already-digested**, so a transient network error
+   would silently skip the push and never retry. Pre-existing pattern in `post_hot_digest`'s
+   shape; fixed in the new sender and pinned. **Not fixed in `post_hot_digest` itself** — that is
+   a live path with its own callers and is filed below rather than changed under this prompt.
+
+## 9. Still open (not mine, or not this prompt)
+
+* **`post_hot_digest` has the same mark-on-failure shape** as bug 3 above. One line; different
+  surface; not touched here.
+* `SL.reset_record` still has not been run — the live record is on Render's disk and cannot be
+  reset from a dev box (`V6-LOG`).
+* `screen.py::_rows_from` still drops raw `high_prox` (screener lane).
+* `track_export._trade_rows` still drops `target_premium`/`stop_premium`/`last_mark` (edge lane).
+* `/methodology` still calls the Deflated Sharpe "undeflated" (M1 settled this 2026-08-05).
+
+## 10. If V6-B is ever revised
+
+One constant: `dip_posture.RISK_STATUS`. Set it to `NULL` (or `OPEN`) and the risk block stops
+rendering, the digest stops sending, and `digest_claim` empties — all derived, none of it needing
+anyone to remember a second place. The suite fails until the filled state is internally
+consistent, so a half-finished flip cannot ship quietly.
+
+---
+
 # Session 28 — 2026-08-13 — The Dip Detector, and the scream-buy record rebuilt
 
 **Lane:** app fixer. **Prompt:** `PROMPT_dip_detector_and_screamtrack.md` (out-of-band, product,
