@@ -1,11 +1,11 @@
 {
   "schema_version": 6,
   "errors": [],
-  "generated_at": "2026-08-14T00:50:31",
-  "generated_at_utc": "2026-08-14T04:50:31+00:00",
+  "generated_at": "2026-08-14T02:03:24",
+  "generated_at_utc": "2026-08-14T06:03:24+00:00",
   "git": {
-    "commit": "7289cb4e91104ae1a283d899eaf77e9ebe3117eb",
-    "short": "7289cb4",
+    "commit": "9626ac8c5c2fa870730a5b9c73037147461d0767",
+    "short": "9626ac8",
     "branch": "worktree-options-live",
     "dirty": false
   },
@@ -3699,7 +3699,7 @@
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.08119856135218217,
       "net_alpha": 0.06069654078141906,
-      "realised_one_way_bps": 33.35986774800824,
+      "realised_one_way_bps": 33.359867748008256,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",
@@ -3764,21 +3764,21 @@
       "net_max_drawdown": -0.26212347635832645,
       "net_vol_ann": 0.2666640308161228,
       "equal_weight_sharpe": 0.9084245982678518,
-      "annual_turnover": 3.1690792919718658,
+      "annual_turnover": 3.1690792919718653,
       "gross_ann": 0.32128506517447053,
       "net_ann": 0.28874182050148867,
       "cost_drag_ann": 0.032543244672981864,
       "equal_weight_ann": 0.17239300820250336,
       "gross_alpha": 0.14889205697196717,
       "net_alpha": 0.1163488122989853,
-      "realised_one_way_bps": 41.894808649779975,
+      "realised_one_way_bps": 41.89480864977998,
       "realised_cost_basis": "market-cap cost table",
       "cost_model_limitations": [
         "keyed on point-in-time market cap ONLY \u2014 no spread, no average daily volume, no price level, no participation rate",
         "the equal-weight benchmark is charged ZERO cost while the strategy pays, so every 'alpha versus equal-weight' figure compares a book that trades against one that does not"
       ],
       "flat_bps": null,
-      "breakeven_one_way_bps": 198.21638220997417,
+      "breakeven_one_way_bps": 198.21638220997386,
       "curve": [
         {
           "bps": 0.0,
@@ -3812,8 +3812,8 @@
         },
         {
           "bps": 200.0,
-          "net_alpha": -0.0012944629431468346,
-          "net_ann": 0.17109854525935653
+          "net_alpha": -0.0012944629431470567,
+          "net_ann": 0.1710985452593563
         },
         {
           "bps": 300.0,
@@ -3888,7 +3888,7 @@
         "cost_drag_ann": 0.020502020570763113
       },
       "0.12": {
-        "annual_turnover": 2.4388625876979892,
+        "annual_turnover": 2.4388625876979897,
         "gross_alpha": 0.08300357706698791,
         "net_alpha": 0.06371136083058992,
         "after_tax_alpha": -0.004702249042870754,
@@ -3909,7 +3909,7 @@
         "cost_drag_ann": 0.01498705106900644
       },
       "0.25": {
-        "annual_turnover": 1.5944717306147032,
+        "annual_turnover": 1.5944717306147036,
         "gross_alpha": 0.08525933211842296,
         "net_alpha": 0.0721413470592025,
         "after_tax_alpha": 0.013414468255314338,
@@ -3932,7 +3932,7 @@
       "net_alpha": 0.1163488122989853,
       "net_sharpe": 1.1017733621085182,
       "net_max_drawdown": -0.26212347635832645,
-      "annual_turnover": 3.1690792919718658,
+      "annual_turnover": 3.1690792919718653,
       "after_tax_alpha": 0.020442996157761906,
       "after_tax_sharpe": 0.8029400283519644
     },

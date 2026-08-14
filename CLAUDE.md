@@ -48,6 +48,86 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE CATALOGUE IS EXECUTED - EVERY ROW ADJUDICATED. AND THE LAST FOUR ROWS DELIVER THE
+  PROJECT'S STRONGEST POSITIVE RESULT AND ITS MOST INSTRUCTIVE REVERT (2026-08-14,
+  `X5`+`M4`+`B23`+`S10-ACCT`).** `PREREG_x5_m4_b23_s10acct.md` committed **ALONE at `264cc49`**, a
+  strict ancestor of every measurement commit. **No score moved; all four headlines bit-identical
+  throughout; not a vintage event.**
+  * **X5 - THE HEADLINE SURVIVES ITS OWN BOOTSTRAP, ON THE AUDIT'S OWN RULE.** 200 resamples of the
+    2,531-name universe **WITH REPLACEMENT** at full size: top-decile alpha **p05 +0.05610**,
+    median +0.07265, p95 +0.08779, **min +0.04672**, against a full-universe +0.07174 - and **200
+    OF 200 DRAWS POSITIVE**, the worst of two hundred still earning **+4.67%/yr**. Long-short HAC
+    *t* **p05 +1.63296**, median +2.44187, also **200/200**. The audit's rule was *"if the 5th
+    percentile of that distribution is positive, the result is strong"*; **it is.**
+  * **C2 IS WHAT MAKES THEM BOOTSTRAPS RATHER THAN SUBSAMPLES, AND IT LANDS ON THE THEORY:** mean
+    distinct names **0.632511** against **1 − 1/e = 0.632121**. Duplicates are kept as duplicates;
+    de-duplicating would have understated the very variance X5 measures.
+  * **THE SCOPE LIMIT IS STATED, NOT HIDDEN.** The panel is **not** rebuilt per draw - a build is
+    ~20 min, so 200 is **~66 hours**. The resample re-does the **layer-3** standardisation and the
+    whole decile sort (because `quantile_backtest` re-standardises within its slice); **layers 1-2
+    were computed once across the full universe**. So **this interval is a LOWER BOUND** on total
+    name-selection uncertainty. **PBO is declared absent, not dropped.** Read against X1: the
+    bootstrap spread **0.05657** is marginally wider than X1's half-universe **0.05505** - two
+    independent perturbation axes agreeing closely.
+  * **S10-ACCT IS REJECTED, AND ITS MECHANISM ARM REVERSES S10's FIRST HALF.** The 2-of-3 veto
+    (Beneish >−1.78, Altman <1.81, top-decile external financing - all **published** thresholds)
+    excludes 5.74% of rows and **IMPROVES** alpha **+0.1970pp**, monotonicity **−0.8909 → −0.9758**
+    and the long-short *t* - but **FAILS the drawdown leg at −0.1082pp against a >+2.0pp bar**,
+    which is the audit's primary criterion.
+  * **THE NUMBER THE AUDIT CALLS THE ONE THAT MATTERS MOST: the excluded names crash at 3.04× the
+    rate of the names kept** (2.660% vs 0.874%; 174 crashes of 6,542 rows against 939 of 107,403).
+    **S10's VALUATION half found the exact opposite** - that screen deleted names crashing at
+    **half** the rate of those it kept. **So the accounting flags carry real information about
+    individual-name catastrophe and the valuation band did not - and it still cannot move the
+    portfolio's drawdown**, because S10's own first half measured that the worst peak-to-trough
+    spans **exactly ONE 63-day period on every arm, COVID 2020Q1**. A name-level screen cannot move
+    a market-wide quarter.
+  * **THE DEVIATION WAS FIXED BEFORE ANY RESULT AND ITS DIRECTION IS NOT NEUTRAL:** NT filings are
+    unbuildable, so this is **2-of-THREE**, which makes the veto **NARROWER** - a name flagged by NT
+    plus one other would have been excluded under 2-of-4 and is not here. **A null does not close
+    the four-flag rule.** A premise correction against the S17/S19 register: **no panel rebuild was
+    needed after all**, because the flags are computed from SF1 and joined, so the eight columns
+    were **not** added to `_KEEP` and the live footprint is smaller than registered.
+  * **M4 - THE HARNESS EXISTS AND HAS BEEN RUN.** Replaying real historical dates through the LIVE
+    and BACKTEST paths: **ρ 1.0 on 2026-01-28 (1,843 names) and 0.999999999999999 on 2009-01-15
+    (1,471)**, with **max |composite difference| EXACTLY 0.0 on both** and **zero** top-25 changes.
+    **Audit B7's fix is confirmed on real data for the first time** - its existing pin compares one
+    synthetic frame. **Why it is worth having though it found nothing:** the panel **hard-codes**
+    `residual_momentum=False` while the live path **reads CONFIG**, so they agree today only
+    because the defaults were changed to match and **nothing structurally holds them together**.
+    The harness **raises** below ρ 0.99 and records both CONFIG flags beside the result.
+  * **B23 IS REVERTED ON ITS OWN GATE, AND THE REASON IS WORTH MORE THAN THE SPEED WOULD HAVE
+    BEEN.** Sharing the 63-day `keep_numbers` panel leaves **every headline bit-identical** but
+    moves `cleanups.panel_window` (**horizon 63 → 756**, `calendar_cut_days` 4,659 → 5,352,
+    `cross_section_max` 1,954 → 1,768, **64 per-date entries dropped**) and
+    `survivorship_mask_coverage` (`tickers_in_frame` 2,710 → 2,409).
+  * **THE MECHANISM, WHICH NOBODY HAD DOCUMENTED: BOTH BLOCKS ARE WRITTEN AS A SIDE EFFECT OF
+    WHICHEVER PANEL IS BUILT LAST.** The 63-day build ran last, so they described the 63-day panel
+    **by accident of ordering**; remove it and they silently describe the **756-day** panel while
+    still sitting beside a headline measured at 63 days. **So the audit's "purely a speed issue" is
+    WRONG on this codebase - the fourth build is load-bearing for two reported blocks, and removing
+    it is a reporting change wearing a speed change's clothes.** **REVERTED, NOT REPAIRED**, because
+    the register's rule was *"revert, do not explain"* and fixing the binding then re-applying would
+    be exactly the post-hoc rationalisation that rule forbids. **No speed figure is quoted, because
+    the change that produced one is not in the tree.** `run_backtest(panel=None)` survives, inert at
+    its default, with the revert and both block names in its docstring.
+  * **THREE DEFECTS, TWO IN MY OWN NEW CODE.** `beneish_m` treated a **missing** input as **ZERO** -
+    an absent `ncfo` became zero operating cash flow, inflating TATA and **manufacturing a
+    manipulation flag out of an absent number** - caught by the test written to pin its own
+    docstring, and **REPORTED AS INERT** because re-running gives bit-identical flags. M4's CONFIG
+    reference was wrong in two places and the worse one was **silently** returning null behind a
+    `hasattr` guard. And the `cleanups` order-dependence above.
+  * **Equity `N` 220 → 224, infra 12 → 14.** Expectations **5 right, 2 wrong, 1 split** - and both
+    misses are the useful kind: the crash-rate reversal, and B23 turning out not to be a speed
+    issue at all.
+  * **THE CATALOGUE IS EXECUTED - EVERY ROW ADJUDICATED. 194 ledger rows, 192 adjudicated, and the
+    2 that remain are blocked on neither analysis nor decision:** **`B13`** on a data field that
+    does not exist in the licensed export (`avg_dollar_volume`; the price file carries date and
+    close only), and **`PT-WRITER`** on the Cowork lane, since **nothing in this repository writes
+    the bound track file**. **THAT IS NOT A CLAIM THE FINDINGS WERE POSITIVE:** the overwhelming
+    majority are rejections, nulls and corrections, and that remains the record's central fact.
+    `data/free_analysis/X5_BOOTSTRAP.json`, `S10_ACCOUNTING.json`, `M4_LIVE_REPLAY.json`;
+    `HANDOFF_edge_audit.md` X5+M4+B23+S10-ACCT.
 - **THE HEADLINE SURVIVES A SPLIT BY NAME - AN INDEPENDENCE AXIS IT HAD NEVER BEEN TESTED ON -
   AND IN THE SAME SESSION IT IS FOUND NOT TO CLEAR THE HARVEY-LIU-ZHU HURDLE (2026-08-13,
   `X1`+`R4`).** `PREREG_r4_x1_accounting_and_universe_split.md` committed **ALONE at `9aee4f7`**, a

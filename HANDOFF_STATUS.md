@@ -1,5 +1,53 @@
 # HANDOFF STATUS - shared project state
 
+## edge lane, X5+M4+B23+S10ACCT (2026-08-14) - THE CATALOGUE IS EXECUTED
+
+`PREREG_x5_m4_b23_s10acct.md` committed ALONE at `264cc49`. Four rows, two measured and two
+correctness. **All four headlines bit-identical throughout; no score moved; no vintage event.**
+
+- **X5 - THE HEADLINE SURVIVES ITS OWN BOOTSTRAP.** 200 resamples of the 2,531-name universe
+  WITH REPLACEMENT: top-decile alpha **p05 +0.05610**, median +0.07265, and **200 of 200 draws
+  POSITIVE** with the worst still earning **+4.67%/yr**; long-short HAC *t* p05 **+1.633**,
+  also 200/200. The audit's own rule - *"if the 5th percentile is positive, the result is
+  strong"* - is met on both. C2 confirms genuine bootstraps: mean distinct names **0.632511**
+  against the theoretical 1-1/e = **0.632121**. **SCOPE, stated not hidden:** the panel is not
+  rebuilt per draw (~66 hours), so layers 1-2 are held fixed and **the interval is a LOWER
+  BOUND**; PBO is declared absent, not dropped.
+- **S10-ACCT - REJECTED, and the mechanism arm REVERSES S10's first half.** The 2-of-3 veto
+  (Beneish, Altman, external financing at their PUBLISHED thresholds) *improves* alpha
+  +0.197pp, monotonicity -0.891 -> **-0.976** and the long-short *t*, but **fails the drawdown
+  leg at -0.108pp against a +2.0pp bar**. Yet **the excluded names crash at 3.04x the rate of
+  those kept** (2.660% vs 0.874%) - where S10's *valuation* half deleted names crashing at
+  HALF the rate. **The accounting flags carry real information about individual-name
+  catastrophe and still cannot move a drawdown S10 already showed is decided by ONE quarter
+  (COVID 2020Q1).** Deviation fixed in advance: NT filings are unbuildable, so 2-of-THREE,
+  which makes the veto NARROWER - a null here does not close the four-flag rule.
+- **M4 - HARNESS BUILT AND VERIFIED.** Replaying real historical dates through the LIVE and
+  BACKTEST paths: **rho 1.0 on 2026-01-28 (1,843 names) and 0.999999999999999 on 2009-01-15**,
+  with **max |composite diff| exactly 0.0 on both** and zero top-25 changes. B7's fix is
+  confirmed on real data for the first time; its existing pin uses one synthetic frame. The
+  harness RAISES below 0.99 and records both CONFIG flags with the result.
+- **B23 - REVERTED ON ITS OWN GATE, AND THE REASON IS THE FINDING.** The reuse leaves every
+  headline bit-identical but moves `cleanups.panel_window` (**horizon 63 -> 756**,
+  calendar_cut_days 4659 -> 5352, 64 per-date entries dropped) and
+  `survivorship_mask_coverage` - because **both blocks are written as a SIDE EFFECT of
+  whichever panel is built LAST**. The 63-day build ran last, so they described the 63-day
+  panel *by accident of ordering*. **So the audit's "purely a speed issue" is wrong here: the
+  fourth build is load-bearing for two reported blocks.** The register said revert, not
+  explain. Reverted; the follow-up is named.
+- **Three defects, two in my own new code:** `beneish_m` treated a MISSING input as ZERO
+  (inert on this data - re-running gives bit-identical flags - but fixed and pinned); M4's
+  CONFIG reference was wrong in two places and the worse one was **silently** returning null;
+  and the `cleanups` order-dependence above.
+- **Equity `N` 220 -> 224, infra 12 -> 14.** Expectations 5 right, 2 wrong, 1 split.
+
+**THE CATALOGUE IS EXECUTED - EVERY ROW ADJUDICATED. 194 ledger rows; 192 adjudicated; 2
+remain and NEITHER is blocked on analysis** - `B13` on a data field absent from the licensed
+export (`avg_dollar_volume`; the price file carries date and close only) and `PT-WRITER` on
+the Cowork lane, since nothing in this repository writes the bound track file. **That is not a
+claim the findings were positive: the overwhelming majority are rejections, nulls and
+corrections, and that remains the record's central fact.**
+
 ## edge lane, R4+X1 (2026-08-13) - the headline survives a NAME split; the HLZ hurdle does not
 
 `PREREG_r4_x1_accounting_and_universe_split.md` committed ALONE at `9aee4f7`. **No score moved,
