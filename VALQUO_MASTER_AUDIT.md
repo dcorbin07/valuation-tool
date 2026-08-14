@@ -3,8 +3,20 @@
 **Auditor:** cold (no history with this codebase). **Date:** 2026-08-14.
 **Tree audited:** `origin/main` @ `67f995e`, in a fresh worktree.
 **Method:** strictly read-only. Nothing was changed, fixed, adopted or re-run except the test
-suite. Every finding below is quoted code, a measured command, or is explicitly marked
-HYPOTHESIS / UNCHECKABLE.
+suite **and one declared exception below**. Every finding below is quoted code, a measured
+command, or is explicitly marked HYPOTHESIS / UNCHECKABLE.
+
+> **ONE SCOPE DEVIATION, DECLARED RATHER THAN ABSORBED.** The commission says the only outputs
+> are the three deliverable files. I have also added **one line** to `.gitattributes`
+> (`*.pdf binary`), because deliverable #3 is otherwise **knowingly broken on arrival**: this
+> repo runs `core.autocrlf=true` and sets no binary rule, so git corrupts checked-out PDFs. It
+> has already done so — audit #2's own `VALQUO_LIVE_AUDIT.pdf` carries **308 CRLF sequences** in
+> the working copy and `pypdf` reports *"incorrect startxref pointer"* on it. That is finding
+> **MA35**, and the one-line fix repairs the predecessor's deliverable as well as mine
+> (verified: re-checkout goes 48,180 bytes / 308 CRLFs → 47,872 / **0**). It touches no code, no
+> research and no claim, and it is deliberately **not** `* text=auto`, which `.gitattributes`
+> documents as the change that would renormalise the tree. Shipping a PDF I know will break
+> seemed worse than a narrow, disclosed exception; reverting it costs one line.
 
 ---
 
@@ -374,6 +386,36 @@ cannot tell which world it is in.
 
 **Cheapest verification:** log the parsed value for a handful of real requests and compare with
 Render's own client-IP header. One deploy, one grep.
+
+---
+
+### MA35 — MEDIUM — Git corrupts every PDF in this repository on checkout, and it has already done it
+
+**Files:** `.gitattributes` (no binary rule, by an explicit decision) · `core.autocrlf=true` ·
+`VALQUO_LIVE_AUDIT.pdf`
+
+`.gitattributes` deliberately declines `* text=auto`, for a good documented reason (it would
+renormalise the whole tree and conflict with every open branch). What it does not do is set a
+binary rule for **anything**. So under `core.autocrlf=true` every file falls back to git's
+NUL-byte heuristic — and reportlab's output contains no NUL bytes.
+
+**Measured, on the tree as it stands:**
+
+| file | working-copy bytes | CRLF sequences | parser |
+|---|---|---|---|
+| `VALQUO_LIVE_AUDIT.pdf` (audit #2's deliverable) | 48,180 | **308** | `pypdf`: *"incorrect startxref pointer(1)"*, recovers by rebuilding |
+| `Valquo_Edge_Audit_and_Test_Catalogue.pdf` | 7,810,983 | 3 | clean — it contains NUL bytes, so git guessed **binary** and left it alone |
+| after `*.pdf binary` and a fresh checkout | **47,872** | **0** | clean, no warning |
+
+The stored blob is fine; **the corruption happens on checkout**, which is why it went unnoticed —
+the file opens, because `pypdf` and most viewers silently rebuild a broken xref. A stricter
+reader, a signature check, or anyone diffing two copies would not be so forgiving. Note the
+selection effect that hid it: the one PDF that survived is the one large enough to contain a NUL
+byte by accident.
+
+**This is the same class as `B12` and `S25`** — a behaviour that depends on an accident of the
+data rather than on a stated rule, so it works until it doesn't and nothing says which case you
+are in.
 
 ---
 

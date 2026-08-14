@@ -4,14 +4,30 @@
     "auditor": "cold (no history with this codebase)",
     "date": "2026-08-14",
     "tree": "origin/main @ 67f995e, fresh worktree",
-    "method": "strictly read-only; nothing changed, fixed, adopted or re-run except the test suite",
+    "method": "strictly read-only; nothing changed, fixed, adopted or re-run except the test suite AND ONE DECLARED EXCEPTION: a single line added to .gitattributes (`*.pdf binary`), because deliverable #3 was otherwise knowingly broken on arrival - see MA35.",
     "gate_measured": "74 suites, 74 passed, 0 failed, with no licensed data/ directory present",
     "schema_note": "Keyed by MA id. Carries the legacy valquo_audit_items.json fields (title, modifies, creates, depends_on, note, readonly) so the machinery that processed the first two audits can read it, plus the fields this commission asked for (mandate, severity, registers, evidence_needed, trial_cost, verification, kill_condition).",
     "severity_scale": "CRITICAL = a wrong number can reach a reader or the live model can change unsupervised; HIGH = a record corrupts, an irreplaceable asset is unprotected, or a published bar is invalid; MEDIUM; LOW",
-    "counts": {"total": 34, "CRITICAL": 2, "HIGH": 8, "MEDIUM": 20, "LOW": 1, "HYPOTHESIS_only": 3},
-    "counts_by_mandate": {"1_trade_logic": 4, "2_code": 8, "3_new_features": 3, "4_external_research": 4, "5_process": 3, "6_adversarial": 6, "7_continuity": 4, "8_simplification": 1, "9_calibration_age": 1}
+    "counts": {
+      "total": 35,
+      "CRITICAL": 2,
+      "HIGH": 8,
+      "MEDIUM": 21,
+      "LOW": 1,
+      "HYPOTHESIS_only": 3
+    },
+    "counts_by_mandate": {
+      "1_trade_logic": 4,
+      "2_code": 9,
+      "3_new_features": 3,
+      "4_external_research": 4,
+      "5_process": 3,
+      "6_adversarial": 6,
+      "7_continuity": 4,
+      "8_simplification": 1,
+      "9_calibration_age": 1
+    }
   },
-
   "MA1": {
     "title": "A scheduled job can change the live scoring weights, invisibly to the vintage contract",
     "mandate": "2 - code",
@@ -28,116 +44,161 @@
       "valuation/config.py:192",
       "valuation/edge/track_meter.py:113-199"
     ],
-    "registers": ["PAPER_TRACK_CONTRACT.md SS5a (vintage rule)", "PT-VINTAGE", "CLAUDE.md roadmap #19"],
-    "evidence_needed": "One SQL read of the production screener.db: SELECT created_at,bucket,adopted,note FROM learned_config ORDER BY id DESC LIMIT 20. Equivalently, whether a '\u0001f9e0 Valquo self-learning - weights updated' email has ever arrived.",
+    "registers": [
+      "PAPER_TRACK_CONTRACT.md SS5a (vintage rule)",
+      "PT-VINTAGE",
+      "CLAUDE.md roadmap #19"
+    ],
+    "evidence_needed": "One SQL read of the production screener.db: SELECT created_at,bucket,adopted,note FROM learned_config ORDER BY id DESC LIMIT 20. Equivalently, whether an email with the subject 'Valquo self-learning - weights updated' has ever arrived (as opposed to '- monthly check (no change)').",
     "verification": "Chain verified by reading: cron 0 12 1 * * -> /admin/run-learning -> run_learning -> store.save_learned(adopted=True) -> screen._effective_weights -> live composite. cfg.learn_enabled defaults true and LEARN_ENABLED is documented in no .md/.yml/.example file (measured). tests/test_edge.py:118 pins that live weights follow the learner.",
     "trial_cost": "0 - this is a correctness/governance finding, not a hypothesis",
     "kill_condition": "learned_config is empty AND has always been empty -> downgrade to HIGH-and-armed rather than CRITICAL; the governance gap remains.",
     "note": "The strongest gate in the project (_trials_haircut, floored at research-log N=224) protects a weight choice the project never makes (cpcv.adopt=false every run). The weakest gate protects the weights every user sees. track_meter.VINTAGES is a source-code tuple, so a SQLite weight change cannot close a vintage - which is what Amendment 1 voided vintage 1 for."
   },
-
   "MA2": {
     "title": "The learner's adoption gate is uncalibrated, mis-specified, and never compares to the incumbent",
     "mandate": "2 - code",
     "severity": "CRITICAL",
     "modifies": [],
     "creates": [],
-    "depends_on": ["MA1"],
+    "depends_on": [
+      "MA1"
+    ],
     "readonly": true,
-    "files": ["valuation/backtest/optimize.py:85-102", "valuation/edge/fundamental_panel.py:2350-2354", "valuation/edge/autolearn.py:42-99"],
-    "registers": ["X7 (calibrated floors)", "M2/R3 (clustered inference is the default)", "M3 (known-bad fixtures)"],
+    "files": [
+      "valuation/backtest/optimize.py:85-102",
+      "valuation/edge/fundamental_panel.py:2350-2354",
+      "valuation/edge/autolearn.py:42-99"
+    ],
+    "registers": [
+      "X7 (calibrated floors)",
+      "M2/R3 (clustered inference is the default)",
+      "M3 (known-bad fixtures)"
+    ],
     "evidence_needed": "Block-bootstrap the real OOS dates in 21-day blocks and compare the resulting null sd against _std_null; or count distinct non-overlapping 21-day windows in oos_p against _oos_dates.",
     "verification": "Read directly: (a) eq_oos computed at :87, written into the adopt verdict string at :101, absent from the `accepted` boolean at :98-99; (b) daily scan dates x learn_horizon_days=21 -> overlapping returns treated as independent; (c) oos_ic >= 0.5*is_ic is loosest when is_ic is smallest; (d) learn_top_per_date=60 selects on the current composite. Both tests feed i.i.d. synthetic panels.",
     "trial_cost": "0",
     "kill_condition": "If the corrected floor changes no historical adopt decision AND learned_config is empty, record as documentation-only rather than 'fixed'.",
     "note": "Magnitude of the overlap inflation (~sqrt(21) ~ 4.6x) is HYPOTHESIS - direction is certain and structural. This path imports none of statistics.hac_tstat / _trials_haircut / _trial_N."
   },
-
   "MA3": {
     "title": "A second live-weight writer adopts on the single-split gate CLAUDE.md forbids",
     "mandate": "2 - code",
     "severity": "HIGH",
     "modifies": [],
     "creates": [],
-    "depends_on": ["MA1"],
+    "depends_on": [
+      "MA1"
+    ],
     "readonly": true,
-    "files": ["valuation/saas/app_saas.py:270-290", "valuation/edge/fundamental_panel.py:4448-4453", "valuation/edge/fundamental_panel.py:4678-4681"],
-    "registers": ["CLAUDE.md core-file section: cpcv_validate is THE AUTHORITY for weights; do NOT fall back to walk-forward"],
+    "files": [
+      "valuation/saas/app_saas.py:270-290",
+      "valuation/edge/fundamental_panel.py:4448-4453",
+      "valuation/edge/fundamental_panel.py:4678-4681"
+    ],
+    "registers": [
+      "CLAUDE.md core-file section: cpcv_validate is THE AUTHORITY for weights; do NOT fall back to walk-forward"
+    ],
     "evidence_needed": "learned_config rows carrying stats.source == 'historical_backtest' distinguish this writer from the monthly learner after the fact.",
     "verification": "run_backtest returns accepted from _weighted_optimize (a single 50/50 time split, weaker than walk_forward); /admin/adopt-backtest-weights promotes on exactly that flag; CPCV rejects on every run (adopt:false, PBO 0.7333 in the shipped artifact). The endpoint writes only 'established', never 'speculative'.",
     "trial_cost": "0",
     "kill_condition": "n/a - documented-rule violation, not a hypothesis",
     "note": "The same fallback exists on the CLI, which prints 'Paste into settings.py' on a single-split accept."
   },
-
   "MA4": {
     "title": "append_row rewrites the contract-bound history non-atomically and drops unknown columns",
     "mandate": "2 - code",
     "severity": "HIGH",
-    "modifies": ["valuation/screener/index_mark.py"],
+    "modifies": [
+      "valuation/screener/index_mark.py"
+    ],
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/screener/index_mark.py:304-344"],
-    "registers": ["PAPER_TRACK_CONTRACT.md SS7.2a", "LA2 (the record that cannot be re-derived)"],
+    "files": [
+      "valuation/screener/index_mark.py:304-344"
+    ],
+    "registers": [
+      "PAPER_TRACK_CONTRACT.md SS7.2a",
+      "LA2 (the record that cannot be re-derived)"
+    ],
     "evidence_needed": "none - read from source",
     "verification": "kept.append({k: row.get(k) for k in ROW_COLUMNS}) projects EVERY historical row onto ROW_COLUMNS; open(path,'w') truncates before writing with no temp-file-and-rename.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "Fix is two lines: os.replace from a .tmp, and union the existing header with ROW_COLUMNS instead of projecting onto it. The rest of the module is exemplary; the tz-mixing concern in _closes was checked and is correct for US listings."
   },
-
   "MA5": {
     "title": "Two Harvey-Liu-Zhu bars exist and already disagree (3.0 constant vs sqrt(2 ln N) = 3.2899)",
     "mandate": "2 - code",
     "severity": "MEDIUM",
-    "modifies": ["valuation/edge/statistics.py"],
+    "modifies": [
+      "valuation/edge/statistics.py"
+    ],
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/edge/statistics.py:95-98", "BACKTEST_RESULTS.json multiple_testing.hlz"],
-    "registers": ["R4", "B7 (three composite functions)"],
+    "files": [
+      "valuation/edge/statistics.py:95-98",
+      "BACKTEST_RESULTS.json multiple_testing.hlz"
+    ],
+    "registers": [
+      "R4",
+      "B7 (three composite functions)"
+    ],
     "evidence_needed": "none",
     "verification": "hlz_significant returns abs(t) > 3.0; the shipped bar is sqrt(2*ln 224) = 3.2898772171176964 and rises with N. The constant is referenced only by tests/test_edge.py:74-80 today.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "Caught before it has a second caller. Fix: take n_trials and delegate, or delete."
   },
-
   "MA6": {
     "title": "The trial counter has one silent path that understates N, and no counter for it",
     "mandate": "2 - code",
     "severity": "MEDIUM",
-    "modifies": ["valuation/edge/research_log.py"],
+    "modifies": [
+      "valuation/edge/research_log.py"
+    ],
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/edge/research_log.py:203-215,233-235,248", "RESEARCH_LOG.md"],
-    "registers": ["M1", "M1-PARSE"],
+    "files": [
+      "valuation/edge/research_log.py:203-215,233-235,248",
+      "RESEARCH_LOG.md"
+    ],
+    "registers": [
+      "M1",
+      "M1-PARSE"
+    ],
     "evidence_needed": "already measured this audit",
     "verification": "MEASURED TODAY - LATENT, NOT LIVE: trials_logged 530, by_domain {equity:224, options:292, unified:0, infra:14}, sum 530, rows_malformed 0. A row whose domain cell is unrecognised counts toward trials but no bucket, and trial_count reads the bucket. Every other degradation is routed toward a LARGER N and reported; this one is routed smaller and reported nowhere. Second hazard: both RESEARCH_LOG tables are 9 columns wide with different orders, so the len(cells)==_width guard cannot detect a row appended under the wrong table. Third: rows() accepts use_cache and ignores it.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "Understating N overstates the significance of every DSR- and HLZ-gated claim - M1's own stated error, in M1's own parser, for the second time."
   },
-
   "MA7": {
     "title": "/api/value is unlimited and makes the same upstream calls the limiter exists to protect",
     "mandate": "2 - code / 6 - adversarial",
     "severity": "MEDIUM",
-    "modifies": ["valuation/saas/ratelimit.py"],
+    "modifies": [
+      "valuation/saas/ratelimit.py"
+    ],
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/saas/ratelimit.py:33-47,58-62", "valuation/saas/app_saas.py:856-871"],
-    "registers": ["SECURITY_AUDIT.md H1"],
+    "files": [
+      "valuation/saas/ratelimit.py:33-47,58-62",
+      "valuation/saas/app_saas.py:856-871"
+    ],
+    "registers": [
+      "SECURITY_AUDIT.md H1"
+    ],
     "evidence_needed": "FMP call counts per /api/value request on a cold cache - one instrumented run",
     "verification": "bucket_for returns a bucket for /api/value only when body.run_ai is set. The plain path runs a full adaptive DCF, i.e. the same 3-requests-per-uncached-name the module limits /api/scan/run for. An enumeration loop over distinct tickers misses the cache every time.",
     "trial_cost": "0",
     "kill_condition": "If /api/value is measured to make zero uncached upstream calls, this is void.",
     "note": "Suggested shape: a generous per-IP cap (~120/hour) regardless of run_ai."
   },
-
   "MA8": {
     "title": "client_ip's rightmost-XFF rule has two opposite failure modes, neither visible from code",
     "mandate": "2 - code / 6 - adversarial",
@@ -146,7 +207,9 @@
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/saas/ratelimit.py:64-78"],
+    "files": [
+      "valuation/saas/ratelimit.py:64-78"
+    ],
     "registers": [],
     "evidence_needed": "Log the parsed value for a handful of real production requests and compare with Render's own client-IP header. One deploy, one grep.",
     "verification": "Correct for exactly one trusted proxy. With two hops the rightmost entry is a single shared address and every visitor shares one bucket, turning the limiter into a global cap one scraper can exhaust.",
@@ -154,92 +217,138 @@
     "kill_condition": "Measurement shows distinct per-visitor addresses -> void.",
     "note": ""
   },
-
   "MA9": {
     "title": "'The regate is one flag' is wrong: the demo token is rendered into a public page",
     "mandate": "6 - adversarial",
     "severity": "HIGH",
-    "modifies": ["render.yaml", "ENV_REFERENCE.md", ".env.example"],
+    "modifies": [
+      "render.yaml",
+      "ENV_REFERENCE.md",
+      ".env.example"
+    ],
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/saas/app_saas.py:676-690", "valuation/web/templates/portfolio.html", "valuation/saas/surfaces.py (PUBLIC_FULL_VIEW section)", "render.yaml:40-57", "ENV_REFERENCE.md:27"],
-    "registers": ["PUBLIC-FULL (Don's recorded decision)", "PROMPT_recruiter_master_link.md"],
+    "files": [
+      "valuation/saas/app_saas.py:676-690",
+      "valuation/web/templates/portfolio.html",
+      "valuation/saas/surfaces.py (PUBLIC_FULL_VIEW section)",
+      "render.yaml:40-57",
+      "ENV_REFERENCE.md:27"
+    ],
+    "registers": [
+      "PUBLIC-FULL (Don's recorded decision)",
+      "PROMPT_recruiter_master_link.md"
+    ],
     "evidence_needed": "View source on the live /work page and confirm the token string is present.",
     "verification": "demo_url = f'/demo/{token}' is built from cfg.demo_access_token and rendered into portfolio.html, the public /work page (gated only by portfolio_page_enabled). ENV_REFERENCE.md documents the value as the dictionary word 'preview'.",
     "trial_cost": "0",
     "kill_condition": "If /work is not anonymous-reachable in production, severity drops to MEDIUM.",
     "note": "After PUBLIC_FULL_VIEW=false, the only gate on /api/track, /api/index-track, /api/valquo-index (names AND weights), /api/options-alerts and /api/scream-track is a secret the product prints. The regate is TWO changes, not one: flip the flag AND rotate DEMO_ACCESS_TOKEN. Rotation machinery already exists and is documented at app_saas.py:676-678; only the instruction is missing."
   },
-
   "MA10": {
     "title": "ADMIN_TOKEN is one credential for the product and the record, bypasses rate limiting, and has no rotation procedure",
     "mandate": "6 - adversarial",
     "severity": "HIGH",
     "modifies": [],
     "creates": [],
-    "depends_on": ["MA1", "MA3"],
+    "depends_on": [
+      "MA1",
+      "MA3"
+    ],
     "readonly": true,
-    "files": ["valuation/saas/app_saas.py:148-151,864", ".github/workflows/auto-scan.yml", "render.yaml (5 cron jobs)"],
-    "registers": ["SECURITY_AUDIT.md"],
+    "files": [
+      "valuation/saas/app_saas.py:148-151,864",
+      ".github/workflows/auto-scan.yml",
+      "render.yaml (5 cron jobs)"
+    ],
+    "registers": [
+      "SECURITY_AUDIT.md"
+    ],
     "evidence_needed": "Ask Don whether it has ever been rotated and who owns it.",
     "verification": "One X-Admin-Token grants /admin/ingest-snapshot, /admin/run-learning, /admin/adopt-backtest-weights, /admin/run-paper-track, /admin/post-recap, /admin/run-scan, /admin/run-intraday, /admin/track-row, /admin/export-track. app_saas.py:864 exempts admin callers from the rate limiter entirely. It lives in GitHub Actions secrets AND Render env; both must change within one window.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "Highest-value hardening: split by capability. If the two weight-writing routes sit behind a separate, rarely-used token, most of MA1's blast radius closes without touching the learner."
   },
-
   "MA11": {
     "title": "The auto-land Action is unreviewed arbitrary code execution with write access to main",
     "mandate": "6 - adversarial / 5 - process",
     "severity": "MEDIUM",
-    "modifies": [".github/workflows/land-agent-branch.yml"],
+    "modifies": [
+      ".github/workflows/land-agent-branch.yml"
+    ],
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": [".github/workflows/land-agent-branch.yml"],
-    "registers": ["C7 (widen the CI gate)", "RUN_RULES automation status"],
+    "files": [
+      ".github/workflows/land-agent-branch.yml"
+    ],
+    "registers": [
+      "C7 (widen the CI gate)",
+      "RUN_RULES automation status"
+    ],
     "evidence_needed": "none",
     "verification": "on: push branches ['worktree-*']; permissions contents:write; runs `python \"$f\"` for every tests/test_*.py FROM THE PUSHED BRANCH, then merges to main and Render deploys. Adding tests/test_zz.py is sufficient to execute arbitrary code with the workflow token.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "Hardening in order of value per unit of friction: (a) refuse the auto-land path when the branch diff touches .github/; (b) run the gate against main's copy of tests/ merged with the branch's source, so a branch cannot rewrite its own gate."
   },
-
   "MA12": {
     "title": "Every dependency is unpinned on a chain that installs fresh and auto-deploys",
     "mandate": "6 - adversarial / 7 - continuity",
     "severity": "MEDIUM",
-    "modifies": ["requirements.txt"],
-    "creates": ["requirements.lock.txt"],
+    "modifies": [
+      "requirements.txt"
+    ],
+    "creates": [
+      "requirements.lock.txt"
+    ],
     "depends_on": [],
     "readonly": true,
-    "files": ["requirements.txt", ".github/workflows/land-agent-branch.yml", ".github/workflows/auto-scan.yml", "Dockerfile"],
-    "registers": ["OOB2 (a vendor field vanished and a substituted default produced a 91 Strong Buy)"],
+    "files": [
+      "requirements.txt",
+      ".github/workflows/land-agent-branch.yml",
+      ".github/workflows/auto-scan.yml",
+      "Dockerfile"
+    ],
+    "registers": [
+      "OOB2 (a vendor field vanished and a substituted default produced a 91 Strong Buy)"
+    ],
     "evidence_needed": "none",
     "verification": "All ten requirements use >=; no lockfile, no hashes. CI pip-installs on every land and every scheduled scan; Render builds from the same file.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "This is OOB2's class in the dependency layer: something plausible but different reaches the scoring path with no human step. Fix is one commit and no behaviour change."
   },
-
   "MA13": {
     "title": "N - the denominator of every significance claim - has no tamper-evidence",
     "mandate": "6 - adversarial",
     "severity": "MEDIUM",
-    "modifies": ["tests/test_edge.py"],
+    "modifies": [
+      "tests/test_edge.py"
+    ],
     "creates": [],
-    "depends_on": ["MA6"],
+    "depends_on": [
+      "MA6"
+    ],
     "readonly": true,
-    "files": ["RESEARCH_LOG.md", "valuation/edge/research_log.py:172-185", "tests/test_edge.py:5322-5340"],
-    "registers": ["M1", "R4", "X7"],
+    "files": [
+      "RESEARCH_LOG.md",
+      "valuation/edge/research_log.py:172-185",
+      "tests/test_edge.py:5322-5340"
+    ],
+    "registers": [
+      "M1",
+      "R4",
+      "X7"
+    ],
     "evidence_needed": "none - verified by reading the assertions",
     "verification": "The suite asserts only relational properties (equity < all-domains; FP._trial_N() == RL.trial_count('equity'); missing file falls back to 8). All still pass after an edit that lowers N. Changing one verdict cell to FIXED removes that row from the count and raises every DSR- and HLZ-gated claim.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "Contrast with what the project DOES pin: the vintage label by derivation, the Sharadar freeze by sha256 manifest, SCHEMA_VERSION field by field. Fix in the project's own idiom: assert by_domain against a committed expected dict, so N can only change deliberately. BACKTEST_RESULTS.json already ships by_domain."
   },
-
   "MA14": {
     "title": "Fail-closed covers absence; nothing covers wrong-but-plausible on the LIVE scoring path",
     "mandate": "6 - adversarial",
@@ -248,66 +357,101 @@
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/edge/fundamental_panel.py (sanity_check)", "valuation/screener/screen.py (health block)", "scripts/ci_scan.py"],
-    "registers": ["OOB2", "P8 (the sanity layer)", "LA5", "V2G", "coverage-is-not-fidelity"],
+    "files": [
+      "valuation/edge/fundamental_panel.py (sanity_check)",
+      "valuation/screener/screen.py (health block)",
+      "scripts/ci_scan.py"
+    ],
+    "registers": [
+      "OOB2",
+      "P8 (the sanity layer)",
+      "LA5",
+      "V2G",
+      "coverage-is-not-fidelity"
+    ],
     "evidence_needed": "A register; this is a proposal, not a defect report.",
     "verification": "sanity_check (range / subgroup-pegging / market-cap divergence) exists only on the BACKTEST side, where the data is a static licensed export that does not drift. The live path has coverage checks, which answer presence, not sanity and not fidelity.",
     "trial_cost": "0 for the port (reporting only); a register if any threshold ever gates on it",
     "kill_condition": "n/a",
     "note": "OOB2 is the precedent and it is exact: Yahoo dropped one beta field, wacc.py substituted 1.10, MRK went from 'cannot value' to a 91 Strong Buy. The repair was field-specific. Depends on LA5's fix holding - health was being dropped by ci_scan's fixed params dict."
   },
-
   "MA15": {
     "title": "data/options_ticks (4.72 GB) is in neither the backup allowlist nor its skip list",
     "mandate": "7 - continuity",
     "severity": "HIGH",
-    "modifies": ["backup_to_D.ps1"],
+    "modifies": [
+      "backup_to_D.ps1"
+    ],
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["backup_to_D.ps1 ($KEEP, $SKIP)", "mine_tick_flow.py:86", "scripts/o10_o18_tickflow.py:45", "scripts/o14_tickflow_signals.py:40"],
-    "registers": ["O14", "D2 (ThetaData licence)", "RUN_RULES rule 9"],
+    "files": [
+      "backup_to_D.ps1 ($KEEP, $SKIP)",
+      "mine_tick_flow.py:86",
+      "scripts/o10_o18_tickflow.py:45",
+      "scripts/o14_tickflow_signals.py:40"
+    ],
+    "registers": [
+      "O14",
+      "D2 (ThetaData licence)",
+      "RUN_RULES rule 9"
+    ],
     "evidence_needed": "Ask Don whether it is on D: by some other route.",
     "verification": "MEASURED: grep for 'options_ticks' across backup_to_D.ps1, tests/test_backup_to_D.ps1 and HANDOFF_backup.md returns nothing. The script is a pure allowlist, so anything unnamed is not copied. The record puts the cache at 4.72 GB / 70,288,482 prints / 3,884 of 3,885 alert-days.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "The 16.6 GB options_derived was considered and declined WITH A REASON; this was never weighed. D2 concluded individual ThetaData tiers are personal-use-only with lawful commercial access starting ~$250/mo plus OPRA registration, so this is closer to a crown jewel than to a derived cache. Decide it explicitly - $KEEP or $SKIP with a reason. Silence is the defect."
   },
-
   "MA16": {
     "title": "data/free_analysis is skipped from backup on the exact argument RUN_RULES rule 9 rejects",
     "mandate": "7 - continuity",
     "severity": "HIGH",
-    "modifies": ["backup_to_D.ps1"],
+    "modifies": [
+      "backup_to_D.ps1"
+    ],
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["backup_to_D.ps1:87", ".gitignore:33 (/data/)"],
-    "registers": ["RUN_RULES rule 9", "X7RECON", "every PREREG_* whose artifact lives there"],
+    "files": [
+      "backup_to_D.ps1:87",
+      ".gitignore:33 (/data/)"
+    ],
+    "registers": [
+      "RUN_RULES rule 9",
+      "X7RECON",
+      "every PREREG_* whose artifact lives there"
+    ],
     "evidence_needed": "none",
     "verification": "backup_to_D.ps1:87 skips data\\free_analysis (0.07 GB) with Why = 'results JSONs recomputed from data\\backtest by the scripts\\ that wrote them.' RUN_RULES rule 9 exists BECAUSE X7 kept 100 placebo draws as five summary rates and re-denominating one column meant re-running a 3.4-hour sweep.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "The 'recomputable' claim is also false for several: O14_TICKFLOW_SIGNALS.json needs options_ticks (MA15, also unbacked-up), V6OPT_STAGE1/2.json need data/options + options_derived, and every seeded sweep needs the research-log N it ran at. It is 70 MB. Move to $KEEP bucket 1. Compounds with MA19."
   },
-
   "MA17": {
     "title": "The bus test: the code survives a stranger, the claims do not",
     "mandate": "7 - continuity",
     "severity": "MEDIUM",
     "modifies": [],
-    "creates": ["START_HERE.md"],
+    "creates": [
+      "START_HERE.md"
+    ],
     "depends_on": [],
     "readonly": true,
-    "files": ["README.md", "BACKTEST_RUNBOOK.md", "CLAUDE.md", "VALQUO_LEDGER.md"],
-    "registers": ["D1 (Sharadar terms: personal use only, forbids commercial use of the data 'or any derivation')"],
+    "files": [
+      "README.md",
+      "BACKTEST_RUNBOOK.md",
+      "CLAUDE.md",
+      "VALQUO_LEDGER.md"
+    ],
+    "registers": [
+      "D1 (Sharadar terms: personal use only, forbids commercial use of the data 'or any derivation')"
+    ],
     "evidence_needed": "none - measured this audit",
     "verification": "MEASURED: all 74 suites pass in a worktree with no data/ directory at all. So a stranger can verify every guard, gate and pinned identity. They cannot reproduce a single headline number - all require data/backtest, which is licensed and gitignored.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "Gaps in order: no document takes a reader from clone to number; CLAUDE.md is 344 KB and its task list self-describes as the least trustworthy section; README.md does not name VALQUO_LEDGER.md, which is the contractual answer to 'where do we stand'. Fix is a ~20-line START_HERE.md."
   },
-
   "MA18": {
     "title": "The bound forward track still has no writer, and the five-year clock is running",
     "mandate": "7 - continuity",
@@ -316,32 +460,50 @@
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/screener/index_mark.py", "valuation/edge/track_meter.py (recording_history)", "PAPER_TRACK_CONTRACT.md SS7.2"],
-    "registers": ["PT-WRITER", "PT-CONTRACT", "PT-VINTAGE"],
+    "files": [
+      "valuation/screener/index_mark.py",
+      "valuation/edge/track_meter.py (recording_history)",
+      "PAPER_TRACK_CONTRACT.md SS7.2"
+    ],
+    "registers": [
+      "PT-WRITER",
+      "PT-CONTRACT",
+      "PT-VINTAGE"
+    ],
     "evidence_needed": "Confirmation from the Cowork lane that nothing schedules contract_row.",
     "verification": "The mechanism landed today (index_mark.contract_row, 23/23 tests) and RAN for real on 2026-08-13 (86 names priced, excess_pp -0.5562, exit 0) and was deliberately NOT written. Nothing in this repository schedules it. recording_history reads v1 VOID 2 of 6, v2 0 of 0, v3 0 of 1, v4 OPEN 0 of 0.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "Not a new finding - a re-severity. A blocked row on a running clock is a decaying asset, not a parked one. Vintage 4 opened 2026-08-13 and has recorded zero rows."
   },
-
   "MA19": {
     "title": "X7's calibrated floors were last checked two N-regimes ago; the project's own adopt curve says the null has moved",
     "mandate": "9 - calibration age",
     "severity": "HIGH",
     "modifies": [],
     "creates": [],
-    "depends_on": ["MA16"],
+    "depends_on": [
+      "MA16"
+    ],
     "readonly": true,
-    "files": ["scripts/placebo.py", "scripts/x7_reconcile.py", "valuation/edge/fundamental_panel.py:2400-2410 (_trials_haircut)", "BACKTEST_RESULTS.json cpcv.adopt_detail"],
-    "registers": ["X7", "X7RECON", "HACFLOOR", "M1"],
+    "files": [
+      "scripts/placebo.py",
+      "scripts/x7_reconcile.py",
+      "valuation/edge/fundamental_panel.py:2400-2410 (_trials_haircut)",
+      "BACKTEST_RESULTS.json cpcv.adopt_detail"
+    ],
+    "registers": [
+      "X7",
+      "X7RECON",
+      "HACFLOOR",
+      "M1"
+    ],
     "evidence_needed": "Re-score the 100 banked placebo draws' (margin, se) pairs at N=224 and re-derive the p95 of ls_t. Arithmetic, not a sweep - IF the banked draws still exist (see MA16).",
     "verification": "X7RECON's own published rule: a calibrated placebo floor is a function of N and may not be compared across sweeps run at different N without checking. Its adopt curve: N=8->27 adopters, 84->21, 116/121/129->20, 200->18, 400->17. N is 224 today; the haircut moved sqrt(2 ln 129)=3.1176 -> sqrt(2 ln 224)=3.2899, a 5.5% higher adopt bar.",
     "trial_cost": "0 if re-derived from banked draws; a full 3.4-hour sweep if they are gone",
     "kill_condition": "If the re-derived p95 moves the HAC floor by less than 0.01 of a t, record as provably insensitive and stop re-checking on this axis.",
     "note": "DUE: every X7 floor (ls_t naive 2.1437 and HAC 2.2837, theme IC 2.71, alpha margin 1.95pp, DSR bar 0.7216, PBO bar 19.7%). PROVABLY INSENSITIVE: the cost table (B11) and the fidelity bar (0.60) - neither reads N - and S22's fixed_weights_null, which runs without CPCV in the loop and therefore has no haircut to move (corroborated by X1 to 0.009 of a t). NEVER VALID: the learner's 1.64 sigma floor (MA2). Expected direction is CONSERVATIVE (fewer adopters -> lower null p95 -> the shipped 2.6199 clears 2.2837 by more) - stated as HYPOTHESIS, and a reason to check rather than to skip."
   },
-
   "MA20": {
     "title": "The shared checkout drifts invisibly; it is now 508 commits behind and holds one unpushed commit that answers an open row",
     "mandate": "5 - process",
@@ -350,41 +512,69 @@
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["C:\\Users\\donni\\Downloads\\valuation-tool (the primary checkout)", "sync.bat", ".github/workflows/auto-scan.yml (watchdog job)"],
-    "registers": ["RUN_RULES Part A rule 1", "PT-WRITER"],
+    "files": [
+      "C:\\Users\\donni\\Downloads\\valuation-tool (the primary checkout)",
+      "sync.bat",
+      ".github/workflows/auto-scan.yml (watchdog job)"
+    ],
+    "registers": [
+      "RUN_RULES Part A rule 1",
+      "PT-WRITER"
+    ],
     "evidence_needed": "none - measured this audit",
     "verification": "MEASURED: git rev-list --left-right --count HEAD...origin/main returns 1 508. Audit #2 measured 265 on 2026-08-10; project memory recorded 472. VALQUO_LEDGER.md, RUN_RULES.md and VALQUO_LIVE_AUDIT.md do not exist in that checkout - three of the five documents this commission names as required reading.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "Two costs. Reading: this commission instructed its auditor to work in a tree 508 commits stale. Writing: the one local commit, 41d7b12, is the dated failure note that answers PT-WRITER, stranded since 2026-08-10 20:06. The auto-land Action solved stranded work for worktree-* branches and left main - the one branch a human commits to - with no mechanism. Cheapest fix: have the existing watchdog report the shared checkout's divergence to Discord."
   },
-
   "MA21": {
     "title": "Conventions that exist only in prose and could be enforced by a check",
     "mandate": "5 - process",
     "severity": "MEDIUM",
-    "modifies": ["tests/", "scripts/build_ledger.py", ".github/workflows/"],
+    "modifies": [
+      "tests/",
+      "scripts/build_ledger.py",
+      ".github/workflows/"
+    ],
     "creates": [],
-    "depends_on": ["MA13"],
+    "depends_on": [
+      "MA13"
+    ],
     "readonly": true,
-    "files": ["valuation/edge/research_log.py", "BACKTEST_RESULTS.json", "scripts/build_ledger.py", "valuation/edge/live_replay.py"],
-    "registers": ["RUN_RULES", "VALQUO_LEDGER.md contract rules 1-3", "M4"],
+    "files": [
+      "valuation/edge/research_log.py",
+      "BACKTEST_RESULTS.json",
+      "scripts/build_ledger.py",
+      "valuation/edge/live_replay.py"
+    ],
+    "registers": [
+      "RUN_RULES",
+      "VALQUO_LEDGER.md contract rules 1-3",
+      "M4"
+    ],
     "evidence_needed": "none",
     "verification": "Five conventions carried by prose alone: (1) N may only change deliberately -> pin by_domain; (2) the canonical artifact must not go stale -> compare its n_trials against research_log.detail() in CI; (3) verdict vocabulary -> build_ledger.py already knows it, make an unknown verdict a warning; (4) a landed item must have a ledger row -> diff ids named in commit subjects against the ledger; (5) the live composite must equal the backtested one -> M4's harness exists and nothing schedules it.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "Recurring manual steps that deserve automation, by frequency: running sync.bat (MA20); re-reading by_domain after a merge (the record shows this error committed WITH the warning in view); refreshing BACKTEST_RESULTS.json after N moves (done by hand twice in the last week)."
   },
-
   "MA22": {
     "title": "CLAUDE.md has outgrown its job and now contains the failure class it exists to prevent",
     "mandate": "5 - process",
     "severity": "MEDIUM",
-    "modifies": ["CLAUDE.md", "RUN_RULES.md"],
+    "modifies": [
+      "CLAUDE.md",
+      "RUN_RULES.md"
+    ],
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["CLAUDE.md:26", "CLAUDE.md:3792", "CLAUDE.md:3656-3661", "RUN_RULES.md"],
+    "files": [
+      "CLAUDE.md:26",
+      "CLAUDE.md:3792",
+      "CLAUDE.md:3656-3661",
+      "RUN_RULES.md"
+    ],
     "registers": [],
     "evidence_needed": "none - measured",
     "verification": "344 KB / 3,813 lines, prepended to every session. Line 3792 says the Action 'runs all 24 suites'; line 26 of the same file corrects the suite count to 62; measured today it is 74. Its task list is self-labelled 'the least trustworthy section in the file'.",
@@ -392,109 +582,182 @@
     "kill_condition": "n/a",
     "note": "Not a rewrite: the findings record is load-bearing and should not be trimmed. Move the OPERATING instructions (how to run, hard rules, git handoff, tool routing) to the top of RUN_RULES.md, which is short and read first. Delete the task list in favour of a pointer to VALQUO_LEDGER.md, which is the contractual answer to 'where do we stand'."
   },
-
   "MA23": {
     "title": "valuation/edge/ mixes the shipped engine with a dozen finished one-shot studies",
     "mandate": "8 - simplification",
     "severity": "MEDIUM",
     "modifies": [],
-    "creates": ["studies/ (a package boundary)"],
+    "creates": [
+      "studies/ (a package boundary)"
+    ],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/edge/ev_multiples_study.py", "valuation/edge/convex_overlay.py", "valuation/edge/earnings_surface.py", "valuation/edge/kelly.py", "valuation/edge/loo_holdout.py", "valuation/edge/ml_combiner.py", "valuation/edge/surface_stock.py", "valuation/edge/live_replay.py", "valuation/edge/bucket_floor.py", "valuation/edge/portfolio_capacity.py", "valuation/edge/param_search.py", "valuation/research/lazy_prices_ic.py"],
-    "registers": ["RUN_RULES rule 9 (do not destroy the ability to re-derive)"],
+    "files": [
+      "valuation/edge/ev_multiples_study.py",
+      "valuation/edge/convex_overlay.py",
+      "valuation/edge/earnings_surface.py",
+      "valuation/edge/kelly.py",
+      "valuation/edge/loo_holdout.py",
+      "valuation/edge/ml_combiner.py",
+      "valuation/edge/surface_stock.py",
+      "valuation/edge/live_replay.py",
+      "valuation/edge/bucket_floor.py",
+      "valuation/edge/portfolio_capacity.py",
+      "valuation/edge/param_search.py",
+      "valuation/research/lazy_prices_ic.py"
+    ],
+    "registers": [
+      "RUN_RULES rule 9 (do not destroy the ability to re-derive)"
+    ],
     "evidence_needed": "none - measured by scanning every module under valuation/ for references anywhere in the tree",
     "verification": "MEASURED: valuation/edge/ev_multiples_study.py (425 lines) has ZERO importers - no module, script, test or .bat. tests/test_ev_multiples.py sounds like its pin but imports fundamental_panel and factors and never mentions it. Eleven more modules are referenced only by their own scripts/ runner and their own test.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "NOT a deletion proposal. Deleting a study's harness destroys the ability to re-derive its verdict. The proposal is a BOUNDARY. Flagged as looks-dead-but-load-bearing, do not tidy: deprecated_options_exit.py (B16's quarantine, and its test is what proves the quarantine holds); options-bot/.gitignore:34 !handoff/*.zip (recovered C6's 'only copy is on the decommissioned box' sources); run_backtest(panel=None) (B23's mechanism, inert at default); NO_DATA_RETRY_WORKERS in screen.py:48 (unused, retained WITH the measurement that says why it must stay off - deleting it deletes the reason)."
   },
-
   "MA24": {
     "title": "Wrong rejections: three 'the design could not have caught it' verdicts, all already labelled - and S19 needs a NEW DESIGN, not a re-run",
     "mandate": "1 - trade logic",
     "severity": "MEDIUM",
     "modifies": [],
-    "creates": ["PREREG_monthly_panel.md"],
+    "creates": [
+      "PREREG_monthly_panel.md"
+    ],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/research/lazy_prices_ic.py", "valuation/edge/fundamental_panel.py (build_fundamental_panel)"],
-    "registers": ["S19", "V6-B M2", "O10/O18 C2", "SELRULE", "RUN_RULES A6"],
+    "files": [
+      "valuation/research/lazy_prices_ic.py",
+      "valuation/edge/fundamental_panel.py (build_fundamental_panel)"
+    ],
+    "registers": [
+      "S19",
+      "V6-B M2",
+      "O10/O18 C2",
+      "SELRULE",
+      "RUN_RULES A6"
+    ],
     "evidence_needed": "A monthly theme panel and its MDE, computed and pre-registered BEFORE any arm is scored.",
     "verification": "S19's minimum detectable incremental IC at |t|=2 is +0.020549 against an original effect of +0.0096; the observed +0.0122 sits below its own detection threshold, and the project wrote that down. The binding constraint is panel FREQUENCY: MD&A scores start 2016-08 against a panel starting 2009-01-15 (41 of 69 dates, all late), and the original study tested 111 MONTHLY dates against a QUARTERLY panel.",
     "trial_cost": "2 arms, plus the rebuild's own cost (a panel build is ~20 min; a monthly panel is ~3x the dates)",
     "kill_condition": "If the monthly panel's own MDE still exceeds +0.0096 on the 418+195 name corpus, the question is unanswerable on data we own and should be CLOSED PERMANENTLY rather than re-opened a third time.",
     "note": "EXPLICIT RECOMMENDATION AGAINST re-opening S21 (missed by 17bps) and S12-A2 (18bps): no new evidence and no new design exists for either, SELRULE already settled the meta-question NOT ANSWERABLE before any run, and a re-run on the same panel is the p-hacking this commission forbids. Recording them NULL by the pre-committed rule is correct and final. Unlocks MA33."
   },
-
   "MA25": {
     "title": "'There is no liquidity measure on this path' is true of the panel and false of the project",
     "mandate": "1 - trade logic",
     "severity": "MEDIUM",
-    "modifies": ["VALQUO_LEDGER.md (B13 and S7 notes)"],
+    "modifies": [
+      "VALQUO_LEDGER.md (B13 and S7 notes)"
+    ],
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["scripts/capacity.py:9-17,69-88", "data/bulk/prepared/bars/*.pkl", "valuation/edge/fundamental_panel.py:1488-1492 (prefilter_note)"],
-    "registers": ["B13", "S7", "P1", "P2"],
+    "files": [
+      "scripts/capacity.py:9-17,69-88",
+      "data/bulk/prepared/bars/*.pkl",
+      "valuation/edge/fundamental_panel.py:1488-1492 (prefilter_note)"
+    ],
+    "registers": [
+      "B13",
+      "S7",
+      "P1",
+      "P2"
+    ],
     "evidence_needed": "none - read from source",
     "verification": "bars/*.pkl carries a `volume` column and adv_from_bars computes dollar ADV as raw_close * volume. capacity.py's own header measures the coverage honestly: 290 large-cap names, ~3.5% of the top-25 book's 918 distinct names, plus a calibrated market-cap proxy for the rest.",
     "trial_cost": "0 for the record correction; 2 arms if the interaction is ever run",
     "kill_condition": "A register must pre-commit an MDE; if the covered subsample cannot detect the effect, do not run it.",
     "note": "S7 was RIGHT to refuse a proxy - a stand-in is a different hypothesis wearing the same name - and that verdict is not disputed. THE DELIVERABLE IS THE RECORD CORRECTION, NOT A TEST: a future session reading B13/S7 will conclude the data exists nowhere and stop. RECOMMENDATION IS PROBABLY NOT TO RUN IT: the covered 290 are large caps and a liquidity effect is weakest exactly there (V6-OPT measured its covered population at 8.26x the median market cap and its effect at a quarter of the headline). If ever run, use the covered-subsample protocol S18/U2/U3/V6-OPT established four times, and quote the MDE."
   },
-
   "MA26": {
     "title": "Untested combinations: measured quantities that sit unused",
     "mandate": "1 - trade logic",
     "severity": "MEDIUM",
     "modifies": [],
-    "creates": ["PREREG_accounting_flags_disclosure.md", "PREREG_hold_floor.md"],
+    "creates": [
+      "PREREG_accounting_flags_disclosure.md",
+      "PREREG_hold_floor.md"
+    ],
     "depends_on": [],
     "readonly": true,
-    "files": ["scripts/s10_downside_exclusion.py", "valuation/edge/fundamental_panel.py (_band_select)", "valuation/web/withhold.py"],
-    "registers": ["S10-ACCT", "S10", "S22", "S14", "S14-WIDTH", "V6", "S23", "PEAD/U2 incremental-IC control template"],
+    "files": [
+      "scripts/s10_downside_exclusion.py",
+      "valuation/edge/fundamental_panel.py (_band_select)",
+      "valuation/web/withhold.py"
+    ],
+    "registers": [
+      "S10-ACCT",
+      "S10",
+      "S22",
+      "S14",
+      "S14-WIDTH",
+      "V6",
+      "S23",
+      "PEAD/U2 incremental-IC control template"
+    ],
     "evidence_needed": "Per arm below.",
     "verification": "ARM A (accounting flags as name-level risk): S10-ACCT measured excluded names crashing at 3.04x the rate of names kept (2.660% vs 0.874%; 174/6,542 vs 939/107,403) and failed ONLY the portfolio drawdown leg, because S10 had already shown this book's max drawdown is decided by ONE market-wide quarter (COVID 2020Q1) that no name-level screen can move. ARM B (explicit hold-period floor): S22 measured alpha still accruing at 2 years while KM median top-decile tenure is ONE rebalance; S14 harvests part of that via a rank band and HALF its gain is a signal effect; an explicit minimum hold has never been tested separately. ARM C (withholding state as information): NOT TESTABLE point-in-time - V6 established live sub-scores are not computable historically because quality needs a WACC and S23 measured that path fetching LIVE Yahoo prices to value 1999. ARM D (pead_car as a conditioner): DO NOT RE-OPEN - the reject rests on two controls stronger than the IC and a no-earnings-data control beat it.",
     "trial_cost": "A: 1-2 · B: 2 · C: 0 (unbuildable) · D: 0 (closed)",
     "kill_condition": "A: crash-rate gap fails to replicate in both halves, or the flag is a market-cap sort. B: fails either half on top_decile_alpha against the 1.95pp calibrated margin, or rank correlation > 0.97 against the width-0.30 book (i.e. it is S14 renamed).",
     "note": "Arm A's gate is the CRASH-RATE replication, not alpha - it is a disclosure, not a screen. Arm C's deliverable is naming the blocker."
   },
-
   "MA27": {
     "title": "Equation candidate: L2 (ridge) shrinkage on the 53-signal cross-section, and why it is not the rejected schemes in a costume",
     "mandate": "1 - trade logic",
     "severity": "MEDIUM",
     "modifies": [],
-    "creates": ["PREREG_l2_signal_shrinkage.md"],
+    "creates": [
+      "PREREG_l2_signal_shrinkage.md"
+    ],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/edge/fundamental_panel.py (per_signal, _weight_schemes)", "data/factors (JKP, per D3)"],
-    "registers": ["S5", "MLCOMB/MLPREREG", "S16", "X8", "D3", "X7 (the 1.95pp margin)"],
+    "files": [
+      "valuation/edge/fundamental_panel.py (per_signal, _weight_schemes)",
+      "data/factors (JKP, per D3)"
+    ],
+    "registers": [
+      "S5",
+      "MLCOMB/MLPREREG",
+      "S16",
+      "X8",
+      "D3",
+      "X7 (the 1.95pp margin)"
+    ],
     "evidence_needed": "gamma selected on a strictly prior window and never on the scoring window; a C-control that the arm is not the incumbent (rank correlation).",
     "verification": "CONSTRUCTION, EXACTLY: over the 53 signals already in per_signal (not the 7 theme z-scores), form the within-date standardised Z, the second-moment matrix Sigma of signal-portfolio returns and the mean vector mu; estimate b = (Sigma + gamma*I)^-1 mu; score as Z*b. NOT S5 (James-Stein on 7 theme MEAN ICs - no Sigma in it). NOT MLCOMB (a non-linear interaction search over 7 themes that REVERSED out of sample; this is linear, convex, one hyper-parameter). NOT the eight _weight_schemes (risk-parity and max-ir-decorr do use Sigma, but at the THEME level, after the theme mean has destroyed the within-theme covariance structure - S16 proved that layer collapses information, since splitting one input into two is a rank identity there).",
     "trial_cost": "1 if a single pre-committed gamma rule; 2 for both decide/measure directions, which the shipped gate requires. N 224 -> 226 moves the HLZ hurdle 3.28988 -> 3.29277, i.e. 0.003 of a t.",
     "kill_condition": "REJECTED if top_decile_alpha fails the 1.95pp calibrated margin in EITHER half, or if within-date rank correlation against the deployed composite exceeds 0.97 (S24 landed at 0.9907, S15 at 0.9879). A gamma chosen anywhere on the scoring window VOIDS the arm outright.",
     "note": "Prior stated in advance as this project requires: I expect REJECTED at ~75/25. Everything in the weighting family has failed by margins up to 79x and flat 1/7 has never been beaten. The reason to run it is that it is the ONE member of the family whose mechanism - a covariance term at the SIGNAL layer - has never been tested, and S16 proved that layer is where information is destroyed. External support: a 2025 replication applied exactly this estimator to JKP Global Factor Data (which X8 already used and D3 records as present) and found the dense ridge arm's out-of-sample R2 comparable to the original."
   },
-
   "MA28": {
     "title": "HYPOTHESIS - 'Accounting red flags': a name-level risk card",
     "mandate": "3 - new features",
     "severity": "HYPOTHESIS",
     "modifies": [],
-    "creates": ["valuation/web/flag_posture.py", "PREREG_accounting_flags_disclosure.md"],
-    "depends_on": ["MA26"],
+    "creates": [
+      "valuation/web/flag_posture.py",
+      "PREREG_accounting_flags_disclosure.md"
+    ],
+    "depends_on": [
+      "MA26"
+    ],
     "readonly": true,
-    "files": ["scripts/s10_downside_exclusion.py", "valuation/web/dip_posture.py (the template)"],
-    "registers": ["S10-ACCT", "V6-B", "V6B-PRODUCT", "V3 (no per-name precision)"],
+    "files": [
+      "scripts/s10_downside_exclusion.py",
+      "valuation/web/dip_posture.py (the template)"
+    ],
+    "registers": [
+      "S10-ACCT",
+      "V6-B",
+      "V6B-PRODUCT",
+      "V3 (no per-name precision)"
+    ],
     "evidence_needed": "Both-halves replication of the CRASH-RATE gap; a market-cap control (U7/S10's failure mode); a BANNED phrase tuple asserted against the RENDERED payload, not the source.",
     "verification": "Pieces are measured and on disk: Beneish M (>-1.78), Altman Z (<1.81), top-decile external financing - all published thresholds, computed from SF1, joined without a panel rebuild. The 3.04x crash-rate ratio is measured on 113,945 rows over 69 quarters.",
     "trial_cost": "1-2",
     "kill_condition": "The crash-rate gap fails to replicate in both halves, or C-control shows the flag is a market-cap sort.",
     "note": "The copy may state a BASE RATE in a specific named bad outcome, never 'avoid these names' - S10-ACCT was REJECTED and its valuation sibling found the OPPOSITE sign. Template is proven: V6B-PRODUCT shipped exactly this shape (risk claim with numbers, return claim held at NULL) on 2026-08-13."
   },
-
   "MA29": {
     "title": "HYPOTHESIS - 'What the model cannot value': a transparency surface",
     "mandate": "3 - new features",
@@ -503,15 +766,20 @@
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/web/withhold.py", "valuation/screener/screen.py (record_refusal, health.refusal_screen)"],
-    "registers": ["LA1", "V3 (pinned copy)"],
+    "files": [
+      "valuation/web/withhold.py",
+      "valuation/screener/screen.py (record_refusal, health.refusal_screen)"
+    ],
+    "registers": [
+      "LA1",
+      "V3 (pinned copy)"
+    ],
     "evidence_needed": "None for the count - it is a fact about the run, not a hypothesis. A V3-style pinned-copy module for the wording.",
     "verification": "All pieces shipped and already computed on every scan: withhold.py's band, record_refusal, the fair_value_withheld flag.",
     "trial_cost": "0",
     "kill_condition": "n/a",
     "note": "This is the cheapest available fix for the structural weakness audit #2 named - correct in-process, blind at the output boundary. LA1 was BLOCKING precisely because a refusal that fails to record is invisible and the peer estimator then published +204% on the site's number-one name. A surface that displays the refusal count makes that failure mode LOUD, with users as the guard. Copy risk runs the opposite way from the usual: a refusal means the MODEL failed, not the name."
   },
-
   "MA30": {
     "title": "HYPOTHESIS - Tenure on the hot list",
     "mandate": "3 - new features",
@@ -520,32 +788,46 @@
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["valuation/screener/index_track.py", "valuation/edge/fundamental_panel.py (_band_select)"],
-    "registers": ["S22", "S14-WIDTH", "V3"],
+    "files": [
+      "valuation/screener/index_track.py",
+      "valuation/edge/fundamental_panel.py (_band_select)"
+    ],
+    "registers": [
+      "S22",
+      "S14-WIDTH",
+      "V3"
+    ],
     "evidence_needed": "None for display.",
     "verification": "Measured pieces: S22's Kaplan-Meier top-decile tenure (median ONE rebalance) and S14-WIDTH's incumbent share (0.359 -> 0.701 at width 0.30).",
     "trial_cost": "0 for display",
     "kill_condition": "n/a",
     "note": "Discloses churn, which is the most misleading thing about a ranked list refreshed daily. MUST NOT claim long-tenured names are better - S22 measured a term structure of the SIGNAL, not of tenure, and no arm has tested tenure as a predictor. A REGISTER IS REQUIRED THE MOMENT ANYONE SORTS OR FILTERS BY IT, because that converts a disclosure into a screen."
   },
-
   "MA31": {
     "title": "Cremers-Weinbaum matched-strike put-call parity deviation - the largest un-run item either prior audit named",
     "mandate": "4 - external research / 1 - trade logic",
     "severity": "MEDIUM",
     "modifies": [],
-    "creates": ["PREREG_u2_parity.md"],
+    "creates": [
+      "PREREG_u2_parity.md"
+    ],
     "depends_on": [],
     "readonly": true,
-    "files": ["data/options (raw chains)", "valuation/edge/surface_stock.py"],
-    "registers": ["U2 (closed PARTIAL for exactly this reason)", "V6-OPT (the blocker it removes)", "X7 2.71 theme-IC bar"],
+    "files": [
+      "data/options (raw chains)",
+      "valuation/edge/surface_stock.py"
+    ],
+    "registers": [
+      "U2 (closed PARTIAL for exactly this reason)",
+      "V6-OPT (the blocker it removes)",
+      "X7 2.71 theme-IC bar"
+    ],
     "evidence_needed": "Matched call/put pairs on identical strike and expiry from the raw chains; a strictly-before join to the rebalance date; the covered-subsample split.",
     "verification": "U2 declined it in writing: it is 'Cremers-Weinbaum's ACTUAL measure and the largest effect the section cites (51 bps/week)', it needs matched pairs from the raw chains, and the task forbade new features - so U2 closed PARTIAL rather than DONE. V6-OPT has since measured the cache at 1,288,750 puts against 1,288,751 calls with ZERO tickers lacking puts, so the blocker is gone.",
     "trial_cost": "1-2",
     "kill_condition": "Fails X7's calibrated 2.71 theme-IC bar in either half of the covered subsample; or the incremental-IC-vs-incumbents control (the PEAD/U2 template) shows it is a repackaged incumbent.",
     "note": "Constraint: the derived layer spans 2016-01 -> 2025-12, so 29 of 69 dates carry ZERO coverage and all are early - the covered-subsample protocol binds (S18/U2/U3/V6-OPT, four precedents). A pass on 20-date halves is not the same object as a pass on 34-date halves."
   },
-
   "MA32": {
     "title": "Open-vs-close decomposition of options volume (Ge-Lin-Pearson) - buildable from open-interest change",
     "mandate": "4 - external research / 1 - trade logic",
@@ -554,42 +836,90 @@
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["data/options (volume + open interest)", "scripts/o14_tickflow_signals.py"],
-    "registers": ["O14", "B4 (the -1 OI sentinel)", "MA25"],
+    "files": [
+      "data/options (volume + open interest)",
+      "scripts/o14_tickflow_signals.py"
+    ],
+    "registers": [
+      "O14",
+      "B4 (the -1 OI sentinel)",
+      "MA25"
+    ],
     "evidence_needed": "Daily open-interest change per contract, signed against volume.",
     "verification": "O14 tested signed_volume, pc_flow_imbalance, block_share, unusual_volume and sweep_share - none is the O/S ratio, and none decomposes opening from closing interest. The published result concentrates the effect in CALL PURCHASES THAT OPEN NEW POSITIONS, which needs only option volume and OI change - both in data/options. The full O/S ratio additionally needs STOCK volume, which per MA25 exists for only ~290 names.",
     "trial_cost": "1-2",
     "kill_condition": "Fails its own within-date permutation p95 in either half; or fails the incremental-IC control against the momentum inputs (PEAD's template - 89% orthogonality that predicts nothing was what killed pead_car).",
     "note": "Mind B4: the -1 open-interest sentinel reached the backtest untreated once already. Any OI-difference feature must handle it explicitly or it will manufacture flow out of a sentinel."
   },
-
   "MA33": {
     "title": "The monthly theme panel - the rebuild that unlocks the whole text/LLM class at once",
     "mandate": "4 - external research / 1 - trade logic",
     "severity": "MEDIUM",
     "modifies": [],
-    "creates": ["PREREG_monthly_panel.md"],
-    "depends_on": ["MA24"],
+    "creates": [
+      "PREREG_monthly_panel.md"
+    ],
+    "depends_on": [
+      "MA24"
+    ],
     "readonly": true,
-    "files": ["valuation/edge/fundamental_panel.py (build_fundamental_panel)", "valuation/research/lazy_prices.py", "valuation/research/lazy_prices_ic.py"],
-    "registers": ["S19", "X7 (floors are panel-specific and would need re-deriving)", "B6"],
+    "files": [
+      "valuation/edge/fundamental_panel.py (build_fundamental_panel)",
+      "valuation/research/lazy_prices.py",
+      "valuation/research/lazy_prices_ic.py"
+    ],
+    "registers": [
+      "S19",
+      "X7 (floors are panel-specific and would need re-deriving)",
+      "B6"
+    ],
     "evidence_needed": "A monthly panel, its own MDE, and a re-derivation of any calibrated floor quoted against it.",
     "verification": "The 2024-2026 LLM-signal literature is large but weak and unstandardised - the surveys themselves say signals are 'not yet widely standardized or consistently benchmarked' and almost nothing is point-in-time clean. The project owns a real MD&A corpus (195 + 418 names, 15,893 filing pairs) and an ANTHROPIC_API_KEY. What it lacks is a MONTHLY panel, and S19 proved a quarterly one cannot detect an effect of this size.",
     "trial_cost": "the rebuild itself charges nothing; each arm scored on it charges normally",
     "kill_condition": "If the monthly panel's MDE still exceeds the effect sizes in the literature this class reports, close the class rather than testing arms against it.",
     "note": "CAUTION: X7's floors are calibrated for THIS panel/universe/69 dates. A monthly panel is a different object and every calibrated bar quoted against it would be an EXTRAPOLATION - the error U2 avoided by declining to quote 2.2837 on a covered subsample. Budget the re-calibration as part of the rebuild, not after it."
   },
-
+  "MA35": {
+    "title": "Git corrupts every PDF in this repository on checkout, and it has already done it",
+    "mandate": "2 - code",
+    "severity": "MEDIUM",
+    "modifies": [
+      ".gitattributes"
+    ],
+    "creates": [],
+    "depends_on": [],
+    "readonly": false,
+    "files": [
+      ".gitattributes",
+      "VALQUO_LIVE_AUDIT.pdf",
+      "Valquo_Edge_Audit_and_Test_Catalogue.pdf"
+    ],
+    "registers": [],
+    "evidence_needed": "none - measured this audit",
+    "verification": "MEASURED. .gitattributes deliberately declines `* text=auto` and sets NO binary rule for anything, so under core.autocrlf=true every file falls back to git's NUL-byte heuristic. reportlab output has no NUL bytes. VALQUO_LIVE_AUDIT.pdf: working copy 48,180 bytes with 308 CRLF sequences, pypdf reports 'incorrect startxref pointer(1)' and recovers by rebuilding. Valquo_Edge_Audit_and_Test_Catalogue.pdf is clean ONLY because at 7.8 MB it contains NUL bytes by accident and git guessed binary. After adding `*.pdf binary` and re-checking out: 47,872 bytes, 0 CRLF, no warning.",
+    "trial_cost": "0",
+    "kill_condition": "n/a",
+    "note": "THE ONE DECLARED SCOPE DEVIATION OF THIS AUDIT: fixed in place with a single line, because deliverable #3 was otherwise knowingly broken on arrival, and the same line repairs audit #2's deliverable. Deliberately NOT `* text=auto`, which .gitattributes documents as the change that would renormalise the tree and conflict with every open branch. Same class as B12 and S25: behaviour that depends on an accident of the data rather than a stated rule, so it works until it does not and nothing says which case you are in."
+  },
   "MA34": {
     "title": "Write the post-publication decay prior into the contract's expectations, at zero trial cost",
     "mandate": "4 - external research",
     "severity": "MEDIUM",
-    "modifies": ["PAPER_TRACK_CONTRACT.md"],
+    "modifies": [
+      "PAPER_TRACK_CONTRACT.md"
+    ],
     "creates": [],
     "depends_on": [],
     "readonly": true,
-    "files": ["PAPER_TRACK_CONTRACT.md", "valuation/edge/track_meter.py"],
-    "registers": ["R1", "PT-CONTRACT", "PT-METER"],
+    "files": [
+      "PAPER_TRACK_CONTRACT.md",
+      "valuation/edge/track_meter.py"
+    ],
+    "registers": [
+      "R1",
+      "PT-CONTRACT",
+      "PT-METER"
+    ],
     "evidence_needed": "None - it is an expectation, written before the window accrues.",
     "verification": "McLean-Pontiff and successors find post-publication premia decay ~one-third as institutions trade them. R1 established that size, quality and momentum ARE the standard premia here (SMB +0.39 t 3.84, RMW +0.30 t 4.49, UMD +0.18 t 3.49) while value and capital_discipline are NOT (HML t 1.08, CMA t 1.08). So a decay prior applies to PART of the composite and not the rest.",
     "trial_cost": "0",
