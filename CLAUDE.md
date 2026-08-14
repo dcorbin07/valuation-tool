@@ -48,6 +48,7 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+<<<<<<< HEAD
 - **SELLING A 25-DELTA PUT IS SELLING A 25% ASSIGNMENT PROBABILITY *BY CONSTRUCTION*, SO THE
   STRIKE HAS ALREADY SPENT THE RISK EDGE — THE CSP ON HEALTHY DIPS IS REJECTED BY THE ONE CONTROL
   THAT MATTERED, AND THE `U6` "100% CALLS" BLOCKER IS RETRACTED (2026-08-13, `V6-OPT`).**
@@ -115,9 +116,71 @@ the project's memory and the old versions had been repeated for months.
     are severe (**−55.52%** for the arm against **−82.56%** for the stock control at cap 10).
   * **NOBODY MAY READ THIS AS EVIDENCE THAT CASH-SECURED PUTS DO NOT WORK.** The register declared
     the asymmetry in advance because the covered sample holds **one** crash, so a decisive REJECT
-    was available and a decisive ADOPT was not. **Options `N` 287 → 292; equity untouched at 212;
+    was available and a decisive ADOPT was not. **Options `N` 287 → 292; equity untouched BY THIS ITEM (218 after the merge);
     72 suites, 0 failures.** Expectations **4 right, 3 wrong**.
     `data/free_analysis/V6OPT_STAGE1.json`, `V6OPT_STAGE2.json`; `HANDOFF_optionsbot.md` §57.
+=======
+- **THE 800-NAME-ERA REJECTIONS ARE RE-RUN AT LAST: SIX NULLS - AND A LIVE "ALL WRONG-SIGNED"
+  CLAIM IS REFUTED, EVERY SIGN HAVING FLIPPED POSITIVE ON THE CORRECTED UNIVERSE (2026-08-13,
+  `R5`+`R6`).** `PREREG_r5_r6_alphabetical_rerun.md` committed **ALONE at `4b9706b`**, a strict
+  ancestor of every measurement commit. **SCORES NOTHING and is NOT a vintage event** - C1 gates on
+  the composite returning BIT-IDENTICAL and it did.
+  * **ALL SIX NULL, AND NOT ONE CLEARS EVEN THE RETIRED 2.0 CONVENTION IN ANY WINDOW.** R5:
+    `neg_ret_1m` median IC **+0.00715** (*t* +0.4546), `neg_max_ret` **+0.02634** (+1.1510),
+    `neg_idio_vol` **+0.05452** (+1.2105). R6 on 50 covered dates: `sm_conviction` **+0.01597**
+    (+1.2786), `sm_holders` **+0.03285** (**+1.6111**), `sm_avg_position` **+0.03240** (+1.3296).
+    Bars are each signal's **own** within-date permutation p95 in both halves. **Coverage is
+    comfortable everywhere** (R5 99.5-100%, R6 73.8%, floor 30%), so **no arm is a power failure.**
+  * **THE HEADLINE IS NOT THE VERDICT: THE LIVE "ALL WRONG-SIGNED" CLAIM IS REFUTED.**
+    `settings.py:222-224` and `factors.py:294-296` both recorded the three anomalies at median IC
+    **-0.014 / -0.072 / -0.025**, measured on **400 names over 110 rebalances** - **VOID TWICE**,
+    under **B12** (alphabetical slice) and under **B6** (the inverted-universe panel). On the
+    corrected 2,531-name / 69-date panel **ALL THREE SIGNS ARE POSITIVE**. They remain rejected
+    **for being WEAK, not for being BACKWARDS** - and a live comment had been asserting the
+    opposite as current evidence. `neg_idio_vol` is the largest at +0.05452 and **+0.09658 on the
+    late half** - a big IC by this panel's standards - carried on a *t* of only 1.21 because the
+    early half is +0.1726. **Large and unstable, not strong.**
+  * **R6's MECHANISM IS A MARKET-CAP SORT, AND IT IS THE REASON RATHER THAN A CAVEAT.** C6 puts the
+    three conviction signals at **-0.815, -0.855 and -0.854** against the `size` theme and at
+    **+0.777 to +0.833** against each other - so they are close to **ONE** signal and that signal is
+    largely market capitalisation, which the panel already scores. **`sm_holders` is the near miss**:
+    it clears its own p95 on the full sample (**+1.6111 vs 1.5285**, the only cell in the register to
+    clear anything) and then reads **+0.0118** on the early half. **THE SF3 CONVICTION FAMILY IS NOW
+    CLOSED** - five of five members measured on the corrected universe with none clearing.
+  * **SIX ARMS ARE NOT SIX INDEPENDENT TESTS, AND THE CAVEAT MUST TRAVEL WITH THE COUNT.** By C6's
+    own correlations the effective number is **nearer three** - R6's three inter-correlate 0.78-0.83
+    and R5's two volatility cousins 0.698. **The SELRULE lesson.** The charge of six is paid in full
+    anyway, because understating `N` overstates significance.
+  * **THE LIVE `sm_breadth` SWAP SURVIVES ITS OWN VOIDED JUSTIFICATION - and this was the most
+    consequential question in the register.** `factors.py:314-316` replaced `inst_breadth` with
+    `sm_breadth` in the **LIVE** institutional theme mean on the strength of *"IC t +2.37 vs +1.48
+    on 800 large caps"*, a comparison B12 voided: **a live scoring decision resting on a voided
+    number.** Re-measured head to head at near-identical coverage (0.7169 vs 0.7185):
+    **`sm_breadth` +1.8481 against `inst_breadth` +1.2371 - THE ORDERING HOLDS**, though the gap
+    narrowed from 0.89 to **0.61** of a *t* and **neither clears 2.0**. **AND A REFINEMENT OF THE
+    LEDGER'S OWN CLAIM: the +1.73 it cites for `sm_breadth` was dated 2026-08-01, THREE DAYS BEFORE
+    the B6/B7/B13 corrections landed**, so it was never a corrected-panel figure either and
+    **+1.8481 is the first.**
+  * **BOTH INPUTS THE LIVE `low_risk` THEME DOES USE ARE WEAKER THAN THE TWO IT REJECTS:**
+    `neg_vol` **+0.8873** and `neg_beta` **-0.3937**, against `neg_max_ret` +1.1510 and
+    `neg_idio_vol` +1.2105. **The theme carries ZERO weight in the live composite**, which bounds
+    the consequence entirely - **but anyone un-zeroing it should read those four numbers first.**
+  * **REGISTRATION IS MEASUREMENT, NOT SCORING, AND THAT WAS GATED RATHER THAN ASSERTED.** The six
+    were added to `NUMBER_THEME` (the S2 `cash_op_prof` pattern, `NUMBERS_ALL` 47 -> 53) so they
+    acquire a `z_` column, a coverage entry and a per-signal IC row. Every theme mean is an
+    **explicit column list**, checked in the code first; **C1 then tested EXACT equality** on
+    `long_short_tstat` **2.8360640685320595** and three more headlines. **A tolerance would have let
+    a real scoring change through.**
+  * **FOUR STALE COMMENT SITES CORRECTED IN PLACE, AND THE DECISIONS UNTOUCHED.** The `sm_breadth`
+    swap is **ROUTED, not made** - changing a theme input is a construction change and a vintage
+    event. **C7 NOT TRIGGERED and reported as not-run rather than skipped** (neither volatility
+    cousin replicated, so R5's own earlier size-interaction clause never fired).
+  * **Equity `N` 212 -> 218**, haircut 3.2731 -> 3.2816, **under 0.009 of a *t*** - the ledger's own
+    "trial cost is now negligible" argument confirmed at today's `N`. Expectations **6 right, 2
+    wrong**; the informative miss is that I priced a better-than-even chance the "wrong-signed"
+    finding would survive the universe correction, and **all three signs flipped**.
+    `data/free_analysis/R5_R6_ALPHABETICAL.json`; `HANDOFF_edge_audit.md` R5+R6 sections 0-9.
+>>>>>>> origin/main
 - **THE DIP BRANCH LIVES: A HEALTHY 20% DRAWDOWN FALLS A FURTHER 20% A QUARTER LESS OFTEN, AND IT
   IS NOT A SIZE SORT - BUT THE WORD "DIED" IS NOT EARNED (2026-08-13, `V6-B`).**
   `PREREG_v6b_dip_survival.md` committed **ALONE at `dc5ae98`**, a strict ancestor of every

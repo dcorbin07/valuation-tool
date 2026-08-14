@@ -77,8 +77,7 @@ pipeline deterministic).
 asymmetry in advance because the covered sample holds **one** crash, so a decisive REJECT was
 available and a decisive ADOPT was not.
 
-**Cost: options `N` 287 -> 292** (one for the stage-1 gate, four for the stage-2 arms); **equity
-untouched at 212**, infra 11, zero malformed log rows; **72 suites, 0 failures**. Expectations
+**Cost: options `N` 287 -> 292** (one for the stage-1 gate, four for the stage-2 arms); **equity untouched BY THIS ITEM — it reads 218 after merging concurrent lanes, so an equity figure must be RE-READ from `by_domain` after every merge**, infra 11, zero malformed log rows; **72 suites, 0 failures**. Expectations
 **4 right, 3 wrong**.
 
 **RECOMMENDED NEXT STEP: the moneyness-targeted CSP, registered on its own.** It is the single
@@ -89,6 +88,41 @@ blocker, because there are no options there.
 
 Full write-up: `HANDOFF_optionsbot.md` section 57. Artifacts:
 `data/free_analysis/V6OPT_PREMISE.json`, `V6OPT_STAGE1.json`, `V6OPT_STAGE2.json`.
+## edge lane, R5+R6 (2026-08-13) - six nulls, and a live "wrong-signed" claim REFUTED
+
+`PREREG_r5_r6_alphabetical_rerun.md` committed ALONE at `4b9706b`. **SCORES NOTHING and is NOT a
+vintage event - C1 gates on the composite coming back BIT-IDENTICAL, and it did.**
+
+- **ALL SIX NULL**, and **not one clears even the retired 2.0 convention in any window**.
+  Coverage is comfortable everywhere (R5 99.5-100%, R6 73.8%, floor 30%), so no arm is a power
+  failure.
+- **THE HEADLINE IS NOT THE VERDICT: the live "all wrong-signed" claim is REFUTED.**
+  `settings.py` and `factors.py` both recorded the three anomalies at median IC -0.014 /
+  -0.072 / -0.025 on **400 names / 110 rebalances** - void TWICE, under B12 and B6. On the
+  corrected panel **all three signs are POSITIVE** (+0.00715 / +0.02634 / +0.05452). They are
+  still rejected - **for being WEAK, not for being BACKWARDS**, which is a live comment
+  asserting the opposite as current evidence.
+- **R6's mechanism is a SIZE SORT**: the three conviction signals correlate with the `size`
+  theme at **-0.815 / -0.855 / -0.854** and with each other at +0.78 to +0.83, so they are
+  close to ONE signal and it is largely market cap - which the panel already scores.
+  **The SF3 conviction family is CLOSED**, five of five measured on the corrected universe
+  with none clearing.
+- **SIX ARMS ARE NOT SIX INDEPENDENT TESTS** - by C6's own correlations the effective number
+  is nearer three. The SELRULE lesson. The trial charge is paid in full anyway.
+- **THE LIVE `sm_breadth` SWAP SURVIVES ITS VOIDED JUSTIFICATION.** `factors.py:314-316`
+  swapped `inst_breadth` for `sm_breadth` in the LIVE institutional theme on the strength of
+  "+2.37 vs +1.48 on 800 large caps". Corrected head-to-head at near-identical coverage:
+  **+1.8481 vs +1.2371 - the ordering HOLDS**, though the gap narrowed 0.89 -> 0.61 and
+  neither clears 2.0. **And the ledger's own +1.73 for sm_breadth was dated 2026-08-01, three
+  days BEFORE the B6/B7/B13 corrections landed** - so it was never a corrected-panel figure
+  either, and +1.8481 is the first.
+- **BOTH inputs the live `low_risk` theme DOES use are weaker than the two it rejects**:
+  `neg_vol` +0.89 and `neg_beta` **-0.39**, against `neg_max_ret` +1.15 and `neg_idio_vol`
+  +1.21. **The theme carries ZERO weight**, which bounds it - but anyone un-zeroing it should
+  read those four numbers first.
+- Four stale comment sites corrected in place; **the DECISIONS are untouched** and the swap is
+  ROUTED, not made. Equity `N` 212 -> 218; expectations 6 right, 2 wrong.
+  `data/free_analysis/R5_R6_ALPHABETICAL.json`; `HANDOFF_edge_audit.md` R5+R6 sections 0-9.
 
 ## edge lane, V6-B (2026-08-13) - the dip branch LIVES: a real, replicated RISK effect
 

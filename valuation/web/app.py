@@ -585,21 +585,15 @@ def api_dip():
                             "disclaimer": RISK_DISCLAIMER,
                             "message": "The daily scan hasn't loaded into this site yet — the "
                                        "Dip Detector reads the same snapshot the hot list does."})
-        rows = st.load_snapshot(scan_date)
-        # The same two passes `/api/hotstocks` runs, in the same order and from the same
-        # modules, so a name withheld there is withheld here. Duplicating the RULE rather
-        # than the CODE is how the Index and the hot list came to disagree once already.
-        from ..screener.fairvalue import estimate_fair_values
-        estimate_fair_values(rows, peer_rows=rows)
-        withhold.withhold_implausible_fair_values(rows)
-
+        # The snapshot load, both publication passes, the screen and the call budget now live
+        # in `dip.screen_snapshot`, because the Discord digest became a second caller and two
+        # copies of this sequence is how the Index and the hot list came to disagree once
+        # already. The route contributes the request parsing and nothing else.
         shortlist = max(1, min(int(request.args.get("shortlist", dip.DEFAULT_SHORTLIST)),
                                dip.MAX_SHORTLIST))
-        out = dip.screen(rows,
-                         min_drawdown=request.args.get("min_drawdown"),
-                         measure=dip.engine_measure(_get_or_compute, budget=shortlist),
-                         shortlist=shortlist)
-        out["scan_date"] = scan_date
+        out = dip.screen_snapshot(st, _get_or_compute,
+                                  min_drawdown=request.args.get("min_drawdown"),
+                                  shortlist=shortlist, scan_date=scan_date)
         out["posture"] = posture
         out["disclaimer"] = RISK_DISCLAIMER
         from ..screener.freshness import status as _freshness

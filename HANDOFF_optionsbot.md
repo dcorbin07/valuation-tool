@@ -5942,7 +5942,7 @@ disagree by more than 20% — a corporate action inside the trade; **3 trades dr
   and it is the opposite shape to `R2`'s dead alert entry. What is dead is the *health
   conditioning* as expressed through a delta-targeted strike.
 * **Cost: options `N` 287 → 292** — one for the stage-1 gate (a pre-committed bar with a decision
-  consequence, `O21`'s correction) and four for the stage-2 arms. **Equity untouched at 212**,
+  consequence, `O21`'s correction) and four for the stage-2 arms. **Equity untouched BY THIS ITEM (218 after the merge)**,
   infra 11, zero malformed log rows. **72 suites, 0 failures.** Expectations **4 right, 3 wrong**.
 * **RECOMMENDED NEXT STEP: the moneyness-targeted CSP**, registered on its own. It is the single
   construction this result points at, it needs **no new data** (the cache is already proven to

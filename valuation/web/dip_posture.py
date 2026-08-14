@@ -37,6 +37,39 @@ THE THREE STATES
                weakened to accommodate a comment praising it would be worth nothing. The fence
                caught this docstring on its first run, which is the fence working.)
 
+TWO REGISTERS, TWO ANSWERS — AND THE WHOLE POINT IS THAT THEY DISAGREE
+---------------------------------------------------------------------
+V6 asked whether these names go on to BEAT THE MARKET. Four arms, all NULL. That question is
+settled and the copy still says so.
+
+V6-B asked a different question of the same population: not "do they go up more" but "do they
+go DOWN less". Its M1 arm separated — hugely, and it replicated. So this surface now carries
+**one dead claim and one live one**, and the entire risk in the copy is that a reader collapses
+them into "healthy dips are good buys". They are not the same claim and neither implies the
+other:
+
+  RETURN  (`STATUS`, V6)      — NULL.     "not shown to beat the market"
+  RISK    (`RISK_STATUS`, V6-B) — POSITIVE. "fell a further 20% about a quarter less often"
+
+They are two constants rather than one because they are two registers with two verdicts, and
+overloading a single `STATUS` would have forced a choice about which one the tab "really" says.
+It says both. `headline`/`explainer` stay bound to the RETURN register exactly as before — every
+pin written against them still holds — and the risk claim arrives on its own keys beside them.
+
+WHAT V6-B DID *NOT* EARN, AND THIS IS THE SHARPEST EDGE ON THIS FILE
+--------------------------------------------------------------------
+The metric that separated (M1) is **a further −20% drawdown**. That is DEEPENING. The arm that
+measured actual death — bankruptcy, regulatory delisting — is **M2, and it is VOID on power**:
+42 distress events against a pre-committed floor of 60. Its point estimate happens to run the
+same way and **none of that is quotable**.
+
+So "these names go bust less often" is NOT earned, and the proposed copy "dips like this died
+less often" was rejected by the edge lane in its own write-up. `BANNED` now carries a DISTRESS
+family for exactly this, and it is banned on the same footing as "buy the dip": both are
+sentences the measurement does not support, and the distress one is more tempting precisely
+because a true neighbouring result sits next to it.
+
+
 WHAT MAY NEVER BE SAID, IN ANY STATE
 ------------------------------------
 `BANNED` is enforced against the RENDERED payload, not against this file, because rendering is
@@ -67,6 +100,49 @@ STATUS = NULL
 #: the ordinary cost of registering ahead of a product rather than a defect in either.
 REGISTER = "PREREG_v6_dip_detector.md"
 OWNER_LANE = "pipeline builder"
+
+# --------------------------------------------------------------------------------------- #
+# THE SECOND REGISTER — V6-B, THE RISK QUESTION
+# --------------------------------------------------------------------------------------- #
+
+#: The state of the V6-B register. CLOSED 2026-08-13: arm M1 separated and replicated.
+#: This is a SEPARATE verdict on a SEPARATE question — see the docstring. It is deliberately
+#: not folded into `STATUS`, because the two registers disagree and the surface must say so.
+RISK_STATUS = POSITIVE
+RISK_REGISTER = "PREREG_v6b_dip_survival.md"
+
+#: The sentence the edge lane registered as the one this tab has earned, quoted from
+#: `HANDOFF_edge_audit.md` V6-B §3 ("So the sentence the tab has earned is about falling
+#: further, not about dying"). Pinned verbatim by test, and rendered rather than paraphrased:
+#: a paraphrase is where "fell another 20% less often" turns into "went bust less often", and
+#: §3 exists precisely because that paraphrase was the copy originally proposed.
+RISK_REGISTERED_SENTENCE = (
+    "Historically, healthy names already down 20% have gone on to fall another 20% about a "
+    "quarter less often than unhealthy ones in the same drawdown — 33% of the time against 43%.")
+
+#: The headline. Leads with what was measured and names the population, because "healthy dips
+#: are safer" without "than other dips" is a comparison with nothing on the other side.
+RISK_HEADLINE = ("Tested: among names already down 20%, the healthy ones fell another 20% "
+                 "far less often — 32.5% of the time against 43.4%.")
+
+#: The numbers, the replication, and the two caveats that must travel with them.
+RISK_DETAIL = (
+    "That is a 10.8-point absolute reduction, or about a quarter fewer in relative terms, "
+    "measured on 37,014 drawdown episodes across an 18-year point-in-time panel of 2,531 "
+    "companies. It held in both halves of the period separately — 2009-2017 and 2017-2026 — "
+    "and it held in all five company-size tiers, though only four of the five also held in "
+    "both halves on their own. The effect is LARGEST in the smallest companies and WEAKEST in "
+    "the very largest, which is the opposite of where most of this site's coverage sits, so "
+    "expect it to be milder for household-name megacaps. And this is one historical panel, "
+    "not a forward test.")
+
+#: The distinction, stated on the surface rather than left to inference. This is the sentence
+#: that stops a risk result being read as a return result.
+RISK_NOT_A_PROMISE = (
+    "Read this as a statement about how often things got WORSE, never as a forecast that they "
+    "will get better. It says these names fell a further 20% less often than their unhealthy "
+    "peers — not that they recovered, and not that they avoided failing outright, which was "
+    "measured separately and came back too thin to call either way.")
 
 #: Filled by the close-out. In POSITIVE these carry the effect size and its caveats; in NULL,
 #: what was measured and what came back. Left empty in OPEN, and the test pins that.
@@ -133,6 +209,16 @@ def posture() -> dict:
         "headline": state["headline"],
         "explainer": state["explainer"],
         "verdict": state["verdict"],
+        # --- the SECOND register, on its own keys ---------------------------------------- #
+        # Deliberately not merged into `headline`/`explainer`. Those are the RETURN verdict and
+        # every existing pin is written against them; a risk result that quietly overwrote the
+        # return result's slot would read as though V6 had been revised, which it has not.
+        "risk_status": RISK_STATUS,
+        "risk_register": RISK_REGISTER,
+        "risk_headline": RISK_HEADLINE if RISK_STATUS == POSITIVE else "",
+        "risk_detail": RISK_DETAIL if RISK_STATUS == POSITIVE else "",
+        "risk_not_a_promise": RISK_NOT_A_PROMISE if RISK_STATUS == POSITIVE else "",
+        "risk_sentence": RISK_REGISTERED_SENTENCE if RISK_STATUS == POSITIVE else "",
         # An outbound push of a dip list is a recommendation-shaped message, so it waits for
         # the evidence. Derived from STATUS rather than set by hand: a close-out that upgrades
         # the copy and forgets the digest would otherwise leave the two disagreeing.
@@ -147,7 +233,19 @@ def posture() -> dict:
         # verdict existed, and it only ever fires in the unflattering branch.
         # ROUTED, not decided: whether the dip list should ever go out is Don's and the app
         # lane's call, and this leaves it exactly where it was rather than opening it.
-        "digest_eligible": STATUS == POSITIVE,
+        #
+        # CHANGED AGAIN AT THE V6-B CLOSE-OUT, `STATUS == POSITIVE` -> `RISK_STATUS ==
+        # POSITIVE`. That routing came back: Don's call is to ship it now the claim is earned,
+        # RISK-FRAMED ONLY. The gate moves to the register that actually earned something,
+        # which also means a future revision of V6 — the RETURN question — can no longer
+        # unblock an outbound push on its own. That is strictly tighter than what it replaces,
+        # and `test_the_digest_is_gated_on_the_RISK_register_and_not_the_return_one` pins both
+        # halves: risk drives it, return cannot.
+        "digest_eligible": RISK_STATUS == POSITIVE,
+        # The digest may not write its own claim. It renders THIS, or it does not send — see
+        # `saas/notify.dip_digest_text`, which takes the sentence from here and then re-checks
+        # its own finished message against `violations()` before it goes out.
+        "digest_claim": RISK_REGISTERED_SENTENCE if RISK_STATUS == POSITIVE else "",
     }
 
 
@@ -167,12 +265,28 @@ def posture() -> dict:
 #:     phrase: attributing a drawdown to sentiment is a causal claim about why a price moved,
 #:     and this screen reads no news, no flow and no positioning. It sees a price and a
 #:     balance sheet.
+#:
+#:   DISTRESS — "bankrupt", "goes to zero", "blow up", "died less often". ADDED AT THE V6-B
+#:     CLOSE-OUT, and the only family here whose neighbour is TRUE. V6-B's M1 measured a
+#:     further −20% fall and separated decisively; its M2 measured actual bankruptcy and
+#:     regulatory delisting and is VOID on power at 42 events against a floor of 60. A reader
+#:     — or a future copy edit — who slides from "fell further less often" to "went bust less
+#:     often" has crossed from a replicated result to an unmeasured one WITHOUT CHANGING THE
+#:     SHAPE OF THE SENTENCE. The edge lane's own write-up rejected exactly that wording. This
+#:     is the family most likely to be introduced by someone trying to make the true claim
+#:     sound punchier, which is why it is enforced against the rendered HTML like the rest.
 BANNED = (
     "buy the dip", "buy this dip", "load up", "back up the truck", "screaming buy",
     "will recover", "will bounce", "will pass", "will rebound", "bound to recover",
     "due for a bounce", "temporary dip", "temporary setback", "sentiment-driven",
     "sentiment driven", "oversold", "mispriced by the market", "guaranteed", "risk-free",
     "sure thing", "no reason for the fall", "unjustified selloff", "unjustified sell-off",
+    # DISTRESS — V6-B M2 is VOID, so none of this is earned.
+    "bankrupt", "insolven", "goes to zero", "go to zero", "went to zero", "goes bust",
+    "go bust", "went bust", "blow up", "blows up", "blew up", "wiped out", "wipe out",
+    "died less", "die less", "dies less", "less likely to die", "survive better",
+    "survives better", "never fails", "avoid the failures", "goes under", "go under",
+    "went under", "default less", "defaults less",
 )
 
 

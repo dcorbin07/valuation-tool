@@ -465,12 +465,30 @@
   <!-- DIP DETECTOR — public, like the hot list it reads.
        THE POSTURE IS SERVER-RENDERED AND IS NOT WRITTEN HERE. Every claim-bearing sentence
        comes from `dip_posture.posture()` via the site context processor, because this copy is
-       written to be REPLACED the day the V6 register closes and prose in a template is prose
-       someone has to remember. The one thing the close-out flips is `dip_posture.STATUS`. -->
+       written to be REPLACED the day a register closes and prose in a template is prose
+       someone has to remember. The constants the close-outs flip are `dip_posture.STATUS`
+       (the RETURN question, V6) and `dip_posture.RISK_STATUS` (the RISK question, V6-B).
+
+       TWO VERDICTS RENDER HERE AND THEY DISAGREE ON PURPOSE. The risk block is what the
+       measurement earned; the return block is what it did not. They are separate blocks with
+       separate styling rather than one merged paragraph, because the failure mode this whole
+       surface guards against is a reader collapsing them into "healthy dips are good buys". -->
   <div id="tab-dip" style="display:none">
     <div class="search-card">
       <div class="section-hint" style="margin-top:0"><b>{{ dip_posture.headline }}</b>
         {{ dip_posture.what_it_is }}</div>
+
+      {% if dip_posture.risk_headline %}
+      <div class="note" style="margin-top:12px;padding:10px 12px;border-left:3px solid #3d7a5a;
+                               background:rgba(61,122,90,.08);border-radius:4px">
+        <b>{{ dip_posture.risk_headline }}</b><br>
+        {{ dip_posture.risk_detail }}<br>
+        <span style="opacity:.85"><b>{{ dip_posture.risk_not_a_promise }}</b></span><br>
+        <span style="opacity:.7;font-size:11px">Measured under
+          {{ dip_posture.risk_register }}.</span>
+      </div>
+      {% endif %}
+
       <div class="note" style="margin-top:10px">{{ dip_posture.explainer }}</div>
       <div class="note" style="margin-top:8px">{{ dip_posture.always }}</div>
       <div class="search-row" style="align-items:center;margin-top:12px;flex-wrap:wrap">

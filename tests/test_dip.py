@@ -439,7 +439,7 @@ def test_null_is_exactly_as_publishable_as_positive():
         dip_posture.STATUS = orig
 
 
-def test_the_digest_stays_blocked_unless_the_verdict_is_POSITIVE():
+def test_the_digest_is_gated_on_the_RISK_register_and_not_the_return_one():
     # An outbound "dip alert" is a recommendation-shaped push and waits for the evidence.
     #
     # CHANGED AT THE V6 CLOSE-OUT. This was `digest_eligible = STATUS != OPEN`, so the arrival
@@ -447,16 +447,188 @@ def test_the_digest_stays_blocked_unless_the_verdict_is_POSITIVE():
     # push. The digest does not send the verdict, it sends a LIST OF NAMES, so "waits for the
     # evidence" has to mean waits for evidence IN FAVOUR. The defect could not fire until a
     # real verdict existed and only ever fired in the unflattering branch.
-    assert dip_posture.posture()["digest_eligible"] is False, "NULL must not unblock the push"
-    orig = dip_posture.STATUS
+    #
+    # CHANGED AGAIN AT THE V6-B CLOSE-OUT (2026-08-13), on Don's call, and this test is AMENDED
+    # rather than replaced so the earlier reasoning survives. The gate moves from `STATUS` (the
+    # RETURN register, V6, still NULL) to `RISK_STATUS` (the RISK register, V6-B, POSITIVE).
+    # That is strictly TIGHTER than what it replaces: the return register can no longer unblock
+    # an outbound push under any value, so a future revision of V6 cannot start a digest going
+    # out on its own. Both halves are pinned, because a gate that only tests the open direction
+    # is not a gate.
+    assert dip_posture.RISK_STATUS == dip_posture.POSITIVE, dip_posture.RISK_STATUS
+    assert dip_posture.posture()["digest_eligible"] is True, (
+        "the risk claim is earned, so the risk-framed push is unblocked")
+
+    orig_risk, orig_ret = dip_posture.RISK_STATUS, dip_posture.STATUS
     try:
-        dip_posture.STATUS = dip_posture.OPEN
-        assert dip_posture.posture()["digest_eligible"] is False, "OPEN must stay blocked"
-        dip_posture.STATUS = dip_posture.POSITIVE
-        assert dip_posture.posture()["digest_eligible"] is True, (
-            "and a POSITIVE must still be able to unblock it, or this is not a gate")
+        # (a) the RISK register drives it, in both directions.
+        for st in (dip_posture.OPEN, dip_posture.NULL):
+            dip_posture.RISK_STATUS = st
+            assert dip_posture.posture()["digest_eligible"] is False, (
+                f"risk={st} must block the push")
+            assert dip_posture.posture()["digest_claim"] == "", (
+                "and it must not hand the digest a claim it did not earn")
+        # (b) the RETURN register cannot move it, at ANY value. This is the half that did not
+        #     exist before and is the reason the amendment is an improvement rather than a
+        #     loosening.
+        dip_posture.RISK_STATUS = orig_risk
+        for st in (dip_posture.OPEN, dip_posture.NULL, dip_posture.POSITIVE):
+            dip_posture.STATUS = st
+            assert dip_posture.posture()["digest_eligible"] is True, (
+                f"return={st} must not be able to gate a RISK-framed push")
     finally:
-        dip_posture.STATUS = orig
+        dip_posture.RISK_STATUS, dip_posture.STATUS = orig_risk, orig_ret
+
+
+def test_the_risk_verdict_is_pinned_to_the_edge_lanes_registered_sentence():
+    # The task's instruction was to pin the copy to the handoff's registered sentence rather
+    # than to a paraphrase, and §3 of that handoff exists BECAUSE the originally proposed
+    # wording ("dips like this died less often") described an arm that is VOID on power. So the
+    # sentence is asserted against the handoff file itself: if the edge lane revises it, this
+    # fails rather than drifting.
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src = open(os.path.join(root, "HANDOFF_edge_audit.md"), encoding="utf-8").read()
+    # The handoff carries it as a markdown blockquote across two lines; normalise before
+    # comparing, or this passes/fails on line-wrapping rather than on wording.
+    flat = re.sub(r"\s+", " ", src.replace("\n>", " "))
+    want = re.sub(r"\s+", " ", dip_posture.RISK_REGISTERED_SENTENCE)
+    assert want in flat, (
+        "dip_posture.RISK_REGISTERED_SENTENCE is not the sentence HANDOFF_edge_audit.md "
+        "registered; a paraphrase is exactly what §3 warns against")
+    # ...and it must actually reach the outbound digest, not merely sit in the module.
+    assert dip_posture.posture()["digest_claim"] == dip_posture.RISK_REGISTERED_SENTENCE
+
+
+def test_the_risk_register_is_named_and_EXISTS():
+    p = dip_posture.posture()
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    assert p["risk_register"].startswith("PREREG_"), p["risk_register"]
+    assert os.path.exists(os.path.join(root, p["risk_register"])), (
+        f"dip_posture cites a risk register that does not exist: {p['risk_register']}")
+    assert p["risk_register"] != p["register"], (
+        "the return and risk verdicts must not cite the same register — they are two "
+        "questions with two answers and collapsing them is the whole failure mode here")
+
+
+def test_the_two_verdicts_are_rendered_as_two_and_the_dead_one_is_not_dropped():
+    # The surface carries one dead claim (return) and one live one (risk). The tempting edit is
+    # to quietly stop rendering the dead one now that there is good news beside it — which is
+    # how a NULL becomes invisible without anyone deciding to hide it.
+    from valuation.web.app import app
+    page = app.test_client().get("/").get_data(as_text=True)
+    assert "did not measurably beat the market" in page, (
+        "the RETURN null headline stopped rendering once the risk result landed")
+    # ...and its DETAIL too, not just its headline. Caught by mutation: deleting the explainer
+    # block left the headline in place, so an assertion on the headline alone passed while the
+    # null's actual content — the four arms, the both-halves split, the "not shown, not shown
+    # to be false" reading — had silently stopped rendering.
+    assert "None of the four cleared its bar" in page, (
+        "the RETURN null's detail stopped rendering; the headline alone is not the verdict")
+    assert "not shown" in page, "the null's own caveat about what NULL means is missing"
+    assert "32.5% of the time against 43.4%" in page, "the RISK result is not on the surface"
+    assert "10.8-point absolute reduction" in page, "the effect size is not on the surface"
+    assert "one historical panel" in page, "the one-panel caveat is not on the surface"
+    assert "never as a forecast that they will get better" in page, (
+        "the risk/return distinction is not stated on the surface")
+
+
+def test_a_half_finished_risk_flip_renders_nothing_rather_than_something_plausible():
+    # Same rule the return verdict already had: flipping the status without filling the copy
+    # must be visibly empty. Simulated by blanking, since the real fields are now filled.
+    orig = (dip_posture.RISK_HEADLINE, dip_posture.RISK_DETAIL,
+            dip_posture.RISK_NOT_A_PROMISE, dip_posture.RISK_REGISTERED_SENTENCE)
+    try:
+        dip_posture.RISK_HEADLINE = ""
+        p = dip_posture.posture()
+        assert p["risk_headline"] == "", "a half-finished flip must be visibly empty"
+    finally:
+        (dip_posture.RISK_HEADLINE, dip_posture.RISK_DETAIL,
+         dip_posture.RISK_NOT_A_PROMISE, dip_posture.RISK_REGISTERED_SENTENCE) = orig
+
+
+def test_the_distress_family_is_banned_because_its_arm_is_VOID():
+    # V6-B's M1 (a further −20% fall) separated; its M2 (bankruptcy / regulatory delisting) is
+    # VOID on power at 42 events against a floor of 60. The two sentences have the SAME SHAPE,
+    # so the wrong one is a plausible copy edit rather than an obvious error.
+    assert dip_posture.violations("these names went bust less often") == ["went bust"]
+    assert dip_posture.violations("healthy dips blow up less") == ["blow up"]
+    assert dip_posture.violations("they rarely go to zero") == ["go to zero"]
+    assert dip_posture.violations("BANKRUPTCY is rarer here") == ["bankrupt"]
+    # ...and the sentence that IS earned must still pass, or the ban is too wide to use.
+    assert dip_posture.violations(dip_posture.RISK_REGISTERED_SENTENCE) == []
+    assert dip_posture.violations(dip_posture.RISK_HEADLINE) == []
+    assert dip_posture.violations(dip_posture.RISK_DETAIL) == []
+    assert dip_posture.violations(dip_posture.RISK_NOT_A_PROMISE) == []
+
+
+def test_the_outbound_digest_refuses_to_send_copy_that_trips_its_own_ban():
+    # The last gate is on the FINISHED TEXT, not on the inputs — V4's "assert against what
+    # renders" moved one step further out, to what SENDS. Drive it with a posture whose claim
+    # has been tampered with and assert nothing goes out.
+    from valuation.saas import notify
+
+    class _Cfg:
+        discord_webhook_url = "https://example.invalid/hook"
+
+    class _Store:
+        def __init__(self): self.marked = []
+        def alerted_today(self, k): return False
+        def mark_alerted(self, k, d): self.marked.append((k, d))
+
+    sent = []
+    orig_send = notify.send_discord
+    orig_claim = dip_posture.RISK_REGISTERED_SENTENCE
+    try:
+        notify.send_discord = lambda cfg, content: (sent.append(content), True)[1]
+        st = _Store()
+        rows = [{"ticker": "ABC", "drawdown": 0.3, "hot_score": 70, "price": 10.0}]
+        # (a) the honest message sends — and it carries BOTH halves. Caught by mutation:
+        #     deleting the "not a promise" line from the digest left a message that was still
+        #     sendable and still passed the ban, because the ban catches wrong sentences and
+        #     cannot catch a MISSING one. Half a finding pushed to Discord is the exact failure
+        #     this whole surface is built against, so the presence of the qualifier is pinned
+        #     explicitly rather than left to the ban list.
+        assert notify.post_dip_digest(_Cfg(), st, "2026-08-13", rows) is True
+        assert len(sent) == 1 and st.marked, "the earned claim must actually be sendable"
+        assert dip_posture.RISK_REGISTERED_SENTENCE in sent[0], "the claim itself is missing"
+        assert "never as a forecast that they will get better" in sent[0], (
+            "the outbound message carries the claim without the qualifier that bounds it")
+
+        # (b) tamper the claim into the distress family; the send must be REFUSED.
+        dip_posture.RISK_REGISTERED_SENTENCE = "these names went bust less often"
+        st2 = _Store()
+        assert notify.post_dip_digest(_Cfg(), st2, "2026-08-13", rows) is False, (
+            "a message tripping the ban must not be sent")
+        assert len(sent) == 1, "nothing further may have gone out"
+        assert not st2.marked, "and a refused send must not mark the day as done"
+
+        # (c) a send that FAILS at the wire must not mark the day either, or the digest is
+        #     silently skipped tomorrow after a transient network error. Caught by mutation.
+        dip_posture.RISK_REGISTERED_SENTENCE = orig_claim
+        notify.send_discord = lambda cfg, content: False
+        st3 = _Store()
+        assert notify.post_dip_digest(_Cfg(), st3, "2026-08-13", rows) is False
+        assert not st3.marked, "a failed send must leave the day retryable"
+    finally:
+        notify.send_discord = orig_send
+        dip_posture.RISK_REGISTERED_SENTENCE = orig_claim
+
+
+def test_the_digest_and_the_tab_run_the_same_screen():
+    # `/api/dip` and `post_dip_digest` are two callers of one definition. If they ever became
+    # two copies again, the digest could push a name the site itself withholds — outbound,
+    # where the discrepancy is only visible after it has been sent.
+    import inspect
+    from valuation.web import dip as _dip
+    from valuation.web import app as _app
+    from valuation.saas import scan_worker as _worker
+    assert callable(getattr(_dip, "screen_snapshot", None)), "the shared entry point is gone"
+    route = inspect.getsource(_app.api_dip)
+    assert "screen_snapshot" in route, "the route stopped using the shared screen"
+    assert "withhold_implausible_fair_values" not in route, (
+        "the route re-implemented the publication passes instead of sharing them")
+    assert "screen_snapshot" in inspect.getsource(_worker.run_weekly), (
+        "the worker stopped using the shared screen")
 
 
 def test_the_posture_copy_contains_none_of_its_own_banned_phrasings():

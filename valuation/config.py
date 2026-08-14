@@ -279,6 +279,34 @@ class Config:
     # `saas/surfaces.py`, one entry per surface with its reason and its data vendor.
     owner_split: bool = field(default_factory=lambda: _get("OWNER_SPLIT", "true").lower() != "false")
 
+    # PUBLIC_FULL_VIEW — anonymous == demo, TEMPORARILY. Don's decision, 2026-08-13:
+    #
+    #   "/app must be 100% ungated - I know the risks - I've submitted applications with the
+    #    non-master link; when I hear back we regate."
+    #
+    # It lifts the ANONYMOUS tier to the DEMO tier: exactly the read-only full view the `/work`
+    # button already grants a recruiter who follows the master link, and nothing more.
+    #
+    # WHY THIS EXISTS RATHER THAN `OWNER_SPLIT=false`, which is the obvious lever and is the
+    # WRONG one. Turning the split off also makes `surfaces.may_act` true for everyone, which
+    # opens `/api/scan/run`, `/api/signals/run` and both Edge Lab runners to anonymous callers —
+    # a free DoS lever on a 512 MB box that spends Don's FMP and Anthropic budget on every
+    # request. This flag CANNOT do that: it is read-only by construction, because it is not
+    # consulted by `may_act` at all and a test pins that it never will be.
+    #
+    # WHAT DOES NOT MOVE UNDER IT, on Don's explicit instruction: no mutation endpoints, no
+    # admin or account surfaces, no raw Sharadar/ThetaData rows (a LICENCE question, which his
+    # "I know the risks" answers for liability and cannot answer for), and every disclaimer,
+    # vintage label and paper-account label stays exactly where it is. Those surfaces carry
+    # their own caveats, and that is what makes this survivable rather than reckless.
+    #
+    # THE REGATE IS THIS ONE FLAG, back to "false", on Don's word. Nothing is deleted and no
+    # other flag needs touching. It is deliberately NOT defaulted to true in code: the default
+    # here stays the safe one so a fresh instance, a test box or a fork is never ungated by
+    # accident — production opts in via render.yaml.
+    public_full_view: bool = field(
+        default_factory=lambda: _get("PUBLIC_FULL_VIEW", "false").lower() == "true")
+
     # PORTFOLIO_PAGE — the ONE deliberate hole in private mode, and its own flag on purpose.
     #
     # Don job-hunts with this project as his portfolio piece, so he needs a single URL a

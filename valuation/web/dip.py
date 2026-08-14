@@ -557,3 +557,35 @@ def engine_measure(get_result: Callable[[str], object], budget: int = DEFAULT_SH
             return None
 
     return _measure
+
+
+def screen_snapshot(store, get_result: Callable[[str], object], min_drawdown=None,
+                    shortlist: int = DEFAULT_SHORTLIST, scan_date=None) -> dict:
+    """The whole screen, from a scan snapshot — ONE definition, two callers.
+
+    `/api/dip` renders this and `saas/notify.post_dip_digest` pushes it. Written the moment
+    there was a second caller, because the alternative is two copies of the same four steps and
+    that is precisely the arrangement the route's own comment warns about: the Index and the hot
+    list once disagreed because the RULE was duplicated rather than the CODE. A digest that
+    applied the publication passes in a different order, or skipped `withhold` entirely, would
+    push a name the site itself refuses to display — and it would do it outbound, where nobody
+    sees the discrepancy until it has already been sent.
+
+    Returns `screen`'s payload with `scan_date` attached, or an `empty` marker when no scan has
+    landed yet.
+    """
+    scan_date = scan_date or store.latest_scan_date()
+    if not scan_date:
+        return {"empty": True, "rows": [], "scan_date": None}
+    rows = store.load_snapshot(scan_date)
+    # The same two passes `/api/hotstocks` runs, in the same order and from the same modules,
+    # so a name withheld there is withheld here and in the digest.
+    from ..screener.fairvalue import estimate_fair_values
+    from . import withhold as _withhold
+    estimate_fair_values(rows, peer_rows=rows)
+    _withhold.withhold_implausible_fair_values(rows)
+    shortlist = max(1, min(int(shortlist), MAX_SHORTLIST))
+    out = screen(rows, min_drawdown=min_drawdown,
+                 measure=engine_measure(get_result, budget=shortlist), shortlist=shortlist)
+    out["scan_date"] = scan_date
+    return out

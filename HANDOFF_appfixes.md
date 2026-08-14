@@ -5,6 +5,287 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 30 — 2026-08-13 — `/app` ungated: anonymous == demo, temporarily
+
+**Lane:** app fixer. **Ledger:** `PUBLIC-FULL`. **Branch:** `worktree-demo-link`.
+
+## 0. THE REGATE — read this first
+
+> **Set `PUBLIC_FULL_VIEW` to `false` in the Render dashboard.**
+> Service → Environment → `PUBLIC_FULL_VIEW` → `false` → save. Render redeploys.
+
+That is the whole regate. **One value. No code change, nothing deleted.** `OWNER_SPLIT` stays
+`true` underneath and is still enforced and still tested in both states. The key is in
+`render.yaml` with the same instruction beside it, and a test asserts it is really there — so
+the promise is not just prose in a handoff.
+
+**Do NOT regate by flipping `OWNER_SPLIT` instead.** See §2.
+
+## 1. The decision
+
+Don, 2026-08-13, recorded verbatim because the code cannot justify itself here:
+
+> *"/app must be 100% ungated - I know the risks - I've submitted applications with the
+> non-master link; when I hear back we regate."*
+
+Applications went out carrying the plain `/app` URL rather than the recruiter master link, so
+recruiters were landing on the public half and seeing a fraction of the tool.
+
+**Implemented as ANONYMOUS == DEMO.** One flag lifts the anonymous tier to the read-only full
+view the `/work` button already grants — Track Record, Edge Lab, Index, Signals, Watchlist —
+and nothing beyond it.
+
+## 2. Why a new flag and not `OWNER_SPLIT=false`
+
+`OWNER_SPLIT=false` is the obvious lever and it is the wrong one. It also makes
+`surfaces.may_act` true for **everyone**, which hands anonymous callers:
+
+* `/api/scan/run` — writes a scan snapshot, 3 FMP requests per uncached name
+* `/api/signals/run` — writes intraday rows, one Anthropic call per run
+* `/api/backtest/run`, `/api/edge/backtest`, `/api/edge/optimize` — CPU-heavy on a 512 MB box
+
+That is a free DoS lever that spends Don's data budget on every request. **`PUBLIC_FULL_VIEW`
+cannot do that**: `may_act` does not consult it, and that is pinned *structurally* — the test
+reads `may_act`'s source (docstring stripped, since the docstring discusses the flag) rather
+than trusting only the combinations someone thought to enumerate.
+
+## 3. What does not move
+
+| line | status under the flag |
+|---|---|
+| mutation endpoints | **refused** — all six triggers stay 403 to a stranger |
+| admin / account / billing | **refused** — `/account`, `/account/alerts`, `/billing/*` |
+| raw Sharadar / ThetaData rows | **unchanged** — see §5 |
+| disclaimers, vintage, paper-account labels | **unchanged** — same templates, same code path |
+
+It **reuses the demo rail entirely** rather than adding a parallel one, which is what keeps the
+blast radius small: `DEMO_DENIED_PATHS` applies to a stranger under the flag exactly as it does
+to a demo session. A test asserts anonymous and demo return the **identical decision on every
+owner-only path** — i.e. the lift is exactly the demo tier and not a millimetre wider.
+
+## 4. A defect caught while wiring it
+
+Extending the demo-denied rule to anonymous would have **refused the owner his own `/account`
+and billing pages** the moment the flag went on, because that rule fires *before* the owner
+check. A flag that exists to widen a stranger's reach would have quietly narrowed Don's.
+Guarded with `not is_owner(...)` and pinned by
+`test_the_owner_is_not_NARROWED_by_a_flag_that_exists_to_widen`.
+
+## 5. The licence line, which "I know the risks" does not cover
+
+**"I know the risks" answers for LIABILITY. It cannot answer for a vendor's licence terms.**
+Sharadar and ThetaData are individual-plan, backtest-only vendors whose terms forbid
+redistribution.
+
+Nothing moves here, and the reason is structural rather than a fresh promise: this grants the
+**demo tier**, so the route-by-route audit that cleared demo (Session 18 — no READ route returns
+a vendor row verbatim) applies unchanged. A test asserts `DEMO_DENIED_VENDOR_ROWS` still exists
+**and is still consulted**, so the next Sharadar-backed READ route cannot be published by
+default.
+
+## 6. Both states pinned, no posture test deleted
+
+Per the instruction. The regate is *planned*, not hypothetical — so a suite pinning only the
+ungated state would go green on regate day while proving nothing about it, and one that had
+deleted the old assertions could not tell anyone what the posture used to be.
+
+* `tests/test_public_full_view.py` — **14/14**, runs every assertion in **both** flag states and
+  cites the decision and the planned regate in its own docstring.
+* `tests/test_public.py` **31/31** and `tests/test_private.py` **30/30** — **untouched**, still
+  pinning the flag-off world in full.
+
+**The live-app test carries its own control**, because `create_saas_app` is **idempotent**: a
+test that builds a "second app" with different flags gets the *first* app back and passes
+vacuously. So the flag is flipped on the live `CONFIG`, and the test **fails if flipping it
+changed nothing observable**.
+
+**The code default stays `false`** so a fork, a test box or a fresh instance is never ungated by
+accident; production opts in through `render.yaml`. Only an explicit `"true"` ungates — `"yes"`
+fails closed.
+
+## 7. Verification
+
+* `tests/test_public_full_view.py` 14/14; `test_public.py` 31/31; `test_private.py` 30/30.
+* **Full gate: 72/72 suites exited 0** (71 + the new suite), judged by exit code.
+* **Mutations 11/11 caught, 0 missed, 0 skipped.** The ones that matter: `may_act` made to read
+  the flag; the `not is_owner(...)` guard removed; the denied set stopped applying to anonymous;
+  the lift widened past the demo tier; the config default flipped to unsafe; the flag made to
+  fail OPEN on a junk value; `render.yaml` losing the regate key. Every one is caught.
+* Post-mutation the worktree is clean and both safety-critical lines are verified intact —
+  `may_act` contains **zero** references to `public_full_view`.
+
+## 8. FOR DON — check this yourself before assuming recruiters see it
+
+1. **Hard-refresh** (Ctrl+Shift+R) — the old page is cached and will lie to you.
+2. Open **`/app` in a private/incognito window** so you are genuinely signed out.
+3. You should see **Track Record, Edge Lab, Index, Signals and Watchlist** — the same view the
+   `/work` button gives.
+4. Sanity-check that the limits held: **Run scan** and the Edge Lab runners should refuse, and
+   `/account` should refuse.
+
+**Render must redeploy for the new env key to exist.** If `/app` still looks gated, check the
+Render dashboard actually shows `PUBLIC_FULL_VIEW=true` — `render.yaml` sets it on a fresh
+provision, and an existing service may need the key added by hand.
+
+---
+
+# Session 29 — 2026-08-13 — V6-B lands on the surface: one dead claim, one live one
+
+**Lane:** app fixer. **Prompt:** out-of-band, product, Don's direction — flip the Dip Detector's
+explainer to the V6-B verdict. **Branch:** `worktree-demo-link`.
+**Ledger:** `V6B-PRODUCT`. **Research half:** `HANDOFF_edge_audit.md` V6-B (edge lane).
+
+## 0. Headline
+
+The Dip Detector now publishes **two verdicts that disagree, on purpose**, and the entire design
+risk is a reader collapsing them into "healthy dips are good buys":
+
+| register | question | verdict | on the surface |
+|---|---|---|---|
+| **V6** (`STATUS`) | do these names **beat the market**? | **NULL** — four arms | kept, unchanged |
+| **V6-B** (`RISK_STATUS`) | do they **fall further** less often? | **POSITIVE** — M1 | new, with numbers |
+
+The risk claim shipped with its effect size on the surface — **32.5% against 43.4%**, a 10.8-point
+absolute and ~25% relative reduction, 37,014 episodes, 2,531 names — plus replication in both
+halves, the size-tier gradient, and the one-panel caveat. The Discord digest is unblocked and
+**regated onto the risk register**, risk-framed by construction.
+
+**Adopts nothing, measures nothing.** This lane publishes what the edge lane measured.
+
+## 1. Two constants, not one overloaded status
+
+`STATUS` was documented as "the one thing the V6 close-out flips". There are now two registers
+with two answers, so there are two constants. `RISK_STATUS` is separate because overloading a
+single status would have forced a choice about which verdict the tab "really" says — and it says
+both.
+
+`headline`/`explainer` stay bound to the **return** register, so every pin previously written
+against them still holds; the risk claim arrives on its own keys beside them. The template
+renders them as two visually distinct blocks rather than one merged paragraph.
+
+**A test asserts the dead verdict is not dropped once good news landed beside it** — and it
+asserts both its **headline and its detail**, which a mutation forced: deleting the explainer
+block left the headline standing, so an assertion on the headline alone passed while the null's
+actual content had stopped rendering.
+
+## 2. The copy is pinned to the handoff, not paraphrased
+
+`RISK_REGISTERED_SENTENCE` is asserted to appear **verbatim in `HANDOFF_edge_audit.md`**. If the
+edge lane revises it, the suite fails rather than the product drifting. §3 of that handoff exists
+precisely because the originally proposed wording described an arm that is VOID.
+
+## 3. The distress family is now banned — the only banned family whose neighbour is TRUE
+
+M1 measured **a further −20% fall** and separated decisively. **M2 measured actual bankruptcy and
+regulatory delisting and is VOID on power** (42 events against a floor of 60).
+
+> "fell further less often" and "went bust less often" have the **same shape**. One is replicated;
+> the other is unmeasured.
+
+So `BANNED` gained `bankrupt`, `insolven`, `goes to zero`, `blow up`, `went bust`, `died less`,
+`goes under` and ~18 more, enforced against the **rendered HTML** alongside the advice and
+prediction families.
+
+**Flagged deliberately:** the commissioning note's own phrase — *"less likely to blow up"* — is
+among the banned phrasings, on the edge lane's own reasoning (§3, "the word DIED is not earned")
+rather than against it. The tab says these names **fell a further 20% less often**. It does not
+say they survived, failed less, or avoided going under.
+
+## 4. One number in the brief did not match the measurement
+
+The brief said the result replicated "across both halves and **every size tier**".
+
+* **Both halves — correct.** −9.064pp early, −11.515pp late.
+* **Every size tier — narrower than stated.** Five of five quintiles separate **on the full
+  sample**; only **four of five** also hold **in both halves**. The exception is **Q5, the
+  megacaps** ($21.85B median), which is also the **weakest** tier at −3.787pp against −14.287pp
+  in the smallest.
+
+The surface says the narrower true thing, and states the gradient explicitly — **the effect is
+largest in the smallest companies and weakest in the very largest, which is the opposite of where
+this site's coverage sits.** That caveat matters more than usual here: the live hot list is
+megacap-tilted, so the claim is weakest exactly where the product lives.
+
+## 5. The digest — unblocked, regated, and unable to frame itself any other way
+
+`digest_eligible` moves `STATUS == POSITIVE` → `RISK_STATUS == POSITIVE`. That is **strictly
+tighter** than what it replaces: the return register can no longer unblock an outbound push at
+**any** value, so a future revision of V6 cannot start a digest going out on its own. Both
+directions are pinned. The previous close-out's reasoning is **amended in the test comment, not
+deleted**.
+
+Three structural guarantees, each mutation-caught:
+
+1. **The digest cannot write its own claim.** It renders `posture["digest_claim"]`, which is the
+   registered sentence, and the "not a promise" qualifier — pinned to be present, because the ban
+   list catches *wrong* sentences and cannot catch a *missing* one.
+2. **It re-checks its own finished message** against `violations()` before sending, and refuses
+   rather than sends on a trip. V4's assert-against-what-*renders*, moved one step out to
+   assert-against-what-**sends**.
+3. **A refused send does not mark the day done — and neither does a failed one**, so a transient
+   outage does not silently skip the next day.
+
+## 6. One screen, two callers
+
+`dip.screen_snapshot` now holds the snapshot load, both publication passes, the screen and the
+call budget. Written the moment there was a second caller: two copies of that sequence is how the
+Index and the hot list once disagreed, and **a digest that skipped `withhold` would push a name
+the site itself refuses to display — outbound, where the discrepancy is invisible until after it
+has been sent.** `/api/dip` and `scan_worker.run_weekly` both call it; a test pins that the route
+no longer re-implements the passes.
+
+## 7. Verification
+
+* **`tests/test_dip.py` 46/46.**
+* **Mutations 15/15 caught, 0 missed, 0 skipped** — including the three that initially MISSED and
+  exposed real test weaknesses (§1 detail-vs-headline, §5 missing-qualifier, §5 failed-send
+  marking). All three tests were strengthened, not the mutations retargeted, except one that was
+  genuinely pointed at the wrong test.
+* **Full gate: 71/71 suites exited 0.** Judged by exit code, never by grepping for `OK` —
+  `CLAUDE.md` records that the suites print at least three summary formats and that an
+  `OK`-scraping loop reports three passing suites as failing. `test_shadow_vintage.py` 26/26, so
+  the **V1 outbound fence is intact** with the new copy in place; `test_public.py` green, so the
+  surface split still classifies every route; `test_scream_track.py` 19/19 unaffected.
+  `test_guards.py` carries its pre-existing XFAIL note at exit 0 (options-bot lane, untouched).
+* **CI is Python 3.11 and this machine only has 3.13**, so all six changed `.py` files were
+  scanned for PEP 701 constructs (same-quote nesting and backslashes inside f-string braces):
+  **0 suspect**. A 3.12-only f-string has silently blocked three lands on this repo before.
+* Ledger `V6B-PRODUCT`; `tests/test_build_ledger.py` 20 passed, 192 rows = 133 audit + 59
+  out-of-band.
+
+## 8. BUGS FOUND
+
+1. **A test that passed on the headline while the body had stopped rendering.** `..._two_verdicts
+   _are_rendered_as_two` asserted only `VERDICT_HEADLINE`; deleting the `explainer` div left it
+   green. Mutation-caught, now asserts the detail too. *This is the shape of every stale-copy
+   defect in this project's record — the summary survives, the substance quietly leaves.*
+2. **A ban list cannot catch a missing sentence.** The digest's risk/return qualifier could be
+   deleted and the message still passed every check, because `violations()` only ever sees what
+   *is* there. Presence is now pinned separately.
+3. **A failed Discord send marked the day as already-digested**, so a transient network error
+   would silently skip the push and never retry. Pre-existing pattern in `post_hot_digest`'s
+   shape; fixed in the new sender and pinned. **Not fixed in `post_hot_digest` itself** — that is
+   a live path with its own callers and is filed below rather than changed under this prompt.
+
+## 9. Still open (not mine, or not this prompt)
+
+* **`post_hot_digest` has the same mark-on-failure shape** as bug 3 above. One line; different
+  surface; not touched here.
+* `SL.reset_record` still has not been run — the live record is on Render's disk and cannot be
+  reset from a dev box (`V6-LOG`).
+* `screen.py::_rows_from` still drops raw `high_prox` (screener lane).
+* `track_export._trade_rows` still drops `target_premium`/`stop_premium`/`last_mark` (edge lane).
+* `/methodology` still calls the Deflated Sharpe "undeflated" (M1 settled this 2026-08-05).
+
+## 10. If V6-B is ever revised
+
+One constant: `dip_posture.RISK_STATUS`. Set it to `NULL` (or `OPEN`) and the risk block stops
+rendering, the digest stops sending, and `digest_claim` empties — all derived, none of it needing
+anyone to remember a second place. The suite fails until the filled state is internally
+consistent, so a half-finished flip cannot ship quietly.
+
+---
+
 # Session 28 — 2026-08-13 — The Dip Detector, and the scream-buy record rebuilt
 
 **Lane:** app fixer. **Prompt:** `PROMPT_dip_detector_and_screamtrack.md` (out-of-band, product,

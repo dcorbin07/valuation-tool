@@ -1098,9 +1098,11 @@ function renderSectors(sectors) {
    Healthy names trading well below their own 52-week high.
 
    THE COPY IS NOT HERE. Every claim-bearing sentence on this tab is server-rendered from
-   `web/dip_posture.py` into the template, because it is written to be replaced when the V6
-   register closes. This file renders NUMBERS and the per-check badges, and the one string it
-   does own — the "not checked" label — describes the payload rather than the world.
+   `web/dip_posture.py` into the template, because it is written to be replaced when a register
+   closes — and TWO have now closed, to opposite answers: V6 found no return edge, V6-B found a
+   large and replicated reduction in how often these names fall a further 20%. Neither verdict
+   appears in this file. It renders NUMBERS and the per-check badges, and the one string it does
+   own — the "not checked" label — describes the payload rather than the world.
 
    WHY A CHECK THAT DID NOT RUN GETS ITS OWN BADGE. Two of the four disqualifiers need a full
    DCF. Rendering "not checked" as a tick would tell a reader that four things were verified
