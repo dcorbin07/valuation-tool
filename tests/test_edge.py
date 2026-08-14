@@ -9214,6 +9214,31 @@ def test_r4_the_multiple_testing_block_SHIPS_and_is_guarded():
     assert 'out["multiple_testing"]' in inspect.getsource(_fp.run_backtests)
 
 
+def test_r4_multiple_testing_is_computed_AFTER_construction():
+    """THE DEFECT THIS PINS ACTUALLY SHIPPED ONCE, and it was R4's own finding reproduced by
+    R4's own fix.
+
+    The first cut computed `multiple_testing` beside `per_signal`, twenty-five lines BEFORE
+    `out["construction"]` was assigned. Every field still appeared in the canonical file, the
+    BH half was correct, the M6 guard was satisfied, and no test failed — but the headline it
+    exists to compare against was `None`, so the artifact shipped
+    `clears_hlz_hurdle: null`. A number computed and never reported is precisely what R4
+    bullet 4 exists to end.
+
+    Ordering is not visible to a value-level test, so this asserts it in the source.
+    """
+    import inspect
+    from valuation.edge import fundamental_panel as _fp
+    src = inspect.getsource(_fp.run_backtests)
+    i_con = src.index('out["construction"] = quantile_backtest')
+    i_mt = src.index('out["multiple_testing"] =')
+    assert i_mt > i_con, (
+        "multiple_testing is computed BEFORE construction, so its HLZ comparison will be "
+        "null in the shipped artifact")
+    # and it must read the headline rather than a hard-coded constant
+    assert 'get("long_short_tstat_nw")' in src
+
+
 def test_r4_the_shared_BH_is_the_one_the_script_uses():
     """Three BH copies already existed in the options lane. A fourth is audit B7's defect."""
     from valuation.edge import statistics as ST

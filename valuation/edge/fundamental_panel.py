@@ -4812,9 +4812,6 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
         # stale value raises nothing and leaves coverage and sanity both perfectly happy.
         out["ev_freshness"] = ev_freshness(panel)
         out["per_signal"] = per_signal_ic(panel)
-        # AUDIT R4 — the two bullets M1 did not deliver. See `multiple_testing_accounting`.
-        out["multiple_testing"] = multiple_testing_accounting(
-            out["per_signal"], (out.get("construction") or {}).get("long_short_tstat_nw"))
         out["per_theme"] = theme_ic(panel)      # the level keep/drop decisions operate at
         if not panel.empty and panel["date"].nunique() >= 6:
             cols = [c for c in S.BUCKET_FACTORS[bucket] if c in panel.columns and panel[c].notna().any()]
@@ -4839,6 +4836,14 @@ def run_backtests(provider, tickers, horizons=(63, 252), rebalance_days=63, top_
                 rec, adopted_w, rec_name = base, False, "default"
             out["construction_weighting"] = (rec_name if adopted_w else "default")
             out["construction"] = quantile_backtest(panel, cols, rec, n_q=10, horizon=63)
+            # AUDIT R4 — the two bullets M1 did not deliver. MUST sit AFTER `construction`:
+            # the first cut computed it beside `per_signal`, twenty-five lines EARLIER, so the
+            # headline it exists to compare against was always None and the shipped block read
+            # `clears_hlz_hurdle: null`. That is R4's own finding — a number computed and never
+            # reported — reproduced by R4's own fix, and it is why the assertion below is here
+            # rather than a comment asking the next reader to be careful.
+            out["multiple_testing"] = multiple_testing_accounting(
+                out["per_signal"], (out.get("construction") or {}).get("long_short_tstat_nw"))
             out["regime"] = regime_split(panel, cols, rec, n_tiers=3, horizon=63)           # where the edge lives
             out["benchmarks"] = benchmark_panel(panel, cols, rec, n_q=10, horizon=63)       # AUDIT R10
             out["institutional_dependence"] = institutional_dependence(panel, cols, rec, horizon=63)

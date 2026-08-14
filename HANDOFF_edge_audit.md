@@ -11192,7 +11192,37 @@ the very trials it corrects.
 `N` was re-measured from `research_log.detail()` after the merge, not quoted from `CLAUDE.md`.
 `BACKTEST_RESULTS.json` refreshed from a clean tree — and **this refresh ships the
 `multiple_testing` block for the first time**, so the HLZ comparison and the BH table enter the
-canonical record.
+canonical record. **560 leaves added, all of them `multiple_testing`; zero removed; all four
+headlines bit-identical.**
+
+### 4a. THE HURDLE MOVES WITH `N`, AND THIS SECTION'S FIGURE IS NOT THE ARTIFACT'S — BOTH ARE RIGHT
+
+§1.2 quotes **√(2·ln 218) = 3.2816** with a shortfall of **0.6617**. **The shipped artifact reads
+√(2·ln 220) = 3.2844 and a shortfall of 0.6645.** Both are correct at their own denominator: the
+register computed against `N = 218`, **this session's own two X1 trials then landed**, and the
+refresh runs afterwards at `N = 220`.
+
+**This is the project's own "re-read `by_domain` after the merge" lesson arriving inside a single
+session's arithmetic**, and it is recorded rather than silently reconciled because a reader
+comparing the handoff to the artifact will otherwise find two hurdles and no explanation. **The
+verdict is unchanged and cannot be changed by it — the headline fails at either denominator, and
+the hurdle only ever RISES as trials accumulate.**
+
+### 4b. A DEFECT IN THE FIX ITSELF, FOUND BY READING THE ARTIFACT
+
+**The first refreshed artifact shipped `"hlz": {"value": null, "clears_hlz_hurdle": null}`.** The
+block was computed beside `per_signal`, **twenty-five lines before `out["construction"]` is
+assigned**, so the headline it exists to compare against was always `None`.
+
+**Every field was present, the BH half was entirely correct, M6's field-level guard was satisfied
+— because nothing was DROPPED, and a null is a value — and no test failed.** The block simply
+reported nothing about the one comparison it was built to make. **That is R4 bullet 4's own finding
+— a number computed and never reported — reproduced by R4's own fix.**
+
+Moved after `construction` and pinned by a **source-order** test, because **ordering is invisible
+to a value-level test**: an assertion on the returned dict passes happily when the caller hands it
+`None`. **The artifact produced by the buggy code was DISCARDED rather than committed**, and the
+refresh re-run from a clean tree.
 
 ## 5. What this does NOT do
 
