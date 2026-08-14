@@ -98,7 +98,10 @@ the project's memory and the old versions had been repeated for months.
     column**, so BH across the log is **not computable and never was.**
   * **BULLET 4 IS THE FINDING, AND IT REFUTES R4'S OWN PREDICTION. THE HEADLINE DOES NOT CLEAR THE
     HLZ HURDLE:** long-short HAC ***t* 2.6199121240414884** against **√(2·ln 218) =
-    3.2816139513322065**, a shortfall of **0.6617**. R4 predicted it *"probably clears"*; that 3.52
+    3.2816139513322065**, a shortfall of **0.6617** — **and the SHIPPED artifact reads 3.2844 at
+    N = 220, because this session's own two X1 trials landed between the register and the refresh.
+    Both are right at their own denominator, the verdict is unchanged either way, and the hurdle
+    only ever RISES as trials accumulate.** R4 predicted it *"probably clears"*; that 3.52
     was the **pre-B6 void panel**, and `N` went **8 → 218** meanwhile, so **the statistic FELL as
     the hurdle ROSE**. **The haircut was already computed on every run and used by the CPCV adopt
     gate - nothing had ever compared it to the HEADLINE**, and no `harvey`/`hlz`/`hurdle` string
