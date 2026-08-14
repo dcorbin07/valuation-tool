@@ -9260,6 +9260,34 @@ def test_r4_bh_charges_no_equity_trial():
     assert "C7_bh_covers_registered_numbers_only" in src
 
 
+def test_no_unresolved_conflict_markers_in_the_project_record():
+    """THIS ONE ACTUALLY LANDED ON MAIN, and nothing in the repo would have caught it.
+
+    A merge left `<<<<<<< HEAD` / `=======` / `>>>>>>> origin/main` inside `CLAUDE.md` — the
+    file this project calls its memory — and it survived four commits and two auto-land runs.
+    Nothing detects it: `git status` reports a clean tree once the markers are committed, the
+    Python suites never parse markdown, and both sides of that conflict were WANTED content,
+    so no reader skimming for missing text would notice either.
+
+    The blast radius is the reason this is a test and not a one-off fix: every session begins
+    by reading `CLAUDE.md`, and a conflicted region silently presents two competing versions
+    of the record as though they were one.
+    """
+    import glob
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    bad = []
+    for path in sorted(glob.glob(os.path.join(root, "*.md"))):
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            for n, line in enumerate(fh, start=1):
+                s = line.rstrip("\n")
+                # only line-START markers: "=======" appears legitimately as a markdown rule,
+                # and a bare "<<<" inside prose is not a conflict.
+                if (s.startswith("<<<<<<< ") or s.startswith(">>>>>>> ")
+                        or s == "|||||||" or s.startswith("||||||| ")):
+                    bad.append(f"{os.path.basename(path)}:{n}: {s[:40]}")
+    assert not bad, "unresolved merge conflict markers in the record:\n  " + "\n  ".join(bad)
+
+
 def _run_all():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0
