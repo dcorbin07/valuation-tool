@@ -48,7 +48,6 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
-<<<<<<< HEAD
 - **THE HEADLINE SURVIVES A SPLIT BY NAME - AN INDEPENDENCE AXIS IT HAD NEVER BEEN TESTED ON -
   AND IN THE SAME SESSION IT IS FOUND NOT TO CLEAR THE HARVEY-LIU-ZHU HURDLE (2026-08-13,
   `X1`+`R4`).** `PREREG_r4_x1_accounting_and_universe_split.md` committed **ALONE at `9aee4f7`**, a
@@ -204,7 +203,6 @@ the project's memory and the old versions had been repeated for months.
     was available and a decisive ADOPT was not. **Options `N` 287 → 292; equity untouched BY THIS ITEM (218 after the merge);
     72 suites, 0 failures.** Expectations **4 right, 3 wrong**.
     `data/free_analysis/V6OPT_STAGE1.json`, `V6OPT_STAGE2.json`; `HANDOFF_optionsbot.md` §57.
-=======
 - **THE 800-NAME-ERA REJECTIONS ARE RE-RUN AT LAST: SIX NULLS - AND A LIVE "ALL WRONG-SIGNED"
   CLAIM IS REFUTED, EVERY SIGN HAVING FLIPPED POSITIVE ON THE CORRECTED UNIVERSE (2026-08-13,
   `R5`+`R6`).** `PREREG_r5_r6_alphabetical_rerun.md` committed **ALONE at `4b9706b`**, a strict
@@ -265,7 +263,6 @@ the project's memory and the old versions had been repeated for months.
     wrong**; the informative miss is that I priced a better-than-even chance the "wrong-signed"
     finding would survive the universe correction, and **all three signs flipped**.
     `data/free_analysis/R5_R6_ALPHABETICAL.json`; `HANDOFF_edge_audit.md` R5+R6 sections 0-9.
->>>>>>> origin/main
 - **THE DIP BRANCH LIVES: A HEALTHY 20% DRAWDOWN FALLS A FURTHER 20% A QUARTER LESS OFTEN, AND IT
   IS NOT A SIZE SORT - BUT THE WORD "DIED" IS NOT EARNED (2026-08-13, `V6-B`).**
   `PREREG_v6b_dip_survival.md` committed **ALONE at `dc5ae98`**, a strict ancestor of every
