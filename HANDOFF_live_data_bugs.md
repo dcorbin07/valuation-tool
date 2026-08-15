@@ -4803,9 +4803,11 @@ exist.
 adopted**. `.scan-cache/screener.db` and `data/live_cache/served.db` do not exist. `data/app.db`
 has no such table.
 
-**Production: NOT VERIFIED.** The live record is SQLite on Render's disk and this lane has no
-token. **I have not established that nothing is overriding settings in production**, and I am not
-reporting that it is clean. What exists now is the means to answer it in one call:
+**Production: NOT VERIFIED — DISCHARGED 2026-08-15, see the RESOLVED block below. Kept as written
+because the distinction it draws is the reason the read was worth making.** The live record is
+SQLite on Render's disk and this lane has no token. **I have not established that nothing is
+overriding settings in production**, and I am not reporting that it is clean. What exists now is
+the means to answer it in one call:
 
     GET /admin/learned-weight-status          (read-only, token-protected)
     python -m valuation.edge.weight_adoption --status --db <path>
@@ -4825,6 +4827,44 @@ neutralise the violation and leave the record looking clean through a window in 
 not something to tidy up.** It would mean the live book was scored on unregistered weights from
 the `created_at` date onward, and the forward track's accrued days for that window describe a
 model the register never named.
+
+### RESOLVED 2026-08-15 — IT CAME BACK CLEAN, AND THE REFUSAL PATH IS VERIFIED LIVE RATHER THAN ONLY IN TESTS
+
+Don ran it against production at **`2026-08-15T12:21:47Z`**:
+
+    store_readable: true    n_rows: 0    n_adopted: 0
+    overriding: []          violations: []            clean: true
+    established / speculative: authorised false
+    reason: "vintage 4 carries no 'weights_adoption' entry"
+
+**THERE IS NO LIVE VINTAGE VIOLATION TO REPORT.** No adopted row has ever been written, so nothing
+has ever overridden `settings.WEIGHTS_*`, and no window of the forward track describes a model the
+register never named.
+
+**THE PART THAT IS NOT MERELY A CLEAN BILL: the refusal ran in production.** Every previous
+demonstration of the gate was a test with an injected register. Here the shipped gate read the real
+`track_meter.VINTAGES` and the real contract file on the live box and returned **NOT AUTHORISED
+naming the missing key** — not a generic denial, not an exception being swallowed by the
+fail-closed wrapper, which is exactly what a broken gate would also look like from the outside. The
+reason string is what separates *working* from *stuck shut*. Both buckets are covered, and because
+the refusal sits on the shared `save_learned` funnel, that one read covers **both** writers — MA1's
+learner and MA3's endpoint — not just the learner's.
+
+**ONE CORRECTION TO THE WORDING THIS ARRIVED WITH, because it claims more than the instrument can
+see.** The read was reported as *"the loop never fired in production"*. `live_override_report`
+reads the learned-weights table and nothing else, so `n_rows 0` establishes that the **adoption
+path was never reached**; it is silent on whether the cron ran. A second lane's independent check
+of the live edge-learning diagnostics carries positive evidence that the **job did fire**, once, on
+**2026-08-01 at 13:32:47 UTC**, returning at the insufficient-data guard that sits above every
+`save_learned` call. **The precise sentence is that the job fired and the adoption path was never
+reached** — and the audit's own severity rule turns on that distinction. The two reads, taken a day
+apart through two independent instruments, agree exactly where it matters.
+
+**What this does NOT license.** It is a statement about the record as of `2026-08-15T12:21:47Z`, not
+a standing guarantee — the endpoint is read-only and answers the question again whenever it is
+asked. The cron and its job are gone from `auto-scan.yml`, so nothing is scheduled to test the gate
+for real; the next genuine exercise of it will be a deliberate adoption, which by design needs a
+registered vintage **and** Don's signed row naming that same vintage.
 
 ## 5. The third door, which was not in the audit's file list
 
@@ -4865,10 +4905,18 @@ Nothing you can see changed. The hot list, the Index and the track are scored by
 weights in `settings.py`, as they were yesterday — **and that is now true because it is enforced,
 rather than because a monthly job had not got round to changing it yet.**
 
-The one thing worth doing when someone has the Render token: open
-`/admin/learned-weight-status`. If it says `clean: true`, the loop never fired and there is
-nothing else to do. If it does not, tell me the dates — that is a vintage violation to record, not
-a bug to fix.
+**DONE 2026-08-15 — you ran it, and it came back `clean: true`.** Nothing has ever overridden the
+weights in `settings.py`, so there is no vintage violation and nothing to record. The gate itself
+answered from the live box for the first time, refusing both buckets and naming the reason
+(`vintage 4 carries no 'weights_adoption' entry`), which is the difference between a gate that
+works and one that is merely stuck — full detail in §4.
+
+**One wording fix, and it was my sentence to get wrong.** This section used to read *"if it says
+`clean: true`, the loop never fired"*. That is a step further than the check can see: it reads the
+adopted-weights table, so `clean: true` means **nothing was ever adopted**, not that the monthly
+job never ran. It did run once, on **2026-08-01**, and stopped at its not-enough-data guard before
+reaching anything that could change a weight. The conclusion you care about is unchanged and is now
+measured twice: **nothing has ever changed the live weights.**
 
 ## 8. Two defects in my own work, both caught by a check rather than by review
 
