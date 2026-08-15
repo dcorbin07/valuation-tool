@@ -374,6 +374,123 @@ def test_a_block_that_threw_is_caught_by_the_writer_not_by_the_block_check():
     assert build_payload({"horizons": {}, "cpcv": {"n_paths": 15}})["errors"] == []
 
 
+def test_ma39_the_degraded_run_scan_watches_every_block_the_producer_stamps():
+    """AUDIT MA39 — the known-bad fixture, one per block, and it FAILS ON SEVEN OF THIRTEEN
+    against the code as it stood.
+
+    B22 stamps an error status onto all thirteen `RESULT_BLOCKS` when the diagnostics `try`
+    raises, but `build_payload` scanned a hand-typed list of SIX. Measured before the fix: an
+    exception inside `costs`, `holdout_validation`, `after_tax`, `benchmarks`, `book_configs`,
+    `no_trade_band` or `factors_used` produced `errors: []` and no DEGRADED banner — and this
+    file's own contract says a non-empty `errors` is what marks a run degraded, so an empty one
+    is an active claim of health, not an absence of information.
+
+    Every block gets its own fixture rather than a sample, because the whole defect is that a
+    subset was being watched."""
+    from valuation.edge.fundamental_panel import RESULT_BLOCKS
+    from valuation.edge.results_file import build_payload, render_md
+
+    assert len(RESULT_BLOCKS) == 13, "the fixture set must grow with the block list"
+    for blk in RESULT_BLOCKS:
+        p = build_payload({"horizons": {}, "cpcv": {"n_paths": 15},
+                           blk: {"status": "error: boom"}})
+        errs = [e for e in p["errors"] if not e.get("dropped_field")]
+        assert [e["block"] for e in errs] == [blk], \
+            f"a run that broke inside `{blk}` ships errors={errs} — it reads as healthy"
+        assert "DEGRADED RUN" in render_md(p), \
+            f"`{blk}` threw and the human-readable file shows no degraded banner"
+
+
+def test_ma39_a_healthy_run_is_not_crashed_or_cried_wolf_over_by_the_wider_scan():
+    """AUDIT MA39, the refusal direction — and it is the half the audit's own suggested fix
+    would have got wrong.
+
+    `factors_used` is a LIST of theme names on a healthy run, so the obvious implementation of
+    "iterate all of RESULT_BLOCKS" — `(res.get(k) or {}).get("status")` — raises
+    `AttributeError: 'list' object has no attribute 'get'` on EVERY SUCCESSFUL RUN, which is
+    the opposite of the failure it was widening the scan to catch. A block that is not a dict
+    cannot carry a status, so it cannot be degraded."""
+    from valuation.edge.results_file import build_payload, render_md
+
+    healthy = {"horizons": {}, "cpcv": {"n_paths": 15},
+               "factors_used": ["value", "quality", "momentum"],
+               "costs": {"top_decile": {"breakeven_one_way_bps": 134.1}},
+               "benchmarks": {"spy_total_return": {"excess": 0.0999}},
+               "construction": {"top_decile_alpha": 0.0717}}
+    p = build_payload(healthy)
+    assert [e for e in p["errors"] if not e.get("dropped_field")] == [], \
+        "the widened scan reports a healthy run as degraded"
+    assert "DEGRADED RUN" not in render_md(p)
+    assert p["signals_wired"] == ["value", "quality", "momentum"], \
+        "the list-valued block must still reach the payload"
+
+
+def test_ma39_the_run_level_errors_the_run_already_recorded_reach_the_file():
+    """AUDIT MA39 — `build_payload` rebuilt `errors` from scratch and never read
+    `res["errors"]`, so two findings the run HAD ALREADY MADE were discarded on the way to the
+    file that is this project's memory:
+
+      * B22's `"INCOMPLETE RUN — ..."`, the ONLY report that a block went MISSING rather than
+        raising (`missing_result_blocks` writes it there and nowhere else); and
+      * the original exception's own type and message.
+
+    Both are plain strings while the payload's entries are dicts, which is how they came to be
+    dropped for being the wrong shape."""
+    from valuation.edge.results_file import build_payload, render_md
+
+    res = {"horizons": {}, "cpcv": {"n_paths": 15},
+           "errors": ["INCOMPLETE RUN — these required blocks are absent or empty: "
+                      "costs, benchmarks (audit B22)",
+                      "diagnostics block failed: KeyError: 'marketcap'"]}
+    p = build_payload(res)
+    statuses = " ".join(e["status"] for e in p["errors"])
+    assert "INCOMPLETE RUN" in statuses, "B22's missing-block report never reaches the file"
+    assert "costs, benchmarks" in statuses, "the NAMES of the missing blocks were dropped"
+    assert "KeyError: 'marketcap'" in statuses, \
+        "the exception that broke the run was recorded and then thrown away"
+    md = render_md(p)
+    assert "DEGRADED RUN" in md and "INCOMPLETE RUN" in md
+
+    # Refusal direction: a run that recorded nothing must stay clean.
+    assert build_payload({"horizons": {}, "cpcv": {"n_paths": 15}})["errors"] == []
+
+
+def test_ma39_there_is_exactly_one_definition_of_the_block_list():
+    """AUDIT MA39 — the defect was two lists, not a short one. `RESULT_BLOCKS` lived in
+    `fundamental_panel` (which PRODUCES the blocks) and `results_file` (which SCANS them)
+    carried its own hand-typed six because it could not import the first without a cycle.
+
+    One definition, in the module both already import, is the only version of this that cannot
+    drift again — so the count is not what is pinned here, the SINGLENESS is."""
+    import re
+
+    from valuation.edge import fundamental_panel as fp
+    from valuation.edge import payload_schema as ps
+    from valuation.edge import results_file as rf
+
+    assert fp.RESULT_BLOCKS is ps.RESULT_BLOCKS, \
+        "fundamental_panel has its own copy again — a re-export cannot drift, a copy does"
+
+    defs = []
+    for path in ("valuation/edge/payload_schema.py", "valuation/edge/results_file.py",
+                 "valuation/edge/fundamental_panel.py"):
+        with open(path, encoding="utf-8") as f:
+            for i, line in enumerate(f, 1):
+                if re.match(r"\s*RESULT_BLOCKS\s*=\s*\(", line):
+                    defs.append(f"{path}:{i}")
+    assert defs == ["valuation/edge/payload_schema.py:%d" % int(defs[0].split(":")[1])], \
+        f"RESULT_BLOCKS is assigned a literal tuple in more than one place: {defs}"
+
+    # The scan must READ that list, not re-list it. A literal block name in the scan is the
+    # exact shape that drifted.
+    with open("valuation/edge/results_file.py", encoding="utf-8") as f:
+        src = f.read()
+    assert "block_errors" in src and "carried_run_errors" in src, \
+        "results_file no longer routes through the shared scan"
+    assert '"hold_until_exit", "construction", "walk_forward"' not in src, \
+        "the hand-typed six is back in results_file"
+
+
 def test_missing_result_blocks_covers_every_block_the_record_argues_about():
     """The guard is only as good as its list. These four are the blocks whose absence has
     actually been argued over in the record — costs (P6), holdout_validation (the theme

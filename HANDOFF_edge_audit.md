@@ -11941,3 +11941,137 @@ have caught it: before starting an audit row, check `origin/main..origin/worktre
   **live vintage violation**: report it dated, do not quietly fix. The token-gated equivalent the
   other lane shipped is `GET /admin/learned-weight-status`.
 
+
+---
+
+# MA39 — THE DEGRADED-RUN DETECTOR WATCHED 6 OF 13 BLOCKS, AND THE RUN'S OWN ERROR REPORT WAS BUILT AND THROWN AWAY (2026-08-15)
+
+**Zero trials, `FIXED`-class.** A correctness repair with no hypothesis, no threshold and no
+verdict, so it charges nothing: **equity `N` stays 224, infra stays 15**, and `by_domain` is
+bit-identical before and after the log append (`{equity: 224, options: 292, unified: 0,
+infra: 15}`), which is also the proof that MA13's committed-literal stamp still holds. No
+published claim moves and `BACKTEST_RESULTS.json` needs no re-run.
+
+## 0. What the audit said, and what was measured
+
+The audit's MA39: *"the degraded-run detector watches 6 of 13 result blocks, and `build_payload`
+never reads the error string the run recorded."* Both halves reproduce exactly, and each was
+measured against the pre-fix tree before anything was changed.
+
+**THE UNWATCHED SEVEN, NAMED.** `RESULT_BLOCKS` holds thirteen; the scan in
+`results_file.build_payload` iterated a hand-typed six (`hold_until_exit`, `construction`,
+`walk_forward`, `cpcv`, `regime`, `institutional_dependence`). Unwatched: **`factors_used`,
+`holdout_validation`, `costs`, `book_configs`, `no_trade_band`, `after_tax`, `benchmarks`.**
+One fixture per block against the pre-fix code — an error status in any of those seven produced
+`errors: []` and **no DEGRADED banner in the rendered markdown**, seven times out of seven.
+
+**WHY THAT IS WORSE THAN A GAP.** `results_file.py`'s own contract, in the comment directly above
+the field, is that *"Non-empty means the run is DEGRADED"*. An empty `errors` is therefore not an
+absence of information — it is **an active claim of health**, made by the file this project uses
+as its memory, on a run that broke.
+
+## 1. THE DEFECT WAS TWO LISTS, NOT A SHORT ONE — and that is the portable part
+
+The six were not an oversight of seven names. `RESULT_BLOCKS` lived in `fundamental_panel`, which
+**produces** the blocks and stamps them on failure; `results_file`, which **scans** them, could not
+import it without pulling a heavyweight module in and risking a cycle, so it grew its own copy.
+B22 later added blocks to the producer's list — `benchmarks` explicitly, *"a silently absent
+benchmark block would leave the uninvestable equal-weight figure standing alone again"* — and the
+consumer's copy never moved. **Two lists, one of which nobody had a reason to look at.**
+
+The fix is one definition in `payload_schema.py` — the module both already import at top level and
+which itself depends on nothing — with `fundamental_panel.RESULT_BLOCKS` left in place as a
+**re-export**, so every existing importer (including three tests) is unaffected.
+`test_ma39_there_is_exactly_one_definition_of_the_block_list` asserts object identity
+(`fp.RESULT_BLOCKS is ps.RESULT_BLOCKS`, which a copy fails and a re-export passes) **and** greps
+the three source files for a literal `RESULT_BLOCKS = (` assignment, requiring exactly one. It also
+fails if the hand-typed six ever reappears in `results_file`.
+
+## 2. THE AUDIT'S OWN SUGGESTED FIX BREAKS EVERY HEALTHY RUN — verified, not argued
+
+The audit's fix shape is *"iterate all of `RESULT_BLOCKS`"*. Taken literally that is
+`(res.get(k) or {}).get("status")`, and **`factors_used` is a LIST of theme names on a healthy
+run** (`out["factors_used"] = cols`; the shipped artifact carries 8 of them). So the naive scan
+raises `AttributeError: 'list' object has no attribute 'get'` **on every SUCCESSFUL run** — the
+exact opposite of the failure it was widening the scan to catch, and a 20–40 minute backtest would
+have lost its results file to it.
+
+**Verified rather than asserted:** the naive scan was monkeypatched in and the healthy-run fixture
+run against it, which raises. `block_errors` skips any block that is not a dict — a non-dict block
+cannot carry a status, so it cannot be degraded — and
+`test_ma39_a_healthy_run_is_not_crashed_or_cried_wolf_over_by_the_wider_scan` pins both that it does
+not raise and that `factors_used` still reaches `signals_wired`.
+
+## 3. The second half: two findings the run made and the file discarded
+
+`build_payload` built `payload["errors"]` from scratch and never read `res["errors"]`. Two things
+land there and nowhere else:
+
+* **B22's `"INCOMPLETE RUN — these required blocks are absent or empty: ..."`** — written by
+  `missing_result_blocks` in `main()`. This is the **only** report that a block went **MISSING**
+  rather than errored, and the two are different failures: `missing_result_blocks` asks *is the
+  block there*, and a block that raised **is** there, holding `{"status": "error: ..."}`. So the
+  block-level guard's entire output was being computed, printed to a console nobody keeps, and
+  dropped before the file.
+* **the original exception's own type and message**, from `"diagnostics block failed: ..."`.
+
+Both are plain **strings** where the payload's entries are **dicts** — which is how they came to be
+dropped for being the wrong shape rather than carried. `carried_run_errors` normalises them.
+**A guard whose finding is discarded on the way to the record is not a guard**, which is the same
+shape one level up as the fixed field list M6 already closed inside the same function.
+
+## 4. The fixtures, and the M3 standard
+
+Four in `tests/test_guards.py` (Tier 2, beside B22/M6's existing pins). **Three of the four FAIL
+against the pre-fix code**, measured by restoring the three source files to `HEAD` and re-running:
+
+| fixture | pre-fix | post-fix |
+|---|---|---|
+| every block the producer stamps is watched | **FAIL** — `factors_used` ships `errors=[]` | PASS |
+| the run-level errors reach the file | **FAIL** — B22's report never arrives | PASS |
+| exactly one definition of the block list | **ERROR** — `payload_schema` has no `RESULT_BLOCKS` | PASS |
+| a healthy run is not crashed or cried wolf over | PASS *(see below)* | PASS |
+
+**THE FOURTH IS REPORTED AS PASSING PRE-FIX, DELIBERATELY, because a table of four green
+"known-bad" fixtures would be a lie.** It is the **refusal direction** — rule 2 of that file — and
+it does not target MA39's defect at all; it targets the *fix*. Its known-bad input is the **naive
+implementation**, and against that it raises, as section 2 measured. A guard that fires on
+everything is as useless as one that fires on nothing.
+
+## 5. THE CENSUS — does any other consumer of `results_file` have the same shape?
+
+Asked for explicitly. Measured on the shipped artifact rather than counted by eye:
+
+* **`payload_schema.BLOCK_SPEC` — YES, and it is the same disease.** It guards **7 of the 22
+  dict-valued blocks** in `BACKTEST_RESULTS.json`. Unguarded: `git`, `universe`, `cleanups`,
+  `per_horizon`, `walk_forward`, `benchmarks`, `regime`, `per_signal`, `per_theme`,
+  `holdout_validation`, `costs`, `after_tax`, `no_trade_band`, `book_configs`, `sanity_check`.
+  **This is `MA40`'s row and it is deliberately NOT fixed here** — the task named MA39 alone, and
+  MA40 carries its own decision (add the blocks to `BLOCK_SPEC`, or drop the computation), which is
+  not a decision to make in passing. Note the correction: the audit estimates *"7 of ~17"*;
+  measured against the real artifact it is **7 of 22**.
+* **`missing_result_blocks` has exactly ONE caller** — `fundamental_panel.main()`. Any path
+  reaching `results_file.write()` directly gets **no missing-block check at all**. Currently
+  theoretical (production `write` also has exactly one caller) but structurally identical to MA39,
+  and **deliberately not closed here**: `build_payload` is called by a dozen tests and several
+  scripts with legitimately partial `res` dicts, so running the missing-block check inside it would
+  report thirteen blocks missing on every one of them. *"A gate that cries wolf is one you learn to
+  ignore."* Routed, not silently absorbed.
+* **`render_md` renders a subset of blocks — and this is NOT the same shape.** It is a human
+  summary, deliberately partial, and it makes no health claim. Listing it would pad the census.
+* **Readers outside the engine are single-block, not scans.** `scripts/theme_health.py` reads
+  `per_theme.themes` and explicitly reads at run time *"so a stale `BACKTEST_RESULTS.json` is
+  VISIBLE"*; `scripts/ma19_recalibrate.py` reads the one DSR field it cross-checks. Neither claims
+  completeness, so neither can be silently partial.
+
+## 6. What this does NOT say
+
+It does **not** mean a degraded run is now impossible to miss. It means a block that **raises** is
+reported for all thirteen, and a block that goes **missing** is reported whenever `main()` ran the
+check. The residual hole in §5 is real, dated and owned. And **no existing result changes**: the
+shipped `BACKTEST_RESULTS.json` carries `errors: []` from a run in which nothing raised, so this
+repair retracts nothing and revises no number — it changes what the *next* broken run will say.
+
+**81 suites, 0 failures** (guards 39/40 pass with 1 pre-existing options-lane `xfail`, unrelated
+and untouched). `valuation/edge/payload_schema.py`, `results_file.py`, `fundamental_panel.py`;
+`tests/test_guards.py`.

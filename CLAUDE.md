@@ -48,6 +48,49 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **A BROKEN BACKTEST COULD SHIP A CANONICAL RESULTS FILE THAT ACTIVELY CLAIMED TO BE HEALTHY —
+  THE DEGRADED-RUN DETECTOR WATCHED 6 OF 13 BLOCKS, AND THE RUN'S OWN ERROR REPORT WAS BUILT AND
+  THROWN AWAY (2026-08-15, `MA39`).** **Zero trials, `FIXED`-class** — a correctness repair with no
+  hypothesis, no threshold and no verdict, so **equity `N` stays 224 and infra 15**, `by_domain` is
+  bit-identical across the log append (which is also the check that MA13's stamp still holds), and
+  **no published claim moves.** `BACKTEST_RESULTS.json` needs no re-run.
+  * **THE UNWATCHED SEVEN, MEASURED ONE FIXTURE PER BLOCK BEFORE ANY FIX: `factors_used`,
+    `holdout_validation`, `costs`, `book_configs`, `no_trade_band`, `after_tax`, `benchmarks`.**
+    B22 stamps an error status onto all **thirteen** `RESULT_BLOCKS`; `results_file`'s scan iterated
+    a hand-typed **six**. An exception inside any of the seven shipped `errors: []` and **no DEGRADED
+    banner** — seven for seven. **An empty `errors` is not an absence of information:** the file's own
+    contract, in the comment above the field, is *"Non-empty means the run is DEGRADED"*, so a broken
+    run was **asserting it was fine** in the file this project uses as its memory.
+  * **THE DEFECT WAS TWO LISTS, NOT A SHORT ONE, AND THAT IS THE PORTABLE PART.** `RESULT_BLOCKS`
+    lived in the module that **produces** the blocks; the module that **scans** them could not import
+    it without a heavyweight cycle, so it grew a copy — and B22 later added `benchmarks` to one of
+    them only. One definition now sits in `payload_schema` (imported by both, depends on nothing) and
+    `fundamental_panel.RESULT_BLOCKS` is a **re-export**, so every existing importer is unaffected;
+    a test pins object identity **and** that exactly one literal assignment exists in the tree.
+  * **THE AUDIT'S OWN SUGGESTED FIX BREAKS EVERY HEALTHY RUN, verified rather than argued.**
+    *"Iterate all of `RESULT_BLOCKS`"* taken literally raises `AttributeError: 'list' object has no
+    attribute 'get'` **ON SUCCESS**, because `factors_used` is a LIST of theme names — a 20–40 minute
+    run would have lost its results file to it. Proved by monkeypatching the naive scan in and running
+    the healthy fixture against it, and pinned by the refusal-direction test.
+  * **THE SECOND HALF: `build_payload` rebuilt `errors` from scratch and never read `res["errors"]`**
+    — which carries B22's `"INCOMPLETE RUN"` report, **the only signal that a block went MISSING
+    rather than raised**, and the original exception's type and message. Both are plain **strings**
+    where the payload holds **dicts**, which is how they came to be dropped for being the wrong shape.
+    **A guard whose finding is discarded on the way to the record is not a guard.**
+  * **FIXTURES AT M3's STANDARD: 3 of 4 FAIL against the pre-fix code**, measured by restoring the
+    three sources to `HEAD`. **The fourth is reported as passing pre-fix, deliberately** — it is the
+    refusal direction, its known-bad input is the *naive fix*, and four green "known-bad" fixtures
+    would be a lie.
+  * **THE CENSUS, AND IT LEAVES ONE ROW OPEN: `payload_schema.BLOCK_SPEC` guards 7 of the 22
+    dict-valued payload blocks** — same disease, **`MA40`'s row, deliberately NOT fixed here** because
+    it carries a real decision (register the blocks, or drop the computation). **A correction to the
+    audit in passing: it estimates "7 of ~17"; measured against the real artifact it is 7 of 22.**
+    Also **reported not fixed**: `missing_result_blocks` has exactly **one** caller, so a path
+    reaching `results_file.write()` directly gets no missing-block check — left open because
+    `build_payload` has many legitimately partial callers and the check would cry wolf on all of them.
+  * **WHAT IT DOES NOT SAY: no existing result changes.** The shipped artifact carries `errors: []`
+    from a run in which nothing raised, so this **retracts nothing** — it changes what the **next**
+    broken run will say. **81 suites, 0 failures.** `HANDOFF_edge_audit.md` MA39.
 - **THE LIVE OPTIONS RECORD WAS CENSORED AT ONE END AND BLENDED AT THE OTHER — A WORTHLESS
   EXPIRY WAS STRANDED OPEN FOREVER, AND A TUNING LOOP WAS LEARNING FROM AN ERA THE PROJECT HAD
   FORMALLY RETIRED (2026-08-14, `MA36`+`MA37`).** `PREREG_ma36_ma37_record_integrity.md` committed
