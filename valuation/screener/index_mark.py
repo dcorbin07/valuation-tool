@@ -98,6 +98,13 @@ from . import market_session as _session
 #: rows carry it. ONE spelling, so a writer cannot invent a column the reader ignores.
 ROW_COLUMNS = ("date", "day_n", "valquo_pct", "spy_pct", "excess_pp", "n_priced")
 
+#: Sentinels handed to `csv.DictReader` so `append_row` can TELL a ragged file rather than
+#: silently normalising it. By default a surplus cell lands under the key `None` and a short
+#: row is padded with `None`, both of which are indistinguishable from an honestly-empty
+#: field once the dict exists. These two are distinguishable, which is the whole point.
+_RESTKEY = "__surplus_cells__"
+_RESTVAL = object()
+
 #: Fraction of the book's WEIGHT (not its name count) that must price before a row is
 #: emitted. Weight, because a book is a set of exposures: losing one 2.3% name is not the
 #: same event as losing one 0.4% name, and a name-count floor prices those identically.
@@ -310,6 +317,31 @@ def append_row(row: dict, history_path: str = None) -> dict:
     load()`, which already keeps the LAST row per date.
 
     It is a convenience, not a policy: whether and when to write is the recorder lane's.
+
+    APPENDING ONE ROW REWRITES THE WHOLE FILE, so the two hazards below are about every row
+    in it, not about the row being added. `track-backup.yml` calls this file *"the one thing
+    that can't be re-derived"*, and both were live until `MA4` (2026-08-15):
+
+    1. **It is written through a temp file and `os.replace`, never in place.** `open(path,
+       "w")` truncates first, so an interruption between truncate and flush leaves the bound
+       series empty or partial. Renaming over the original means a failed write leaves the
+       PREVIOUS file intact — which is also why no separate pre-write copy is taken: the
+       original *is* the copy until the rename succeeds.
+    2. **The header is the UNION of what is on disk with `ROW_COLUMNS`, never a projection
+       onto it.** Reading each historical row into a dict and re-writing it under
+       `ROW_COLUMNS` alone would delete any column the file had gained — a `vintage`, a
+       `source`, an `n_priced_method` — from *every row*, on the first append, silently. The
+       docstring above guards the opposite direction; the loss ran this way.
+
+    A column that exists on disk is therefore preserved forever, while a key on the incoming
+    `row` that is in neither the file nor `ROW_COLUMNS` is NOT written — widening the
+    contract-bound schema should take a deliberate edit here, not a caller's typo — and is
+    returned in `ignored_fields` rather than dropped in silence.
+
+    A RAGGED FILE IS REFUSED, NOT NORMALISED. `csv.DictReader` files surplus cells under a
+    single `None` key and pads short rows with `None`, so rewriting a file whose rows do not
+    match its header would quietly discard or invent cells. Refusing leaves a recording gap,
+    which `track_meter.recording_history` can see; normalising loses data that nothing can.
     """
     from . import index_track
     _, hp = index_track.default_paths()
@@ -317,28 +349,53 @@ def append_row(row: dict, history_path: str = None) -> dict:
     if not row or not row.get("date"):
         return {"ok": False, "reason": "no row to append", "wrote": False}
 
-    existing = []
+    existing, on_disk = [], []
     try:
         with open(history_path, encoding="utf-8", newline="") as f:
-            existing = [r for r in csv.DictReader(f)]
+            rd = csv.DictReader(f, restkey=_RESTKEY, restval=_RESTVAL)
+            existing = [r for r in rd]
+            on_disk = [c for c in (rd.fieldnames or []) if c]
     except FileNotFoundError:
-        existing = []
+        existing, on_disk = [], []
     except Exception as e:                                   # noqa: BLE001
         return {"ok": False, "reason": "could not read " + str(history_path) + ": " + str(e),
                 "wrote": False}
 
+    for i, r in enumerate(existing):
+        if _RESTKEY in r or any(v is _RESTVAL for v in r.values()):
+            return {"ok": False, "wrote": False, "reason":
+                    "refusing to rewrite " + str(history_path) + ": data row " + str(i + 2)
+                    + " does not match its header, so a rewrite would discard or invent "
+                      "cells. Repair the file by hand."}
+
+    fields = list(ROW_COLUMNS) + [c for c in on_disk if c not in ROW_COLUMNS]
+    ignored = sorted(k for k in row if k not in fields)
+
     kept = [r for r in existing if (r.get("date") or "").strip() != row["date"]]
     replaced = len(kept) != len(existing)
-    kept.append({k: row.get(k) for k in ROW_COLUMNS})
+    kept.append({k: row.get(k) for k in fields})
     kept.sort(key=lambda r: (r.get("date") or ""))
 
     d = os.path.dirname(os.path.abspath(history_path))
     if d and not os.path.isdir(d):
         os.makedirs(d, exist_ok=True)
-    with open(history_path, "w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(ROW_COLUMNS))
-        w.writeheader()
-        for r in kept:
-            w.writerow({k: r.get(k) for k in ROW_COLUMNS})
+    tmp = history_path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=fields)
+            w.writeheader()
+            for r in kept:
+                w.writerow({k: r.get(k) for k in fields})
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, history_path)
+    except Exception as e:                                   # noqa: BLE001
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return {"ok": False, "wrote": False,
+                "reason": "could not write " + str(history_path) + ": " + str(e)}
     return {"ok": True, "reason": "", "wrote": True, "replaced": replaced,
-            "path": history_path, "rows": len(kept)}
+            "path": history_path, "rows": len(kept), "columns": fields,
+            "ignored_fields": ignored}
