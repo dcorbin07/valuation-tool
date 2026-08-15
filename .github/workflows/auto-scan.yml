@@ -58,7 +58,14 @@ on:
     - cron: "58 21 * * 1-4"         # daily recap — 21:58 UTC = 4:58pm ET in winter (EST)
     - cron: "59 20 * * 5"           # weekly recap — Friday, after the close (EDT)
     - cron: "59 21 * * 5"           # weekly recap — Friday, after the close (EST)
-    - cron: "0 12 1 * *"            # self-learning — monthly (1st, 12:00 UTC), OOS-gated re-tune
+    # REMOVED 2026-08-14 (master audit MA1): - cron: "0 12 1 * *"  self-learning, monthly.
+    # It POSTed /admin/run-learning, whose adoption path writes weights straight into Render's
+    # database — changing the composite users receive with NO code commit, NO diff, and NO
+    # vintage entry, while the forward track kept accruing under the old vintage. That is the
+    # exact condition PAPER_TRACK_CONTRACT Amendment 1 voided vintage 1 for. Learned weights
+    # now ship only the S14 way: registered, gated, Don-signed, and recorded as a vintage.
+    # Do NOT restore this line — the adoption path refuses without a vintage entry anyway, so
+    # restoring it would buy a monthly job that can only ever decline.
     - cron: "15 13 * * 1-5"         # watchdog — 13:15 UTC (~9:15am ET), BEFORE the open, so a
                                     # dead pipeline is known about while there is still a day
                                     # to fix it rather than after the next close
@@ -265,15 +272,20 @@ jobs:
             *) echo "::warning::recap did not post; see the response above" ;;
           esac
 
-  learn:
-    # Monthly self-learning: tells the site to re-tune its screener weights out-of-sample
-    # (server-side; it has the accrued track record). Purely statistical. Just a trigger.
-    if: ${{ (github.event_name == 'schedule' && github.event.schedule == '0 12 1 * *') || (github.event_name == 'workflow_dispatch' && github.event.inputs.kind == 'both') }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Trigger monthly out-of-sample-gated re-tune
-        env:
-          BASE: ${{ secrets.SITE_BASE_URL }}
-          TOKEN: ${{ secrets.ADMIN_TOKEN }}
-        run: |
-          curl -fsS -X POST "$BASE/admin/run-learning" -H "X-Admin-Token: $TOKEN" || true
+  # REMOVED 2026-08-14 (master audit MA1) — the `learn:` job.
+  #
+  # It fired on the monthly cron AND on any `workflow_dispatch` with kind=both, and its single
+  # step POSTed /admin/run-learning. The chain was:
+  #     cron -> /admin/run-learning -> autolearn.run_learning -> save_learned(adopted=True)
+  #          -> screen._effective_weights prefers learned over settings
+  # so a scheduled job could change the weights the live hot list, /api/hotstocks and the Valquo
+  # Index are scored with — invisibly to `track_meter.VINTAGES`, which is a literal tuple in
+  # Python source with no path from a SQLite row to it.
+  #
+  # MEASURED ON PRODUCTION 2026-08-14 before removal: it had executed exactly once, on
+  # 2026-08-01 13:32:47 UTC, and adopted NOTHING — `/api/edge/learning` showed an EMPTY history
+  # and live weights bit-identical to settings.WEIGHTS_ESTABLISHED. So this is a disarm ahead of
+  # the risk, not a clean-up after it; the next fire (2026-09-01) would have been the first with
+  # any chance of clearing the data floor.
+  #
+  # Re-arming is a VINTAGE EVENT and needs Don's sign-off, not a revert of this hunk.

@@ -119,10 +119,44 @@ def run_learning(cfg, store, price_fn=None, panel=None) -> dict:
         accepted = bool(opt.get("accepted"))       # out-of-sample test is the ENTIRE decision
         rec = _normalize(opt.get("recommended_weights") or base)
         note = opt.get("verdict") or ("adopted out-of-sample" if accepted else "no robust improvement — kept current")
+        # MASTER AUDIT MA1 -- THE AMENDMENT 1 GATE. Passing the out-of-sample test is necessary
+        # and NOT sufficient. Adopting weights changes the composite the live product scores
+        # with, which Amendment 1 defines as a VINTAGE EVENT: it closes the open vintage and
+        # opens the next. `VINTAGES` is a literal tuple in Python source and `save_learned`
+        # writes a SQLite row, so without this check an adoption would move the live model while
+        # the forward track kept accruing under a vintage whose model had already changed --
+        # exactly what vintage 1 was voided for.
+        #
+        # The refusal is RECORDED, not silent: it writes an `adopted=False` row carrying the
+        # statistics that would have been adopted, so `learning_history` shows that the learner
+        # found an improvement and was refused. A gate whose firing leaves no trace is
+        # indistinguishable from a learner that never found anything.
+        authorisation = None
         if accepted:
-            store.save_learned(bucket, rec, stats, True, note)
+            try:
+                from .track_meter import learned_weight_authorisation
+                authorisation = learned_weight_authorisation(bucket)
+            except Exception:
+                authorisation = None          # cannot read the register -> refuse
+        if accepted and authorisation is None:
+            refusal = ("REFUSED by the Amendment 1 gate: this would change the live composite, "
+                       "which is a vintage event, and no OPEN vintage in track_meter.VINTAGES "
+                       "authorises learned weights for this bucket. The out-of-sample test "
+                       "PASSED; that is necessary and not sufficient. Ship it the S14 way -- "
+                       "register it, gate it, get sign-off, open a vintage whose reason is the "
+                       "adoption and mark it authorising -- then this run will adopt.")
+            store.save_learned(bucket, base, {**stats, "refused_by": "amendment_1_vintage_gate",
+                                              "would_have_adopted": rec}, False, refusal)
+            report["buckets"][bucket] = {"adopted": False, "refused": True, "weights": base,
+                                         "previous": base, "would_have_adopted": rec,
+                                         "out_sample_ic": opt.get("out_sample_ic"),
+                                         "note": refusal}
+        elif accepted:
+            store.save_learned(bucket, rec, stats, True,
+                               f"{note} [authorised by vintage {authorisation.get('vintage')}]")
             report["buckets"][bucket] = {"adopted": True, "weights": rec, "previous": base,
-                                         "out_sample_ic": opt.get("out_sample_ic"), "note": note}
+                                         "out_sample_ic": opt.get("out_sample_ic"), "note": note,
+                                         "authorised_by_vintage": authorisation.get("vintage")}
         else:
             store.save_learned(bucket, base, stats, False, note)
             report["buckets"][bucket] = {"adopted": False, "weights": base, "previous": base, "note": note}

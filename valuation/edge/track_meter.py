@@ -199,6 +199,59 @@ def current_vintage() -> dict:
     return live[0]
 
 
+# MASTER AUDIT MA1 -- the key a vintage entry must carry before learned weights may be adopted.
+# Nothing in VINTAGES carries it today, which is the point: the gate is CLOSED until somebody
+# adds it, and adding it is a change to Python source, i.e. a commit with a diff and a review.
+LEARNED_WEIGHT_AUTHORISATION_KEY = "authorises_learned_weights"
+
+
+def learned_weight_authorisation(bucket, vintages=None):
+    """Amendment 1 gate: may the self-learner ADOPT weights for `bucket` right now?
+
+    Returns the authorising vintage dict, or None to refuse.
+
+    WHY THIS EXISTS (master audit MA1). The chain
+        auto-scan cron -> /admin/run-learning -> autolearn -> save_learned(adopted=True)
+        -> screen._effective_weights prefers learned over settings
+    could change the composite the live product scores with by writing a SQLite row. Amendment 1
+    (`PAPER_TRACK_CONTRACT` §5a) says an ADOPTED change to scoring, weights or construction
+    CLOSES the current vintage and opens the next -- and `VINTAGES` is a literal tuple in Python
+    source, so there is no path from a database row to it. An adoption would therefore have moved
+    the live model while the forward track kept accruing under the old vintage: precisely the
+    condition Amendment 1 voided vintage 1 for.
+
+    WHY THE AUTHORISATION LIVES IN THE REGISTER RATHER THAN IN A FLAG OR AN ENV VAR. The register
+    is the only artifact the contract treats as authoritative, and editing it is a commit -- so
+    authorising an adoption necessarily leaves a diff, a reviewer and a dated entry, and it lands
+    in the same file that will have to record the vintage the adoption opens. An env var would
+    re-create exactly the invisible-change problem this gate closes. `RUN_RULES` A5 forbids an
+    environment escape hatch for a gate, and this is one.
+
+    THE RULE, deliberately strict:
+      * the authorisation must sit on the CURRENTLY OPEN vintage -- a spent authorisation on a
+        closed vintage must not license a second adoption years later; and
+      * it must name this bucket explicitly (or be `True` for every bucket).
+
+    Adopting learned weights is itself a vintage event, so the intended sequence is: register and
+    gate the change the S14 way, get Don's sign-off, open a NEW vintage whose reason IS the
+    adoption, mark it authorising, let the adoption run, and leave the entry behind as the record.
+    """
+    try:
+        live = [v for v in (vintages if vintages is not None else VINTAGES)
+                if v.get("status") == "OPEN"]
+        if len(live) != 1:
+            return None                       # ambiguous register: refuse, never guess
+        v = live[0]
+        allowed = v.get(LEARNED_WEIGHT_AUTHORISATION_KEY)
+        if allowed is True:
+            return v
+        if isinstance(allowed, (list, tuple, set, frozenset)) and bucket in allowed:
+            return v
+        return None
+    except Exception:
+        return None                           # a gate that cannot read its register refuses
+
+
 def vintage_label() -> dict:
     """How the OPERATED RECORD names itself, computed from the register above.
 

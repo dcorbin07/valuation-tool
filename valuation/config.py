@@ -184,12 +184,23 @@ class Config:
     backtest_rebalance_days: int = field(default_factory=lambda: int(_get_float("BACKTEST_REBALANCE_DAYS", 63)))
     backtest_top_n: int = field(default_factory=lambda: int(_get_float("BACKTEST_TOP_N", 25)))
     backtest_recency_halflife_years: float = field(default_factory=lambda: _get_float("BACKTEST_RECENCY_HALFLIFE_YEARS", 5))
-    # Self-learning: a monthly, out-of-sample-gated re-tune of the screener's factor
-    # weights from the tool's own accumulated snapshots + realized forward returns.
-    # Adopts a change ONLY if it beats the current weights out-of-sample (no overfit).
-    # Purely statistical — no LLM in the loop (the grid + hold-out test IS the decision).
-    # Needs enough accrued history first, so early runs correctly decline to change anything.
-    learn_enabled: bool = field(default_factory=lambda: _get("LEARN_ENABLED", "true").lower() != "false")
+    # Self-learning: an out-of-sample-gated re-tune of the screener's factor weights from the
+    # tool's own accumulated snapshots + realized forward returns. Purely statistical — no LLM
+    # in the loop (the grid + hold-out test IS the decision).
+    #
+    # DEFAULTS FALSE SINCE 2026-08-14 (master audit MA1). It used to default TRUE and was
+    # documented nowhere — not in .env.example, ENV_REFERENCE.md, any workflow, or any .md.
+    # Combined with the (now removed) monthly cron, that meant a scheduled job could rewrite the
+    # weights the live product scores with by writing a row into Render's database: no code
+    # commit, no diff, no review, and invisible to `track_meter.VINTAGES`, which is a literal
+    # tuple in Python source. PAPER_TRACK_CONTRACT Amendment 1 makes an adopted weight change a
+    # VINTAGE EVENT that closes the current vintage; a SQLite row cannot do that, so the forward
+    # track would have kept accruing under a vintage whose model had already changed.
+    #
+    # It reads `== "true"` and not `!= "false"` so that anything unrecognised FAILS CLOSED.
+    # Turning it on is not sufficient to adopt anything: `autolearn` independently refuses to
+    # adopt without an Amendment 1 vintage entry authorising it (see `vintage_authorisation`).
+    learn_enabled: bool = field(default_factory=lambda: _get("LEARN_ENABLED", "false").lower() == "true")
     learn_min_dates: int = field(default_factory=lambda: int(_get_float("LEARN_MIN_DATES", 8)))
     learn_horizon_days: int = field(default_factory=lambda: int(_get_float("LEARN_HORIZON_DAYS", 21)))
     learn_top_per_date: int = field(default_factory=lambda: int(_get_float("LEARN_TOP_PER_DATE", 60)))

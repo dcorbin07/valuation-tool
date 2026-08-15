@@ -89,11 +89,24 @@ def test_edge_routes_owner_only():
 
 
 def test_self_learning_gate():
-    """The monthly re-tune is purely statistical: adopt on a real out-of-sample edge,
-    decline on noise or too-little-history, and the live scorer reads whatever it adopts."""
+    """The re-tune is purely statistical: decline on noise or too-little-history, and the live
+    scorer reads whatever it adopts.
+
+    AMENDED 2026-08-14 (master audit MA1). This test used to assert that a real out-of-sample
+    edge ADOPTS outright, and the audit cited those two lines as proof the auto-apply was
+    "intended and tested, not accidental". It is no longer sufficient: adopting weights changes
+    the composite the live product scores with, which Amendment 1 makes a VINTAGE EVENT, so the
+    adoption path now also requires an OPEN vintage authorising it.
+
+    The valuable half of the original assertion is KEPT rather than deleted -- that when weights
+    are legitimately adopted the live scorer really does pick them up -- and is now exercised
+    under an authorising vintage. Deleting it would have removed the only test that the wiring
+    works at all, which is not what MA1 asked for.
+    """
     import tempfile
     from valuation.screener.store import Store
     from valuation.screener.screen import _effective_weights
+    from valuation.edge import track_meter as TM
     from valuation.edge.autolearn import run_learning
 
     from valuation.screener import settings as S
@@ -112,12 +125,34 @@ def test_self_learning_gate():
 
     fd, p = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(p)
     st = Store(p)
-    # 1) Real out-of-sample signal → adopts, and the LIVE scorer picks up the new weights.
+    # 1a) MA1: a real out-of-sample signal is NOT enough on its own. With no vintage authorising
+    #     learned weights, the adoption is REFUSED and nothing reaches the live scorer.
     rep = run_learning(CONFIG, st, panel=panel(0.35, 1))
-    assert rep["status"] == "ok" and rep["buckets"]["established"]["adopted"] is True
-    learned = st.latest_learned_weights("established")
+    assert rep["status"] == "ok"
+    assert rep["buckets"]["established"]["adopted"] is False
+    assert rep["buckets"]["established"]["refused"] is True
+    assert st.latest_learned_weights("established") is None
+    assert _effective_weights(st)[0] == S.WEIGHTS_ESTABLISHED   # live weights untouched
+
+    # 1b) Under an AUTHORISING vintage the same panel adopts, and the live scorer picks it up.
+    #     This is the original assertion, preserved: it is the only proof the wiring works.
+    fd, pa = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(pa)
+    sta = Store(pa)
+    real_vintages = TM.VINTAGES
+    try:
+        TM.VINTAGES = tuple(
+            dict(v, **({TM.LEARNED_WEIGHT_AUTHORISATION_KEY: ["established", "speculative"]}
+                       if v.get("status") == "OPEN" else {}))
+            for v in real_vintages)
+        rep_a = run_learning(CONFIG, sta, panel=panel(0.35, 1))
+    finally:
+        TM.VINTAGES = real_vintages
+    assert rep_a["buckets"]["established"]["adopted"] is True
+    learned = sta.latest_learned_weights("established")
     assert learned is not None
-    assert _effective_weights(st)[0] == learned          # live weights = learned weights
+    assert _effective_weights(sta)[0] == learned          # live weights = learned weights
+    # And the gate is shut again once the authorisation is gone.
+    assert TM.learned_weight_authorisation("established") is None
 
     # 2) Pure noise → declines, nothing adopted (this is the anti-overfit guard working).
     fd, p2 = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(p2)

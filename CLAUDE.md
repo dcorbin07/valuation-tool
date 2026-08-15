@@ -48,6 +48,82 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **A SCHEDULED JOB COULD HAVE REWRITTEN THE LIVE SCORING WEIGHTS WITH NO CODE COMMIT AND NO
+  VINTAGE - IT IS DISARMED, AND PRODUCTION IS VERIFIED CLEAN (2026-08-14, `MA1`, CRITICAL).**
+  **Zero trials** - no hypothesis, no threshold, no verdict. Equity `N` stays **224**. Run ALONE
+  per the dependency map; **`MA2` and `MA3` are deliberately UNTOUCHED** (see the last bullet
+  point below - MA3 is a second, still-armed writer).
+  * **PRODUCTION IS CLEAN AND THERE IS NO VINTAGE VIOLATION TO REPORT.** `/api/edge/learning` on
+    the live host shows **`history` EMPTY** - so `learned_config` has never been written, adopted
+    or declined - and **`current.established` bit-identical to `settings.WEIGHTS_ESTABLISHED`**
+    (seven themes at 0.125, `low_risk` 0.0, `sentiment` 0.0). **No learned weights have ever
+    overridden settings.**
+  * **THE LOOP WAS ARMED AND HAD FIRED ONCE - DATED, AND PROVED RATHER THAN INFERRED.**
+    `number_ic.computed_at` reads **2026-08-01T13:32:47.645510** with status *"insufficient
+    data"*, and `run_number_diagnostics` - the only writer of that key **anywhere in the
+    repository** - is called from **exactly one place**, inside `/admin/run-learning`. So the
+    monthly cron fired on 2026-08-01 and the endpoint ran; the empty history proves
+    `run_learning` returned at its insufficient-data guard, which sits ABOVE every `save_learned`
+    call. **The audit's rule was "CRITICAL if it has ever fired, HIGH-and-armed if it has not";
+    precisely, the JOB fired and the ADOPTION PATH was never reached.**
+  * **THE CODE AND THE DATES AGREE WITH THE MEASUREMENT, WHICH IS WHY IT IS BELIEVABLE.** Adoption
+    needs **8 distinct scan dates each carrying a realized 21-TRADING-DAY forward return**; the
+    chain landed 2026-07-28 and scans began ~2026-07-25, so on 2026-08-01 **no scan date could yet
+    have one**. **The next fire was 2026-09-01 - the first with any arithmetic chance of clearing
+    the floor - so this is a disarm AHEAD of the risk by about two weeks, not a clean-up after.**
+  * **WHY IT IS A CONTRACT PROBLEM, NOT A CONFIG ONE.** Amendment 1 makes an adopted weight change
+    a **VINTAGE EVENT** that closes the open vintage and restarts the five-year clock.
+    `track_meter.VINTAGES` is a **literal tuple in Python source**; `save_learned` writes a
+    **SQLite row**; there is **no path from one to the other**. An adoption would have moved the
+    live model **while the forward track kept accruing under the old vintage** - the exact
+    condition vintage 1 was voided for. **It also breaks `BACKTEST_RUNBOOK.md`'s stated
+    architecture** (*"the ONLY thing that travels to Render is the optimized weights … via a
+    normal code commit"*): this path sent weights to Render by writing into **Render's own
+    database**. And roadmap **#19** reads *"**Later:** gated auto-apply of adopted weights"* - the
+    project believed this was unbuilt; it was built, shipped and pinned by a test.
+  * **THREE INDEPENDENT LOCKS, because the first two can be undone from a dashboard with no
+    diff.** (1) The `learn:` job and its `0 12 1 * *` cron are **removed** - the job also fired on
+    any `workflow_dispatch kind=both`, so removing the JOB is what actually closes it, and the
+    other ten crons are untouched and asserted so. (2) **`learn_enabled` defaults FALSE and FAILS
+    CLOSED** - it reads `== "true"` not `!= "false"`, so `yes`/`1`/`on`/`""` are now OFF where
+    every one of them used to be ON - and it is **documented at last**, in `.env.example` and
+    `ENV_REFERENCE.md`, closing the audit's measured "appears in no .md/.yml/.example" finding.
+    (3) **THE LOAD-BEARING ONE: the adoption path REFUSES unless the currently OPEN vintage
+    carries `authorises_learned_weights` for that bucket.** No vintage carries it, so the gate is
+    shut; opening it is an edit to a Python literal - **a commit, with a diff and a reviewer**,
+    landing in the very file that must record the vintage the adoption opens. **An env var would
+    re-create the invisible-change problem being closed, and `RUN_RULES` A5 forbids one.**
+  * **REFUSALS ARE RECORDED, NOT SILENT** - a refused adoption writes an `adopted=False` row
+    carrying the statistics AND the weights that would have been adopted, so `learning_history`
+    separates *"found nothing"* from *"found something and was refused"*. **A gate whose firing
+    leaves no trace is indistinguishable from a learner that never found anything** - B8's
+    `rule_fired` in a new costume. `latest_learned_weights` reads `adopted=1` only, so it is inert.
+  * **THE GATE IS SHOWN TO FIRE, NOT ASSUMED TO.** `tests/test_ma1_learning_disarmed.py` (7 tests)
+    carries a **positive control** that arms an authorising vintage on a panel engineered to be
+    genuinely accepted and asserts the adoption **goes through** - without it every refusal test
+    would pass on a learner that can never adopt anything, which is `M3`/`MA13`'s vacuity failure.
+  * **THE AUDIT'S CITED PIN WAS AMENDED, NOT DELETED.** `test_edge.py`'s
+    `assert _effective_weights(st)[0] == learned` was the audit's proof this was *"intended and
+    tested"*. It now asserts a real out-of-sample edge is **REFUSED** without authorisation **and**
+    that under an authorising vintage it adopts and the live scorer picks it up - **deleting the
+    second half would have removed the only test that the wiring works at all.** 428/428 edge tests.
+  * **A FINDING OUTSIDE MA1's SCOPE, REPORTED AND NOT FIXED: `/api/edge/learning` answers
+    ANONYMOUSLY on production** despite its own docstring saying *"Owner-only (gated by the SaaS
+    layer)"*. That is how production was verified with no token. Exposure is low today (the weights
+    are already published here, the history is empty) and it matters more once a history exists.
+    **The gating layer is the app lane's surface and a mis-applied gate could lock Don out of his
+    own diagnostics - so it is routed, not fixed.**
+  * **STILL ARMED, NAMED SO IT IS NOT MISTAKEN FOR DONE: `MA3`'s second writer.**
+    `POST /admin/adopt-backtest-weights` reaches `save_learned` on a **single 50/50 split**, the
+    gate `CLAUDE.md` forbids. It needs a human with a token and is not on a schedule, so it is
+    materially less dangerous - **but this session does not gate it. Putting the gate inside
+    `save_learned` would have closed MA3 too, and that was deliberately NOT done**: it would be
+    MA3's work without MA3's analysis. **`MA2`** (the uncalibrated 1.64σ floor) is likewise
+    untouched - MA1 makes it unreachable by schedule, not correct. **Both are wave 2.**
+  * **FOR DON, one command, no token:** `curl -s https://valquo.co/api/edge/learning` - `history`
+    must be `[]` and `current.established` must equal the settings weights. A non-empty `adopted`
+    row is a **live vintage violation**: report it dated, do not quietly fix.
+    `HANDOFF_edge_audit.md` MA1.
 - **THE CALIBRATED FLOORS ARE RE-DERIVED AT TODAY'S `N` AND FIVE OF SEVEN HAVE NEVER MOVED -
   INCLUDING BOTH LONG-SHORT FLOORS - WHILE THE 1.95pp ALPHA MARGIN TURNS OUT TO HAVE BEEN STALE
   FOR NINE DAYS (2026-08-14, `MA19`+`MA13`).** `PREREG_ma19_ma13_recalibration.md` committed

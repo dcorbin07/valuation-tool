@@ -29,6 +29,23 @@ each item when you actually need the feature it unlocks.
 > Master-link format: `https://YOUR-SITE/demo/preview` (swap in your token). Owner
 > (`donniecorbin6@gmail.com`) still gets Premium regardless of any of these.
 
+## Self-learning — OFF by default, and there is a reason to leave it off
+
+| Variable | Default | What it does |
+|---|---|---|
+| `LEARN_ENABLED` | **`false`** | Enables the out-of-sample-gated re-tune of the **live screener weights**. **Defaulted `true` and was documented nowhere until 2026-08-14 (master audit MA1)**, while a monthly GitHub cron POSTed `/admin/run-learning` — so a scheduled job could change the weights the live hot list, `/api/hotstocks` and the Valquo Index are scored with **by writing a row into Render's database**: no code commit, no diff, no review. The cron has been removed. Only the exact string `true` turns it on; anything else fails closed. |
+| `LEARN_MIN_DATES` | `8` | Distinct scan dates that must carry a realized forward return before the learner will look at a bucket. |
+| `LEARN_HORIZON_DAYS` | `21` | Trading-day forward-return window used to score each scan date. |
+| `LEARN_TOP_PER_DATE` | `60` | Names per date fed to the learner. |
+
+> **Turning `LEARN_ENABLED` on is not sufficient to change any weight.** Adopting weights is a
+> **vintage event** under `PAPER_TRACK_CONTRACT` Amendment 1 — it closes the current vintage and
+> restarts the five-year clock — and a database row cannot close a vintage. So the learner also
+> refuses to adopt unless an **OPEN** vintage in `track_meter.VINTAGES` explicitly authorises
+> learned weights for that bucket. Both are deliberate acts, and the second one is a code commit.
+> Verified on production 2026-08-14: **no learned weights have ever been adopted** — the live
+> weights are bit-identical to `settings.WEIGHTS_ESTABLISHED`.
+
 ## Leave blank until you need them
 | Variable | Fill it in when… | Where to get it |
 |---|---|---|
