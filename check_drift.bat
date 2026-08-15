@@ -19,7 +19,12 @@ set RC=%ERRORLEVEL%
 
 if "%RC%"=="0" goto :done
 echo.
-echo   Run sync.bat to fix this.
+echo   TO FIX IT NOW:      sync.bat
+echo   TO STOP IT COMING BACK:  install_sync_task.bat  ^(once - registers a
+echo                       daily sync; no administrator rights needed^)
+echo.
+echo   Neither discards anything. Work that exists only on this PC is pushed
+echo   to a rescue/ branch on GitHub before anything else happens.
 echo.
 
 :done
