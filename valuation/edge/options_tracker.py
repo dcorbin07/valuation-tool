@@ -216,19 +216,73 @@ def _bucket_of(row, dim) -> Optional[str]:
 
 BUCKET_DIMS = ("horizon", "iv_rank", "score", "flow_read", "opt_right")
 
+# AUDIT MA37. Sentinel for "every era at once". `None` already means "the current epoch" in
+# `scream_log.records`, and two modules disagreeing about what `None` means is exactly the
+# two-conventions defect this repair exists to remove — so the blended view gets its own name.
+# DECLARED DEVIATION from PREREG section 3, which spelled this `epoch=None`: the substance it
+# asked for (the blend stays computable on demand) is unchanged; only the spelling is, and it
+# is changed toward the convention already shipped rather than away from it.
+EPOCH_ALL = "__all__"
 
-def scorecard(store, dims=BUCKET_DIMS) -> dict:
+
+def epoch_filter(store, epoch=None):
+    """`(sql_fragment, args, resolved_epoch)` for an `option_alerts` query. AUDIT MA37.
+
+    `epoch=None` -> the store's CURRENT era, the same default `scream_log.records` uses.
+    `epoch=EPOCH_ALL` -> no filter, i.e. the blended figure, explicitly asked for.
+    """
+    from . import scream_log as _SL
+    _SL.ensure_schema(store)
+    if epoch == EPOCH_ALL:
+        return "", [], EPOCH_ALL
+    ep = epoch or _SL.current_epoch(store)
+    if ep == _SL.EPOCH_ORIGINAL:
+        # Rows written before the column existed carry NULL, and a NULL IS the original record.
+        return " AND COALESCE(record_epoch, ?) = ?", [_SL.EPOCH_ORIGINAL, ep], ep
+    return " AND record_epoch = ?", [ep], ep
+
+
+def epoch_census(store) -> dict:
+    """Row count per era. Ships beside every filtered figure so the ARCHIVE stays VISIBLE.
+
+    `scream_log`'s first principle is that a reset is an archive and never a delete; filtering
+    an era out of a statistic without saying it exists would honour the letter of that and not
+    the point.
+    """
+    from . import scream_log as _SL
+    _SL.ensure_schema(store)
+    try:
+        with store._conn() as c:
+            rows = c.execute("SELECT COALESCE(record_epoch, ?), COUNT(*) FROM option_alerts "
+                             "GROUP BY 1", (_SL.EPOCH_ORIGINAL,)).fetchall()
+        return {str(k): int(v) for k, v in rows}
+    except Exception:                                                    # noqa: BLE001
+        return {}
+
+
+def scorecard(store, dims=BUCKET_DIMS, epoch=None) -> dict:
     """Overall + per-fingerprint expectancy. The thing the Signals tab shows.
 
     Every bucket carries `enough_to_tune`, so a promising-looking subgroup with six trades is
     visibly NOT actionable rather than quietly treated as a finding.
+
+    AUDIT MA37 — SCOPED TO ONE ERA, defaulting to the current one. This used to be a bare
+    `SELECT ... WHERE status='closed'`, so after the 2026-08-13 reset it blended a record the
+    project had FORMALLY RETIRED ("predates the corrected alert stack (B1 price basis, C-series
+    fixes)") into the expectancy on `/api/options-scorecard`, in `hero.py`, in `unified.py` and
+    in `tuning_candidates` — a tuning loop learning from rows the project retired. `record_epoch`
+    was stamped on every row and read as a filter by `scream_log` alone. Pass `EPOCH_ALL` for the
+    blend; `epochs` reports every era's row count either way, so nothing is hidden by the default.
     """
+    clause, args, ep = epoch_filter(store, epoch)
     with store._conn() as c:
-        cur = c.execute("SELECT * FROM option_alerts WHERE status='closed'")
+        cur = c.execute("SELECT * FROM option_alerts WHERE status='closed'" + clause, args)
         keys = [d[0] for d in cur.description]
         closed = [dict(zip(keys, r)) for r in cur.fetchall()]
-        n_open = c.execute("SELECT COUNT(*) FROM option_alerts WHERE status='open'").fetchone()[0]
+        n_open = c.execute("SELECT COUNT(*) FROM option_alerts WHERE status='open'" + clause,
+                           args).fetchone()[0]
     out = {"overall": _stats(closed), "n_open": int(n_open), "buckets": {},
+           "record_epoch": ep, "epochs": epoch_census(store),
            "min_closed_per_bucket": MIN_CLOSED_PER_BUCKET}
     for dim in dims:
         groups = {}
@@ -241,15 +295,21 @@ def scorecard(store, dims=BUCKET_DIMS) -> dict:
     return out
 
 
-def tuning_candidates(store, dims=BUCKET_DIMS, min_expectancy_gap: float = 0.10) -> dict:
+def tuning_candidates(store, dims=BUCKET_DIMS, min_expectancy_gap: float = 0.10,
+                      epoch=None) -> dict:
     """Which fingerprints separate winners from losers — ONLY where evidence is sufficient.
 
     Returns suggestions, never applies them. Every candidate has cleared MIN_CLOSED_PER_BUCKET
     on BOTH sides of the comparison, so a suggestion can never rest on a handful of trades.
     `min_expectancy_gap` keeps a trivially small difference from being dressed up as a finding.
+
+    AUDIT MA37 — this is the consumer that matters most. It inherits `scorecard`'s era scope,
+    so it can no longer propose favouring a fingerprint on the strength of a record the project
+    retired. The era it learned from is reported in `record_epoch` rather than left implicit.
     """
-    sc = scorecard(store, dims=dims)
+    sc = scorecard(store, dims=dims, epoch=epoch)
     out = {"ready": False, "min_closed_per_bucket": MIN_CLOSED_PER_BUCKET,
+           "record_epoch": sc.get("record_epoch"), "epochs": sc.get("epochs"),
            "min_expectancy_gap": min_expectancy_gap, "suggestions": [], "blocked": []}
     for dim, buckets in (sc.get("buckets") or {}).items():
         usable = {b: s for b, s in buckets.items() if s["enough_to_tune"]}

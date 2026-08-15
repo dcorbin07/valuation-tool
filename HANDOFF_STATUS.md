@@ -1,5 +1,52 @@
 # HANDOFF STATUS - shared project state
 
+## options-bot lane, audit #3 officialized + MA36/MA37 (2026-08-14) - THE LIVE OPTIONS RECORD WAS CENSORED AT ONE END AND BLENDED AT THE OTHER
+
+**Zero trials, `FIXED`-class.** `by_domain` re-read after the merge: **equity 224, options 292,
+infra 14** - unchanged before and after, while `rows_fixed_not_counted` rises **29 -> 30**, which
+is the proof the log row was seen and correctly excluded rather than silently dropped. **72 suites,
+0 failures**; 19 new tests. `PREREG_ma36_ma37_record_integrity.md` committed **ALONE at `53c7ecf`**.
+
+- **AUDIT #3's MERGED RECORD IS NOW TRACKED.** `VALQUO_MASTER_AUDIT_ULTIMATE.md` + its items JSON
+  + PDF were **untracked in the primary checkout**; all three are committed byte-identical, and
+  `VALQUO_MASTER_AUDIT.md` gains one header line pointing at them. **It is SIXTY items, not 61**
+  (35 Pass A + 25 Pass B), counted rather than quoted.
+- **60 MA ROWS INGESTED INTO THE LEDGER**, LA-series style: `OPEN` 52, `IN PROGRESS` 5
+  (MA1/MA2/MA3 greeks, MA5/MA6 app fixer - **all five carrying NO tree evidence yet**, and the
+  rows say so), `DONE` 3 (MA35 on code, plus MA36/MA37 closed here). `src = audit3-ingest`,
+  deliberately neither `auto` nor `human`: transcribed from the audit, **not** re-verified against
+  the code by this lane.
+- **TWO THINGS A VERBATIM INGEST WOULD HAVE GOT WRONG.** `MA18` is **HIGH** by the audit's own
+  Correction 1 and **MEDIUM** in its machine-readable set - and it is the audit's **#2 action item
+  by its own ordering** (*is the bound forward row being written?*), i.e. the one finding it says
+  cannot be recovered later. And **`MA7` is NOT done** although `14c00ac` names it in the subject:
+  that commit changed only the audit documents. Trap 5, caught on ingest.
+- **`build_ledger.py` WAS REFUSING TO RUN AT ALL** - three pre-existing rows (`S23`, `M1-PARSE`,
+  `V2G`) carried raw `|` characters inside cells, so the ledger's own refresh tool aborted rather
+  than silently deleting them. Verified against `HEAD` that all three predate this session. Four
+  characters changed, no word and no claim touched; the tool runs again. **`M1-PARSE`, whose own
+  subject IS this hazard, was one of the three.**
+- **`MA36` - a worthless expiry was stranded OPEN FOREVER, so the -100% tail was censored while
+  winners and quoted losers were scored.** One-sided, in the project's #1 remaining validation.
+  Now settled at **zero** past expiry, **never** at a reconstructed intrinsic: the underlying at
+  expiry is not obtainable (`get_bars` drops the dates), and today's underlying would book a fake
+  gain on a dead call - `V6-OPT`'s settlement trap in a new costume, **flattering direction**. An
+  ITM guard blocks rather than guesses; **B5-lesser is not reversed** (before expiry it still
+  defers). **The restatement is dated and keeps the figure it replaced.**
+- **`MA37` - `record_epoch` was stamped on every row and read as a filter by ONE module** (17
+  occurrences in `scream_log.py`, 2 in `options_tracker.py`, 0 in `options_paper.py`), so
+  `scorecard`, `paper_report` **and the tuning loop** blended the era retired on 2026-08-13. Now
+  scoped to the current epoch; `EPOCH_ALL` restores the blend; the per-era census ships in every
+  payload so the archive is **excluded and never invisible**.
+- **THE STRANDED ROWS ARE ON RENDER, NOT HERE.** This ships the mechanism; the first real
+  restatement happens on the next live cycle and appears in `options_summary().restatements`.
+- **NOT DONE, DELIBERATELY:** `MA38`-`MA49` sit in the same audit section and are out of scope by
+  the register's own void condition 6. **Recommended next: `MA39`** - the degraded-run detector
+  watches 6 of 13 result blocks and `build_payload` never reads the error string, so an exception
+  can ship a `BACKTEST_RESULTS.json` asserting `errors: []`, which its own contract reads as an
+  active claim of health. Zero data, zero trials.
+
+
 ## edge lane, PT-WRITER's ripe reading (2026-08-14) - THE FAILURE IS DATED; `recording_ok` STILL CANNOT SAY SO
 
 **Zero trials** (facts about disk and code, no threshold, no verdict). Equity `N` stays **224**.
