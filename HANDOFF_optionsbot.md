@@ -6331,3 +6331,209 @@ reverting the numerator, dropping the `detail` disclosure, and adding the audit'
 `build_payload` never reads the error string, so an exception can ship a `BACKTEST_RESULTS.json`
 asserting `errors: []`, which its own contract reads as an active claim of health. Zero data,
 zero trials.
+
+---
+
+## 60 · WAVE 2 OF THE MASTER AUDIT — MA44, MA45, MA46, MA48. FOUR CORRECTNESS REPAIRS, AND THE MEASUREMENTS THE AUDIT COULD ONLY HYPOTHESISE
+
+**Taken from `MA_DEPENDENCY_MAP.md` as this lane's wave-2 batch.** They are the four options-bot
+MEDIUMs, and they batch cleanly: **eight distinct files with no overlap between the four items**,
+and none of those files appears in the map's hot-file table, so there is no collision with another
+lane either. `MA31`, `MA32` and `MA56` are **wave 3**, not wave 2 — see §60.6.
+
+**All four are `FIXED`-class: no hypothesis, no pre-committed threshold, no verdict against a bar,
+so ZERO trials are charged** (the `S25` / `PT-WRITER` / MA38 precedent). Options `N` stays **292**.
+
+### 60.1 · MA44 — the docstring was false, and the shape is worse than the audit states
+
+**FOUR sites choose a "front expiry" and they implement TWO rules**, which the audit reports as
+two sites and one rule:
+
+| site | rule |
+|---|---|
+| `intraday/providers.py:168` (Tradier, live) | `dl[0]` — no date filter |
+| `intraday/providers.py:282` (yfinance, live) | `exps[0]` — no date filter |
+| `edge/options_backtest.py::chain_summary` | first expiry **strictly after** `as_of` |
+| `edge/options_live.py::term_read:273-274` | first expiry **strictly after** `as_of` |
+
+**So the odd one out is the LIVE SUMMARY, not the reconstruction** — and the consequence the audit
+does not draw is that **the live scan's own two legs can disagree with each other**: on a day the
+venue lists a same-day expiry, volume, OI and `atm_iv` come from the dying chain while `term_slope`
+comes from the next one. The strictly-after rule is also the one `term_read`'s threshold was
+**fitted** on ("as fitted", its own docstring).
+
+**MEASURED, where the audit's verification was "log expiry == today occurrences in one Friday
+scan".** One Friday is one draw and needs a live session; the chain cache gives years, offline.
+On **19,825 cached chain-days across 39 names**:
+
+* **12.46%** list a same-day expiry alongside a future one — and it is a weekday phenomenon:
+  **60.2% of FRIDAYS**, 1.5% of Thursdays, **0.0% Monday to Wednesday**, and **39 of 39 names**.
+  The audit's "every Friday for weekly names" is confirmed with a number on it.
+* Median call volume on those days: **602 live against 796 reconstruction**.
+* **The 0.5 volume-vs-OI bar — the exact bonus MA38 repaired — is crossed by ONE SIDE ONLY on
+  23.14% of them**, so roughly **2.9% of all chain-days** carry a divergent verdict.
+
+**WHAT IS NOT SETTLED, AND WHY NOTHING MOVED.** Whether Tradier's expirations endpoint really
+lists today on an expiry day is a **live vendor behaviour this repository cannot observe** — it is
+the audit's own HYPOTHESIS. Changing the reconstruction to match a rule that might not hold would
+**break** parity rather than fix it, and changing the live providers would alter which alerts fire,
+which is a construction change and not a bug fix. So: the false claim is **removed and replaced by
+what the code actually does**, `include_expiring` names the other rule so it is testable rather
+than hypothetical (**default bit-identical**), and `front_expiry` / `expiring_listed` are now
+reported by the reconstruction **and by both live providers**, which had never reported the expiry
+at all — the divergence was unobservable in a live payload. **The parity decision is ROUTED.**
+
+### 60.2 · MA45 — confirmed, and the row-level number is the wrong number
+
+`enrich_chain` solved IV from `(bid+ask)/2` with no validity test, while `options_greeks.
+enrich_frame` has always refused `no_quote` and `crossed` rows — and **the unvalidated path is the
+LIVE one**: `term_read → _atm_iv_bs → enrich_chain → nearest strike`. `chain_summary`'s ATM walk
+carried the same defect in **its own separate copy** of the mid, a second site.
+
+* **26.08%** of 4.35M cached rows carry a one-sided quote; **0.00%** are crossed.
+* **But the ATM front row the walk actually LANDS on is one only 0.44% of chain-days**, because
+  ATM rows are nearly always two-sided. **A row-level share cannot answer a per-day question** —
+  MA38's lesson, in a second costume.
+* **When it bites it is severe and one-directional**: front IV moves a median **+0.1262** (12.6
+  vol points) against a shipped term threshold of **0.0105** — twelve times the bar — the 0.0105
+  decision **flips on 0.29% of chain-days**, and **5 of 6 flips are alerts that PASS today and
+  would fail**. **The audit's direction claim is confirmed.**
+
+**SHIPPED: one shared `blackscholes.usable_quote`, deliberately EXACTLY the greeks rule and nothing
+more.** `penny`, `wide_spread`, `dte_band` and `mny_band` are **selection** criteria — statements
+about which contracts a strategy wants — while `no_quote` and `crossed` are statements about
+whether the number is a price at all. Folding selection into a validity test is how a filter comes
+to change a result it was never meant to touch.
+
+**THE ROW IS KEPT AND ITS `iv`/greeks GO NaN, rather than the row being dropped.** That is what
+makes the repair safe: every caller already handles a missing IV, the frame keeps its shape and
+index, and **no caller's row count moves**. **`pick_contract` selection is bit-identical and
+pinned** — `quote_reject_reason` already refused these rows *after* enrichment, so the 22.1% of the
+45-75 DTE band that is one-sided was being enriched and then discarded: **wasted compute, not a
+wrong answer.**
+
+### 60.3 · MA46 — two recorders, one name, two meanings; and a defect in my own first fix
+
+B15 made the backtest's `return_pct` net of the round-trip commission and kept the old quantity as
+`return_pct_gross_comm`; the forward tracker went on computing `ex / entry - 1`, **which IS that
+renamed quantity**. So the live book was scored against a reference computed a different way, on
+the one axis (live vs backtest) the forward book exists to measure.
+
+**MY FIRST CUT TOOK THE AUDIT'S FIRST OPTION — net the tracker's `pnl_pct` — AND IT WAS WRONG.
+It collides with MA36, and the collision is the most useful thing in this item.** A position that
+expires worthless settles at zero and must read **exactly −100%**; that is MA36's whole point and
+its control test asserts it. Netting makes it **−100.26%**. And the deeper reason it is wrong:
+**an expiring option is never SOLD, so there is no second commission leg to charge at all.** One
+correction would have quietly corrupted another.
+
+**It was caught by the suite, not by me** — four suites went red (`test_edge`, `test_intraday`,
+`test_ma36_ma37_record_integrity`, `test_paper_track`), and the temptation there is to read four
+red suites as four stale expectations and edit them. They were not stale; they were right.
+
+**SHIPPED INSTEAD: the audit's SECOND option, record both.** `pnl_pct` keeps exactly the meaning
+it has always had, `expectancy_pct_net` is reported beside `expectancy_pct`, and `pnl_basis` names
+which is which. **No published figure moves** — proved by those same four suites going green again
+**without any edit to their expectations**, which is the strongest available evidence that the
+repair is a labelling change and not a restatement. The ambiguity *was* the defect; two names
+close it.
+
+`options_fill.net_return_pct` is the one shared definition, and `round_trip` **delegates** to it
+rather than keeping a second copy that agrees today. **The contract count cancels out of the
+formula**, so the net series is complete over the whole book from day one — every pre-MA46 row is
+reconstructed exactly from stored premiums, with no migration and nothing assumed about position
+size. (Algebraically exact; **one unit in the last place in IEEE754**, stated in the test rather
+than hidden behind a `round()`.) `rows_net_derived` reports how much of the net series was
+reconstructed rather than read, so it is never mistaken for a fully stored one.
+
+**REPORTED, NOT FIXED:** `net_return_pct` charges **two** commission legs, matching
+`options_fill.round_trip`. For a position that expires worthless there is no closing trade, so
+**both modules overstate the cost by one leg on those rows**. It is consistent between them, and
+changing it would move the backtest's banked figures — so it is named here rather than bundled in.
+`cum_pnl_dollars` also stays gross: the contract count cancels out of the percentage but not the
+dollars, and no contract count is stored, so a netted dollar column could never be reconciled
+across older rows.
+
+### 60.4 · MA48 — confirmed in code, measured LATENT, and my own sharper hypothesis refuted
+
+`_fetch_year` clamps `year_end = min(Dec 31, today)`, so a year mined while still current is
+right-truncated, and `needs_pull`'s only refresh trigger was **DEPTH** (a DTE ceiling), never
+**SPAN** — so such a file is cached forever and a study reading past the mine date gets empty
+slices, uncounted.
+
+**I expected past years to be quietly truncated too**, since once the calendar rolls over the year
+looks complete and the evidence is gone. **Measured across the whole cache: 0 of 5,063 cached
+symbol-years were mined during their own year** — verified against the frames' **own max(date)** on
+a sample rather than trusting file mtime (**14 of 14 ran Jan 2 → Dec 31**) — and there are **zero
+2026 files**. So **no banked study is affected and the repair re-mines nothing**; the audit's "the
+trap arms the moment anyone mines into 2026" is exactly right.
+
+Shipped: a **`.span` sidecar** beside the existing `.dte`, in the file's own idiom; `span_is_stale`
+consulted by both `needs_pull` and `ensure_year`; and **one shared `requested_span_end`** so the
+fetcher's clamp and the staleness test cannot drift. A legacy file with no sidecar is **complete
+for a past year — licensed by that 0-of-5,063 measurement, not assumed** — and **stale for the
+current year**, the safe direction, which costs nothing today.
+
+**Sibling fixed in the same pass:** `thetadata_provider._call` returned `None` for **both** "the
+feed says nothing is here" **and** "every retry failed", and `chain_on` cached an empty frame
+permanently for both — a transient outage became a permanently-empty chain. It now distinguishes
+them. **That path has NO production caller** (near-dead — MA59's territory), which is why the blast
+radius is nil, and that deadness is evidence MA59 can use.
+
+### 60.5 · Tests, and the known-bad direction
+
+**34 new tests across four files, all passing — and 27 of the 34 FAIL against the pre-fix
+sources**, restored from `HEAD` and run, not argued (M3's standard). Notably the pre-fix
+`enrich_chain` returns **iv = 0.222 from a zero-bid row**: the defect demonstrated numerically
+rather than described.
+
+The **full 87-suite gate is green**, and it is worth saying how it got there: the first pass had
+**five** red suites, four of them genuine regressions from MA46's first design (§60.3) and one
+flaky. Each was checked **against `HEAD` rather than reasoned about** — restore the sources, re-run
+the same suites, compare — which is what separated "my regression" from "pre-existing" in one step
+and stopped four correct tests from being edited to fit a wrong fix.
+
+The **7 that pass both before and after are deliberate regression pins** — `pick_contract`
+selection unchanged, `needs_pull` still caching complete years, `term_read` still strictly-after,
+the row kept rather than dropped. A pin that passes before the fix is doing its job; a *fixture*
+that does is worthless, and the two are separated here on purpose.
+
+Reproduce the measurements: `python -m scripts.ma44_ma45_ma48_measure`
+(`data/free_analysis/MA44_45_48.json`).
+
+### 60.6 · A correction to the brief, and what is NOT taken
+
+**`MA31` is WAVE 3, not wave 2.** The brief asked for "MA31 and the other options-bot MEDIUMs";
+the map places MA31, MA32 and MA56 in wave 3, and its wave rule is explicit that wave 2 is the
+**zero-trial-cost** tier. MA31 is the Cremers-Weinbaum matched-strike put-call parity deviation —
+**the largest un-run item either prior audit named**, a genuine research arm that **charges
+trials** and needs its own pre-registration committed blind before anything is measured. Running it
+inside a correctness batch would be exactly the mistake this project's register exists to prevent.
+**It is the recommended next item and it wants a session of its own.**
+
+`U2` already recorded why it is worth having: the parity deviation is **Cremers-Weinbaum's ACTUAL
+measure and the largest effect that section cites (51 bps/week)**, and U2 explicitly declined it as
+a NEW feature and closed `PARTIAL` rather than `DONE` so nobody would think it had been tested.
+
+**Also not taken:** `MA46`'s dependency on `MA37` is satisfied (MA37 closed at `cb3fead`), and the
+epoch scoping it introduced is untouched here.
+
+### 60.7 · Reported outside this lane (RUN_RULES rule 3)
+
+* **Still open from MA38, unchanged:** both live producers turn a missing open interest into a
+  **zero COUNT** rather than an unknown — `intraday/providers.py:192-193` (`... or 0`) and
+  `:286-287` (`openInterest.fillna(0)`). Neither ships a coverage figure to detect it with. MA44
+  touched that file and deliberately did **not** bundle this, because it changes live alert inputs.
+* **`intraday/providers.py:190-191` has the same shape for VOLUME** (`(o.get("volume") or 0)`),
+  found while reading for MA44. Lower stakes — volume coverage is complete in the cache — but it is
+  the same conflation of *absent* with *zero*.
+* **`options_tracker.record_outcome`'s docstring says `pnl_dollars` is "on a fixed 1-contract,
+  100-share basis"** while the code multiplies by `contracts`. Pre-existing, harmless while every
+  caller passes the default of 1, and left alone because changing either the docstring or the
+  arithmetic is a judgement about what that column is meant to be.
+* **`options_fill.round_trip` charges TWO commission legs even when `settled_at_intrinsic` is
+  true.** A contract that expires worthless is never sold, so there is no closing commission to
+  pay; the backtest's `return_pct` is therefore slightly too harsh on exactly the −100% tail MA36
+  restored. Pre-existing and small (~0.26pp on a $5 premium), but it is on the banked books, and
+  correcting it would move published figures — so it is reported rather than bundled into a
+  correctness pass. Found while building MA46's net figure, which inherits the same convention on
+  purpose so the two modules stay consistent.

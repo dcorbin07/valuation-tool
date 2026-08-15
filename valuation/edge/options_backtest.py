@@ -233,10 +233,39 @@ def spot_asof(w) -> Optional[float]:
 
 
 # ============================ option-chain summary (the live shape) ========================
-def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
+def chain_summary(chain, underlying: float, as_of, include_expiring: bool = False) -> Optional[dict]:
     """The dict `intraday.options.options_signals` expects, rebuilt from a historical chain.
 
-    Uses the FRONT expiry, matching the live provider which reads expirations[0].
+    Uses the first expiry STRICTLY AFTER `as_of`. The live provider does NOT do this, and the
+    docstring here used to claim it did.
+
+    AUDIT MA44 — THE DOCSTRING WAS FALSE, AND IT IS FOUR SITES AND TWO RULES, NOT TWO AND ONE:
+
+      * `intraday.providers.TradierProvider.get_option_summary:168` — `dl[0]`, no date filter
+      * `intraday.providers.FreeProvider.get_option_summary:282`    — `exps[0]`, no date filter
+      * this function                                               — strictly after `as_of`
+      * `edge.options_live.term_read:273-274`                       — strictly after `as_of`
+
+    So the odd one out is the LIVE SUMMARY, not the reconstruction, and the live scan's own two
+    legs can disagree with EACH OTHER on a day when the venue lists a same-day expiry: volume,
+    OI and `atm_iv` come from the dying chain while `term_slope` comes from the next one. The
+    strictly-after rule is also the one `term_read`'s threshold was fitted on ("as fitted").
+
+    MEASURED on 19,825 cached chain-days across 39 names, rather than left as the audit's
+    one-Friday hypothesis: 12.46% list a same-day expiry alongside a future one — 60.2% of
+    FRIDAYS, 1.5% of Thursdays, 0.0% Monday to Wednesday, and 39 of 39 names see it. On those
+    days the two readings differ materially: median call volume 602 against 796, and the 0.5
+    volume-vs-OI bonus bar (see `intraday.options.options_signals`) is crossed by ONE SIDE ONLY
+    on 23.14% of them — about 2.9% of all chain-days carrying a divergent verdict.
+
+    WHAT IS NOT SETTLED, and why nothing moves here: whether Tradier's `expirations` endpoint
+    actually lists today on an expiry day is a LIVE VENDOR BEHAVIOUR this repository cannot
+    observe, and it is the audit's own HYPOTHESIS. Changing the reconstruction to match a rule
+    that might not hold would BREAK parity rather than fix it, and changing the live providers
+    would alter which alerts fire — a construction change, not a bug fix. So the default is
+    bit-identical to before, `include_expiring=True` names the other rule so it is testable
+    rather than hypothetical, and both paths now REPORT the expiry they used so the divergence
+    is observable instead of inferred. The parity decision is routed, not taken.
     """
     import pandas as pd
 
@@ -245,7 +274,8 @@ def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
     d = chain.copy()
     exp = pd.to_datetime(d["expiration"]).dt.date
     asof = as_of if isinstance(as_of, dt.date) else dt.date.fromisoformat(str(as_of)[:10])
-    future = sorted({e for e in exp if e > asof})
+    expiring_listed = any(e == asof for e in exp)
+    future = sorted({e for e in exp if (e >= asof if include_expiring else e > asof)})
     if not future:
         return None
     front = future[0]
@@ -284,6 +314,11 @@ def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
         r_free = BS.risk_free_rate(asof)
         for _, r in calls_only.sort_values("_d").head(5).iterrows():
             bid, ask = r.get("bid"), r.get("ask")
+            # AUDIT MA45 — the SECOND site with this defect, and it does not go through
+            # `enrich_chain`: this walk carries its own copy of the mid. It delegates the
+            # validity test rather than repeating the rule, so the two cannot drift.
+            if not BS.usable_quote(bid, ask):
+                continue
             try:
                 mid = (float(bid) + float(ask)) / 2.0
             except (TypeError, ValueError):
@@ -304,6 +339,10 @@ def chain_summary(chain, underlying: float, as_of) -> Optional[dict]:
             # formed like-for-like. Absent on the live Tradier path, which ships no coverage
             # figure at all; the consumer falls back there and behaves exactly as before.
             "call_volume_oi_known": cv_oi, "put_volume_oi_known": pv_oi,
+            # AUDIT MA44: WHICH expiry this describes, and whether a same-day one was on the
+            # board and skipped. Without these a live-vs-reconstruction comparison cannot tell a
+            # real signal difference from the two sides reading different chains.
+            "front_expiry": front.isoformat(), "expiring_listed": bool(expiring_listed),
             "atm_iv": atm_iv}
 
 

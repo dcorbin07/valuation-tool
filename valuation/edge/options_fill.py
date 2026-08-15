@@ -127,6 +127,31 @@ def _f(x) -> Optional[float]:
     return v if v == v else None
 
 
+def net_return_pct(entry: float, exit_px: float, contracts: int = 1) -> Optional[float]:
+    """Per-trade return NET of the round-trip commission — the ONE definition (audit MA46).
+
+    B15 made the backtest's `return_pct` net and said so; the forward tracker kept computing
+    `exit/entry - 1`, which is the pre-B15 gross quantity. Two recorders, one name, two meanings,
+    on the very live-vs-backtest axis the forward book exists to measure. This is the shared
+    arithmetic both now call, so they cannot drift apart again.
+
+    THE CONTRACT COUNT CANCELS, which is what makes an old row restatable from what is already
+    stored: `((x-e)*M*n - c*n) / (e*M*n)` = `((x-e)*M - c) / (e*M)`. So a row holding only
+    `entry_premium` and `exit_premium` can be restated exactly, with no new data and no
+    assumption about size.
+    """
+    try:
+        e, x = float(entry), float(exit_px)
+    except (TypeError, ValueError):
+        return None
+    if not e > 0:
+        return None
+    n = max(1, int(contracts or 1))
+    mult = CONTRACT_MULTIPLIER * n
+    net = (x - e) * mult - COMMISSION_PER_CONTRACT * n * 2
+    return net / (e * mult)
+
+
 def quote_reject_reason(q: Optional[Quote], check_liquidity: bool = True) -> Optional[str]:
     """None if the quote is tradable, else the reason string. Never repairs a bad quote."""
     if q is None or q.bid is None or q.ask is None:
@@ -289,7 +314,9 @@ def round_trip(entry_q: Quote, exit_q: Optional[Quote], right: str, strike: floa
             # i.e. gross of commission, and `pnl_pct` / `expectancy_pct` inherit it. Small
             # ($1.30 round trip on a ~$485 median position, about 0.27pp) but the claim was
             # false as written. `return_pct_gross_comm` keeps the old quantity for continuity.
-            "return_pct": (net / (entry * mult)) if entry > 0 else None,
+            # AUDIT MA46: delegated to `net_return_pct` so the forward tracker and this backtest
+            # read ONE definition. Bit-identical to the expression it replaces, pinned by test.
+            "return_pct": net_return_pct(entry, exit_px, contracts),
             "return_pct_gross_comm": (exit_px / entry - 1.0) if entry > 0 else None,
             "settled_at_intrinsic": settled_at_intrinsic,
             "stale_mark_rejected": bool(stale and settled_at_intrinsic),

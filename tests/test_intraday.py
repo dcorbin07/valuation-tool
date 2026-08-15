@@ -248,6 +248,12 @@ def test_options_expectancy_not_just_hit_rate():
     assert abs(sc["avg_loss_pct"] - (-0.5)) < 1e-9
     assert abs(sc["expectancy_pct"] - 0.10) < 1e-9, sc["expectancy_pct"]   # .4*1 + .6*(-.5)
     assert abs(sc["profit_factor"] - (4.0 / 3.0)) < 1e-9
+    # AUDIT MA46 — the same book on the commission-net basis, reported beside the gross one so a
+    # comparison with the backtest reference is like-for-like. It does not REPLACE the figures
+    # above: a $1.30 round trip on a $5.00 entry is 0.26pp, so net expectancy sits just below.
+    assert sc["expectancy_pct_net"] < sc["expectancy_pct"]
+    assert abs(sc["expectancy_pct_net"] - (0.10 - 0.0026)) < 1e-9, sc["expectancy_pct_net"]
+    assert "gross" in sc["pnl_basis"]
     # 1-contract basis: 4 x +$500, 6 x -$250 = +$500
     assert abs(sc["cum_pnl_dollars"] - 500.0) < 1e-6
     # A closed trade must leave the open work list.
@@ -342,6 +348,9 @@ def test_options_outcome_api_contract_shape():
     sc = OT.scorecard(st)["overall"]
     assert abs(sc["expectancy_pct"] - 0.5) < 1e-9, "6.00 vs 4.00 entry = +50%"
     assert abs(sc["cum_pnl_dollars"] - 200.0) < 1e-6
+    # AUDIT MA46 — and +49.675% net of the $1.30 round trip, reported beside it rather than
+    # replacing it, so the live book and the backtest can be compared on the same basis.
+    assert abs(sc["expectancy_pct_net"] - 0.49675) < 1e-9, sc["expectancy_pct_net"]
     # An unmatched write must fail loudly rather than silently no-op.
     assert OT.record_outcome(st, ticker="NOPE", alert_ts=ts, exit_premium=1.0) is False
 

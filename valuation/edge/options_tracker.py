@@ -102,6 +102,50 @@ def log_alert(store, alert: dict) -> Optional[int]:
         return cur.lastrowid if cur.rowcount else None
 
 
+def ensure_pnl_schema(store) -> None:
+    """Add MA46's two P&L columns to `option_alerts`, lazily, in this module.
+
+    Same reasoning `scream_log.ensure_schema` gives for `record_epoch`: several agents touch the
+    shared schema in `screener/store.py` concurrently, and a column belonging to one feature
+    should not force an edit there. A database created before these columns simply has NULL in
+    them, which `net_pnl_pct_of_row` handles by DERIVING the net figure rather than needing it.
+    """
+    with store._conn() as c:
+        cols = {r[1] for r in c.execute("PRAGMA table_info(option_alerts)").fetchall()}
+        for col in ("pnl_pct_net", "commission"):
+            if col not in cols:
+                c.execute(f"ALTER TABLE option_alerts ADD COLUMN {col} REAL")
+
+
+def net_pnl_pct_of_row(row: dict):
+    """A closed row's return NET of commission — stored if present, else derived (audit MA46).
+
+    A row written before MA46 has no `pnl_pct_net`, and does not need one: the contract count
+    cancels out of the formula, so `options_fill.net_return_pct` reconstructs it EXACTLY from the
+    premiums already stored, with nothing assumed about position size. The net series is
+    therefore complete over the whole book from day one, rather than starting today.
+
+    Returns (value, derived). `derived` counts rows reconstructed rather than read, so the
+    scorecard can say how much of its net figure is stored and how much is computed instead of
+    presenting a silently mixed series.
+
+    A CAVEAT THAT TRAVELS WITH THE NUMBER: `net_return_pct` charges TWO commission legs, matching
+    `options_fill.round_trip`. A position that expires worthless is never sold, so for those rows
+    both modules overstate the cost by one leg. It is consistent between them, and left alone
+    here because changing it would move the backtest's banked figures.
+    """
+    from . import options_fill as _F
+
+    stored = _f((row or {}).get("pnl_pct_net"))
+    if stored is not None:
+        return stored, False
+    entry, ex = _f((row or {}).get("entry_premium")), _f((row or {}).get("exit_premium"))
+    net = _F.net_return_pct(entry, ex, 1) if (entry and ex is not None) else None
+    if net is None:
+        return None, False                         # nothing to derive it FROM
+    return net, True
+
+
 def record_outcome(store, alert_id=None, occ=None, alert_ts=None, ticker=None,
                    exit_premium=None, exit_ts=None, exit_reason=None,
                    contracts: int = 1, entry_premium=None) -> bool:
@@ -119,9 +163,12 @@ def record_outcome(store, alert_id=None, occ=None, alert_ts=None, ticker=None,
     to measure what a real account would have got. When the override is supplied the basis is
     recorded in `exit_reason` so a row's provenance is readable after the fact.
     """
+    from . import options_fill as _F                      # AUDIT MA46 - the shared arithmetic
+
     ex = _f(exit_premium)
     if ex is None:
         return False
+    ensure_pnl_schema(store)
     where, args = [], []
     if alert_id is not None:
         where, args = ["id = ?"], [alert_id]
@@ -148,11 +195,34 @@ def record_outcome(store, alert_id=None, occ=None, alert_ts=None, ticker=None,
                       "exit_reason=? WHERE id=?",
                       (exit_ts, ex, exit_reason or "no entry premium", rid))
             return True
+        # AUDIT MA46 — RECORD BOTH, which is the second of the two fixes the audit offers, and
+        # the one this codebase can actually take. `pnl_pct` keeps the quantity it has always
+        # held (gross of commission, = B15's `return_pct_gross_comm`) and `pnl_pct_net` carries
+        # the quantity B15 made primary on the backtest side. Nothing published moves; what
+        # changes is that the two are now NAMED, so a comparison across the live/backtest axis
+        # can be made like-for-like instead of by accident.
+        #
+        # WHY NOT SIMPLY NET `pnl_pct`, which was the first cut here: it COLLIDES WITH MA36. A
+        # position that expires worthless settles at zero and must read exactly -100% - that is
+        # MA36's whole point, and its control test asserts it. Netting makes it -100.26%, which
+        # is not merely inelegant: an expiring option is NEVER SOLD, so there is no second
+        # commission leg to charge in the first place. One convention would have quietly
+        # corrupted the other.
+        #
+        # `pnl_dollars` stays gross for a different reason: the contract count cancels out of the
+        # PERCENTAGE but not the dollars, and `option_alerts` stores no contract count, so a
+        # netted dollar column could never be reconciled across old rows. `commission` is stored
+        # so a net figure is derivable wherever it is genuinely known.
+        n = max(1, int(contracts))
         pnl_pct = ex / entry - 1.0
-        pnl_dollars = (ex - entry) * 100.0 * max(1, int(contracts))
+        pnl_pct_net = _F.net_return_pct(entry, ex, n)
+        commission = _F.COMMISSION_PER_CONTRACT * n * 2
+        pnl_dollars = (ex - entry) * 100.0 * n
         c.execute("UPDATE option_alerts SET status='closed', exit_ts=?, exit_premium=?, "
-                  "exit_reason=?, pnl_pct=?, pnl_dollars=? WHERE id=?",
-                  (exit_ts, ex, exit_reason, pnl_pct, pnl_dollars, rid))
+                  "exit_reason=?, pnl_pct=?, pnl_dollars=?, pnl_pct_net=?, "
+                  "commission=? WHERE id=?",
+                  (exit_ts, ex, exit_reason, pnl_pct, pnl_dollars, pnl_pct_net,
+                   commission, rid))
         return True
 
 
@@ -166,14 +236,41 @@ def open_alerts(store, limit: int = 500) -> list:
 
 
 def _stats(rows) -> dict:
-    """Expectancy statistics from closed trades. Hit rate ALONE is not reported anywhere."""
+    """Expectancy statistics from closed trades. Hit rate ALONE is not reported anywhere.
+
+    AUDIT MA46 — BOTH DEFINITIONS ARE REPORTED, AND NEITHER PUBLISHED FIGURE MOVES. The headline
+    percentages stay GROSS of commission, exactly as this book has always computed them, and
+    `expectancy_pct_net` carries the quantity B15 made primary on the backtest side, derived for
+    every row including those written before MA46 (the contract count cancels, so it needs no
+    stored value and no assumption about size). `pnl_basis` names which is which — the ambiguity
+    WAS the defect, and it is closed by labelling rather than by silently restating a live book.
+
+    WHY THE GROSS FIGURE IS THE ONE LEFT IN PLACE, since the opposite was the obvious first move:
+    netting `pnl_pct` collides with MA36. A position that expires worthless settles at zero and
+    must read exactly -100%; netting makes it -100.26%, and an expiring option is never sold, so
+    there is no second commission leg to charge in the first place. One correction would have
+    quietly corrupted another.
+
+    `cum_pnl_dollars` is gross for a separate reason: the contract count cancels out of the
+    percentage but not the dollars, and no contract count is stored, so a netted dollar column
+    could never be reconciled across older rows.
+    """
     pnl = [_f(r.get("pnl_pct")) for r in rows]
     pnl = [p for p in pnl if p is not None]
+    net_vals, derived = [], 0
+    for r in rows:
+        v, was = net_pnl_pct_of_row(r)
+        if was:
+            derived += 1
+        if v is not None:
+            net_vals.append(v)
     n = len(pnl)
     if not n:
         return {"n_closed": 0, "hit_rate": None, "avg_win_pct": None, "avg_loss_pct": None,
                 "profit_factor": None, "expectancy_pct": None, "cum_pnl_dollars": 0.0,
-                "enough_to_tune": False, "min_required": MIN_CLOSED_PER_BUCKET}
+                "enough_to_tune": False, "min_required": MIN_CLOSED_PER_BUCKET,
+                "expectancy_pct_net": None, "n_net": 0, "rows_net_derived": derived,
+                "pnl_basis": "pct_gross_of_commission; expectancy_pct_net is B15-comparable"}
     wins = [p for p in pnl if p > 0]
     losses = [p for p in pnl if p <= 0]
     gross_win = sum(wins)
@@ -191,6 +288,15 @@ def _stats(rows) -> dict:
         "cum_pnl_dollars": dollars,
         "enough_to_tune": n >= MIN_CLOSED_PER_BUCKET,
         "min_required": MIN_CLOSED_PER_BUCKET,
+        # AUDIT MA46 — the same book on BOTH definitions, named. `expectancy_pct` is gross, as
+        # it has always been; `expectancy_pct_net` is the figure comparable with the backtest
+        # reference B15 made net. Two recorders with one name for two quantities was the defect;
+        # two names is the repair. `rows_net_derived` says how much of the net series was
+        # reconstructed rather than read, so it is never mistaken for a fully stored one.
+        "expectancy_pct_net": (sum(net_vals) / len(net_vals)) if net_vals else None,
+        "n_net": len(net_vals),
+        "rows_net_derived": derived,
+        "pnl_basis": "pct_gross_of_commission; expectancy_pct_net is B15-comparable",
     }
 
 

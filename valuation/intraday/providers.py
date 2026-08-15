@@ -207,7 +207,15 @@ class TradierProvider(IntradayProvider):
                 except Exception:                                    # noqa: BLE001
                     atm_iv_60d = None
             return {"call_volume": cv, "put_volume": pv, "call_oi": coi, "put_oi": poi,
-                    "atm_iv": atm_iv, "atm_iv_60d": atm_iv_60d}
+                    "atm_iv": atm_iv, "atm_iv_60d": atm_iv_60d,
+                    # AUDIT MA44 — WHICH expiry these figures describe. `dl[0]` applies no date
+                    # filter, so on an expiry day this can be TODAY, while the reconstruction in
+                    # `edge.options_backtest.chain_summary` and the term read in
+                    # `edge.options_live.term_read` both take the first STRICTLY LATER expiry.
+                    # Reported rather than changed: altering which expiry the live scan reads
+                    # would change which alerts fire. Nothing consumes this yet; it exists so the
+                    # divergence is observable in a live payload instead of inferred from code.
+                    "front_expiry": str(expiry)[:10]}
         except Exception:
             return None
 
@@ -290,7 +298,10 @@ class FreeProvider(IntradayProvider):
                 iv = float(calls["impliedVolatility"].median())
             except Exception:
                 pass
-            return {"call_volume": cv, "put_volume": pv, "call_oi": coi, "put_oi": poi, "atm_iv": iv}
+            # AUDIT MA44: `exps[0]` applies no date filter either — the same rule as the Tradier
+            # path and the opposite of both strictly-after sites. Reported, not changed.
+            return {"call_volume": cv, "put_volume": pv, "call_oi": coi, "put_oi": poi,
+                    "atm_iv": iv, "front_expiry": str(exps[0])[:10]}
         except Exception:
             return None
 
