@@ -2406,8 +2406,14 @@ def _trials_haircut(n_trials):
     candidates in the immediate comparison. Selecting the best of 8 folds after the project has
     already run ~84 equity trials is not an 8-trial search, and charging it as one is the same
     denominator error the Deflated Sharpe had.
+
+    AUDIT MA5 — the sqrt(2 ln N) arithmetic is `statistics.hlz_hurdle` and is not re-typed here.
+    What stays local is the FLOORING, because that is this function's own decision and is not a
+    property of the hurdle: the argument is `max(immediate candidates, the log's N)`, and passing
+    a larger `N` to one shared formula is the whole mechanism by which M1's count reaches the
+    CPCV adopt gate. Verified bit-identical to the previous `np.sqrt(2.0 * np.log(...))`.
     """
-    return float(np.sqrt(2.0 * np.log(max(2, int(n_trials), _trial_N()))))
+    return _stats.hlz_hurdle(max(int(n_trials), _trial_N()))
 
 
 def walk_forward(panel, cols, base, top_n=25, horizon=63, halflife_days=1260, n_folds=5):
@@ -2879,8 +2885,18 @@ def _deflated_sharpe(strategy_rets, all_trial_sr):
     so a reader can see the degeneracy rather than infer it. Feeding a real trial count is item
     M1 (the append-only research log) and is NOT done here.
 
-    The bar that IS meaningful on this evidence is the long-short t-statistic against the
-    Harvey-Liu-Zhu hurdle of 3.0. Lead with that one.
+    CORRECTED 2026-08-15 (audit MA5). This paragraph read: "The bar that IS meaningful on this
+    evidence is the long-short t-statistic against the Harvey-Liu-Zhu hurdle of 3.0. Lead with
+    that one." BOTH HALVES ARE NOW WRONG and it was live guidance, so it is corrected rather
+    than left standing. (a) THERE IS NO 3.0 BAR. The hurdle is `statistics.hlz_hurdle(N)` =
+    sqrt(2 ln N), and 3.0 is that expression frozen at N = 90 — a value this project passed on
+    2026-08-06. At today's equity N = 224 the hurdle is 3.2899 and it only ever rises. (b) THE
+    HEADLINE DOES NOT CLEAR IT. R4 measured the long-short HAC t at 2.6199 against 3.2816, a
+    shortfall of 0.66, and shipped both sides in `multiple_testing.hlz`. So "lead with that one"
+    now points at the project's most-failed bar rather than its best-supported claim. Lead with
+    the top-decile alpha HAC t against X7's calibrated floor, and quote the HLZ comparison with
+    R4's counter-argument attached — HLZ prices the best of N draws and the deployed composite
+    is flat 1/7, never tuned, `cpcv.adopt` false on every run.
     """
     d = _deflated_sharpe_detail(strategy_rets, all_trial_sr)
     return None if d is None else d["probability"]
@@ -3266,7 +3282,9 @@ def multiple_testing_accounting(per_signal: dict, headline_ls_hac) -> dict:
         det = {}
     by = det.get("by_domain") or {}
     n_eq = int(by.get("equity") or 0)
-    hurdle = float(np.sqrt(2.0 * np.log(max(2, n_eq)))) if n_eq else None
+    # AUDIT MA5 — one definition. This block SHIPS the hurdle in the canonical results file, so
+    # it is the citation everything else is checked against; it may not be a second arithmetic.
+    hurdle = _stats.hlz_hurdle(n_eq) if n_eq else None
     t = (float(headline_ls_hac)
          if headline_ls_hac is not None and headline_ls_hac == headline_ls_hac else None)
 

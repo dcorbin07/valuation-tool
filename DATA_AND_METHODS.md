@@ -82,7 +82,11 @@ most-replicated evidence**, which are also the ones the tool already uses:
 ## 4. What's already built vs. what to add
 **Built (reputable, working today):** cross-sectional z-scores, IC, quantile spread
 after costs, walk-forward optimization, sample-awareness, the Claude advisor judged
-on a holdout, and now the **Deflated Sharpe Ratio + HLZ t>3 gate**. The price-factor
+on a holdout, and now the **Deflated Sharpe Ratio + the Harvey–Liu–Zhu hurdle**. (CORRECTED
+2026-08-15, audit `MA5`: this read "HLZ t>3 gate". The bar is **√(2·ln N)**, not a constant —
+3.0 is that expression at N = 90 and this project passed N = 90 on 2026-08-06. At today's
+equity N = 224 the hurdle is **3.2899** and it rises with every trial. Quoting "t>3" states
+a bar the project cleared under a denominator it no longer has.) The price-factor
 (momentum/technical) research runs on free data now.
 
 **To add (needs the data above):**

@@ -5,8 +5,12 @@ Implements the Probabilistic and Deflated Sharpe Ratio (Bailey & López de Prado
 2014), which correct a backtest's Sharpe for (a) how many strategy variants you
 tried, (b) sample length, and (c) skew/kurtosis. When you search many weightings,
 the *best* one looks good by luck; the Deflated Sharpe tells you the probability
-the edge is real anyway. Also includes the Harvey-Liu-Zhu (2016) t>3 significance
-gate for newly "discovered" factors.
+the edge is real anyway. Also includes the Harvey-Liu-Zhu (2016) multiple-testing
+hurdle for newly "discovered" factors — `hlz_hurdle(N) = sqrt(2 ln N)`, which is the
+ONE definition of that bar in this project (audit MA5). It is written "t > 3" in the
+literature because 3.0 is sqrt(2 ln N) at N = 90; this project passed N = 90 on
+2026-08-06 and the two have diverged ever since, so the derived form is the one to
+quote and the constant is not carried anywhere.
 
 References:
   Bailey & López de Prado (2014), "The Deflated Sharpe Ratio."
@@ -92,10 +96,51 @@ def min_track_record_length(sr, skew=0.0, kurt=3.0, sr_benchmark=0.0, prob=0.95)
     return 1 + (1 - skew * sr + (kurt - 1) / 4.0 * sr * sr) * (z / math.sqrt(denom)) ** 2 * denom / denom
 
 
-def hlz_significant(t_stat) -> bool:
-    """Harvey-Liu-Zhu: a genuinely new factor needs |t| > 3 (not 2) to survive
-    multiple-testing across the 'factor zoo'."""
-    return abs(t_stat) > 3.0
+# =============================================================================
+# AUDIT MA5 — the Harvey-Liu-Zhu bar. ONE definition, DERIVED, never a constant.
+# =============================================================================
+# Until this block the project carried the same idea FOUR times: this module's
+# `hlz_significant(t) -> |t| > 3.0` (a CONSTANT), `fundamental_panel._trials_haircut`
+# and the inline `hurdle` in its `multiple_testing` block (both derived, and only
+# the first floored at the research log's `N`), plus `ablation.py`'s own copy. The
+# 3.0 is not a different bar from sqrt(2 ln N) — it is sqrt(2 ln N) evaluated at
+# N = 90 and then frozen, so the two agree only while `N` sits near 90 and diverge
+# monotonically as trials accumulate. Audit B7's defect class (three composite
+# functions, one repair) with a moving target instead of a static one.
+#
+# `hlz_hurdle` is now the one definition and every other site delegates to it.
+#
+# WHY `n_trials` IS REQUIRED AND HAS NO DEFAULT. A default is what turned this
+# into a constant in the first place: the caller stops thinking about `N`, the
+# number goes stale silently, and the staleness runs in the FLATTERING direction
+# (the hurdle only ever RISES with trials, so a frozen bar is always too easy).
+# Defaulting to the research log's live count would be worse still — it would make
+# a pure-arithmetic primitive read a file from disk, so a unit test of the
+# ARITHMETIC would depend on the project's trial history. The caller supplies `N`.
+
+def hlz_hurdle(n_trials) -> float:
+    """sqrt(2 ln N) — the expected maximum of N standard-normal draws.  [AUDIT MA5]
+
+    THE ONE DEFINITION of the Harvey-Liu-Zhu multiple-testing hurdle. Trying `N`
+    configurations inflates the best of them by luck, and the winner must clear this
+    to be believed. It is a FUNCTION OF `N`, which is exactly why a hard-coded 3.0
+    cannot stand in for it: 3.0 is this expression at N = 90.
+
+    Floored at N = 2 so the log is defined; `hlz_hurdle(1)` would be 0.0 and
+    `hlz_hurdle(0)` undefined, and a hurdle of zero passes everything.
+    """
+    return float(math.sqrt(2.0 * math.log(max(2, int(n_trials)))))
+
+
+def hlz_significant(t_stat, n_trials) -> bool:
+    """Does |t| clear the Harvey-Liu-Zhu hurdle for a search of `n_trials`?  [AUDIT MA5]
+
+    `n_trials` is REQUIRED — see the block comment above. Pass the trial count for the
+    family this statistic belongs to (`research_log.trial_count(domain=...)`), not the
+    project-wide total: the Deflated Sharpe and this hurdle are both corrections for
+    the size of the search that produced THIS claim.
+    """
+    return abs(t_stat) > hlz_hurdle(n_trials)
 
 
 # =============================================================================

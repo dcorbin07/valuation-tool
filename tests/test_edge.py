@@ -71,13 +71,19 @@ def test_advisor_sample_aware_and_noise():
 
 
 def test_deflated_sharpe_and_hlz():
-    from valuation.edge.statistics import deflated_sharpe_ratio, expected_max_sharpe, hlz_significant
+    from valuation.edge.statistics import (deflated_sharpe_ratio, expected_max_sharpe,
+                                           hlz_significant, hlz_hurdle)
     r = np.random.default_rng(0).normal(0.010, 0.04, 300)
     few = deflated_sharpe_ratio(r, n_trials=1, var_trials=0.01)["deflated_sharpe"]
     many = deflated_sharpe_ratio(r, n_trials=2000, var_trials=0.01)["deflated_sharpe"]
     assert few > many                                   # more trials -> harder to be "real"
     assert expected_max_sharpe(5000, 0.01) > expected_max_sharpe(50, 0.01) > 0
-    assert hlz_significant(3.4) and not hlz_significant(2.1)
+    # AUDIT MA5 — this line read `hlz_significant(3.4) and not hlz_significant(2.1)`, against a
+    # hard-coded 3.0. `n_trials` is now REQUIRED and the bar is sqrt(2 ln N). The two example
+    # values do not change verdict at today's N (3.4 clears 3.2899, 2.1 does not) -- 3.4 would
+    # stop clearing at N > 324 -- so this is a corrected citation, not a moved result.
+    assert hlz_significant(3.4, 224) and not hlz_significant(2.1, 224)
+    assert hlz_hurdle(224) > 3.0 > hlz_hurdle(50)        # it is a FUNCTION of N, not a constant
 
 
 def test_edge_routes_owner_only():
