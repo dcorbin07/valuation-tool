@@ -900,15 +900,22 @@ def create_saas_app(cfg=CONFIG):
             # us a dict lookup rather than an Anthropic call (SECURITY_AUDIT.md H1).
             # The admin token bypasses it: the cron jobs legitimately hit these on a
             # schedule and are already authenticated.
-            bucket = ratelimit.bucket_for(path, body)
+            # MA7: buckets_for, plural — a request can be scarce in two ways at once (an
+            # /api/value with run_ai spends the FMP quota AND an Anthropic call), and it
+            # carries a COST, because /api/rank and /api/dip fan out over up to 25 names.
+            # request.args is passed because /api/dip takes its fan-out from the query string.
+            buckets = ratelimit.buckets_for(path, body, request.args)
             # MA10: an admin caller used to skip this block outright. It now moves to a
             # separate, deliberately generous bucket instead — the crons stay comfortably
             # inside it, and a leaked token can no longer spend without bound. A CEILING
             # replaces an exemption; nothing legitimate should ever notice.
-            if bucket and _admin_ok():
-                bucket = ratelimit.ADMIN_BUCKET
-            if bucket:
-                retry = ratelimit.check(ratelimit.client_ip(request), bucket)
+            if buckets and _admin_ok():
+                buckets = ((ratelimit.ADMIN_BUCKET, 1),)
+            for _bucket, _cost in buckets:
+                # Note: an earlier bucket has already recorded its hit when a later one
+                # refuses, so a 429 can cost the caller a little of the budget it cleared.
+                # That errs TIGHT, which is the right direction for a spend limiter.
+                retry = ratelimit.check(ratelimit.client_ip(request), _bucket, cost=_cost)
                 if retry is not None:
                     return jsonify({
                         "error": "Rate limit reached for this endpoint. It runs live data "

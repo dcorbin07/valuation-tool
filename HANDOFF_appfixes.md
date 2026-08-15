@@ -5,6 +5,109 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 34 — 2026-08-14 — `MA7`, the uncapped vendor quota
+
+**Lane:** app fixer. **Branch:** `worktree-demo-link`.
+
+## 0. Headline
+
+`ratelimit` capped `/api/scan/run` at 3/hour because *"FMP quota, 3 requests per uncached
+name"*, and deliberately left `/api/value` **unlimited** unless `run_ai` was set, because
+*"the plain valuation is the product's core action."*
+
+**That comment was half right, and the wrong half was load-bearing.** The AI layer is a paid
+call — but the *plain* valuation runs the full adaptive DCF on a **caller-supplied symbol**, so
+it reaches the same upstream and spends the same FMP quota the 22:23 UTC scan depends on. The
+result cache defends against **repeats**; nothing defended against **enumeration**, and the
+universe is ~7,100 names.
+
+`/api/rank` was the sharper case and sat in **no bucket at all**: up to 25 `value_ticker` calls
+per request at 2,000 Monte Carlo trials each, on a 512 MB box.
+
+## 1. The sweep found a third the audit did not name
+
+**`/api/dip` is public, in no bucket, and fans out through the same `_get_or_compute` for up to
+`MAX_SHORTLIST` names — with the fan-out taken from a caller-supplied query parameter.** That
+is the same caller-controlled-cost property that made `/api/rank` the sharp case.
+
+Found by walking `app.py`'s routes for anything reaching `value_ticker`, rather than by
+re-reading the audit's list. **That sweep now ships as a test**, so the next such route is
+caught on arrival instead of in the next audit.
+
+## 2. The budget is denominated in name-valuations, not requests
+
+This is the one design decision worth arguing with, so here is the reasoning.
+
+The three requests differ in cost by up to **25×**. A per-*request* cap has to be set for the
+worst case and is then absurdly tight for the common one. Charging the actual scarce unit
+instead means the audit's own **120/hour** buys either 120 single valuations, or ~5 full
+25-name ranks, or any mix — **its number, charged correctly** — and `/api/rank`'s cap falls out
+at the 1/25th the audit asked for without a second constant to keep in step.
+
+| endpoint | cost per request |
+|---|---|
+| `/api/value` | 1 |
+| `/api/rank` | the list length, capped at the `[:25]` the route actually values |
+| `/api/dip` | its shortlist (caller-supplied, clamped 1–25) |
+
+`check()` gained a `cost` parameter **defaulting to 1**, so every per-request bucket behaves
+exactly as before — pinned by a test, because MA7 must not quietly re-tune limits it was not
+asked to touch. The guard moved from `len(stamps) >= limit` to `len(stamps) + cost > limit`,
+which is bit-identical at cost 1.
+
+## 3. Three properties that were easy to get wrong
+
+- **A request that cannot afford its cost is refused *whole* and consumes nothing.** Charging
+  12 of a 25-name request and then running all 25 would be a limiter reporting a number it did
+  not enforce.
+- **`buckets_for` returns several `(bucket, cost)` pairs, not one.** A request can be scarce in
+  two ways at once: `/api/value` with `run_ai` spends the FMP quota **and** an Anthropic call.
+  The old single-bucket form could only charge one of them — and it charged the AI while
+  letting the vendor spend straight through. That *is* the hole. The AI cap is unchanged at
+  20/hour and is now charged **alongside** the vendor budget rather than instead of it.
+- **An uncomputable fan-out is charged the ceiling, not a free pass**, so the limiter cannot
+  open under its own errors.
+
+## 4. Disclosed rather than hidden: worst-case charging
+
+The limiter runs in `before_request`, so it **cannot know which names will be cache hits** and
+charges the full fan-out either way. That over-charges a warm cache. It is the only direction
+available there — the alternative is to charge nothing until the money is already spent — and
+it errs tight, which is right for a spend limiter.
+
+**Reads are untouched and pinned so:** `/api/hotstocks`, `/api/health`, `/api/signals`,
+`/api/valquo-index`, `/api/track`, `/api/index-track`. Open access is a product decision, not a
+bug, and a fix that capped reading would be a worse outcome than the defect.
+
+## 5. One test inverted, not weakened
+
+`test_security.py` asserted `bucket_for("/api/value", {...}) is None` under the comment
+*"/api/value is the core action and stays free"* — **the defect, pinned, in the suite meant to
+catch it.** It now asserts the opposite, plus that an AI request is charged for *both* things
+it spends, which the old single-bucket assertion could not express.
+
+## 6. Verification
+
+- **Full gate 80/80 suites, exit 0**, judged by exit code. (80, not the 76 this line first
+  claimed — merging `main` mid-session brought in four more suites. Measured, then corrected.)
+- `tests/test_vendor_quota.py` **15/15** (new) — including a test that pins `RANK_MAX` against
+  the literal `[:25]` slice in `api_rank`'s own source, so the **charge cannot drift from the
+  doing**, and the route sweep from §1.
+- `test_security.py` **22/22**, `test_row_caps_and_admin_split.py` **18/18**,
+  `test_public.py` **35/35**, `test_saas.py` **30/30**, `test_build_ledger.py` **20/20**.
+- **Mutations 14/14 caught, 0 missed, 0 skipped.**
+
+## 7. Reported, not fixed
+
+**MA8's `client_ip` caveat is untouched and bounds every per-IP cap here.** A caller who can
+rotate IPs faster than the window evades all of them — a property of per-IP limiting rather
+than of this change, and MA8's own item.
+
+Zero trials — a correctness/security change with no hypothesis and no threshold. Equity `N`
+stays **224**.
+
+---
+
 # Session 33 — 2026-08-14 — `MA9` + `MA10` + `MA50`, three HIGH security items
 
 **Lane:** app fixer. **Branch:** `worktree-demo-link`.

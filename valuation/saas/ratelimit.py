@@ -39,6 +39,22 @@ LIMITS = {
     # Not a path: /api/value is only limited when it asks for the AI layer. The plain
     # valuation is the product's core action and stays unlimited. See bucket_for().
     "ai:value": (20, 3600),
+    # MA7. The line above was HALF RIGHT: the AI layer is a paid call, but the PLAIN
+    # valuation reaches the same upstream. `/api/value` runs the full adaptive DCF on a
+    # CALLER-SUPPLIED symbol, so it fetches that name's fundamentals — exactly the FMP quota
+    # this module limits `/api/scan/run` to 3/hour to protect. The result cache defends
+    # against REPEATS; nothing defended against ENUMERATION, and the universe is ~7,100 names.
+    #
+    # DENOMINATED IN NAME-VALUATIONS, NOT REQUESTS, because the requests are not the scarce
+    # thing and they differ in cost by up to 25x. One `/api/value` costs 1; one `/api/rank`
+    # costs the length of the list it was handed; one `/api/dip` costs its shortlist. A
+    # per-REQUEST cap would have to be set for the worst case and would then be absurdly tight
+    # for the common one — this way 120 buys either 120 single valuations or ~5 full 25-name
+    # ranks or any mix, which is the same budget the audit proposed, charged correctly.
+    #
+    # Generous on purpose: 120/hour is far more than a human clicking around will reach, and
+    # far less than an enumeration loop needs to be worth running.
+    "vendor:valuation": (120, 3600),
     # Not a path either: demo-SESSION CREATION (`auth.demo_view`), which costs nothing to
     # serve but is the one gate on the recruiter master-link. Limiting it means a leaked or
     # guessed token shows up as refused traffic in the logs instead of being farmed
@@ -70,11 +86,67 @@ _seen: dict = {}                 # (ip, bucket) -> last touch, for eviction
 _lock = threading.Lock()
 
 
-def bucket_for(path: str, body: dict | None) -> str | None:
-    """Which limit bucket this request falls into, or None for 'not limited'."""
+#: The shared upstream budget, denominated in NAME VALUATIONS (MA7).
+VENDOR_BUCKET = "vendor:valuation"
+
+#: What `/api/rank` will actually value, whatever the caller sends. Mirrors the `[:25]` slice
+#: in `web/app.py::api_rank`; a test pins the two together so charging cannot drift from doing.
+RANK_MAX = 25
+
+
+def _vendor_cost(path: str, body: dict | None, args=None) -> int:
+    """How many NAME VALUATIONS this request can cost upstream, worst case.
+
+    Worst case, not actual: the limiter runs in `before_request`, so it cannot know which
+    names will be cache hits. Over-charging a warm cache is the conservative direction and the
+    only one available here — the alternative is to charge nothing until the damage is done.
+    """
+    body = body or {}
     if path == "/api/value":
-        return "ai:value" if (body or {}).get("run_ai") else None
-    return path if path in LIMITS else None
+        return 1
+    if path == "/api/rank":
+        tickers = body.get("tickers") or []
+        n = len([t for t in tickers if str(t).strip()]) if isinstance(tickers, list) else 0
+        return max(1, min(n, RANK_MAX))
+    if path == "/api/dip":
+        # The shortlist is CALLER-SUPPLIED, so the cost is caller-controlled. Constants are
+        # imported rather than restated: a second copy of DEFAULT_SHORTLIST here is how the
+        # charge and the fan-out come to disagree.
+        try:
+            from ..web import dip
+            from ..web.query_params import clamp_int
+            return clamp_int((args or {}).get("shortlist"),
+                             default=dip.DEFAULT_SHORTLIST, cap=dip.MAX_SHORTLIST)
+        except Exception:
+            return 25          # fail EXPENSIVE: an unknown fan-out is charged the ceiling
+    return 1
+
+
+def buckets_for(path: str, body: dict | None, args=None):
+    """Every (bucket, cost) this request must clear, or () for 'not limited'.
+
+    A tuple rather than one bucket because a request can be scarce in two ways at once: an
+    `/api/value` with `run_ai` spends the owner's FMP quota AND an Anthropic call, and the old
+    single-bucket form could only charge it for one of them. Returning both means the AI cap
+    stays exactly as tight as it was while the vendor cap now applies to every request.
+    """
+    if path in ("/api/value", "/api/rank", "/api/dip"):
+        cost = _vendor_cost(path, body, args)
+        out = [(VENDOR_BUCKET, cost)]
+        if (body or {}).get("run_ai"):
+            out.append(("ai:value", cost))
+        return tuple(out)
+    return ((path, 1),) if path in LIMITS else ()
+
+
+def bucket_for(path: str, body: dict | None) -> str | None:
+    """The PRIMARY bucket, or None. Kept for callers and tests that want one name.
+
+    `buckets_for` is the authority — this returns only the first of what may be several, so a
+    caller enforcing this alone would let the AI cap go unchecked on an `/api/value` run.
+    """
+    b = buckets_for(path, body)
+    return b[0][0] if b else None
 
 
 def client_ip(request) -> str:
@@ -93,15 +165,24 @@ def client_ip(request) -> str:
     return request.remote_addr or "unknown"
 
 
-def check(ip: str, bucket: str, now: float | None = None):
+def check(ip: str, bucket: str, now: float | None = None, cost: int = 1):
     """Record a hit. Returns None if allowed, or `retry_after` seconds if over the limit.
 
     A blocked request is NOT recorded, so hammering a blocked endpoint cannot extend the
     penalty indefinitely -- the window still drains on schedule.
+
+    `cost` (MA7) is how many units of the bucket this request consumes: one `/api/rank` over
+    25 names costs 25 name-valuations, not one request. It defaults to 1, so every existing
+    caller and every per-request bucket behaves exactly as before.
+
+    A request that cannot AFFORD its cost is refused whole. It is never partially admitted --
+    charging 12 of a 25-name request and running all 25 would be a limiter that reports a
+    number it did not enforce.
     """
     limit, window = LIMITS[bucket]
     if limit <= 0:               # a bucket configured to 0 is closed outright
         return window
+    cost = max(1, int(cost))
     now = time.time() if now is None else now
     key = (ip, bucket)
     with _lock:
@@ -112,10 +193,12 @@ def check(ip: str, bucket: str, now: float | None = None):
                 _seen.pop(k, None)
         stamps = [t for t in _hits.get(key, []) if now - t < window]
         _seen[key] = now
-        if len(stamps) >= limit:
+        if len(stamps) + cost > limit:
             _hits[key] = stamps
-            return max(1, int(window - (now - stamps[0])))
-        stamps.append(now)
+            # An empty window with a cost above the whole limit would divide by an absent
+            # first stamp; the caller can never afford it, so quote the full window.
+            return max(1, int(window - (now - stamps[0]))) if stamps else window
+        stamps.extend([now] * cost)
         _hits[key] = stamps
         return None
 

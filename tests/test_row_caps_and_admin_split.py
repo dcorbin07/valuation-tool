@@ -261,7 +261,9 @@ def _bucket_used(headers):
     from valuation.saas import ratelimit
     seen = []
     orig = ratelimit.check
-    ratelimit.check = lambda ip, bucket: (seen.append(bucket), 60)[1]
+    # **kwargs, not a fixed signature: MA7 added a `cost` argument, and a stub that mirrors
+    # one call shape breaks the moment the real one grows another. (It did.)
+    ratelimit.check = lambda ip, bucket, *a, **k: (seen.append(bucket), 60)[1]
     try:
         with APP.test_client() as c:
             c.post("/api/value", headers=headers,
@@ -286,9 +288,16 @@ def test_an_anonymous_caller_still_lands_in_the_endpoints_own_bucket():
     """The control. Without it, 'admin is limited now' could be satisfied by routing
     EVERYONE into the generous admin bucket — which would loosen the public limits that
     exist to protect the owner's vendor spend."""
+    from valuation.saas import ratelimit
     anon = _bucket_used({})
-    assert anon == ["ai:value"], \
+    # Only the FIRST bucket appears: the stub refuses, and the app stops at the first refusal
+    # rather than charging the rest — which is correct, so this asserts the first bucket is
+    # the endpoint's OWN and not the admin ceiling. That an AI valuation is charged for BOTH
+    # the vendor quota and the Anthropic call is `buckets_for`'s property and is pinned in
+    # tests/test_vendor_quota.py, where it can be checked without running a real valuation.
+    assert anon and anon[0] == ratelimit.VENDOR_BUCKET, \
         f"anonymous traffic landed in {anon}, not the endpoint's own bucket"
+    assert ratelimit.ADMIN_BUCKET not in anon, "an anonymous caller got the admin ceiling"
 
 
 def test_the_admin_ceiling_actually_refuses_once_it_is_reached():
