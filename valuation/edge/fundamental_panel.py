@@ -4773,13 +4773,14 @@ def main(argv=None):
 
 # AUDIT B22 / M6 — the blocks a COMPLETE run must contain. A missing block is now an error
 # recorded in the results file rather than an absence nobody can distinguish from "not run".
-RESULT_BLOCKS = (
-    "construction", "regime", "institutional_dependence", "factors_used", "walk_forward",
-    "cpcv", "hold_until_exit", "holdout_validation", "costs", "book_configs",
-    "no_trade_band", "after_tax",
-    "benchmarks",          # AUDIT R10 — a silently absent benchmark block would leave the
-                           # uninvestable equal-weight figure standing alone again
-)
+#
+# AUDIT MA39 — THE DEFINITION MOVED TO `payload_schema` AND THIS IS A RE-EXPORT, NOT A COPY.
+# It lived here, where the blocks are produced, and `results_file` — which scans them for
+# error statuses — could not import it without a heavyweight cycle, so it carried a hand-typed
+# list of six instead. Seven blocks were stamped by this module and watched by neither. One
+# definition, importable by both, is the only version of this that cannot drift again; the
+# name stays here so every existing importer is unaffected.
+RESULT_BLOCKS = _schema.RESULT_BLOCKS
 
 
 def missing_result_blocks(res: dict) -> list:
