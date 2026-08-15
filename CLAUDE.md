@@ -90,7 +90,7 @@ the project's memory and the old versions had been repeated for months.
     it was blocked** — a diagnosis destroyed by the code that produced it. Now tri-state.
   * **A CORRECTION AGAINST MY OWN REGISTER, AND IT IS THE ERROR THIS FILE WARNS ABOUT TWICE.** Its
     section 6 says *"equity at 218, infra at 11"*; measured after this session's merge `by_domain`
-    reads **equity 224, options 292, infra 14**. Quoted from a stale mid-session figure instead of
+    reads **equity 224, options 292, infra 14** — and infra reads **15** after the concurrent `MA19`/`MA13` landing merged in an hour later, which is the same drift one level down and is recorded rather than left to rot. Quoted from a stale mid-session figure instead of
     re-read after merging `origin/main`. The register is left unedited. **`N` did not move**, which
     is the substantive claim and is verified: `by_domain` is identical before and after, while
     `rows_fixed_not_counted` rises **29 → 30** — the proof the row was seen and correctly excluded

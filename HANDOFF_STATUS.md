@@ -71,7 +71,7 @@ statistical half unchanged and still asserted, so the refusal cannot pass for th
 ## options-bot lane, audit #3 officialized + MA36/MA37 (2026-08-14) - THE LIVE OPTIONS RECORD WAS CENSORED AT ONE END AND BLENDED AT THE OTHER
 
 **Zero trials, `FIXED`-class.** `by_domain` re-read after the merge: **equity 224, options 292,
-infra 14** - unchanged before and after, while `rows_fixed_not_counted` rises **29 -> 30**, which
+infra 14, reading 15 after the concurrent MA19/MA13 landing merged in** - unchanged before and after, while `rows_fixed_not_counted` rises **29 -> 30**, which
 is the proof the log row was seen and correctly excluded rather than silently dropped. **72 suites,
 0 failures**; 19 new tests. `PREREG_ma36_ma37_record_integrity.md` committed **ALONE at `53c7ecf`**.
 
