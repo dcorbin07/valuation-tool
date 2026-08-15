@@ -10,6 +10,7 @@ from werkzeug.security import generate_password_hash
 
 from . import ratelimit
 from .emailer import send_status, NOT_CONFIGURED, SENT
+from .safe_redirect import safe_next_path
 
 _RESET_SALT = "pw-reset"
 _RESET_MAX_AGE = 3600  # 1 hour
@@ -96,7 +97,10 @@ def register(app, store, cfg):
             if u:
                 session.pop("demo", None)   # a real login supersedes a preview session
                 session["uid"] = u["id"]
-                return redirect(request.args.get("next") or "/app")
+                # MA51: this passed `next` to `redirect` RAW. An open redirect is worth most
+                # to an attacker precisely here — the victim has just logged in successfully
+                # on the genuine site, so the page they land on inherits that trust.
+                return redirect(safe_next_path(request.args.get("next"), default="/app"))
             return render_template("login.html", error="Incorrect email or password."), 401
         return render_template("login.html")
 

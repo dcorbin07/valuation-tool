@@ -149,20 +149,114 @@ def bucket_for(path: str, body: dict | None) -> str | None:
     return b[0][0] if b else None
 
 
+#: How many trusted proxies sit in front of this app. ONE on Render today.
+#:
+#: MA8. This number was never written down — it was implied by `parts[-1]`, and the audit's
+#: point is that the code could not tell which world it was in. It has two opposite failure
+#: modes and they are not symmetric:
+#:
+#:   * TOO LOW (configured 1, actually 2 — e.g. a CDN added in front of Render). The entry
+#:     taken is the inner proxy's view of the OUTER one: a single shared address. EVERY
+#:     visitor then lands in one bucket and the per-IP limiter silently becomes a GLOBAL cap
+#:     that one scraper exhausts for everybody. Availability, for all users, quietly.
+#:   * TOO HIGH (configured 2, actually 1). The entry taken is whatever the client typed,
+#:     which is trivially spoofable, so the limiter is bypassed by rotating a header.
+#:
+#: Both are silent. Neither raises. `forwarded_shape()` below is what makes the choice
+#: checkable against reality instead of assumed — see its docstring.
+TRUSTED_PROXY_HOPS = 1
+
+#: Observed X-Forwarded-For chain LENGTHS -> how many requests had that length. Counts only:
+#: no address is retained here, so this diagnostic stores nothing about any visitor.
+_xff_depths: dict = {}
+_xff_seen = 0
+
+#: Below this many observations `forwarded_shape` refuses to call it, rather than reporting a
+#: confident verdict off three requests. A diagnostic that is green before it has evidence is
+#: the vacuous-pass failure this project has now caught in four separate instruments.
+_SHAPE_MIN_OBSERVATIONS = 20
+
+
+def _trusted_hops() -> int:
+    """The configured hop count, overridable without a code change.
+
+    An env override exists because the day this number becomes wrong is the day a CDN is put
+    in front of the app — a deploy-time infrastructure change, made by someone who should not
+    have to edit Python to keep the limiter correct.
+    """
+    import os
+    try:
+        n = int(os.environ.get("TRUSTED_PROXY_HOPS") or TRUSTED_PROXY_HOPS)
+    except (TypeError, ValueError):
+        n = TRUSTED_PROXY_HOPS
+    return max(1, n)
+
+
 def client_ip(request) -> str:
     """Best available client identity behind Render's proxy.
 
-    Takes the RIGHTMOST X-Forwarded-For entry, not the leftmost. With exactly one trusted
-    proxy in front, the rightmost hop is the address the proxy actually observed; the
-    leftmost is whatever the client typed and is trivially spoofable, which would make the
-    limiter bypassable by rotating a header.
+    Takes the entry `TRUSTED_PROXY_HOPS` from the RIGHT of X-Forwarded-For, not the leftmost.
+    With exactly one trusted proxy in front, the rightmost hop is the address the proxy
+    actually observed; the leftmost is whatever the client typed and is trivially spoofable,
+    which would make the limiter bypassable by rotating a header.
+
+    A chain SHORTER than the configured hop count falls back to `remote_addr` — the direct
+    peer, which is the one address that cannot be forged from off-box. Reading the leftmost
+    entry instead would be reading the client's own claim, which is the failure mode the
+    rightmost rule exists to avoid.
     """
     xff = request.headers.get("X-Forwarded-For", "")
-    if xff:
-        parts = [p.strip() for p in xff.split(",") if p.strip()]
-        if parts:
-            return parts[-1]
+    parts = [p.strip() for p in xff.split(",") if p.strip()] if xff else []
+    with _lock:
+        global _xff_seen
+        _xff_seen += 1
+        # Depths are bucketed at 10 so a pathological header cannot grow this dict.
+        d = min(len(parts), 10)
+        _xff_depths[d] = _xff_depths.get(d, 0) + 1
+    hops = _trusted_hops()
+    if len(parts) >= hops:
+        return parts[-hops]
     return request.remote_addr or "unknown"
+
+
+def forwarded_shape() -> dict:
+    """Is `TRUSTED_PROXY_HOPS` right? Answer it from live traffic, not from assumption.
+
+    MA8's own prescribed verification was "log the parsed value for a handful of real requests
+    and compare with Render's own client-IP header — one deploy, one grep". This is that,
+    without the deploy: the chain LENGTH is the whole question, and it is observable on every
+    request the app already serves.
+
+    Returns counts and a verdict. The verdict is `insufficient` until enough requests have been
+    seen to mean anything, and `mismatch` is deliberately loud, because its consequence — one
+    shared bucket for every visitor — looks exactly like "the rate limiter is working" from the
+    inside.
+    """
+    with _lock:
+        depths = dict(_xff_depths)
+        seen = _xff_seen
+    hops = _trusted_hops()
+    modal = max(depths, key=lambda k: depths[k]) if depths else None
+    if seen < _SHAPE_MIN_OBSERVATIONS:
+        verdict = "insufficient"
+        note = (f"only {seen} request(s) observed; needs {_SHAPE_MIN_OBSERVATIONS} before this "
+                f"says anything. It is not evidence the configuration is right.")
+    elif modal == hops:
+        verdict = "consistent"
+        note = f"chain length {modal} matches TRUSTED_PROXY_HOPS={hops}."
+    elif modal is not None and modal > hops:
+        verdict = "mismatch"
+        note = (f"chain length {modal} EXCEEDS TRUSTED_PROXY_HOPS={hops}: the address being "
+                f"bucketed is a proxy's, not a visitor's, so every visitor may be sharing one "
+                f"rate-limit bucket. Set TRUSTED_PROXY_HOPS={modal}.")
+    else:
+        verdict = "mismatch"
+        note = (f"chain length {modal} is BELOW TRUSTED_PROXY_HOPS={hops}: requests are falling "
+                f"back to remote_addr. Set TRUSTED_PROXY_HOPS={modal or 1}.")
+    return {"trusted_proxy_hops": hops, "requests_observed": seen,
+            "chain_lengths": {str(k): v for k, v in sorted(depths.items())},
+            "modal_chain_length": modal, "verdict": verdict, "note": note,
+            "stores_addresses": False}
 
 
 def check(ip: str, bucket: str, now: float | None = None, cost: int = 1):
@@ -205,6 +299,9 @@ def check(ip: str, bucket: str, now: float | None = None, cost: int = 1):
 
 def reset():
     """Clear all counters (tests)."""
+    global _xff_seen
     with _lock:
         _hits.clear()
         _seen.clear()
+        _xff_depths.clear()
+        _xff_seen = 0

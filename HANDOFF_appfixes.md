@@ -5,6 +5,211 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 35 — 2026-08-15 — `MA51` + `MA8` + `MA53`, wave-2 app-fixer batch
+
+**Lane:** app fixer. **Branch:** `worktree-demo-link`.
+
+## 0. Which IDs I took, and which I left
+
+The map's app-fixer lane is 8 items. Four were already `DONE` (`MA9`, `MA10`, `MA50` in wave 1,
+`MA7` last session), which leaves **`MA51` as the lane's only open wave-2 MEDIUM**.
+
+**Taken: `MA51` (MEDIUM, wave 2), `MA8` (LOW), `MA53` (LOW).** The batching rule is the map's own
+— all three land in files last session already touched, and all three are the same question asked
+three times: *what does this app do with a value the caller chose?*
+
+| id | sev | wave | file it shares | why batched |
+|---|---|---|---|---|
+| `MA51` | MEDIUM | 2 | `saas/auth.py` — MA9's `/preview` grant | the mandate |
+| `MA53` | LOW | 3 | `web/app.py:519` — **MA50's exact clamp site** | the map's own edge says splitting them "invites a re-break" |
+| `MA8` | LOW | 3 | `saas/ratelimit.py` — MA7's buckets | third touch of one file otherwise |
+
+**Left, deliberately: `MA29`** (HYPOTHESIS — *"What the model cannot value"* is a new product
+surface, not a fix; it wants its own session and arguably its own register). **`MA52`** is in
+`screener/surfaces.py` and the map assigns it to **greeks**, not this lane.
+
+## 1. Headline
+
+**`MA51` is the only one of the three that was live as described.** `MA53`'s two claims are
+**both already closed** — and the sweep for its class found a third defect the audit never named,
+which is the one real fix in that row. `MA8` was never a wrong line; it was an **unwritten
+number**.
+
+## 2. `MA51` — open redirect (MEDIUM). Fixed.
+
+`auth.py:99` read `return redirect(request.args.get("next") or "/app")`, raw — verified verbatim.
+
+**The blast radius was verified rather than trusted.** `redirect(` appears 23 times under
+`valuation/`; `auth.py:99` is the **only** one whose argument comes from the request. The other
+four `next` values are server-written literals (`"/login?next=/account"` etc.). So the audit's
+*"only login honours arbitrary next"* holds, and the fix is one site.
+
+**Why this site in particular.** An open redirect leaks nothing by itself — it is a phishing
+primitive that borrows the domain's credibility, and it is most convincing exactly where this one
+fires: **immediately after a successful login on the genuine site**, when the user has just proved
+the site is real.
+
+**It is a module, not an `if`, and that is the one decision worth arguing with.** One call site
+argues for an inline check. The sweep argues against it: a guard inside a view cannot be asserted
+over the *codebase*, so the second such route gets written the same raw way and nothing notices —
+audit **B7**'s defect class, which this repo has paid for three times.
+`valuation/saas/safe_redirect.py::safe_next_path`.
+
+**Two rejections the audit's own prescribed rule would not have made:**
+
+* **`//evil.example`** — protocol-relative. Satisfies `startswith("/")`; browsers resolve it to a
+  different **origin**. The audit names this one, which is why its rule reads *"not `//`"*.
+* **`/\evil.example`** — the one that **cannot be justified from the RFC**. `urlsplit` reports an
+  empty netloc, so it looks same-origin to correct standards-based code; browsers normalise the
+  backslash into the authority position and navigate away. **A validator that trusts the parser
+  here is right about the standard and wrong about the thing performing the navigation.** The
+  `urlsplit` premise is *asserted in the test*, not assumed, so a future urllib change reports
+  itself instead of silently making the comment wrong.
+
+## 3. `MA8` — who the limiter thinks the caller is (LOW). Made explicit and observable.
+
+**A severity disagreement, recorded not resolved:** `VALQUO_MASTER_AUDIT.md` heads this
+`LOW/MEDIUM`; the ULTIMATE summary lists it under **MEDIUM (28)**; the items JSON and the map say
+**LOW**. Same class as the MA18 disagreement the map already flags. Worked as LOW.
+
+The defect is not a wrong line. `client_ip` took the rightmost `X-Forwarded-For` entry — correct
+for **exactly one** trusted proxy — and that "one" appeared nowhere. Both failure modes are silent:
+
+* **Too low** (configured 1, actually 2 — a CDN in front of Render): the entry taken is the inner
+  proxy's view of the **outer** one, a single shared address. **Every visitor lands in one bucket**
+  and the per-IP limiter becomes a global cap one scraper exhausts for everybody — which, from the
+  inside, is indistinguishable from the limiter working.
+* **Too high**: the entry taken is the client's own claim, spoofable by rotating a header.
+
+**Shipped:** `TRUSTED_PROXY_HOPS` (=1, env-overridable — the day it becomes wrong is a deploy-time
+infrastructure change made by someone who should not have to edit Python), plus
+`ratelimit.forwarded_shape()` and **`GET /admin/proxy-shape`**, modelled on MA1's read-only
+`/admin/learned-weight-status`. The audit's prescribed check was *"one deploy, one grep"*; the
+chain **length** is the whole question and is observable on every request already being served, so
+this answers it **without the deploy**.
+
+**The default is bit-identical to the behaviour it replaced**, pinned across seven header shapes
+including empty, whitespace and doubled commas — otherwise this is a behaviour change wearing a
+diagnostic's clothes. A chain **shorter** than configured falls back to `remote_addr` (the one
+address that cannot be forged off-box), never to the leftmost entry.
+
+**Not vacuously green:** the report returns `insufficient` below 20 observations rather than a
+confident `consistent` off three requests. It stores **counts only** — pinned by a test that greps
+the payload for the octets it was fed — and depths are bucketed at 10 so a pathological header
+cannot grow the dict.
+
+**What it does not do:** it does not decide which world Render is in. That still needs one real
+production request — but now it needs a *request*, not a *deploy*.
+
+## 4. `MA53` — verified closed on arrival, and the sweep found a third (LOW).
+
+**(a) "Two public endpoints 500 on a malformed numeric param" — CLOSED.** Measured against a live
+test client: `?top=abc`, `?top=-1`, `?limit=abc` all return **200**. Closed by **MA50's
+`clamp_int`**, which landed hours before this item was read — and the parse guard was the one
+declared addition to the audit's own prescribed arithmetic. This is what it was for. (The audit's
+line numbers had also drifted: 536/550 are now 544/558.)
+
+**(b) "LA12's `median_upside` population-mix is unfixed" — the mix is real, the defect is not
+unaddressed.** `median_upside` really is computed over only the DCF'd names while `count` reports
+the whole sector. But **LA12's shipped remedy was disclosure, not equalising the populations**:
+`sectors.py` emits `median_upside_n` beside it, and `median_upside_n == 0` exactly when the median
+is `None`. **The audit looked for the remedy it expected and did not find the one that shipped.**
+
+Deliberately **not** changed to value the full population: that is a latency and *meaning* change
+on a public endpoint with no consumer today (`app.js` reads `avg_composite`) — a product decision,
+not a bug fix. Pinned instead.
+
+**(c) The sweep found the row's only live defect, and the audit did not name it.**
+`/api/options-alerts?risk_budget=` was parsed with a bare `float()`. **`float` accepts three
+strings `int` rejects — `nan`, `inf`, `-inf`** — so that parameter had no defence at all, not even
+the accidental one of raising. A NaN budget does not raise, does not log and does not stop: it
+propagates into position sizing, where **every comparison against it is False, so the downstream
+guards read as satisfied.** Strictly worse than a 500. Owner-only, so not a public hole; fixed as
+the same class rather than left because the blast radius is small.
+
+## 5. Three defects in my own work, all caught before shipping
+
+1. **A clamp in the wrong units, which nearly re-sized every alert.** I wrote the `risk_budget`
+   bound as `lo=0.0001, hi=1.0`, reading it as a fraction. **It is dollars** —
+   `DEFAULT_RISK_BUDGET` is `$1,000` per signal — so that clamp would have silently clamped the
+   shipped default to `$1`. Caught by checking the unit before trusting the bound. A test now pins
+   the shipped default inside the shipped range, whatever either becomes.
+
+2. **A wrong claim in my own docstring, and the truth is worse.** I wrote that NaN survives a
+   min/max clamp. Measured, the behaviour is **order-dependent**:
+
+   | spelling | result on NaN |
+   |---|---|
+   | `max(lo, min(v, hi))` | `lo` — garbage becomes a plausible-looking floor |
+   | `min(max(v, lo), hi)` | **`nan`** — passes straight through |
+   | `max(min(v, hi), lo)` | **`nan`** — passes straight through |
+
+   **Two of the three natural spellings let NaN out untouched, none of them is a clamp, and all
+   three look identical in review.** Same value-dependent-guard family as the `zscore`
+   zero-variance check this project has been bitten by twice. Pinned as a table.
+
+3. **A vacuity trap in my own test.** The end-to-end MA51 test first created its user via
+   `POST /register` and treated `302` as success. `signup_enabled` is **False** by default and a
+   *disabled* signup **also** returns `302` — to `/app`. So the guard passed on a redirect that
+   created nothing, and the login then failed for a reason unrelated to MA51. **A status code
+   shared by the success and the refusal cannot distinguish them.** The user is now created through
+   the store.
+
+Also corrected: the first sweep was a line grep and flagged five false positives — four
+server-written literals and **this module's own docstring**, which quotes MA51's defective line
+verbatim. Rewritten as an **AST walk**, because the alternative was a file-exemption list, and an
+exemption list is what makes a sweep stop finding the next case.
+
+## 5a. Mutation testing found two things reading the code could not
+
+Both in `safe_next_path`, and neither was visible from the passing suite.
+
+**(a) Three of my guards were unreachable — dead code wearing defence-in-depth's clothes.** My
+first draft led with `value[:1] != "/"`. A value starting with `/` can carry neither a scheme
+(which must precede any slash) nor a netloc (which needs `//`), so the `urlsplit` branches below
+it **could never fire**. The mutant that deleted them passed every test. Restructured so the
+textual check covers only what the parser gets wrong, and the parser covers the rest.
+
+**(b) `///evil.example` — and this one was a live hole for about ten minutes.** Delegating the
+authority question to `urlsplit` accepts it: three slashes parse to an **empty netloc** and path
+`/evil.example`, i.e. it reads as same-origin. Caught because the restructure made a test fail.
+The authority position is now refused **textually**, which covers `//`, `///` and `/\` alike.
+
+**(c) `https:/evil.example` — one slash, not two.** After (a), deleting the scheme check *still*
+passed, because `https://evil.example` parses to an **empty path** and was already caught by the
+relative-path branch. Only the single-slash form reaches the scheme check: it parses to path
+`/evil.example`, which starts with a slash and sails through everything else. Browsers resolve it
+off-origin. **The gap here was in my tests, not the code** — the guard was right and nothing
+proved it was load-bearing. Now pinned by its own case.
+
+The general lesson, which is the transferable part: **a guard that no test can distinguish from
+its own absence is indistinguishable from dead code, and you cannot tell which by reading.**
+
+## 6. Evidence
+
+`tests/test_redirect_and_proxy.py` **35/35**. Full gate **84/84 exit 0**. Mutations
+**19/19 caught, 0 missed, 0 skipped** — including reverting each guard individually, taking the
+leftmost hop, downgrading the shape verdict to `consistent`, dropping the admin check on the
+diagnostic, removing the `isfinite` guard, and deleting `median_upside_n`. Two of those mutants
+initially **survived**; both are written up in §5a, and both changed the shipped code.
+
+**Zero trials** for all three — correctness and security changes, no hypothesis, no threshold, no
+verdict. Equity `N` stays **224**.
+
+## 7. Reported, not fixed
+
+* **`/admin/*` still sits outside the limiter block entirely** (carried from session 34):
+  `/admin/run-scan` remains uncapped. `/admin/proxy-shape` is read-only and cheap, so it adds
+  nothing to that exposure — but it does not close it either.
+* **MA8 is only half-answerable from here.** The diagnostic reports what the app sees; deciding
+  `TRUSTED_PROXY_HOPS` needs one look at `/admin/proxy-shape` on **production**. If its verdict
+  reads `mismatch`, the per-IP limiter has been global and every per-IP cap in the record —
+  including MA7's vendor budget — has been bounding everyone together rather than each caller.
+* **The `median_upside` population mix is disclosed, not removed.** If a surface ever renders it,
+  read `median_upside_n` first.
+
+---
+
 # Session 34 — 2026-08-14 — `MA7`, the uncapped vendor quota
 
 **Lane:** app fixer. **Branch:** `worktree-demo-link`.
