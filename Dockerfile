@@ -3,8 +3,13 @@ FROM python:3.11-slim
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 PORT=8000
 
-COPY requirements.txt requirements-saas.txt ./
-RUN pip install --no-cache-dir -r requirements-saas.txt
+# MA12 — the production image installs the hash-pinned lock, not the `>=` ranges. The lock is
+# resolved for linux/CPython 3.11, which is exactly this base image. `--require-hashes` makes
+# pip refuse anything that is not byte-for-byte the artifact the lock was resolved against, so
+# a yanked-and-replaced release or a compromised mirror fails the build instead of shipping.
+# requirements*.txt are copied too: they stay the readable declaration and the local path.
+COPY requirements.txt requirements-saas.txt requirements-saas.lock.txt ./
+RUN pip install --no-cache-dir --require-hashes -r requirements-saas.lock.txt
 
 COPY . .
 RUN mkdir -p data

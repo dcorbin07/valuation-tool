@@ -1,7 +1,15 @@
 # Hosted SaaS deployment = base tool + billing + a production server.
+#
+# Render's container installs the GENERATED `requirements-saas.lock.txt`, not this file
+# (master audit MA12). This stays the readable declaration; regenerate with
+# `python scripts/gen_requirements_lock.py` after any deliberate change.
 -r requirements.txt
 
-stripe>=9.0        # subscription billing
-gunicorn>=21.0     # production WSGI server (Linux hosts)
+# Upper bounds for the same reason as the core file: both of these were resolving to a major
+# version far above their floor -- stripe 15.5.0 against `>=9.0`, gunicorn 26.0.0 against
+# `>=21.0`. Stripe is the BILLING path, so an unannounced major there charges customers
+# through code that was never tested against it.
+stripe>=9.0,<16        # subscription billing                    # locked: 15.5.0
+gunicorn>=21.0,<27     # production WSGI server (Linux hosts)    # locked: 26.0.0
 # werkzeug ships with Flask and provides password hashing — no extra dep.
 # For Postgres in production also add:  psycopg2-binary>=2.9  (and set DATABASE_URL)

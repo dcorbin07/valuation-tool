@@ -7,23 +7,42 @@
 #  no git_push.bat, no you in the loop. If tests fail or the merge conflicts,
 #  it stops and leaves `main` untouched (nothing broken ever ships).
 #
-#  ONE-TIME INSTALL (2 min, when you're back):
-#   1. Save this file to:  valuation-tool\.github\workflows\land-agent-branch.yml
-#   2. Commit + push it to main:
-#        git add .github/workflows/land-agent-branch.yml
-#        git commit -m "CI: auto-land agent branches to main"
-#        git push origin main
-#   3. In GitHub → repo Settings → Actions → General → Workflow permissions,
-#      select "Read and write permissions" (lets the Action push to main), Save.
-#   That's it. From then on every Code push auto-merges + deploys if green.
+#  ONE-TIME INSTALL (already done): repo Settings → Actions → General → Workflow
+#  permissions must be "Read and write permissions" so the `land` job can push `main`.
+# ============================================================================
 #
-#  TWO THINGS TO VERIFY on the first run (watch the Actions tab):
-#   - test_edge.py must EXIT non-zero on failure for the gate to be real. If a
-#     run shows 87/88 but still pushes, the runner isn't exiting non-zero — tell
-#     me and I'll add an explicit pass/fail check.
-#   - The edge tests must run WITHOUT the gitignored data/ (they use fixtures).
-#     If a test needs the licensed Sharadar data, the Action will red-X safely
-#     (it won't deploy) — tell me and I'll make those tests skip in CI.
+#  MASTER AUDIT MA11 — 2026-08-15. THE JOB THAT RUNS BRANCH CODE NO LONGER HOLDS A WRITE TOKEN.
+#
+#  The audit's finding, verified against this file: the gate runs `python "$f"` for every
+#  `tests/test_*.py` in the MERGED tree, so the branch supplies the code that judges it —
+#  adding `tests/test_zz.py` was sufficient to execute arbitrary code, and the single job
+#  held `contents: write` while doing it. `actions/checkout` also persists that token into
+#  `.git/config`, so branch code could simply `git push --force origin main` and skip the
+#  gate entirely.
+#
+#  Split into two jobs, because `permissions:` is per-job and this is the one control here
+#  that GitHub actually enforces rather than merely encourages:
+#    * `gate`  — permissions: contents: READ. Every line of branch code executes here. A
+#                stolen token now buys read access to a repository the branch is already in.
+#    * `land`  — permissions: contents: write. Merges and pushes, and runs NO branch code.
+#
+#  Plus `.github/land_policy.py`, READ FROM MAIN'S CHECKOUT BEFORE THE BRANCH IS MERGED, so a
+#  branch cannot disable the policy by editing its own copy. It refuses two things: any change
+#  under `.github/`, and the deletion of a test suite.
+#
+#  RESIDUAL, STATED RATHER THAN PAPERED OVER: for `push` events GitHub runs the workflow YAML
+#  from the PUSHED branch, so a branch that rewrites THIS FILE to skip the policy escapes it.
+#  Nothing in the repo can prevent that — the control is a GitHub-side ruleset protecting
+#  `.github/**`, which is Don's to apply. This closes accidents and drift, not a determined
+#  agent, and must never be described as if it did.
+#
+#  THE RETRY LOOP MOVED AND ONE CASE GOT STRICTER, DELIBERATELY. It used to re-run the whole
+#  gate in-job when main moved under it. That path is exactly "run branch code again in the
+#  job holding the write token", so it is gone: `land` still re-merges and pushes when main
+#  moved with DOCUMENTATION only (the overwhelmingly common case in this repo), and now FAILS
+#  with "push again" when main moved with CODE. That is the same failure mode the old loop
+#  reached after 3 attempts, arrived at sooner, and it can never push a combination that no
+#  gate ever tested.
 # ============================================================================
 name: Land agent branch to main
 on:
@@ -45,16 +64,21 @@ on:
 # Now scoped per branch, so one lane's push can never cancel another lane's queued run.
 # Within a branch, a newer push still supersedes an older queued one -- correct, since
 # the newer commit contains the older. The main-races-main problem the old group was
-# solving is now handled where it belongs, in the land step's re-merge-and-retest loop.
+# solving is now handled where it belongs, in the land job's re-merge loop.
 concurrency:
   group: land-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  land:
+  # ---------------------------------------------------------------------------
+  # GATE — this is where untrusted branch code runs. Read-only token, by design.
+  # ---------------------------------------------------------------------------
+  gate:
     runs-on: ubuntu-latest
     permissions:
-      contents: write           # allow pushing to main
+      contents: read            # MA11: branch code executes in this job. It may not write.
+    outputs:
+      base: ${{ steps.gate.outputs.base }}
     steps:
       - name: Checkout main (full history)
         uses: actions/checkout@v5
@@ -67,25 +91,94 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      # Read the policy off MAIN, before the branch is merged into this tree. From here on
+      # the working tree contains branch content, so anything read out of it is untrusted.
+      - name: Save main's copy of the land policy
+        run: |
+          mkdir -p "$RUNNER_TEMP/policy"
+          if [ -f .github/land_policy.py ]; then
+            cp .github/land_policy.py "$RUNNER_TEMP/policy/land_policy.py"
+            echo "Policy: using main's copy of .github/land_policy.py"
+          else
+            echo "::notice::main has no .github/land_policy.py yet — MA11 bootstrap run, policy not enforced. Every later push is checked against main's copy."
+          fi
 
-      # Branches now land in parallel (see the concurrency note above), so two runs can finish
-      # at the same moment and both try to push `main`; the loser is rejected as non-fast-forward.
-      # Retrying the PUSH alone would ship a tree that never passed the gate in that combination,
-      # so the whole merge -> test -> push cycle retries against the new tip. Every commit that
-      # reaches `main` is therefore a tree that passed every suite exactly as it stands.
-      #
       # AUDIT C7 — the gate used to run tests/test_edge.py ONLY. Fourteen other suites did not
       # gate a deploy, while agent branches routinely edit options_universe.py, paper_track.py,
       # factors.py and screen.py, which that suite does not cover. Every suite runs now; the
       # loop keeps going so one red suite does not hide the others, and the job fails if any
       # failed. Longer CI is cheaper than an auto-merged regression reaching production.
-      - name: Land — merge, test, push (retries only if main moved under us)
+      #
+      # MA12 — dependencies install from the hash-pinned lock, not from `>=` ranges resolved
+      # fresh on every run. It installs AFTER the merge so the tree under test gets the
+      # dependencies that tree declares.
+      - name: Gate — merge, police, install, test
+        id: gate
         run: |
           git config user.name  "valquo-ci"
           git config user.email "ci@valquo.co"
           BR="${GITHUB_REF#refs/heads/}"
+          SHA="${GITHUB_SHA}"
+
+          git fetch origin "$BR"
+          git fetch origin main
+          BASE="$(git rev-parse origin/main)"
+          # The exact commit the `land` job must merge, and the exact main it was tested
+          # against. Passing the sha rather than the branch name means `land` cannot pick up
+          # a newer, ungated commit if the lane pushes again while this run is in flight.
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+
+          echo "::group::Merging $BR ($SHA) into main ($BASE)"
+          git checkout -B landing "$BASE"
+          git merge --no-edit "$SHA" || {
+            echo "::error::Merge conflict on $BR — main left untouched"
+            git merge --abort || true
+            exit 1
+          }
+          echo "::endgroup::"
+
+          if [ -f "$RUNNER_TEMP/policy/land_policy.py" ]; then
+            echo "::group::Land policy (main's copy)"
+            python "$RUNNER_TEMP/policy/land_policy.py" --base "$BASE" --head "$SHA"
+            echo "::endgroup::"
+          fi
+
+          echo "::group::Install dependencies (hash-pinned — MA12)"
+          pip install --require-hashes -r requirements.lock.txt
+          echo "::endgroup::"
+
+          fail=0
+          for f in tests/test_*.py; do
+            echo "::group::$f"
+            python "$f" || { echo "::error::$f FAILED"; fail=1; }
+            echo "::endgroup::"
+          done
+          # `exit $fail` verbatim: tests/test_edge.py's C7 test asserts this exact string,
+          # so that one red suite can never be hidden by a later green one. Keep the literal.
+          if [ "$fail" -ne 0 ]; then exit $fail; fi
+
+  # ---------------------------------------------------------------------------
+  # LAND — holds the write token. Runs NO branch code: it merges and pushes only.
+  # ---------------------------------------------------------------------------
+  land:
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write           # allow pushing to main
+    steps:
+      - name: Checkout main (full history)
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Push the gated merge to main
+        run: |
+          git config user.name  "valquo-ci"
+          git config user.email "ci@valquo.co"
+          BR="${GITHUB_REF#refs/heads/}"
+          SHA="${GITHUB_SHA}"
+          BASE="${{ needs.gate.outputs.base }}"
           git fetch origin "$BR"
 
           # Did anything that can affect a test result land between two commits? Markdown and
@@ -95,50 +188,28 @@ jobs:
             [ -n "$(git diff --name-only "$1" "$2" -- . ':(exclude)*.md' ':(exclude).gitattributes')" ]
           }
 
-          need_test=1
           for attempt in 1 2 3; do
-            echo "::group::Attempt $attempt — merging $BR into main"
             git fetch origin main
-            git checkout -B landing origin/main
-            git merge --no-edit "origin/$BR" || {
+            NOW="$(git rev-parse origin/main)"
+
+            if [ "$NOW" != "$BASE" ] && code_changed "$BASE" "$NOW"; then
+              echo "::error::main moved with CODE changes since the gate passed ($BASE -> $NOW)."
+              echo "::error::Refusing to push a combination no gate has tested. Push $BR again to re-run the gate."
+              exit 1
+            fi
+
+            git checkout -B landing "$NOW"
+            git merge --no-edit "$SHA" || {
               echo "::error::Merge conflict on $BR — main left untouched"
               git merge --abort || true
               exit 1
             }
-            echo "::endgroup::"
 
-            if [ "$need_test" -eq 1 ]; then
-              fail=0
-              for f in tests/test_*.py; do
-                echo "::group::$f"
-                python "$f" || { echo "::error::$f FAILED"; fail=1; }
-                echo "::endgroup::"
-              done
-              # `exit $fail` verbatim: tests/test_edge.py's C7 test asserts this exact string,
-              # so that one red suite can never be hidden by a later green one. Keep the literal.
-              if [ "$fail" -ne 0 ]; then exit $fail; fi
-            else
-              echo "Only documentation landed under us, so the code in this tree is byte-identical"
-              echo "to the tree that just passed every suite. Not re-running the gate."
-            fi
-
-            before=$(git rev-parse origin/main)
             if git push origin HEAD:main; then
               echo "Landed $BR on main (attempt $attempt) — Render deploys from here."
               exit 0
             fi
-
-            # Lost the race. Whether we must pay for the full gate again depends entirely on
-            # WHAT landed under us -- with a 24-suite gate taking ~20 minutes and main moving
-            # every ~10, re-testing for a handoff edit is what makes a branch livelock.
-            git fetch origin main
-            if code_changed "$before" origin/main; then
-              need_test=1
-              echo "::warning::main moved with CODE changes — re-merging and re-running the full gate"
-            else
-              need_test=0
-              echo "::warning::main moved with documentation only — re-merging and pushing without re-testing"
-            fi
+            echo "::warning::Lost the push race on attempt $attempt — re-checking main"
           done
 
           echo "::error::Could not land $BR after 3 attempts; main moved every time. Push again to retry."

@@ -15,26 +15,26 @@ Hot-stocks screener (9-theme "hot score") + options/intraday signals + a point-i
 **backtest / Edge Lab** that proves-or-disproves the edge and tunes the screener weights. A monthly,
 purely-statistical, out-of-sample-gated self-learning loop re-tunes weights.
 
-## How to run (you can run these directly — Don cannot / will not)
-- Full backtest: `python -m valuation.edge.fundamental_panel --data-dir data/backtest --json data/backtest/last_result.json` (or `run_backtest.bat`). Reads licensed Sharadar exports in `data/backtest`. Takes 20-40 min.
-- 13F due-diligence: `python -m valuation.edge.fundamental_panel --data-dir data/backtest --validate-institutional` (or `validate_13f.bat`).
-- Tests (keep green, **currently 249/249**): `python tests/test_edge.py`. **CORRECTED 2026-08-07
-  (claims audit): this line read "currently 16/16" — measured today it is 249/249, exit 0.** It is
-  also not the whole gate: `tests/` holds **62** suites and the auto-land Action runs EVERY one of
-  them (audit C7), so verify with a loop over `tests/test_*.py` before pushing, not with
-  `test_edge.py` alone. **CORRECTED 2026-08-12 (session 29): this read "24" — measured today it is
-  62, all passing. Judge them by EXIT CODE, not by grepping for `OK`:** the suites print at least
-  three different summary formats (`OK`, `20 passed, 0 failed`, `14/14 bulk tests passed`), and a
-  loop that scrapes for `OK` reports `test_build_ledger`, `test_bulk` and `test_calibration` as
-  FAILING when they pass. A gate that cries wolf is one you learn to ignore.
-- Deploy: Don runs `git_push.bat` himself (pushes to GitHub -> Render; Actions run the scans).
+## How to run, and the HARD RULES → **`RUN_RULES.md` PART 0**
 
-## HARD RULES (do not violate)
-- **Never commit/push `data/`** (licensed Sharadar exports; gitignored) or `*.db`.
-- **`.env` holds real secrets** (SHARADAR_API_KEY, ANTHROPIC_API_KEY, TRADIER_TOKEN, SECRET_KEY) — never print, commit, or overwrite.
-- **Do NOT execute trades or move money** — a Robinhood connector exists (Cowork side); produce target/rebalance lists, Don executes.
-- **Ignore Don's resume files entirely.**
-- Repo is private; keep it clean. Keep `tests/test_edge.py` passing after every change.
+**MOVED 2026-08-15 (master audit MA22). This file is the FINDINGS RECORD. The operating
+instructions — how to run the backtest and the suites, the hard rules about `data/`, `.env`,
+trades and licences, the git handoff, and the Claude-Code-vs-Cowork routing — are now PART 0 of
+`RUN_RULES.md`, which is short and read first.**
+
+Why they moved, and it is this file's own failure class: instructions buried in a 4,100-line
+record rot. The removed text carried the suite count as **"62"** while the git-handoff section
+at the other end of the same file said the Action *"runs all 24 suites"* — and measured on the
+day of the move it was **83**. Three numbers, one file, all stale, and a reader had no way to
+know which.
+
+**Then it went to 86 before that same session ended**, because the session added three suites of
+its own. A count that moves inside one sitting cannot be maintained by hand, so PART 0 **derives**
+it and `tests/test_docs_entry_points.py` fails on any document that instructs from a hard-coded
+one. Quoting a stale figure to record what it used to say is still fine — that is what this
+paragraph is doing, and the check exempts quotations for exactly that reason.
+
+Nothing was deleted: the four sections moved verbatim except where they were provably wrong.
 
 ## Core file: `valuation/edge/fundamental_panel.py` (the backtest engine)
 - `build_fundamental_panel()` — builds the 9 themes point-in-time (reuses the live `build_frame`). `_yoy()` computes revenue/asset-growth/issuance -> `growth` + `capital_discipline`. `inst_lag_days` param stress-tests the 13F lag.
@@ -3923,123 +3923,31 @@ never the number a keep/reject/adopt decision rests on. The full run is now fast
 score), so there is no performance excuse to judge on a subset. If you must screen small first, say
 "smoke test" explicitly and re-run the survivor on the full universe before reporting a verdict.
 
-## IMMEDIATE NEXT TASKS (in order) — item statuses re-checked 2026-08-07 (claims audit)
-> **This list is the least trustworthy section in the file. Of the three OPEN items checked
-> against the tree on 2026-08-07, TWO were already closed** — #16 rejected with numbers on
-> 2026-07-31, #18 shipped — **and #12 had been built in this repo while still routed to Cowork.**
-> The list was stamped "updated 2026-07-30" and has taken landings from several sessions since.
-> **Check `VALQUO_LEDGER.md` and the tree before starting any item here.**
-1. ~~Wire the bulk caches into `build_fundamental_panel`~~ **DONE (2026-07-29 s3)** — PIT market cap from
-   DAILY, ACTIONS delisting mask (splits NOT re-applied; SEP already adjusted), SF3 conviction exposed as
-   inputs. (Coverage figure in that note was wrong: `institutional` is **61.4%** on the full universe.)
-2. ~~**Add unit tests for `bulk.py`**~~ **DONE** — 12 tests.
-3. ~~**Speed up scoring + complete the full 2,827-name run**~~ **DONE** — the full run now takes ~12 min
-   end to end, and one duplicate full panel build was removed from it (2026-07-30).
-4. ~~**P3 — SF3 smart-money conviction**~~ **DONE (P4 commit)** — `sm_breadth` kept, the rest rejected.
-5. ~~**Fix hurting factors**~~ **DONE (2026-07-30)** — but only after discovering the factors were EMPTY;
-   see LATEST. `neg_asset_growth` dropped (t −0.70), `low_risk` zeroed (IC −0.0014, −0.352 corr with size).
-6. ~~**Confirm the `low_risk` removal out-of-sample**~~ **DONE (2026-07-30) — CONFIRMED.** Held-out
-   time split, both directions: long-short t +1.59 / +2.02, top-decile alpha +3.21pp / +7.86pp on
-   data that did not inform the decision. Now a PERMANENT check: `holdout_theme_validate()` runs on
-   every backtest and ships a `holdout_validation` block in BACKTEST_RESULTS.json.
-7. ~~**Test zeroing `insider`**~~ **DONE — REJECTED, left at 0.125.** Helped one split direction by
-   a hair (Δt +0.08) and hurt the other (Δt −0.09). Its −0.34 full-sample t is not stable.
-8. ~~**TTM ROE/ROIC**~~ **DONE — REJECTED (P6.2).** Quarterly is BETTER (roe t +2.84 vs +2.01,
-   roic +3.38 vs +2.57). Recency beats smoothing. Don't re-open without a new reason.
-9. ~~**turnover/cost-aware construction**~~ **DONE (P6.1) — THE EDGE SURVIVES COSTS.** Breakeven
-   236bps one-way vs ~37bps actual; net top-decile alpha +11.41%/yr. Measured on every run.
-10. ~~**median/MAD robust z-scores**~~ **DONE — REJECTED (P6.3).** Halves the long-short t.
-11. ~~**Consolidate momentum/institutional**~~ **DONE — REJECTED (P6.4).** Both earn full weight.
+## WHERE DO WE STAND? → **`VALQUO_LEDGER.md`**
 
-**OPEN, in priority order:**
+**THE TASK LIST WAS DELETED HERE 2026-08-15 (master audit MA22), AND IT ASKED FOR THIS ITSELF.**
+Its own header read: *"This list is the least trustworthy section in the file. Of the three OPEN
+items checked against the tree on 2026-08-07, TWO were already closed"* — one had been rejected
+with numbers four days before it was listed as "clearly worthwhile now", another was already
+shipped, and a third was routed to the wrong lane for work that had been done in this repo.
 
-12. ~~**Forward paper-track vs SPY**~~ **BUILT IN THIS REPO — CORRECTED 2026-08-07 (claims
-    audit).** This item used to read "the top priority … → **Cowork's lane**. Tell Don to take it
-    there." **Do not tell Don that.** It was built in this lane and it is here:
-    `valuation/edge/paper_track.py` (its own docstring: "roadmap #12, the project's #1 remaining
-    validation"), plus `paper_broker.py` (refuses any non-sandbox endpoint), `options_tracker.py`,
-    `track_export.py`, and `tests/test_paper_track.py`. First landed at `cde1579`. The RATIONALE
-    is unchanged and still the strongest open argument in the project — the edge has only ever
-    seen this one Sharadar panel, and a forward track is the only thing that tests it on data
-    nobody has looked at. What remains is elapsed time and reading the track, not building it.
-13. ~~**Industry-relative ranking**~~ **DONE and now CLOSED PERMANENTLY — REJECTED a third time
-    on 2026-08-11, this time on the CORRECTED panel (`SECTOR-NEUTRAL-B6`).** The two rejections
-    described below both ran on the **void pre-B6 panel**; the re-run puts the same gate on the
-    69-date panel and finds sector-neutral **worse on BOTH metrics**, with the long-short gain
-    that motivated the trade-off **reversed** and the sector-neutral arm **below the calibrated
-    long-short floor**. See the session-20 bullet in CURRENT STATE. **It may not be re-run
-    again** — the only routes back are `S25` (point-in-time sector map) and `S15` (value theme
-    alone). The rest of this item is the record of the earlier runs: **unblocked (P10), then
-    REJECTED and re-confirmed 2026-08-02.** Sector is wired from TICKERS at 100% coverage and pinned by
-    `tests/test_sector_neutral.py`; sector-neutral ranking fails the held-out gate in both
-    directions under both flat and deployed weights (it buys long-short t and sells top-decile
-    alpha — the wrong trade for a long-only book). Stays OFF. `HANDOFF_sector_neutral.md`.
-    A NARROWER variant (sector-relative on the value theme alone) is now cheap to test and is
-    the only version worth re-opening.
-14. **Watch live behaviour after the P5 deploy.** `low_risk` 12.5% → 0 tilts the hot list
-    smaller-cap. Intended, but eyeball the first scans; revert is one line in `settings.py`.
-15. ~~**PEAD from EVENTS**~~ **DONE — REJECTED (2026-08-01, independently re-verified
-    2026-08-03).** EVENTS code 22 was decoded, so it was finally testable. `pead_car` clears
-    the standalone bar (median IC +0.0100, **t +2.215**, coverage 82.3%) but earns no weight;
-    `pead_drift` fails outright (t −0.473, coverage 25.1% under the 30% floor). Two reasons the
-    reject is solid, both stronger than the IC: **(a)** residualized on the three momentum
-    inputs, pead_car's incremental IC t is **+0.020** — 89% of it is orthogonal to momentum and
-    that 89% predicts nothing; **(b)** the book gain it does produce is beaten by a control
-    using NO earnings data (counting `ret_6_1` twice: +0.83pp alpha vs pead_car's +0.52pp). It
-    correlates most with the strongest momentum input and least with the weakest, so it acts as
-    an implicit REWEIGHTING, not a new signal. Also **not actually PEAD**: theory says drift is
-    strongest right after the announcement, but the recent-only window scores t −0.473 against
-    the all-ages +2.215 — backwards. **Held-out deltas for PEAD are CONSTRUCTION-SENSITIVE and
-    even flip sign** between the full composite and a restricted-universe book — never quote one
-    without naming the book. Both variants stay MEASURED but score in no theme. Point-in-time is
-    pinned by `tests/test_pead.py` (12 tests, incl. a tampering test). `HANDOFF_pead.md`.
-    Re-open only with real point-in-time earnings surprises (IBES, parked — same blocker as #20).
-16. ~~**ML tree combiner**~~ **DONE — TESTED AND REJECTED 2026-07-31. CORRECTED 2026-08-07
-    (claims audit): this sat in the OPEN list reading "clearly worthwhile now", one day after it
-    had already been rejected with numbers.** Pre-registered results-free at `620e0a5`
-    (`valuation/edge/ml_combiner.py`, protocol and adoption bar fixed before any run), then
-    rejected at `f53b248` — "TESTED AND REJECTED on every criterion". Numbers (`CODE_AUDIT.md:15`):
-    **median OOS IC +0.0531 linear vs +0.0393 GBM; net alpha −8.2pp roth / −4.0pp taxable; fails
-    in BOTH halves.** Judged on the same CPCV paths as the linear candidates. **Closed, not
-    pending — re-open only with materially more data, not a different model.**
-17. **Re-read every past "monotonicity" conclusion with the sign flipped** (see LATEST).
-18. ~~**Social preview:** Open Graph + Twitter Card meta tags~~ **SHIPPED — CORRECTED 2026-08-07
-    (claims audit).** `valuation/web/templates/_saas_base.html:34-44` carries `og:title`,
-    `og:image` (+ `secure_url`, `type`, **1200×630**, `alt`) and `twitter:card=summary_large_image`,
-    with a comment that `og:image` must be an ABSOLUTE https URL or LinkedIn/Slack/X silently skip
-    it. Only the manual step is left: re-scrape via LinkedIn Post Inspector after a deploy.
-19. ~~**Later:** gated auto-apply of adopted weights.~~ **CORRECTED 2026-08-14 (master audit MA1):
-    AUTO-APPLY WAS ALREADY SHIPPED, UNGATED, AND ON A MONTHLY CRON — this line said the opposite
-    for months.** `screen.py:53` preferred `store.latest_learned_weights(...)` over
-    `settings.WEIGHTS_*`, fed by `/admin/run-learning` on `auto-scan.yml`'s `0 12 1 * *`, and
-    `tests/test_edge.py` **pinned** it — so a scheduled job could change the composite users
-    receive by writing to Render's SQLite, with no commit and nothing for the vintage contract to
-    see. ~~It had never fired;~~ **CORRECTED 2026-08-14 by a second lane that landed this same row
-    independently and MEASURED PRODUCTION: IT HAD FIRED — once, on 2026-08-01 at 13:32:47 UTC — AND
-    IT ADOPTED NOTHING.** Proved, not inferred: the live edge-learning read endpoint reports
-    `number_ic.computed_at = 2026-08-01T13:32:47.645510` with status *"insufficient data"*, and
-    `run_number_diagnostics` is the **only** writer of that key in the repository, called from
-    **exactly one place** — inside the admin run-learning handler. The same endpoint reports an
-    **EMPTY history** and `current.established` **bit-identical to `settings.WEIGHTS_ESTABLISHED`**,
-    so `learned_config` has never been written and **there is no live vintage violation**. The
-    empty history proves `run_learning` returned at its insufficient-data guard, **above** every
-    `save_learned` call, and the code agrees: adoption needs 8 scan dates each with a realized
-    **21-trading-day** forward return, and on 2026-08-01 none could exist. **The distinction is not
-    pedantry — the audit's severity rule is "CRITICAL if it has ever fired, HIGH-and-armed if it has
-    not", so the precise statement is that the JOB fired and the ADOPTION PATH was never reached.**
-    next firing would have been 2026-09-01. **Now DISARMED and the item
-    is CLOSED, not pending:** `learn_enabled` defaults false, the cron and its job are removed,
-    and `store.save_learned` — the one funnel both weight writers pass through — refuses an
-    adoption unless the OPEN vintage registers it AND Don has signed
-    `PAPER_TRACK_CONTRACT.md` §5c for that same vintage. **The "gated" part of this item is what
-    was actually missing, and it is what got built.** Check production with
-    `GET /admin/learned-weight-status`. `valuation/edge/weight_adoption.py`;
-    `HANDOFF_live_data_bugs.md` Part 21. **The lesson generalises: a roadmap entry saying
-    something is unbuilt is not evidence that it is unbuilt** — this one, `BACKTEST_RUNBOOK.md`'s
-    architecture diagram, and the `LEARN_ENABLED` flag all described a world the code did not
-    implement, and the code was the one on the cron.
-20. **Estimate-revisions sentiment: PARKED** until WRDS/IBES (FMP has no point-in-time revisions at any tier;
-    the free `stable/grades` workaround is real but weak and quota-starved). Don't fight the FMP free quota.
+**`VALQUO_LEDGER.md` is the contractual answer to "is X done?"** — one row per item, with verdict,
+commit and handoff. It is 275 rows and it is maintained; the list here was neither.
+
+**NOTHING WAS LOST, AND THAT WAS CHECKED ROW BY ROW BEFORE DELETING RATHER THAN ASSUMED.** Every
+item carried here is recorded elsewhere, in every case more fully:
+- the gated auto-apply of learned weights → ledger **`MA1`** (DISARMED, with the production
+  verification and both commits — the task-list entry had none of that);
+- estimate revisions → ledger **`D6`** (*"STAY PARKED. No retail point-in-time revisions exist at
+  any price. Path is IBES via WRDS"*);
+- sector-neutral ranking, PEAD, the ML tree combiner, the forward paper track → their own bullets
+  in CURRENT STATE above, with the numbers;
+- the monotonicity sign convention → pinned by `test_monotonicity_sign_convention`.
+
+**The one standing instruction worth carrying forward:** `monotonicity` is ordered
+best-composite-first, so **−1.0 is perfectly ordered and +1.0 is backwards**. Any pre-2026-07-30
+conclusion quoting it should be re-read with the sign flipped.
+
 
 ## COVERAGE RULE (hard — learned the expensive way 2026-07-30)
 **Before reporting or acting on any factor's IC, check its coverage.** Five wired factors were empty
@@ -4050,63 +3958,14 @@ The same class of bug has now bitten four times (`assets` in the loader allowlis
 positional-arg bug, these five, and `invcap`/`taxexp`/`ebt` missing from `_KEEP`). When adding any
 signal, add its source columns to `WRDSProvider._KEEP` and confirm coverage in the next run.
 
-## END OF EVERY SESSION: update `HANDOFF_STATUS.md`
-Overwrite `HANDOFF_STATUS.md` in the repo root before you finish — what you did, concrete
-numbers (test counts, PBO / Deflated Sharpe / IC / t-stats / alpha, row counts, adopt-or-reject
-verdicts), what's blocked and why, and the recommended next step. Plain markdown, no colour
-codes, factual. The Cowork agent reads that file directly instead of screenshots.
+## Session close-out, tool routing, working with Don → **`RUN_RULES.md` PART 0**
 
-**Write your full end-of-session report — the complete recap you'd show Don (what shipped,
-concrete numbers/verdicts, blockers, the recommended next step) — to your OWN
-`HANDOFF_<name>.md`.** The Cowork agent reads that file directly, so Don never has to
-screenshot. `HANDOFF_STATUS.md` stays the shared project state; `HANDOFF_<name>.md` is your
-session's own full write-up, and parallel agents each own a separate file so they never
-clobber each other.
+**MOVED 2026-08-15 (master audit MA22).** The end-of-session handoff rules, the Claude-Code vs
+Cowork routing, and the git handoff now live in `RUN_RULES.md` PART 0 alongside the other
+operating instructions, so they are read at the start of a session rather than found 4,000 lines
+into a findings record.
 
-## Working with Don
-Concise, direct, honest. He is non-technical but sharp and rightly skeptical — show reasoning and caveats, don't inflate. Unlike the Cowork agent, you (Claude Code) can run commands yourself, so run the backtest/tests directly rather than handing him `.bat` files.
-
-## Tool routing — Claude Code vs Cowork (IMPORTANT: tell Don when to switch)
-Don runs TWO agents on this project. They do not talk live; they sync through this shared git repo/folder
-(both see the same files). Each agent should explicitly tell Don to switch when a task is in the other's lane.
-
-- **You (Claude Code)** own: running the backtest / `validate_13f.bat` / tests, editing this codebase, git,
-  quant research, anything that needs to execute code locally. Do these yourself.
-- **Cowork** owns: the Robinhood connector (read-only account data + producing rebalance lists — NEVER
-  execute trades), the tracked "Valquo Index vs SPY", scheduled scans/tasks, and phone/mobile sessions.
-
-**Git handoff — CORRECTED 2026-08-07 (claims audit). MERGING IS AUTOMATIC. DO NOT MERGE `main`
-BY HAND.** This paragraph used to say: *"Commit directly to `main` in the primary checkout. If your
-harness forces a git worktree, you MUST land the work on `main` before ending the session
-(`git checkout main && git merge --ff-only <branch>`) … Don deploys from `main` with `git_push.bat`."*
-**That instruction is now wrong and acting on it is dangerous** — several agents share the primary
-checkout, `main` moves under you mid-session, and a hand-merge there can clobber another lane.
-It also contradicted `RUN_RULES.md:76` — the file this brief's own header calls non-negotiable —
-which says *"Merging is automatic — the GitHub Action lands any pushed `worktree-*` branch behind
-the test gate."* `.github/workflows/land-agent-branch.yml` states the same in its header: *"No local
-merge, no Vim, no git_push.bat, no you in the loop."*
-
-**The actual close-out is:** commit in your worktree → `git push -u origin worktree-<name>` →
-**verify it landed** (`git fetch origin main -q` then
-`git merge-base --is-ancestor HEAD origin/main`). The Action installs deps and runs all 24 suites,
-so allow time; if it never lands, the gate failed or the merge conflicted and `main` is
-deliberately untouched — do not merge by hand, fix the branch. The original lesson still stands
-and is the reason the Action exists: **do not strand work on an unpushed branch** (twice the P5 +
-held-out work sat unmerged while `main` stayed on P4). On Windows PowerShell, paste commands on
-SEPARATE lines — its old shell rejects `&&`.
-
-When a task needs Cowork, say so plainly, e.g.: **"→ Take this to the Cowork chat — it needs the Robinhood
-connector, which I don't have here."** Cowork will likewise send Don back here for heavy backtests/code.
-After you commit changes, the Cowork agent sees them in the same folder next time Don opens it.
-
-Current handoff state (July 2026): task #1 is **done** — the 13F signal has been fairly tested and is real
-but too weak to trade alone (details in CURRENT STATE). Do not spend more effort tuning or re-testing 13F.
-
-**CORRECTED 2026-08-07 (claims audit): the rest of this paragraph said "The ball is now on task #2,
-estimate revisions, which needs an API key from Don (FMP or Intrinio)." Do NOT ask Don to buy that
-key.** It contradicts roadmap item **#20** in this same file, which is the researched conclusion:
-**FMP has no point-in-time revisions at ANY tier**, so a paid FMP key would not unblock it; the real
-source is IBES, i.e. WRDS. `HANDOFF_data_spend.md` reaches the same verdict independently ("no
-purchasable retail option exists at any price"). The item is **PARKED**, not waiting on a purchase.
-Note also that this paragraph's numbering ("task #2") is its own, and does not match the numbered
-roadmap above — estimate revisions is **#20** there.
+One correction was applied on the way, and it is the reason the move matters: the git-handoff
+text said the Action *"runs all 24 suites"* while this file's own opening said **62** — measured
+on the day of the move, **83**. It also cited `RUN_RULES.md:76`, a line number that had already
+drifted. PART 0 derives the count and cites sections rather than line numbers.
