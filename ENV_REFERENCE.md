@@ -56,6 +56,7 @@ each item when you actually need the feature it unlocks.
 | `SMTP_HOST` / `SMTP_USER` / `SMTP_PASSWORD` / `EMAIL_FROM` | you want to send emails (receipts, weekly digest, alerts) | your email provider — Zoho works, like On The Steps |
 | `DISCORD_WEBHOOK_URL` | you want screaming-buy alerts, the daily hot digest and the **daily/weekly paper-track recaps** posted to a Discord channel | Discord → channel → Integrations → Webhooks → New Webhook → Copy URL. Set it **on Render** (the recaps post server-side); the same value as a GitHub Actions secret only covers the scan-failure alert and the watchdog |
 | `ALERT_MIN_SCORE` | you want to tune how strict the alerts are (default 80) | a number 0–100 — higher = fewer, higher-conviction alerts |
+| `TRUSTED_PROXY_HOPS` | **only if you put something in front of Render** (a CDN like Cloudflare). Default `1`, which is correct today. | The number of proxies between the visitor and the app. Getting it wrong is silent in both directions: too low and every visitor shares one rate-limit bucket (one scraper can then exhaust the limit for everybody); too high and the limiter is bypassable with a header. **Don't guess — check.** `GET /admin/proxy-shape` with your `ADMIN_TOKEN` reports the observed value and says which to set. (MA8) |
 
 ## The cron job section (weekly-scan-trigger)
 | Variable | What to put |

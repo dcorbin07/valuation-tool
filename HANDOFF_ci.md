@@ -1557,3 +1557,39 @@ Four, all caught before landing, and two by the tests written to pin the thing t
 * **I did not touch `RESEARCH_LOG.md`.** All four items are `FIXED`-class with no hypothesis and
   no threshold; charging a trial for them would inflate `N` and *lower* every DSR- and HLZ-gated
   claim.
+
+### 8. A fifth defect, found by watching the run rather than reading it
+
+**The policy speaks in GitHub Actions workflow commands, and the SUITE that tests it was
+speaking them too.** `land_policy.main()` prints `::error::` lines so a refusal is loud in the
+Actions UI. `test_exit_codes_distinguish_refusal_from_error` calls that function in-process to
+check the refusal path — so on the first land run carrying the file, the runner parsed those
+lines out of the *suite's* stdout and rendered **three red annotations on a completely green
+run**, naming a fixture path (`.github/workflows/x.yml`) that does not exist.
+
+Nothing was broken and that is exactly why it mattered: every future land would have shown red
+annotations it should not have, and *"a gate that cries wolf is one you learn to ignore"* is
+this project's own phrase. Stdout is now captured — which also let the test assert the refusal
+**message**, not just the exit code — and `test_the_suite_leaks_no_workflow_commands_to_the_runner`
+walks every test in the module with stdout captured and fails if any workflow command escapes,
+so a future test calling the policy directly cannot reintroduce it.
+
+**Found by reading the annotations on a successful run. A green tick is not the whole signal.**
+
+### 9. Verification — live runs, and the sequencing earned its keep
+
+| run | result | what it proved |
+|---|---|---|
+| `31897680804` | gate ok, land FAILED | The split works; and the first cut's deleted retry was wrong — main moved with code mid-gate and the branch refused to land. |
+| `31898053895` | landed | The retry, restored inside the read-only `gate` job, absorbs a moving main. gate 4m39s, land 9s. |
+| `31898373985` | landed | The policy reached `main` via the bootstrap branch, exactly as designed. |
+
+Local gate before the first push: **86/86 in 1,320s, zero failures**. Both locks additionally
+validated under `pip install --require-hashes --dry-run` for the real target (linux / cp311):
+52 and 55 packages resolved, exit 0 — so CI was not the first thing to find out whether the
+lock was installable.
+
+**The two-push sequencing was not caution for its own sake — it paid.** The workflow restructure
+was wrong on its first run. Had the policy landed in the same push, the lock would have been
+armed against `.github/` while `.github/` still contained the bug, and the fix could not have
+auto-landed.
