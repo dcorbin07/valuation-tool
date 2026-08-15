@@ -11607,3 +11607,232 @@ It does **not** close `PT-WRITER`, and it does not refute it. The row's own test
 has intervened on all three attempts. **The next honest reading is 2026-08-17**, when vintage 4's
 first row (2026-08-14) falls due, *provided no vintage event lands before then* — and on the record
 of the last four days that proviso is doing real work.
+
+---
+
+# 2026-08-14 — `MA19` (recalibrate X7's floors at `N` = 224) + `MA13` (tamper-evidence for `N`)
+
+`PREREG_ma19_ma13_recalibration.md` committed **ALONE at `0eb95b1`** — one `.md`, zero `.py`, a
+strict ancestor of every measurement commit. **ZERO equity trials** (register §7, and the reason is
+not bookkeeping: `N` is the input to the floors being computed, so charging a trial would move `N`
+to 225 and invalidate the numbers the moment they were written). **Equity `N` stays 224.**
+
+## 0. THE ONE-LINE ANSWER
+
+**Five of seven floors have not moved at all — including BOTH long-short floors, the ones the
+project actually quotes — and MA19's own predicted direction did not materialise. Two moved: the
+top-decile alpha HAC *t* floor (2.2913 → 2.0540) and the Deflated Sharpe floor (0.7216 → 0.6637).
+NO shipped claim changes its relationship to its bar.** Separately, and not predicted by the audit:
+**the record's 1.95pp alpha margin has been stale since session 10 and the correct figure is
+1.863pp** — measured, banked, and never read out.
+
+## 1. THE METHOD, AND WHERE THE AUDIT'S OWN METHOD CLAIM FAILS
+
+MA19 says *"the check is arithmetic, not a sweep"*. **Measured, that is half right, and the half
+that fails is the half that matters.**
+
+* **ARITHMETIC — which draws adopt.** The CPCV gate's only `N`-dependence is
+  `margin > _trials_haircut(...) · se`, and `(margin, se)` are banked for all 100 draws. Confirmed:
+  the adopt curve reproduces session 12's published values exactly (**C1**), including at today's
+  `N`: **8 → 27, 84 → 21, 116/121/129 → 20, 200 → 18, 224 → 18, 400 → 17.**
+* **NOT ARITHMETIC — the floors.** A draw that stops adopting must be re-scored under **base**
+  weights, and **only 1 of the 100 banked rows (seed 1005) carries both scorings**. The other 99
+  carry whichever one the as-run adoption chose.
+
+So the honest method is a **targeted re-score of three draws** — the two that flip at 129 → 224,
+plus the one that flips at 84 → 129 so X7's own regime can be reconstructed — on the same panel
+checkpoint, same seeds, same permutation instrument, same estimator. **400 seconds, not 3.4 hours**,
+and the 98 untouched draws are provably bit-identical rather than assumed so.
+
+## 2. THE ANSWER: OLD BAR vs NEW BAR, ACROSS ALL THREE `N` REGIMES
+
+`N` = 84 is X7's calibration and is **where the record's bars come from**; 129 is the as-run bank;
+224 is today. The `N` = 84 column is **reconstructed**, not quoted, and control **C9** shows it
+reproduces the record's own published bars.
+
+| floor | record's bar | **N = 84** (reconstructed) | **N = 129** | **N = 224 (today)** | moved? |
+|---|---|---|---|---|---|
+| long-short *t* (naive) p95 | 2.14 | 2.143721279058468 | 2.143721279058468 | **2.143721279058468** | **NO — never** |
+| **long-short *t* (HAC) p95** | **2.2837** | 2.2836835647679825 | 2.2836835647679825 | **2.2836835647679825** | **NO — never** |
+| top-decile alpha margin p95 | **1.95pp** | 0.019532365234968638 | 0.01862902854505208 | **0.01862902854505208** | at 84→129 only |
+| top-decile alpha HAC *t* p95 | 2.2913 | 2.2913385887990723 | 2.2913385887990723 | **2.0540387962807953** | **YES, −0.2373** |
+| theme IC *t* p95 | 2.71 | 2.7072343864082833 | 2.7072343864082833 | **2.7072343864082833** | **NO — never** |
+| PBO p05 | <19.7% | 0.19666666666666668 | 0.19666666666666668 | **0.19666666666666668** | **NO — never** |
+| Deflated Sharpe p95 | 0.7216 | 0.7215923169155578 | 0.7076150167362221 | **0.6636638983671563** | **YES, both steps** |
+
+## 3. MA19's OWN HYPOTHESIS IS REFUTED, AND THE REASON IS THE PORTABLE PART
+
+The audit predicted: *"fewer adopters → fewer draws receiving the +1.4 *t* bonus → a lower null p95
+→ the shipped 2.6199 clears 2.2837 by more."* **The long-short floors did not move by a single bit,
+at either step.** The register charged that prediction as mine too, so it is scored as a **miss**.
+
+**WHY, AND THIS IS THE LESSON: a p95 over 100 draws is set by the 5th-and-6th largest values, so
+whether a floor moves depends not on HOW MANY draws flip but on WHERE THEY SAT.** Measured ranks of
+the two draws that flipped at 129 → 224:
+
+| statistic | seed 1050 rank | seed 1096 rank | in the tail that sets p95? |
+|---|---|---|---|
+| long-short *t* (naive) | 18 / 100 | 37 / 100 | no → floor unmoved |
+| long-short *t* (HAC) | 15 / 100 | 35 / 100 | no → floor unmoved |
+| **top-decile alpha HAC *t*** | **4 / 100** | 34 / 100 | **YES → floor moved** |
+| top-decile alpha | 9 / 100 | 33 / 100 | no → floor unmoved |
+
+**So a calibrated placebo floor is a STEP function of `N`, and the steps are at the tail.** The rule
+from X7RECON — *"a floor may not be compared across sweeps run at different `N` without checking"* —
+is **vindicated as a rule** (you do have to check) while its predicted direction is not a reliable
+guide.
+
+## 4. THE FIRST TIME SESSION 12's WARNING ACTUALLY FIRED
+
+Session 12 closed with: *"Here the floors did not move ... because the one affected draw landed
+below the percentile — **that is luck, not design.**"* **This session the luck ran out.** Seed 1050
+sat **4th of 100** on the top-decile alpha HAC *t* at 2.3971; removing its adoption bonus dropped it
+to 0.9452, pulling the upper tail down one position and the p95 from **2.2913 to 2.0540**. That is
+the first instance in the record of an `N` change moving a published floor.
+
+**The direction is in the strategy's favour** — a lower floor is easier — and the shipped **+4.3762**
+sat above all 100 draws before and still does, so nothing is retracted.
+
+## 5. THE UNPREDICTED FINDING: THE 1.95pp ALPHA MARGIN HAS BEEN STALE SINCE SESSION 10
+
+**The record's bar is 1.95pp. The measured floor is 1.863pp, and has been since session 10's sweep
+on 2026-08-07.** It is not a discrepancy — control **C9** reproduces X7's 1.95pp exactly from the
+bank at `N` = 84 (measured **0.019532** against a published 0.0195, |Δ| 3.2e-05). The regime moved
+at 84 → 129 when seed 1005 stopped adopting, and **session 10's sweep measured the new value and
+published only the long-short floors.**
+
+**This is `RUN_RULES` rule 9's lesson running backwards.** That rule exists because X7 kept its 100
+draws as five summary rates, so re-denominating one column meant re-running the sweep. Session 10
+fixed it and **stored every draw** — and then the derived floor sat in the artifact, correct and
+unread, for nine days while the record kept quoting the superseded one. **Storing the draws is
+necessary and not sufficient; someone has to read them out.**
+
+**Consequence, bounded honestly:** the correct bar is **LOWER** (1.863pp vs 1.95pp), so the
+correction is in the strategy's favour and **nothing that cleared 1.95pp fails 1.863pp**. The one
+live citation is `S10`'s register — *"the audit's 1.0pp allowance sits BELOW X7's calibrated
+1.95pp"* — and it holds a fortiori at 1.863pp, since 1.0pp is below both.
+
+## 6. THE DEFLATED SHARPE MOVES BY A DIFFERENT MECHANISM, AND BOTH SIDES MOVE
+
+The DSR is the one floor with a **direct** `N` channel: `N` enters `sr0_benchmark` in the formula
+itself, so **every draw moves**, not just the flipped ones. It fell at both steps —
+**0.7216 → 0.7076 → 0.6637**.
+
+**The real statistic moved with it, and the record has been mixing regimes.** The shipped Deflated
+Sharpe reads **0.7863213339664521 at `N` = 224** (`BACKTEST_RESULTS.json`), against 0.8628 at
+`N` = 121 and the 0.8674 the record quotes at `N` = 116. **A real-vs-floor comparison must be made
+at ONE `N`**, and the record's *"0.8674 ... still far above X7's 0.7216 floor"* pairs an `N` = 116
+numerator with an `N` = 84 denominator.
+
+**At a consistent `N` = 224: real 0.7863 vs calibrated floor 0.6637 — CLEARS; vs the 0.95
+convention — FAILS.** Both relationships are exactly as the record already describes them, so the
+quotable sentence is unchanged in substance and now internally consistent.
+
+## 7. CHANNEL C IS CONFIRMED EXACTLY, OVER THREE REGIMES
+
+The register predicted `max_abs_theme_ic_t` and `pbo` read neither the weight vector nor the
+haircut, so they cannot move at all. **Measured, not assumed (C6):** on both flipped draws the
+adopting and non-adopting scorings are **bit-identical** — seed 1050 theme IC 2.508663713593745 and
+PBO 0.3333333333333333 on both arms; seed 1096 2.241402205132746 and 0.4. And the floors read
+**2.7072343864082833** and **0.19666666666666668** at `N` = 84, 129 **and** 224.
+
+**This matters for a live decision surface:** the theme IC bar of **2.71** gates real judgements
+(`U2` judged four arms on it), and it is now demonstrated invariant across a 2.7× change in `N`
+rather than merely assumed to be.
+
+## 8. CONTROLS — eleven, two of them GATING, all pass
+
+* **C1 (GATING)** adopt curve reproduces session 12 exactly at every `N`. PASS
+* **C2 (GATING)** the `N` = 129 floors reproduce session 10's published values to the digit —
+  naive **2.1437**, HAC **2.2837**, alpha HAC *t* **2.2913**, PBO **0.1967**. PASS
+* **C3** adoption is monotone: **zero** draws start adopting at higher `N`. PASS
+* **C3b** the **LIVE** gate independently returned `adopt=False` on all three re-scored seeds,
+  agreeing with the arithmetic rather than being told the answer. PASS
+* **C4** round trip: each re-scored seed reproduces its banked statistics on the arm the as-run
+  adoption used — **challenger** for 1050/1096, **base** for 1005 — so both arms are exercised.
+  Seed 1005 came back **1.045357 / 2.127284** against session 12's banked
+  **1.0453572947436582 / 2.1272844590282975**: an independent reproduction of a published number
+  from a fresh process six days later. PASS
+* **C5** the 98 untouched draws are bit-identical, **max |Δ| exactly 0.000e+00**. PASS
+* **C6** Channel C invariance, measured (§7). PASS
+* **C7** the real headline is untouched — `long_short_tstat_nw` stays **2.6199121240414884**. This
+  re-measures the **null**, never the strategy. PASS
+* **C8** the closed-form DSR recomputation reproduces the bank at the OLD `N` over 98 draws,
+  **max error 2.66e-10**. PASS
+* **C9** the reconstructed `N` = 84 regime reproduces **X7's own published bars** — criterion fixed
+  as |Δ| < 0.005, half a unit in the coarsest place the record quotes: alpha margin **0.019532** vs
+  0.0195 (3.2e-05), DSR **0.7215923** vs 0.7216 (7.7e-06), LS HAC 2.2836836 vs 2.2837 (1.6e-05),
+  theme IC 2.7072 vs 2.71, PBO 0.19667 vs 0.197, LS naive 2.1437 vs 2.14. **This is what turns
+  "the record's number disagrees with mine" into "the record's number was correctly measured in a
+  regime that has since moved"** — the only finding that licenses correcting the record rather than
+  disputing it. PASS
+* **C10 — THE STRONGEST, AND IT IS EXTERNAL.** Pushing the **banked** real draw (computed at
+  `N` = 121) to today's `N` by the same closed form gives **0.786321334173165** against
+  `BACKTEST_RESULTS.json`'s independently-produced **0.786321333966452** — **|Δ| 2.07e-10**, with
+  `sr0` matching to 15 digits. Nothing in this script feeds that file, so Channel B is shown to be
+  the **shipped** arithmetic and not a plausible reimplementation of it (the B7 defect class). PASS
+
+**A note on why `skew` and `kurt` never needed to be banked:** the DSR's denominator is a function
+of `(sr, skew, kurt)` alone and so is `N`-independent, which means inverting the banked probability
+recovers it in closed form. C8 and C10 are what turn that from an argument into a measurement.
+
+## 9. `MA13` — `N` NOW HAS TAMPER-EVIDENCE
+
+**The premise is confirmed by reading the suite.** `tests/test_edge.py`'s M1 test asserts only
+*relational* properties (`by_domain["equity"] > 8`, `trial_count("equity") < trial_count(None)`,
+missing file → 8). **Every one still passes after an edit that drops `N` from 224 to 9** — and
+lowering `N` **raises** every DSR- and HLZ-gated claim in the project.
+
+`tests/test_research_log_integrity.py` (5 tests, exit 0) pins `by_domain` to a **committed
+literal** — `{"equity": 224, "options": 292, "unified": 0, "infra": 14}` — in the `test_track_meter`
+idiom, so a change to `N` requires editing the expectation in the same commit and therefore appears
+in the diff. The failure message names the direction and magnitude and says a **fall** is the
+dangerous one.
+
+* **IT IS CHECKED FOR VACUITY, WHICH IS HOW A GUARD LIKE THIS ACTUALLY DIES** (M6's lesson).
+  `test_a_tampered_log_really_does_lower_N` copies the real log to a temp dir, flips one verdict
+  cell to `FIXED`, and asserts the count **falls** — the exact edit the docstring warns about.
+* **A DEFECT IN MY OWN TEST, AND IT NEARLY READ AS A NULL.** The first cut used a fixed column
+  offset and reported *"tampering did NOT lower N (224 → 224)"*. That looked like evidence the
+  hazard was not real. It was not: `RESEARCH_LOG.md` holds **two tables with different 9-column
+  schemas**, so `verdict` sits at a different offset in each, and I had edited table 1's
+  **`threshold`** cell. The parser correctly ignored it — which is **session 12's fix working**.
+  The test now resolves the column **by header name**, exactly as `research_log._parse` does.
+* **DELIBERATELY NOT DONE, and the reason is the cry-wolf failure.** The audit suggests
+  `BACKTEST_RESULTS.json` as a home for the expectation. Measured, the two agree exactly today. It
+  is still declined as the **source**: the artifact is refreshed by a 20–40 minute backtest while
+  `N` rises the moment a register lands, so sourcing from it would put the suite red for the
+  ordinary, correct interval between a landing and the next run. *"A gate that cries wolf is one you
+  learn to ignore."* Cross-checking artifact against log is a real convention and it belongs to
+  **`MA21`**, with its own staleness decision, not smuggled in here.
+* **Tamper-EVIDENCE, not a lock.** `N` is supposed to rise; the point is that it may only change
+  deliberately and visibly. No runtime assertion was added that could abort a backtest.
+
+## 10. EXPECTATIONS — 4 right, 1 wrong, 1 split
+
+| # | pre-registered | outcome |
+|---|---|---|
+| 1 | the long-short HAC floor **falls** (75/25) | **WRONG** — it did not move by a bit |
+| 2 | any move is under 0.15 of a *t* (70/30) | **SPLIT** — 0.0 on both LS floors, 0.2373 on alpha HAC *t* |
+| 3 | theme IC and PBO **exactly** invariant (85/15) | **RIGHT**, and over three regimes |
+| 4 | the DSR floor falls (90/10) | **RIGHT**, at both steps |
+| 5 | no shipped claim changes side (70/30) | **RIGHT** — all seven unchanged |
+| 6 | some published bar already drifted at `N` = 121, unread (60/40) | **RIGHT** — the alpha margin, and the DSR bar |
+
+**The miss is the informative one and it is MA19's own hypothesis**, which I adopted rather than
+hedged. The audit reasoned from the mechanism (fewer adopters → lower null) and the mechanism is
+real; what it omitted is that a percentile only moves if the affected draws are **in the
+percentile's neighbourhood**, and two of the three were not.
+
+## 11. WHAT THIS DOES NOT SAY
+
+* It does **not** re-open any verdict. A floor moving changes what a **future** arm must clear and
+  how an existing claim is **quoted**; it does not re-adjudicate anything. **No shipped claim
+  changed its relationship to its bar.**
+* It does **not** recalibrate `S22`/`X1`'s `fixed_weights_null`, the cost table (`B11`) or the
+  fidelity bar — none reads `N`, as MA19 itself states.
+* It does **not** touch the learner's 1.64σ floor (`MA2`), a separate row.
+* **The floors remain floors for THIS panel, universe and 69 dates**, not universal constants.
+* `MA16` compounds with this and is untouched here: the 100 banked draws that make the cheap route
+  possible live in `data/free_analysis`, which the backup **skips**. This session consumed that
+  directory twice and could not have run without it.
