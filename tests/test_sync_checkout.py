@@ -179,6 +179,30 @@ class T(unittest.TestCase):
         self.assertEqual(ph["action"], "pushed")
         self.assertEqual(before, state(), "the snapshot changed local state")
 
+    def test_snapshotting_an_unchanged_tree_twice_is_a_no_op(self):
+        """The gap that let a real bug reach the scheduled task. `rescuing twice` was
+        tested and `snapshotting twice` was not - and commit-tree stamps a fresh timestamp
+        each run, so the second commit is a SIBLING of the one already on the ref and the
+        push is rejected as a non-fast-forward. The daily task failed on its second run."""
+        repo = self.mk(behind=1, dirty=True)
+        st = sc.survey(repo, "main", "origin", fetch=False)
+        first = sc.snapshot_worktree(repo, st, dry=False)
+        self.assertEqual(first["action"], "pushed")
+        second = sc.snapshot_worktree(repo, st, dry=False)
+        self.assertEqual(second["action"], "already-snapshotted")
+        self.assertEqual(first["ref"], second["ref"])
+
+    def test_a_changed_tree_gets_its_own_snapshot_ref(self):
+        repo = self.mk(behind=1, dirty=True)
+        st = sc.survey(repo, "main", "origin", fetch=False)
+        first = sc.snapshot_worktree(repo, st, dry=False)
+        write(repo, "README.md", "seed\nedited again\n")
+        st2 = sc.survey(repo, "main", "origin", fetch=False)
+        second = sc.snapshot_worktree(repo, st2, dry=False)
+        self.assertEqual(second["action"], "pushed")
+        self.assertNotEqual(first["ref"], second["ref"])
+        self.assertIn("edited again", git(repo, "show", f"{second['commit']}:README.md"))
+
     def test_the_no_touch_probe_is_not_vacuous(self):
         """The check above compares two empty `git diff --cached` outputs, which is exactly
         what a probe that sees nothing also looks like. This shows it would notice."""

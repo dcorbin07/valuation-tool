@@ -173,6 +173,20 @@ def rescue_commits(repo: str, st: dict, dry: bool, land: bool) -> dict:
             "sha": sha[:7], "commits": st["stranded"]}
 
 
+def _remote_tree(repo: str, remote: str, ref: str) -> str | None:
+    """The tree of a remote branch's tip, or None if it cannot be established.
+
+    Fetched into a private `refs/valquo/` ref rather than FETCH_HEAD, so this never
+    disturbs a scratch ref the user or another tool might be relying on.
+    """
+    p = _git(repo, "fetch", remote, f"+refs/heads/{ref}:refs/valquo/synccheck",
+             check=False)
+    if p.returncode != 0:
+        return None
+    q = _git(repo, "rev-parse", "refs/valquo/synccheck^{tree}", check=False)
+    return q.stdout.strip() if q.returncode == 0 else None
+
+
 # ---------------------------------------------------------------- B: snapshot worktree
 def snapshot_worktree(repo: str, st: dict, dry: bool) -> dict:
     """Commit the current TRACKED working-tree state to the remote without touching
@@ -209,8 +223,21 @@ def snapshot_worktree(repo: str, st: dict, dry: bool) -> dict:
         commit = _out(repo, "commit-tree", tree, "-p", head, "-m", msg, env=env)
         ref = f"rescue/wip-{st['branch']}-{tree[:7]}"
         ls = _out(repo, "ls-remote", "--heads", st["remote"], ref)
-        if ls.split() and ls.split()[0] == commit:
-            action = "already-snapshotted"
+        if ls.split():
+            # Compare TREES, not commits. `commit-tree` stamps a fresh timestamp on every
+            # run, so an unchanged working tree still produces a NEW commit sha -- one that
+            # is a SIBLING of the one already on the ref, not a descendant. Comparing
+            # commits therefore never matches and the push is rejected as a
+            # non-fast-forward, which is exactly what the daily task hit on its second run.
+            remote_tree = _remote_tree(repo, st["remote"], ref)
+            if remote_tree == tree:
+                action = "already-snapshotted"
+            else:
+                # Cannot prove it is the same content, so do not touch the existing ref:
+                # push a fresh one rather than fail or force.
+                ref = f"{ref}-{commit[:7]}"
+                _git(repo, "push", st["remote"], f"{commit}:refs/heads/{ref}")
+                action = "pushed"
         else:
             _git(repo, "push", st["remote"], f"{commit}:refs/heads/{ref}")
             action = "pushed"

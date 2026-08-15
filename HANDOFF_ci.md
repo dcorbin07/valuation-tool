@@ -1232,6 +1232,13 @@ own disease.
 Scheduled at **19:30**, half an hour before `ValuationToolAutoPush` at 20:00, so that task's
 push becomes a fast-forward. Task creation needs **no administrator rights** (probed).
 
+**`ValquoSyncCheckout` is INSTALLED and has run.** Registered against the shared checkout with
+its bootstrap taken from `origin/main` (not from a worktree, which can be deleted). Its first
+run logged `using origin/main` and exercised the whole path on the real tree. Log:
+`%LOCALAPPDATA%\Valquo\sync.log`. To remove it: `schtasks /Delete /TN "ValquoSyncCheckout" /F`.
+It will keep reporting **exit 1** until the diverged branch is finished off — correctly, and
+that is the alarm doing its job, not a fault.
+
 ### 7. What is left, and why it cannot be automated away
 
 **One bootstrap step is Don's**, and it is the thing being fixed: the checkout is 540 commits
@@ -1281,6 +1288,18 @@ Windows purely on timing (29 ms apart). The index is now compared by *content*
 (`git diff --cached --name-status`), which is the actual claim — and since that compares two
 *empty* outputs, exactly what a blind probe also produces, a positive control asserts it turns
 non-empty when something really is staged.
+
+**A fourth, found by installing the task and running it** — which is why the mandate's "verify
+by running it" was worth taking literally. The snapshot's idempotency check compared the
+**commit** on the remote ref against the commit just built, and `commit-tree` stamps a fresh
+timestamp every run: an unchanged working tree still yields a **new** commit sha, a *sibling*
+of the one already there rather than a descendant. So the push was rejected as a
+non-fast-forward and the daily task would have alarmed **every day after the first**. It now
+compares **trees**, fetched into a private `refs/valquo/` ref so no scratch ref of the user's is
+disturbed, and pushes a fresh suffixed ref rather than failing if the tree cannot be
+established. **The gap was in the tests, not just the code**: `rescuing twice is a no-op` was
+tested and `snapshotting twice` was not. Both now are. Verified twice in a row against the real
+checkout — `already-rescued` / `already-snapshotted`, exit unchanged.
 
 Also reported: the daily task will create a new `rescue/wip-*` ref whenever the tracked
 working-tree content changes (identical trees are idempotent). That is ref clutter over
