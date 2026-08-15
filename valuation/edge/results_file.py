@@ -135,12 +135,21 @@ def build_payload(res: dict, universe_label: str | None = None,
     # A run where a validation block threw still writes this file, with every metric null —
     # which reads as "the backtest ran and found nothing" rather than "the backtest broke".
     # That is the exact silently-wrong pattern this project keeps hitting, so surface it.
-    _errors = []
-    for _k in ("hold_until_exit", "construction", "walk_forward", "cpcv", "regime",
-               "institutional_dependence"):
-        _st = (res.get(_k) or {}).get("status")
-        if isinstance(_st, str) and _st.lower().startswith("error"):
-            _errors.append({"block": _k, "status": _st})
+    #
+    # AUDIT MA39 — this scan used to carry its OWN hand-typed list of six block names while
+    # B22 stamped an error status onto all THIRTEEN, so an exception inside `costs`,
+    # `holdout_validation`, `after_tax`, `benchmarks`, `book_configs`, `no_trade_band` or
+    # `factors_used` shipped a canonical file reading `errors: []` — which this file's own
+    # contract defines as an active claim of health. Measured on the code as it stood: all
+    # seven unwatched blocks produced `errors: []` and NO degraded banner. It now iterates
+    # `RESULT_BLOCKS` itself, so the list cannot drift from the one the producer stamps.
+    #
+    # And `res["errors"]` is FOLDED IN rather than rebuilt from scratch. The run had already
+    # recorded two things there that never reached the file: B22's missing-block report (the
+    # only signal that a block was ABSENT rather than errored) and the original exception's
+    # type and message. A guard whose finding is discarded on the way to the record is not a
+    # guard — the same shape, one level up, as the fixed field list above it.
+    _errors = _schema.block_errors(res) + _schema.carried_run_errors(res)
 
     payload = {
         "schema_version": SCHEMA_VERSION,

@@ -42,6 +42,54 @@
   all** to detect it with.
 - `tests/test_ma38_oi_coverage.py` 9/9, 4/4 mutations caught; `scripts/ma38_coverage.py`,
   `data/free_analysis/MA38_OI_COVERAGE.json`; `HANDOFF_optionsbot.md` section 59.
+## edge lane, `MA39` (2026-08-15) - THE DEGRADED-RUN DETECTOR WATCHED 6 OF 13 BLOCKS, AND THE RUN'S OWN ERROR REPORT WAS BUILT AND THROWN AWAY
+
+**Zero trials, `FIXED`-class** - a correctness repair with no hypothesis, no threshold, no verdict.
+Equity `N` stays **224**, infra **15**; `by_domain` is bit-identical across the log append, which is
+also the check that MA13's committed-literal stamp still holds. No published claim moves and
+`BACKTEST_RESULTS.json` needs no re-run.
+
+- **THE UNWATCHED SEVEN, NAMED AND MEASURED ONE FIXTURE PER BLOCK BEFORE ANY FIX:** `factors_used`,
+  `holdout_validation`, `costs`, `book_configs`, `no_trade_band`, `after_tax`, `benchmarks`. B22
+  stamps an error status onto all **thirteen** `RESULT_BLOCKS`; the scan in `results_file` iterated a
+  hand-typed **six**. An exception inside any of those seven shipped `errors: []` and **no DEGRADED
+  banner** - seven for seven.
+- **AN EMPTY `errors` IS NOT AN ABSENCE OF INFORMATION, IT IS A CLAIM OF HEALTH.** The file's own
+  contract, in the comment above the field, is *"Non-empty means the run is DEGRADED"* - so a broken
+  run was asserting it was fine, in the file this project uses as its memory.
+- **THE DEFECT WAS TWO LISTS, NOT A SHORT ONE - the portable part.** `RESULT_BLOCKS` lived in the
+  module that **produces** the blocks; the module that **scans** them could not import it without a
+  heavyweight cycle, so it grew a copy, and B22 later added `benchmarks` to one of them only. One
+  definition now sits in `payload_schema` (imported by both, depends on nothing);
+  `fundamental_panel.RESULT_BLOCKS` is a **re-export**, so every existing importer is unaffected, and
+  a test pins object identity plus exactly one literal assignment in the tree.
+- **THE AUDIT'S OWN SUGGESTED FIX BREAKS EVERY HEALTHY RUN, and this was verified rather than
+  argued.** *"Iterate all of `RESULT_BLOCKS`"* taken literally raises `AttributeError: 'list' object
+  has no attribute 'get'` **on SUCCESS**, because `factors_used` is a LIST of theme names - a
+  20-40 minute backtest would have lost its results file to it. Proved by monkeypatching the naive
+  scan in and running the healthy fixture against it.
+- **THE SECOND HALF: the run's own findings were computed and discarded.** `build_payload` rebuilt
+  `errors` from scratch and never read `res["errors"]` - which carries B22's `"INCOMPLETE RUN"`
+  report, the **only** signal that a block went **MISSING** rather than raised, and the original
+  exception's type and message. Both are plain **strings** where the payload holds **dicts**, which
+  is how they came to be dropped for being the wrong shape. **A guard whose finding is discarded on
+  the way to the record is not a guard.**
+- **FIXTURES, AT M3's STANDARD: 3 of the 4 FAIL against the pre-fix code**, measured by restoring the
+  three sources to `HEAD` and re-running. **The fourth is reported as passing pre-fix, deliberately** -
+  it is the **refusal direction**, its known-bad input is the *naive fix*, and four green
+  "known-bad" fixtures would be a lie.
+- **CENSUS, as asked - does any other consumer share the shape? YES, one:** `payload_schema.
+  BLOCK_SPEC` guards **7 of the 22** dict-valued payload blocks. **That is `MA40`'s row and is
+  deliberately NOT fixed here** (it carries a real decision: register the blocks, or drop the
+  computation). Correction to the audit in passing: it estimates *"7 of ~17"*; measured against the
+  real artifact it is **7 of 22**. Also **reported, not fixed:** `missing_result_blocks` has exactly
+  **one** caller, so a path reaching `results_file.write()` directly gets no missing-block check -
+  not closed here because `build_payload` has many legitimately partial callers and the check would
+  cry wolf on every one. `render_md` is partial **by design** and makes no health claim, so it is not
+  the same shape and is not padded into the census.
+- **WHAT IT DOES NOT SAY:** no existing result changes. The shipped `BACKTEST_RESULTS.json` carries
+  `errors: []` from a run in which nothing raised, so this retracts nothing - it changes what the
+  **next** broken run will say. **81 suites, 0 failures.** `HANDOFF_edge_audit.md` MA39.
 
 ## edge lane, `MA1` (2026-08-14) - PRODUCTION VERIFIED CLEAN; A COLLISION RESOLVED IN THE OTHER LANE'S FAVOUR
 

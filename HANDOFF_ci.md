@@ -1119,3 +1119,198 @@ path assertion still passing).
   without a conflict. It is committed rather than merely referenced because the map's freshness
   check needs its source in the same tree.
 * Nothing in wave 2 or wave 3 was started, and no MA item outside MA15/MA16/MA20 was modified.
+
+---
+
+## MA20 - the cure (2026-08-15, r1/infra lane)
+
+**The alarm landed yesterday and changed nothing. That is this section's whole subject.**
+`checkout_drift.py` shipped on 2026-08-14 and was correct on every reading; with only a
+report, the drift got *measured* daily instead of *fixed*, and it grew **514 -> 540 in one
+day**. MA20 asked for detection. This is the cure.
+
+### 1. Three findings, each measured rather than argued
+
+**(a) The audit's own proposed fix cannot work.** MA20's note says the cheapest fix is *"have
+the existing watchdog report the shared checkout's divergence to Discord."* `auto-scan.yml`
+runs on GitHub's hosted runners. It has no view of a directory on Don's PC. Nothing that runs
+in CI can ever see this.
+
+**(b) The file everyone calls "the cure" could not cure it - and said it had.** Reading
+`sync.bat`:
+
+1. step 2 pushes `refs/heads/worktree-*` **only**, so a commit sitting on `main` is never
+   sent anywhere. `41d7b12` was on `main`.
+2. step 3's `git merge --ff-only origin/main` is *impossible* on a diverged branch, and its
+   exit code was never checked, so the failure scrolled past in the noise.
+3. with no agent branch pending it then printed
+   **"none - everything is merged. You are fully up to date"** and
+   **"Nothing. All agent work is on GitHub and merged into main."**
+
+So the drift was not invisible for want of a cure. **The cure reported success.** That string
+is now deleted and the all-clear is gated on a real measurement; the three-way branch was
+verified in real `cmd` (`SYNCRC=1,ANY=0 -> not-in-step`, `0,0 -> all-clear`,
+`0,1 -> work-pushed`).
+
+**(c) A second silent success, in the daily task.** `ValuationToolAutoPush` shows
+`LastTaskResult=0` for 2026-08-14 20:00 and nothing was pushed. Two independent reasons:
+`git_push.bat` never fetched, so its push was rejected as a non-fast-forward and the handler
+blamed the login; and its auto-land loop aborts on the **first** branch because the tree
+carries **27 dirty entries**, printing `[!] A branch could not be merged cleanly` and exiting
+**0**. A green Task Scheduler row has meant nothing here for five days.
+
+### 2. What shipped
+
+| file | what it is |
+|---|---|
+| `scripts/sync_checkout.py` | the cure. Four phases, each reported separately |
+| `scripts/valquo_sync_bootstrap.bat` | the launcher that survives a stale checkout |
+| `install_sync_task.bat` | double-click once; registers a per-user daily task |
+| `sync.bat` | false all-clear removed; now delegates the sync |
+| `git_push.bat` | syncs **before** it merges and pushes |
+| `check_drift.bat` | points at both the manual and the permanent fix |
+| `tests/test_sync_checkout.py` | 29 tests |
+
+Phases: **A** rescue unpushed commits to `rescue/<branch>-<sha>`; **B** bank uncommitted
+*tracked* edits as a commit; **C** fast-forward; **D** report. A and B are additive and can
+only ever create refs on the remote. C is the only phase that writes to the working tree.
+
+**B builds its commit through a throwaway `GIT_INDEX_FILE` plus `write-tree`/`commit-tree`,
+so HEAD, the index and every file on disk are untouched** - asserted, including the index's
+mtime. It is deliberately **not** `git stash`: that stack is shared with every worktree of
+this repository and other sessions pop it.
+
+Blocking untracked files are **moved** into `_sync_quarantine/<timestamp>/`, never deleted,
+and the collision list is parsed from git's own refusal rather than re-derived.
+
+### 3. Rescue goes to `rescue/*`, not `worktree-*` - and that is a measurement
+
+`worktree-*` is auto-landed by the gate Action, so rescuing onto it would merge stranded work
+unreviewed. Measured on the commit actually sitting there: `41d7b12` diffs as **2,226
+insertions / 2,212 deletions** of `HANDOFF_STATUS.md`, and
+`--ignore-all-space --ignore-blank-lines` shows the real content is **14 added lines**. The
+rest is the CRLF renormalisation `.gitattributes` explicitly says it avoids - and that file is
+`merge=union`, so a merge would have kept both sides and roughly **doubled** it. `--land` opts
+into the gated route for callers who want it.
+
+### 4. The destructive step is not automated, and no scheduled path can reach it
+
+Un-diverging means discarding one side's branch pointer. `--adopt-remote` does it and
+**refuses unless it has just re-read the remote and confirmed every local commit is there**,
+and every tracked modification is inside the snapshot commit. A test asserts that neither the
+installer, the bootstrap, `sync.bat` nor `git_push.bat` passes that flag.
+
+### 5. Verified against today's real drift
+
+`540 behind, 1 ahead, 2 modified, 25 untracked`:
+
+```
+[OK ] rescue-commits:    pushed   rescue/main-41d7b12
+[OK ] snapshot-worktree: pushed   rescue/wip-main-c4a3939
+[!! ] fast-forward:      refused  reason: diverged
+[ALARM] Not finished: fast-forward                       exit 1
+```
+
+Both refs confirmed present on `origin` with `git ls-remote`, and the PT-WRITER text read back
+**from the remote**. **The commit that CLAUDE.md calls the answer to `PT-WRITER` has existed in
+two places since today, after five days on one laptop.** Not one file in Don's checkout was
+touched.
+
+### 6. The automation is staleness-immune - the part that makes it a cure
+
+A launcher inside the repo would be as stale as the repo: it could only start working after
+someone had already done the thing it exists to do automatically. So `install_sync_task.bat`
+copies the bootstrap **out** to `%LOCALAPPDATA%\Valquo`, and that bootstrap pulls
+`scripts/sync_checkout.py` straight out of `origin/main` on every run.
+
+**Proved end to end**, not asserted: a scratch clone reset to a root commit that **did not
+contain `scripts/` at all** was fast-forwarded correctly by the bootstrap, logging
+`using origin/main`. It size-checks the download, because a failed `git show` leaves a
+zero-byte file that python runs happily and exits 0 - a silent all-clear, which is this item's
+own disease.
+
+Scheduled at **19:30**, half an hour before `ValuationToolAutoPush` at 20:00, so that task's
+push becomes a fast-forward. Task creation needs **no administrator rights** (probed).
+
+**`ValquoSyncCheckout` is INSTALLED and has run.** Registered against the shared checkout with
+its bootstrap taken from `origin/main` (not from a worktree, which can be deleted). Its first
+run logged `using origin/main` and exercised the whole path on the real tree. Log:
+`%LOCALAPPDATA%\Valquo\sync.log`. To remove it: `schtasks /Delete /TN "ValquoSyncCheckout" /F`.
+It will keep reporting **exit 1** until the diverged branch is finished off — correctly, and
+that is the alarm doing its job, not a fault.
+
+### 7. What is left, and why it cannot be automated away
+
+**One bootstrap step is Don's**, and it is the thing being fixed: the checkout is 540 commits
+behind, so it does not yet contain any of this.
+
+```
+cd C:\Users\donni\Downloads\valuation-tool
+git fetch origin
+python .claude\worktrees\r1\scripts\sync_checkout.py --adopt-remote
+```
+
+The second command finishes the diverged branch. It is safe **because it verifies**, not
+because I say so: `rescue/main-41d7b12` is already on GitHub at exactly the local `main` sha,
+and `rescue/wip-main-c4a3939` holds the uncommitted `HANDOFF_STATUS.md` and
+`LAZY_PRICES_COVERAGE.md` edits. It will refuse if either check fails. Some untracked files
+will be moved into `_sync_quarantine/<timestamp>/` - nothing is deleted.
+
+Then, once and never again:
+
+```
+install_sync_task.bat
+```
+
+**I did not run either.** The shared checkout has ten other worktrees hanging off its object
+store and other lanes may be live in it; `--adopt-remote` moves a branch pointer in a tree I
+do not own, and the installer registers a recurring job on Don's machine. The additive half -
+the part that could not lose anything - is already done.
+
+### 8. Two defects in my own instrument
+
+**`--dry-run` caught the serious one before anything ran.** `_out()` strips the whole blob,
+which eats the **leading space of `git status --porcelain`'s first line**, so a fixed `[3:]`
+slice read `" M HANDOFF_STATUS.md"` as **`ANDOFF_STATUS.md`**. A phantom filename here is a
+file that quarantine silently misses. Pinned by a regression test.
+
+**A test of mine passed vacuously.** The "refuses on a blocking tracked edit" fixture dirtied
+`README.md` while the upstream commits only added new files, so git fast-forwarded straight
+past the edit and the test asserted nothing. The fixture now makes the upstream touch the same
+file. It was found only because a *different* fix made it start failing.
+
+**And a third, caught by the land gate rather than by me** (first push red, `82 suites 0 failed`
+locally). The "snapshot touches nothing" test compared `.git/index`'s `st_mtime_ns` — and read
+it *after* calling `git status`, which refreshes the index's stat cache and rewrites the file.
+**The act of measuring changed the thing being measured**, so the assertion was about whether
+any git command had refreshed a cache, not about the snapshot. It failed on Linux and not on
+Windows purely on timing (29 ms apart). The index is now compared by *content*
+(`git diff --cached --name-status`), which is the actual claim — and since that compares two
+*empty* outputs, exactly what a blind probe also produces, a positive control asserts it turns
+non-empty when something really is staged.
+
+**A fourth, found by installing the task and running it** — which is why the mandate's "verify
+by running it" was worth taking literally. The snapshot's idempotency check compared the
+**commit** on the remote ref against the commit just built, and `commit-tree` stamps a fresh
+timestamp every run: an unchanged working tree still yields a **new** commit sha, a *sibling*
+of the one already there rather than a descendant. So the push was rejected as a
+non-fast-forward and the daily task would have alarmed **every day after the first**. It now
+compares **trees**, fetched into a private `refs/valquo/` ref so no scratch ref of the user's is
+disturbed, and pushes a fresh suffixed ref rather than failing if the tree cannot be
+established. **The gap was in the tests, not just the code**: `rescuing twice is a no-op` was
+tested and `snapshotting twice` was not. Both now are. Verified twice in a row against the real
+checkout — `already-rescued` / `already-snapshotted`, exit unchanged.
+
+Also reported: the daily task will create a new `rescue/wip-*` ref whenever the tracked
+working-tree content changes (identical trees are idempotent). That is ref clutter over
+months. Deliberately not auto-pruned - a tool built to stop work disappearing should not
+delete refs on a schedule.
+
+### 9. Ledger
+
+`MA20` **DONE**. `MA15` and `MA16` closed in the same commit - they were finished on
+2026-08-14 (`caeb542`) but their rows were left `OPEN` because the options-bot lane was
+mid-flight ingesting all 60 MA rows at the time. `tests/test_build_ledger.py` 20/20,
+257 rows = 134 audit + 123 out-of-band, 60 unique MA ids.
+
+**Zero trials.** A process repair with no hypothesis and no threshold; equity `N` stays 224.

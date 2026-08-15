@@ -32,6 +32,70 @@ not. That is the whole difference this module buys.
 from __future__ import annotations
 
 
+# AUDIT B22 / M6 / MA39 — the blocks a COMPLETE run must contain. A missing block is an
+# error recorded in the results file rather than an absence nobody can distinguish from
+# "not run".
+#
+# IT LIVES HERE, AND THERE IS EXACTLY ONE OF IT (audit MA39). It used to sit in
+# `fundamental_panel`, which PRODUCES the blocks, while `results_file` — which SCANS them
+# for errors — could not import it without a cycle and so carried its own hand-typed list
+# of six. The two drifted, which is the whole of MA39: seven blocks were stamped with an
+# error status by one module and watched by neither. `fundamental_panel.RESULT_BLOCKS`
+# re-exports this name, so every existing importer is unaffected, and a test pins that only
+# one assignment of it exists in the tree.
+RESULT_BLOCKS = (
+    "construction", "regime", "institutional_dependence", "factors_used", "walk_forward",
+    "cpcv", "hold_until_exit", "holdout_validation", "costs", "book_configs",
+    "no_trade_band", "after_tax",
+    "benchmarks",          # AUDIT R10 — a silently absent benchmark block would leave the
+                           # uninvestable equal-weight figure standing alone again
+)
+
+
+def block_errors(res: dict) -> list:
+    """Every RESULT_BLOCK carrying an error status, as {"block", "status"} (audit MA39).
+
+    THE TYPE GUARD IS LOAD-BEARING, and the audit's own suggested fix omits it. `factors_used`
+    is a LIST of theme names on a healthy run, so the obvious `(res.get(k) or {}).get("status")`
+    raises `AttributeError: 'list' object has no attribute 'get'` — on EVERY successful run,
+    not on the degraded one this scan exists for. A non-dict block cannot carry a status, so it
+    cannot be degraded; it is skipped, not crashed on.
+    """
+    out = []
+    for k in RESULT_BLOCKS:
+        v = (res or {}).get(k)
+        if not isinstance(v, dict):
+            continue
+        st = v.get("status")
+        if isinstance(st, str) and st.lower().startswith("error"):
+            out.append({"block": k, "status": st})
+    return out
+
+
+def carried_run_errors(res: dict) -> list:
+    """Run-level errors the RESULT recorded, normalised to the payload's shape (audit MA39).
+
+    `build_payload` used to build `payload["errors"]` from scratch and never read
+    `res["errors"]`, so two findings the run had already made were discarded on the way to the
+    file that IS this project's memory:
+
+      * B22's `"INCOMPLETE RUN — these required blocks are absent or empty: ..."`, the only
+        report that a whole block went MISSING (as opposed to raising); and
+      * `"diagnostics block failed: ..."`, the original exception's own type and message.
+
+    Both are plain strings while the payload's entries are dicts, so they are wrapped rather
+    than dropped for being the wrong shape — which is how they came to be dropped at all.
+    """
+    out = []
+    for e in ((res or {}).get("errors") or []):
+        if isinstance(e, dict):
+            out.append({"block": e.get("block") or "run", "status": e.get("status") or str(e),
+                        **{k: v for k, v in e.items() if k not in ("block", "status")}})
+        else:
+            out.append({"block": "run", "status": str(e)})
+    return out
+
+
 def dropped_fields(source: dict, projected: dict, renames=(), allow=()) -> list:
     """Keys the producer computed that the projection does not account for.
 

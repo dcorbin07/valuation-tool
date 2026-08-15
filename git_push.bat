@@ -21,24 +21,31 @@ if not defined GIT ( echo Git not found. Use GitHub Desktop, or run connect_gith
 "%GIT%" rev-parse --is-inside-work-tree >nul 2>nul || ( echo Not connected yet - run connect_github.bat first. & goto :done )
 "%GIT%" remote get-url origin >nul 2>nul || ( echo No GitHub remote yet - run connect_github.bat first. & goto :done )
 
-rem --- Drift alarm ----------------------------------------------------------------------
-rem  This script runs daily and never fetches, so on its own it cannot tell that this folder
-rem  has fallen behind GitHub - which is how it kept reporting success while a commit sat
-rem  unpushed for four days. This LOOKS ONLY and never blocks: if the tree is behind, the
-rem  push below fails anyway, and the cure (sync.bat) is a separate, deliberate step.
-rem  No parenthesised block around `if errorlevel`: inside one, cmd evaluates it at PARSE
-rem  time and it silently reads the wrong value. And the python-missing case is reported as
-rem  ITSELF rather than as drift - an alarm that misdiagnoses is the defect being fixed
-rem  three lines further down, not one to re-create here.
+rem --- Sync before pushing ---------------------------------------------------------------
+rem  MA20. This script runs daily and never fetched, so it could not tell that the folder had
+rem  fallen behind GitHub: once main diverges its push is rejected as a non-fast-forward, and
+rem  the handler below used to call that a login problem and exit 0 - four green Task Scheduler
+rem  days with nothing pushed. It first gained an ALARM here; the alarm was right and changed
+rem  nothing, so the divergence simply got reported daily instead of fixed.
+rem
+rem  So this now runs the CURE, and it runs BEFORE the merges below rather than after: a
+rem  fast-forward first is what makes the push at the end a fast-forward. It is still allowed
+rem  to fail - it never discards anything, and it refuses a diverged branch by design - so a
+rem  non-zero result is reported and execution continues.
+rem
+rem  No parenthesised block around `if errorlevel`: inside one, cmd evaluates it at PARSE time
+rem  and silently reads the wrong value. The python-missing case is reported as ITSELF rather
+rem  than as drift - an alarm that misdiagnoses is the very defect being fixed here.
 where python >nul 2>nul || goto :nodrift
-python "%~dp0scripts\checkout_drift.py"
+python "%~dp0scripts\sync_checkout.py" --repo "%CD%"
 if errorlevel 1 echo.
-if errorlevel 1 echo   [!] This folder is out of step with GitHub - see above. Run sync.bat.
-if errorlevel 1 echo       Continuing anyway; nothing below depends on it.
+if errorlevel 1 echo   [!] This folder is still not in step with GitHub - see the report above.
+if errorlevel 1 echo       Nothing was discarded; work that was only here is now on a rescue/ branch.
+if errorlevel 1 echo       Continuing anyway; the push below may still be rejected.
 if errorlevel 1 echo.
 goto :drifted
 :nodrift
-echo Skipping the drift check - python is not on PATH ^(this is not a drift warning^).
+echo Skipping the sync - python is not on PATH ^(this is not a drift warning^).
 :drifted
 
 rem --- Auto-land finished agent work ---------------------------------------------------
