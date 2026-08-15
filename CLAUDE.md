@@ -1748,7 +1748,10 @@ the project's memory and the old versions had been repeated for months.
     statistic"*; this is that caveat with a number on it. **X7 calibrates no drawdown floor
     anywhere**, so the 2.0pp bar is **UNCALIBRATED** and is labelled so.
   * **THE ALPHA LEG CANNOT RESOLVE ITS OWN BAR, AND THE REGISTER SAID SO FIRST.** The audit's
-    1.0pp allowance sits **BELOW X7's calibrated 1.95pp** alpha margin. It survives only because
+    1.0pp allowance sits **BELOW X7's calibrated 1.95pp** alpha margin *(**CORRECTED 2026-08-14,
+    `MA19`: the calibrated margin is **1.8629pp** at today's `N`, not 1.95pp — that figure was X7's
+    at `N` = 84 and has been superseded since session 10. **The argument is unaffected and holds a
+    fortiori**, since 1.0pp sits below both.)*. It survives only because
     it is a **non-inferiority** allowance, so **a pass means "no alpha loss detectable at this
     panel's resolution", NEVER "the loss is under 1pp"** — X3's error, named in advance.
   * **CONTROLS ALL PASS. C1 is the strong one: the rebuilt panel reproduces S23's banked
@@ -2307,7 +2310,11 @@ the project's memory and the old versions had been repeated for months.
   `PREREG_v2g_live_theme_cost.md` was committed **alone at `6d8750a`** before the measurement code
   existed.
   * **VERDICT IMMATERIAL, BY THE RULE FIXED IN ADVANCE: top-decile alpha +7.17% → +5.86%,
-    Δ −1.3133pp against a −1.95pp bar, paired HAC t −1.4040 over 69 paired dates.** Building live
+    Δ −1.3133pp against a −1.95pp bar, paired HAC t −1.4040 over 69 paired dates.** *(**CORRECTED
+    2026-08-14, `MA19`: the calibrated margin at today's `N` is **1.8629pp**. V2G's bar was correct
+    when it ran; re-read against 1.8629pp the verdict is **UNCHANGED — still IMMATERIAL**, since
+    1.3133pp remains below it. The power caveat below tightens slightly and its substance stands.)*
+    Building live
     sources for the dead themes is **a nice-to-have, not the project's highest-value work**.
   * **THE POWER CAVEAT IS PART OF THE VERDICT, NOT A FOOTNOTE.** The HAC se of the paired annual
     difference is 0.9354pp, so the design resolves **1.8708pp** at |t| = 2 — well matched to its
