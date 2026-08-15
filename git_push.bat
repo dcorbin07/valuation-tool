@@ -21,6 +21,26 @@ if not defined GIT ( echo Git not found. Use GitHub Desktop, or run connect_gith
 "%GIT%" rev-parse --is-inside-work-tree >nul 2>nul || ( echo Not connected yet - run connect_github.bat first. & goto :done )
 "%GIT%" remote get-url origin >nul 2>nul || ( echo No GitHub remote yet - run connect_github.bat first. & goto :done )
 
+rem --- Drift alarm ----------------------------------------------------------------------
+rem  This script runs daily and never fetches, so on its own it cannot tell that this folder
+rem  has fallen behind GitHub - which is how it kept reporting success while a commit sat
+rem  unpushed for four days. This LOOKS ONLY and never blocks: if the tree is behind, the
+rem  push below fails anyway, and the cure (sync.bat) is a separate, deliberate step.
+rem  No parenthesised block around `if errorlevel`: inside one, cmd evaluates it at PARSE
+rem  time and it silently reads the wrong value. And the python-missing case is reported as
+rem  ITSELF rather than as drift - an alarm that misdiagnoses is the defect being fixed
+rem  three lines further down, not one to re-create here.
+where python >nul 2>nul || goto :nodrift
+python "%~dp0scripts\checkout_drift.py"
+if errorlevel 1 echo.
+if errorlevel 1 echo   [!] This folder is out of step with GitHub - see above. Run sync.bat.
+if errorlevel 1 echo       Continuing anyway; nothing below depends on it.
+if errorlevel 1 echo.
+goto :drifted
+:nodrift
+echo Skipping the drift check - python is not on PATH ^(this is not a drift warning^).
+:drifted
+
 rem --- Auto-land finished agent work ---------------------------------------------------
 rem  Claude Code works on worktree-* branches (its harness will not push to main), so every
 rem  session used to end with a manual merge. This now does a REAL merge (--no-edit), not
@@ -70,7 +90,12 @@ if errorlevel 1 (
 echo Pushing to GitHub...
 "%GIT%" push
 if errorlevel 1 (
-  echo  [!] Push failed. Run connect_github.bat once so Windows saves your GitHub login.
+  rem  This used to blame the login unconditionally. The commonest cause is the OTHER one:
+  rem  main has diverged from GitHub, so the push is rejected as a non-fast-forward and no
+  rem  credential will fix it. Naming the likelier cause first cost four days once.
+  echo  [!] Push failed - the two likeliest causes, in order:
+  echo        1. This folder has diverged from GitHub. Run sync.bat, then run this again.
+  echo        2. Windows has not saved your GitHub login. Run connect_github.bat once.
 ) else (
   echo  [OK] GitHub is up to date.
 )

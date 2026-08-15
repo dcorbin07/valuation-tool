@@ -710,3 +710,83 @@ the launcher, but it is the one way to resurrect the rogue writer.
   a correct run has completed on the replacement, it is safe to wipe whenever Don wants the shelf
   space back.
 - **No `.env` contents were read or printed** at any point; the file was handled only by path.
+
+---
+
+# 10. THE SECOND WRITER CAME BACK IN UNDER 24 HOURS, AND THE GUARD CAUGHT IT (MA15 + MA16, 2026-08-14)
+
+Full write-up in `HANDOFF_ci.md` (2026-08-14). This section is the backup-specific record.
+
+## 10a. The guard's first real encounter, and it passed
+
+§9 added a second-writer guard: refuse to run if the destination holds a `.claude` or `.git`
+directory. Twenty-four hours later, the first `-DryRun` of this session **aborted**, naming eight
+such directories and copying nothing.
+
+It was not a false alarm. **D: had gone 45.84 GB → 88.30 GB overnight — 42 GB of `.claude`
+worktree mirrors and `.git` internals, restored wholesale.** Creation times on D: date the write
+to **2026-08-14 13:07–13:23**, and `daily-data\20260814\` (holding a copy of `.env`, `app.db`,
+`screener.db` and the 1.8 GB `c5_pit_mirror.db`) is `backup_now.bat`'s signature.
+
+**Both scheduled tasks were and are Disabled, and neither ran after 20:00 on 2026-08-13. So this
+was a manual double-click.** Disabling a task does not disarm a `.bat`.
+
+## 10b. Why the `.bat` is still dangerous, which is §9's point with a number on it
+
+`backup_now.bat` **on `main`** is a harmless three-line shim delegating to `backup_to_D.bat`.
+`backup_now.bat` **in the shared checkout** is still the 2026-08-03 design — measured today:
+`/E` (never deletes), `/XD ".venv" "__pycache__" ".pytest_cache" "node_modules"` and nothing else,
+so no `.git`, no `.claude`, and no `/XJ` to stop robocopy following the ten worktree junctions.
+
+Same filename, 514 commits apart. **The drift is not a stale-reads problem — it re-arms the
+failure that destroyed the previous drive, on demand, and it did.** That is now the strongest
+piece of evidence for MA20, and MA20's guard shipped this session.
+
+## 10c. MA15 and MA16 — two allowlist gaps closed
+
+* **`data\options_ticks` → `$KEEP` bucket 2.** It was named in neither `$KEEP` nor `$SKIP`, and
+  in an allowlist **silence is indistinguishable from a decision to drop it**. 4.40 GB / 3,894
+  files / 70.3M prints across 3,884 of 3,885 alert-days; sole input to O10, O18, O14. D2 verified
+  the individual ThetaData tier is personal-use-only with lawful commercial access from ~$250/mo
+  plus OPRA registration, and the account serialises, so a re-mine is neither a simple download
+  nor parallelisable.
+* **`data\free_analysis` → `$KEEP` bucket 1** (moved out of `$SKIP`). The skip reason was wrong
+  on both counts: it claimed **0.07 GB** and it is **0.80 GB — 11×** understated; and it called
+  the contents "results JSONs recomputed by the scripts that wrote them" when **more than half is
+  banked PANELS** (`panel.pkl`, `panel_corrected_69d.pkl`, `panel_s20_s21.pkl`, `panel_r5r6.pkl`,
+  `S17_PRICES.pkl`, `m4_metrics_sink.pkl`). A panel is a snapshot of a code state; "the script
+  rebuilds it" stops being true the moment the script changes.
+
+**Measured after the run: 45.84 → 51.04 GB, and the arithmetic closes exactly** (45.84 + 4.40 +
+0.80). On D:, `data\options_ticks` reads 3,894 files / 4.397 GB and `data\free_analysis` 0.797 GB.
+All 17 `$KEEP` entries present. 406.38 GB free. Tests **62/62** (was 55): the two paths are pinned
+from both ends — the copy must happen **and** neither path may reappear in `$SKIP`, because a
+re-skip would leave every path assertion passing.
+
+**MA15 asked whether the ticks were already on D: by another route. They were — by the wrong one.**
+The only thing that had ever put them there was the copy-everything script, so the prune removed
+them and the rogue run restored them. The crown-jewel tick cache was protected solely by the
+design that fills the drive.
+
+## 10d. The prune blind spot, reproduced independently — reported again, still not fixed
+
+§9 reported that `-Prune` builds its ownership map at `data\<first-level>` granularity, so
+`data\bulk\prepared` being in `$KEEP` marks all of `data\bulk` owned and **the pruner cannot see
+strays inside a partially-owned directory**. Yesterday I cleared 5.11 GB of loose Sharadar CSVs by
+hand. Today's rogue run restored them and **`-Prune` left every one**: actions 44.4, daily 2373.1,
+events 50.3, sf3 2763.8 MB. D: measures **56.14 GB** against the script's own reported **51.04** —
+the gap is exactly the blind spot.
+
+Diagnosed twice now. Deliberately still unfixed: a second behavioural change to the deletion path
+in two days needs its own register and its own tests, and this session's brief was the allowlist.
+**It is the next backup item.**
+
+## 10e. FOR DON — unchanged from §9f, and now urgent rather than tidy
+
+1. `cd C:\Users\donni\Downloads\valuation-tool` then `git fetch origin` then
+   `git merge --no-edit origin/main`
+2. `dir backup_to_D.ps1` — it should exist. `dir check_drift.bat` — likewise.
+3. Only **after** step 1: `Enable-ScheduledTask -TaskName 'Valquo D Backup'`.
+
+**Do not double-click `backup_now.bat` before step 1.** In that tree it is still the old
+copy-everything script, and it cost 42 GB today. After step 1 it is a shim and is safe.

@@ -1,5 +1,107 @@
 # HANDOFF STATUS - shared project state
 
+## options-bot lane, audit #3 officialized + MA36/MA37 (2026-08-14) - THE LIVE OPTIONS RECORD WAS CENSORED AT ONE END AND BLENDED AT THE OTHER
+
+**Zero trials, `FIXED`-class.** `by_domain` re-read after the merge: **equity 224, options 292,
+infra 14** - unchanged before and after, while `rows_fixed_not_counted` rises **29 -> 30**, which
+is the proof the log row was seen and correctly excluded rather than silently dropped. **72 suites,
+0 failures**; 19 new tests. `PREREG_ma36_ma37_record_integrity.md` committed **ALONE at `53c7ecf`**.
+
+- **AUDIT #3's MERGED RECORD IS NOW TRACKED.** `VALQUO_MASTER_AUDIT_ULTIMATE.md` + its items JSON
+  + PDF were **untracked in the primary checkout**; all three are committed byte-identical, and
+  `VALQUO_MASTER_AUDIT.md` gains one header line pointing at them. **It is SIXTY items, not 61**
+  (35 Pass A + 25 Pass B), counted rather than quoted.
+- **60 MA ROWS INGESTED INTO THE LEDGER**, LA-series style: `OPEN` 52, `IN PROGRESS` 5
+  (MA1/MA2/MA3 greeks, MA5/MA6 app fixer - **all five carrying NO tree evidence yet**, and the
+  rows say so), `DONE` 3 (MA35 on code, plus MA36/MA37 closed here). `src = audit3-ingest`,
+  deliberately neither `auto` nor `human`: transcribed from the audit, **not** re-verified against
+  the code by this lane.
+- **TWO THINGS A VERBATIM INGEST WOULD HAVE GOT WRONG.** `MA18` is **HIGH** by the audit's own
+  Correction 1 and **MEDIUM** in its machine-readable set - and it is the audit's **#2 action item
+  by its own ordering** (*is the bound forward row being written?*), i.e. the one finding it says
+  cannot be recovered later. And **`MA7` is NOT done** although `14c00ac` names it in the subject:
+  that commit changed only the audit documents. Trap 5, caught on ingest.
+- **`build_ledger.py` WAS REFUSING TO RUN AT ALL** - three pre-existing rows (`S23`, `M1-PARSE`,
+  `V2G`) carried raw `|` characters inside cells, so the ledger's own refresh tool aborted rather
+  than silently deleting them. Verified against `HEAD` that all three predate this session. Four
+  characters changed, no word and no claim touched; the tool runs again. **`M1-PARSE`, whose own
+  subject IS this hazard, was one of the three.**
+- **`MA36` - a worthless expiry was stranded OPEN FOREVER, so the -100% tail was censored while
+  winners and quoted losers were scored.** One-sided, in the project's #1 remaining validation.
+  Now settled at **zero** past expiry, **never** at a reconstructed intrinsic: the underlying at
+  expiry is not obtainable (`get_bars` drops the dates), and today's underlying would book a fake
+  gain on a dead call - `V6-OPT`'s settlement trap in a new costume, **flattering direction**. An
+  ITM guard blocks rather than guesses; **B5-lesser is not reversed** (before expiry it still
+  defers). **The restatement is dated and keeps the figure it replaced.**
+- **`MA37` - `record_epoch` was stamped on every row and read as a filter by ONE module** (17
+  occurrences in `scream_log.py`, 2 in `options_tracker.py`, 0 in `options_paper.py`), so
+  `scorecard`, `paper_report` **and the tuning loop** blended the era retired on 2026-08-13. Now
+  scoped to the current epoch; `EPOCH_ALL` restores the blend; the per-era census ships in every
+  payload so the archive is **excluded and never invisible**.
+- **THE STRANDED ROWS ARE ON RENDER, NOT HERE.** This ships the mechanism; the first real
+  restatement happens on the next live cycle and appears in `options_summary().restatements`.
+- **NOT DONE, DELIBERATELY:** `MA38`-`MA49` sit in the same audit section and are out of scope by
+  the register's own void condition 6. **Recommended next: `MA39`** - the degraded-run detector
+  watches 6 of 13 result blocks and `build_payload` never reads the error string, so an exception
+  can ship a `BACKTEST_RESULTS.json` asserting `errors: []`, which its own contract reads as an
+  active claim of health. Zero data, zero trials.
+
+## edge lane, `MA19`+`MA13` (2026-08-14) - THE FLOORS ARE RE-DERIVED AT TODAY'S `N`, AND FIVE OF SEVEN NEVER MOVED
+
+**Zero equity trials** - and the reason is self-referential, not bookkeeping: **`N` is the INPUT to
+the floors being computed**, so charging a trial would move `N` to 225 and invalidate the numbers
+the moment they were written. **Equity `N` stays 224**; infra 14 -> 15. `PREREG_ma19_ma13_
+recalibration.md` committed **ALONE at `0eb95b1`**, a strict ancestor of every measurement commit.
+
+- **NO SHIPPED CLAIM CHANGES ITS RELATIONSHIP TO ITS BAR, and both moves are in the strategy's
+  favour. Nothing is retracted.** Across `N` = 84 / 129 / **224**: long-short naive **2.1437**,
+  long-short HAC **2.2837**, theme IC *t* **2.7072** and PBO p5 **19.667%** are **bit-identical in
+  all three regimes**. Only two moved - **top-decile alpha HAC *t* 2.2913 -> 2.0540** and
+  **Deflated Sharpe 0.7216 -> 0.7076 -> 0.6637**.
+- **MA19's OWN PREDICTION IS REFUTED, AND THE REASON IS THE PORTABLE PART.** It expected the
+  long-short floors to FALL as adopters dropped 20 -> 18. **They did not move by a single bit.** A
+  p95 over 100 draws is set by the 5th-and-6th largest values, so **whether a floor moves depends
+  not on HOW MANY draws flip but on WHERE THEY SAT**: the two that flipped ranked **15th/35th** on
+  the long-short statistics and **4th** on the alpha HAC *t* - exactly the floor that moved. **A
+  calibrated floor is a STEP FUNCTION of `N`, and the steps are at the tail.** X7RECON's rule is
+  vindicated *as a rule* - you must check - while its predicted *direction* is not a guide.
+  **This is the first time session 12's "luck, not design" warning actually fired.**
+- **THE UNPREDICTED FINDING: THE RECORD'S 1.95pp ALPHA MARGIN HAS BEEN STALE SINCE 2026-08-07; THE
+  CORRECT FIGURE IS 1.8629pp.** Not a discrepancy - the `N` = 84 regime was **reconstructed** and
+  reproduces X7's 1.95pp to |Δ| **3.2e-05**, so X7 measured it correctly and the regime moved.
+  **Session 10's sweep measured the new value, banked it, and published only the long-short
+  floors.** `RUN_RULES` rule 9 running backwards: **storing the draws is necessary and NOT
+  sufficient - someone has to read them out.** The new bar is LOWER, so the correction is
+  permissive and `S10`'s "1.0pp sits below X7's 1.95pp" holds a fortiori.
+- **THE DEFLATED SHARPE MOVES BY A DIFFERENT CHANNEL AND SO DOES THE REAL STATISTIC.** `N` enters
+  `sr0` in the formula itself, so **every** draw moves. **The shipped DSR reads 0.7863 at
+  `N` = 224** against 0.8628 at 121 and the 0.8674 the record quotes at 116, so **a real-vs-floor
+  comparison must be made at ONE `N`** - the record's *"0.8674 vs the 0.7216 floor"* pairs an
+  `N` = 116 numerator with an `N` = 84 denominator. **At a consistent `N` = 224: 0.7863 vs 0.6637
+  CLEARS; against the 0.95 convention it still FAILS.** Same sentence, now consistent.
+- **THE AUDIT'S METHOD CLAIM IS HALF WRONG.** *"The check is arithmetic, not a sweep"* - the adopt
+  SET is arithmetic (the curve reproduces session 12 exactly), but **the FLOORS are not: only 1 of
+  the 100 banked rows carries BOTH weight-scorings.** Three draws were re-scored on the same panel,
+  seeds and estimator - **435 seconds, not 3.4 hours** - with the 98 untouched draws bit-identical
+  at max |Δ| **0.000e+00**. Eleven controls, two gating, all pass; **the strongest is external** (C10
+  reproduces `BACKTEST_RESULTS.json`'s independently-computed DSR to **2.07e-10**).
+- **`MA13`: `N` NOW HAS TAMPER-EVIDENCE**, and the premise was confirmed by reading the suite - the
+  existing M1 test asserts only *relational* properties, **every one of which still passes after an
+  edit dropping `N` from 224 to 9**, while lowering `N` **raises** every DSR/HLZ-gated claim.
+  `by_domain` is pinned to a **committed literal**, checked for **vacuity** against a really
+  tampered log. **Its first exercise was this session's own MA19 row**: infra moved 14 -> 15, the
+  stamp went red, and the literal was updated deliberately in the same commit - the workflow the
+  mechanism exists to force.
+- **DECLINED WITH A REASON:** sourcing the expectation from `BACKTEST_RESULTS.json` (they agree
+  exactly today). That artifact needs a 20-40 min backtest while `N` rises the moment a register
+  lands, so it would be red for the ordinary interval between the two. *"A gate that cries wolf is
+  one you learn to ignore."* The artifact-vs-log cross-check is **`MA21`'s** row.
+- **NOT DONE, and named so it is not mistaken for done:** `MA16` compounds with this and is
+  untouched - the 100 banked draws that make the cheap route possible live in `data/free_analysis`,
+  which **`backup_to_D.ps1` skips**. This session consumed that directory four times and could not
+  have run without it. `data/free_analysis/MA19_RECALIBRATION.json`; `HANDOFF_edge_audit.md`
+  MA19+MA13.
+
 ## edge lane, PT-WRITER's ripe reading (2026-08-14) - THE FAILURE IS DATED; `recording_ok` STILL CANNOT SAY SO
 
 **Zero trials** (facts about disk and code, no threshold, no verdict). Equity `N` stays **224**.
