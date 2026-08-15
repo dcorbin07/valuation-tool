@@ -155,13 +155,24 @@ def test_only_money_and_cpu_endpoints_are_rate_limited():
     # The four the audit named, plus the CPU-heavy ones.
     for path in ("/api/signals/run", "/api/scan/run", "/api/backtest/run", "/api/portfolio"):
         assert ratelimit.bucket_for(path, {}) == path, f"{path} must be limited"
-    # Reads are untouched.
+    # Reads are untouched. These serve the cached snapshot and make no upstream call.
     for path in ("/api/hotstocks", "/api/health", "/api/signals", "/api/valquo-index"):
         assert ratelimit.bucket_for(path, {}) is None, f"{path} must NOT be limited"
-    # /api/value is the core action and stays free — unless it asks for the AI layer,
-    # which is a paid API call per request.
-    assert ratelimit.bucket_for("/api/value", {"ticker": "NKE"}) is None
-    assert ratelimit.bucket_for("/api/value", {"ticker": "NKE", "run_ai": True}) == "ai:value"
+
+    # CORRECTED 2026-08-14 (audit MA7). These two lines used to assert
+    #     bucket_for("/api/value", {"ticker": "NKE"}) is None
+    # under the comment "/api/value is the core action and stays free". That was the DEFECT,
+    # pinned: the plain valuation runs the full adaptive DCF on a caller-supplied symbol, so
+    # it spends the same FMP quota this module caps /api/scan/run at 3/hour to protect. The
+    # cache stops repeats; nothing stopped enumeration over ~7,100 names.
+    #
+    # The AI cap is UNCHANGED and still applies — it is now charged ALONGSIDE the vendor
+    # budget rather than instead of it, which is what the old single-bucket form could not do.
+    assert ratelimit.bucket_for("/api/value", {"ticker": "NKE"}) == ratelimit.VENDOR_BUCKET
+    named = dict(ratelimit.buckets_for("/api/value", {"ticker": "NKE", "run_ai": True}))
+    assert named.get("ai:value") == 1, "the AI cap stopped applying to an AI request"
+    assert named.get(ratelimit.VENDOR_BUCKET) == 1, \
+        "an AI request escapes the vendor budget it also spends"
 
 
 def test_rate_limit_counts_blocks_and_drains():

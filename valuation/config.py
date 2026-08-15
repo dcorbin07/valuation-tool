@@ -109,6 +109,16 @@ class Config:
     email_from: str = field(default_factory=lambda: _get("EMAIL_FROM", "alerts@example.com"))
     public_base_url: str = field(default_factory=lambda: _get("PUBLIC_BASE_URL", "http://127.0.0.1:5000"))
     admin_token: str = field(default_factory=lambda: _get("ADMIN_TOKEN"))
+    # MA10 — the capability split. ONE X-Admin-Token grants every /admin/ route, including the
+    # two that can rewrite the LIVE scoring weights (`/admin/run-learning`,
+    # `/admin/adopt-backtest-weights`). Those two are the whole blast radius of MA1/MA3; the
+    # read and trigger routes have no business sharing a credential with them.
+    #
+    # UNSET => the two write routes fall back to ADMIN_TOKEN, i.e. behaviour is bit-identical
+    # to before the split. Setting it is what ACTIVATES the separation, and is a Render/GitHub
+    # env change this lane cannot make. Shipping the mechanism inert is deliberate: a split
+    # that fails closed on deploy would break five crons to fix a hardening item.
+    admin_write_token: str = field(default_factory=lambda: _get("ADMIN_WRITE_TOKEN"))
     # Screaming-buy alerts: a Discord webhook (owner-level, posts to your channel)
     # and opt-in email. alert_min_score is the score bar a signal must clear to alert.
     discord_webhook_url: str = field(default_factory=lambda: _get("DISCORD_WEBHOOK_URL"))

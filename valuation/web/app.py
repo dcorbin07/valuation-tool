@@ -22,6 +22,7 @@ from ..engine.pipeline import value_ticker
 from ..report import excel as excel_report
 from ..report import pdf as pdf_report
 from . import resultcache, withhold
+from .query_params import clamp_int          # MA50 — one clamp for every caller row limit
 from . import score_confidence as _score_confidence
 from . import theme_status as _theme_status
 from . import hold_horizon as _hold_horizon
@@ -478,7 +479,10 @@ def api_options_alerts():
             return jsonify({"empty": True, "message": "No intraday scan yet — hit Refresh."})
         picks, term_stats = screaming_buys_with_stats(st.load_intraday(rt),
                                                       CONFIG.alert_min_score)
-        top = max(1, min(int(request.args.get("top", 5)), 15))
+        # Already two-sided before MA50 — this is the site the other four should have copied.
+        # Routed through the shared clamp anyway so the sweep leaves NO hand-rolled clamp
+        # behind: one correct copy beside four wrong ones is how the wrong ones survive.
+        top = clamp_int(request.args.get("top"), default=5, cap=15)
         budget = float(request.args.get("risk_budget",
                                         getattr(CONFIG, "options_risk_per_trade", None)
                                         or DEFAULT_RISK_BUDGET))
@@ -516,7 +520,11 @@ def api_hotstocks():
     from flask import g
     from ..screener.sectors import sector_attractiveness
     cap = getattr(g, "hotstocks_cap", 500)          # per-tier cap (set by the SaaS layer)
-    top = min(int(request.args.get("top", 100)), cap)
+    # MA50: this read `min(int(...), cap)`, which bounds from above only. `min(-1, 500)` is
+    # -1, and `store.load_snapshot` interpolates it into `LIMIT -1`, which SQLite treats as
+    # UNLIMITED — so `?top=-1` returned the whole snapshot and defeated the per-tier cap that
+    # IS the paywall. Masked in production only by OPEN_ACCESS=true.
+    top = clamp_int(request.args.get("top"), default=100, cap=cap)
     st = _store()
     scan_date = st.latest_scan_date()
     if not scan_date:
@@ -589,8 +597,10 @@ def api_dip():
         # in `dip.screen_snapshot`, because the Discord digest became a second caller and two
         # copies of this sequence is how the Index and the hot list came to disagree once
         # already. The route contributes the request parsing and nothing else.
-        shortlist = max(1, min(int(request.args.get("shortlist", dip.DEFAULT_SHORTLIST)),
-                               dip.MAX_SHORTLIST))
+        # Two-sided already; routed through the shared clamp for the parse guard and so the
+        # sweep leaves nothing hand-rolled behind (MA50).
+        shortlist = clamp_int(request.args.get("shortlist"),
+                              default=dip.DEFAULT_SHORTLIST, cap=dip.MAX_SHORTLIST)
         out = dip.screen_snapshot(st, _get_or_compute,
                                   min_drawdown=request.args.get("min_drawdown"),
                                   shortlist=shortlist, scan_date=scan_date)
@@ -669,7 +679,9 @@ def api_tickers():
     q = (request.args.get("q") or "").strip().upper()
     if not q:
         return jsonify({"results": []})
-    limit = min(int(request.args.get("limit", 8) or 8), 25)
+    # MA50 class. Public (this fires on every keystroke in the search box) and previously
+    # one-sided: `limit=-1` slid straight through into the slice below.
+    limit = clamp_int(request.args.get("limit"), default=8, cap=25)
 
     seen, cands = set(), []
     try:
@@ -948,7 +960,11 @@ def api_signals():
     if not rt:
         return jsonify({"empty": True, "message": "No intraday scan yet — hit Refresh. "
                         "Add a TRADIER_TOKEN for real-time; otherwise it uses free delayed data."})
-    top = int(request.args.get("top", 40))
+    # MA50, same class: this was an unclamped `int(...)` feeding `load_intraday(top=...)`,
+    # which builds the same `LIMIT {int(top)}`. Owner-only today, so the exposure is smaller
+    # than /api/hotstocks — but it is the identical defect and is fixed with it, because the
+    # one that gets fixed alone is the one that comes back.
+    top = clamp_int(request.args.get("top"), default=40, cap=500)
     # Intraday feed: a run_time is a timestamp, so freshness is measured off its DATE. An
     # options signal from three days ago is not a signal, it is a historical note.
     from ..screener.freshness import status as _freshness
