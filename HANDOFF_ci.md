@@ -914,3 +914,208 @@ a generated block is how it drifts from the rows it summarises. Owner: whoever n
   trials, equity `N` unchanged at 202**, no shipped number, weight or code path touched.
 - The R5/R6 registrations themselves were **not** performed — that is the next session's work, and
   doing it here would have been a measurement.
+
+---
+
+# The MA dependency map, and three wave-1 items — the brief's in-flight list was wrong, and the drift has already cost 42 GB (2026-08-14)
+
+Two deliverables in one session: the dependency/lane/wave map for cold audit #3, and the three
+wave-1 items this lane owns (MA15, MA16, MA20).
+
+## 0. THE HEADLINE, because it connects the two halves
+
+**MA20's drift is not a tidiness problem. Measured today: the stale checkout's copy of
+`backup_now.bat` put 42 GB of `.claude` and `.git` mirrors back onto D: in a single manual run,
+less than 24 hours after that exact junk was cleaned off.** The version of that script on `main`
+is a harmless three-line shim that delegates to the allowlist. The version Windows runs is the
+2026-08-03 `/E` copy-everything design with no `.git`/`.claude` exclusion and no `/XJ`. They are
+the same filename, 514 commits apart.
+
+So the drift actively re-arms the failure that destroyed the previous drive, and it will keep
+doing so on every double-click until the checkout syncs. That is the argument for MA20 being
+HIGH, and it is stronger than the audit's own framing (which is about stale *reads* and one
+stranded commit).
+
+## 1. THE MAP — `MA_DEPENDENCY_MAP.md`, `ma_dependency_edges.json`, `ma_in_flight.json`
+
+Built from `valquo_master_audit_ultimate_items.json` (the merged 60-row record: Pass A MA1-35 +
+Pass B MA36-60), following the audit-#1 precedent — but **generated**, by
+`scripts/ma_dependency_map.py`, so it cannot drift from the record. Audit #1's map closed by
+warning that hand-maintained write-sets go stale and shipped no check; this one has `--check`,
+it is wired into a test, and the test is what fails if the items file moves.
+
+Per item: files touched, owning lane, needs-first edges, wave, trial cost, in-flight status.
+**Four kinds of edge**, kept apart because their cures differ: `explicit` (the audit's own
+`depends_on`), `logical` (derived here, each carrying its reason — disagree with the reason and
+the edge goes), `hard-file` (same file, expect a text conflict), `soft-import` (import-coupled;
+**the merge is clean and the build can still break** — the class audit #1 found between B1 and
+B2, and the class git cannot see).
+
+| lane | items | wave 1 |
+|---|---|---|
+| pipeline (edge/research/backtest) | 28 | 2 |
+| options-bot | 10 | 2 |
+| infra (CI/backup/docs/process) | 10 | 3 |
+| app-fixer (web/saas) | 8 | 2 |
+| greeks (screener/engine/intraday) | 4 | 2 |
+
+**Wave 1 = 11 items and it is NOT eleven parallel branches.** Eight collisions sit inside wave 1,
+five of them involving MA1, which reaches `app_saas.py`, `track_meter.py` and `auto-scan.yml`
+simultaneously. MA1 wants a quiet tree and a single owner. A safe first fan-out is MA1 alone on
+that territory with MA4, MA38, MA39 and MA50 beside it.
+
+`valuation/edge/fundamental_panel.py` is named by 12 of 60 items — a smaller share than audit
+#1's 46-of-134, the same conclusion: the panel cannot be split across owners.
+
+## 2. FOUR CORRECTIONS THE MAP MAKES TO ITS OWN BRIEF
+
+* **THE IN-FLIGHT LIST WAS WRONG, AND IT ROUTES WORK.** The brief named MA1-MA3 and MA5/MA6 as
+  in flight. Measured across every local and remote branch, `main`, and all eleven registered
+  worktrees: **none of the five has a commit anywhere.** What IS in flight is **MA13+MA19**
+  (`worktree-options-live`, PREREG committed 20:22) and **MA36+MA37**
+  (`worktree-optionsbot-lane`, PREREG committed 20:28) — both within twenty minutes of the map
+  being built. Dispatching MA19 off the brief's list would have put two lanes on the same
+  recalibration of X7's floors, and there is no rule that says which answer would win.
+* **THE THREE-WAVE RULE LEAVES A CRITICAL ITEM IN NO WAVE.** Read literally — wave 1 is
+  CRITICAL+HIGH with no unmet deps, wave 2 is *MEDIUMs* — then MA2 (CRITICAL, needs MA1), MA3,
+  MA10 and MA19 belong to nothing. They sit at the **head of wave 2, severity-first**, and the
+  corrected rule is written into the JSON so the next reader inherits the fix, not the gap.
+* **THE ITEMS FILE DISAGREES WITH ITSELF ABOUT MA18.** `_meta.corrections_to_pass_A` re-rates it
+  MEDIUM→HIGH; the item body still says MEDIUM. The map applies the later statement and records
+  both as `severity` and `severity_as_written`. Nothing is silently overwritten.
+* **`modifies` CANNOT FIND THE COLLISIONS HERE.** All 25 Pass B items ship an empty `modifies`.
+  The audit-#1 machinery keys on it, so it would have reported **zero collisions for 25 of 60
+  items** — a map that looks clean because it is blind. Collisions are computed from `files`, and
+  a test fails if no Pass B item ever collides.
+
+**A dependency worth naming: MA19 `depends_on` MA16.** The lane that committed a PREREG for MA19
+tonight was, on the audit's own edge, blocked on a backup item. MA16 was delivered an hour later
+in this session, so the edge is satisfied — but by coincidence of timing, not by design.
+
+## 3. MA15 + MA16 — the two allowlist gaps, closed and verified on the drive
+
+Both were real and both are now `$KEEP`, in one commit (they are the same file; splitting them
+across branches guarantees a `$KEEP` conflict).
+
+* **MA15 `data\options_ticks` → bucket 2.** Named nowhere in the script, and an allowlist is
+  silent about anything unnamed — silence is indistinguishable from a decision to drop it.
+  4.40 GB, 3,894 files, 70.3M prints over 3,884 of 3,885 alert-days. Justified on D2's verified
+  finding (ledger `D2`, `HANDOFF_data_spend.md:43`): the individual ThetaData tier is
+  *"personal use only, no business use"*, lawful commercial access starts ~$250/mo plus OPRA firm
+  registration, and the account serialises so a re-mine cannot be parallelised out of its runtime.
+  It is the sole input to O10, O18 and O14.
+* **MA16 `data\free_analysis` → bucket 1.** The `$SKIP` reason was wrong twice over. It says
+  **0.07 GB**; measured it is **0.80 GB — eleven times larger** (the audit's own "70 MB" is wrong
+  the same way). And it says "results JSONs recomputed by the scripts that wrote them", while
+  **more than half of it is banked PANELS** — `panel.pkl` (the pre-B6 panel S19's C6 compares
+  against), `panel_corrected_69d.pkl`, `panel_s20_s21.pkl`, `panel_r5r6.pkl`, `S17_PRICES.pkl`,
+  `m4_metrics_sink.pkl`. **A panel is a snapshot of a code state, so "the script can rebuild it"
+  stops being true the moment the script changes** — which is the whole of RUN_RULES rule 9.
+
+**Verified on the drive, not asserted:** 45.84 → **51.04 GB**, and the arithmetic closes exactly
+(45.84 + 4.40 + 0.80 = 51.04). `data\options_ticks` reads 3,894 files / 4.397 GB on D: and
+`data\free_analysis` 0.797 GB. All 17 KEEP entries present, 406 GB free.
+
+**Answering MA15's `evidence_needed` ("ask Don whether it is on D: by some other route"): it was
+— by the wrong route.** The ticks were on D: only because the copy-everything script put them
+there, so yesterday's prune removed them and today's rogue run restored them. The only thing that
+had ever protected the crown-jewel tick cache was the design that fills the drive.
+
+## 4. MA20 — the alarm, delivered; the cure is Don's
+
+`scripts/checkout_drift.py` + `check_drift.bat`, wired into `git_push.bat`. Read-only, changes
+nothing, and **`sync.bat` remains the cure** — a guard that silently repairs is a guard whose
+failures are invisible, which is the whole item.
+
+Measured on the real checkout: **1 ahead, 514 behind** (the audit measured 508 yesterday), and
+the one local commit is the dated PT-WRITER failure note stranded since **2026-08-10 20:06**.
+
+* **THE AUDIT'S PROPOSED FIX CANNOT WORK AS STATED.** It suggests the existing `auto-scan.yml`
+  watchdog report the divergence to Discord. That job runs on GitHub's runners and **cannot see a
+  directory on Don's PC**. The alarm has to be local, which is why this is a script and a `.bat`.
+* **THE CAUSE THE AUDIT DID NOT HAVE, AND IT IS THE USEFUL PART.** `ValuationToolAutoPush` runs
+  `git_push.bat` **daily at 20:00**, ran today, and Windows recorded `LastTaskResult=0`. It has
+  been "succeeding" for days while the commit sat unpushed, because **the script calls `git fetch`
+  nowhere at all.** It merges local `worktree-*` branches, runs the tests and pushes; once local
+  `main` has diverged the push is rejected as a non-fast-forward, and the script prints
+  *"Run connect_github.bat once so Windows saves your GitHub login"* — **blaming credentials for a
+  divergence** — then exits 0. Four consecutive green task results, no push.
+* Consequences built in: the guard **does its own fetch** (an alarm reading a stale remote ref
+  would reproduce exactly the defect it exists to catch); **unknown is an alarm, not a pass** (no
+  git, not a repo, missing upstream ref, failed fetch — "I could not tell" and "all clear" must
+  never share an exit code); and being **ahead** is its own alarm at any threshold, because that
+  commit exists nowhere else. `git_push.bat`'s misleading failure message now names divergence
+  first and `connect_github.bat` second.
+* **The threshold is derived, not chosen.** `origin/main` takes a median of **49 commits/day**
+  (measured over the twelve days to 2026-08-14), so the default `--max-behind 50` is about one
+  day of drift — the point at which a `.bat` on disk stops being the `.bat` on main. It is a round
+  number from a measured rate; it is **not** a calibrated threshold and carries no verdict.
+* **THE RECURSION, STATED PLAINLY: this guard cannot deploy itself.** It lives in the tree that is
+  514 commits behind. Nothing here starts protecting anything until Don syncs once — which is
+  MA20's own point, and the reason the item is HIGH rather than housekeeping.
+
+## 5. GATES
+
+`tests/test_checkout_drift.py` **18/18** (real git repos, no mocks — a mocked git would pin my
+belief about git rather than git). `tests/test_ma_dependency_map.py` **23/23**.
+**Full python gate: 76 suites, 0 failed** (by exit code, per the project rule — not by grepping
+for `OK`).
+
+**A SECOND DEFECT IN MY OWN INSTRUMENT, AND IT FAILED IN THE DANGEROUS DIRECTION.** The path
+normaliser stripped line numbers and parentheticals but not a trailing *field* reference, so
+`BACKTEST_RESULTS.json cpcv.adopt_detail`, `BACKTEST_RESULTS.json multiple_testing.hlz` and
+`BACKTEST_RESULTS.json` normalised to **three different strings** — and the map reported **no
+collision at all** between MA5, MA19 and MA21, which all edit that file. A collision map that
+misses collisions is worse than none, because its silence reads as clearance. Fixed, **4
+collisions recovered (281 → 285)**, and pinned by a test that also checks a prose entry
+(`owned daily closes`) is *not* mangled into a filename.
+
+**A DEFECT IN MY OWN INSTRUMENT, FOUND BY REPETITION AND FIXED BY DESIGN RATHER THAN BY RETRY.**
+The drift suite passed, so I ran it repeatedly instead of once — and it failed **1 run in 4** under
+load, always as a **setup ERROR, never a failed assertion**, and always two tests at a time. Cause:
+building a fresh pair of git repositories inside every test issued **~200 git subprocesses per
+run**, and on Windows that surface fails intermittently. **The first fix — `ignore_cleanup_errors`
+plus `gc.auto=0`, aimed at temp-dir teardown — did not work**, and is reported because it was the
+obvious diagnosis and it was wrong. What worked is structural: **six fixtures built once per run,
+every test read-only against them**, which removes the failure class instead of retrying through
+it, and a test pins that design so the subprocess count cannot climb back. **A single green run is
+not evidence a test is deterministic** — this one was green three times before it failed.
+`tests/test_backup_to_D.ps1` **62/62** (was 55; +7 pinning MA15/MA16 from both ends — the copy
+must happen *and* the path must not reappear in `$SKIP`, because a re-skip would leave every
+path assertion still passing).
+
+## 6. REPORTED, NOT FIXED
+
+* **The `-Prune` blind spot reproduced independently.** Yesterday I reported that the ownership
+  map is built at `data\<first-level>` granularity, so `data\bulk\prepared` being in `$KEEP` marks
+  all of `data\bulk` owned and the pruner cannot see strays inside a partially-owned directory.
+  Today's rogue run restored the same four loose Sharadar CSVs (**5.11 GB**: actions 44.4,
+  daily 2373.1, events 50.3, sf3 2763.8 MB) and **the prune left every one of them**. D: reads
+  56.14 GB against the script's own 51.04 — the difference is exactly the blind spot. Diagnosed
+  twice now, still unfixed here, because a second behavioural change to the deletion path in as
+  many days deserves its own register and its own tests, and the brief asked for the allowlist.
+* **The catalogue has already outgrown the file this map was built from.** `worktree-optionsbot-lane`
+  has committed a PREREG for **MA36+MA37** and the ledger now carries **60 MA rows**. Regenerate
+  the map when that lane lands.
+* **A note for whoever lands next:** `test_ma_dependency_map.py` fails if the items file changes
+  and the map is not regenerated. That is deliberate, and it means an edit to
+  `valquo_master_audit_ultimate_items.json` in *any* lane must be followed by
+  `python scripts/ma_dependency_map.py`. The failure message says so.
+
+## 7. NOT DONE, AND WHY
+
+* **The checkout was not synced by me.** It is the shared working copy, ten other worktrees hang
+  off its object store, and it carries an unpushed commit. `HANDOFF_backup.md` §9f still holds and
+  is now more urgent: until Don runs `sync.bat`, `backup_now.bat` in that tree stays a live 42-GB
+  weapon and none of tonight's guards are on the machine.
+* **MA35 was verified, not re-done** — `.gitattributes` carries `*.pdf binary` on main (`c759250`).
+* **`VALQUO_LEDGER.md` was deliberately NOT touched.** `worktree-optionsbot-lane` is mid-flight
+  ingesting the 60 MA rows into it, and those rows are not on `main` yet — so there is nothing to
+  mark `DONE` against, and editing the same table from two branches is how a ledger loses a row.
+  **MA15, MA16 and MA20 need their ledger rows closed once that lane lands**, and
+  `ma_in_flight.json` records the state each is in so whoever does it does not have to re-derive it.
+* **`valquo_master_audit_ultimate_items.json` is committed here byte-identical to that lane's
+  copy** (`git hash-object` matches `41a19b0`'s blob), so if both land, git resolves the add/add
+  without a conflict. It is committed rather than merely referenced because the map's freshness
+  check needs its source in the same tree.
+* Nothing in wave 2 or wave 3 was started, and no MA item outside MA15/MA16/MA20 was modified.
