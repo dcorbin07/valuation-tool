@@ -7444,3 +7444,51 @@ same week" is LOGGED, NOT VOIDED). From any environment with open egress and the
 A Monday write is next week: per the contract that is a logged gap, not a fill. Verify either
 way: last row of `data/valquo_track_history.csv` reads back through `index_track.load()` as
 2026-08-14, then commit "Track: daily row 2026-08-14" and push.
+
+---
+
+## 2026-08-15 — infra lane (r1): MA11 + MA12 + MA17 + MA22, all four DONE
+
+Wave 2 of the master audit, four MEDIUM items, landed on `main` across four commits
+(`fea1ee8`, `3cd0c27`, `131204a`, `9bac768`). **Zero trials** — all four are process or
+correctness repairs with no hypothesis and no threshold, so equity `N` stays **224**.
+Full write-up: `HANDOFF_ci.md`.
+
+**MA11 — the auto-land Action.** The job running `tests/test_*.py` from the merged tree held
+`contents: write`, and `actions/checkout` persists that token into `.git/config` — so a branch
+adding `tests/test_zz.py` could have force-pushed `main` and skipped the gate judging it. Now
+two jobs: `gate` (`contents: read`, all branch code) and `land` (`contents: write`, no branch
+code). Plus `.github/land_policy.py`, read from **main's** checkout before the merge, refusing
+any `.github/` change and any test-suite **deletion**. **RESIDUAL FOR DON: a branch that
+rewrites the workflow YAML still escapes the policy — no file in the repo can prevent that. The
+fix is a GitHub-side ruleset protecting `.github/**`, which is a repository setting.**
+
+**MA12 — dependencies.** Seven of eleven direct requirements were resolving to a *higher major
+version* than their own floor (numpy 2.2.6 on `>=1.24`, yfinance 1.6.0 on `>=0.2.40`, stripe
+15.5.0 on `>=9.0`). Two hash-pinned locks now install with `--require-hashes` in both CI
+workflows and the container. Scope widened past the audit: it names `requirements.txt`, but the
+image installs `requirements-saas.txt`, where **stripe (billing) and gunicorn** were floating.
+No version changed — the caps were proved non-binding by byte-identical regeneration.
+**Local `pip install -r requirements.txt` is unchanged; the locks are linux/cp311 and will not
+install on Windows.**
+
+**MA17 — the bus test.** README did not merely omit the ledger, it stated something **false**:
+*"I have not yet run a point-in-time backtest"*, with that backtest as the top roadmap item,
+months after 224 logged equity trials. Corrected, and new `START_HERE.md` takes a reader from
+clone to green suites to what is actually true — including the licence wall (`D1`: Sharadar is
+personal-use only and forbids commercial use of the data "or any derivation").
+
+**MA22 — CLAUDE.md.** It carried three different counts of its own suites (62 / 24 / measured
+83), which became 86 before the session ended. Operating instructions moved to **`RUN_RULES.md`
+PART 0**, which *derives* the count; the 118-line task list is replaced by a pointer to
+`VALQUO_LEDGER.md`, after checking row by row that every item is recorded more fully elsewhere.
+The findings record is untouched (4,112 → 3,966 lines) and a test asserts it was not trimmed.
+
+**Verification.** Local gate 86/86 in 1,320s before the first push; both locks validated under
+`--require-hashes --dry-run` for the real target; four CI runs. The retry loop fired **twice
+inside a single gate** as two other lanes landed code — which is also how the first cut of MA11
+was caught, having deleted that retry.
+
+**Next in this lane:** nothing blocking. Two bugs reported and not fixed (`HANDOFF_ci.md` §6):
+`auto-scan.yml` grants its jobs no explicit `permissions:` block, and `psycopg2-binary` is named
+only in a comment, so switching Postgres on would put an unpinned dependency into production.
