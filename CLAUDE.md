@@ -48,6 +48,69 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **FOUR OPTIONS CORRECTNESS REPAIRS, AND IN THREE OF THEM THE AUDIT'S OWN MAGNITUDE WAS EITHER
+  UNMEASURED OR THE WRONG QUANTITY (2026-08-15, `MA44`+`MA45`+`MA46`+`MA48`).** The master audit's
+  wave-2 options-bot batch, taken together because their **eight files do not overlap at all**.
+  **Zero trials, all four `FIXED`-class** — no hypothesis, no threshold, no verdict against a bar —
+  so options `N` stays **292** and no published claim moves.
+  * **`MA44` — THE DOCSTRING WAS FALSE, AND IT IS FOUR SITES AND TWO RULES, NOT TWO AND ONE.** No
+    date filter: `intraday/providers.py:168` (Tradier) and `:282` (yfinance, which the audit does
+    not name). Strictly after `as_of`: `chain_summary` **and** `options_live.term_read:273-274`.
+    **So the odd one out is the LIVE SUMMARY, not the reconstruction, and the live scan's own two
+    legs can disagree with EACH OTHER on a 0DTE day** — volume, OI and `atm_iv` from the dying
+    chain while `term_slope` comes from the next expiry. The strictly-after rule is also the one
+    the term threshold was **fitted** on.
+  * **MEASURED, where the audit's verification was "log one Friday scan": 19,825 cached chain-days
+    across 39 names. 12.46% list a same-day expiry beside a future one — 60.2% of FRIDAYS, 1.5% of
+    Thursdays, 0.0% Monday to Wednesday, 39 of 39 names** — and **the 0.5 volume-vs-OI bar (MA38's
+    bonus) is crossed by ONE SIDE ONLY on 23.14% of them**, ~2.9% of all chain-days. **NOTHING
+    MOVED**: whether Tradier lists today on an expiry day is a live vendor behaviour this repo
+    cannot observe, so matching a rule that might not hold could **break** parity rather than fix
+    it. The false claim is gone, `include_expiring` names the other rule (default bit-identical),
+    and all three paths now REPORT the expiry used. **Parity is ROUTED, not taken.**
+  * **`MA45` — THE ROW-LEVEL NUMBER IS THE WRONG NUMBER, WHICH IS MA38's LESSON AGAIN.**
+    `enrich_chain` solved IV from `(bid+ask)/2` with no validity test while `options_greeks` has
+    always refused those rows, and the unvalidated path is the **LIVE** one (`term_read →
+    _atm_iv_bs → enrich_chain`). **26.08% of 4.35M cached rows are one-sided (0.00% crossed) — but
+    the ATM row the walk LANDS on is one only 0.44% of chain-days.** When it bites it is severe and
+    one-directional: **front IV moves a median +0.1262 (12.6 vol points) against a 0.0105
+    threshold**, the bar flips on **0.29%** of chain-days, and **5 of 6 flips are alerts that pass
+    today and would fail** — the audit's direction confirmed. Fixed by **one shared
+    `usable_quote`**, deliberately EXACTLY the greeks rule and no selection criteria; **the row is
+    KEPT and its `iv` goes NaN** rather than dropped, so no caller's row count moves, and
+    `pick_contract` is **bit-identical** because `quote_reject_reason` already refused those rows
+    after enrichment.
+  * **`MA46` — MY FIRST FIX WAS WRONG AND THE COLLISION IS THE USEFUL PART.** B15 made the
+    backtest's `return_pct` net; the tracker still computed the quantity B15 had renamed. Netting
+    the tracker's headline — the audit's first option — **collides with MA36: a worthless expiry
+    must read EXACTLY −100% and netting makes it −100.26%**, and **an expiring option is never
+    SOLD, so there is no second commission leg to charge at all.** **Four suites caught it, and
+    they were right, not stale** — the temptation to read four red suites as four outdated
+    expectations is exactly how a correct convention gets edited away. Shipped the audit's
+    **second** option instead: **record both**, `expectancy_pct_net` beside `expectancy_pct` with
+    `pnl_basis` naming which is which. **No published figure moves — proved by those four suites
+    going green again with NO edit to their expectations.**
+  * **`MA48` — CONFIRMED IN CODE, MEASURED LATENT, AND MY OWN SHARPER HYPOTHESIS REFUTED.** A year
+    mined while still current is right-truncated and `needs_pull` only ever compared **DEPTH**, so
+    it is cached forever. I expected past years to be silently truncated too, since the evidence
+    disappears once the calendar rolls over. **Measured: 0 of 5,063 cached symbol-years were mined
+    during their own year** — verified against the frames' own `max(date)`, 14 of 14 running Jan 2
+    → Dec 31 — **and there are zero 2026 files.** So **no banked study is affected and the repair
+    re-mines nothing.** A `.span` sidecar plus one shared clamp closes it; a legacy file counts as
+    complete for a PAST year on the strength of that measurement, and stale for the current one.
+  * **REPORTED OUTSIDE THIS LANE (`RUN_RULES` rule 3): `options_fill.round_trip` charges TWO
+    commission legs even when it settles at intrinsic** — a worthless expiry is never sold, so the
+    backtest is slightly too harsh on exactly the −100% tail MA36 restored. Pre-existing, on the
+    banked books, and correcting it would move published figures. Also still open from MA38: both
+    live producers turn a missing open interest into a **zero COUNT**, and `providers.py:190-191`
+    does the same for VOLUME.
+  * **NOT TAKEN, and the brief is corrected: `MA31` is WAVE 3, not wave 2.** It is the
+    Cremers-Weinbaum matched-strike parity deviation — **the largest un-run item either audit
+    named** — a real research arm that **charges trials** and needs its own blind pre-registration.
+    Running it inside a correctness batch is precisely what the register exists to prevent. **It is
+    the recommended next item and wants a session of its own.** **87 suites, 0 failures; 34 new
+    tests, 27 of which fail against the pre-fix sources.** `scripts/ma44_ma45_ma48_measure.py`,
+    `data/free_analysis/MA44_45_48.json`; `HANDOFF_optionsbot.md` §60.
 - **A BROKEN BACKTEST COULD SHIP A CANONICAL RESULTS FILE THAT ACTIVELY CLAIMED TO BE HEALTHY —
   THE DEGRADED-RUN DETECTOR WATCHED 6 OF 13 BLOCKS, AND THE RUN'S OWN ERROR REPORT WAS BUILT AND
   THROWN AWAY (2026-08-15, `MA39`).** **Zero trials, `FIXED`-class** — a correctness repair with no
