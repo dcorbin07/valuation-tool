@@ -162,16 +162,30 @@ class T(unittest.TestCase):
         # The snapshot phase ALONE - a full run() also fast-forwards, which is supposed
         # to move HEAD, and measuring across both would let a snapshot side effect hide.
         st = sc.survey(repo, "main", "origin", fetch=False)
-        idx = Path(repo) / ".git" / "index"
-        before = (git(repo, "rev-parse", "HEAD"), git(repo, "status", "--porcelain"),
-                  (Path(repo) / "README.md").read_text(encoding="utf-8"),
-                  idx.stat().st_mtime_ns)
+
+        def state():
+            # The index is measured by its CONTENT (what is staged), not its mtime. An
+            # earlier draft compared st_mtime_ns and failed in CI and not on Windows: the
+            # `git status` on the line above refreshes the index's stat cache and rewrites
+            # the file, so the act of measuring changed the thing being measured. The claim
+            # is "nothing the user can see moved", and a stat-cache refresh is not that.
+            return (git(repo, "rev-parse", "HEAD"),
+                    git(repo, "status", "--porcelain"),
+                    git(repo, "diff", "--cached", "--name-status"),
+                    (Path(repo) / "README.md").read_text(encoding="utf-8"))
+
+        before = state()
         ph = sc.snapshot_worktree(repo, st, dry=False)
         self.assertEqual(ph["action"], "pushed")
-        after = (git(repo, "rev-parse", "HEAD"), git(repo, "status", "--porcelain"),
-                 (Path(repo) / "README.md").read_text(encoding="utf-8"),
-                 idx.stat().st_mtime_ns)
-        self.assertEqual(before, after, "the snapshot changed local state")
+        self.assertEqual(before, state(), "the snapshot changed local state")
+
+    def test_the_no_touch_probe_is_not_vacuous(self):
+        """The check above compares two empty `git diff --cached` outputs, which is exactly
+        what a probe that sees nothing also looks like. This shows it would notice."""
+        repo = self.mk(behind=1, dirty=True)
+        self.assertEqual(git(repo, "diff", "--cached", "--name-status"), "")
+        git(repo, "add", "README.md")
+        self.assertIn("README.md", git(repo, "diff", "--cached", "--name-status"))
 
     def test_the_snapshot_actually_contains_the_uncommitted_text(self):
         """A snapshot that banks the committed version instead would look identical in

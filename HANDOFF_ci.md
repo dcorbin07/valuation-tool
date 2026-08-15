@@ -1272,6 +1272,16 @@ file that quarantine silently misses. Pinned by a regression test.
 past the edit and the test asserted nothing. The fixture now makes the upstream touch the same
 file. It was found only because a *different* fix made it start failing.
 
+**And a third, caught by the land gate rather than by me** (first push red, `82 suites 0 failed`
+locally). The "snapshot touches nothing" test compared `.git/index`'s `st_mtime_ns` — and read
+it *after* calling `git status`, which refreshes the index's stat cache and rewrites the file.
+**The act of measuring changed the thing being measured**, so the assertion was about whether
+any git command had refreshed a cache, not about the snapshot. It failed on Linux and not on
+Windows purely on timing (29 ms apart). The index is now compared by *content*
+(`git diff --cached --name-status`), which is the actual claim — and since that compares two
+*empty* outputs, exactly what a blind probe also produces, a positive control asserts it turns
+non-empty when something really is staged.
+
 Also reported: the daily task will create a new `rescue/wip-*` ref whenever the tracked
 working-tree content changes (identical trees are idempotent). That is ref clutter over
 months. Deliberately not auto-pruned - a tool built to stop work disappearing should not
