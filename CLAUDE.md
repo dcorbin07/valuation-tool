@@ -48,6 +48,62 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE PROJECT HAD FOUR HARVEY-LIU-ZHU BARS, NOT THE TWO THE AUDIT FOUND, AND THE "3.0" IS NOT A
+  BAR AT ALL — IT IS √(2·ln N) FROZEN AT N = 90, A VALUE THIS PROJECT PASSED ON 2026-08-06
+  (2026-08-15, `MA5`+`MA6`).** **Zero trials, `FIXED`-class** — two correctness repairs with no
+  hypothesis, no threshold and no verdict, so **equity `N` stays 224** and infra 15, `by_domain` is
+  bit-identical across the log append (which is also the check that MA13's stamp still holds), and
+  **no published claim moves.** `BACKTEST_RESULTS.json` needs no re-run.
+  * **`MA5` — THE SHIPPED PACKAGE CARRIED THE SAME IDEA FOUR TIMES:** `statistics.hlz_significant`
+    (the **CONSTANT** `|t| > 3.0`), `fundamental_panel._trials_haircut`, the inline `hurdle` in its
+    `multiple_testing` block, and `ablation.py`'s own copy — **and only `_trials_haircut` saw M1's
+    floor.** B7's defect class with a *moving* target. One definition now: `statistics.hlz_hurdle`,
+    every shipped site delegating, and a test that fails if a second √(2·ln N) appears anywhere in
+    `valuation/`. **`hlz_significant` now REQUIRES `n_trials` with NO default** — a default is
+    exactly how it froze, and defaulting to the live log would make a pure-arithmetic primitive
+    read a file from disk.
+  * **THE STALENESS RUNS IN THE FLATTERING DIRECTION, WHICH IS WHY IT MATTERS: the hurdle only
+    ever RISES with trials, so a frozen constant can only ever be too EASY.** The two crossed when
+    X3 took equity `N` 84 → 104. Today the honest bar is **3.2899** against a constant of 3.0, so
+    **anything in [3.0, 3.2899] is "significant" under the constant and is not under the real
+    bar.** Nothing sits there today — a latent defect closed before it had a second caller.
+  * **WHICH PUBLISHED COMPARISONS MOVE: NONE — CHECKED, NOT ASSERTED.** The headline long-short HAC
+    *t* **2.6199** fails both. **X2's "clears 3.0 on three of the seven" holds at EVERY `N` the
+    project has ever run** (2.9768 / 3.0 / 3.0478 / 3.0834 / 3.2899), because every candidate
+    hurdle lands in the empty gap between the 4th and 5th grids (**2.926 and 3.374**) — **by luck
+    of where the draws sat, not by design.** It first becomes four-of-seven-fail at equity
+    **`N` > 296.5**, ~70 trials out. Session 12's placebo-floor warning in a second costume.
+  * **A NEAR-MISS THE SWEEP CAUGHT AND THE AUDIT NEVER NAMED: `param_search.py` computes Hansen's
+    SPA recentring √(2·ln ln T)** — the law of the ITERATED logarithm over **sample length**, not a
+    trial count. **Consolidating it would have silently changed the SPA test.** It is excluded by
+    **structure** (its log argument is itself a log), never by filename. **The refactor is
+    bit-identical**: max |Δ| **0.000e+00** over 2,010 values, and `_trials_haircut(8)` still returns
+    exactly 3.2898772171176964 — the literal MA13 pins, so no stamp edit was needed.
+  * **`MA6` — THE TRIAL COUNTER'S ONE PATH ROUTED TOWARD A *SMALLER* `N`.** `by_domain[dom] += k`
+    ran only when a domain resolved, so a row with a typo'd or blank domain cell was added to
+    `trials` and to **no bucket** — and `trial_count(domain=...)` reads the bucket. **A real search
+    charged to nobody**, while every other degradation here is routed toward a LARGER `N` and
+    reported. **M1's own stated error, inside M1's own parser, for the second time.** Unresolved
+    rows are now **charged to every family** (they cannot be attributed, and overstating `N` is the
+    safe direction), named in `rows_domain_unresolved`, and `sum(by_domain) + unresolved == trials`
+    ships as a checkable boolean.
+  * **DOES `N` MOVE? NO — 0 unresolved rows measured, so the DSR bar and the HLZ hurdle are
+    unchanged and no claim needed re-checking.** The defect is **latent**; the fix changes what the
+    **next** typo'd domain cell costs, and a test asserts the zero so a future one shows up as a
+    deliberate change rather than a silent one.
+  * **THE AUDIT'S SECOND HAZARD IS CLOSED REPORTED-ONLY, AND HALF OF IT DELIBERATELY IS NOT.**
+    **Both log tables are NINE columns wide with different orders**, so the width guard cannot see a
+    row filed under the wrong header. `rows_misfiled_table` catches the direction with a
+    zero-false-positive rule (a verdict cell of the exact form `n=<k>` cannot be a verdict) and
+    reads empty. **The reverse direction is NOT detected** — it would need a vocabulary of verdict
+    words, i.e. a second definition of "verdict" that would cry wolf on the first new one.
+  * **TWO DEFECTS IN MY OWN GUARD, BOTH FOUND BY RUNNING IT:** the source sweep fired on **its own
+    documentation** twice (it now strips comments and strings with `tokenize` — *a guard that
+    cannot tell code from prose about code is not measuring the tree*), and a docstring of mine
+    claimed a fixture passed pre-fix when restoring the sources showed it errors. **11 fixtures,
+    all 11 failing against the pre-fix tree.** A status correction too: both rows read
+    `IN PROGRESS (app fixer)` and **neither was ever in flight** — the same id collision the ledger
+    already documents two rows away, in `MA9`/`MA10`. `HANDOFF_edge_audit.md` MA5+MA6.
 - **A BROKEN BACKTEST COULD SHIP A CANONICAL RESULTS FILE THAT ACTIVELY CLAIMED TO BE HEALTHY —
   THE DEGRADED-RUN DETECTOR WATCHED 6 OF 13 BLOCKS, AND THE RUN'S OWN ERROR REPORT WAS BUILT AND
   THROWN AWAY (2026-08-15, `MA39`).** **Zero trials, `FIXED`-class** — a correctness repair with no
@@ -3381,6 +3437,14 @@ the project's memory and the old versions had been repeated for months.
 - **CORRECTED 2026-08-03 (audit B9) — TWO OF THE THREE "statistical bars" MEASURE SOMETHING
   NARROWER THAN THE CLAIM THEY SUPPORT. Lead with the long-short t of 3.52 against the
   Harvey–Liu–Zhu hurdle of 3.0. That one is real.** The other two:
+  * **DO NOT FOLLOW THAT INSTRUCTION — CORRECTED 2026-08-15 (`MA5`), AND BOTH HALVES OF IT ARE
+    NOW WRONG.** The **3.52** is the void pre-B6 panel (live long-short HAC *t* is **2.6199**),
+    and **there is no 3.0 hurdle** — the bar is √(2·ln N), which reads **3.2899** at today's
+    equity `N` = 224, so the headline **FAILS** it by 0.66 (`R4`). The sentence therefore points
+    at the project's most-failed bar and calls it the one that is real. **Lead instead with the
+    top-decile alpha HAC *t* 4.3762 against X7's calibrated floor (2.0540 at `N` = 224), which
+    sits above all 100 placebo draws**, and quote the HLZ comparison only with R4's
+    counter-argument attached. The bullet is kept because it is the record of what B9 found.
   * **The Deflated Sharpe IS deflating — the audit's mechanism for this one is REFUTED by
     measurement, and only half of its criticism survives.** The audit argued that the eight
     weight schemes are indistinguishable (out-of-sample median ICs spanning +0.061 to +0.062),
@@ -3499,6 +3563,15 @@ the project's memory and the old versions had been repeated for months.
     All seven keep 69 dates over the identical window. **Long-short t ranges 2.703 → 3.517,
     median 2.926, and CLEARS 3.0 on three of the seven.** Quote **"t 2.7–3.5 depending on
     grid, straddling the hurdle"** — never one side of 3.0 as a fact.
+    **CORRECTED 2026-08-15 (`MA5`): "3.0" IS NOT THE HURDLE AND NEVER WAS — it is √(2·ln N)
+    frozen at N = 90. THE COUNT DOES NOT MOVE, AND THAT WAS CHECKED RATHER THAN ASSUMED: the
+    seven grids are 2.703 / 2.836 / 2.850 / 2.926 / 3.374 / 3.410 / 3.517, and EVERY hurdle this
+    project has ever had — 2.9768 (N = 84, X2's own regime), 3.0, 3.0478 (N = 104), 3.0834
+    (N = 116) and 3.2899 (N = 224, today) — falls in the empty gap between 2.926 and 3.374. So
+    "three of the seven" is right at every N to date, by luck of where the draws sat rather than
+    by design. It first becomes FOUR-of-seven-fail at equity `N` > 296.5, which is roughly 70
+    trials away. Session 12's warning applies here exactly as it does to the placebo floors: a
+    bar that is a function of `N` may not be quoted across regimes without checking.**
   * **PBO <50% IS NOT A BAR AT ALL.** X7's placebo puts the MEDIAN PBO on a definitionally
     worthless signal at **46.7%**, i.e. the "<50%" bar sits exactly at the noise level and has
     almost no power. Calibrated bar is the placebo 5th percentile, **19.7%**. PBO is

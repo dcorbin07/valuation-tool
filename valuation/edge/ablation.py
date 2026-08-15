@@ -29,6 +29,8 @@ from typing import Optional
 
 import numpy as np
 
+from . import statistics as _stats     # AUDIT MA5 — the ONE sqrt(2 ln N) definition
+
 # ---- X7's calibrated floors (placebo percentiles over 100 draws, full pipeline, N = 84).
 # These are floors for THIS panel and universe, not universal constants. Quoted here so a
 # reader of a result never has to go looking for which bar it was scored against.
@@ -142,7 +144,12 @@ def deflated_sharpe_at(detail: dict, n_trials: int) -> Optional[dict]:
             "probability": float(_ncdf(z_new)),
             "was": {"n_trials": int(n_old), "sr0_benchmark": sr0_old,
                     "probability": float(p_old)},
-            "trials_haircut": float(np.sqrt(2.0 * np.log(max(2, n_trials))))}
+            # AUDIT MA5 — the one sqrt(2 ln N) definition. This copy was the FOURTH and was the
+            # only one that never saw M1's floor, so it reported the haircut for whatever
+            # `n_trials` the caller asked about rather than for the search actually run. That is
+            # correct HERE — this helper's whole purpose is "what would the DSR be at N = x?" —
+            # but it must not be mistaken for `_trials_haircut`, which is floored.
+            "trials_haircut": _stats.hlz_hurdle(n_trials)}
 
 
 def arm_result(panel, label, cols, weights, n_q: int = 10, horizon: int = 63) -> dict:

@@ -54,6 +54,7 @@ _LOG = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))), "RESEARCH_LOG.md")
 
 _CACHE: dict = {}
+_PARSED: dict = {}       # AUDIT MA6 — the raw parse, memoised on (path, mtime, size)
 
 
 DOMAINS = ("equity", "options", "unified", "infra")
@@ -135,6 +136,8 @@ def _parse(path):
     rows_out = []                                     # the record, for `rows()`
     changed = []                                      # rows whose treatment differs from legacy
     malformed = []                                    # rows whose columns do not line up
+    unresolved = []                                   # AUDIT MA6 — rows charged to no domain
+    misfiled = []                                     # AUDIT MA6 — rows under the wrong table
     by_domain = {d: 0 for d in DOMAINS}
     try:
         with open(path, encoding="utf-8") as f:
@@ -200,6 +203,26 @@ def _parse(path):
         ids.append(rid)
         _emit(rows_out, cells, hdr, rid, aligned, vcell, k)
 
+        # --- misfiled row: a table-2 row sitting under table-1's header  [AUDIT MA6] ------
+        # THE WIDTH GUARD CANNOT SEE THIS. `aligned` compares `len(cells)` to the header width
+        # and BOTH tables are NINE columns wide, so a row appended under the wrong header is
+        # "aligned" and every field is read from the wrong column. The two layouts differ from
+        # index 3 onward — table 1 ends `... threshold verdict source`, table 2 ends
+        # `... verdict n source` — so a table-2 row read under table-1's header has its VERDICT
+        # taken from index 7, which for that row is the grid multiplier.
+        #
+        # THE RULE IS NARROW ON PURPOSE AND HAS ZERO FALSE POSITIVES ON THE LOG AS IT STANDS:
+        # a verdict cell of the exact form `n=<k>` cannot be a verdict. The reverse direction (a
+        # table-1 row under table-2's header) is NOT detected, and that is a deliberate limit
+        # rather than an oversight — catching it would need a vocabulary of what counts as a
+        # verdict word, which is a second definition of "verdict" that would cry wolf the first
+        # time someone wrote a new one. Reported in the handoff, not papered over.
+        if aligned and vcell and re.fullmatch(r"n=\d+", vcell.strip()):
+            misfiled.append({"id": rid, "verdict_cell": vcell.strip(),
+                             "reason": "verdict cell is a grid multiplier — this row is almost "
+                                       "certainly appended under the WRONG table's header; both "
+                                       "tables are 9 columns wide so the width guard cannot see it"})
+
         # --- domain: THE DOMAIN CELL ALONE ------------------------------------------------
         dcell = ((_cell(cells, hdr, "domain") if aligned else None) or "").lower()
         dom = dcell if dcell in DOMAINS else None
@@ -213,9 +236,58 @@ def _parse(path):
             changed.append({"id": rid, "field": "domain", "was": legacy_dom, "now": dom})
         if dom:
             by_domain[dom] += k
+        else:
+            # AUDIT MA6 — THE ONE SILENT PATH THAT UNDERSTATED `N`, AND IT WAS THE ONLY
+            # DEGRADATION IN THIS PARSER ROUTED TOWARD A *SMALLER* DENOMINATOR.
+            #
+            # A row whose domain cell is not exactly one of DOMAINS (a typo, "equities", a blank
+            # cell, a new domain name nobody registered) was added to `trials` and to NO bucket —
+            # and `trial_count(domain=...)` reads the bucket. So the row was a real search over
+            # the data that no family was charged for. Understating `N` OVERSTATES the
+            # significance of every DSR- and HLZ-gated claim: it is M1's own stated error,
+            # committed inside M1's own parser, for the second time after session 12's
+            # whole-row `FIXED` grep.
+            #
+            # It is COUNTED here and CHARGED in `trial_count`, which is the only place the
+            # direction can be fixed without lying about what the log says. `by_domain` keeps
+            # meaning "rows that resolved to this family" — so `sum(by_domain) + unresolved ==
+            # trials` stays an invariant a reader can check, and MA13's committed-literal stamp
+            # still pins the same quantity it always pinned.
+            unresolved.append({"id": rid, "n_trials": k, "domain_cell": dcell or None,
+                               "aligned": aligned,
+                               "reason": "domain cell is not one of %s" % (DOMAINS,)})
     return {"trials": trials, "rows_counted": counted, "rows_fixed": fixed, "ids": ids,
             "by_domain": by_domain, "rows_changed_by_parser_fix": changed,
-            "rows_malformed": malformed, "rows": rows_out}
+            "rows_malformed": malformed, "rows": rows_out,
+            "rows_domain_unresolved": unresolved,
+            "trials_domain_unresolved": sum(u["n_trials"] for u in unresolved),
+            "rows_misfiled_table": misfiled}
+
+
+def _stamp(path):
+    """(mtime_ns, size), or None if the file cannot be stat'd.  [AUDIT MA6]
+
+    The cache key carries this so a file that CHANGES on disk re-parses instead of serving a
+    stale count. The previous key was the path alone, which is fine for the one real log read
+    once per process and wrong for a test that rewrites a fixture at the same path — exactly
+    the case `use_cache` exists for.
+    """
+    try:
+        st = os.stat(path)
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
+def _parsed(path, use_cache=True):
+    """`_parse`, memoised on (path, mtime, size). ONE parse behind every reader.  [AUDIT MA6]"""
+    key = (path, _stamp(path))
+    if use_cache and key in _PARSED:
+        return _PARSED[key]
+    out = _parse(path)
+    if use_cache:
+        _PARSED[key] = out
+    return out
 
 
 def trial_count(path=None, use_cache=True, domain="equity"):
@@ -228,10 +300,20 @@ def trial_count(path=None, use_cache=True, domain="equity"):
     charging it for nothing but its own eight weight schemes under-penalises. The log's own
     schema already says BH-FDR families are formed within a domain, so the same rule applies
     here. `domain=None` returns the whole-project count.
+
+    AUDIT MA6 — UNRESOLVED-DOMAIN ROWS ARE CHARGED TO EVERY FAMILY. A row whose domain cell
+    resolves to no bucket is still a search over the data; it simply cannot be attributed. The
+    two available treatments are to drop it (understating `N`, which OVERSTATES significance)
+    or to charge it everywhere (overstating `N`, which understates significance). This module's
+    opening argument fixes the direction: every other degradation here is routed toward a LARGER
+    `N` and reported, and this was the only one routed the other way. So it is added, and
+    `detail()["rows_domain_unresolved"]` names the rows so the charge is auditable rather than
+    absorbed. It is ZERO on the log as it stands, so nothing moves today.
     """
     d = detail(path=path, use_cache=use_cache)
+    extra = int(d.get("trials_domain_unresolved") or 0)
     if domain and (d.get("by_domain") or {}).get(domain) is not None:
-        return int(max(WEIGHT_SCHEME_TRIALS, d["by_domain"][domain]))
+        return int(max(WEIGHT_SCHEME_TRIALS, d["by_domain"][domain] + extra))
     return int(max(WEIGHT_SCHEME_TRIALS, d.get("trials_logged") or 0))
 
 
@@ -244,24 +326,34 @@ def rows(path=None, use_cache=True) -> list:
 
     Returns raw cells. Callers that publish must apply their own rule about what may be shown;
     `valuation/web/research_record.py` is the one that does, and it withholds figures.
+
+    AUDIT MA6 — `use_cache` is now HONOURED. It was accepted and ignored: this function called
+    `_parse` unconditionally, so the parameter was a lie and a caller passing `use_cache=False`
+    to force a re-read got the same behaviour as one that did not. Harmless in outcome (it
+    always re-read, which is the safe direction) and worth closing because a parameter that
+    does nothing is indistinguishable from one that stopped working.
     """
-    parsed = _parse(path or _LOG)
+    parsed = _parsed(path or _LOG, use_cache)
     return list((parsed or {}).get("rows") or [])
 
 
 def detail(path=None, use_cache=True):
     """Everything a reader needs to audit the denominator, for the results file."""
     p = path or _LOG
-    if use_cache and p in _CACHE:
-        return _CACHE[p]
-    parsed = _parse(p)
+    key = (p, _stamp(p))                              # AUDIT MA6 — see `_stamp`
+    if use_cache and key in _CACHE:
+        return _CACHE[key]
+    parsed = _parsed(p, use_cache)
     if parsed is None:
         out = {"available": False, "path": p, "trials_logged": None,
                "n_used": WEIGHT_SCHEME_TRIALS,
                "source": "weight_schemes_only — RESEARCH_LOG.md not readable",
                "audit_estimate": 146}
     else:
-        n = max(WEIGHT_SCHEME_TRIALS, parsed["by_domain"].get("equity", 0))
+        # AUDIT MA6 — the unresolved rows are charged here too, so `n_used` and
+        # `trial_count(domain="equity")` cannot drift apart. Zero on the log as it stands.
+        unres_n = int(parsed.get("trials_domain_unresolved") or 0)
+        n = max(WEIGHT_SCHEME_TRIALS, parsed["by_domain"].get("equity", 0) + unres_n)
         out = {"available": True, "path": os.path.basename(p),
                "trials_logged": parsed["trials"],
                "by_domain": parsed["by_domain"],
@@ -277,6 +369,20 @@ def detail(path=None, use_cache=True):
                # inside a cell. Their fields cannot be read by column, so they are counted the
                # conservative way and listed HERE rather than absorbed silently.
                "rows_malformed": parsed.get("rows_malformed") or [],
+               # AUDIT MA6 — THE COUNTER THAT DID NOT EXIST. Rows counted in `trials_logged`
+               # but charged to no domain bucket. This was the parser's one degradation routed
+               # toward a SMALLER `N`, and it was reported nowhere; `trial_count` now charges
+               # them to whichever family is asked for, and they are named here so that charge
+               # is auditable. NON-ZERO means some row's domain cell needs fixing in the log.
+               "rows_domain_unresolved": parsed.get("rows_domain_unresolved") or [],
+               "trials_domain_unresolved": unres_n,
+               # AUDIT MA6 — rows that look appended under the WRONG table's header. Both
+               # tables are nine columns wide, so `rows_malformed`'s width check cannot see
+               # this. Reported only: it does not move `N`.
+               "rows_misfiled_table": parsed.get("rows_misfiled_table") or [],
+               # The invariant a reader can check by hand, stated rather than implied.
+               "by_domain_plus_unresolved_equals_trials": bool(
+                   sum(parsed["by_domain"].values()) + unres_n == parsed["trials"]),
                "n_used": n,
                "weight_scheme_floor": WEIGHT_SCHEME_TRIALS,
                "source": "RESEARCH_LOG.md (audit M1)",
@@ -285,7 +391,7 @@ def detail(path=None, use_cache=True):
                "counting_rule": "all non-FIXED rows count, pre-committed or retrospective; "
                                 "`n=<k>` marks a pre-registered grid of k cells"}
     if use_cache:
-        _CACHE[p] = out
+        _CACHE[key] = out
     return out
 
 
