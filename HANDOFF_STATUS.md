@@ -31,8 +31,35 @@
 - **PROCESS FINDING, the expensive one:** two lanes ran the same CRITICAL row at once, and this
   one's brief said it *"runs alone"* to prevent exactly that. `git branch -r` would have shown it.
   **Cost: one duplicated mechanism, discarded.**
-- **`MA2` remains open and untouched** - MA1 makes it unreachable by schedule, not correct.
+- ~~**`MA2` remains open and untouched**~~ **CORRECTED 2026-08-15: `MA2` and `MA3` are BOTH `DONE`
+  on `main`** - the same lane that built the surviving gate closed them in the same change (two
+  arithmetic defects repaired, two reported unrepaired with reasons; MA3 closed by the shared
+  funnel). This bullet was written from a lane that had not yet merged them.
   **→ DON, no token:** `curl -s https://valquo.co/api/edge/learning`; `history` must be `[]`.
+
+**AMENDED 2026-08-15 - THE SECOND PRODUCTION READ, AND IT IS THE ONE THAT EXERCISES THE GATE.**
+Don ran the token-gated status route at **`2026-08-15T12:21:47Z`**: `store_readable true`,
+**`n_rows 0`, `n_adopted 0`**, `overriding []`, `violations []`, **`clean true`**, and **both
+buckets `authorised: false` with the reason `"vintage 4 carries no 'weights_adoption' entry"`**.
+
+- **THE CONCLUSION IS NOW MEASURED TWICE, THROUGH TWO INDEPENDENT INSTRUMENTS, A DAY APART. NO LIVE
+  VINTAGE VIOLATION EXISTS AND NOTHING HAS EVER OVERRIDDEN `settings.WEIGHTS_*`.**
+- **WHAT THIS READ ADDS OVER THE FIRST: THE REFUSAL RAN IN PRODUCTION.** The earlier check read the
+  learning *history*; this one runs the gate itself against the real `track_meter.VINTAGES` and the
+  real contract file on the live box. **The reason string is the load-bearing part** - a gate that
+  is merely stuck shut, or one whose fail-closed wrapper is swallowing an exception, refuses
+  identically from the outside. Naming the missing key is what distinguishes working from stuck.
+  **Every prior demonstration was a test with an injected register.** And because the refusal sits
+  on the shared `save_learned` funnel, one read covers **both** writers, not only the learner's.
+- **ONE CORRECTION TO THE WORDING IT ARRIVED WITH:** it was reported as *"the loop never fired in
+  production"*. `live_override_report` reads the adopted-weights table alone, so `n_rows 0`
+  establishes that the **adoption path was never reached** and is silent on whether the cron ran.
+  The bullets above carry positive evidence that **the JOB DID fire on 2026-08-01**. The precise
+  sentence remains **the job fired, the adoption path was never reached** - and the audit's own
+  severity rule turns on that distinction.
+- **NOT A STANDING GUARANTEE:** it describes the record at that timestamp. With the cron removed,
+  nothing is scheduled to exercise the gate again; the next real exercise is a deliberate adoption,
+  which needs a registered vintage **and** Don's signed row naming that same vintage.
 
 ## edge lane, `MA19`+`MA13` (2026-08-14) - THE FLOORS ARE RE-DERIVED AT TODAY'S `N`, AND FIVE OF SEVEN NEVER MOVED
 
