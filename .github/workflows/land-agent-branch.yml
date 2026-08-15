@@ -36,13 +36,19 @@
 #  `.github/**`, which is Don's to apply. This closes accidents and drift, not a determined
 #  agent, and must never be described as if it did.
 #
-#  THE RETRY LOOP MOVED AND ONE CASE GOT STRICTER, DELIBERATELY. It used to re-run the whole
-#  gate in-job when main moved under it. That path is exactly "run branch code again in the
-#  job holding the write token", so it is gone: `land` still re-merges and pushes when main
-#  moved with DOCUMENTATION only (the overwhelmingly common case in this repo), and now FAILS
-#  with "push again" when main moved with CODE. That is the same failure mode the old loop
-#  reached after 3 attempts, arrived at sooner, and it can never push a combination that no
-#  gate ever tested.
+#  THE RETRY LOOP MOVED INTO `gate`, AND THE FIRST LIVE RUN IS WHY IT IS STILL THERE AT ALL.
+#  The loop used to re-run the whole gate in-job when main moved under it — which under the
+#  split would mean "run branch code again in the job holding the write token". The first cut
+#  of MA11 therefore DELETED it and made `land` fail with "push again" instead. That was wrong,
+#  and the very first run of the split proved it: main moved with code inside the ~5 minutes
+#  the gate takes (7b5fc33 -> 90048ca) and the branch refused to land. With six lanes pushing,
+#  a re-push has no better odds than the run it replaces, so "fail and ask" livelocks.
+#
+#  So the loop is back, in `gate`, where the token is read-only: merge, police, install, test,
+#  then re-check main and go round again if CODE landed underneath. `land` keeps only the
+#  narrow residual — it pushes when main is still at the gated base or has moved by
+#  DOCUMENTATION alone, and fails otherwise. That window is now seconds rather than minutes,
+#  and nothing can push a combination no gate has tested.
 # ============================================================================
 name: Land agent branch to main
 on:
@@ -121,41 +127,77 @@ jobs:
           SHA="${GITHUB_SHA}"
 
           git fetch origin "$BR"
-          git fetch origin main
-          BASE="$(git rev-parse origin/main)"
-          # The exact commit the `land` job must merge, and the exact main it was tested
-          # against. Passing the sha rather than the branch name means `land` cannot pick up
-          # a newer, ungated commit if the lane pushes again while this run is in flight.
-          echo "base=$BASE" >> "$GITHUB_OUTPUT"
 
-          echo "::group::Merging $BR ($SHA) into main ($BASE)"
-          git checkout -B landing "$BASE"
-          git merge --no-edit "$SHA" || {
-            echo "::error::Merge conflict on $BR — main left untouched"
-            git merge --abort || true
-            exit 1
+          # Did anything that can affect a test result land between two commits? Markdown and
+          # .gitattributes cannot change what `python tests/test_*.py` does, and this repo's
+          # churn is overwhelmingly markdown handoffs. Anything else counts as code.
+          # KEEP THIS BODY IDENTICAL TO THE COPY IN THE `land` JOB — a test asserts they match,
+          # because the two jobs disagreeing about what "code" means is a silent way to push an
+          # untested combination.
+          code_changed() {
+            [ -n "$(git diff --name-only "$1" "$2" -- . ':(exclude)*.md' ':(exclude).gitattributes')" ]
           }
-          echo "::endgroup::"
 
-          if [ -f "$RUNNER_TEMP/policy/land_policy.py" ]; then
-            echo "::group::Land policy (main's copy)"
-            python "$RUNNER_TEMP/policy/land_policy.py" --base "$BASE" --head "$SHA"
+          # THE RETRY LIVES HERE, IN THE READ-ONLY JOB, AND THAT IS THE POINT. `main` moves every
+          # few minutes across six lanes while a full gate takes about five, so a branch that
+          # simply gave up when main moved would livelock across pushes — measured on this very
+          # change: the FIRST run of the split hit a code collision and refused. Retrying is
+          # therefore not optional, but re-running the suites is running branch code, so it must
+          # happen where the token cannot write.
+          BASE=""
+          for attempt in 1 2 3; do
+            git fetch origin main
+            BASE="$(git rev-parse origin/main)"
+
+            echo "::group::Attempt $attempt — merging $BR ($SHA) into main ($BASE)"
+            git checkout -B landing "$BASE"
+            git merge --no-edit "$SHA" || {
+              echo "::error::Merge conflict on $BR — main left untouched"
+              git merge --abort || true
+              exit 1
+            }
             echo "::endgroup::"
+
+            if [ -f "$RUNNER_TEMP/policy/land_policy.py" ]; then
+              echo "::group::Land policy (main's copy)"
+              python "$RUNNER_TEMP/policy/land_policy.py" --base "$BASE" --head "$SHA"
+              echo "::endgroup::"
+            fi
+
+            echo "::group::Install dependencies (hash-pinned — MA12)"
+            pip install --require-hashes -r requirements.lock.txt
+            echo "::endgroup::"
+
+            fail=0
+            for f in tests/test_*.py; do
+              echo "::group::$f"
+              python "$f" || { echo "::error::$f FAILED"; fail=1; }
+              echo "::endgroup::"
+            done
+            # `exit $fail` verbatim: tests/test_edge.py's C7 test asserts this exact string,
+            # so that one red suite can never be hidden by a later green one. Keep the literal.
+            if [ "$fail" -ne 0 ]; then exit $fail; fi
+
+            git fetch origin main
+            NOW="$(git rev-parse origin/main)"
+            if [ "$NOW" = "$BASE" ] || ! code_changed "$BASE" "$NOW"; then
+              echo "main is unchanged, or moved with documentation only, since this gate began."
+              break
+            fi
+            echo "::warning::main moved with CODE during the gate ($BASE -> $NOW) — re-merging and re-running"
+            BASE=""
+          done
+
+          if [ -z "$BASE" ]; then
+            echo "::error::main moved with code on every attempt. Push $BR again to retry."
+            exit 1
           fi
 
-          echo "::group::Install dependencies (hash-pinned — MA12)"
-          pip install --require-hashes -r requirements.lock.txt
-          echo "::endgroup::"
-
-          fail=0
-          for f in tests/test_*.py; do
-            echo "::group::$f"
-            python "$f" || { echo "::error::$f FAILED"; fail=1; }
-            echo "::endgroup::"
-          done
-          # `exit $fail` verbatim: tests/test_edge.py's C7 test asserts this exact string,
-          # so that one red suite can never be hidden by a later green one. Keep the literal.
-          if [ "$fail" -ne 0 ]; then exit $fail; fi
+          # The exact main this tree was tested against. `land` pushes only if main is still
+          # there, or has moved by documentation alone. Passing the sha rather than the branch
+          # name also means `land` cannot pick up a newer, ungated commit if the lane pushes
+          # again while this run is in flight.
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
   # LAND — holds the write token. Runs NO branch code: it merges and pushes only.
@@ -181,9 +223,9 @@ jobs:
           BASE="${{ needs.gate.outputs.base }}"
           git fetch origin "$BR"
 
-          # Did anything that can affect a test result land between two commits? Markdown and
-          # .gitattributes cannot change what `python tests/test_*.py` does, and this repo's
-          # churn is overwhelmingly markdown handoffs. Anything else counts as code.
+          # KEEP THIS BODY IDENTICAL TO THE COPY IN THE `gate` JOB — a test asserts they match.
+          # If the two jobs disagreed about what counts as "code", `gate` could clear a tree
+          # that `land` then pushes on top of a main it never saw.
           code_changed() {
             [ -n "$(git diff --name-only "$1" "$2" -- . ':(exclude)*.md' ':(exclude).gitattributes')" ]
           }
