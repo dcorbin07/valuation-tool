@@ -33,8 +33,13 @@ def options_signals(opt: dict | None) -> dict:
     # AUDIT MA38 - the numerator and the denominator must be taken over the SAME contracts.
     # `call_volume` sums every contract in the front expiry; `call_oi` sums only those whose open
     # interest is KNOWN (B4 made it exclude the -1 the cache writes when the OI call failed, which
-    # was right). Dividing one by the other inflates the ratio by roughly 1/coverage, and this
-    # bonus then fires where the module's own docstring says the reconstruction cannot.
+    # was right). Dividing one by the other inflates the ratio by roughly 1/coverage, so the bonus
+    # over-fires. A PRECISION CORRECTION against the audit, which says this fires "where the
+    # module's own docstring says the reconstruction cannot": that STRICTER-than-live promise in
+    # options_backtest's header is scoped to the VOLUME-SURGE deviation, not a blanket guarantee.
+    # What it does break is that docstring's ARGUMENT - that every known deviation runs in the
+    # conservative direction, so a surviving edge is not an artifact of one. This was a second
+    # deviation running the other way.
     #
     # MEASURED on 11,818 front-expiry chain-days across 12 symbols: 27.3% are PARTIALLY covered
     # (not all-or-nothing, so the `coi > 0` guard below does not already catch it), and 5 of them

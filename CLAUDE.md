@@ -48,6 +48,56 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **AN ALERT BONUS DIVIDED A WHOLE-CHAIN NUMERATOR BY A PARTIAL DENOMINATOR — AND BOTH FIXES THE
+  AUDIT PROPOSED ARE 19× AND 37× MORE DISRUPTIVE THAN THE DEFECT THEY REPAIR (2026-08-15,
+  `MA38`).** **Zero trials, `FIXED`-class** — no hypothesis, no threshold, no verdict against a
+  bar, so no register (the `S25`/`PT-WRITER` precedent). Options `N` stays **292**;
+  `rows_fixed_not_counted` **32 → 33**, which is the proof the row was seen and correctly excluded.
+  * **THE PREMISE IS CONFIRMED EXACTLY.** `chain_summary` sums `call_volume` over **every**
+    contract in the front expiry and `call_oi` over **only** those whose open interest is known
+    (B4 made it exclude the `-1` the cache writes when the OI call failed, which was right).
+    `options_signals` then forms `call_volume / call_oi > 0.5` for its **+8 "Unusual call volume
+    vs OI"** bonus. `grep known_frac` across the repository finds **ONE producer and ZERO
+    readers** — the disclosure B4 shipped to catch exactly this was never wired to anything.
+  * **THE DECIDING FACT IS ONE NEITHER THE AUDIT NOR THE LEDGER ROW STATES, AND IT IS THE MOST
+    PORTABLE THING HERE.** The audit's 11.4% is a share of cache **ROWS**, which cannot settle
+    whether the defect fires: if missing OI were **all-or-nothing** then `coi` would be either
+    right or exactly **0**, the shipped `coi > 0` guard would already block the bonus, and the
+    correct action would have been to **retire** the field. Measured over **41,321 front-expiry
+    chain-days across 41 cached symbols: 75.2% fully covered, 0.09% empty, 24.87% PARTIAL.** It
+    is live. **A row-level coverage statistic cannot answer a per-day question.**
+  * **THE BLAST RADIUS IS SMALL AND ONE-DIRECTIONAL, and the second half is what makes the first
+    usable.** **27 days (0.065%)** cross the 0.5 bar for no reason but the mismatch, and **ZERO
+    cross the other way** — so the defect could only ever have **ADDED** an alert, never hidden
+    one. That bounds what it can have done to the banked books **without re-running them**.
+  * **BOTH OF THE AUDIT'S PROPOSED FIXES COST MORE THAN THE DEFECT, MEASURED AGAINST THE SAME 27
+    DAYS.** Scaling `coi` by `1/known_frac` kills **501** otherwise-legitimate fires (**18.6×**);
+    suppressing the bonus below **0.9** coverage kills **1,005** (**37.2×**). **The mechanism is
+    measured rather than argued: volume is CONCENTRATED in the known-OI rows (median +0.50 excess
+    share of volume over share of rows)**, so imputing **average** OI onto rows carrying far
+    **below-average** volume inflates the denominator against a numerator those rows barely feed.
+    A 0.9 floor is also an **uncalibrated bar**, the error this record warns about most often.
+  * **SHIPPED INSTEAD, AND IT IS NEITHER OF THE TWO: take both sums over the SAME rows.** New
+    `call_volume_oi_known` / `put_volume_oi_known`. It **imputes nothing, introduces no constant,
+    and at full coverage is a bit-exact no-op.** `call_volume` stays whole-chain because the
+    put/call ratio wants it that way — **only OI goes missing, not volume.**
+  * **AN HONEST LIMIT ON THAT CHOICE, stated in the artifact and the script rather than left to be
+    noticed: the matched construction is the REFERENCE the other two are scored against, so "it
+    has no collateral" is TRUE BY CONSTRUCTION and is not evidence for it.** The case for it is a
+    priori plus the independent concentration measurement.
+  * **THE LIVE PATH IS BIT-IDENTICAL, WHICH IS THE POINT OF THE SCOPE.** Tradier ships no coverage
+    figure, so the consumer falls back to the old numerator and **no live alert changes** — pinned
+    by test. Changing which alerts the live engine fires is a **construction change, not a bug
+    fix.** The fraction is now **wired rather than retired**: it reaches `detail` beside a new
+    `oi_ratio_basis` naming which numerator was used.
+  * **NOT DONE, named so it is not mistaken for done: the banked 22b/R2 books are NOT re-run** and
+    were built under the defect; the one-directional result bounds the direction, not the size.
+    **REPORTED, OUTSIDE THIS LANE (`RUN_RULES` rule 3): BOTH live producers turn a missing open
+    interest into a zero COUNT rather than an unknown** — `providers.py:192-193`
+    (`... or 0`) and `:286-287` (`openInterest.fillna(0)`) — **the same defect class, and unlike
+    the cache neither ships a coverage figure to detect it with.** `tests/test_ma38_oi_coverage.py` 9/9, **4/4 mutations caught** including one that
+    adds the audit's own 0.9 bar; `scripts/ma38_coverage.py`,
+    `data/free_analysis/MA38_OI_COVERAGE.json`; `HANDOFF_optionsbot.md` §59.
 - **THE LIVE OPTIONS RECORD WAS CENSORED AT ONE END AND BLENDED AT THE OTHER — A WORTHLESS
   EXPIRY WAS STRANDED OPEN FOREVER, AND A TUNING LOOP WAS LEARNING FROM AN ERA THE PROJECT HAD
   FORMALLY RETIRED (2026-08-14, `MA36`+`MA37`).** `PREREG_ma36_ma37_record_integrity.md` committed

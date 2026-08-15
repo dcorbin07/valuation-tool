@@ -1,5 +1,48 @@
 # HANDOFF STATUS - shared project state
 
+## optionsbot lane, ledger evidence + `MA38` (2026-08-15) - NINE ROWS CITED, AND AN ALERT BONUS THAT DIVIDED A WHOLE-CHAIN NUMERATOR BY A PARTIAL DENOMINATOR
+
+**Zero trials.** Options `N` stays **292**, equity **224**, infra **15**;
+`rows_fixed_not_counted` **32 -> 33**, the proof MA38's row was seen and correctly excluded.
+
+- **THE ROUTING PREMISE WAS ALREADY STALE, and that is part of the answer.** The task named nine MA
+  rows "landed but not DONE"; **after merging `origin/main` (12 commits, none of them mine) SEVEN
+  WERE ALREADY DONE.** What was actually wrong was narrower: **five DONE rows carried NO commit
+  citation at all** (MA1, MA7, MA9, MA10, MA50), **two cited the PREREG sha rather than the
+  delivery** (MA13/MA19 read `0eb95b1`; the delivery is `e1fcd7c`), and **two were genuinely OPEN
+  while landed** (MA15, MA16). All nine now carry sha + date, **verified against the DIFF, never
+  the commit subject.**
+- **`MA1` WAS FIXED TWICE, INDEPENDENTLY, BY TWO LANES** - `4063f6f` (21:23) and `f8f6d31` (21:57),
+  **neither an ancestor of the other** (merge-base `3893d6b`). Complementary, end state correct -
+  but it is the collision `MA_DEPENDENCY_MAP` exists to prevent, on the item carrying **5 of wave
+  1's 8 collisions**.
+- **`MA7` IS GENUINELY DONE NOW, SUPERSEDING THIS LANE'S OWN 2026-08-14 FINDING.** That finding was
+  **right when made** (`14c00ac` touched the audit docs and **zero production files**); `983e6ee`
+  landed the real fix afterwards. **The lesson stands and the status does not.**
+- **`MA38` - the premise is confirmed exactly:** `known_frac` had **one producer and zero readers**,
+  while the consumer divided whole-chain volume by known-OI-only open interest, inflating the +8
+  "Unusual call volume vs OI" bonus by roughly 1/coverage.
+- **THE DECIDING FACT IS ONE THE AUDIT NEVER STATES.** Its 11.4% is a share of cache **ROWS**; if
+  missing OI were all-or-nothing then `coi` would be exactly 0 and the shipped `coi > 0` guard
+  would already block the bonus - the defect would be **inert** and the field should be **retired**.
+  Measured over **41,321 front-expiry chain-days on 41 symbols: 75.2% full, 0.09% empty, 24.87%
+  PARTIAL.** It is live. **A row-level statistic cannot answer a per-day question.**
+- **BLAST RADIUS SMALL AND ONE-DIRECTIONAL: 27 days (0.065%) cross the 0.5 bar on the mismatch
+  alone and ZERO cross the other way** - so it could only ever have **ADDED** an alert, never
+  hidden one.
+- **BOTH FIXES THE AUDIT PROPOSED COST MORE THAN THE DEFECT:** scaling `coi` by 1/coverage kills
+  **501** legitimate fires (**18.6x**), suppressing below 0.9 kills **1,005** (**37.2x**), because
+  **volume is CONCENTRATED in the known-OI rows (median +0.50 excess share)**. Shipped a third
+  repair - **both sums over the SAME rows** - which imputes nothing and adds no constant.
+- **LIVE IS BIT-IDENTICAL** (Tradier ships no coverage figure, so the consumer falls back), pinned
+  by test. **NOT DONE:** the banked 22b/R2 books are **not re-run**.
+- **REPORTED, OUTSIDE THIS LANE: BOTH live producers turn a missing open interest into a zero
+  COUNT rather than an unknown** - `valuation/intraday/providers.py:192-193` (`... or 0`) and
+  `:286-287` (`openInterest.fillna(0)`) - same class, and **neither ships a coverage figure at
+  all** to detect it with.
+- `tests/test_ma38_oi_coverage.py` 9/9, 4/4 mutations caught; `scripts/ma38_coverage.py`,
+  `data/free_analysis/MA38_OI_COVERAGE.json`; `HANDOFF_optionsbot.md` section 59.
+
 ## edge lane, `MA1` (2026-08-14) - PRODUCTION VERIFIED CLEAN; A COLLISION RESOLVED IN THE OTHER LANE'S FAVOUR
 
 **Zero trials.** Equity `N` stays **224**, infra **15**.

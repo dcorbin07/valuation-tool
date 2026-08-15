@@ -6175,3 +6175,159 @@ the same shape as both items closed here (a guard correct in-process and blind a
 boundary), it needs **no data and no trials**, and its failure mode is the worst of the three: a
 `BACKTEST_RESULTS.json` that ships `errors: []` after an exception, which the file's own contract
 reads as an **active claim of health**.
+
+---
+
+## 59 · NINE MA ROWS GET THEIR EVIDENCE, AND MA38 — AN ALERT BONUS DIVIDED A WHOLE-CHAIN NUMERATOR BY A PARTIAL DENOMINATOR
+
+**2026-08-15.** Two items. **Zero trials** on both; options `N` stays **292**, equity **224**,
+infra **15**, and `rows_fixed_not_counted` moves **32 → 33**, which is the proof MA38's log row
+was seen and correctly excluded rather than silently dropped.
+
+### 59.0 · The routing premise was already stale, and saying so is part of the answer
+
+The task named nine MA rows "landed on main but still not marked DONE". **After merging
+`origin/main` — 12 commits, none of them mine — seven of the nine were ALREADY DONE.** The list
+was written against a tree that had moved. What was actually wrong was narrower and different:
+
+* **Five DONE rows carried NO commit citation at all** (`MA1`, `MA7`, `MA9`, `MA10`, `MA50`) — an
+  empty `commit` cell, so the row asserted a verdict with nothing to check it against.
+* **Two DONE rows cited the PREREG sha rather than the delivery** (`MA13`, `MA19` both read
+  `0eb95b1`, the register; the delivery is `e1fcd7c`).
+* **Two were genuinely still OPEN while landed** (`MA15`, `MA16`).
+
+All nine now carry sha + date, **verified against the DIFF rather than the commit subject** —
+ledger trap 5 is a subject donating a verdict, and this lane has already been burned by it once.
+
+### 59.1 · What the verification turned up
+
+**`MA1` WAS FIXED TWICE, INDEPENDENTLY, BY TWO LANES.** `4063f6f` (21:23) adds
+`valuation/edge/weight_adoption.py`, a vintage-plus-contract gate on `save_learned`; `f8f6d31`
+(21:57) defaults `cfg.learn_enabled` FALSE with a strict `== "true"` parse and adds
+`tests/test_ma1_learning_disarmed.py`. **Neither is an ancestor of the other** (merge-base
+`3893d6b`), so this is duplicated effort rather than one commit refining another — and it is
+exactly the collision `MA_DEPENDENCY_MAP` was built to prevent, on the item carrying **5 of wave
+1's 8 collisions**. The two are complementary and the end state is correct: `config.py:210`
+parses only `true` as true, and every surviving `run-learning` string in `auto-scan.yml` is a
+**comment documenting the removal** — 0 live lines against 10 cron entries.
+
+**`MA7` IS GENUINELY DONE NOW, WHICH SUPERSEDES THIS LANE'S OWN FINDING OF 2026-08-14.** That
+finding — MA7 is not done though `14c00ac` names it — **was right when made**: `14c00ac` touched
+`VALQUO_MASTER_AUDIT.md`, its PDF and the items JSON, and **zero production files**. A real fix
+landed afterwards at `983e6ee` (`ratelimit.py` +99, `tests/test_vendor_quota.py` +242). **The
+lesson stands and the status does not**, which is the distinction a ledger exists to keep.
+
+**`MA15`/`MA16` ARE CLOSED AND BOTH CORRECT THE AUDIT'S OWN NUMBERS.** `d968651` puts
+`data\options_ticks` in `$KEEP` bucket 2 and moves `data\free_analysis` from `$SKIP` to `$KEEP`
+bucket 1, verified on the drive at 45.84 → 51.04 GB with the arithmetic exact. **MA15's size is
+7% high** (measured 4.40 GB, 70,288,482 prints over 3,884 of 3,885 alert-days, against a claimed
+4.72 GB) and **MA16's is understated ELEVEN-FOLD** (70 MB claimed, 0.80 GB measured, more than
+half of it banked PANELS — and a panel is a snapshot of a code state, so "the script rebuilds it"
+stops being true the moment the script changes, which is the row's own argument confirmed).
+
+**A DEFECT IN MY OWN VERIFICATION, reported because the failure mode is the interesting part.**
+The first present-state check reported **three false MISSes**. Both causes are worth carrying: a
+bare string search **cannot tell live code from a comment documenting that code's removal**, and
+`$SKIP` first appears in `backup_to_D.ps1`'s own **docstring** at line 11, so splitting on its
+first occurrence cut the file *before* `$KEEP` began at line 59. Re-checked between the two
+**assignments** and against non-comment lines only, all three pass.
+
+### 59.2 · MA38 — the premise is confirmed, and the deciding fact is one the audit never states
+
+`chain_summary` sums `call_volume` over **every** contract in the front expiry and `call_oi` over
+**only** those whose open interest is known — B4 made it exclude the `-1` the ThetaData cache
+writes when the OI call failed, which was right. `options_signals` then forms
+`call_volume / call_oi > 0.5` for its **+8 "Unusual call volume vs OI"** bonus, dividing a
+whole-chain numerator by a partial denominator. `grep known_frac` across the repository returns
+**one producer and zero readers**: the disclosure B4 shipped to catch precisely this was wired to
+nothing.
+
+**THE AUDIT'S 11.4% IS A SHARE OF CACHE ROWS AND CANNOT SETTLE WHETHER THE DEFECT FIRES.** If
+missing OI were **all-or-nothing**, `coi` would be either right or exactly **0**, the shipped
+`coi > 0` guard would already block the bonus, and the correct action would have been to
+**retire** the field. Measured over **41,321 front-expiry chain-days across 41 cached symbols**:
+
+| coverage of the front-expiry call chain | days | share |
+|---|---|---|
+| fully covered | 31,064 | 75.2% |
+| **PARTIAL** | **10,296** | **24.87%** |
+| empty (already blocked by `coi > 0`) | 37 | 0.09% |
+
+**A row-level coverage statistic cannot answer a per-day question**, and the per-day answer is
+what decides between fixing and retiring.
+
+**A PRECISION CORRECTION AGAINST THE AUDIT, AND AGAINST MY OWN FIRST DRAFT OF THIS SECTION.** The
+audit says the defect "fires alerts the module's own docstring (*'reconstruction is STRICTER …
+fires fewer, never more'*) says it cannot". The quote is **verbatim and real** — but it is scoped
+to the **volume-surge** deviation in `options_backtest`'s header, not a blanket guarantee about
+the reconstruction, and my first code comment inherited the over-reading. **What the defect
+actually breaks is that docstring's ARGUMENT** — that every known deviation runs in the
+conservative direction, so a surviving edge is not an artifact of one. **This was a second known
+deviation, running the other way.** The header now records it beside the first.
+
+### 59.3 · The blast radius is small, and one-directional
+
+**27 days (0.065%)** cross the 0.5 bar for no reason but the mismatch. **ZERO cross the other
+way.** So the defect could only ever have **ADDED** an alert, never hidden one — which is what
+bounds its effect on the banked books without re-running them.
+
+### 59.4 · Both fixes the audit proposes cost more than the defect
+
+Scored against those same 27 days:
+
+| repair | legitimate fires killed | vs the defect |
+|---|---|---|
+| (a) audit: scale `coi` by `1/known_frac` | 501 | **18.6×** |
+| (b) audit: suppress below 0.9 coverage | 1,005 | **37.2×** |
+| **(c) shipped: both sums over the SAME rows** | — | — |
+
+**The mechanism is measured rather than argued: volume is CONCENTRATED in the known-OI rows,
+median +0.50 excess share of volume over share of rows.** So (a) credits **average** open
+interest to contracts carrying far **below-average** volume, inflating a denominator against a
+numerator those rows barely feed. (b) is additionally an **uncalibrated bar** — the error this
+project's record warns about more than any other.
+
+**AN HONEST LIMIT ON (c), stated in the artifact and the script docstring rather than left to be
+noticed: (c) is the REFERENCE that (a) and (b) are scored against, so "it has no collateral" is
+TRUE BY CONSTRUCTION and is NOT evidence for it.** The case for it is a priori — it imputes
+nothing and introduces no constant — plus the independent concentration measurement above.
+
+### 59.5 · What shipped
+
+New `call_volume_oi_known` / `put_volume_oi_known` on `chain_summary`: volume over exactly the
+rows whose OI was known. `call_volume` **stays whole-chain**, because the put/call ratio wants it
+that way and **only OI goes missing, never volume**. At full coverage the repair is a **bit-exact
+no-op**, which is what makes it safe to apply unconditionally.
+
+**THE LIVE PATH IS BIT-IDENTICAL AND THAT IS THE POINT OF THE SCOPE.** Tradier ships no coverage
+figure, so `call_volume_oi_known` is absent there, the consumer falls back to the old numerator,
+and **no live alert changes** — pinned by test. Changing which alerts the live engine fires would
+be a **construction change, not a bug fix**.
+
+The fraction is **wired rather than retired**: it reaches `detail` beside a new `oi_ratio_basis`
+naming which numerator was used, because an OI ratio built on 20% of a chain is not the same
+statistic as one built on 100% and a reader is entitled to know which they have.
+
+### 59.6 · Not done, and one bug reported outside this lane
+
+**The banked 22b/R2 books are NOT re-run** and were built under the defect. The one-directional
+result bounds the **direction**; it does not price the **size**, and pricing it needs a re-scan.
+
+**REPORTED, NOT FIXED (`RUN_RULES` rule 3, outside this lane): BOTH live producers turn a missing
+open interest into a zero COUNT rather than an unknown** — `providers.py:192-193` reads
+`(o.get("open_interest") or 0)` and `:286-287` reads `openInterest.fillna(0)`. Same defect class as
+the `-1` B4 repaired, and **worse in one respect: neither ships a coverage figure at all**, so
+there is nothing to detect it with — `grep -c oi_known valuation/intraday/providers.py` returns
+**0**, which is also what makes this lane's fallback safe. A total absence is caught by the
+`coi > 0` guard; a partial one is not. **Corrected against my own first draft, which named only
+the Tradier provider.**
+
+`tests/test_ma38_oi_coverage.py` **9/9**, with **4/4 deliberate mutations caught** — including
+reverting the numerator, dropping the `detail` disclosure, and adding the audit's own 0.9 bar.
+`scripts/ma38_coverage.py` reproduces every figure above;
+`data/free_analysis/MA38_OI_COVERAGE.json`.
+
+**Recommended next: `MA39`** — the degraded-run detector watches 6 of 13 result blocks and
+`build_payload` never reads the error string, so an exception can ship a `BACKTEST_RESULTS.json`
+asserting `errors: []`, which its own contract reads as an active claim of health. Zero data,
+zero trials.

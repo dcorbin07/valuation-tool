@@ -79,6 +79,17 @@ labels fire — only the score, and only downward. The reconstruction is therefo
 live: it fires fewer alerts, never more. That is the conservative direction, and any surviving
 edge is not an artifact of it.
 
+A SECOND DEVIATION, WHICH RAN THE OTHER WAY, AND IS NOW FIXED (audit MA38, 2026-08-15). The
+claim above is scoped to the volume-surge bonus; it was never a blanket promise, and the wider
+argument — that every known deviation is conservative — held only until this one. `chain_summary`
+summed volume over every contract while summing open interest over only the contracts whose OI
+was known, so `intraday.options.options_signals`'s volume-vs-OI bonus divided a whole-chain
+numerator by a partial denominator and fired MORE often than live, not fewer. Measured over
+41,321 front-expiry chain-days: 24.87% are partially covered and 27 days (0.065%) crossed that
+bonus's threshold on the mismatch alone, with ZERO crossing the other way. Repaired by summing
+both sides over the same rows (`call_volume_oi_known`). The conservative-direction argument is
+restored; the banked 22b/R2 books predate the repair.
+
 --------------------------------------------------------------------------------------------
 PRE-COMMITTED ADOPTION BARS (§4 construction choice, §5 filters).
 
