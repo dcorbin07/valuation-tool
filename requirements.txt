@@ -1,24 +1,43 @@
+# The human entry point: what this project depends on, and why.
+#
+# CI AND PRODUCTION DO NOT INSTALL THIS FILE -- they install the generated, hash-checked
+# `requirements.lock.txt` / `requirements-saas.lock.txt` (master audit MA12). This file stays
+# the readable declaration and the local-development path; regenerate the locks with
+# `python scripts/gen_requirements_lock.py` after any deliberate change here.
+#
+# EVERY LINE NOW CARRIES AN UPPER BOUND, AND THE REASON IS A MEASUREMENT, NOT A CONVENTION.
+# With `>=` alone, SEVEN of the eleven requirements below resolved (2026-08-15) to a HIGHER
+# MAJOR VERSION than the floor they were written against -- numpy 2.2.6 against `>=1.24`,
+# yfinance 1.6.0 against `>=0.2.40`, pypdf 6.16.1 against `>=5.0`, reportlab 5.0.0 against
+# `>=4.0`, anthropic 0.122.0 against `>=0.34` (plus stripe and gunicorn in the saas file).
+# The caps are set one major above what is locked, so NO resolution that works today stops
+# working; what they close is the next silent jump.
+#
+# The `# locked:` note is the version the lockfile actually pins -- i.e. the version CI and
+# Render are really running, which is the number worth knowing when something breaks.
+
 # Core valuation engine
-yfinance>=0.2.40      # live market data + financial statements (no API key)
-pandas>=2.0
-numpy>=1.24
-requests>=2.31        # SEC EDGAR + macro data
-scipy>=1.10           # solvers for reverse DCF / distributions
+yfinance>=0.2.40,<2      # live market data + financial statements (no API key)   # locked: 1.6.0
+pandas>=2.0,<3                                                                    # locked: 2.3.2
+numpy>=1.24,<3                                                                    # locked: 2.2.6
+requests>=2.31,<3        # SEC EDGAR + macro data                                 # locked: 2.34.2
+scipy>=1.10,<2           # solvers for reverse DCF / distributions                # locked: 1.16.3
 
 # Web dashboard
-Flask>=3.0
+Flask>=3.0,<4                                                                     # locked: 3.1.3
 
 # Exports
-openpyxl>=3.1         # Excel model export (mirrors the Nike workbook)
-reportlab>=4.0        # PDF valuation report
+openpyxl>=3.1,<4         # Excel model export (mirrors the Nike workbook)         # locked: 3.1.5
+reportlab>=4.0,<6        # PDF valuation report                                   # locked: 5.0.0
 # pypdf is TEST-ONLY: tests/test_withhold.py reads the exported PDF back to prove no
 # withheld valuation figure survives in the rendered file. Checking the code that builds a
 # document is not the same as checking the document, and this one is a liability surface —
-# so CI checks the file itself. Kept here because CI installs requirements.txt only.
-pypdf>=5.0
+# so CI checks the file itself. Kept here because CI installs the core set only.
+pypdf>=5.0,<7                                                                     # locked: 6.16.1
 
 # Optional AI qualitative layer (only needed if you set ANTHROPIC_API_KEY)
-anthropic>=0.34       # pip install anthropic  — safe to skip if you won't use AI
+# anthropic is pre-1.0, so its MINOR bumps are the breaking ones -- hence `<1`, not `<2`.
+anthropic>=0.34,<1       # pip install anthropic  — safe to skip if you won't use AI  # locked: 0.122.0
 
 # Optional: load keys from a .env file
-python-dotenv>=1.0
+python-dotenv>=1.0,<2                                                             # locked: 1.2.2

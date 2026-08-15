@@ -6,6 +6,8 @@ It grew out of, and generalizes, my hand-built [Nike DCF](../nike-dcf-valuation)
 
 > **Educational tool, not investment advice.** Fair value is a *model output*, not a price target. Automated assumptions are estimates — verify against primary filings before acting on anything.
 
+> 🧭 **Working on this repo, or checking what has actually been measured? Read [START_HERE.md](START_HERE.md) first** — clone-to-green-suites in five minutes, the honest state of the evidence, and which file answers which question. [VALQUO_LEDGER.md](VALQUO_LEDGER.md) is the contractual answer to "is X done?".
+
 ---
 
 ## What it does
@@ -119,11 +121,22 @@ valuation-tool/
 │   │                               #   comps, sensitivity, scoring, pipeline
 │   ├── ai/analyst.py               # optional LLM qualitative layer
 │   ├── report/                     # excel + pdf exporters
+│   ├── screener/                   # whole-market hot-stocks screener + index track
+│   ├── intraday/                   # intraday + options signals
+│   ├── edge/                       # the Edge Lab: point-in-time backtest, CPCV,
+│   │                               #   placebo calibration, forward paper track
+│   ├── saas/                       # accounts, billing, digests (hosted tier)
 │   └── web/                        # Flask app, dashboard (HTML/CSS/JS)
-└── tests/                          # offline engine tests + fixtures
+├── scripts/                        # research + maintenance entry points
+└── tests/                          # offline tests + fixtures (no data/ required)
 ```
 
-Run the tests with `python tests/test_engine.py` (no pytest needed) or `python -m pytest tests/`.
+Run one suite with `python tests/test_engine.py` (no pytest needed), or the whole gate — the
+Action runs **every** `tests/test_*.py` before anything lands on `main`:
+
+```bash
+for f in tests/test_*.py; do python "$f" || echo "FAILED $f"; done
+```
 
 ---
 
@@ -138,14 +151,14 @@ python run_saas.py         # local: landing → register → gated dashboard at 
 I'd rather state these plainly than oversell the tool:
 
 - **A DCF is only as good as its inputs.** The assumption engine is a sensible starting point, not gospel — use the "tweak & re-run" panel and the reverse-DCF check, and lean on comps where DCF reliability is flagged low.
-- **The 1–100 score is a transparent heuristic, not a proven alpha signal.** It's designed to be explainable and sensible, but I have *not* yet run a point-in-time backtest establishing that it predicts forward returns (in the same spirit as my equity-screener project, I'd rather build the honest test than claim an edge I haven't measured). That backtest is the top item on the roadmap.
+- **The 1–100 score is a transparent heuristic, and the backtest that tests it is deliberately hard to pass.** The point-in-time backtest has since been built and run (see [START_HERE.md](START_HERE.md) §4): on 2,531 names over 69 quarterly rebalances the top decile beat the equal-weighted universe by **+7.2%/yr gross of costs**, and the long-short spread **clears** the project's own placebo-calibrated significance floor while **failing** the stricter hurdle implied by counting every trial the research log has ever charged. Both numbers ship in `BACKTEST_RESULTS.json`. It is **one panel**, it is **not a forward test**, and the forward paper track that would settle it does not return a verdict for years. The overwhelming majority of the research findings are rejections and nulls — that remains the honest headline.
 - **Financials (banks/insurers) don't fit an unlevered-FCF DCF** and are flagged accordingly; treat their output as multiples-only.
 - **Comps use sector-benchmark multiples by default** — a rough cross-check, not a curated peer set (supply your own peers for precision).
 - **`yfinance` scrapes Yahoo** and can occasionally be rate-limited or change labels; SEC EDGAR backstops US names.
 - **Not investment advice.**
 
 ## Roadmap
-- Point-in-time backtest of the score's predictive power (information coefficient, quantile spreads, out-of-sample).
+- ~~Point-in-time backtest of the score's predictive power~~ — **built and run**; see [START_HERE.md](START_HERE.md). The live successor is the forward paper track (`PAPER_TRACK_CONTRACT.md`), pre-registered and years from a verdict.
 - Real peer-set selection for comps.
 - Segment-level revenue builds and explicit NWC modeling.
 - Persisted watchlists and historical snapshots.

@@ -1,5 +1,55 @@
 # HANDOFF STATUS - shared project state
 
+## edge lane, `MA5` + `MA6` (2026-08-15) — THE TWO INFERENCE INSTRUMENTS
+
+**Both `FIXED`-class, zero trials.** No hypothesis, no threshold, no verdict. **Equity `N` stays
+224**, options 292, infra 15 — `by_domain` bit-identical across the log append, with
+`rows_fixed_not_counted` 34 → 36 as the proof the rows were seen and correctly excluded. **No
+published claim moves; `BACKTEST_RESULTS.json` needs no re-run.** 83 suites, 0 failures.
+
+- **`MA5` — THE AUDIT FOUND TWO HARVEY–LIU–ZHU BARS; MEASURED, THE SHIPPED PACKAGE CARRIED FOUR:**
+  `statistics.hlz_significant` (the **CONSTANT** `|t| > 3.0`), `fundamental_panel._trials_haircut`,
+  the inline `hurdle` in its `multiple_testing` block, and `ablation.py`'s own copy — **and only
+  `_trials_haircut` saw M1's floor.** One definition now (`statistics.hlz_hurdle`), every shipped
+  site delegating, pinned by a sweep that fails if a second √(2·ln N) appears in `valuation/`.
+- **"3.0" IS NOT A DIFFERENT BAR — it is √(2·ln N) frozen at N = 90**, which this project passed on
+  2026-08-06. **The staleness runs in the FLATTERING direction** (the hurdle only rises with
+  trials), so a frozen constant can only ever be too easy. `hlz_significant` now **requires**
+  `n_trials` with **no default** — a default is exactly how it froze.
+- **WHICH PUBLISHED COMPARISONS MOVE: NONE, checked rather than asserted.** The headline long-short
+  HAC *t* **2.6199** fails both bars. **X2's "clears 3.0 on three of the seven" holds at every `N`
+  the project has ever run** (2.9768 / 3.0 / 3.0478 / 3.0834 / 3.2899), because every candidate
+  hurdle falls in the empty gap between the 4th and 5th grids (**2.926 and 3.374**) — by luck, not
+  design. It first becomes four-of-seven-fail at equity **`N` > 296.5**.
+- **THE REFACTOR IS BIT-IDENTICAL:** max |Δ| **0.000e+00** over 2,010 values; `_trials_haircut(8)`
+  still returns exactly **3.2898772171176964**, the literal MA13's stamp pins, so no stamp edit was
+  required. **A near-miss the sweep caught and the audit never named:** `param_search.py` computes
+  Hansen's SPA recentring **√(2·ln ln T)** over sample length — folding it in would have silently
+  changed the SPA test. Excluded by structure, never by filename.
+- **`MA6` — THE TRIAL COUNTER'S ONE PATH ROUTED TOWARD A *SMALLER* `N`.** A row whose domain cell
+  resolves to no bucket was added to `trials` and to **none** of the buckets `trial_count` reads —
+  a real search charged to nobody, while every other degradation here is routed toward a larger `N`
+  and reported. **M1's own stated error, in M1's own parser, for the second time.** Unresolved rows
+  are now charged to **every** family (they cannot be attributed; overstating `N` is the safe
+  direction), named in `rows_domain_unresolved`, and the
+  `sum(by_domain) + unresolved == trials` invariant ships as a checkable boolean.
+- **DOES `N` MOVE? NO — 0 unresolved rows measured**, so the DSR bar and the HLZ hurdle are
+  unchanged and nothing needed re-checking. The defect is **latent**; a test asserts the zero so a
+  future row that loses its domain surfaces as a deliberate change.
+- **THE AUDIT'S SECOND HAZARD IS CLOSED REPORTED-ONLY, AND HALF OF IT DELIBERATELY IS NOT.** Both
+  log tables are **nine columns wide with different orders**, so the width guard cannot see a
+  misfiled row. `rows_misfiled_table` catches one direction with a zero-false-positive rule and
+  reads empty; **the reverse direction is not detected** — it would need a vocabulary of verdict
+  words that would cry wolf on the first new one. Also closed: `rows()` accepted `use_cache` and
+  ignored it, and both caches now key on (path, mtime, size).
+- **STATUS CORRECTION: neither row was ever `IN PROGRESS`.** The ledger carried both as in flight
+  with the app fixer; that lane's own handoff says *"the real MA5/MA6 are MEDIUM edge-lane items …
+  not this lane at all"* — the **same id collision the ledger already documents two rows away** in
+  `MA9`/`MA10`. **11 fixtures, all 11 failing against the pre-fix tree.**
+- **NOT DONE, named so it is not mistaken for done:** the four `scripts/` copies of √(2·ln N) are
+  untouched (they reproduce banked artifacts), and dated per-session `HANDOFF_*` entries keep their
+  historical "hurdle of 3.0" wording. `HANDOFF_edge_audit.md` MA5+MA6.
+
 ## optionsbot lane, ledger evidence + `MA38` (2026-08-15) - NINE ROWS CITED, AND AN ALERT BONUS THAT DIVIDED A WHOLE-CHAIN NUMERATOR BY A PARTIAL DENOMINATOR
 
 **Zero trials.** Options `N` stays **292**, equity **224**, infra **15**;

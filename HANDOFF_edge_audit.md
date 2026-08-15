@@ -12075,3 +12075,201 @@ repair retracts nothing and revises no number — it changes what the *next* bro
 **81 suites, 0 failures** (guards 39/40 pass with 1 pre-existing options-lane `xfail`, unrelated
 and untouched). `valuation/edge/payload_schema.py`, `results_file.py`, `fundamental_panel.py`;
 `tests/test_guards.py`.
+
+---
+
+# `MA5` + `MA6` — 2026-08-15 — the two inference instruments, one session
+
+**Both `FIXED`-class, zero trials.** No hypothesis, no threshold, no verdict. **Equity `N` stays
+224**, options 292, infra 15, unified 0 — `by_domain` is **bit-identical** across the log append
+and `rows_fixed_not_counted` rises **34 → 36**, which is the proof the two rows were seen and
+correctly excluded rather than silently dropped. **No published claim moves and
+`BACKTEST_RESULTS.json` needs no re-run.**
+
+## 0. A STATUS CORRECTION FIRST: NEITHER ROW WAS EVER IN FLIGHT
+
+`VALQUO_LEDGER.md` carried both as **`IN PROGRESS` (app fixer)**, and its summary counted *"`IN
+PROGRESS` (5)"*. That is wrong, and **the refutation was already in this repository, two rows
+away**. The app fixer's commissioning task *named* MA5/MA6, but under the **same id collision the
+ledger itself documents in the `MA9` and `MA10` rows**; that lane's handoff says so outright —
+*"the real MA5/MA6 are MEDIUM edge-lane items in `valuation/edge/`, i.e. not this lane at all"*
+(`HANDOFF_appfixes.md` §33) — and it fixed MA9/MA10/MA50.
+
+So two rows were marked in flight on the strength of an assignment that was for two *other* rows.
+Checked at landing: no commit, no handoff section, and **no `worktree-ma5*` branch has ever
+existed**. The evidence rule the ledger bullet proposes for itself is exactly what caught it.
+**A cross-reference is only worth having if something reads it.**
+
+**THE AUDIT'S OWN DEPENDENCY GRAPH REQUIRED THIS ORDER, AND IT IS SATISFIED RATHER THAN IGNORED.**
+`scripts/ma_dependency_map.py` carries the logical edge `MA5 → MA6`: *"the sqrt(2 ln N) bar IS a
+function of N, so it cannot be reconciled against the 3.0 constant while the N counter still has a
+silent path."* Both land in one commit with MA6's path closed, so the bar MA5 derives is derived
+from a denominator that no longer has a hole in it. The edge is why they were commissioned
+together, and it is the reason the "does `N` move?" question had to be answered *before* the
+"which comparisons move?" one.
+
+## 1. `MA5` — THE AUDIT SAID TWO BARS; THE SHIPPED PACKAGE CARRIED FOUR
+
+| site | form | floored at the log's `N`? |
+|---|---|---|
+| `statistics.hlz_significant` | **CONSTANT `abs(t) > 3.0`** | n/a — it has no `N` |
+| `fundamental_panel._trials_haircut` | `sqrt(2 ln max(2, n_trials, _trial_N()))` | **yes** |
+| `fundamental_panel` `multiple_testing.hlz` | inline `sqrt(2 ln max(2, n_eq))` | no (equity `N` passed in) |
+| `ablation.py` `deflated_sharpe_at` | inline `sqrt(2 ln max(2, n_trials))` | **no** |
+
+Audit `B7`'s defect class — three composite functions, one repair — with a *moving* target instead
+of a static one.
+
+**THE CONSTANT IS NOT A DIFFERENT BAR. It is `sqrt(2 ln N)` evaluated at N = 90 and then frozen**
+(`exp(3²/2) = 90.02`). The project passed N = 90 on **2026-08-06**, when X3's re-run took equity
+`N` from 84 to 104. The two have disagreed ever since, and **because the hurdle only ever RISES
+with trials, a frozen constant can only ever be too EASY** — the staleness runs in the flattering
+direction, which is the property that makes it worth fixing before a second caller exists.
+
+**THE FIX.** `statistics.hlz_hurdle(n_trials)` is the one definition; the three other sites
+delegate. `hlz_significant(t, n_trials)` takes the count and **`n_trials` is REQUIRED with no
+default** — a default is precisely how this froze in the first place, and defaulting to the live
+research log would make a pure-arithmetic primitive read a file from disk, so a unit test of the
+*arithmetic* would depend on the project's trial history. `_trials_haircut` keeps its **flooring**
+locally, because that is the adopt gate's own decision and not a property of the hurdle.
+
+**THE REFACTOR IS BIT-IDENTICAL, MEASURED NOT ASSUMED:** `math.sqrt/log` against the previous
+`np.sqrt/np.log` over **2,010 values, max |Δ| exactly 0.000e+00, zero non-identical**, and
+`_trials_haircut(8)` still returns exactly **3.2898772171176964** — the literal `MA13`'s stamp
+pins, so no stamp edit was required.
+
+## 2. WHICH PUBLISHED COMPARISONS MOVE: **NONE** — AND THAT WAS CHECKED, NOT ASSERTED
+
+* **The headline.** Long-short HAC *t* **2.6199** fails 3.0 and fails 3.2899. It would only have
+  cleared at `N` < 31. No movement.
+* **X2's seven rebalance grids**, the one live claim phrased directly against 3.0 (*"CLEARS 3.0 on
+  three of the seven"*). The seven are **2.703 / 2.836 / 2.850 / 2.926 / 3.374 / 3.410 / 3.517**,
+  and **every hurdle this project has ever had lands in the empty gap between 2.926 and 3.374**:
+
+  | regime | hurdle | clears |
+  |---|---|---|
+  | N = 84 (X2's own regime) | 2.9768 | **3 of 7** |
+  | the frozen constant | 3.0 | **3 of 7** |
+  | N = 104 | 3.0478 | **3 of 7** |
+  | N = 116 | 3.0834 | **3 of 7** |
+  | N = 224 (today) | 3.2899 | **3 of 7** |
+
+  So the published count is right at every `N` to date — **by luck of where the draws sat, not by
+  design.** It first becomes four-of-seven-fail at equity **`N` > 296.5**, roughly 70 trials out.
+  This is session 12's placebo-floor warning in a second costume: *a bar that is a function of `N`
+  may not be quoted across regimes without checking.*
+* **`test_edge.py`'s own example**, `hlz_significant(3.4)`, flips at **`N` > 323.8**.
+
+**THE EXPOSURE, STATED AS A NUMBER: a statistic anywhere in [3.0, 3.2899] is "significant" under
+the constant and is not under the honest bar.** Nothing sits there today. That is what makes MA5
+a latent defect worth closing rather than a retraction.
+
+## 3. A NEAR-MISS THE SWEEP CAUGHT AND THE AUDIT NEVER NAMED
+
+`param_search.py:435` computes Hansen's SPA recentring threshold
+`A = (omega/sqrt(T)) * sqrt(2 ln ln T)`. It shares the shape and is a **different statistic of a
+different quantity** — the law of the **iterated** logarithm over the **sample length `T`**, not a
+trial count. **Consolidating it into `hlz_hurdle` would have silently changed the SPA test.** The
+guard excludes it **by structure** (its log argument is itself a log), never by filename, so a
+genuine HLZ copy appearing in that same file still fails. It was found by running the sweep, not
+by reading the audit.
+
+## 4. TWO DEFECTS IN MY OWN GUARD, BOTH FOUND BY RUNNING IT
+
+* **The source sweep fired on its own documentation** — twice: on the block comment explaining the
+  fix and on a docstring recording what the old expression was. It now strips COMMENT and STRING
+  tokens with `tokenize` before matching. *A guard that cannot tell code from prose about code is
+  not measuring the tree.*
+* **A docstring of mine claimed a fixture "PASSES pre-fix".** Measured by restoring the sources to
+  `HEAD`, it **errors** pre-fix — there is no `hlz_hurdle` to import. The *substance* was right
+  (the copies did agree to the bit) and the claim about the *test* was wrong. Corrected in place
+  and kept, because the lesson is: **do not describe a fixture's pre-fix behaviour without running
+  it.**
+
+## 5. `MA6` — THE ONE PATH ROUTED TOWARD A **SMALLER** `N`
+
+`by_domain[dom] += k` ran only when a domain resolved. A row whose `domain` cell is not exactly one
+of `("equity","options","unified","infra")` — a typo, a blank, an unregistered name — was added to
+`trials` and to **no bucket**, and `trial_count(domain=...)` reads the bucket. **A real search over
+the data, charged to nobody.**
+
+Every other degradation in this parser is deliberately routed toward a **larger** `N` and reported
+(`rows_malformed`, `rows_changed_by_parser_fix`). **This one was routed the other way and reported
+nowhere** — and understating `N` OVERSTATES the significance of every DSR- and HLZ-gated claim.
+That is M1's own stated error, inside M1's own parser, **for the second time** after session 12's
+whole-row `FIXED` grep.
+
+**CLOSED BY CHARGING, NOT BY GUESSING.** An unresolved row cannot be attributed, so `trial_count`
+charges it to **every** family. Overstating `N` understates significance, which is the safe
+direction. `by_domain` deliberately keeps meaning *"rows that RESOLVED"*, so:
+
+* `sum(by_domain) + unresolved == trials` stays an invariant a reader can check by hand, and ships
+  as a boolean (`by_domain_plus_unresolved_equals_trials`);
+* **`MA13`'s committed-literal stamp still pins the same quantity it always pinned** — no stamp
+  edit was needed, which is the check that the two instruments did not quietly redefine each other.
+
+**THE COUNTER THAT DID NOT EXIST:** `rows_domain_unresolved` (id, `n_trials`, the offending cell)
+and `trials_domain_unresolved`.
+
+## 6. DOES `N` MOVE? **NO.**
+
+Measured on the log as it stands: **0 unresolved rows, 0 misfiled rows, 0 malformed rows**;
+`trials_logged` 531; `by_domain` `{equity 224, options 292, unified 0, infra 15}`, summing to 531.
+So **equity `N` stays 224, the Deflated Sharpe bar is unchanged, `sqrt(2 ln N)` stays 3.2899, and
+no affected claim needed re-checking.** The defect is **latent**, exactly as the audit measured it.
+The fix changes what the **next** typo'd domain cell will cost, and a test now asserts the zero so
+a future row that *does* lose its domain shows up as a deliberate change rather than a silent one.
+
+## 7. THE AUDIT'S SECOND HAZARD, AND THE HALF I DELIBERATELY DID NOT CLOSE
+
+**Both tables in `RESEARCH_LOG.md` are NINE columns wide with different orders**, so the alignment
+guard (`len(cells) == hdr["_width"]`) **cannot see a row appended under the wrong header**. Table 1
+ends `... threshold verdict source`; table 2 ends `... verdict n source`.
+
+`rows_misfiled_table` detects it by the one **zero-false-positive** rule available: a verdict cell
+of the exact form `n=<k>` cannot be a verdict. It reads **empty** on the real log, and a refusal
+test pins that it does not fire on ordinary rows (including `n/a` and blank `n` cells, of which
+there are five).
+
+**THE REVERSE DIRECTION IS NOT DETECTED, AND THAT IS A DECISION RATHER THAN AN OVERSIGHT.** A
+table-1 row under table-2's header would need a *vocabulary of verdict words* to catch — a second
+definition of "what is a verdict", which would cry wolf the first time someone wrote a new one.
+*"A gate that cries wolf is one you learn to ignore."* Reported here so it is not mistaken for
+covered.
+
+**A second-order effect worth knowing:** a misfiled row is also charged `k = 1` from its table-1
+reading rather than its own `n=<k>`, i.e. it can be *under*-counted. That already surfaces in
+`rows_changed_by_parser_fix`, so it is visible; it is not separately fixed.
+
+## 8. ALSO CLOSED
+
+`rows(path, use_cache=True)` accepted the flag and called `_parse` unconditionally — **the
+parameter was a lie**. Harmless in outcome (it always re-read, the safe direction) and closed
+because a parameter that does nothing is indistinguishable from one that stopped working. Both
+caches are now keyed on **(path, mtime, size)**, so a file that changes on disk re-parses instead
+of serving a stale count — which also repairs the pre-existing path-only key in `detail`.
+
+## 9. FIXTURES — M3's STANDARD, MEASURED BY RESTORING THE SOURCES TO `HEAD`
+
+**11 new fixtures; ALL 11 FAIL against the pre-fix tree** (the 5 pre-existing MA13 tests pass in
+both states, which is the control). Two fail **behaviourally** — the frozen constant, and the sweep
+finding four copies — and the charge fixture asserts `trial_count == 25` **before** it touches any
+new key, deliberately, so it fails with the real number (20) rather than erroring on the absence of
+the repair. The rest fail on the absent API, which is the honest shape for a counter that did not
+exist.
+
+## 10. NOT DONE, NAMED SO IT IS NOT MISTAKEN FOR DONE
+
+* **`scripts/` copies are untouched.** `r4_x1_accounting_universe.py`, `x7_reconcile.py`,
+  `ma19_recalibrate.py` and `live_theme_cost.py` each carry their own `sqrt(2 ln N)`. They
+  reproduce **banked artifacts**, so changing them changes what reproduces a published number for
+  no correctness gain; the sweep is scoped to `valuation/` for that reason. (`live_theme_cost.py`'s
+  copy has **no `max(2, ·)` guard**, so it is `-inf` at n = 1 — reported, not repaired.)
+* **Dated per-session `HANDOFF_*` entries** keep their "hurdle of 3.0" wording as the historical
+  record. Corrected in place instead: `statistics.py`, `fundamental_panel.py`'s *"lead with that
+  one"* guidance, `RESEARCH_LOG.md`'s opening prose, `DATA_AND_METHODS.md`, `CLAUDE.md`'s B9 and X2
+  bullets, and `tests/test_edge.py`.
+* **The `fundamental_panel` guidance was doubly wrong and is worth calling out**: *"Lead with the
+  long-short t of 3.52 against the Harvey-Liu-Zhu hurdle of 3.0. That one is real."* The **3.52 is
+  the void pre-B6 panel**, the live figure is **2.6199**, and it **FAILS** the honest bar — so the
+  sentence pointed at the project's most-failed bar and called it the one that is real.

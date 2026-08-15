@@ -388,3 +388,168 @@ given rather than the roster.
   it will notice and redo those names on its own.
 - **For whoever owns the miner:** the `-1` OI sentinel is the root of findings 1 and 5, and it
   also flows into `options_backtest.chain_summary`'s `call_oi`/`put_oi` sums. Not touched here.
+
+---
+
+# 2026-08-15 — MASTER AUDIT, THE GREEKS LANE'S LAST FOUR: MA4, MA18, MA30, MA52
+
+**One line:** two real defects fixed on the contract-bound track and the licence boundary
+(`MA4`, `MA52`), one disclosure built and deliberately not turned into a screen (`MA30`), and one
+row verified and left blocked because the missing piece is a schedule this repository cannot own
+(`MA18`) — **and MA18's own test became reachable for the first time and FAILED.**
+
+**None of the four had been landed by any lane.** All four read `OPEN`, and that was correct.
+Every claim below is a measurement taken this session, not a restatement of the audit.
+
+## MA4 — the bound history was rewritten non-atomically and lost unknown columns. FIXED.
+
+`valuation/screener/index_mark.py::append_row`. **Both defects confirmed in source before being
+fixed**, and both are about EVERY row in the file rather than the row being added, because
+appending one row rewrites the whole file — the file `track-backup.yml` calls *"the one thing that
+can't be re-derived"*, whose only other copies are a WEEKLY backup cron and one laptop.
+
+1. `open(path, "w")` truncated first, so an interruption between truncate and flush left the bound
+   series empty or partial. Now written to `path + ".tmp"`, fsynced, and `os.replace`d over the
+   original — **so a failed write leaves the PREVIOUS file intact**, which is also why no separate
+   pre-write copy is taken: the original *is* the copy until the rename lands.
+2. Every historical row was re-projected onto `ROW_COLUMNS`, so the first append after the file
+   gained a column would have deleted that column **from every row at once, silently**. The header
+   is now the union of what is on disk with `ROW_COLUMNS`.
+
+**NEITHER PIN IS TAKEN ON TRUST.** The superseded write is kept verbatim as a test fixture and run
+against the same inputs: it drops the added column from all three rows, and interrupted the same
+way it leaves the file **shorter than it found it**. A regression test that cannot be shown to fail
+against the defect it names is worth nothing.
+
+**Three things the audit did not ask for, each because the fix exposed the question.** A ragged
+file is now **REFUSED rather than normalised** — `csv.DictReader` pools surplus cells under one key
+and pads short rows, so a rewrite would invent or discard cells in silence; refusing leaves a
+recording gap that `track_meter.recording_history` can see, while normalising loses data nothing
+can recover. A key on the incoming row that is in neither the file nor `ROW_COLUMNS` is still not
+written — widening the bound schema should take a deliberate edit, not a caller's typo — but it now
+comes back in `ignored_fields` instead of vanishing. **And the guard was checked against the REAL
+file before shipping**, because a guard that refuses the live series is worse than the defect it
+replaces: the tracked backup parses clean, zero ragged rows.
+
+**A minor path correction against the record:** the shipped `data_export` backup of the live series
+carries **no `day_n` column**, while `ROW_COLUMNS` says `day_n` is *"carried because the existing
+rows carry it"*. The local copy does carry it, so the claim is true of one copy and not the other.
+The union direction only ever ADDS, so this is inert either way.
+
+`tests/test_index_mark.py` **31/31** (was 23/23).
+
+## MA18 — verified, severity confirmed, and NOT closed.
+
+`readonly`, `modifies: []`. The deliverable is evidence; the missing piece is a schedule.
+
+**THE REPO HALF IS NOW MEASURED RATHER THAN ASSERTED.** Nothing here schedules the writer: the
+mechanism and its script are named in no workflow, batch file or task definition, and every cron in
+`.github/workflows/` is a scan, a recap, a watchdog or the weekly backup. The audit's
+`evidence_needed` asks for confirmation from the Cowork lane; **that half is still theirs.**
+
+**THE ROW'S OWN TEST BECAME REACHABLE FOR THE FIRST TIME AND IT FAILED.** The record says the test
+— a dated miss on an OPEN vintage — had never been reached, a vintage event having intervened on
+all three attempts. Measured today: **vintage 4 owed exactly ONE trading day, 2026-08-14, and
+received nothing.** `recording_history` reads v1 VOID 2 of 6, v2 0 of 0, v3 0 of 1, **v4 OPEN 0 of
+1** — that last cell is new, and it is the first honest reading.
+
+**A ROW DID ARRIVE, AND IT IS NOT THE MECHANISM'S.** The local bound file gained a **2026-08-13**
+row, written 2026-08-14 18:07, reading **4.25 / 4.88 / −0.62**. The documented mechanism computed
+**4.3232 / 4.8794 / −0.5562** for that same date. So the recorded series is **still hand-made**, and
+the discrepancy reproduces the module's own disclosed dissociation on a **THIRD date**: the
+benchmark leg agrees to rounding (**+0.0006**) and the book leg does not (**−0.0732pp**, against the
+disclosed 0.0201pp seam on 2026-08-06). **Same direction both times** — the recorded book leg sits
+BELOW the re-derived one.
+
+**AN HONEST LIMIT, the same one the record already carries:** all of this is measured on the LOCAL
+copy. The last authoritative pull of the live file is 2026-08-10 18:09, two rows; the backup cron is
+weekly and next fires **2026-08-16**. So the miss is confirmed locally and not yet on the live
+service.
+
+## MA30 — tenure on the hot list. BUILT as a disclosure, deliberately not as a screen.
+
+`valuation/web/tenure.py`, wired additively into the hot list payload. `tests/test_tenure.py`
+**16/16**.
+
+**THE PREMISE WAS CHECKED FIRST AND IT HOLDS, THROUGH A SOURCE THE AUDIT DID NOT NAME.** The map
+points at `index_track.py`; the data is actually in the **store**, whose `snapshot_rows` table is
+keyed by scan date and ticker and carries `rank`, so a name's position on every past scan is already
+recorded. No new vendor, no new table, and **not** the gzip scan archive — which is append-only and
+by its own docstring never read by the live app.
+
+**BOTH OF THE AUDIT'S CONSTRAINTS ARE ENFORCED BY TEST, NOT BY DOCSTRING.** The claim it must not
+make — that long-tenured names are better — is a `BANNED` tuple asserted **against the RENDERED
+payload** rather than the source, because rendering is where copy leaks (the `dip_posture.py` design
+the record recommended carrying forward). The standing condition — *a register the moment anyone
+sorts or filters by it* — is a source sweep that fails if the field reaches a sort key or a filter
+predicate, checked for vacuity against a sample screen.
+
+**Three design decisions worth the row.** The decile is taken over the scan's own recorded size and
+**not** over the viewer's `top` parameter, which differs per tier and would have shown one name two
+different tenures. A scan that never recorded its size is **SKIPPED as unknown** rather than counted
+as a miss — a missing denominator must not read as everybody qualifying. And an unreachable store
+leaves the rows untouched and reports `available: false`, because defaulting to 1 would caption
+every name on the list as *new today*, which is a confident wrong caption rather than a missing one.
+
+**WHAT HAS NEVER BEEN SEEN, STATED PLAINLY:** the arithmetic is pinned against fixtures and the
+**numbers have not been observed anywhere**. The store in this checkout holds **ONE** scan, dated
+**2099-01-01** with provider `ci`, and the local scan archive holds **one real day of eight**. The
+history lives on the live service. Verified as a computation, unverified as a description of the
+live book.
+
+**A CORRECTION AGAINST MY OWN FIRST DRAFT**, kept because a plausible wrong reason is harder to
+catch later than none: the store reader's docstring justified reading `scans.scored` by
+`archive_scan`'s top-100 truncation, which is a **different sink** and does not touch that table.
+The choice is still right — a partially deleted snapshot would shrink a `COUNT(*)` decile and admit
+names never in the top tenth of the scan that ran — and that is now the stated reason, with its own
+test. **Zero trials:** it measures no hypothesis and clears no threshold.
+
+**ROUTED, NOT DECIDED:** whether the hot list *renders* the field is the web lane's call. The
+payload carries it; no template was touched.
+
+## MA52 — the licence boundary had no structural guard. FIXED, and the row was wrong twice.
+
+**TWO CORRECTIONS AGAINST THE AUDIT, BOTH FOUND BY CHECKING BEFORE FIXING.** Its file path is wrong
+— the constant is in **`valuation/saas/surfaces.py`**, not `screener/` — and **the second half of
+its proposed fix already ships**: a test that fails when a new read route is unclassified has
+existed since **LA13, 2026-08-10**, walking the app's own URL map through `surfaces.classify`, and
+it is non-vacuous. The audit asked for something already built.
+
+**SO THE DEFECT IS NARROWER AND SHARPER THAN THE ROW SAYS, AND POPULATING THE SET WOULD HAVE BEEN
+WRONG.** The deny set is empty because it **should** be empty — no read route echoes a vendor row,
+checked route by route. What was missing is that **an empty deny list and an UNCONSIDERED one are
+indistinguishable from outside**, so the licence boundary rested on somebody remembering the set
+exists. The fix is LA13's own mechanism on a second axis: `vendor_review()` returns `None` for a
+route nobody has answered for, exactly as `classify()` returns `None` for an unclassified one, and
+the sweep fails on it. **A deny list cannot be forgotten if the suite will not go green until the
+route is on one side of it.**
+
+**THE REVIEW SET IS WHAT A PREVIEW CAN READ — 20 routes, and the scope is a judgement.**
+Redistribution bites where an un-authenticated or preview reader sees the payload, so an owner route
+the demo tier is denied, and an admin-token route that refuses a tokenless caller, are excluded —
+both already pinned elsewhere, and re-asserting them here would have been a second copy of someone
+else's policy.
+
+**THE CLOSEST CALL IS RECORDED AS A JUDGEMENT RATHER THAN ASSUMED.** The module's own docstring
+names the research prefix as *"the one place Sharadar-derived output reaches an HTTP route"*, and the
+gating layer deliberately grants exactly one path under it to the read tier. Its payload is adopted
+weights, learning history and two summary blobs — IC statistics, weight vectors, and accept/reject
+flags computed **over** the licensed panel. **No ticker-date fundamental, no price, no filing
+figure.** Cleared on that basis, and named as the entry to re-read first if that payload ever widens.
+
+**Four pins**, including one that the `denied` verdict is actually expressible and does deny —
+otherwise the set the audit asked to populate would be decorative — and one that a cleared entry
+naming a route the app no longer registers fails, since a stale clearance reads as *reviewed*
+forever and covers nothing.
+
+`tests/test_public.py` **39/39**, `tests/test_public_full_view.py` **19/19**.
+
+## What I did NOT do
+
+- **MA18 is not closed and must not be read as closed.** Nothing was scheduled; the writer is still
+  Cowork's under the contract's §7.2. The five-year clock keeps running on vintage 4.
+- **No template renders tenure.** The field is in the payload only.
+- **`DEMO_DENIED_VENDOR_ROWS` is still empty**, on purpose — see above. Populating it would have
+  denied routes that return derived numbers, which is the product.
+- **The live service was not read** for any of this. Every measurement is local, and MA18's section
+  says exactly where that limit bites.

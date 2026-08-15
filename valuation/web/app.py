@@ -554,7 +554,13 @@ def api_hotstocks():
     except Exception:
         params = {}
     from ..screener.freshness import status as _freshness
-    return jsonify({"scan_date": scan_date, "rows": rows,
+    # MA30 — churn disclosure. Additive: it annotates `rows` with `tenure_scans` and never
+    # reorders or drops one. Sorting or filtering on this field converts a disclosure into a
+    # screen and needs its own register (see web/tenure.py); `tests/test_tenure.py` fails if
+    # anyone does. Fail-soft by construction, so it cannot break the public hot list.
+    from . import tenure as _tenure
+    tenure_block = _tenure.annotate(rows, st)
+    return jsonify({"scan_date": scan_date, "rows": rows, "tenure": tenure_block,
                     "sectors": sector_attractiveness(all_rows),
                     "universe_size": meta.get("universe_size"), "scored": meta.get("scored"),
                     "provider": meta.get("provider"), "filtered": params.get("filtered"),
