@@ -6125,7 +6125,7 @@ convention already shipped rather than away from it.
 
 **A CORRECTION AGAINST MY OWN REGISTER, AND IT IS THE ERROR THE RECORD WARNS ABOUT TWICE.**
 Section 6 says *"options stays at 292, equity at 218, infra at 11"*. **Measured after this
-session's merge, `by_domain` reads equity 224, options 292, infra 14** — the 218/11 were quoted
+session's merge, `by_domain` reads equity 224, options 292, infra 14 (infra 15 once the concurrent `MA19`/`MA13` landing merged in — the same drift one level down, recorded rather than left to rot)** — the 218/11 were quoted
 from a stale mid-session figure instead of being re-read from `by_domain` after merging
 `origin/main`, which is exactly the defect `S17`'s register committed and `O6`/`O7`/`O17` recorded
 before it. **The register is left unedited and the correction recorded here**, per the S5
