@@ -6024,6 +6024,8 @@ the string it landed on was not `auto`**, which is the asymmetry protecting the 
 rather than by design. `M1-PARSE` is the one worth noticing: **its own subject IS this hazard and
 it was malformed by it.**
 
+**AND IT CHANGED ANOTHER LANE'S TEST, WHICH IS A CROSS-LANE EDIT AND IS DECLARED RATHER THAN ABSORBED.** `tests/test_la_screener_batch.py::test_the_real_ledger_has_no_UNKNOWN_losses` **asserted the three malformed rows EXIST**, as an allowlist whose stated purpose was *"this test fails if a FOURTH appears, so the known set cannot quietly grow"*. That lane found them and deliberately reported rather than rewrote, because **its own register forbade editing another lane's row** — the right call for that session, with a cost nobody had measured: `build_ledger.py` does not tolerate those rows, it **refuses to run at all** while any of them exists. The expected set is now **empty**, which is **strictly stronger** than the allowlist — the guard still fires the moment a malformed row appears, and now on the FIRST rather than the fourth. Its docstring records who changed it, when, and why.
+
 ### 58.3 · MA36 — the censored tail. A worthless expiry was stranded OPEN forever
 
 **THE DEFECT.** `_exit_decision` returns `"expiry"` from `CLOSE_BEFORE_EXPIRY_DAYS` out and never

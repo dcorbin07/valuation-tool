@@ -278,6 +278,11 @@ it was malformed by it. `S23` was the dangerous one — its two pipes sat in the
 so every later column shifted and the parser read `src` out of the handoff slot; it survived
 only because the string it landed on was not `auto`, which is the asymmetry doing its job by
 luck rather than by design. The tool now runs and reports all 60 MA rows preserved verbatim.
+**One cross-lane test moved with it, declared rather than absorbed:**
+`tests/test_la_screener_batch.py::test_the_real_ledger_has_no_UNKNOWN_losses` **asserted the
+three malformed rows exist**, as an allowlist meant to fail *"if a FOURTH appears"*. Its
+expected set is now **empty** — strictly stronger, since the guard fires on the first malformed
+row rather than the fourth — and its docstring records who changed it and why.
 
 **Where the MA rows do NOT belong: the trial counter.** None of these is a pre-registered test,
 so none appears in `RESEARCH_LOG.md` and `N` does not move on ingest. The two this lane took
