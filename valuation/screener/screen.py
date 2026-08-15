@@ -48,11 +48,38 @@ DCF_ATTEMPTS = 2
 NO_DATA_RETRY_WORKERS = 2      # unused; retained with the measurement above
 
 
+# The last time a stored learned weight was refused the live path, per bucket. Read by
+# `weight_adoption.live_override_report` and by anything that wants to show the refusal; kept in
+# memory rather than written back, because a refusal must not mutate the record it is refusing.
+LAST_WEIGHT_REFUSAL = {}
+
+
 def _effective_weights(store):
-    """Live weights = the latest self-learning-adopted weights, else the defaults."""
-    est = (store.latest_learned_weights("established") if store else None) or S.WEIGHTS_ESTABLISHED
-    spec = (store.latest_learned_weights("speculative") if store else None) or S.WEIGHTS_SPECULATIVE
-    return est, spec
+    """Live weights = a REGISTERED self-learning adoption, else the defaults.
+
+    MASTER AUDIT MA1. This used to prefer any row in `learned_config` with `adopted=1`, which
+    made a monthly cron writing to SQLite a live scoring change that the vintage contract could
+    not see. A stored adoption is now used ONLY if `weight_adoption.authorisation` clears it.
+
+    IT REFUSES RATHER THAN REPAIRING, which is the whole point of the ordering here. A row
+    written before this gate existed is a live vintage violation; it stays in the table, stays
+    reportable with its date by `live_override_report`, and simply stops reaching the scorer.
+    Deleting it would neutralise the violation and leave the record looking clean.
+    """
+    from ..edge.weight_adoption import authorisation
+
+    def pick(bucket, default):
+        learned = store.latest_learned_weights(bucket) if store else None
+        if not learned:
+            return default                      # the ordinary case: no file read, no gate cost
+        a = authorisation(bucket)
+        if a["authorised"]:
+            return learned
+        LAST_WEIGHT_REFUSAL[bucket] = a
+        return default
+
+    return (pick("established", S.WEIGHTS_ESTABLISHED),
+            pick("speculative", S.WEIGHTS_SPECULATIVE))
 
 
 def _decompose(df: pd.DataFrame, est_w=None, spec_w=None, soft=None):

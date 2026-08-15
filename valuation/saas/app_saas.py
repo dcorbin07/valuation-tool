@@ -283,11 +283,51 @@ def create_saas_app(cfg=CONFIG):
             return jsonify({"ok": False, "error": "No out-of-sample-accepted weighting to adopt for that horizon. "
                                                   "Run the backtest first; adopt only when it beat the default OOS."})
         weights = h["optimized_weights"]
-        st.save_learned("established", weights,
-                        {"source": "historical_backtest", "horizon": H, "out_sample_ic": h.get("out_sample_ic")},
-                        True, f"Adopted from historical backtest (horizon {H}, OOS IC {h.get('out_sample_ic')}).")
+        # MASTER AUDIT MA3. `h["accepted"]` comes from `_weighted_optimize` — a SINGLE 50/50 time
+        # split. `CLAUDE.md`'s core-file section is explicit that `cpcv_validate` is THE AUTHORITY
+        # for weights and that a CPCV rejection means keep the defaults rather than falling back
+        # to walk-forward; this endpoint fell back to something weaker than walk-forward, and CPCV
+        # rejects on every run the project has done (`adopt: false`, PBO 0.7333). It also wrote
+        # ONLY the "established" bucket, so the two buckets could end up on different regimes with
+        # nothing reporting the split. The refusal below is not this handler's own — it comes from
+        # `save_learned`, the funnel both weight writers share, so neither can be fixed alone.
+        from ..edge.weight_adoption import VintageRefusal, authorisation
+        try:
+            st.save_learned("established", weights,
+                            {"source": "historical_backtest", "horizon": H,
+                             "out_sample_ic": h.get("out_sample_ic"),
+                             "gate": "single 50/50 split — NOT CPCV"},
+                            True, f"Adopted from historical backtest (horizon {H}, OOS IC {h.get('out_sample_ic')}).")
+        except VintageRefusal as e:
+            # `safe_error`, not `str(e)` — the security suite forbids raw exception text in a
+            # response and is right to: the refusal is a fixed string today, but nothing stops a
+            # future `require()` from interpolating a path. The actionable detail is carried by
+            # the structured `authorisation` block, which is built from the register and cannot
+            # contain server state.
+            return jsonify({"ok": False, "adopted": None, "error": safe_error(e),
+                            "authorisation": authorisation("established"),
+                            "would_have_adopted": weights, "horizon": H}), 403
         return jsonify({"ok": True, "adopted": weights, "horizon": H,
                         "note": "Live scorer now uses these as the starting weights; the monthly learner refines from here."})
+
+    @app.route("/admin/learned-weight-status", methods=["GET"])
+    def admin_learned_weight_status():
+        """MASTER AUDIT MA1 step 5 — is anything overriding settings.WEIGHTS_* right now?
+
+        READ-ONLY, and deliberately so. An adopted row written before the gate existed is a live
+        vintage violation: it must be surfaced with its date, not repaired on the way past, or the
+        record ends up saying the track was clean through a window in which it was not. The audit
+        asked whether this could be answered without a SQL console on Render's disk; it could not,
+        and now it can.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..edge.weight_adoption import live_override_report
+            from ..screener.store import Store
+            return jsonify(live_override_report(Store()))
+        except Exception as e:
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/admin/run-scan", methods=["POST"])
     def admin_run_scan():

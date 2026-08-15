@@ -89,8 +89,16 @@ def test_edge_routes_owner_only():
 
 
 def test_self_learning_gate():
-    """The monthly re-tune is purely statistical: adopt on a real out-of-sample edge,
-    decline on noise or too-little-history, and the live scorer reads whatever it adopts."""
+    """The re-tune is purely statistical: find an edge on real signal, decline on noise or
+    too-little-history — and it may NOT reach the live scorer by itself.
+
+    REWRITTEN BY THE MASTER AUDIT (MA1). This test used to end
+        assert _effective_weights(st)[0] == learned      # live weights = learned weights
+    which PINNED the defect: it made "a monthly cron can change the live composite" the tested,
+    intended behaviour, which is why the loop survived every previous review. The statistical
+    half is unchanged and still asserted — the learner must still FIND the edge, or the refusal
+    below would be passing for the wrong reason. What changed is that finding an edge and
+    shipping it are now separate questions (`valuation/edge/weight_adoption.py`)."""
     import tempfile
     from valuation.screener.store import Store
     from valuation.screener.screen import _effective_weights
@@ -112,12 +120,15 @@ def test_self_learning_gate():
 
     fd, p = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(p)
     st = Store(p)
-    # 1) Real out-of-sample signal → adopts, and the LIVE scorer picks up the new weights.
+    # 1) Real out-of-sample signal → the learner FINDS it (the statistical half still works)...
     rep = run_learning(CONFIG, st, panel=panel(0.35, 1))
-    assert rep["status"] == "ok" and rep["buckets"]["established"]["adopted"] is True
-    learned = st.latest_learned_weights("established")
-    assert learned is not None
-    assert _effective_weights(st)[0] == learned          # live weights = learned weights
+    assert rep["status"] == "ok"
+    b = rep["buckets"]["established"]
+    assert b["would_have_adopted"], "the learner found no edge — the refusal below proves nothing"
+    # ...and is REFUSED the live path, because no vintage registers or signs this adoption.
+    assert b["adopted"] is False and b["refused"] is True
+    assert st.latest_learned_weights("established") is None
+    assert _effective_weights(st)[0] == S.WEIGHTS_ESTABLISHED     # live weights = the SETTINGS
 
     # 2) Pure noise → declines, nothing adopted (this is the anti-overfit guard working).
     fd, p2 = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(p2)
@@ -365,9 +376,20 @@ def test_fundamental_backtests_multi_horizon():
             assert "ew_cagr" in r["backtest_default"] and "ew_alpha" in r["backtest_default"]  # fair bar present
 
 
-def test_adopt_backtest_weights_persists():
-    """Adopting backtested weights writes them as the live starting weights."""
+def test_adopt_backtest_weights_is_refused_without_a_registered_vintage():
+    """MASTER AUDIT MA3. This test used to be `test_adopt_backtest_weights_persists` and ended
+
+        assert _effective_weights(st)[0] == w      # live scorer now uses them
+
+    i.e. it pinned the SECOND route by which a weight reached the live book without a commit —
+    `/admin/adopt-backtest-weights`, whose `accepted` comes from a SINGLE 50/50 time split, the
+    gate `CLAUDE.md` explicitly forbids falling back to. The endpoint's core is still replicated
+    here; what changed is that it must now be REFUSED, and the refusal comes from
+    `save_learned` — the funnel it shares with the monthly learner — not from a gate of its own.
+    """
     import tempfile
+    from valuation.edge.weight_adoption import VintageRefusal
+    from valuation.screener import settings as S
     from valuation.screener.store import Store
     from valuation.screener.screen import _effective_weights
     fd, p = tempfile.mkstemp(suffix=".db"); os.close(fd); os.remove(p)
@@ -377,10 +399,14 @@ def test_adopt_backtest_weights_persists():
                 "horizons": {"252": {"accepted": True, "optimized_weights": w, "out_sample_ic": 0.03}}})
     # replicate the adopt endpoint's core: persist the accepted primary-horizon weights
     h = st.get_meta("fundamental_backtest")["horizons"]["252"]
-    assert h["accepted"]
-    st.save_learned("established", h["optimized_weights"], {"source": "backtest"}, True, "test")
-    assert st.latest_learned_weights("established") == w
-    assert _effective_weights(st)[0] == w                       # live scorer now uses them
+    assert h["accepted"]                                        # the backtest still accepts...
+    try:
+        st.save_learned("established", h["optimized_weights"], {"source": "backtest"}, True, "test")
+        raise AssertionError("the single-split adopt path wrote a live weight")
+    except VintageRefusal:
+        pass                                                    # ...and it still may not ship
+    assert st.latest_learned_weights("established") is None     # nothing was written
+    assert _effective_weights(st)[0] == S.WEIGHTS_ESTABLISHED   # live scorer keeps the settings
 
 
 def test_export_then_offline_backtest():

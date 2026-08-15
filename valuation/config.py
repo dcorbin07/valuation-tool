@@ -184,12 +184,20 @@ class Config:
     backtest_rebalance_days: int = field(default_factory=lambda: int(_get_float("BACKTEST_REBALANCE_DAYS", 63)))
     backtest_top_n: int = field(default_factory=lambda: int(_get_float("BACKTEST_TOP_N", 25)))
     backtest_recency_halflife_years: float = field(default_factory=lambda: _get_float("BACKTEST_RECENCY_HALFLIFE_YEARS", 5))
-    # Self-learning: a monthly, out-of-sample-gated re-tune of the screener's factor
-    # weights from the tool's own accumulated snapshots + realized forward returns.
-    # Adopts a change ONLY if it beats the current weights out-of-sample (no overfit).
+    # LEARN_ENABLED — self-learning: a monthly, out-of-sample-gated re-tune of the screener's
+    # factor weights from the tool's own accumulated snapshots + realized forward returns.
     # Purely statistical — no LLM in the loop (the grid + hold-out test IS the decision).
-    # Needs enough accrued history first, so early runs correctly decline to change anything.
-    learn_enabled: bool = field(default_factory=lambda: _get("LEARN_ENABLED", "true").lower() != "false")
+    #
+    # DEFAULT FALSE SINCE THE MASTER AUDIT (MA1). It used to default TRUE, and it was
+    # undocumented: the string `LEARN_ENABLED` appeared in no .md, .yml, .example or .bat file
+    # in the repository, so the one switch that could change the live composite was on by
+    # default and named nowhere. Setting it to `true` re-arms the LEARNER, not the ADOPTION —
+    # `store.save_learned` still refuses to write an adopted weight without a registered vintage
+    # and Don's signed contract row (`valuation/edge/weight_adoption.py`), so the worst a
+    # re-enabled learner can do is fill the audit log and email the owner. Turning this on is
+    # therefore reversible; adopting a weight is not, because it resets the forward track's
+    # five-year clock (PAPER_TRACK_CONTRACT §5a, Rule 6).
+    learn_enabled: bool = field(default_factory=lambda: _get("LEARN_ENABLED", "false").lower() == "true")
     learn_min_dates: int = field(default_factory=lambda: int(_get_float("LEARN_MIN_DATES", 8)))
     learn_horizon_days: int = field(default_factory=lambda: int(_get_float("LEARN_HORIZON_DAYS", 21)))
     learn_top_per_date: int = field(default_factory=lambda: int(_get_float("LEARN_TOP_PER_DATE", 60)))

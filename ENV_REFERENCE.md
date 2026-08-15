@@ -26,6 +26,8 @@ each item when you actually need the feature it unlocks.
 | `BETA_ALL_PREMIUM` | `true` | Treats **every signed-in account** as Premium, free — your open beta. Set `false` to end it and fall back to real tiers/Stripe. No DB change; it flips instantly. |
 | `DEMO_ACCESS_TOKEN` | `preview` | The **recruiter master-link**. Anyone visiting `/demo/<token>` gets an instant Premium preview with **no signup** — this is the URL you put on your résumé. It keeps working even after beta ends, so before you start charging, change it to something long and unguessable (e.g. `python -c "import secrets;print(secrets.token_urlsafe(12))"`). |
 
+| `LEARN_ENABLED` | `false` | The monthly **self-learning** re-tune of the screener's factor weights. **Leave it off.** It defaulted to `true` and was documented nowhere until the master audit (MA1) traced a monthly cron that could change the composite users see by writing to Render's database — no code commit, no diff, nothing the vintage contract could see. The value must be exactly `true` to switch it on — anything else (`1`, `yes`, a typo, a blank) reads **off**, deliberately, so a fat-fingered value cannot arm it. Turning it on only re-arms the **learner**, not the **adoption**: a learned weight still cannot reach the live scorer without a registered vintage and your signed row in `PAPER_TRACK_CONTRACT.md`, so the worst it can do is fill the audit log and email you. |
+
 > Master-link format: `https://YOUR-SITE/demo/preview` (swap in your token). Owner
 > (`donniecorbin6@gmail.com`) still gets Premium regardless of any of these.
 

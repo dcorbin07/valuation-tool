@@ -3738,7 +3738,23 @@ score), so there is no performance excuse to judge on a subset. If you must scre
     `og:image` (+ `secure_url`, `type`, **1200×630**, `alt`) and `twitter:card=summary_large_image`,
     with a comment that `og:image` must be an ABSOLUTE https URL or LinkedIn/Slack/X silently skip
     it. Only the manual step is left: re-scrape via LinkedIn Post Inspector after a deploy.
-19. **Later:** gated auto-apply of adopted weights.
+19. ~~**Later:** gated auto-apply of adopted weights.~~ **CORRECTED 2026-08-14 (master audit MA1):
+    AUTO-APPLY WAS ALREADY SHIPPED, UNGATED, AND ON A MONTHLY CRON — this line said the opposite
+    for months.** `screen.py:53` preferred `store.latest_learned_weights(...)` over
+    `settings.WEIGHTS_*`, fed by `/admin/run-learning` on `auto-scan.yml`'s `0 12 1 * *`, and
+    `tests/test_edge.py` **pinned** it — so a scheduled job could change the composite users
+    receive by writing to Render's SQLite, with no commit and nothing for the vintage contract to
+    see. It had never fired; next firing would have been 2026-09-01. **Now DISARMED and the item
+    is CLOSED, not pending:** `learn_enabled` defaults false, the cron and its job are removed,
+    and `store.save_learned` — the one funnel both weight writers pass through — refuses an
+    adoption unless the OPEN vintage registers it AND Don has signed
+    `PAPER_TRACK_CONTRACT.md` §5c for that same vintage. **The "gated" part of this item is what
+    was actually missing, and it is what got built.** Check production with
+    `GET /admin/learned-weight-status`. `valuation/edge/weight_adoption.py`;
+    `HANDOFF_live_data_bugs.md` Part 21. **The lesson generalises: a roadmap entry saying
+    something is unbuilt is not evidence that it is unbuilt** — this one, `BACKTEST_RUNBOOK.md`'s
+    architecture diagram, and the `LEARN_ENABLED` flag all described a world the code did not
+    implement, and the code was the one on the cron.
 20. **Estimate-revisions sentiment: PARKED** until WRDS/IBES (FMP has no point-in-time revisions at any tier;
     the free `stable/grades` workaround is real but weak and quota-starved). Don't fight the FMP free quota.
 

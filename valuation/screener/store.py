@@ -390,6 +390,18 @@ class Store:
 
     # ---- self-learning (adopted factor weights + audit log) ----
     def save_learned(self, bucket, weights, stats, adopted, note):
+        """Log a learning outcome. `adopted=True` is a LIVE SCORING CHANGE and is gated.
+
+        MASTER AUDIT MA1/MA3. This is the one funnel every weight writer passes through — the
+        monthly learner, `/admin/adopt-backtest-weights`, and anything added later — so the
+        refusal lives HERE rather than at each call site. Gating the callers instead would mean
+        the next writer someone adds is ungated by default, which is how there came to be two of
+        them. An unauthorised adoption raises `VintageRefusal` and writes NOTHING; the caller
+        decides whether to log the attempt as a non-adoption, which `autolearn` does.
+        """
+        if adopted:
+            from ..edge.weight_adoption import require
+            require(bucket)
         with self._conn() as c:
             c.execute("INSERT INTO learned_config (created_at,bucket,weights,stats,adopted,note) VALUES (?,?,?,?,?,?)",
                       (_dt.datetime.utcnow().isoformat(), bucket, json.dumps(weights),
