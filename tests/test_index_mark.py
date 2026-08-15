@@ -493,6 +493,177 @@ def test_the_module_never_writes_unless_asked():
 
 
 # =======================================================================================
+# MA4 — THE WHOLE FILE IS REWRITTEN ON EVERY APPEND, so both hazards are about the rows
+# ALREADY THERE, on the file `track-backup.yml` calls "the one thing that can't be
+# re-derived". Each test below is checked for vacuity by running the SUPERSEDED write
+# against the same fixture and asserting it does the damage.
+# =======================================================================================
+_SEEDED = ("date,day_n,valquo_pct,spy_pct,excess_pp,n_priced\n"
+           "2026-07-31,0,0.0,0.6903,-0.6903,86\n"
+           "2026-08-11,8,1.0,1.0,0.0,86\n"
+           "2026-08-12,9,1.5,1.2,0.3,86\n")
+
+
+def _seed(d, text=_SEEDED, name="h.csv"):
+    p = os.path.join(d, name)
+    with open(p, "w", encoding="utf-8", newline="") as f:
+        f.write(text)
+    return p
+
+
+def _superseded_append(row, history_path):
+    """The write MA4 replaced, verbatim, so the pins above it can be shown non-vacuous.
+
+    Kept as a fixture rather than described in prose: a regression test that cannot be
+    demonstrated to fail against the defect it names is worth nothing.
+    """
+    try:
+        with open(history_path, encoding="utf-8", newline="") as f:
+            existing = [r for r in csv.DictReader(f)]
+    except FileNotFoundError:
+        existing = []
+    kept = [r for r in existing if (r.get("date") or "").strip() != row["date"]]
+    kept.append({k: row.get(k) for k in index_mark.ROW_COLUMNS})
+    kept.sort(key=lambda r: (r.get("date") or ""))
+    with open(history_path, "w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(index_mark.ROW_COLUMNS))
+        w.writeheader()
+        for r in kept:
+            w.writerow({k: r.get(k) for k in index_mark.ROW_COLUMNS})
+
+
+#: Captured BEFORE any patching. `index_mark` imports the same `csv` module object this file
+#: does, so patching `index_mark.csv.DictWriter` also rebinds `csv.DictWriter` here — and a
+#: blow-up writer that looks the real class up by name at construction time finds ITSELF and
+#: recurses. Caught by running it; the first cut did exactly that.
+_REAL_DICTWRITER = csv.DictWriter
+
+
+class _BlowUpWriter:
+    """A `csv.DictWriter` that dies partway through, i.e. an interrupted write."""
+
+    def __init__(self, f, fieldnames=None, **kw):
+        self._w = _REAL_DICTWRITER(f, fieldnames=fieldnames, **kw)
+        self._n = 0
+
+    def writeheader(self):
+        self._w.writeheader()
+
+    def writerow(self, r):
+        self._n += 1
+        if self._n > 1:
+            raise IOError("disk full")
+        self._w.writerow(r)
+
+
+def test_ma4_a_column_the_file_gained_survives_an_append():
+    """A projection onto ROW_COLUMNS deletes an unknown column from EVERY row, at once."""
+    with tempfile.TemporaryDirectory() as d:
+        hist = _seed(d, _SEEDED.replace("n_priced\n", "n_priced,vintage\n")
+                     .replace(",86\n", ",86,3\n"))
+        out = index_mark.append_row(_row(d)["row"], hist)
+        assert out["ok"], out
+        with open(hist, encoding="utf-8", newline="") as f:
+            rd = csv.DictReader(f)
+            rows, header = list(rd), rd.fieldnames
+        assert "vintage" in header, header
+        assert [r["vintage"] for r in rows if r["date"] == "2026-08-11"] == ["3"], rows
+        assert list(index_mark.ROW_COLUMNS) == header[:len(index_mark.ROW_COLUMNS)], header
+
+
+def test_ma4_the_column_loss_pin_is_not_vacuous():
+    """The same fixture through the superseded write: the column goes, on all three rows."""
+    with tempfile.TemporaryDirectory() as d:
+        hist = _seed(d, _SEEDED.replace("n_priced\n", "n_priced,vintage\n")
+                     .replace(",86\n", ",86,3\n"))
+        _superseded_append(_row(d)["row"], hist)
+        with open(hist, encoding="utf-8", newline="") as f:
+            header = csv.DictReader(f).fieldnames
+        assert "vintage" not in header, "the superseded write kept the column; pin is vacuous"
+
+
+def test_ma4_an_interrupted_write_leaves_the_previous_file_intact():
+    """Truncate-then-write loses the series; write-then-rename cannot."""
+    with tempfile.TemporaryDirectory() as d:
+        hist = _seed(d)
+        before = open(hist, "rb").read()
+        real = index_mark.csv.DictWriter
+        index_mark.csv.DictWriter = _BlowUpWriter
+        try:
+            out = index_mark.append_row(_row(d)["row"], hist)
+        finally:
+            index_mark.csv.DictWriter = real
+        assert out["ok"] is False and out["wrote"] is False, out
+        assert "disk full" in out["reason"], out
+        assert open(hist, "rb").read() == before, "the bound series was damaged by a failed write"
+        assert not os.path.exists(hist + ".tmp"), "a temp file survived the failure"
+
+
+def test_ma4_the_atomicity_pin_is_not_vacuous():
+    """The superseded write, interrupted the same way, destroys the file. That is the point."""
+    with tempfile.TemporaryDirectory() as d:
+        hist = _seed(d)
+        before = open(hist, "rb").read()
+        real = csv.DictWriter
+        try:
+            globals()["csv"].DictWriter = _BlowUpWriter
+            try:
+                _superseded_append(_row(d)["row"], hist)
+            except IOError:
+                pass
+        finally:
+            globals()["csv"].DictWriter = real
+        after = open(hist, "rb").read()
+        assert after != before, "the superseded write survived interruption; pin is vacuous"
+        assert len(after) < len(before), (len(after), len(before))
+
+
+def test_ma4_a_successful_write_leaves_no_temp_file():
+    with tempfile.TemporaryDirectory() as d:
+        row = _row(d)["row"]                       # this writes the book meta into `d`
+        sub = os.path.join(d, "hist")
+        os.makedirs(sub)
+        hist = _seed(sub)
+        assert index_mark.append_row(row, hist)["ok"]
+        assert sorted(os.listdir(sub)) == ["h.csv"], os.listdir(sub)
+
+
+def test_ma4_a_ragged_file_is_refused_rather_than_normalised():
+    """DictReader pads and pools, so a rewrite would invent or discard cells in silence."""
+    with tempfile.TemporaryDirectory() as d:
+        for bad in (_SEEDED + "2026-08-13,10,2.0,1.5,0.5,86,SURPLUS\n",
+                    _SEEDED + "2026-08-13,10,2.0\n"):
+            hist = _seed(d, bad)
+            before = open(hist, "rb").read()
+            out = index_mark.append_row(_row(d)["row"], hist)
+            assert out["ok"] is False and out["wrote"] is False, out
+            assert "does not match its header" in out["reason"], out
+            assert open(hist, "rb").read() == before, "a refused write still touched the file"
+
+
+def test_ma4_a_key_in_neither_the_file_nor_the_header_is_reported_not_silently_dropped():
+    """Widening the bound schema takes an edit to ROW_COLUMNS, never a caller's typo — but
+    the caller is told, because a silent drop is how the reader and writer disagree."""
+    with tempfile.TemporaryDirectory() as d:
+        hist = _seed(d)
+        out = index_mark.append_row(dict(_row(d)["row"], vaquo_pct=1.0), hist)
+        assert out["ok"], out
+        assert out["ignored_fields"] == ["vaquo_pct"], out
+        with open(hist, encoding="utf-8", newline="") as f:
+            assert "vaquo_pct" not in (csv.DictReader(f).fieldnames or []), "typo widened the file"
+
+
+def test_ma4_the_write_goes_through_a_rename_and_never_opens_the_target_for_writing():
+    src = open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "valuation", "screener", "index_mark.py"), encoding="utf-8").read()
+    i = src.find("def append_row")
+    assert i > 0, "append_row moved"
+    body = src[i:]
+    assert "os.replace(tmp, history_path)" in body, "the write is not a rename"
+    assert 'open(history_path, "w"' not in body, "the bound file is opened for writing in place"
+
+
+# =======================================================================================
 # NO NEW VENDOR — half the original blocker
 # =======================================================================================
 def test_the_price_source_is_the_services_own_module_and_not_a_new_vendor():

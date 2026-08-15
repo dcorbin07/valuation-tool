@@ -208,6 +208,60 @@ def test_the_admin_token_list_is_the_lockdowns_list_and_not_a_second_copy():
         assert sum(bool(k) for k in kinds) <= 1, f"{p} is in more than one category: {kinds}"
 
 
+def test_ma52_every_preview_readable_api_route_has_answered_the_licence_question():
+    """MA52. `DEMO_DENIED_VENDOR_ROWS` is empty and correctly so — no read route echoes a
+    vendor row. The defect is that an empty deny list and an UNCONSIDERED one look the same
+    from outside, so the licence boundary rested on someone remembering the set exists.
+
+    This is LA13's mechanism on the second axis: a route with no answer fails here, exactly
+    as an unclassified route fails `test_every_api_route_is_knowingly_classified` above.
+    """
+    missing = surfaces.unreviewed_vendor_paths(_api_rules())
+    assert not missing, (
+        f"preview-readable API routes with no licence answer: {missing} — add each to "
+        f"surfaces.VENDOR_ROW_CLEARED (with the vendor named) or, if it returns a vendor "
+        f"row verbatim, to surfaces.DEMO_DENIED_VENDOR_ROWS")
+
+
+def test_ma52_the_licence_sweep_fires_on_a_route_nobody_reviewed():
+    """Non-vacuity, fed synthetically rather than by registering a route — `create_saas_app`
+    is idempotent, so a 'second app' in a test is the first app and would prove nothing."""
+    assert surfaces.vendor_review("/api/some-new-vendor-backed-thing") is None
+    fake = [("/api/some-new-vendor-backed-thing", {"GET"})]
+    assert surfaces.unreviewed_vendor_paths(fake) == [], \
+        "an UNCLASSIFIED route must not also be reported here — one axis at a time"
+    # ...and once it is classified public, the licence question becomes mandatory.
+    real = surfaces.PUBLIC_API
+    surfaces.PUBLIC_API = frozenset(real | {"/api/some-new-vendor-backed-thing"})
+    try:
+        assert surfaces.unreviewed_vendor_paths(fake) == ["/api/some-new-vendor-backed-thing"]
+    finally:
+        surfaces.PUBLIC_API = real
+
+
+def test_ma52_the_two_sides_of_the_licence_answer_are_both_reachable():
+    """A `denied` verdict must be expressible, not just `cleared` — otherwise the set the
+    audit asks to populate is decorative and `is_demo_denied` would never consult it."""
+    assert surfaces.vendor_review("/api/hotstocks") == "cleared"
+    real = surfaces.DEMO_DENIED_VENDOR_ROWS
+    surfaces.DEMO_DENIED_VENDOR_ROWS = frozenset({"/api/hotstocks"})
+    try:
+        assert surfaces.vendor_review("/api/hotstocks") == "denied"
+        assert surfaces.is_demo_denied("/api/hotstocks"), \
+            "a path in DEMO_DENIED_VENDOR_ROWS is not actually denied to the preview"
+    finally:
+        surfaces.DEMO_DENIED_VENDOR_ROWS = real
+    assert not surfaces.is_demo_denied("/api/hotstocks"), "the patch leaked"
+
+
+def test_ma52_the_review_set_does_not_quietly_cover_routes_that_left_the_app():
+    """A cleared entry for a route that no longer exists is a stale clearance: it reads as
+    'reviewed' forever and covers nothing. The list must describe the live app."""
+    live = {p for p, _ in _api_rules()}
+    stale = sorted(p for p in surfaces.VENDOR_ROW_CLEARED if p not in live)
+    assert not stale, f"VENDOR_ROW_CLEARED names routes the app no longer registers: {stale}"
+
+
 def test_classify_answers_none_for_a_route_nobody_has_decided_about():
     """Non-vacuity: the walk above only means something if `classify` can say None."""
     assert surfaces.classify("/api/some-new-thing-nobody-classified") is None
