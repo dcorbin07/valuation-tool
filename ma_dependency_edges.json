@@ -1,0 +1,3840 @@
+{
+ "_meta": {
+  "generated_by": "scripts/ma_dependency_map.py",
+  "source": "valquo_master_audit_ultimate_items.json",
+  "n_items": 60,
+  "lanes": {
+   "pipeline": "edge / research / backtest - the panel and the statistics",
+   "options-bot": "options engine, chains, ticks, greeks, the forward options book",
+   "app-fixer": "web + saas - public surfaces, auth, rate limits, templates",
+   "greeks": "screener + engine + intraday - the live scoring and marking path",
+   "infra": "CI, workflows, backup, docs, process, the register machinery"
+  },
+  "edge_kinds": {
+   "explicit": "the item's own depends_on",
+   "logical": "derived in the generator, with a reason - argued, not declared",
+   "hard-file": "same file named by both items; symmetric; expect a text conflict",
+   "soft-import": "import-coupled files; the merge is clean and the build can break"
+  },
+  "wave_rule": "1 = CRITICAL/HIGH with no unmet edge. 2 = everything else with no trial cost, severity-first. 3 = HYPOTHESIS/LOW or charges a trial. 0 = already landed.",
+  "caveat": "Pass B items (MA36-MA60) declare no modifies/creates/depends_on, so their edges are derived from `files` only. An item that will touch a file the audit did not name carries an edge this map cannot see."
+ },
+ "severity_overrides": {
+  "MA18": {
+   "applied": "HIGH",
+   "was": "MEDIUM",
+   "why": "_meta.corrections_to_pass_A re-rates MA18 MEDIUM->HIGH (run #2 has recorded zero rows ever); the item body still reads MEDIUM. The file disagrees with itself and the correction is the later statement."
+  }
+ },
+ "nodes": {
+  "MA1": {
+   "title": "A scheduled job can change the live scoring weights, invisibly to the vintage contract",
+   "severity": "CRITICAL",
+   "severity_as_written": "CRITICAL",
+   "mandate": "2 - code",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline",
+    "app-fixer",
+    "greeks",
+    "infra"
+   ],
+   "files": [
+    ".github/workflows/auto-scan.yml",
+    "valuation/config.py",
+    "valuation/edge/autolearn.py",
+    "valuation/edge/track_meter.py",
+    "valuation/saas/app_saas.py",
+    "valuation/screener/screen.py"
+   ],
+   "wave": 1,
+   "wave_reason": "top severity, nothing to wait for",
+   "needs_first": [],
+   "trial_cost": "0 - this is a correctness/governance finding, not a hypothesis",
+   "in_flight": null,
+   "lane_evidence": "the write path is saas, but the object being governed is the live weight vector and its vintage - an edge-lane contract"
+  },
+  "MA2": {
+   "title": "The learner's adoption gate is uncalibrated, mis-specified, and never compares to the incumbent",
+   "severity": "CRITICAL",
+   "severity_as_written": "CRITICAL",
+   "mandate": "2 - code",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "valuation/backtest/optimize.py",
+    "valuation/edge/autolearn.py",
+    "valuation/edge/fundamental_panel.py"
+   ],
+   "wave": 2,
+   "wave_reason": "severity-first: unblocked by wave 1",
+   "needs_first": [
+    "MA1",
+    "MA19"
+   ],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 3}"
+  },
+  "MA3": {
+   "title": "A second live-weight writer adopts on the single-split gate CLAUDE.md forbids",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "2 - code",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline",
+    "app-fixer"
+   ],
+   "files": [
+    "valuation/edge/fundamental_panel.py",
+    "valuation/saas/app_saas.py"
+   ],
+   "wave": 2,
+   "wave_reason": "severity-first: unblocked by wave 1",
+   "needs_first": [
+    "MA1"
+   ],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 1, 'app-fixer': 1}"
+  },
+  "MA4": {
+   "title": "append_row rewrites the contract-bound history non-atomically and drops unknown columns",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "2 - code",
+   "lane": "greeks",
+   "co_lanes": [
+    "greeks"
+   ],
+   "files": [
+    "valuation/screener/index_mark.py"
+   ],
+   "wave": 1,
+   "wave_reason": "top severity, nothing to wait for",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "index_mark.py is the screener's writer for the contract-bound history"
+  },
+  "MA5": {
+   "title": "Two Harvey-Liu-Zhu bars exist and already disagree (3.0 constant vs sqrt(2 ln N) = 3.2899)",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "BACKTEST_RESULTS.json",
+    "valuation/edge/statistics.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [
+    "MA6"
+   ],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 2}"
+  },
+  "MA6": {
+   "title": "The trial counter has one silent path that understates N, and no counter for it",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "RESEARCH_LOG.md",
+    "valuation/edge/research_log.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 2}"
+  },
+  "MA7": {
+   "title": "Two public endpoints spend the owner's vendor quota with no cap, and one of them does it 25 names at a time",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code / 6 - adversarial",
+   "lane": "app-fixer",
+   "co_lanes": [
+    "app-fixer"
+   ],
+   "files": [
+    "valuation/saas/app_saas.py",
+    "valuation/saas/ratelimit.py",
+    "valuation/saas/surfaces.py",
+    "valuation/web/app.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'app-fixer': 4}"
+  },
+  "MA8": {
+   "title": "client_ip's rightmost-XFF rule has two opposite failure modes, neither visible from code",
+   "severity": "LOW",
+   "severity_as_written": "LOW",
+   "mandate": "2 - code / 6 - adversarial",
+   "lane": "app-fixer",
+   "co_lanes": [
+    "app-fixer"
+   ],
+   "files": [
+    "valuation/saas/ratelimit.py"
+   ],
+   "wave": 3,
+   "wave_reason": "speculative or low severity",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'app-fixer': 1}"
+  },
+  "MA9": {
+   "title": "'The regate is one flag' is wrong: the demo token is rendered into a public page",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "6 - adversarial",
+   "lane": "app-fixer",
+   "co_lanes": [
+    "app-fixer",
+    "infra"
+   ],
+   "files": [
+    "ENV_REFERENCE.md",
+    "render.yaml",
+    "valuation/saas/app_saas.py",
+    "valuation/saas/surfaces.py",
+    "valuation/web/templates/portfolio.html"
+   ],
+   "wave": 1,
+   "wave_reason": "top severity, nothing to wait for",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'infra': 2, 'app-fixer': 3}"
+  },
+  "MA10": {
+   "title": "ADMIN_TOKEN is one credential for the product and the record, bypasses rate limiting, and has no rotation procedure",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "6 - adversarial",
+   "lane": "app-fixer",
+   "co_lanes": [
+    "app-fixer",
+    "infra"
+   ],
+   "files": [
+    ".github/workflows/auto-scan.yml",
+    "render.yaml",
+    "valuation/saas/app_saas.py"
+   ],
+   "wave": 2,
+   "wave_reason": "severity-first: unblocked by wave 1",
+   "needs_first": [
+    "MA1",
+    "MA3"
+   ],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "the credential is the product's; the workflow and render.yaml are consumers of it, and they outvoted the owner"
+  },
+  "MA11": {
+   "title": "The auto-land Action is unreviewed arbitrary code execution with write access to main",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "6 - adversarial / 5 - process",
+   "lane": "infra",
+   "co_lanes": [
+    "infra"
+   ],
+   "files": [
+    ".github/workflows/land-agent-branch.yml"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'infra': 1}"
+  },
+  "MA12": {
+   "title": "Every dependency is unpinned on a chain that installs fresh and auto-deploys",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "6 - adversarial / 7 - continuity",
+   "lane": "infra",
+   "co_lanes": [
+    "infra"
+   ],
+   "files": [
+    ".github/workflows/auto-scan.yml",
+    ".github/workflows/land-agent-branch.yml",
+    "Dockerfile",
+    "requirements.txt"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [
+    "MA11"
+   ],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'infra': 4}"
+  },
+  "MA13": {
+   "title": "N - the denominator of every significance claim - has no tamper-evidence",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "6 - adversarial",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "RESEARCH_LOG.md",
+    "tests/test_edge.py",
+    "valuation/edge/research_log.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [
+    "MA6"
+   ],
+   "trial_cost": "0",
+   "in_flight": {
+    "branch": "worktree-options-live",
+    "commit": "PREREG MA19+MA13: recalibrate X7's floors at N=224, and give N tamper-evidence",
+    "at": "2026-08-14 20:22",
+    "state": "PREREG committed blind - the register exists, the measurement does not",
+    "do_not": "do not open N tamper-evidence in a second lane; it is claimed"
+   },
+   "lane_evidence": "{'pipeline': 3}"
+  },
+  "MA14": {
+   "title": "Fail-closed covers absence; nothing covers wrong-but-plausible on the LIVE scoring path",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "6 - adversarial",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline",
+    "greeks"
+   ],
+   "files": [
+    "scripts/ci_scan.py",
+    "valuation/edge/fundamental_panel.py",
+    "valuation/screener/screen.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": "0 for the port (reporting only); a register if any threshold ever gates on it",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 2, 'greeks': 1}"
+  },
+  "MA15": {
+   "title": "data/options_ticks (4.72 GB) is in neither the backup allowlist nor its skip list",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "7 - continuity",
+   "lane": "infra",
+   "co_lanes": [
+    "pipeline",
+    "infra"
+   ],
+   "files": [
+    "backup_to_D.ps1",
+    "mine_tick_flow.py",
+    "scripts/o10_o18_tickflow.py",
+    "scripts/o14_tickflow_signals.py"
+   ],
+   "wave": 1,
+   "wave_reason": "top severity, nothing to wait for",
+   "needs_first": [
+    "MA20"
+   ],
+   "trial_cost": "0",
+   "in_flight": {
+    "branch": "worktree-crowding-p2",
+    "commit": "MA-MAP + MA15 + MA16 + MA20",
+    "at": "2026-08-14 21:00",
+    "state": "DELIVERED - data\\options_ticks added to $KEEP bucket 2; 4.40 GB verified on D:",
+    "do_not": "done"
+   },
+   "lane_evidence": "the change is one allowlist entry in backup_to_D.ps1; the tickflow scripts are consumers, not the work"
+  },
+  "MA16": {
+   "title": "data/free_analysis is skipped from backup on the exact argument RUN_RULES rule 9 rejects",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "7 - continuity",
+   "lane": "infra",
+   "co_lanes": [
+    "pipeline",
+    "infra"
+   ],
+   "files": [
+    ".gitignore",
+    "backup_to_D.ps1"
+   ],
+   "wave": 1,
+   "wave_reason": "top severity, nothing to wait for",
+   "needs_first": [
+    "MA20"
+   ],
+   "trial_cost": "0",
+   "in_flight": {
+    "branch": "worktree-crowding-p2",
+    "commit": "MA-MAP + MA15 + MA16 + MA20",
+    "at": "2026-08-14 21:00",
+    "state": "DELIVERED - data\\free_analysis moved $SKIP -> $KEEP bucket 1; 0.80 GB verified on D:",
+    "do_not": "done"
+   },
+   "lane_evidence": "same - one $SKIP entry moved to $KEEP in backup_to_D.ps1"
+  },
+  "MA17": {
+   "title": "The bus test: the code survives a stranger, the claims do not",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "7 - continuity",
+   "lane": "infra",
+   "co_lanes": [
+    "infra"
+   ],
+   "files": [
+    "BACKTEST_RUNBOOK.md",
+    "CLAUDE.md",
+    "README.md",
+    "VALQUO_LEDGER.md"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'infra': 4}"
+  },
+  "MA18": {
+   "title": "The bound forward track still has no writer, and the five-year clock is running",
+   "severity": "HIGH",
+   "severity_as_written": "MEDIUM",
+   "mandate": "7 - continuity",
+   "lane": "greeks",
+   "co_lanes": [
+    "pipeline",
+    "greeks",
+    "infra"
+   ],
+   "files": [
+    "PAPER_TRACK_CONTRACT.md",
+    "valuation/edge/track_meter.py",
+    "valuation/screener/index_mark.py"
+   ],
+   "wave": 1,
+   "wave_reason": "top severity, nothing to wait for",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "the writer lives in screener/index_mark.py; the DAILY WRITE itself is Cowork's, and no repo lane can close this alone"
+  },
+  "MA19": {
+   "title": "X7's calibrated floors were last checked two N-regimes ago; the project's own adopt curve says the null has moved",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "9 - calibration age",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "BACKTEST_RESULTS.json",
+    "scripts/placebo.py",
+    "scripts/x7_reconcile.py",
+    "valuation/edge/fundamental_panel.py"
+   ],
+   "wave": 2,
+   "wave_reason": "severity-first: unblocked by wave 1",
+   "needs_first": [
+    "MA13",
+    "MA16",
+    "MA6"
+   ],
+   "trial_cost": "0 if re-derived from banked draws; a full 3.4-hour sweep if they are gone",
+   "in_flight": {
+    "branch": "worktree-options-live",
+    "commit": "PREREG MA19+MA13: recalibrate X7's floors at N=224, and give N tamper-evidence",
+    "at": "2026-08-14 20:22",
+    "state": "PREREG committed blind",
+    "do_not": "do not re-derive X7's floors elsewhere; a second sweep at a different N would produce a second set of floors and nothing would say which is authoritative"
+   },
+   "lane_evidence": "{'pipeline': 4}"
+  },
+  "MA20": {
+   "title": "The shared checkout drifts invisibly; it is now 508 commits behind and holds one unpushed commit that answers an open row",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "5 - process",
+   "lane": "infra",
+   "co_lanes": [
+    "pipeline",
+    "infra"
+   ],
+   "files": [
+    ".github/workflows/auto-scan.yml",
+    "C:/Users/donni/Downloads/valuation-tool",
+    "sync.bat"
+   ],
+   "wave": 1,
+   "wave_reason": "top severity, nothing to wait for",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": {
+    "branch": "worktree-crowding-p2",
+    "commit": "MA-MAP + MA15 + MA16 + MA20",
+    "at": "2026-08-14 21:00",
+    "state": "ALARM DELIVERED, cure is Don's - scripts/checkout_drift.py + check_drift.bat, wired into git_push.bat. Measured 1 ahead / 514 behind.",
+    "do_not": "the guard is written; what remains is Don running sync.bat once, which no agent should do for him"
+   },
+   "lane_evidence": "{'infra': 2, 'pipeline': 1}"
+  },
+  "MA21": {
+   "title": "Conventions that exist only in prose and could be enforced by a check",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "5 - process",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline",
+    "infra"
+   ],
+   "files": [
+    "BACKTEST_RESULTS.json",
+    "scripts/build_ledger.py",
+    "valuation/edge/live_replay.py",
+    "valuation/edge/research_log.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [
+    "MA13"
+   ],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 3, 'infra': 1}"
+  },
+  "MA22": {
+   "title": "CLAUDE.md has outgrown its job and now contains the failure class it exists to prevent",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "5 - process",
+   "lane": "infra",
+   "co_lanes": [
+    "infra"
+   ],
+   "files": [
+    "CLAUDE.md",
+    "RUN_RULES.md"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'infra': 2}"
+  },
+  "MA23": {
+   "title": "valuation/edge/ mixes the shipped engine with a dozen finished one-shot studies",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "8 - simplification",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "valuation/edge/bucket_floor.py",
+    "valuation/edge/convex_overlay.py",
+    "valuation/edge/earnings_surface.py",
+    "valuation/edge/ev_multiples_study.py",
+    "valuation/edge/kelly.py",
+    "valuation/edge/live_replay.py",
+    "valuation/edge/loo_holdout.py",
+    "valuation/edge/ml_combiner.py",
+    "valuation/edge/param_search.py",
+    "valuation/edge/portfolio_capacity.py",
+    "valuation/edge/surface_stock.py",
+    "valuation/research/lazy_prices_ic.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 12}"
+  },
+  "MA24": {
+   "title": "Wrong rejections: three 'the design could not have caught it' verdicts, all already labelled - and S19 needs a NEW DESIGN, not a re-run",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "1 - trade logic",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "valuation/edge/fundamental_panel.py",
+    "valuation/research/lazy_prices_ic.py"
+   ],
+   "wave": 3,
+   "wave_reason": "charges trials - needs a register first",
+   "needs_first": [],
+   "trial_cost": "2 arms, plus the rebuild's own cost (a panel build is ~20 min; a monthly panel is ~3x the dates)",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 2}"
+  },
+  "MA25": {
+   "title": "'There is no liquidity measure on this path' is true of the panel and false of the project",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "1 - trade logic",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "data/bulk/prepared/bars/*.pkl",
+    "scripts/capacity.py",
+    "valuation/edge/fundamental_panel.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": "0 for the record correction; 2 arms if the interaction is ever run",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 3}"
+  },
+  "MA26": {
+   "title": "Untested combinations: measured quantities that sit unused",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "1 - trade logic",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline",
+    "app-fixer"
+   ],
+   "files": [
+    "scripts/s10_downside_exclusion.py",
+    "valuation/edge/fundamental_panel.py",
+    "valuation/web/withhold.py"
+   ],
+   "wave": 3,
+   "wave_reason": "charges trials - needs a register first",
+   "needs_first": [],
+   "trial_cost": "A: 1-2 · B: 2 · C: 0 (unbuildable) · D: 0 (closed)",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 2, 'app-fixer': 1}"
+  },
+  "MA27": {
+   "title": "Equation candidate: L2 (ridge) shrinkage on the 53-signal cross-section, and why it is not the rejected schemes in a costume",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "1 - trade logic",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "data/factors",
+    "valuation/edge/fundamental_panel.py"
+   ],
+   "wave": 3,
+   "wave_reason": "charges trials - needs a register first",
+   "needs_first": [],
+   "trial_cost": "1 if a single pre-committed gamma rule; 2 for both decide/measure directions, which the shipped gate requires. N 224 -> 226 moves the HLZ hurdle 3.28988 -> 3.29277, i.e. 0.003 of a t.",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 2}"
+  },
+  "MA28": {
+   "title": "HYPOTHESIS - 'Accounting red flags': a name-level risk card",
+   "severity": "HYPOTHESIS",
+   "severity_as_written": "HYPOTHESIS",
+   "mandate": "3 - new features",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline",
+    "app-fixer"
+   ],
+   "files": [
+    "scripts/s10_downside_exclusion.py",
+    "valuation/web/dip_posture.py"
+   ],
+   "wave": 3,
+   "wave_reason": "charges trials - needs a register first",
+   "needs_first": [
+    "MA26"
+   ],
+   "trial_cost": "1-2",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 1, 'app-fixer': 1}"
+  },
+  "MA29": {
+   "title": "HYPOTHESIS - 'What the model cannot value': a transparency surface",
+   "severity": "HYPOTHESIS",
+   "severity_as_written": "HYPOTHESIS",
+   "mandate": "3 - new features",
+   "lane": "app-fixer",
+   "co_lanes": [
+    "app-fixer",
+    "greeks"
+   ],
+   "files": [
+    "valuation/screener/screen.py",
+    "valuation/web/withhold.py"
+   ],
+   "wave": 3,
+   "wave_reason": "speculative or low severity",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "{'greeks': 1, 'app-fixer': 1}"
+  },
+  "MA30": {
+   "title": "HYPOTHESIS - Tenure on the hot list",
+   "severity": "HYPOTHESIS",
+   "severity_as_written": "HYPOTHESIS",
+   "mandate": "3 - new features",
+   "lane": "greeks",
+   "co_lanes": [
+    "pipeline",
+    "greeks"
+   ],
+   "files": [
+    "valuation/edge/fundamental_panel.py",
+    "valuation/screener/index_track.py"
+   ],
+   "wave": 3,
+   "wave_reason": "charges trials - needs a register first",
+   "needs_first": [],
+   "trial_cost": "0 for display",
+   "in_flight": null,
+   "lane_evidence": "a display change on the screener's hot list; the panel reference is the definition of tenure, not a panel edit"
+  },
+  "MA31": {
+   "title": "Cremers-Weinbaum matched-strike put-call parity deviation - the largest un-run item either prior audit named",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "4 - external research / 1 - trade logic",
+   "lane": "options-bot",
+   "co_lanes": [
+    "pipeline",
+    "options-bot"
+   ],
+   "files": [
+    "data/options",
+    "valuation/edge/surface_stock.py"
+   ],
+   "wave": 3,
+   "wave_reason": "charges trials - needs a register first",
+   "needs_first": [],
+   "trial_cost": "1-2",
+   "in_flight": null,
+   "lane_evidence": "an options-surface arm on the raw chains"
+  },
+  "MA32": {
+   "title": "Open-vs-close decomposition of options volume (Ge-Lin-Pearson) - buildable from open-interest change",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "4 - external research / 1 - trade logic",
+   "lane": "options-bot",
+   "co_lanes": [
+    "pipeline",
+    "options-bot"
+   ],
+   "files": [
+    "data/options",
+    "scripts/o14_tickflow_signals.py"
+   ],
+   "wave": 3,
+   "wave_reason": "charges trials - needs a register first",
+   "needs_first": [],
+   "trial_cost": "1-2",
+   "in_flight": null,
+   "lane_evidence": "an options-volume arm on the raw chains"
+  },
+  "MA33": {
+   "title": "The monthly theme panel - the rebuild that unlocks the whole text/LLM class at once",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "4 - external research / 1 - trade logic",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "valuation/edge/fundamental_panel.py",
+    "valuation/research/lazy_prices.py",
+    "valuation/research/lazy_prices_ic.py"
+   ],
+   "wave": 3,
+   "wave_reason": "charges trials - needs a register first",
+   "needs_first": [
+    "MA19",
+    "MA24"
+   ],
+   "trial_cost": "the rebuild itself charges nothing; each arm scored on it charges normally",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 3}"
+  },
+  "MA34": {
+   "title": "Write the post-publication decay prior into the contract's expectations, at zero trial cost",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "4 - external research",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline",
+    "infra"
+   ],
+   "files": [
+    "PAPER_TRACK_CONTRACT.md",
+    "valuation/edge/track_meter.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": null,
+   "lane_evidence": "the contract text is the deliverable, but the prior belongs to the lane that owns track_meter and the meter's power arithmetic"
+  },
+  "MA35": {
+   "title": "Git corrupts every PDF in this repository on checkout, and it has already done it",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code",
+   "lane": "infra",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    ".gitattributes",
+    "VALQUO_LIVE_AUDIT.pdf",
+    "Valquo_Edge_Audit_and_Test_Catalogue.pdf"
+   ],
+   "wave": 0,
+   "wave_reason": "already landed",
+   "needs_first": [],
+   "trial_cost": "0",
+   "in_flight": {
+    "branch": "origin/main",
+    "commit": "c759250",
+    "at": "2026-08-14",
+    "state": "LANDED - .gitattributes carries `*.pdf binary`, verified",
+    "do_not": "closed"
+   },
+   "lane_evidence": ".gitattributes - repository plumbing"
+  },
+  "MA36": {
+   "title": "Forward paper track strands worthless-expired options open forever; the -100% tail is censored from the live record",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "2 - code",
+   "lane": "options-bot",
+   "co_lanes": [
+    "pipeline",
+    "options-bot"
+   ],
+   "files": [
+    "valuation/edge/paper_track.py",
+    "valuation/edge/scream_log.py"
+   ],
+   "wave": 1,
+   "wave_reason": "top severity, nothing to wait for",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": {
+    "branch": "worktree-optionsbot-lane",
+    "commit": "PREREG MA36+MA37: the live options record is censored at one end and blended at the other",
+    "at": "2026-08-14 20:28",
+    "state": "PREREG committed blind",
+    "do_not": "claimed; MA46 depends on it and must wait rather than fork"
+   },
+   "lane_evidence": "the forward OPTIONS book's censored -100% tail"
+  },
+  "MA37": {
+   "title": "The 2026-08-13 options record reset (record_epoch) is invisible to scorecard, tuning and paper_report; a tuning loop learns from a formally-retired era",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "2 - code",
+   "lane": "options-bot",
+   "co_lanes": [
+    "options-bot"
+   ],
+   "files": [
+    "valuation/edge/options_paper.py",
+    "valuation/edge/options_tracker.py",
+    "valuation/edge/scream_log.py"
+   ],
+   "wave": 2,
+   "wave_reason": "severity-first: unblocked by wave 1",
+   "needs_first": [
+    "MA36"
+   ],
+   "trial_cost": null,
+   "in_flight": {
+    "branch": "worktree-optionsbot-lane",
+    "commit": "PREREG MA36+MA37: the live options record is censored at one end and blended at the other",
+    "at": "2026-08-14 20:28",
+    "state": "PREREG committed blind",
+    "do_not": "claimed"
+   },
+   "lane_evidence": "{'options-bot': 3}"
+  },
+  "MA38": {
+   "title": "chain_summary ships an OI coverage fraction no consumer reads, so the 'unusual volume' alert inflates in the exact spans B4 degraded",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "2 - code",
+   "lane": "options-bot",
+   "co_lanes": [
+    "options-bot"
+   ],
+   "files": [
+    "valuation/edge/options_backtest.py",
+    "valuation/intraday/options.py"
+   ],
+   "wave": 1,
+   "wave_reason": "top severity, nothing to wait for",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'options-bot': 2}"
+  },
+  "MA39": {
+   "title": "results_file degraded-run scan watches 6 of 13 result blocks; build_payload rebuilds errors from scratch and never reads res['errors']",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "2 - code",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "valuation/edge/fundamental_panel.py",
+    "valuation/edge/results_file.py"
+   ],
+   "wave": 1,
+   "wave_reason": "top severity, nothing to wait for",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 2}"
+  },
+  "MA40": {
+   "title": "B21 sector_caps and the walk_forward parameter sweep are computed every run and reach no reader; the M6 tripwire is structurally blind to both",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "valuation/edge/fundamental_panel.py",
+    "valuation/edge/payload_schema.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 2}"
+  },
+  "MA41": {
+   "title": "walkforward.py has no purge/embargo (the only splitter without one) and feeds a live 'Adopt' verdict",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "valuation/edge/lab.py",
+    "valuation/edge/walkforward.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 2}"
+  },
+  "MA42": {
+   "title": "shadow_vintage.detail() reads months_paired before anything writes it; the shadow-pair status is frozen at 0 months forever",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "valuation/edge/shadow_vintage.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 1}"
+  },
+  "MA43": {
+   "title": "ablation.paired_diff pairs by position and silently truncates, while its docstring promises the SAME periods",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "scripts/construction_rerun.py",
+    "scripts/x3_ablation_rerun.py",
+    "valuation/edge/ablation.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 3}"
+  },
+  "MA44": {
+   "title": "Live vs reconstruction disagree on the front expiry on 0DTE days, and the docstring claims they match",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code",
+   "lane": "options-bot",
+   "co_lanes": [
+    "options-bot",
+    "greeks"
+   ],
+   "files": [
+    "valuation/edge/options_backtest.py",
+    "valuation/intraday/providers.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'options-bot': 1, 'greeks': 1}"
+  },
+  "MA45": {
+   "title": "blackscholes.enrich_chain solves IV from an unvalidated mid=(bid+ask)/2, biasing the term-slope gate",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code",
+   "lane": "options-bot",
+   "co_lanes": [
+    "options-bot"
+   ],
+   "files": [
+    "valuation/edge/blackscholes.py",
+    "valuation/edge/options_greeks.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'options-bot': 2}"
+  },
+  "MA46": {
+   "title": "Two options recorders define pnl_pct differently post-B15: forward track gross of commission, backtest net",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code",
+   "lane": "options-bot",
+   "co_lanes": [
+    "options-bot"
+   ],
+   "files": [
+    "valuation/edge/options_fill.py",
+    "valuation/edge/options_tracker.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [
+    "MA37"
+   ],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'options-bot': 2}"
+  },
+  "MA47": {
+   "title": "param_search.cached_panel cache key uses len(tickers) for ticker identity - the B12 collision re-encoded - against its own docstring",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "valuation/edge/param_search.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 1}"
+  },
+  "MA48": {
+   "title": "A current-year theta cache freezes at its mine date and needs_pull refuses to refresh it - silent right-truncation",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "2 - code",
+   "lane": "options-bot",
+   "co_lanes": [
+    "options-bot"
+   ],
+   "files": [
+    "valuation/edge/theta_bulk.py",
+    "valuation/edge/thetadata_provider.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'options-bot': 2}"
+  },
+  "MA49": {
+   "title": "Cluster of latent time-bombs and clamp-hides-garbage defects (bundled)",
+   "severity": "LOW",
+   "severity_as_written": "LOW",
+   "mandate": "2 - code",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "scripts/factor_alpha.py",
+    "scripts/fetch_factors.py",
+    "scripts/x7_reconcile.py",
+    "valuation/edge/param_search.py",
+    "valuation/edge/statistics.py"
+   ],
+   "wave": 3,
+   "wave_reason": "speculative or low severity",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "a bundle spanning statistics, scripts and param_search; statistics.py has ten importers and decides the lane"
+  },
+  "MA50": {
+   "title": "/api/hotstocks?top=-1 defeats the per-tier row cap via a negative SQL LIMIT",
+   "severity": "HIGH",
+   "severity_as_written": "HIGH",
+   "mandate": "6 - adversarial",
+   "lane": "app-fixer",
+   "co_lanes": [
+    "app-fixer",
+    "greeks"
+   ],
+   "files": [
+    "valuation/screener/store.py",
+    "valuation/web/app.py"
+   ],
+   "wave": 1,
+   "wave_reason": "top severity, nothing to wait for",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'greeks': 1, 'app-fixer': 1}"
+  },
+  "MA51": {
+   "title": "Open redirect on /login?next=<absolute URL>",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "6 - adversarial",
+   "lane": "app-fixer",
+   "co_lanes": [
+    "app-fixer"
+   ],
+   "files": [
+    "valuation/saas/auth.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'app-fixer': 1}"
+  },
+  "MA52": {
+   "title": "DEMO_DENIED_VENDOR_ROWS is an empty frozenset - the only structural guard against a future vendor-backed read route leaking under the demo/public tier is a human remembering to list it",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "6 - adversarial",
+   "lane": "greeks",
+   "co_lanes": [
+    "greeks"
+   ],
+   "files": [
+    "valuation/screener/surfaces.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'greeks': 1}"
+  },
+  "MA53": {
+   "title": "Inherited LA12 is STILL LIVE, and two public endpoints 500 on a malformed numeric param",
+   "severity": "LOW",
+   "severity_as_written": "LOW",
+   "mandate": "6 - adversarial",
+   "lane": "app-fixer",
+   "co_lanes": [
+    "app-fixer"
+   ],
+   "files": [
+    "valuation/web/app.py"
+   ],
+   "wave": 3,
+   "wave_reason": "speculative or low severity",
+   "needs_first": [
+    "MA50"
+   ],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'app-fixer': 1}"
+  },
+  "MA54": {
+   "title": "Re-examination list beyond MA24/MA26 - four rejections whose failing leg was an instrument the arm could not move, each with a NEW pre-registerable design",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "1 - trade logic",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "RESEARCH_LOG.md"
+   ],
+   "wave": 3,
+   "wave_reason": "charges trials - needs a register first",
+   "needs_first": [],
+   "trial_cost": "1-4 trials",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 1}"
+  },
+  "MA55": {
+   "title": "Equation candidate - confidence-weighted mispricing from the valuation-engine gap and lens-disagreement width (distinct from MA27 KNS ridge)",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "1 - trade logic",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline",
+    "greeks"
+   ],
+   "files": [
+    "scripts/exit_rule.py",
+    "valuation/screener/fairvalue.py"
+   ],
+   "wave": 3,
+   "wave_reason": "charges trials - needs a register first",
+   "needs_first": [
+    "MA25"
+   ],
+   "trial_cost": "~2 trials",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 1, 'greeks': 1}"
+  },
+  "MA56": {
+   "title": "Residual term-slope - already measured to beat its parent, with no consumer; record for the next options entry",
+   "severity": "LOW",
+   "severity_as_written": "LOW",
+   "mandate": "1 - trade logic",
+   "lane": "options-bot",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "RESEARCH_LOG.md"
+   ],
+   "wave": 3,
+   "wave_reason": "speculative or low severity",
+   "needs_first": [],
+   "trial_cost": "0 (record only)",
+   "in_flight": null,
+   "lane_evidence": "residual term-slope is an options-entry feature"
+  },
+  "MA57": {
+   "title": "Routine-vs-opportunistic insider classification (Cohen-Malloy-Pomorski 2012) - the literature's answer to the one negative theme still weighted 12.5%",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "4 - external research",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline",
+    "greeks"
+   ],
+   "files": [
+    "screener/insider.py",
+    "valuation/edge/data_providers.py"
+   ],
+   "wave": 3,
+   "wave_reason": "charges trials - needs a register first",
+   "needs_first": [],
+   "trial_cost": "1-2 trials",
+   "in_flight": null,
+   "lane_evidence": "{'greeks': 1, 'pipeline': 1}"
+  },
+  "MA58": {
+   "title": "Cross-sectional return seasonality (Heston-Sadka; KLN) - replicated, orthogonal, data-owned, and mentioned nowhere in the corpus",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "4 - external research",
+   "lane": "pipeline",
+   "co_lanes": [
+    "pipeline"
+   ],
+   "files": [
+    "owned daily closes"
+   ],
+   "wave": 3,
+   "wave_reason": "charges trials - needs a register first",
+   "needs_first": [],
+   "trial_cost": "1-2 trials",
+   "in_flight": null,
+   "lane_evidence": "{'pipeline': 1}"
+  },
+  "MA59": {
+   "title": "Deletion candidates with import-graph deadness evidence - archive, do not delete; and the load-bearing traps to leave alone",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "8 - simplification",
+   "lane": "infra",
+   "co_lanes": [
+    "pipeline",
+    "options-bot",
+    "greeks",
+    "infra"
+   ],
+   "files": [
+    ".claude/AGENT_LOG.md",
+    "WHERE_WE_STAND.md",
+    "options-bot/",
+    "valuation/config.py",
+    "valuation/edge/ev_multiples_study.py",
+    "valuation/edge/options_exitreplay.py",
+    "valuation/edge/options_tail.py",
+    "valuation/edge/options_xsection.py",
+    "valuation/screener/cross_sectional.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "a deletion/archival policy question across four lanes' dead files - process, not any one engine"
+  },
+  "MA60": {
+   "title": "The register machinery is honesty-dependent in three mechanisable places, and its own builder was a data-destroyer",
+   "severity": "MEDIUM",
+   "severity_as_written": "MEDIUM",
+   "mandate": "5 - process",
+   "lane": "infra",
+   "co_lanes": [
+    "pipeline",
+    "infra"
+   ],
+   "files": [
+    ".github/workflows/land-agent-branch.yml",
+    "check_lanes.py",
+    "scripts/build_ledger.py",
+    "tests/test_build_ledger.py"
+   ],
+   "wave": 2,
+   "wave_reason": "unblocked, zero trial cost",
+   "needs_first": [
+    "MA13"
+   ],
+   "trial_cost": null,
+   "in_flight": null,
+   "lane_evidence": "{'infra': 3, 'pipeline': 1}"
+  }
+ },
+ "edges": [
+  {
+   "from": "MA2",
+   "needs": "MA1",
+   "kind": "explicit",
+   "reason": "declared in the item's depends_on"
+  },
+  {
+   "from": "MA3",
+   "needs": "MA1",
+   "kind": "explicit",
+   "reason": "declared in the item's depends_on"
+  },
+  {
+   "from": "MA10",
+   "needs": "MA1",
+   "kind": "explicit",
+   "reason": "declared in the item's depends_on"
+  },
+  {
+   "from": "MA10",
+   "needs": "MA3",
+   "kind": "explicit",
+   "reason": "declared in the item's depends_on"
+  },
+  {
+   "from": "MA13",
+   "needs": "MA6",
+   "kind": "explicit",
+   "reason": "declared in the item's depends_on"
+  },
+  {
+   "from": "MA19",
+   "needs": "MA16",
+   "kind": "explicit",
+   "reason": "declared in the item's depends_on"
+  },
+  {
+   "from": "MA21",
+   "needs": "MA13",
+   "kind": "explicit",
+   "reason": "declared in the item's depends_on"
+  },
+  {
+   "from": "MA28",
+   "needs": "MA26",
+   "kind": "explicit",
+   "reason": "declared in the item's depends_on"
+  },
+  {
+   "from": "MA33",
+   "needs": "MA24",
+   "kind": "explicit",
+   "reason": "declared in the item's depends_on"
+  },
+  {
+   "from": "MA5",
+   "needs": "MA6",
+   "kind": "logical",
+   "reason": "the sqrt(2 ln N) bar IS a function of N, so it cannot be reconciled against the 3.0 constant while the N counter still has a silent path",
+   "scope": "work"
+  },
+  {
+   "from": "MA19",
+   "needs": "MA6",
+   "kind": "logical",
+   "reason": "a calibrated floor is a percentile of a null the trials haircut moves; X7RECON measured a floor changing because N changed",
+   "scope": "work"
+  },
+  {
+   "from": "MA19",
+   "needs": "MA13",
+   "kind": "logical",
+   "reason": "re-deriving floors at N=224 asserts an N that nothing can currently tamper-check",
+   "scope": "work"
+  },
+  {
+   "from": "MA2",
+   "needs": "MA19",
+   "kind": "logical",
+   "reason": "recalibrating the learner's gate against floors that are themselves two N-regimes stale would bank the staleness into the live model",
+   "scope": "work"
+  },
+  {
+   "from": "MA12",
+   "needs": "MA11",
+   "kind": "logical",
+   "reason": "pinning the dependency set is what makes the unreviewed Action's fresh install reproducible; unpinned, reviewing the workflow secures little",
+   "scope": "work"
+  },
+  {
+   "from": "MA15",
+   "needs": "MA20",
+   "kind": "logical",
+   "reason": "DEPLOYMENT ONLY, not authorship: backup_to_D.ps1 is executed from the shared checkout, so an allowlist fix on main is not a fix on the machine",
+   "scope": "deploy"
+  },
+  {
+   "from": "MA16",
+   "needs": "MA20",
+   "kind": "logical",
+   "reason": "DEPLOYMENT ONLY - and measured 2026-08-14: the stale checkout's backup_now.bat put 42 GB of .claude/.git back on D: in one manual run",
+   "scope": "deploy"
+  },
+  {
+   "from": "MA33",
+   "needs": "MA19",
+   "kind": "logical",
+   "reason": "a monthly panel is a different panel, and X7's floors are panel-specific; arms scored on it have no calibrated bar until they are re-derived",
+   "scope": "work"
+  },
+  {
+   "from": "MA55",
+   "needs": "MA25",
+   "kind": "logical",
+   "reason": "both read the valuation panel's liquidity/lens fields; MA25 settles what those fields actually are before an arm is built on them",
+   "scope": "work"
+  },
+  {
+   "from": "MA37",
+   "needs": "MA36",
+   "kind": "logical",
+   "reason": "both re-shape the live options record; fixing the censored -100% tail changes the very rows the epoch filter must then scope",
+   "scope": "work"
+  },
+  {
+   "from": "MA46",
+   "needs": "MA37",
+   "kind": "logical",
+   "reason": "reconciling two pnl_pct definitions is only meaningful once the record they are computed over has a defined epoch",
+   "scope": "work"
+  },
+  {
+   "from": "MA60",
+   "needs": "MA13",
+   "kind": "logical",
+   "reason": "mechanising the register's honesty-dependent steps presupposes the denominator those steps write is tamper-evident",
+   "scope": "work"
+  },
+  {
+   "from": "MA53",
+   "needs": "MA50",
+   "kind": "logical",
+   "reason": "the same two endpoints and the same unvalidated numeric params - one input-validation pass closes both, and splitting them invites a re-break",
+   "scope": "work"
+  }
+ ],
+ "collisions": [
+  {
+   "a": "MA1",
+   "b": "MA2",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/autolearn.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA3",
+   "kind": "hard-file",
+   "files": [
+    "valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA7",
+   "kind": "hard-file",
+   "files": [
+    "valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA8",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/saas/ratelimit.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA9",
+   "kind": "hard-file",
+   "files": [
+    "valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA10",
+   "kind": "hard-file",
+   "files": [
+    ".github/workflows/auto-scan.yml",
+    "valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA12",
+   "kind": "hard-file",
+   "files": [
+    ".github/workflows/auto-scan.yml"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA14",
+   "kind": "hard-file",
+   "files": [
+    "valuation/screener/screen.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA18",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/track_meter.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA19",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA20",
+   "kind": "hard-file",
+   "files": [
+    ".github/workflows/auto-scan.yml"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA24",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA25",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA26",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA27",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA29",
+   "kind": "hard-file",
+   "files": [
+    "valuation/screener/screen.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA30",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA33",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA34",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/track_meter.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA39",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA40",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA42",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/track_meter.py <-> valuation/edge/shadow_vintage.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/screener/store.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA51",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/saas/auth.py"
+   ]
+  },
+  {
+   "a": "MA1",
+   "b": "MA59",
+   "kind": "hard-file",
+   "files": [
+    "valuation/config.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA3",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA5",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA6",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/research_log.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA13",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/research_log.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA14",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA19",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA21",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/research_log.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA23",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA24",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA25",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA26",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA27",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA30",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA33",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA39",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA40",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA2",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA5",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA6",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/research_log.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA7",
+   "kind": "hard-file",
+   "files": [
+    "valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA8",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/saas/ratelimit.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA9",
+   "kind": "hard-file",
+   "files": [
+    "valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA10",
+   "kind": "hard-file",
+   "files": [
+    "valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA13",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/research_log.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA14",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA19",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA21",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/research_log.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA23",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA24",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA25",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA26",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA27",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA30",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA33",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA39",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA40",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/screener/store.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA51",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/saas/auth.py"
+   ]
+  },
+  {
+   "a": "MA3",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA4",
+   "b": "MA18",
+   "kind": "hard-file",
+   "files": [
+    "valuation/screener/index_mark.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA14",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA19",
+   "kind": "hard-file",
+   "files": [
+    "BACKTEST_RESULTS.json"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA21",
+   "kind": "hard-file",
+   "files": [
+    "BACKTEST_RESULTS.json"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA24",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA25",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA26",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA27",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA30",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA33",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA39",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA40",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/statistics.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA5",
+   "b": "MA49",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA13",
+   "kind": "hard-file",
+   "files": [
+    "RESEARCH_LOG.md",
+    "valuation/edge/research_log.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA14",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA19",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA21",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/research_log.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA24",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA25",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA26",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA27",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA30",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA33",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA39",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA40",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA54",
+   "kind": "hard-file",
+   "files": [
+    "RESEARCH_LOG.md"
+   ]
+  },
+  {
+   "a": "MA6",
+   "b": "MA56",
+   "kind": "hard-file",
+   "files": [
+    "RESEARCH_LOG.md"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA8",
+   "kind": "hard-file",
+   "files": [
+    "valuation/saas/ratelimit.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA9",
+   "kind": "hard-file",
+   "files": [
+    "valuation/saas/app_saas.py",
+    "valuation/saas/surfaces.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA10",
+   "kind": "hard-file",
+   "files": [
+    "valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA26",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/app.py <-> valuation/web/withhold.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA29",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/app.py <-> valuation/web/withhold.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA50",
+   "kind": "hard-file",
+   "files": [
+    "valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA51",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/saas/auth.py"
+   ]
+  },
+  {
+   "a": "MA7",
+   "b": "MA53",
+   "kind": "hard-file",
+   "files": [
+    "valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA8",
+   "b": "MA9",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/ratelimit.py <-> valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA8",
+   "b": "MA10",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/ratelimit.py <-> valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA8",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/ratelimit.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA8",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/ratelimit.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA10",
+   "kind": "hard-file",
+   "files": [
+    "render.yaml",
+    "valuation/saas/app_saas.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/screener/store.py"
+   ]
+  },
+  {
+   "a": "MA9",
+   "b": "MA51",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/saas/auth.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA12",
+   "kind": "hard-file",
+   "files": [
+    ".github/workflows/auto-scan.yml"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA20",
+   "kind": "hard-file",
+   "files": [
+    ".github/workflows/auto-scan.yml"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/screener/store.py"
+   ]
+  },
+  {
+   "a": "MA10",
+   "b": "MA51",
+   "kind": "soft-import",
+   "files": [
+    "valuation/saas/app_saas.py <-> valuation/saas/auth.py"
+   ]
+  },
+  {
+   "a": "MA11",
+   "b": "MA12",
+   "kind": "hard-file",
+   "files": [
+    ".github/workflows/land-agent-branch.yml"
+   ]
+  },
+  {
+   "a": "MA11",
+   "b": "MA60",
+   "kind": "hard-file",
+   "files": [
+    ".github/workflows/land-agent-branch.yml"
+   ]
+  },
+  {
+   "a": "MA12",
+   "b": "MA20",
+   "kind": "hard-file",
+   "files": [
+    ".github/workflows/auto-scan.yml"
+   ]
+  },
+  {
+   "a": "MA12",
+   "b": "MA60",
+   "kind": "hard-file",
+   "files": [
+    ".github/workflows/land-agent-branch.yml"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA14",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA19",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA21",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/research_log.py"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA24",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA25",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA26",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA27",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA30",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA33",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA39",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA40",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA54",
+   "kind": "hard-file",
+   "files": [
+    "RESEARCH_LOG.md"
+   ]
+  },
+  {
+   "a": "MA13",
+   "b": "MA56",
+   "kind": "hard-file",
+   "files": [
+    "RESEARCH_LOG.md"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA19",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA21",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/research_log.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA23",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA24",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA25",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA26",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA27",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA29",
+   "kind": "hard-file",
+   "files": [
+    "valuation/screener/screen.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA30",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA33",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA39",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA40",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA14",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py",
+    "valuation/screener/screen.py <-> valuation/config.py",
+    "valuation/screener/screen.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA15",
+   "b": "MA16",
+   "kind": "hard-file",
+   "files": [
+    "backup_to_D.ps1"
+   ]
+  },
+  {
+   "a": "MA15",
+   "b": "MA32",
+   "kind": "hard-file",
+   "files": [
+    "scripts/o14_tickflow_signals.py"
+   ]
+  },
+  {
+   "a": "MA17",
+   "b": "MA22",
+   "kind": "hard-file",
+   "files": [
+    "CLAUDE.md"
+   ]
+  },
+  {
+   "a": "MA18",
+   "b": "MA34",
+   "kind": "hard-file",
+   "files": [
+    "PAPER_TRACK_CONTRACT.md",
+    "valuation/edge/track_meter.py"
+   ]
+  },
+  {
+   "a": "MA18",
+   "b": "MA42",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/track_meter.py <-> valuation/edge/shadow_vintage.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA21",
+   "kind": "hard-file",
+   "files": [
+    "BACKTEST_RESULTS.json"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA23",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA24",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA25",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA26",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA27",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA30",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA33",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA39",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA40",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA49",
+   "kind": "hard-file",
+   "files": [
+    "scripts/x7_reconcile.py"
+   ]
+  },
+  {
+   "a": "MA19",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA21",
+   "b": "MA23",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/live_replay.py"
+   ]
+  },
+  {
+   "a": "MA21",
+   "b": "MA24",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA21",
+   "b": "MA25",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA21",
+   "b": "MA26",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA21",
+   "b": "MA27",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA21",
+   "b": "MA30",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA21",
+   "b": "MA33",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA21",
+   "b": "MA39",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA21",
+   "b": "MA40",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/research_log.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA21",
+   "b": "MA60",
+   "kind": "hard-file",
+   "files": [
+    "scripts/build_ledger.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA24",
+   "kind": "hard-file",
+   "files": [
+    "valuation/research/lazy_prices_ic.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA25",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/param_search.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA26",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/param_search.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA27",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/param_search.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA30",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/param_search.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA31",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/surface_stock.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA33",
+   "kind": "hard-file",
+   "files": [
+    "valuation/research/lazy_prices_ic.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA39",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/param_search.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA40",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/param_search.py <-> valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA47",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA49",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA23",
+   "b": "MA59",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/ev_multiples_study.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA25",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA26",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA27",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA30",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA33",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py",
+    "valuation/research/lazy_prices_ic.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA39",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA40",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA24",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA26",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA27",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA30",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA33",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA39",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA40",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA25",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA27",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA28",
+   "kind": "hard-file",
+   "files": [
+    "scripts/s10_downside_exclusion.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA29",
+   "kind": "hard-file",
+   "files": [
+    "valuation/web/withhold.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA30",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA33",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA39",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA40",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/withhold.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/withhold.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA26",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA27",
+   "b": "MA30",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA27",
+   "b": "MA33",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA27",
+   "b": "MA39",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA27",
+   "b": "MA40",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA27",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+   ]
+  },
+  {
+   "a": "MA27",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA27",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA27",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA27",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA29",
+   "b": "MA50",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/withhold.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA29",
+   "b": "MA53",
+   "kind": "soft-import",
+   "files": [
+    "valuation/web/withhold.py <-> valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA29",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/screen.py <-> valuation/config.py",
+    "valuation/screener/screen.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA33",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA36",
+   "kind": "soft-import",
+   "files": [
+    "valuation/screener/index_track.py <-> valuation/edge/paper_track.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA39",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA40",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA30",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA31",
+   "b": "MA32",
+   "kind": "hard-file",
+   "files": [
+    "data/options"
+   ]
+  },
+  {
+   "a": "MA33",
+   "b": "MA39",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA33",
+   "b": "MA40",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA33",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+   ]
+  },
+  {
+   "a": "MA33",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA33",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA33",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA33",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA34",
+   "b": "MA42",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/track_meter.py <-> valuation/edge/shadow_vintage.py"
+   ]
+  },
+  {
+   "a": "MA36",
+   "b": "MA37",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/scream_log.py"
+   ]
+  },
+  {
+   "a": "MA36",
+   "b": "MA46",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/paper_track.py <-> valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA37",
+   "b": "MA38",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_tracker.py <-> valuation/edge/options_backtest.py"
+   ]
+  },
+  {
+   "a": "MA37",
+   "b": "MA44",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_tracker.py <-> valuation/edge/options_backtest.py"
+   ]
+  },
+  {
+   "a": "MA37",
+   "b": "MA46",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA38",
+   "b": "MA44",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/options_backtest.py"
+   ]
+  },
+  {
+   "a": "MA38",
+   "b": "MA45",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_backtest.py <-> valuation/edge/blackscholes.py"
+   ]
+  },
+  {
+   "a": "MA38",
+   "b": "MA46",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_backtest.py <-> valuation/edge/options_fill.py",
+    "valuation/edge/options_backtest.py <-> valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA39",
+   "b": "MA40",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/fundamental_panel.py"
+   ]
+  },
+  {
+   "a": "MA39",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+   ]
+  },
+  {
+   "a": "MA39",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA39",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA39",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA39",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA40",
+   "b": "MA41",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/walkforward.py"
+   ]
+  },
+  {
+   "a": "MA40",
+   "b": "MA43",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/ablation.py"
+   ]
+  },
+  {
+   "a": "MA40",
+   "b": "MA47",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA40",
+   "b": "MA49",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/param_search.py",
+    "valuation/edge/fundamental_panel.py <-> valuation/edge/statistics.py"
+   ]
+  },
+  {
+   "a": "MA40",
+   "b": "MA59",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/fundamental_panel.py <-> valuation/screener/cross_sectional.py"
+   ]
+  },
+  {
+   "a": "MA44",
+   "b": "MA45",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_backtest.py <-> valuation/edge/blackscholes.py"
+   ]
+  },
+  {
+   "a": "MA44",
+   "b": "MA46",
+   "kind": "soft-import",
+   "files": [
+    "valuation/edge/options_backtest.py <-> valuation/edge/options_fill.py",
+    "valuation/edge/options_backtest.py <-> valuation/edge/options_tracker.py"
+   ]
+  },
+  {
+   "a": "MA47",
+   "b": "MA49",
+   "kind": "hard-file",
+   "files": [
+    "valuation/edge/param_search.py"
+   ]
+  },
+  {
+   "a": "MA50",
+   "b": "MA53",
+   "kind": "hard-file",
+   "files": [
+    "valuation/web/app.py"
+   ]
+  },
+  {
+   "a": "MA54",
+   "b": "MA56",
+   "kind": "hard-file",
+   "files": [
+    "RESEARCH_LOG.md"
+   ]
+  }
+ ]
+}
