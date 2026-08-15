@@ -47,9 +47,14 @@
   header p{margin:0 0 6px;color:#d6e0f2;font-size:16.5px;max-width:66ch}
   header .who{margin-top:16px;font-size:14px;color:#a9bde0}
   header .who a{color:#fff;text-decoration:underline}
+  /* MA9: this styles a <button> inside a form now, not an <a>. The three added properties
+     are what a button does not inherit — family, pointer, line-height — so the control looks
+     exactly as it did when it was a link. The rest is unchanged. */
+  .demo-form{margin:0;padding:0}
   .demo-cta{display:inline-block;margin:22px 0 0;background:#fff;color:var(--navy);
     font-size:16px;font-weight:800;padding:13px 22px;border-radius:10px;text-decoration:none;
-    border:1px solid rgba(255,255,255,.5);box-shadow:0 2px 10px rgba(0,0,0,.18)}
+    border:1px solid rgba(255,255,255,.5);box-shadow:0 2px 10px rgba(0,0,0,.18);
+    font-family:inherit;line-height:1.2;cursor:pointer}
   .demo-note{margin:10px 0 0;font-size:13.5px;color:#a9bde0;max-width:60ch}
   .labels{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 0}
   .labels span{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);
@@ -140,21 +145,39 @@
       <span>Educational only · not investment advice</span>
       <span>Unlisted page · not a product</span>
     </div>
-    {# THE RECRUITER MASTER-LINK, as a BUTTON rather than a bare URL on the résumé
+    {# THE RECRUITER PREVIEW, as a BUTTON rather than a bare URL on the résumé
      # (Don's decision, 2026-08-07, PROMPT_recruiter_master_link.md).
      #
-     # The token is read from the environment SERVER-SIDE at render time and is never
-     # written into this template. That is the whole design: rotating DEMO_ACCESS_TOKEN on
-     # Render re-points this button instantly and simultaneously kills every
-     # /demo/<token> URL that was ever copied out of it. The button is always current;
-     # copied links are always revocable. Do not "simplify" this by hardcoding a token.
+     # MA9 — THIS USED TO PUBLISH THE TOKEN. It rendered `<a href="{{ demo_url }}">` where
+     # demo_url was "/demo/" + DEMO_ACCESS_TOKEN, under a comment claiming the token "is
+     # never written into this template". That was true of the TEMPLATE and false of the
+     # RESPONSE: the value landed in the HTML of an anonymous page, so anyone who viewed
+     # source held a permanent, shareable credential — and after PUBLIC_FULL_VIEW=false that
+     # token is the only gate left on every owner API. A secret is published when it reaches
+     # the reader, not when it is typed into a file.
+     #
+     # It is now a POST to /preview, where the server sets the session itself
+     # (auth.demo_grant_view). What this template receives is a BOOLEAN. There is nothing on
+     # the page to copy: reading /work grants a session, never a credential.
+     # Do not "simplify" this back into a link — a link needs a token in it.
      #
      # Renders only when a token is configured AND the licence lockdown is off — under
-     # PRIVATE_MODE the /demo route refuses outright, and a button onto a refusal is worse
-     # than no button. Rule 1 above still holds: `demo_url` carries a secret, not a vendor
-     # row, and the page still reads no store and makes no fetch. #}
-    {% if demo_url %}
-    <a class="demo-cta" href="{{ demo_url }}" rel="nofollow noopener">Open the full tool — no account needed →</a>
+     # PRIVATE_MODE both /demo and /preview refuse outright, and a button onto a refusal is
+     # worse than no button. Rule 1 above still holds, and more cleanly than before: this
+     # carries no secret and no vendor row, and the page still reads no store and makes no
+     # fetch.
+     #
+     # THE CSRF FIELD IS THE ONE PER-SESSION VALUE ON THIS PAGE, and it is required: without
+     # it a cross-site POST could clear a signed-in owner's session, and SameSite=Lax does not
+     # help because the cookie is not sent cross-site, so the route cannot see the uid to
+     # refuse. It is a session token, never a store read — the static-page pin in
+     # test_private.py masks it and then compares across two SEPARATE sessions, which is a
+     # stronger check than the single-client one it replaced. #}
+    {% if demo_available %}
+    <form method="POST" action="/preview" class="demo-form">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <button type="submit" class="demo-cta">Open the full tool — no account needed →</button>
+    </form>
     <p class="demo-note">A read-only preview of the whole app — the daily ranking, the model
       portfolio, the research bench and the paper-account record. It cannot change anything,
       and every figure inside carries the same educational-only caveats as this page.</p>

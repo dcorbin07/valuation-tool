@@ -15,10 +15,10 @@ sources drop in with a one-line change. Owner account (`donniecorbin6@gmail.com`
 
 **Beta mode is ON.** Right now the site is in an open free beta: a banner says it's in
 development, **everyone who signs up gets full Premium free**, and a **recruiter
-master-link** (`/demo/<token>`, default `/demo/preview`) opens a full Premium preview
-with no signup — that's the link for your résumé. When you're ready to charge, flip
-`BETA_ALL_PREMIUM=false` (and set a hard `DEMO_ACCESS_TOKEN`); the master-link keeps
-working for recruiters. See **ENV_REFERENCE.md → Beta / launch switches**.
+master-link** (`/demo/<token>`) opens a full read-only preview with no signup — that's the
+link for your résumé. There is **no default token**: unset means the preview is off. When
+you're ready to charge, flip `BETA_ALL_PREMIUM=false` (and set a long random
+`DEMO_ACCESS_TOKEN`); the master-link keeps working for recruiters. See **ENV_REFERENCE.md → Beta / launch switches**.
 
 **You are LIVE** at `https://valuation-tool-h2hr.onrender.com` (master-link:
 `/demo/preview`), now on **Render Starter + a persistent disk** — so the hot list,
@@ -63,7 +63,7 @@ requires buying anything. Set them, then Manual Deploy.
 | `ANTHROPIC_API_KEY` | your key (you have it) | AI moat/risk/thesis notes + Signals reasoning. Pay-per-use, ~cents; not a subscription. |
 | `TRADIER_TOKEN` + `TRADIER_ENV=live` | your Tradier token | **Real-time** quotes + option chains for Signals. Free with your brokerage account. No account number needed. |
 | `PUBLIC_BASE_URL` | `https://valuation-tool-h2hr.onrender.com` | Correct links in emails/redirects. |
-| `DEMO_ACCESS_TOKEN` | keep `preview` for now | Your résumé master-link (`/demo/<token>`). |
+| `DEMO_ACCESS_TOKEN` | a fresh random value — **never `preview`** | Your résumé master-link (`/demo/<token>`) and the on/off switch for the `/work` button. `preview` is guessable and was published in `/work`'s HTML until 2026-08-14 (MA9). Generate: `python -c "import secrets;print(secrets.token_urlsafe(24))"`. |
 | `SMTP_HOST`/`SMTP_USER`/`SMTP_PASSWORD` + `EMAIL_FROM` | your Zoho (optional) | Real password-reset + daily digest + opt-in alert emails → feels like a finished product. |
 | `DISCORD_WEBHOOK_URL` | ✅ set | Posts the **daily top-10 digest** + **screaming-buy** alerts to your Discord channel. |
 

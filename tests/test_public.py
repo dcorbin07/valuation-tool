@@ -301,7 +301,13 @@ def test_every_route_that_writes_is_on_the_demo_denied_list():
             continue
         if p.startswith(EXEMPT_PREFIXES):     # X-Admin-Token / Stripe signature, not sessions
             continue
-        if p in ("/login", "/register", "/forgot"):   # auth; a demo session bypasses them
+        # Auth / session creation; a demo session bypasses them by definition.
+        # `/preview` (MA9) is classified HERE and deliberately NOT on DEMO_DENIED_PATHS:
+        # `surfaces.check` denies those paths to anyone who is not the owner once
+        # `public_full_view` is on (surfaces.py:388) — which is today's live flag — so listing
+        # it there would 403 the ANONYMOUS visitor the button exists for. It grants a session
+        # and writes nothing else; it is the demo's `/login`.
+        if p in ("/login", "/register", "/forgot", "/preview"):
             continue
         if p in COMPUTES_ONLY or surfaces.is_demo_denied(p):
             continue
@@ -579,32 +585,161 @@ def test_the_demo_view_keeps_every_disclaimer_the_owner_view_carries():
         assert phrase in demo, f"the preview path dropped {phrase!r}"
 
 
-def test_the_work_button_carries_the_current_token_and_rotation_kills_old_links():
-    """The whole security model of the button, as three assertions.
+def _grant_preview(c):
+    """POST /preview exactly as the button does — carrying the CSRF field from the page.
 
-    Rotating DEMO_ACCESS_TOKEN on Render must (a) re-point the button with no deploy, (b)
-    invalidate every /demo/<token> URL copied out of it, and (c) remove the button entirely
-    when the token is cleared. If any of those stops holding, the kill switch is gone.
+    Deliberately reads the token out of the RENDERED page rather than forging it into the
+    session: a forged token would skip the very check that stops a cross-site POST clearing a
+    signed-in owner's session, which is the same reason `_open_demo` uses the real route.
     """
-    href = re.compile(r'class="demo-cta" href="([^"]*)"')
-    with APP.test_client() as c:
-        m = href.search(c.get(CONFIG.resolved_portfolio_path).get_data(as_text=True))
-    assert m and m.group(1) == f"/demo/{DEMO_TOKEN}", "the button does not carry the token"
+    body = c.get(CONFIG.resolved_portfolio_path).get_data(as_text=True)
+    m = re.search(r'name="_csrf" value="([^"]*)"', body)
+    if not m:
+        # /work renders no form when the preview is switched off — but a caller in that state
+        # still holds a perfectly valid token from any other page, and MUST still be refused
+        # by the TOKEN check rather than incidentally by CSRF. Without this fallback the
+        # "clearing DEMO_ACCESS_TOKEN disables the grant" assertion passes vacuously: it would
+        # be posting an empty form and reading a 400 as if it were the refusal under test.
+        # (Caught by mutation: removing the token check left that test green.)
+        m = re.search(r'name="_csrf" value="([^"]*)"',
+                      c.get("/login").get_data(as_text=True))
+    return c.post("/preview", data={"_csrf": m.group(1)} if m else {})
 
+
+def test_the_grant_is_csrf_protected_because_it_clears_the_session():
+    """MA9, corrected against this session's own first cut, which left /preview unprotected on
+    the argument that a signed-in owner is refused by the `uid` check.
+
+    THE uid CHECK CANNOT SEE THE uid CROSS-SITE. The session cookie is SameSite=Lax, so it is
+    not SENT on a cross-site POST: the route reads an empty session, the guard passes
+    VACUOUSLY, and the response's own Set-Cookie replaces the victim's session anyway.
+    SameSite did not close the hole, it withheld the evidence the guard needed.
+    """
+    from valuation.saas import csrf, ratelimit
+    assert "/preview" in csrf.PROTECTED, "/preview is not in the CSRF protected set"
+    ratelimit.reset()
+    with APP.test_client() as c:
+        c.get(CONFIG.resolved_portfolio_path)          # establish a session + token
+        r = c.post("/preview")                          # ...and then omit the field
+        assert r.status_code == 400, f"a token-less POST /preview -> {r.status_code}"
+        with c.session_transaction() as s:
+            assert not s.get("demo"), "a token-less cross-site POST still opened a session"
+        r = c.post("/preview", data={"_csrf": "not-the-right-token"})
+        assert r.status_code == 400, "a WRONG token was accepted"
+    ratelimit.reset()
+
+
+def test_the_work_button_grants_a_session_without_ever_publishing_the_token():
+    """MA9. REPLACES `test_the_work_button_carries_the_current_token_...`, which asserted the
+    OPPOSITE — that the rendered button contained the token — because that was the design.
+
+    It was the defect. `/work` is anonymous-readable, so rendering `/demo/<token>` published
+    DEMO_ACCESS_TOKEN to anyone who viewed source, and after `PUBLIC_FULL_VIEW=false` that
+    token is the only gate left on every owner API. The old test is not weakened here, it is
+    inverted: what it pinned is now forbidden, and everything it protected — rotation kills
+    old links, clearing the token removes the button — is still pinned below, plus four
+    properties it could not express.
+    """
+    path = CONFIG.resolved_portfolio_path
+    with APP.test_client() as c:
+        body = c.get(path).get_data(as_text=True)
+
+    # 1. THE HEADLINE: the secret is not in the response, in any form.
+    assert DEMO_TOKEN not in body, "the /work page still publishes DEMO_ACCESS_TOKEN"
+    assert "/demo/" not in body, "a /demo/<token> URL is still rendered on a public page"
+
+    # 2. The button is still there, and is a POST to the server-side grant.
+    assert re.search(r'<form[^>]+method="post"[^>]+action="/preview"', body, re.I), \
+        "the preview button is not a POST to /preview"
+    assert 'class="demo-cta"' in body, "the call to action disappeared"
+    # The form must carry the CSRF field, because /preview clears the session and SameSite
+    # cannot refuse a cross-site POST it cannot identify. Asserted on the RENDERED page, not
+    # just the template (test_security walks templates), so a context-processor change that
+    # left `csrf_token` empty is caught here too.
+    assert re.search(r'name="_csrf" value="[^"]+"', body), \
+        "the preview form renders no CSRF field, so a cross-site POST can clear a session"
+
+    # 3. It works: the POST opens a real preview session.
+    from valuation.saas import ratelimit
+    ratelimit.reset()
+    with APP.test_client() as c:
+        r = _grant_preview(c)
+        assert r.status_code == 302, f"POST /preview -> {r.status_code}, no session"
+        with c.session_transaction() as s:
+            assert s.get("demo") is True, "the grant did not open a preview session"
+
+    # 4. GET cannot grant. A crawler, a prefetch or a pasted URL must not create a session,
+    #    which is the property a link could never have.
+    ratelimit.reset()
+    with APP.test_client() as c:
+        r = c.get("/preview")
+        assert r.status_code == 405, f"GET /preview -> {r.status_code}, expected 405"
+        with c.session_transaction() as s:
+            assert not s.get("demo"), "a GET opened a preview session"
+
+    # 5. Rotation still kills every copied deep-link — the property the old test existed for.
     CONFIG.demo_access_token = "rotated-token-value"
     try:
         with APP.test_client() as c:
-            m = href.search(c.get(CONFIG.resolved_portfolio_path).get_data(as_text=True))
-            assert m and m.group(1) == "/demo/rotated-token-value", \
-                "rotation did not re-point the button"
             _open_demo_expect_refusal(c, DEMO_TOKEN)
+            assert "rotated-token-value" not in c.get(path).get_data(as_text=True), \
+                "the rotated token is published too"
+        # 6. Clearing the token remains the single off switch: no button, and the grant
+        #    itself refuses. Without the second half the button would merely be hidden.
         CONFIG.demo_access_token = ""
+        ratelimit.reset()
         with APP.test_client() as c:
-            body = c.get(CONFIG.resolved_portfolio_path).get_data(as_text=True)
-            assert not href.search(body), "the button survives an empty token"
+            assert 'class="demo-cta"' not in c.get(path).get_data(as_text=True), \
+                "the button survives an empty token"
+            _grant_preview(c)
+            with c.session_transaction() as s:
+                assert not s.get("demo"), "/preview granted a session with no token set"
             _open_demo_expect_refusal(c, DEMO_TOKEN)
     finally:
         CONFIG.demo_access_token = DEMO_TOKEN
+        ratelimit.reset()
+
+
+def test_the_grant_is_rate_limited_on_the_same_bucket_as_the_deep_link():
+    """A new door onto the same room needs the same lock. If `/preview` had its own limiter —
+    or none — the grant would be farmable at the exact moment the deep link stopped being,
+    which moves the hole rather than closing it."""
+    from valuation.saas import ratelimit
+    ratelimit.reset()
+    limit = ratelimit.LIMITS["demo:session"][0]
+    with APP.test_client() as c:
+        codes = [_grant_preview(c).status_code for _ in range(limit + 2)]
+    assert codes[0] == 302, "the limit fired before the first legitimate visit"
+    assert 429 in codes, f"unlimited grant: {codes}"
+    ratelimit.reset()
+
+    # And the two doors share ONE counter, rather than each getting its own allowance.
+    with APP.test_client() as c:
+        for _ in range(limit):
+            _grant_preview(c)
+        assert c.get(f"/demo/{DEMO_TOKEN}").status_code == 429, \
+            "the deep link has its own separate allowance, so the bucket is not shared"
+    ratelimit.reset()
+
+
+def test_the_grant_refuses_to_clear_a_real_logged_in_session():
+    """The SAME-SITE half of the session-clearing risk: a signed-in owner clicking the button
+    on /work, where the cookie IS sent and a preview session would otherwise silently downgrade
+    a real account. The CROSS-SITE half is closed by the CSRF token instead — see
+    `test_the_grant_is_csrf_protected_because_it_clears_the_session`, which exists precisely
+    because this guard alone cannot see a uid the browser never sent."""
+    from valuation.saas import ratelimit
+    ratelimit.reset()
+    with APP.test_client() as c:
+        c.get(CONFIG.resolved_portfolio_path)          # mint the token first
+        with c.session_transaction() as s:
+            s["uid"] = 1
+        r = _grant_preview(c)
+        assert r.status_code == 302
+        with c.session_transaction() as s:
+            assert s.get("uid") == 1, "the button logged the real user out"
+            assert not s.get("demo"), "a real account was downgraded to a preview"
+    ratelimit.reset()
 
 
 def _open_demo_expect_refusal(c, token):
@@ -700,6 +835,53 @@ def test_no_public_surface_makes_a_performance_claim():
                 assert "historical simulation" in low or "backtest" in low, \
                     f"{p} prints the alpha with no simulation label"
                 assert "not an expected" in low, f"{p} prints the alpha as achievable"
+
+
+def test_no_public_response_ever_contains_the_demo_or_admin_token():
+    """THE CATCH-ALL (MA9). Rather than pinning the one page known to have leaked, walk every
+    public surface and assert that neither credential appears in the body OR the headers.
+
+    Written because the leak was invisible for months while a test asserted it: the page did
+    exactly what its author intended, and nothing anywhere said "a secret must not reach a
+    reader". `/work`'s own comment even claimed the token "is never written into this
+    template" — true of the template, false of the response. A per-page assertion cannot
+    catch the next surface; this can.
+
+    Headers as well as bodies: a token in a Location or a Set-Cookie is published just as
+    surely as one in HTML, and a redirect is the likeliest place to put one by accident.
+
+    Both tokens, because they fail differently. The demo token is the gate on every owner
+    read surface after the regate; ADMIN_TOKEN writes the record and bypasses the limiter.
+    """
+    admin_before = CONFIG.admin_token
+    CONFIG.admin_token = "test-admin-token-not-a-real-one"
+    secrets_ = {"DEMO_ACCESS_TOKEN": DEMO_TOKEN, "ADMIN_TOKEN": CONFIG.admin_token}
+    # Public pages, plus the read APIs an anonymous visitor can reach. `/demo/<token>` is
+    # included on purpose: the ROUTE receives the token, so its own response is the most
+    # likely place to echo one back.
+    paths = list(PUBLIC_PAGES) + [
+        "/api/hotstocks", "/api/signals", "/api/track", "/api/index-track",
+        "/api/valquo-index", "/api/options-alerts", "/api/scream-track",
+        "/robots.txt", "/login", "/methodology",
+        CONFIG.resolved_portfolio_path + "/research",
+        f"/demo/{DEMO_TOKEN}", "/demo/wrong-token",
+    ]
+    try:
+        from valuation.saas import ratelimit
+        for p in paths:
+            ratelimit.reset()
+            with APP.test_client() as c:
+                r = c.get(p)
+            haystacks = {"body": r.get_data(as_text=True),
+                         "headers": "\n".join(f"{k}: {v}" for k, v in r.headers.items())}
+            for name, secret in secrets_.items():
+                for where, hay in haystacks.items():
+                    assert secret not in hay, \
+                        f"{p} ({r.status_code}) published {name} in its {where}"
+    finally:
+        CONFIG.admin_token = admin_before
+        from valuation.saas import ratelimit
+        ratelimit.reset()
 
 
 def test_the_owner_login_exists_but_does_not_compete_with_the_product():

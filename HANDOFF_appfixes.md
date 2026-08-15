@@ -5,6 +5,221 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 33 — 2026-08-14 — `MA9` + `MA10` + `MA50`, three HIGH security items
+
+**Lane:** app fixer. **Branch:** `worktree-demo-link`.
+
+## 0. The id correction, first, because it changes what was fixed
+
+The task commissioned **"MA5, MA6, MA50"**. Two of those three ids point at different items
+than the prose describes:
+
+| task called it | actual id | what MA5/MA6 really are |
+|---|---|---|
+| MA5 — demo token in public HTML | **MA9** (HIGH) | MA5 is MEDIUM: two Harvey–Liu–Zhu bars that disagree (3.0 vs √(2·ln N)) |
+| MA6 — `ADMIN_TOKEN` one credential | **MA10** (HIGH) | MA6 is MEDIUM: the trial counter's silent domain path |
+| MA50 — `?top=-1` paywall bypass | **MA50** ✔ | — |
+
+The descriptions, the HIGH severities and the named files match MA9/MA10/MA50 exactly, and
+the real MA5/MA6 are MEDIUM **edge-lane** items in `valuation/edge/`, i.e. not this lane at
+all. **MA9, MA10 and MA50 are what was fixed.** Same id-collision class `CLAUDE.md` already
+records for `SECURITY_AUDIT.md`'s M2/M6 — worth knowing that it has now happened twice.
+
+Also: the sections are in **`VALQUO_MASTER_AUDIT_ULTIMATE.md`**, which is **untracked, in the
+parent checkout only**. The tracked `VALQUO_MASTER_AUDIT.md` that merged with `main` is Pass A
+(MA1–MA35) and contains no MA50 at all.
+
+## 1. `MA50` — the live paywall bypass
+
+`web/app.py` read `top = min(int(request.args.get("top", 100)), cap)`. **`min` bounds from
+above only**, `min(-1, 500)` is `-1`, and `store.load_snapshot` interpolates that into
+`q += f" LIMIT {int(top)}"` — which **SQLite treats as unlimited**. The per-tier cap
+(`g.hotstocks_cap`, free 10 / premium 500) *is* the paywall, so `?top=-1` returned the whole
+snapshot. Live the moment `OPEN_ACCESS=false`.
+
+**Fixed behind one shared helper**, `valuation/web/query_params.clamp_int`, not six hand-rolled
+copies. The same one-sided clamp had been written independently at **six sites in two
+blueprints** — fixing the reported one and leaving five is precisely how audit B7's
+three-composite-functions defect happened. Sites now routed through it: `/api/hotstocks`,
+`/api/signals`, the ticker search, the scream-buy top, the dip shortlist,
+`/api/option-alerts/open`, and the backtest universe limit — the last being the widest, since
+an unclamped `int` became a **universe size on a 512 MB box**.
+
+The arithmetic is **the audit's own prescribed remedy**, `min(max(1, int(...)), cap)`, pinned
+against a reference implementation so a later tidy-up cannot silently change it. The one
+declared addition is a parse guard: the registered fix still raises on `?top=abc`, and an
+unhandled `ValueError` is a 500 on a public endpoint. **Garbage degrades to the default and is
+then capped, never toward the cap** — a limiter whose failure mode is "serve everything" is the
+failure being fixed.
+
+**My first draft was worse than the audit's fix and was reverted to match it.** It degraded a
+negative to the default rather than the floor, which is a semantic invention on a security fix
+— exactly the kind of divergence that makes a remedy stop matching the item that registered it.
+
+## 2. `MA9` — the demo token was published on a public page
+
+`app_saas.py` built `demo_url = f"/demo/{token}"` and rendered it into `portfolio.html`, the
+anonymous `/work` page. **Anyone who ever viewed source held a permanent, shareable
+credential.** It bites hardest at the moment the posture tightens: after
+`PUBLIC_FULL_VIEW=false` that token is again the **only** gate on `/api/track`,
+`/api/index-track`, `/api/valquo-index` (names *and* weights), `/api/options-alerts` and
+`/api/scream-track` — the exact set `surfaces.py` exists to withhold.
+
+**Fixed structurally.** The button is now `<form method="post" action="/preview">`, and
+`auth.demo_grant_view` sets the session server-side. What reaches the template is a
+**boolean**. Reading `/work` grants a **session**, never a **credential** — there is nothing
+on the page to copy.
+
+- **`/demo/<token>` is deliberately kept** — it is the résumé master-link Don has already sent.
+  What changed is that its value stops being published, which is what makes rotating it
+  afterwards meaningful: the new secret has never been rendered anywhere.
+- **The token still gates the grant**, so clearing `DEMO_ACCESS_TOKEN` remains the single off
+  switch for button, deep links and route together — unchanged.
+- **Same rate-limit bucket** as `/demo` (`demo:session`). A second door onto the same room
+  needs the same lock; a separate limiter would have moved the hole, not closed it.
+- **POST-only**, so a crawler, a prefetch or a pasted URL cannot create a session.
+- **Refuses when a real `uid` is in session.** That is the one cross-site POST with real
+  content: `session.clear()` would otherwise log the owner out of their own account.
+
+### 2c. A correction against my own first cut: `SameSite=Lax` hid the evidence, it did not close the hole
+
+I first shipped `/preview` **without** CSRF protection, on this reasoning: a forced preview
+grants a stranger only what the public button grants anyone who clicks it, and the one case
+with content — a cross-site POST clearing a signed-in owner's session — is refused by the
+`uid` check. `/work` is also pinned byte-identical, and a per-session field breaks that pin.
+
+**The `uid` check cannot see the uid on a genuine cross-site POST.** The session cookie is
+`SameSite=Lax`, so it is *not sent* cross-site: the route reads an empty session, **the guard
+passes vacuously**, and the response's own `Set-Cookie` replaces the victim's session anyway.
+SameSite looked like it closed the hole when what it actually did was withhold the evidence
+the guard needed to refuse.
+
+It was caught by the repo's own catch-all —
+`test_security.py::test_every_form_template_carries_the_csrf_field`, which has no exemption
+list and fired on the new form. **The blanket guard was right and my reasoned exception was
+wrong**, which is the argument for having blanket guards.
+
+`/preview` is now in `csrf.PROTECTED` and the form carries the field. The `uid` refusal is
+**kept** — it is still correct for the same-site case, where the cookie *is* sent and a preview
+session would silently downgrade a real account.
+
+**The static-page pin was strengthened rather than allowed to erode.** The CSRF field is the
+page's only per-session value, and the old test used **one client** — so both requests shared a
+session and therefore shared the token, and it would have gone on passing while the page
+quietly became per-visitor. It now compares **two separate sessions with the token masked**,
+which is strictly stronger than what it replaced: the old form could not have detected a
+value that varied per visitor, and this one can, for everything but the single field it names.
+Verified directly — raw pages from two sessions **differ**, masked pages are **identical**.
+
+### 2a. The near-miss that would have broken the button in production
+
+`/preview` was going to be classified onto `surfaces.DEMO_DENIED_PATHS`, which is the obvious
+structural list and is **wrong**. `surfaces.check` denies those paths to every non-owner once
+`public_full_view` is on (`surfaces.py:388`) — **today's live flag** — so listing it there
+would have **403'd the anonymous visitor the button exists for**, while every list-based test
+stayed green. It is classified with `/login`, `/register`, `/forgot` instead, which is what it
+is: session creation.
+
+### 2b. The docs, corrected where the next reader will look
+
+`render.yaml` said **"THE REGATE IS THIS ONE VALUE … nothing else needs touching"**. That was
+the false sentence MA9 is about, and it sits exactly where whoever regates will read it. It now
+states the regate as **two changes**, with the reason and a generator command. `ENV_REFERENCE.md`,
+`.env.example` and `GO_LIVE.md` no longer document the value as the dictionary word `preview`.
+
+## 3. `MA10` — one credential for the product and the record
+
+One `X-Admin-Token` opened at least nine `/admin/` routes **including the two that rewrite the
+live scoring weights** (`/admin/run-learning`, `/admin/adopt-backtest-weights` — the whole
+blast radius of MA1/MA3), and it **bypassed the rate limiter entirely**.
+
+**Half 1 — the capability split.** New `cfg.admin_write_token` (`ADMIN_WRITE_TOKEN`) and
+`_admin_write_ok()`, on those two routes and nothing else. **Shipped inert by design:** unset,
+it delegates to `_admin_ok()` and behaviour is bit-identical, so no cron breaks on deploy; set,
+the ordinary `ADMIN_TOKEN` no longer opens them. Accepted in either `X-Admin-Write-Token` or
+the existing `X-Admin-Token`, so activating it is a **secret-value change in the two jobs that
+need it** rather than a code change in ten callers. Fails closed like `_admin_ok`.
+
+**Half 2 — the limiter.** The exemption becomes a **ceiling**: an admin caller lands in a
+dedicated `ratelimit.ADMIN_BUCKET` of 600/hour per IP instead of skipping the module. Generous
+enough that ten scheduled jobs never approach it, tight enough that a leaked token cannot drain
+the Anthropic/FMP budget. Deliberately **not** shared with any public bucket, so an anonymous
+flood cannot starve the scan cron — pinned by a control asserting anonymous traffic still lands
+in the endpoint's own bucket, because *"admin is limited now"* could otherwise be satisfied by
+routing **everyone** into the generous bucket and quietly loosening the public limits.
+
+## 4. Reported, NOT fixed — named so it is not mistaken for done
+
+**(a) The limiter block sits inside `if path.startswith("/api/")`, so `/admin/*` routes are not
+rate-limited at all** — including `/admin/run-scan`, which is the actual spend lever a leaked
+token would pull. The audit names `app_saas.py:864` and that line is fixed; extending the
+limiter to the `/admin/` prefix carries real cron-breakage risk and needs its own item.
+
+**(b) `VALQUO_MASTER_AUDIT_ULTIMATE.md` is UNTRACKED and exists only in the parent checkout.**
+It is the merged 60-item audit — **2 CRITICAL and 14 HIGH**, including the three worked here —
+and `VALQUO_MASTER_AUDIT.md` (Pass A only, 35 items, **no MA50 at all**) is what actually
+landed on `main`. So the document these fixes cite cannot be read from a clone, and the
+severities and ids in it are unreachable by anyone but this machine. The project already paid
+for this once and recorded the fix ("audit source files are now tracked", 2026-08-09); this
+regressed it. **Not landed by this lane** — a `.md` + `.pdf` + `.json` triple is plainly
+someone's in-flight deliverable (Pass A landed with `main` mid-session), and committing another
+lane's artifacts under it would be the wrong kind of helpful. Whoever owns it should land the
+`_ULTIMATE` set.
+
+## 5. Two defects in my own test harness, both caught before they mattered
+
+- **A test drove a real whole-market scan 600 times** and hung the suite. Rewritten to stub
+  `ratelimit.check` so the request is refused in `before_request` and the route never executes;
+  the ceiling's *biting* is proved separately against the real limiter with the limit
+  temporarily lowered. Two other tests would have executed a **real live-weight re-tune** — a
+  passing test that retrains the shipped model — so the learner is switched off and what is
+  measured is the auth gate.
+- **The source sweep matched the tail of `clamp_int(` itself** and reported the repair as the
+  defect. Fixed with a lookbehind.
+
+## 6. Verification
+
+- **Full gate: 75/75 suites, exit 0**, judged by exit code (the suites print at least three
+  summary formats; grepping for `OK` misreports three of them). An earlier run read 74/75 —
+  the one failure was the CSRF catch-all in §2c, which is why that section exists.
+- `tests/test_row_caps_and_admin_split.py` **18/18** (new). `tests/test_public.py` **35/35**
+  (was 31). `tests/test_private.py` **30/30**, `test_security.py` **22/22**,
+  `test_saas.py` **30/30**, `test_build_ledger.py` **20/20** (197 rows = 133 audit + 64
+  out-of-band, with MA9/MA10/MA50 recognised).
+- **Mutations 19/19 caught, 0 missed, 0 skipped** across all three items. **Two were MISSED on
+  the first run and both were real gaps**, not harness noise: (a) "clearing the token no longer
+  disables the grant" survived, because with the button gone there is no CSRF field on the
+  page, so the helper posted an empty form and read the resulting **400 as though it were the
+  refusal under test** — a vacuity trap the CSRF work introduced; the helper now falls back to
+  a token from `/login`. (b) The dropped-CSRF-field mutation was pointed at `test_private`,
+  where the button never renders under private mode; it is now pointed at the two suites that
+  actually own that guard, and `test_public` gained an assertion on the **rendered** field so a
+  context-processor change that emptied `csrf_token` is caught too.
+- **No test was deleted or weakened.**
+  `test_the_work_button_carries_the_current_token_and_rotation_kills_old_links` is **replaced**:
+  it asserted the token *was* in the page, because that was the design. The replacement forbids
+  exactly that, re-pins everything the old one protected (rotation kills copied links, clearing
+  the token removes the button) and adds four properties it could not express — including that
+  clearing the token also disables the grant, and that a GET cannot grant at all.
+- **New catch-all** `test_no_public_response_ever_contains_the_demo_or_admin_token` walks 18
+  public surfaces and asserts neither credential appears in the **body or the headers**. Headers
+  because a token in a `Location` or `Set-Cookie` is published just as surely as one in HTML,
+  and a redirect is the likeliest place to leak one by accident.
+
+## 7. What Don still owes — the part no code lane can do
+
+1. **Rotate `DEMO_ACCESS_TOKEN`** (Render). The publication is closed, but **every value live
+   before 2026-08-14 must be treated as public**. Rotating retires them.
+   `python -c "import secrets;print(secrets.token_urlsafe(24))"`
+2. **Optionally set `ADMIN_WRITE_TOKEN`** in *both* Render env and GitHub Actions secrets, and
+   point the `run-learning` / `adopt-backtest-weights` jobs at it. Until then the split exists
+   in code and **not in operation**, and nothing here claims otherwise.
+
+Zero trials for all three — correctness and security repairs with no hypothesis and no
+threshold. Equity `N` stays **224**.
+
+---
+
 # Session 32 — 2026-08-14 — `PT-WRITER`'s missing ingredient, supplied
 
 **Lane:** app fixer. **Branch:** `worktree-demo-link`.

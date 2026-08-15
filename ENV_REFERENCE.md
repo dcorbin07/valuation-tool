@@ -24,7 +24,7 @@ each item when you actually need the feature it unlocks.
 |---|---|---|
 | `BETA_MODE` | `true` | Shows the "in beta / in active development" banner site-wide. Set `false` when you no longer want the banner. |
 | `BETA_ALL_PREMIUM` | `true` | Treats **every signed-in account** as Premium, free — your open beta. Set `false` to end it and fall back to real tiers/Stripe. No DB change; it flips instantly. |
-| `DEMO_ACCESS_TOKEN` | `preview` | The **recruiter master-link**. Anyone visiting `/demo/<token>` gets an instant Premium preview with **no signup** — this is the URL you put on your résumé. It keeps working even after beta ends, so before you start charging, change it to something long and unguessable (e.g. `python -c "import secrets;print(secrets.token_urlsafe(12))"`). |
+| `DEMO_ACCESS_TOKEN` | *(unset — the preview is off)* | The **recruiter master-link**. Anyone visiting `/demo/<token>` gets an instant read-only preview with **no signup** — this is the URL you put on a résumé. Also the on/off switch for the **Open the full tool** button on `/work`: clearing it removes the button and kills every copied deep-link at once. **Generate a long random value, never a dictionary word:** `python -c "import secrets;print(secrets.token_urlsafe(24))"`. **This row used to document the value `preview`, and `preview` must never be used again** — it was both guessable and, until 2026-08-14, rendered into the public HTML of `/work` (audit MA9), so it is a published string. See `render.yaml` for the two-step regate. |
 
 > Master-link format: `https://YOUR-SITE/demo/preview` (swap in your token). Owner
 > (`donniecorbin6@gmail.com`) still gets Premium regardless of any of these.

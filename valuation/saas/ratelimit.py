@@ -44,7 +44,21 @@ LIMITS = {
     # guessed token shows up as refused traffic in the logs instead of being farmed
     # silently. 20/hour is many more than a human opening a résumé link will ever need.
     "demo:session": (20, 3600),
+    # MA10. The admin token used to bypass this module ENTIRELY (`if bucket and not
+    # _admin_ok()`), which made one credential simultaneously the key to the product and an
+    # uncapped lever on the owner's Anthropic and FMP spend. It lives in two independent
+    # stores (GitHub Actions secrets and Render env) and is read by ten scheduled jobs, so a
+    # leak is not hypothetical and a hard exemption is the worst possible failure mode.
+    #
+    # Generous, not tight: the point is a CEILING, not a limit anyone legitimate will meet.
+    # 600/hour is ten a minute sustained — every cron on the schedule put together uses a
+    # small fraction of it, while a spend-draining loop hits it in seconds. Per-IP like every
+    # other bucket, so the crons do not share a counter with each other or with a leak.
+    "admin:api": (600, 3600),
 }
+
+#: The bucket an authenticated admin caller falls into, in place of the old total exemption.
+ADMIN_BUCKET = "admin:api"
 
 # Stop a rotating-IP flood from growing the table without bound. Evicting the
 # least-recently-seen key is the right trade: an attacker who can rotate IPs faster than
