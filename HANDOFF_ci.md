@@ -1314,3 +1314,246 @@ mid-flight ingesting all 60 MA rows at the time. `tests/test_build_ledger.py` 20
 257 rows = 134 audit + 123 out-of-band, 60 unique MA ids.
 
 **Zero trials.** A process repair with no hypothesis and no threshold; equity `N` stays 224.
+
+
+---
+
+## MA11 + MA12 + MA17 + MA22 — wave 2, infra lane (2026-08-15, r1)
+
+Four MEDIUM items, one session, all four `OPEN` at the start and `DONE` at the end. **Zero
+trials** — every one is a process or correctness repair with no hypothesis and no threshold, so
+equity `N` stays **224**. `main` merged first (fast-forward, 8 commits).
+
+**Every claim was verified against the tree before it was acted on (`RUN_RULES` A8). All four
+reproduce. Three of them measure worse than the audit states, and one names the wrong file.**
+
+### 1. MA11 — the auto-land Action is unreviewed code execution with write access to main
+
+**Verified.** `on: push branches ['worktree-*']`, `permissions: contents: write`, and the gate
+runs `python "$f"` over `tests/test_*.py` **from the merged tree** — so the branch supplies the
+code that judges the branch, exactly as the audit says.
+
+**Worse than the audit states, and this is the part that made the fix obvious.**
+`actions/checkout` defaults to `persist-credentials: true`, so that write token sat in
+`.git/config` while branch code ran. A file named `tests/test_zz.py` could have run
+`git push --force origin main` and skipped the gate altogether — the gate would then be
+judging a branch that had already landed.
+
+**THE FIX IS THE PERMISSIONS SPLIT, because it is the only control here GitHub enforces rather
+than merely encourages.** `permissions:` is per-job, so:
+
+* **`gate` — `contents: read`.** Every line of branch code executes here. A stolen token now
+  buys read access to a repository the branch is already inside.
+* **`land` — `contents: write`, `needs: gate`.** Merges and pushes; runs no branch code.
+
+Everything else in this item is a convention the workflow chooses to honour. This one is a
+capability the runner does not have.
+
+**Plus `.github/land_policy.py`, and where it is read from is the whole trick.** The workflow
+copies it out of **main's** checkout *before* merging the branch, so a branch cannot switch the
+policy off by editing its own copy. It refuses two things: any change under `.github/`, and the
+**deletion** of a test suite.
+
+**It lives under `.github/` deliberately** — weakening it is itself a `.github/` change, so it
+trips its own rule. That is pinned by test, because moving it to `scripts/` would silently
+reopen the hole: the workflow reads main's copy, and main's copy would then no longer be
+guarded.
+
+**THE AUDIT'S OTHER SUGGESTION IS DECLINED, WITH THE REASON.** It floats "run the gate against
+main's copy of `tests/` merged with the branch's source". That would red-X every legitimate
+change that alters behaviour and updates the covering test in the same commit — main's old test
+against the branch's new source — which is the ordinary case, not the exception. Refusing
+**deletions** gets the property that actually matters (a branch cannot shrink its own gate) with
+no false-positive class. A branch may still add and edit suites, and every added suite runs in
+the gate before it lands.
+
+**THE RESIDUAL, STATED RATHER THAN PAPERED OVER.** For `push` events GitHub runs the workflow
+YAML **from the pushed branch**, so a branch that rewrites `land-agent-branch.yml` to skip the
+policy escapes it. No file in this repository can prevent that. The control is a GitHub-side
+ruleset protecting `.github/**` — **Don's setting to apply, not an agent's.** This item closes
+accidents and drift; it does not stop a determined agent and must never be described as if it
+did. It is in the workflow header, the policy docstring and a test.
+
+**ONE BEHAVIOUR CHANGE, DECLARED.** The old in-job retry re-ran the whole gate when `main` moved
+underneath it — which is precisely "run branch code again in the job holding the write token",
+so it could not survive the split. `land` still re-merges and pushes when `main` moved with
+**documentation only** (the overwhelmingly common case here, and the existing `code_changed`
+helper already encoded that judgement), and now **fails with "push again" when `main` moved with
+code**. That is the same outcome the old loop reached after three attempts, arrived at sooner,
+and it can never push a combination that no gate has tested.
+
+**Verified against this branch's own diff:** the policy exits **2** and names all three
+`.github/` paths, including itself.
+
+**LANDED IN TWO PUSHES ON PURPOSE.** Landing the rewritten workflow and the policy together
+would have armed a lock against the very file that would need fixing if the rewrite were wrong —
+and I cannot run GitHub Actions locally. So push 1 was the restructure (main has no policy yet,
+so `.github/` edits still auto-land and a bad rewrite is recoverable), and push 2 armed the
+policy only after the new workflow had proved itself on a real run.
+
+`tests/test_land_policy.py`, 20 tests.
+
+### 2. MA12 — every dependency unpinned on a chain that installs fresh and auto-deploys
+
+**Verified, and the measurement is the finding.** The audit says "all ten requirements use
+`>=`". There are **eleven** in `requirements.txt` and two more in `requirements-saas.txt` — and
+resolving the set for the real target (linux / CPython 3.11) shows **seven of the eleven resolve
+today to a higher MAJOR version than the floor they were written against**:
+
+| package | declared | resolves to |
+|---|---|---|
+| numpy | `>=1.24` | **2.2.6** |
+| yfinance | `>=0.2.40` | **1.6.0** |
+| stripe | `>=9.0` | **15.5.0** |
+| gunicorn | `>=21.0` | **26.0.0** |
+| pypdf | `>=5.0` | **6.16.1** |
+| reportlab | `>=4.0` | **5.0.0** |
+| anthropic | `>=0.34` | **0.122.0** |
+
+So OOB2's class ("something plausible but different reaches the scoring path with no human
+step") was not a *risk* in the dependency layer — it was already the *state* of it. yfinance is
+the vendor library in OOB2's own story, and it is three majors above its floor.
+
+**TWO LOCKS, NOT ONE, AND THE REASON IS A BEHAVIOUR RISK RATHER THAN TIDINESS.** CI installs
+`requirements.txt`; the container installs `requirements-saas.txt`, which adds stripe and
+gunicorn. Locking both from the saas superset would have **added stripe to the CI environment**,
+and `valuation/saas/billing.py` imports stripe inside `try:` blocks in three request handlers —
+so a suite exercising one of those paths could take a different branch purely because the lock
+made the import succeed. **Pinning must not change what CI runs.** Hence
+`requirements.lock.txt` (52 packages) and `requirements-saas.lock.txt` (55), every line `==`
+pinned with a sha256; the core set is a proved strict subset, the delta being exactly stripe,
+gunicorn and gunicorn's own `packaging`.
+
+**THE AUDIT NAMES THE WRONG FILE FOR PRODUCTION.** Its `modifies` list is `requirements.txt` and
+its file list adds the `Dockerfile` — but the Dockerfile installs **`requirements-saas.txt`**,
+which is where stripe (the *billing* path) and gunicorn were floating. Pinning only what the
+audit named would have left production's two most operationally sensitive dependencies unpinned.
+
+**NO BEHAVIOUR CHANGE, PROVED RATHER THAN ASSERTED.** Upper bounds were added to both human
+files, then the locks regenerated: **byte-identical, both files** (SHA-256 compared). So no
+resolution that works today stops working; what the caps close is the *next* silent jump. Each
+declaration also carries a `# locked:` note naming the version really running, and a test fails
+if that note drifts from the lock.
+
+**Consumers wired** — both `auto-scan.yml` jobs, the land gate, and the Dockerfile, all with
+`--require-hashes`, so pip refuses anything that is not byte-for-byte the resolved artifact.
+The locks are linux/cp311 **by design** (both consumers are exactly that) and will **not**
+install on Windows; `requirements.txt` stays the local path, and a test pins that `run.bat` is
+not repointed at a lock that cannot resolve on the only machine that runs it.
+
+Regenerate with `python scripts/gen_requirements_lock.py`. `tests/test_requirements_lock.py`,
+10 tests.
+
+### 3. MA17 — the bus test
+
+**Both measured claims reproduce.** README names `VALQUO_LEDGER.md`, `RUN_RULES.md` and
+`CLAUDE.md` **zero** times. And the code half genuinely does survive a stranger — every suite
+passes with no `data/` directory at all, which is what CI does on every land, since `data/` is
+gitignored and the runner never has it.
+
+**THE AUDIT UNDERSTATES THE DOCUMENTATION HALF, AND THIS IS THE PART WORTH CARRYING.** README
+did not merely *omit* the ledger — it stated something **false**. Its "Honest limitations"
+section read *"I have **not** yet run a point-in-time backtest establishing that it predicts
+forward returns"*, and its roadmap listed that backtest as the top open item. Both were written
+before the Edge Lab and neither was ever updated — so the front door of the repository told a
+stranger that the central piece of work did not exist, months after 224 logged equity trials.
+The project-structure diagram made the same omission structurally: no `edge/`, no `screener/`,
+no `intraday/`, no `saas/`.
+
+Corrected in place, with the caveats kept and nothing oversold — the headline appears only
+alongside the bar it **fails**.
+
+**New `START_HERE.md`** takes a reader clone → green suites → what is actually true → which file
+answers which question. It states the licence wall the audit correctly identifies as the real
+barrier: **D1 verified Sharadar is personal-use only and forbids commercial use of the data "or
+any derivation"**, so a stranger can reproduce the headline only under a licence that would not
+let them publish what they derived. That belongs on the quick-start page, not three documents
+away.
+
+`tests/test_docs_entry_points.py` pins that the two false sentences cannot return, that
+START_HERE names the licence, and that its **directional** claims still agree with
+`BACKTEST_RESULTS.json` — directions, not decimals, following `MA19`'s own decision to refuse an
+exact-value pin against an artifact refreshed by a 20-40 minute backtest, because *"a gate that
+cries wolf is one you learn to ignore"*.
+
+### 4. MA22 — CLAUDE.md has outgrown its job
+
+**Every measured claim reproduces and all three numbers have drifted further.** 371,892 bytes
+over **4,112 lines** (the audit says 344 KB / 3,813). Line 23 says `tests/` holds **62** suites;
+the git-handoff section at the other end of the same file says the Action *"runs all 24
+suites"*; measured, **83**.
+
+**Then it went to 86 before this session ended**, because the session added three suites of its
+own. That is the entire argument in one line: **a count that moves inside a single sitting
+cannot be maintained by hand.** `RUN_RULES.md` PART 0 now *derives* it
+(`ls tests/test_*.py | wc -l`), and a test fails on any document that instructs from a
+hard-coded one.
+
+**What moved** — the four sections the audit names (how to run, hard rules, git handoff, tool
+routing) plus the session close-out, verbatim except where provably wrong, into **PART 0 of
+`RUN_RULES.md`**, which is short and read first. RUN_RULES stays under its own "short on
+purpose" promise; a test caps it.
+
+**What was deleted** — the task list, **118 lines**, whose own header read *"This list is the
+least trustworthy section in the file."*
+
+**NOTHING WAS LOST, AND THAT WAS CHECKED ROW BY ROW BEFORE DELETING RATHER THAN ASSUMED.** Each
+item is recorded elsewhere, in every case more fully: the gated auto-apply of learned weights →
+ledger **`MA1`**, which carries the production verification and both commits the task-list entry
+lacked; estimate revisions → ledger **`D6`**; sector-neutral, PEAD, the ML combiner and the
+forward paper track → their own CURRENT STATE bullets with the numbers; the monotonicity sign
+convention → pinned by `test_monotonicity_sign_convention`. The one standing *reading*
+instruction (−1.0 is well-ordered, +1.0 is backwards) was carried forward explicitly.
+
+**The findings record was not trimmed** — the audit is explicit that it is load-bearing — and a
+test asserts `CLAUDE.md` still exceeds 250 KB, so a future tidy-up cannot trim the wrong half.
+**4,112 → 3,966 lines.**
+
+### 5. Defects in my own work
+
+Four, all caught before landing, and two by the tests written to pin the thing they broke.
+
+1. **The anti-rot suite-count check fired on the fix itself.** It flagged `"runs all 24 suites"`
+   inside the correction written to *explain* the repair. The only way to green it would have
+   been to **delete the historical record** — this project's house style is to correct in place
+   by quoting what a claim used to say. Quoted text is now exempt, with a positive control
+   proving the exemption is narrow: the same sentence written as an *instruction* is still
+   caught.
+2. **A workflow probe that could not tell a comment from a command.** The "the write job runs no
+   branch code" test searched for `tests/test_*.py` anywhere in the job and failed — on a
+   *comment* explaining `code_changed`. Rewritten to assert on the execution forms, with a
+   positive control proving the probe fires on the gate job where the loop really runs.
+3. **A prose assertion that depended on line-wrapping**, twice: `"or any\n> derivation"` survived
+   whitespace collapse as `or any > derivation` because the blockquote marker was still there.
+   A test that forces paragraphs to be reflowed to stay green is a test people learn to route
+   around.
+4. **A false negative I nearly reported as a fact.** Checking whether `origin/main` already had
+   the policy, Git Bash mangled `origin/main:.github/land_policy.py` into `origin\main;...`; the
+   command failed for that reason and my `|| echo ABSENT` branch printed **"ABSENT"** — the
+   answer I expected, arrived at by a route that had checked nothing. Re-done with
+   `git ls-tree`, which confirmed it properly.
+
+### 6. Bugs found, not fixed (`RUN_RULES` A3)
+
+* **`auto-scan.yml` grants its jobs no explicit `permissions:` block**, so they inherit the
+  repository default. That is MA1/MA10's territory rather than MA11's, and I did not widen scope
+  into a workflow that posts to the live service — but the same per-job least-privilege argument
+  applies there and nobody has made it.
+* **`requirements-saas.txt` names `psycopg2-binary` only in a comment** ("For Postgres in
+  production also add..."). If Postgres is ever switched on, that dependency enters production
+  unpinned and outside both locks.
+
+### 7. What I did NOT do (`RUN_RULES` A4)
+
+* **I did not apply the GitHub-side ruleset** that would close MA11's residual. It is a
+  repository setting, not a file, and it is Don's.
+* **I did not run the Actions locally** — that is not possible. The workflow restructure is
+  verified by YAML parse, by the two suites that pin its content, and by live fire on this
+  branch's own land runs. The two-push sequencing exists precisely because that verification is
+  weaker than running it.
+* **I did not upgrade any dependency.** The locks pin what was *already resolving*; every
+  version above is what CI and Render have been installing. Deciding to move one is a separate
+  change with a visible diff, which is the point.
+* **I did not touch `RESEARCH_LOG.md`.** All four items are `FIXED`-class with no hypothesis and
+  no threshold; charging a trial for them would inflate `N` and *lower* every DSR- and HLZ-gated
+  claim.
