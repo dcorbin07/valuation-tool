@@ -24,27 +24,12 @@ each item when you actually need the feature it unlocks.
 |---|---|---|
 | `BETA_MODE` | `true` | Shows the "in beta / in active development" banner site-wide. Set `false` when you no longer want the banner. |
 | `BETA_ALL_PREMIUM` | `true` | Treats **every signed-in account** as Premium, free — your open beta. Set `false` to end it and fall back to real tiers/Stripe. No DB change; it flips instantly. |
-| `DEMO_ACCESS_TOKEN` | `preview` | The **recruiter master-link**. Anyone visiting `/demo/<token>` gets an instant Premium preview with **no signup** — this is the URL you put on your résumé. It keeps working even after beta ends, so before you start charging, change it to something long and unguessable (e.g. `python -c "import secrets;print(secrets.token_urlsafe(12))"`). |
+| `DEMO_ACCESS_TOKEN` | *(unset — the preview is off)* | The **recruiter master-link**. Anyone visiting `/demo/<token>` gets an instant read-only preview with **no signup** — this is the URL you put on a résumé. Also the on/off switch for the **Open the full tool** button on `/work`: clearing it removes the button and kills every copied deep-link at once. **Generate a long random value, never a dictionary word:** `python -c "import secrets;print(secrets.token_urlsafe(24))"`. **This row used to document the value `preview`, and `preview` must never be used again** — it was both guessable and, until 2026-08-14, rendered into the public HTML of `/work` (audit MA9), so it is a published string. See `render.yaml` for the two-step regate. |
+
+| `LEARN_ENABLED` | `false` | The monthly **self-learning** re-tune of the screener's factor weights. **Leave it off.** It defaulted to `true` and was documented nowhere until the master audit (MA1) traced a monthly cron that could change the composite users see by writing to Render's database — no code commit, no diff, nothing the vintage contract could see. The value must be exactly `true` to switch it on — anything else (`1`, `yes`, a typo, a blank) reads **off**, deliberately, so a fat-fingered value cannot arm it. Turning it on only re-arms the **learner**, not the **adoption**: a learned weight still cannot reach the live scorer without a registered vintage and your signed row in `PAPER_TRACK_CONTRACT.md`, so the worst it can do is fill the audit log and email you. |
 
 > Master-link format: `https://YOUR-SITE/demo/preview` (swap in your token). Owner
 > (`donniecorbin6@gmail.com`) still gets Premium regardless of any of these.
-
-## Self-learning — OFF by default, and there is a reason to leave it off
-
-| Variable | Default | What it does |
-|---|---|---|
-| `LEARN_ENABLED` | **`false`** | Enables the out-of-sample-gated re-tune of the **live screener weights**. **Defaulted `true` and was documented nowhere until 2026-08-14 (master audit MA1)**, while a monthly GitHub cron POSTed `/admin/run-learning` — so a scheduled job could change the weights the live hot list, `/api/hotstocks` and the Valquo Index are scored with **by writing a row into Render's database**: no code commit, no diff, no review. The cron has been removed. Only the exact string `true` turns it on; anything else fails closed. |
-| `LEARN_MIN_DATES` | `8` | Distinct scan dates that must carry a realized forward return before the learner will look at a bucket. |
-| `LEARN_HORIZON_DAYS` | `21` | Trading-day forward-return window used to score each scan date. |
-| `LEARN_TOP_PER_DATE` | `60` | Names per date fed to the learner. |
-
-> **Turning `LEARN_ENABLED` on is not sufficient to change any weight.** Adopting weights is a
-> **vintage event** under `PAPER_TRACK_CONTRACT` Amendment 1 — it closes the current vintage and
-> restarts the five-year clock — and a database row cannot close a vintage. So the learner also
-> refuses to adopt unless an **OPEN** vintage in `track_meter.VINTAGES` explicitly authorises
-> learned weights for that bucket. Both are deliberate acts, and the second one is a code commit.
-> Verified on production 2026-08-14: **no learned weights have ever been adopted** — the live
-> weights are bit-identical to `settings.WEIGHTS_ESTABLISHED`.
 
 ## Leave blank until you need them
 | Variable | Fill it in when… | Where to get it |

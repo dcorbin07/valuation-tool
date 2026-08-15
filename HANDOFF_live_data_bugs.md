@@ -4661,3 +4661,234 @@ rendered bare is the failure this design is built around.
   instead, so every caller of the logger lands in the right era without touching `saas/`.
 
 Full gate: **69 suites, 0 failures.**
+
+---
+
+# Part 21 — MASTER AUDIT MA1 + MA2 + MA3: the self-learning loop was armed, and is now disarmed (2026-08-14)
+
+**The one-line version.** A monthly GitHub cron could have changed the weights the live product
+scores names with, by writing a row into Render's database — no code commit, no diff, no review —
+and the vintage contract had no way to see it. It had never fired. Its next firing would have been
+**2026-09-01**. It is now disconnected in five places, and a learned weight can only ever ship the
+way S14 did: registered, gated, shadow-watched, Don-signed.
+
+## 0. What the audit found, link by link — every one of them real, shipped and tested
+
+```
+auto-scan.yml   - cron: "0 12 1 * *"          # monthly
+auto-scan.yml   curl -fsS -X POST "$BASE/admin/run-learning" ... || true
+config.py       learn_enabled: _get("LEARN_ENABLED", "true").lower() != "false"
+autolearn.py    store.save_learned(bucket, rec, stats, True, note)
+screen.py       est = (store.latest_learned_weights("established") ...) or S.WEIGHTS_ESTABLISHED
+test_edge.py    assert _effective_weights(st)[0] == learned
+```
+
+That last line is the part worth dwelling on. **The behaviour was PINNED BY A TEST**, so "a
+monthly cron can change the live composite" was not an accident anyone had overlooked — it was the
+tested, intended contract, which is exactly why it survived every previous review. Meanwhile
+`CLAUDE.md` roadmap #19 read *"**Later:** gated auto-apply of adopted weights"* and
+`BACKTEST_RUNBOOK.md` stated the architecture as *"the ONLY thing that travels to Render is the
+optimized weights … via a normal code commit."* **Two documents describing a world the code did
+not implement.**
+
+**Why it mattered more than "an unreviewed change".** `PAPER_TRACK_CONTRACT` §5a says an ADOPTED
+change to scoring, weights or construction closes the current vintage and opens the next. The
+vintage register is a literal tuple in Python source; `save_learned` writes a row to SQLite.
+**There is no path from one to the other.** So the composite would have changed while the forward
+track kept accruing under the old vintage — the exact condition Amendment 1 **voided vintage 1**
+for, and the thing three clock resets in four days were paid to avoid.
+
+## 1. The design, and the one decision everything else follows from
+
+**The refusal lives at `store.save_learned`, the single funnel every weight writer passes
+through** — the monthly learner, `/admin/adopt-backtest-weights`, and anything added later.
+Gating the callers instead is how there came to be **two** of them; at a funnel, the third writer
+someone adds is gated on the day it is written rather than the day it is noticed.
+
+Authorisation requires **both**, and each takes a commit:
+
+1. the **OPEN vintage** in `track_meter.VINTAGES` carries a `weights_adoption` entry naming the
+   bucket — the adoption registered *as* that vintage's event, which is what puts it under the
+   §5a clock and V1's shadow scoring; **and**
+2. **Don's signed row** in `PAPER_TRACK_CONTRACT.md` naming that same vintage:
+   `| Learned weights adopted | YES - vintage <n> - <date> |`
+
+**Both live in tracked source.** Reaching either takes a diff and the auto-land gate. Neither is
+reachable by a cron holding an admin token, which is precisely the hole MA1 found. Requiring both
+means neither a lane editing Python nor a human editing markdown can ship a weight alone.
+
+**The signature names a vintage on purpose.** A bare `YES` would authorise the first adoption and
+every later one forever — a signature that outlives what it signed. Tying it to the open vintage's
+NUMBER means the next adoption needs its own vintage and its own row, so Rule 6's five-year clock
+reset is paid consciously each time rather than once.
+
+**IT FAILS CLOSED IN EVERY DIRECTION**, because the asymmetry is not close. A wrong REFUSAL costs
+a month of not re-tuning weights that CPCV has declined to adopt on every run this project has
+ever done. A wrong ADOPTION silently invalidates the forward test — the only out-of-sample
+evidence there is, and five years to rebuild. Unreadable contract, absent register key, malformed
+row, hedged verdict, a signature naming a different vintage, zero OPEN vintages, two OPEN
+vintages, and **any exception at all** all read NOT AUTHORISED.
+
+**EVERY GATE IS EXERCISED IN BOTH DIRECTIONS.** A refusal that has only ever been shown to say no
+is indistinguishable from `return False`, so `authorisation()` takes an injectable register and
+contract path and a test drives it to AUTHORISED. V1's own register makes the same demand of
+itself (HARMED must be exactly as reachable as CONFIRMED-LIVE).
+
+## 2. The five items, and what each actually changed
+
+| # | Item | What landed |
+|---|---|---|
+| 1 | `learn_enabled` defaults FALSE, documented | `config.py`; documented in `ENV_REFERENCE.md`. The audit measured that `LEARN_ENABLED` appeared in **no** `.md`, `.yml`, `.example` or `.bat` file while defaulting ON. Its parse also flipped from *"anything except `false` is true"* to *"only `true` is true"*, so an unrecognised value now fails closed. |
+| 2 | Remove the trigger from the cron | Both the `learn:` job **and** its `- cron: "0 12 1 * *"` line are gone from `auto-scan.yml`. The removed `curl` is quoted in the comment that replaces it, so the next reader sees what was there rather than a gap. |
+| 3 | Adoption REFUSES unless registered | New `valuation/edge/weight_adoption.py`, enforced at `save_learned`. |
+| 4 | MA3's second writer, behind the same refusal | `/admin/adopt-backtest-weights` needs **no new gate of its own** — it calls `save_learned`. It now returns a **403** carrying the refusal, the authorisation detail and `would_have_adopted`, rather than a 500 from an uncaught exception. |
+| 5 | Verify production | **Could not be done from this lane** — see §4. A read-only `GET /admin/learned-weight-status` and a CLI now answer it in one call. |
+
+**The learner still runs.** It still searches, still logs what it found, still emails the owner.
+`run_learning` catches the refusal per bucket and records the outcome as a non-adoption carrying
+the reason, plus `would_have_adopted`. **The research keeps happening; only the live write is
+withheld.** Anything that does *not* catch the refusal gets an exception, which is the intended
+default for a writer nobody has thought about yet.
+
+## 3. MA2 — the gate itself: two defects repaired, two reported
+
+**(a) THE EQUAL-WEIGHT BASELINE WAS COMPUTED, QUOTED IN THE VERDICT, AND EXCLUDED FROM THE
+DECISION.** `optimize.py` computed `eq_oos`, wrote *"Recommended over equal-weight (OOS …)"* into
+the adopt verdict, and **`eq_oos` appeared nowhere in `accepted`**. So the learner could adopt
+weights that were **worse out-of-sample than the incumbent while saying in writing that they beat
+it** — this project's own named class (B8's `rule_fired`, LA5's `health` block), sitting in the
+one function that could move the live book. It is now a leg of `accepted`, failing **closed** when
+`eq_oos` is NaN, because an incomparable baseline is not a beaten one.
+
+**Measured, so this is not theoretical:** on 40 synthetic panels where 50/50 is the true optimum,
+the equal-weight leg binds on **19 to 29 of 40** depending on signal strength, and at least one is
+a **strict** loss rather than a tie. The test *requires* a strict loss — a tie would satisfy the
+leg while pinning the uninteresting half of it.
+
+**(b) THE NULL TREATED OVERLAPPING RETURNS AS INDEPENDENT.** `autolearn` reads **daily** snapshot
+dates and computes `fwd_ret` over **21 trading days**, so consecutive dates share 20 of 21 days of
+window — yet `_std_null` divided by the raw date count. The standard error was understated by
+roughly **√21 ≈ 4.6×**, turning a nominal 1.64σ bar into about **0.36σ**.
+
+Fixed as an `overlap_periods` **parameter, not a constant** — overlap is a property of the CALLER,
+and a blanket √21 would over-penalise a genuinely non-overlapping panel. **The default of 1
+reproduces the previous arithmetic to 1e-12, pinned by test**, so nothing silently re-calibrated.
+`autolearn` passes its real overlap, **estimated from the dates actually present** (median
+spacing, so one dead-scheduler gap cannot make the panel look independent): daily dates read ~21,
+weekly ~4.
+
+**THE KNOWN-BAD FIXTURE THE GUARD NEVER HAD.** The audit's sharpest point was that both existing
+tests feed **i.i.d. panels — the one world in which `_std_null` is correct**. So the guard had a
+clean fixture and no dirty one, which is M3's whole thesis. There is now one: genuinely
+overlapping windows with **no cross-sectional signal at all**, so every accept is a false
+positive. It asserts the corrected floor is strictly higher, the effective date count strictly
+lower, and the corrected accept count never exceeds the naive one.
+
+**REPORTED, NOT REPAIRED, with reasons.** (c) `oos_ic >= 0.5 × is_ic` is loosest when the signal
+is weakest. (d) The panel is built from the top 60 names **by the composite the current weights
+produce**, then weights are tuned on the IC inside that truncated set — range restriction on a
+variable derived from the thing being estimated. Both are design changes needing their own
+register, and neither can ship a weight now in any case.
+
+**THE AUDIT'S OWN KILL CONDITION IS HONOURED.** It says that if the corrected floor changes no
+historical adopt decision AND `learned_config` is empty, this is documentation-only. The table is
+empty in every database this lane can reach; production could not be checked. So (a) and (b) are
+recorded as **repairs to an arithmetic that was wrong on its own terms**, and explicitly **not**
+as changing any decision — no historical adopt decision is known to move, because none is known to
+exist.
+
+## 4. Item 5 — what I could and could not verify, stated as the difference it is
+
+**Local, measured:** `data/screener.db` holds `learned_config` with **ZERO rows and ZERO
+adopted**. `.scan-cache/screener.db` and `data/live_cache/served.db` do not exist. `data/app.db`
+has no such table.
+
+**Production: NOT VERIFIED.** The live record is SQLite on Render's disk and this lane has no
+token. **I have not established that nothing is overriding settings in production**, and I am not
+reporting that it is clean. What exists now is the means to answer it in one call:
+
+    GET /admin/learned-weight-status          (read-only, token-protected)
+    python -m valuation.edge.weight_adoption --status --db <path>
+
+It returns `n_adopted`, the row per bucket the scorer *would* have preferred, **with its
+`created_at` date**, whether each is authorised, and `clean: true|false`. Rows written by the two
+writers stay distinguishable — `/admin/adopt-backtest-weights` stamps
+`{"source": "historical_backtest"}`.
+
+**THE READ SIDE REFUSES TOO, AND REPORTS RATHER THAN REPAIRING.** `_effective_weights` now ignores
+an unauthorised stored adoption and falls back to `settings.WEIGHTS_*`. The row **stays exactly
+where it is**: an adopted row written before this gate existed is a live vintage violation, and
+the audit's instruction was to surface it with dates, not fix it quietly. Deleting it would
+neutralise the violation and leave the record looking clean through a window in which it was not.
+
+**If that endpoint comes back non-clean, it is a live vintage violation to report with dates —
+not something to tidy up.** It would mean the live book was scored on unregistered weights from
+the `created_at` date onward, and the forward track's accrued days for that window describe a
+model the register never named.
+
+## 5. The third door, which was not in the audit's file list
+
+`fundamental_panel.py`'s CLI printed **`=== Paste into valuation/screener/settings.py, then commit
++ push ===`** on the same single-50/50-split accept MA3 is about. **A human following a confident
+instruction is a weight-adoption path like any other**, and this one bypasses the database
+entirely, so `weight_adoption` can never see it. It now reports the result, names the gate it did
+not clear, and refuses to instruct.
+
+**Two further defects in the MA3 endpoint, reported not repaired:** it writes **only** the
+`established` bucket, so the two buckets could end up on different regimes with nothing reporting
+the split; and the single-split fallback logic remains in the CLI's own decision. Both are moot
+while nothing can adopt; both want their own register if the endpoint is ever re-armed.
+
+## 6. What is pinned, and what changed in an existing test
+
+`tests/test_weight_adoption.py` — **21 tests**. The load-bearing ones: the gate reaches AUTHORISED
+(the control); either half alone is not enough; a signature does not carry forward to another
+vintage; a documented example row inside a fence authorises nothing; `save_learned` refuses **and
+writes nothing** (row count unchanged); the live scorer ignores an unauthorised stored adoption
+**and uses the very same row when authorised**; the violation is reported with its date and not
+deleted; the workflow no longer triggers a re-tune (with a non-vacuity check that it is still the
+real workflow); `LEARN_ENABLED` defaults off and unrecognised values fail closed.
+
+**`tests/test_edge.py::test_self_learning_gate` was rewritten**, and this is a change to an
+existing pin rather than a new one, so it is called out. It asserted
+`_effective_weights(st)[0] == learned`. **Its statistical half is unchanged and still asserted** —
+the learner must still FIND the edge (`would_have_adopted` non-empty), or the refusal would be
+passing for the wrong reason.
+
+**Zero trials.** A correctness and governance repair: no hypothesis, no threshold, no verdict.
+Equity `N`, options `N` and infra `N` are all untouched, and `BACKTEST_RESULTS.json` needs no
+re-run.
+
+## 7. For Don, plainly
+
+Nothing you can see changed. The hot list, the Index and the track are scored by exactly the
+weights in `settings.py`, as they were yesterday — **and that is now true because it is enforced,
+rather than because a monthly job had not got round to changing it yet.**
+
+The one thing worth doing when someone has the Render token: open
+`/admin/learned-weight-status`. If it says `clean: true`, the loop never fired and there is
+nothing else to do. If it does not, tell me the dates — that is a vintage violation to record, not
+a bug to fix.
+
+## 8. Two defects in my own work, both caught by a check rather than by review
+
+**(a) THE SECURITY SUITE CAUGHT MY REFUSAL HANDLER RETURNING RAW EXCEPTION TEXT.** The 403 I added
+to `/admin/adopt-backtest-weights` returned `str(e)`, and
+`test_security.py::test_no_handler_returns_raw_exception_text` failed on it by file and line. The
+refusal message is a fixed string with no server state in it today — and the guard is still right,
+because nothing stops a future `require()` from interpolating a path into it. Fixed with
+`safe_error(e)`; the actionable detail is carried by the structured `authorisation` block, which
+is built from the register and cannot contain server state. **Not exempted, not silenced** — that
+suite exists for exactly this and it earned its keep on a change whose entire purpose was to close
+a hole.
+
+**(b) I REPORTED `test_edge.py` AS EXIT 0 WHEN I HAD READ `tail`'s EXIT CODE.** I ran
+`python tests/test_edge.py 2>&1 | tail -12`; in a pipeline the reported status is the LAST
+command's, so a failing suite came back green. It mattered: `test_edge.py` contained a **second**
+test pinning the defect — `test_adopt_backtest_weights_persists`, which replicated the adopt
+endpoint's core and asserted `_effective_weights(st)[0] == w` — and it was genuinely failing. It
+was found by grepping for other `save_learned` callers, not by the test run that was supposed to
+find it. **Never pipe a suite into `tail` and read the exit code**; the gate runner used for the
+real check runs each suite as a subprocess and reads its own `returncode`, which is why it caught
+both of these. `test_edge.py` is now **428/428, exit 0**, with the second test rewritten to assert
+the refusal.

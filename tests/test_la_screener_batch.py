@@ -392,14 +392,26 @@ class TestTheLedgerParserCannotSilentlyLoseARow(unittest.TestCase):
         self.assertIsInstance(MALFORMED, list)
 
     def test_the_real_ledger_has_no_UNKNOWN_losses(self):
-        """Three rows are currently malformed — S23, M1-PARSE and V2G, all other lanes'. They
-        are REPORTED, not rewritten (the register forbids editing another lane's row), and the
-        guard is what stops `--write` deleting them. This test fails if a FOURTH appears, so
-        the known set cannot quietly grow."""
+        """NO row may be unparseable. The expected set is EMPTY, which is strictly stronger than
+        the three-row allowlist this test used to carry.
+
+        UPDATED 2026-08-14 (options-bot lane, audit #3 ingest). It read
+        `["M1-PARSE", "S23", "V2G"]` — three rows this suite's own lane found malformed and
+        deliberately REPORTED rather than rewritten, on the ground that its register forbade
+        editing another lane's row. That was the right call for that session and it had a cost
+        nobody had measured: `build_ledger.py` does not merely tolerate those rows, it
+        **REFUSES TO RUN AT ALL** ("REFUSING TO PROCEED — these ledger rows could not be parsed
+        and would be DELETED by a rewrite"), so the ledger's only refresh tool was blocked for
+        as long as any of them existed. Ledger rule 2 — *if the ledger cannot answer, fixing
+        the ledger is the task* — settles it. Four raw `|` characters were removed from three
+        notes; no word and no claim was touched, and the change is recorded in the ledger's own
+        prose and in `HANDOFF_optionsbot.md` §58.
+
+        THE GUARD'S PURPOSE IS UNCHANGED AND SHARPER: it still fails the moment a malformed row
+        appears, and now it does so on the FIRST one rather than the fourth."""
         from scripts.build_ledger import read_ledger, MALFORMED
         read_ledger()
-        self.assertEqual(sorted(f for _n, _c, f in MALFORMED),
-                         ["M1-PARSE", "S23", "V2G"])
+        self.assertEqual(sorted(f for _n, _c, f in MALFORMED), [])
 
     def test_rows_of_the_documents_other_tables_are_not_flagged(self):
         """The file holds a 7-column series summary and a 3-column key. Flagging those would

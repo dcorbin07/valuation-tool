@@ -544,6 +544,51 @@ rather than starting a conforming one, and `seed_refused` says so on every cycle
 
 ---
 
+## 5c. ADOPTING A LEARNED WEIGHT — the signature row, and why one exists at all
+
+**Added 2026-08-14 by the master audit (MA1/MA3). Nothing here changes §2's arithmetic, §5's
+thresholds or any vintage's dates**, so §3's whole-run void clause is not engaged; it closes a
+route by which a vintage event could have happened *without anyone recording one*.
+
+**What the audit found.** A monthly GitHub cron POSTed `/admin/run-learning`, which re-tuned the
+screener's factor weights and wrote the winner into Render's own SQLite with `adopted=1`. The live
+scorer **preferred that row over `settings.WEIGHTS_*`**. Every link was shipped and tested. So the
+composite users receive could have changed with **no code commit, no diff and no review** — and
+§5a's vintage rule would never have fired, because the vintage register is a literal tuple in
+Python source and there is no path from a database row to it. The forward track would have gone on
+accruing under the old vintage while the model underneath it changed. **That is exactly the
+condition Amendment 1 voided vintage 1 for.** It had not fired: the `learned_config` table is
+empty in every database this project can reach, and the next firing would have been 2026-09-01.
+
+**The rule, now enforced in code.** A learned weight may reach the live scoring path only when
+**both** of the following are true, and both take a commit:
+
+1. the **OPEN vintage** in `track_meter.VINTAGES` carries a `weights_adoption` entry naming the
+   bucket — i.e. the adoption is registered *as* that vintage's event, which is what puts it under
+   the §5a clock and V1's shadow scoring; **and**
+2. **Don has signed this row**, naming that same vintage:
+
+   ```
+   | Learned weights adopted | YES - vintage <n> - <date> |
+   ```
+
+Everything else — an absent row, `pending`, a signature naming a *different* vintage, an
+unreadable file, a malformed register — reads **not authorised**. The signature names a vintage on
+purpose: a bare `YES` would authorise the first adoption and every later one forever, and Rule 6's
+clock reset must be paid consciously each time.
+
+**Live status: NOT AUTHORISED.** No vintage registers a weight adoption and this contract carries
+no signed row. That is the intended resting state — the example above is inside a fenced block and
+authorises nothing, which is pinned by test. Verify with
+`python -m valuation.edge.weight_adoption --status`.
+
+**This does not make the learner illegitimate.** It still runs on demand, still logs what it
+found, and still emails the owner. What it can no longer do is ship. Enforced at
+`valuation/screener/store.py::save_learned` — the one funnel both weight writers pass through —
+and pinned by `tests/test_weight_adoption.py`.
+
+---
+
 ## 6. The evidence meter — pre-registered, parameters frozen at this commit
 
 Don's Option E asks for a meter that runs from inception, first renders at the operational gate

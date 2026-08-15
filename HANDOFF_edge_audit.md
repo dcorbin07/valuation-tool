@@ -11839,163 +11839,105 @@ percentile's neighbourhood**, and two of the three were not.
 
 ---
 
-# 2026-08-14 — `MA1` CRITICAL: the armed self-learning loop is DISARMED, and production is CLEAN
+# 2026-08-14 — `MA1`: PRODUCTION VERIFIED CLEAN, AND A COLLISION RESOLVED IN THE OTHER LANE'S FAVOUR
 
-Run **alone**, as the map requires — `MA2` and `MA3` are noted below and deliberately **not**
-touched. **Zero trials**: no hypothesis, no threshold, no verdict. Equity `N` stays **224**.
+**Zero trials** — no hypothesis, no threshold (the `S25` / `PT-GAPDUE` precedent). Equity `N` stays
+**224**, infra **15**.
 
-## 0. THE ANSWER, IN ORDER OF WHAT MATTERS
+## 0. WHAT HAPPENED, PLAINLY
 
-**PRODUCTION IS CLEAN. NO LEARNED WEIGHTS HAVE EVER OVERRIDDEN SETTINGS. THERE IS NO LIVE VINTAGE
-VIOLATION TO REPORT.** The loop was **armed and had executed once** — on **2026-08-01 13:32:47
-UTC** — and it **adopted nothing**. It is now disarmed at three independent points.
+I was commissioned to disarm `MA1` and did — cron removed, `learn_enabled` defaulted false and
+documented, a vintage gate on the adoption path, tests, the lot. **While I was working, a second
+lane landed the same row** (`4063f6f`, *"Disarm the self-learning loop"*). **Their mechanism is
+better than mine and it landed first, so the close-out was done on theirs and my duplicate was
+DELETED rather than merged.** What survives from my side is the half they explicitly could not do:
+**the production verification** — and it **corrects a claim their row had already published.**
 
-## 1. THE VERIFICATION — DATED, ON PRODUCTION, AND WITHOUT USING A SECRET
+This is the `V6` situation again, and the rule the record already set is the one applied: *creating
+a second module owning the same thing is the exact defect both lanes would have written their
+docstring to prevent.*
 
-The audit's prescribed check needs the admin token (*"Don or a lane with the token"*). It turned
-out not to be needed: **`/api/edge/learning` answers unauthenticated on the live host**, and it
-reports exactly the two facts required.
+## 1. THE VERIFICATION — THE PART THAT WAS MISSING, AND IT CORRECTS THE LANDED RECORD
+
+Their ledger row read: *"loop was armed and **had never fired**; **live record NOT verifiable from
+this lane**."* Both halves are now settled by measurement, and **the first was wrong.**
 
 | measured on production, 2026-08-14 | value | what it settles |
 |---|---|---|
-| `history` (i.e. `learned_config`) | **empty, length 0** | **nothing has ever been written** — adopted or declined |
-| `current.established` | seven themes at **0.125**, `low_risk` **0.0**, `sentiment` **0.0** | **bit-identical to `settings.WEIGHTS_ESTABLISHED`** |
-| `number_ic.computed_at` | **2026-08-01T13:32:47.645510** | `/admin/run-learning` **did execute**, once |
+| `history` (i.e. `learned_config`) | **empty** | **nothing has ever been written** — adopted or declined |
+| `current.established` | seven themes at **0.125**, `low_risk`/`sentiment` **0.0** | **bit-identical to `settings.WEIGHTS_ESTABLISHED`** |
+| `number_ic.computed_at` | **2026-08-01T13:32:47.645510** | **the loop DID fire** — once |
 | `number_ic.status` | `insufficient data` | and it declined for want of data |
 
-**THE TIMESTAMP IS PROOF, NOT INFERENCE, AND THE CHAIN IS SINGLE-WRITER.** `run_number_diagnostics`
-stamps `computed_at` and persists `number_ic`, and `grep` shows it is called from **exactly one
-place in the repository** — `app_saas.py:216`, inside `/admin/run-learning`, immediately after
-`run_learning`. So that timestamp cannot have come from anywhere else: **the monthly cron fired on
-2026-08-01 and the endpoint ran.** The empty history proves `run_learning` returned at its
-insufficient-data guard, which sits **above** every `save_learned` call.
+**THE FIRING IS PROVED, NOT INFERRED, AND THE CHAIN IS SINGLE-WRITER.** `run_number_diagnostics`
+stamps `computed_at` and persists `number_ic`, and it is called from **exactly one place in the
+repository** — inside the admin run-learning handler, immediately after `run_learning`. So that
+timestamp cannot have come from anywhere else. The **empty history** then proves `run_learning`
+returned at its insufficient-data guard, which sits **above** every `save_learned` call.
 
-**IT AGREES WITH THE CODE AND THE DATES, WHICH IS WHY IT IS BELIEVABLE.** Adoption needs
-`learn_min_dates = 8` distinct scan dates **each carrying a realized 21-trading-day forward
-return** (`build_panel_from_snapshots` drops rows whose `i + horizon` runs off the end of the price
-series). The whole chain landed **2026-07-28** and scans began accruing ~2026-07-25, so on
-2026-08-01 **no scan date could yet have a complete 21-day forward return**. Two independent routes,
-one answer.
+**THE CODE AND THE DATES AGREE INDEPENDENTLY.** Adoption needs `learn_min_dates = 8` distinct scan
+dates **each carrying a realized 21-trading-day forward return** (`build_panel_from_snapshots`
+drops rows whose `i + horizon` runs off the price series). The chain landed **2026-07-28** and scans
+began ~2026-07-25, so on 2026-08-01 **no scan date could yet have one**. Two routes, one answer.
 
-**SO THE SEVERITY RESOLVES DOWNWARD, ON EVIDENCE.** The audit's own rule is *"CRITICAL if it has
-ever fired; HIGH-and-armed if it has not."* Precisely: **the job fired, the adoption path was never
-reached, and no weight ever moved.**
+**WHY "NEVER FIRED" vs "FIRED ONCE, ADOPTED NOTHING" IS NOT PEDANTRY:** the audit's own severity
+rule is *"CRITICAL if it has ever fired; HIGH-and-armed if it has not."* The precise statement is
+that **the JOB fired and the ADOPTION PATH was never reached** — and the next fire, 2026-09-01, was
+the first with any arithmetic chance of clearing the floor. **The disarm beat it by about two weeks.**
 
-**AND THE TIMING IS THE POINT.** The next fire was **2026-09-01**, and that is the first one with
-any arithmetic chance of clearing the data floor. **This is a disarm ahead of the risk, not a
-clean-up after it** — by roughly two weeks.
+**NO TOKEN WAS USED**, which is the only reason this was answerable from here at all — see §3.
 
-## 2. WHAT WAS ACTUALLY ARMED
+## 2. WHY THEIRS WON, STATED SPECIFICALLY RATHER THAN GRACIOUSLY
 
-```
-auto-scan.yml  cron "0 12 1 * *"  ->  POST /admin/run-learning
-   -> autolearn.run_learning -> store.save_learned(bucket, rec, stats, True, note)
-   -> screen._effective_weights prefers the learned row over settings.WEIGHTS_*
-```
-gated only by `learn_enabled`, which **defaulted TRUE** and appeared in **no** `.md`, `.yml`,
-`.example` or `.bat` file — the audit's measurement, re-verified here against `.env.example` and
-`ENV_REFERENCE.md`.
+Both lanes built a vintage gate. **Theirs is strictly stronger on two axes:**
 
-**WHY IT IS A CONTRACT PROBLEM AND NOT MERELY A CONFIG ONE.** Amendment 1 makes an adopted weight
-change a **VINTAGE EVENT**: it closes the open vintage and restarts the five-year clock.
-`track_meter.VINTAGES` is a **literal tuple in Python source**; `save_learned` writes a **SQLite
-row**. There is no path from one to the other. An adoption would have moved the live model **while
-the forward track kept accruing under the old vintage** — the exact condition vintage 1 was voided
-for, and the thing three clock resets in four days were paid to avoid.
+* **It requires Don's signature, not just a register entry.** Mine keyed only on the OPEN vintage
+  carrying an authorisation key. Theirs requires that **and** a signed row in
+  `PAPER_TRACK_CONTRACT.md` §5c **naming that same vintage** — so a bare `YES` cannot authorise
+  every future adoption. That is the *"Don-signed"* half of my own brief, and mine did not have it.
+* **It sits on `save_learned`, the funnel BOTH weight writers pass through**, so it also closes
+  `MA3`'s `/admin/adopt-backtest-weights`. Mine gated only `autolearn`'s path and I deliberately
+  left `MA3` armed, on the reasoning that gating the shared funnel would be doing MA3's work
+  without MA3's analysis. **Their placement is the better call**, and it makes my "still armed"
+  caveat obsolete rather than merely unfixed.
 
-**IT ALSO BREAKS THE RUNBOOK'S STATED ARCHITECTURE.** `BACKTEST_RUNBOOK.md` opens with *"the ONLY
-thing that travels to Render is the optimized weights … via a normal code commit."* This path sends
-weights to Render **by writing into Render's own database** — no commit, no diff, no review, and no
-trace in the history the runbook treats as the record. `CLAUDE.md` roadmap **#19** likewise reads
-*"**Later:** gated auto-apply of adopted weights"* — the project believed this was unbuilt. It was
-built, shipped and pinned by a test.
+**DELETED FROM MY SIDE:** `track_meter.learned_weight_authorisation` and its
+`authorises_learned_weights` key (a **competing** key for their `weights_adoption` — two keys for
+one concept is the defect), my `tests/test_ma1_learning_disarmed.py`, my `config.py`,
+`auto-scan.yml`, `autolearn.py` and `test_edge.py` edits, and my duplicate `ENV_REFERENCE.md`
+section. **KEPT:** the `.env.example` block (they documented `ENV_REFERENCE.md` only), re-pointed
+at their mechanism.
 
-## 3. THE DISARM — THREE INDEPENDENT LOCKS
+## 3. A FINDING OUTSIDE MA1's SCOPE, REPORTED AND NOT FIXED
 
-Three, because each fails differently and the first two can be undone by someone with the Render
-dashboard and **no diff**:
+**The live edge-learning read endpoint answers ANONYMOUSLY on production**, though its own docstring
+says *"Owner-only (gated by the SaaS layer)"*. That is how production was verified with no token, so
+it was useful here — but an owner-only endpoint answering without auth is a real finding. Exposure
+is low today (the weights are already published in `CLAUDE.md`; the history is empty) and grows once
+a learning history exists.
 
-1. **THE CRON IS GONE.** The `learn:` job and the `- cron: "0 12 1 * *"` entry are removed from
-   `auto-scan.yml`, each replaced by a comment saying what it did and why it must not come back.
-   The job also fired on any `workflow_dispatch` with `kind=both`, so removing the job — not just
-   the schedule — is what actually closes it. **The other ten crons are untouched and asserted so**;
-   a disarm that quietly killed the hot list would otherwise pass a test that only checks absence.
-2. **`learn_enabled` DEFAULTS FALSE AND FAILS CLOSED.** It now reads `== "true"` rather than
-   `!= "false"`, so `yes`, `1`, `on`, `""` and anything unrecognised are **off** — under the old
-   expression every one of those was **on**. Documented in `.env.example` **and**
-   `ENV_REFERENCE.md`, with the reason, closing the audit's "undocumented" finding.
-3. **THE ADOPTION PATH REFUSES WITHOUT AN AMENDMENT 1 VINTAGE ENTRY.** This is the load-bearing
-   lock, because it cannot be undone from a dashboard. `track_meter.learned_weight_authorisation`
-   requires the **currently OPEN** vintage to carry `authorises_learned_weights` naming that
-   bucket. **No vintage carries it**, so the gate is shut today, and opening it is an edit to a
-   Python literal — **a commit, with a diff and a reviewer**, landing in the very file that must
-   record the vintage the adoption opens. That is the S14 shape: registered, gated, signed off.
+**NOT FIXED, deliberately:** the gating layer is the app lane's surface, and a mis-applied gate could
+lock Don out of his own diagnostics. Note the other lane shipped `GET /admin/learned-weight-status`
+for the same purpose behind the admin token; **the anonymous route is the one that needs a decision.**
 
-**WHY THE AUTHORISATION LIVES IN THE REGISTER AND NOT IN A FLAG.** An env var would re-create the
-exact invisible-change problem being closed, and `RUN_RULES` A5 forbids an environment escape hatch
-for a gate. The register is the only artifact the contract treats as authoritative.
+## 4. THE PROCESS FINDING, WHICH IS THE EXPENSIVE ONE
 
-**THE RULE IS DELIBERATELY STRICT IN TWO WAYS:** a spent authorisation on a **CLOSED** vintage does
-not license a later adoption, and an **ambiguous register** (zero or two OPEN vintages) refuses
-rather than guesses. A gate that cannot read its register refuses.
+**Two lanes executed the same CRITICAL row simultaneously, and the brief for mine said it "runs
+alone" precisely to prevent that.** Nothing in the tree announced the other lane's work until its
+merge conflicted — `git branch -r` would have shown it, and the memory note
+*"check other lanes before scoping work"* exists for exactly this and was not applied at the start
+of this item. **The cost was one duplicated mechanism, thrown away.** The cheap habit that would
+have caught it: before starting an audit row, check `origin/main..origin/worktree-*` for the row id.
 
-**REFUSALS ARE RECORDED, NOT SILENT.** A refused adoption writes an `adopted=False` row carrying
-the statistics **and the weights that would have been adopted**, so `learning_history` distinguishes
-*"found nothing"* from *"found something and was refused"*. `latest_learned_weights` reads
-`adopted=1` only, so the row is inert. **A gate whose firing leaves no trace is indistinguishable
-from a learner that never found anything** — B8's `rule_fired` in a new costume.
+## 5. WHAT IS NOW TRUE
 
-## 4. THE EXISTING PIN WAS AMENDED, NOT DELETED
+* `MA1` is **DONE** on the other lane's mechanism, and **production is verified clean**.
+* `MA3`'s writer is **also closed** by their `save_learned` placement — better than the outcome my
+  own plan would have produced.
+* **`MA2` remains open and untouched** (the uncalibrated 1.64σ floor). It is wave 2, and MA1 makes
+  it unreachable by schedule, not correct.
+* **For Don, no token needed:** `curl -s https://valquo.co/api/edge/learning` — `history` must be
+  `[]` and `current.established` must equal the settings weights. A non-empty `adopted` row is a
+  **live vintage violation**: report it dated, do not quietly fix. The token-gated equivalent the
+  other lane shipped is `GET /admin/learned-weight-status`.
 
-The audit cited `tests/test_edge.py:118-119` — `assert _effective_weights(st)[0] == learned` — as
-proof the auto-apply was *"intended and tested, not accidental"*. It was, and that assertion had to
-change, because the behaviour it pinned is what MA1 says must stop.
-
-**The valuable half is KEPT**: the test now asserts that a real out-of-sample edge is **REFUSED**
-with no vintage authorisation, **and** that under an authorising vintage it adopts and the live
-scorer picks it up. Deleting the second half would have removed the only test that the wiring works
-at all, which is not what MA1 asked for. **428/428 edge tests pass.**
-
-## 5. THE GATE IS SHOWN TO FIRE, NOT ASSUMED TO
-
-`tests/test_ma1_learning_disarmed.py` (7 tests, exit 0) carries a **positive control**:
-`test_the_gate_adopts_when_a_vintage_authorises_it` builds a panel engineered so `optimize_weights`
-genuinely accepts, arms an authorising vintage, and asserts the adoption **goes through**. Without
-it every refusal test would pass on a learner that simply never adopts anything — indistinguishable
-from a working gate, and the vacuity failure `M3` and `MA13` exist to catch. The fixture is torn
-down and the gate re-asserted shut afterwards.
-
-## 6. A FINDING OUTSIDE MA1's SCOPE, REPORTED AND NOT FIXED
-
-**`/api/edge/learning` answers ANONYMOUSLY on production**, though its own docstring says
-*"Owner-only (gated by the SaaS layer)"*. That is how this session verified production without a
-token, so it was useful here — but an owner-only endpoint that answers without auth is a real
-finding. Exposure today is low (current weights are already published in `CLAUDE.md`; the history is
-empty; `fundamental_backtest` is null), and it would matter more once the learner has a history.
-
-**NOT FIXED, deliberately.** It is not MA1, MA2 or MA3; the gating layer is the app lane's surface;
-and a mis-applied gate could lock Don out of his own diagnostics. **Routed, dated, with the
-evidence.**
-
-## 7. WHAT IS STILL ARMED — NAMED SO IT IS NOT MISTAKEN FOR DONE
-
-* **`MA3` is UNTOUCHED and is a second live-weight writer.** `POST /admin/adopt-backtest-weights`
-  reaches `save_learned` on a **single 50/50 split**, the gate `CLAUDE.md` explicitly forbids. It
-  is materially less dangerous than MA1 — it needs a human with a token to fire deliberately, and
-  it is not on a schedule — but **it is not gated by this session's work**. The same
-  `learned_weight_authorisation` call is its natural fix. **Putting the gate inside `save_learned`
-  would have closed MA3 too, and I deliberately did not**: that would be doing MA3's work without
-  MA3's analysis, and the brief says MA1 lands clean first.
-* **`MA2` is UNTOUCHED.** The 1.64σ floor guarding these weights is uncalibrated and treats
-  overlapping returns as independent. MA1 makes it unreachable-by-schedule; it does not make it
-  correct. Wave 2.
-* Nothing here removes `_effective_weights`' preference for learned weights — only the **write**
-  is gated, not the **read**, which is why a legitimately adopted weight still ships.
-
-## 8. VERIFICATION FOR DON — ONE COMMAND, NO TOKEN
-
-    curl -s https://valquo.co/api/edge/learning
-
-`history` must be `[]` and `current.established` must equal `settings.WEIGHTS_ESTABLISHED`. If
-`history` is ever non-empty with an `adopted` row, that is a **live vintage violation** and must be
-reported dated, not quietly fixed.

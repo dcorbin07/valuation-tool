@@ -1,48 +1,38 @@
 # HANDOFF STATUS - shared project state
 
-## edge lane, `MA1` CRITICAL (2026-08-14) - THE ARMED SELF-LEARNING LOOP IS DISARMED; PRODUCTION IS CLEAN
+## edge lane, `MA1` (2026-08-14) - PRODUCTION VERIFIED CLEAN; A COLLISION RESOLVED IN THE OTHER LANE'S FAVOUR
 
-**Zero trials** - no hypothesis, no threshold, no verdict. Equity `N` stays **224**. Run **alone**
-per the dependency map; **`MA2` and `MA3` are deliberately untouched** and `MA3`'s writer is still
-armed (below).
+**Zero trials.** Equity `N` stays **224**, infra **15**.
 
-- **PRODUCTION IS CLEAN. NO LEARNED WEIGHTS HAVE EVER OVERRIDDEN SETTINGS. NOTHING TO REPORT AS A
-  VINTAGE VIOLATION.** `/api/edge/learning` on the live host shows **`history` EMPTY** and
-  **`current.established` bit-identical to `settings.WEIGHTS_ESTABLISHED`**.
-- **THE LOOP WAS ARMED AND HAD FIRED ONCE, DATED AND PROVED:** `number_ic.computed_at` =
-  **2026-08-01T13:32:47 UTC**, status *"insufficient data"*, and `run_number_diagnostics` - the
-  only writer of that key in the repo - is called from **exactly one place**, inside
-  `/admin/run-learning`. So the cron fired and the endpoint ran; the empty history proves it
-  returned at the insufficient-data guard, **above** every `save_learned`. Independently, adoption
-  needs 8 scan dates each with a realized **21-trading-day** forward return, and on 2026-08-01
-  none could exist. **The next fire was 2026-09-01 - the first that could have cleared the floor -
-  so this is a disarm ahead of the risk by ~2 weeks.**
-- **WHAT WAS AT STAKE:** Amendment 1 makes an adopted weight change a **VINTAGE EVENT**, but
-  `VINTAGES` is a Python literal and `save_learned` writes a SQLite row - **no path between them**.
-  An adoption would have moved the live model while the forward track accrued under the old
-  vintage: the condition vintage 1 was voided for. It also broke `BACKTEST_RUNBOOK.md`'s stated
-  architecture (*"the ONLY thing that travels to Render is the optimized weights … via a normal
-  code commit"*) by writing into Render's database with no diff.
-- **THREE INDEPENDENT LOCKS:** (1) the `learn:` job **and** its `0 12 1 * *` cron removed - the job
-  also fired on `workflow_dispatch kind=both`, so removing the job is what closes it; the other ten
-  crons are untouched and asserted so. (2) **`learn_enabled` defaults FALSE and fails closed**
-  (`== "true"`, not `!= "false"`), documented at last in `.env.example` and `ENV_REFERENCE.md`.
-  (3) **The load-bearing one: the adoption path REFUSES unless the currently OPEN vintage carries
-  `authorises_learned_weights`.** None does. Opening it is a **code commit with a diff**, in the
-  same file that must record the vintage - the S14 shape. An env var was rejected: `RUN_RULES` A5.
-- **Refusals are RECORDED, not silent** (an `adopted=False` row keeping the weights that would have
-  been adopted), and **the gate is shown to fire** by a positive control that adopts under an
-  authorising vintage - without which every refusal test would pass vacuously.
-- **→ DON, one command, no token:** `curl -s https://valquo.co/api/edge/learning`. `history` must
-  be `[]`. A non-empty `adopted` row is a live vintage violation - report it dated, do not fix.
-- **ROUTED, NOT FIXED (app lane):** `/api/edge/learning` answers **anonymously** on production
-  despite its docstring saying *"Owner-only (gated by the SaaS layer)"*. Low exposure today; it
-  matters once a learning history exists.
-- **STILL ARMED (wave 2, same lane):** `MA3`'s `POST /admin/adopt-backtest-weights` reaches
-  `save_learned` on a single 50/50 split. Needs a human with a token, not scheduled - **but not
-  gated by this work.** Gating `save_learned` itself would have closed it and was deliberately
-  **not** done: that is MA3's work without MA3's analysis. **`MA2`** (uncalibrated 1.64σ floor)
-  likewise untouched. `HANDOFF_edge_audit.md` MA1.
+- **A SECOND LANE LANDED `MA1` WHILE THIS ONE WAS BUILDING IT** (`4063f6f`). **Their mechanism is
+  stronger and landed first, so the close-out was done on THEIRS and my duplicate was DELETED, not
+  merged** - two modules owning one gate is the defect either would have been written to prevent
+  (the `V6` precedent). Theirs also requires **Don's signed `PAPER_TRACK_CONTRACT` §5c row naming
+  the same vintage**, which mine lacked, and it sits on **`save_learned` - the funnel BOTH weight
+  writers pass through - so it closes `MA3`'s writer too**, which my plan deliberately left armed.
+- **WHAT SURVIVES IS THE HALF THEY COULD NOT DO, AND IT CORRECTS THEIR LANDED ROW.** It read *"loop
+  was armed and HAD NEVER FIRED; live record NOT verifiable from this lane"*. Measured: **the loop
+  HAD fired - once, on 2026-08-01 at 13:32:47 UTC - and it adopted NOTHING.**
+- **PRODUCTION IS CLEAN. NO LEARNED WEIGHTS HAVE EVER OVERRIDDEN SETTINGS.** The live edge-learning
+  read endpoint reports an **EMPTY history** and `current.established` **bit-identical to
+  `settings.WEIGHTS_ESTABLISHED`**. **No live vintage violation to report.**
+- **THE FIRING IS PROVED, NOT INFERRED:** `number_ic.computed_at = 2026-08-01T13:32:47.645510`,
+  status *"insufficient data"*, and `run_number_diagnostics` is the **only** writer of that key in
+  the repo, called from **exactly one place** - inside the admin run-learning handler. The empty
+  history proves `run_learning` returned at its insufficient-data guard, **above** every
+  `save_learned`. Independently, adoption needs 8 scan dates each with a realized **21-trading-day**
+  forward return, and on 2026-08-01 none could exist. **The audit's severity rule turns on this:
+  the JOB fired, the ADOPTION PATH was never reached.** Next fire 2026-09-01 - the disarm beat it
+  by ~2 weeks.
+- **ROUTED, NOT FIXED (app lane):** the edge-learning read endpoint answers **anonymously** on
+  production despite its *"Owner-only"* docstring - that is how this was verified without a token.
+  The other lane's `GET /admin/learned-weight-status` is the token-gated equivalent; **the
+  anonymous route is what needs a decision.**
+- **PROCESS FINDING, the expensive one:** two lanes ran the same CRITICAL row at once, and this
+  one's brief said it *"runs alone"* to prevent exactly that. `git branch -r` would have shown it.
+  **Cost: one duplicated mechanism, discarded.**
+- **`MA2` remains open and untouched** - MA1 makes it unreachable by schedule, not correct.
+  **→ DON, no token:** `curl -s https://valquo.co/api/edge/learning`; `history` must be `[]`.
 
 ## edge lane, `MA19`+`MA13` (2026-08-14) - THE FLOORS ARE RE-DERIVED AT TODAY'S `N`, AND FIVE OF SEVEN NEVER MOVED
 

@@ -155,6 +155,77 @@ def register(app, store, cfg):
               f"(token {'absent' if not want else 'mismatch'})", file=sys.stderr)
         return _noindex(redirect("/"))   # missing/incorrect token → marketing landing
 
+    @app.route("/preview", methods=["POST"])
+    def demo_grant_view():
+        """Open a preview session WITHOUT publishing the token.  [MA9]
+
+        THE DEFECT THIS REPLACES. `/work` rendered `<a href="/demo/{{ token }}">`, so
+        DEMO_ACCESS_TOKEN was printed in the HTML of an anonymous page. Anyone who ever viewed
+        source held a permanent, shareable credential. That matters most at the moment the
+        posture tightens: after `PUBLIC_FULL_VIEW=false`, this token is once again the ONLY
+        gate on `/api/track`, `/api/index-track`, `/api/valquo-index` (names AND weights),
+        `/api/options-alerts` and `/api/scream-track` — precisely the set `surfaces.py` exists
+        to withhold. Rotation was the documented kill switch, but a kill switch that has to be
+        pulled after every deploy, by someone who remembers it exists, is not one.
+
+        WHAT CHANGED. The button POSTs here and the server sets the session itself. The token
+        appears in no response body, so reading `/work` now grants a SESSION and never a
+        CREDENTIAL: there is nothing on the page to copy, paste, or pass on.
+
+        WHAT DELIBERATELY DID NOT CHANGE. The token still gates the grant, so clearing
+        DEMO_ACCESS_TOKEN remains the single off switch for the whole preview — button, deep
+        links and this route together — exactly as documented. `/demo/<token>` also still
+        works, because it is the résumé master-link and killing it would break the links Don
+        has already sent. The value simply stops being published, which is what makes rotating
+        it afterwards meaningful: the new secret has never been rendered anywhere.
+
+        CSRF-PROTECTED (`csrf.PROTECTED`) — AND THE FIRST CUT OF THIS ROUTE WAS NOT. The
+        reasoning that excused it is worth recording because it was wrong in an instructive
+        way: a forced preview hands a stranger only what the public button hands anyone who
+        clicks it, and the one case with real content — a cross-site POST clearing a signed-in
+        owner's session — is refused by the `uid` check below.
+
+        THE `uid` CHECK CANNOT SEE THE uid ON A GENUINE CROSS-SITE POST. The session cookie is
+        `SameSite=Lax`, so it is not SENT cross-site; the route therefore reads an empty
+        session, the guard passes VACUOUSLY, and this response's own `Set-Cookie` replaces the
+        victim's session regardless. SameSite looked like it closed the hole when what it
+        actually did was withhold the evidence the guard needed to refuse. The token closes it
+        properly, because an attacker can neither read nor send it.
+
+        The `uid` refusal below is KEPT: it is still right for the same-site case — a signed-in
+        owner clicking the button on `/work`, where the cookie IS sent and a preview session
+        would otherwise silently downgrade a real account.
+
+        POST-ONLY so a crawler, a prefetch or a pasted URL cannot create a session: a GET here
+        is a 405, and there is no GET form of this route to share.
+        """
+        if cfg.private_mode:
+            return _noindex(redirect("/"))
+        # A real account outranks a preview, and this is also the CSRF answer above: without
+        # it a cross-site form could `session.clear()` the owner out of their own session.
+        if session.get("uid"):
+            return _noindex(redirect("/app"))
+        ip = ratelimit.client_ip(request)
+        # The SAME bucket as /demo/<token>, not a second one. A separate limiter here would
+        # leave the grant farmable at the exact moment the deep link stopped being — which
+        # would move the hole rather than close it.
+        retry = ratelimit.check(ip, DEMO_BUCKET)
+        if retry is not None:
+            print(f"[demo] rate-limited grant from {ip}", file=sys.stderr)
+            return _noindex(make_response(
+                ("<div style='font-family:sans-serif;max-width:520px;margin:60px auto;"
+                 "text-align:center'><h2>Too many preview sessions</h2><p>Try again in a "
+                 "few minutes.</p></div>"), 429, {"Retry-After": str(retry)}))
+        if not (cfg.demo_access_token or "").strip():
+            # No token configured => the preview is off entirely (M4). Same answer as a wrong
+            # token on /demo, so the route discloses nothing about the configuration either.
+            print(f"[demo] grant refused from {ip} (preview disabled)", file=sys.stderr)
+            return _noindex(redirect("/"))
+        session.clear()
+        session["demo"] = True
+        print(f"[demo] preview session opened from {ip} (grant)", file=sys.stderr)
+        return _noindex(redirect("/app"))
+
     @app.route("/logout")
     def logout_view():
         session.clear()

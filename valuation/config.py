@@ -109,6 +109,16 @@ class Config:
     email_from: str = field(default_factory=lambda: _get("EMAIL_FROM", "alerts@example.com"))
     public_base_url: str = field(default_factory=lambda: _get("PUBLIC_BASE_URL", "http://127.0.0.1:5000"))
     admin_token: str = field(default_factory=lambda: _get("ADMIN_TOKEN"))
+    # MA10 — the capability split. ONE X-Admin-Token grants every /admin/ route, including the
+    # two that can rewrite the LIVE scoring weights (`/admin/run-learning`,
+    # `/admin/adopt-backtest-weights`). Those two are the whole blast radius of MA1/MA3; the
+    # read and trigger routes have no business sharing a credential with them.
+    #
+    # UNSET => the two write routes fall back to ADMIN_TOKEN, i.e. behaviour is bit-identical
+    # to before the split. Setting it is what ACTIVATES the separation, and is a Render/GitHub
+    # env change this lane cannot make. Shipping the mechanism inert is deliberate: a split
+    # that fails closed on deploy would break five crons to fix a hardening item.
+    admin_write_token: str = field(default_factory=lambda: _get("ADMIN_WRITE_TOKEN"))
     # Screaming-buy alerts: a Discord webhook (owner-level, posts to your channel)
     # and opt-in email. alert_min_score is the score bar a signal must clear to alert.
     discord_webhook_url: str = field(default_factory=lambda: _get("DISCORD_WEBHOOK_URL"))
@@ -184,22 +194,19 @@ class Config:
     backtest_rebalance_days: int = field(default_factory=lambda: int(_get_float("BACKTEST_REBALANCE_DAYS", 63)))
     backtest_top_n: int = field(default_factory=lambda: int(_get_float("BACKTEST_TOP_N", 25)))
     backtest_recency_halflife_years: float = field(default_factory=lambda: _get_float("BACKTEST_RECENCY_HALFLIFE_YEARS", 5))
-    # Self-learning: an out-of-sample-gated re-tune of the screener's factor weights from the
-    # tool's own accumulated snapshots + realized forward returns. Purely statistical — no LLM
-    # in the loop (the grid + hold-out test IS the decision).
+    # LEARN_ENABLED — self-learning: a monthly, out-of-sample-gated re-tune of the screener's
+    # factor weights from the tool's own accumulated snapshots + realized forward returns.
+    # Purely statistical — no LLM in the loop (the grid + hold-out test IS the decision).
     #
-    # DEFAULTS FALSE SINCE 2026-08-14 (master audit MA1). It used to default TRUE and was
-    # documented nowhere — not in .env.example, ENV_REFERENCE.md, any workflow, or any .md.
-    # Combined with the (now removed) monthly cron, that meant a scheduled job could rewrite the
-    # weights the live product scores with by writing a row into Render's database: no code
-    # commit, no diff, no review, and invisible to `track_meter.VINTAGES`, which is a literal
-    # tuple in Python source. PAPER_TRACK_CONTRACT Amendment 1 makes an adopted weight change a
-    # VINTAGE EVENT that closes the current vintage; a SQLite row cannot do that, so the forward
-    # track would have kept accruing under a vintage whose model had already changed.
-    #
-    # It reads `== "true"` and not `!= "false"` so that anything unrecognised FAILS CLOSED.
-    # Turning it on is not sufficient to adopt anything: `autolearn` independently refuses to
-    # adopt without an Amendment 1 vintage entry authorising it (see `vintage_authorisation`).
+    # DEFAULT FALSE SINCE THE MASTER AUDIT (MA1). It used to default TRUE, and it was
+    # undocumented: the string `LEARN_ENABLED` appeared in no .md, .yml, .example or .bat file
+    # in the repository, so the one switch that could change the live composite was on by
+    # default and named nowhere. Setting it to `true` re-arms the LEARNER, not the ADOPTION —
+    # `store.save_learned` still refuses to write an adopted weight without a registered vintage
+    # and Don's signed contract row (`valuation/edge/weight_adoption.py`), so the worst a
+    # re-enabled learner can do is fill the audit log and email the owner. Turning this on is
+    # therefore reversible; adopting a weight is not, because it resets the forward track's
+    # five-year clock (PAPER_TRACK_CONTRACT §5a, Rule 6).
     learn_enabled: bool = field(default_factory=lambda: _get("LEARN_ENABLED", "false").lower() == "true")
     learn_min_dates: int = field(default_factory=lambda: int(_get_float("LEARN_MIN_DATES", 8)))
     learn_horizon_days: int = field(default_factory=lambda: int(_get_float("LEARN_HORIZON_DAYS", 21)))

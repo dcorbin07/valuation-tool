@@ -48,82 +48,62 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
-- **A SCHEDULED JOB COULD HAVE REWRITTEN THE LIVE SCORING WEIGHTS WITH NO CODE COMMIT AND NO
-  VINTAGE - IT IS DISARMED, AND PRODUCTION IS VERIFIED CLEAN (2026-08-14, `MA1`, CRITICAL).**
-  **Zero trials** - no hypothesis, no threshold, no verdict. Equity `N` stays **224**. Run ALONE
-  per the dependency map; **`MA2` and `MA3` are deliberately UNTOUCHED** (see the last bullet
-  point below - MA3 is a second, still-armed writer).
-  * **PRODUCTION IS CLEAN AND THERE IS NO VINTAGE VIOLATION TO REPORT.** `/api/edge/learning` on
-    the live host shows **`history` EMPTY** - so `learned_config` has never been written, adopted
-    or declined - and **`current.established` bit-identical to `settings.WEIGHTS_ESTABLISHED`**
-    (seven themes at 0.125, `low_risk` 0.0, `sentiment` 0.0). **No learned weights have ever
-    overridden settings.**
-  * **THE LOOP WAS ARMED AND HAD FIRED ONCE - DATED, AND PROVED RATHER THAN INFERRED.**
-    `number_ic.computed_at` reads **2026-08-01T13:32:47.645510** with status *"insufficient
-    data"*, and `run_number_diagnostics` - the only writer of that key **anywhere in the
-    repository** - is called from **exactly one place**, inside `/admin/run-learning`. So the
-    monthly cron fired on 2026-08-01 and the endpoint ran; the empty history proves
-    `run_learning` returned at its insufficient-data guard, which sits ABOVE every `save_learned`
-    call. **The audit's rule was "CRITICAL if it has ever fired, HIGH-and-armed if it has not";
-    precisely, the JOB fired and the ADOPTION PATH was never reached.**
-  * **THE CODE AND THE DATES AGREE WITH THE MEASUREMENT, WHICH IS WHY IT IS BELIEVABLE.** Adoption
-    needs **8 distinct scan dates each carrying a realized 21-TRADING-DAY forward return**; the
-    chain landed 2026-07-28 and scans began ~2026-07-25, so on 2026-08-01 **no scan date could yet
-    have one**. **The next fire was 2026-09-01 - the first with any arithmetic chance of clearing
-    the floor - so this is a disarm AHEAD of the risk by about two weeks, not a clean-up after.**
-  * **WHY IT IS A CONTRACT PROBLEM, NOT A CONFIG ONE.** Amendment 1 makes an adopted weight change
-    a **VINTAGE EVENT** that closes the open vintage and restarts the five-year clock.
-    `track_meter.VINTAGES` is a **literal tuple in Python source**; `save_learned` writes a
-    **SQLite row**; there is **no path from one to the other**. An adoption would have moved the
-    live model **while the forward track kept accruing under the old vintage** - the exact
-    condition vintage 1 was voided for. **It also breaks `BACKTEST_RUNBOOK.md`'s stated
-    architecture** (*"the ONLY thing that travels to Render is the optimized weights … via a
-    normal code commit"*): this path sent weights to Render by writing into **Render's own
-    database**. And roadmap **#19** reads *"**Later:** gated auto-apply of adopted weights"* - the
-    project believed this was unbuilt; it was built, shipped and pinned by a test.
-  * **THREE INDEPENDENT LOCKS, because the first two can be undone from a dashboard with no
-    diff.** (1) The `learn:` job and its `0 12 1 * *` cron are **removed** - the job also fired on
-    any `workflow_dispatch kind=both`, so removing the JOB is what actually closes it, and the
-    other ten crons are untouched and asserted so. (2) **`learn_enabled` defaults FALSE and FAILS
-    CLOSED** - it reads `== "true"` not `!= "false"`, so `yes`/`1`/`on`/`""` are now OFF where
-    every one of them used to be ON - and it is **documented at last**, in `.env.example` and
-    `ENV_REFERENCE.md`, closing the audit's measured "appears in no .md/.yml/.example" finding.
-    (3) **THE LOAD-BEARING ONE: the adoption path REFUSES unless the currently OPEN vintage
-    carries `authorises_learned_weights` for that bucket.** No vintage carries it, so the gate is
-    shut; opening it is an edit to a Python literal - **a commit, with a diff and a reviewer**,
-    landing in the very file that must record the vintage the adoption opens. **An env var would
-    re-create the invisible-change problem being closed, and `RUN_RULES` A5 forbids one.**
-  * **REFUSALS ARE RECORDED, NOT SILENT** - a refused adoption writes an `adopted=False` row
-    carrying the statistics AND the weights that would have been adopted, so `learning_history`
-    separates *"found nothing"* from *"found something and was refused"*. **A gate whose firing
-    leaves no trace is indistinguishable from a learner that never found anything** - B8's
-    `rule_fired` in a new costume. `latest_learned_weights` reads `adopted=1` only, so it is inert.
-  * **THE GATE IS SHOWN TO FIRE, NOT ASSUMED TO.** `tests/test_ma1_learning_disarmed.py` (7 tests)
-    carries a **positive control** that arms an authorising vintage on a panel engineered to be
-    genuinely accepted and asserts the adoption **goes through** - without it every refusal test
-    would pass on a learner that can never adopt anything, which is `M3`/`MA13`'s vacuity failure.
-  * **THE AUDIT'S CITED PIN WAS AMENDED, NOT DELETED.** `test_edge.py`'s
-    `assert _effective_weights(st)[0] == learned` was the audit's proof this was *"intended and
-    tested"*. It now asserts a real out-of-sample edge is **REFUSED** without authorisation **and**
-    that under an authorising vintage it adopts and the live scorer picks it up - **deleting the
-    second half would have removed the only test that the wiring works at all.** 428/428 edge tests.
-  * **A FINDING OUTSIDE MA1's SCOPE, REPORTED AND NOT FIXED: `/api/edge/learning` answers
-    ANONYMOUSLY on production** despite its own docstring saying *"Owner-only (gated by the SaaS
-    layer)"*. That is how production was verified with no token. Exposure is low today (the weights
-    are already published here, the history is empty) and it matters more once a history exists.
-    **The gating layer is the app lane's surface and a mis-applied gate could lock Don out of his
-    own diagnostics - so it is routed, not fixed.**
-  * **STILL ARMED, NAMED SO IT IS NOT MISTAKEN FOR DONE: `MA3`'s second writer.**
-    `POST /admin/adopt-backtest-weights` reaches `save_learned` on a **single 50/50 split**, the
-    gate `CLAUDE.md` forbids. It needs a human with a token and is not on a schedule, so it is
-    materially less dangerous - **but this session does not gate it. Putting the gate inside
-    `save_learned` would have closed MA3 too, and that was deliberately NOT done**: it would be
-    MA3's work without MA3's analysis. **`MA2`** (the uncalibrated 1.64σ floor) is likewise
-    untouched - MA1 makes it unreachable by schedule, not correct. **Both are wave 2.**
-  * **FOR DON, one command, no token:** `curl -s https://valquo.co/api/edge/learning` - `history`
-    must be `[]` and `current.established` must equal the settings weights. A non-empty `adopted`
-    row is a **live vintage violation**: report it dated, do not quietly fix.
-    `HANDOFF_edge_audit.md` MA1.
+- **THE LIVE OPTIONS RECORD WAS CENSORED AT ONE END AND BLENDED AT THE OTHER — A WORTHLESS
+  EXPIRY WAS STRANDED OPEN FOREVER, AND A TUNING LOOP WAS LEARNING FROM AN ERA THE PROJECT HAD
+  FORMALLY RETIRED (2026-08-14, `MA36`+`MA37`).** `PREREG_ma36_ma37_record_integrity.md` committed
+  **ALONE at `53c7ecf`**, a strict ancestor of every behaviour change. **ZERO TRIALS, `FIXED`-class
+  — and the register exists anyway, because both items MOVE A PUBLISHED NUMBER and MA37 required
+  choosing WHICH ERA USERS SEE, which is not a choice to make after seeing which era flatters.**
+  * **`MA36` — THE CENSORING IS ONE-SIDED, WHICH IS WHY IT MATTERS.** `_exit_decision` returns
+    `"expiry"` from `CLOSE_BEFORE_EXPIRY_DAYS` out and never stops; the B5-lesser no-bid branch
+    defers. Past expiry those compose into a **permanent** defer, and `_stats`/`paper_report` count
+    `status='closed'` only — so the position is not a loser, it is **ABSENT**. A long option that
+    decays to no bid IS the total loss, so **winners and quoted losers were scored and the
+    −100% tail was dropped**, in the project's #1 remaining validation, and in the exact opposite
+    direction to the backtest it exists to validate (*"expire worthless settle at intrinsic and
+    post −100%. They are not dropped."*). `grep -c intrinsic paper_track.py` → **0**.
+  * **THE SETTLEMENT PRICE IS ZERO AND IS NEVER RECONSTRUCTED — THE MOST PORTABLE THING HERE.** A
+    non-zero intrinsic needs the underlying **at expiry**, and `TradierProvider.get_bars` returns
+    close/high/low/volume lists and **drops the dates**. Using *today's* underlying instead books a
+    **fake gain on a dead call** whenever the stock rallied after expiry — `V6-OPT`'s settlement
+    trap in a new costume, **with its error running in the FLATTERING direction**. An
+    in-the-money guard blocks rather than guesses, and it can only ever **prevent** an automatic
+    −100%, so it cannot manufacture a loss. **B5-lesser is NOT reversed:** before expiry a no-bid
+    position still defers, and the test is **strictly** `today > expiry`.
+  * **THE RESTATEMENT IS DATED AND KEEPS THE FIGURE IT REPLACED.** Settling the tail restates a
+    published number, and a restatement keeping no record of what it replaced is indistinguishable
+    from the figure having always been that — so `scream_log`'s archive convention (nothing
+    removed, everything dated) is applied to the **statistic**. A cycle that settles nothing writes
+    nothing. **The stranded rows are on Render, not here: the first real restatement happens on the
+    next live cycle** and will show in `options_summary().restatements`.
+  * **`MA37` — `record_epoch` WAS WRITTEN ON EVERY ROW AND READ AS A FILTER BY ONE MODULE:** 17
+    occurrences in `scream_log.py`, **2** in `options_tracker.py` (the field entry and the stamp),
+    **0** in `options_paper.py`. So `scorecard`, `tuning_candidates` and `paper_report` all blended
+    the era retired on 2026-08-13 for *"predating the corrected alert stack (B1 price basis,
+    C-series fixes)"*. **A tuning loop proposing which fingerprints to favour on the strength of
+    retired rows is the defect that matters, not the display.** Now scoped to the **current epoch**;
+    `EPOCH_ALL` restores the blend; every payload carries the per-era census, so the archive is
+    **excluded and never invisible**. `live_since` was the most misleading half — a bare
+    `min(alert_ts)` dated the live book from the archived era, making it look **older than it is**.
+  * **A DEFECT IN MY OWN REPAIR, CAUGHT BY THE TEST WRITTEN TO PIN IT.** The first cut returned a
+    bool, so a *blocked* row fell through to the generic defer and **overwrote the note saying why
+    it was blocked** — a diagnosis destroyed by the code that produced it. Now tri-state.
+  * **A CORRECTION AGAINST MY OWN REGISTER, AND IT IS THE ERROR THIS FILE WARNS ABOUT TWICE.** Its
+    section 6 says *"equity at 218, infra at 11"*; measured after this session's merge `by_domain`
+    reads **equity 224, options 292, infra 14** — and infra reads **15** after the concurrent `MA19`/`MA13` landing merged in an hour later, which is the same drift one level down and is recorded rather than left to rot. Quoted from a stale mid-session figure instead of
+    re-read after merging `origin/main`. The register is left unedited. **`N` did not move**, which
+    is the substantive claim and is verified: `by_domain` is identical before and after, while
+    `rows_fixed_not_counted` rises **29 → 30** — the proof the row was seen and correctly excluded
+    rather than silently dropped.
+  * **AUDIT #3's MERGED RECORD IS NOW TRACKED AND INGESTED.**
+    `VALQUO_MASTER_AUDIT_ULTIMATE.md` (+ items JSON + PDF) were **untracked**; all three are
+    committed byte-identical, and its **60** items (35 Pass A + 25 Pass B — **not 61**) are one
+    ledger row each. **Two things a verbatim ingest would have got wrong: `MA18` is HIGH by the
+    audit's own Correction 1 and MEDIUM in its JSON** (the audit's #2 action item, under-rated by
+    the machine-readable set), and **`MA7` is NOT done though `14c00ac` names it** — that commit
+    changed only the audit documents. **And `build_ledger.py` was REFUSING TO RUN AT ALL** on three
+    pre-existing rows carrying raw `|` inside cells; `M1-PARSE`, whose own subject is that hazard,
+    was one of them. **72 suites, 0 failures; 19 new tests.** `HANDOFF_optionsbot.md` §58.
 - **THE CALIBRATED FLOORS ARE RE-DERIVED AT TODAY'S `N` AND FIVE OF SEVEN HAVE NEVER MOVED -
   INCLUDING BOTH LONG-SHORT FLOORS - WHILE THE 1.95pp ALPHA MARGIN TURNS OUT TO HAVE BEEN STALE
   FOR NINE DAYS (2026-08-14, `MA19`+`MA13`).** `PREREG_ma19_ma13_recalibration.md` committed
@@ -3935,7 +3915,36 @@ score), so there is no performance excuse to judge on a subset. If you must scre
     `og:image` (+ `secure_url`, `type`, **1200×630**, `alt`) and `twitter:card=summary_large_image`,
     with a comment that `og:image` must be an ABSOLUTE https URL or LinkedIn/Slack/X silently skip
     it. Only the manual step is left: re-scrape via LinkedIn Post Inspector after a deploy.
-19. **Later:** gated auto-apply of adopted weights.
+19. ~~**Later:** gated auto-apply of adopted weights.~~ **CORRECTED 2026-08-14 (master audit MA1):
+    AUTO-APPLY WAS ALREADY SHIPPED, UNGATED, AND ON A MONTHLY CRON — this line said the opposite
+    for months.** `screen.py:53` preferred `store.latest_learned_weights(...)` over
+    `settings.WEIGHTS_*`, fed by `/admin/run-learning` on `auto-scan.yml`'s `0 12 1 * *`, and
+    `tests/test_edge.py` **pinned** it — so a scheduled job could change the composite users
+    receive by writing to Render's SQLite, with no commit and nothing for the vintage contract to
+    see. ~~It had never fired;~~ **CORRECTED 2026-08-14 by a second lane that landed this same row
+    independently and MEASURED PRODUCTION: IT HAD FIRED — once, on 2026-08-01 at 13:32:47 UTC — AND
+    IT ADOPTED NOTHING.** Proved, not inferred: the live edge-learning read endpoint reports
+    `number_ic.computed_at = 2026-08-01T13:32:47.645510` with status *"insufficient data"*, and
+    `run_number_diagnostics` is the **only** writer of that key in the repository, called from
+    **exactly one place** — inside the admin run-learning handler. The same endpoint reports an
+    **EMPTY history** and `current.established` **bit-identical to `settings.WEIGHTS_ESTABLISHED`**,
+    so `learned_config` has never been written and **there is no live vintage violation**. The
+    empty history proves `run_learning` returned at its insufficient-data guard, **above** every
+    `save_learned` call, and the code agrees: adoption needs 8 scan dates each with a realized
+    **21-trading-day** forward return, and on 2026-08-01 none could exist. **The distinction is not
+    pedantry — the audit's severity rule is "CRITICAL if it has ever fired, HIGH-and-armed if it has
+    not", so the precise statement is that the JOB fired and the ADOPTION PATH was never reached.**
+    next firing would have been 2026-09-01. **Now DISARMED and the item
+    is CLOSED, not pending:** `learn_enabled` defaults false, the cron and its job are removed,
+    and `store.save_learned` — the one funnel both weight writers pass through — refuses an
+    adoption unless the OPEN vintage registers it AND Don has signed
+    `PAPER_TRACK_CONTRACT.md` §5c for that same vintage. **The "gated" part of this item is what
+    was actually missing, and it is what got built.** Check production with
+    `GET /admin/learned-weight-status`. `valuation/edge/weight_adoption.py`;
+    `HANDOFF_live_data_bugs.md` Part 21. **The lesson generalises: a roadmap entry saying
+    something is unbuilt is not evidence that it is unbuilt** — this one, `BACKTEST_RUNBOOK.md`'s
+    architecture diagram, and the `LEARN_ENABLED` flag all described a world the code did not
+    implement, and the code was the one on the cron.
 20. **Estimate-revisions sentiment: PARKED** until WRDS/IBES (FMP has no point-in-time revisions at any tier;
     the free `stable/grades` workaround is real but weak and quota-starved). Don't fight the FMP free quota.
 

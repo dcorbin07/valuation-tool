@@ -5959,3 +5959,219 @@ Artifacts: `data/free_analysis/V6OPT_PREMISE.json`, `V6OPT_STAGE1.json`, `V6OPT_
 Reproduce: `python -m scripts.v6opt_premise`, `python -m scripts.v6opt_stage1`,
 `python -m scripts.v6opt_stage2`. Instrument `valuation/edge/csp_surface.py`, 41 tests in
 `tests/test_csp_surface.py`.
+
+## 58 · AUDIT #3 OFFICIALIZED, 60 MA ROWS INGESTED, AND MA36 + MA37 — THE LIVE OPTIONS RECORD WAS CENSORED AT ONE END AND BLENDED AT THE OTHER
+
+**Session 2026-08-14, options-bot lane.** Three pieces of work, in order: officialize the merged
+cold audit #3, ingest its findings into the ledger, then take this lane's two rows from it.
+`PREREG_ma36_ma37_record_integrity.md` was committed **ALONE at `53c7ecf`** — one `.md`, zero
+`.py` — a strict ancestor of every commit that changes behaviour. **ADOPTS NOTHING, TESTS
+NOTHING, ZERO TRIALS.** No backtested figure moves.
+
+### 58.1 · The merged record, and two facts about the deliverable
+
+`VALQUO_MASTER_AUDIT_ULTIMATE.md` + `valquo_master_audit_ultimate_items.json` +
+`VALQUO_MASTER_AUDIT_ULTIMATE.pdf` were **untracked in the primary checkout**. All three are now
+committed byte-identical (sha256 checked on each); the PDF's staged blob is byte-identical to the
+file on disk at **204,636 bytes**, i.e. `MA35`'s own `*.pdf binary` rule is doing its job on the
+deliverable that motivated it. `VALQUO_MASTER_AUDIT.md` gains **one** header line pointing at the
+merged record; Pass A's 35 items stand as written.
+
+* **IT IS SIXTY ITEMS, NOT 61.** Pass A `MA1`-`MA35` (35) + Pass B `MA36`-`MA60` (25) = **60**, in
+  the prose and in the JSON, with no id in either set missing from the other. Counted, not quoted.
+* **THE JSON DOES NOT CARRY THE AUDIT'S OWN CORRECTION 1, AND IT IS THE ONE THAT MATTERS.**
+  Section 2.3 re-rates **`MA18`** (*"the bound forward track still has no writer, and the
+  five-year clock is running"*) from MEDIUM to **HIGH**, and section 9 lists it under HIGH — but
+  `valquo_master_audit_ultimate_items.json` still reads `"severity": "MEDIUM"` and counts 13 HIGH
+  against the prose's 14. **`MA18` is the audit's #2 action item by its own ordering**, and it is
+  the one finding it says *cannot be recovered later*. Anything ingesting the machine-readable set
+  verbatim — this ingest included — would have silently under-rated exactly that. Ingested as
+  **HIGH**; the deliverable is left unedited, because it is a record of what the auditor found.
+
+### 58.2 · The ingest — 60 rows, evidence-only statuses, and what a mechanical pass would have got wrong
+
+Per the **LA-series precedent**: one out-of-band row per finding, appended verbatim, so *"where do
+we stand on MA37?"* is answerable in the ledger rather than in a 583-line audit. No id collides
+with the 134 audit items or the 197 rows already there, and there are **zero duplicate ids**.
+
+**`src = audit3-ingest`, deliberately neither `auto` nor `human`.** The `src=auto` lesson is that
+a mechanically-proposed row is a *lead, not a fact* — this project has already been bitten by six
+`src=auto` rows asserting *"no audit section exists"* when a full section did. So the rows say
+exactly what stands behind them: **transcribed from the audit's own item entry, NOT independently
+re-verified against the code by this lane**, with the audit's evidence line carried into the note
+so the next reader checks the claim rather than the row.
+
+| status | n | evidence |
+|---|---|---|
+| `OPEN` | 50 | the default. For the eleven proposals (`MA24`-`MA34`, `MA54`-`MA58`) **OPEN means NOT RUN, never broken** — each carries its own kill condition and trial price. |
+| `IN PROGRESS` | 5 | `MA1`/`MA2`/`MA3` (greeks) and `MA5`/`MA6` (app fixer), on Don's direction. **All five carry NO tree evidence** — no commit and no handoff section names any of them — and the rows say so. |
+| `DONE` | 5 | `MA35` (closed on **code**: `.gitattributes` carries `*.pdf binary`), `MA36`/`MA37` below, and `MA13`/`MA19` landed **DONE** by the edge lane in the same window. |
+
+**AND THE MERGE WOULD HAVE BROKEN THE ONE GUARANTEE THE LEDGER MAKES.** The edge lane landed real `MA13` and `MA19` rows (**DONE**, `src=human`, `0eb95b1`) while this lane was ingesting all 60 as `OPEN`, and the two sides conflicted. **Keeping both — the reflex, and exactly what `merge=union` would do — produces two rows with the same id and no rule for which wins**, which is why `.gitattributes` lists `VALQUO_LEDGER.md` as deliberately NOT union-merged. The **human row wins both**, per the contract, and the ingest's `OPEN` versions are discarded rather than kept beside them. Resolved to **60 unique ids, asserted rather than eyeballed**.
+
+**`MA7` IS NOT DONE, AND A COMMIT SUBJECT SAYS IT IS.** `14c00ac` reads *"MA7: /api/rank is the
+sharper case"* and changed **only the audit documents**. That is the ledger's own **trap 5** — a
+commit subject donating a verdict — caught on ingest rather than after it had marked a live
+uncapped-vendor-spend finding as closed.
+
+**AND THE INGEST FOUND THE LEDGER'S REFRESH TOOL REFUSING TO RUN AT ALL.**
+`python scripts/build_ledger.py` was aborting with *"REFUSING TO PROCEED — these ledger rows could
+not be parsed and would be DELETED by a rewrite"* on `S23`, `M1-PARSE` and `V2G`. Four raw `|`
+characters sat **inside** cells. Verified against `HEAD` that all three predate this ingest, so
+the refresh has been unavailable for some time; ledger rule 2 (*"if the ledger cannot answer,
+fixing the ledger is the task"*) makes it in scope. **Four characters changed, no word and no
+claim touched.** `S23` was the dangerous one — its pipes sat in the **verdict** cell, so every
+later column shifted and the parser read `src` out of the handoff slot; **it survived only because
+the string it landed on was not `auto`**, which is the asymmetry protecting the file by luck
+rather than by design. `M1-PARSE` is the one worth noticing: **its own subject IS this hazard and
+it was malformed by it.**
+
+**AND IT CHANGED ANOTHER LANE'S TEST, WHICH IS A CROSS-LANE EDIT AND IS DECLARED RATHER THAN ABSORBED.** `tests/test_la_screener_batch.py::test_the_real_ledger_has_no_UNKNOWN_losses` **asserted the three malformed rows EXIST**, as an allowlist whose stated purpose was *"this test fails if a FOURTH appears, so the known set cannot quietly grow"*. That lane found them and deliberately reported rather than rewrote, because **its own register forbade editing another lane's row** — the right call for that session, with a cost nobody had measured: `build_ledger.py` does not tolerate those rows, it **refuses to run at all** while any of them exists. The expected set is now **empty**, which is **strictly stronger** than the allowlist — the guard still fires the moment a malformed row appears, and now on the FIRST rather than the fourth. Its docstring records who changed it, when, and why. **A small miscount in the audit, while here: `MA60` says the land gate "now runs 77 `test_*.py` suites". The Action globs `tests/test_*.py` and there are **74** on `origin/main`, 75 with this session's addition — the direction that matters (it is three times the ~24 its own livelock arithmetic assumed) is right, the number is not.
+
+### 58.3 · MA36 — the censored tail. A worthless expiry was stranded OPEN forever
+
+**THE DEFECT.** `_exit_decision` returns `"expiry"` from `CLOSE_BEFORE_EXPIRY_DAYS` out and never
+stops; the B5-lesser no-bid branch defers. For a contract that has already expired those two
+compose into a **permanent** defer, and since `_stats`/`paper_report` count `status='closed'`
+only, the position is neither a winner nor a loser but **ABSENT**. A long option that decays to no
+bid is precisely the **total loss**, so the censoring is **one-sided**: winners and quoted losers
+are scored and the −100% tail is dropped. `grep -c intrinsic paper_track.py` → **0**. That is the
+opposite of the backtest this book exists to validate, whose own comment reads *"expire worthless
+settle at intrinsic and post −100%. They are not dropped."*
+
+**THE SETTLEMENT PRICE IS ZERO AND IS NEVER RECONSTRUCTED — the load-bearing choice, made in the
+register before the code existed.** A non-zero intrinsic needs the underlying **at expiry**, and
+`TradierProvider.get_bars` returns `close/high/low/volume` lists and **drops the dates**, so there
+is no way to ask for the close on the expiry date without inventing a calendar alignment. Using
+*today's* underlying instead would book a **fake gain on a dead call** whenever the stock rallied
+after expiry — the settlement trap `V6-OPT` caught in the backtest, in a new costume, **with its
+error running in the flattering direction**. Zero is the conservative bound for a long option, it
+is what the market is quoting by declining to bid, and it is the backtest's own convention.
+
+**THE IN-THE-MONEY GUARD IS WHY ZERO IS NOT APPLIED BLINDLY.** If the underlying says the contract
+would have had intrinsic value, this is not the worthless case and something else is wrong (a dead
+feed, a corporate action). The only thing the guard can ever do is **prevent** an automatic
+−100%, so it cannot manufacture a loss; a blocked row is reported **by name** in
+`out["settlement_blocked"]` with its reason instead of stranding silently.
+
+**B5-LESSER IS NOT REVERSED.** Before expiry a no-bid position still defers, with its reason
+unchanged — inside `CLOSE_BEFORE_EXPIRY_DAYS` the contract is alive and carries time value, and
+settling it at intrinsic would book a loss the market never charged. The test is **strictly**
+`today > expiry`, and the boundary is pinned from both sides.
+
+**THE RESTATEMENT IS DATED AND KEEPS THE FIGURE IT REPLACED.** Settling the censored tail
+*restates a published number*, and a restatement that keeps no record of what it replaced is
+indistinguishable from the figure having always been that. So `scream_log`'s archive convention —
+nothing removed, everything dated — is applied to the **statistic**: `close_matured` snapshots the
+expectancy before any stranded row is settled, and on a cycle that actually settles one it appends
+a dated entry carrying `expectancy_before`, `expectancy_after`, the count and the rows. It
+surfaces on `options_summary`, which is what `hero.py` reads. **A cycle that settles nothing
+writes nothing**, or a real restatement would be lost among the noise.
+
+**SCOPE, STATED SO NOBODY READS THE CLASS AS CLOSED.** A row stranded for any reason *other* than
+an expiry it has passed is untouched and still defers. Pinned by its own test.
+
+### 58.4 · MA37 — the blended eras. A tuning loop was learning from a record the project retired
+
+`record_epoch` is stamped on every row and was **read as a filter by exactly one module**:
+**17** occurrences in `scream_log.py`, **2** in `options_tracker.py` (the `_FIELDS` entry and the
+stamp), **0** in `options_paper.py`. So `scorecard` ran a bare
+`SELECT * FROM option_alerts WHERE status='closed'`, `tuning_candidates` inherited it, and
+`paper_report` took `min(alert_ts)` over **every** row — after the 2026-08-13 reset, all three
+blended an era the project **formally retired** for *"predating the corrected alert stack (B1
+price basis, C-series fixes)"*.
+
+**WHICH ERA USERS SEE, CHOSEN IN THE REGISTER RATHER THAN AFTER SEEING THE NUMBERS: the current
+epoch, and only the current epoch.** `EPOCH_ALL` restores the blend on demand, and **every payload
+carries the per-era row census**, so the archived record is **excluded and never invisible** —
+`scream_log`'s first principle is that a reset is an archive and never a delete, and filtering an
+era out of a statistic without saying it exists would honour the letter and not the point.
+
+**THE TUNING LOOP IS THE POINT, not the display.** `tuning_candidates` proposes which alert
+fingerprints to favour; learning from retired rows is the defect that matters, and it is closed by
+the same default. **The `live_since` blend is the most misleading half:** a bare `min(alert_ts)`
+dated the live book from the archived era, making it look **older than it is**.
+
+**PRE-COMMITTED AND HELD: the current-epoch record is expected to be THIN, and thin is the honest
+state.** The register forbids widening the filter, falling back to the blend when the current era
+is small, or reporting a zero as a result — and a test pins that a store whose current era holds
+nothing reports *"no live alerts logged yet"* rather than the blend.
+
+### 58.5 · Controls, and a defect in my own repair caught by the test written to pin it
+
+All six registered controls pass. **C1** no already-closed row is ever re-touched (running the
+cycle three more times settles nothing and leaves the scorecard identical). **C2** the archive is
+read-only — the per-era census is bit-identical before and after, across every filtered and
+blended call. **C3** a no-bid position before expiry still defers. **C4** an ITM expiry is blocked,
+not settled. **C5** `epoch=EPOCH_ALL` reproduces the blended figure exactly (+100% and −50%
+averaging to +25%), which is the proof the old number was **filtered rather than lost**. **C6**
+`record_outcome` on a `0.0` exit premium returns `pnl_pct` of exactly −1.0 — its guard is
+`if ex is None`, so a falsy-but-valid zero passes, and this is pinned because a `if not
+exit_premium` anywhere upstream would silently drop every total loss.
+
+**A DEFECT IN MY OWN REPAIR, FOUND BY THE TEST WRITTEN TO PIN IT AND FIXED BEFORE SHIPPING.** The
+first cut had `_settle_expired` return a **bool**, so a *blocked* row fell through to the generic
+B5 defer, which **overwrote the note saying why it was blocked**. An operator would have been left
+with a stranded row reading only *"no bid"* while the file knew it looked in-the-money — a
+diagnosis destroyed by the code that produced it. It is now tri-state (`"settled"` / `"blocked"` /
+`None`), the two counters partition cleanly, and the blocked reason survives.
+
+**A DECLARED DEVIATION FROM MY OWN REGISTER.** Section 3 spells the blended view `epoch=None`;
+shipped, it is an explicit `EPOCH_ALL` sentinel, because `scream_log.records` **already** uses
+`None` to mean *the current era* and two modules disagreeing about what `None` means is precisely
+the two-conventions defect this register exists to remove. The substance the register asked for —
+the blend stays computable on demand — is unchanged; only the spelling is, and it moves toward the
+convention already shipped rather than away from it.
+
+**A CORRECTION AGAINST MY OWN REGISTER, AND IT IS THE ERROR THE RECORD WARNS ABOUT TWICE.**
+Section 6 says *"options stays at 292, equity at 218, infra at 11"*. **Measured after this
+session's merge, `by_domain` reads equity 224, options 292, infra 14 (infra 15 once the concurrent `MA19`/`MA13` landing merged in — the same drift one level down, recorded rather than left to rot)** — the 218/11 were quoted
+from a stale mid-session figure instead of being re-read from `by_domain` after merging
+`origin/main`, which is exactly the defect `S17`'s register committed and `O6`/`O7`/`O17` recorded
+before it. **The register is left unedited and the correction recorded here**, per the S5
+precedent. The substantive claim is untouched and verified: **`N` did not move.** Before and after
+the log row, `by_domain` is identical, while `rows_fixed_not_counted` rises **29 → 30** — which is
+the proof the row was *seen and correctly excluded* rather than silently dropped.
+
+### 58.6 · Expectations, scored
+
+1. **The live expectancy falls or is unchanged and cannot rise on MA36** (90/10) — **RIGHT**, and
+   now structural rather than hoped: the repair only ever adds −100% trades, and a test asserts
+   `expectancy_after < expectancy_before` on the restatement entry.
+2. **MA37 leaves the current era thin** (85/15) — **RIGHT** in mechanism, **UNVERIFIABLE on the
+   live book from here**: the local store is dev output, so the real count is whatever Render
+   holds. Reported as unverified rather than asserted.
+3. **The blend and the current era differ materially** (70/30) — **RIGHT** by construction on the
+   fixture (+25% blended against −50% current); the live magnitude is Render's to show.
+4. **No closed row moves** (95/5) — **RIGHT**, C1 passed first time.
+5. **The ITM guard never fires locally** (80/20) — **RIGHT**, and for the stated reason: there is
+   no real stranded position in a dev database.
+6. **`tuning_candidates` is the consumer whose output changes most** (60/40) — **UNRESOLVED.** On
+   a book this thin nothing is actionable in either era, so the arm that would show it does not
+   exist yet. The claim was about a live book and cannot be scored on a fixture.
+
+**4 right, 0 wrong, 1 unverifiable, 1 unresolved.** The two that do not score are both cases where
+the honest answer needs the production database, and neither is dressed up as a pass.
+
+### 58.7 · What this does NOT say
+
+* **It is not evidence about the strategy.** `R2`'s dead-entry frame is **not** inherited and
+  `O11`'s survivability frame is **not** inherited — both were declined in writing in the register
+  before any repair existed. This says the live book was **mis-recorded**, not that it is good or
+  bad. Fixing a censored record is not a claim about what it records.
+* **It does not close the audit's options section.** `MA38`-`MA49` sit in the same section and are
+  **out of scope by void condition 6**; they keep their `OPEN` rows and want their own register.
+* **It changes no backtested number.** `GATED_LATE_HALF_EXPECTANCY = 0.1288` and every figure the
+  research record publishes are untouched.
+* **The stranded rows themselves are on Render, not here.** This ships the mechanism that settles
+  them and dates the restatement; **the first real restatement happens on the next cycle that
+  runs against the live store**, and it will be visible in `options_summary().restatements`.
+
+### 58.8 · Recommended next step (NOT started — Don's call)
+
+**`MA39`** — *"the degraded-run detector watches 6 of 13 result blocks, and `build_payload` never
+reads the error string the run recorded"*. It is the third HIGH in the same audit section, it is
+the same shape as both items closed here (a guard correct in-process and blind at its output
+boundary), it needs **no data and no trials**, and its failure mode is the worst of the three: a
+`BACKTEST_RESULTS.json` that ships `errors: []` after an exception, which the file's own contract
+reads as an **active claim of health**.

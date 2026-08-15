@@ -62,8 +62,22 @@ def _ic_for(df, weights, factor_cols, ret_col, date_col):
 
 
 def optimize_weights(panel, factor_cols, ret_col="fwd_ret", date_col="date",
-                     step=0.25, min_oos_fraction=0.5, default_weights=None) -> dict:
-    """Search weights on the in-sample half, validate on the out-of-sample half."""
+                     step=0.25, min_oos_fraction=0.5, default_weights=None,
+                     overlap_periods=1) -> dict:
+    """Search weights on the in-sample half, validate on the out-of-sample half.
+
+    `overlap_periods` — how many consecutive dates share a forward-return window. MASTER AUDIT
+    MA2(b): the significance floor below treats per-date ICs as independent, and the caller that
+    matters most (`autolearn`) reads DAILY snapshot dates while computing a 21-trading-day
+    `fwd_ret`, so consecutive dates share 20 of 21 days of return and the ICs are strongly
+    autocorrelated. Dividing by the raw date count understates the standard error by roughly
+    sqrt(overlap), i.e. ~4.6x at h=21, which turns a nominal 1.64-sigma bar into ~0.36 sigma.
+
+    THE INFLATION IS A PARAMETER RATHER THAN A CONSTANT because overlap is a property of the
+    CALLER, not of this function: a genuinely non-overlapping panel would be over-penalised by a
+    blanket sqrt(21). The default of 1 reproduces the previous arithmetic exactly, so nothing
+    silently re-calibrates; `autolearn` passes its real overlap.
+    """
     std = _standardize_per_date(panel, factor_cols, date_col)
     dates = sorted(std[date_col].unique())
     if len(dates) < 6:
@@ -92,22 +106,52 @@ def optimize_weights(panel, factor_cols, ret_col="fwd_ret", date_col="date",
     # which matters now that more factors mean a much bigger grid.
     _oos_dates = int(oos_p[date_col].nunique())
     _avg_names = float(oos_p.groupby(date_col).size().mean()) if _oos_dates else 0.0
-    _std_null = (1.0 / ((max(1.0, _avg_names - 1.0) * max(1, _oos_dates)) ** 0.5)) if _oos_dates else 1.0
+    # MA2(b): n_eff = dates / overlap. Overlapping windows do not each supply a fresh draw.
+    _overlap = max(1.0, float(overlap_periods or 1))
+    _eff_dates = max(1.0, _oos_dates / _overlap)
+    _std_null = (1.0 / ((max(1.0, _avg_names - 1.0) * _eff_dates) ** 0.5)) if _oos_dates else 1.0
     _sig_floor = 1.64 * _std_null
 
+    # MA2(a): the equal-weight baseline is COMPARED IN WRITING and must therefore be compared in
+    # the DECISION. It used to be computed on line 87, quoted in the adopt verdict as
+    # "Recommended over equal-weight", and left out of `accepted` entirely — so the learner could
+    # adopt weights that were WORSE out-of-sample than the incumbent while saying it beat them.
+    # That is this project's own named defect class (B8's `rule_fired`, LA5's `health` block): a
+    # quantity that reaches a report but not the decision. `eq_oos` being NaN fails CLOSED — an
+    # incomparable baseline is not a beaten one.
+    _beats_eq = bool(eq_oos == eq_oos and oos_ic > eq_oos)
+
     accepted = bool(is_ic > 0 and oos_ic == oos_ic and oos_ic > 0
-                    and oos_ic >= min_oos_fraction * is_ic and oos_ic >= _sig_floor)
+                    and oos_ic >= min_oos_fraction * is_ic and oos_ic >= _sig_floor
+                    and _beats_eq)
     if accepted:
         verdict = (f"Tuned weights hold out-of-sample (IS IC {is_ic:.3f} → OOS IC {oos_ic:.3f}). "
                    f"Recommended over equal-weight (OOS {eq_oos:.3f}).")
         rec = best_w
     else:
-        why = ("OOS IC not positive" if not (oos_ic == oos_ic and oos_ic > 0)
-               else f"OOS edge collapsed ({oos_ic:.3f} < {min_oos_fraction:.0%} of IS {is_ic:.3f})")
+        if not (oos_ic == oos_ic and oos_ic > 0):
+            why = "OOS IC not positive"
+        elif oos_ic < min_oos_fraction * is_ic:
+            why = f"OOS edge collapsed ({oos_ic:.3f} < {min_oos_fraction:.0%} of IS {is_ic:.3f})"
+        elif oos_ic < _sig_floor:
+            why = (f"OOS IC {oos_ic:.3f} below the significance floor {_sig_floor:.3f} "
+                   f"({_oos_dates} dates / overlap {_overlap:.0f} = {_eff_dates:.1f} effective)")
+        elif not _beats_eq:
+            why = (f"did not beat equal-weight out-of-sample "
+                   f"({oos_ic:.3f} vs {eq_oos:.3f})" if eq_oos == eq_oos
+                   else "the equal-weight baseline OOS IC could not be computed, so the tuned "
+                        "weights cannot be shown to beat it")
+        else:
+            why = "in-sample IC not positive"
         verdict = (f"Rejected: {why}. Keep the default weights — the in-sample gain was overfit.")
         rec = default_weights
 
     return {"accepted": accepted, "recommended_weights": rec, "best_in_sample_weights": best_w,
             "in_sample_ic": float(is_ic), "out_sample_ic": float(oos_ic) if oos_ic == oos_ic else None,
             "equal_weight_oos_ic": float(eq_oos) if eq_oos == eq_oos else None,
+            # Shipped so the decision can be re-derived from the payload rather than trusted:
+            # every leg of `accepted` is now visible, which is what MA2(a) was missing.
+            "beats_equal_weight": _beats_eq, "significance_floor": float(_sig_floor),
+            "oos_dates": _oos_dates, "overlap_periods": float(_overlap),
+            "effective_oos_dates": float(_eff_dates),
             "n_periods": len(dates), "verdict": verdict}

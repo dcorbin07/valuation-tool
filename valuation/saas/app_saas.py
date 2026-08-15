@@ -21,6 +21,7 @@ from flask import request, render_template, redirect, jsonify, g, abort, make_re
 from ..config import CONFIG
 from ..safe_error import safe_error
 from ..web.app import app as tool_app
+from ..web.query_params import clamp_int as _clamp_int   # MA50 — the one clamp
 from .models import UserStore
 from . import auth, billing, csrf, gating, index_book, private, ratelimit, surfaces
 
@@ -150,6 +151,33 @@ def create_saas_app(cfg=CONFIG):
         supplied = request.headers.get("X-Admin-Token") or ""
         return bool(cfg.admin_token) and hmac.compare_digest(supplied, cfg.admin_token)
 
+    def _admin_write_ok():
+        """The gate on the two routes that can rewrite the LIVE scoring weights. [MA10]
+
+        `/admin/run-learning` and `/admin/adopt-backtest-weights` are the entire blast radius
+        of MA1 and MA3 — a scheduled caller changing the live composite, invisibly to the
+        vintage contract. Every other admin route reads, triggers a scan, or posts a recap.
+        Sharing one credential across both classes means the token that runs the daily scan is
+        also the token that can re-tune the model.
+
+        TWO STATES, AND THE SPLIT IS OFF UNTIL DON TURNS IT ON:
+          * ADMIN_WRITE_TOKEN unset  -> delegates to `_admin_ok()`. Bit-identical to the
+            behaviour before this function existed, so no cron breaks on deploy.
+          * ADMIN_WRITE_TOKEN set    -> the caller must present THAT value. The ordinary
+            ADMIN_TOKEN no longer opens these two routes, which is the point of the split.
+
+        Accepted in either `X-Admin-Write-Token` or the existing `X-Admin-Token` header, so
+        activating the split is a secret-value change in the two jobs that need it rather than
+        a code change in the callers. `compare_digest` for the same timing reason as above,
+        and the same fail-closed guard: an empty configured token can never match.
+        """
+        want = (cfg.admin_write_token or "").strip()
+        if not want:
+            return _admin_ok()
+        supplied = (request.headers.get("X-Admin-Write-Token")
+                    or request.headers.get("X-Admin-Token") or "")
+        return hmac.compare_digest(supplied, want)
+
     @app.route("/api/option-alerts/open")
     def api_option_alerts_open():
         """Alerts still awaiting an outcome — the filler's work list."""
@@ -157,10 +185,8 @@ def create_saas_app(cfg=CONFIG):
             return jsonify({"error": "unauthorized"}), 401
         from ..edge.options_tracker import open_alerts
         from ..screener.store import Store
-        try:
-            limit = min(int(request.args.get("limit", 500)), 2000)
-        except (TypeError, ValueError):
-            limit = 500
+        # MA50 class: the try/except was here, the FLOOR was not, so `?limit=-1` survived.
+        limit = _clamp_int(request.args.get("limit"), default=500, cap=2000)
         # NOTE: `store` in this factory is the UserStore (accounts). option_alerts lives in
         # the SCREENER store — a different database entirely.
         rows = open_alerts(Store(), limit=limit)
@@ -202,7 +228,9 @@ def create_saas_app(cfg=CONFIG):
     @app.route("/admin/run-learning", methods=["POST"])
     def admin_run_learning():
         # Monthly self-learning: OOS-gated re-tune of the screener weights.
-        if not _admin_ok():
+        # MA10: this route WRITES LIVE WEIGHTS, so it takes the write gate, not the blanket
+        # admin one. Inert until ADMIN_WRITE_TOKEN is set — see `_admin_write_ok`.
+        if not _admin_write_ok():
             return jsonify({"error": "unauthorized"}), 401
         if not cfg.learn_enabled:
             return jsonify({"ok": False, "status": "learning disabled"})
@@ -249,7 +277,12 @@ def create_saas_app(cfg=CONFIG):
             from ..screener import universe as U
             from ..screener.store import Store
             prov = get_historical_provider(cfg)
-            limit = int(request.args.get("limit", cfg.backtest_universe_limit))
+            # MA50 class, and the widest of them: an unclamped int that becomes a UNIVERSE
+            # SIZE on a 512 MB box. A negative silently emptied the run; an absurd positive
+            # is a CPU lever. Capped at the full Sharadar universe, which is the largest
+            # number that means anything here.
+            limit = _clamp_int(request.args.get("limit"),
+                               default=cfg.backtest_universe_limit, cap=5000)
             # Prefer the provider's own survivorship-free universe (incl. delisted); else bundled.
             tickers = prov.universe(limit=limit) or list(U.bundled_tickers())[:limit]
             horizons = [int(x) for x in str(cfg.backtest_horizons).split(",") if x.strip()]
@@ -271,7 +304,8 @@ def create_saas_app(cfg=CONFIG):
     def admin_adopt_backtest_weights():
         # Promote the backtest's optimized weights into the LIVE tuner — but only a
         # weighting that beat the default out-of-sample (the same anti-overfit gate).
-        if not _admin_ok():
+        # MA10: the second of the two live-weight writers. Same gate as run-learning.
+        if not _admin_write_ok():
             return jsonify({"error": "unauthorized"}), 401
         from ..screener.store import Store
         st = Store()
@@ -283,11 +317,51 @@ def create_saas_app(cfg=CONFIG):
             return jsonify({"ok": False, "error": "No out-of-sample-accepted weighting to adopt for that horizon. "
                                                   "Run the backtest first; adopt only when it beat the default OOS."})
         weights = h["optimized_weights"]
-        st.save_learned("established", weights,
-                        {"source": "historical_backtest", "horizon": H, "out_sample_ic": h.get("out_sample_ic")},
-                        True, f"Adopted from historical backtest (horizon {H}, OOS IC {h.get('out_sample_ic')}).")
+        # MASTER AUDIT MA3. `h["accepted"]` comes from `_weighted_optimize` — a SINGLE 50/50 time
+        # split. `CLAUDE.md`'s core-file section is explicit that `cpcv_validate` is THE AUTHORITY
+        # for weights and that a CPCV rejection means keep the defaults rather than falling back
+        # to walk-forward; this endpoint fell back to something weaker than walk-forward, and CPCV
+        # rejects on every run the project has done (`adopt: false`, PBO 0.7333). It also wrote
+        # ONLY the "established" bucket, so the two buckets could end up on different regimes with
+        # nothing reporting the split. The refusal below is not this handler's own — it comes from
+        # `save_learned`, the funnel both weight writers share, so neither can be fixed alone.
+        from ..edge.weight_adoption import VintageRefusal, authorisation
+        try:
+            st.save_learned("established", weights,
+                            {"source": "historical_backtest", "horizon": H,
+                             "out_sample_ic": h.get("out_sample_ic"),
+                             "gate": "single 50/50 split — NOT CPCV"},
+                            True, f"Adopted from historical backtest (horizon {H}, OOS IC {h.get('out_sample_ic')}).")
+        except VintageRefusal as e:
+            # `safe_error`, not `str(e)` — the security suite forbids raw exception text in a
+            # response and is right to: the refusal is a fixed string today, but nothing stops a
+            # future `require()` from interpolating a path. The actionable detail is carried by
+            # the structured `authorisation` block, which is built from the register and cannot
+            # contain server state.
+            return jsonify({"ok": False, "adopted": None, "error": safe_error(e),
+                            "authorisation": authorisation("established"),
+                            "would_have_adopted": weights, "horizon": H}), 403
         return jsonify({"ok": True, "adopted": weights, "horizon": H,
                         "note": "Live scorer now uses these as the starting weights; the monthly learner refines from here."})
+
+    @app.route("/admin/learned-weight-status", methods=["GET"])
+    def admin_learned_weight_status():
+        """MASTER AUDIT MA1 step 5 — is anything overriding settings.WEIGHTS_* right now?
+
+        READ-ONLY, and deliberately so. An adopted row written before the gate existed is a live
+        vintage violation: it must be surfaced with its date, not repaired on the way past, or the
+        record ends up saying the track was clean through a window in which it was not. The audit
+        asked whether this could be answered without a SQL console on Render's disk; it could not,
+        and now it can.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            from ..edge.weight_adoption import live_override_report
+            from ..screener.store import Store
+            return jsonify(live_override_report(Store()))
+        except Exception as e:
+            return jsonify({"error": safe_error(e)}), 500
 
     @app.route("/admin/run-scan", methods=["POST"])
     def admin_run_scan():
@@ -673,18 +747,24 @@ def create_saas_app(cfg=CONFIG):
         """
         if not cfg.portfolio_page_enabled:
             abort(404)
-        # The recruiter master-link, built from env at RENDER TIME so rotating
-        # DEMO_ACCESS_TOKEN both re-points this button and invalidates every copied
-        # /demo/<token> deep-link at once (PROMPT_recruiter_master_link.md, 2026-08-07).
-        # Empty token or private mode => no button at all; the template tests for it.
+        # MA9 — THE TOKEN IS NO LONGER RENDERED. This used to build
+        # `demo_url = f"/demo/{token}"`, publishing DEMO_ACCESS_TOKEN in the HTML of an
+        # anonymous page: anyone who viewed source held a permanent, shareable credential,
+        # and after PUBLIC_FULL_VIEW=false that token is the only gate on every owner API.
+        # The button now POSTs to /preview and the server sets the session (auth.py:
+        # demo_grant_view). What reaches the template is a BOOLEAN, so there is no code path
+        # by which the value can reach a response body.
+        #
+        # The token still decides whether the button exists, so clearing DEMO_ACCESS_TOKEN
+        # remains the single off switch for the whole preview — unchanged from before.
         token = (cfg.demo_access_token or "").strip()
-        demo_url = f"/demo/{token}" if token and not cfg.private_mode else None
+        demo_available = bool(token) and not cfg.private_mode
         # The research record (V4). Derived from the same config path, so rotating
         # PORTFOLIO_PATH moves the page and this link together. It is a PATH, not a number —
         # the page stays static by construction.
         resp = make_response(render_template("portfolio.html",
                                              contact_email=cfg.contact_email,
-                                             demo_url=demo_url,
+                                             demo_available=demo_available,
                                              research_url=cfg.resolved_portfolio_path
                                              + "/research"))
         # Belt and braces with the <meta> tag and robots.txt. The header is the one of the
@@ -860,9 +940,22 @@ def create_saas_app(cfg=CONFIG):
             # us a dict lookup rather than an Anthropic call (SECURITY_AUDIT.md H1).
             # The admin token bypasses it: the cron jobs legitimately hit these on a
             # schedule and are already authenticated.
-            bucket = ratelimit.bucket_for(path, body)
-            if bucket and not _admin_ok():
-                retry = ratelimit.check(ratelimit.client_ip(request), bucket)
+            # MA7: buckets_for, plural — a request can be scarce in two ways at once (an
+            # /api/value with run_ai spends the FMP quota AND an Anthropic call), and it
+            # carries a COST, because /api/rank and /api/dip fan out over up to 25 names.
+            # request.args is passed because /api/dip takes its fan-out from the query string.
+            buckets = ratelimit.buckets_for(path, body, request.args)
+            # MA10: an admin caller used to skip this block outright. It now moves to a
+            # separate, deliberately generous bucket instead — the crons stay comfortably
+            # inside it, and a leaked token can no longer spend without bound. A CEILING
+            # replaces an exemption; nothing legitimate should ever notice.
+            if buckets and _admin_ok():
+                buckets = ((ratelimit.ADMIN_BUCKET, 1),)
+            for _bucket, _cost in buckets:
+                # Note: an earlier bucket has already recorded its hit when a later one
+                # refuses, so a 429 can cost the caller a little of the budget it cleared.
+                # That errs TIGHT, which is the right direction for a spend limiter.
+                retry = ratelimit.check(ratelimit.client_ip(request), _bucket, cost=_cost)
                 if retry is not None:
                     return jsonify({
                         "error": "Rate limit reached for this endpoint. It runs live data "

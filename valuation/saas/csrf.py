@@ -29,7 +29,14 @@ _SESSION_KEY = "_csrf_token"
 
 # Exact paths that must carry a token. /reset/<token> is prefix-matched below.
 PROTECTED = {"/login", "/register", "/forgot", "/account/alerts",
-             "/billing/checkout", "/billing/portal"}
+             "/billing/checkout", "/billing/portal",
+             # /preview (MA9) creates a session and calls session.clear() first, so an
+             # unprotected cross-site POST could log a signed-in owner out of their own
+             # account. SameSite=Lax does NOT close this: the cookie is simply not SENT on a
+             # cross-site POST, so the route cannot see the existing uid to refuse it, while
+             # the response's own Set-Cookie still replaces the victim's session. The token
+             # closes it because the attacker can neither read nor send it.
+             "/preview"}
 
 
 def token() -> str:

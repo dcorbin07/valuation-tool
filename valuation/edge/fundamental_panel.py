@@ -4676,8 +4676,20 @@ def main(argv=None):
         print(f"# '{nm}' beat the defaults out-of-sample and cleared the overfitting checks (CPCV / walk-forward verdicts above).")
         print("WEIGHTS_ESTABLISHED = " + json.dumps(rwf))
     elif h and h.get("accepted"):
-        print("\n=== Paste into valuation/screener/settings.py, then commit + push ===")
-        print("WEIGHTS_ESTABLISHED = " + json.dumps(h["optimized_weights"]))
+        # MASTER AUDIT MA3, the third door. This used to print the same "paste into settings.py"
+        # instruction as the walk-forward branch above, on a SINGLE 50/50 SPLIT — the gate
+        # `CLAUDE.md` forbids falling back to, weaker even than walk-forward. A human following a
+        # confident instruction is a weight-adoption path like any other, and this one bypassed
+        # the database entirely, so `weight_adoption` could never see it. It now reports the
+        # result and refuses to instruct.
+        print("\n=== A single-split accept — NOT an adoption instruction ===")
+        print("# This weighting cleared a SINGLE 50/50 time split. CPCV is the authority for")
+        print("# weights (CLAUDE.md, core file); a CPCV rejection means KEEP THE DEFAULTS, and")
+        print("# CPCV has rejected on every run this project has done. Do NOT paste this into")
+        print("# settings.py: adopting a weight is a VINTAGE EVENT (PAPER_TRACK_CONTRACT §5a)")
+        print("# that resets the forward track's five-year clock. It takes a registered vintage")
+        print("# and Don's signed row — see valuation/edge/weight_adoption.py.")
+        print("# for reference only: WEIGHTS_ESTABLISHED = " + json.dumps(h["optimized_weights"]))
     else:
         print("\nNo weighting beat the defaults out-of-sample (walk-forward or single-split) — keep the current weights.")
     # Canonical results files at the repo root, written on EVERY run and git-tracked, so the

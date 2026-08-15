@@ -46,8 +46,25 @@ services:
       # nothing more. Track Record, Edge Lab, Index, Signals and Watchlist become readable
       # signed out.
       #
-      # ==> THE REGATE IS THIS ONE VALUE. Set it to "false" when Don hears back. Nothing
-      #     else needs touching; OWNER_SPLIT stays "true" underneath and is still enforced.
+      # ==> THE REGATE IS TWO CHANGES, NOT ONE (corrected 2026-08-14, audit MA9). This block
+      #     used to read "THE REGATE IS THIS ONE VALUE ... nothing else needs touching", and
+      #     that was wrong in the direction that matters.
+      #
+      #     1. Set PUBLIC_FULL_VIEW to "false". OWNER_SPLIT stays "true" underneath and is
+      #        still enforced.
+      #     2. ROTATE DEMO_ACCESS_TOKEN in the same window.
+      #
+      #     Why (2) is not optional: until 2026-08-14 the token's VALUE was rendered into the
+      #     HTML of /work, a page anonymous visitors can read. Every value that was ever live
+      #     before that date must be treated as PUBLIC. After the regate the token is once
+      #     again the only gate on /api/track, /api/index-track, /api/valquo-index (names AND
+      #     weights), /api/options-alerts and /api/scream-track — so regating without rotating
+      #     restores a posture whose sole lock is a key the product already handed out.
+      #
+      #     The publication is fixed (the button now POSTs to /preview and the server sets the
+      #     session; the token reaches no response body), so a token rotated AFTER that deploy
+      #     stays private. Rotating is still required once, to retire the published ones.
+      #     Generate: python -c "import secrets;print(secrets.token_urlsafe(24))"
       #
       # DO NOT regate by flipping OWNER_SPLIT instead: that also makes may_act true for
       # everyone, opening /api/scan/run, /api/signals/run and both Edge Lab runners to
