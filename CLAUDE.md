@@ -48,6 +48,62 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE LIVE OPTIONS RECORD WAS CENSORED AT ONE END AND BLENDED AT THE OTHER — A WORTHLESS
+  EXPIRY WAS STRANDED OPEN FOREVER, AND A TUNING LOOP WAS LEARNING FROM AN ERA THE PROJECT HAD
+  FORMALLY RETIRED (2026-08-14, `MA36`+`MA37`).** `PREREG_ma36_ma37_record_integrity.md` committed
+  **ALONE at `53c7ecf`**, a strict ancestor of every behaviour change. **ZERO TRIALS, `FIXED`-class
+  — and the register exists anyway, because both items MOVE A PUBLISHED NUMBER and MA37 required
+  choosing WHICH ERA USERS SEE, which is not a choice to make after seeing which era flatters.**
+  * **`MA36` — THE CENSORING IS ONE-SIDED, WHICH IS WHY IT MATTERS.** `_exit_decision` returns
+    `"expiry"` from `CLOSE_BEFORE_EXPIRY_DAYS` out and never stops; the B5-lesser no-bid branch
+    defers. Past expiry those compose into a **permanent** defer, and `_stats`/`paper_report` count
+    `status='closed'` only — so the position is not a loser, it is **ABSENT**. A long option that
+    decays to no bid IS the total loss, so **winners and quoted losers were scored and the
+    −100% tail was dropped**, in the project's #1 remaining validation, and in the exact opposite
+    direction to the backtest it exists to validate (*"expire worthless settle at intrinsic and
+    post −100%. They are not dropped."*). `grep -c intrinsic paper_track.py` → **0**.
+  * **THE SETTLEMENT PRICE IS ZERO AND IS NEVER RECONSTRUCTED — THE MOST PORTABLE THING HERE.** A
+    non-zero intrinsic needs the underlying **at expiry**, and `TradierProvider.get_bars` returns
+    close/high/low/volume lists and **drops the dates**. Using *today's* underlying instead books a
+    **fake gain on a dead call** whenever the stock rallied after expiry — `V6-OPT`'s settlement
+    trap in a new costume, **with its error running in the FLATTERING direction**. An
+    in-the-money guard blocks rather than guesses, and it can only ever **prevent** an automatic
+    −100%, so it cannot manufacture a loss. **B5-lesser is NOT reversed:** before expiry a no-bid
+    position still defers, and the test is **strictly** `today > expiry`.
+  * **THE RESTATEMENT IS DATED AND KEEPS THE FIGURE IT REPLACED.** Settling the tail restates a
+    published number, and a restatement keeping no record of what it replaced is indistinguishable
+    from the figure having always been that — so `scream_log`'s archive convention (nothing
+    removed, everything dated) is applied to the **statistic**. A cycle that settles nothing writes
+    nothing. **The stranded rows are on Render, not here: the first real restatement happens on the
+    next live cycle** and will show in `options_summary().restatements`.
+  * **`MA37` — `record_epoch` WAS WRITTEN ON EVERY ROW AND READ AS A FILTER BY ONE MODULE:** 17
+    occurrences in `scream_log.py`, **2** in `options_tracker.py` (the field entry and the stamp),
+    **0** in `options_paper.py`. So `scorecard`, `tuning_candidates` and `paper_report` all blended
+    the era retired on 2026-08-13 for *"predating the corrected alert stack (B1 price basis,
+    C-series fixes)"*. **A tuning loop proposing which fingerprints to favour on the strength of
+    retired rows is the defect that matters, not the display.** Now scoped to the **current epoch**;
+    `EPOCH_ALL` restores the blend; every payload carries the per-era census, so the archive is
+    **excluded and never invisible**. `live_since` was the most misleading half — a bare
+    `min(alert_ts)` dated the live book from the archived era, making it look **older than it is**.
+  * **A DEFECT IN MY OWN REPAIR, CAUGHT BY THE TEST WRITTEN TO PIN IT.** The first cut returned a
+    bool, so a *blocked* row fell through to the generic defer and **overwrote the note saying why
+    it was blocked** — a diagnosis destroyed by the code that produced it. Now tri-state.
+  * **A CORRECTION AGAINST MY OWN REGISTER, AND IT IS THE ERROR THIS FILE WARNS ABOUT TWICE.** Its
+    section 6 says *"equity at 218, infra at 11"*; measured after this session's merge `by_domain`
+    reads **equity 224, options 292, infra 14**. Quoted from a stale mid-session figure instead of
+    re-read after merging `origin/main`. The register is left unedited. **`N` did not move**, which
+    is the substantive claim and is verified: `by_domain` is identical before and after, while
+    `rows_fixed_not_counted` rises **29 → 30** — the proof the row was seen and correctly excluded
+    rather than silently dropped.
+  * **AUDIT #3's MERGED RECORD IS NOW TRACKED AND INGESTED.**
+    `VALQUO_MASTER_AUDIT_ULTIMATE.md` (+ items JSON + PDF) were **untracked**; all three are
+    committed byte-identical, and its **60** items (35 Pass A + 25 Pass B — **not 61**) are one
+    ledger row each. **Two things a verbatim ingest would have got wrong: `MA18` is HIGH by the
+    audit's own Correction 1 and MEDIUM in its JSON** (the audit's #2 action item, under-rated by
+    the machine-readable set), and **`MA7` is NOT done though `14c00ac` names it** — that commit
+    changed only the audit documents. **And `build_ledger.py` was REFUSING TO RUN AT ALL** on three
+    pre-existing rows carrying raw `|` inside cells; `M1-PARSE`, whose own subject is that hazard,
+    was one of them. **72 suites, 0 failures; 19 new tests.** `HANDOFF_optionsbot.md` §58.
 - **THE CALIBRATED FLOORS ARE RE-DERIVED AT TODAY'S `N` AND FIVE OF SEVEN HAVE NEVER MOVED -
   INCLUDING BOTH LONG-SHORT FLOORS - WHILE THE 1.95pp ALPHA MARGIN TURNS OUT TO HAVE BEEN STALE
   FOR NINE DAYS (2026-08-14, `MA19`+`MA13`).** `PREREG_ma19_ma13_recalibration.md` committed

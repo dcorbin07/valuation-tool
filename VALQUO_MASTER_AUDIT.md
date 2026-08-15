@@ -1,5 +1,7 @@
 # VALQUO_MASTER_AUDIT.md — cold audit #3: everything, end to end
 
+> **Merged record of record: `VALQUO_MASTER_AUDIT_ULTIMATE.md` (this file's 35 items stand, referenced by ID).**
+
 **Auditor:** cold (no history with this codebase). **Date:** 2026-08-14.
 **Tree audited:** `origin/main` @ `67f995e`, in a fresh worktree.
 **Method:** strictly read-only. Nothing was changed, fixed, adopted or re-run except the test
