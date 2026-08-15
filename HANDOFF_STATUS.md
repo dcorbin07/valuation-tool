@@ -2224,3 +2224,5 @@ The task instructions say: "Determine today's closing values per the documented 
 **Result:** Cannot write today's row without (a) a documented price-fetching mechanism, or (b) guessing at a vendor. Per instructions, logging the gap rather than inventing data.
 
 **Gap:** 2026-08-10, reason = no automated price mechanism in this repository; expected source is Cowork side tracking (not implemented here).
+
+**Push status:** Commit 41d7b12 recorded locally but push failed (`fatal: could not read Username for 'https://github.com'`). The failure note is staged in the local repo and requires `git push origin main` from a context with network access.
