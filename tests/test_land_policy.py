@@ -19,6 +19,7 @@ Two properties are pinned here, and they are different in kind:
 imported it would pass locally and fail in the very CI job it is meant to describe. The
 workflow assertions are textual for that reason, not out of laziness.
 """
+import contextlib
 import importlib.util
 import io
 import os
@@ -131,14 +132,47 @@ class Policy(unittest.TestCase):
     def test_exit_codes_distinguish_refusal_from_error(self):
         """0 = land, 2 = refused. They must differ, or the workflow cannot tell a policy
         refusal from a crashed policy — and treating a crash as a refusal (or worse, as a
-        pass) is how a check quietly stops checking."""
+        pass) is how a check quietly stops checking.
+
+        STDOUT IS CAPTURED, AND NOT FOR TIDINESS. The policy speaks in GitHub Actions workflow
+        commands (`::error::`), so when this test exercised the refusal path in-process the
+        runner parsed those lines out of the SUITE's output and rendered three red annotations
+        on a completely green land run. Found on the first run that carried this file. A gate
+        that cries wolf is one you learn to ignore, and annotations that are red on every
+        successful land are exactly that. Capturing also lets the test assert the message,
+        which the previous version did not."""
         with tempfile.TemporaryDirectory() as td:
             ok_file = os.path.join(td, "ok.diff")
             bad_file = os.path.join(td, "bad.diff")
             io.open(ok_file, "w", encoding="utf-8").write(ORDINARY)
             io.open(bad_file, "w", encoding="utf-8").write(diff("M\t.github/workflows/x.yml"))
-            self.assertEqual(lp.main(["--diff-file", ok_file]), 0)
-            self.assertEqual(lp.main(["--diff-file", bad_file]), 2)
+
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                allowed_rc = lp.main(["--diff-file", ok_file])
+                refused_rc = lp.main(["--diff-file", bad_file])
+            out = buf.getvalue()
+
+        self.assertEqual(allowed_rc, 0)
+        self.assertEqual(refused_rc, 2)
+        self.assertIn(".github/workflows/x.yml", out, "the refusal must name the offending path")
+        self.assertIn("::error::", out, "the refusal must be loud in the Actions UI")
+
+    def test_the_suite_leaks_no_workflow_commands_to_the_runner(self):
+        """The guard for the defect above, rather than a promise to remember.
+
+        Any `::error::`/`::warning::` this suite prints becomes an annotation on a PASSING
+        run. This walks every test in the module, runs it with stdout captured, and fails if
+        a workflow command escaped -- so a future test that calls the policy directly cannot
+        quietly reintroduce three red marks on every land."""
+        loader = unittest.TestLoader()
+        suite = loader.loadTestsFromTestCase(Policy)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            unittest.TextTestRunner(stream=io.StringIO(), verbosity=0).run(suite)
+        escaped = [l for l in buf.getvalue().splitlines()
+                   if l.startswith("::error::") or l.startswith("::warning::")]
+        self.assertEqual(escaped, [], f"workflow commands leaked to the runner: {escaped[:3]}")
 
     def test_the_policy_runs_under_the_ci_interpreter_as_a_script(self):
         """It is invoked as `python land_policy.py`, not imported, so a syntax or CLI error
