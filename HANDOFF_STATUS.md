@@ -7147,3 +7147,42 @@ session of why a single number is not a decision: by the same reasoning that jus
 - The most recent SF3 quarter is always incomplete (filings arrive over following weeks) —
   the 45-day `inst_lag_days` convention handles it.
 - The live hot-list scan runs at 22:23 UTC and uses the FMP key.
+
+## PT-WRITER 2026-08-14: could not write today's row — both price vendors unreachable from the recorder lane
+
+Ran the documented mechanism (PAPER_TRACK_CONTRACT.md §7.2a, `python -m scripts.track_row`,
+code at origin/main `3893d6b`) from the Cowork recorder lane on Friday 2026-08-14 ≈20:05 ET,
+after the close. It REFUSED, correctly — exit 2, reason verbatim:
+
+    "the benchmark SPY could not be priced on the inception 2026-07-30 (a benchmark gap makes
+     the excess unmeasurable, so no row is emitted rather than a Valquo-only one)"
+
+Root cause, diagnosed: the recorder lane's sandbox egress allowlist blocks BOTH shipped vendors
+(`stooq.com` and `query1.finance.yahoo.com` → proxy connection refused), so no ticker priced at
+all. This is a lane/network condition, not a mechanism defect: the session was closed, the book
+read fine (86 positions, inception 2026-07-30), and the refusal is the designed no-partial-row
+behaviour. No number was guessed. The Robinhood connector was NOT used as a substitute price
+source — that is the "guessing at a vendor" this contract refuses.
+
+THE BOUND SERIES WAS NOT WRITTEN TONIGHT. `data/valquo_track_history.csv` last row remains
+2026-08-13 (day 10). No prior row was modified. Standing gaps (2026-08-03..05, 08-07,
+08-10..12) stay logged by `track_meter.gap_report`, not filled.
+
+ALSO ON RECORD: this lane holds no git credentials (anonymous HTTPS; no SSH key), so it cannot
+push — the same condition that stranded the 2026-08-10 refusal (local commit `41d7b12`, still
+unlanded on Don's machine; its text is already quoted in §7.2a). This note therefore travels by
+the only lane available: branch `worktree-pt-writer-20260814` in the local repo, based on
+origin/main `3893d6b`, awaiting one credentialed `git push origin worktree-pt-writer-20260814`
+— the land Action takes it from there.
+
+REMEDY — the §3 same-week clause is live ("missing a single day's write that is filled the
+same week" is LOGGED, NOT VOIDED). From any environment with open egress and the real `data/`
+(Claude Code on Don's machine qualifies — something credentialed fetched origin/main there at
+20:01 ET tonight), run from the repo root:
+
+    python -m scripts.track_row --append                      # tonight: the row is on-time
+    python -m scripts.track_row --append --date 2026-08-14    # Saturday: same-week fill — flag it LATE in this file
+
+A Monday write is next week: per the contract that is a logged gap, not a fill. Verify either
+way: last row of `data/valquo_track_history.csv` reads back through `index_track.load()` as
+2026-08-14, then commit "Track: daily row 2026-08-14" and push.
