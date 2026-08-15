@@ -6003,9 +6003,11 @@ so the next reader checks the claim rather than the row.
 
 | status | n | evidence |
 |---|---|---|
-| `OPEN` | 52 | the default. For the eleven proposals (`MA24`-`MA34`, `MA54`-`MA58`) **OPEN means NOT RUN, never broken** — each carries its own kill condition and trial price. |
+| `OPEN` | 50 | the default. For the eleven proposals (`MA24`-`MA34`, `MA54`-`MA58`) **OPEN means NOT RUN, never broken** — each carries its own kill condition and trial price. |
 | `IN PROGRESS` | 5 | `MA1`/`MA2`/`MA3` (greeks) and `MA5`/`MA6` (app fixer), on Don's direction. **All five carry NO tree evidence** — no commit and no handoff section names any of them — and the rows say so. |
-| `DONE` | 3 | `MA35` (closed on **code**: `.gitattributes` carries `*.pdf binary`), plus `MA36`/`MA37` below. |
+| `DONE` | 5 | `MA35` (closed on **code**: `.gitattributes` carries `*.pdf binary`), `MA36`/`MA37` below, and `MA13`/`MA19` landed **DONE** by the edge lane in the same window. |
+
+**AND THE MERGE WOULD HAVE BROKEN THE ONE GUARANTEE THE LEDGER MAKES.** The edge lane landed real `MA13` and `MA19` rows (**DONE**, `src=human`, `0eb95b1`) while this lane was ingesting all 60 as `OPEN`, and the two sides conflicted. **Keeping both — the reflex, and exactly what `merge=union` would do — produces two rows with the same id and no rule for which wins**, which is why `.gitattributes` lists `VALQUO_LEDGER.md` as deliberately NOT union-merged. The **human row wins both**, per the contract, and the ingest's `OPEN` versions are discarded rather than kept beside them. Resolved to **60 unique ids, asserted rather than eyeballed**.
 
 **`MA7` IS NOT DONE, AND A COMMIT SUBJECT SAYS IT IS.** `14c00ac` reads *"MA7: /api/rank is the
 sharper case"* and changed **only the audit documents**. That is the ledger's own **trap 5** — a

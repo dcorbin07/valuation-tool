@@ -35,7 +35,12 @@ function Reset-Fixture {
     New-Item -ItemType Directory -Path "$src\data\archive\scans"                -Force | Out-Null
     New-Item -ItemType Directory -Path "$src\data\bulk\prepared\bars"           -Force | Out-Null
     New-Item -ItemType Directory -Path "$src\data_export"                       -Force | Out-Null
+    New-Item -ItemType Directory -Path "$src\data\options_ticks\aapl"           -Force | Out-Null
+    New-Item -ItemType Directory -Path "$src\data\free_analysis"                -Force | Out-Null
     Set-Content "$src\.env"                                        "SECRET=x"     -Encoding utf8
+    Set-Content "$src\data\options_ticks\aapl\AAPL-2018-03-14.pkl" "prints"       -Encoding utf8
+    Set-Content "$src\data\free_analysis\panel_corrected_69d.pkl"  "panel"        -Encoding utf8
+    Set-Content "$src\data\free_analysis\O14_TICKFLOW_SIGNALS.json" "{}"          -Encoding utf8
     Set-Content "$src\data\backtest_freeze_2026-08\bulk\sep.csv"   "frozen"       -Encoding utf8
     Set-Content "$src\data\options\aapl\AAPL-2018.pkl"             "chain"        -Encoding utf8
     Set-Content "$src\data\raw\SHARADAR_DAILY.zip"                 "zip"          -Encoding utf8
@@ -79,6 +84,21 @@ Check "prepared caches copied"    (Test-Path "$($f.Dst)\data\bulk\prepared\bars\
 Check "app.db copied"             (Test-Path "$($f.Dst)\data\app.db")
 Check "track history copied"      (Test-Path "$($f.Dst)\data\valquo_track_history.csv")
 Check "data_export copied"        (Test-Path "$($f.Dst)\data_export\paper_track_index.csv")
+
+# --- MA15 / MA16. Both were UNNAMED or wrongly named, and this is an allowlist: silence
+# means "not copied". Pinned from both ends - the copy must happen, AND the path must not
+# reappear in $SKIP, because a future edit could re-skip it and every path test above
+# would still pass.
+Check "MA15: options_ticks copied"  (Test-Path "$($f.Dst)\data\options_ticks\aapl\AAPL-2018-03-14.pkl")
+Check "MA16: free_analysis copied"  (Test-Path "$($f.Dst)\data\free_analysis\panel_corrected_69d.pkl")
+Check "MA16: the banked results JSONs come too" (Test-Path "$($f.Dst)\data\free_analysis\O14_TICKFLOW_SIGNALS.json")
+$srcTxt = Get-Content $SCRIPT -Raw
+$keepBlock = ($srcTxt -split '\$SKIP\s*=\s*@\(')[0]
+$skipBlock = ($srcTxt -split '\$SKIP\s*=\s*@\(')[1]
+Check "MA15: options_ticks is in KEEP, not SKIP" (($keepBlock -match 'data\\options_ticks') -and (-not ($skipBlock -match 'data\\options_ticks')))
+Check "MA16: free_analysis is in KEEP, not SKIP" (($keepBlock -match 'data\\free_analysis') -and (-not ($skipBlock -match 'data\\free_analysis')))
+Check "MA15: the ticks entry says WHY (a bare path is the defect)" ($r.Out -match "OPRA")
+Check "MA16: the free_analysis entry says WHY" ($r.Out -match "banked PANELS")
 
 # the whole point: the big derived trees must be absent
 Check "options_derived NOT copied (16.6 GB saved)" (-not (Test-Path "$($f.Dst)\data\options_derived"))
