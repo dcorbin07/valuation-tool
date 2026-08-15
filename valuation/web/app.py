@@ -22,7 +22,7 @@ from ..engine.pipeline import value_ticker
 from ..report import excel as excel_report
 from ..report import pdf as pdf_report
 from . import resultcache, withhold
-from .query_params import clamp_int          # MA50 — one clamp for every caller row limit
+from .query_params import clamp_int, clamp_float   # MA50/MA53 — one clamp per caller number
 from . import score_confidence as _score_confidence
 from . import theme_status as _theme_status
 from . import hold_horizon as _hold_horizon
@@ -483,9 +483,17 @@ def api_options_alerts():
         # Routed through the shared clamp anyway so the sweep leaves NO hand-rolled clamp
         # behind: one correct copy beside four wrong ones is how the wrong ones survive.
         top = clamp_int(request.args.get("top"), default=5, cap=15)
-        budget = float(request.args.get("risk_budget",
-                                        getattr(CONFIG, "options_risk_per_trade", None)
-                                        or DEFAULT_RISK_BUDGET))
+        # MA53 sweep: this was a bare `float(...)`, so `?risk_budget=nan` parsed cleanly and
+        # propagated into position sizing, where every comparison against it is False and the
+        # downstream guards therefore read as satisfied. Owner-only, so not a public hole —
+        # fixed as the same class rather than left because the blast radius is small.
+        _default_budget = (getattr(CONFIG, "options_risk_per_trade", None)
+                           or DEFAULT_RISK_BUDGET)
+        # The bounds are DOLLARS, not a fraction: DEFAULT_RISK_BUDGET is $1,000 per signal.
+        # Writing this as a 0..1 range would have clamped the shipped default to 1.0 and
+        # silently re-sized every alert — a clamp is only safe once its units are checked.
+        budget = clamp_float(request.args.get("risk_budget"),
+                             default=_default_budget, lo=1.0, hi=1_000_000.0)
         with_chain = request.args.get("chain", "1") != "0"
         alerts, stats = build_alerts(picks[:top],
                                      provider=get_provider(CONFIG) if with_chain else None,

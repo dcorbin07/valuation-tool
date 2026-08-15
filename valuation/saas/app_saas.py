@@ -363,6 +363,27 @@ def create_saas_app(cfg=CONFIG):
         except Exception as e:
             return jsonify({"error": safe_error(e)}), 500
 
+    @app.route("/admin/proxy-shape", methods=["GET"])
+    def admin_proxy_shape():
+        """MASTER AUDIT MA8 — is the rate limiter bucketing visitors, or one proxy?
+
+        READ-ONLY. `client_ip` takes the Nth X-Forwarded-For entry from the right, and N was
+        never written down anywhere; the audit's point is that the code cannot tell whether it
+        is behind one proxy or two. If it is two, every visitor shares a single bucket and the
+        per-IP limiter is a global cap one scraper can exhaust for everyone — which, from the
+        inside, is indistinguishable from the limiter working.
+
+        The audit's own prescribed check was a deploy and a grep. This answers the same
+        question from traffic the app is already serving. It reports COUNTS ONLY — no address
+        is retained anywhere in this path.
+        """
+        if not _admin_ok():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            return jsonify(ratelimit.forwarded_shape())
+        except Exception as e:
+            return jsonify({"error": safe_error(e)}), 500
+
     @app.route("/admin/run-scan", methods=["POST"])
     def admin_run_scan():
         # Token-protected so an external cron (cron-job.org / Render Cron) can
