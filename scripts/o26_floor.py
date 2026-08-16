@@ -15,7 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from valuation.edge import bucket_floor as BF        # noqa: E402
+from valuation.studies import bucket_floor as BF        # noqa: E402
 from valuation.edge import antisignal as A           # noqa: E402
 from valuation.edge.options_tracker import MIN_CLOSED_PER_BUCKET   # noqa: E402
 

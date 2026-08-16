@@ -36,9 +36,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from valuation.edge import blackscholes as BS                     # noqa: E402
 from valuation.edge import dividends as DIV                       # noqa: E402
-from valuation.edge import parity_flow as PF                      # noqa: E402
-from valuation.edge import portfolio_capacity as PC               # noqa: E402
-from valuation.edge import surface_stock as SS                    # noqa: E402
+from valuation.studies import parity_flow as PF                   # noqa: E402
+from valuation.studies import portfolio_capacity as PC            # noqa: E402
+from valuation.studies import surface_stock as SS                 # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

@@ -29,7 +29,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from valuation.edge import portfolio_capacity as PC        # noqa: E402
+from valuation.studies import portfolio_capacity as PC        # noqa: E402
 from valuation.edge import options_vrp_portfolio as VP     # noqa: E402
 from valuation.edge import options_vrp as V                # noqa: E402
 from valuation.edge import options_stats as OS             # noqa: E402

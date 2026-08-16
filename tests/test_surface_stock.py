@@ -21,7 +21,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import state_isolation  # noqa: F401,E402  (must precede the valuation imports)
 
-from valuation.edge import surface_stock as SS  # noqa: E402
+from valuation.studies import surface_stock as SS  # noqa: E402
 
 
 def _daily(dates, atm60, atmfront, ivr=None, skew=None, ts6030=None):

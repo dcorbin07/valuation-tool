@@ -160,6 +160,26 @@ BLOCK_SPEC = {
         "renames": {},
         "allow": {},
     },
+    # AUDIT MA40 — both of these were computed on every run and reached no reader, and the M6
+    # tripwire could not see it because M6 only guards blocks that are REGISTERED here. That is
+    # the honest limit of a registry-driven guard, stated in M3 and demonstrated twice now: it
+    # catches a field dropped from a watched block, never a whole block nobody watched.
+    "walk_forward": {
+        "src": "walk_forward",
+        "renames": {},
+        "allow": {
+            # `weights` is a nested dict whose CHILDREN are flattened into the payload
+            # (recommend / adopt / verdict / recommended_weights / candidates), so the
+            # container itself is legitimately not carried under its own name.
+            "weights": "flattened into recommend/adopt/verdict/recommended_weights/candidates",
+            "status": "surfaced by the `errors` block instead",
+        },
+    },
+    "sector_caps": {
+        "src": "sector_caps",
+        "renames": {},
+        "allow": {},
+    },
 }
 
 

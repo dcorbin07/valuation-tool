@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import pandas as pd
 
-from valuation.edge import param_search as PS
+from valuation.studies import param_search as PS
 from valuation.screener import settings as S
 
 THEMES = S.BUCKET_FACTORS["established"]
