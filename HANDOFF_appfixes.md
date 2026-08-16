@@ -5,6 +5,144 @@ ThetaData miner, or `fairvalue.py`.
 
 ---
 
+# Session 36 — 2026-08-15 — `MA29`, and the app-fixer lane CLOSES on audit #3
+
+## 0. What this is, and the lane's status
+
+**`MA29` was the app-fixer lane's last open row on audit #3. It is DONE, so the lane is
+CLOSED** — every app-fixer item across both waves (`MA7`, `MA8`, `MA9`, `MA10`, `MA50`, `MA51`,
+`MA53`, `MA29`) is adjudicated. `MA52` and `MA30` were the greeks lane's and landed separately.
+
+`MA29` is a **HYPOTHESIS row — a feature proposal, not a defect.** `OPEN` meant NOT BUILT, never
+BROKEN, and nothing was regressed or repaired here. **Zero trials**: it measures no hypothesis
+and clears no threshold, so no equity `N` moves and no research-log row is written. A test pins
+that `refusals.py` never references the research log or a threshold, and the sweep is checked
+for vacuity.
+
+## 1. The premise holds, and all three named pieces are real
+
+The audit says the measured pieces are *"`withhold.py`'s band, `record_refusal`, and the
+`fair_value_withheld` flag — all shipped, all already computed on every scan."* Verified:
+
+* the band is `publication.FV_BAND_HIGH = 5.0`, imported by `withhold._band()` rather than
+  restated;
+* the flag is `publication.ROW_WITHHELD`, and it **survives the store round trip** —
+  `save_snapshot`/`load_snapshot` persist the flag, the reason and the kind;
+* `record_refusal` **is real but is not in `withhold.py`** — it is in
+  `valuation/engine/publication.py`. A small correction to the audit's pointer.
+
+And the counts already exist: `screen.publication_audit` computes `withheld_refused`,
+`withheld_no_data` and `rows_checked` on **every** scan, and ships them inside `health`, which
+`/api/hotstocks` already serves. **So the number MA29 wanted was already on the wire and nothing
+rendered it.** Its only consumer in the whole tree was `scripts/ci_scan.py`.
+
+## 2. FOUR THINGS THE AUDIT'S OWN PROPOSED SENTENCE GETS WRONG
+
+The proposal reads: *"Today the engine refused to publish a fair value for N of M names it
+scored, because its estimate was more than X× the market price."* Each of these was measured
+before anything was built, and each one would have shipped a false statement.
+
+1. **IT CONFLATES TWO KINDS OF SILENCE THAT `publication.py` EXISTS TO SEPARATE.** `refused`
+   means the model produced a number and its guard rejected it — stable, a statement about the
+   valuation. `unavailable` means the data could not be fetched — **temporary**, a statement
+   about the feed. That module's own comment says collapsing them *"is how 'we could not look'
+   gets read as 'we looked and refused', which would make a transient feed problem look like a
+   permanent verdict on a company."* The audit's single sentence asserts one CAUSE for both.
+   **Not hypothetical:** `record_unavailable` was adopted on measured evidence that ~5% of
+   served rows were affected, and the live 2026-08-14 scan read **zero** — so the two move
+   independently, and a bad feed day is exactly when a collapsed count misleads most.
+2. **THE CAUSE CLAUSE IS FALSE FOR SOME REFUSALS.** `decide()` refuses on the band **or** on an
+   unresolved currency mismatch, and **the currency branch carries `ratio = None`** — measured,
+   not assumed: `decide(100.0, 92.19, cd=<KZT statements, USD price>)` returns `ratio None`.
+   There is no multiple to quote. The shipped copy names the band as the *usual* cause and does
+   not assert it was this one; a mutation removing that hedge is caught.
+3. **THE DENOMINATOR IS NOT "NAMES IT SCORED".** Only the first `refusal_screen` ranked names
+   are ASKED (production runs **500**). On the live scan **795 were scored and 500 asked**, so
+   "N of 795" understates the refusal rate by **1.59x**. The block uses `rows_checked`.
+4. **"TODAY" IS WRONG ON A STALE SCAN.** The copy names the scan's own date and the word
+   "today" never appears; a reader looking at a three-day-old scan is not told it is today's.
+
+## 3. The finding the audit does not contain: "withheld" has THREE meanings, not two
+
+`withhold_implausible_fair_values` runs at **serve** time over the displayed slice and withholds
+a peer estimate that breaches the band. It sets the flag and a reason but **no `kind`** — so it
+is neither `refused` nor `unavailable`, and it is a statement about the **peer estimator**, not
+about the model's own DCF. **Its count was computed and thrown away**: the function returns the
+number of rows it withheld and `app.py` discarded the return value. That is the same
+computed-and-discarded shape `MA39` found in the results writer. It is now captured and reported
+**separately, with its own denominator**, because it is tier-dependent — a reader served 50 rows
+and one served 500 are looking at different slices and one number cannot describe both.
+
+## 4. What shipped
+
+* **`valuation/web/refusals.py`** — a `V3`/`score_confidence.py`-style pinned-copy module.
+  Owns `LABEL`, `EXPLAINER`, a `BANNED` tuple and `violations()`. **It recounts nothing**: every
+  figure is READ from `publication_audit`, because a second count is a second definition of
+  "refused" free to drift from the first — the exact defect `engine/publication.py` was created
+  to end, having found five copies of that one decision.
+* **Wired additively** into `/api/hotstocks` as a `refusals` block, and **rendered** in
+  `static/app.js` as a note beside the existing fair-value disclosure. Rendering is the point:
+  a payload block nobody draws does not make `LA1`'s failure mode loud.
+* **Fail-soft.** A snapshot with no `health` block reports `available: false` and **no
+  sentence** — never `0 refused`, which would be a confident wrong claim that the model refused
+  nobody. A missing count and a zero count are different statements.
+* **`tests/test_refusals.py` — 28/28.**
+
+## 5. Measured against production, not only against fixtures
+
+Read from the **public** payload on 2026-08-15 (scan of 2026-08-14): universe 800, **scored
+795**, **asked 500**, **refused 2**, **unavailable 0**; both withheld served rows carried kind
+`refused`; 494 rows carried a fair value and 4 had none while not being withheld. The rendered
+sentence for that scan is pinned verbatim in the suite. **Unlike `MA30`, this is verified as a
+description of the live book and not only as a computation** — with one honest limit: the
+**third state read zero that day**, so it is verified by fixture only, and no user has yet seen
+the rendered wording.
+
+## 6. Two defects in my own work, both caught before shipping
+
+**(a) I MISREAD THE VERY RETURN VALUE THIS ROW EXISTS TO RESCUE.** I described
+`withhold_implausible_fair_values`'s return value as the third state and fed it to the
+peer-estimate sentence. It is not: the function increments its counter for rows that were
+**already** marked withheld at scan time as well as for rows it newly withholds, so it is the
+**TOTAL withheld in the served slice**. On the live scan that total is 2 and **both are model
+refusals** — so the shipped sentence would have told a reader that the model's own refusals were
+peer-estimate withholds, which is precisely the conflation this row's whole design argues
+against. The third state is now derived from the **absent `kind`** at the call site, both
+figures are reported under separate names, and three mutations plus a dedicated test pin the
+distinction. Found by re-reading the function I had cited rather than by a failing test, which
+is the uncomfortable part.
+
+**(b) A DEFECT IN MY OWN TEST, and the lesson is last session's.** The zero-trials sweep grepped
+`refusals.py` for `"threshold"` and **failed on the module's own docstring**, which says it
+*"clears no threshold"* — prose asserting the thing is ABSENT, read as the thing being present.
+Rather than add a file exemption — which is what stops a sweep from finding the next real case —
+the check now reduces the module to **code only** via `ast.unparse` with docstring nodes
+removed, and **that reduction is itself checked for vacuity** so it cannot pass by seeing
+nothing.
+
+## 7. Mutations: 16 caught, 0 missed, 0 skipped
+
+Including the fail-soft gate, the denominator, the two-kinds collapse, the cause hedge, the
+`bool`-is-not-a-count and non-finite-band guards, folding the serve-time count into the
+scan-time refusals, neutering the `BANNED` guard, discarding the return value again, the three
+§6(a) mutations, and two renderer mutations (paraphrasing instead of quoting the module, and dropping the unavailable
+sentence). **One apparent miss was not one:** `replace(..., 1)` hit the identical sentence in
+the module docstring rather than the `EXPLAINER` constant, so it mutated prose and changed no
+behaviour. Re-anchored on the literal and it is caught.
+
+## 8. Reported, not fixed
+
+* **`publication_audit` is computed over `rows[:refusal_screen]` while `scored` counts the whole
+  scan.** Nothing is wrong with either number; they are simply different denominators sitting in
+  the same payload, and any future consumer must not divide one by the other.
+* **4 served rows had no fair value and were not withheld** — a fourth state (the model does not
+  apply and no peer estimate landed). Deliberately NOT counted as refusals and deliberately not
+  given a sentence; it is not what MA29 asked for and it needs its own decision about wording.
+* **The serve-time band withhold writes no `kind`.** Left as-is: giving it one is a change to a
+  field three surfaces read, which is bigger than this row.
+
+---
+
 # Session 35 — 2026-08-15 — `MA51` + `MA8` + `MA53`, wave-2 app-fixer batch
 
 **Lane:** app fixer. **Branch:** `worktree-demo-link`.

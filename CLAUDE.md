@@ -48,6 +48,93 @@ universe** (~18y, gross of costs). Several long-standing claims here were WRONG,
 stale — they are corrected in place and the corrections are called out, because this file is
 the project's memory and the old versions had been repeated for months.
 
+- **THE LARGEST UN-RUN ITEM EITHER AUDIT NAMED IS RUN, AND THE ANSWER IS THAT THIS UNIVERSE
+  CANNOT ANSWER IT - ON THE OPTIONS-LISTED SUB-POPULATION THE PANEL'S OWN BEST SIGNALS CANNOT BE
+  SEPARATED FROM ZERO (2026-08-15, `MA31`+`MA32`+`MA56`).**
+  `PREREG_ma31_ma32_parity_openclose.md` committed **ALONE at `a51e372`**, a strict ancestor of
+  every measurement commit. **ADOPTS NOTHING.** **Equity `N` 224 -> 227** (three arms, charged to
+  EQUITY on the `U2` precedent - they predict the UNDERLYING's forward return); options stays
+  **292**. **With these the options-bot lane is CLOSED on audit #3: all ten of its MA rows DONE.**
+  * **A CORRECTION TO THE DISPATCH BRIEF, MADE BEFORE ANYTHING WAS MEASURED: `MA31` IS WAVE 3, NOT
+    WAVE 2.** Wave 2 is *"unblocked by wave 1, **zero trial cost**"*; `MA31` and `MA32` carry
+    `trial_cost 1-2` each, so they need a blind register and were kept out of the correctness
+    batch. `MA56` is `trial_cost 0 (record only)`.
+  * **ALL THREE ARMS NULL - AND ALL THREE NULLS ARE UNINTERPRETABLE BY THE REGISTER'S OWN
+    PRE-COMMITTED POWER RULE.** `parity_dev` (Cremers-Weinbaum's OI-weighted matched-strike
+    `iv_call - iv_put`) reads incremental IC *t* **-1.0886 / -0.3380** against X7's 2.71;
+    `call_open_share` **-1.4146 / -0.7169** against its own permutation p95 of 1.9547 / 1.7547;
+    `put_open_share` **+0.0633 / +1.0895** against 2.0879 / 2.0978.
+  * **THE POWER MEASUREMENT IS THE FINDING AND IT OUTLIVES BOTH ITEMS.** The audit's bar is 2.0.
+    Across three NESTED populations (raw IC *t*): `z_gp_on_capital` **+3.6745** on the full 69-date
+    panel, **+2.4776** on the 40 covered dates across ALL names, **+0.9919** on the ROWS THE ARMS
+    ARE MEASURED ON; `quality` **+3.1015 -> +2.8014 -> -0.0594**; `value` +0.8380 -> +0.7505 ->
+    -0.0681; while **`size` flips -0.3005 -> -0.7996 -> +3.0765**. **So on the options-listed
+    sub-population the project's own known-real signals do not work and `size` dominates** - `U7`'s
+    finding reproduced on **906 names** rather than its 187 megacaps. **Any future options-derived
+    STOCK signal on this cache inherits it: a null there means "could not be separated at this
+    resolution", never "absent".**
+  * **A CORRECTION TO THE RECORD, AND IT IS THIS LANE'S OWN.** This file records `U2`'s power
+    control as *"gp_on_capital 2.4776 and ret_6_1 2.4762 on the identical covered rows"*. Both
+    reproduce here **to four decimal places** as the covered-DATES / **ALL-NAMES** figure, on an
+    identical covered geometry (40 dates, 20/19, boundary 2021-01-21) - so **`U2`'s power control
+    was NOT restricted to the rows `U2`'s arms were measured on, and it overstates the power they
+    had.** **`U2`'s verdicts do not change** (a weaker power control cannot rescue a rejected arm);
+    its nulls were simply even less interpretable than claimed.
+  * **TWO PUBLISHED SIGNS, TWO OUTCOMES. Cremers-Weinbaum's POSITIVE direction is NOT reproduced in
+    any window** (every reading negative; raw *t* -1.3676) - **the third published options sign
+    this project has failed to reproduce**, after `O7` and `U2`. **Ge-Lin-Pearson's NEGATIVE
+    direction for the call arm IS reproduced in sign in all three windows** and fails only on
+    strength, which is a more informative null than a flat one.
+  * **THE TRAP NAMED IN THE REGISTER BEFORE THE RUN, BECAUSE IT WOULD HAVE PRODUCED A CLEAN
+    FABRICATED NULL: `dividends.spot_from_parity` returns `S = C - P + K*exp(-rT)`, so feeding it
+    back as the spot makes `iv_call - iv_put` identically ZERO BY CONSTRUCTION** and nothing would
+    have raised. Forbidden by name, pinned at source. The other half is settled by measurement:
+    `assert_raw_spot` matches the as-traded series at median relative error **exactly 0.0** over
+    16,742 entries and **RAISES** on the adjusted one at **8.52%** (worst SIRI 36.5180 vs 3.9900).
+  * **TWO DEFECTS IN MY OWN INSTRUMENT, BOTH CAUGHT BY GATING CONTROLS, AND BOTH WOULD HAVE READ AS
+    RESULTS RATHER THAN AS BUGS.** The feature frames were keyed on the REBALANCE date while
+    `join_pit` implements the strictly-before rule itself, so it joined **0 of 113,945 rows**; and
+    `coverage_report` stringified its dates, so every consumer filtered a datetime column with
+    strings and all three arms returned `n_dates = 0` **while coverage simultaneously read 40 dates
+    and 16,736 rows**. Neither raised, and *"the arms have no coverage"* is a sentence this project
+    has legitimately written five times. **The two-pass design - controls computed AND READ before
+    any arm is scored, `--arms` refusing to run without a passing artifact - is what separated a
+    bug from a finding**, and it is session 26's defect repaired rather than repeated. **A third,
+    in my reporting: the MDE was first quoted beside the MEDIAN IC, which is not the statistic it
+    pairs with; against the MEAN all three arms sit BELOW their own detection threshold.**
+  * **CONTROLS: `MA31` is NOT `U2`'s rejected arm renamed** (Spearman **+0.3796** vs `-skew_25d`,
+    against a 0.90 bar) and the two `MA32` arms are not each other (**+0.3164**, separate
+    denominators by construction); **the arms carry genuinely new information and predict nothing
+    with it** (R2 on the seven incumbents **0.0438 / 0.0273 / 0.0361** - `U2`'s dissociation
+    reproduced); **`B4`'s `-1` sentinel is live and excluded, 931,080 contract-days**, with the
+    count REQUIRED non-zero because a zero would mean the filter never reached the data;
+    **C-BAND** the 0.20 moneyness band correlates +0.9215 with the primary and gives the same
+    answer; **C-AMER NOT RUN and reported as not-run** rather than silently skipped.
+  * **THE AUDIT'S PREMISE IS TRUE AND INSUFFICIENT, AND THE NEW NUMBER IS THE REASON.** `V6-OPT`
+    removed `U2`'s blocker by measuring 1,288,750 puts against 1,288,751 calls - but **a matched
+    pair being PRESENT is not a matched pair being USABLE**: it needs a two-sided quote on BOTH
+    legs, so the pair-level rate is roughly the **SQUARE** of `MA45`'s leg-level one (42 of 92, 10
+    of 64, **2 of 25** on sampled cross-sections). It was scoreable anyway - **16,736 rows over 40
+    covered dates, median 431.5 names/date, halves 20/19, boundary 2021-01-21**, the identical
+    geometry `U2` and `V6-OPT` landed on. **A correction to the audit: it says 29 of 69 dates carry
+    zero coverage; against the RAW layer it is 28.**
+  * **`MA56` IS RECORDED AND DELIBERATELY NOT RUN** - its own kill condition is *"do not run
+    today"*, so measuring it would breach the audit's instruction, and the register makes quoting
+    it as a tested result a void condition. **Zero trials** (`rows_fixed_not_counted` 40 -> 41 is
+    the proof it was seen and excluded). `ts_resid = term_slope - beta*atm_front` at IC **+0.07034**
+    [+0.0287, +0.1131] against raw **+0.05673**, with `-atm_front` at +0.01316 spanning zero -
+    **verified against the `O16-REFROZEN` row itself, not copied from the audit's summary**, and
+    written into `options_entry.py::MA56_CARRY_FORWARD` where the next entry register's author will
+    be standing, pinned by a test that **re-parses the log row and fails if the record drifts**.
+    **Three caveats the summary omits travel with it: the IC is measured on `R2`'s book, which
+    loses to random entry by -5.0640pp/trade, so the feature has been shown to SORT A LOSING BOOK
+    and not to make money; the `IS DISTINCT` verdict hinges on the pre-registered choice of
+    Spearman, since Pearson reads -0.82793 and returns the OPPOSITE verdict; and it was not blind.**
+  * **NOT DONE, named so it is not mistaken for done: the O/S ratio is NOT built and NOT proxied**
+    (it needs stock volume, which per `MA25` exists for ~290 names), surface **changes** are
+    untested (`U2`'s other declined half), and `U2`'s three rejected level arms are not re-opened.
+    **Expectations 6 right, 2 wrong. 96 suites, 0 failures; 38 new tests, 36 of which fail against the pre-session sources.**
+    `data/free_analysis/MA31_MA32.json`; `HANDOFF_optionsbot.md` 61.
 - **THE PROJECT HAD FOUR HARVEY-LIU-ZHU BARS, NOT THE TWO THE AUDIT FOUND, AND THE "3.0" IS NOT A
   BAR AT ALL — IT IS √(2·ln N) FROZEN AT N = 90, A VALUE THIS PROJECT PASSED ON 2026-08-06
   (2026-08-15, `MA5`+`MA6`).** **Zero trials, `FIXED`-class** — two correctness repairs with no
