@@ -2,8 +2,28 @@
 ARCHIVED (master audit MA59, 2026-08-15) - a CLOSED study, kept so its
 result stays reproducible. It is NOT reachable from the live product and
 `tests/test_ma59_quarantine.py` fails if that ever changes.
-Still imported by: scripts/u2_surface_stock.py, tests/test_surface_stock.py.
+Still imported by: scripts/u2_surface_stock.py, tests/test_surface_stock.py,
+valuation/edge/parity_flow.py, scripts/ma31_ma32_measure.py,
+tests/test_ma31_ma32_parity_flow.py.
 Do not extend this module; a new question needs a new register.
+
+ONE DEFAULTED PARAMETER WAS ADDED AFTER THE ARCHIVE BANNER, AND THE TENSION IS
+RECORDED RATHER THAN GLOSSED (2026-08-15, MA31/MA32). `join_pit` gained
+`value_cols`, defaulting to `COMPONENT_ARMS`, so the MA31/MA32 register could
+reuse the SHIPPED strictly-before join instead of re-typing it. Re-typing it is
+audit B7's defect class - one definition drifting into several - which this
+project has now recorded four times (`hlz_hurdle`, Benjamini-Hochberg,
+`_insider_formula`, `usable_quote`), and the MA31/MA32 register forbids it by
+name. Against that, MA59's directive here is "do not extend".
+
+Both were honoured as far as they can be: the change adds no question and no
+arm to U2, every existing caller is bit-identical (pinned by
+`test_join_pit_default_is_bit_identical_for_existing_callers`, and U2's own 48
+tests still pass), and the new importer is itself research-only, so MA59's
+actual invariant - archived studies unreachable from the LIVE PRODUCT - is
+untouched and `tests/test_ma59_quarantine.py` passes. If a third register wants
+this join, that is the signal to lift the shared machinery OUT of this archived
+module rather than to extend it again.
 
 U2 — the options surface as a STOCK signal.
 
