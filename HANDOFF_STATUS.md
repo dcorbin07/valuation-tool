@@ -1,5 +1,52 @@
 # HANDOFF STATUS - shared project state
 
+## edge lane, `MA14` + `MA21` + `MA25` + `MA34` + `MA49` (2026-08-16) — WHERE THE AUDIT'S OWN EVIDENCE IS WRONG
+
+**Wave-2/LOW pipeline batch, severity-then-collision. Zero trials, all five `FIXED`-class — equity
+`N` stays 227, `by_domain` bit-identical across the log append (`rows_fixed_not_counted` 47 → 52),
+no published claim moves.** `BACKTEST_RESULTS.json` needs no re-run.
+
+**THE STANDING QUESTION, ANSWERED WITH A NUMBER: `MA23` DID NOT SHRINK THE HOT FILE AND NEVER
+COULD HAVE.** `fundamental_panel.py` is **5,014 lines, byte-for-byte what it was before MA23
+landed**. MA23 moved the directory's OTHER occupants; the panel is a file and was never one of
+them. So `MA14` and `MA25` still had to share this session, and **`MA24`, `MA26`, `MA27` and
+`MA33` remain mutually exclusive per session** for the same reason. If you are sequencing the
+remaining nine, that constraint is unchanged and is the one that governs.
+
+**Deferred, named so they are not mistaken for done: `MA24`, `MA26`, `MA27`, `MA28`, `MA33`,
+`MA54`, `MA55`, `MA57`, `MA58`.** All nine charge trials and need a blind pre-registration
+committed ALONE before any measurement — MA27 and MA55 are equation candidates, MA57 and MA58
+literature replications, MA33 a panel rebuild. Running one inside a correctness batch is what the
+register exists to prevent.
+
+### Four things worth carrying forward
+
+**1. Two of the five audit items rest on wrong evidence, both in the direction that stops a
+reader.** `MA34`'s verification quotes the **VOID pre-B6 R1 run** — its figures reproduce
+bit-for-bit from `FACTOR_ALPHA_RESULTS.json` at `n_periods` 109 — so its conclusion that the decay
+prior attaches to `size`/`quality`/`momentum` is **inverted**: on the corrected panel HML and UMD
+load while SMB and RMW do not, so it attaches to **`value` and `momentum`**. And `MA25`'s own
+evidence **undercounts by 73%**: the liquidity data is **502 names**, not 290. *Check an audit's
+citation against the artifact, not against its prose.*
+
+**2. `MA21` has a convention that cannot be implemented, and the reason is documented in the file
+it would check.** "Warn on an unknown verdict" would fire on **41 of 230 DONE rows** whose blank
+verdict `build_ledger.py` itself documents as legitimate. A substitute ships. **The three
+enforceable tripwires are mutation-tested 3/3** — a tripwire nobody has proved can bite is not a
+check, and all three pass today.
+
+**3. The live scoring path now has a sanity layer, and it differs from the backtest's on purpose.**
+`valuation/screener/live_sanity.py` reports `columns_absent` / `checked` / `vacuous`, because
+`sanity_check`'s silent skip of an absent column would let a rename produce zero checks and an
+empty `flags` — a clean bill of health from a guard that looked at nothing. Bands come from the new
+dependency-free `valuation/edge/sanity_spec.py`, which `fundamental_panel` **re-exports**: if you
+need those constants anywhere, import the spec, never retype them.
+
+**4. `.github/workflows/` is still unreachable from a branch, and that now blocks two items.**
+`MA21(5)` (schedule M4's fidelity harness) joins `MA60`'s suite split. Both are one small workflow
+edit for a human with write access; neither can auto-land. `MA21(5)` is blocked twice over anyway —
+the harness needs the licensed export CI must never hold.
+
 ## edge lane, `MA23` + `MA40` + `MA41` + `MA42` + `MA43` + `MA47` (2026-08-15) — THE BOUNDARY, AND FIVE INSTRUMENTS THAT PRODUCED PLAUSIBLE NUMBERS
 
 **Wave-2 pipeline batch, chosen severity-then-collision. Zero trials, all six `FIXED`-class —

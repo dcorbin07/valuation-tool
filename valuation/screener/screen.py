@@ -23,6 +23,7 @@ from ..config import CONFIG
 from . import settings as S
 from .attribution import decompose, p_established as _p_established
 from .factors import build_frame, prefilter
+from .live_sanity import live_sanity
 from .providers import get_provider
 from .store import Store
 
@@ -405,6 +406,14 @@ def run_scan(scope: str = "bundled", limit: Optional[int] = None, cfg=CONFIG,
         # renormalizes it away, and its 12.5% weight does nothing. This measures the theme
         # AFTER standardization, i.e. what actually reaches the score.
         "theme_contributing": _theme_contribution(scored),
+        # AUDIT MA14 — COVERAGE SAYS PRESENT, THIS SAYS PLAUSIBLE, AND THE LIVE PATH HAD ONLY
+        # THE FIRST. `fundamental_panel.sanity_check` has guarded the backtest since P8, where
+        # the input is a static licensed export that does not drift; the live path reads vendor
+        # feeds that do, and OOB2 is what that costs — Yahoo dropped one beta field, wacc.py
+        # substituted 1.10, and MRK went from "cannot value" to a 91 Strong Buy with nothing
+        # empty and nothing raised. Bands imported from the one definition, never retyped.
+        # Reports only; it changes no score and withholds no row.
+        "value_sanity": live_sanity(scored),
         # How many served names were actually ASKED whether the model refuses them, and how
         # many it did. `screened: 0` on a scan that served hundreds of names is the tell that
         # Bug B is back — a silent zero here is exactly how the gap survived unnoticed.
