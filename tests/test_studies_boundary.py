@@ -129,20 +129,61 @@ def test_every_moved_module_still_imports():
         assert mod.__name__ == "valuation.studies." + m
 
 
+def _code_only(src: str) -> str:
+    """`src` with every comment and string literal blanked out.
+
+    A GUARD THAT CANNOT TELL CODE FROM PROSE ABOUT CODE IS NOT MEASURING THE TREE. The first
+    cut of the test below grepped raw source and fired on `scripts/suite_manifest.py`, whose
+    COMMENT explains a classifier bug using `from valuation.edge import kelly` as its example —
+    documentation of the very thing being checked, not a live import. This is the same defect,
+    and the same repair, as the MA5 source sweep.
+    """
+    import io
+    import tokenize
+    lines = src.splitlines(keepends=True)
+    # Blank the comment/string SPANS in place rather than re-joining tokens. Re-joining with a
+    # separator turns `valuation.edge` into `valuation . edge` and the check then matches
+    # nothing — which the vacuity test below caught on the first cut of this helper.
+    try:
+        spans = [(t.start, t.end) for t in tokenize.generate_tokens(io.StringIO(src).readline)
+                 if t.type in (tokenize.COMMENT, tokenize.STRING)]
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return src            # unparseable: fall back to the strict reading
+    buf = [list(ln) for ln in lines]
+    for (r0, c0), (r1, c1) in spans:
+        for r in range(r0, r1 + 1):
+            if r - 1 >= len(buf):
+                continue
+            row = buf[r - 1]
+            lo = c0 if r == r0 else 0
+            hi = c1 if r == r1 else len(row)
+            for c in range(lo, min(hi, len(row))):
+                if row[c] != "\n":
+                    row[c] = " "
+    return "".join("".join(r) for r in buf)
+
+
 def test_the_old_import_paths_are_gone_from_the_tree():
     """No caller may still name `valuation.edge.<study>` — a stale path fails only when run."""
     stale = []
     for sub in ("scripts", "tests", "valuation"):
         for path in _py_files(os.path.join(REPO, sub)):
             with open(path, "r", encoding="utf-8", errors="ignore") as fh:
-                src = fh.read()
+                src = _code_only(fh.read())
             for m in MOVED:
                 for bad in ("valuation.edge." + m, "valuation.research." + m):
-                    # `valuation/studies/__init__.py` documents the move in prose; the
-                    # dotted-module form is what a caller would use, and prose uses slashes.
                     if bad in src:
                         stale.append((os.path.relpath(path, REPO).replace(os.sep, "/"), bad))
     assert not stale, "stale import paths remain: %s" % stale
+
+
+def test_the_stale_path_check_is_not_vacuous():
+    """`_code_only` must blank prose WITHOUT blanking a real import — checked both ways, or
+    the test above could pass by seeing nothing at all."""
+    real = "from valuation.edge import kelly\n"
+    prose = "# from valuation.edge import kelly\n"
+    assert "valuation.edge" in _code_only(real)
+    assert "valuation.edge" not in _code_only(prose)
 
 
 def test_the_panel_is_not_among_the_moved_files():

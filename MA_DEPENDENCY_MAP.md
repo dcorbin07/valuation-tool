@@ -13,7 +13,7 @@
 
 ## Four things worth knowing before dispatching anything
 
-**1. Wave 1 is eleven items across all five lanes - and it is NOT eleven parallel branches.** There are 8 collisions inside wave 1 alone, and 5 of them involve MA1, which reaches into `app_saas.py`, `track_meter.py` and `auto-scan.yml` at once. MA1 is the CRITICAL item and the most entangled one in the catalogue; it wants a single owner and a quiet tree, not a slot in a fan-out.
+**1. Wave 1 is eleven items across all five lanes - and it is NOT eleven parallel branches.** There are 17 collisions inside wave 1 alone, and 7 of them involve MA1, which reaches into `app_saas.py`, `track_meter.py` and `auto-scan.yml` at once. MA1 is the CRITICAL item and the most entangled one in the catalogue; it wants a single owner and a quiet tree, not a slot in a fan-out.
 
 **2. `valuation/edge/fundamental_panel.py` is still the programme.** 12 of 60 items name it. That is a smaller share than audit #1's 46-of-134, but it is the same fact: the panel cannot be split across owners, and MA23 (break the finished one-shot studies out of `valuation/edge/`) is the item that would change it.
 
@@ -238,19 +238,28 @@
 These pairs may **not**, because they name the same file (`hard`) or import-coupled files (`soft` - the merge is clean and the build can still break):
 
 ```
+soft-import  MA1 x MA4: valuation/saas/app_saas.py <-> valuation/screener/index_mark.py
 hard-file    MA1 x MA9: valuation/saas/app_saas.py
 hard-file    MA1 x MA18: valuation/edge/track_meter.py
 hard-file    MA1 x MA20: .github/workflows/auto-scan.yml
-soft-import  MA1 x MA39: valuation/edge/autolearn.py <-> valuation/edge/fundamental_panel.py
-soft-import  MA1 x MA50: valuation/saas/app_saas.py <-> valuation/screener/store.py
+soft-import  MA1 x MA36: valuation/config.py <-> valuation/edge/paper_track.py
+soft-import  MA1 x MA39: valuation/config.py <-> valuation/edge/fundamental_panel.py
+soft-import  MA1 x MA50: valuation/config.py <-> valuation/web/app.py
+soft-import  MA4 x MA9: valuation/screener/index_mark.py <-> valuation/saas/app_saas.py
 hard-file    MA4 x MA18: valuation/screener/index_mark.py
+soft-import  MA9 x MA18: valuation/saas/app_saas.py <-> valuation/screener/index_mark.py
+soft-import  MA9 x MA36: valuation/saas/app_saas.py <-> valuation/edge/paper_track.py
+soft-import  MA9 x MA39: valuation/saas/app_saas.py <-> valuation/edge/fundamental_panel.py
 soft-import  MA9 x MA50: valuation/saas/app_saas.py <-> valuation/screener/store.py
 hard-file    MA15 x MA16: backup_to_D.ps1
+soft-import  MA18 x MA36: valuation/edge/track_meter.py <-> valuation/edge/paper_track.py
+soft-import  MA18 x MA50: valuation/edge/track_meter.py <-> valuation/web/app.py
+soft-import  MA36 x MA50: valuation/edge/paper_track.py <-> valuation/web/app.py
 ```
 
-**Collision-free against everything in wave 1:** MA36 MA38.
+**Collision-free against everything in wave 1:** MA38.
 
-**A safe first fan-out - computed as an independent set of the collision graph above, not chosen by eye: `MA1 MA4 MA15 MA36 MA38`.** That is 5 of the 11 running at once with no shared file and no import coupling. The remaining 6 (MA9 MA16 MA18 MA20 MA39 MA50) each collide with something in that set and belong in the next round or under the same owner.
+**A safe first fan-out - computed as an independent set of the collision graph above, not chosen by eye: `MA1 MA15 MA38`.** That is 3 of the 11 running at once with no shared file and no import coupling. The remaining 8 (MA4 MA9 MA16 MA18 MA20 MA36 MA39 MA50) each collide with something in that set and belong in the next round or under the same owner.
 
 ---
 

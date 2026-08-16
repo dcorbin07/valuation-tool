@@ -125,6 +125,23 @@ the project's memory and the old versions had been repeated for months.
     items still name the old path and the two stopped matching. Fixed with a `MOVED` alias table;
     **the audit's items file is deliberately NOT edited**, since rewriting its paths would make the
     record agree with the tree by fiat. Verified: **285 collisions before, 285 after.**
+  * **AND THE MAP WAS BUILT ON A GRAPH `MA60` HAD ALREADY MEASURED TO BE WRONG — FIXED HERE
+    BECAUSE REGENERATING IT MADE IT MY PROBLEM.** `MA59`+`MA60` landed mid-session and replaced
+    `check_lanes.py`'s hand-typed import dict with a derived graph, having measured the literal at
+    **13 keys / 40 edges against a real 118 / 546, 12 of the 13 keys wrong**.
+    **`scripts/ma_dependency_map.py` still carried the identical copy** — verified against
+    `408e614^:check_lanes.py`, so one graph duplicated, not two of the same size — under a comment
+    claiming it was not re-derived because *"a second, drifting copy of an import graph is worse
+    than one shared one."* It was the second copy and it had drifted. Now
+    `IMPORTS = import_graph.graph()`. **Measured on the 60-item MA set: 285 → 422 collisions, 192
+    added and 55 removed** — the map had been calling 192 genuinely-coupled pairs safe to
+    parallelise. **Credit is MA60's; this is the copy their change did not reach.**
+  * **A COLLISION THE MERGE ITSELF PRODUCED, AND THEIR GUARD CAUGHT IT.** `MA59` archived six of
+    the twelve modules `MA23` moved, banner-in-place, the same day. The merge was clean and
+    `tests/test_ma59_quarantine.py` then failed six ways **correctly** — its own rule is *"A
+    renamed file must not silently empty either list."* The six paths are repointed **in the same
+    commit so the diff shows it**, which is what that guard exists to force; the quarantine is
+    otherwise untouched.
   * **PINNED AT M3's STANDARD: 22 of 23 fixtures fail against the pre-fix tree**, measured by
     restoring the sources to `HEAD`. **The one that passes is reported as passing, deliberately** —
     it passes **VACUOUSLY**, because pre-fix neither block was registered and the guard had nothing
@@ -132,7 +149,7 @@ the project's memory and the old versions had been repeated for months.
     (`RUN_RULES` rule 3): two `POST` endpoints under `/api/edge/` in `valuation/web/app.py` carry
     no auth decorator and there is no `before_request` guard on that prefix** — MA7's class, app
     lane's to fix, and it was NOT established here whether that blueprint is mounted in the
-    deployed image. **94 suites, 0 failures; 29 new tests.** `HANDOFF_edge_audit.md`
+    deployed image. **96 suites, 0 failures; 30 new tests.** `HANDOFF_edge_audit.md`
     MA23+MA40-43+MA47.
 - **THE PROJECT HAD FOUR HARVEY-LIU-ZHU BARS, NOT THE TWO THE AUDIT FOUND, AND THE "3.0" IS NOT A
   BAR AT ALL — IT IS √(2·ln N) FROZEN AT N = 90, A VALUE THIS PROJECT PASSED ON 2026-08-06

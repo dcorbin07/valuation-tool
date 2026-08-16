@@ -12438,9 +12438,42 @@ the audit said, and rewriting its paths would make the record agree with the tre
 Verified by diffing the collision sets: **285 before, 285 after**, the same 42 pairs with renamed
 paths.
 
+### And the map was built on a graph MA60 had already measured to be wrong
+
+Landed mid-session: **MA59 + MA60** (infra lane), which replaced `check_lanes.py`'s hand-typed
+import dict with a derived graph after measuring the literal at **13 keys / 40 edges against a
+real 118 / 546, with 12 of the 13 keys wrong** — in a direction that reads as safe.
+
+**`scripts/ma_dependency_map.py` still carried the identical 13-key / 40-edge copy**, under a
+comment reading *"Reused verbatim from `check_lanes.py` … Not re-derived here: a second, drifting
+copy of an import graph is worse than one shared one."* It **was** the second copy and it **had**
+drifted. Verified rather than inferred: `git show 408e614^:check_lanes.py` holds the same 13-key
+dict, so this is one graph duplicated, not two graphs that happen to be the same size.
+
+**Fixed here rather than merely reported, because it is my problem: I regenerated that map this
+session, so every collision figure above inherited the error.** `IMPORTS` is now
+`import_graph.graph()` — MA60's own definition — with `norm()` still applying the `MOVED` alias so
+audit-era paths keep resolving. **Measured on the 60-item MA set: 285 → 422 collisions, 192 added
+and 55 removed.** So the map was calling 192 genuinely-coupled pairs safe to run in parallel and
+inventing 55 that never existed, which is the same shape MA60 measured on the other copy (its own
+figures, 150 and 7, are over audit #1's 134 items and are not directly comparable to these).
+
+MA60's commit message states the principle this completes: *"one definition, because two copies is
+the MA39 defect."* **Credit is theirs; this is the copy their change did not reach.**
+
+### One more collision the merge itself produced
+
+MA59 archived six of the twelve modules MA23 moved, banner-in-place, on the same day. The merge
+was clean — git applied their banners to the renamed files — but
+`tests/test_ma59_quarantine.py` then failed six ways, **correctly**: its own
+`test_every_named_module_still_exists` says *"A renamed file must not silently empty either
+list."* The six paths are repointed to `valuation/studies/` **in this commit, so the diff shows
+it**, which is exactly what that guard demands. The quarantine itself is unchanged — still closed
+studies, still archived in place, still unreachable from the live product.
+
 ### Pinning, at the M3 standard
 
-`tests/test_ma40_ma43_instruments.py` (23) and `tests/test_studies_boundary.py` (6).
+`tests/test_ma40_ma43_instruments.py` (23) and `tests/test_studies_boundary.py` (7 — the seventh added after the merge, see below).
 **22 of the 23 fixtures fail against the pre-fix tree**, measured by restoring the five sources to
 `HEAD` and re-depthing only the two imports the move required, so what was under test was the
 defect and not the rename.
@@ -12451,6 +12484,16 @@ pre-fix neither block was in `BLOCK_SPEC` and `check_payload` had nothing to loo
 bill of health from a guard that was not watching. That is exactly the structural blindness MA40
 closes, demonstrated on the test rather than argued. Claiming 23 of 23 would have been the more
 flattering number and the wrong one.
+
+**AND A DEFECT IN MY OWN GUARD, CAUGHT TWICE BY RUNNING IT.** The stale-path check first fired on
+`scripts/suite_manifest.py` — a file MA60 landed mid-session whose COMMENT explains a classifier
+bug using `from valuation.edge import kelly` as its example. **A guard that cannot tell code from
+prose about code is not measuring the tree**, which is the MA5 sweep's lesson arriving in a second
+costume; it now strips comments and strings with `tokenize`. The first cut of THAT repair
+re-joined tokens with a separator, turning `valuation.edge` into `valuation . edge` so the check
+matched nothing and passed vacuously — **caught by the vacuity test written alongside it**, which
+asserts the stripper blanks prose *without* blanking a real import. It now blanks the spans in
+place. Their comment's example is genuinely stale after the move and is corrected too.
 
 ### Reported outside this lane (`RUN_RULES` rule 3)
 

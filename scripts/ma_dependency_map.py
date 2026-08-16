@@ -42,6 +42,9 @@ import re
 import sys
 from collections import defaultdict
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import import_graph  # noqa: E402  (MA60's derived graph — the one definition)
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CANDIDATES = ["valquo_master_audit_ultimate_items.json", "valquo_master_audit_items.json"]
 MD_OUT = ROOT / "MA_DEPENDENCY_MAP.md"
@@ -128,49 +131,25 @@ LANE_OVERRIDE = {
 }
 
 # --------------------------------------------------------------------------- imports
-# Reused verbatim from check_lanes.py, which extracted them by grepping every from/import
-# in the tree. Not re-derived here: a second, drifting copy of an import graph is worse
-# than one shared one.
-IMPORTS = {
-    "valuation/edge/options_universe.py": {
-        "valuation/edge/options_backtest.py", "valuation/edge/options_fill.py",
-        "valuation/edge/options_signals_v2.py", "valuation/edge/options_autopsy.py",
-        "valuation/edge/options_tracker.py", "valuation/edge/statistics.py"},
-    "valuation/edge/options_backtest.py": {
-        "valuation/edge/options_fill.py", "valuation/edge/options_tracker.py",
-        "valuation/edge/blackscholes.py"},
-    "valuation/edge/options_autopsy.py": {
-        "valuation/edge/options_signals_v2.py", "valuation/edge/options_tracker.py",
-        "valuation/edge/statistics.py"},
-    "valuation/edge/options_greeks.py": {"valuation/edge/blackscholes.py"},
-    "valuation/edge/fundamental_panel.py": {
-        "valuation/screener/factors.py", "valuation/screener/settings.py",
-        "valuation/screener/cross_sectional.py", "valuation/edge/statistics.py",
-        "valuation/edge/research_log.py", "valuation/edge/results_file.py",
-        "valuation/edge/payload_schema.py", "valuation/edge/walkforward.py",
-        "valuation/edge/ablation.py"},
-    "valuation/screener/screen.py": {
-        "valuation/screener/factors.py", "valuation/screener/settings.py",
-        "valuation/screener/cross_sectional.py", "valuation/config.py"},
-    "valuation/edge/autolearn.py": {
-        "valuation/backtest/optimize.py", "valuation/edge/fundamental_panel.py"},
-    "valuation/saas/app_saas.py": {
-        "valuation/saas/ratelimit.py", "valuation/saas/surfaces.py",
-        "valuation/saas/auth.py", "valuation/screener/store.py"},
-    "valuation/web/app.py": {
-        "valuation/saas/ratelimit.py", "valuation/screener/store.py",
-        "valuation/web/withhold.py"},
-    "valuation/edge/paper_track.py": {
-        "valuation/edge/options_tracker.py", "valuation/screener/index_track.py"},
-    "valuation/edge/shadow_vintage.py": {"valuation/edge/track_meter.py"},
-    # MA23 moved this out of `valuation/edge/` into `valuation/studies/`. The map's own
-    # "What this map does not know" section says write-sets are the audit's PROPOSAL and that
-    # an executing session must record the files it actually touched and regenerate — this is
-    # that. The AUDIT's items file is deliberately NOT edited: it is the record of what the
-    # audit said, and rewriting it would make the record agree with the tree by fiat.
-    "valuation/studies/param_search.py": {"valuation/edge/fundamental_panel.py"},
-    "valuation/intraday/options.py": {"valuation/edge/options_backtest.py"},
-}
+# DERIVED, not hand-typed.  [audit MA60, completed on the copy it missed]
+#
+# This used to be a 13-key / 40-edge literal, under a comment reading "Reused verbatim from
+# check_lanes.py ... Not re-derived here: a second, drifting copy of an import graph is worse
+# than one shared one." It WAS the second copy, and it HAD drifted: MA60 replaced
+# check_lanes.py's identical dict with a derived graph and measured the literal against the
+# real tree - 13 keys / 40 edges against 118 / 546, with 12 of the 13 keys wrong, in a
+# direction that reads as safe (four options modules recorded as importing `statistics.py`
+# when they import `options_stats.py`). Across all item pairs it called 150 genuinely-coupled
+# pairs safe to run in parallel and invented 7 collisions that never existed.
+#
+# MA60 fixed one copy and this file kept the other, so every map generated since inherited
+# that error - including the one regenerated for MA23, which is why it is fixed here rather
+# than merely reported. MA60's own commit message states the principle: "one definition,
+# because two copies is the MA39 defect."
+#
+# `norm()` still applies the MOVED alias below, so an audit-era path in the items file resolves
+# to where the file lives today and keeps colliding with everything it collided with before.
+IMPORTS = import_graph.graph()
 
 # --------------------------------------------------------------------------- logical
 # Edges the audit does not state. Each is an argument, so each carries its reason.

@@ -62,6 +62,14 @@ stopped matching and the collisions vanished with no error. Caught by diffing th
 artifact against `HEAD`, not by reading the code. Verified after the alias: **285 collisions
 before, 285 after**, the same 42 pairs renamed.
 
+**4. The map was also built on a graph MA60 had already measured to be wrong.** MA59+MA60 landed
+mid-session and derived `check_lanes.py`'s import graph after measuring the hand-typed literal at
+13 keys / 40 edges against a real 118 / 546. **`scripts/ma_dependency_map.py` carried the same
+copy** — verified against `408e614^:check_lanes.py`. It is now `import_graph.graph()`.
+**285 → 422 collisions, 192 added, 55 removed.** Credit is MA60's; this is the copy they missed,
+and it is fixed here because regenerating the map for MA23 made the error mine to ship.
+**If you touch either lane tool, there is now ONE import graph — keep it that way.**
+
 ### Pinning
 
 `tests/test_ma40_ma43_instruments.py` (23) and `tests/test_studies_boundary.py` (6).
