@@ -21,7 +21,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from valuation.edge import convex_overlay as CO
+from valuation.studies import convex_overlay as CO
 from valuation.edge.fundamental_panel import quantile_backtest
 
 # ---- PRE-REGISTERED constants -------------------------------------------------------------

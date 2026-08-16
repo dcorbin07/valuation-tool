@@ -163,7 +163,12 @@ IMPORTS = {
     "valuation/edge/paper_track.py": {
         "valuation/edge/options_tracker.py", "valuation/screener/index_track.py"},
     "valuation/edge/shadow_vintage.py": {"valuation/edge/track_meter.py"},
-    "valuation/edge/param_search.py": {"valuation/edge/fundamental_panel.py"},
+    # MA23 moved this out of `valuation/edge/` into `valuation/studies/`. The map's own
+    # "What this map does not know" section says write-sets are the audit's PROPOSAL and that
+    # an executing session must record the files it actually touched and regenerate — this is
+    # that. The AUDIT's items file is deliberately NOT edited: it is the record of what the
+    # audit said, and rewriting it would make the record agree with the tree by fiat.
+    "valuation/studies/param_search.py": {"valuation/edge/fundamental_panel.py"},
     "valuation/intraday/options.py": {"valuation/edge/options_backtest.py"},
 }
 
@@ -227,6 +232,36 @@ def load_items():
     raise SystemExit("no audit items file found: " + ", ".join(CANDIDATES))
 
 
+# --------------------------------------------------------------------------- moves
+# Files an EXECUTING session relocated after the audit named them.  [AUDIT MA23]
+#
+# WHY AN ALIAS AND NOT AN EDIT TO THE ITEMS FILE. `valquo_master_audit_ultimate_items.json` is
+# the RECORD of what the audit said; rewriting its paths would make the record agree with the
+# tree by fiat and destroy the ability to check what was originally claimed. But a collision
+# map whose keys are stale is worse than useless — it reports NO collision between two items
+# that do touch the same file, which is the one direction this map must never fail in.
+#
+# MEASURED, NOT ASSUMED: applying the MA23 move without this table dropped 187 lines of
+# soft-import collisions from the artifact, because item files still read
+# `valuation/edge/param_search.py` while the import graph had moved to
+# `valuation/studies/param_search.py`. The two stopped matching and the collisions vanished
+# silently. Found by diffing the regenerated artifact rather than by reading the code.
+MOVED = {
+    "valuation/edge/ev_multiples_study.py": "valuation/studies/ev_multiples_study.py",
+    "valuation/edge/convex_overlay.py": "valuation/studies/convex_overlay.py",
+    "valuation/edge/earnings_surface.py": "valuation/studies/earnings_surface.py",
+    "valuation/edge/kelly.py": "valuation/studies/kelly.py",
+    "valuation/edge/loo_holdout.py": "valuation/studies/loo_holdout.py",
+    "valuation/edge/ml_combiner.py": "valuation/studies/ml_combiner.py",
+    "valuation/edge/surface_stock.py": "valuation/studies/surface_stock.py",
+    "valuation/edge/live_replay.py": "valuation/studies/live_replay.py",
+    "valuation/edge/bucket_floor.py": "valuation/studies/bucket_floor.py",
+    "valuation/edge/portfolio_capacity.py": "valuation/studies/portfolio_capacity.py",
+    "valuation/edge/param_search.py": "valuation/studies/param_search.py",
+    "valuation/research/lazy_prices_ic.py": "valuation/studies/lazy_prices_ic.py",
+}
+
+
 def norm(f: str) -> str:
     """'valuation/web/app.py:519' -> 'valuation/web/app.py'. Parentheticals dropped, and a
     trailing FIELD reference dropped too.
@@ -242,8 +277,10 @@ def norm(f: str) -> str:
     head = f.split()[0] if f.split() else f
     # Only when the first token really is a filename - 'owned daily closes' must stay whole.
     if " " in f and re.fullmatch(r"[\w./-]+\.\w+", head):
-        return head
-    return f
+        f = head
+    # Resolve audit-era paths to where the file lives TODAY, so a relocated file still
+    # collides with everything it collided with before. See MOVED above.
+    return MOVED.get(f, f)
 
 
 def build(items: dict) -> dict:

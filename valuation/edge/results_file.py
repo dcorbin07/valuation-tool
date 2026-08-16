@@ -52,7 +52,8 @@ MD_NAME = "BACKTEST_RESULTS.md"
 # verdict depends on them, so no published claim moves. Each block carries its own `units`
 # string saying the figures are PER-PERIOD and that a quantile may not be annualised the way a
 # mean is. A v5 reader still works.
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7          # MA40: + sector_caps, + walk_forward.{params, param_folds}. Purely
+                            # additive — no existing field moved, renamed or changed meaning.
 
 
 def repo_root(start: str | None = None) -> str:
@@ -242,11 +243,25 @@ def build_payload(res: dict, universe_label: str | None = None,
                  "challenger_weights": cp.get("challenger_weights_cols"),
                  "candidates": candidates(cp)},
 
+        # AUDIT MA40 — `param_folds` and the whole `params` sweep used to be computed on every
+        # run and dropped here. `walk_forward` returns {n_folds, param_folds, weights, params};
+        # this projection read only `weights`, so the trade-parameter sweep — top_n, exit band,
+        # min hold, each with its own out-of-sample fold record and adopt verdict — never
+        # reached the file this project uses as its memory. Registered in `BLOCK_SPEC` below, so
+        # M6's field-level guard now fails the run if either is dropped again.
         "walk_forward": {"n_folds": (res.get("walk_forward") or {}).get("n_folds"),
+                         "param_folds": (res.get("walk_forward") or {}).get("param_folds"),
                          "recommend": wf.get("recommend"), "adopt": wf.get("adopt"),
                          "verdict": wf.get("verdict"),
                          "recommended_weights": wf.get("recommended_weights_cols"),
-                         "candidates": candidates(wf)},
+                         "candidates": candidates(wf),
+                         "params": (res.get("walk_forward") or {}).get("params")},
+
+        # AUDIT MA40 — B21's own comment says this block "measures it and ships the numbers".
+        # It measured it and shipped nothing: `'sector_caps' in BACKTEST_RESULTS.json` was
+        # False on every run since B21 landed. The concentration cap is a RISK intervention
+        # that is measured and NOT adopted, and the numbers are the only reason to compute it.
+        "sector_caps": res.get("sector_caps"),
 
         "construction": {"weighting": res.get("construction_weighting"),
                          "n_periods": cn.get("n_periods"), "n_quantiles": cn.get("n_quantiles"),

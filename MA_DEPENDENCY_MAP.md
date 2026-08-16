@@ -44,11 +44,11 @@
 | 4 | `RESEARCH_LOG.md` | MA6 MA13 MA54 MA56 |
 | 4 | `.github/workflows/auto-scan.yml` | MA1 MA10 MA12 MA20 |
 | 3 | `valuation/web/app.py` | MA7 MA50 MA53 |
+| 3 | `valuation/studies/param_search.py` | MA23 MA47 MA49 |
+| 3 | `valuation/studies/lazy_prices_ic.py` | MA23 MA24 MA33 |
 | 3 | `valuation/screener/screen.py` | MA1 MA14 MA29 |
-| 3 | `valuation/research/lazy_prices_ic.py` | MA23 MA24 MA33 |
 | 3 | `valuation/edge/track_meter.py` | MA1 MA18 MA34 |
 | 3 | `valuation/edge/research_log.py` | MA6 MA13 MA21 |
-| 3 | `valuation/edge/param_search.py` | MA23 MA47 MA49 |
 | 3 | `BACKTEST_RESULTS.json` | MA5 MA19 MA21 |
 | 3 | `.github/workflows/land-agent-branch.yml` | MA11 MA12 MA60 |
 

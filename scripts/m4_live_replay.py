@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from valuation.config import CONFIG as CFG                    # noqa: E402
 from valuation.edge import fundamental_panel as FP            # noqa: E402
-from valuation.edge import live_replay as LR                  # noqa: E402
+from valuation.studies import live_replay as LR                  # noqa: E402
 from valuation.edge.data_providers import WRDSProvider        # noqa: E402
 
 REC = {"top_decile_alpha": 0.07174142332098163,

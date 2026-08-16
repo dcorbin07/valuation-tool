@@ -39,7 +39,7 @@ It then reports, in the order the project's rules demand:
      before P6 and are not re-chosen here.
 
 Run:
-    python -m valuation.edge.ev_multiples_study --panel <panel.pkl> --json <out.json>
+    python -m valuation.studies.ev_multiples_study --panel <panel.pkl> --json <out.json>
 """
 from __future__ import annotations
 
@@ -49,7 +49,7 @@ import numpy as np
 import pandas as pd
 
 from ..screener import settings as S
-from .fundamental_panel import (
+from ..edge.fundamental_panel import (
     MIN_HOLDOUT_ALPHA_GAIN,
     MIN_HOLDOUT_TSTAT_GAIN,
     _spearman,

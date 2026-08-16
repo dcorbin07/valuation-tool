@@ -19,7 +19,7 @@ import state_isolation   # noqa: E402,F401  — LA15: temp state only. Import BE
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from valuation.edge import kelly as K               # noqa: E402
+from valuation.studies import kelly as K               # noqa: E402
 
 
 class TheClosedFormCheck(unittest.TestCase):

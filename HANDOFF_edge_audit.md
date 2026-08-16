@@ -12273,3 +12273,174 @@ exist.
   long-short t of 3.52 against the Harvey-Liu-Zhu hurdle of 3.0. That one is real."* The **3.52 is
   the void pre-B6 panel**, the live figure is **2.6199**, and it **FAILS** the honest bar — so the
   sentence pointed at the project's most-failed bar and called it the one that is real.
+
+---
+
+## MA23 + MA40 + MA41 + MA42 + MA43 + MA47 — the boundary, and five instruments that produced plausible numbers (2026-08-15, edge lane, wave 2)
+
+**Batch chosen severity-then-collision from the wave-2 pipeline set — all six MEDIUM, all zero
+trial.** No hypothesis, no threshold, no verdict against a bar, so **equity `N` stays 224**,
+options 292, infra 15, and **no published claim moves**. `BACKTEST_RESULTS.json` needs no re-run
+(`SCHEMA_VERSION` 6 → 7 is additive; the next run will carry two more blocks).
+
+**Deliberately deferred, named so they are not mistaken for done:** MA14, MA21, MA25, MA34
+(wave 2) and all of wave 3 (MA24, MA26, MA27, MA28, MA33, MA49, MA54, MA55, MA57, MA58). MA14
+and MA25 both cut into the live scoring path inside `fundamental_panel.py` and want a quiet tree
+rather than a slot behind a twelve-file move; MA21 needs a survey of prose conventions across
+`build_ledger.py`; MA49 partly collides with MA23 on `param_search.py` and is LOW.
+
+### What the six have in common
+
+Every one produces a **plausible number rather than an error**, which is why all six survived
+with a green suite. Two whole result blocks dropped on the way to the file; an out-of-sample IC
+that is merely too high; a status frozen at "0 complete paired month(s)" that reads exactly like
+a pair which has not accrued; a paired difference computed against the wrong quarters with **no
+symptom at all** when the lengths match; and a panel cache that loads a different universe's
+panel perfectly happily.
+
+### MA23 — the boundary is drawn, and the map's reason for it is wrong
+
+`valuation/studies/` now holds the twelve finished one-shot studies, moved as **git renames**, so
+`git log --follow` reaches each module's whole history and every one is byte-identical apart from
+the **five** relative imports whose depth changed (`.fundamental_panel` →
+`..edge.fundamental_panel`). 23 absolute import sites rewritten across `scripts/` and `tests/`.
+**Nothing deleted** — deleting a study's harness destroys the ability to re-derive its verdict,
+which is `RUN_RULES` rule 9 one level up.
+
+* **IT DOES NOT UNBLOCK THE PANEL, AND `MA_DEPENDENCY_MAP.md` SAYS IT WOULD.** The map's second
+  headline calls MA23 *"the item that would change"* the panel's one-owner-at-a-time constraint.
+  **Measured: the twelve modules total 4,587 lines; `fundamental_panel.py` is 5,014 lines and is
+  not one of them.** Moving a directory's other occupants cannot shrink a file. The constraint is
+  untouched and still binds — pinned by a test, so nobody later reads the move as having lifted it.
+  What the move *does* buy is real and smaller: 4,587 lines out of the deploy image, and a
+  location that tells product from study.
+* **TWO CORRECTIONS TO THE AUDIT'S OWN CENSUS, both measured.** The audit says eleven modules are
+  *"referenced only by their own `scripts/` runner and their own test"*. **It holds for nine.**
+  `scripts/ml_combiner.py` does **not** import `edge/ml_combiner.py` — they are two independent
+  implementations, both defining `fit_predict`, and the **published `ML_COMBINER.json` came from
+  the script**, so the module's only caller is its test. And `lazy_prices_ic` has **no `scripts/`
+  runner at all**. The `ev_multiples_study` claim — zero importers — is confirmed exactly.
+* **A FALSE CENSUS HIT WORTH RECORDING:** `param_search.bat` does not run `param_search.py`; it
+  runs `fundamental_panel --param-search`. A name-match census is not an import census.
+* **THE DEPENDENCY DIRECTION IS PINNED, WHICH IS WHAT STOPS THE MOVE ERODING.** A study may import
+  the engine; the engine may never import a study. `tests/test_studies_boundary.py` (6/6) asserts
+  that over every module under `valuation/`, and is checked for vacuity — it asserts a non-zero
+  census before asserting the property, and separately asserts that at least four studies *do*
+  import the engine, so the one-way test cannot pass by forbidding both directions.
+
+### MA40 — confirmed against the shipped artifact, not the write-up
+
+`'sector_caps' in BACKTEST_RESULTS.json` → **False**. The shipped `walk_forward` block carries six
+keys while the producer returns `{n_folds, param_folds, weights, params}` — **the whole
+trade-parameter sweep, with its per-parameter adopt verdicts, was dropped**. B21's own comment
+reads *"this block measures it and ships the numbers"*; it measured it and shipped nothing.
+
+**Registered rather than dropped**, per rule 9. Both blocks now project into the payload and both
+are in `BLOCK_SPEC`, so M6's field-level guard fails the run if either is dropped again.
+`SCHEMA_VERSION` 6 → 7, purely additive. Line drift for the next reader: the audit cites
+`fundamental_panel.py:4937`; the producer is at **:4968**.
+
+### MA41 — the premise is confirmed and the stakes are higher than the audit states
+
+`grep -c embargo valuation/edge/walkforward.py` → **0** before the fix, against sibling splitters
+that all embargo. Fixed: one fold-adjacent rebalance date is purged from the **end** of every
+training set, and a fold that cannot be embargoed and still trained is **skipped** rather than
+scored.
+
+* **THE ADDED FACT: this feeds a live-facing surface.** `lab.run_optimize` is reachable from
+  `valuation/web/app.py:1030` (`POST /api/edge/optimize`), so the inflated out-of-sample IC was
+  driving an "Adopt: adaptive weights beat baseline out-of-sample" verdict on a web endpoint.
+* **THE ADOPT BOOLEAN IS DELIBERATELY UNCHANGED.** The gate is a bare comparison of two means with
+  no standard error, and the audit is right that it is mis-specified — but **putting a threshold
+  on it means choosing one**, and this project has no calibrated floor for a walk-forward IC
+  difference. Inventing a bar here is the error the record warns about most often (X3, session 10).
+  The SE, the margin and `margin_t` ship as **reported** fields explicitly labelled
+  *"no calibrated floor exists for this quantity"*, and changing what adopts is left to an item
+  that can register a bar first.
+
+### MA42 — confirmed LIVE rather than latent, and the zero is now attributable
+
+The audit calls this latent. **It is not: the pair is open** — vintage 4 shadowing vintage 3,
+opened 2026-08-13 — `months_paired` read 0, and the `>= MIN_MONTHS_FOR_ANY_VERDICT` branch was
+proven **unreachable**.
+
+The repair separates two quantities the single zero conflated. **`months_elapsed`** is derived
+from the register and rises on its own (0 today, 1 on 2026-09-13, 6 on 2027-02-13, 60 on
+2031-08-13). **`months_paired`** is still **0, and not because of this bug**: measured, *nothing
+in this repository writes a shadow monthly return series* — `verdict()` expects `monthly_diff_pp`
+from a producer that has never been built. So the zero now ships with `paired_series_source`
+saying why, and **`paired_months_owed`** makes the gap dated rather than discovered years later.
+That is `track_meter`'s own not-yet-due-versus-due-and-missing distinction, applied to the
+machinery that borrowed its lesson. Today it reads 0 owed; from 2026-09-13 it will read 1.
+
+### MA43 — the no-symptom case, demonstrated rather than argued
+
+Confirmed verbatim: `n = min(len(a), len(b)); a, b = a[:n], b[:n]`, no dates anywhere, under a
+docstring promising *"the SAME periods"*. Fixed to pair on the date **intersection** when dates
+are supplied, and to **refuse rather than truncate** when they are not and the lengths differ.
+
+**The demonstration is the point.** Two 23-element series, each missing a *different* date —
+equal lengths, so truncation does nothing and nothing raises — give `mean_diff_ann` **−0.0226
+positionally against −0.0122 date-keyed**. Both `scripts/x3_ablation_rerun.py` call sites now pass
+`alpha_series()['dates']`, so the fix is not inert, and it is proved **inert where inputs were
+already aligned** (identical to twelve places).
+
+* **A DEFECT IN MY OWN FIX, found by the fixture written for it.** Duplicate dates would have
+  silently kept the **last** occurrence — the same quiet guess in a new place. They are now
+  refused. The first draft of that fixture generated repeating dates by accident, which is how it
+  surfaced.
+
+### MA47 — the B12 collision re-encoded, and the docstring was a live false guarantee
+
+Confirmed verbatim, and confirmed **latent**: `cached_panel` has **zero** in-tree callers.
+All three env toggles verified panel-shaping **in the tree** rather than taken from the audit's
+list — `EDGE_EV_POINT_IN_TIME` (`config.py:187`), `EDGE_GRID_OFFSET`
+(`fundamental_panel.py:1056`), `EDGE_AUDIT_B6_LEGACY_TRUNCATION` (`:1095`).
+
+Fixed with a sha256 provenance key over sorted ticker **identity** + the four parameters + the
+three toggles + an export vintage fingerprint, **plus a `.meta.json` sidecar the read path
+compares**. A hash in a filename can say a cache missed; it cannot say *why*, and an opaque
+16-hex name is unauditable by the person whose forty-minute build it just invalidated. A legacy
+sidecar-less file is **refused and rebuilt**, never silently reused.
+
+* **AN HONEST LIMIT ON THE VINTAGE, stated in the code rather than left to be noticed.** It is
+  `(name, size, mtime)` over the export directory, **not** a content hash — so a byte-identical
+  re-copy with a new mtime reads as a new vintage, which is a spurious rebuild and the safe
+  direction. Where the provider exposes no directory it records `"unavailable"` and says why,
+  rather than pretending to cover something it could not measure.
+
+### A defect in my own map regeneration, caught by diffing the artifact
+
+`MA_DEPENDENCY_MAP.md`'s own "what this map does not know" section asks an executing session to
+record the files it actually touched and regenerate. Doing that naively — repointing the import
+graph at `valuation/studies/param_search.py` — **silently dropped 187 lines and 22 collisions**,
+because the audit's items still name `valuation/edge/param_search.py` and the two stopped
+matching. A collision map that under-reports is worse than useless.
+
+Fixed with a **`MOVED` alias table** in the generator that resolves audit-era paths to where the
+file lives today. **The audit's items file is deliberately NOT edited** — it is the record of what
+the audit said, and rewriting its paths would make the record agree with the tree by fiat.
+Verified by diffing the collision sets: **285 before, 285 after**, the same 42 pairs with renamed
+paths.
+
+### Pinning, at the M3 standard
+
+`tests/test_ma40_ma43_instruments.py` (23) and `tests/test_studies_boundary.py` (6).
+**22 of the 23 fixtures fail against the pre-fix tree**, measured by restoring the five sources to
+`HEAD` and re-depthing only the two imports the move required, so what was under test was the
+defect and not the rename.
+
+**The one that passes pre-fix is reported as passing, deliberately.**
+`test_the_post_fix_projection_is_clean` passes **vacuously** against the old tree, because
+pre-fix neither block was in `BLOCK_SPEC` and `check_payload` had nothing to look at — a clean
+bill of health from a guard that was not watching. That is exactly the structural blindness MA40
+closes, demonstrated on the test rather than argued. Claiming 23 of 23 would have been the more
+flattering number and the wrong one.
+
+### Reported outside this lane (`RUN_RULES` rule 3)
+
+**`POST /api/edge/optimize` and `POST /api/edge/backtest` in `valuation/web/app.py` carry no auth
+decorator and there is no `before_request` guard on `/api/edge/*`** — both kick off expensive
+computations for an unauthenticated caller. Same class as MA7. **Not fixed** (app-fixer lane), and
+**not established** here whether that blueprint is mounted in the deployed image, so it is
+reported as a lead rather than a finding.
