@@ -126,24 +126,31 @@ def assert_no_negated_duplicate(frame: pd.DataFrame, cols: Sequence[str],
 #  2. the point-in-time join
 # --------------------------------------------------------------------------- #
 def join_pit(panel: pd.DataFrame, arms_by_ticker: Dict[str, pd.DataFrame],
-             max_stale_days: int = MAX_STALE_DAYS) -> Tuple[pd.DataFrame, dict]:
+             max_stale_days: int = MAX_STALE_DAYS,
+             value_cols: Sequence[str] = COMPONENT_ARMS) -> Tuple[pd.DataFrame, dict]:
     """Attach each arm column to the panel using the last derived row STRICTLY BEFORE the date.
 
     `fwd_ret` runs from the rebalance date's CLOSE, so a same-day EOD surface would be
     contemporaneous rather than look-ahead. Strictly-before is used anyway: it costs one day of
     staleness on a quarterly signal and removes the argument entirely. The returned control
     counts violations, which must be exactly zero.
+
+    `value_cols` defaults to U2's own three arms, so every existing caller is bit-identical
+    (pinned by test). It is a parameter because `MA31`/`MA32` need the SAME strictly-before join
+    on different columns, and re-typing this loop there would be audit B7's defect class - the
+    one this project has now recorded four times.
     """
     pdates = pd.to_datetime(panel["date"]).values
     tick = panel["ticker"].values
     n = len(panel)
-    cols = {a: np.full(n, np.nan) for a in COMPONENT_ARMS}
+    value_cols = tuple(value_cols)
+    cols = {a: np.full(n, np.nan) for a in value_cols}
     used = np.full(n, np.datetime64("NaT"), dtype="datetime64[ns]")
 
     idx: Dict[str, Tuple[np.ndarray, Dict[str, np.ndarray]]] = {}
     for t, df in arms_by_ticker.items():
         d = df["date"].values.astype("datetime64[ns]")
-        idx[t] = (d, {a: df[a].values.astype(float) for a in COMPONENT_ARMS if a in df.columns})
+        idx[t] = (d, {a: df[a].values.astype(float) for a in value_cols if a in df.columns})
 
     for i in range(n):
         ent = idx.get(tick[i])
@@ -161,7 +168,7 @@ def join_pit(panel: pd.DataFrame, arms_by_ticker: Dict[str, pd.DataFrame],
             cols[a][i] = arr[j]
 
     out = panel.copy()
-    for a in COMPONENT_ARMS:
+    for a in value_cols:
         out[a] = cols[a]
     out["_surface_asof"] = used
 

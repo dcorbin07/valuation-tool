@@ -177,6 +177,45 @@ from .options_autopsy import FDR_Q, bh_fdr, deflated_sharpe
 from .options_signals_v2 import LATE_START
 from .options_tracker import MIN_CLOSED_PER_BUCKET, _stats
 
+# ---- MA56 — CARRY FORWARD into the next entry register. Recorded, deliberately NOT run. -----
+#
+# `O16-REFROZEN` (RESEARCH_LOG.md 2026-08-08) measured a feature that BEAT its own parent and
+# then had nowhere to live, because the only options entry this project owns is R2's dead alert.
+# The audit logged it as MA56 so it is not lost; this is that record, put where the author of the
+# next entry register will be standing rather than in a document they may never open.
+#
+#     ts_resid = term_slope - beta_hat * atm_front
+#
+#     residual IC   +0.07034  CI95 [+0.0287, +0.1131]   <- beats its parent
+#     raw term_slope +0.05673  CI95 [+0.0206, +0.0922]
+#     -atm_front     +0.01316  CI95 [-0.0333, +0.0626]  <- predicts NOTHING on its own
+#
+# THREE CAVEATS THAT MUST TRAVEL WITH IT, and the audit's one-line summary carries none of them:
+#
+#  1. THE IC IS AGAINST OPTION P&L ON R2'S BOOK, and R2 measured that book losing to random entry
+#     by -5.0640pp/trade. A feature that ranks trades well inside a book whose ENTRY is an
+#     anti-signal has not been shown to make money; it has been shown to sort a losing book.
+#     That is exactly why MA56 says "carry it", not "adopt it".
+#  2. THE DISTINCTNESS VERDICT HINGES ON A PRE-REGISTERED CHOICE OF ESTIMATOR. O16-REFROZEN reads
+#     Spearman(ts, atm_front) = -0.53966, below the 0.60 bar, so IS DISTINCT. Pearson is -0.82793,
+#     which CLEARS the 0.80 level bar and returns the OPPOSITE verdict on the same data.
+#  3. IT WAS NOT BLIND. O16-REFROZEN was charged a second time precisely because the prior
+#     cycle's exploratory read had already shown this answer.
+#
+# MA56's own kill condition is "do not run today; carry in the next entry register", so nothing
+# in this repository computes `ts_resid` for a verdict, and `PREREG_ma31_ma32_parity_openclose.md`
+# names quoting it as a tested result a VOID CONDITION. Pinned by
+# tests/test_ma56_carry_forward.py so it cannot rot out of the tree unnoticed.
+MA56_CARRY_FORWARD = {
+    "feature": "ts_resid = term_slope - beta_hat * atm_front",
+    "source_row": "O16-REFROZEN (RESEARCH_LOG.md, 2026-08-08)",
+    "residual_ic": 0.07034, "residual_ci95": (0.0287, 0.1131),
+    "parent_ic": 0.05673, "parent_ci95": (0.0206, 0.0922),
+    "atm_front_ic": 0.01316, "atm_front_ci95": (-0.0333, 0.0626),
+    "status": "RECORD ONLY - not run, not adopted, charges zero trials",
+    "blocked_on": "an options entry that is not R2's dead alert",
+}
+
 # ---- window: inherited from 22b so the two studies are directly comparable ------------------
 ENTRY_START = U.ENTRY_START
 ENTRY_END = U.ENTRY_END
