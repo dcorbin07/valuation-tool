@@ -7556,3 +7556,47 @@ ruleset protecting `.github/**` (MA11's residual) and the land-gate split above.
 
 **Verification.** `test_ma59_quarantine.py` 11/11, `test_ma60_conventions.py` 10/10,
 `test_build_ledger.py` 20/20, **6 of 6 mutations caught**, full local gate green before pushing.
+
+---
+
+## 2026-08-16 - infra lane (r1): the repo went PUBLIC, and the visitor-facing docs are now true
+
+**Zero trials**; equity `N` stays **224**. Ledger row `PUBLIC-DOCS`. Full write-up:
+`HANDOFF_ci.md` section 11.
+
+**READ THIS FIRST, IT IS NOT A DOCS ISSUE. `LAUNCH_CHECKLIST.md` and `GO_LIVE.md` were TRACKED
+and public.** They are internal business planning - a **separate LLC by name**, entity
+structuring to ring-fence liability, and a **securities-law risk posture about this product**.
+Both are now **untracked and gitignored, and both files remain on disk**. **This stops them being
+served going forward and does NOT remove them from public git history.** Only making the repo
+private again, or rewriting history and force-pushing, does that. **It is Don's decision and this
+lane did not take it.** `LAUNCH_CHECKLIST.md` has been in the repo since 2026-07-24.
+
+**Also for Don: there is no `LICENSE` file**, so default copyright (all rights reserved) applies.
+Defensible for a portfolio repo, but it was implicit; the README now states it. Choosing a
+licence is his call.
+
+**The README was three months and three audits stale.** It described the DCF engine well, was
+**silent on four of the five product surfaces**, and its roadmap still listed the point-in-time
+backtest as the top unbuilt item months after 224 equity trials had been charged against it.
+Rewritten around **what each surface actually claims**, since they do not carry equal evidence:
+the screener is the one measured claim; the Valquo Index is a paper track with **no verdict
+before 2031**; the Dip Detector's return claim is **NULL** while its risk claim is measured; and
+the options entry signal is **measured and negative**. Every figure was re-derived from
+`BACKTEST_RESULTS.json`, both sides of the HLZ-vs-calibrated-floor tension are stated, and
+`tests/test_public_docs.py` now asserts the README against the artifact so it cannot drift again.
+Paper-track dates are **derived** from `track_meter`, never quoted.
+
+**A CORRECTION TO `CLAUDE.md` FOUND WHILE VERIFYING: "THE LIVE PRODUCT SCORES A FOUR-THEME BOOK"
+IS SUPERSEDED.** `FIDELITY-2` rebuilt `institutional` and `insider` to the panel's definitions and
+both cleared the fidelity gate (+0.9190, +0.8726), so **all seven weighted themes reach a live
+score**. That was the most quotable honesty caveat the project had and it is no longer true - the
+README does not repeat it.
+
+**`DATA_AND_METHODS.md` was a private consulting memo** in the second person, naming a specific
+university as the data route, recommending data already bought, and listing three shipped
+capabilities as "to add". De-personalised and corrected. The empty GitHub repo description was
+set. Two sibling-project links were relative paths and one named a repository that does not
+exist; both are absolute URLs and a test forbids the pattern.
+
+**Verification:** `test_public_docs.py` 17/17, **6 of 6 mutations caught**, full local gate green.

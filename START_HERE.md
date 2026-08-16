@@ -9,16 +9,25 @@ verifiable from a clean clone, and not one headline number is.
 
 ## 1. What this repository is
 
-**Valquo** (valquo.co) — a Flask stock-analysis SaaS. Three things share one codebase:
+**Valquo** (valquo.co) — a Flask stock-analysis SaaS. Five surfaces share one codebase, and
+**they do not carry equal evidence.** Which is which is the single most important thing to learn
+before quoting anything:
 
-| | what it does | where it lives |
-|---|---|---|
-| **Valuation engine** | adaptive DCF for any ticker, live data, no key needed | `valuation/engine/`, `valuation/data/` |
-| **Screener** | 9-theme "hot score" over the market, plus options/intraday signals | `valuation/screener/`, `valuation/intraday/` |
-| **Edge Lab** | the point-in-time backtest that tries to disprove the screener | `valuation/edge/` |
+| | what it does | where it lives | evidential status |
+|---|---|---|---|
+| **Valuation engine** | adaptive DCF for any ticker, live data, no key needed | `valuation/engine/`, `valuation/data/` | a model, never backtested as a return signal |
+| **Hot-stocks screener** | 9-theme cross-sectional "hot score" over the market | `valuation/screener/` | **the one measured claim** (§4) |
+| **Valquo Index** | published forward paper track of the screener's picks | `valuation/screener/index_track.py`, `valuation/edge/track_meter.py` | running; **no verdict before 2031** |
+| **Dip Detector** | names far below their recent high that clear quality/health floors | `valuation/web/dip_posture.py` | return claim **NULL**; risk claim measured (`V6-B`) |
+| **Options / intraday** | options context, technicals, alerts | `valuation/intraday/`, `valuation/edge/` | a screen — **the entry signal is measured and loses** (`R2`, −5.06pp vs random entry) |
 
-The Edge Lab is the unusual part: it exists to **falsify** the product, and most of what it has
-produced are rejections and nulls.
+The **Edge Lab** (`valuation/edge/`) is the unusual part: it exists to **falsify** the product,
+and most of what it has produced are rejections and nulls.
+
+**Two things that are easy to get backwards.** The valuation engine and the screener are
+*separate* — the +7.17%/yr figure belongs to the screener's composite and says nothing about the
+DCF's fair values. And the Dip Detector's measured result is about names **falling further**, not
+about them recovering.
 
 ## 2. Clone to green suites (no data, no keys, ~5 minutes)
 

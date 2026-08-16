@@ -1751,3 +1751,96 @@ against MA59/MA60 where it was done.
    Worth knowing before spending the change: it removes about **15%** of the suites from the
    land path, not the large tail the audit implies.
 
+---
+
+## 11. The repository went public — the visitor-facing accuracy pass (2026-08-16)
+
+**Zero trials** — documentation accuracy, no hypothesis and no threshold. Equity `N` stays
+**224**. Ledger row `PUBLIC-DOCS`.
+
+### 11.1 The two findings that were not about accuracy
+
+**Internal business planning was tracked and public.** `LAUNCH_CHECKLIST.md` and `GO_LIVE.md`
+are not project documentation — they name a **separate LLC**, discuss **entity structuring to
+ring-fence liability**, and set out a **securities-law risk posture about this product**
+("don't take a paid subscriber until it's cleared"). Both were tracked, and
+`LAUNCH_CHECKLIST.md` has been in the repository since 2026-07-24.
+
+They are now **untracked and gitignored, and both files remain on disk.** Stated plainly because
+a half-measure that reads as a fix is worse than none:
+
+> **This stops them being served on the repository page going forward. It does NOT remove them
+> from public git history.** Only making the repository private again, or rewriting history
+> (`git filter-repo`, then a force-push, which invalidates every existing clone), actually
+> removes them. **That is Don's decision and this lane did not take it.**
+
+**No `LICENSE` file exists**, so default copyright applies — all rights reserved. That is a
+defensible posture for a public portfolio repo, but it is currently implicit. Choosing a licence
+is Don's call; the README now states the position rather than leaving it unstated.
+
+### 11.2 What was actually wrong with the README
+
+It described the DCF engine well and was **three months and three audits stale** on everything
+after it.
+
+* It was **silent on four of the five product surfaces** — screener, Valquo Index, Dip Detector,
+  options.
+* Its roadmap still listed the point-in-time backtest as the **top unbuilt item**, months after
+  224 pre-registered equity trials had been charged against it. (The body had been half-corrected
+  by MA17; the roadmap had not, so the document contradicted itself.)
+* It linked two sibling projects by **relative path**, and one of them — `../screener` — names a
+  repository that **does not exist** (it is `stock_screener`). Both are absolute URLs now.
+* The **GitHub repo description was empty**, which is the first thing a visitor reads. Set.
+
+### 11.3 The rewrite's organising idea
+
+Not "what does Valquo do" but **what does each surface actually claim**, because they do not
+carry equal evidence and that distinction matters more than any single number:
+
+| surface | status now stated |
+|---|---|
+| Valuation engine | a model; never backtested as a return signal |
+| Hot-stocks screener | **the one measured claim** |
+| Valquo Index | running paper track; **no verdict before 2031** |
+| Dip Detector | return claim **NULL**, risk claim measured |
+| Options / intraday | **measured and negative** — loses to random entry by 5.06pp |
+
+Every figure was **re-derived from `BACKTEST_RESULTS.json`**, not copied from prose: alpha
++7.17%/yr, net +6.07%/yr, long-short HAC *t* 2.6199, X7 floor 2.2837 (clears), HLZ hurdle 3.2899
+at `N` 224 (fails by 0.6700). The README states **both** sides of that tension, as the artifact
+itself does.
+
+The paper-track dates are **derived from `track_meter`, never quoted** — gate 2027-02-13, verdict
+2031-08-13 — and a test fails if the README carries a literal instead. The record shows that same
+date wrong in three documents at once because each had quoted one. The README also says the track
+is **currently not recording** (`recording_ok: false`, ledger `PT-WRITER`), rather than implying
+a healthy live test.
+
+### 11.4 A correction to the record, found while verifying
+
+**`CLAUDE.md`'s "THE LIVE PRODUCT SCORES A FOUR-THEME BOOK" is superseded.** `FIDELITY-2` rebuilt
+`institutional` and `insider` to the panel's own definitions and both cleared the fidelity gate
+at **+0.9190** and **+0.8726**, so **all seven weighted themes now reach a live score**. The
+README does not repeat the stale claim. This is exactly what `RUN_RULES` A8 is for — the four-
+theme figure was the single most quotable honesty caveat available and it is no longer true.
+
+### 11.5 `DATA_AND_METHODS.md` was a private consulting memo
+
+Written in the second person, it named **a specific university** as the recommended data route,
+recommended **buying data the project had already bought**, and listed three capabilities as
+*"to add"* — a survivorship-free adapter, point-in-time fundamentals, delisting returns — **all
+three of which have shipped**. It also contradicted itself: §3 asserted the "HLZ *t* > 3" gate
+that §4's own MA5 correction refutes. De-personalised, corrected, and the Sharadar
+personal-use-only licence limit now appears wherever a headline figure does.
+
+### 11.6 Verification
+
+`tests/test_public_docs.py` **17/17**, **6 of 6 mutations caught** (a stale alpha; dropping the
+failed HLZ bar; losing the licence wording; a private-business phrase reappearing; a relative
+sibling link returning; a product surface going undocumented). Full local gate green before push.
+
+**A defect in my own mutation harness, worth recording because it looked like a failing check.**
+The licence mutation reported MISSED, which reads as "the test cannot fail". The test was fine:
+the README wraps the phrase as `"or any\nderivation"`, so the suite's `flat()` normaliser sees it
+and my raw-text replacement never applied. **The harness was wrong, not the check** — diagnosed
+before concluding anything about the test.
