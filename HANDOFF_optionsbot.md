@@ -6537,3 +6537,240 @@ epoch scoping it introduced is untouched here.
   correcting it would move published figures — so it is reported rather than bundled into a
   correctness pass. Found while building MA46's net figure, which inherits the same convention on
   purpose so the two modules stay consistent.
+
+---
+
+## 61 · WAVE 3 — MA31, MA32, MA56. THE LARGEST UN-RUN ITEM EITHER AUDIT NAMED IS RUN, AND THE ANSWER IS THAT THIS UNIVERSE CANNOT ANSWER IT
+
+**Register: `PREREG_ma31_ma32_parity_openclose.md`, committed ALONE at `a51e372`** — one `.md`,
+zero `.py`, a strict git ancestor of every commit that computes an arm. Code at `4f3a59b`.
+**ADOPTS NOTHING**; no live scoring path changed. **Equity `N` 224 → 227**, options untouched at
+**292**, infra **15**.
+
+**With these three the options-bot lane is CLOSED on audit #3: all ten of its MA rows are `DONE`.**
+
+### 61.0 · A correction to the dispatch brief, made before anything was measured
+
+The brief asked for "MA31 and the other options-bot MEDIUMs" as **wave 2**. `MA31` is **wave 3**.
+Wave 2 is defined in `MA_DEPENDENCY_MAP.md` as *unblocked by wave 1, **zero trial cost***; `MA31`
+and `MA32` carry `trial_cost: "1-2"` each. They therefore need a blind pre-registration, and
+running them inside a correctness batch is exactly what the register exists to prevent. `MA56` is
+`trial_cost: 0 (record only)` and is not a measurement at all.
+
+So this session is **one register for the two research arms** — they share one pass over the same
+27 GB raw chain cache, which is a stronger reason to batch them than the collision table — and
+**a record for `MA56`**.
+
+### 61.1 · The verdict, stated with the caveat that decides how to read it
+
+| arm | item | declared sign | early | late | bar | verdict |
+|---|---|---|---|---|---|---|
+| `parity_dev` | MA31 | **+** (Cremers–Weinbaum) | −1.0886 | −0.3380 | 2.71 (X7, an extrapolation) | **NULL** |
+| `call_open_share` | MA32 | **−** (Ge–Lin–Pearson) | −1.4146 | −0.7169 | 1.9547 / 1.7547 (own permutation p95) | **NULL** |
+| `put_open_share` | MA32 | two-sided | +0.0633 | +1.0895 | 2.0879 / 2.0978 | **NULL** |
+
+**AND ALL THREE NULLS ARE UNINTERPRETABLE BY THE REGISTER'S OWN C-POWER RULE.** That is a
+pre-committed clause firing, not an excuse constructed afterwards — §4 of the register says in
+writing that *if C-POWER comes back under 2.0, a null on A1 is uninterpretable and will be
+reported as uninterpretable*.
+
+### 61.2 · The power measurement is the finding, and it is general rather than local to these arms
+
+The audit's own control bar is **2.0**. Decomposed across three **nested** populations (raw IC *t*):
+
+| signal | full 69-date panel | the 40 covered dates, ALL names | **the ROWS the arms are measured on** |
+|---|---|---|---|
+| `z_gp_on_capital` | **+3.6745** | +2.4776 | **+0.9919** |
+| `z_ret_6_1` | +1.8315 | +2.4762 | +1.5385 |
+| `quality` | **+3.1015** | +2.8014 | **−0.0594** |
+| `momentum` | +1.3117 | +1.6929 | +0.3442 |
+| `value` | +0.8380 | +0.7505 | −0.0681 |
+| **`size`** | −0.3005 | −0.7996 | **+3.0765** |
+
+**On the options-listed sub-population the panel's own best-known signals cannot be separated from
+zero, and `size` — the weakest theme on the full panel — becomes the strongest.** That is `U7`'s
+finding independently reproduced: it measured that *"inside 187 megacaps the other themes are
+compressed and `size` dominates"*, and this is the same result on **906 names**, on a different
+join, in a different decade of the record.
+
+**The consequence outlives these two items.** Any future options-derived signal tested as a
+**stock** predictor on this cache inherits this: the population it is measured on is one where the
+project's own known-real signals do not work. A null there is *"could not be separated at this
+resolution"*, never *"absent"*, and reporting it any other way overstates it.
+
+**It also decomposes cleanly, which is what makes it a finding rather than a suspicion.** Restricting
+to the covered **dates** costs `gp_on_capital` about 1.2 of a *t* (era). Restricting further to the
+covered **rows** costs another 1.5 (population). The second cut is the larger one, and only the
+row-level cut is a property of *being an optionable name*.
+
+### 61.3 · A correction to the record, and it is this lane's own
+
+`CLAUDE.md` records `U2`'s power control as *"`gp_on_capital` **2.4776** and `ret_6_1` **2.4762**
+on the identical covered rows"*. Those two figures reproduce here **to four decimal places** — as
+the **covered-DATES / ALL-NAMES** column, not the covered-rows one. `U2`'s covered geometry is
+identical to this register's (40 dates, halves 20/19, boundary 2021-01-21), so this is not a
+coincidence of different date sets.
+
+**So `U2`'s power control was not restricted to the rows `U2`'s arms were measured on**, and it
+therefore **overstates** the power those arms had.
+
+**`U2`'s verdicts do not change and are not reopened.** A weaker power control cannot rescue a
+rejected arm; it can only make a null *less* interpretable. The correction runs in the
+conservative direction — `U2`'s nulls were even less informative than it claimed — which is why it
+is recorded rather than argued about.
+
+### 61.4 · Two published signs, two different outcomes
+
+* **Cremers–Weinbaum's POSITIVE direction is NOT reproduced in any window.** Every reading is
+  negative: incremental *t* −1.0886 / −0.3380 / −0.6876, raw *t* −1.3676. Far too weak to refute a
+  published result — but on this universe the declared direction does not appear, and a
+  wrong-signed result could never have been a pass. **It is the third published options sign this
+  project has failed to reproduce** (`O7` vs Gao–Xing–Zhang, `U2` vs Xing–Zhang–Zhao, now this).
+* **Ge–Lin–Pearson's NEGATIVE direction for the call arm IS reproduced, in sign, in all three
+  windows** (−1.4146 / −0.7169 / −1.6638) and fails only on **strength**. That is a more
+  informative null than a flat one, and it is the closest anything in this register comes.
+
+### 61.5 · The trap that would have produced a clean, fabricated null
+
+`dividends.spot_from_parity` returns `S = C − P + K·exp(−rT)`. **Feed that back as the spot and
+`iv_call − iv_put` is identically ZERO by construction** — the arm would have reported a tidy,
+plausible, completely manufactured null and nothing would have raised. It is named in the register
+before the run, listed in `FORBIDDEN_CALLS`, and a **source-level** test asserts it never appears
+on the arm path.
+
+**The other half of the same trap is settled by measurement, not assertion.** Strikes are
+as-traded; `close` is split- and dividend-adjusted. `C-SPOT` runs session 31's shared
+`assert_raw_spot` in **both** directions: the raw series matches the stored spot at a median
+relative error of **exactly 0.0** over **16,742** entries, and the adjusted series **RAISES** at a
+median **8.52%**, worst **SIRI 36.5180 against 3.9900**. The trap is real, and this run is not in it.
+
+### 61.6 · Two defects in my own instrument, both caught by gating controls, both of which would have read as RESULTS
+
+Neither raised an exception. Both produced a plausible, publishable-looking answer.
+
+1. **The join matched nothing — 0 of 113,945 rows.** The feature rows carry two dates:
+   `chain_date` (the session observed) and `date` (the rebalance it was built for). `join_pit`
+   implements the strictly-before rule and the 7-day staleness ceiling **itself**, so handing it a
+   frame keyed on the *rebalance* date made it search for the previous rebalance — a quarter old,
+   so everything failed the ceiling. **Coverage simply read zero**, and *"the arms have no
+   coverage"* is a sentence this project has legitimately written five times (`S18`, `U2`, `U3`,
+   `V6-OPT`, `U6`).
+2. **`coverage_report` stringified its dates** so the artifact would read nicely; every consumer
+   then filtered a `datetime64` column with `.isin([...strings])`, matched nothing, and all three
+   arms returned `n_dates = 0` **while coverage simultaneously reported 40 dates and 16,736 joined
+   rows**. Stringify at the JSON boundary, never at the computation boundary.
+
+**The two-pass design is what separated a bug from a finding**: `--controls` computes and writes
+the gating controls and **exits before any arm is scored**, and `--arms` **refuses to run** unless
+that artifact exists and passed. That is session 26's defect — a gating control and the outcomes it
+gated computed in one pass — repaired rather than repeated. Both defects are now regression-pinned.
+
+3. **A third, in my reporting rather than my code.** The MDE was first quoted beside the **median**
+   incremental IC, which is not the statistic it is comparable with (`ic_tstat` is
+   mean/(sd/√n), so the MDE pairs with the **mean**). Corrected: against the mean, **all three arms
+   sit BELOW their own detection threshold** — −0.00667 vs 0.02629, −0.01234 vs 0.01483, +0.00893
+   vs 0.01939. The median-based read would have wrongly said `call_open_share` exceeded its MDE.
+
+### 61.7 · Controls
+
+* **C-DUP — neither arm is another arm renamed, and `MA31` is NOT `U2`'s rejected arm.** Spearman
+  against `U2`'s negated `skew_25d` is **+0.3796** over 14,803 rows, far under the 0.90 bar; the
+  two `MA32` arms correlate **+0.3164** (separate denominators by construction). This is `U2`'s own
+  §0.3 discipline applied to the item that supersedes it — and it was worth running, because the
+  volatility spread and the 25-delta smirk are close cousins.
+* **C-INC — the arms carry genuinely NEW information and predict nothing with it.** Mean R² on the
+  seven incumbents: **0.0438**, **0.0273**, **0.0361**. `U2`'s dissociation, reproduced exactly.
+* **C-SENT — `B4`'s `-1` open-interest sentinel is live and handled.** **931,080 contract-days**
+  excluded, and the register **requires the count to be non-zero**: a zero would mean the filter
+  never reached the data, which is a vacuous guard rather than a clean one.
+* **C-BAND — not an artefact of the a-priori moneyness band.** The 0.20 band correlates **+0.9215**
+  with the 0.10 primary and gives the same answer (raw *t* −1.1634). Reported, **no verdict**.
+* **C-DIV — the arm is weak among payers and non-payers alike** (raw *t* −1.1611 / −0.4962), so it
+  is not a dividend-misspecification artefact in the sense that would matter. Reported honestly:
+  the *level* does differ by dividend status (mean +0.00533 vs −0.00244), which is a limitation of
+  a trailing `q` against American options, not a finding.
+* **C-AMER — NOT RUN, and reported as not-run rather than silently skipped.** It needs a rebuild of
+  the 27 GB feature pass and carries **no verdict** by the register, so it cannot change anything.
+
+### 61.8 · The premise the audit relied on is true and insufficient — the new number
+
+`V6-OPT` removed `U2`'s recorded blocker by measuring the cache at **1,288,750 puts against
+1,288,751 calls, zero tickers with no puts**. That is correct and it is not enough: **a matched
+pair being PRESENT is not a matched pair being USABLE.** A pair needs a two-sided quote on **both**
+legs, so the pair-level rate is roughly the **square** of `MA45`'s leg-level one — measured **42 of
+92, 133 of 329, 10 of 64, 2 of 25** on sampled cross-sections.
+
+It was scoreable anyway: **16,736 rows over 40 covered dates, median 431.5 names per date**, halves
+**20/19**, boundary **2021-01-21**. **A correction to the audit in passing**: its note says *"29 of
+69 dates carry ZERO coverage"*; measured against the **raw** layer it is **28** — `U2`'s 29 was the
+*derived* layer, which starts four days later.
+
+**An asymmetry worth carrying: `MA31` needs an as-traded spot and `MA32` does not.** 420 of the 906
+cache∩panel tickers have no bars file, so `MA31`'s universe is bounded by the price cache in a way
+`MA32`'s is not. The code fails **closed** — no spot, no arm, never a proxy.
+
+### 61.9 · `MA56` — recorded, deliberately not run
+
+Its own kill condition is *"do not run today; carry in the next entry register"*, and
+**measuring it would have breached the audit's own instruction**; the register names quoting it as
+a tested result a **void condition**. It charges **zero trials** (`rows_fixed_not_counted` 40 → 41
+is the proof it was seen and correctly excluded).
+
+The figures are **verified against `O16-REFROZEN` itself**, not copied from the audit's one-line
+summary: `ts_resid = term_slope − β̂·atm_front` at IC **+0.07034** [+0.0287, +0.1131] against raw
+`term_slope` **+0.05673** [+0.0206, +0.0922], with `−atm_front` at **+0.01316** [−0.0333, +0.0626],
+spanning zero.
+
+**It is recorded where the next register's author will be standing** —
+`valuation/edge/options_entry.py::MA56_CARRY_FORWARD` — rather than in a document they may never
+open, and `tests/test_ma56_carry_forward.py` **re-parses the log row and fails if the record drifts
+from its source**. That is the defence against the failure class this project has caught a dozen
+times: the stale theme-IC table, the 1.95pp alpha margin, the "62 suites".
+
+**Three caveats the audit's summary omits travel with it, and are asserted by test:**
+
+1. **The IC is measured against option P&L on `R2`'s book**, which loses to random entry by
+   **−5.0640pp/trade**. A feature that ranks trades well inside a book whose *entry* is an
+   anti-signal has been shown to **sort a losing book**, not to make money. That is precisely why
+   `MA56` says *carry it*, not *adopt it*.
+2. **The `IS DISTINCT` verdict hinges on a pre-registered choice of estimator.** Spearman reads
+   −0.53966 (below the 0.60 bar, so distinct); **Pearson reads −0.82793, clears the 0.80 level bar,
+   and returns the OPPOSITE verdict on the same data.**
+3. **`O16-REFROZEN` was not blind** — it was charged a second time for exactly that reason.
+
+### 61.10 · Expectations, scored
+
+| # | expectation | outcome |
+|---|---|---|
+| E1 | A1 is NULL (70/30) | **RIGHT** |
+| E2 | A1's usable-**pair** coverage materially worse than `U2`'s row coverage (75/25) | **WRONG** — 431.5 names/date against `U2`'s 436.9. The raw cache carries **1,000** tickers against the derived layer's 504, and that width almost exactly offsets the pair-usability loss |
+| E3 | C-DUP does not fire for A1 vs `−skew_25d` (65/35) | **RIGHT** (+0.3796) |
+| E4 | A2 and A3 NULL (75/25) | **RIGHT** |
+| E5 | C-DUP does not fire between A2 and A3 (70/30) | **RIGHT** (+0.3164) |
+| E6 | C-POWER clears 2.0, so the nulls are interpretable (55/45) | **WRONG, and it is the session's finding** — it fails, and the reason is a property of the population rather than of the arms |
+| E7 | The arms carry new information and predict nothing (60/40) | **RIGHT** — R² 0.027–0.044 |
+| E8 | The `-1` sentinel removes a non-trivial number of contract-days (80/20) | **RIGHT** — 931,080 |
+
+**6 right, 2 wrong**, and both misses are the useful kind: one about how wide the raw cache is, one
+about whether this universe can answer the question at all.
+
+### 61.11 · What this does NOT say
+
+* It does **not** refute Cremers–Weinbaum or Ge–Lin–Pearson. It reports that on **this** universe,
+  at **this** resolution, their measures could not be separated from zero — on a subsample where
+  the project's own best signals also cannot be.
+* It does **not** build the **O/S ratio** (stock volume exists for ~290 names, `MA25`) and it does
+  **not** proxy it. A proxy would be a different hypothesis wearing this one's name.
+* It does **not** test surface **changes** (`U2`'s other declined half — surface *momentum*, a
+  different hypothesis).
+* It does **not** re-open `U2`'s three rejected level arms.
+
+**Reported, outside this lane and not repaired here:** `test_the_statistics_N_gates_move_with_it`'s
+docstring claims its derived quantities are *"asserted as RELATIONSHIPS to the stamp rather than as
+second literals, so there is exactly one place to edit"* — the Harvey–Liu–Zhu hurdle **is** a second
+literal, and there were **two copies** of it. Both had to move with the stamp this session. Left as
+literals deliberately (deriving them would make the assertion tautological and lose the formula
+check), but the docstring overstates what the test does.
+
+**Suites: 94, 0 failures. 38 new tests across two suites, and 36 of the 38 FAIL against the pre-session sources.** The two that do not are named rather than counted as known-bad: `test_nothing_computes_ts_resid_for_a_verdict` asserts an ABSENCE, so it must pass both ways by design; and `test_the_register_names_quoting_MA56_as_tested_a_void_condition` reads the register DOCUMENT, which this measurement deliberately left in place because it restores sources, not documents. `scripts/ma31_ma32_measure.py`;
+`data/free_analysis/MA31_MA32.json`, `MA31_MA32_CONTROLS.json`, `MA31_MA32_FEATURES.pkl`.
